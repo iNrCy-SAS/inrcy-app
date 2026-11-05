@@ -85,9 +85,9 @@ test("le Générateur central conserve ses commandes et son état accessible san
   assert.match(orb, /data-active=\{isActive === null \? "unknown" : String\(isActive\)\} aria-hidden="true"/);
   assert.match(orb, /<span className=\{styles\.status\} \/>/);
   assert.doesNotMatch(generator, /<strong>|>\s*\{heroT\("generatorShortTitle"\)/);
-  for (const action of ["onOpenGeneratorHelp", "onRefreshGenerator"]) {
-    assert.ok(generator.includes(`onClick={${action}}`), action);
-  }
+  assert.match(generator, /onClick=\{onOpenGeneratorHelp\}/);
+  assert.match(generator, /onClick=\{\(\) => void refresh\(\)\}/);
+  assert.match(generator, /if \(!await onRefreshGenerator\(\)\) return false/);
   assert.match(generator, /disabled=\{kpisLoading\} aria-busy=\{kpisLoading \|\| undefined\}/);
   assert.match(generator, /generatorIsActive \? t\.hero\.active : t\.hero\.waiting/);
   const hero = read("app/dashboard/_components/DashboardHero.tsx");

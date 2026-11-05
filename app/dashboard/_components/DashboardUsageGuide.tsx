@@ -11,6 +11,7 @@ import {
 } from "./dashboardUsageGuideModel";
 import DashboardToolArtwork from "./DashboardToolArtwork";
 import DashboardMobileSelect from "./DashboardMobileSelect";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 import styles from "./DashboardUsageGuide.module.css";
 
 export type DashboardUsageGuideProps = {
@@ -186,6 +187,23 @@ export default function DashboardUsageGuide({ edition, metaPilotEnabled, inrAgen
     setSelection(next);
     requestAnimationFrame(() => headingRef.current?.focus({ preventScroll: true }));
   };
+  useInrAssistantLocalInterface("help", { query, selection }, {
+    search: {
+      invoke(value) {
+        if (typeof value !== "string" || value.length > 1200) throw new Error("Invalid help search");
+        setQuery(value);
+      },
+      matches(snapshot, value) { return (snapshot as { query?: unknown } | undefined)?.query === value; },
+    },
+    select: {
+      invoke(value) {
+        const theme = THEMES.find(item => item === value);
+        if (!theme || !matchingThemes.includes(theme)) throw new Error("Unavailable help theme");
+        select(theme);
+      },
+      matches(snapshot, value) { return (snapshot as { selection?: unknown } | undefined)?.selection === value; },
+    },
+  });
   const navigate = (href: string) => {
     const destination = getHelpArticleDestination(href);
     onNavigate(isDashboardDestinationAllowedForEdition(destination, edition) ? destination : "/dashboard?panel=abonnement");

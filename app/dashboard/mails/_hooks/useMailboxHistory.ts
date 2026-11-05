@@ -80,6 +80,7 @@ export function useMailboxHistory({ metaPilotEnabled }: { metaPilotEnabled: bool
   const [loading, setLoading] = useState(true);
 
   const [historyLoadedOnce, setHistoryLoadedOnce] = useState(false);
+  const [historyReadVersion, setHistoryReadVersion] = useState(0);
 
   const [historyCountsLoadedOnce, setHistoryCountsLoadedOnce] = useState(false);
 
@@ -235,6 +236,7 @@ export function useMailboxHistory({ metaPilotEnabled }: { metaPilotEnabled: bool
         : (snapshot.items[0]?.id ?? null),
     );
     historyDisplayedContextKeyRef.current = contextKey;
+    setHistoryReadVersion(previous => previous + 1);
 
     const isDefaultSnapshot =
       snapshot.page === 1 &&
@@ -736,6 +738,8 @@ export function useMailboxHistory({ metaPilotEnabled }: { metaPilotEnabled: bool
     loadHistory,
     filteredItems,
     historyPageCount,
+    historyReadVersion,
+    historyDisplayedContextKey: historyDisplayedContextKeyRef.current,
     visibleItems
   };
 }

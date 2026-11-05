@@ -72,6 +72,7 @@ export function useInrStudioSession({ onReturned, onClosed }: {
 
   return {
     openStudio,
+    activeTab: session?.tab ?? null,
     completeReturn,
     studio: session ? <Studio key={session.key} embeddedHandoff={session} onEmbeddedReturn={receiveMedia} onEmbeddedClose={closeStudio} /> : null,
   };

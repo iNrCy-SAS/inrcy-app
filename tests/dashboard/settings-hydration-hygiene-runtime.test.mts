@@ -37,7 +37,7 @@ function modules(component: string) {
       const specifier = statement.moduleSpecifier.text;
       if (mocked.has(specifier) || specifier.endsWith(".css") || specifier.endsWith("channel-workspace-snapshot")) continue;
       const base = specifier.startsWith("@/") ? resolve(repo, specifier.slice(2)) : specifier.startsWith(".") ? resolve(dirname(file), specifier) : null;
-      if (!base || !base.replaceAll("\\", "/").includes("/lib/")) continue;
+      if (!base || !base.replaceAll("\\", "/").includes("/lib/") && !/\/_hooks\/useInrAssistant|DashboardAssistant(?:Screen|Command)Context/.test(base.replaceAll("\\", "/"))) continue;
       const target = [base, base + ".ts", base + ".tsx"].find(candidate => existsSync(candidate));
       if (!target) throw Error(`Unresolved fixture import ${specifier}`);
       links[id][specifier] = add(target);
@@ -48,8 +48,9 @@ function modules(component: string) {
 }
 
 async function mount(page: Page, component: string) {
-  await page.route("**/*", route => route.abort());
-  await page.setContent('<!doctype html><html><body><div id="root"></div></body></html>');
+  const errors: string[] = []; page.on("pageerror", error => errors.push(error.stack || error.message));
+  await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: '<!doctype html><html><body><div id="root"></div></body></html>' }) : route.abort());
+  await page.goto("https://settings-hydration.fixture.invalid/dashboard/settings/ia");
   await page.addScriptTag({ content: `
     const fixture=${JSON.stringify(modules(component))},cache={},process={env:{NODE_ENV:'development'}};
     window.requests=[];window.authRequests=0;window.locale='fr';window.edition='standard';window.account='account-1';window.snapshots=[];
@@ -68,6 +69,8 @@ async function mount(page: Page, component: string) {
     function load(name,parent){
       if(mocks[name])return mocks[name];
       if(name==='next-intl')return{useTranslations:()=>React.useContext(Locale),useLocale:()=>window.locale};
+      if(name==='next/navigation')return{usePathname:()=>'/dashboard/settings/ia'};
+      if(name.endsWith('DashboardViewerAccessProvider'))return{useDashboardViewerAccess:()=>({actorUserId:'',activeAccountId:'',metaPilotEnabled:false})};
       if(name.endsWith('.css'))return{__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
       if(name.endsWith('channel-workspace-snapshot'))return{readChannelWorkspaceSnapshot:(_key,fallback)=>fallback,writeChannelWorkspaceSnapshot:(_key,value)=>window.snapshots.push(value)};
       const id=fixture.links[parent]?.[name]||name;
@@ -88,7 +91,7 @@ async function mount(page: Page, component: string) {
     window.unmount=()=>root.unmount();window.render();
   ` });
   page.setDefaultTimeout(5_000);
-  await page.waitForFunction("window.requests.length === 1");
+  await page.waitForFunction("window.requests.length === 1").catch(error => { assert.deepEqual(errors, [], `${component}: browser runtime`); throw error; });
 }
 
 for (const [component, errorKey] of [

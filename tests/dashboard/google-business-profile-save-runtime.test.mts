@@ -6,6 +6,7 @@ import * as React from "react";
 import ts from "typescript";
 import * as profile from "../../lib/googleBusinessProfile.ts";
 import type { InrcyConfirmOptions } from "../../lib/inrcyDialog.ts";
+import * as nativeInterfaces from "../../lib/inrAssistantLocalInterface.ts";
 
 const require = createRequire(import.meta.url);
 type Props = Record<string, unknown>;
@@ -25,12 +26,12 @@ const original: profile.GoogleBusinessProfile = {
   storefrontAddress: null, regularHours: { periods: [] }, specialHours: { specialHourPeriods: [] },
 };
 
-async function fixture() {
+async function fixture(initial: profile.GoogleBusinessProfile = original, failedLoads = 0) {
   const slots: unknown[] = [], dependencies: (unknown[] | undefined)[] = [], cleanups: (() => void)[] = [];
   const effects: (() => void)[] = [];
   const confirmations: InrcyConfirmOptions[] = [];
   const writes: Record<string, unknown>[] = [];
-  let cursor = 0, activeAccount = "account";
+  let cursor = 0, activeAccount = "account", actorUserId = "actor", readCount = 0;
   let resolveConfirmation!: (confirmed: boolean) => void;
   let resolveWrite!: (response: Response) => void;
   const hooks = {
@@ -41,7 +42,7 @@ async function fixture() {
       return [slots[index], (next: unknown) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
     },
     useRef(initial: unknown) { const index = cursor++; return slots[index] ??= { current: initial }; },
-    useId: () => "profile-editor",
+    useId: () => { const index = cursor++; return slots[index] ??= `profile-editor-${index}`; },
     useMemo: (read: () => unknown) => read(),
     useEffect(effect: () => (() => void) | void, deps?: unknown[]) {
       const index = cursor++;
@@ -50,10 +51,15 @@ async function fixture() {
         effects.push(() => { const cleanup = effect(); if (cleanup) cleanups.push(cleanup); });
       }
     },
+    useLayoutEffect(effect: () => (() => void) | void) { effects.push(() => { const cleanup = effect(); if (cleanup) cleanups.push(cleanup); }); },
   };
   const modules: Record<string, unknown> = {
     react: hooks, "react/jsx-runtime": require("react/jsx-runtime"),
     "next-intl": { useTranslations: () => translate },
+    "next/navigation": { usePathname: () => "/dashboard" },
+    "./DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ actorUserId, activeAccountId: activeAccount }) },
+    "../_components/DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ actorUserId, activeAccountId: activeAccount }) },
+    "@/lib/inrAssistantLocalInterface": nativeInterfaces,
     "@/lib/googleBusinessProfile": profile,
     "@/lib/browserAccountCache": { getActiveBrowserUserId: () => activeAccount },
     "@/lib/inrcyDialog": { confirmInrcy: (options: InrcyConfirmOptions) => { confirmations.push(options); return new Promise<boolean>(resolve => { resolveConfirmation = resolve; }); } },
@@ -62,6 +68,10 @@ async function fixture() {
     "../_hooks/useInrAssistantRefresh": { useInrAssistantRefresh: () => undefined },
     "./GoogleBusinessProfileEditor.module.css": { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) },
   };
+  const nativeHook = { exports: {} };
+  const nativeHookCode = ts.transpileModule(readFileSync("app/dashboard/_hooks/useInrAssistantLocalInterface.ts", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  new Function("require", "module", "exports", nativeHookCode)((name: string) => { assert.ok(name in modules, name); return modules[name]; }, nativeHook, nativeHook.exports);
+  modules["../_hooks/useInrAssistantLocalInterface"] = nativeHook.exports;
   const code = ts.transpileModule(readFileSync("app/dashboard/_components/GoogleBusinessProfileEditor.tsx", "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const exports: { default?: (props: unknown) => React.ReactNode } = {};
   const localFetch = async (_url: string, init: RequestInit) => {
@@ -69,7 +79,8 @@ async function fixture() {
       writes.push(JSON.parse(String(init.body)));
       return new Promise<Response>(resolve => { resolveWrite = resolve; });
     }
-    return Response.json({ ok: true, accountId: "account", accountName: "accounts/chosen", locationName: "locations/chosen", version: "version-1", profile: original });
+    if (++readCount <= failedLoads) return Response.json({ ok: false, user_message: "Temporary native read failure" }, { status: 502 });
+    return Response.json({ ok: true, accountId: "account", accountName: "accounts/chosen", locationName: "locations/chosen", version: "version-1", profile: initial });
   };
   new Function("require", "exports", "fetch", code)((name: string) => { assert.ok(name in modules, name); return modules[name]; }, exports, localFetch);
   const onDirtyChange = () => undefined;
@@ -81,6 +92,11 @@ async function fixture() {
     const field = render().find(node => node.type === "textarea")!;
     (field.props.onChange as (event: unknown) => void)({ target: { value } });
   };
+  const runLocal = (id: nativeInterfaces.InrAssistantLocalInterface, operation: nativeInterfaces.InrAssistantLocalOperation, value: string | null = null, revision?: string) => {
+    const hint = nativeInterfaces.getInrAssistantLocalInterfaceHints({ accountId: activeAccount, actorUserId, pathname: "/dashboard" })?.find(hint => hint.id === id); assert.ok(hint);
+    const boundActor = actorUserId, boundAccount = activeAccount;
+    return nativeInterfaces.runInrAssistantLocalInterface({ command: "control_local_interface", selection: { kind: "account_document", id }, operation, value, revision: revision || hint.revision }, { accountId: boundAccount, actorUserId: boundActor, pathname: "/dashboard" }, () => boundActor === actorUserId && boundAccount === activeAccount);
+  };
   return {
     render, save, form, edit, confirmations, writes,
     editCategories: (value: profile.GoogleBusinessCategories) => (render().find(node => node.type === "category-editor")!.props.onChange as (value: profile.GoogleBusinessCategories) => void)(value),
@@ -89,9 +105,57 @@ async function fixture() {
     choose: async (confirmed: boolean) => { resolveConfirmation(confirmed); await tick(); },
     respond: async (ok: boolean) => { resolveWrite(Response.json(ok ? { ok: true, version: "version-2", profile: { ...original, description: "Updated description" } } : { ok: false, user_message: "Google refused the change" }, { status: ok ? 200 : 502 })); await tick(); },
     switchAccount: () => { activeAccount = "different-account"; },
+    switchActor: () => { actorUserId = "different-actor"; render(); },
+    nativeHints: () => nativeInterfaces.getInrAssistantLocalInterfaceHints({ accountId: activeAccount, actorUserId, pathname: "/dashboard" }),
+    runLocal,
+    runNative: (operation: "review" | "clear", revision?: string) => runLocal("google_profile_draft", operation, null, revision),
     unmount: () => cleanups.forEach(cleanup => cleanup()),
   };
 }
+
+test("Basic Google native sections and exception paging wait for the displayed selection and preserve the exact unsaved draft", async () => {
+  const initial = { ...original, specialHours: { specialHourPeriods: [{ startDate: { year: 2026, month: 12, day: 24 }, closed: true }, { startDate: { year: 2026, month: 12, day: 25 }, closed: true }] } };
+  const h = await fixture(initial); try {
+    h.edit("Keep this local description"); h.render();
+    assert.equal(await h.runLocal("google_profile_sections", "select", "invented"), false);
+    let settled = false; const opened = h.runLocal("google_profile_sections", "select", "exceptions").then(ok => { settled = true; return ok; }); await tick(); assert.equal(settled, false); h.render(); assert.equal(await opened, true);
+    assert.equal(h.render().find(node => node.props.role === "tab" && node.props["aria-selected"] === true)?.props.children, translate("tabs.exceptions"));
+    const old = h.nativeHints()?.find(hint => hint.id === "google_special_hours"); assert.ok(old); assert.deepEqual(old.operations, ["next"]);
+    const next = h.runLocal("google_special_hours", "next"); await tick(); h.render(); assert.equal(await next, true);
+    assert.equal(await h.runLocal("google_special_hours", "next", null, old.revision), false); assert.deepEqual(h.nativeHints()?.find(hint => hint.id === "google_special_hours")?.operations, ["previous"]);
+    const back = h.runLocal("google_profile_sections", "select", "information"); await tick(); h.render(); assert.equal(await back, true); assert.equal(h.render().find(node => node.type === "textarea")?.props.value, "Keep this local description");
+    assert.equal(h.confirmations.length, 0); assert.equal(h.writes.length, 0); assert.equal(h.save().props.disabled, false);
+  } finally { h.unmount(); }
+});
+
+test("Basic Google native retry acknowledges a completed scoped profile read and never a retry increment or failed response", async () => {
+  for (const failedLoads of [1, 2]) {
+    const h = await fixture(original, failedLoads); try {
+      h.render(); let settled = false; const retry = h.runLocal("google_profile_reload", "retry").then(ok => { settled = true; return ok; }); await tick(); assert.equal(settled, false);
+      h.render(); await tick(); h.render();
+      if (failedLoads === 1) assert.equal(await retry, true);
+      else { assert.equal(settled, false); assert.ok(h.render().some(node => node.props.role === "alert" && node.props.children === "Temporary native read failure")); h.switchActor(); assert.equal(await retry, false); }
+      assert.equal(h.writes.length, 0); assert.equal(h.confirmations.length, 0);
+    } finally { h.unmount(); }
+  }
+});
+
+test("Basic Google draft review acknowledges only the native confirmation opening and never saves on behalf of the professional", async () => {
+  const h = await fixture(); try { h.edit(); h.render(); let settled = false;
+    const pending = h.runNative("review").then(ok => { settled = true; return ok; }); await tick(); assert.equal(settled, false); assert.equal(h.confirmations.length, 1); assert.equal(h.writes.length, 0);
+    h.render(); assert.equal(await pending, true); assert.equal(h.writes.length, 0); await h.choose(false); h.render(); assert.equal(h.writes.length, 0); assert.equal(h.save().props.disabled, false);
+  } finally { h.unmount(); }
+});
+test("Basic Google draft cancellation preserves edits when declined and clears only after the native confirmation and committed reset", async () => {
+  const h = await fixture(); try { h.edit(); h.render(); const declined = h.runNative("clear"); await tick(); assert.equal(h.confirmations.length, 1); await h.choose(false); assert.equal(await declined, false); assert.equal(h.save().props.disabled, false);
+    const approved = h.runNative("clear"); await tick(); await h.choose(true); h.render(); assert.equal(await approved, true); assert.equal(h.save().props.disabled, true); assert.equal(h.writes.length, 0);
+  } finally { h.unmount(); }
+});
+test("Basic Google draft review refuses a stale edit revision and an actor change during personal confirmation", async () => {
+  const h = await fixture(); try { h.edit("First edit"); h.render(); const old = h.nativeHints()?.find(hint => hint.id === "google_profile_draft"); assert.ok(old); h.edit("New edit"); h.render(); assert.equal(await h.runNative("review", old.revision), false); assert.equal(h.confirmations.length, 0);
+    const pending = h.runNative("review"); await tick(); h.render(); assert.equal(await pending, true); h.switchActor(); await h.choose(true); assert.equal(h.writes.length, 0);
+  } finally { h.unmount(); }
+});
 
 test("an unfinished category search cannot save and category confirmation shows both lists", async () => {
   const h = await fixture(); h.edit(); h.categorySearchPending(true);

@@ -255,7 +255,7 @@ test("les boutons du planning conservent l'identité de chaque publication", () 
   assert.match(modal, /onClick=\{\(\) => onDelete\(item\)\}/);
   assert.match(
     client,
-    /item\.source === "manual"\)[\s\S]*?openScheduledActionEditor\(item\.scheduledActionId\)/
+    /item\.source === "manual"\)[\s\S]*?openScheduledActionEditor\(item\.scheduledActionId, canContinue\)/
   );
   assert.match(
     client,

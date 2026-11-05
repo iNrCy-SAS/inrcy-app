@@ -1,3 +1,17 @@
+import { isInrAssistantBadgeLogoThemeRequest } from "./inrAssistantBadgeIdentityTheme.ts";
+import { isInrAssistantResumePublicationDraftRequest } from "./inrAssistantSendPublicationIntent.ts";
+import { isInrAssistantNotificationActionRequest } from "./inrAssistantNotificationNavigation.ts";
+import { isInrAssistantAccountUiRequest } from "./inrAssistantAccountUiIntent.ts";
+import { INR_ASSISTANT_STUDIO_DRAFT_REVIEW_TARGETS, isInrAssistantStudioDraftReviewRequest } from "./inrAssistantStudioDraftReview.ts";
+import { isInrAssistantContentReportSubmitRequest } from "./inrAssistantContentReport.ts";
+import { isInrAssistantBusinessRichTextRequest } from "./inrAssistantBusinessRichText.ts";
+import { isInrAssistantExistingCreditOrderReconciliationRequest } from "./inrAssistantCreditOrderReconciliation.ts";
+import { isInrAssistantGoogleBusinessDraftReviewRequest } from "./inrAssistantGoogleBusinessDraftReview.ts";
+import { isInrAssistantScheduledPublishNowRequest } from "./inrAssistantScheduledPublicationIntent.ts";
+import { isInrAssistantStudioForgetPreferenceRequest } from "./inrAssistantStudioPreferenceIntent.ts";
+import { isInrAssistantGoogleReviewDraftRequest } from "./inrAssistantGoogleReviewDraftIntent.ts";
+import { isInrAssistantLocalInterfaceRequest } from "./inrAssistantLocalInterface.ts";
+import { isInrAssistantApplicationPreferenceRequest } from "./inrAssistantApplicationPreferences.ts";
 import { hasInrAssistantMediaSubject, permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
 import { isInrAssistantDnaScheduleRequest, isInrAssistantPinterestBoardRequest, isInrAssistantSocialPreferencesRequest, isInrAssistantWebsiteLifecycleRequest, isInrAssistantNativePresentationRequest, isInrAssistantWebsiteConfigurationRequest } from "./inrAssistantBasicTargetIntents.ts";
 import { isInrAssistantMediaPreviewButtonRequest } from "./inrAssistantMediaPreview.ts";
@@ -9,7 +23,7 @@ import type { InrAssistantUiStep } from "./inrAssistantUiTask.ts";
 import { isInrAssistantDocumentTemplateInstruction } from "./inrAssistantDocumentUiCommands.ts";
 export { inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantRequestClauses.ts";
 
-export const INR_ASSISTANT_APPROVAL_KINDS = ["calendar","scheduled_publication","google_business_profile","media_delete","publication_lifecycle","individual_mail","commercial_document","google_review_reply","channel_resource_selection","channel_disconnection","business_dna_document_removal","website_analytics_disconnection","pinterest_board_mutation","website_reset","referral_submission"] as const;
+export const INR_ASSISTANT_APPROVAL_KINDS = ["calendar","scheduled_publication","google_business_profile","media_delete","publication_lifecycle","individual_mail","commercial_document","google_review_reply","channel_resource_selection","channel_disconnection","business_dna_document_removal","website_analytics_disconnection","pinterest_board_mutation","website_reset","referral_submission","notification_removal","published_publication_edit"] as const;
 export type InrAssistantTaskOutcome = "completed" | "partial" | "needs_input" | "processing" | "blocked" | "failed";
 export type InrAssistantActionReceipt = { tool: string; ok: boolean; status: string; message: string; id?: string; draftId?: string; requestId?: string; scheduledActionId?: string; eventId?: string; recordId?: string; publicationId?: string; toolUrl?: string; /** Private capability, never sent to the model or client. */ approvalToken?: string; approvalReference?: string; approvalKind?: typeof INR_ASSISTANT_APPROVAL_KINDS[number]; resultMode?: "save" | "preview"; draft?: boolean };
 export type InrAssistantTaskState = {
@@ -61,10 +75,25 @@ export function inrAssistantActionObjectives(message: string): InrAssistantActio
 }
 function requiredToolsForClause(message: string, mediaContext: boolean): string[] {
   const t = inrAssistantRoutingText(message), result: string[] = [];
+  if (isInrAssistantBadgeLogoThemeRequest(message)) return ["refreshBadgeThemeFromLogo"];
+  if (isInrAssistantResumePublicationDraftRequest(message)) return ["resumePublicationDraft"];
+  if (isInrAssistantNotificationActionRequest(message)) return ["openNotificationAction"];
+  if (isInrAssistantAccountUiRequest(message, "open_subscription_invoice_link")) return ["prepareAccountDocumentDownload"];
+  if (INR_ASSISTANT_STUDIO_DRAFT_REVIEW_TARGETS.some(target => isInrAssistantStudioDraftReviewRequest(message, target))) return ["prepareStudioDraftReview"];
+  if (isInrAssistantContentReportSubmitRequest(message)) return ["submitContentReport"];
+  if (isInrAssistantBusinessRichTextRequest(message)) return ["formatBusinessDnaText"];
+  if (isInrAssistantExistingCreditOrderReconciliationRequest(message)) return ["reconcileExistingCreditOrder"];
+  if (isInrAssistantGoogleBusinessDraftReviewRequest(message)) return ["prepareGoogleBusinessDraftReview"];
+  if (isInrAssistantScheduledPublishNowRequest(message)) return ["publishScheduledPublicationNow"];
+  if (isInrAssistantGoogleReviewDraftRequest(message, "avis-1") || [...message.matchAll(/\bavis-[1-9]\d{0,3}\b/gi)].some(match => isInrAssistantGoogleReviewDraftRequest(message, match[0].toLowerCase()))) return ["generateGoogleReviewReplyDraft"];
+  if ([1, 2, 3, 4, 5, 6].some(id => isInrAssistantStudioForgetPreferenceRequest(message, id))) return ["forgetStudioPreferenceBlock"];
   if (inrAssistantClauseIsAdvice(t)) return result;
+  if (isInrAssistantLocalInterfaceRequest(message)) return ["controlLocalInterface"];
   if (/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|cherche\w*|recherch\w*|retrouv\w*|liste\w*|regarde\w*|montre\w*|affiche\w*|ouvre\w*|indique\w*|quels?|quelles?|combien)\b/.test(t)) return result;
   if (/^(?:ne\b|n['’]|not\b|never\b|don't\b|do not\b)/.test(t.trim()) || /\b(?:ne|sans|not|never)\b.{0,20}\b(?:modifi|cre|gener|publ|envoi)/.test(t)) return result;
+  if (/\bnotifications?\b/.test(t) && /\b(?:supprim\w*|retir\w*|effac\w*|delete|remove)\b/.test(t)) return ["applyNotificationRemoval"];
   if (/notifications?/.test(t) && /\b(?:marque\w*|classe\w*)\b/.test(t) && /\blues?\b/.test(t)) return ["markNotificationsRead"];
+  if (isInrAssistantApplicationPreferenceRequest(message)) return ["configureApplicationPreferences"];
   if (/cookies?/.test(t) && /\b(?:active|desactive|accepte|refuse|modifie|change|enregistre)\b/.test(t)) return ["configureCookieConsent"];
   if (/\b(?:telecharge\w*|exporte\w*|download)\b/.test(t) && /rgpd|donnees personnelles|factures? d.abonnement|factures? inrcy/.test(t)) return ["prepareAccountDocumentDownload"];
   if (/\b(?:adn|dna)\b/.test(t) && /document|fichier/.test(t) && /supprime|retire|efface/.test(t)) return ["applyBusinessDnaDocumentRemoval"];
@@ -98,6 +127,7 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
   const publication = /\b(?:publications?|posts?|booster|publie|publier|publish)\b/.test(t);
   const publicationObject = /\b(?:publications?|posts?|booster)\b/.test(t);
   const publicationPurpose = /\b(?:pour|afin de|avant de|a)\s+(?:publier|poster|diffuser)\b/.test(t);
+  if (publicationObject && /programm|planifi/.test(t) && /\b(?:corrig\w*|modifi\w*|remplac\w*|ajout\w*|retir\w*|edit|update)\b/.test(t)) return ["editScheduledPublication"];
   const scheduledAction = publicationObject && /\b(?:annul\w*|supprim\w*|reprogramm\w*|deplac\w*|report\w*|decal\w*|reprend\w*|reessai\w*|relanc\w*|retent\w*)\b/.test(t) && /programm|planifi|echec|echou/.test(t);
   if (scheduledAction) result.push(/\b(?:annul\w*|supprim\w*)\b/.test(t)?"cancelScheduledPublication":/\b(?:reprend\w*|reessai\w*|relanc\w*|retent\w*)\b/.test(t)?"retryScheduledPublication":"updateScheduledPublication");
   else if (publication && !publicationPurpose && /\b(?:publie\w*|publier|programme\w*|planifi\w*|schedule|publish|poste\w*)\b/.test(t)) result.push("executePublication");
@@ -258,7 +288,7 @@ export function inrAssistantTaskOutcome(required: string[], receipts: InrAssista
   if (!required.length) return "completed";
   const achieved = (name: string) => inrAssistantGoalCompleted(name, receipts, requiredCalls);
   if (required.every(achieved)) return receipts.some(r=>r.ok&&INR_ASSISTANT_PENDING_STATUSES.has(r.status))?"processing":"completed";
-  if (receipts.some(receipt=>receipt.status === "preview_ready" && receipt.approvalReference)) return "needs_input";
+  if (receipts.some(receipt => ["prepareGoogleBusinessDraftReview", "prepareStudioDraftReview"].includes(receipt.tool) && receipt.status === "confirmation_required" || receipt.status === "preview_ready" && receipt.approvalReference)) return "needs_input";
   if (receipts.some(r=>r.ok)) return "partial";
   if (/\?|pr[eé]cis|quel|indique|manqu|choisi/.test(question)) return "needs_input";
   return receipts.length ? "blocked" : "needs_input";

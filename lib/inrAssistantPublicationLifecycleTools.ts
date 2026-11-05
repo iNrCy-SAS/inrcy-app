@@ -9,6 +9,7 @@ import { getActiveSubscriptionAccountIds } from "./accountSubscriptionAccess";
 import { assistantActionFingerprint, createAssistantActionPreview, hasAssistantActionApproval, verifyAssistantActionPreview } from "./inrAssistantActionPreview.ts";
 import { sanitizeInrAssistantMemoryText } from "./inrAssistantMemory.ts";
 import { canRemoveInstagramDraftLocally } from "./inrsend/instagramCapabilities";
+import { createInrAssistantPublishedPublicationTools } from "./inrAssistantPublishedPublicationTools.ts";
 
 type Row = Record<string, unknown>;
 type ReadInput = { view: "drafts" | "history" | "prepared"; recordId: string | null; offset: number };
@@ -126,6 +127,7 @@ export function createInrAssistantPublicationLifecycleTools(options: { request: 
     return { id: mediaId, mediaId, bucket: "inrcy-pro-media", storagePath: media.storage_path, url: new URL(url, request.url).toString(), kind: media.media_type, mimeType: media.mime_type, name: safe(media.original_file_name || media.title, 180), size: Number(media.size_bytes) || 0, duration: Number(media.duration_seconds) || null };
   }
   return {
+    ...createInrAssistantPublishedPublicationTools(options),
     readPublicationWorkspace: tool({ strict: true, description: "Lire les brouillons Booster (drafts), l’historique iNr’Send (history), ou les publications préparées iNr’Agent (prepared, Standard+). 20 par page, ID réel optionnel. Fournit les IDs et liens pour choisir la publication exacte avant modification. Lecture seule, aucun envoi ni contrôle actif de fournisseur.", inputSchema: schema<ReadInput>({ view: { type: "string", enum: ["drafts", "history", "prepared"] }, recordId: { type: ["string", "null"], format: "uuid" }, offset: { type: "integer", minimum: 0, maximum: 10000 } }, parseRead), execute: async raw => {
       const input = parseRead(raw), agent = input.view === "prepared"; return guard(false, agent, async () => {
         let query = agent ? preparedQuery() : supabase.from("app_events").select(EVENT_SELECT).eq("user_id", accountId).eq("module", "booster").eq("type", input.view === "drafts" ? "publish_draft" : "publish");

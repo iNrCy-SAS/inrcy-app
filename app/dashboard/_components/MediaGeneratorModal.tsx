@@ -20,6 +20,8 @@ import MediaModifier from "./MediaModifier";
 import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
 import { useInrAssistantScreen } from "./DashboardAssistantScreenContext";
 import DashboardMobileSelect from "./DashboardMobileSelect";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
 import MediaFreeGenerator from "./MediaFreeGenerator";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import MediaRetoucher, {
@@ -122,6 +124,8 @@ export default function MediaGeneratorModal({
     useState<MediaGenerationResult | null>(null);
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   const [resetRequested, setResetRequested] = useState(false);
+  const { registerGuard } = useDashboardUnsavedNavigation();
+  const navigationGuardId = useId();
   const sessionVersionRef = useRef(0);
   const draftReplacementResolutionRef = useRef<((approved: boolean) => void) | null>(null);
   const [studioTab, setStudioTab] =
@@ -482,6 +486,24 @@ export default function MediaGeneratorModal({
     };
   }, [mounted, open]);
 
+  const navigationGuardState = useRef({ locked, hasPendingWork, hasExternalHandoff, requestClose });
+  useLayoutEffect(() => { navigationGuardState.current = { locked, hasPendingWork, hasExternalHandoff, requestClose }; });
+  useEffect(() => {
+    if (!mounted || !open) return;
+    const version = sessionVersionRef.current;
+    const current = () => openedRef.current && sessionVersionRef.current === version;
+    return registerGuard({
+      id: `studio-native-navigation:${navigationGuardId}`,
+      shouldBlock: () => current() && (navigationGuardState.current.locked || navigationGuardState.current.hasPendingWork || navigationGuardState.current.hasExternalHandoff),
+      confirmExit: async () => {
+        // Navigation opens the same native review as its protected Link. It
+        // never confirms a paid draft cleanup or abandons a publication.
+        if (current() && !navigationGuardState.current.locked) navigationGuardState.current.requestClose();
+        return false;
+      },
+    });
+  }, [generationSession, mounted, navigationGuardId, open, registerGuard]);
+
   useEffect(() => {
     if (!open || (!locked && !hasPendingWork && !hasExternalHandoff)) return;
     const preventAccidentalUnload = (event: BeforeUnloadEvent) => {
@@ -552,6 +574,49 @@ export default function MediaGeneratorModal({
       }
     };
   }, [closeConfirmOpen]);
+
+  useInrAssistantLocalInterface("studio_draft_reset", { closeConfirmOpen, resetRequested, studioTab, activeMediaType, resultId: currentResult?.item.id ?? null, generationSession }, { review: {
+    invoke: () => { if (locked || closeInFlightRef.current) throw new Error("studio_draft_review_unavailable"); requestReset(); },
+    matches: state => !!state && typeof state === "object" && (state as { closeConfirmOpen?: boolean; resetRequested?: boolean }).closeConfirmOpen === true && (state as { resetRequested?: boolean }).resetRequested === true,
+  } }, mounted && open, workspaceBusy);
+  useInrAssistantLocalInterface("studio_draft_close", { closeConfirmOpen, resetRequested, hasPendingWork, hasExternalHandoff, resultId: currentResult?.item.id ?? null, generationSession }, { review: {
+    invoke: () => { if (locked || closeInFlightRef.current || !(hasPendingWork || hasExternalHandoff)) throw new Error("studio_draft_review_unavailable"); requestClose(); },
+    matches: state => !!state && typeof state === "object" && (state as { closeConfirmOpen?: boolean; resetRequested?: boolean }).closeConfirmOpen === true && (state as { resetRequested?: boolean }).resetRequested === false,
+  } }, mounted && open && (hasPendingWork || hasExternalHandoff), workspaceBusy);
+  useInrAssistantLocalInterface("studio_draft_abandon", { closeConfirmOpen, resetRequested, hasExternalHandoff, resultId: currentResult?.item.id ?? null, generationSession }, { review: {
+    invoke: () => { if (locked || closeInFlightRef.current || !hasExternalHandoff || !onAbandonHandoff || embedded) throw new Error("studio_draft_review_unavailable"); requestClose(); },
+    matches: state => !!state && typeof state === "object" && (state as { closeConfirmOpen?: boolean; resetRequested?: boolean; hasExternalHandoff?: boolean }).closeConfirmOpen === true && (state as { resetRequested?: boolean }).resetRequested === false && (state as { hasExternalHandoff?: boolean }).hasExternalHandoff === true,
+  } }, mounted && open && hasExternalHandoff && !!onAbandonHandoff && !embedded, workspaceBusy);
+  useInrAssistantLocalInterface("studio_modal", { studioTab, activeMediaType, closeConfirmOpen, hasPendingWork }, {
+    ...(!hasPendingWork && !hasExternalHandoff && !closeConfirmOpen ? { close: {
+      invoke: () => requestClose(), matches: () => false, allowUnmount: true,
+    } } : {}),
+    select: {
+      invoke: encoded => {
+        if (encoded === "continue_editing") { if (!closeConfirmOpen) throw new Error("studio_modal_unavailable"); cancelClose(); return; }
+        if (hasPendingWork || closeConfirmOpen) throw new Error("studio_modal_unavailable");
+        let input: unknown; try { input = JSON.parse(encoded || ""); } catch { throw new Error("studio_modal_unavailable"); }
+        if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).length !== 2) throw new Error("studio_modal_unavailable");
+        const selection = input as Record<string, unknown>;
+        if (selection.field === "tab" && ["generate", "modify", "retouch"].includes(String(selection.value))) {
+          const tab = selection.value as MediaGeneratorStudioMode;
+          if (hasExternalHandoff && tab !== studioTab || isInrStudioTabUnavailable(tab, { hasExternalHandoff, hasSourceMedia })) throw new Error("studio_modal_unavailable");
+          requestStudioTab(tab); return;
+        }
+        if (selection.field === "mediaType" && ["image", "video"].includes(String(selection.value))) {
+          if (imageOnly && selection.value === "video" || !canSwitchInrStudioMediaType(studioTab, hasExternalHandoff)) throw new Error("studio_modal_unavailable");
+          requestMediaType(selection.value as StudioMediaType); return;
+        }
+        throw new Error("studio_modal_unavailable");
+      },
+      matches: (snapshot, encoded) => {
+        if (!snapshot || typeof snapshot !== "object") return false;
+        const state = snapshot as { studioTab?: string; activeMediaType?: string; closeConfirmOpen?: boolean };
+        if (encoded === "continue_editing") return state.closeConfirmOpen === false;
+        try { const selection = JSON.parse(encoded || "") as { field?: string; value?: string }; return selection.field === "tab" ? state.studioTab === selection.value : selection.field === "mediaType" && state.activeMediaType === selection.value; } catch { return false; }
+      },
+    },
+  }, mounted && open, workspaceBusy);
 
   if (!mounted || !open) return null;
 

@@ -33,6 +33,7 @@ const icons = new Map([...read("app/dashboard/booster/publier/components/publish
 const fixture = `
 const sources=${JSON.stringify(sources)},messages=${JSON.stringify(messages)},catalogue=${JSON.stringify(catalogue)},loaded={};
 function require(name){
+ if(name.endsWith('useInrAssistantLocalInterface'))return {useInrAssistantLocalInterface(){}};
  if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>(name.includes('MediaSoundtrackSelector')?'music-':name.includes('PublishValidationChannelOptions')?'opts-':'')+String(key)})};
  if(name==='next-intl')return {useTranslations:()=> (key,args={})=>Object.entries(args).reduce((text,[name,value])=>text.replaceAll('{'+name+'}',String(value)),messages[key]||key)};
  if(name==='../publishModal.shared')return {channelSupportsImages:channel=>channel!=='youtube_shorts',getBoosterMaxImageCountForChannel:channel=>channel==='youtube_shorts'?1:5};

@@ -197,7 +197,7 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
           {settingsMusicChannel && onSoundtrackChange ? <section className={css.settingsMusic} aria-label={t("publication_music_title")}>
             <strong>{t("publication_music_label")}</strong>
             <MediaSoundtrackSelector
-            inline channelLabel={settingsItem.label} soundtrackId={soundtrackByChannel?.[settingsMusicChannel] ?? null}
+            inline assistantUiScope="booster" channelLabel={settingsItem.label} soundtrackId={soundtrackByChannel?.[settingsMusicChannel] ?? null}
             channelStyle={{ "--channel-color": settingsIdentity.color, "--channel-rgb": settingsIdentity.rgb, "--channel-gradient": settingsIdentity.gradient } as CSSProperties}
             onChange={id => onSoundtrackChange(settingsMusicChannel, id)}
             unavailableHint={canSelectSoundtrack?.(settingsMusicChannel) ? undefined : t("publication_music_reserved_hint")}

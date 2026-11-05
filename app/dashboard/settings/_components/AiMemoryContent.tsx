@@ -3,12 +3,16 @@
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import DrawerHeaderTabs from "../../DrawerHeaderTabs";
 import DashboardMobileSelect from "../../_components/DashboardMobileSelect";
+import { useInrAssistantBusinessFormCommands, type BusinessFormActionScope } from "../../_hooks/useInrAssistantBusinessFormCommands";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
+import type { InrAssistantBusinessFormPatch } from "@/lib/inrAssistantBusinessFormUiCommands";
 
 import {
   forwardRef,
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -55,6 +59,7 @@ import { useInrAssistantRefresh } from "../../_hooks/useInrAssistantRefresh";
 import { reconcileSavedDraft } from "@/lib/reconcileSavedDraft";
 import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
 import BusinessDnaRichTextEditor from "./BusinessDnaRichTextEditor";
+import type { InrAssistantBusinessRichTextField } from "@/lib/inrAssistantBusinessRichText";
 import BusinessDnaAnalysisScheduleModal from "./BusinessDnaAnalysisScheduleModal";
 import BusinessScheduleEditor from "./BusinessScheduleEditor";
 import BusinessDnaAnalysisWorkspace from "./BusinessDnaAnalysisWorkspace";
@@ -137,6 +142,7 @@ type Props = {
   initialTab?: AiMemoryWorkspaceTab;
   visibleTabs?: readonly AiMemoryWorkspaceTab[];
   hideNavigation?: boolean;
+  assistantActive?: boolean;
   vocabularyPortalTarget?: HTMLDivElement | null;
   profileLabel?: string;
   onTabChange?: (tab: AiMemoryWorkspaceTab) => void;
@@ -154,6 +160,7 @@ export type AiMemoryContentHandle = {
   savePendingChanges: () => Promise<boolean>;
   /** Abandonne explicitement les modifications locales encore en attente. */
   discardPendingChanges: () => void;
+  runAssistantAction: (patch: InrAssistantBusinessFormPatch, scopeCurrent: BusinessFormActionScope) => Promise<boolean>;
   selectTab?: (tab: AiMemoryWorkspaceTab) => void;
 };
 
@@ -231,6 +238,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   initialTab = "analysis",
   visibleTabs,
   hideNavigation = false,
+  assistantActive = true,
   vocabularyPortalTarget = null,
   profileLabel = "Mon profil",
   onTabChange,
@@ -242,7 +250,10 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   onVoiceBusyChange,
   onAnalysisCompleted,
 }: Props, ref) {
-  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const { metaPilotEnabled, actorUserId, activeAccountId } = useDashboardViewerAccess();
+  const resetViewerRef = useRef({ actorUserId, activeAccountId });
+  useLayoutEffect(() => { resetViewerRef.current = { actorUserId, activeAccountId }; });
+  const [resetDialogTab, setResetDialogTab] = useState<AiMemoryWorkspaceTab | "all" | null>(null);
   const t = useTranslations("dashboard.aiMemory");
   const settingsT = useTranslations("settings");
   const [activeTab, setActiveTab] = useState<AiMemoryWorkspaceTab>(initialTab === "documents" ? "analysis" : initialTab);
@@ -263,6 +274,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [completedLoadAttempt, setCompletedLoadAttempt] = useState(-1);
   const [saving, setSaving] = useState(false);
   const [workspaceSaving, setWorkspaceSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -362,6 +374,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         : t("documentsStorageAvailable");
   const memoryDirty = !loading && loaded && signature !== savedSignatureRef.current;
   const hasWorkspaceChanges = memoryDirty || profileDirty || activityDirty || locationDirty;
+  useInrAssistantLocalInterface("dna_sources", { loaded, loading, completedLoadAttempt, error }, {
+    retry: { invoke: () => setLoadAttempt(attempt => attempt + 1), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "completedLoadAttempt" in snapshot && "loading" in snapshot && "loaded" in snapshot && "error" in snapshot && Number(snapshot.completedLoadAttempt) > loadAttempt && snapshot.loading === false && snapshot.loaded === true && !snapshot.error) },
+  }, assistantActive, loading || saving || workspaceSaving || analyzing || voiceTarget !== null || hasWorkspaceChanges || documentUploadState !== "idle" || !error);
   const workspaceDraftSignature = useMemo(
     () => [
       signature,
@@ -563,7 +578,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : t("loadError"));
       } finally {
-        if (active) setLoading(false);
+        if (active) { setCompletedLoadAttempt(loadAttempt); setLoading(false); }
       }
     };
     void load();
@@ -864,9 +879,14 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     }
   };
 
-  const resetCurrentTab = async (tabToReset: AiMemoryWorkspaceTab | "all" = activeTab) => {
-    if (voiceBusy || saving || workspaceSaving || documentUploadState !== "idle") return;
+  const resetCurrentTab = async (tabToReset: AiMemoryWorkspaceTab | "all" = activeTab, scopeCurrent: BusinessFormActionScope = () => true) => {
+    if (voiceBusy || saving || workspaceSaving || documentUploadState !== "idle") return false;
+    const expectedAccountId = resetViewerRef.current.activeAccountId, expectedActorUserId = resetViewerRef.current.actorUserId;
+    const current = () => scopeCurrent() && resetViewerRef.current.activeAccountId === expectedAccountId && resetViewerRef.current.actorUserId === expectedActorUserId
+      && getActiveBrowserUserId() === expectedAccountId;
+    if (!expectedAccountId || !expectedActorUserId || !current()) return false;
     const isGlobalReset = tabToReset === "all";
+    setResetDialogTab(tabToReset);
     const confirmed = await confirmInrcy({
       title: isGlobalReset
         ? "Réinitialiser votre ADN ?"
@@ -877,7 +897,8 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       confirmLabel: isGlobalReset ? "Réinitialiser tout l’ADN" : "Réinitialiser",
       variant: "danger",
     });
-    if (!confirmed) return;
+    setResetDialogTab(null);
+    if (!confirmed || !current()) return false;
 
     setWorkspaceError("");
     setError("");
@@ -887,16 +908,17 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         cache: "no-store",
-        body: JSON.stringify({ tab: tabToReset, preserveVocabulary: hideNavigation && tabToReset === "identity" }),
+        body: JSON.stringify({ tab: tabToReset, preserveVocabulary: hideNavigation && tabToReset === "identity", expectedAccountId, expectedActorUserId }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(apiErrorMessage(payload, t("saveError")));
+      if (!current()) return false;
 
       if (isGlobalReset || activeTab === "profile" || activeTab === "activity") {
         // A global reset and embedded forms own data outside this component.
         // Rehydrate every panel from the server to avoid retaining a stale draft.
         window.location.reload();
-        return;
+        return true;
       }
       if (activeTab === "analysis") {
         setAnalysisSummary(null);
@@ -922,10 +944,12 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         onUnsavedChange?.(false);
       }
       await invalidateBoosterGenerationContextClient("professional");
+      return current();
     } catch (resetError) {
       setWorkspaceError(
         resetError instanceof Error ? resetError.message : t("saveError"),
       );
+      return false;
     }
   };
 
@@ -1331,33 +1355,15 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     workspaceSaving,
   ]);
 
-  useImperativeHandle(ref, () => ({
-    savePendingChanges: async () => {
-      const inFlight = workspaceSavePromiseRef.current;
-      if (inFlight && !await inFlight) return false;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        if (!hasPendingWorkspaceChanges()) return true;
-        if (!await saveWorkspace({ reason: "exit" })) return false;
-      }
-      return !hasPendingWorkspaceChanges();
-    },
-    discardPendingChanges: discardAllWorkspaceChanges,
-    selectTab: (tab) => {
-      if (voiceTargetRef.current || tab === activeTab) return;
-      if (hasWorkspaceChanges) void saveWorkspace({ reason: "tab-change" });
-      changeTab(tab);
-    },
-  }), [activeTab, changeTab, discardAllWorkspaceChanges, hasPendingWorkspaceChanges, hasWorkspaceChanges, saveWorkspace]);
-
-  const resetWorkspace = async () => {
-    if (voiceTargetRef.current) return;
+  const resetWorkspace = async (scopeCurrent: BusinessFormActionScope = () => true) => {
+    if (voiceTargetRef.current) return false;
     const confirmed = await confirmInrcy({
       title: t("resetTitle"),
       message: t("resetMessage"),
       confirmLabel: t("resetConfirm"),
       variant: "danger",
     });
-    if (!confirmed) return;
+    if (!confirmed || !scopeCurrent()) return false;
     updateMemory(
       normalizeAiMemory(
         {
@@ -1374,7 +1380,48 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     setSaved(false);
     setError("");
     setAnalysisError("");
+    return true;
   };
+
+  const runAssistantAction = useInrAssistantBusinessFormCommands({ id: "business_dna", view: activeTab === "documents" ? "analysis" : activeTab, enabled: assistantActive, publish: !hideNavigation,
+    snapshot: { signature, activeTab, resetDialogTab, profileDirty, activityDirty, locationDirty, loading, analyzing }, pendingChanges: hasWorkspaceChanges,
+    busy: loading || !loaded || saving || workspaceSaving || analyzing || voiceBusy || documentUploadState !== "idle",
+    isApplied: patch => patch.businessFormAction === "select_tab" ? activeTab === patch.businessFormTab
+      : patch.businessFormAction === "open_persistent_reset" ? resetDialogTab === patch.businessFormTab
+      : patch.businessFormAction === "discard" ? activeTab === "profile" ? !profileDirty : activeTab === "activity" ? !activityDirty : activeTab === "local" ? !locationDirty && !memoryDirty : !memoryDirty
+      : patch.businessFormAction === "reset" && signature === workspaceSignature(normalizeAiMemory({ ...EMPTY_AI_MEMORY, recentNewsManualItems: [], referenceDocuments: memory.referenceDocuments }, { includePremium: strategyEnabled }), normalizeAiBusinessKnowledge(EMPTY_AI_BUSINESS_KNOWLEDGE)),
+    apply: async (patch, scopeCurrent) => {
+      if (patch.businessFormAction === "select_tab" && patch.businessFormTab && tabs.some(tab => tab.key === patch.businessFormTab)) { selectTab(patch.businessFormTab as AiMemoryWorkspaceTab); return true; }
+      if (patch.businessFormAction === "open_persistent_reset" && patch.businessFormTab && (patch.businessFormTab === "all" || patch.businessFormTab === activeTab)) {
+        if (!resetViewerRef.current.actorUserId || !resetViewerRef.current.activeAccountId || !scopeCurrent()) return false;
+        void resetCurrentTab(patch.businessFormTab as AiMemoryWorkspaceTab | "all", scopeCurrent); return true;
+      }
+      if (patch.businessFormAction === "reset") return resetWorkspace(scopeCurrent);
+      if (patch.businessFormAction !== "discard") return false;
+      if (hasWorkspaceChanges && !await confirmInrcy({ title: t("cancelChanges"), message: t("discardDraftMessage"), variant: "warning" })) return false;
+      if (!scopeCurrent()) return false;
+      await cancelActiveTabChanges(); return true;
+    } });
+
+  useImperativeHandle(ref, () => ({
+    savePendingChanges: async () => {
+      const inFlight = workspaceSavePromiseRef.current;
+      if (inFlight && !await inFlight) return false;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        if (!hasPendingWorkspaceChanges()) return true;
+        if (!await saveWorkspace({ reason: "exit" })) return false;
+      }
+      return !hasPendingWorkspaceChanges();
+    },
+    discardPendingChanges: discardAllWorkspaceChanges,
+    runAssistantAction: (patch, scopeCurrent) => runAssistantAction(patch, scopeCurrent),
+    selectTab: (tab) => {
+      if (voiceTargetRef.current || tab === activeTab) return;
+      if (hasWorkspaceChanges) void saveWorkspace({ reason: "tab-change" });
+      changeTab(tab);
+    },
+  }), [activeTab, changeTab, discardAllWorkspaceChanges, hasPendingWorkspaceChanges, hasWorkspaceChanges, runAssistantAction, saveWorkspace]);
+
 
   const visibleAnalysisChannels = analysisChannels.filter((channel) => channel.key !== "threads" || metaPilotEnabled);
   const selectedAnalysisChannels = new Set(visibleAnalysisChannels.filter((channel) => channel.status === "connected" && channel.analyzable && !excludedAnalysisChannels.has(channel.key)).map((channel) => channel.key));
@@ -1844,6 +1891,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   contentScope="profile-core"
                   showIntro={false}
                   showActions={false}
+                  assistantActive={assistantActive && activeTab === "activity"}
                   onActivitySaved={onActivitySaved}
                   onActivityReset={onActivityReset}
                   onUnsavedChange={handleActivityUnsavedChange}
@@ -1896,6 +1944,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
               <div data-ai-memory-tab="activity" style={sectionStackStyle}>
                 <section data-memory-field="description" style={cardStyle}>
                     <BusinessDnaRichTextEditor
+                      assistantField="detailedDescription"
                       label={t("presentationTitle")}
                       value={businessKnowledge.description}
                       html={memory.richText.detailedDescription}
@@ -1983,6 +2032,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   onChange={(value) => setField("contentLocation", value)}
                   disabled={voiceBusy || saving || workspaceSaving || analyzing}
                   onUnsavedChange={handleLocationUnsavedChange}
+                  assistantActive={assistantActive && activeTab === "local"}
                 />
                 <div data-local-presence-grid style={localPresenceGridStyle}>
                   <div data-local-zones style={localZonesCardStyle}>
@@ -2027,6 +2077,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   <div data-identity-core style={identityCoreGridStyle}>
                     <div data-identity-mission style={identityMissionCardStyle}>
                       <BusinessDnaRichTextEditor
+                        assistantField="mission"
                         id="business-dna-mission"
                         label={t("missionLabel")}
                         value={memory.mission}
@@ -2152,6 +2203,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
                     <span aria-hidden style={premiumFieldNumberStyle}>1</span>
                     <PremiumTextarea
+                      assistantField="offersAndArguments"
                       label={t("offersLabel")}
                       placeholder={t("offersPlaceholder")}
                       value={memory.offersAndArguments}
@@ -2164,6 +2216,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
                     <span aria-hidden style={premiumFieldNumberStyle}>2</span>
                     <PremiumTextarea
+                      assistantField="keyArguments"
                       label={t("argumentsLabel")}
                       placeholder={t("argumentsPlaceholder")}
                       value={memory.keyArguments}
@@ -2177,6 +2230,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
                     <span aria-hidden style={premiumFieldNumberStyle}>3</span>
                     <PremiumTextarea
+                      assistantField="proofsAndObjections"
                       label={t("proofsLabel")}
                       placeholder={t("proofsPlaceholder")}
                       value={memory.proofsAndObjections}
@@ -2189,6 +2243,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
                     <span aria-hidden style={premiumFieldNumberStyle}>4</span>
                     <PremiumTextarea
+                      assistantField="objectionResponses"
                       label={t("objectionsLabel")}
                       placeholder={t("objectionsPlaceholder")}
                       value={memory.objectionResponses}
@@ -2202,6 +2257,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
                     <span aria-hidden style={premiumFieldNumberStyle}>5</span>
                     <PremiumTextarea
+                      assistantField="editorialStrategy"
                       label={t("editorialLabel")}
                       placeholder={t("editorialPlaceholder")}
                       value={memory.editorialStrategy}
@@ -2214,6 +2270,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                   <div data-ai-memory-premium-row style={premiumFieldCardStyle}>
                     <span aria-hidden style={premiumFieldNumberStyle}>6</span>
                     <PremiumTextarea
+                      assistantField="campaignCalendar"
                       label={t("campaignCalendarLabel")}
                       placeholder={t("campaignCalendarPlaceholder")}
                       value={memory.campaignCalendar}
@@ -2262,6 +2319,8 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
 
       <BusinessDnaAnalysisScheduleModal
         open={analysisScheduleOpen}
+        onOpen={() => setAnalysisScheduleOpen(true)}
+        assistantActive={assistantActive && activeTab === "analysis" && !loading && loaded && !voiceBusy && !saving && !workspaceSaving && !analyzing}
         onClose={() => setAnalysisScheduleOpen(false)}
       />
 
@@ -2634,6 +2693,7 @@ function MemoryVoiceTextarea({
 }
 
 function PremiumTextarea({
+  assistantField,
   label,
   placeholder,
   value,
@@ -2643,6 +2703,7 @@ function PremiumTextarea({
   onVoiceBusyChange,
   onChange,
 }: {
+  assistantField: InrAssistantBusinessRichTextField;
   label: string;
   placeholder: string;
   value: string;
@@ -2655,6 +2716,7 @@ function PremiumTextarea({
   return (
     <div style={{ ...fieldStyle, opacity: disabled ? 0.56 : 1 }}>
       <BusinessDnaRichTextEditor
+        assistantField={assistantField}
         label={label}
         value={value}
         html={html}

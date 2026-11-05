@@ -1,4 +1,5 @@
 "use client";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 import Image from "next/image";
 
 import type { DashboardPanelName } from "../_hooks/useDashboardPanelRouting";
@@ -319,6 +320,22 @@ function ResponsiveBottomNavMobile() {
     setNotificationMenuOpen(false);
   }, []);
 
+  const toggleMobileMenu = () => {
+    setNotificationMenuOpen(false);
+    setMenuOpen(value => !value);
+    setLanguageOpen(false);
+  };
+  const mobileMenuSnapshot = { menuOpen, languageOpen };
+  useInrAssistantLocalInterface("mobile_menu", mobileMenuSnapshot, {
+    ...(!menuOpen ? { open: { invoke: () => toggleMobileMenu(), matches: (snapshot: unknown) => (snapshot as typeof mobileMenuSnapshot).menuOpen } } : {
+      close: { invoke: () => closeMobileOverlays(), matches: (snapshot: unknown) => !(snapshot as typeof mobileMenuSnapshot).menuOpen },
+      select: {
+        invoke: (value: string | null) => { if (value !== "language") throw new Error("mobile_menu_selection_invalid"); setLanguageOpen(true); },
+        matches: (snapshot: unknown) => (snapshot as typeof mobileMenuSnapshot).languageOpen,
+      },
+    }),
+  }, !hidden, pendingKey !== null, menuOpen ? 1 : 0);
+
   const resolveHrefDestination = useCallback(
     (href: string): MobileHrefDestination => {
       if (href === "/dashboard?action=publish") {
@@ -596,11 +613,7 @@ function ResponsiveBottomNavMobile() {
             className={`${styles.item} ${menuOpen ? styles.itemActive : ""}`}
             aria-label={t.topbar.openMenu}
             aria-expanded={menuOpen}
-            onClick={() => {
-              setNotificationMenuOpen(false);
-              setMenuOpen((value) => !value);
-              setLanguageOpen(false);
-            }}
+            onClick={toggleMobileMenu}
           >
             <span className={styles.iconSlot}>
               <MenuIcon />

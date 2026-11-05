@@ -178,6 +178,8 @@ function mountLifecycle(ctx: ReturnType<typeof context>) {
     onWorkspaceStateChange(value: { busy: boolean; hasDraft: boolean }) { workspaceStates.push(value); },
     registerDraftReplacementRequest(value: (() => Promise<boolean>) | null) { replacementRequest = value; },
     requestDraftReplacement: handler<boolean>("requestDraftReplacement", ctx),
+    navigationGuardState: { current: null },
+    requestClose: handler("requestClose", { ...ctx, hasPendingWork: true, onClose() { ctx.events.push("close"); } }),
     window: {
       ...ctx.window,
       addEventListener(name: string, listener: () => void) {

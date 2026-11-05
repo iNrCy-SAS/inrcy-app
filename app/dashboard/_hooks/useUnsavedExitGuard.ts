@@ -64,7 +64,8 @@ export function useUnsavedExitGuard({
     shouldBlockRef.current = shouldBlock;
   }, [shouldBlock]);
 
-  const confirmExit = useCallback(async () => {
+  const confirmExitIfCurrent = useCallback(async (stillCurrent: () => boolean) => {
+    if (!stillCurrent()) return false;
     if (!shouldBlockRef.current) {
       await onConfirmExitRef.current();
       return true;
@@ -76,7 +77,7 @@ export function useUnsavedExitGuard({
       const resolveBlockedExit = onBlockedExitRef.current;
       if (resolveBlockedExit) {
         const canExit = await resolveBlockedExit();
-        if (!canExit) return false;
+        if (!canExit || !stillCurrent()) return false;
         await onConfirmExitRef.current();
         return true;
       }
@@ -89,7 +90,7 @@ export function useUnsavedExitGuard({
         cancelLabel,
         variant,
       });
-      if (ok) {
+      if (ok && stillCurrent()) {
         await onConfirmExitRef.current();
         return true;
       }
@@ -98,6 +99,7 @@ export function useUnsavedExitGuard({
       confirmingRef.current = false;
     }
   }, [cancelLabel, confirmLabel, eyebrow, message, title, variant]);
+  const confirmExit = useCallback(() => confirmExitIfCurrent(() => true), [confirmExitIfCurrent]);
 
   useEffect(() => {
     if (!active) return;
@@ -154,5 +156,5 @@ export function useUnsavedExitGuard({
     };
   }, [active, confirmExit]);
 
-  return { confirmExit };
+  return { confirmExit, confirmExitIfCurrent };
 }

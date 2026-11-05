@@ -1,19 +1,22 @@
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { fulfillImageCreditCheckout, getImageCreditOrder } from "@/lib/boutique/imageCreditPayments";
+import { isExpectedCreditOrderRequestScope } from "@/lib/boutique/creditOrderRequestScope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(_req: Request, context: { params: Promise<{ orderId: string }> }) {
+export async function GET(req: Request, context: { params: Promise<{ orderId: string }> }) {
   const auth = await requireUser();
   if (auth.errorResponse) return auth.errorResponse;
+  if (!isExpectedCreditOrderRequestScope(req, auth)) return NextResponse.json({ error: "La session ou l’établissement a changé.", code: "credit_order_scope_changed" }, { status: 409 });
   const { orderId } = await context.params;
   try {
     let order = await getImageCreditOrder(orderId, auth.activeUserId);
     if (!order) return NextResponse.json({ error: "Cette recharge n’appartient pas à l’établissement actif." }, { status: 404 });
     if (order.stripe_checkout_session_id) {
-      await fulfillImageCreditCheckout(order.stripe_checkout_session_id, "authenticated-checkout-return");
+      if (!isExpectedCreditOrderRequestScope(req, auth)) return NextResponse.json({ error: "La vérification doit être reprise.", code: "credit_order_scope_changed" }, { status: 409 });
+      await fulfillImageCreditCheckout(order.stripe_checkout_session_id, "authenticated-checkout-return", { orderId, accountId: auth.activeUserId, signal: req.signal });
       order = await getImageCreditOrder(orderId, auth.activeUserId);
     }
     return NextResponse.json({ order: order ? {

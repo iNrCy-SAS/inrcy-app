@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, type ReactNode } from "react";
 import { getVisiblePublishWizardStep, type PublishWizardStep } from "./publishWizard";
+import { useInrAssistantLocalInterface } from "../../../_hooks/useInrAssistantLocalInterface";
 import css from "./publishWizard.module.css";
 
 type Props = {
@@ -24,6 +25,24 @@ export default function PublishWizardFrame({
   const stageIndex = steps.indexOf(visibleStep);
   const bodyRef = useRef<HTMLDivElement>(null);
   const navigationRef = useRef<HTMLElement>(null);
+  const previousStep = steps[stageIndex - 1], nextStep = steps[stageIndex + 1];
+  useInrAssistantLocalInterface("publication_wizard", { step: visibleStep }, {
+    ...(onPrevious && previousStep && canOpenStep(previousStep) ? { previous: {
+      invoke: () => { if (!canOpenStep(previousStep)) throw new Error("wizard_step_locked"); onPrevious(); },
+      matches: (state: unknown) => !!state && typeof state === "object" && (state as { step?: string }).step === previousStep,
+    } } : {}),
+    ...(onNext && nextStep && !nextDisabled && canOpenStep(nextStep) ? { next: {
+      invoke: () => { if (nextDisabled || !canOpenStep(nextStep)) throw new Error("wizard_step_locked"); onNext(); },
+      matches: (state: unknown) => !!state && typeof state === "object" && (state as { step?: string }).step === nextStep,
+    } } : {}),
+    select: {
+      invoke: value => {
+        if (!steps.includes(value as PublishWizardStep) || !canOpenStep(value as PublishWizardStep)) throw new Error("wizard_step_locked");
+        onOpenStep(value as PublishWizardStep);
+      },
+      matches: (state, value) => !!state && typeof state === "object" && (state as { step?: string }).step === value,
+    },
+  });
 
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: 0 });

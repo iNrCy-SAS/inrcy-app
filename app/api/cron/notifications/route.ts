@@ -353,8 +353,8 @@ async function buildInformationNotification(
   } else if (hasMail && !hasStats) {
     title = "Votre machine envoie, il lui manque encore ses capteurs";
     body = `Branchez Google Stats pour voir quelles actions produisent réellement des demandes et nourrir vos prochaines relances intelligentes.`;
-    ctaLabel = "Connecter les stats";
-    ctaUrl = "/dashboard?panel=google_stats";
+    ctaLabel = "Connecter les statistiques du site";
+    ctaUrl = "/dashboard?panel=site_web";
     kind = "connect_stats";
   }
 

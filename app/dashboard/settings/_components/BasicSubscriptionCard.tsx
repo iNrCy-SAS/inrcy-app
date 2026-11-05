@@ -143,7 +143,7 @@ export default function BasicSubscriptionCard({ subscription, platform, onRefres
       </> : platform ? <p className={styles.finePrint}>{t("subscription_basic_native_unavailable")}</p> : null}
       {error ? <p role="alert">{error}</p> : null}
       {notice ? <p role="status" className={styles.finePrint}>{notice}</p> : null}
-      {management ? <SubscriptionDetails title={t("gerer_ma_facturation_dc5027ac")}>{management}</SubscriptionDetails> : null}
+      {management ? <SubscriptionDetails title={t("gerer_ma_facturation_dc5027ac")} assistantBilling>{management}</SubscriptionDetails> : null}
     </footer>
   </section>;
 }

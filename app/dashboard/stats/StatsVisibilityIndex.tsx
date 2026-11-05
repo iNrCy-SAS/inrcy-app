@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { selectedStatsVisibilityIndexRange, type InrAssistantStatsIndexHistory } from "@/lib/inrAssistantStatsViewState";
 import { useLocale, useTranslations } from "next-intl";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
@@ -9,17 +10,18 @@ import { visibilityIndexPeriodPoints, VISIBILITY_INDEX_RANGES, type VisibilityIn
 import StatsTrendChart from "./StatsTrendChart";
 import css from "./statsPanorama.module.css";
 
-type Props = { enabled: boolean; accountId: string; refreshKey: number; ready: boolean; channels: Array<{key: string; title: string}>; tabs?: ReactNode; historyRevision?: number };
+type Props = { enabled: boolean; accountId: string; refreshKey: number; ready: boolean; channels: Array<{key: string; title: string}>; tabs?: ReactNode; historyRevision?: number;
+  channel: string; onChannelChange: (channel: string) => void; preferredRange: VisibilityIndexRange; onRangeChange: (range: VisibilityIndexRange) => void;
+  onHistoryStateChange: (state: InrAssistantStatsIndexHistory) => void;
+};
 type Reward = { months: number; amount: number | null; awardedAt: string | null };
 type History = { scope: string; channel: string; createdAt: string; asOf: string; records: VisibilityIndexSnapshot[]; periods: VisibilityIndexPeriod[]; rewards: Reward[] | null; refresh: number; revision: number };
 const EMPTY_INPUTS: VisibilityIndexInputs = { connected: 0, audience: null, posts: null, visibility: null, contacts: null, potential: null };
 function MilestoneIcon({ unlocked }: {unlocked: boolean}) {
   return unlocked ? <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 3 3 7-7"/></svg> : <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="8" width="12" height="9" rx="2"/><path d="M7 8V6a3 3 0 0 1 6 0v2m-3 4v2"/></svg>;
 }
-export default function StatsVisibilityIndex({ enabled, accountId, refreshKey, ready, channels, tabs, historyRevision = 0 }: Props) {
+export default function StatsVisibilityIndex({ enabled, accountId, refreshKey, ready, channels, tabs, historyRevision = 0, channel, onChannelChange: setChannel, preferredRange, onRangeChange: setPreferredRange, onHistoryStateChange }: Props) {
   const t = useTranslations("stats"), locale = useLocale();
-  const [preferredRange, setPreferredRange] = useState<VisibilityIndexRange>(3);
-  const [channel, setChannel] = useState("all");
   const [history, setHistory] = useState<History | null>(null);
   const [failed, setFailed] = useState(false), [retry, setRetry] = useState(0);
   const browserScope = getActiveBrowserUserId() || accountId;
@@ -40,8 +42,11 @@ export default function StatsVisibilityIndex({ enabled, accountId, refreshKey, r
     return () => { controller.abort(); window.clearTimeout(timeout); window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, stop); };
   }, [ready, accountId, browserScope, channel, active, refreshKey, retry, historyRevision]);
 
-  const available = active?.periods.filter(period => period.available).map(period => period.months) || [];
-  const range = available.includes(preferredRange) ? preferredRange : available.includes(1) ? 1 : available[0] ?? null;
+  const available = useMemo(() => active?.periods.filter(period => period.available).map(period => period.months) || [], [active]);
+  const range = selectedStatsVisibilityIndexRange(available, preferredRange);
+  useEffect(() => {
+    onHistoryStateChange({ accountId, channel, range, availableRanges: available, ready: Boolean(active) && browserScope === accountId });
+  }, [accountId, active, available, browserScope, channel, onHistoryStateChange, range]);
   const points = active && range ? visibilityIndexPeriodPoints(active.records, range, active.asOf) : [];
   const latest = active?.records.at(-1);
   const number = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 });

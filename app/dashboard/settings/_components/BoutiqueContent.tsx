@@ -7,17 +7,18 @@ import layoutStyles from "./settingsContentLayout.module.css";
 import boutiqueStyles from "./BoutiqueContent.module.css";
 
 
-import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { useRouter } from "next/navigation";
 import { BOUTIQUE_PRODUCTS, boutiqueOrderPriceLabel, boutiqueSavingsPercent, type BoutiqueProduct } from "@/lib/boutique/products";
 import { VIDEO_CREDIT_PACKS } from "@/lib/boutique/videoCreditPacks";
 import { detectClientBillingPlatform } from "@/lib/clientSubscriptionBilling";
 import { MediaCreditRechargeButton } from "@/app/dashboard/_components/VideoCreditRecharge";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 type Props = {
   mode?: "drawer" | "page";
@@ -83,11 +84,14 @@ export default function BoutiqueContent({
 
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
+  const [completedOrdersRead, setCompletedOrdersRead] = useState(0);
+  const mounted = useRef(false);
 
-  const refreshOrders = async (uid?: string) => {
+  const refreshOrders = async (uid?: string, canApply: () => boolean = () => true) => {
     const supabase = createClient();
     const userIdToUse = uid;
-    if (!userIdToUse) return;
+    if (!userIdToUse || userIdToUse !== getActiveBrowserUserId() || !canApply()) return false;
+    const current = () => mounted.current && userIdToUse === getActiveBrowserUserId() && canApply();
 
     setOrdersLoading(true);
     try {
@@ -98,16 +102,19 @@ export default function BoutiqueContent({
         .order("created_at", { ascending: false })
         .limit(20);
 
-      if (!error && Array.isArray(data)) {
+      if (!error && Array.isArray(data) && current()) {
         setOrders(data as any);
+        setCompletedOrdersRead(value => value + 1); return true;
       }
+      return false;
     } finally {
-      setOrdersLoading(false);
+      if (current()) setOrdersLoading(false);
     }
   };
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
+    mounted.current = true;
     setShowMediaRecharge(detectClientBillingPlatform() === "web");
     (async () => {
       try {
@@ -115,11 +122,11 @@ export default function BoutiqueContent({
         const { data: auth } = await supabase.auth.getUser();
         const user = auth?.user;
         if (!user) {
-          if (!mounted) return;
+          if (!active) return;
           setUiBalance(0);
           return;
         }
-        if (!mounted) return;
+        if (!active) return;
         const activeUserId = resolveActiveBrowserUserId(user.id);
         setUserId(activeUserId);
 
@@ -140,22 +147,30 @@ export default function BoutiqueContent({
           .maybeSingle();
 
         const bal = Number((balanceRes.data as any)?.balance ?? 0);
-        if (!mounted) return;
+        if (!active) return;
         setUiBalance(Number.isFinite(bal) ? bal : 0);
 
         // Orders history
         await refreshOrders(activeUserId);
       } catch {
-        if (!mounted) return;
+        if (!active) return;
         setUiBalance(0);
       }
     })();
     return () => {
-      mounted = false;
+      active = false; mounted.current = false;
     };
   }, []);
 
   const products: BoutiqueProduct[] = useMemo(() => BOUTIQUE_PRODUCTS, []);
+  useInrAssistantLocalInterface("boutique_views", { view, completedOrdersRead, ordersLoading }, {
+    select: { invoke: value => { if (value !== "products" && value !== "orders") throw new Error("Boutique view unavailable"); setView(value); }, matches: (snapshot, value) => Boolean(snapshot && typeof snapshot === "object" && "view" in snapshot && snapshot.view === value) },
+    ...(view === "orders" && userId ? { retry: { invoke: async (_value: string | null, stillCurrent: () => boolean) => { if (!await refreshOrders(userId, stillCurrent)) throw new Error("Boutique order read unavailable"); }, matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "completedOrdersRead" in snapshot && Number(snapshot.completedOrdersRead) > completedOrdersRead && "ordersLoading" in snapshot && snapshot.ordersLoading === false) } } : {}),
+  }, true, ordersLoading || sendingKey !== null);
+  useInrAssistantLocalInterface("boutique_help", { open: showUiHelp }, {
+    open: { invoke: () => setShowUiHelp(true), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === true) },
+    close: { invoke: () => setShowUiHelp(false), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === false) },
+  });
 
   const canOrderUi = (p: BoutiqueProduct) => {
     if (uiBalance === null) return false;

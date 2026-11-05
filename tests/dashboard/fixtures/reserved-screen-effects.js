@@ -19,12 +19,13 @@ const unexpected = () => { throw Error("Unexpected side effect"); };
 const review = id => ({ id: "google:locations/a/reviews/" + id, reviewName: "locations/a/reviews/" + id, name: "Client " + id, rating: 5, date: "01/11/2026", status: "À répondre", comment: "Review " + id, live: true, replyable: true });
 function load(name, from = "") {
   if (name === "next-intl") return { useTranslations: () => translate, useLocale: () => "fr-FR" };
-  if (name === "next/navigation") return { useRouter: () => router, useSearchParams: () => search };
+  if (name === "next/navigation") return { usePathname: () => window.screenName === "agenda" ? "/dashboard/agenda" : window.screenName === "reviews" ? "/dashboard/e-reputation" : "/dashboard/personnalisation", useRouter: () => router, useSearchParams: () => search };
   if (name === "@/lib/inrcyDialog") return { confirmInrcy: async options => { window.confirmations.push(options); return window.allowConfirm; } };
   if (name === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => window.account };
   if (name === "@/lib/browserModuleSnapshotCache") return { MODULE_SNAPSHOT_KEYS: { agendaMonth: () => "month", agendaContacts: "contacts", agendaSettings: "settings", eReputationGoogle: "reviews" }, readModuleSnapshot: () => null, writeModuleSnapshot: noop };
-  if (name.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: true }) };
-  if (name.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen: noop };
+  if (name.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: true, actorUserId: window.account, activeAccountId: window.account }) };
+
+
   if (name.endsWith("useUnsavedExitGuard")) return { useUnsavedExitGuard: noop };
   if (name === "@/lib/userFacingErrors") return { getClientUserFacingApiError: async () => "Error", getClientUserFacingErrorMessage: () => "Error" };
   if (name === "@/lib/boosterGenerationContextClient") return { invalidateBoosterGenerationContextClient: async () => true };
@@ -36,7 +37,7 @@ function load(name, from = "") {
     for (const part of name.split("/")) { if (part === "..") parts.pop(); else if (part !== ".") parts.push(part); }
     name = parts.join("/");
   }
-  if (!sources[name] && sources[name + ".ts"]) name += ".ts";
+  if (!sources[name]) name = [name + ".ts", name + ".tsx"].find(candidate => sources[candidate]) || name;
   if (!sources[name]) return { __esModule: true, default: () => null }; // Unmounted view-only imports.
   if (loaded[name]) return loaded[name].exports;
   const m = loaded[name] = { exports: {} };

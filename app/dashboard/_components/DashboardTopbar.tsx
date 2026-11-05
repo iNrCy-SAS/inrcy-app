@@ -63,7 +63,7 @@ type DashboardTopbarProps = {
   notificationMenuOpen: boolean;
   setNotificationMenuOpen: Dispatch<SetStateAction<boolean>>;
   unreadNotificationsCount: number;
-  refreshNotifications: () => void | Promise<void>;
+  refreshNotifications: () => void | boolean | Promise<void | boolean>;
   notificationsLoading: boolean;
   notifications: NotificationItem[];
   notificationsError: string | null;

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 import styles from "./DashboardHeroPremium.module.css";
 
 type HeroIconName = "channels" | "dna" | "ai";
@@ -51,6 +52,16 @@ export default function DashboardHero({
   const locale = useLocale();
   const [openInfo, setOpenInfo] = useState<"channels" | "dna" | null>(null);
   const cockpitRef = useRef<HTMLDivElement | null>(null);
+  useInrAssistantLocalInterface("dashboard_info", { openInfo }, {
+    select: {
+      invoke: value => { if (value !== "channels" && value !== "dna") throw new Error("dashboard_info_invalid"); setOpenInfo(value); },
+      matches: (snapshot, value) => (snapshot as { openInfo: string | null }).openInfo === value,
+    },
+    ...(openInfo ? { close: {
+      invoke: () => setOpenInfo(null),
+      matches: (snapshot: unknown) => (snapshot as { openInfo: string | null }).openInfo === null,
+    } } : {}),
+  });
 
   useEffect(() => {
     if (!openInfo) return;

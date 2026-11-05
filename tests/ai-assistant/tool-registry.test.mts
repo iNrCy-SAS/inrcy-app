@@ -4,7 +4,20 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import * as routing from "../../lib/inrAssistantToolRouting.ts";
-import { inrAssistantObjectives } from "../../lib/inrAssistantObjectives.ts";
+import * as localInterfaces from "../../lib/inrAssistantLocalInterface.ts";
+import * as applicationPreferences from "../../lib/inrAssistantApplicationPreferences.ts";
+import * as studioDraftReview from "../../lib/inrAssistantStudioDraftReview.ts";
+import * as contentReport from "../../lib/inrAssistantContentReport.ts";
+import * as richText from "../../lib/inrAssistantBusinessRichText.ts";
+import * as creditReconciliation from "../../lib/inrAssistantCreditOrderReconciliation.ts";
+import * as googleDraftReview from "../../lib/inrAssistantGoogleBusinessDraftReview.ts";
+import * as studioPreferenceIntent from "../../lib/inrAssistantStudioPreferenceIntent.ts";
+import * as badgeIdentityTheme from "../../lib/inrAssistantBadgeIdentityTheme.ts";
+import * as notificationNavigation from "../../lib/inrAssistantNotificationNavigation.ts";
+import * as sendPublicationIntent from "../../lib/inrAssistantSendPublicationIntent.ts";
+import * as accountUiIntent from "../../lib/inrAssistantAccountUiIntent.ts";
+import * as basicShopRead from "../../lib/inrAssistantBasicShopRead.ts";
+import { inrAssistantObjectives, inrAssistantReadMatchesObjective } from "../../lib/inrAssistantObjectives.ts";
 import type * as Registry from "../../lib/inrAssistantToolRegistry.ts";
 
 type Scope = Record<string, unknown>;
@@ -18,6 +31,19 @@ function harness(unavailableUiTools: string[] = []) {
   vm.runInNewContext(`(function(require,module,exports){${source}\n})`)((name: string) => {
     if (name === "server-only") return {};
     if (name === "./inrAssistantToolRouting.ts") return routing;
+    if (name === "./inrAssistantLocalInterface.ts") return localInterfaces;
+    if (name === "./inrAssistantApplicationPreferences.ts") return applicationPreferences;
+    if (name === "./inrAssistantStudioDraftReview.ts") return studioDraftReview;
+    if (name === "./inrAssistantContentReport.ts") return contentReport;
+    if (name === "./inrAssistantBusinessRichText.ts") return richText;
+    if (name === "./inrAssistantCreditOrderReconciliation.ts") return creditReconciliation;
+    if (name === "./inrAssistantGoogleBusinessDraftReview.ts") return googleDraftReview;
+    if (name === "./inrAssistantStudioPreferenceIntent.ts") return studioPreferenceIntent;
+    if (name === "./inrAssistantBadgeIdentityTheme.ts") return badgeIdentityTheme;
+    if (name === "./inrAssistantNotificationNavigation.ts") return notificationNavigation;
+    if (name === "./inrAssistantSendPublicationIntent.ts") return sendPublicationIntent;
+    if (name === "./inrAssistantAccountUiIntent.ts") return accountUiIntent;
+    if (name === "./inrAssistantBasicShopRead.ts") return basicShopRead;
     const match = name.match(/^\.\/(inrAssistant\w+Tools)\.ts$/);
     assert.ok(match, `Unexpected registry dependency ${name}`);
     const factory = `createI${match[1].slice(1)}`;
@@ -41,6 +67,17 @@ function harness(unavailableUiTools: string[] = []) {
   };
   return { context, calls, executions, build: (changes: Partial<Registry.InrAssistantToolRegistryContext> = {}) => runtime.createInrAssistantToolRegistry({ ...context, ...changes }) };
 }
+
+test("Basic Inertia and prestation questions retain their exact read-only account view without credit or purchase authority", () => {
+  for (const [message, view] of [["Lis mon solde d’Unités d’Inertie", "inertia"], ["Mes commandes de prestations", "shop_orders"]] as const) {
+    assert.equal(basicShopRead.getInrAssistantBasicShopReadView(message), view);
+    const plan = inrAssistantObjectives(message); assert.equal(plan.length, 1); assert.equal(plan[0].kind, "read"); assert.equal(plan[0].tool, "readAccountServices");
+    assert.equal(inrAssistantReadMatchesObjective(plan[0], "readAccountServices", { view, offset: 0 }), true);
+    for (const wrongView of ["credits", "credit_orders", view === "inertia" ? "shop_orders" : "inertia"]) assert.equal(inrAssistantReadMatchesObjective(plan[0], "readAccountServices", { view: wrongView, offset: 0 }), false);
+    const h = harness(), selected = h.build({ args: { ...h.context.args, edition: "basic" }, latestRequest: message, spokenRequest: message, canExecute: false, families: new Set(["management"]), requiredTools: ["readAccountServices"] });
+    assert.deepEqual(Object.keys(selected.additionalTools), ["readAccountServices"]); assert.equal(h.executions.length, 0); assert.ok(h.calls.some(call => call.factory === "createInrAssistantAccountServiceTools"));
+  }
+});
 
 test("Basic exposes only the native UI tools required by its navigation and screen plan", () => {
   for (const [navigationRequested, screenCommandRequested, expected] of [

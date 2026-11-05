@@ -21,6 +21,8 @@ const modules = {
   scheduler: packageSource("scheduler", "scheduler.production.js"),
   menu: compile("app/dashboard/_components/ChannelConnectionMenu.tsx"),
   dialog: compile("app/dashboard/_components/ChannelParametersDialog.tsx"),
+  localInterface: compile("app/dashboard/_hooks/useInrAssistantLocalInterface.ts"),
+  ...Object.fromEntries(["inrAssistantLocalInterface", "inrAssistantNativeChannelLinks", "inrAssistantRequestClauses"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
 };
 const rawCss = read("app/dashboard/dashboard.module.css")
   + read("app/dashboard/_components/ChannelParametersDialog.module.css")
@@ -36,6 +38,10 @@ const loaded = {};
 function require(name) {
   if(name.endsWith('.css')) return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
   if(name === 'next-intl') return {useTranslations:()=>key=>({close:'Fermer',loading:'Chargement…'})[key]||key};
+  if(name === 'next/navigation') return {usePathname:()=>location.pathname};
+  if(name.endsWith('DashboardViewerAccessProvider')) return {useDashboardViewerAccess:()=>({actorUserId:'instagram-actor',activeAccountId:'instagram-account'})};
+  if(name.endsWith('useInrAssistantLocalInterface')) name='localInterface';
+  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])name='@/lib/'+name.slice(2).replace(/\\.ts$/,'');
   if(loaded[name]) return loaded[name].exports;
   if(!sources[name]) throw Error('Unexpected browser module '+name);
   const module=loaded[name]={exports:{}};
@@ -65,7 +71,8 @@ test("Instagram menu keeps both Facebook flows, keyboard focus and the parent di
       const page = await browser.newPage({ viewport: { width, height: 900 } });
       const errors: string[] = [];
       page.on("pageerror", error => errors.push(error.message));
-      await page.setContent(`<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}body{background:#080c22;font:16px Arial}</style></head><body><div id="root"></div></body></html>`);
+      await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}body{background:#080c22;font:16px Arial}</style></head><body><div id="root"></div></body></html>` }) : route.abort());
+      await page.goto("https://instagram.invalid/dashboard");
       await page.addScriptTag({ content: fixture });
       const dialog = page.getByRole("dialog", { name: "Connecter — Instagram", exact: true });
       await dialog.waitFor();

@@ -777,7 +777,9 @@
     "analysisNoSourcesHint": "Koppel een kanaal of voeg een document toe om de analyse te starten.",
     "documentsAnalysisTitle": "Documenten aan de analyse toevoegen",
     "documentsDropHint": "PDF, afbeeldingen of documenten · 20 MB per bestand",
-    "presentationTitle": "Presentatie"
+    "presentationTitle": "Presentatie",
+    "discardDraftMessage": "Niet-opgeslagen wijzigingen in dit formulier worden verwijderd. Al opgeslagen informatie blijft behouden.",
+    "resetPreferencesMessage": "De getoonde voorkeuren worden teruggezet naar de standaardwaarden. Dit bevestigt geen aankoop of accountwijziging."
   },
   "aiConfiguration": {
     "pageDescription": "Stel in hoe AI elk onderdeel schrijft en aan uw doelen aanpast.",

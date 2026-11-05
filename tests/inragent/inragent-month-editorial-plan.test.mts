@@ -270,7 +270,7 @@ test("les médias générés remplissent leur format avant l’adaptation iNrAge
   assert.match(schedule, /prepareInrAgentPublicationImages/);
   assert.match(execute, /prepareInrAgentPublicationImages/);
   assert.match(read("lib/inrAgentMediaPreparation.ts"), /automaticFit: "contain", preserveSourceComposition: true/);
-  assert.match(client, /openPublishImageInStudio\(tab: "modify" \| "retouch"\)/);
+  assert.match(client, /openPublishImageInStudio\(tab: "modify" \| "retouch", stillCurrent: \(\) => boolean = \(\) => true\)/);
   assert.match(client, /createInrStudioHandoff\(\{[\s\S]*?tab,[\s\S]*?source: \{/);
   assert.match(client, /source:[\s\S]*?url: publishMediaPreview\.url/);
   assert.doesNotMatch(client, /ChannelImageAdapterModal/);

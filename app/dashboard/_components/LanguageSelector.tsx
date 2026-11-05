@@ -6,6 +6,8 @@ import { APP_LANGUAGE_OPTIONS, getAppLanguageOption, type AppLanguageCode } from
 import { useDashboardLanguage } from "../_hooks/useDashboardLanguage";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import styles from "../dashboard.module.css";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import { useInrAssistantVisibleControl } from "../_hooks/useInrAssistantVisibleControl";
 
 type Props = {
   mobile?: boolean;
@@ -19,6 +21,11 @@ export default function LanguageSelector({ mobile = false, compact = false, onOp
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const current = getAppLanguageOption(language);
+  const assistantVisible = useInrAssistantVisibleControl(wrapRef);
+  useInrAssistantLocalInterface("language_options", { open }, {
+    open: { invoke: () => { onOpen?.(); setOpen(true); }, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === true) },
+    close: { invoke: () => setOpen(false), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === false) },
+  }, assistantVisible);
 
 
   useEffect(() => {

@@ -32,6 +32,7 @@ const GUIDE_AGENTS: Readonly<Record<string, InrAssistantActivity["agent"]>> = {
 function targetFor(name: string, input: unknown): Target | null {
   const data = record(input);
   switch (name) {
+    case "generateGoogleReviewReplyDraft": return { agent: "publications", label: "Préparation du brouillon de réponse Google" };
     case "preparePublication": return { agent: "publications", label: "Préparation du brouillon de publication" };
     case "executePublication": return { agent: "publications", label: data.mode === "schedule" ? "Programmation de la publication" : "Transmission de la publication" };
     case "editPublication": return { agent: "publications", label: "Correction de la publication" };
@@ -62,6 +63,7 @@ function outcomeFor(name: string, result: unknown): Outcome {
   if (data.known === false) return { status: "blocked", label: "Certaines statistiques restent indisponibles" };
   if (data.ok === false || data.available === false || status === "unavailable") return { status: "failed", label: "La tâche n’a pas pu être confirmée" };
   if (data.ok !== true && data.available !== true && data.known !== true) return { status: "blocked", label: "Le résultat reste à vérifier dans l’outil" };
+  if (name === "generateGoogleReviewReplyDraft") return status === "draft_ready" && data.published === false ? { status: "completed", label: "Brouillon de réponse Google préparé" } : { status: "blocked", label: "Le brouillon de réponse reste à vérifier" };
   if (name === "readStatsSnapshots" || name === "readWorkspaceSection") return { status: "completed", label: "Statistiques enregistrées consultées" };
   if (name === "prepareCampaignEmail") return status === "draft" || status === "already_processed"
     ? { status: "completed", label: status === "draft" ? "Brouillon de campagne mail enregistré" : "Campagne existante retrouvée" }

@@ -1,20 +1,30 @@
+import { isInrAssistantBusinessRichTextRequest, parseInrAssistantBusinessRichTextEdit, INR_ASSISTANT_BUSINESS_RICH_TEXT_INTERFACES, type InrAssistantBusinessRichTextField } from "./inrAssistantBusinessRichText.ts";
+import { isInrAssistantLocalInterfaceRequest } from "./inrAssistantLocalInterface.ts";
 import { INR_ASSISTANT_ACCOUNT_UI_COMMANDS, type InrAssistantAccountUiCommandName } from "./inrAssistantAccountUiIntent.ts";
 import { inrAssistantNavigationForm } from "./inrAssistantNavigationForm.ts";
 import { parseInrAssistantClientContext, type InrAssistantClientContext, type InrAssistantClientScreen } from "./inrAssistantClientContext.ts";
 import { getDirectInrAssistantNavigationRequest, isInrAssistantScreenCommandRequest } from "./inrAssistantUiCommands.ts";
 import { parseInrAssistantUiActions, inrAssistantUiSuccessStatus, type InrAssistantUiAction, type InrAssistantUiResult } from "./inrAssistantUiActions.ts";
-import { inrAssistantRequestClauses } from "./inrAssistantRequestClauses.ts";
+import { inrAssistantMaskQuotedText, inrAssistantRequestClauses } from "./inrAssistantRequestClauses.ts";
 import { matchesInrAssistantActionClause } from "./inrAssistantActionClause.ts";
 import { inrAssistantUiPostScreenMatchesAction, type InrAssistantUiPostScreen } from "./inrAssistantUiPostScreen.ts";
 import { isInrAssistantDocumentPrefillInstruction } from "./inrAssistantDocumentUiCommands.ts";
+import { isInrAssistantNotificationActionRequest } from "./inrAssistantNotificationNavigation.ts";
+import { isInrAssistantResumePublicationDraftRequest } from "./inrAssistantSendPublicationIntent.ts";
 
 type ScreenCommand = NonNullable<InrAssistantClientScreen["availableCommands"]>[number] | InrAssistantAccountUiCommandName;
-export const INR_ASSISTANT_UI_TASK_TOOLS = ["navigateApplication", "runScreenCommand", "prepareCommercialDocumentForm", "prepareCurrentDocumentTemplate", "prepareAccountDocumentDownload", "configureCookieConsent"] as const;
+export const INR_ASSISTANT_UI_TASK_TOOLS = ["openNotificationAction", "resumePublicationDraft", "refreshBadgeThemeFromLogo", "navigateApplication", "runScreenCommand", "prepareCommercialDocumentForm", "prepareCurrentDocumentTemplate", "prepareAccountDocumentDownload", "configureCookieConsent", "configureApplicationPreferences", "controlLocalInterface", "formatBusinessDnaText", "submitContentReport"] as const;
 export function isInrAssistantUiTaskTool(name: string): boolean {
   return INR_ASSISTANT_UI_TASK_TOOLS.some(tool => tool === name);
 }
 export function inrAssistantUiStepTool(step: InrAssistantUiStep): typeof INR_ASSISTANT_UI_TASK_TOOLS[number] {
-  if (step.command === "download_account_export" || step.command === "download_subscription_invoice") return "prepareAccountDocumentDownload";
+  if (step.command === "download_account_export" || step.command === "download_subscription_invoice" || step.command === "open_subscription_invoice_link") return "prepareAccountDocumentDownload";
+  if (step.command === "openNotificationAction") return "openNotificationAction";
+  if (step.command === "navigateApplication" && isInrAssistantResumePublicationDraftRequest(step.instruction)) return "resumePublicationDraft";
+  if (step.command === "refresh_badge_theme_from_logo") return "refreshBadgeThemeFromLogo";
+  if (step.command === "submit_content_report") return "submitContentReport";
+  if (step.command === "control_local_interface") return isInrAssistantBusinessRichTextRequest(step.instruction) ? "formatBusinessDnaText" : "controlLocalInterface";
+  if (step.command === "configure_application_preferences") return "configureApplicationPreferences";
   if (step.command === "configure_cookie_consent") return "configureCookieConsent";
   if (step.command === "create_document_template") return "prepareCurrentDocumentTemplate";
   return step.command === "navigateApplication" || step.command === "prepareCommercialDocumentForm" ? step.command : "runScreenCommand";
@@ -24,7 +34,7 @@ export function inrAssistantUiStepTool(step: InrAssistantUiStep): typeof INR_ASS
 export type InrAssistantUiStep = {
   id: string;
   instruction: string;
-  command: ScreenCommand | "navigateApplication" | "prepareCommercialDocumentForm";
+  command: ScreenCommand | "navigateApplication" | "prepareCommercialDocumentForm" | "openNotificationAction";
   /** A known native transition supplies this next form only after its verified ACK. */
   afterStepId?: string;
   screen?: InrAssistantClientScreen;
@@ -51,10 +61,32 @@ function transitions(step: InrAssistantUiStep): readonly string[] | undefined {
   return step.command === "navigateApplication" ? inrAssistantNavigationForm(getDirectInrAssistantNavigationRequest(step.instruction)?.destination ?? "")?.commands : transitionCapabilities[step.command];
 }
 const documentFormRequest = (message: string) => isInrAssistantDocumentPrefillInstruction(message, "convert_quote") || isInrAssistantDocumentPrefillInstruction(message, "apply_template");
+/** Recover original field bytes using the same masked clause order, never treat
+ * quoted values as new instructions. Offsets also retain decomposed accents. */
+function originalUiClauses(message: string, clauses: string[]): Array<string | undefined> {
+  const masked = inrAssistantMaskQuotedText(message), offsets: number[] = []; let normalized = "", offset = 0;
+  for (const character of masked) {
+    const chunk = character.normalize("NFD").replace(/\p{M}/gu, "").replace(/[’‘]/g, "'").toLowerCase();
+    for (let index = 0; index < chunk.length; index++) offsets.push(offset);
+    normalized += chunk; offset += character.length;
+  }
+  let cursor = 0;
+  const starts = clauses.map(clause => { const found = normalized.indexOf(clause, cursor); if (found < 0) return undefined; cursor = found + clause.length; return offsets[found]; });
+  return starts.map((start, index) => start === undefined || index < starts.length - 1 && starts[index + 1] === undefined ? undefined : message.slice(start, starts[index + 1] ?? message.length).replace(/\s+(?:et\s+puis|et|puis|ensuite|and\s+then|and|then)\s*$/iu, "").trim());
+}
 
 export function inrAssistantUiStepAcceptsAction(step: InrAssistantUiStep, action: InrAssistantUiAction): boolean {
+  if (step.command === "openNotificationAction") return action.type === "navigate" && Boolean(action.navigation.notificationId) && isInrAssistantNotificationActionRequest(step.instruction);
+  if (step.command === "navigateApplication" && isInrAssistantResumePublicationDraftRequest(step.instruction)) return action.type === "navigate" && Boolean(action.navigation.publicationDraftId);
   if (step.command === "prepareCommercialDocumentForm") return action.type === "navigate" && Boolean(action.navigation.documentPrefill
     && isInrAssistantDocumentPrefillInstruction(step.instruction, action.navigation.documentPrefill.operation));
+  if (step.command === "control_local_interface" && isInrAssistantBusinessRichTextRequest(step.instruction)) {
+    if (action.type !== "command" || action.command.command !== "control_local_interface" || action.command.operation !== "select" || !action.command.value) return false;
+    const command = action.command;
+    const field = (Object.keys(INR_ASSISTANT_BUSINESS_RICH_TEXT_INTERFACES) as InrAssistantBusinessRichTextField[]).find(field => INR_ASSISTANT_BUSINESS_RICH_TEXT_INTERFACES[field] === command.selection.id);
+    try { const edit = parseInrAssistantBusinessRichTextEdit(JSON.parse(action.command.value)); return Boolean(field && edit && isInrAssistantBusinessRichTextRequest(step.instruction, field, edit)); } catch { return false; }
+  }
+  if (step.command === "control_local_interface") return action.type === "command" && action.command.command === "control_local_interface" && isInrAssistantLocalInterfaceRequest(step.instruction, action.command.selection.id, action.command.operation);
   return step.command === "navigateApplication" ? action.type === "navigate" : action.type === "command" && action.command.command === step.command;
 }
 
@@ -65,7 +97,12 @@ export function inrAssistantUiSteps(message: string, context?: InrAssistantClien
   const commands = new Set<ScreenCommand>(["export_document_pdf", ...INR_ASSISTANT_ACCOUNT_UI_COMMANDS]);
   let afterStepId: string | undefined;
   if (screen?.revision) for (const command of screen.availableCommands ?? []) commands.add(command);
-  return inrAssistantRequestClauses(message).flatMap((instruction, index): InrAssistantUiStep[] => {
+  const clauses = inrAssistantRequestClauses(message), originals = originalUiClauses(message, clauses);
+  return clauses.flatMap((instruction, index): InrAssistantUiStep[] => {
+    const exactInstruction = originals[index] ?? instruction;
+    if (isInrAssistantNotificationActionRequest(exactInstruction)) return [{ id: `ui_${index}`, instruction: exactInstruction, command: "openNotificationAction" }];
+    if (isInrAssistantResumePublicationDraftRequest(exactInstruction)) return [{ id: `ui_${index}`, instruction: exactInstruction, command: "navigateApplication" }];
+    if (isInrAssistantBusinessRichTextRequest(instruction)) return [{ id: `ui_${index}`, instruction: exactInstruction, command: "control_local_interface" }];
     if (documentFormRequest(instruction) && matchesInrAssistantActionClause(message, message, documentFormRequest)) {
       const step: InrAssistantUiStep = { id: `ui_${index}`, instruction, command: "prepareCommercialDocumentForm" };
       commands.clear(); INR_ASSISTANT_ACCOUNT_UI_COMMANDS.forEach(command => commands.add(command)); transitionCapabilities.prepareCommercialDocumentForm!.forEach(command => commands.add(command));
@@ -102,13 +139,14 @@ export function parseInrAssistantUiSteps(value: unknown): InrAssistantUiStep[] |
   for (const raw of value) {
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
     const step = raw as InrAssistantUiStep;
-    if (typeof step.id !== "string" || !/^ui_\d{1,2}$/.test(step.id) || parsed.some(item => item.id === step.id) || typeof step.instruction !== "string" || !step.instruction || step.instruction.length > 4000) return null;
+    if (typeof step.id !== "string" || !/^ui_\d{1,2}$/.test(step.id) || parsed.some(item => item.id === step.id) || typeof step.instruction !== "string" || !step.instruction || step.instruction.length > (step.command === "control_local_interface" && isInrAssistantBusinessRichTextRequest(step.instruction) ? 6200 : 4000)) return null;
     const screen = step.screen === undefined ? undefined : parseInrAssistantClientContext({ screen: step.screen })?.screen;
     if (step.screen !== undefined && !screen) return null;
     const origin = step.afterStepId === undefined ? undefined : parsed.find(previous => previous.id === step.afterStepId);
     if (step.afterStepId !== undefined && (!origin || !transitions(origin)?.some(command => command === step.command))) return null;
-    if (!["export_document_pdf", "navigateApplication", "prepareCommercialDocumentForm", ...INR_ASSISTANT_ACCOUNT_UI_COMMANDS].includes(step.command) && (!screen?.revision || !screen.availableCommands?.some(command => command === step.command)) && !origin) return null;
-    if (step.command === "navigateApplication" ? !getDirectInrAssistantNavigationRequest(step.instruction) : step.command === "prepareCommercialDocumentForm" ? !documentFormRequest(step.instruction) : !isInrAssistantScreenCommandRequest(step.instruction, step.command)) return null;
+    if (!["export_document_pdf", "navigateApplication", "prepareCommercialDocumentForm", "openNotificationAction", ...INR_ASSISTANT_ACCOUNT_UI_COMMANDS].includes(step.command) && (!screen?.revision || !screen.availableCommands?.some(command => command === step.command)) && !origin) return null;
+    const richText = step.command === "control_local_interface" && isInrAssistantBusinessRichTextRequest(step.instruction);
+    if (step.command === "navigateApplication" ? !getDirectInrAssistantNavigationRequest(step.instruction) && !isInrAssistantResumePublicationDraftRequest(step.instruction) : step.command === "openNotificationAction" ? !isInrAssistantNotificationActionRequest(step.instruction) : step.command === "prepareCommercialDocumentForm" ? !documentFormRequest(step.instruction) : !richText && !isInrAssistantScreenCommandRequest(step.instruction, step.command)) return null;
     const actions = step.actions === undefined ? undefined : parseInrAssistantUiActions(step.actions);
     if (step.actions !== undefined && (!actions?.length || !actions.some(action => inrAssistantUiStepAcceptsAction(step, action)) || origin && !screen)) return null;
     if (step.source && (!actions?.length || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(step.source.turnId) || !/^\d{4}-\d{2}-\d{2}T/.test(step.source.createdAt) || !Number.isFinite(Date.parse(step.source.createdAt)))) return null;

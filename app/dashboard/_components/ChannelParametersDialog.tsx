@@ -8,11 +8,15 @@ import "../settings/_components/ChannelSettingsSteps.module.css";
 import "../settings/_components/MailsSettingsContent.module.css";
 import "../settings/_components/MailsSignaturePanel.module.css";
 import "../settings/_components/InrSearchSettingsContent.module.css";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 
 export default function ChannelParametersDialog({ name, title, children, onClose, fullScreen = false, contentOnly = false, layout }: { name: string; title?: string; children: ReactNode; onClose: () => void; fullScreen?: boolean; contentOnly?: boolean; layout?: "compact" | "reviews" }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
   const t = useTranslations("dashboard.channelBubble");
+  useInrAssistantLocalInterface("channel_parameters", { mounted: true }, {
+    close: { invoke: onClose, matches: () => false, allowUnmount: true },
+  });
   useEffect(() => {
     const dialog = ref.current;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;

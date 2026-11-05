@@ -1,5 +1,6 @@
 "use client";
 
+import { useInrAssistantRenderedPublicLink } from "../_hooks/useInrAssistantNativeChannelLinks";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import styles from "../dashboard.module.css";
@@ -42,6 +43,7 @@ export function ChannelBubbleIcon({ kind }: { kind: "eye" | "plug" | "disconnect
 
 export default function DashboardFluxBubble({ item, itemKey }: { item: DashboardFluxBubbleData; itemKey?: string }) {
   const t = useTranslations("dashboard.channelBubble");
+  const publicAnchor = useRef<HTMLAnchorElement>(null);
   const connection = item.connection;
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const [parametersOpen, setParametersOpen] = useState(false);
@@ -65,6 +67,7 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
   const viewHref = connection?.publicView?.href || item.specialViewHref || item.viewAction?.href;
   const viewCallback = item.onSpecialView || item.viewAction?.onClick;
   const canView = connection?.publicView ? true : item.canViewSpecial ?? Boolean(viewCallback || (viewHref && viewHref !== "#"));
+  useInrAssistantRenderedPublicLink(item.key, viewHref || "", publicAnchor, Boolean(canView && !connection?.publicView?.disabled && !viewCallback && !item.premiumLocked));
   const connectLabel = connection?.connectLabel || (item.bubbleStatus === "reconnect" || connection?.accountConnected ? t("reconnect") : t("connect"));
   const disconnectLabel = connection?.disconnectLabel || t("disconnect");
   const selectionCaption = t(item.key === "gmb" ? "selected" : item.key === "facebook" ? "selectedPage" : item.key === "pinterest" ? "selectedBoard" : item.key === "mails" ? "selectedMailbox" : "selectedAccount");
@@ -124,12 +127,12 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
             </div>{connection?.onCreateResource ? <ChannelBoardCreator onCreate={connection.onCreateResource} disabled={Boolean(busy || disabled || (connection.loading && !connection.accountConnected))} /> : null}</div>}
           </div>}
           <div className={bubbleStyles.iconActions}>
-            {canView ? connection?.publicView?.disabled ? <button type="button" className={bubbleStyles.iconAction} title={viewLabel} aria-label={viewLabel} disabled><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></button> : viewCallback ? <button type="button" className={bubbleStyles.iconAction} title={viewLabel} aria-label={viewLabel} onClick={viewCallback}><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></button> : <a className={bubbleStyles.iconAction} href={viewHref} aria-label={viewLabel} title={viewLabel} target={/^https?:/.test(viewHref || "") ? "_blank" : undefined} rel="noreferrer"><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></a> : null}
+            {canView ? connection?.publicView?.disabled ? <button type="button" className={bubbleStyles.iconAction} title={viewLabel} aria-label={viewLabel} disabled><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></button> : viewCallback ? <button type="button" className={bubbleStyles.iconAction} title={viewLabel} aria-label={viewLabel} onClick={viewCallback}><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></button> : <a ref={publicAnchor} className={bubbleStyles.iconAction} href={viewHref} aria-label={viewLabel} title={viewLabel} target={/^https?:/.test(viewHref || "") ? "_blank" : undefined} rel="noreferrer"><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></a> : null}
             {showDisconnect ? <button type="button" className={`${bubbleStyles.iconAction} ${bubbleStyles.disconnectIcon}`} aria-label={`${disconnectLabel} — ${connection?.accountLabel || connection?.resourceLabel || item.name}`} title={disconnectLabel} disabled={Boolean(busy || disabled)} aria-busy={Boolean(busy)} onClick={() => void run(disconnect)}><ChannelBubbleIcon kind="disconnect" /><span className={bubbleStyles.actionText} aria-hidden="true">{disconnectLabel}</span></button> : null}
-            {connection?.publicationTypes && hasResource ? <ChannelPublicationTypes name={item.name} settings={connection.publicationTypes} disabled={Boolean(disabled || busy)} /> : null}
+            {connection?.publicationTypes && hasResource ? <ChannelPublicationTypes name={item.name} channel={item.key} settings={connection.publicationTypes} disabled={Boolean(disabled || busy)} /> : null}
             {connection?.extraActions}
             {showParameters ? <button type="button" className={bubbleStyles.iconAction} title={parametersLabel} aria-label={`${parametersLabel} — ${item.name}`} disabled={disabled || pending} onClick={() => setParametersOpen(true)}><ChannelBubbleIcon kind={connection?.parametersIcon || "settings"} /><span className={bubbleStyles.actionText} aria-hidden="true">{connection?.parametersLabel || item.key === "mails" || item.key === "pinterest" ? parametersLabel : t("settingsShort")}</span></button> : null}
-            {connection?.publicLinks && (connection.accountConnected || value) ? <ChannelPublicLinkEditor name={item.name} disabled={Boolean(busy || disabled)}>{connection.publicLinks}</ChannelPublicLinkEditor> : null}
+            {connection?.publicLinks && (connection.accountConnected || value) ? <ChannelPublicLinkEditor channel={item.key} name={item.name} disabled={Boolean(busy || disabled)}>{connection.publicLinks}</ChannelPublicLinkEditor> : null}
             {item.bubbleStatus === "available" && !connection?.accountConnected && item.createHref && !item.createDisabled ? <a href={item.createHref} target="_blank" rel="noreferrer" className={bubbleStyles.iconAction} title={item.createLabel || t("create")} aria-label={`${item.createLabel || t("create")} — ${item.name}`}><ChannelBubbleIcon kind="create" /></a> : null}
           </div>
         </>}

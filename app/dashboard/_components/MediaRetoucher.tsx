@@ -21,6 +21,7 @@ import { prepareMediaImageEditMaster } from "@/lib/mediaImageEditMasterClient";
 import type { BackgroundMode } from "./channel-image-adapter/types";
 import type { ImageOverlay } from "@/lib/imageOverlay";
 import { useInrAssistantImageCommands } from "../_hooks/useInrAssistantImageCommands";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 import { loadInrAssistantLibraryImage } from "@/lib/inrAssistantMediaUiClient";
 import { resolveRetoucherGeometry } from "@/lib/mediaRetoucherGeometry";
 import {
@@ -232,6 +233,10 @@ export default function MediaRetoucher({
   const sourcePreparing =
     loadingSource ||
     Boolean(initialSourceLoading && !source && initialPreview?.url);
+  useInrAssistantLocalInterface("studio_retouch_library", { open: libraryOpen }, {
+    open: { invoke: () => { if (sourcePreparing || saving) throw new Error("reference_picker_unavailable"); setLibraryOpen(true); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
+    close: { invoke: () => setLibraryOpen(false), matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
+  }, true, sourcePreparing || saving);
 
   useEffect(() => {
     return () => {

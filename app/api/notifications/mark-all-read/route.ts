@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
-export async function POST(req?: Request) {
+export async function POST(req: Request) {
   const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
 

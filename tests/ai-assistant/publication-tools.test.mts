@@ -455,15 +455,14 @@ test("foreign draft and publication IDs are passed only through the same authent
   assert.doesNotMatch(JSON.stringify(status), /FOREIGN|PRIVATE/);
 });
 
-test("iNrSend corrections preserve media, call its channel handler once, and skip a correction already recorded after retry", async () => {
+test("the legacy iNrSend text edit entry requests the new signed published-edit workflow without writing a channel", async () => {
   const h = harness({ message: "Corrige ma publication Facebook avec le nouveau texte" });
   const input = { publicationId: PUBLICATION, channel: "facebook", title: null, content: "Nouveau texte corrigé", hashtags: null };
   const [a, b] = await Promise.all([h.tools.editPublication.execute(input), h.tools.editPublication.execute(input)]);
-  assert.equal(a.status, "updated"); assert.equal(b.status, "updated");
-  const calls = h.calls.filter((call) => call.action === "edit"); assert.equal(calls.length, 1);
-  assert.deepEqual(Object.keys(calls[0].body!), ["content"]);
-  assert.equal((await h.create().editPublication.execute(input)).status, "unchanged");
-  assert.equal(h.calls.filter((call) => call.action === "edit").length, 1);
+  assert.equal(a.status, "needs_clarification"); assert.equal(b.status, "needs_clarification");
+  assert.match(String(a.message), /previewPublishedPublicationEdit/);
+  assert.equal((await h.create().editPublication.execute(input)).status, "needs_clarification");
+  assert.equal(h.calls.filter((call) => call.action === "edit").length, 0);
   assert.doesNotMatch(JSON.stringify(a), /PRIVATE|provider_token/);
 });
 
@@ -478,8 +477,8 @@ test("unsupported edits and an uncertain remote write never become an automatic 
   const h = harness({ message: "Corrige la publication Facebook", throwEdit: true });
   const input = { publicationId: PUBLICATION, channel: "facebook", title: null, content: "Nouveau texte", hashtags: null };
   const first = await h.tools.editPublication.execute(input), retry = await h.tools.editPublication.execute(input);
-  assert.equal(first.status, "unknown"); assert.equal(retry.status, "unknown");
-  assert.equal(h.calls.filter((call) => call.action === "edit").length, 1);
+  assert.equal(first.status, "needs_clarification"); assert.equal(retry.status, "needs_clarification");
+  assert.equal(h.calls.filter((call) => call.action === "edit").length, 0);
   assert.equal(h.calls.some((call) => call.action === "publish"), false);
   assert.doesNotMatch(JSON.stringify(first), /PRIVATE|access_token/);
 });

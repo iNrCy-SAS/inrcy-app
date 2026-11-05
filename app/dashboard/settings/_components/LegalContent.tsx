@@ -5,6 +5,7 @@ import styles from "./LegalPrivacyContent.module.css";
 import { useState } from "react";
 import type { LegalDocKey } from "../../../legal/_components/legalDocs";
 import LegalDocumentsModal from "./LegalDocumentsModal";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 type Props = {
   mode?: "page" | "drawer";
@@ -29,6 +30,20 @@ export default function LegalContent({ mode = "page" }: Props) {
     { key: "mentions-legales", title: i18nT("mentions_legales_414291e0"), icon: "identity", tone: styles.violet },
     { key: "cga", title: i18nT("cga_et_conditions_d_utilisation_353e0a8b"), icon: "terms", tone: styles.pink },
   ] as const;
+  useInrAssistantLocalInterface("legal", { openDoc }, {
+    open: {
+      invoke(value) {
+        const document = documents.find(item => item.key === value);
+        if (!document) throw new Error("Unavailable legal document");
+        setOpenDoc(document.key);
+      },
+      matches: (snapshot, value) => (snapshot as { openDoc?: unknown } | undefined)?.openDoc === value,
+    },
+    ...(openDoc ? { close: {
+      invoke: () => setOpenDoc(null),
+      matches: (snapshot: unknown) => (snapshot as { openDoc?: unknown } | undefined)?.openDoc === null,
+    } } : {}),
+  });
 
   return (
     <div className={styles.surface} data-mode={mode}>

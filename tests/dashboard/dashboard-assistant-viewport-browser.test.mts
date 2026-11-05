@@ -15,6 +15,20 @@ const packageSource = (name: string, file: string) => readFileSync(path.join(pat
 /** Compile only dependencies reachable from the reviewed browser entrypoints.
  * No bare package/server module or path outside lib is admitted by this loader. */
 function browserLibSources(entry: string, output: Record<string, string> = {}) {
+  if (entry === "../app/dashboard/_hooks/useDashboardLanguage") {
+    output["../app/dashboard/_hooks/useDashboardLanguage"] = compile("app/dashboard/_hooks/useDashboardLanguage.ts");
+    return output;
+  }
+  if (entry === "../i18n/config") {
+    output["../i18n/config"] = compile("i18n/config.ts");
+    return output;
+  }
+  if (entry === "../i18n/client-locale") {
+    output["../i18n/client-locale"] = compile("i18n/client-locale.ts");
+    output["./config"] = compile("i18n/config.ts");
+    browserLibSources("appLanguage", output);
+    return output;
+  }
   const normalized = path.posix.normalize(entry.replace(/\\/g, "/")).replace(/\.ts$/, "");
   assert.ok(!normalized.startsWith("../") && !path.posix.isAbsolute(normalized), normalized);
   const name = `@/lib/${normalized}`; if (output[name]) return output;
@@ -42,6 +56,9 @@ const sources = {
   "./DashboardAssistantSession": compile("app/dashboard/_components/DashboardAssistantSession.tsx"),
   "./dashboardAssistantSessionState": compile("app/dashboard/_components/dashboardAssistantSessionState.ts"),
   "../_hooks/useAssistantDialogViewport": compile("app/dashboard/_hooks/useAssistantDialogViewport.ts"),
+  "../_hooks/useInrAssistantCookieOptions": compile("app/dashboard/_hooks/useInrAssistantCookieOptions.ts"),
+  "../_hooks/useInrAssistantNativeChannelLinks": compile("app/dashboard/_hooks/useInrAssistantNativeChannelLinks.ts"),
+  "./useInrAssistantLocalInterface": compile("app/dashboard/_hooks/useInrAssistantLocalInterface.ts"),
   "./dashboardAssistantCopy": compile("app/dashboard/_components/dashboardAssistantCopy.ts"),
   "./dashboardAssistantErrorCopy": compile("app/dashboard/_components/dashboardAssistantErrorCopy.ts"),
   "./dashboardAssistantAttachmentCopy": compile("app/dashboard/_components/dashboardAssistantAttachmentCopy.ts"),
@@ -65,7 +82,7 @@ const sources = {
   "./inrAssistantMailLifecycle.ts": compile("lib/inrAssistantMailLifecycle.ts"),
   "./inrAssistantMailCompose.ts": compile("lib/inrAssistantMailCompose.ts"),
   "./inrAssistantMailAttachments.ts": compile("lib/inrAssistantMailAttachments.ts"),
-  ...Object.assign({}, ...["inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantAttachments", "inrAssistantClientContext", "inrAssistantStudioDraft", "inrAssistantStudioHandoff", "inrAssistantAutoContinuation", "inrAssistantAccountDocuments", "inrAssistantNavigationForm", "inrAssistantMediaPreview"].map(entry => browserLibSources(entry))),
+  ...Object.assign({}, ...["inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantAttachments", "inrAssistantClientContext", "inrAssistantStudioDraft", "inrAssistantStudioHandoff", "inrAssistantAutoContinuation", "inrAssistantAccountDocuments", "inrAssistantNavigationForm", "inrAssistantMediaPreview", "inrAssistantCookieOptions", "inrAssistantNativeChannelLinks", "inrAssistantContentReport"].map(entry => browserLibSources(entry))),
 };
 const fixture = `
 window.viewportFixtureError=null;
@@ -86,7 +103,7 @@ function require(name) {
   if(name==='@/lib/inrAssistantClientStream') return {readInrAssistantResponse(){throw Error('No chat request expected')}};
   if(name==='@/lib/inrAssistantRefresh') return {dispatchInrAssistantRefresh(){return false}};
   if(name==='@/lib/inrAssistantContextualHelp') return {getInrAssistantContextualHelp:()=>null};
-  if(name==='./DashboardViewerAccessProvider') return {};
+  if(name.endsWith('/DashboardViewerAccessProvider')) return {useDashboardViewerAccess:()=>({actorUserId:'actor-fixture',activeAccountId:'account-fixture'})};
   if(name==='./DashboardAssistantMessageContent') return {__esModule:true,default:()=>null};
   if(name==='./DashboardUnsavedNavigationProvider') return {useDashboardUnsavedNavigation:()=>({requestNavigation:async callback=>callback()})};
   if(name.endsWith('/useAssistantFirstArrival')) return {useAssistantFirstArrival(){}};
@@ -103,6 +120,7 @@ Object.assign(viewport,{width:innerWidth,height:innerHeight,offsetTop:0,offsetLe
 Object.defineProperty(window,'visualViewport',{configurable:true,value:location.search.includes('fallback')?undefined:viewport});
 window.updateViewport=(bounds,event='resize')=>{Object.assign(viewport,bounds);viewport.dispatchEvent(new Event(event))};
 const React=require('react');
+if(typeof require('session').TestSession!=='function')throw Error('Missing native Session export '+Object.keys(require('session')).join(','));
 function Fixture() {
   const [open,setOpen]=React.useState(true);
   return React.createElement(require('session').TestSession,{actorUserId:'actor-fixture',activeAccountId:'account-fixture',allowed:true,open,close:()=>setOpen(false),minimize:()=>setOpen(false),onHumanContact(){}});
@@ -116,7 +134,7 @@ const studioSources = {
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaFreeGenerator": compile("app/dashboard/_components/MediaFreeGenerator.tsx"),
   "./MediaBusinessDnaHelp": compile("app/dashboard/_components/MediaBusinessDnaHelp.tsx"),
-  ...Object.fromEntries(["studioVideoRetouchPersistence", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
+  ...Object.fromEntries(["studioVideoRetouchPersistence", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices", "inrAssistantStudioFormSelection"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
 };
 const studioFixture = `
 const sources=${JSON.stringify(studioSources)}, loaded={};
@@ -125,6 +143,9 @@ const hook={quota:{accountId:'account-fixture',creditsReady:true,credits:{remain
 const preference={imageEngine:'recraft',videoEngine:'omni',videoResolution:'720p',update(){}};
 const quote={ready:true,insufficient:false,quote:{totalCredits:4},authorization:{}};
 function require(name){
+ if(name.endsWith('useInrAssistantLocalInterface'))return {useInrAssistantLocalInterface(){}};
+ if(name.endsWith('useInrAssistantLocalClose'))return {useInrAssistantLocalClose(){}};
+ if(name==='./DashboardUnsavedNavigationProvider')return {useDashboardUnsavedNavigation:()=>({registerGuard:()=>()=>{}})};
  if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
  if(name==='./inrAssistantStudioDraft.ts')return require('@/lib/inrAssistantStudioDraft');

@@ -56,6 +56,8 @@ function renderHelp(nativeLayer: boolean, initialOverflow: string) {
     };
     if (name === "next-intl") return { useTranslations: () => (key: string) => key };
     if (name === "./DashboardAssistantTrigger") return { __esModule: true, default: () => null };
+    // Close ACKs with the real hook are covered by dashboard-basic-local-controls-runtime.
+    if (name.endsWith("useInrAssistantLocalInterface")) return { useInrAssistantLocalInterface() {} };
     if (name.endsWith(".module.css")) return { default: { nativeLayer: "nativeLayer" } };
     return require(name);
   };

@@ -8,6 +8,7 @@ import * as transport from "../../lib/aiMediaGenerationTransport.ts";
 import * as recovery from "../../lib/aiMediaGenerationRecovery.ts";
 import * as clientRequestRules from "../../lib/mediaGenerationClientRequest.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
+import * as assistantRefresh from "../../lib/inrAssistantRefresh.ts";
 
 type Scope = { accountId: string | null; kind: "image" | "video"; isCurrent: () => boolean };
 type Hook = { result: { item: { id: string } } | null; loadQuota: () => Promise<unknown>; retryRecovery: () => Promise<unknown>; discardDraft: () => Promise<void> };
@@ -31,7 +32,16 @@ function harness() {
     useEffect(effect: () => void | (() => void), deps: unknown[]) { const index = cursor++; const slot = slots[index] ||= {}; if (!slot.deps || deps.some((item, i) => item !== slot.deps![i])) { slot.deps = deps; effects.push(() => { slot.cleanup?.(); slot.cleanup = effect() || undefined; }); } },
   };
   const output = ts.transpileModule(readFileSync(new URL("../../app/dashboard/_hooks/useMediaGeneration.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const refreshTarget = new EventTarget(), refreshModule = { exports: {} };
+  const refreshSource = ts.transpileModule(readFileSync(new URL("../../app/dashboard/_hooks/useInrAssistantRefresh.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  new Function("module", "exports", "require", refreshSource)(refreshModule, refreshModule.exports, (name: string) => {
+    if (name === "react") return { ...react, useLayoutEffect: react.useEffect };
+    if (name === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => "account-a" };
+    if (name === "@/lib/inrAssistantRefresh") return { ...assistantRefresh, subscribeInrAssistantRefresh: (options: Parameters<typeof assistantRefresh.subscribeInrAssistantRefresh>[0]) => assistantRefresh.subscribeInrAssistantRefresh({ ...options, target: refreshTarget }) };
+    assert.fail(`Unexpected native refresh dependency: ${name}`);
+  });
   const modules = new Map<string, unknown>([
+    ["./useInrAssistantRefresh", refreshModule.exports],
     ["react", react], ["@/lib/multicompte/constants", { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" }],
     ["@/lib/aiMediaGenerationContracts", contracts], ["@/lib/aiMediaModelCatalog", models],
     ["@/lib/aiMediaGenerationTransport", transport], ["@/lib/aiMediaGenerationRecovery", recovery],

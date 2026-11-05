@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { isStandardDashboardEdition, type DashboardEdition } from "@/lib/dashboardEdition";
 import type { InertiaSnapshot } from "@/lib/loyalty/inertia";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 type Props = {
   mode?: "drawer" | "page";
@@ -41,6 +42,9 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
   const [events, setEvents] = useState<LoyaltyEvent[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [supabaseReady, setSupabaseReady] = useState<boolean>(true);
+  useInrAssistantLocalInterface("inertia_views", { view }, {
+    select: { invoke: value => { if (value !== "overview" && value !== "history") throw new Error("Inertia view unavailable"); setView(value); }, matches: (snapshot, value) => Boolean(snapshot && typeof snapshot === "object" && "view" in snapshot && snapshot.view === value) },
+  });
 
   // ⚠️ Prévu Supabase :
   // - loyalty_balance (user_id, balance)

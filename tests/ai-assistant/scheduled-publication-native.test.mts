@@ -54,3 +54,14 @@ test("native retry claims the exact failed snapshot and loses cleanly to a concu
   for (const field of ["status", "updated_at", "payload", "attempt_count"]) assert.ok(h.writes[0].filters.some(([, key]) => key === field), field);
   const stale = harness({ status: "failed" }); assert.equal((await stale.execute({ expectedState: "0".repeat(64) })).status, 409); assert.equal(stale.writes.length, 0);
 });
+
+test("native manual publish-now guards every unstarted field and loses atomically to a concurrent worker", async () => {
+  const racing = harness({ race: true });
+  assert.equal((await racing.execute({ expectedState: racing.fingerprint(), expectedOperation: "publish_now" })).status, 409);
+  assert.equal(racing.writes.length, 1);
+  for (const field of ["status", "updated_at", "payload", "attempt_count", "executed_at", "scheduled_at", "source", "action_type", "target_tool"]) assert.ok(racing.writes[0].filters.some(([, key]) => key === field), field);
+  for (const input of [{ expectedOperation: "publish_now" }, { expectedOperation: "other", expectedState: "0".repeat(64) }, { expectedOperation: "publish_now", expectedState: "0".repeat(64) }]) {
+    const h = harness(); assert.equal((await h.execute(input)).status, 409); assert.equal(h.writes.length, 0);
+  }
+  const failed = harness({ status: "failed" }); assert.equal((await failed.execute({ expectedOperation: "publish_now", expectedState: failed.fingerprint() })).status, 409); assert.equal(failed.writes.length, 0);
+});

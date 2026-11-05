@@ -1,34 +1,43 @@
 "use client";
 
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import styles from "./subscriptionWorkspace.module.css";
 import offerStyles from "./settingsContentLayout.module.css";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 /** Long explanations remain available without extending the subscription overview. */
-export function SubscriptionDetails({ title, children, open, onClose }: {
+export function SubscriptionDetails({ title, children, open, onClose, assistantBilling = false }: {
   title: string;
   children: ReactNode;
   open?: boolean;
   onClose?: () => void;
+  assistantBilling?: boolean;
 }) {
   const t = useTranslations("settings");
   const id = useId();
   const dialog = useRef<HTMLDialogElement>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const openDetails = () => { const element = dialog.current; if (!element?.isConnected) throw new Error("Billing details unavailable"); if (!element.open) element.showModal(); setDialogOpen(element.open); };
+  const closeDetails = () => { const element = dialog.current; if (!element?.isConnected) throw new Error("Billing details unavailable"); if (element.open) element.close(); setDialogOpen(element.open); };
 
   useEffect(() => {
     const element = dialog.current;
     if (!element || open === undefined) return;
-    if (open && !element.open) element.showModal();
-    else if (!open && element.open) element.close();
+    if (open && !element.open) { element.showModal(); setDialogOpen(element.open); }
+    else if (!open && element.open) { element.close(); setDialogOpen(element.open); }
   }, [open]);
+  useInrAssistantLocalInterface("subscription_details", { open: dialogOpen }, {
+    open: { invoke: openDetails, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === true) },
+    close: { invoke: closeDetails, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === false) },
+  }, assistantBilling);
 
   return <>
     <button type="button" className={styles.detailsTrigger} aria-haspopup="dialog"
-      onClick={() => dialog.current?.showModal()}>{title}<span aria-hidden="true">↗</span></button>
-    <dialog ref={dialog} className={styles.detailsDialog} role="dialog" aria-modal="true" aria-labelledby={id} onClose={onClose}
+      onClick={openDetails}>{title}<span aria-hidden="true">↗</span></button>
+    <dialog ref={dialog} className={styles.detailsDialog} role="dialog" aria-modal="true" aria-labelledby={id} onClose={() => { setDialogOpen(false); onClose?.(); }}
       onKeyDown={(event) => { if (event.key === "Escape") event.stopPropagation(); }}>
-      <header><h2 id={id}>{title}</h2><button type="button" onClick={() => dialog.current?.close()}
+      <header><h2 id={id}>{title}</h2><button type="button" onClick={closeDetails}
         aria-label={t("fermer_5ab4ec64")} title={t("fermer_5ab4ec64")}>×</button></header>
       <div className={styles.detailsBody}>{children}</div>
     </dialog>

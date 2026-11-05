@@ -554,33 +554,14 @@ export function createInrAssistantPublicationTools(options: {
       },
     }),
     editPublication: tool({ strict: true,
-      description: "Corriger le texte d’une publication existante sur un canal, uniquement sur demande actuelle explicite. Réutilise le traitement réel iNr’Send et conserve ses médias. X et TikTok ne permettent pas cette modification ; Threads publié peut également la refuser. Ne jamais remplacer une publication refusée par une nouvelle. Les champs null sont conservés. Après un résultat incertain, vérifier iNr’Send avant de réessayer.",
+      description: "Ancienne entrée de correction de texte : une publication déjà diffusée exige désormais readPublishedPublicationForEdit puis previewPublishedPublicationEdit et sa confirmation référencée avant applyPublishedPublicationEdit. Cet outil ne modifie aucun canal et n’autorise aucun remplacement silencieux. Pour un brouillon, utiliser preparePublication ; pour une proposition non validée, editPreparedPublication.",
       inputSchema: schema<EditInput>({ type: "object", properties: { publicationId: idSchema, channel: { type: "string", enum: BOOSTER_PUBLICATION_CHANNELS }, title: nullableString(180), content: nullableString(5_000), hashtags: tagSchema }, required: ["publicationId", "channel", "title", "content", "hashtags"], additionalProperties: false }, editInput),
       execute: async (raw) => {
         const input = editInput(raw);
-        return once("edit", input, async () => {
-          if (!permitsInrAssistantPublicationAction(options.currentUserMessage, "edit")) return result("edit", "needs_clarification", "Précisez la publication, le canal et la correction souhaitée avant de la modifier.");
-          if (["x", "tiktok", "youtube_shorts"].includes(input.channel)) return result("edit", "blocked", "Ce canal ne permet pas cette correction depuis iNr’Send. Ouvrez la publication sur la plateforme pour vérifier les possibilités.");
-          const denied = await access("edit"); if (denied) return denied;
-          const publication = await read(() => options.supabase.from("publications").select("id,title,content,hashtags").eq("id", input.publicationId).eq("user_id", accountId).maybeSingle());
-          if (!publication.data) return result("edit", "blocked", "Cette publication n’a pas été retrouvée dans cet établissement.");
-          const events = await read(() => options.supabase.from("app_events").select("payload").eq("user_id", accountId).eq("module", "booster").eq("type", "publish")
-            .contains("payload", { publication_id: input.publicationId }).order("created_at", { ascending: false }).limit(1).maybeSingle());
-          const event = row(row(events.data).payload), current = row(row(event.postByChannel)[input.channel] || event.post || publication.data);
-          const previousResult = row(row(event.results)[input.channel]);
-          if (previousResult.pending === true || /(?:unknown|pending|processing|queued)/i.test(String(previousResult.code || previousResult.status || ""))) return result("edit", "unknown", "L’état de ce canal est encore incertain ou en cours. Vérifiez-le dans iNr’Send avant toute nouvelle modification.", { publicationId: input.publicationId });
-          const unchanged = (input.title === undefined || input.title === current.title) && (input.content === undefined || input.content === current.content) &&
-            (input.hashtags === undefined || JSON.stringify(input.hashtags) === JSON.stringify(current.hashtags || []));
-          if (unchanged) return result("edit", "unchanged", "Le texte enregistré correspond déjà à cette correction. Aucun nouvel appel de modification n’a été effectué.", { publicationId: input.publicationId });
-          const { createPublicationChannelHandlers } = await import("@/lib/inrsend/publicationChannelActions");
-          const handlers = createPublicationChannelHandlers(input.channel as Parameters<typeof createPublicationChannelHandlers>[0]);
-          const { publicationId, channel, ...patch } = input;
-          const timeout = beforeMutation("edit"); if (timeout) return timeout;
-          const response = await handlers.PATCH(request(options.request, `/api/inrsend/publications/${publicationId}/${channel.replace("_", "-")}`, "PATCH", patch), { params: Promise.resolve({ publicationId }) });
-          const data = row(await response.json());
-          if (!response.ok || data.ok !== true) return actionFailure("edit", response);
-          return result("edit", "updated", "La correction a été confirmée par iNr’Send pour ce canal.", { publicationId, channels: [{ channel, status: "updated" }] });
-        });
+        if (!permitsInrAssistantPublicationAction(options.currentUserMessage, "edit")) return result("edit", "needs_clarification", "Précisez la publication, le canal et la correction souhaitée avant de la modifier.");
+        if (["x", "tiktok", "youtube_shorts", "threads"].includes(input.channel)) return result("edit", "blocked", "Ce canal publié ne permet pas cette correction depuis iNr’Send. Vérifiez ses possibilités sur la plateforme.");
+        const denied = await access("edit"); if (denied) return denied;
+        return result("edit", "needs_clarification", "La modification d’un canal publié nécessite son aperçu confirmé : relire avec readPublishedPublicationForEdit, préparer previewPublishedPublicationEdit, puis appliquer uniquement après confirmation de sa référence. Aucun canal modifié.", { publicationId: input.publicationId });
       },
     }),
     getPublicationStatus: tool({ strict: true,

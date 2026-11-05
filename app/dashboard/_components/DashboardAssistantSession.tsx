@@ -1,5 +1,7 @@
 "use client";
 
+import { getInrAssistantContentReportHint } from "@/lib/inrAssistantContentReport";
+import { getInrAssistantLocalInterfaceHints } from "@/lib/inrAssistantLocalInterface";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocale } from "next-intl";
 import Image from "next/image";
@@ -250,7 +252,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
     setRetryMessages(null);
     setHandoffSummary("");
     setActivities([]); activitySeenRef.current = false;
-    const clientContext = parseInrAssistantClientContext({ screen: automatic.hops ? latestScreenRef.current : screen, visibleError, mediaPreview:automatic.mediaPreview });
+    const clientContext = parseInrAssistantClientContext({ contentReport: getInrAssistantContentReportHint({ actorUserId, accountId: activeAccountId, pathname: screen?.pathname ?? "/dashboard" }), interfaces: getInrAssistantLocalInterfaceHints({ actorUserId, accountId: activeAccountId, pathname: screen?.pathname ?? "/dashboard" }), screen: automatic.hops ? latestScreenRef.current : screen, visibleError, mediaPreview:automatic.mediaPreview });
     setVisibleError(undefined);
     // Media creation may legitimately outlast an ordinary answer. The server
     // bounds normal model calls independently and owns the generation timeout.

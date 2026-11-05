@@ -6,7 +6,9 @@ import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorA
 import { resolveInstagramAuthMode } from "@/lib/instagramAuthMode";
 import { ensureMetaDirectAccessToken } from "@/lib/metaDirectTokens";
 import { threadsPublish, threadsDeletePost, buildThreadsMediaSourceIdentity, THREADS_EDIT_UNSUPPORTED_MESSAGE } from "@/lib/threadsPublish";
-import { acquireExecutionIdempotencyLock, failExecutionIdempotencyLock, completeExecutionIdempotencyLock } from "@/lib/executionIdempotency";
+import { acquireExecutionIdempotencyLock, failExecutionIdempotencyLock, completeExecutionIdempotencyLock, completeExecutionIdempotencyLockOrThrow } from "@/lib/executionIdempotency";
+import { publicationEditSourceVersion, normalizePublicationEditHashtag as normalizeHashtag } from "./publicationEditVersion";
+import { guardPublishedPublicationEdit, PublicationEditSourceChangedError } from "./publicationEditGuard";
 import { normalizeSiteWebChannelMap, normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { primarySiteWebArticle, siteWebArticleIdsFromPayload, siteWebImageMediaPatch } from "@/lib/siteWebPublications";
@@ -242,13 +244,6 @@ function isFacebookStoryOnlyPublication(eventPayload: JsonRecord) {
   );
 }
 
-function normalizeHashtag(input: string): string {
-  return String(input || "")
-    .trim()
-    .replace(/^#+/, "")
-    .replace(/[^\p{L}\p{N}_]/gu, "")
-    .slice(0, 40);
-}
 
 function normalizePublicHttpUrl(value: unknown): string {
   const raw = String(value || "").trim();
@@ -965,6 +960,7 @@ async function loadPublicationContext(userId: string, publicationId: string, cha
     .eq("user_id", userId)
     .eq("module", "booster")
     .eq("type", "publish")
+    .contains("payload", { publication_id: publicationId })
     .order("created_at", { ascending: false })
     .limit(200);
 
@@ -1020,6 +1016,14 @@ async function loadPublicationContext(userId: string, publicationId: string, cha
     siteArticleIds: siteArticles.map((article) => String(article.id)),
     deliveries: Array.isArray(delivery) ? delivery : [],
   };
+}
+
+/** Authenticated callers must verify active account/actor around this read. */
+export async function readInrSendPublicationEditState(userId: string, publicationId: string, channel: ChannelKey) {
+  const current = await loadPublicationContext(userId, publicationId, channel);
+  if (!current?.event || current.publication.user_id !== userId || asRecord(current.event.payload).publication_id !== publicationId) return null;
+  return { ...current, sourceVersion: await publicationEditSourceVersion(userId, publicationId, channel, current.event.payload),
+    post: getChannelPost(current.eventPayload, current.publication, channel), images: { ...getChannelImageSet(current.eventPayload, current.publication, channel), editableAttachments: getChannelEditableAttachments(current.eventPayload, current.publication, channel) }, video: getEventPublicationMediaType(current.eventPayload, current.publication, channel) === "video" ? getPublicationVideo(current.eventPayload, current.publication, channel) : null };
 }
 
 async function deleteFacebookPost(externalId: string, pageAccessToken: string) {
@@ -1096,7 +1100,14 @@ async function persistEventPayload(
   publicationId: string,
   nextPayload: JsonRecord,
   onPayloadMayReferenceAssets?: () => void,
+  expectedEvent?: { id: string; payload: unknown },
 ) {
+  if (expectedEvent) {
+    onPayloadMayReferenceAssets?.();
+    const saved = await supabaseAdmin.from("app_events").update({ payload: nextPayload }).eq("id", expectedEvent.id).eq("user_id", userId).eq("module", "booster").eq("type", "publish").eq("payload", JSON.stringify(expectedEvent.payload)).select("id").maybeSingle();
+    if (saved.error || !saved.data) throw new PublicationEditSourceChangedError();
+    return;
+  }
   const { data: events, error } = await supabaseAdmin
     .from("app_events")
     .select("id,payload")
@@ -2532,6 +2543,7 @@ function buildUpdatedPayload(params: {
   const video = params.video || getPublicationVideo(eventPayload, publication, channel);
   const isVideoPublication = mediaType === "video";
   const results = cloneRecord(asRecord(eventPayload.results));
+  const hasOtherChannels = [...(Array.isArray(eventPayload.channels) ? eventPayload.channels : []), ...Object.keys(results)].some(value => canonicalSiteWebChannel(String(value)) !== channel);
   const channelResult = asRecord(results[channel]);
   results[channel] = {
     ...channelResult,
@@ -2633,8 +2645,8 @@ function buildUpdatedPayload(params: {
     },
     post: channel === "site_web" || channel === "inr_search" ? asRecord(eventPayload.post) : eventPayload.post,
     results,
-    mediaType: isVideoPublication ? "video" : (eventPayload.mediaType || eventPayload.media_type || "images"),
-    ...(isVideoPublication && video ? { video, sourceVideo: originalVideoForWork || asRecord(video).sourceVideo || asRecord(video).source_video || null } : {}),
+    mediaType: hasOtherChannels ? (eventPayload.mediaType || eventPayload.media_type || "images") : isVideoPublication ? "video" : "images",
+    ...(isVideoPublication && video && !hasOtherChannels ? { video, sourceVideo: originalVideoForWork || asRecord(video).sourceVideo || asRecord(video).source_video || null } : {}),
   };
 
   if (!asRecord(nextPayload.post).title && !asRecord(nextPayload.post).content) {
@@ -2748,13 +2760,28 @@ function buildCancelledPayload(params: {
 
 export function createPublicationChannelHandlers(channel: ChannelKey) {
   async function PATCH(req: Request, context: { params: Promise<{ publicationId: string }> }) {
+    // These channels reject edits before any delivery side effect.
+    if (channel === "x" || channel === "tiktok") return PATCH_NATIVE(req, context);
+    try {
+      const auth = await requireUser(); if (auth.errorResponse) return auth.errorResponse;
+      const { publicationId } = await context.params, body = asRecord(await req.json().catch(() => null));
+      const currentScope = async () => { const current = await requireUser(); return !req.signal.aborted && !current.errorResponse && current.activeUserId === auth.activeUserId && current.authUserId === auth.authUserId; };
+      return await guardPublishedPublicationEdit({ body, currentScope,
+        readVersion: async () => { const state = await readInrSendPublicationEditState(auth.activeUserId, publicationId, channel); if (!state) throw new Error("publication_missing"); return state.sourceVersion; },
+        acquire: (version, fingerprint) => acquireExecutionIdempotencyLock({ supabase: supabaseAdmin, userId: auth.activeUserId, scope: "inrsend_publication_edit", idempotencyKey: `${publicationId}:${channel}:${version}`, metadata: { publicationId, channel, sourceVersion: version, requestFingerprint: fingerprint }, ttlMs: 5 * 60_000 }),
+        seal: (lockId, result) => completeExecutionIdempotencyLockOrThrow({ supabase: supabaseAdmin, lockId, result }),
+        mutate: () => PATCH_NATIVE(req, context, body),
+      });
+    } catch { return NextResponse.json({ ok: false, code: "publication_edit_guard_unavailable", error: "La publication n’a pas pu être vérifiée avant modification. Vérifiez son état avant toute nouvelle tentative." }, { status: 409 }); }
+  }
+  async function PATCH_NATIVE(req: Request, context: { params: Promise<{ publicationId: string }> }, parsedBody?: JsonRecord) {
     const attemptStartedAt = new Date().toISOString();
     let providerAccountId: string | null = null;
     let unpersistedCreatedStoragePaths: string[] = [];
     const imageUseGuard = createPublicationImageUseGuard();
     let threadsRetryLockId: string | null = null;
     try {
-      const { activeUserId, errorResponse } = await requireUser();
+      const { activeUserId, authUserId, errorResponse } = await requireUser();
       if (errorResponse) return errorResponse;
       providerAccountId = activeUserId;
       const directIntegration = channel === "instagram" ? await getLatestIntegrationRow(activeUserId, "instagram", "instagram", "instagram", "meta") : null;
@@ -2767,7 +2794,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
       if (channel === "tiktok") {
         return jsonUserFacingError(TIKTOK_INRSEND_EXTERNAL_ACTION_MESSAGE, { status: 409, code: "tiktok_external_action_required" });
       }
-      const body = (await req.json().catch(() => null)) as JsonRecord | null;
+      const body = parsedBody ?? (await req.json().catch(() => null)) as JsonRecord | null;
       if (!body) return jsonUserFacingError("Bad payload", { status: 400, code: "invalid_payload" });
       if (channel === "x") {
         const hashtags = Array.isArray(body.hashtags)
@@ -2792,6 +2819,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
 
       const ctx = await loadPublicationContext(activeUserId, publicationId, channel);
       if (!ctx) return jsonUserFacingError("Publication introuvable.", { status: 404, code: "publication_not_found" });
+      if (await publicationEditSourceVersion(activeUserId, publicationId, channel, ctx.event?.payload) !== body.expectedState) throw new PublicationEditSourceChangedError();
 
       const results = asRecord(ctx.eventPayload.results);
       const channelResult = asRecord(results[channel]);
@@ -2918,7 +2946,9 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
       );
       unpersistedCreatedStoragePaths = imageSet?.createdStoragePaths || [];
 
-      const previousExternalId = String((channel === "site_web" || channel === "threads") ? channelResult.external_id ?? (channel === "threads" ? asRecord(channelResult.threads_checkpoint).postId : null) ?? "" : body.externalId ?? channelResult.external_id ?? "").trim() || null;
+      const freshAuth = await requireUser(), freshState = await readInrSendPublicationEditState(activeUserId, publicationId, channel);
+      if (freshAuth.errorResponse || freshAuth.activeUserId !== activeUserId || freshAuth.authUserId !== authUserId || freshState?.sourceVersion !== body.expectedState) throw new PublicationEditSourceChangedError();
+      const previousExternalId = String(channelResult.external_id ?? (channel === "threads" ? asRecord(channelResult.threads_checkpoint).postId : null) ?? "").trim() || null;
       const replaceResult = await replaceChannelDelivery({
         userId: activeUserId,
         publicationId,
@@ -3002,6 +3032,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         publicationId,
         nextPayload,
         imageUseGuard.markAssetsMayBeInUse,
+        ctx.event ? { id: String(ctx.event.id), payload: ctx.event.payload } : undefined,
       );
       await syncDeliveryRow({ userId: activeUserId, publicationId, channel, status: replaceResult.status, error: replaceResult.error });
       if (channel === "inr_search") {
@@ -3027,6 +3058,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
           channel,
         });
       }
+      if (e instanceof PublicationEditSourceChangedError) return jsonUserFacingError(e.message, { status: 409, code: "publication_edit_source_changed" });
       captureApiException(req, e, {
         area: "booster",
         operation: `PATCH /api/inrsend/publications/:publicationId/${channel}`,

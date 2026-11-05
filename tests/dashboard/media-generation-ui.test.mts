@@ -413,7 +413,7 @@ test("iNrStudio reçoit le handoff et retourne le média avec son contexte", () 
   assert.match(studio, /const scopedAssistantDraft = !handoff && !embeddedHandoff && assistantDraft\?\.actorUserId === actorUserId && assistantDraft\.accountId === activeAccountId \? assistantDraft : null/);
   assert.match(studio, /initialTab=\{scopedAssistantDraft \? "generate" : initialTab\}/);
   assert.match(studio, /initialFreePrompt=\{scopedAssistantDraft\?\.draft\.prompt \|\| ""\}/);
-  assert.match(studio, /initialMediaType=\{scopedAssistantDraft\?\.draft\.mediaType \|\| handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : "image"\)\}/);
+  assert.match(studio, /initialMediaType=\{scopedAssistantDraft\?\.draft\.mediaType \|\| handoff\?\.source\?\.mediaType \|\| \(handoff\?\.context\.mediaType === "video" \? "video" : standaloneMediaType\)\}/);
   assert.match(studio, /setInitialTab\(nextHandoff\?\.tab \|\| fallbackTab\)/);
   assert.match(studio, /initialSource=\{initialSource\}/);
   assert.match(studio, /acceptMode=\{handoff \? "insert" : "library"\}/);
@@ -488,7 +488,7 @@ test("iNrSend délègue génération, modification et retouche à iNrStudio", ()
   assert.match(mailbox, /tab: "generate"[\s\S]*?origin: "inrsend-publish"/);
   assert.match(
     details,
-    /launchPublicationMediaGenerator\(publicationMediaGeneratorBrief\)/,
+    /launchPublicationMediaGenerator\(publicationMediaGeneratorBrief, stillCurrent\)/,
   );
   assert.match(mailbox, /openPublicationImageInStudio\([\s\S]*?tab: "modify" \| "retouch"/);
   assert.match(mailbox, /origin: "inrsend-publish"/);

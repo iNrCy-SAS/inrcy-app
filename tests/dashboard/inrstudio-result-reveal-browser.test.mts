@@ -16,6 +16,11 @@ const modules = {
   workspace: compile(read("app/dashboard/_components/MediaGenerationCreationWorkspace.tsx")),
   "./MediaResultViewer": compile(read("app/dashboard/_components/MediaResultViewer.tsx")),
   "@/app/dashboard/_hooks/useMediaResultReveal": compile(read("app/dashboard/_hooks/useMediaResultReveal.ts")),
+  localInterface: compile(read("app/dashboard/_hooks/useInrAssistantLocalInterface.ts")),
+  localClose: compile(read("app/dashboard/_hooks/useInrAssistantLocalClose.ts")),
+  "./DashboardAssistantScreenContext": compile(read("app/dashboard/_components/DashboardAssistantScreenContext.tsx")),
+  "./DashboardUnsavedNavigationProvider": compile(read("app/dashboard/_components/DashboardUnsavedNavigationProvider.tsx")),
+  ...Object.fromEntries(["inrAssistantLocalInterface", "inrAssistantNativeChannelLinks", "inrAssistantRequestClauses"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
 };
 const fixture = `
 const sources=${JSON.stringify(modules)},loaded={},messages=${JSON.stringify(JSON.parse(read("messages/fr-FR/media.json")))};
@@ -23,6 +28,11 @@ window.activeAccount='account-a';window.revealCalls=[];
 const originalScroll=Element.prototype.scrollIntoView;
 Element.prototype.scrollIntoView=function(options){if(this.hasAttribute('data-media-review'))window.revealCalls.push(options);return originalScroll.call(this,options)};
 function require(name){
+ if(name.endsWith('useInrAssistantLocalInterface'))name='localInterface';
+ if(name.endsWith('useInrAssistantLocalClose'))name='localClose';
+ if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])name='@/lib/'+name.slice(2).replace(/\\.ts$/,'');
+ if(name==='next/navigation')return {usePathname:()=>location.pathname};
+ if(name.endsWith('DashboardViewerAccessProvider'))return {useDashboardViewerAccess:()=>({actorUserId:'actor-a',activeAccountId:window.activeAccount})};
  if(loaded[name])return loaded[name].exports;
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.activeAccount};
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
@@ -75,7 +85,7 @@ const nativeSources = {
   "./MediaModifier": compile(read("app/dashboard/_components/MediaModifier.tsx")),
   "./MediaGenerationCreationWorkspace": modules.workspace,
   "./DashboardMobileSelect": compile(read("app/dashboard/_components/DashboardMobileSelect.tsx")),
-  ...Object.fromEntries(["aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
+  ...Object.fromEntries(["aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices", "inrAssistantStudioFormSelection", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
 };
 const nativeFixture = `
 const sources=${JSON.stringify(nativeSources)},loaded={},messages=${JSON.stringify(JSON.parse(read("messages/fr-FR/media.json")))};
@@ -99,13 +109,14 @@ function useGeneration(){
  return state;
 }
 function require(name){
+ if(name.endsWith('useInrAssistantLocalInterface'))name='localInterface';
+ if(name.endsWith('useInrAssistantLocalClose'))name='localClose';
  if(name.endsWith('.css')){const prefix=name.includes('MobileSelect')?'select-':name.includes('Modal')?'modal-':name.includes('CreationWorkspace')?'editor-':name.includes('ResultViewer')?'viewer-':name.includes('FreeGenerator')?'free-':name.includes('Modifier')?'modifier-':name.includes('Studio')?'studio-':'generator-';return {__esModule:true,default:new Proxy({},{get:(_,key)=>prefix+String(key)})};}
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
  if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:()=> (key,values={})=>String(messages[key]||key).replace(/\\{(\\w+)\\}/g,(_,name)=>String(values[name]??name))};
  if(name==='next/image')return {__esModule:true,default:({fill,unoptimized,...props})=>React.createElement('img',props)};
- if(name==='next/navigation')return {useRouter:()=>({replace:noOp,push:noOp})};
- if(name==='@/app/dashboard/_components/DashboardViewerAccessProvider')return {useDashboardViewerAccess:()=>({actorUserId:'actor-a',activeAccountId:window.activeAccount})};
- if(name==='./DashboardAssistantScreenContext')return {useInrAssistantScreen(){}};
+ if(name==='next/navigation')return {usePathname:()=>location.pathname,useRouter:()=>({replace:noOp,push:noOp}),useSearchParams:()=>new URLSearchParams(location.search)};
+ if(name.endsWith('DashboardViewerAccessProvider'))return {useDashboardViewerAccess:()=>({actorUserId:'actor-a',activeAccountId:window.activeAccount})};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.activeAccount};
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
  if(name==='@/lib/inrStudioNavigation')return {readInrStudioHandoff:()=>null,getInrStudioOriginLabel:()=>null};
@@ -133,7 +144,7 @@ async function mountNative(page: Page, kind: string) {
   await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: `<html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;background:#08122d;color:white;font:14px Arial}${nativeCss}</style></head><body><div id="root"></div></body></html>` }) : route.abort());
   await page.goto(`https://fixture.invalid/dashboard/generer-media${kind === "modify" ? "?studio_tab=modify" : ""}`);
   await page.addScriptTag({ content: nativeFixture });
-  await page.locator('[data-inrcy-tool-dialog]').waitFor();
+  await page.locator('[data-inrcy-tool-dialog]').waitFor().catch(error => { throw new Error(`${String(error)}\nNative Studio render errors: ${errors.join("\n")}`, { cause: error }); });
   if (kind === "video") await page.getByRole("radio", { name: "Vidéo", exact: true }).click();
   await page.locator(kind === "modify" ? '.modifier-workspace' : `.free-workspace[data-media-kind="${kind}"]`).waitFor();
   assert.deepEqual(errors, []); return errors;
@@ -325,8 +336,8 @@ test("native Studio image/video/Modifier remain touch scrollable after completio
 async function mount(page: Page) {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.route("**/*", route => route.abort());
-  await page.setContent(html); await page.addScriptTag({ content: fixture });
+  await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: html }) : route.abort());
+  await page.goto("https://studio.invalid/dashboard/generer-media"); await page.addScriptTag({ content: fixture });
   await page.waitForFunction(() => Boolean((window as unknown as FixtureWindow).studioFixture));
   return errors;
 }

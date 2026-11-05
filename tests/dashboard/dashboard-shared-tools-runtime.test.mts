@@ -277,8 +277,10 @@ test("Basic previews the two Standard agents disabled while keeping manual publi
       assert.ok(String(agent.props["aria-label"]).includes(availabilityHint));
     }
     const planning = elements(tree).filter((node) => node.props["data-agent-planning-workspace"]);
-    assert.deepEqual(planning.map((node) => node.props["data-agent-planning-workspace"]), ["publications"]);
+    assert.deepEqual(planning.map((node) => node.props["data-agent-planning-workspace"]), ["publications", "stats"]);
     assert.equal(planning[0].props.disabled, false);
+    assert.equal(planning[1].props.disabled, true, "Basic cannot access the Standard Stats agent planning");
+    assert.equal(planning[1].props["data-dashboard-prefetch"], undefined);
     assert.equal(elements(tree).some((node) => hasClass(node, "standardEditionBadge")), false);
     const contexts = elements(tree).filter((node) => hasClass(node, "contextual"));
     assert.equal(contexts.length, 2);

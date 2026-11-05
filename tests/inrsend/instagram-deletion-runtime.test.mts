@@ -54,6 +54,7 @@ function runtime(options: Fixture = {}) {
     const query: any = {
       select: (value: string) => { columns = value; return query; },
       eq: (column: string, value: unknown) => { filters.push([column, value]); return query; },
+      contains: (column: string, value: unknown) => { assert.equal(table, "app_events"); assert.equal(column, "payload"); assert.deepEqual(value, { publication_id: "publication" }); filters.push([column, structuredClone(value)]); return query; },
       in: (column: string, value: unknown) => { filters.push([column, value]); return query; },
       order: () => query, limit: () => query,
       update: (value: unknown) => { patch = value; updating = true; return query; },

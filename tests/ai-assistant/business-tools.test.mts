@@ -4,7 +4,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
-import { mergeAiBusinessKnowledgeUpdate, mergeAiMemoryUpdate, normalizeAiMemory, normalizeAiBusinessKnowledge } from "../../lib/aiMemory.ts";
+import { mergeAiBusinessKnowledgeUpdate, mergeAiMemoryUpdate, normalizeAiMemory, normalizeAiBusinessKnowledge, updateAiMemoryRecentNewsItem } from "../../lib/aiMemory.ts";
+import { AI_ENGINE_OPTIONS } from "../../lib/aiEnginePreference.ts";
 import { enforceAiContentLengthForEdition } from "../../lib/aiContentLength.ts";
 import { decodeAiInstructionSections, encodeAiInstructionSections } from "../../lib/aiInstructionSections.ts";
 import type * as BusinessTools from "../../lib/inrAssistantBusinessTools.ts";
@@ -17,7 +18,7 @@ const instruction = "Ajoute mes prestations et remplis mon ADN avec ma mission e
 const configInstruction = "Modifie ma configuration IA : mets un ton chaleureux et ajoute mes consignes.";
 const change = (field: string, text: string | null, items: string[] | null = null, mode = "replace") => ({ field, mode, text, items });
 
-function harness(options: { instruction?: string; edition?: "basic" | "standard" | "premium" | "founder"; foreignAccount?: boolean; foreignScope?: boolean; foreignActor?: boolean; interrupted?: boolean; writeError?: boolean; conflict?: boolean; missingBusiness?: boolean } = {}) {
+function harness(options: { instruction?: string; edition?: "basic" | "standard" | "premium" | "founder"; foreignAccount?: boolean; foreignScope?: boolean; foreignActor?: boolean; interrupted?: boolean; writeError?: boolean; conflict?: boolean; missingBusiness?: boolean; ignoreWrite?: boolean } = {}) {
   const calls: { stage: string; body?: Row; request?: Request; filters?: Array<[string, unknown]> }[] = [];
   let memory = normalizeAiMemory({ mission: "Mission conservée", values: ["Respect"], referenceDocuments: [{ id: "doc-a", name: "Privé", path: "private/path", bucket: "private" }] });
   let business = normalizeAiBusinessKnowledge({ description: "Ancienne description", services: ["Entretien"], strengths: ["Savoir-faire"], weeklySchedule: { days: { tuesday: { open: true, allDay: false, slots: [{ start: "09:00", end: "17:00" }] } } } });
@@ -38,7 +39,7 @@ function harness(options: { instruction?: string; edition?: "basic" | "standard"
         if (options.writeError) return { data: null, error: new Error("PRIVATE DATABASE ERROR") };
         if (options.conflict) return { data: null, error: null };
         assert.ok(filters.some(([key, value]) => key === "updated_at" && value === profile.updated_at), "The read-modify-write shared instructions column must reject a concurrent profile change");
-        Object.assign(profile, patch);
+        if (!options.ignoreWrite) Object.assign(profile, patch);
         return { data: { user_id: accountId }, error: null };
       },
     };
@@ -48,6 +49,8 @@ function harness(options: { instruction?: string; edition?: "basic" | "standard"
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreignScope ? "other" : accountId, authUserId: options.foreignActor ? "other" : "actor" }) },
     "server-only": {}, "./inrAssistantActionClause.ts": actionClauses, ai: { tool: (value: unknown) => value, jsonSchema: (schema: unknown, config: object) => ({ schema, ...config }) },
     "./aiContentLength.ts": { enforceAiContentLengthForEdition },
+    "./aiEnginePreference.ts": { AI_ENGINE_OPTIONS },
+    "./aiMemory.ts": { updateAiMemoryRecentNewsItem },
     "./aiInstructionSections.ts": { decodeAiInstructionSections, encodeAiInstructionSections },
     "./inrAssistantGuidesAccount.ts": { INR_ASSISTANT_ACCOUNT_GUIDES: [{ id: "channel-facebook", content: "Ouvrez Mes canaux puis Facebook et Connecter. Autorisez le parcours officiel." }, { id: "channel-google-business", content: "Choisissez votre fiche Google Business." }] },
     "../app/dashboard/dashboard.channel-setup.ts": { DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY },
@@ -56,8 +59,10 @@ function harness(options: { instruction?: string; edition?: "basic" | "standard"
       PUT: async (request: Request) => {
         const body = await request.json(); calls.push({ stage: "dna-write", body, request });
         if (options.writeError) return Response.json({ error: "PRIVATE DATABASE ERROR" }, { status: 500 });
-        memory = mergeAiMemoryUpdate(memory, body.memory);
-        if (body.businessKnowledge) business = mergeAiBusinessKnowledgeUpdate(business, body.businessKnowledge);
+        if (!options.ignoreWrite) {
+          memory = mergeAiMemoryUpdate(memory, body.memory);
+          if (body.businessKnowledge) business = mergeAiBusinessKnowledgeUpdate(business, body.businessKnowledge);
+        }
         return Response.json({ ok: true, memory, businessKnowledge: business });
       },
     },
@@ -91,6 +96,38 @@ test("DNA writes reuse the real partial-save contract and preserve omitted value
   assert.equal(JSON.stringify(result).includes("private/path"), false);
   await h.tools.updateBusinessDna.execute(input);
   assert.equal(h.calls.filter(call => call.stage === "dna-write").length, 1, "Model fallback must not perform a second write");
+});
+
+test("Basic native location and four news edits preserve automatic provenance and every omitted business field", async () => {
+  const instruction = "Modifie mon ADN : localisation principale Béthune, ne prends plus le siège ; actualité 1 Portes ouvertes samedi ; actualité 4 Fermeture estivale.";
+  const h = harness({ edition: "basic", instruction });
+  const result = await h.tools.updateBusinessDna.execute({ instructionQuote: instruction, changes: [change("contentLocation.useHeadquarters", "false"), change("contentLocation.primaryArea", "Béthune"), change("recentNews.0", "Portes ouvertes samedi"), change("recentNews.3", "Fermeture estivale")] });
+  assert.equal(result.ok, true); assert.deepEqual(h.memory().contentLocation, { useHeadquarters: false, primaryArea: "Béthune" });
+  assert.deepEqual(h.memory().recentNewsManualItems, ["Portes ouvertes samedi", null, null, "Fermeture estivale"]);
+  assert.equal(h.memory().recentNewsItems[0], "Portes ouvertes samedi"); assert.equal(h.memory().recentNewsItems[3], "Fermeture estivale"); assert.equal(h.business().services[0], "Entretien");
+  assert.equal(h.calls.filter(call => call.stage === "dna-read").length, 2, "A successful POST body does not replace a real readback");
+});
+
+test("Basic preferred text engine uses only an explicitly named native catalogue value and never launches a generation", async () => {
+  for (const option of AI_ENGINE_OPTIONS) {
+    const instruction = `Modifie ma configuration IA : moteur préféré ${option.shortLabel}.`, h = harness({ instruction, edition: "basic" });
+    const result = await h.tools.updateAiConfiguration.execute({ instructionQuote: instruction, changes: [change("preferredEngine", option.value)] });
+    assert.equal(result.ok, true, option.value); assert.equal(h.profile.ai_preferred_engine, option.value); assert.equal(h.profile.tone, "serious"); assert.equal(h.calls.filter(call => call.stage === "config-write").length, 1); assert.equal(h.calls.filter(call => call.stage === "config-read").length, 2);
+  }
+  for (const instruction of ["Modifie ma configuration IA : ton chaleureux.", "Modifie ma configuration IA : choisis le moteur le plus rapide."]) {
+    const h = harness({ instruction, edition: "basic" }), result = await h.tools.updateAiConfiguration.execute({ instructionQuote: instruction, changes: [change("preferredEngine", "mistral")] });
+    assert.equal(result.ok, false); assert.equal(h.calls.length, 0);
+  }
+});
+
+test("location, news and AI preferences refuse invented values and acknowledged writes that did not persist", async () => {
+  const instruction = "Modifie mon ADN : localisation principale Béthune et actualité 1 Nouvelle offre.";
+  const ignoredDna = harness({ edition: "basic", instruction, ignoreWrite: true });
+  assert.equal((await ignoredDna.tools.updateBusinessDna.execute({ instructionQuote: instruction, changes: [change("contentLocation.primaryArea", "Béthune")] })).ok, false);
+  const inventedNews = harness({ edition: "basic", instruction }); assert.equal((await inventedNews.tools.updateBusinessDna.execute({ instructionQuote: instruction, changes: [change("recentNews.0", "Fait inventé")] })).ok, false); assert.equal(inventedNews.calls.length, 0);
+  for (const invalid of [change("contentLocation.useHeadquarters", "yes"), change("recentNews.0", "x".repeat(2001)), change("contentLocation.primaryArea", "x".repeat(121))]) await assert.rejects(() => harness({ instruction }).tools.updateBusinessDna.execute({ instructionQuote: instruction, changes: [invalid] }));
+  const configInstruction = "Modifie ma configuration IA : moteur Mistral.", ignoredConfig = harness({ instruction: configInstruction, edition: "basic", ignoreWrite: true });
+  assert.equal((await ignoredConfig.tools.updateAiConfiguration.execute({ instructionQuote: configInstruction, changes: [change("preferredEngine", "mistral")] })).ok, false);
 });
 
 test("a historical quote, procedural question, negative request or another-account route result cannot authorize a write", async () => {

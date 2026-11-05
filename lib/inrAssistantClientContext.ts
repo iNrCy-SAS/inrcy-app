@@ -1,3 +1,5 @@
+import { parseInrAssistantContentReportHint, type InrAssistantContentReportHint } from "./inrAssistantContentReport.ts";
+import { INR_ASSISTANT_BUSINESS_FORM_TABS, isInrAssistantBusinessFormUiCommandAvailable } from "./inrAssistantBusinessFormUiCommands.ts";
 import { isInrAssistantMediaUiCommandAvailable, type InrAssistantMediaUiCommandName } from "./inrAssistantMediaUiCommands.ts";
 import { inrAssistantStudioUiCommandAvailable, type InrAssistantStudioUiCommandName } from "./inrAssistantStudioUiCommands.ts";
 import { isInrAssistantStatsUiCommandAvailable, type InrAssistantStatsUiCommandName } from "./inrAssistantStatsUiCommands.ts";
@@ -6,10 +8,11 @@ import { inrAssistantWebsiteUiCommandAvailable, type InrAssistantWebsiteUiComman
 import { getAssistantInternalDestination } from "./inrAssistantNavigation.ts";
 import { parseInrAssistantDocumentPrefill, type InrAssistantDocumentPrefill } from "./inrAssistantDocumentUiCommands.ts";
 
+import { parseInrAssistantLocalInterfaceHints, type InrAssistantLocalInterfaceHint } from "./inrAssistantLocalInterface.ts";
 export type InrAssistantClientError = { code?: string; requestId?: string; occurredAt: string };
 export type InrAssistantClientScreen = {
   pathname: string; tool: string; action?: string; panel?: string; channel?: string; step?: string;
-  selection?: { kind: "contact" | "publication" | "campaign" | "event" | "quote" | "invoice" | "media" | "mail" | "stats" | "channel"; id: string };
+  selection?: { kind: "contact" | "publication" | "campaign" | "event" | "quote" | "invoice" | "media" | "mail" | "stats" | "channel" | "business_form"; id: string };
   pendingChanges?: boolean;
   revision?: string;
   documentVersion?: string;
@@ -17,18 +20,20 @@ export type InrAssistantClientScreen = {
   /** Only explicitly checked library items, never arbitrary DOM or ownership claims. */
   selectedMediaIds?: string[];
   selectionOverflow?: boolean;
-  availableCommands?: ("export_document_pdf" | "configure_ads_draft" | "save_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "save_mail_draft" | "send_mail_draft" | "open_mail_schedule" | "prepare_document_mail" | "create_document_template" | InrAssistantMediaUiCommandName | InrAssistantStudioUiCommandName | InrAssistantStatsUiCommandName | "download_badge_qr" | InrAssistantWebsiteUiCommand["command"])[];
+  availableCommands?: ("configure_business_form" | "export_document_pdf" | "configure_ads_draft" | "save_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "save_mail_draft" | "send_mail_draft" | "open_mail_schedule" | "prepare_document_mail" | "create_document_template" | InrAssistantMediaUiCommandName | InrAssistantStudioUiCommandName | InrAssistantStatsUiCommandName | "download_badge_qr" | InrAssistantWebsiteUiCommand["command"])[];
 };
 /** Browser hints only: never an authenticated scope, entitlement or confirmed diagnosis. */
 export type InrAssistantClientContext = {
   mediaPreview?: {requestId:string;mediaId:string};
+  interfaces?: InrAssistantLocalInterfaceHint[];
+  contentReport?: InrAssistantContentReportHint;
   source: "untrusted_client"; screen?: InrAssistantClientScreen; visibleError?: InrAssistantClientError;
 };
 
 const ACTIONS = new Set(["channels", "publish", "campaigns", "cash", "help", "generator", "stats"]);
 const PANELS = new Set(["contact", "profil", "preferences", "notifications", "inrbadge", "compte", "activite", "ia", "ai_memory", "abonnement", "factures", "mails", "agenda", "site_web", "site_inrcy", "instagram", "threads", "linkedin", "x", "gmb", "inr_search", "inr_directory", "facebook", "tiktok", "youtube_shorts", "pinterest", "legal", "rgpd", "inertie", "boutique", "parrainage", "documents", "trustpilot"]);
 const CHANNELS = new Set(["site_web", "gmb", "facebook", "instagram", "threads", "linkedin", "tiktok", "youtube_shorts", "pinterest", "x", "inr_search", "inr_directory", "inrbadge", "mails", "meta", "google", "openai"]);
-const STEPS = new Set(["mode", "channels", "intention", "content", "media", "control", "validation", "publication", "results", "project", "analysis", "foundations", "budget", "geography", "targeting", "bidding", "creative", "review", "launch", "keywords", "pinterest_format", "identity", "delivery"]);
+const STEPS = new Set([...INR_ASSISTANT_BUSINESS_FORM_TABS,"mode", "channels", "intention", "content", "media", "control", "validation", "publication", "results", "project", "analysis", "foundations", "budget", "geography", "targeting", "bidding", "creative", "review", "launch", "keywords", "pinterest_format", "identity", "delivery"]);
 const member = (value: unknown, values: Set<string>) => typeof value === "string" && values.has(value) ? value : undefined;
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
@@ -51,11 +56,12 @@ export function parseInrAssistantClientContext(value: unknown, now = Date.now())
     if (panel) params.set("panel", panel);
     const destination = getAssistantInternalDestination(`${rawScreen.pathname}${params.size ? `?${params}` : ""}`);
     const rawSelection = record(rawScreen.selection);
-    const kinds = ["contact", "publication", "campaign", "event", "quote", "invoice", "media", "mail", "stats", "channel"];
+    const kinds = ["contact", "publication", "campaign", "event", "quote", "invoice", "media", "mail", "stats", "channel", "business_form"];
     const selection = typeof rawSelection.kind === "string" && kinds.includes(rawSelection.kind) && typeof rawSelection.id === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(rawSelection.id)
       ? { kind: rawSelection.kind as NonNullable<InrAssistantClientScreen["selection"]>["kind"], id: rawSelection.id } : undefined;
     const availableCommands = Array.isArray(rawScreen.availableCommands) && selection ? rawScreen.availableCommands.filter((command): command is NonNullable<InrAssistantClientScreen["availableCommands"]>[number] =>
-      isInrAssistantMediaUiCommandAvailable(command, rawScreen.pathname, selection.kind)
+      isInrAssistantBusinessFormUiCommandAvailable(command, rawScreen.pathname, selection.kind)
+      || isInrAssistantMediaUiCommandAvailable(command, rawScreen.pathname, selection.kind)
       || inrAssistantWebsiteUiCommandAvailable(command, rawScreen.pathname, selection.kind, panel)
       || inrAssistantBadgeUiCommandAvailable(command, rawScreen.pathname, selection.kind, panel)
       || inrAssistantStudioUiCommandAvailable(command, rawScreen.pathname, selection.kind)
@@ -83,8 +89,10 @@ export function parseInrAssistantClientContext(value: unknown, now = Date.now())
     ? { ...(code ? { code } : {}), ...(requestId ? { requestId } : {}), occurredAt: new Date(timestamp).toISOString() } : undefined;
   const rawPreview=record(input.mediaPreview);
   const mediaPreview=typeof rawPreview.requestId === "string" && /^[a-z0-9_-]{8,180}$/i.test(rawPreview.requestId) && typeof rawPreview.mediaId === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(rawPreview.mediaId) ? {requestId:rawPreview.requestId,mediaId:rawPreview.mediaId} : undefined;
-  const context: InrAssistantClientContext = { source: "untrusted_client", ...(mediaPreview ? {mediaPreview} : {}), ...(screen ? { screen } : {}), ...(visibleError ? { visibleError } : {}) };
-  return (screen || visibleError || mediaPreview) && JSON.stringify(context).length <= 2_400 ? context : null;
+  const interfaces = parseInrAssistantLocalInterfaceHints(input.interfaces);
+  const contentReport = parseInrAssistantContentReportHint(input.contentReport);
+  const context: InrAssistantClientContext = { ...(contentReport ? { contentReport } : {}), ...(interfaces ? { interfaces } : {}), source: "untrusted_client", ...(mediaPreview ? {mediaPreview} : {}), ...(screen ? { screen } : {}), ...(visibleError ? { visibleError } : {}) };
+  return (screen || visibleError || mediaPreview || interfaces || contentReport) && JSON.stringify(context).length <= 4_800 ? context : null;
 }
 
 /** Read only known query values; OAuth, drafts, names and free text never leave the browser here. */

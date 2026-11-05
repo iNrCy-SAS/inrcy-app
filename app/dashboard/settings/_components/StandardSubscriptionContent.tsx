@@ -1,6 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 
 import { useCallback, useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
@@ -507,6 +508,9 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     setPremiumActivationOpen(false);
     premiumActivationOpener.current?.focus();
   }
+  useInrAssistantLocalInterface("subscription_activation_choice", { open: premiumActivationOpen }, {
+    close: { invoke: closePremiumActivationChoice, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === false) },
+  }, true, !premiumActivationOpen);
 
   function selectPremiumActivation(activation: "now" | "trial_end") {
     closePremiumActivationChoice();
@@ -744,7 +748,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           : view.edition === "standard" && view.hasNativeSubscription && selectedCycleDiffers("Standard") ? <button type="button" className={styles.standardCta} onClick={openPortal} disabled={busyAction !== null}>{i18nT("premium_native_change_button")}</button>
           : view.edition === "premium" ? <p className={styles.includedNotice}>{i18nT("subscription_included_premium")}</p> : null}
           {isNativeBillingPlatform && storePriceError ? <p className={styles.finePrint} style={{ color: "#ffe1e8" }}>{storePriceError}</p> : null}
-          {view.edition === "standard" && (view.hasStripeSubscription || view.hasNativeSubscription) ? <SubscriptionDetails title={i18nT("gerer_ma_facturation_dc5027ac")}>{management}</SubscriptionDetails> : null}
+          {view.edition === "standard" && (view.hasStripeSubscription || view.hasNativeSubscription) ? <SubscriptionDetails title={i18nT("gerer_ma_facturation_dc5027ac")} assistantBilling>{management}</SubscriptionDetails> : null}
         </footer>
       </section>
 
@@ -771,7 +775,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           : view.needsBillingRecovery && view.edition === "premium" ? <button type="button" className={styles.premiumCta} onClick={openPortal} disabled={busyAction !== null}>{i18nT("regulariser_mon_paiement_00ae072e")}</button>
           : view.edition === "premium" ? null
           : <button type="button" className={styles.quoteRefresh} onClick={onOpenContact}>{i18nT("premium_contact_change_button")}</button>}
-          {view.edition === "premium" && (view.hasStripeSubscription || view.hasNativeSubscription) ? <SubscriptionDetails title={i18nT("gerer_ma_facturation_dc5027ac")}>{management}</SubscriptionDetails> : null}
+          {view.edition === "premium" && (view.hasStripeSubscription || view.hasNativeSubscription) ? <SubscriptionDetails title={i18nT("gerer_ma_facturation_dc5027ac")} assistantBilling>{management}</SubscriptionDetails> : null}
         </footer>
       </section>
     </div>

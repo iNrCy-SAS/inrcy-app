@@ -777,7 +777,9 @@
     "analysisNoSourcesHint": "Connect a channel or attach a document to start the analysis.",
     "documentsAnalysisTitle": "Attach documents to the analysis",
     "documentsDropHint": "PDF, images or documents · 20 MB per file",
-    "presentationTitle": "Overview"
+    "presentationTitle": "Overview",
+    "discardDraftMessage": "Unsaved changes in this form will be discarded. Information already saved will be kept.",
+    "resetPreferencesMessage": "The displayed preferences will return to their default values. This action does not approve a purchase or an account change."
   },
   "aiConfiguration": {
     "pageDescription": "Set how AI writes and adapts every piece of content to your goals.",

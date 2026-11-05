@@ -22,6 +22,7 @@ import {
 } from "@/lib/boosterPublishClient";
 import { mergePreflightFailuresIntoPublicationSummary } from "@/lib/boosterPublicationOutcome";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
+import { useInrAssistantLocalClose } from "../_hooks/useInrAssistantLocalClose";
 import PublishModal from "../booster/publier/PublishModal";
 import { prewarmPublishChannelIcons } from "../booster/publier/components/publishChannelIdentity";
 import type { BoosterChannelIdentitySeed } from "../booster/publier/publishConnectionSnapshot";
@@ -67,6 +68,7 @@ export default function DashboardBoosterModalLayer({
   const router = useRouter();
   const searchParams = useSearchParams();
   const activePublishDraftId = String(searchParams?.get("draftId") || "").trim();
+  useInrAssistantLocalClose("booster_stats", mode === "stats", onClose);
   const [publishSuccessOpen, setPublishSuccessOpen] = useState(false);
   useEffect(() => { prewarmPublishChannelIcons(); }, []);
   const [publishSummary, setPublishSummary] = useState<any>(null);

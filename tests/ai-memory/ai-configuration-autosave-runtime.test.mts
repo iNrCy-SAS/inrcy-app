@@ -33,10 +33,11 @@ function modules() {
     const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
     for (const statement of tree.statements) {
       if ((!ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement)) || !statement.moduleSpecifier || !ts.isStringLiteral(statement.moduleSpecifier)) continue;
+      if (ts.isImportDeclaration(statement) && statement.importClause?.isTypeOnly) continue;
       const specifier = statement.moduleSpecifier.text;
       if (mocked.has(specifier) || specifier.endsWith(".css")) continue;
       const base = specifier.startsWith("@/") ? resolve(repo, specifier.slice(2)) : specifier.startsWith(".") ? resolve(dirname(file), specifier) : null;
-      if (!base || !base.replaceAll("\\", "/").includes("/lib/")) continue;
+      if (!base || !base.replaceAll("\\", "/").includes("/lib/") && !/\/_hooks\/useInrAssistant|DashboardAssistant(?:Screen|Command)Context/.test(base.replaceAll("\\", "/"))) continue;
       const target = [base, base + ".ts", base + ".tsx"].find(candidate => existsSync(candidate));
       if (!target) throw Error(`Unresolved fixture import ${specifier}`);
       links[id][specifier] = add(target);
@@ -50,8 +51,8 @@ const fixture = modules();
 async function mount(page: Page) {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
-  await page.route("**/*", route => route.abort());
-  await page.setContent('<!doctype html><html><body><div id="root"></div></body></html>');
+  await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: '<!doctype html><html><body><div id="root"></div></body></html>' }) : route.abort());
+  await page.goto("https://ai-configuration-autosave.fixture.invalid/dashboard/personnalisation");
   await page.addScriptTag({ content: `
     const fixture=${JSON.stringify(fixture)},cache={},process={env:{NODE_ENV:'development'}};
     window.writes=[];window.cacheWrites=[];window.authCalls=0;window.manualSaved=0;window.autoSaved=0;window.activeAccount='account-a';window.authAccount='account-a';window.dirty=false;
@@ -59,7 +60,7 @@ async function mount(page: Page) {
       upsert(payload){return new Promise(resolve=>window.writes.push({payload,finish:error=>resolve({error:error?{message:error}:null})}))}};
     const client={auth:{getUser:async()=>{window.authCalls++;return{data:{user:{id:window.authAccount}},error:null}}},from:()=>query};
     const mocks={
-      '@/lib/browserAccountCache':{resolveActiveBrowserUserId:()=>window.activeAccount,readAccountCacheValue:()=>null,writeAccountCacheValue:(key,value,account)=>window.cacheWrites.push({key,value,account})},
+      '@/lib/browserAccountCache':{resolveActiveBrowserUserId:()=>window.activeAccount,getActiveBrowserUserId:()=>window.activeAccount,readAccountCacheValue:()=>null,writeAccountCacheValue:(key,value,account)=>window.cacheWrites.push({key,value,account})},
       '@/lib/supabaseClient':{createClient:()=>client},
       '@/lib/boosterGenerationContextClient':{invalidateBoosterGenerationContextClient:async()=>{}},
       '@/lib/inrcyDialog':{confirmInrcy:async()=>true},
@@ -68,6 +69,8 @@ async function mount(page: Page) {
     function load(name,parent){
       if(mocks[name])return mocks[name];
       if(name==='next-intl')return{useTranslations:()=>key=>key};
+      if(name==='next/navigation')return{usePathname:()=>'/dashboard/personnalisation'};
+      if(name.endsWith('DashboardViewerAccessProvider'))return{useDashboardViewerAccess:()=>({actorUserId:window.authAccount,activeAccountId:window.activeAccount,metaPilotEnabled:false})};
       if(name.endsWith('.css'))return{__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
       if(name.endsWith('MediaSubjectVoiceButton'))return{__esModule:true,default:props=>React.createElement('button',{'data-fixture-voice':props.contextLabel,disabled:props.disabled,onClick:()=>{window.voiceOn=!window.voiceOn;props.onBusyChange(window.voiceOn)}},'voice')};
       const id=fixture.links[parent]?.[name]||name;
@@ -88,7 +91,7 @@ async function mount(page: Page) {
     window.flush=()=>window.persistence.current.savePendingChanges();
   ` });
   page.setDefaultTimeout(5_000);
-  await page.getByRole("textbox", { name: "customInstructionsLabel", exact: true }).waitFor();
+  await page.getByRole("textbox", { name: "customInstructionsLabel", exact: true }).waitFor().catch(error => { assert.deepEqual(errors, [], "The native AI configuration component must mount before the autosave assertions"); throw error; });
   return errors;
 }
 

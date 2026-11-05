@@ -11,6 +11,9 @@ type Command = {
   batchObject?: string;
 };
 export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
+  refreshBadgeThemeFromLogo: {family:"business",label:"appliquer les couleurs du logo au Badge"},
+  resumePublicationDraft: {family:"publication",label:"reprendre le brouillon de publication dans son écran natif"},
+  openNotificationAction: {family:"management",label:"ouvrir la destination native de la notification choisie"},
   applyWebsiteAnalyticsDisconnection: {family:"business",label:"déconnecter le produit statistique du site après confirmation"},
   acceptMediaGeneration: {family:"media",label:"enregistrer l’aperçu généré",statusReader:"getMediaGeneration"},
   discardMediaGeneration: {family:"media",label:"écarter l’aperçu généré"},
@@ -22,6 +25,8 @@ export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
   applyReferralSubmission: {family:"management",label:"transmettre le parrainage confirmé"},
   markNotificationsRead: {family:"settings",label:"marquer les notifications comme lues"},
   prepareAccountDocumentDownload: {family:"management",label:"transmettre le téléchargement du document de compte"},
+  controlLocalInterface: {family:"settings",label:"utiliser le contrôle local demandé"},
+  configureApplicationPreferences: { family:"settings", label:"appliquer la langue ou le thème de l’application", clarification:/langue|language|theme|apparence/ },
   configureCookieConsent: {family:"settings",label:"enregistrer la préférence de cookies"},
   applyBusinessDnaDocumentRemoval: {family:"business",label:"supprimer le document ADN confirmé"},
   updateWebsiteConfiguration: {family:"business",label:"enregistrer la configuration du site web",clarification:/ga4|gsc|google|analytics|widget|couleur|theme/},
@@ -52,6 +57,8 @@ export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
   editPublication: { family:"publication",label:"corriger la publication",clarification:/texte|contenu|publication|canal/,batchObject:"publications?|posts?" },
   updateScheduledPublication: { family:"publication",label:"reprogrammer la publication",clarification:/date|heure|jour|quand|fuseau/ },
   cancelScheduledPublication: { family:"publication",label:"annuler la programmation" },
+  editScheduledPublication: { family:"publication",label:"modifier la programmation manuelle",statusReader:"readScheduledPublications" },
+  publishScheduledPublicationNow: { family:"publication",label:"publier maintenant la programmation existante",statusReader:"readScheduledPublications" },
   retryScheduledPublication: { family:"publication",label:"reprendre la programmation",statusReader:"readScheduledPublications" },
   updateBusinessDna: { family:"business",label:"compléter l’ADN",clarification:/mission|description|service|prestation|valeur|horaire/ },
   updateAiConfiguration: { family:"business",label:"appliquer les réglages IA",clarification:/ton|style|langue|emoji|consigne/ },
@@ -79,6 +86,15 @@ export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
   confirmCalendarAppointment: { family:"workspace",label:"confirmer le rendez-vous" },
   prepareAdvertisingCampaign: { family:"advertising",label:"préparer la campagne publicitaire",clarification:/budget|date|canal|objectif|cible|zone|contenu|campagne/,batchObject:"campagnes?" },
   manageAdvertisingCampaign: { family:"advertising",label:"modifier la campagne publicitaire",clarification:/budget|campagne|date/ },
+  prepareStudioDraftReview: { family:"media",label:"présenter la confirmation du brouillon Studio",clarification:/studio|brouillon|tentative/ },
+  submitContentReport: { family:"settings",label:"envoyer le signalement natif explicitement demandé",clarification:/signalement|rapport/ },
+  formatBusinessDnaText: { family:"business",label:"mettre en forme le passage du champ ADN affiché",clarification:/champ|adn|passage|format|gras|italique/ },
+  reconcileExistingCreditOrder: { family:"settings",label:"vérifier la commande existante sans nouvel achat",clarification:/commande|credit|recharge/ },
+  prepareGoogleBusinessDraftReview: { family:"business",label:"présenter la revue du brouillon Google à confirmer personnellement",clarification:/brouillon|google|modification/ },
+  applyPublishedPublicationEdit: { family:"publication",label:"appliquer la correction publiée confirmée",statusReader:"readPublishedPublicationForEdit" },
+  applyNotificationRemoval: { family:"settings", label:"supprimer la notification confirmée", clarification:/notification/ },
+  forgetStudioPreferenceBlock: { family:"settings", label:"désactiver la mémorisation du bloc Studio demandé", clarification:/bloc|studio|memorisation/ },
+  generateGoogleReviewReplyDraft: { family:"workspace", label:"préparer un brouillon de réponse Google", clarification:/avis|google|reponse/, batchObject:"avis|reviews?" },
   updateToolSettings: { family:"settings",label:"appliquer les réglages demandés",clarification:/reglage|notification|alerte|format|critere|valeur|frequence|studio|badge|agenda|calendar|document|tiktok/ },
 };
 

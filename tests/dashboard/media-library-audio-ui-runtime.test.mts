@@ -14,6 +14,7 @@ const photo = { ...audio, id: "image-a", media_type: "image", storage_path: "use
 function libraryHarness() {
   const slots: unknown[] = []; let cursor = 0; let tree!: Element;
   const effects: Array<{ callback: () => unknown; dependencies: unknown[] }> = [];
+  const layoutEffects: Array<() => unknown> = [];
   const listeners = new Map<string, (event: unknown) => void>();
   const requests: Array<{ url: string; init: RequestInit }> = [];
   let activeAccount = "pro";
@@ -27,6 +28,8 @@ function libraryHarness() {
   const transfers: File[] = []; const optimizedTypes: unknown[] = []; const revoked: string[] = [];
   const react = {
     useId: () => "library-test", useEffect: (callback: () => unknown, dependencies: unknown[]) => { effects.push({ callback, dependencies }); },
+    useLayoutEffect: (callback: () => unknown) => { layoutEffects.push(callback); },
+    useContext: () => () => {},
     useCallback: (callback: unknown) => callback,
     useMemo: (callback: () => unknown) => callback(),
     useRef(initial: unknown) { const index = cursor++; slots[index] ??= { current: initial }; return slots[index]; },
@@ -45,8 +48,17 @@ function libraryHarness() {
     if (id === "next/link") return { default: "a" };
     if (id.endsWith("DashboardAssistantTrigger")) return { default: "assistant-trigger" };
     if (id.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen(value: typeof assistantScreen) { assistantScreen = value; } };
+    if (id.endsWith("DashboardAssistantCommandContext")) return { DashboardAssistantCommandContext: {} };
+    if (id === "next/navigation") return { usePathname: () => "/dashboard/mediatheque" };
+    if (id.endsWith("useInrAssistantMediaLibraryCommands")) {
+      const hook = { exports: {} };
+      const code = ts.transpileModule(readFileSync(new URL("../../app/dashboard/_hooks/useInrAssistantMediaLibraryCommands.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+      new Function("module", "exports", "require", code)(hook, hook.exports, require);
+      return hook.exports;
+    }
     if (id.endsWith("useInrAssistantLibraryOptimization")) return { useInrAssistantLibraryOptimization: () => ({ busy: false, message: "" }) };
     if (id.endsWith("useInrAssistantRefresh")) return { useInrAssistantRefresh() {} };
+    if (id.endsWith("useInrAssistantLocalClose")) return { useInrAssistantLocalClose() {} };
     if (id === "@/lib/supabaseClient") return { createClient: () => ({ storage: { from: () => ({ uploadToSignedUrl: async (_path: string, _token: string, file: File) => { transfers.push(file); return { error: null }; } }) } }) };
     if (id === "@/lib/universalMediaUploadClient") return { isUniversalMediaUploadEnabled: () => true, uploadFileToPreparedUniversalIntent: () => { throw new Error("Audio must bypass the visual upload pipeline"); } };
     if (id === "@/lib/mediaUploadPolicy") return uploadPolicy;
@@ -90,7 +102,7 @@ function libraryHarness() {
   } };
   class FixtureURL extends URL { static createObjectURL() { return "blob:metadata"; } static revokeObjectURL(url: string) { revoked.push(url); } }
   new Function("module", "exports", "require", "fetch", "document", "URL", "window", output)(moduleRecord, moduleRecord.exports, require, fetch, document, FixtureURL, { location: { origin: "https://fixture.invalid" } });
-  const render = () => { cursor = 0; effects.length = 0; tree = moduleRecord.exports.default(); };
+  const render = () => { cursor = 0; effects.length = 0; layoutEffects.length = 0; tree = moduleRecord.exports.default(); layoutEffects.forEach(effect => effect()); };
   const elements = (type: string) => {
     const found: Element[] = [];
     const visit = (value: unknown) => {

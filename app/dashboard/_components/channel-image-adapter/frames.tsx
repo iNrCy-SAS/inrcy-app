@@ -1,6 +1,7 @@
 import { useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useInrAssistantLocalClose } from "../../_hooks/useInrAssistantLocalClose";
 import {
   getImageOverlayItems,
   resolveImageOverlayCoordinates,
@@ -219,6 +220,7 @@ export function PublicationPreviewLightbox({
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const hasImages = images.length > 0;
+  useInrAssistantLocalClose("channel_image_viewer", open && hasImages, onClose, false, { index, images: images.map(image => image.previewUrl) });
 
   useEffect(() => {
     if (!open || !hasImages) return;

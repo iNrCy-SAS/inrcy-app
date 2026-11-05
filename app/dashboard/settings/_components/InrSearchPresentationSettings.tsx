@@ -13,6 +13,7 @@ import {
 } from "@/lib/inrSearchDisplaySettings";
 import { useDashboardUnsavedNavigation } from "../../_components/DashboardUnsavedNavigationProvider";
 import styles from "./InrSearchPresentationSettings.module.css";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 type Tab = "contact" | "sections" | "texts";
 type Presentation = {
@@ -55,6 +56,7 @@ export default function InrSearchPresentationSettings({ onDirtyChange }: { onDir
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saveComplete, setSaveComplete] = useState(false);
+  const [completedLoad, setCompletedLoad] = useState(0);
   const mounted = useRef(false);
   const generation = useRef(0);
   const saving = useRef(false);
@@ -62,7 +64,7 @@ export default function InrSearchPresentationSettings({ onDirtyChange }: { onDir
   const saveController = useRef<AbortController | null>(null);
   const dirty = Boolean(draft && JSON.stringify(draft) !== JSON.stringify(saved));
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (canApply: () => boolean = () => true) => {
     const sequence = ++generation.current;
     const accountId = getActiveBrowserUserId();
     loadController.current?.abort();
@@ -71,15 +73,15 @@ export default function InrSearchPresentationSettings({ onDirtyChange }: { onDir
     loadController.current = controller;
     saving.current = false;
     setDraft(null); setSaved(null); setLoading(true); setBusy(false); setError(""); setSaveComplete(false);
-    const current = () => mounted.current && !controller.signal.aborted && sequence === generation.current && accountId === getActiveBrowserUserId();
+    const current = () => mounted.current && !controller.signal.aborted && sequence === generation.current && accountId === getActiveBrowserUserId() && canApply();
     try {
       const response = await fetch("/api/inr-search/settings", { cache: "no-store", credentials: "include", signal: controller.signal });
       const raw: unknown = await response.json();
-      if (!current()) return;
+      if (!current()) return false;
       const next = response.ok ? readPresentation(raw, accountId) : null;
       if (!next) throw new Error("load");
-      setDraft(next); setSaved(next);
-    } catch { if (current()) setError(t("loadFailed")); }
+      setDraft(next); setSaved(next); setCompletedLoad(sequence); return true;
+    } catch { if (current()) setError(t("loadFailed")); return false; }
     finally { if (current()) setLoading(false); }
   }, [t]);
 
@@ -126,6 +128,10 @@ export default function InrSearchPresentationSettings({ onDirtyChange }: { onDir
   ];
   const sectionKeys: Array<keyof InrSearchSections> = ["identity", "presentation", "contact", "hours", "services", "sectors", "areas", "media", "news", "socials", "faq", "trust", "cta"];
   const tabs = [{ key: "contact", label: "contactTab" }, { key: "sections", label: "sectionsTab" }, { key: "texts", label: "textsTab" }] as const;
+  useInrAssistantLocalInterface("search_presentation", { tab, completedLoad, loaded: Boolean(draft), loading, error }, {
+    select: { invoke: value => { if (!tabs.some(item => item.key === value)) throw new Error("Search presentation tab unavailable"); setTab(value as Tab); }, matches: (snapshot, value) => Boolean(snapshot && typeof snapshot === "object" && "tab" in snapshot && snapshot.tab === value) },
+    ...(!draft && !loading ? { retry: { invoke: async (_value: string | null, stillCurrent: () => boolean) => { if (!await load(stillCurrent)) throw new Error("Search presentation read unavailable"); }, matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "completedLoad" in snapshot && Number(snapshot.completedLoad) > completedLoad && "loaded" in snapshot && snapshot.loaded === true && "loading" in snapshot && snapshot.loading === false && "error" in snapshot && !snapshot.error) } } : {}),
+  }, true, busy);
 
   return <div className={styles.panel} data-inr-search-presentation>
     <p className={styles.lead}>{t("lead")}</p>

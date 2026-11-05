@@ -120,7 +120,7 @@ test("the Instagram bubble preserves format preferences and their load/save hand
   assert.match(instagramBubble, /publicationTypes: \{ value: ig\.instagramPublicationPreferences/);
   assert.match(instagramBubble, /onLoad: ig\.loadInstagramPublicationPreferences/);
   assert.match(instagramBubble, /onChange: ig\.saveInstagramPublicationPreferences/);
-  assert.match(channelBubble, /connection\?\.publicationTypes && hasResource \? <ChannelPublicationTypes name=\{item\.name\} settings=\{connection\.publicationTypes\}/);
+  assert.match(channelBubble, /connection\?\.publicationTypes && hasResource \? <ChannelPublicationTypes name=\{item\.name\} channel=\{item\.key\} settings=\{connection\.publicationTypes\}/);
   assert.match(publicationTypes, /then\(settings\.onLoad\)/);
   assert.match(publicationTypes, /await settings\.onChange\(patch\)/);
   assert.match(publicationTypes, /checked: settings\.value\.reelsEnabled, key: "reelsEnabled"/);

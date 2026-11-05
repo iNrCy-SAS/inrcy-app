@@ -777,7 +777,9 @@
     "analysisNoSourcesHint": "Conecta un canal o adjunta un documento para iniciar el análisis.",
     "documentsAnalysisTitle": "Adjuntar documentos al análisis",
     "documentsDropHint": "PDF, imágenes o documentos · 20 MB por archivo",
-    "presentationTitle": "Presentación"
+    "presentationTitle": "Presentación",
+    "discardDraftMessage": "Se descartarán los cambios sin guardar de este formulario. Se conservará la información ya guardada.",
+    "resetPreferencesMessage": "Las preferencias mostradas volverán a los valores predeterminados. Esta acción no confirma ninguna compra ni cambio de cuenta."
   },
   "aiConfiguration": {
     "pageDescription": "Configura cómo la IA escribe y adapta cada contenido a tus objetivos.",

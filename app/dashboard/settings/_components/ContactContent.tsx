@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { useDashboardAssistant } from "../../_components/DashboardAssistantProvider";
 import { dashboardAssistantCopy } from "../../_components/dashboardAssistantCopy";
 import styles from "./ContactContent.module.css";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 type Props = {
   mode?: "page" | "drawer";
@@ -35,6 +36,7 @@ export default function ContactContent({ mode = "page" }: Props) {
   const { assistantContactDraft } = useDashboardAssistant();
   const assistantCopy = dashboardAssistantCopy(useLocale());
   const [editedDraft, setEditedDraft] = useState<{ source: string | null; message: string }>({ source: null, message: "" });
+  const [copied, setCopied] = useState<{ kind: "message" | "email" | "phone"; sequence: number } | null>(null);
   const reviewedMessage = editedDraft.source === assistantContactDraft ? editedDraft.message : assistantContactDraft || "";
   const premiumRequired = searchParams.get("premium") === "required";
   const EMAIL = "contact@inrcy.com";
@@ -46,13 +48,35 @@ export default function ContactContent({ mode = "page" }: Props) {
     i18nT("bonjour_inrcy_je_vous_contacte_depuis_l_application_41a7e2cd"),
   )}`;
 
-  const copy = async (text: string) => {
+  const copy = async (text: string, kind: "message" | "email" | "phone") => {
     try {
       await navigator.clipboard.writeText(text);
+      setCopied(previous => ({ kind, sequence: (previous?.sequence ?? 0) + 1 }));
+      return true;
     } catch {
       // Copying must not interrupt the other contact actions.
+      return false;
     }
   };
+  const nextCopySequence = (copied?.sequence ?? 0) + 1;
+  useInrAssistantLocalInterface("contact", { copied, reviewedMessage }, {
+    select: {
+      invoke(value) { if (assistantContactDraft === null || typeof value !== "string" || !value.trim() || value.length > 6000) throw new Error("Unavailable contact message"); setEditedDraft({ source: assistantContactDraft, message: value }); },
+      matches(snapshot, value) { return Boolean(snapshot && typeof snapshot === "object" && "reviewedMessage" in snapshot && snapshot.reviewedMessage === value); },
+    },
+    copy: {
+      async invoke(value) {
+        const kind = value === "email" || value === "phone" || value === "message" ? value : null;
+        if (!kind || kind === "message" && (assistantContactDraft === null || !reviewedMessage.trim())) throw new Error("Unavailable contact copy");
+        const text = kind === "email" ? EMAIL : kind === "phone" ? PHONE_DISPLAY : reviewedMessage;
+        if (!await copy(text, kind)) throw new Error("Contact copy failed");
+      },
+      matches(snapshot, value) {
+        const result = (snapshot as { copied?: { kind?: unknown; sequence?: unknown } } | undefined)?.copied;
+        return result?.kind === value && result.sequence === nextCopySequence;
+      },
+    },
+  });
 
   return (
     <div className={styles.contact} data-contact-mode={mode}>
@@ -63,7 +87,7 @@ export default function ContactContent({ mode = "page" }: Props) {
           onChange={(event) => setEditedDraft({ source: assistantContactDraft, message: event.target.value })} />
         <div className={styles.actions}>
           <a className={styles.primaryAction} href={`mailto:${EMAIL}?subject=${encodeURIComponent("iNr’Assistant — Accompagnement")}&body=${encodeURIComponent(reviewedMessage)}`}>{assistantCopy.emailDraft}</a>
-          <button className={styles.copyAction} type="button" onClick={() => void copy(reviewedMessage)}>{assistantCopy.copySummary}</button>
+          <button className={styles.copyAction} type="button" onClick={() => void copy(reviewedMessage, "message")}>{assistantCopy.copySummary}</button>
         </div>
       </section> : null}
       {premiumRequired ? (
@@ -93,7 +117,7 @@ export default function ContactContent({ mode = "page" }: Props) {
               <a href={`mailto:${EMAIL}?subject=${encodeURIComponent("Demande iNrCy")}`} className={styles.primaryAction}>
                 {i18nT("envoyer_un_email_48feacc4")}
               </a>
-              <button type="button" onClick={() => copy(EMAIL)} className={styles.copyAction}>
+              <button type="button" onClick={() => copy(EMAIL, "email")} className={styles.copyAction}>
                 {i18nT("copier_l_email_7b39b12c")}
               </button>
             </div>
@@ -112,7 +136,7 @@ export default function ContactContent({ mode = "page" }: Props) {
               <a href={WHATSAPP_URL} target="_blank" rel="noreferrer" className={styles.secondaryAction}>
                 {i18nT("ecrire_sur_whatsapp_c86e042a")}
               </a>
-              <button type="button" onClick={() => copy(PHONE_DISPLAY)} className={styles.copyAction}>
+              <button type="button" onClick={() => copy(PHONE_DISPLAY, "phone")} className={styles.copyAction}>
                 {i18nT("copier_le_numero_99c8d6c5")}
               </button>
             </div>

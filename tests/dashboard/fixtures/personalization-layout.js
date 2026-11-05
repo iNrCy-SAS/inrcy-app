@@ -67,7 +67,7 @@ function resolveName(name,from){
 }
 function load(name,from=''){
  if(name==='next-intl')return {useTranslations:translate,useLocale:()=>"fr-FR"};
- if(name==='next/navigation')return {useRouter:()=>({push:url=>window.navigationCalls.push(url)}),useSearchParams:()=>new URLSearchParams()};
+ if(name==='next/navigation')return {usePathname:()=>'/dashboard/personnalisation',useRouter:()=>({push:url=>window.navigationCalls.push(url)}),useSearchParams:()=>new URLSearchParams()};
  if(name==='next/dynamic')return {__esModule:true,default:loader=>{const React=load('react'),Lazy=React.lazy(loader);return props=>React.createElement(React.Suspense,{fallback:null},React.createElement(Lazy,props))}};
  name=resolveName(name,from);
  if(known[name])return known[name];

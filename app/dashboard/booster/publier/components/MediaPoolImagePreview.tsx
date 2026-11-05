@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
+import { useInrAssistantLocalClose } from "../../../_hooks/useInrAssistantLocalClose";
 import css from "./MediaPoolImagePreview.module.css";
 
 export default function MediaPoolImagePreview({ images, initialIndex, onClose }: {
@@ -18,6 +19,7 @@ export default function MediaPoolImagePreview({ images, initialIndex, onClose }:
   const count = images.length;
   const currentIndex = Math.min(index, Math.max(0, count - 1));
   const current = images[currentIndex];
+  useInrAssistantLocalClose("publication_media_preview", !!current, onClose, false, { currentIndex, src: current?.src });
 
   useEffect(() => {
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;

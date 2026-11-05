@@ -41,7 +41,7 @@ function register(file: string): string {
   for (const match of compiled.matchAll(/require\("([^"]+)"\)/g)) {
     const name = match[1];
     if (sources[name]) continue;
-    if (name === "next-intl" || name.endsWith("DashboardViewerAccessProvider") || name === "@/lib/browserAccountCache" || name === "@/lib/multicompte/constants") continue;
+    if (name === "next-intl" || name === "next/navigation" || name.endsWith("DashboardViewerAccessProvider") || name === "@/lib/browserAccountCache" || name === "@/lib/multicompte/constants") continue;
     if (file === selector && name === "../publishModal.shared") { dependencies[file][name] = "fixture-shared"; continue; }
     if (!name.startsWith(".") && !name.startsWith("@/")) throw Error(`Unexpected fixture package: ${name}`);
     let target = name.startsWith("@/") ? name.slice(2) : path.relative(root, path.resolve(root, path.dirname(file), name));
@@ -59,6 +59,7 @@ const sources=${JSON.stringify(sources)},dependencies=${JSON.stringify(dependenc
 window.fixtureScope={actor:'actor-a',account:'account-a'};window.saved={};window.ready=false;window.mobile=false;window.visible=true;
 function load(name,from){
  if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:()=>key=>key};
+ if(name==='next/navigation')return {usePathname:()=>location.pathname};
  if(name.endsWith('DashboardViewerAccessProvider'))return {useDashboardViewerAccess:()=>({actorUserId:window.fixtureScope.actor,activeAccountId:window.fixtureScope.account,metaPilotEnabled:true})};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.fixtureScope.account};
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};

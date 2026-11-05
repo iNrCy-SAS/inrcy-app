@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import styles from "./AgentMediaImage.module.css";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 type Props = Omit<ImgHTMLAttributes<HTMLImageElement>, "src" | "onError"> & {
   src: string;
@@ -30,6 +31,7 @@ function ImageAttempt({ src, alt, accountId, sourceKey: _sourceKey, compact = fa
   const [failed, setFailed] = useState(false);
   const [recovering, setRecovering] = useState(false);
   const [scopeLost, setScopeLost] = useState(false);
+  const [retryVersion, setRetryVersion] = useState(0);
   const automaticRetryUsed = useRef(false);
   const attempts = useRef(0);
   const pending = useRef<AbortController | null>(null);
@@ -57,11 +59,17 @@ function ImageAttempt({ src, alt, accountId, sourceKey: _sourceKey, compact = fa
       const next = internalRetryUrl(fresh || src, ++attempts.current);
       if (!next && !manual) { setFailed(true); return; }
       setRequestedSrc(next || src); setFailed(false);
+      setRetryVersion(previous => previous + 1);
     } finally {
       if (pending.current === controller) pending.current = null;
       if (mounted.current && !controller.signal.aborted) setRecovering(false);
     }
   }
+
+  useInrAssistantLocalInterface("planning_image", { failed, requestedSrc, retryVersion }, { retry: {
+    invoke: async () => { if (!failed) throw new Error("No visible image retry control"); await retry(true); },
+    matches: snapshot => { const state = snapshot as { failed: boolean; retryVersion: number }; return !state.failed && state.retryVersion > retryVersion; },
+  } }, !scopeLost && !compact, recovering || !failed, failed ? 1 : 0);
 
   if (scopeLost) return null;
   if (recovering && !failed) return <span className={compact ? styles.compact : styles.unavailable} role={compact ? undefined : "status"} aria-hidden={compact ? true : undefined}>

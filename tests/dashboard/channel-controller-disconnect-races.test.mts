@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import * as React from "react";
 import ts from "typescript";
+import { createNativeLocalHookLoader } from "../helpers/assistant-native-local-hooks.mts";
 
 const require = createRequire(import.meta.url);
 // Transpiled modules and mocked React slots have heterogeneous runtime shapes.
@@ -35,6 +36,7 @@ function controller(file: string, initial: unknown, fetch: (url: string, init?: 
       return [slots[index], (next: RuntimeValue) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
     },
     useRef(value: unknown) { return slots[cursor++] ??= { current: value }; },
+    useId: () => `channel-controller-${cursor++}`,
     useEffectEvent(callback: (...args: unknown[]) => unknown) {
       const event = hooks.useRef(callback);
       event.current = callback;
@@ -53,11 +55,16 @@ function controller(file: string, initial: unknown, fetch: (url: string, init?: 
       slots[index] = { deps };
       effects.push(() => { previous?.cleanup?.(); slots[index].cleanup = effect(); });
     },
+    useLayoutEffect(effect: () => unknown, deps?: unknown[]) { hooks.useEffect(effect, deps); },
   };
   const stub = (props: Model) => React.createElement("div", {}, props.children);
   const localRequire = (specifier: string): RuntimeValue => {
     if (specifier === "react") return hooks;
     if (specifier === "react/jsx-runtime") return require(specifier);
+    const native = nativeHooks(specifier);
+    if (native !== undefined) return native;
+    if (specifier === "next/navigation") return { usePathname: () => "/dashboard" };
+    if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "actor-1", activeAccountId: "account-1", metaPilotEnabled: false }) };
     if (specifier.endsWith(".css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
     if (specifier === "next-intl") return { useTranslations: () => (key: string) => key };
     if (specifier.endsWith("channel-workspace-snapshot")) return { readChannelWorkspaceSnapshot: () => initial, writeChannelWorkspaceSnapshot: (_key: string, value: unknown) => snapshots.push(value) };
@@ -67,6 +74,7 @@ function controller(file: string, initial: unknown, fetch: (url: string, init?: 
     if (specifier.endsWith("userFacingErrors")) return { getSimpleFrenchApiError: async () => "Disconnect failed", getSimpleFrenchErrorMessage: (_error: unknown, fallback: string) => fallback };
     return { __esModule: true, default: stub };
   };
+  const nativeHooks = createNativeLocalHookLoader(localRequire);
   const source = readFileSync(new URL(`../../app/dashboard/settings/_components/${file}.tsx`, import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const fixtureModule = { exports: {} as Model };

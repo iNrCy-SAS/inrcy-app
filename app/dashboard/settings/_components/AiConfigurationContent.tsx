@@ -5,6 +5,9 @@ import DashboardMobileSelect from "../../_components/DashboardMobileSelect";
 import colorStyles from "./AiConfigurationContent.module.css";
 
 import { useTranslations } from "next-intl";
+import { useInrAssistantBusinessFormCommands, type BusinessFormActionScope } from "../../_hooks/useInrAssistantBusinessFormCommands";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
+import type { InrAssistantBusinessFormPatch } from "@/lib/inrAssistantBusinessFormUiCommands";
 
 
 import {
@@ -62,12 +65,14 @@ type Props = {
   workspaceMode?: boolean;
   initialTab?: AiConfigurationTab;
   hideNavigation?: boolean;
+  assistantActive?: boolean;
 };
 
 export type AiConfigurationTab = "parameters" | "ctas" | "instructions";
 export type AiConfigurationContentHandle = {
   savePendingChanges: () => Promise<boolean>;
   discardPendingChanges: () => void;
+  runAssistantAction: (patch: InrAssistantBusinessFormPatch, scopeCurrent: BusinessFormActionScope) => Promise<boolean>;
 };
 type SaveReason = "manual" | "automatic" | "flush";
 type AiConfigurationVoiceTarget =
@@ -83,6 +88,8 @@ function configurationSignature(form: AiConfigForm) {
 type AiConfigForm = AiConfigurationFormValues;
 
 type ContentLengthSelectProps = {
+  assistantInterface: "writing_web_length_options" | "writing_social_length_options";
+  assistantActive: boolean;
   value: AiContentLength;
   onChange: (value: AiContentLength) => void;
   premiumAccess: boolean;
@@ -95,6 +102,8 @@ type ContentLengthSelectProps = {
 const CONTENT_LENGTH_VALUES: AiContentLength[] = ["adapted", "short", "medium", "long", "deep"];
 
 function ContentLengthSelect({
+  assistantInterface,
+  assistantActive,
   value,
   onChange,
   premiumAccess,
@@ -109,6 +118,10 @@ function ContentLengthSelect({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  useInrAssistantLocalInterface(assistantInterface, { open }, {
+    open: { invoke: () => setOpen(true), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === true) },
+    close: { invoke: () => setOpen(false), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === false) },
+  }, assistantActive);
 
   useEffect(() => {
     if (!open) return;
@@ -462,6 +475,7 @@ export default function AiConfigurationContent({
   workspaceMode = false,
   initialTab = "parameters",
   hideNavigation = false,
+  assistantActive = true,
 }: Props) {
   const i18nT = useTranslations("settings");
   const sectionT = useTranslations("dashboard.settingsSections");
@@ -476,6 +490,10 @@ export default function AiConfigurationContent({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [engineInfoOpen, setEngineInfoOpen] = useState(false);
+  useInrAssistantLocalInterface("engine_info", { open: engineInfoOpen }, {
+    open: { invoke: () => setEngineInfoOpen(true), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === true) },
+    close: { invoke: () => setEngineInfoOpen(false), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === false) },
+  }, assistantActive);
   const [voiceTarget, setVoiceTarget] = useState<AiConfigurationVoiceTarget | null>(null);
   const voiceFieldIdPrefix = useId();
   const savedFormSignatureRef = useRef("");
@@ -898,6 +916,14 @@ export default function AiConfigurationContent({
     return () => window.clearTimeout(timer);
   }, [draftSignature, hasUnsavedChanges, loading, saving, voiceBusy]);
 
+  const discardConfigurationDraft = () => {
+    if (inFlightSaveRef.current || voiceTargetRef.current) return false;
+    formRef.current = savedFormRef.current;
+    setForm(savedFormRef.current);
+    failedSaveSignatureRef.current = null;
+    setSaved(false); setError(""); onUnsavedChange?.(false);
+    return true;
+  };
   useImperativeHandle(persistenceRef, () => ({
     savePendingChanges: async () => {
       if (voiceTargetRef.current) return false;
@@ -910,26 +936,20 @@ export default function AiConfigurationContent({
       }
       return configurationSignature(formRef.current) === savedFormSignatureRef.current;
     },
-    discardPendingChanges: () => {
-      if (inFlightSaveRef.current || voiceTargetRef.current) return;
-      formRef.current = savedFormRef.current;
-      setForm(savedFormRef.current);
-      failedSaveSignatureRef.current = null;
-      setSaved(false);
-      setError("");
-      onUnsavedChange?.(false);
-    },
+    discardPendingChanges: discardConfigurationDraft,
+    runAssistantAction: (patch, scopeCurrent) => runAssistantAction(patch, scopeCurrent),
   }));
 
-  const reset = async () => {
-    if (voiceBusy) return;
+  const reset = async (scopeCurrent: BusinessFormActionScope = () => true) => {
+    if (voiceBusy) return false;
+    const expectedOwner = activeUserIdRef.current;
     const confirmed = await confirmInrcy({
       title: configurationT("resetTitle"),
       message: configurationT("resetMessage"),
       confirmLabel: configurationT("resetConfirm"),
       variant: "warning",
     });
-    if (!confirmed) return;
+    if (!confirmed || !scopeCurrent() || activeUserIdRef.current !== expectedOwner) return false;
     const next = { ...initialForm, language: readDefaultAppLanguage() };
     formRef.current = next;
     setForm(next);
@@ -942,7 +962,21 @@ export default function AiConfigurationContent({
       writeAccountCacheValue(STORAGE_KEY, "{}", activeUserId);
       writeAccountCacheValue(AI_LANGUAGE_CUSTOM_STORAGE_KEY, "0", activeUserId);
     }
+    return true;
   };
+
+  const runAssistantAction = useInrAssistantBusinessFormCommands({ id: "ai_configuration", view: activeTab, enabled: assistantActive, publish: !hideNavigation,
+    snapshot: { form, activeTab, loading, saving, voiceBusy }, pendingChanges: hasUnsavedChanges, busy: loading || saving || voiceBusy || !loadSucceededRef.current,
+    isApplied: patch => patch.businessFormAction === "select_tab" ? activeTab === patch.businessFormTab
+      : patch.businessFormAction === "discard" ? configurationSignature(form) === savedFormSignatureRef.current
+      : patch.businessFormAction === "reset" && configurationSignature(form) === configurationSignature({ ...initialForm, language: readDefaultAppLanguage() }),
+    apply: async (patch, scopeCurrent) => {
+      if (patch.businessFormAction === "select_tab" && ["parameters", "instructions", "ctas"].includes(patch.businessFormTab || "")) { setActiveTab(patch.businessFormTab as AiConfigurationTab); return true; }
+      if (patch.businessFormAction === "reset") return reset(scopeCurrent);
+      if (patch.businessFormAction !== "discard") return false;
+      if (hasUnsavedChanges && !await confirmInrcy({ title: memoryT("cancelChanges"), message: memoryT("discardDraftMessage"), variant: "warning" })) return false;
+      return scopeCurrent() && discardConfigurationDraft();
+    } });
 
   return (
     <div
@@ -1196,6 +1230,8 @@ export default function AiConfigurationContent({
                   <div style={styleSecondaryFieldStyle}>
                     <span style={labelTitle}>{memoryT("contentLengthTitle")}</span>
                     <ContentLengthSelect
+                      assistantInterface="writing_web_length_options"
+                      assistantActive={assistantActive && activeTab === "parameters"}
                       value={form.webLength}
                       onChange={(next) => set("webLength", next)}
                       premiumAccess={premiumAccess}
@@ -1216,6 +1252,8 @@ export default function AiConfigurationContent({
                   <div style={styleSecondaryFieldStyle}>
                     <span style={labelTitle}>{memoryT("contentLengthTitle")}</span>
                     <ContentLengthSelect
+                      assistantInterface="writing_social_length_options"
+                      assistantActive={assistantActive && activeTab === "parameters"}
                       value={form.socialLength}
                       onChange={(next) => set("socialLength", next)}
                       premiumAccess={premiumAccess}
@@ -1353,6 +1391,7 @@ export default function AiConfigurationContent({
 
             {activeTab === "ctas" ? (
               <AiChannelCtaPanel
+                assistantActive={assistantActive}
                 value={form.channelCtas}
                 onChange={(next) => set("channelCtas", next)}
                 disabled={saving || voiceBusy}

@@ -7,6 +7,9 @@ import { normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { useLocale, useTranslations } from "next-intl";
 import React from "react";
 import { useRouter } from "next/navigation";
+import { useInrAssistantSendDetailsControls } from "../../_hooks/useInrAssistantSendDetailsControls";
+import { useInrAssistantSendNativeLinks } from "../../_hooks/useInrAssistantSendNativeLinks";
+import { useInrAssistantSendEditorControls } from "../../_hooks/useInrAssistantSendEditorControls";
 import { readSanitizedElementHtml, sanitizeHtml } from "@/lib/sanitizeHtml";
 import { editableHtmlToSiteText, renderBoosterSiteContentHtml, renderBoosterSiteInlineHtml, stripSiteTextFormatting } from "@/lib/boosterFormatting";
 import {
@@ -517,6 +520,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     activePublicationEditAssets,
     togglePublicationImage,
     launchPublicationMediaGenerator,
+    publicationStudioTab = null,
     openPublicationImageRetoucher,
     openPublicationImageModifier,
     openPublicationVideoRetoucher,
@@ -1103,10 +1107,11 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     [publicationEditForm.content, publicationEditForm.title],
   );
 
-  const openPublicationMediaGenerator = React.useCallback(async () => {
+  const openPublicationMediaGenerator = React.useCallback(async (_event?: unknown, stillCurrent: () => boolean = () => true) => {
+    if (!stillCurrent()) return;
     preserveDetailsModalScroll();
     try {
-      await launchPublicationMediaGenerator(publicationMediaGeneratorBrief);
+      await launchPublicationMediaGenerator(publicationMediaGeneratorBrief, stillCurrent);
     } catch {
       restoreDetailsModalScroll();
     }
@@ -1290,7 +1295,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     }
   }, [open, detailsItem?.id, activePublicationEditChannelKey, detailsEditMode]);
 
-  const confirmDiscardPublicationEdit = React.useCallback(async () => {
+  const confirmDiscardPublicationEdit = React.useCallback(async (canContinue: () => boolean = () => true) => {
+    if (!canContinue()) return false;
     if (!detailsEditMode) return true;
     if (detailsActionBusy) return false;
 
@@ -1304,28 +1310,30 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       confirmLabel: i18nT("quitter_3e4126f5"),
       variant: "danger",
     });
+    if (!canContinue()) return false;
     if (ok) setPublicationEditDirty(false);
     return ok;
   }, [detailsActionBusy, detailsEditMode, i18nT, publicationEditDirty]);
 
-  const requestClose = React.useCallback(async () => {
-    const ok = await confirmDiscardPublicationEdit();
-    if (!ok) return;
+  const requestClose = React.useCallback(async (canContinue: () => boolean = () => true) => {
+    if (!canContinue()) return;
+    const ok = await confirmDiscardPublicationEdit(canContinue);
+    if (!ok || !canContinue()) return;
     setDetailsEditMode(false);
     onClose();
   }, [confirmDiscardPublicationEdit, onClose, setDetailsEditMode]);
 
-  const requestNavigate = React.useCallback(async (direction: -1 | 1) => {
-    if (navigationBusy) return;
+  const requestNavigate = React.useCallback(async (direction: -1 | 1, canContinue: () => boolean = () => true) => {
+    if (navigationBusy || !canContinue()) return;
     const allowed = direction < 0 ? canNavigatePrevious : canNavigateNext;
     if (!allowed) return;
-    const ok = await confirmDiscardPublicationEdit();
-    if (!ok) return;
+    const ok = await confirmDiscardPublicationEdit(canContinue);
+    if (!ok || !canContinue()) return;
     setPublicationEditDirty(false);
     setDetailsEditMode(false);
     setDetailsActionError(null);
     setDetailsActionSuccess(null);
-    await onNavigate(direction);
+    await onNavigate(direction, canContinue);
   }, [
     canNavigateNext,
     canNavigatePrevious,
@@ -1355,15 +1363,39 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     variant: "danger",
   });
 
-  const requestChannelChange = React.useCallback(async (channelKey: string) => {
-    if (!channelKey || channelKey === activePublicationEditChannelKey) return;
-    const ok = await confirmDiscardPublicationEdit();
-    if (!ok) return;
+  const requestChannelChange = React.useCallback(async (channelKey: string, canContinue: () => boolean = () => true) => {
+    if (!channelKey || channelKey === activePublicationEditChannelKey || !canContinue()) return;
+    const ok = await confirmDiscardPublicationEdit(canContinue);
+    if (!ok || !canContinue()) return;
     setDetailsEditMode(false);
     setDetailsActionError(null);
     setDetailsActionSuccess(null);
     setDetailsChannelKey(channelKey);
   }, [activePublicationEditChannelKey, confirmDiscardPublicationEdit, setDetailsActionError, setDetailsActionSuccess, setDetailsChannelKey, setDetailsEditMode]);
+
+  const localPublicationPayload = detailsItem?.source === "app_events" ? filterMetaPilotPayload(projectInstagramDeletionStatus(normalizeSiteWebPublicationPayload(detailsItem.raw?.payload || null)), metaPilotEnabled) : null;
+  const localExtractedChannels = detailsItem?.source === "app_events" ? extractChannelPublications(localPublicationPayload) : [];
+  const localPublicationEntries = detailsItem?.source !== "app_events" ? [] : localExtractedChannels.length ? localExtractedChannels
+    : orderChannelKeys((detailsItem.channels?.length ? detailsItem.channels : [detailsItem.target]).filter(Boolean).map((channel: unknown) => String(channel)))
+      .map(key => ({ key, label: formatChannelLabel(key), parts: extractPublicationParts(localPublicationPayload) }));
+  const localActiveEntry = localPublicationEntries.find(entry => entry.key === detailsChannelKey) || localPublicationEntries[0] || null;
+  const beginPublicationEdit = () => { setPublicationEditDirty(false); setDetailsEditMode(true); setDetailsActionError(null); setDetailsActionSuccess(null); };
+  const bindNativeEditor = useInrAssistantSendEditorControls({ enabled: open && detailsItem?.folder === "publications" && detailsItem.source === "app_events",
+    busy: detailsActionBusy || navigationBusy, stateKey: JSON.stringify([detailsItem, localActiveEntry?.key]), editing: detailsEditMode, libraryOpen: publicationMediaLibraryOpen, studioTab: publicationStudioTab,
+    edit: beginPublicationEdit, library: openPublicationMediaLibrary, generate: guard => openPublicationMediaGenerator(undefined, guard),
+    videoRetouch: guard => { if (!localActiveEntry) throw new Error("No active publication channel"); return openPublicationVideoRetoucher(localActiveEntry.key, guard); }, closeLibrary: closePublicationMediaLibrary });
+  const bindNativeHistoryLink = useInrAssistantSendNativeLinks({ enabled: open && detailsItem?.folder === "publications" && !detailsEditMode,
+    busy: detailsActionBusy || navigationBusy,
+    stateKey: JSON.stringify([detailsItem, localActiveEntry?.key, publicationLiveStatus, open, detailsEditMode]) });
+  const localPersistedResult = localActiveEntry ? localPublicationPayload?.results?.[localActiveEntry.key] : null;
+  const localLiveResult = localActiveEntry ? getLivePublicationResult(publicationLiveStatus, localActiveEntry.key) : null;
+  const localDeleted = isDeletedChannelResult(localActiveEntry?.key === "instagram" ? normalizeInstagramDeletionResult(localLiveResult || localPersistedResult) : localLiveResult || localPersistedResult);
+  useInrAssistantSendDetailsControls({ enabled: !!detailsItem && detailsItem.folder === "publications", open,
+    itemId: detailsItem?.id ?? null, channel: localActiveEntry?.key ?? null, visibleChannels: localPublicationEntries.map(entry => entry.key),
+    navigationBusy, busy: detailsActionBusy, canNavigatePrevious, canNavigateNext,
+    previewOpen: publicationPreviewOpen, previewAllowed: detailsItem?.source === "app_events" && !!localActiveEntry && !localDeleted,
+    close: requestClose, navigate: requestNavigate, changeChannel: requestChannelChange, setPreview: setPublicationPreviewOpen,
+  });
 
   React.useEffect(() => {
     if (!open) return;
@@ -1499,6 +1531,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       type="button"
       className={styles.btnAttach}
       onClick={openPublicationMediaGenerator}
+      ref={bindNativeEditor("generate")}
       disabled={detailsActionBusy}
     >
       <span aria-hidden="true">✦</span>{" "}
@@ -1569,17 +1602,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                 ) : (() => {
                   const payload = detailsItem.source === "app_events" ? filterMetaPilotPayload(projectInstagramDeletionStatus(normalizeSiteWebPublicationPayload((detailsItem as any)?.raw?.payload || null)), metaPilotEnabled) : null;
                   const publicationId = detailsItem.source === "app_events" ? String(payload?.publication_id || "").trim() : "";
-                  const channelPublications = detailsItem.source === "app_events" ? extractChannelPublications(payload) : [];
                   const defaultParts = detailsItem.source === "app_events" ? extractPublicationParts(payload) : {};
-                  const publicationChannelEntries = detailsItem.source === "app_events"
-                    ? channelPublications.length
-                      ? channelPublications
-                      : orderChannelKeys((detailsItem.channels && detailsItem.channels.length ? detailsItem.channels : [detailsItem.target]).filter(Boolean).map((channel: unknown) => String(channel))).map((channel) => ({
-                          key: channel,
-                          label: formatChannelLabel(channel),
-                          parts: defaultParts,
-                        }))
-                    : [];
+                  const publicationChannelEntries = localPublicationEntries;
                   const activePublicationEntry = detailsItem.source === "app_events"
                     ? (publicationChannelEntries.find((entry) => entry.key === detailsChannelKey) || publicationChannelEntries[0] || null)
                     : null;
@@ -2117,6 +2141,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                     <a
                                       className={styles.btnGhost}
                                       href={activeChannelAccountHref}
+                                      ref={bindNativeHistoryLink("account", activeChannelAccountHref)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       title={activeConnectedChannelDetail?.label || `Ouvrir ${activePublicationEntry.label}`}
@@ -2130,6 +2155,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       <a
                                         className={styles.btnPrimary}
                                         href={xDirectPublicationHref}
+                                        ref={bindNativeHistoryLink("publication", xDirectPublicationHref)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         title="Ouvrir la publication X"
@@ -2177,6 +2203,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                         <button
                                           type="button"
                                           className={styles.btnPrimary}
+                                          ref={bindNativeHistoryLink("publication", tiktokDirectPublicationHref)}
                                           onClick={() => {
                                             if (typeof window !== "undefined") window.open(tiktokDirectPublicationHref, "_blank", "noopener,noreferrer");
                                           }}
@@ -2191,6 +2218,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       <button
                                         type="button"
                                         className={styles.btnPrimary}
+                                        ref={bindNativeHistoryLink("publication", youtubeShortsPublicationHref)}
                                         onClick={() => {
                                           if (typeof window !== "undefined") window.open(youtubeShortsPublicationHref, "_blank", "noopener,noreferrer");
                                         }}
@@ -2223,7 +2251,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                     <button
                                       type="button"
                                       className={styles.btnGhost}
-                                      onClick={() => { setPublicationEditDirty(false); setDetailsEditMode(true); setDetailsActionError(null); setDetailsActionSuccess(null); }}
+                                      onClick={beginPublicationEdit}
+                                      ref={bindNativeEditor("edit")}
                                       disabled={detailsActionBusy || threadsPublishedEditUnavailable}
                                       title={threadsPublishedEditUnavailable ? i18nT("threads_edit_unsupported") : i18nT("modifier_la_publication_295870a4")}
                                       aria-label={i18nT("modifier_la_publication_295870a4")}
@@ -2922,6 +2951,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                         type="button"
                                         className={styles.btnAttach}
                                         onClick={openPublicationMediaLibrary}
+                                        ref={bindNativeEditor("library")}
                                       >
                                         {i18nT("mediatheque_43cc8dff")}{" "}</button>
                                       <span style={{ fontSize: 12, color: "rgba(255,255,255,0.65)" }}>
@@ -3013,6 +3043,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                             onClick={() =>
                                               openPublicationVideoRetoucher(activePublicationEntry.key)
                                             }
+                                            ref={bindNativeEditor("video_retouch")}
                                             disabled={
                                               !activePublicationEditVideo ||
                                               activePublicationEditVideo.removed ||
@@ -3043,7 +3074,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                   </div>
 
                                   {activeVideoDisplayAttachment?.url && !detailsEditMode ? (
-                                    <a className={styles.attachmentDownloadHint} href={activeVideoDisplayAttachment.url} target="_blank" rel="noreferrer" style={{ justifySelf: "start" }}>
+                                    <a className={styles.attachmentDownloadHint} href={activeVideoDisplayAttachment.url} ref={bindNativeHistoryLink("active_video", activeVideoDisplayAttachment.url)} target="_blank" rel="noreferrer" style={{ justifySelf: "start" }}>
                                       {i18nT("telecharger_b332d06d")}{" "}</a>
                                   ) : null}
 
@@ -3089,6 +3120,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                     type="button"
                                     className={styles.btnAttach}
                                     onClick={openPublicationMediaLibrary}
+                                    ref={bindNativeEditor("library")}
                                   >
                                     {i18nT("mediatheque_43cc8dff")}{" "}</button>
                                   <span
@@ -3369,6 +3401,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       key={`${a.url || a.name}-${idx}`}
                                       className={styles.attachmentPreviewCard}
                                       href={a.url || undefined}
+                                      ref={bindNativeHistoryLink(`image:${idx + 1}`, a.url)}
                                       target="_blank"
                                       rel="noreferrer"
                                     >
@@ -3392,7 +3425,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       />
                                       <div className={styles.attachmentPreviewCaption}>{a.name}</div>
                                       {a.url ? (
-                                        <a className={styles.attachmentDownloadHint} href={a.url} target="_blank" rel="noreferrer">
+                                        <a className={styles.attachmentDownloadHint} href={a.url} ref={bindNativeHistoryLink(`video:${idx + 1}`, a.url)} target="_blank" rel="noreferrer">
                                           {i18nT("telecharger_b332d06d")}{" "}</a>
                                       ) : null}
                                     </div>
@@ -3408,7 +3441,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       {a.type ? <span className={styles.attachmentMeta}>{a.type}</span> : null}
                                       {typeof a.size === "number" ? <span className={styles.attachmentMeta}>{i18nT("value_ko_07f2c21f", { value0: Math.round(a.size / 1024) })}</span> : null}
                                       {a.downloadUrl || a.url ? (
-                                        <a className={styles.attachmentLink} href={a.downloadUrl || a.url || "#"} target="_blank" rel="noreferrer">
+                                        <a className={styles.attachmentLink} href={a.downloadUrl || a.url || "#"} ref={bindNativeHistoryLink(`file:${idx + 1}`, a.downloadUrl || a.url)} target="_blank" rel="noreferrer">
                                           {i18nT("telecharger_b332d06d")}{" "}</a>
                                       ) : null}
                                     </div>

@@ -1,4 +1,5 @@
 "use client";
+import { useInrAssistantLocalClose } from "./_hooks/useInrAssistantLocalClose";
 
 import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -108,6 +109,7 @@ export default function SettingsDrawer({
   const [hasBeenOpened, setHasBeenOpened] = useState(keepMounted || isOpen);
   const [viewportWidth, setViewportWidth] = useState<number>(1440);
   const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+  useInrAssistantLocalClose("settings_drawer", isOpen && portalReady, () => onClose(), false, title);
   const [viewportOffsetTop, setViewportOffsetTop] = useState(0);
   const isResponsive = viewportWidth <= RESPONSIVE_BREAKPOINT;
   const isPhone = viewportWidth <= PHONE_BREAKPOINT;

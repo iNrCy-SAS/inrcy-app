@@ -51,7 +51,8 @@ test("le detail navigue entre les lignes sans revenir au tableau", () => {
   assert.match(details, /requestNavigate\(1\)/);
   assert.match(details, /confirmDiscardPublicationEdit/);
   assert.match(details, /detailsBodyRef\.current\?\.scrollTo/);
-  assert.match(client, /async function navigateDetails\(direction: -1 \| 1\)/);
+  assert.match(client, /async function navigateDetails\(direction: -1 \| 1, canContinue: \(\) => boolean = \(\) => true\)/);
+  assert.match(client, /const loaded = await loadHistory\(\{ page: targetPage \}\);\s*if \(!canContinue\(\)\) return;/);
   assert.match(client, /loadHistory\(\{ page: targetPage \}\)/);
   assert.match(client, /navigationLabel=\{detailsNavigationLabel\}/);
   assert.match(styles, /detailsNavigationCounter[\s\S]*min-width:\s*96px/);

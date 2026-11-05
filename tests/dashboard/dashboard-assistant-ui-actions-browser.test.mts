@@ -79,6 +79,21 @@ const sources = {
   react: packageSource("react", "react.production.js"), "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   "react-dom": packageSource("react-dom", "react-dom.production.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.production.js"), scheduler: packageSource("scheduler", "scheduler.production.js"),
   provider: compile("app/dashboard/_components/DashboardAssistantProvider.tsx"),
+  "cookie-banner": compile("app/_components/CookieConsentBanner.tsx"),
+  "notification-menu": compile("app/dashboard/_components/NotificationMenu.tsx"),
+  "native-notifications": compile("app/dashboard/_hooks/useDashboardNotifications.ts"),
+  "rich-editor": compile("app/dashboard/settings/_components/BusinessDnaRichTextEditor.tsx"),
+  "../_hooks/useInrAssistantVisibleControl": compile("app/dashboard/_hooks/useInrAssistantVisibleControl.ts"),
+  "../_hooks/useInrAssistantLocalInterface": compile("app/dashboard/_hooks/useInrAssistantLocalInterface.ts"),
+  "../_hooks/useInrAssistantRefresh": compile("app/dashboard/_hooks/useInrAssistantRefresh.ts"),
+  "../_hooks/useInrAssistantCookieOptions": compile("app/dashboard/_hooks/useInrAssistantCookieOptions.ts"),
+  "../_hooks/useInrAssistantNativeChannelLinks": compile("app/dashboard/_hooks/useInrAssistantNativeChannelLinks.ts"),
+  "./useInrAssistantLocalInterface": compile("app/dashboard/_hooks/useInrAssistantLocalInterface.ts"),
+  ...clientLibSources("inrAssistantCookieOptions"), ...clientLibSources("inrAssistantLocalInterface"),
+  ...clientLibSources("inrAssistantRefresh"),
+  ...clientLibSources("dashboardEdition"),
+  ...clientLibSources("inrAssistantBusinessRichText"), ...clientLibSources("inrAssistantBusinessRichTextNative"),
+  ...clientLibSources("inrAssistantNativeChannelLinks"),
   "./DashboardAssistantScreenContext": compile("app/dashboard/_components/DashboardAssistantScreenContext.tsx"),
   "./DashboardAssistantCommandContext": compile("app/dashboard/_components/DashboardAssistantCommandContext.tsx"),
   "native": compile("app/dashboard/_hooks/useInrAssistantNativeDraft.ts"),
@@ -103,15 +118,22 @@ const fixture = `
 const sources=${JSON.stringify(sources)},loaded={};
 window.fixtureScope={actor:'actor-a',account:'account-a',pathname:location.pathname,query:location.search.includes('new=1')?'':'saveId=${A}',documentId:location.search.includes('new=1')?'':'${A}',selectedMediaIds:['${A}','${B}'],text:'Private form text'};
 window.exports=[];window.pdfBuilds=[];window.requests=[];window.allowNavigation=true;window.deferNavigation=true;
-const router={push(href){window.requestedHref=href;if(!window.deferNavigation)window.mountTarget()}};
+const router={push(href){window.notificationPanelAtPush=Boolean(document.querySelector('[role="dialog"][aria-label="aria"]'));window.requestedHref=href;if(!window.deferNavigation)window.mountTarget()},refresh(){}};
 function require(name){
  if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
  if(name==='../_components/DashboardAssistantScreenContext')return require('./DashboardAssistantScreenContext');
  if(name==='../_components/DashboardAssistantCommandContext')return require('./DashboardAssistantCommandContext');
+ if(name==='../../_hooks/useInrAssistantLocalInterface')return require('../_hooks/useInrAssistantLocalInterface');
+ if(name==='../../_hooks/useInrAssistantVisibleControl')return require('../_hooks/useInrAssistantVisibleControl');
+ if(name==='../../_components/MediaSubjectVoiceButton')return {__esModule:true,default:()=>null};
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
- if(name==='next-intl')return {useLocale:()=> 'fr-FR'};
+ if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:()=>key=>key};
  if(name==='next/navigation')return {usePathname:()=>window.fixtureScope.pathname,useSearchParams:()=>new URLSearchParams(window.fixtureScope.query),useRouter:()=>router};
- if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.fixtureScope.account};
+ if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.fixtureScope.account,readAccountCacheValue:()=>null,writeAccountCacheValue(){}};
+ if(name==='./DashboardEditionProvider')return {useDashboardEdition:()=> 'basic'};
+ if(name==='../_hooks/useDashboardI18n')return {useDashboardI18n:()=>new Proxy({},{get:()=>new Proxy({},{get:(_,key)=>String(key)})})};
+ if(name==='@/lib/inrcyDialog')return {confirmInrcy:async()=>false};
+ if(name==='@/lib/userFacingErrors')return {getSimpleFrenchApiError:async()=> 'Native feed refused',getSimpleFrenchErrorMessage:()=> 'Native feed refused'};
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
  if(name==='@/lib/supabaseClient')return {createClient:()=>({auth:{onAuthStateChange(callback){window.authCallback=callback;return {data:{subscription:{unsubscribe(){}}}}}}})};
  if(name==='../_components/DashboardViewerAccessProvider')return require('./DashboardViewerAccessProvider');
@@ -127,6 +149,8 @@ function require(name){
 }
 window.fetch=async(url,init)=>{
  window.requests.push({url,body:init?.body,idempotencyKey:new Headers(init?.headers).get('Idempotency-Key')});
+ if(url==='/api/billing/invoices'){if(window.deferInvoiceRead)await new Promise(resolve=>window.releaseInvoiceRead=resolve);return Response.json({invoices:window.nativeInvoices||[]})}
+ if(String(url).startsWith('/api/notifications/feed')){const items=structuredClone(window.notificationsFeed||[]);if(window.deferNotifications)await new Promise(resolve=>window.releaseNotifications=resolve);return Response.json({items,totalCount:items.length})}
  if(url==='/api/media-library/items?id=33333333-3333-4333-8333-333333333333'){
   window.adsMediaStarted=true;if(window.deferAdsMedia)await new Promise(resolve=>window.releaseAdsMedia=resolve);
   return Response.json({items:[{id:'33333333-3333-4333-8333-333333333333',media_type:'image',size_bytes:1000,mime_type:'image/jpeg',width:960,height:1200,signed_url:'/api/media-library/items/33333333-3333-4333-8333-333333333333/content?token=fixture'}]});
@@ -260,20 +284,113 @@ function MailDraft(){
  window.editNative=value=>setSubject(value);window.nativeState={to,subject,text,html};window.mailAttachments=composeAttachments;window.mailScheduleOpen=assistantScheduleOpen;
  return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
 }
-function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(require('provider').default,null,window.fixtureScope.pathname==='/dashboard/mails'&&window.allowMailMount===false?null:React.createElement(window.fixtureScope.pathname==='/dashboard/mails'?MailDraft:window.fixtureScope.pathname==='/dashboard/ads'?AdsDraft:window.fixtureScope.pathname==='/dashboard/generer-media'?(window.fixtureScope.query.includes('studio_media_type=image')?ImageDraft:VideoDraft):window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document))}
+function Notifications(){const api=require('native-notifications').useDashboardNotifications(),[open,setOpen]=React.useState(true);return React.createElement(require('notification-menu').default,{...api,notificationMenuOpen:open,setNotificationMenuOpen:setOpen,openPanel(){},onNavigate(){}})}
+function BusinessRichText(){const[value,setValue]=React.useState({text:'Notre équipe conseille. Notre qualité rassure.',html:'<p>Notre équipe conseille. Notre qualité rassure.</p>'}),[mission,setMission]=React.useState({text:'Mission intacte',html:'<p>Mission intacte</p>'});window.richState=value;window.richMission=mission;window.editRich=value=>setValue(value);return React.createElement(React.Fragment,null,React.createElement(require('rich-editor').default,{label:'Description ADN',assistantField:'detailedDescription',value:value.text,html:value.html,placeholder:'Description',onChange(next){window.richEdits=(window.richEdits||0)+1;setValue(next)}}),React.createElement(require('rich-editor').default,{label:'Mission ADN',assistantField:'mission',value:mission.text,html:mission.html,placeholder:'Mission',onChange:setMission}))}
+function Fixture(){const[,render]=React.useState(0);window.renderFixture=()=>render(n=>n+1);return React.createElement(React.Fragment,null,window.enableCookieBanner?React.createElement(require('cookie-banner').default):null,React.createElement(require('provider').default,null,window.enableNotifications?React.createElement(Notifications):null,window.enableRichText?React.createElement(BusinessRichText):null,window.fixtureScope.pathname==='/dashboard/mails'&&window.allowMailMount===false?null:React.createElement(window.fixtureScope.pathname==='/dashboard/mails'?MailDraft:window.fixtureScope.pathname==='/dashboard/ads'?AdsDraft:window.fixtureScope.pathname==='/dashboard/generer-media'?(window.fixtureScope.query.includes('studio_media_type=image')?ImageDraft:VideoDraft):window.fixtureScope.pathname==='/dashboard/mediatheque'?Library:Document)))}
 window.mountTarget=()=>{const url=new URL(window.requestedHref,location.origin);window.fixtureScope={...window.fixtureScope,pathname:url.pathname,query:url.search.slice(1),documentId:url.searchParams.get('saveId')};window.renderFixture()};
 window.startActions=actions=>{window.result=null;window.assistantProps.onUiActions(actions,undefined,window.deferClaim?()=>new Promise(resolve=>window.releaseClaim=()=>resolve(true)):undefined).then(value=>window.result=value)};
 require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(Fixture));
 `;
 const actions = inrAssistantUiActionsFromToolResult("pdf-b", { ok: true, navigation: getInrAssistantNavigation("quotes", B), uiCommand: { command: "export_document_pdf", selection: { kind: "quote", id: B } } });
-async function setup(page: Page, library = false, unsaved = false, native?: "ads" | "generer-media" | "mails") {
+async function setup(page: Page, library = false, unsaved = false, native?: "ads" | "generer-media" | "mails", cookie = false, notifications = false, richText = false) {
   await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: '<html><body><div id="root"></div></body></html>' }) : route.abort());
   await page.goto(native ? `https://fixture.invalid/dashboard/${native}` : library ? "https://fixture.invalid/dashboard/mediatheque" : `https://fixture.invalid/dashboard/devis/new${unsaved ? "?new=1" : ""}`);
   await page.addScriptTag({ content: "window.fixtureErrors=[];window.addEventListener('error',event=>window.fixtureErrors.push(event.error?.stack||event.message));" });
+  if (cookie) await page.addScriptTag({ content: "window.enableCookieBanner=true" });
+  if (notifications) await page.addScriptTag({ content: "window.enableNotifications=true;window.notificationsFeed=[{id:'native-notification',title:'Notification vérifiée',body:'Événement conservé',unread:true,category:'publish',categoryLabel:'Publication',relativeDate:'Maintenant'}]" });
+  if (richText) await page.addScriptTag({ content: "window.enableRichText=true" });
   await page.addScriptTag({ content: fixture });
   await page.waitForFunction(() => Boolean((window as unknown as UiFixture).assistantProps?.screen?.availableCommands?.length || (window as unknown as UiFixture).assistantProps?.screen?.selectedMediaIds?.length || (window as unknown as { fixtureErrors: string[] }).fixtureErrors.length));
   assert.deepEqual(await page.evaluate("window.fixtureErrors"), []);
 }
+
+test("real Provider closes the exact notification menu before canonical navigation and uses the new route for later scoped local commands", async () => {
+  const browser = await chromium.launch({ headless: true }); try { const page = await browser.newPage(); await setup(page, false, false, undefined, false, true);
+    await page.waitForFunction("require('@/lib/inrAssistantLocalInterface').getInrAssistantLocalInterfaceHints({actorUserId:'actor-a',accountId:'account-a',pathname:window.fixtureScope.pathname})?.some(hint=>hint.id==='notification_menu')");
+    const navigation = await page.evaluate("require('@/lib/inrAssistantNotificationNavigation').getInrAssistantNotificationNavigation('11111111-1111-4111-8111-111111111111','stats',require('@/lib/inrAssistantLocalInterface').getInrAssistantLocalInterfaceHints({actorUserId:'actor-a',accountId:'account-a',pathname:window.fixtureScope.pathname}).find(hint=>hint.id==='notification_menu').revision)");
+    await page.evaluate(navigation => (window as unknown as UiFixture).startActions([{ id: "native-notification-nav", type: "navigate", navigation: navigation as import("../../lib/inrAssistantUiCommands.ts").InrAssistantNavigation }]), navigation); await page.waitForFunction("window.requestedHref==='/dashboard/stats'"); assert.equal(await page.evaluate("window.notificationPanelAtPush"), false); assert.equal(await page.evaluate("window.result"), null);
+    await page.evaluate(() => (window as unknown as UiFixture).mountTarget()); await page.waitForFunction("window.result!==null"); assert.equal(await page.evaluate("window.result[0].status"), "applied");
+    const local = async (operation: "open" | "close") => { const command = await page.evaluate(operation => { const scope = { actorUserId: "actor-a", accountId: "account-a", pathname: (window as unknown as UiFixture & { fixtureScope: { pathname: string } }).fixtureScope.pathname }; const native = (window as unknown as { require: (name: string) => typeof import("../../lib/inrAssistantLocalInterface.ts") }).require("@/lib/inrAssistantLocalInterface"); const hint = native.getInrAssistantLocalInterfaceHints(scope)!.find(hint => hint.id === "notification_menu")!; return { command: "control_local_interface" as const, selection: { kind: "account_document" as const, id: "notification_menu" as const }, revision: hint.revision, operation, value: null }; }, operation); await page.evaluate(command => (window as unknown as UiFixture).startActions([{ id: "later-local", type: "command", command }]), command); await page.waitForFunction("window.result!==null"); return await page.evaluate("window.result[0].status"); };
+    assert.equal(await local("open"), "applied"); assert.equal(await local("close"), "applied");
+    await page.evaluate("window.requestedHref=null"); const forged = { ...(navigation as Record<string, unknown>), notificationMenuRevision: "stale_menu_revision" }; await page.evaluate(navigation => (window as unknown as UiFixture).startActions([{ id: "stale-notification", type: "navigate", navigation: navigation as import("../../lib/inrAssistantUiCommands.ts").InrAssistantNavigation }]), forged); await page.waitForFunction("window.result!==null"); assert.equal(await page.evaluate("window.result[0].status"), "failed"); assert.equal(await page.evaluate("window.requestedHref"), null); await page.close();
+  } finally { await browser.close(); }
+});
+
+test("real Provider hosted invoice hands only the reread native Stripe link to the browser and refuses missing invoice or late account scope", async () => {
+  const browser = await chromium.launch({ headless: true }); try { const page = await browser.newPage(); await setup(page); await page.evaluate("window.nativeInvoices=[{id:'in_REAL',hostedInvoiceUrl:'https://invoice.stripe.com/i/native-owned',invoicePdf:'https://pay.stripe.com/invoice/native-owned/pdf'}]");
+    const action = { id: "hosted-invoice", type: "command" as const, command: { command: "open_subscription_invoice_link" as const, selection: { kind: "account_document" as const, id: "in_REAL" }, invoiceId: "in_REAL" } };
+    await page.evaluate(action => (window as unknown as UiFixture).startActions([action]), action); await page.waitForFunction("window.result!==null"); assert.equal(await page.evaluate("window.result[0].status"), "handed_to_browser"); assert.match(String(await page.evaluate("window.exports[0].href")), /^https:\/\/invoice\.stripe\.com\/i\/native-owned$/);
+    await page.evaluate("window.nativeInvoices=[]"); await page.evaluate(action => (window as unknown as UiFixture).startActions([{ ...action, id: "missing-invoice" }]), action); await page.waitForFunction("window.result!==null"); assert.equal(await page.evaluate("window.result[0].status"), "failed"); assert.equal(await page.evaluate("window.exports.length"), 1);
+    await page.evaluate("window.nativeInvoices=[{id:'in_REAL',hostedInvoiceUrl:'https://invoice.stripe.com/i/native-owned'}];window.deferInvoiceRead=true"); await page.evaluate(action => (window as unknown as UiFixture).startActions([{ ...action, id: "late-invoice" }]), action); await page.waitForFunction("Boolean(window.releaseInvoiceRead)"); await page.evaluate("window.fixtureScope.account='foreign-account';window.renderFixture();window.releaseInvoiceRead()"); await page.waitForFunction("window.result!==null"); assert.notEqual(await page.evaluate("window.result[0].status"), "handed_to_browser"); assert.equal(await page.evaluate("window.exports.length"), 1); await page.close();
+  } finally { await browser.close(); }
+});
+
+test("real native ADN rich text formats only a unique requested passage and keeps formatting idempotent without changing other fields", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, undefined, false, false, true);
+    await page.waitForFunction("require('@/lib/inrAssistantLocalInterface').getInrAssistantLocalInterfaceHints({actorUserId:'actor-a',accountId:'account-a',pathname:window.fixtureScope.pathname})?.some(hint=>hint.id==='dna_text_description')");
+    const hint = () => page.evaluate("require('@/lib/inrAssistantLocalInterface').getInrAssistantLocalInterfaceHints({actorUserId:'actor-a',accountId:'account-a',pathname:window.fixtureScope.pathname}).find(hint=>hint.id==='dna_text_description')") as Promise<{ revision: string }>;
+    const format = async (id: string, edit: { format: string; selectionText: string | null; wholeField: boolean }, revision?: string) => {
+      const boundRevision = revision ?? (await hint()).revision;
+      const actions = inrAssistantUiActionsFromToolResult(id, { ok: true, uiCommand: { command: "control_local_interface", selection: { kind: "account_document", id: "dna_text_description" }, revision: boundRevision, operation: "select", value: JSON.stringify(edit) } });
+      await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), actions); await page.waitForFunction(() => (window as unknown as UiFixture).result !== null); return await page.evaluate(() => (window as unknown as UiFixture).result[0].status);
+    };
+    assert.equal(await format("rich-bold", { format: "bold", selectionText: "Notre équipe", wholeField: false }), "applied");
+    const html = await page.evaluate("window.richState.html") as string, edits = await page.evaluate("window.richEdits"); assert.match(html, /<(?:strong|b)>Notre équipe<\/(?:strong|b)>/);
+    assert.equal(await format("rich-bold-again", { format: "bold", selectionText: "Notre équipe", wholeField: false }), "applied"); assert.equal(await page.evaluate("window.richState.html"), html); assert.equal(await page.evaluate("window.richEdits"), edits);
+    assert.notEqual(await format("rich-duplicate", { format: "italic", selectionText: "Notre", wholeField: false }), "applied"); assert.equal(await page.evaluate("window.richState.html"), html);
+    assert.equal(await format("rich-italic", { format: "italic", selectionText: "Notre qualité", wholeField: false }), "applied");
+    assert.equal(await format("rich-clear-format", { format: "remove_format", selectionText: null, wholeField: true }), "applied"); assert.doesNotMatch(await page.evaluate("window.richState.html"), /<(?:strong|b|em|i)>/);
+    assert.equal(await format("rich-heading", { format: "heading", selectionText: null, wholeField: true }), "applied"); assert.match(await page.evaluate("window.richState.html"), /<h3>/);
+    assert.equal(await format("rich-list", { format: "list", selectionText: null, wholeField: true }), "applied"); assert.match(await page.evaluate("window.richState.html"), /<ul>/);
+    assert.equal(await page.evaluate("window.richState.text.replace(/^• /,'')"), "Notre équipe conseille. Notre qualité rassure."); assert.deepEqual(await page.evaluate("window.richMission"), { text: "Mission intacte", html: "<p>Mission intacte</p>" });
+    const stale = (await hint()).revision; await page.evaluate("window.editRich({text:'Texte manuel préservé',html:'<p>Texte manuel préservé</p>'})"); await page.getByRole("textbox", { name: "Description ADN", exact: true }).filter({ hasText: "Texte manuel préservé" }).waitFor();
+    assert.notEqual(await format("rich-stale", { format: "bold", selectionText: null, wholeField: true }, stale), "applied"); assert.equal(await page.evaluate("window.richState.text"), "Texte manuel préservé");
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).requests.length), 0);
+  } finally { await browser.close(); }
+});
+
+test("real native notification menu rereads an assistant removal and rejects a late account response", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, undefined, false, true);
+    await page.getByText("Notification vérifiée", { exact: true }).waitFor();
+    await page.waitForFunction("require('@/lib/inrAssistantLocalInterface').getInrAssistantLocalInterfaceHints({actorUserId:'actor-a',accountId:'account-a',pathname:window.fixtureScope.pathname})?.some(hint=>hint.id==='notification_menu')");
+    await page.evaluate("window.notificationsFeed=[];require('@/lib/inrAssistantRefresh').dispatchInrAssistantRefresh({accountId:'account-a',turnId:'removed-exact',topics:['notifications']})");
+    await page.getByText("Notification vérifiée", { exact: true }).waitFor({ state: "detached" });
+    const reads = await page.evaluate(() => (window as unknown as UiFixture).requests.filter(item => item.url.startsWith("/api/notifications/feed")).length); assert.ok(reads >= 2);
+    await page.evaluate("require('@/lib/inrAssistantRefresh').dispatchInrAssistantRefresh({accountId:'other-account',turnId:'foreign',topics:['notifications']})");
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).requests.filter(item => item.url.startsWith("/api/notifications/feed")).length), reads);
+    await page.evaluate("window.notificationsFeed=[{id:'old',title:'Ancienne notification',unread:true}];window.deferNotifications=true;require('@/lib/inrAssistantRefresh').dispatchInrAssistantRefresh({accountId:'account-a',turnId:'deferred-read',topics:['notifications']})");
+    await page.waitForFunction("typeof window.releaseNotifications==='function'");
+    await page.evaluate("window.fixtureScope.account='account-b';window.dispatchEvent(new Event('fixture-account-change'));window.renderFixture();window.deferNotifications=false;window.releaseNotifications()");
+    await page.waitForFunction(() => (window as unknown as UiFixture).assistantProps.allowed);
+    assert.equal(await page.getByText("Ancienne notification", { exact: true }).count(), 0);
+  } finally { await browser.close(); }
+});
+
+test("real React provider opens and closes the root cookie settings only after its native rendered state without changing consent", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); await setup(page, false, false, undefined, true);
+    await page.waitForFunction("require('@/lib/inrAssistantCookieOptions').getInrAssistantCookieOptionsSnapshot().available");
+    const hints = () => page.evaluate("require('@/lib/inrAssistantLocalInterface').getInrAssistantLocalInterfaceHints({actorUserId:'actor-a',accountId:'account-a',pathname:window.fixtureScope.pathname})") as Promise<Array<{ id: string; revision: string }>>;
+    const first = (await hints()).find(item => item.id === "cookie_options"); assert.ok(first);
+    assert.equal(await page.locator('input[type="checkbox"]').count(), 0);
+    const batch = (id: string, operation: "open" | "close", revision: string) => inrAssistantUiActionsFromToolResult(id, { ok: true, uiCommand: { command: "control_local_interface", selection: { kind: "account_document", id: "cookie_options" }, operation, value: null, revision } });
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), batch("cookie-open", "open", first.revision));
+    await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied"); assert.equal(await page.locator('input[type="checkbox"]').count(), 2);
+    assert.equal(await page.evaluate(() => localStorage.getItem("inrcy_cookie_consent")), null);
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), batch("cookie-stale", "close", first.revision)); await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.notEqual(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied"); assert.equal(await page.locator('input[type="checkbox"]').count(), 2);
+    const current = (await hints()).find(item => item.id === "cookie_options"); assert.ok(current);
+    await page.evaluate(actions => (window as unknown as UiFixture).startActions(actions), batch("cookie-close", "close", current.revision)); await page.waitForFunction(() => (window as unknown as UiFixture).result !== null);
+    assert.equal(await page.evaluate(() => (window as unknown as UiFixture).result[0].status), "applied"); assert.equal(await page.locator('input[type="checkbox"]').count(), 0);
+    assert.equal(await page.evaluate(() => localStorage.getItem("inrcy_cookie_consent")), null); assert.equal(await page.evaluate(() => (window as unknown as UiFixture).requests.length), 0);
+  } finally { await browser.close(); }
+});
 
 test("real React provider waits for B to mount and exports B once, never initial A", async () => {
   const browser = await chromium.launch({ headless: true });

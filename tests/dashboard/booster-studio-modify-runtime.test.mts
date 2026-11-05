@@ -53,7 +53,7 @@ const sources = {
   session: compile("app/dashboard/_hooks/useInrStudioSession.tsx"),
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaModifier": compile("app/dashboard/_components/MediaModifier.tsx"),
-  ...Object.fromEntries(["inrStudioNavigation", "inrStudioViewport", "inrStudioModalPolicy", "inrAssistantStudioHandoff", "inrAssistantStudioDraft", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaNarrationVoices", "mediaRules", "aiMediaCharacterVoices"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
+  ...Object.fromEntries(["inrStudioNavigation", "inrStudioViewport", "inrStudioModalPolicy", "inrAssistantStudioHandoff", "inrAssistantStudioDraft", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaNarrationVoices", "mediaRules", "aiMediaCharacterVoices", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
 };
 const dictionaries = { booster: JSON.parse(read("messages/fr-FR/booster.json")), media: JSON.parse(read("messages/fr-FR/media.json")), shell: JSON.parse(read("messages/fr-FR/shell.json")) };
 const fixture = `
@@ -65,6 +65,9 @@ function useGeneration(){const React=require('react');const[result,setResult]=Re
 const preference={imageEngine:'openai',videoEngine:'omni',videoResolution:'720p',update:noOp};
 function makeImageKey(file){return file.name+'__'+file.size+'__'+file.lastModified;}
 function require(name){
+ if(name.endsWith('useInrAssistantLocalInterface'))return {useInrAssistantLocalInterface:noOp};
+ if(name.endsWith('useInrAssistantLocalClose'))return {useInrAssistantLocalClose:noOp};
+ if(name==='./DashboardUnsavedNavigationProvider')return {useDashboardUnsavedNavigation:()=>({registerGuard:()=>noOp})};
  if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
  if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:translate};

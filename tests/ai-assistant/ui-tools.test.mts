@@ -2,6 +2,8 @@ import * as websiteCommands from "../../lib/inrAssistantWebsiteUiCommands.ts";
 import * as studioCommands from "../../lib/inrAssistantStudioUiCommands.ts";
 import * as statsCommands from "../../lib/inrAssistantStatsUiCommands.ts";
 import * as badgeCommands from "../../lib/inrAssistantBadgeUiCommands.ts";
+import * as businessFormCommands from "../../lib/inrAssistantBusinessFormUiCommands.ts";
+import * as actionClauses from "../../lib/inrAssistantActionClause.ts";
 import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -23,6 +25,7 @@ function harness(message: string, options: { edition?: editions.DashboardEdition
   const deps: Record<string, unknown> = {
     "./inrAssistantWebsiteUiCommands.ts": websiteCommands,
     "./inrAssistantRequestClauses.ts": requestClauses,
+    "./inrAssistantBusinessFormUiCommands.ts": businessFormCommands, "./inrAssistantActionClause.ts": actionClauses,
     "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (value: unknown) => value },
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "other" : activeId }) },
     "./inrAssistantStudioUiCommands.ts": studioCommands, "./inrAssistantStatsUiCommands.ts": statsCommands, "./inrAssistantBadgeUiCommands.ts": badgeCommands,
@@ -44,7 +47,7 @@ function harness(message: string, options: { edition?: editions.DashboardEdition
   vm.runInNewContext('(function(require,module,exports){'+adsSource+'\n})', {})(
     (name: string) => { assert.ok(name in deps, name); return deps[name]; }, adsModule, adsModule.exports);
   deps["./inrAssistantAdsUiTools.ts"] = adsModule.exports;
-  for (const moduleName of ["inrAssistantWebsiteUiTools", "inrAssistantStudioUiTools", "inrAssistantStatsUiTools", "inrAssistantBadgeUiTools"]) {
+  for (const moduleName of ["inrAssistantWebsiteUiTools", "inrAssistantStudioUiTools", "inrAssistantStatsUiTools", "inrAssistantBadgeUiTools", "inrAssistantBusinessFormUiTools"]) {
     const entry = {exports:{}}; const code = ts.transpileModule(readFileSync(new URL(`../../lib/${moduleName}.ts`,import.meta.url),"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
     vm.runInNewContext(`(function(require,module,exports){${code}\n})`, {})( (name:string)=>{assert.ok(name in deps,name);return deps[name];},entry,entry.exports);deps[`./${moduleName}.ts`]=entry.exports;
   }
@@ -74,12 +77,13 @@ function toolResultRow(value: unknown): Record<string, unknown> {
   return row;
 }
 
-test("Stats exposes only its four native nullable settings and accepts the strict Basic request", async () => {
+test("Stats exposes only its five native nullable settings and accepts the strict Basic request", async () => {
   const request = "Affiche la vue Évolution des statistiques.", screen: InrAssistantClientScreen = { pathname: "/dashboard/stats", tool: "iNr’Stats", selection: { kind: "stats", id: "stats" }, revision: "stats_live_1", availableCommands: ["configure_stats_view"] };
   const tools = harness(request, { screen, edition: "basic" }), schema = tools.runScreenCommand.inputSchema as unknown as { required: string[]; properties: { command: { enum: string[] }; documentId: { type: string | string[] }; documentKind: { type: string | string[] }; recipient: { type: string | string[] }; patch: { properties: Record<string, { enum?: unknown[] }>; required: string[]; additionalProperties: boolean } } };
   assert.deepEqual([...schema.properties.command.enum], ["configure_stats_view"]);
   for (const field of ["documentId", "documentKind", "recipient"] as const) { assert.equal(schema.properties[field].type, "null"); assert.ok(schema.required.includes(field)); }
-  assert.deepEqual(Object.keys(schema.properties.patch.properties).sort(), ["channel", "evolutionView", "metric", "panel"]);
+  assert.deepEqual(Object.keys(schema.properties.patch.properties).sort(), ["channel", "evolutionView", "indexRangeMonths", "metric", "panel"]);
+  assert.deepEqual([...schema.properties.patch.properties.indexRangeMonths.enum!], [...statsCommands.INR_ASSISTANT_STATS_INDEX_RANGES, null]);
   assert.deepEqual([...schema.properties.patch.required].sort(), Object.keys(schema.properties.patch.properties).sort()); assert.equal(schema.properties.patch.additionalProperties, false);
   assert.deepEqual([...schema.properties.patch.properties.channel.enum!], ["all", ...statsCommands.INR_ASSISTANT_STATS_CHANNELS, null]); assert.match(tools.runScreenCommand.description!, /configure_stats_view.*panel=.*evolution/);
   const patch = { ...Object.fromEntries(Object.keys(schema.properties.patch.properties).map(field => [field, null])), panel: "evolution" };
@@ -97,7 +101,7 @@ test("Stats diagnoses invalid parameters separately from a missing mounted view 
   const request = "Affiche la vue Évolution des statistiques.", screen: InrAssistantClientScreen = { pathname: "/dashboard/stats", tool: "iNr’Stats", selection: { kind: "stats", id: "stats" }, revision: "stats_live_1", availableCommands: ["configure_stats_view"] };
   const input = { command: "configure_stats_view" as const, instructionQuote: request, patch: { panel: "evolution" } }, tools = harness(request, { screen, edition: "basic" });
   const shared = harness(request).runScreenCommand.inputSchema as unknown as { properties: { patch: { properties: Record<string, unknown> } } };
-  for (const field of [...Object.keys(shared.properties.patch.properties).filter(field => !["panel", "evolutionView", "metric", "channel"].includes(field)), "unknownSetting"]) {
+  for (const field of [...Object.keys(shared.properties.patch.properties).filter(field => !["panel", "evolutionView", "metric", "channel", "indexRangeMonths"].includes(field)), "unknownSetting"]) {
     const result = toolResultRow(await tools.runScreenCommand.execute!({ ...input, patch: { panel: "evolution", [field]: field === "changes" ? [{ field: "panel", valueJson: '"evolution"' }] : "foreign-value" } }, execution));
     assert.equal(result.ok, false, field); assert.equal(result.code, "stats_view_invalid_patch", field); assert.equal(result.uiCommand, undefined); assert.ok(typeof result.message === "string"); assert.doesNotMatch(result.message, /Ouvrez/);
   }
@@ -108,7 +112,7 @@ test("Stats diagnoses invalid parameters separately from a missing mounted view 
   for (const stale of [{ ...screen, pathname: "/dashboard" }, { ...screen, availableCommands: [] }, { ...screen, revision: undefined }, { ...screen, selection: { kind: "stats" as const, id: "other_stats" } }]) assert.equal(toolResultRow(await harness(request, { screen: stale, edition: "basic" }).runScreenCommand.execute!(input, execution)).code, "stats_view_context_unavailable");
   assert.equal((await harness(request, { screen, edition: "basic", foreign: true }).runScreenCommand.execute!(input, execution) as { status: string }).status, "blocked");
   assert.equal((await harness(request, { screen, edition: "basic", expired: true }).runScreenCommand.execute!(input, execution) as { status: string }).status, "needs_instruction");
-  const filters = { panel: "evolution", evolutionView: "index", metric: "clicks", channel: "gmb" }, result = await tools.runScreenCommand.execute!({ ...input, patch: filters }, execution) as { ok: boolean; uiCommand: unknown };
+  const filters = { panel: "evolution", evolutionView: "index", channel: "gmb" }, result = await tools.runScreenCommand.execute!({ ...input, patch: filters }, execution) as { ok: boolean; uiCommand: unknown };
   assert.equal(result.ok, true); assert.deepEqual(commands.parseInrAssistantUiCommand(result.uiCommand), { command: "configure_stats_view", selection: screen.selection, revision: screen.revision, patch: filters });
 });
 

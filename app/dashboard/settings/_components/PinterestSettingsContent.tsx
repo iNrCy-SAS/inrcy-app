@@ -25,6 +25,7 @@ import EditableChannelUrlField from "../../_components/EditableChannelUrlField";
 import StatusMessage from "../../_components/StatusMessage";
 import ChannelSettingsStep from "./ChannelSettingsStep";
 import guideStyles from "./ChannelSettingsSteps.module.css";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 const inputStyle = {
   width: "100%",
@@ -326,6 +327,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
   );
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [completedBoardsRead, setCompletedBoardsRead] = useState(0);
   const [boardAction, setBoardAction] = useState<string | null>(null);
   const [newBoardName, setNewBoardName] = useState("");
   const [editingBoardId, setEditingBoardId] = useState<string | null>(null);
@@ -413,8 +415,11 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
   }, []);
 
   const refreshBoards = useCallback(
-    async (successMessage = "Tableaux Pinterest actualisés.") => {
+    async (successMessage = "Tableaux Pinterest actualisés.", canApply: () => boolean = () => true, onCompleted?: () => void) => {
       const readVersion = boardMutationVersion.current;
+      const accountId = getActiveBrowserUserId();
+      const current = () => mountedRef.current && readVersion === boardMutationVersion.current && accountId === getActiveBrowserUserId() && canApply();
+      if (!current()) return [];
       setSyncing(true);
       setNotice(null);
       setError(null);
@@ -432,7 +437,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
         const liveBoards = normalizeBoards(json.boards);
         const boards = mergeLiveBoardsWithRecentMutations(liveBoards);
         const defaultBoardId = String(json.defaultBoardId || "").trim();
-        if (!mountedRef.current || readVersion !== boardMutationVersion.current) return boards;
+        if (!current()) return boards;
         pendingDashboardUpdateRef.current = true;
         setSettings((current) =>
           readVersion !== boardMutationVersion.current ? current : withPinterestBoardReadiness({
@@ -441,18 +446,19 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
             defaultBoardId,
           }),
         );
+        setCompletedBoardsRead(value => value + 1); onCompleted?.();
         if (successMessage) setNotice(successMessage);
         return boards;
       } catch (err) {
         console.warn("[pinterest-settings] boards sync failed", err);
-        setError(
+        if (current()) setError(
           err instanceof Error
             ? err.message
             : "Synchronisation des tableaux Pinterest impossible.",
         );
         return [];
       } finally {
-        setSyncing(false);
+        if (current()) setSyncing(false);
       }
     },
     [],
@@ -566,6 +572,13 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
     setNotice(null);
     setError(null);
   }, []);
+  useInrAssistantLocalInterface("pinterest_board_name", { editingBoardId, editingBoardName, boards: settings.boards.map(board => ({ id: board.id, name: board.name })) }, {
+    open: { invoke: value => { const boards = settings.boards.filter(board => board.id === value || board.name === value), board = boards.length === 1 ? boards[0] : undefined; if (!board || editingBoardId && (editingBoardId !== board.id || editingBoardName !== board.name)) throw new Error("Pinterest name draft unavailable"); startRenameBoard(board); }, matches: (snapshot, value) => Boolean(snapshot && typeof snapshot === "object" && "editingBoardId" in snapshot && snapshot.editingBoardId === settings.boards.find(board => board.id === value || board.name === value)?.id) },
+    ...(editingBoardId ? { clear: { invoke: () => { setEditingBoardId(null); setEditingBoardName(""); }, matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "editingBoardId" in snapshot && snapshot.editingBoardId === null && "editingBoardName" in snapshot && snapshot.editingBoardName === "") } } : {}),
+  }, settings.accountConnected && !settings.requiresUpdate, loading || syncing || boardAction !== null);
+  useInrAssistantLocalInterface("pinterest_boards", { completedBoardsRead, syncing, error }, {
+    retry: { invoke: async (_value, stillCurrent) => { let completed = false; await refreshBoards("", stillCurrent, () => { completed = true; }); if (!completed) throw new Error("Pinterest boards read unavailable"); }, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "completedBoardsRead" in snapshot && Number(snapshot.completedBoardsRead) > completedBoardsRead && "syncing" in snapshot && snapshot.syncing === false && "error" in snapshot && !snapshot.error) },
+  }, settings.accountConnected && !settings.requiresUpdate, loading || syncing || boardAction !== null || hasUnsavedChanges);
 
   const renameBoard = useCallback(
     async (board: PinterestBoard) => {

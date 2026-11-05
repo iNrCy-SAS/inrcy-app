@@ -43,6 +43,7 @@ import {
 } from "@/lib/openingSchedule";
 import { resolveLegacyBusinessActivityValues } from "@/lib/legacyProfessionalWorkspace";
 import EditableTags from "./EditableTags";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 type Props = {
   mode?: "page" | "drawer";
@@ -54,6 +55,7 @@ type Props = {
   onUnsavedChange?: (hasUnsavedChanges: boolean, draftSignature?: string) => void;
   showIntro?: boolean;
   showActions?: boolean;
+  assistantActive?: boolean;
 };
 
 export type ActivityContentHandle = {
@@ -90,6 +92,7 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
     onUnsavedChange,
     showIntro = true,
     showActions = true,
+    assistantActive = true,
   },
   ref,
 ) {
@@ -133,6 +136,12 @@ const ActivityContent = forwardRef<ActivityContentHandle, Props>(function Activi
   const [jobSearchOpen, setJobSearchOpen] = useState(false);
   const jobSearchResultsVisible = jobSearchOpen && jobSearch.trim().length > 0;
   const [manualSelectionOpen, setManualSelectionOpen] = useState(false);
+  useInrAssistantLocalInterface("profession_picker", { manualSelectionOpen, jobSearchOpen, jobSearch }, {
+    open: { invoke: () => { setManualSelectionOpen(true); setJobSearchOpen(false); }, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "manualSelectionOpen" in snapshot && snapshot.manualSelectionOpen === true) },
+    close: { invoke: () => { setManualSelectionOpen(false); setJobSearchOpen(false); }, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "manualSelectionOpen" in snapshot && "jobSearchOpen" in snapshot && snapshot.manualSelectionOpen === false && snapshot.jobSearchOpen === false) },
+    search: { invoke: value => { if (!value || value.length > 160) throw new Error("Profession search required"); setJobSearch(value); setJobSearchOpen(true); }, matches: (snapshot, value) => Boolean(snapshot && typeof snapshot === "object" && "jobSearch" in snapshot && "jobSearchOpen" in snapshot && snapshot.jobSearch === value && snapshot.jobSearchOpen === true) },
+    clear: { invoke: () => { setJobSearch(""); setJobSearchOpen(true); }, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "jobSearch" in snapshot && "jobSearchOpen" in snapshot && snapshot.jobSearch === "" && snapshot.jobSearchOpen === true) },
+  }, assistantActive, loading || saving);
   const activityBaselineRef = useRef("");
   const loadSucceededRef = useRef(false);
   const professionChoicePendingRef = useRef(false);

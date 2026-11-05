@@ -5,14 +5,16 @@ import { useLocale, useTranslations } from "next-intl";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import type { GoogleBusinessCategories, GoogleBusinessCategory } from "@/lib/googleBusinessProfile";
 import styles from "./GoogleBusinessProfileEditor.module.css";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 
 type Context = { accountId: string; locationName: string };
 type PickerProps = {
+  pickerKind?: "primary" | "additional";
   context: Context; value: GoogleBusinessCategory | null; label: string; disabled: boolean;
   excludedNames: string[]; onSelect: (category: GoogleBusinessCategory) => void; onPendingChange: (pending: boolean) => void;
 };
 
-export function GoogleBusinessCategoryPicker({ context, value, label, disabled, excludedNames, onSelect, onPendingChange }: PickerProps) {
+export function GoogleBusinessCategoryPicker({ context, value, label, disabled, excludedNames, onSelect, onPendingChange, pickerKind = "primary" }: PickerProps) {
   const t = useTranslations("dashboard.googleBusinessProfile.categories");
   const locale = useLocale();
   const id = useId();
@@ -52,6 +54,9 @@ export function GoogleBusinessCategoryPicker({ context, value, label, disabled, 
     return () => { controller.abort(); clearTimeout(timer); };
   }, [context.accountId, context.locationName, disabled, locale, pageToken, query, search, t]);
   const close = () => { setQuery(null); setOptions([]); setPageToken(""); setNextPageToken(null); setError(""); setLoading(false); setActiveIndex(-1); };
+  useInrAssistantLocalInterface(pickerKind === "additional" ? "google_additional_category" : "google_primary_category", { query }, {
+    close: { invoke: close, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "query" in snapshot && snapshot.query === null) },
+  }, context.accountId === getActiveBrowserUserId(), disabled || query === null);
   const select = (category: GoogleBusinessCategory) => {
     if (disabled || getActiveBrowserUserId() !== context.accountId || excludedNames.includes(category.name)) return;
     onSelect(category); close();
@@ -96,10 +101,10 @@ export default function GoogleBusinessCategoriesEditor({ context, value, disable
   const additionalSearchChanged = useCallback((pending: boolean) => setAdditionalPending(pending), []);
   useEffect(() => { onPendingChange(primaryPending || additionalPending); return () => onPendingChange(false); }, [primaryPending, additionalPending, onPendingChange]);
   return <div className={`${styles.wide} ${styles.categoryFields}`}>
-    <GoogleBusinessCategoryPicker context={context} value={value.primaryCategory} label={t("primary")} disabled={disabled} excludedNames={[]}
+    <GoogleBusinessCategoryPicker pickerKind="primary" context={context} value={value.primaryCategory} label={t("primary")} disabled={disabled} excludedNames={[]}
       onPendingChange={primarySearchChanged} onSelect={primaryCategory => onChange({ primaryCategory, additionalCategories: value.additionalCategories.filter(category => category.name !== primaryCategory.name) })} />
     <div>
-      <GoogleBusinessCategoryPicker context={context} value={null} label={t("additional")} disabled={disabled || value.additionalCategories.length >= 9}
+      <GoogleBusinessCategoryPicker pickerKind="additional" context={context} value={null} label={t("additional")} disabled={disabled || value.additionalCategories.length >= 9}
         excludedNames={[value.primaryCategory?.name ?? "", ...value.additionalCategories.map(category => category.name)]}
         onPendingChange={additionalSearchChanged} onSelect={category => onChange({ ...value, additionalCategories: [...value.additionalCategories, category] })} />
       {value.additionalCategories.length ? <ul className={styles.categoryTags}>{value.additionalCategories.map(category => <li key={category.name}>

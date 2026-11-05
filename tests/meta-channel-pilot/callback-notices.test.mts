@@ -13,6 +13,8 @@ let query = new URLSearchParams();
 let pilot = true;
 let locale = "fr-FR";
 const replacements: string[] = [];
+const layoutEffects: Array<() => unknown> = [];
+let hookId = 0;
 const modules = new Map<string, RecordLike>();
 const jsx = (type: unknown, props: RecordLike): unknown => {
   if (typeof type === "function" && ["MetaOAuthCallbackNotice", "StatusMessage"].includes(type.name)) return type(props);
@@ -26,13 +28,13 @@ function load(relative: string): RecordLike {
   modules.set(file, loaded.exports);
   const localRequire = (id: string): unknown => {
     if (id === "react/jsx-runtime") return { jsx, jsxs: jsx, Fragment: "fragment" };
-    if (id === "react") return { useEffect: () => undefined, useId: () => "callback-test", useRef: (initial: unknown) => ({ current: initial }), useCallback: (fn: unknown) => fn, useMemo: (fn: () => unknown) => fn(), useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, () => undefined] };
-    if (id === "next/navigation") return { useSearchParams: () => query, useRouter: () => ({ replace: (url: string) => { replacements.push(url); }, push: () => undefined }) };
+    if (id === "react") return { useEffect: () => undefined, useLayoutEffect: (effect: () => unknown) => { layoutEffects.push(effect); }, useId: () => `callback-test-${hookId++}`, useRef: (initial: unknown) => ({ current: initial }), useCallback: (fn: unknown) => fn, useMemo: (fn: () => unknown) => fn(), useState: (initial: unknown) => [typeof initial === "function" ? initial() : initial, () => undefined] };
+    if (id === "next/navigation") return { usePathname: () => "/dashboard", useSearchParams: () => query, useRouter: () => ({ replace: (url: string) => { replacements.push(url); }, push: () => undefined }) };
     if (id === "next-intl") return { useLocale: () => locale, useTranslations: () => (key: string) => (JSON.parse(fs.readFileSync("messages/" + locale + "/shell.json", "utf8")) as Record<string, string>)[key] || key };
     if (id === "next/image") return { __esModule: true, default: "img" };
     if (id.endsWith("DashboardAssistantTrigger")) return { __esModule: true, default: "assistant-trigger" };
     if (id.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen: () => undefined };
-    if (id.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: pilot }) };
+    if (id.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "callback-actor", activeAccountId: "callback-account", metaPilotEnabled: pilot }) };
     if (id.endsWith("DashboardUnsavedNavigationProvider")) return { useDashboardUnsavedNavigation: () => ({ requestNavigation: (callback: () => void) => callback() }) };
     if (id.endsWith("DashboardFluxBubble") || id.endsWith("GoogleOAuthConsentBanner")) return { __esModule: true, default: "channel-component" };
     if (id.endsWith(".css")) return {};
@@ -52,7 +54,10 @@ const ChannelsModal = load("app/dashboard/_components/DashboardChannelsModal.tsx
 const ThreadsSettings = load("app/dashboard/_components/ThreadsPublicationSettings.tsx").default as (props: RecordLike) => RenderNode | null;
 const Notice = load("app/dashboard/_components/MetaOAuthCallbackNotice.tsx").default as (props: RecordLike) => RenderNode | null;
 function scene(provider: string, connection: RecordLike) {
-  return ChannelsModal({ items: [{ key: provider, name: provider, bubbleStatus: connection.connected ? "connected" : "available", bubbleStatusText: connection.connected ? "Connecté" : "À connecter", connection, onConfigure() {} }], initialSelectedKey: provider, onClose() {} });
+  const result = ChannelsModal({ items: [{ key: provider, name: provider, bubbleStatus: connection.connected ? "connected" : "available", bubbleStatusText: connection.connected ? "Connecté" : "À connecter", connection, onConfigure() {} }], initialSelectedKey: provider, onClose() {} });
+  const cleanups = layoutEffects.splice(0).map(effect => effect());
+  for (const cleanup of cleanups) if (typeof cleanup === "function") cleanup();
+  return result;
 }
 function nodes(value: unknown): RenderNode[] {
   if (Array.isArray(value)) return value.flatMap(nodes);

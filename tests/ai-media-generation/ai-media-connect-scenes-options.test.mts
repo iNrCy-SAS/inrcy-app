@@ -8,12 +8,13 @@ import * as mediaTransport from "../../lib/aiMediaGenerationTransport.ts";
 import * as mediaRecovery from "../../lib/aiMediaGenerationRecovery.ts";
 import * as clientRequestRules from "../../lib/mediaGenerationClientRequest.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
+import * as mediaContracts from "../../lib/aiMediaGenerationContracts.ts";
+import * as assistantRefresh from "../../lib/inrAssistantRefresh.ts";
 
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
 import {
   AiMediaRequestValidationError,
   normalizeAiMediaGenerationRequest,
-  shouldConnectAiMediaVideoScenes,
 } from "../../lib/aiMediaGenerationContracts.ts";
 
 function clientRequest(overrides: Partial<MediaGenerationRequest> = {}): MediaGenerationRequest {
@@ -67,6 +68,7 @@ function hookRuntime() {
       return {
         useCallback: (callback: unknown) => callback,
         useEffect: () => undefined,
+        useLayoutEffect: () => undefined,
         useRef: (initial: unknown) => ({ current: initial }),
         useState: (initial: unknown) => [initial, () => undefined],
       };
@@ -74,14 +76,19 @@ function hookRuntime() {
     if (specifier === "@/lib/multicompte/constants") {
       return { ACTIVE_INRCY_ACCOUNT_EVENT: "fixture-account-change" };
     }
-    if (specifier === "@/lib/aiMediaGenerationContracts") {
-      return { shouldConnectAiMediaVideoScenes };
-    }
+    if (specifier === "@/lib/aiMediaGenerationContracts") return mediaContracts;
     if (specifier === "@/lib/mediaGenerationClientRequest") return clientRequestRules;
     if (specifier === "@/lib/aiMediaModelCatalog") return mediaModels;
     if (specifier === "@/lib/aiMediaGenerationTransport") return mediaTransport;
     if (specifier === "@/lib/aiMediaGenerationRecovery") return mediaRecovery;
     if (specifier === "@/lib/aiMediaCharacterVoiceClient") return characterVoices;
+    if (specifier === "@/lib/inrAssistantRefresh") return assistantRefresh;
+    if (specifier === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => null };
+    if (specifier === "./useInrAssistantRefresh") {
+      const refreshModule = { exports: {} }, refreshSource = ts.transpileModule(readFileSync(new URL("../../app/dashboard/_hooks/useInrAssistantRefresh.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+      new Function("module", "exports", "require", refreshSource)(refreshModule, refreshModule.exports, runtimeRequire);
+      return refreshModule.exports;
+    }
     throw new Error(`Unexpected runtime dependency: ${specifier}`);
   };
   const fixtureFetch = async (url: string, options: RequestInit) => {

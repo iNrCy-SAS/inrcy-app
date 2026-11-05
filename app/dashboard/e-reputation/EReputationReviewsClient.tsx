@@ -14,6 +14,7 @@ import DashboardMobileSelect from "@/app/dashboard/_components/DashboardMobileSe
 import PublishAiConfigurationDrawer from "@/app/dashboard/booster/publier/components/PublishAiConfigurationDrawer";
 import { MODULE_SNAPSHOT_KEYS, readModuleSnapshot, writeModuleSnapshot } from "@/lib/browserModuleSnapshotCache";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { useInrAssistantLocalClose } from "../_hooks/useInrAssistantLocalClose";
 import { DiscardedReviewPageError, ReviewPageCache } from "./review-page-cache";
 import styles from "./eReputation.module.css";
 
@@ -742,10 +743,12 @@ export default function EReputationReviewsClient(props: Props) {
     setNotice(null);
   }
 
-  async function requestCloseDetails() {
+  async function requestCloseDetails(stillCurrent: () => boolean = () => true) {
     if (!(await confirmReviewChange())) return;
+    if (!stillCurrent()) return;
     setDetailsOpen(false);
   }
+  useInrAssistantLocalClose("google_review_details", detailsOpen && !aiConfigurationOpen, requestCloseDetails, publishing || generating || deleting, { selectedId, replyText });
 
   async function navigateReview(direction: "previous" | "next") {
     if (!selectedReview || loadingMore || publishing || generating || deleting) return;

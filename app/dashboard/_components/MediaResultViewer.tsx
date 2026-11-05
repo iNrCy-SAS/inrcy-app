@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 import styles from "./MediaResultViewer.module.css";
 
 /** A local preview only: zooming never edits or regenerates the saved media. */
@@ -20,6 +21,18 @@ export default function MediaResultViewer({ accountId, title, video, children, o
   const dialogRef = useRef<HTMLDialogElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
+
+  useInrAssistantLocalInterface("studio_result_viewer", { zoom, video }, {
+    close: { invoke: () => onClose(), matches: () => false, allowUnmount: true },
+    ...(!video ? { select: {
+      invoke: (value: string | null) => {
+        if (!["1", "1.5", "2", "2.5", "3", "3.5", "4"].includes(String(value))) throw new Error("studio_zoom_unavailable");
+        setZoom(Number(value));
+        if (value === "1") viewportRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" });
+      },
+      matches: (snapshot: unknown, value: string | null) => !!snapshot && typeof snapshot === "object" && (snapshot as { zoom?: number }).zoom === Number(value),
+    } } : {}),
+  }, !accountId || accountId === getActiveBrowserUserId());
 
   useEffect(() => {
     const dialog = dialogRef.current;

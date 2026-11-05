@@ -17,6 +17,7 @@ const actual=runtimeModules(),catalogue=actual<typeof import("../../lib/boosterS
 const fixture=`
 const sources=${JSON.stringify(modules)},messages=${read("messages/fr-FR/booster.json")},catalogue=${JSON.stringify(catalogue)},loaded={};
 function require(name){
+ if(name.endsWith('useInrAssistantLocalInterface'))return {useInrAssistantLocalInterface(){}};
  if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
  if(name==='next-intl')return {useTranslations:()=> (key,args={})=>Object.entries(args).reduce((text,[name,value])=>text.replaceAll('{'+name+'}',String(value)),messages[key]||key)};
  if(loaded[name])return loaded[name].exports;if(!sources[name])throw Error('Unexpected music fixture module '+name);

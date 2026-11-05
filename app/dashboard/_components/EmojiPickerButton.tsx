@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import { parseInrAssistantShellSelection } from "@/lib/inrAssistantShellSelection";
 
 type EmojiPickerButtonProps = {
   onSelect: (emoji: string) => void;
@@ -68,6 +70,7 @@ export default function EmojiPickerButton({
   const [recent, setRecent] = useState<string[]>([]);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [portalTarget, setPortalTarget] = useState<Element | null>(null);
+  const [selection, setSelection] = useState({ emoji: "", sequence: 0 });
 
   useEffect(() => {
     try {
@@ -146,9 +149,33 @@ export default function EmojiPickerButton({
       // Le choix est quand même inséré si le stockage local est bloqué.
     }
     onSelect(emoji);
+    setSelection(previous => ({ emoji, sequence: previous.sequence + 1 }));
     setOpen(false);
     setQuery("");
   };
+
+  const emojiSnapshot = { open, activeGroup, query, selection };
+  useInrAssistantLocalInterface("emoji_picker", emojiSnapshot, {
+    ...(!open ? { open: { invoke: () => toggle(), matches: (snapshot: unknown) => (snapshot as typeof emojiSnapshot).open } } : {
+      close: { invoke: () => { setOpen(false); setQuery(""); buttonRef.current?.focus({ preventScroll: true }); }, matches: (snapshot: unknown) => !(snapshot as typeof emojiSnapshot).open },
+      search: {
+        invoke: (value: string | null) => { if (value === null || value.length > 200) throw new Error("emoji_query_invalid"); setQuery(value); },
+        matches: (snapshot: unknown, value: string | null) => (snapshot as typeof emojiSnapshot).query === value,
+      },
+      select: {
+        invoke: (value: string | null) => {
+          const input = parseInrAssistantShellSelection(value);
+          if (input?.field === "group" && !query.trim() && EMOJI_GROUPS.some(group => group.key === input.value)) setActiveGroup(input.value);
+          else if (input?.field === "emoji" && visibleEmojis.includes(input.value)) selectEmoji(input.value);
+          else throw new Error("emoji_selection_unavailable");
+        },
+        matches: (snapshot: unknown, value: string | null) => {
+          const input = parseInrAssistantShellSelection(value), current = snapshot as typeof emojiSnapshot;
+          return input?.field === "group" ? current.activeGroup === input.value : input?.field === "emoji" && !current.open && current.selection.emoji === input.value && current.selection.sequence > selection.sequence;
+        },
+      },
+    }),
+  }, !disabled, false, open ? 1 : 0);
 
   return (
     <>

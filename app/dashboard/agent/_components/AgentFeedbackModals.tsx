@@ -5,6 +5,7 @@ import PublishExecutionResultModal from "../../_components/PublishExecutionResul
 import dashboardStyles from "../../dashboard.module.css";
 import styles from "../agent.module.css";
 import choiceCss from "./AgentRegenerationChoices.module.css";
+import { useInrAssistantLocalClose } from "../../_hooks/useInrAssistantLocalClose";
 import type {
   AgentCampaignLaunchNotice,
   AgentConfirmDialogState,
@@ -44,6 +45,7 @@ export default function AgentFeedbackModals({
   const confirmRef = useRef<HTMLElement>(null);
   const closeConfirmRef = useRef(onCloseConfirm);
   const confirmOpen = Boolean(confirmDialog);
+  useInrAssistantLocalClose("planning_confirmation", confirmOpen, () => onCloseConfirm(), false, confirmDialog ? { title: confirmDialog.title, message: confirmDialog.message } : null);
   useEffect(() => { closeConfirmRef.current = onCloseConfirm; }, [onCloseConfirm]);
   useEffect(() => {
     if (!confirmOpen) return;

@@ -8,6 +8,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
+import { useInrAssistantNativeChannelLink, useInrAssistantRenderedPublicLink } from "../_hooks/useInrAssistantNativeChannelLinks";
 import { useTranslations } from "next-intl";
 
 import {
@@ -66,6 +67,7 @@ export default function EditableChannelUrlField({
   viewClassName = "",
 }: EditableChannelUrlFieldProps) {
   const t = useTranslations("shell");
+  const publicAnchor = useRef<HTMLAnchorElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const messageId = useId();
   const [draft, setDraft] = useState(value);
@@ -100,6 +102,7 @@ export default function EditableChannelUrlField({
   );
   const canSave = saveAsIcon ? normalizedDraft.ok : hasNormalizedChange;
   const savedHref = normalizedSaved.ok ? normalizedSaved.url : "";
+  useInrAssistantRenderedPublicLink(channel, savedHref, publicAnchor, Boolean(!editorOnly && !saveAsIcon && savedHref), target);
 
   useEffect(() => {
     onDirtyChange?.(editing && hasDraftChange);
@@ -129,6 +132,8 @@ export default function EditableChannelUrlField({
     setErrorCode(null);
     setEditing(false);
   };
+
+  useInrAssistantNativeChannelLink(channel, target, { kind: "draft", identity: value, state: { draft, value, editing, changed: draftChangedByUser }, blocked: saving, invoke: operation => { if (operation !== "clear" || saving) throw new Error("Channel draft unavailable"); cancelEditing(); }, matches: state => Boolean(state && typeof state === "object" && "draft" in state && "value" in state && "changed" in state && state.draft === state.value && state.changed === false) });
 
   const save = async () => {
     if (!editing || saving || disabled) return;
@@ -227,7 +232,7 @@ export default function EditableChannelUrlField({
         data-editing={editing ? "true" : "false"}
       />
 
-      {!editorOnly && !saveAsIcon ? <a
+      {!editorOnly && !saveAsIcon ? <a ref={publicAnchor}
         href={savedHref || "#"}
         target="_blank"
         rel="noreferrer"

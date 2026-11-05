@@ -1,0 +1,642 @@
+{
+  "app/dashboard/_components/DashboardBoosterModalLayer.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/GeneratorSettingsModal.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/InrcyCameraCaptureModal.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/_components/InrcyCameraCaptureModal.tsx#div:4bbc2542b1cb3426:1": {
+        "reason": "Gestion technique de propagation des événements, aucun bouton/champ/action métier indépendant.",
+        "gateAnchor": "<div\n        onClick={(event) => event.stopPropagation()}\n        style={{\n          position: \"relative\",\n          width: shellIsFullscreen ? \"100vw\" : \"min(100%, 540px)\",\n          height: shellIsFullscreen ? \"100dvh\" : \"min(92dvh, 760px)\",\n          display: \"flex\",\n          flexDirection: \"column\",\n          borderRadius: shellIsFullscreen ? 0 : 28,\n          border: shellIsFullscreen\n            ? \"none\"\n            : \"1px solid rgba(255,255,255,0.16)\",\n          background: \"#050816\",\n          boxShadow: shellIsFullscreen\n            ? \"none\"\n            : \"0 28px 80px rgba(0,0,0,0.55)\",\n          color: \"#fff\",\n          overflow: \"hidden\",\n        }}\n      >"
+      }
+    }
+  },
+  "app/dashboard/_components/LocalMediaUploadChoice.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaBusinessDnaHelp.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaCharacterVoiceInput.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaEngineCreditControls.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaFreeGenerator.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaGenerator.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaGeneratorModal.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/_components/MediaGeneratorModal.tsx#div:7c8a71e2cf3ac431:1": {
+        "reason": "Conteneur technique de piège clavier/focus et propagation ; les boutons fonctionnels Fermer et Annuler sont inventoriés séparément.",
+        "gateAnchor": "<div data-inrcy-tool-overlay\n      ref={layerRef}\n      className={styles.layer}\n      onKeyDown={handleKeyDown}\n      role=\"presentation\"\n      data-disable-pull-refresh=\"true\"\n      data-media-generator-origin={origin}\n      onClick={(event) => event.stopPropagation()}\n    >"
+      }
+    }
+  },
+  "app/dashboard/_components/MediaLibraryPickerModal.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaModifier.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaOptimizerModal.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaPromptHelp.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaQuotaSummary.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaReferenceInputs.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Unique consommateur AgentMediaReferences dans les réglages automatiques de publication (AgentClient settingsAutomation publish). Basique impose manualPlanningOnly ; les boutons qui ouvrent réglages/activation/idées sont tous absents. Aucun autre appel qui ouvre settingsKey : le contrôleur n’ouvre que depuis activation premium, les autres appels le ferment.",
+    "gateFiles": [
+      "app/dashboard/agent/AgentClient.tsx",
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+      "app/dashboard/agent/_hooks/useAgentAutomationController.ts"
+    ],
+    "gateAnchor": "manualPlanningOnly={edition === \"basic\"}"
+  },
+  "app/dashboard/_components/MediaResultViewer.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaRetoucher.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaSoundtrackSelector.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaSubjectVoiceButton.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/MediaVideoRetoucher.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/PublishExecutionProgress.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/PublishExecutionResultModal.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/PublishScheduleModal.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/channel-image-adapter/cards-panel.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/channel-image-adapter/frames.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/channel-image-adapter/modal.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#div:351ee03ca317fcb0:1": {
+        "reason": "Gestion technique de propagation des événements, aucun bouton/champ/action métier indépendant.",
+        "gateAnchor": "<div\n        onClick={(event) => event.stopPropagation()}\n        style={{\n          width: modalWidth,\n          maxWidth: embedded ? \"100%\" : isMobile ? mobileViewportWidth : \"100%\",\n          height: modalHeight,\n          maxHeight: embedded\n            ? embeddedStacked\n              ? undefined\n              : \"100%\"\n            : isMobile\n              ? mobileViewportHeight\n              : \"100%\",\n          minWidth: 0,\n          minHeight: 0,\n          alignSelf: isMobile && !embedded ? \"stretch\" : undefined,\n          justifySelf: isMobile && !embedded ? \"stretch\" : undefined,\n          borderRadius: embedded ? 0 : isMobile ? 20 : 28,\n          border: embedded ? 0 : \"1px solid rgba(255,255,255,0.12)\",\n          background: embedded\n            ? \"transparent\"\n            : \"linear-gradient(180deg, rgba(24,28,42,0.985), rgba(14,17,28,0.985))\",\n          boxShadow: embedded ? \"none\" : \"0 28px 100px rgba(0,0,0,0.5)\",\n          padding: embedded ? 0 : modalPadding,\n          display: \"grid\",\n          gridTemplateRows: embedded\n            ? embeddedStacked\n              ? \"auto\"\n              : \"minmax(0, 1fr)\"\n            : \"auto minmax(0, 1fr)\",\n          gap: embedded ? 0 : isMobile ? 10 : 16,\n          overflow: embeddedStacked ? \"visible\" : \"hidden\",\n          boxSizing: \"border-box\",\n        }}\n      >"
+      }
+    }
+  },
+  "app/dashboard/_components/channel-image-adapter/native-publication-preview.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/channel-image-adapter/publication-preview.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/channel-image-adapter/workspace-gallery.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/PublishModal.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/BoosterVideoFormatManager.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/ChannelNavigationRail.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/MediaPoolImagePreview.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishAiConfigurationDrawer.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/booster/publier/components/PublishAiConfigurationDrawer.tsx#aside:b62cc4e087c07a16:1": {
+        "reason": "Gestion technique de propagation des événements, aucun bouton/champ/action métier indépendant.",
+        "gateAnchor": "<aside\n        ref={dialogRef}\n        role=\"dialog\"\n        aria-modal=\"true\"\n        aria-label={i18nT(\"configuration_ia_f620c8d8\")}\n        tabIndex={-1}\n        onClick={(event) => event.stopPropagation()}\n        style={{\n          width: \"100%\",\n          maxWidth: \"100%\",\n          height: \"100%\",\n          maxHeight: \"100%\",\n          minHeight: 0,\n          minWidth: 0,\n          boxSizing: \"border-box\",\n          color: \"var(--inrcy-theme-text-primary, white)\",\n          padding: 0,\n          display: \"flex\",\n          flexDirection: \"column\",\n          overflow: \"hidden\",\n          overscrollBehavior: \"contain\",\n          WebkitOverflowScrolling: \"touch\",\n        }}\n      >"
+      }
+    }
+  },
+  "app/dashboard/booster/publier/components/PublishChannelSelector.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/booster/publier/components/PublishChannelSelector.tsx#span:40d759af3c903072:1": {
+        "reason": "Gestion technique de propagation des événements, aucun bouton/champ/action métier indépendant.",
+        "gateAnchor": "<span\n                  role=\"img\"\n                  className={css.connectionButton}\n                  data-connected={isConnected}\n                  title={accountName || undefined}\n                  aria-label={\n                    requiresReconnect\n                      ? i18nT(\"channel_reconnect_aria\", { channel: channelLabel })\n                      : isConnected\n                          ? i18nT(\"channel_connected_aria\", { channel: channelLabel })\n                          : i18nT(\"channel_disconnected_aria\", { channel: channelLabel })\n                  }\n                  onPointerDown={(event) => event.stopPropagation()}\n                  onClick={(event) => event.stopPropagation()}\n                  style={{\n                    width: 28,\n                    height: 28,\n                    borderRadius: 999,\n                    border: requiresReconnect\n                      ? \"1px solid rgba(251,146,60,0.62)\"\n                      : isConnected\n                        ? \"1px solid rgba(134,239,172,0.58)\"\n                        : \"1px solid rgba(255,255,255,0.12)\",\n                    background: requiresReconnect\n                      ? \"rgba(251,146,60,0.12)\"\n                      : isConnected\n                        ? \"linear-gradient(180deg, rgba(34,197,94,0.96), rgba(22,163,74,0.96))\"\n                        : \"rgba(255,255,255,0.08)\",\n                    color: requiresReconnect ? \"#fb923c\" : isConnected ? \"#ffffff\" : \"rgba(255,255,255,0.46)\",\n                    display: \"inline-flex\",\n                    alignItems: \"center\",\n                    justifyContent: \"center\",\n                    flexShrink: 0,\n                    cursor: \"default\",\n                    opacity: requiresReconnect ? 1 : isConnected ? 1 : 0.6,\n                    boxShadow: requiresReconnect\n                      ? \"0 0 14px rgba(251,146,60,0.18)\"\n                      : isConnected\n                        ? \"0 0 0 1px rgba(255,255,255,0.10) inset, 0 8px 18px rgba(34,197,94,0.34)\"\n                        : \"none\",\n                  }}\n                >"
+      }
+    }
+  },
+  "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishCreationModePanel.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishDraftHeaderMenu.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishFinalReviewModal.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishFooterActions.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishIntentPanel.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishReferencePicker.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishValidationBoard.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishVideoAdapterPanel.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishWarningModals.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/PublishWizardFrame.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/RichSiteContentEditor.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/ThreadsPublicationModeControls.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/TiktokPublicationSettingsModal.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/booster/publier/components/TiktokReviewCheckbox.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/e-reputation/EReputationHeader.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/e-reputation/EReputationHeader.tsx#Link:c761d09a49fb05b6:1": {
+        "reason": "Demande d’avis par campagne réservée Premium/Founder ; absente en Basique.",
+        "gateAnchor": "const canAskForReviews = hasPremiumDashboardAccess(dashboardEdition);"
+      }
+    }
+  },
+  "app/dashboard/e-reputation/EReputationReviewsClient.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/mediatheque/MediaLibraryClient.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/mediatheque/MediaLibraryClient.tsx#div:d00e92196daadd70:1": {
+        "reason": "Gestion technique de propagation des événements, aucun bouton/champ/action métier indépendant.",
+        "gateAnchor": "<div ref={importDialogRef} className={styles.importDialog} role=\"dialog\" aria-modal=\"true\" aria-labelledby={importTitleId} tabIndex={-1} onClick={(event) => event.stopPropagation()}>"
+      },
+      "app/dashboard/mediatheque/MediaLibraryClient.tsx#div:c75ac1b3e52dac47:1": {
+        "reason": "Gestion technique de propagation des événements, aucun bouton/champ/action métier indépendant.",
+        "gateAnchor": "<div data-inrcy-tool-dialog\n            className={styles.helperModal}\n            role=\"dialog\"\n            aria-modal=\"true\"\n            aria-label={i18nT(\"aide_mediatheque_inrcy_c413fda4\")}\n            onClick={(event) => event.stopPropagation()}\n          >"
+      },
+      "app/dashboard/mediatheque/MediaLibraryClient.tsx#div:b10e76b678fe7dda:1": {
+        "reason": "Gestion technique de propagation des événements, aucun bouton/champ/action métier indépendant.",
+        "gateAnchor": "<div data-inrcy-tool-dialog\n            className={styles.previewModal}\n            role=\"dialog\"\n            aria-modal=\"true\"\n            aria-label={i18nT(\"apercu_du_media_a15051aa\")}\n            onClick={(event) => event.stopPropagation()}\n          >"
+      }
+    }
+  },
+  "app/dashboard/mediatheque/MediaMetadataField.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/stats/StatsClient.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/stats/StatsClient.tsx#button:3dcb64b7246c0eb9:1": {
+        "reason": "Génération/envoi de bilan par agent explicitement absent en Basique.",
+        "gateAnchor": "dashboardEdition !== \"basic\" && <button"
+      },
+      "app/dashboard/stats/StatsClient.tsx#aside:b01e98762bcbc048:1": {
+        "reason": "Gestion technique de propagation des événements, aucun bouton/champ/action métier indépendant.",
+        "gateAnchor": "<aside className={styles.statsMobileDrawer} aria-label={i18nT(\"choisir_une_vue_inr_stats_4a70e095\")} onClick={(event) => event.stopPropagation()}>"
+      }
+    }
+  },
+  "app/dashboard/stats/StatsEvolution.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/stats/StatsMeasuredEvolution.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/stats/StatsOverview.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/stats/StatsTrendChart.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/stats/StatsViewNavigator.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/stats/StatsVisibilityIndex.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/stats/stats.ui.tsx": {
+    "disposition": "basic",
+    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/stats/stats.ui.tsx#button:e1e9e980b3dc6505:1": {
+        "reason": "SummaryBar historique non monté par StatsClient (seul Cube est importé) ; le panorama actuel utilise StatsOverview et StatsViewNavigator.",
+        "gateAnchor": "export function SummaryBar({"
+      },
+      "app/dashboard/stats/stats.ui.tsx#button:926911c0c9f6c66f:1": {
+        "reason": "SummaryBar historique non monté par StatsClient (seul Cube est importé) ; le panorama actuel utilise StatsOverview et StatsViewNavigator.",
+        "gateAnchor": "export function SummaryBar({"
+      },
+      "app/dashboard/stats/stats.ui.tsx#button:1d2f1cf4036095a6:1": {
+        "reason": "SummaryBar historique non monté par StatsClient (seul Cube est importé) ; le panorama actuel utilise StatsOverview et StatsViewNavigator.",
+        "gateAnchor": "export function SummaryBar({"
+      },
+      "app/dashboard/stats/stats.ui.tsx#button:6b9da0857b8c30f9:1": {
+        "reason": "SummaryBar historique non monté par StatsClient (seul Cube est importé) ; le panorama actuel utilise StatsOverview et StatsViewNavigator.",
+        "gateAnchor": "export function SummaryBar({"
+      },
+      "app/dashboard/stats/stats.ui.tsx#button:0ed1f06b26e67abb:1": {
+        "reason": "SummaryBar historique non monté par StatsClient (seul Cube est importé) ; le panorama actuel utilise StatsOverview et StatsViewNavigator.",
+        "gateAnchor": "export function SummaryBar({"
+      },
+      "app/dashboard/stats/stats.ui.tsx#button:c964106f6e0085bc:1": {
+        "reason": "SummaryBar historique non monté par StatsClient (seul Cube est importé) ; le panorama actuel utilise StatsOverview et StatsViewNavigator.",
+        "gateAnchor": "export function SummaryBar({"
+      },
+      "app/dashboard/stats/stats.ui.tsx#button:f24e411daff9d432:1": {
+        "reason": "SummaryBar historique non monté par StatsClient (seul Cube est importé) ; le panorama actuel utilise StatsOverview et StatsViewNavigator.",
+        "gateAnchor": "export function SummaryBar({"
+      },
+      "app/dashboard/stats/stats.ui.tsx#button:7c6493d2886c3112:1": {
+        "reason": "SummaryBar historique non monté par StatsClient (seul Cube est importé) ; le panorama actuel utilise StatsOverview et StatsViewNavigator.",
+        "gateAnchor": "export function SummaryBar({"
+      },
+      "app/dashboard/stats/stats.ui.tsx#button:be2d608a8f162cfe:1": {
+        "reason": "SummaryBar historique non monté par StatsClient (seul Cube est importé) ; le panorama actuel utilise StatsOverview et StatsViewNavigator.",
+        "gateAnchor": "export function SummaryBar({"
+      },
+      "app/dashboard/stats/stats.ui.tsx#button:7bb337801ce161df:1": {
+        "reason": "SummaryBar historique non monté par StatsClient (seul Cube est importé) ; le panorama actuel utilise StatsOverview et StatsViewNavigator.",
+        "gateAnchor": "export function SummaryBar({"
+      }
+    }
+  }
+}

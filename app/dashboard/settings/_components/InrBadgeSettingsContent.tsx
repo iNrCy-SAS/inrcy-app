@@ -2,10 +2,11 @@
 
 import { useTranslations } from "next-intl";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { useInrAssistantRefresh } from "../../_hooks/useInrAssistantRefresh";
 import { useInrAssistantBadgeCommands } from "../../_hooks/useInrAssistantBadgeCommands";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 import { createInrBadgeQrMatrix } from "@/lib/inrBadgeQr";
 import { createInrBadgeQrTrackingUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
 import { effectiveInrBadgeShareSettings } from "@/lib/inrBadgeEditionPolicy";
@@ -225,11 +226,11 @@ async function persistBadgeSettings(settings: ShareSettings, selectedMailAccount
   }
 }
 
-async function persistBadgeTheme(theme: ThemeSettings) {
+async function persistBadgeTheme(theme: ThemeSettings, expected?: { accountId: string; actorUserId: string; theme: ThemeSettings }) {
   const response = await fetch("/api/inrbadge/settings", {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ theme }),
+    body: JSON.stringify({ theme, ...(expected ? { expectedAccountId: expected.accountId, expectedActorUserId: expected.actorUserId, expectedTheme: expected.theme } : {}) }),
   });
   if (!response.ok) throw new Error("theme_save_failed");
 }
@@ -495,7 +496,7 @@ export default function InrBadgeSettingsContent({
 }: Props) {
   const i18nT = useTranslations("settings");
   const dashboardEdition = useDashboardEdition();
-  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const { metaPilotEnabled, actorUserId, activeAccountId } = useDashboardViewerAccess();
   const standardMode = isStandardDashboardEdition(dashboardEdition);
   const storageKey = useMemo(() => getStorageKey(profile, publicUrl), [profile, publicUrl]);
   const [settings, setSettings] = useState<ShareSettings>(() =>
@@ -511,6 +512,11 @@ export default function InrBadgeSettingsContent({
   const pendingSavesRef = useRef(0);
   const saveRevision = useRef(0);
   const assistantReadOnly = useRef(false);
+  const [completedLogoTheme, setCompletedLogoTheme] = useState(0);
+  const nativeThemeScope = useRef({ actorUserId, activeAccountId, logoUrl: profile.logoUrl, publicUrl });
+  const nativeThemeMounted = useRef(true);
+  useLayoutEffect(() => { nativeThemeScope.current = { actorUserId, activeAccountId, logoUrl: profile.logoUrl, publicUrl }; }, [actorUserId, activeAccountId, profile.logoUrl, publicUrl]);
+  useLayoutEffect(() => { nativeThemeMounted.current = true; return () => { nativeThemeMounted.current = false; }; }, []);
   useInrAssistantBadgeCommands({ snapshot: { publicUrl, profile, profileReady }, enabled: Boolean(profileReady && publicUrl && trim(profile.userId) === getActiveBrowserUserId()), pendingChanges: loadingSettings || pendingSaves > 0 || extractingLogoTheme,
     download: (format, canDownload) => downloadInrBadgeQr(publicUrl, profile, format, () => canDownload() && trim(profile.userId) === getActiveBrowserUserId()),
   });
@@ -656,6 +662,40 @@ export default function InrBadgeSettingsContent({
       setExtractingLogoTheme(false);
     }
   };
+  const refreshThemeFromLogo = async (stillCurrent: () => boolean) => {
+    const expected = nativeThemeScope.current;
+    let operationRevision = saveRevision.current;
+    const current = () => nativeThemeMounted.current && stillCurrent() && Boolean(expected.actorUserId && expected.activeAccountId && trim(profile.userId) === expected.activeAccountId) && expected.actorUserId === nativeThemeScope.current.actorUserId && expected.activeAccountId === nativeThemeScope.current.activeAccountId && expected.activeAccountId === getActiveBrowserUserId() && expected.logoUrl === nativeThemeScope.current.logoUrl && expected.publicUrl === nativeThemeScope.current.publicUrl && operationRevision === saveRevision.current;
+    if (!current() || loadingSettings || pendingSavesRef.current > 0 || extractingLogoTheme || !hasCompanyLogo) throw new Error("Badge logo theme unavailable");
+    const logoAnalysisUrl = getLogoAnalysisUrl(expected.publicUrl, expected.logoUrl);
+    if (!logoAnalysisUrl) throw new Error("Badge logo unavailable");
+    const readNativeTheme = async () => {
+      const response = await fetch("/api/inrbadge/settings", { cache: "no-store", credentials: "include" }), data = await response.json();
+      if (!response.ok || data.ok !== true || data.accountId !== expected.activeAccountId || data.actorAuthUserId !== expected.actorUserId || !current()) throw new Error("Badge theme scope changed");
+      return normalizeInrBadgeThemeSettings(data.theme);
+    };
+    setExtractingLogoTheme(true);
+    try {
+      const before = await readNativeTheme();
+      if (JSON.stringify(before) !== JSON.stringify(normalizeInrBadgeThemeSettings(theme))) throw new Error("Badge theme changed");
+      const { extractInrBadgeThemeColorsFromLogo } = await import("@/lib/inrBadgeThemeClient");
+      const identityColors = await extractInrBadgeThemeColorsFromLogo(logoAnalysisUrl);
+      if (!current() || pendingSavesRef.current > 0) throw new Error("Badge theme changed during logo analysis");
+      const next = normalizeInrBadgeThemeSettings({ id: "identity", identityColors });
+      if (!next.identityColors) throw new Error("Badge logo colors unavailable");
+      if (JSON.stringify(before) !== JSON.stringify(next)) {
+        operationRevision++;
+        await trackSave(() => persistBadgeTheme(next, { accountId: expected.activeAccountId, actorUserId: expected.actorUserId, theme: before }));
+      }
+      const savedTheme = await readNativeTheme();
+      if (!current() || JSON.stringify(savedTheme) !== JSON.stringify(next)) throw new Error("Badge theme readback failed");
+      setTheme(savedTheme); saveThemeSettings(storageKey, savedTheme); setCompletedLogoTheme(value => value + 1); setNotice("Couleurs du logo appliquées au badge.");
+    } catch (error) { if (current()) setNotice("Impossible de confirmer l’enregistrement des couleurs du logo."); throw error; }
+    finally { if (nativeThemeMounted.current) setExtractingLogoTheme(false); }
+  };
+  useInrAssistantLocalInterface("badge_identity_theme", { theme, completedLogoTheme, logo: profile.logoUrl, loadingSettings, extractingLogoTheme }, {
+    retry: { invoke: (_value, stillCurrent) => refreshThemeFromLogo(stillCurrent), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "completedLogoTheme" in snapshot && Number(snapshot.completedLogoTheme) > completedLogoTheme && "extractingLogoTheme" in snapshot && snapshot.extractingLogoTheme === false) },
+  }, Boolean(profileReady && publicUrl && hasCompanyLogo && trim(profile.userId) === activeAccountId), loadingSettings || pendingSaves > 0 || extractingLogoTheme);
 
   const channelItems: Array<{ key: ShareKey; label: string; connected: boolean; helper: string }> = [
     { key: "inrSearch", label: i18nT("inr_search_ce47ed45"), connected: canShareChannel(channels.inrSearch), helper: i18nT("disponible_des_que_votre_page_inr_dfa63b10") },

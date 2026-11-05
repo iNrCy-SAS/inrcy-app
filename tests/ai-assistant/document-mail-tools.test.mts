@@ -6,6 +6,7 @@ import * as websiteCommands from "../../lib/inrAssistantWebsiteUiCommands.ts";
 import * as studioCommands from "../../lib/inrAssistantStudioUiCommands.ts";
 import * as statsCommands from "../../lib/inrAssistantStatsUiCommands.ts";
 import * as badgeCommands from "../../lib/inrAssistantBadgeUiCommands.ts";
+import * as businessFormCommands from "../../lib/inrAssistantBusinessFormUiCommands.ts";
 import * as screenPolicy from "../../lib/inrAssistantScreenCommandPolicy.ts";
 import * as dashboardEditions from "../../lib/dashboardEdition.ts";
 import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
@@ -39,6 +40,7 @@ function harness(options: { message?: string; auth?: boolean; account?: string; 
     "./inrAssistantScreenCommandPolicy.ts": screenPolicy, "./dashboardEdition.ts": dashboardEditions,
     "./inrAssistantWebsiteUiCommands.ts": websiteCommands,
     "./inrAssistantRequestClauses.ts": requestClauses,
+    "./inrAssistantBusinessFormUiCommands.ts": businessFormCommands,
     "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (value: unknown) => value },
     "./requireUser": { requireUser: async () => ({ activeUserId: options.account ?? "account-A", errorResponse: options.auth === false ? {} : null }) },
     "./dashboardEditionServer": { getDashboardEditionForAccountId: async () => options.edition ?? "founder" },
@@ -54,7 +56,7 @@ function harness(options: { message?: string; auth?: boolean; account?: string; 
   deps["./inrAssistantDocumentMailTools"] = load<typeof MailRuntime>("inrAssistantDocumentMailTools");
   deps["./inrAssistantMediaUiTools.ts"] = load("inrAssistantMediaUiTools");
   deps["./inrAssistantAdsUiTools.ts"] = load("inrAssistantAdsUiTools");
-  for (const name of ["inrAssistantWebsiteUiTools", "inrAssistantStudioUiTools", "inrAssistantStatsUiTools", "inrAssistantBadgeUiTools"]) deps[`./${name}.ts`] = load(name);
+  for (const name of ["inrAssistantWebsiteUiTools", "inrAssistantStudioUiTools", "inrAssistantStatsUiTools", "inrAssistantBadgeUiTools", "inrAssistantBusinessFormUiTools"]) deps[`./${name}.ts`] = load(name);
   const screen = { pathname: "/dashboard/factures/new", tool: "Factures", selection: { kind: "invoice", id: ID }, pendingChanges: false, revision: "preview_1", documentVersion: VERSION, availableCommands: ["prepare_document_mail"], ...options.screen };
   const tools = load<typeof UiRuntime>("inrAssistantUiTools").createInrAssistantUiTools({ accountId: "account-A", edition: "founder", supabase: db,
     currentUserMessage: options.message ?? message, clientContext: parseInrAssistantClientContext({ screen }),

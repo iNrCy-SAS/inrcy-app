@@ -66,6 +66,9 @@ function harness() {
     const result = asRow(asRow(asRow(event.payload).results).tiktok); Object.assign(result, { ok: true, error: null, tiktok_status: "PROCESSING_UPLOAD", diagnostics: { ...asRow(result.diagnostics), status: { pending: true }, retry_at: "2026-11-05T12:00:00Z" } });
     if (uncertain) throw new Error("retry receipt lost"); return Response.json({ ok: true, publication_id: forged ? OTHER : PUBLICATION, result });
   } };
+  // Published composite writes have their own native guarded factory suite.
+  // Do not invent those tools in this isolated legacy lifecycle/stats harness.
+  deps["./inrAssistantPublishedPublicationTools.ts"] = { createInrAssistantPublishedPublicationTools: () => ({}) };
   const lifecycle = load<Lifecycle>("../../lib/inrAssistantPublicationLifecycleTools.ts", deps), stats = load<Stats>("../../lib/inrAssistantStatsTools.ts", deps);
   const options = (message: string, extra: Row) => ({ request, accountId: ACCOUNT, actorUserId: ACTOR, edition, supabase: db, currentUserMessage: message, canStartWork: () => canStart, resolvePreview: (reference: string) => saved.get(reference) ?? null, ...extra });
   const create = (message: string, extra: Row = {}) => lifecycle.createInrAssistantPublicationLifecycleTools(options(message, extra));

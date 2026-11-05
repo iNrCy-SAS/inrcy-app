@@ -9,6 +9,10 @@ import {
   sanitizeBusinessDnaRichHtml,
 } from "@/lib/businessDnaRichText";
 import MediaSubjectVoiceButton from "../../_components/MediaSubjectVoiceButton";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
+import { useInrAssistantVisibleControl } from "../../_hooks/useInrAssistantVisibleControl";
+import { INR_ASSISTANT_BUSINESS_RICH_TEXT_INTERFACES, parseInrAssistantBusinessRichTextEdit, type InrAssistantBusinessRichTextField } from "@/lib/inrAssistantBusinessRichText";
+import { applyNativeInrAssistantBusinessRichTextEdit } from "@/lib/inrAssistantBusinessRichTextNative";
 
 type Props = {
   id?: string;
@@ -21,6 +25,7 @@ type Props = {
   minHeight?: number;
   disabled?: boolean;
   onVoiceBusyChange?: (busy: boolean) => void;
+  assistantField?: InrAssistantBusinessRichTextField;
 };
 
 type EditorTextSelection = { start: number; end: number };
@@ -74,6 +79,7 @@ export default function BusinessDnaRichTextEditor({
   minHeight = 165,
   disabled = false,
   onVoiceBusyChange,
+  assistantField,
 }: Props) {
   const t = useTranslations("dashboard.aiMemory");
   const editorRef = useRef<HTMLDivElement | null>(null);
@@ -84,6 +90,8 @@ export default function BusinessDnaRichTextEditor({
   const [empty, setEmpty] = useState(!value.trim());
   const [voiceBusy, setVoiceBusy] = useState(false);
   const editorLocked = disabled || voiceBusy;
+  const assistantVisible = useInrAssistantVisibleControl(editorRef);
+  const [formatReceipt, setFormatReceipt] = useState<{ sequence: number; html: string } | null>(null);
 
   useEffect(() => {
     const editor = editorRef.current;
@@ -186,10 +194,11 @@ export default function BusinessDnaRichTextEditor({
     event.preventDefault();
   };
 
-  const applyCommand = (command: "bold" | "italic" | "formatBlock" | "insertUnorderedList" | "removeFormat", value?: string) => {
-    if (editorLocked) return;
+  const applyCommand = (command: "bold" | "italic" | "formatBlock" | "insertUnorderedList" | "removeFormat", value?: string, verify?: () => boolean) => {
+    if (editorLocked) return false;
     const editor = editorRef.current;
-    if (!editor) return;
+    if (!editor) return false;
+    const before = editor.innerHTML;
     try {
       editor.focus({ preventScroll: true });
     } catch {
@@ -198,10 +207,27 @@ export default function BusinessDnaRichTextEditor({
     restoreSelection();
     try {
       document.execCommand(command, false, value);
-    } catch {}
+    } catch { return false; }
+    if (verify && !verify()) { editor.innerHTML = before; return false; }
     emitChange();
     saveSelection();
+    return true;
   };
+  const nextFormatSequence = (formatReceipt?.sequence ?? 0) + 1;
+  useInrAssistantLocalInterface(INR_ASSISTANT_BUSINESS_RICH_TEXT_INTERFACES[assistantField || "detailedDescription"], { value, html, formatReceipt }, {
+    select: {
+      invoke(payload) {
+        if (!assistantField || editorLocked || !editorRef.current || typeof payload !== "string" || payload.length > 6200) throw new Error("Rich text unavailable");
+        const edit = parseInrAssistantBusinessRichTextEdit(JSON.parse(payload));
+        if (!edit || !applyNativeInrAssistantBusinessRichTextEdit({ editor: editorRef.current, value, html, edit, select: range => { selectionRef.current = range.cloneRange(); }, apply: applyCommand })) throw new Error("Rich text selection or format could not be verified");
+        setFormatReceipt({ sequence: nextFormatSequence, html: editorRef.current.innerHTML });
+      },
+      matches(snapshot) {
+        const receipt = (snapshot as { formatReceipt?: { sequence?: number; html?: string } } | undefined)?.formatReceipt;
+        return receipt?.sequence === nextFormatSequence && receipt.html === editorRef.current?.innerHTML;
+      },
+    },
+  }, assistantVisible && Boolean(assistantField), editorLocked);
 
   const toolbarButtons = [
     { key: "bold", label: t("formatBold"), content: <strong>B</strong>, command: "bold" },

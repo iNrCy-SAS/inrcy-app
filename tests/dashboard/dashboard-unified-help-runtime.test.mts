@@ -100,6 +100,9 @@ function compileComponent(name: string, dependencies: Record<string, unknown>, g
     if (specifier in dependencies) return dependencies[specifier];
     if (specifier === "react/jsx-runtime") return jsxRuntime;
     if (specifier === "./DashboardAssistantTrigger") return { __esModule: true, default: () => null };
+    // This fixture isolates help navigation/focus. The actual registration hook
+    // and commit acknowledgements run in dashboard-basic-local-controls-runtime.
+    if (specifier.endsWith("useInrAssistantLocalInterface")) return { useInrAssistantLocalInterface() {} };
     if (specifier === "next-intl") return { useTranslations: translator };
     if (specifier.endsWith(".module.css")) return { __esModule: true, default: css };
     if (specifier === "@/lib/dashboardEdition") return loadActual(resolve(root, "lib/dashboardEdition.ts"));

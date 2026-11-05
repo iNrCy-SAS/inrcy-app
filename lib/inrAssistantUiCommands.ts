@@ -1,3 +1,9 @@
+import { getInrAssistantPublicationDraftNavigation } from "./inrAssistantPublicationDraftNavigation.ts";
+export { getInrAssistantPublicationDraftNavigation } from "./inrAssistantPublicationDraftNavigation.ts";
+import { parseInrAssistantContentReportCommand, type InrAssistantContentReportCommand } from "./inrAssistantContentReport.ts";
+import { parseInrAssistantBadgeIdentityThemeCommand, type InrAssistantBadgeIdentityThemeCommand } from "./inrAssistantBadgeIdentityTheme.ts";
+import { parseInrAssistantNotificationNavigation, type InrAssistantNotificationNavigation } from "./inrAssistantNotificationNavigation.ts";
+import { isInrAssistantBusinessFormUiRequest, parseInrAssistantBusinessFormUiCommand, type InrAssistantBusinessFormUiCommand } from "./inrAssistantBusinessFormUiCommands.ts";
 import { isInrAssistantMediaUiCommandName, isInrAssistantMediaUiCommandText, parseInrAssistantMediaUiCommand, type InrAssistantMediaUiCommand } from "./inrAssistantMediaUiCommands.ts";
 import { INR_ASSISTANT_STUDIO_UI_COMMANDS, isInrAssistantStudioUiRequest, parseInrAssistantStudioUiCommand, type InrAssistantStudioUiCommand } from "./inrAssistantStudioUiCommands.ts";
 import { isInrAssistantStatsUiCommandName, isInrAssistantStatsUiCommandText, parseInrAssistantStatsUiCommand, type InrAssistantStatsUiCommand } from "./inrAssistantStatsUiCommands.ts";
@@ -42,15 +48,23 @@ export const INR_ASSISTANT_NAVIGATION = {
   credits: "/dashboard/boutique/recharges", cash: "/dashboard?action=cash",
 } as const;
 export const INR_ASSISTANT_NAVIGATION_DESTINATIONS = Object.keys(INR_ASSISTANT_NAVIGATION) as (keyof typeof INR_ASSISTANT_NAVIGATION)[];
-export type InrAssistantNavigation = { destination: string; href: string; label: string; documentId?: string; documentPrefill?: InrAssistantDocumentPrefill };
+export type InrAssistantNavigation = { destination: string; href: string; label: string; documentId?: string; documentPrefill?: InrAssistantDocumentPrefill; publicationDraftId?: string; notificationId?: never; notificationTarget?: never; notificationMenuRevision?: never }
+  | (InrAssistantNotificationNavigation & { documentId?: never; documentPrefill?: never; publicationDraftId?: never });
 export type InrAssistantVideoPatch = { format?: "original" | "9_16" | "1_1" | "16_9"; adaptationMode?: "safe_frame" | "cover_crop" };
 export type InrAssistantNativeCommand =
   InrAssistantMailCommand | { command: "configure_ads_draft"; selection: { kind: "campaign"; id: string }; revision: string; patch: InrAssistantAdsPatch }
   | { command: "configure_video_retouch"; selection: { kind: "media"; id: string }; revision: string; patch: InrAssistantVideoPatch };
-export type InrAssistantUiCommand = InrAssistantWebsiteUiCommand | InrAssistantAccountDocumentCommand | InrAssistantBadgeUiCommand | InrAssistantStudioUiCommand | InrAssistantStatsUiCommand | InrAssistantAdsSaveCommand | InrAssistantMailLifecycleCommand | InrAssistantMediaUiCommand | InrAssistantDocumentMailCommand | InrAssistantDocumentTemplateCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
+import { parseInrAssistantApplicationPreferenceCommand, type InrAssistantApplicationPreferenceCommand } from "./inrAssistantApplicationPreferences.ts";
+import { parseInrAssistantLocalInterfaceCommand, type InrAssistantLocalInterfaceCommand } from "./inrAssistantLocalInterface.ts";
+export type InrAssistantUiCommand = InrAssistantBadgeIdentityThemeCommand | InrAssistantContentReportCommand | InrAssistantBusinessFormUiCommand | InrAssistantLocalInterfaceCommand | InrAssistantApplicationPreferenceCommand | InrAssistantWebsiteUiCommand | InrAssistantAccountDocumentCommand | InrAssistantBadgeUiCommand | InrAssistantStudioUiCommand | InrAssistantStatsUiCommand | InrAssistantAdsSaveCommand | InrAssistantMailLifecycleCommand | InrAssistantMediaUiCommand | InrAssistantDocumentMailCommand | InrAssistantDocumentTemplateCommand | InrAssistantNativeCommand | { command: "export_document_pdf"; selection: { kind: "quote" | "invoice"; id: string }; revision?: string }
   | { command: "download_media"; selection: { kind: "media"; id: string }; mediaIds: string[]; pathname: "/dashboard/mediatheque"; selectionMode?: "current" }
   | { command: "download_stats_report"; selection: { kind: "stats_report"; id: string }; reportId: string };
 export function parseInrAssistantUiCommand(value: unknown): InrAssistantUiCommand | null {
+  const badgeLogo = parseInrAssistantBadgeIdentityThemeCommand(value); if (badgeLogo) return badgeLogo;
+  const report = parseInrAssistantContentReportCommand(value); if (report) return report;
+  const businessForm = parseInrAssistantBusinessFormUiCommand(value); if (businessForm) return businessForm;
+  const localInterface = parseInrAssistantLocalInterfaceCommand(value); if (localInterface) return localInterface;
+  const application = parseInrAssistantApplicationPreferenceCommand(value); if (application) return application;
   const website = parseInrAssistantWebsiteUiCommand(value); if (website) return website;
   const accountDocument = parseInrAssistantAccountDocumentCommand(value); if (accountDocument) return accountDocument;
   const badge = parseInrAssistantBadgeUiCommand(value); if (badge) return badge;
@@ -109,7 +123,12 @@ export function getInrAssistantNavigation(destination: unknown, documentId?: unk
 
 export function parseInrAssistantNavigation(value: unknown): InrAssistantNavigation | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const notification = parseInrAssistantNotificationNavigation(value); if (notification) return notification;
   const input = value as Record<string, unknown>;
+  if (input.publicationDraftId !== undefined) {
+    const target = getInrAssistantPublicationDraftNavigation(input.publicationDraftId);
+    return target && !input.documentId && !input.documentPrefill && input.destination === target.destination && input.href === target.href && input.label === target.label ? target : null;
+  }
   if (input.documentPrefill) {
     const target = getInrAssistantDocumentPrefillNavigation(input.documentPrefill);
     return target && !input.documentId && input.destination === target.destination && input.href === target.href && input.label === target.label ? target : null;
@@ -156,13 +175,14 @@ export function isInrAssistantScreenCommandRequest(message: string, command?: In
   const documentMail = /\b(?:prepare\w*|ouvre\w*|redige\w*|rempli\w*|open|draft)\b/.test(text)
     && /\b(?:mail|email|courriel|composeur|composer)\b/.test(text) && /\b(?:pdf|piece jointe|pj)\b/.test(text)
     && /\b(?:devis|facture|document|quote|invoice)\b/.test(text);
+  if (command === "configure_business_form") return isInrAssistantBusinessFormUiRequest(message);
   if (command === "prepare_document_mail") return documentMail;
   const pdf = !documentMail && /\bpdf\b/.test(text) && !/\b(?:stats|statistiques|bilan|rapport)\b/.test(text) && /\b(?:telecharge\w*|exporte\w*|gener\w*|prepare\w*|download|export|generate)\b/.test(text);
   const edit = /\b(?:modifi\w*|chang\w*|regl\w*|appli\w*|rempl\w*|configur\w*|recadr\w*|adapt\w*|passe\w*|mets|mettre|renomm\w*|set|change|edit|apply|fill)\b/.test(text);
   const ads = isInrAssistantAdsEditRequest(text);
   const video = edit && /\b(?:video|cadrage|format|recadrage)\b/.test(text);
   const mail = !documentMail && (edit || /\b(?:redig\w*|ecris|prepare\w*|joins|joignez|ajoute\w*|attache\w*)\b/.test(text)) && /\b(?:mail|email|courriel|message|composeur)\b/.test(text) && !/\b(?:campagne|newsletter|publicitaire)\b/.test(text);
-  return command === "export_document_pdf" ? pdf : command === "configure_video_retouch" ? video : command === "configure_mail_draft" ? mail : documentMail || pdf || ads || video || mail || isInrAssistantAdsSaveRequest(text) || isInrAssistantMediaUiCommandText(text) || isInrAssistantStudioUiRequest(message) || isInrAssistantStatsUiCommandText(text) || isInrAssistantBadgeQrRequest(message, "pdf") || isInrAssistantBadgeQrRequest(message, "png");
+  return command === "export_document_pdf" ? pdf : command === "configure_video_retouch" ? video : command === "configure_mail_draft" ? mail : documentMail || pdf || ads || video || mail || isInrAssistantAdsSaveRequest(text) || isInrAssistantMediaUiCommandText(text) || isInrAssistantStudioUiRequest(message) || isInrAssistantStatsUiCommandText(text) || isInrAssistantBusinessFormUiRequest(message) || isInrAssistantBadgeQrRequest(message, "pdf") || isInrAssistantBadgeQrRequest(message, "png");
 }
 
 export function inrAssistantMailPatchRequested(message: string, patch: InrAssistantMailCommand["patch"]): boolean {

@@ -70,6 +70,8 @@ test("media recharges has a compact title and assistant access while retaining t
     "next/link": { __esModule: true, default: (props: Props) => createElement("a", props) },
     "@/app/dashboard/_components/DashboardToolHeading": { __esModule: true, default: Heading },
     "@/app/dashboard/_components/VideoCreditRecharge": { VideoCreditPacksPanel: () => createElement("section", { "data-credit-packs": true }, "Packs existants") },
+    "@/app/dashboard/_components/DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ activeAccountId: "heading-account", actorUserId: "heading-actor" }) },
+    "@/lib/browserAccountCache": { getActiveBrowserUserId: () => "heading-account" },
   });
   const html = renderToStaticMarkup(Page({}));
   const header = html.match(/<header[^>]*>(.*?)<\/header>/)?.[1] || "";

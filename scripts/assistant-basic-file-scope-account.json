@@ -1,0 +1,637 @@
+{
+  "app/_components/CookieConsentBanner.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/_components/CookieConsentBanner.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}",
+    "exclusions": {
+      "app/_components/CookieConsentBanner.tsx#input:91ab68a5b0cd1efe:1": {
+        "reason": "Champ technique caché ou valeur strictement en lecture seule, sans action métier du professionnel.",
+        "gateAnchor": "<input type=\"checkbox\" checked readOnly />"
+      }
+    }
+  },
+  "app/dashboard/_components/ActusWidgetControls.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/ChannelBoardCreator.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/ChannelConnectionMenu.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/ChannelParametersDialog.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/ChannelPublicLinkEditor.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/ChannelPublicationTypes.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/ChannelSettingsHeader.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/DashboardAccountTabs.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/_components/DashboardAccountTabs.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/_components/DashboardBoutiqueTabs.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/_components/DashboardBoutiqueTabs.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/_components/DashboardChannelWorkspace.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/DashboardChannelsModal.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/DashboardFluxBubble.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;",
+    "exclusions": {
+      "app/dashboard/_components/DashboardFluxBubble.tsx#option:327e054c86baa631:1": {
+        "reason": "Option de placeholder désactivée, sans action exécutable.",
+        "gateAnchor": "<option value=\"\" disabled>{loadingInResource ? t(\"loading\") : chooseLabel}</option>"
+      }
+    }
+  },
+  "app/dashboard/_components/DashboardSettingsTabs.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/_components/DashboardSettingsTabs.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/_components/DashboardUsageGuide.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/_components/DashboardUsageGuide.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/_components/EditableChannelUrlField.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/GoogleBusinessCategoriesEditor.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/GoogleBusinessProfileEditor.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/GoogleBusinessWeeklyHours.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/GoogleOAuthConsentBanner.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/HelpModal.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/_components/HelpModal.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/_components/InrBadgeBubbleActions.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/LanguageSelector.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/_components/LanguageSelector.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/_components/NotificationMenu.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/_components/NotificationMenu.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/_components/ReferralPanel.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/_components/ReferralPanel.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/_components/SiteActusWidgetCode.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/SiteWebBubbleControls.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/_components/ThreadsPublicationSettings.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;",
+    "exclusions": {
+      "app/dashboard/_components/ThreadsPublicationSettings.tsx#input:61086084a57cb29b:1": {
+        "reason": "Indicateur natif fixé et désactivé, sans événement ni choix exécutable ; par exemple le mode classique toujours présent de Threads.",
+        "gateAnchor": "<input className={socialStyles.choiceInput} type=\"checkbox\" checked disabled />"
+      }
+    }
+  },
+  "app/dashboard/boutique/recharges/page.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/boutique/recharges/page.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/personnalisation/page.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/personnalisation/page.tsx",
+      "app/dashboard/settings/_components/AiMemoryContent.tsx"
+    ],
+    "gateAnchor": "const strategyEnabled = true;"
+  },
+  "app/dashboard/settings/_components/AccountContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/AccountContent.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}",
+    "exclusions": {
+      "app/dashboard/settings/_components/AccountContent.tsx#input:8fa2c63149047d01:1": {
+        "reason": "Champ technique caché ou valeur strictement en lecture seule, sans action métier du professionnel.",
+        "gateAnchor": "<input id={`${accountId}-email`} className={accountStyles.input} value={email} readOnly />"
+      }
+    }
+  },
+  "app/dashboard/settings/_components/ActivityContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/personnalisation/page.tsx",
+      "app/dashboard/settings/_components/AiMemoryContent.tsx"
+    ],
+    "gateAnchor": "const strategyEnabled = true;",
+    "exclusions": {
+      "app/dashboard/settings/_components/ActivityContent.tsx#option:ef5f09b286396369:1": {
+        "reason": "Option de placeholder désactivée, sans action exécutable.",
+        "gateAnchor": "<option value=\"\" style={selectOption}>\n                      {i18nT(\"choisir_un_secteur_376c1b7a\")}{\" \"}</option>"
+      },
+      "app/dashboard/settings/_components/ActivityContent.tsx#option:ef5f09b286396369:2": {
+        "reason": "Option de placeholder désactivée, sans action exécutable.",
+        "gateAnchor": "<option value=\"\" style={selectOption}>\n                        {i18nT(\"choisir_un_metier_9b734694\")}{\" \"}</option>"
+      }
+    }
+  },
+  "app/dashboard/settings/_components/AiChannelCtaPanel.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/personnalisation/page.tsx",
+      "app/dashboard/settings/_components/AiMemoryContent.tsx"
+    ],
+    "gateAnchor": "const strategyEnabled = true;"
+  },
+  "app/dashboard/settings/_components/AiConfigurationContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/personnalisation/page.tsx",
+      "app/dashboard/settings/_components/AiMemoryContent.tsx"
+    ],
+    "gateAnchor": "const strategyEnabled = true;"
+  },
+  "app/dashboard/settings/_components/AiMemoryContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/personnalisation/page.tsx",
+      "app/dashboard/settings/_components/AiMemoryContent.tsx"
+    ],
+    "gateAnchor": "const strategyEnabled = true;"
+  },
+  "app/dashboard/settings/_components/AppAppearancePicker.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/AppAppearancePicker.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/settings/_components/BasicSubscriptionCard.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/BasicSubscriptionCard.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/settings/_components/BoutiqueContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/BoutiqueContent.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}",
+    "exclusions": {
+      "app/dashboard/settings/_components/BoutiqueContent.tsx#a:2f6f9e1f001cec89:1": {
+        "reason": "Lien réservé au personnel/administrateur de la plateforme par le garde natif isStaff ; hors droits du pack Basique du professionnel.",
+        "gateAnchor": "{isStaff ? ("
+      }
+    }
+  },
+  "app/dashboard/settings/_components/BusinessDnaAnalysisScheduleModal.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/personnalisation/page.tsx",
+      "app/dashboard/settings/_components/AiMemoryContent.tsx"
+    ],
+    "gateAnchor": "const strategyEnabled = true;"
+  },
+  "app/dashboard/settings/_components/BusinessDnaAnalysisWorkspace.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/personnalisation/page.tsx",
+      "app/dashboard/settings/_components/AiMemoryContent.tsx"
+    ],
+    "gateAnchor": "const strategyEnabled = true;"
+  },
+  "app/dashboard/settings/_components/BusinessDnaRichTextEditor.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/personnalisation/page.tsx",
+      "app/dashboard/settings/_components/AiMemoryContent.tsx"
+    ],
+    "gateAnchor": "const strategyEnabled = true;"
+  },
+  "app/dashboard/settings/_components/BusinessLocationFields.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/personnalisation/page.tsx",
+      "app/dashboard/settings/_components/AiMemoryContent.tsx"
+    ],
+    "gateAnchor": "const strategyEnabled = true;"
+  },
+  "app/dashboard/settings/_components/BusinessScheduleEditor.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/personnalisation/page.tsx",
+      "app/dashboard/settings/_components/AiMemoryContent.tsx"
+    ],
+    "gateAnchor": "const strategyEnabled = true;"
+  },
+  "app/dashboard/settings/_components/ContactContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/ContactContent.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/settings/_components/EditableTags.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/personnalisation/page.tsx",
+      "app/dashboard/settings/_components/AiMemoryContent.tsx"
+    ],
+    "gateAnchor": "const strategyEnabled = true;"
+  },
+  "app/dashboard/settings/_components/GeneralPreferencesContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/GeneralPreferencesContent.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/settings/_components/InertiaContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/InertiaContent.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;",
+    "exclusions": {
+      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#FieldToggle:1b60eaf9c7db987b:1": {
+        "reason": "Prise de rendez-vous / devis masquée en Basique par standardMode ; le Basique est inclus dans ce mode.",
+        "gateAnchor": "!standardMode"
+      },
+      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#button:c61df74fd008376f:1": {
+        "reason": "Prise de rendez-vous / devis masquée en Basique par standardMode ; le Basique est inclus dans ce mode.",
+        "gateAnchor": "!standardMode"
+      }
+    }
+  },
+  "app/dashboard/settings/_components/InrSearchPresentationSettings.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/settings/_components/InrSearchSettingsContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/settings/_components/LegalContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/LegalContent.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/settings/_components/NotificationsSettingsContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/NotificationsSettingsContent.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/settings/_components/PinterestSettingsContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/settings/_components/ProfilContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/personnalisation/page.tsx",
+      "app/dashboard/settings/_components/AiMemoryContent.tsx"
+    ],
+    "gateAnchor": "const strategyEnabled = true;"
+  },
+  "app/dashboard/settings/_components/RgpdContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/RgpdContent.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/settings/_components/StandardSubscriptionContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/StandardSubscriptionContent.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/settings/_components/SubscriptionInvoicesPanel.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/SubscriptionInvoicesPanel.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/settings/_components/SubscriptionWorkspace.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx",
+      "app/dashboard/settings/_components/SubscriptionWorkspace.tsx"
+    ],
+    "gateAnchor": "{panel === \"preferences\" && <GeneralPreferencesContent mode=\"drawer\" onUnsavedChange={onUnsavedChange} />}"
+  },
+  "app/dashboard/settings/_components/YoutubeShortsSettingsContent.tsx": {
+    "disposition": "basic",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;"
+  },
+  "app/dashboard/settings/_components/DocumentsSettingsContent.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Réglages des documents et carte juridique montés uniquement pour Founder ; non disponibles au Basique.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx"
+    ],
+    "gateAnchor": "{panel === \"documents\" && edition === \"founder\" ? ("
+  },
+  "app/dashboard/settings/_components/BusinessLegalSettingsCard.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Réglages des documents et carte juridique montés uniquement pour Founder ; non disponibles au Basique.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx"
+    ],
+    "gateAnchor": "{panel === \"documents\" && edition === \"founder\" ? ("
+  },
+  "app/dashboard/settings/_components/AbonnementContent.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Variante abonnement Founder ; le Basique monte StandardSubscriptionContent.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx"
+    ],
+    "gateAnchor": "subscriptionEdition === \"founder\""
+  },
+  "app/dashboard/settings/_components/MailsSettingsContent.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "La bulle Mails est verrouillée en Basique (standardMode inclut basic) ; la signature et les réglages de boîtes ne sont donc pas des actions incluses.",
+    "gateFiles": [
+      "app/dashboard/dashboard.flux-bubbles.ts",
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "const mailPremiumLocked = standardMode && m.key === \"mails\";"
+  },
+  "app/dashboard/_components/ChannelMailboxConnections.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "La bulle Mails est verrouillée en Basique (standardMode inclut basic) ; la signature et les réglages de boîtes ne sont donc pas des actions incluses.",
+    "gateFiles": [
+      "app/dashboard/dashboard.flux-bubbles.ts",
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "const mailPremiumLocked = standardMode && m.key === \"mails\";"
+  },
+  "app/dashboard/settings/_components/AgendaSettingsContent.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Le panneau Agenda est explicitement bloqué pour le mode standard qui comprend Basique ; ses champs de confirmations et créneaux ne sont pas inclus.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "const STANDARD_BLOCKED_DASHBOARD_PANELS = new Set([\n  \"agenda\","
+  },
+  "app/dashboard/_components/HelpButton.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Bouton générique de présentation qui ne choisit aucun effet : le callback et l’ouverture réelle de l’aide sont inventoriés au site d’appel.",
+    "gateFiles": [
+      "app/dashboard/_components/HelpButton.tsx"
+    ],
+    "gateAnchor": "type Props = {\n  onClick: () => void;"
+  },
+  "app/dashboard/_components/InrBadgePreviewModal.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Ancien composant de prévisualisation non importé ni monté par les routes/composants app actuels (recherche des usages vérifiée). Son unique bouton onConfigure ne constitue pas une surface Basique accessible. Le QR, les téléchargements et les paramètres réellement montés sont inventoriés dans InrBadgeBubbleActions et NativeChannelSettingsContent.",
+    "gateFiles": [
+      "app/dashboard/_components/InrBadgePreviewModal.tsx"
+    ],
+    "gateAnchor": "export default function InrBadgePreviewModal({ profile, publicUrl, onClose, onConfigure }: Props) {",
+    "structuralProof": {
+      "kind": "unmounted_component",
+      "exportName": "InrBadgePreviewModal"
+    }
+  }
+}

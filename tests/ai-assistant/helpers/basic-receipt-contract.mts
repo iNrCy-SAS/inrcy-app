@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
+import { isInrAssistantUiTaskTool } from "../../../lib/inrAssistantUiTask.ts";
 type Row = Record<string, unknown>;
 type Definition = { execute(input: unknown): Promise<Row> };
 const source = ts.createSourceFile("inrAssistantGateway.ts", readFileSync(new URL("../../../lib/inrAssistantGateway.ts", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -19,6 +20,7 @@ export function gatewayReceiptRecorder(toolName: string, privateApprovals = new 
     inrAssistantUiActionsFromToolResult: () => [], uiActions: [], INR_ASSISTANT_MAX_UI_ACTIONS: 64,
     uiStepCalls: new Map(), inrAssistantUiStepAcceptsAction: () => false, InrAssistantInputError: Error,
     actionFacts: new Map(), resultToolName: (name: string) => name, privateApprovals,
+    isInrAssistantUiTaskTool,
   }) as (result: { toolName: string; toolCallId: string; output: unknown }) => boolean;
   return { receipts, record };
 }

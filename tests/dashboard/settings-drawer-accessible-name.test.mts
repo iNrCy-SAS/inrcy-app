@@ -6,6 +6,7 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { chromium } from "@playwright/test";
 import ts from "typescript";
+import { createNativeLocalHookLoader } from "../helpers/assistant-native-local-hooks.mts";
 
 const require = createRequire(import.meta.url);
 type Props = Record<string, unknown>;
@@ -17,21 +18,25 @@ const code = ts.transpileModule(readFileSync(new URL("../../app/dashboard/Settin
 /** Render the real drawer markup after hydration. Lifecycle hooks are inert;
  * Chromium computes accessible names and focus from the actual rendered DOM. */
 function drawerMarkup(title: string, width: number, customHeader: boolean) {
-  const react = { ...React, useId: () => "settings-drawer-title", useEffect() {}, useRef: (value: unknown) => ({ current: value }),
+  const react = { ...React, useId: () => "settings-drawer-title", useEffect() {}, useLayoutEffect() {}, useRef: (value: unknown) => ({ current: value }),
     useState: (value: unknown) => [value === false ? true : value === 1440 ? width : typeof value === "function" ? value() : value, () => {}],
   };
   const contexts = Object.fromEntries(["DrawerHeaderTabsContext", "DrawerHeaderActionsContext", "DrawerHeaderDetailsContext"].map(name => [name, React.createContext(null)]));
   const record = { exports: {} as { default: (props: Props) => React.ReactNode } };
-  new Function("module", "exports", "require", "document", code)(record, record.exports, (name: string) => {
+  const dependency = (name: string): unknown => {
     if (name === "react") return react;
     if (name === "react/jsx-runtime") return require(name);
     if (name === "react-dom") return { createPortal: (children: React.ReactNode) => children };
     if (name === "./DrawerHeaderTabs") return contexts;
     if (name === "./_hooks/useDashboardI18n") return { useDashboardI18n: () => ({ drawer: { close: "Fermer" } }) };
+    if (name === "next/navigation") return { usePathname: () => "/dashboard" };
+    if (name.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "drawer-actor", activeAccountId: "drawer-account" }) };
     if (name === "./_components/DashboardAssistantTrigger") return { __esModule: true, default: () => React.createElement("button", { type: "button", "aria-label": assistantName }, "robot") };
     if (name.endsWith(".module.css")) return { __esModule: true, default: {} };
     throw new Error(`Unexpected drawer dependency: ${name}`);
-  }, { body: {} });
+  };
+  const nativeHooks = createNativeLocalHookLoader(dependency);
+  new Function("module", "exports", "require", "document", code)(record, record.exports, (name: string) => nativeHooks(name) ?? dependency(name), { body: {} });
   return renderToStaticMarkup(record.exports.default({ title, isOpen: true, onClose() {}, children: React.createElement("p", {}, "Abonnement"), ...(customHeader ? { headerContent: React.createElement("strong", {}, title) } : {}) }));
 }
 

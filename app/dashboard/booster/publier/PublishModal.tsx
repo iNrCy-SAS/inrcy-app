@@ -3,6 +3,7 @@ import { loadPublicationDraft, savePublicationDraft } from "./publicationDraftSe
 import { useBoosterGeneration } from "./useBoosterGeneration";
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { useInrAssistantScreen } from "../../_components/DashboardAssistantScreenContext";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 import { useTranslations } from "next-intl";
 import PublishWizardFrame, { PublishWizardScreen } from "./components/PublishWizardFrame";
 import { canOpenPublishWizardStep, getPublishWizardSteps, type PublishWizardStep } from "./components/publishWizard";
@@ -5126,6 +5127,10 @@ export default function PublishModal({
 
   const wizardSteps = getPublishWizardSteps(creationMode);
   const wizardBusy = generating || saving || draftSaving || scheduleSaving || voiceInputBusy;
+  useInrAssistantLocalInterface("publication_tiktok_settings", { open: tiktokSettingsOpen, flow: tiktokSettingsFlow }, {
+    open: { invoke: () => { if (wizardBusy || !selectedChannels.includes("tiktok")) throw new Error("tiktok_review_unavailable"); setTiktokSettingsFlow("review"); setTiktokSettingsOpen(true); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean; flow?: string }).open === true && (state as { flow?: string }).flow === "review" },
+    close: { invoke: () => closeTiktokSettingsModal(), matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
+  }, selectedChannels.includes("tiktok"), wizardBusy);
   const activeWizardStep: PublishWizardStep = saving || scheduleSaving
     ? "publication"
     : publicationResult ? "results" : wizardStep;
@@ -5586,7 +5591,7 @@ export default function PublishModal({
             <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
             <PublishContentEditorPanel
               actionsContainer={contentActionsContainer}
-              renderChannelSoundtrack={(channel, disabled) => activeWizardStep === "content" ? <MediaSoundtrackSelector key={channel} inline
+              renderChannelSoundtrack={(channel, disabled) => activeWizardStep === "content" ? <MediaSoundtrackSelector key={channel} inline assistantUiScope="booster"
                 channelLabel={getLocalizedChannelLabel(channel, runtimeT)}
                 soundtrackId={soundtrackByChannel[channel] ?? null}
                 onChange={(id) => setSoundtrackByChannel(current => ({ ...current, [channel]: id }))}

@@ -777,7 +777,9 @@
     "analysisNoSourcesHint": "请连接渠道或附加文档以开始分析。",
     "documentsAnalysisTitle": "为分析附加文档",
     "documentsDropHint": "PDF、图片或文档 · 每个文件 20 MB",
-    "presentationTitle": "企业介绍"
+    "presentationTitle": "企业介绍",
+    "discardDraftMessage": "将放弃此表单中尚未保存的更改。已保存的信息将保留。",
+    "resetPreferencesMessage": "显示的偏好设置将恢复为默认值。此操作不会确认购买或更改账户。"
   },
   "aiConfiguration": {
     "pageDescription": "设置 AI 如何编写内容并根据您的目标进行调整。",

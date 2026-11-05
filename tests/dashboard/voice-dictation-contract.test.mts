@@ -444,7 +444,7 @@ test("iNrADN verrouille la page pendant la dictée et délègue toute capture au
     aiMemoryContent,
     /const handleVoiceBusyChange = \(target: VoiceTarget, busy: boolean\) => \{[\s\S]*?voiceTargetRef\.current = next;[\s\S]*?setVoiceTarget\(next\);[\s\S]*?onVoiceBusyChange\?\.\(next !== null\)/,
   );
-  assert.match(aiMemoryContent, /if \(voiceTargetRef\.current\) return;/);
+  assert.match(aiMemoryContent, /if \(voiceTargetRef\.current\) return false;/);
   assert.match(aiMemoryContent, /disabled=\{voiceBusy\}/);
   assert.match(editableTags, /disabled\?: boolean/);
   assert.match(

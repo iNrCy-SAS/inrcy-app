@@ -777,7 +777,9 @@
     "analysisNoSourcesHint": "Collega un canale o allega un documento per avviare l’analisi.",
     "documentsAnalysisTitle": "Allegare documenti all’analisi",
     "documentsDropHint": "PDF, immagini o documenti · 20 MB per file",
-    "presentationTitle": "Presentazione"
+    "presentationTitle": "Presentazione",
+    "discardDraftMessage": "Le modifiche non salvate in questo modulo verranno annullate. Le informazioni già salvate saranno conservate.",
+    "resetPreferencesMessage": "Le preferenze visualizzate torneranno ai valori predefiniti. Questa azione non conferma acquisti né cambi di account."
   },
   "aiConfiguration": {
     "pageDescription": "Imposta come l’IA scrive e adatta ogni contenuto ai tuoi obiettivi.",

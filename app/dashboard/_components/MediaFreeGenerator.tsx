@@ -2,6 +2,8 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import { parseInrAssistantStudioFormSelection, isInrAssistantStudioFormSelectionApplied, type InrAssistantStudioFormSnapshot } from "@/lib/inrAssistantStudioFormSelection";
 import useMediaGeneration, {
   MediaGenerationAccountChangedError,
   MediaGenerationCancelledError,
@@ -204,6 +206,7 @@ export default function MediaFreeGenerator({
   const reviewingRecovery = Boolean(recoveryContext || canRecover || (result?.recovered && editingRecoveredId !== result.item.id));
   const [activeAttempt, setActiveAttempt] = useState<{ kind: MediaGenerationKind; format: MediaGenerationFormat; durationSeconds: number } | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [quotaRefreshId, setQuotaRefreshId] = useState(0);
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [actionError, setActionError] = useState("");
   const sequence = useRef(0);
@@ -211,6 +214,11 @@ export default function MediaFreeGenerator({
   const referenceSetId = useRef("");
   const operationLocked = busy || finishing || voiceBusy || referencesBusy || characterVoiceBusy;
   const locked = operationLocked;
+  const referencePickerVisible = !creationScreen && !reviewingRecovery && activeSettingsTab === "criteria";
+  useInrAssistantLocalInterface("studio_free_library", { open: libraryOpen }, {
+    open: { invoke: () => { if (locked || !referencePickerVisible || references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT) throw new Error("reference_picker_unavailable"); setLibraryOpen(true); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
+    close: { invoke: () => setLibraryOpen(false), matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
+  }, libraryOpen || referencePickerVisible, locked);
   const characterVoiceSelection = getCharacterVoiceSelectionState(kind === "video" ? references : []);
   const selectedVideoEngine = characterVoiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(enginePreference.videoEngine)
     ? "wan27" : enginePreference.videoEngine;
@@ -749,6 +757,50 @@ export default function MediaFreeGenerator({
     }
   };
 
+  const assistantFormSnapshot: InrAssistantStudioFormSnapshot = {
+    mode: "free", kind, locked: operationLocked, editorVisible: !reviewingRecovery && !stopConfirmOpen,
+    fixedFormat, maxPromptLength: maxUserPromptLength, activeTab: activeSettingsTab, prompt, useBusinessDna, format,
+    durationScene: { seconds: duration, sceneMode }, speechMode, spokenScript, spokenScriptOpen,
+    narrationVoice: voice, narrationVoiceVariant: voiceVariant, withMusic, withSubtitles: effectiveWithSubtitles,
+  };
+  useInrAssistantLocalInterface("studio_recovery_free", { confirmationOpen: stopConfirmOpen, canRecover, resultId: result?.item.id ?? null, recoveryContext }, { review: {
+    invoke: () => { if (!canRecover || recoveryIncompatible || busy || operationLocked) throw new Error("studio_recovery_unavailable"); setStopConfirmOpen(true); },
+    matches: state => !!state && typeof state === "object" && (state as { confirmationOpen?: boolean; canRecover?: boolean }).confirmationOpen === true && (state as { canRecover?: boolean }).canRecover === true,
+  } }, canRecover && !busy && !recoveryIncompatible, operationLocked);
+  useInrAssistantLocalInterface("studio_free_form", { ...assistantFormSnapshot, quotaRefreshId, quotaAccountId: quota?.accountId ?? null }, {
+    ...(!quotaLoading ? { retry: {
+      invoke: async (_value: string | null, stillCurrent: () => boolean) => {
+        if (operationLocked) throw new Error("quota_refresh_unavailable");
+        const refreshed = await loadQuota({ force: true, canApply: stillCurrent, expectedAccountId: quota?.accountId ?? undefined });
+        if (!refreshed?.accountId || !stillCurrent()) throw new Error("quota_refresh_unconfirmed");
+        setQuotaRefreshId(current => current + 1);
+      },
+      matches: (state: unknown) => !!state && typeof state === "object" && (state as { quotaRefreshId?: number }).quotaRefreshId === quotaRefreshId + 1 && typeof (state as { quotaAccountId?: unknown }).quotaAccountId === "string",
+    } } : {}),
+    select: {
+      invoke: encoded => {
+        const change = parseInrAssistantStudioFormSelection(encoded, assistantFormSnapshot, (seconds, mode) => durations.includes(seconds) && canGenerateAiMediaVideoDuration(selectedVideoEngine, seconds, videoResolution, mode));
+        if (!change) throw new Error("studio_form_unavailable");
+        switch (change.field) {
+          case "activeTab": setActiveSettingsTab(change.value); break;
+          case "prompt": setPrompt(change.value); break;
+          case "useBusinessDna": setUseBusinessDna(change.value); break;
+          case "format": setFormat(change.value); break;
+          case "durationScene": setDuration(change.value.seconds); setSceneMode(change.value.sceneMode); break;
+          case "speechMode": setSpeechMode(change.value); resetConsent(); break;
+          case "spokenScript": setSpokenScript(change.value); break;
+          case "spokenScriptOpen": setSpokenScriptOpen(change.value); if (!change.value) setSpokenScript(""); break;
+          case "narrationVoice": setVoice(change.value); setVoiceVariant(defaultAiMediaNarrationVoiceVariant(change.value)); break;
+          case "narrationVoiceVariant": setVoiceVariant(change.value); break;
+          case "withMusic": setWithMusic(change.value); break;
+          case "withSubtitles": setWithSubtitles(change.value); break;
+          default: throw new Error("studio_form_unavailable");
+        }
+      },
+      matches: isInrAssistantStudioFormSelectionApplied,
+    },
+  }, !reviewingRecovery && !stopConfirmOpen, operationLocked);
+
   const engineControls = reviewingRecovery ? null : (
     <MediaEngineCreditControls kind={kind} format={fixedFormat || format} videoEngine={selectedVideoEngine}
             imageEngine={enginePreference.imageEngine} resolution={videoResolution}
@@ -804,6 +856,7 @@ export default function MediaFreeGenerator({
         handleSaveToLibrary={handleSaveToLibrary}
         handleGenerate={handleGenerate}
         handleEditCriteria={handleEdit}
+        criteriaEditorState={{ activeTab: activeSettingsTab, targetTab: "prompt", ready: !reviewingRecovery && !operationLocked }}
         handleReset={canRecover ? undefined : onReset}
         disabled={!canGenerate || canRecover}
         creditSummary={creditSummary}

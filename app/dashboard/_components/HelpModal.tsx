@@ -7,6 +7,7 @@ import { useEffect, useRef } from "react";
 import nativeStyles from "./HelpModalNativeLayer.module.css";
 import styles from "./HelpModal.module.css";
 import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 
 type Props = {
   open: boolean;
@@ -26,6 +27,13 @@ export default function HelpModal({ open, title, onClose, children, nativeLayer 
   const i18nT = useTranslations("shell");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  useInrAssistantLocalInterface("help_dialog", { open }, {
+    close: {
+      invoke: () => onClose(),
+      matches: snapshot => (snapshot as { open?: unknown } | undefined)?.open === false,
+      allowUnmount: true,
+    },
+  }, open);
   useEffect(() => {
     if (!open || nativeLayer) return;
 

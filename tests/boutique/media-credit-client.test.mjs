@@ -72,6 +72,7 @@ function clientHarness({ platform = "web", catalogueOrders = [], settingsMessage
       }
     },
   };
+  hooks.useLayoutEffect = hooks.useEffect;
   const walk = function* (node) {
     if (Array.isArray(node)) { for (const child of node) yield* walk(child); return; }
     if (!node || typeof node !== "object" || !("type" in node)) return;
@@ -119,6 +120,7 @@ function clientHarness({ platform = "web", catalogueOrders = [], settingsMessage
   const environment = {
     exports: {},
     URL,
+    URLSearchParams,
     crypto: { randomUUID },
     document: { body: {} },
     sessionStorage: {
@@ -161,6 +163,9 @@ function clientHarness({ platform = "web", catalogueOrders = [], settingsMessage
     if (name === "@/app/dashboard/_components/DashboardToolHeading") return { __esModule: true, default: "tool-heading" };
     if (name === "@/lib/clientSubscriptionBilling") return { detectClientBillingPlatform: () => platform };
     if (name === "@/lib/multicompte/constants") return { ACTIVE_INRCY_ACCOUNT_EVENT: "active-account" };
+    if (name === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => accountId };
+    if (name.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: actorAuthUserId, activeAccountId: accountId }) };
+    if (name.endsWith("useInrAssistantLocalInterface")) return { useInrAssistantLocalInterface() {} };
     if (name.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
     throw new Error(`Unexpected component dependency: ${name}`);
   };
@@ -171,6 +176,8 @@ function clientHarness({ platform = "web", catalogueOrders = [], settingsMessage
     return exports;
   };
   for (const name of ["videoCreditPacks", "imageCreditPacks"]) modules.set(`@/lib/boutique/${name}`, execute(`lib/boutique/${name}.ts`));
+  modules.set("@/lib/inrAssistantRefresh", execute("lib/inrAssistantRefresh.ts"));
+  modules.set("../_hooks/useInrAssistantRefresh", execute("app/dashboard/_hooks/useInrAssistantRefresh.ts"));
   const components = execute("app/dashboard/_components/VideoCreditRecharge.tsx");
   modules.set("@/app/dashboard/_components/VideoCreditRecharge", components);
   const panel = (kind) => {
@@ -353,15 +360,15 @@ test("image checkout return waits for confirmation, refreshes image credits and 
   assert.equal(status().props.children[0], messages.video_credit_pending, "pending image payments need a translated message before fulfillment");
   assert.ok(h.find(owner.tree, (node) => node.type === h.components.VideoCreditPacksPanel));
   assert.ok(!h.find(owner.tree, (node) => node.type === h.components.ImageCreditPacksPanel));
-  h.environment.readOrder = async () => ({ ok: true, json: async () => ({ order: { granted: true } }) });
+  h.environment.readOrder = async () => ({ ok: true, json: async () => ({ order: { id: "order image/1", granted: true } }) });
   const refresh = h.find(status(), (node) => node.type === "button");
   assert.equal(refresh.props.children, messages.video_credit_refresh);
   refresh.props.onClick();
   await owner.flush();
   assert.equal(status().props.children[0], messages.image_credit_confirmed);
   assert.deepEqual(h.calls.map((call) => call.url), [
-    "/api/boutique/image-credits/orders/order%20image%2F1",
-    "/api/boutique/image-credits/orders/order%20image%2F1",
+    "/api/boutique/image-credits/orders/order%20image%2F1?expectedAccountId=account-a&expectedActorUserId=actor",
+    "/api/boutique/image-credits/orders/order%20image%2F1?expectedAccountId=account-a&expectedActorUserId=actor",
   ]);
   assert.ok(h.calls.every((call) => call.init.cache === "no-store"));
   h.setSearchParams("media=image&checkout=cancel&order=order%20image%2F1");
@@ -388,7 +395,7 @@ test("image checkout return shows a pending notice on network loss and ignores a
   assert.equal(status(), undefined, "refresh removes the stale pending notice while verification is in flight");
   h.setSearchParams("media=image&checkout=cancel&order=order-image");
   owner.render();
-  orderResponse.resolve({ ok: true, json: async () => ({ order: { granted: true } }) });
+  orderResponse.resolve({ ok: true, json: async () => ({ order: { id: "order-image", granted: true } }) });
   await owner.flush();
   assert.equal(status(), undefined, "a late successful lookup must not overwrite the cancelled return");
   assert.equal(h.calls.length, 2);

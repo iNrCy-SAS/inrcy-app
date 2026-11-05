@@ -1,19 +1,23 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import styles from "../dashboard.module.css";
 import { useDashboardI18n } from "../_hooks/useDashboardI18n";
 import type { NotificationItem } from "../dashboard.types";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { isDashboardDestinationAllowedForEdition } from "@/lib/dashboardEdition";
 import { useDashboardEdition } from "./DashboardEditionProvider";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import { useInrAssistantVisibleControl } from "../_hooks/useInrAssistantVisibleControl";
+import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
+import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 
 export default function NotificationMenu(props: {
   notificationMenuOpen: boolean;
   setNotificationMenuOpen: React.Dispatch<React.SetStateAction<boolean>>;
   unreadNotificationsCount: number;
   badgeCount?: number;
-  refreshNotifications: () => void | Promise<void>;
+  refreshNotifications: () => void | boolean | Promise<void | boolean>;
   notificationsLoading: boolean;
   notifications: NotificationItem[];
   notificationsError: string | null;
@@ -55,6 +59,19 @@ export default function NotificationMenu(props: {
     countClassName,
     onOpen,
   } = props;
+  const assistantTriggerRef = useRef<HTMLButtonElement>(null);
+  const assistantVisible = useInrAssistantVisibleControl(assistantTriggerRef);
+  const { actorUserId, activeAccountId } = useDashboardViewerAccess();
+  useInrAssistantRefresh({ topics: ["notifications"], accountId: activeAccountId, scopeKey: actorUserId, blocked: !assistantVisible,
+    refresh: async ({ accountId, canApply }) => {
+      if (!actorUserId || accountId !== activeAccountId || !canApply()) return false;
+      const applied = await refreshNotifications();
+      return applied === true && canApply();
+    } });
+  useInrAssistantLocalInterface("notification_menu", { open: notificationMenuOpen }, {
+    open: { invoke: () => { setNotificationMenuOpen(true); onOpen?.(); void refreshNotifications(); }, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === true) },
+    close: { invoke: () => setNotificationMenuOpen(false), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === false) },
+  }, assistantVisible);
 
   const loadedUnreadCount = notifications.reduce((count, item) => count + (item.unread ? 1 : 0), 0);
   const displayedUnreadCount = Math.max(unreadNotificationsCount, loadedUnreadCount);
@@ -77,6 +94,7 @@ export default function NotificationMenu(props: {
   return (
     <>
       <button
+        ref={assistantTriggerRef}
         type="button"
         className={buttonClassName || `${styles.notificationBellBtn} ${label ? styles.notificationBellBtnWithLabel : ""} ${mobile ? styles.notificationBellBtnMobile : ""}`.trim()}
         aria-label={t.notifications.aria}

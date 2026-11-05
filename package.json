@@ -32,7 +32,7 @@
     "test:mobile": "node --test --experimental-strip-types tests/mobile-runtime/*.test.mts",
     "test:multicompte": "node --test --experimental-strip-types tests/multicompte/*.test.mts",
     "audit:multicompte": "node scripts/audit-multicompte.mjs",
-    "prebuild": "node scripts/build-assistant-code-index.mjs --check && node scripts/prebuild-clean.mjs",
+    "prebuild": "node scripts/assistant-basic-coverage.mjs && node scripts/build-assistant-code-index.mjs --check && node scripts/prebuild-clean.mjs",
     "assistant:knowledge:index": "node scripts/build-assistant-code-index.mjs --write",
     "assistant:knowledge:check": "node scripts/build-assistant-code-index.mjs --check",
     "test:assistant": "node --test --test-isolation=none --experimental-strip-types tests/ai-assistant/*.test.mts tests/ai-assistant/*.test.mjs tests/dashboard/dashboard-assistant*.test.mts tests/dashboard/assistant-creation-guides-integrity.test.mts",
@@ -148,7 +148,8 @@
     "test:visio-booking": "node --test --test-isolation=none --experimental-strip-types tests/visio-booking/*.test.mts",
     "test:video-credits": "node --test --experimental-strip-types tests/boutique/video-credit-*.test.*",
     "lint:hygiene": "node scripts/lint-hygiene.mjs",
-    "test:tooling": "node --test tests/tooling/*.test.mjs"
+    "test:tooling": "node --test tests/tooling/*.test.mjs",
+    "assistant:basic:check": "node scripts/assistant-basic-coverage.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

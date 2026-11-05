@@ -4,14 +4,15 @@ import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, ty
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { parseMediaSoundtrackOptions, type MediaSoundtrackOption } from "@/lib/mediaSoundtrackSelection";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 import styles from "./MediaSoundtrackSelector.module.css";
 
-type Props = { soundtrackId: string | null; onChange: (id: string | null) => void; disabled?: boolean; scopeKey?: string; selectionLocked?: boolean; compact?: boolean; inline?: boolean; iconOnly?: boolean; channelLabel?: string; unavailableHint?: string; inactiveHint?: string; channelStyle?: CSSProperties };
+type Props = { soundtrackId: string | null; onChange: (id: string | null) => void; disabled?: boolean; scopeKey?: string; selectionLocked?: boolean; compact?: boolean; inline?: boolean; iconOnly?: boolean; channelLabel?: string; unavailableHint?: string; inactiveHint?: string; channelStyle?: CSSProperties; assistantUiScope?: "booster" | "scheduled" };
 const ACTIVATION_EVENT = "inrcy:media-soundtrack-activate";
 const CATALOGUE_TIMEOUT_MS = 10_000;
 
 /** Controlled selection over the shared iNrCy catalogue. Previewing never generates media. */
-export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabled = false, scopeKey = "", selectionLocked = false, compact = false, inline = false, iconOnly = false, channelLabel, unavailableHint, inactiveHint, channelStyle }: Props) {
+export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabled = false, scopeKey = "", selectionLocked = false, compact = false, inline = false, iconOnly = false, channelLabel, unavailableHint, inactiveHint, channelStyle, assistantUiScope }: Props) {
   const t = useTranslations("booster");
   const commonT = useTranslations("common");
   const titleId = useId(), selectionId = useId();
@@ -21,8 +22,10 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [catalogueLoaded, setCatalogueLoaded] = useState<{ scopeKey: string; attempt: number } | null>(null);
   const [previewError, setPreviewError] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [playbackActive, setPlaybackActive] = useState(false);
   const [activeChoice, setActiveChoice] = useState(0);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -38,6 +41,7 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
     const audio = audioRef.current;
     if (audio) { audio.pause(); audio.removeAttribute("src"); audio.load(); }
     setPlayingId(null);
+    setPlaybackActive(false);
   }, []);
   const close = useCallback(() => { stopPreview(); setOpen(false); setShowUnavailableHint(false); }, [stopPreview]);
   const activate = () => window.dispatchEvent(new CustomEvent(ACTIVATION_EVENT, { detail: titleId }));
@@ -51,6 +55,7 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
   useEffect(() => {
     stopPreview(); setOpen(false); setShowUnavailableHint(false); setTracks([]); setLoading(false); setLoadError(false); setPreviewError(false);
     loadedScopeRef.current = null;
+    setCatalogueLoaded(null);
     const audio = audioRef.current;
     return () => {
       playingRef.current = null;
@@ -97,7 +102,7 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
       .then(options => {
         if (!active || controller.signal.aborted || controllerRef.current !== controller) return;
         if (!options.length) throw new Error("catalogue_empty");
-        loadedScopeRef.current = scopeKey; setTracks(options);
+        loadedScopeRef.current = scopeKey; setTracks(options); setCatalogueLoaded({ scopeKey, attempt: loadAttempt });
       })
       .catch(() => { if (active && !controller.signal.aborted && controllerRef.current === controller) setLoadError(true); })
       .finally(() => {
@@ -193,6 +198,24 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
     else if (option.offsetTop + option.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = option.offsetTop + option.offsetHeight - list.clientHeight;
   }, [open, activeChoice]);
   const title = channelLabel ? `${t("publication_music_label")} · ${channelLabel}` : t("publication_music_title");
+  const assistantChannel = scopeKey.split(":").at(-1), assistantSoundtrackReady = !disabled && !selectionLocked && !unavailableHint && !loading;
+  useInrAssistantLocalInterface(assistantChannel === "instagram" ? "publication_soundtrack_instagram" : "publication_soundtrack_facebook", { open, showUnavailableHint, soundtrackId, playingId, playbackActive, loadAttempt, ready: catalogueLoaded?.scopeKey === scopeKey && catalogueLoaded.attempt === loadAttempt && !loading && !loadError && tracks.length > 0, scopeKey, selectionLocked, disabled, available: !unavailableHint, catalogue: tracks.map(track => track.id) }, {
+    ...(!disabled && !loading && !unavailableHint ? { open: { invoke: () => { if (inline) openInlineList(); else { activate(); setOpen(true); } }, matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && (snapshot as { open?: boolean }).open === true } } : {}),
+    ...((open || showUnavailableHint) ? { close: { invoke: close, matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && (snapshot as { open?: boolean; showUnavailableHint?: boolean }).open === false && (snapshot as { showUnavailableHint?: boolean }).showUnavailableHint === false } } : {}),
+    ...(assistantSoundtrackReady ? { select: {
+      invoke: (value: string | null) => { const index = value === "auto" ? 0 : choices.findIndex(choice => choice.id === value && !choice.disabled); if (index < 0) throw new Error("soundtrack_choice_unavailable"); pickChoice(index); },
+      matches: (snapshot: unknown, value: string | null) => !!snapshot && typeof snapshot === "object" && (snapshot as { soundtrackId?: string | null }).soundtrackId === (value === "auto" ? null : value),
+    } } : {}),
+    ...(assistantSoundtrackReady && selected ? { play: {
+      invoke: async () => { if (playingRef.current !== selected.id) await preview(selected); if (audioRef.current?.paused !== false || playingRef.current !== selected.id) throw new Error("soundtrack_playback_unconfirmed"); },
+      matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && (snapshot as { playingId?: string }).playingId === selected.id && (snapshot as { playbackActive?: boolean }).playbackActive === true,
+    } } : {}),
+    ...(playingId ? { stop: { invoke: stopPreview, matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && (snapshot as { playingId?: string | null }).playingId === null && (snapshot as { playbackActive?: boolean }).playbackActive === false } } : {}),
+    ...(loadError && !disabled && !selectionLocked && !unavailableHint && (inline || open) ? { retry: {
+      invoke: () => { loadedScopeRef.current = null; setLoadAttempt(attempt => attempt + 1); },
+      matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && (snapshot as { loadAttempt?: number }).loadAttempt! > loadAttempt && (snapshot as { ready?: boolean }).ready === true,
+    } } : {}),
+  }, (assistantUiScope === "booster" || assistantUiScope === "scheduled") && ["facebook", "instagram"].includes(String(assistantChannel)));
   const loadFailure = loadError ? <span className={inline ? styles.inlineNotice : styles.loadNotice} role="alert">
     <span>{t("publication_music_unavailable")}</span>
     <button type="button" className={styles.retry} data-soundtrack-retry disabled={disabled || selectionLocked || Boolean(unavailableHint)}
@@ -243,7 +266,7 @@ export default function MediaSoundtrackSelector({ soundtrackId, onChange, disabl
     </button>}
     {unavailableHint ? <span id={hintId} role="tooltip" className={styles.unavailableHint} hidden={!showUnavailableHint}>{unavailableHint}</span> : null}
     {inline && inactiveHint && !unavailableHint ? <span id={inactiveHintId} className={styles.srOnly}>{inactiveHint}</span> : null}
-    <audio ref={audioRef} preload="none" onEnded={() => { playingRef.current = null; setPlayingId(null); }} />
+    <audio ref={audioRef} preload="none" onPlay={() => setPlaybackActive(true)} onPause={() => setPlaybackActive(false)} onEnded={() => { playingRef.current = null; setPlayingId(null); setPlaybackActive(false); }} />
     {!inline && open && typeof document !== "undefined" ? createPortal(<dialog ref={dialogRef} className={styles.dialog} style={channelStyle} aria-labelledby={titleId}
       onCancel={event => { event.preventDefault(); event.stopPropagation(); close(); }}
       onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); } }}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useInrAssistantRefresh } from "./useInrAssistantRefresh";
 
 import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLibraryPickerModal";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
@@ -548,7 +549,8 @@ export default function useMediaGeneration() {
   }, [status]);
 
   const loadQuota = useCallback(
-    async ({ force = false }: { force?: boolean } = {}) => {
+    async ({ force = false, canApply = () => true, expectedAccountId }: { force?: boolean; canApply?: () => boolean; expectedAccountId?: string } = {}) => {
+      if (!canApply()) return null;
       const requestEpoch = accountEpochRef.current;
       const requestKey = {};
       const currentRequest = quotaRequestRef.current;
@@ -583,6 +585,7 @@ export default function useMediaGeneration() {
               ? (payload as { quota?: unknown }).quota
               : payload
           );
+          if (!mountedRef.current || requestEpoch !== accountEpochRef.current || quotaRequestRef.current?.key !== requestKey || !canApply() || (expectedAccountId && normalized.accountId !== expectedAccountId)) return null;
           if (mountedRef.current && requestEpoch === accountEpochRef.current) {
             quotaRef.current = normalized;
             setQuota(normalized);
@@ -592,7 +595,7 @@ export default function useMediaGeneration() {
           }
           return normalized;
         } catch (caught) {
-          if (mountedRef.current && requestEpoch === accountEpochRef.current) {
+          if (mountedRef.current && requestEpoch === accountEpochRef.current && quotaRequestRef.current?.key === requestKey && canApply()) {
             setError(
               caught instanceof Error
                 ? caught.message
@@ -619,6 +622,11 @@ export default function useMediaGeneration() {
     },
     []
   );
+
+  useInrAssistantRefresh({ topics: ["credits"], scopeKey: `studio-quota:${quota?.accountId ?? "loading"}`, blocked: status === "generating" || cancellationPending, refresh: async ({ accountId, canApply }) => {
+    const nextQuota = await loadQuota({ force: true, canApply, expectedAccountId: accountId });
+    return Boolean(nextQuota && canApply() && nextQuota.accountId === accountId);
+  } });
 
   useEffect(() => {
     const handleActiveAccountChange = () => {

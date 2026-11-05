@@ -14,7 +14,8 @@ export type InrAssistantUiResult = {
 };
 export const INR_ASSISTANT_MAX_UI_ACTIONS = 24;
 export function inrAssistantUiSuccessStatus(action: InrAssistantUiAction): "applied" | "handed_to_browser" {
-  return action.type === "command" && ["export_document_pdf", "download_media", "download_stats_report", "download_badge_qr", "download_account_export", "download_subscription_invoice"].includes(action.command.command) ? "handed_to_browser" : "applied";
+  if (action.type === "command" && action.command.command === "control_local_interface" && (action.command.selection.id === "public_channel_link" && action.command.operation === "open" || action.command.selection.id === "send_links" && action.command.operation === "select")) return "handed_to_browser";
+  return action.type === "command" && ["export_document_pdf", "download_media", "download_stats_report", "download_badge_qr", "download_account_export", "download_subscription_invoice", "open_subscription_invoice_link"].includes(action.command.command) ? "handed_to_browser" : "applied";
 }
 const ID = /^[a-zA-Z0-9_-]{1,100}$/;
 

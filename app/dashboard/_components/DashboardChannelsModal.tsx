@@ -10,6 +10,7 @@ import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvi
 import GoogleOAuthConsentBanner from "./GoogleOAuthConsentBanner";
 import MetaOAuthCallbackNotice from "./MetaOAuthCallbackNotice";
 import { useInrAssistantScreen } from "./DashboardAssistantScreenContext";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 
 type Props = {
   items: DashboardFluxBubbleData[];
@@ -137,6 +138,25 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
     const index = filteredItems.findIndex((item) => item.key === selected.key);
     void requestNavigation(() => setSelectedKey(filteredItems[(index + direction + filteredItems.length) % filteredItems.length].key));
   };
+  const nativeSelectChannel = async (key: string | null, stillCurrent: () => boolean) => {
+    if (typeof key !== "string" || !filteredItems.some(item => item.key === key)) throw new Error("Channel unavailable in this view");
+    if (!await requestNavigation(() => { if (!stillCurrent()) throw new Error("Channel screen changed"); setSelectedKey(key); })) throw new Error("Channel navigation declined");
+  };
+  const selectedIndex = filteredItems.findIndex(item => item.key === selected?.key);
+  const adjacentKey = (direction: -1 | 1) => filteredItems[(selectedIndex + direction + filteredItems.length) % filteredItems.length]?.key ?? null;
+  useInrAssistantLocalInterface("channel_cockpit", { selected: selected?.key ?? null, available: filteredItems.map(item => item.key), motionPaused, filter }, {
+    select: { invoke: nativeSelectChannel, matches: (snapshot, value) => Boolean(snapshot && typeof snapshot === "object" && "selected" in snapshot && snapshot.selected === value) },
+    ...(selected && filteredItems.length > 1 ? {
+      previous: { invoke: async (_value: string | null, stillCurrent: () => boolean) => nativeSelectChannel(adjacentKey(-1), stillCurrent), matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "selected" in snapshot && snapshot.selected === adjacentKey(-1)) },
+      next: { invoke: async (_value: string | null, stillCurrent: () => boolean) => nativeSelectChannel(adjacentKey(1), stillCurrent), matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "selected" in snapshot && snapshot.selected === adjacentKey(1)) },
+    } : {}),
+    stop: { invoke: () => setMotionPaused(true), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "motionPaused" in snapshot && snapshot.motionPaused === true) },
+    play: { invoke: () => setMotionPaused(false), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "motionPaused" in snapshot && snapshot.motionPaused === false) },
+    close: { invoke: async (_value, stillCurrent) => { if (!await requestNavigation(() => { if (!stillCurrent()) throw new Error("Channel screen changed"); dialogRef.current?.close(); onClose(); })) throw new Error("Channel close declined"); }, matches: () => false, allowUnmount: true },
+  });
+  useInrAssistantLocalInterface("channel_cockpit_filter", { filter, selected: selected?.key ?? null }, {
+    select: { invoke: async (value, stillCurrent) => { if (value !== "all" && value !== "connected" && value !== "configure") throw new Error("Channel filter unavailable"); if (!await requestNavigation(() => { if (!stillCurrent()) throw new Error("Channel screen changed"); setFilter(value); })) throw new Error("Channel filter declined"); }, matches: (snapshot, value) => Boolean(snapshot && typeof snapshot === "object" && "filter" in snapshot && snapshot.filter === value) },
+  });
 
   // Only wrap presentation-level actions: their original destination and guards remain unchanged.
   const selectedItem = selected ? {

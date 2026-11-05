@@ -59,7 +59,10 @@ function harness(edition: editionPolicy.DashboardEdition = "premium") {
   const mockRequire = (specifier: string): unknown => {
     if (specifier === "react/jsx-runtime") return require(specifier);
     if (specifier === "next/image") return { __esModule: true, default: (props: Props) => createElement("img", props) };
-    if (specifier === "react") return { useEffect: (effect: Effect) => { effects.push(effect); } };
+    if (specifier === "react") return { useEffect: (effect: Effect) => { effects.push(effect); }, useState: (initial: unknown) => [initial, () => {}] };
+    // This fixture proves native dock wiring. The real hook and refresh commit
+    // lifecycle are exercised by dashboard-basic-local-controls-runtime.
+    if (specifier.endsWith("useInrAssistantLocalInterface")) return { useInrAssistantLocalInterface() {} };
     if (specifier === "react-dom") return { createPortal: (child: ReactNode, host: unknown) => {
       portals.push({ child, host });
       return createElement("test-portal", { host }, child);
@@ -233,7 +236,7 @@ for (const active of [false, true]) {
       const hostCallbacks = { left: () => {}, right: () => {} };
       const tree = view.render("DashboardGeneratorHub", {
         onDesktopLeftHost: hostCallbacks.left, onDesktopRightHost: hostCallbacks.right,
-        onOpenGeneratorHelp: () => commands.push("help"), onRefreshGenerator: () => commands.push("refresh"),
+        onOpenGeneratorHelp: () => commands.push("help"), onRefreshGenerator: async () => { commands.push("refresh"); return true; },
         generatorIsActive: active, kpisLoading: loading,
       });
       const hub = find(tree, (node) => node.props["data-testid"] === "dashboard-generator-hub");

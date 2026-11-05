@@ -1,4 +1,26 @@
 import "server-only";
+import { getInrAssistantBasicShopReadView } from "./inrAssistantBasicShopRead.ts";
+import { createInrAssistantBadgeIdentityThemeUiTools } from "./inrAssistantBadgeIdentityThemeUiTools.ts";
+import { isInrAssistantBadgeLogoThemeRequest } from "./inrAssistantBadgeIdentityTheme.ts";
+import { isInrAssistantResumePublicationDraftRequest } from "./inrAssistantSendPublicationIntent.ts";
+import { createInrAssistantNotificationNavigationTools } from "./inrAssistantNotificationNavigationTools.ts";
+import { isInrAssistantNotificationActionRequest } from "./inrAssistantNotificationNavigation.ts";
+import { createInrAssistantStudioDraftReviewUiTools } from "./inrAssistantStudioDraftReviewUiTools.ts";
+import { INR_ASSISTANT_STUDIO_DRAFT_REVIEW_TARGETS, isInrAssistantStudioDraftReviewRequest } from "./inrAssistantStudioDraftReview.ts";
+import { createInrAssistantContentReportTools } from "./inrAssistantContentReportTools.ts";
+import { isInrAssistantContentReportSubmitRequest } from "./inrAssistantContentReport.ts";
+import { createInrAssistantBusinessRichTextUiTools } from "./inrAssistantBusinessRichTextUiTools.ts";
+import { isInrAssistantBusinessRichTextRequest } from "./inrAssistantBusinessRichText.ts";
+import { isInrAssistantExistingCreditOrderReconciliationRequest } from "./inrAssistantCreditOrderReconciliation.ts";
+import { createInrAssistantGoogleBusinessDraftUiTools } from "./inrAssistantGoogleBusinessDraftUiTools.ts";
+import { isInrAssistantGoogleBusinessDraftReviewRequest } from "./inrAssistantGoogleBusinessDraftReview.ts";
+import { createInrAssistantStudioPreferenceTools } from "./inrAssistantStudioPreferenceTools.ts";
+import { isInrAssistantStudioForgetPreferenceRequest } from "./inrAssistantStudioPreferenceIntent.ts";
+import { createInrAssistantLocalInterfaceTools } from "./inrAssistantLocalInterfaceTools.ts";
+import { isInrAssistantLocalInterfaceRequest } from "./inrAssistantLocalInterface.ts";
+import { createInrAssistantSendPublicationTools } from "./inrAssistantSendPublicationTools.ts";
+import { createInrAssistantApplicationPreferenceTools } from "./inrAssistantApplicationPreferenceTools.ts";
+import { isInrAssistantApplicationPreferenceRequest } from "./inrAssistantApplicationPreferences.ts";
 
 import { createInrAssistantUiTools } from "./inrAssistantUiTools.ts";
 import { createInrAssistantBusinessIdentityTools } from "./inrAssistantBusinessIdentityTools.ts";
@@ -78,7 +100,7 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
     remainingTimeMs, onMediaStarted, onMediaResult, onPublicationResult, resolvePreview } = context;
   const uiTools = (() => {
     if (!navigationRequested && !screenCommandRequested) return {};
-    const available = createInrAssistantUiTools({accountId:args.accountId,edition:args.edition,currentUserMessage:latestRequest,clientContext:args.clientContext,supabase:args.supabase,canStartWork:()=>remainingTimeMs()>1000});
+    const available = createInrAssistantUiTools({accountId:args.accountId,actorUserId:args.actorUserId,edition:args.edition,currentUserMessage:latestRequest,clientContext:args.clientContext,supabase:args.supabase,canStartWork:()=>remainingTimeMs()>1000});
     return {
       ...(navigationRequested && available.navigateApplication ? { navigateApplication: available.navigateApplication } : {}),
       ...(screenCommandRequested && available.runScreenCommand ? { runScreenCommand: available.runScreenCommand } : {}),
@@ -168,7 +190,7 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
     const available = createInrAssistantInsightsTools({ request: args.request, accountId: args.accountId, supabase: args.supabase, actorUserId: args.actorUserId, currentUserMessage: latestRequest, currentApprovalMessage: spokenRequest, resolvePreview, canStartWork: () => remainingTimeMs() > 15000 });
     return {
       ...(/(?:stats|statisti|resultat|impression|performan)/.test(topic) ? { readStatsSnapshots: available.readStatsSnapshots } : {}),
-      ...(/(?:reputation|\bavis\b|review)/.test(topic) ? { readGoogleReviews: available.readGoogleReviews, listGoogleReviews: available.listGoogleReviews, ...(canExecute ? {replyToGoogleReview: available.replyToGoogleReview, previewGoogleReviewReplyAction: available.previewGoogleReviewReplyAction, ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyGoogleReviewReplyAction:available.applyGoogleReviewReplyAction}:{})} : {}) } : {}),
+      ...(/(?:reputation|\bavis\b|review)/.test(topic) ? { readGoogleReviews: available.readGoogleReviews, listGoogleReviews: available.listGoogleReviews, ...(canExecute ? {generateGoogleReviewReplyDraft: available.generateGoogleReviewReplyDraft, replyToGoogleReview: available.replyToGoogleReview, previewGoogleReviewReplyAction: available.previewGoogleReviewReplyAction, ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyGoogleReviewReplyAction:available.applyGoogleReviewReplyAction}:{})} : {}) } : {}),
     };
   })();
   const commercialTools = (() => {
@@ -188,7 +210,7 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
   const calendarTools=canExecute && args.supabase && args.actorUserId && calendarLifecycle
     ? (()=>{const available=createInrAssistantCalendarTools({request:args.request,accountId:args.accountId,actorUserId:args.actorUserId!,supabase:args.supabase!,edition:args.edition,currentUserMessage:latestRequest,currentApprovalMessage:spokenRequest,canStartWork:()=>remainingTimeMs()>15000,resolvePreview});
       return {previewCalendarAction:available.previewCalendarAction,...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyCalendarAction:available.applyCalendarAction}:{})};})() : {};
-  const scheduledLifecycle=requiredTools.some(name=>["updateScheduledPublication","cancelScheduledPublication","retryScheduledPublication"].includes(name));
+  const scheduledLifecycle=requiredTools.some(name=>["updateScheduledPublication","cancelScheduledPublication","retryScheduledPublication","publishScheduledPublicationNow","editScheduledPublication"].includes(name));
   const scheduledTools=args.supabase && args.actorUserId && families.has("publication") && (scheduledLifecycle || /programm|planifi|echec|echou/.test(topic))
     ? (()=>{const available=createInrAssistantScheduledPublicationTools({request:args.request,accountId:args.accountId,actorUserId:args.actorUserId!,supabase:args.supabase!,edition:args.edition,currentUserMessage:latestRequest,currentApprovalMessage:spokenRequest,canStartWork:()=>remainingTimeMs()>15000,resolvePreview});
       return {readScheduledPublications:available.readScheduledPublications,...(canExecute && scheduledLifecycle?{previewScheduledPublicationAction:available.previewScheduledPublicationAction,previewScheduledPublicationEdit:available.previewScheduledPublicationEdit}:{}),...(canExecute && scheduledLifecycle && /\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyScheduledPublicationAction:available.applyScheduledPublicationAction}:{})};})() : {};
@@ -236,6 +258,22 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
       currentUserMessage: latestRequest, currentApprovalMessage: spokenRequest, resolvePreview, canStartWork: () => remainingTimeMs() > 15_000 };
     const selected: Record<string, unknown> = {};
     const pick = (available: Record<string, unknown>, names: string[]) => { for (const name of names) if (available[name]) selected[name] = available[name]; };
+    if (/inrsend|inr.send|historique|brouillons?/.test(topic) && /publication|inrsend|inr.send/.test(topic) || requiredTools.some(name => ["readSendPublicationHistory", "resumePublicationDraft"].includes(name)) || isInrAssistantResumePublicationDraftRequest(latestRequest)) {
+      const available = createInrAssistantSendPublicationTools(scope);
+      pick(available, ["readSendPublicationHistory", ...(canExecute && isInrAssistantResumePublicationDraftRequest(latestRequest) ? ["resumePublicationDraft"] : [])]);
+    }
+    if (canExecute && isInrAssistantBadgeLogoThemeRequest(latestRequest)) Object.assign(selected, createInrAssistantBadgeIdentityThemeUiTools({ ...scope, clientContext: args.clientContext }));
+    if (canExecute && isInrAssistantNotificationActionRequest(latestRequest)) Object.assign(selected, createInrAssistantNotificationNavigationTools({ ...scope, clientContext: args.clientContext }));
+    if (canExecute && (requiredTools.includes("prepareStudioDraftReview") || INR_ASSISTANT_STUDIO_DRAFT_REVIEW_TARGETS.some(target => isInrAssistantStudioDraftReviewRequest(latestRequest, target)))) Object.assign(selected, createInrAssistantStudioDraftReviewUiTools({ ...scope, clientContext: args.clientContext }));
+    if (canExecute && (requiredTools.includes("submitContentReport") || isInrAssistantContentReportSubmitRequest(latestRequest))) Object.assign(selected, createInrAssistantContentReportTools({ ...scope, clientContext: args.clientContext }));
+    if (canExecute && (requiredTools.includes("formatBusinessDnaText") || isInrAssistantBusinessRichTextRequest(latestRequest))) Object.assign(selected, createInrAssistantBusinessRichTextUiTools({ ...scope, clientContext: args.clientContext }));
+    if (canExecute && (requiredTools.includes("prepareGoogleBusinessDraftReview") || isInrAssistantGoogleBusinessDraftReviewRequest(latestRequest))) Object.assign(selected, createInrAssistantGoogleBusinessDraftUiTools({ ...scope, clientContext: args.clientContext }));
+    if (/studio|generateur de media/.test(topic) && /memor|preference|reglage/.test(topic) || requiredTools.some(name => ["readStudioSavedPreferences", "forgetStudioPreferenceBlock"].includes(name))) {
+      const available = createInrAssistantStudioPreferenceTools(scope);
+      pick(available, ["readStudioSavedPreferences", ...(canExecute && [1, 2, 3, 4, 5, 6].some(id => isInrAssistantStudioForgetPreferenceRequest(latestRequest, id)) ? ["forgetStudioPreferenceBlock"] : [])]);
+    }
+    if (canExecute && args.clientContext?.interfaces?.length && isInrAssistantLocalInterfaceRequest(latestRequest)) Object.assign(selected, createInrAssistantLocalInterfaceTools({ ...scope, clientContext: args.clientContext }));
+    if (canExecute && (requiredTools.includes("configureApplicationPreferences") || isInrAssistantApplicationPreferenceRequest(latestRequest))) Object.assign(selected, createInrAssistantApplicationPreferenceTools(scope));
     if (families.has("business") && (requiredTools.some(name => ["readBusinessIdentity","searchBusinessProfessions","updateBusinessIdentity"].includes(name)) || /identite|coordonne|raison sociale|profession|metier|postal|ville|profil entreprise|(?:nom|prenom|logo|telephone|adresse).{0,35}(?:entreprise|societe|profil)/.test(topic))) {
       const available = createInrAssistantBusinessIdentityTools(scope);
       pick(available, ["readBusinessIdentity", ...(/profession|metier|activite/.test(topic) ? ["searchBusinessProfessions"] : []), ...(canExecute ? ["updateBusinessIdentity"] : [])]);
@@ -252,9 +290,9 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
       const available = createInrAssistantWebsiteTools(scope);
       pick(available, ["readWebsiteConfiguration", ...(canExecute ? ["updateWebsiteConfiguration", "previewWebsiteAnalyticsDisconnection", ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?["applyWebsiteAnalyticsDisconnection"]:[])] : [])]);
     }
-    if (/notification|abonnement|credits?|recharges?|commandes?|factures? d.abonnement|rgpd|donnees personnelles|cookies?|parrainage/.test(topic) || requiredTools.some(name => ["readAccountServices","markNotificationsRead","prepareAccountDocumentDownload","configureCookieConsent"].includes(name))) {
+    if (getInrAssistantBasicShopReadView(latestRequest) || /notification|abonnement|credits?|recharges?|commandes?|factures? d.abonnement|rgpd|donnees personnelles|cookies?|parrainage/.test(topic) || requiredTools.some(name => ["readAccountServices","markNotificationsRead","previewNotificationRemoval","applyNotificationRemoval","reconcileExistingCreditOrder","prepareAccountDocumentDownload","configureCookieConsent"].includes(name))) {
       const available = createInrAssistantAccountServiceTools(scope);
-      pick(available, ["readAccountServices", ...(canExecute && /notifications?/.test(topic) ? ["markNotificationsRead"] : []), ...(canExecute && (requiredTools.includes("prepareAccountDocumentDownload") || /telecharg|export/.test(topic)) ? ["prepareAccountDocumentDownload"] : []), ...(canExecute && /cookies?/.test(topic) ? ["configureCookieConsent"] : [])]);
+      pick(available, ["readAccountServices", ...(canExecute && isInrAssistantExistingCreditOrderReconciliationRequest(latestRequest) ? ["reconcileExistingCreditOrder"] : []), ...(canExecute && /notifications?/.test(topic) ? ["markNotificationsRead", "previewNotificationRemoval", ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest) ? ["applyNotificationRemoval"] : [])] : []), ...(canExecute && (requiredTools.includes("prepareAccountDocumentDownload") || /telecharg|export/.test(topic)) ? ["prepareAccountDocumentDownload"] : []), ...(canExecute && /cookies?/.test(topic) ? ["configureCookieConsent"] : [])]);
     }
     if (/parrain|recommandation|referral/.test(topic) || requiredTools.includes("applyReferralSubmission")) { const available=createInrAssistantReferralTools(scope); pick(available, [...(canExecute ? ["previewReferralSubmission", ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?["applyReferralSubmission"]:[])] : [])]); }
     if (requiredTools.some(name => ["readSocialPublicationPreferences","updateSocialPublicationPreferences"].includes(name)) || /(?:facebook|instagram|threads).{0,65}(?:preference|reglage|defaut|activer|desactiver)|(?:preference|reglage|defaut).{0,65}(?:facebook|instagram|threads)/.test(topic)) { const available=createInrAssistantSocialPublicationPreferencesTools(scope); pick(available,["readSocialPublicationPreferences",...(canExecute?["updateSocialPublicationPreferences"]:[])]); }
@@ -283,9 +321,9 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
       const available = createInrAssistantMediaLibraryTools({ ...scope, mediaAttachments: args.mediaAttachments, resolveMediaAttachment: args.resolveMediaAttachment, claimMediaAttachmentImport: args.claimMediaAttachmentImport });
       pick(available, [...(requiredTools.includes("importMediaAttachment") ? ["listImportableMediaAttachments","importMediaAttachment"] : []), ...(requiredTools.includes("prepareMediaDownload") ? ["prepareMediaDownload"] : []), ...(requiredTools.includes("applyMediaDeletion") ? ["previewMediaDeletion","applyMediaDeletion"] : [])]);
     }
-    if (families.has("publication") && (requiredTools.some(name => ["editPreparedPublication","applyPublicationLifecycleAction"].includes(name)) || /historique|brouillon|proposition|preparee|retrouv|recherch|liste|consulte/.test(topic))) {
+    if (families.has("publication") && (requiredTools.some(name => ["editPreparedPublication","applyPublicationLifecycleAction","editPublication","applyPublishedPublicationEdit"].includes(name)) || /historique|brouillon|proposition|preparee|retrouv|recherch|liste|consulte/.test(topic))) {
       const available = createInrAssistantPublicationLifecycleTools(scope);
-      pick(available, ["readPublicationWorkspace", ...(requiredTools.includes("editPreparedPublication") ? ["editPreparedPublication"] : []), ...(requiredTools.includes("applyPublicationLifecycleAction") ? ["previewPublicationLifecycleAction","applyPublicationLifecycleAction"] : [])]);
+      pick(available, ["readPublicationWorkspace", "readPublishedPublicationForEdit", ...(canExecute && requiredTools.some(name => ["editPublication", "applyPublishedPublicationEdit"].includes(name)) ? ["previewPublishedPublicationEdit", ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest) ? ["applyPublishedPublicationEdit"] : [])] : []), ...(requiredTools.includes("editPreparedPublication") ? ["editPreparedPublication"] : []), ...(requiredTools.includes("applyPublicationLifecycleAction") ? ["previewPublicationLifecycleAction","applyPublicationLifecycleAction"] : [])]);
     }
     if (/stats|statistiq|bilan|rapport/.test(topic) || requiredTools.some(name => ["readStatsEvolution","readStatsReports","refreshStatsSources","sendStatsReport","prepareStatsReportDownload"].includes(name))) {
       const available = createInrAssistantStatsTools(scope);

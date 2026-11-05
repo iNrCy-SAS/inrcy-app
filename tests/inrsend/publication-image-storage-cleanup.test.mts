@@ -139,11 +139,20 @@ test("iNrSend ne nettoie les nouveaux uploads qu'avant toute mutation susceptibl
     patchHandler.slice(persistIndex, syncIndex),
     /imageUseGuard\.markAssetsMayBeInUse\(\);/,
   );
-  const noEventReturnIndex = persistFunction.indexOf("if (!ids.length) return;");
-  const persistDispatchMarkIndex = persistFunction.indexOf(
+  const lookupStart = persistFunction.indexOf("const { data: events, error }");
+  assert.ok(lookupStart >= 0);
+  const guardedPersist = persistFunction.slice(0, lookupStart);
+  const legacyPersist = persistFunction.slice(lookupStart);
+  const guardedMarkIndex = guardedPersist.indexOf("onPayloadMayReferenceAssets?.();");
+  const guardedUpdateIndex = guardedPersist.indexOf('.from("app_events").update({ payload: nextPayload })');
+  assert.ok(guardedMarkIndex >= 0 && guardedUpdateIndex > guardedMarkIndex, "le CAS doit lui aussi désarmer le rollback avant toute écriture ambiguë");
+  assert.match(guardedPersist, /\.eq\("payload", JSON\.stringify\(expectedEvent\.payload\)\)/);
+  assert.match(guardedPersist, /if \(saved\.error \|\| !saved\.data\) throw new PublicationEditSourceChangedError\(\)/);
+  const noEventReturnIndex = legacyPersist.indexOf("if (!ids.length) return;");
+  const persistDispatchMarkIndex = legacyPersist.indexOf(
     "onPayloadMayReferenceAssets?.();",
   );
-  const payloadUpdateIndex = persistFunction.indexOf(
+  const payloadUpdateIndex = legacyPersist.indexOf(
     '.from("app_events").update({ payload: nextPayload })',
   );
   assert.ok(

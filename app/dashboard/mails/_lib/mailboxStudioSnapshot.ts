@@ -37,6 +37,8 @@ type StoredPublicationEditorSnapshot = {
   createdAt: number;
   itemId: string;
   channel: string;
+  editSourceVersion?: string;
+  editOperationKey?: string;
   form: PublicationEditForm;
   imagesByChannel: Record<string, { assets: StoredPublicationImageAsset[] }>;
   videoByChannel: Record<string, StoredPublicationEditVideoState>;
@@ -49,6 +51,8 @@ export type InrSendPublicationEditorSnapshot = {
   createdAt: number;
   itemId: string;
   channel: string;
+  editSourceVersion?: string;
+  editOperationKey?: string;
   form: PublicationEditForm;
   imagesByChannel: Record<string, PublicationChannelImagesState>;
   videoByChannel: Record<string, PublicationEditVideoState>;
@@ -57,6 +61,8 @@ export type InrSendPublicationEditorSnapshot = {
 type SavePublicationEditorSnapshotInput = {
   itemId: string;
   channel: string;
+  editSourceVersion?: string;
+  editOperationKey?: string;
   form: PublicationEditForm;
   imagesByChannel: Record<string, PublicationChannelImagesState>;
   videoByChannel: Record<string, PublicationEditVideoState>;
@@ -252,6 +258,7 @@ export async function saveInrSendPublicationEditorSnapshot(
       createdAt: Date.now(),
       itemId: String(input.itemId || "").trim(),
       channel: String(input.channel || "").trim(),
+      ...(input.editSourceVersion && /^[a-f0-9]{64}$/.test(input.editSourceVersion) ? { editSourceVersion: input.editSourceVersion, editOperationKey: input.editOperationKey } : {}),
       form: { ...input.form },
       imagesByChannel,
       videoByChannel,
@@ -347,6 +354,8 @@ export async function consumeInrSendPublicationEditorSnapshot(key: string) {
       createdAt: snapshot.createdAt,
       itemId: snapshot.itemId,
       channel: snapshot.channel,
+      editSourceVersion: snapshot.editSourceVersion,
+      editOperationKey: snapshot.editOperationKey,
       form: { ...snapshot.form },
       imagesByChannel,
       videoByChannel,

@@ -1,3 +1,6 @@
+import { VISIBILITY_INDEX_RANGES, type VisibilityIndexRange } from "./inrstats/visibilityIndexSnapshots.ts";
+export { VISIBILITY_INDEX_RANGES as INR_ASSISTANT_STATS_INDEX_RANGES } from "./inrstats/visibilityIndexSnapshots.ts";
+
 export const INR_ASSISTANT_STATS_UI_COMMANDS = ["configure_stats_view"] as const;
 export type InrAssistantStatsUiCommandName = typeof INR_ASSISTANT_STATS_UI_COMMANDS[number];
 export const INR_ASSISTANT_STATS_CHANNELS = ["inrbadge", "site_web", "gmb", "inr_search", "facebook", "instagram", "threads", "linkedin", "tiktok", "youtube_shorts", "pinterest", "x", "mails"] as const;
@@ -7,6 +10,7 @@ export type InrAssistantStatsViewPatch = {
   evolutionView?: "measured" | "index";
   metric?: "visibility" | "clicks";
   channel?: "all" | InrAssistantStatsChannel;
+  indexRangeMonths?: VisibilityIndexRange;
 };
 export type InrAssistantStatsUiCommand = { command: "configure_stats_view"; selection: { kind: "stats"; id: "stats" }; revision: string; patch: InrAssistantStatsViewPatch };
 export const isInrAssistantStatsUiCommandName = (value: unknown): value is InrAssistantStatsUiCommandName => value === "configure_stats_view";
@@ -16,11 +20,13 @@ export function parseInrAssistantStatsUiCommand(value: unknown): InrAssistantSta
   if (row.command !== "configure_stats_view" || selection?.kind !== "stats" || selection.id !== "stats" || typeof row.revision !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(row.revision)) return null;
   if (!row.patch || typeof row.patch !== "object" || Array.isArray(row.patch)) return null;
   const patch = row.patch as Record<string, unknown>;
-  if (!Object.keys(patch).length || Object.keys(patch).some(key => !["panel", "evolutionView", "metric", "channel"].includes(key))) return null;
+  if (!Object.keys(patch).length || Object.keys(patch).some(key => !["panel", "evolutionView", "metric", "channel", "indexRangeMonths"].includes(key))) return null;
   if (patch.panel !== undefined && !["all", "evolution", ...INR_ASSISTANT_STATS_CHANNELS].includes(patch.panel as never)
     || patch.evolutionView !== undefined && !["measured", "index"].includes(String(patch.evolutionView))
-    || patch.metric !== undefined && !["visibility", "clicks"].includes(String(patch.metric))
-    || patch.channel !== undefined && !["all", ...INR_ASSISTANT_STATS_CHANNELS].includes(patch.channel as never)) return null;
+    || patch.metric !== undefined && (!["visibility", "clicks"].includes(String(patch.metric)) || patch.evolutionView === "index")
+    || patch.channel !== undefined && !["all", ...INR_ASSISTANT_STATS_CHANNELS].includes(patch.channel as never)
+    || patch.indexRangeMonths !== undefined && (!VISIBILITY_INDEX_RANGES.includes(patch.indexRangeMonths as VisibilityIndexRange)
+      || patch.metric !== undefined || patch.evolutionView !== undefined && patch.evolutionView !== "index" || patch.panel !== undefined && patch.panel !== "evolution")) return null;
   return { command: row.command, selection: { kind: "stats", id: "stats" }, revision: row.revision, patch: { ...patch } as InrAssistantStatsViewPatch };
 }
 export function isInrAssistantStatsUiCommandAvailable(command: unknown, pathname: unknown, kind: unknown) {

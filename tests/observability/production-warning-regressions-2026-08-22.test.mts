@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import ts from "typescript";
+import * as productNavigation from "../../lib/productNavigation.ts";
 
 const ROOT = process.cwd();
 const read = (relativePath: string) =>
@@ -20,7 +22,15 @@ function sourceFiles(directory: string): string[] {
 test("l’ancienne route Réputation ouvre les avis Google et les traductions du tableau restent disponibles", () => {
   const page = read("app/dashboard/e-reputation/page.tsx");
   const client = read("app/dashboard/e-reputation/EReputationReviewsClient.tsx");
-  assert.match(page, /redirect\("\/dashboard\?panel=gmb&googleReviews=1"\)/);
+  const destinations: string[] = [], runtime = { exports: {} as { default: () => void } };
+  const compiled = ts.transpileModule(page, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  new Function("module", "exports", "require", compiled)(runtime, runtime.exports, (name: string) => {
+    if (name === "next/navigation") return { redirect: (href: string) => { destinations.push(href); } };
+    assert.equal(name, "../../../lib/productNavigation.ts"); return productNavigation;
+  });
+  runtime.exports.default();
+  assert.deepEqual(destinations, ["/dashboard?panel=gmb&googleReviews=1"]);
+  assert.equal(destinations[0], productNavigation.PRODUCT_GOOGLE_REVIEWS_HREF);
   assert.match(client, /useTranslations\("reputation"\)/);
   assert.match(client, /i18nT\("refresh_reviews_aria"\)/);
   for (const locale of ["fr-FR", "en-GB"]) {

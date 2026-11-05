@@ -1,0 +1,1226 @@
+{
+  "app/dashboard/agent/AgentClient.tsx": {
+    "disposition": "basic",
+    "reason": "Planning des publications manuelles Booster disponible en Basique ; aucune idée, automatisation, campagne ou génération Agent activée.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/agent/AgentClient.tsx#a:0cac81d26c803ef6:1": {
+        "reason": "Branche bilan automatisé/campagne ou action explicitement réservée hors manualPlanningOnly ; le Basic ne possède que le planning manuel.",
+        "gateAnchor": "manualPlanningOnly={edition === \"basic\"}",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:8f24a9d8533924ef:1": {
+        "reason": "Branche bilan automatisé/campagne ou action explicitement réservée hors manualPlanningOnly ; le Basic ne possède que le planning manuel.",
+        "gateAnchor": "manualPlanningOnly={edition === \"basic\"}",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:8858ac2c784a260c:1": {
+        "reason": "Branche bilan automatisé/campagne ou action explicitement réservée hors manualPlanningOnly ; le Basic ne possède que le planning manuel.",
+        "gateAnchor": "manualPlanningOnly={edition === \"basic\"}",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:bd6d63c0297dc8b8:1": {
+        "reason": "Branche bilan automatisé/campagne ou action explicitement réservée hors manualPlanningOnly ; le Basic ne possède que le planning manuel.",
+        "gateAnchor": "manualPlanningOnly={edition === \"basic\"}",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#AgentPublicationChannelList:91f75e4d8908f6e6:1": {
+        "reason": "Mutation de choix des canaux explicitement refusée au Basic par la route native ; le rendu partagé ne confère aucun droit.",
+        "gateAnchor": "if (standardMode || basicMode) return premiumRequiredApiResponse();",
+        "gateFiles": [
+          "app/api/agent/scheduled-actions/[id]/route.ts"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:5ce50ae6ce237e35:1": {
+        "reason": "Branche bilan automatisé/campagne ou action explicitement réservée hors manualPlanningOnly ; le Basic ne possède que le planning manuel.",
+        "gateAnchor": "manualPlanningOnly={edition === \"basic\"}",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:51a0831da2ac42bb:1": {
+        "reason": "Validation/refus/restauration des propositions Agent hors session d’édition manuelle : aucune proposition Agent native dans le planning Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:3d7f357e2db9c157:1": {
+        "reason": "Validation/refus/restauration des propositions Agent hors session d’édition manuelle : aucune proposition Agent native dans le planning Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:34a9e0a1f8dadca9:1": {
+        "reason": "Validation/refus/restauration des propositions Agent hors session d’édition manuelle : aucune proposition Agent native dans le planning Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:10817efb02e22e77:1": {
+        "reason": "Indicateur de traitement toujours disabled, sans callback d’action ; aucun geste opérable à automatiser.",
+        "gateAnchor": "<button\n                              type=\"button\"\n                              key={theme}\n                              data-channel={\n                                rubrique.channelKey ||\n                                (theme === \"Vu",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:dc72dbc760c8c975:1": {
+        "reason": "CTA Brouillon masqué pendant édition programmée : son callback refusait déjà scheduledEditSession ; pas de changement des droits ni du parcours hors session.",
+        "gateAnchor": "!scheduledEditSession && (isCampaignView || isPublishView)",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx",
+          "app/dashboard/agent/_hooks/useAgentRuntimeData.ts"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:275d933b45a964a0:1": {
+        "reason": "Validation/refus/restauration des propositions Agent hors session d’édition manuelle : aucune proposition Agent native dans le planning Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#TiktokReviewCheckbox:b6d1157973577c3f:1": {
+        "reason": "Validation/refus/restauration des propositions Agent hors session d’édition manuelle : aucune proposition Agent native dans le planning Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:20234b5723ec8793:1": {
+        "reason": "Indicateur de traitement toujours disabled, sans callback d’action ; aucun geste opérable à automatiser.",
+        "gateAnchor": "<button\n                          type=\"button\"\n                          className={`${styles.actionProcessingButton} ${\n                            actionMutationIntent === \"refused\"\n                              ? styles.actionProcessing",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:a40628594aefd715:1": {
+        "reason": "Mutation de choix des canaux explicitement refusée au Basic par la route native ; le rendu partagé ne confère aucun droit.",
+        "gateAnchor": "if (standardMode || basicMode) return premiumRequiredApiResponse();",
+        "gateFiles": [
+          "app/api/agent/scheduled-actions/[id]/route.ts"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:7228219dad877897:1": {
+        "reason": "Refuser et précédent/suivant des propositions Agent ne sont pas des contrôles du planning Basic : actions natives et cache Agent exclus en manualPlanningOnly, et !scheduledEditSession pour ces boutons.",
+        "gateAnchor": "if (manualPlanningOnly) { setActions([]); return; }",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx",
+          "app/dashboard/agent/_hooks/useAgentRuntimeData.ts"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:b196d5848a7a9a30:1": {
+        "reason": "Refuser et précédent/suivant des propositions Agent ne sont pas des contrôles du planning Basic : actions natives et cache Agent exclus en manualPlanningOnly, et !scheduledEditSession pour ces boutons.",
+        "gateAnchor": "if (manualPlanningOnly) { setActions([]); return; }",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx",
+          "app/dashboard/agent/_hooks/useAgentRuntimeData.ts"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:3231c0c997bf5a9c:1": {
+        "reason": "Refuser et précédent/suivant des propositions Agent ne sont pas des contrôles du planning Basic : actions natives et cache Agent exclus en manualPlanningOnly, et !scheduledEditSession pour ces boutons.",
+        "gateAnchor": "if (manualPlanningOnly) { setActions([]); return; }",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx",
+          "app/dashboard/agent/_hooks/useAgentRuntimeData.ts"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#section:11712797b9b0751e:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section data-inrcy-tool-dialog\n            className={`${styles.settingsModal} ${styles.publishTextModal}`}\n            role=\"dialog\"\n            aria-modal=\"true\"\n            aria-label={i18nT(\"modifier_la_publication_295870a4\")}\n        ",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#MailAccountEditModal:841053826c502526:1": {
+        "reason": "Éditeur de boîte de campagne ouvert uniquement depuis workspace campagnes, refusé au Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx",
+          "app/dashboard/agent/_hooks/useAgentRuntimeData.ts"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#section:ec5aa8ebcc2f89cd:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section data-inrcy-tool-dialog\n            className={`${styles.settingsModal} ${styles.publishMediaModal}`}\n            role=\"dialog\"\n            aria-modal=\"true\"\n            aria-label={i18nT(\"media_de_la_publication_82477994\")}\n       ",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#section:f10af305796ab3f3:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section data-inrcy-tool-dialog\n            className={`${styles.settingsModal} ${styles.helpModal}`}\n            role=\"dialog\"\n            aria-modal=\"true\"\n            aria-label={i18nT(manualPlanningOnly ? \"manual_planning_help_label\" : ",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#div:dea58e57cd88260e:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#section:392c818c2413edfb:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section data-inrcy-tool-dialog\n            className={`${styles.settingsModal} ${styles.automationSettingsModal} ${publicationIdeasOpen ? styles.publicationIdeasWorkspace : \"\"} ${settingsAutomation.key === \"publish\" && !publicationIdeasOpe",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:5c445ddb5135fa06:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:e3e726ce712035bc:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:bccfd40178fc9171:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:d825693ef44ee424:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:6c926b8ea6f94d6d:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:a91b7ca95bfce06f:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:b5d1591557a59660:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:80f5284f2b9a7757:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:781178ac78863121:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:baa0136549f107b9:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:77ff35f7da660aae:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:77beb2b3e4a8fecb:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:6ef4be7291276633:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:2": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:937e627b18d5cce7:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:77beb2b3e4a8fecb:2": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:4ff508af5d26b375:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:3": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:a424dce4effaa936:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:ed79c0eac79efab8:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#AgentSettingsMultiSelect:7117bc6af5d0a8dc:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#AgentSettingsMultiSelect:0e33bbab5d29ee93:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:3cf4c9734c790332:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:3f86ac71b63bec0a:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#input:5bbbf2f3e43f2ab5:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:3cf4c9734c790332:2": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:3f86ac71b63bec0a:2": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:d4ef9c5b5adcc3d7:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#input:4006164296f86c7d:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#input:9ec61f47a6186f0b:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#input:0bdd5e115e3c6cb3:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#input:2120e74f92b6ef11:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:705d2303ef02c1c9:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#AgentMediaReferences:ec5c627e4b6075de:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:06b7951383d109fa:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:8ab029524c246fd5:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:219215dbb42c1879:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#div:ee41d671c4f26740:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#section:ea7a728011fc1aa4:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section\n            className={`${styles.settingsModal} ${styles.settingsImpactModal}`}\n            role=\"dialog\"\n            aria-modal=\"true\"\n            aria-label={i18nT(\n              \"choisir_quand_appliquer_les_nouveaux_reglages_744",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:52f934e79a7185a2:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:b0a1c4ab3cff6692:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:7d4c4a4e74680fc7:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:7c551a33e2c1a415:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#div:796f00d8bf646aab:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#section:cd54d64e0ef1863a:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section\n            className={`${styles.settingsModal} ${styles.campaignDraftModal}`}\n            role=\"dialog\"\n            aria-modal=\"true\"\n            aria-label={i18nT(\"preparer_une_nouvelle_campagne_9a083283\")}\n            onClick={(",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:a892bb520b3e9b35:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:7331c7b45ed925b5:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:a964359281d461b2:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      }
+    }
+  },
+  "app/dashboard/agent/_components/AgentActionModals.tsx": {
+    "disposition": "basic",
+    "reason": "Planning des publications manuelles Booster disponible en Basique ; aucune idée, automatisation, campagne ou génération Agent activée.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/agent/_components/AgentActionModals.tsx#div:160ba73ec063f7ae:1": {
+        "reason": "Choix Brouillon ouvert depuis le footer désormais exclu pendant la session programmée, comme son refus natif savePublishAsDraft. Hors session, aucune proposition Agent en Basic ; aucune nouvelle sauvegarde inventée.",
+        "gateAnchor": "!scheduledEditSession && (isCampaignView || isPublishView)",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#section:a6b08ba5a3631897:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section\n        className={`${styles.settingsModal} ${styles.campaignDraftModal}`}\n        role=\"dialog\"\n        aria-modal=\"true\"\n        aria-label={i18nT(\n          isPublishView\n            ? \"draft_save_publication_aria\"\n            :",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentActionModals.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:3ee60fec161a60db:1": {
+        "reason": "Choix Brouillon ouvert depuis le footer désormais exclu pendant la session programmée, comme son refus natif savePublishAsDraft. Hors session, aucune proposition Agent en Basic ; aucune nouvelle sauvegarde inventée.",
+        "gateAnchor": "!scheduledEditSession && (isCampaignView || isPublishView)",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:ae9ba3b919a4af57:1": {
+        "reason": "Choix Brouillon ouvert depuis le footer désormais exclu pendant la session programmée, comme son refus natif savePublishAsDraft. Hors session, aucune proposition Agent en Basic ; aucune nouvelle sauvegarde inventée.",
+        "gateAnchor": "!scheduledEditSession && (isCampaignView || isPublishView)",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:c08b2dde47ea363c:1": {
+        "reason": "Choix Brouillon ouvert depuis le footer désormais exclu pendant la session programmée, comme son refus natif savePublishAsDraft. Hors session, aucune proposition Agent en Basic ; aucune nouvelle sauvegarde inventée.",
+        "gateAnchor": "!scheduledEditSession && (isCampaignView || isPublishView)",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#section:c47e3e61e4930f42:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section\n        className={`${styles.settingsModal} ${styles.campaignEditModal}`}\n        role=\"dialog\"\n        aria-modal=\"true\"\n        aria-label={i18nT(\"modifier_la_publication_295870a4\")}\n        onClick={(event) => event.stopPropagat",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentActionModals.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#div:ca541598fce9e597:2": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#section:71b158062a402148:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section\n        className={`${styles.settingsModal} ${styles.campaignEditModal}`}\n        role=\"dialog\"\n        aria-modal=\"true\"\n        aria-label={i18nT(\"modifier_la_campagne_cb246f76\")}\n        onClick={(event) => event.stopPropagation",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentActionModals.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:1829b8397802b024:2": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:8cc44a480dd1954d:2": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:746da1ee31640c64:1": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:f839c624300b9cc7:1": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:bd22cb120de04fb4:1": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#div:120a293f05df6146:1": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#section:0ec356b6945845a8:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section data-inrcy-tool-dialog\n        className={`${styles.settingsModal} ${styles.agentListModal}`}\n        role=\"dialog\"\n        aria-modal=\"true\"\n        aria-label={i18nT(\"destinataires_prevus_8f9d87d7\")}\n        onClick={(event) => e",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentActionModals.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:1829b8397802b024:3": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:cb715110862688aa:1": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:be2f9385255b5b76:1": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#div:120a293f05df6146:2": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#section:6270740826cc819f:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section data-inrcy-tool-dialog\n        className={`${styles.settingsModal} ${styles.agentListModal}`}\n        role=\"dialog\"\n        aria-modal=\"true\"\n        aria-label={i18nT(\"modifier_la_boite_d_envoi_a79d173b\")}\n        onClick={(event)",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentActionModals.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:1829b8397802b024:4": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#input:ed76496261f362f0:1": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:ae9ba3b919a4af57:2": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:a9fa218508683c29:1": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#div:120a293f05df6146:3": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#section:15d8a1e8745cedfc:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section data-inrcy-tool-dialog\n        className={`${styles.settingsModal} ${styles.attachmentModal}`}\n        role=\"dialog\"\n        aria-modal=\"true\"\n        aria-label={i18nT(\"piece_jointe_2ecefd2c\")}\n        onClick={(event) => event.st",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentActionModals.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:1829b8397802b024:5": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#input:747cfa1c786a1874:1": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:1a68768bf1fdfcb2:1": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:a49a0e75949abb19:1": {
+        "reason": "Éditeurs de campagne, destinataires et boîte mail réservés au workspace campagnes, refusé à Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#section:8066233377ee8545:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section data-inrcy-tool-dialog\n        className={`${styles.settingsModal} ${styles.scheduleModal}`}\n        role=\"dialog\"\n        aria-modal=\"true\"\n        aria-label={i18nT(\"actions_programmees_77ae2684\")}\n        onClick={(event) => eve",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentActionModals.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:9984e298b79aa0a1:1": {
+        "reason": "Le filtre de catégorie n’est pas monté lorsque seule la publication manuelle Basic est admissible.",
+        "gateAnchor": "{scheduleFilters.length > 1 ?",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentActionModals.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#input:220b90c1430bd4f6:1": {
+        "reason": "Le filtre de catégorie n’est pas monté lorsque seule la publication manuelle Basic est admissible.",
+        "gateAnchor": "{scheduleFilters.length > 1 ?",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentActionModals.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#div:554008b5e5bd5be9:1": {
+        "reason": "Choix de validation des propositions Agent, absent pendant la session manuelle Basic.",
+        "gateAnchor": "!scheduledEditSession",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#section:d61b6a8fea658b75:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section\n        className={`${styles.settingsModal} ${styles.validationChoiceModal}`}\n        role=\"dialog\"\n        aria-modal=\"true\"\n        aria-label={i18nT(\"valider_l_action_inr_agent_be980832\")}\n        onClick={(event) => event.stopP",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentActionModals.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:b9e2ef489ff63038:1": {
+        "reason": "Choix de validation des propositions Agent, absent pendant la session manuelle Basic.",
+        "gateAnchor": "!scheduledEditSession",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:771dca6e065ca907:1": {
+        "reason": "Choix de validation des propositions Agent, absent pendant la session manuelle Basic.",
+        "gateAnchor": "!scheduledEditSession",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:d11ae3237a2e216a:1": {
+        "reason": "Choix de validation des propositions Agent, absent pendant la session manuelle Basic.",
+        "gateAnchor": "!scheduledEditSession",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      }
+    }
+  },
+  "app/dashboard/agent/_components/AgentCampaignAccess.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Écran de verrouillage des sous-routes Agent hors publications manuelles ; ces routes sont refusées au pack Basique.",
+    "gateAnchor": "if (edition === \"basic\" && pathMatches(pathname, \"/dashboard/agent\")",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ]
+  },
+  "app/dashboard/agent/_components/AgentCampaignEditors.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Réglages/idées/références des automatisations, dont le point d’entrée est absent du planning manuel Basique. Les callbacks et composants ne constituent pas de droits Basic.",
+    "gateAnchor": "!props.manualPlanningOnly",
+    "gateFiles": [
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+    ]
+  },
+  "app/dashboard/agent/_components/AgentFeedbackModals.tsx": {
+    "disposition": "basic",
+    "reason": "Planning des publications manuelles Booster disponible en Basique ; aucune idée, automatisation, campagne ou génération Agent activée.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/agent/_components/AgentFeedbackModals.tsx#div:55c156eed4e54ef5:1": {
+        "reason": "Retour du lancement d’une campagne Agent, exclue du workspace manuel Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentFeedbackModals.tsx#section:e92ad2bb5db5d69e:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section\n            className={`${styles.settingsModal} ${styles.validationChoiceModal}`}\n            role=\"dialog\"\n            aria-modal=\"true\"\n            aria-label={i18nT(\"campagne_lancee_cd26fb1b\")}\n            onClick={(event) => ev",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentFeedbackModals.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentFeedbackModals.tsx#button:a01f6611f8947a6f:1": {
+        "reason": "Retour du lancement d’une campagne Agent, exclue du workspace manuel Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentFeedbackModals.tsx#button:11f7a6e2a8ca27d6:1": {
+        "reason": "Retour du lancement d’une campagne Agent, exclue du workspace manuel Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentFeedbackModals.tsx#button:0ac19efc565f6316:1": {
+        "reason": "Retour du lancement d’une campagne Agent, exclue du workspace manuel Basic.",
+        "gateAnchor": "if (edition === \"basic\" && workspace !== \"publications\")",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentFeedbackModals.tsx#section:7ab61228642fb2ea:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<section\n            className={`${styles.settingsModal} ${styles.validationChoiceModal}`}\n            role=\"dialog\"\n            aria-modal=\"true\"\n            ref={confirmRef}\n            aria-label={confirmDialog.title}\n            onClick",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentFeedbackModals.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentFeedbackModals.tsx#button:b34fa6b4f30c1b71:1": {
+        "reason": "Choix de régénération ou activation/réglages automatiques ouverts uniquement hors mode manuel : canRegenerateSelectedPublication impose !manualPlanningOnly et le header automation est masqué.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentFeedbackModals.tsx#button:e72101f443c9f6ab:1": {
+        "reason": "Choix de régénération ou activation/réglages automatiques ouverts uniquement hors mode manuel : canRegenerateSelectedPublication impose !manualPlanningOnly et le header automation est masqué.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentFeedbackModals.tsx#button:1dd1328ee7c0fd32:1": {
+        "reason": "Choix de régénération ou activation/réglages automatiques ouverts uniquement hors mode manuel : canRegenerateSelectedPublication impose !manualPlanningOnly et le header automation est masqué.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      }
+    }
+  },
+  "app/dashboard/agent/_components/AgentMediaImage.tsx": {
+    "disposition": "basic",
+    "reason": "Planning des publications manuelles Booster disponible en Basique ; aucune idée, automatisation, campagne ou génération Agent activée.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/agent/_components/AgentMediaReferences.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Réglages/idées/références des automatisations, dont le point d’entrée est absent du planning manuel Basique. Les callbacks et composants ne constituent pas de droits Basic.",
+    "gateAnchor": "!props.manualPlanningOnly",
+    "gateFiles": [
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+    ]
+  },
+  "app/dashboard/agent/_components/AgentPublicationChannelList.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Choix des canaux d’une programmation : mutation native publish_channel_selection réservée Premium, explicitement refusée Basic/Standard. Aucun outil Basique n’utilise ce chemin.",
+    "gateAnchor": "if (standardMode || basicMode) return premiumRequiredApiResponse();",
+    "gateFiles": [
+      "app/api/agent/scheduled-actions/[id]/route.ts"
+    ]
+  },
+  "app/dashboard/agent/_components/AgentPublicationIdeasEditor.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Réglages/idées/références des automatisations, dont le point d’entrée est absent du planning manuel Basique. Les callbacks et composants ne constituent pas de droits Basic.",
+    "gateAnchor": "!props.manualPlanningOnly",
+    "gateFiles": [
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+    ]
+  },
+  "app/dashboard/agent/_components/AgentPublicationNavigation.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Navigation et filtres des propositions Agent : aucune proposition ni cache Agent chargé en Basic ; canNavigatePublications impose en outre !scheduledEditSession. Le carrousel jour du calendrier manuel est recensé séparément.",
+    "gateAnchor": "if (manualPlanningOnly) { setActions([]); return; }",
+    "gateFiles": [
+      "app/dashboard/agent/_hooks/useAgentRuntimeData.ts",
+      "app/dashboard/agent/AgentClient.tsx"
+    ]
+  },
+  "app/dashboard/agent/_components/AgentSettingsMultiSelect.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Réglages/idées/références des automatisations, dont le point d’entrée est absent du planning manuel Basique. Les callbacks et composants ne constituent pas de droits Basic.",
+    "gateAnchor": "!props.manualPlanningOnly",
+    "gateFiles": [
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+    ]
+  },
+  "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx": {
+    "disposition": "basic",
+    "reason": "Planning des publications manuelles Booster disponible en Basique ; aucune idée, automatisation, campagne ou génération Agent activée.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx#button:4c9261b8ec3ec327:1": {
+        "reason": "Idées, préparation automatique, réglages/activation Agent et campagnes absents du header du planning manuel Basic.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx#button:efadd5ea98c489ce:1": {
+        "reason": "Idées, préparation automatique, réglages/activation Agent et campagnes absents du header du planning manuel Basic.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx#button:f062d1908e3e4338:1": {
+        "reason": "Idées, préparation automatique, réglages/activation Agent et campagnes absents du header du planning manuel Basic.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx#button:09a851fe428267fc:1": {
+        "reason": "Idées, préparation automatique, réglages/activation Agent et campagnes absents du header du planning manuel Basic.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx#button:eb93fbcfba1ad4df:1": {
+        "reason": "Idées, préparation automatique, réglages/activation Agent et campagnes absents du header du planning manuel Basic.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      }
+    }
+  },
+  "app/dashboard/mails/MailboxClient.tsx": {
+    "disposition": "basic",
+    "reason": "Historique et brouillons Publications utilisables en Basique ; seules les branches publications sont retenues, mails/campagnes et comptabilité gardent leurs gates.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/mails/MailboxClient.tsx#button:7c716f5e7598755f:1": {
+        "reason": "Retour de diffusion d’une campagne mail, non monté en Basic.",
+        "gateAnchor": "{!standardMode && campaignDistributionNotice ? (",
+        "gateFiles": [
+          "app/dashboard/mails/MailboxClient.tsx"
+        ]
+      }
+    }
+  },
+  "app/dashboard/mails/_components/AdsCampaignDetailsModal.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Campagnes publicitaires Ads : branche conditionnée par le droit Ads, routes /dashboard/ads bloquées en Basique. Aucun contrôle publicitaire ne devient disponible par l’historique.",
+    "gateAnchor": "const adsCampaignsSelected = adsEnabled &&",
+    "gateFiles": [
+      "app/dashboard/mails/MailboxClient.tsx"
+    ]
+  },
+  "app/dashboard/mails/_components/AdsCampaignsFolder.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Campagnes publicitaires Ads : branche conditionnée par le droit Ads, routes /dashboard/ads bloquées en Basique. Aucun contrôle publicitaire ne devient disponible par l’historique.",
+    "gateAnchor": "const adsCampaignsSelected = adsEnabled &&",
+    "gateFiles": [
+      "app/dashboard/mails/MailboxClient.tsx"
+    ]
+  },
+  "app/dashboard/mails/_components/FolderTabs.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Sélecteur de dossiers masqué dans iNrSend Basique (historique Publications uniquement, Ads verrouillé). La boîte et les dossiers mails/campagnes ne sont pas des fonctions Basique.",
+    "gateAnchor": "{(!standardMode || adsEnabled) ? (",
+    "gateFiles": [
+      "app/dashboard/mails/MailboxClient.tsx"
+    ]
+  },
+  "app/dashboard/mails/_components/MailboxComposeModal.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composition et envoi mail réservés aux éditions avec mail ; MailboxPageClient applique standardMode aussi à Basic. Historique Publications conservé séparément.",
+    "gateAnchor": "{!standardMode ? (\n          <MailboxComposeModal",
+    "gateFiles": [
+      "app/dashboard/mails/MailboxClient.tsx"
+    ]
+  },
+  "app/dashboard/mails/_components/MailboxDetailsModal.tsx": {
+    "disposition": "basic",
+    "reason": "Historique et brouillons Publications utilisables en Basique ; seules les branches publications sont retenues, mails/campagnes et comptabilité gardent leurs gates.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#div:2f5ce4dfe6b379ba:1": {
+        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
+        "gateAnchor": "<div className={`${styles.modalCard} ${styles.detailsModalCard}`} onClick={(e) => e.stopPropagation()}>\n              <div className={styles.modalHeader}>\n                <div style={{ display: \"flex\", gap: 10, alignItems: \"center\", flexWra",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:045143b4b20e97de:1": {
+        "reason": "Dans la branche send_items, la projection native mapSendItems fournit reopenHref uniquement vers devis/factures source. canReopenDetailsItem refuse ces href quand documentsEnabled est faux ; ce contrôle comptable Founder ne fait pas partie de l’historique Publications Basic.",
+        "gateAnchor": "documentsEnabled || !isAccountingDashboardHref(detailsItem?.reopenHref)",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx",
+          "app/api/inrsend/history/route.ts"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:47fed9a89a77d5aa:1": {
+        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+        "gateAnchor": "documentsEnabled &&",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:1c1b337cd0fcdf6c:1": {
+        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+        "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:b2de55afbadc3e01:1": {
+        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+        "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:8c2a62f7422281dc:1": {
+        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+        "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:9775e38183dfca8c:1": {
+        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+        "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:56208ade8f44205c:1": {
+        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+        "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:045143b4b20e97de:2": {
+        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+        "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:813669ae170ad91e:1": {
+        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+        "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:1a1eed952a38cb93:1": {
+        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+        "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:fcd6454c12c76973:1": {
+        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+        "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:92ac308619bca678:1": {
+        "reason": "Campagnes mail absentes du dossier Publications Basic ; conversion de devis conditionnée au droit documentsEnabled Founder. Les anciens send_items de type publication restent inclus séparément.",
+        "gateAnchor": "detailsItem.source === \"mail_campaigns\"",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
+        ]
+      }
+    }
+  },
+  "app/dashboard/mails/_components/MailboxHeader.tsx": {
+    "disposition": "basic",
+    "reason": "Historique et brouillons Publications utilisables en Basique ; seules les branches publications sont retenues, mails/campagnes et comptabilité gardent leurs gates.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/mails/_components/MailboxHeader.tsx#ResponsiveActionButton:1c31786e39684a86:1": {
+        "reason": "Réglages de boîte et signature mail masqués en Basic/Standard, historique Publications indépendant.",
+        "gateAnchor": "{!standardMode ? (",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxHeader.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxHeader.tsx#a:37e9fa8293b960ae:1": {
+        "reason": "Réglages de boîte et signature mail masqués en Basic/Standard, historique Publications indépendant.",
+        "gateAnchor": "{!standardMode ? (",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxHeader.tsx"
+        ]
+      }
+    }
+  },
+  "app/dashboard/mails/_components/MailboxList.tsx": {
+    "disposition": "basic",
+    "reason": "Historique et brouillons Publications utilisables en Basique ; seules les branches publications sont retenues, mails/campagnes et comptabilité gardent leurs gates.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/mails/_components/MailboxSearchPanel.tsx": {
+    "disposition": "basic",
+    "reason": "Historique et brouillons Publications utilisables en Basique ; seules les branches publications sont retenues, mails/campagnes et comptabilité gardent leurs gates.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/mails/_components/MailboxToolbar.tsx": {
+    "disposition": "basic",
+    "reason": "Historique et brouillons Publications utilisables en Basique ; seules les branches publications sont retenues, mails/campagnes et comptabilité gardent leurs gates.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/mails/_components/MailboxToolbar.tsx#select:d9adcdb66da4435e:1": {
+        "reason": "Filtre de boîte ou nouveau mail masqué par publicationOnly en Basic ; aucun envoi mail autorisé.",
+        "gateAnchor": "{!publicationOnly ? (",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxToolbar.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxToolbar.tsx#option:8e4cf7ba06fd9291:1": {
+        "reason": "Filtre de boîte ou nouveau mail masqué par publicationOnly en Basic ; aucun envoi mail autorisé.",
+        "gateAnchor": "{!publicationOnly ? (",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxToolbar.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxToolbar.tsx#option:7f470627372744c0:1": {
+        "reason": "Filtre de boîte ou nouveau mail masqué par publicationOnly en Basic ; aucun envoi mail autorisé.",
+        "gateAnchor": "{!publicationOnly ? (",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxToolbar.tsx"
+        ]
+      },
+      "app/dashboard/mails/_components/MailboxToolbar.tsx#button:b8302a4724b51b25:1": {
+        "reason": "Filtre de boîte ou nouveau mail masqué par publicationOnly en Basic ; aucun envoi mail autorisé.",
+        "gateAnchor": "{!publicationOnly ? (",
+        "gateFiles": [
+          "app/dashboard/mails/_components/MailboxToolbar.tsx"
+        ]
+      }
+    }
+  }
+}

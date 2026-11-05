@@ -3,6 +3,9 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import { parseInrAssistantShellSelection } from "@/lib/inrAssistantShellSelection";
+import { useInrAssistantContentReport } from "../_hooks/useInrAssistantContentReport";
 
 import styles from "./AiContentReportButton.module.css";
 
@@ -23,6 +26,10 @@ export default function AiContentReportButton({ surface, content = "", className
   const [status, setStatus] = useState<ReportState>("idle");
   const [error, setError] = useState("");
   const dialogRef = useRef<HTMLElement>(null);
+  const [attempted, setAttempted] = useState(false);
+  const [generation, setGeneration] = useState(0);
+  const generationRef = useRef(0);
+  const inFlight = useRef(false);
 
   useEffect(() => setMounted(true), []);
 
@@ -61,6 +68,9 @@ export default function AiContentReportButton({ surface, content = "", className
   }, [open]);
 
   function showDialog() {
+    generationRef.current += 1;
+    setGeneration(generationRef.current);
+    setAttempted(false);
     setReason("offensive");
     setComment("");
     setError("");
@@ -70,6 +80,15 @@ export default function AiContentReportButton({ surface, content = "", className
 
   async function submitReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    await sendReport();
+  }
+
+  async function sendReport(stillCurrent: () => boolean = () => true): Promise<boolean> {
+    const start = generationRef.current;
+    const valid = () => stillCurrent() && generationRef.current === start;
+    if (inFlight.current || !valid()) return false;
+    inFlight.current = true;
+    setAttempted(true);
     setStatus("sending");
     setError("");
 
@@ -86,13 +105,40 @@ export default function AiContentReportButton({ surface, content = "", className
         }),
       });
       const result = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(result?.message || t("ai_report_send_failed"));
+      if (!valid()) return false;
+      if (!response.ok || result?.ok !== true) throw new Error(result?.message || t("ai_report_send_failed"));
       setStatus("sent");
+      return true;
     } catch (submissionError) {
+      if (!valid()) return false;
       setError(submissionError instanceof Error ? submissionError.message : t("ai_report_generic_error"));
       setStatus("error");
+      return false;
+    } finally {
+      inFlight.current = false;
     }
   }
+
+  useInrAssistantContentReport({ open: mounted && open, surface, content, reason, comment, status, attempted, generation }, sendReport);
+
+  const reportSnapshot = { open, reason, comment, status, surface, content };
+  useInrAssistantLocalInterface("content_report", reportSnapshot, {
+    ...(!open ? { open: { invoke: () => showDialog(), matches: (snapshot: unknown) => (snapshot as typeof reportSnapshot).open } } : {
+      close: { invoke: () => setOpen(false), matches: (snapshot: unknown) => !(snapshot as typeof reportSnapshot).open },
+      ...(status !== "sent" ? { select: {
+        invoke: (value: string | null) => {
+          const input = parseInrAssistantShellSelection(value);
+          if (input?.field === "reason" && ["offensive", "unsafe", "false_information", "copyright", "other"].includes(input.value)) setReason(input.value);
+          else if (input?.field === "comment" && input.value.length <= 2000) setComment(input.value);
+          else throw new Error("content_report_draft_invalid");
+        },
+        matches: (snapshot: unknown, value: string | null) => {
+          const input = parseInrAssistantShellSelection(value), current = snapshot as typeof reportSnapshot;
+          return input?.field === "reason" ? current.reason === input.value : input?.field === "comment" && current.comment === input.value;
+        },
+      } } : {}),
+    }),
+  }, mounted, status === "sending", open ? 1 : 0);
 
   const dialog = open ? (
     <div className={styles.backdrop} role="presentation" onMouseDown={(event) => {

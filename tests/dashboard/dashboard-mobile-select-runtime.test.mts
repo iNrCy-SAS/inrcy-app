@@ -9,6 +9,7 @@ import * as adsLifecycle from "../../lib/adsCampaignLifecycle.ts";
 import * as adsMetrics from "../../lib/adsCampaignMetrics.ts";
 import * as adsLabels from "../../app/dashboard/mails/_components/adsCampaignsFolder.shared.ts";
 import * as reviewPageCache from "../../app/dashboard/e-reputation/review-page-cache.ts";
+import { createNativeLocalHookLoader } from "../helpers/assistant-native-local-hooks.mts";
 
 const require = createRequire(import.meta.url);
 type Props = Record<string, unknown>;
@@ -21,11 +22,15 @@ function load(file: string, stubs: Record<string, unknown> = {}, localFetch: typ
   const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loadedModule = { exports: {} as { default: (props: Props) => ReactNode } };
-  new Function("module", "exports", "require", "document", "HTMLElement", "fetch", compiled)(loadedModule, loadedModule.exports, (name: string) => {
+  const dependency = (name: string): unknown => {
+    if (name === "next/navigation") return { usePathname: () => "/dashboard", ...(stubs[name] as object | undefined) };
     if (Object.hasOwn(stubs, name)) return stubs[name];
+    if (name.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "mobile-actor", activeAccountId: "reviews-account" }) };
     if (name.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
     return require(name);
-  }, { activeElement: null, body: {}, addEventListener() {}, removeEventListener() {} }, class {}, localFetch);
+  };
+  const nativeHooks = createNativeLocalHookLoader(dependency);
+  new Function("module", "exports", "require", "document", "HTMLElement", "fetch", compiled)(loadedModule, loadedModule.exports, (name: string) => nativeHooks(name) ?? dependency(name), { activeElement: null, body: {}, addEventListener() {}, removeEventListener() {} }, class {}, localFetch);
   return loadedModule.exports;
 }
 const mobile = load("app/dashboard/_components/DashboardMobileSelect.tsx");
@@ -66,6 +71,8 @@ function statefulHooks(runEffects = false) {
     useCallback: (callback: unknown) => callback,
     useEffectEvent: (callback: unknown) => callback,
     useRef(initial: unknown) { const slot = cursor++; return values[slot] ||= { current: initial }; },
+    useId: () => `mobile-native-${cursor++}`,
+    useLayoutEffect(effect: () => void, deps?: unknown[]) { react.useEffect(effect, deps); },
     useEffect(effect: () => void, deps?: unknown[]) {
       const slot = cursor++;
       if (!runEffects) return;
@@ -162,24 +169,37 @@ test("iNrStats mobile choices include overview, evolution and only available cha
   assert.equal(capture, false);
 });
 
-test("iNrStats evolution selector preserves the existing measured/index state setter", () => {
-  const selected: unknown[] = [];
+test("iNrStats evolution selectors preserve the parent-controlled measured/index view and its native filters", () => {
+  const selected: unknown[] = [], historyUpdates: unknown[] = [];
   const measured = () => null;
   const index = () => null;
   const evolution = load("app/dashboard/stats/StatsEvolution.tsx", {
-    react: { useState: (value: unknown) => [value, (next: unknown) => selected.push(next)], useCallback: (callback: unknown) => callback },
+    react: { useState: (value: unknown) => [value, (next: unknown) => historyUpdates.push(next)], useCallback: (callback: unknown) => callback },
     "next-intl": { useTranslations: () => (key: string) => key },
     "../_components/DashboardMobileSelect": mobile,
     "./StatsMeasuredEvolution": { __esModule: true, default: measured },
     "./StatsVisibilityIndex": { __esModule: true, default: index },
   });
-  const tree = evolution.default({ enabled: true, accountId: "fixture", refreshKey: 0, channels: [], ready: true });
+  const props = { enabled: true, accountId: "fixture", refreshKey: 0, channels: [], ready: true, view: "measured", onViewChange: (value: unknown) => selected.push(value), metric: "clicks", onMetricChange: () => {}, channel: "facebook", onChannelChange: () => {}, indexChannel: "all", onIndexChannelChange: () => {}, indexRange: 3, onIndexRangeChange: () => {}, onIndexHistoryStateChange: () => {} };
+  const tree = evolution.default(props);
   const panel = nodes(tree).find((node) => node.type === measured)!;
   assert.equal(panel.props.enabled, true);
   assert.equal(nodes(tree).find((node) => node.type === index)?.props.enabled, false);
+  assert.equal(panel.props.metric, "clicks"); assert.equal(panel.props.channel, "facebook"); assert.equal(panel.props.onMetricChange, props.onMetricChange); assert.equal(panel.props.onChannelChange, props.onChannelChange);
   const choice = nodes(panel.props.tabs as ReactNode).find((node) => node.type === mobile.default)!;
   const control = selector(choice.props);
   assert.deepEqual(nodes(control).filter((node) => node.type === "option").map((node) => node.props.value), ["measured", "index"]);
   (control.props.onChange as (event: unknown) => void)({ currentTarget: { value: "index" } });
   assert.deepEqual(selected, ["index"]);
+  assert.equal(control.props.value, "measured", "a selection requests its parent update instead of inventing local state");
+  const changed = evolution.default({ ...props, view: "index" }), measuredAfter = nodes(changed).find(node => node.type === measured)!, indexAfter = nodes(changed).find(node => node.type === index)!;
+  assert.equal(measuredAfter.props.enabled, false); assert.equal(indexAfter.props.enabled, true);
+  assert.equal(indexAfter.props.channel, "all"); assert.equal(indexAfter.props.preferredRange, 3); assert.equal(indexAfter.props.onChannelChange, props.onIndexChannelChange); assert.equal(indexAfter.props.onRangeChange, props.onIndexRangeChange);
+  const nextChoice = nodes(indexAfter.props.tabs as ReactNode).find(node => node.type === mobile.default)!;
+  assert.equal(selector(nextChoice.props).props.value, "index");
+  const measuredButton = nodes(indexAfter.props.tabs as ReactNode).find(node => node.type === "button" && node.props["aria-pressed"] === false)!;
+  (measuredButton.props.onClick as () => void)(); assert.deepEqual(selected, ["index", "measured"], "desktop and mobile request the same native setter");
+  const hidden = evolution.default({ ...props, view: "index", enabled: false });
+  assert.equal(nodes(hidden).find(node => node.type === measured)?.props.enabled, false); assert.equal(nodes(hidden).find(node => node.type === index)?.props.enabled, false);
+  assert.deepEqual(historyUpdates, [], "switching the parent-controlled view must not write monthly history");
 });

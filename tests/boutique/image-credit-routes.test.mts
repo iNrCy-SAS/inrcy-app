@@ -1,3 +1,4 @@
+import * as creditOrderRequestScope from "../../lib/boutique/creditOrderRequestScope.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -22,6 +23,7 @@ function fixture({role="owner",activeAccount=account,owned=true,pending=false}:{
   const order={id:"33333333-3333-4333-8333-333333333333",account_id:account,images:20,status:"pending",granted_at:null as string|null,
     stripe_checkout_session_id:"cs_test",revoked_images:0,pack_key:"image_20",created_at:new Date().toISOString()};
   const modules={
+    "@/lib/boutique/creditOrderRequestScope": creditOrderRequestScope,
     "next/server":{NextResponse:{json:(body: unknown,init?:ResponseInit)=>Response.json(body,init)}},
     "@/lib/requireUser":{requireUser:async()=>auth},
     "@/lib/boutique/imageCreditPayments":{

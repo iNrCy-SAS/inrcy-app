@@ -20,6 +20,9 @@ async function setup(page: Page, componentFile: string, fixture: string, mocks =
     "react-dom/client": packageSource("react-dom", "react-dom-client.development.js"),
     scheduler: packageSource("scheduler", "scheduler.development.js"),
     subject: compile(componentFile),
+    "./useInrAssistantRefresh": compile("app/dashboard/_hooks/useInrAssistantRefresh.ts"),
+    "../_hooks/useInrAssistantRefresh": compile("app/dashboard/_hooks/useInrAssistantRefresh.ts"),
+    "@/lib/inrAssistantRefresh": compile("lib/inrAssistantRefresh.ts"),
   };
   await page.route("**/*", route => route.abort());
   await page.setContent('<!doctype html><html><body><div id="root"></div><button id="outside">Outside</button></body></html>');
@@ -27,14 +30,19 @@ async function setup(page: Page, componentFile: string, fixture: string, mocks =
     const sources=${JSON.stringify(sources)},cache={},process={env:{NODE_ENV:'development'}},translate=key=>key;
     const fixtureModules=${mocks};
     function require(name){
+      if(name.endsWith('useInrAssistantLocalInterface'))return {useInrAssistantLocalInterface(){}};
+      if(name.endsWith('useInrAssistantLocalClose'))return {useInrAssistantLocalClose(){}};
       if(Object.hasOwn(fixtureModules,name))return fixtureModules[name];
       if(name.endsWith('.css'))return{__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
       if(name==='next-intl')return{useTranslations:()=>translate,useLocale:()=>'fr-FR'};
+      if(name==='@/lib/browserAccountCache')return{getActiveBrowserUserId:()=>window.fixtureRefreshAccount||'fixture-account'};
       if(name==='@/lib/multicompte/constants')return{ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
       if(name==='@/lib/aiMediaGenerationPreferences')return{normalizeAiMediaGeneratorPreferences:value=>value||{version:1,blocks:{1:{saved:false},2:{saved:false}}}};
       if(cache[name])return cache[name].exports;
       if(!sources[name])throw Error('Unexpected fixture import '+name);
-      const module=cache[name]={exports:{}};new Function('require','module','exports','process',sources[name])(require,module,module.exports,process);return module.exports;
+      const module=cache[name]={exports:{}};new Function('require','module','exports','process',sources[name])(require,module,module.exports,process);
+      if(name==='@/lib/inrAssistantRefresh'){const subscribe=module.exports.subscribeInrAssistantRefresh;module.exports.subscribeInrAssistantRefresh=options=>{window.nativeRefreshTopics=[...options.topics];return subscribe(options)}};
+      return module.exports;
     }
     const React=require('react'),Subject=require('subject').default,root=require('react-dom/client').createRoot(document.getElementById('root'));
     ${fixture}
@@ -83,6 +91,7 @@ test("preference cleanup aborts PATCH controllers added after mount, including a
       window.unmount=()=>root.unmount();
     `);
     await page.waitForFunction("window.requests.length === 2");
+    assert.deepEqual(await page.evaluate("window.nativeRefreshTopics"), ["settings"], "The real refresh hook mounts with its current options contract");
     await page.evaluate("window.requests.at(-1).reply({version:1,blocks:{1:{saved:false},2:{saved:false}}})");
     await page.waitForFunction("window.hook.loaded");
     await page.evaluate("void window.hook.saveBlock(1,true,{kind:'image',subjectSource:'profile'})");

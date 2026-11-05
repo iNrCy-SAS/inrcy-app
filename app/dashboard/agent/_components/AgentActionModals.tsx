@@ -1,4 +1,6 @@
 import { useLocale, useTranslations } from "next-intl";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
+import { parseInrAssistantPlanningDaySelection, parseInrAssistantPlanningFilterSelection, parseInrAssistantPlanningItemSelection } from "@/lib/inrAssistantHistoryUiSelection";
 import { agentPublicationHistoryWindow, parisHistoryCalendarParts } from "@/lib/inrAgentPublicationHistory";
 import {
   useEffect,
@@ -225,6 +227,7 @@ type PublishEditChoiceModalProps = {
   onClose: () => void;
   onOpenText: () => void;
   onOpenMedia: () => void;
+  activeEditor?: "text" | "media" | null;
 };
 
 export function PublishEditChoiceModal({
@@ -235,8 +238,20 @@ export function PublishEditChoiceModal({
   onClose,
   onOpenText,
   onOpenMedia,
+  activeEditor = null,
 }: PublishEditChoiceModalProps) {
   const i18nT = useTranslations("agent");
+  const choice = { open, activeEditor };
+  useInrAssistantLocalInterface("planning_edit_choice", choice, {
+    close: { invoke: () => onClose(), matches: snapshot => !(snapshot as typeof choice).open, allowUnmount: true },
+    select: {
+      invoke: value => {
+        if (!open) throw new Error("Planning editor choice is not open");
+        if (value === "text") onOpenText(); else if (value === "media") onOpenMedia(); else throw new Error("Unavailable planning editor");
+      },
+      matches: (snapshot, value) => { const current = snapshot as typeof choice; return !current.open && current.activeEditor === value; },
+    },
+  }, isPublishView && hasPreparedAction, !open, open ? 1 : 0);
   if (!open || !isPublishView || !hasPreparedAction) return null;
   return (
     <div className={styles.modalBackdrop} role="presentation" onClick={onClose}>
@@ -827,7 +842,8 @@ type AgentScheduleModalProps = {
   showStats?: boolean;
   showCampaigns?: boolean;
   onClose: () => void;
-  onOpenContent: (item: ScheduleListItem) => void;
+  onOpenContent: (item: ScheduleListItem, canContinue?: () => boolean) => void;
+  openedItemId?: string | null;
   onReschedule: (item: ScheduleListItem) => void;
   onDelete: (item: ScheduleListItem) => void;
 };
@@ -844,6 +860,7 @@ export function AgentScheduleModal({
   showCampaigns = true,
   onClose,
   onOpenContent,
+  openedItemId = null,
   onReschedule,
   onDelete,
 }: AgentScheduleModalProps) {
@@ -851,6 +868,7 @@ export function AgentScheduleModal({
   const locale = useLocale();
   const [activeFilters, setActiveFilters] = useState(DEFAULT_SCHEDULE_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [disclosures, setDisclosures] = useState<Record<string, { actions?: boolean; channels?: boolean }>>({});
   const [nowTimestamp, setNowTimestamp] = useState(() => Date.now());
   const [activeDayCarouselIndexes, setActiveDayCarouselIndexes] = useState<
     Record<string, number>
@@ -1001,6 +1019,82 @@ export function AgentScheduleModal({
     );
     setActiveDayCarouselIndexes({});
   };
+  const moveDayCarousel = (dayKey: string, offset: -1 | 1) => {
+    const day = calendarModel.days.find(item => item.dayKey === dayKey);
+    if (!day || day.groups.length < 2) return;
+    setActiveDayCarouselIndexes(current => {
+      const index = Math.min(Math.max(current[dayKey] ?? 0, 0), day.groups.length - 1);
+      return { ...current, [dayKey]: (index + offset + day.groups.length) % day.groups.length };
+    });
+  };
+  const monthKey = `${visibleMonth.getFullYear()}-${String(visibleMonth.getMonth() + 1).padStart(2, "0")}`;
+  const daySnapshot = Object.fromEntries(calendarModel.days.map(day => [day.dayKey, {
+    index: Math.min(Math.max(activeDayCarouselIndexes[day.dayKey] ?? 0, 0), Math.max(0, day.groups.length - 1)),
+    groups: day.groups.map(group => group.primary.id),
+  }]));
+  const calendarSnapshot = { open, month: monthKey, days: daySnapshot };
+  const visibleManualGroups = calendarModel.days.flatMap(day => {
+    const index = daySnapshot[day.dayKey]?.index ?? 0, group = day.groups[index];
+    return group?.primary.source === "manual" && group.primary.scheduledActionId ? [group] : [];
+  });
+  const itemSnapshot = { openedItemId, disclosures, open, month: monthKey };
+  useInrAssistantLocalInterface("planning_item", itemSnapshot, { select: {
+    invoke(value, stillCurrent) {
+      const input = parseInrAssistantPlanningItemSelection(value), group = input && visibleManualGroups.find(group => group.primary.scheduledActionId === input.id);
+      if (!open || !input || !group || !stillCurrent()) throw new Error("Planning item is not currently visible");
+      if (input.action === "open_content") {
+        if (inspectionOnly || readOnly) throw new Error("Planning item is read-only");
+        onOpenContent(group.primary, stillCurrent);
+      } else {
+        if (input.action === "actions" && inspectionOnly || input.action === "channels" && group.channelLabels.length < 2) throw new Error("Planning disclosure is not available");
+        setDisclosures(previous => ({ ...previous, [input.id]: { ...previous[input.id], [input.action]: input.open === true } }));
+      }
+    },
+    matches(snapshot, value) {
+      const input = parseInrAssistantPlanningItemSelection(value), state = snapshot as typeof itemSnapshot;
+      return !!input && (input.action === "open_content" ? !state.open && state.openedItemId === input.id : state.open && state.month === monthKey && (state.disclosures[input.id]?.[input.action] ?? false) === input.open);
+    },
+  } }, !loading && (open && visibleManualGroups.length > 0 || !!openedItemId), !open || mutationState === "saving");
+  const expectedMonth = (direction: -1 | 1) => {
+    const date = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + direction, 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  };
+  useInrAssistantLocalInterface("planning_calendar", calendarSnapshot, {
+    previous: { invoke: () => moveMonth(-1), matches: snapshot => (snapshot as { month?: unknown } | undefined)?.month === expectedMonth(-1) },
+    next: { invoke: () => moveMonth(1), matches: snapshot => (snapshot as { month?: unknown } | undefined)?.month === expectedMonth(1) },
+    close: { invoke: onClose, matches: snapshot => (snapshot as { open?: unknown } | undefined)?.open === false, allowUnmount: true },
+  }, open && !loading, mutationState === "saving");
+  useInrAssistantLocalInterface("planning_day", calendarSnapshot, {
+    select: {
+      invoke(value) {
+        const selected = parseInrAssistantPlanningDaySelection(value);
+        if (!selected || !daySnapshot[selected.day] || daySnapshot[selected.day].groups.length < 2) throw new Error("Unavailable planning day");
+        moveDayCarousel(selected.day, selected.direction);
+      },
+      matches(snapshot, value) {
+        const selected = parseInrAssistantPlanningDaySelection(value);
+        if (!selected || !snapshot || typeof snapshot !== "object" || !("days" in snapshot) || (snapshot as { month?: unknown }).month !== monthKey) return false;
+        const previous = daySnapshot[selected.day], current = (snapshot as { days: typeof daySnapshot }).days[selected.day];
+        return Boolean(previous && current && previous.groups.length > 1 && JSON.stringify(current.groups) === JSON.stringify(previous.groups)
+          && current.index === (previous.index + selected.direction + previous.groups.length) % previous.groups.length);
+      },
+    },
+  }, open && !loading && calendarModel.days.some(day => day.groups.length > 1), mutationState === "saving");
+  useInrAssistantLocalInterface("planning_filters", { filtersOpen, activeFilters }, {
+    open: { invoke: () => setFiltersOpen(true), matches: snapshot => (snapshot as { filtersOpen?: unknown } | undefined)?.filtersOpen === true },
+    close: { invoke: () => setFiltersOpen(false), matches: snapshot => (snapshot as { filtersOpen?: unknown } | undefined)?.filtersOpen === false },
+    select: {
+      invoke(value) {
+        const selected = parseInrAssistantPlanningFilterSelection(value);
+        if (!selected || !filtersOpen || !scheduleFilters.some(filter => filter.key === selected.filter)) throw new Error("Unavailable planning filter");
+        setActiveFilters(current => ({ ...current, [selected.filter]: selected.enabled }));
+      },
+      matches(snapshot, value) {
+        const selected = parseInrAssistantPlanningFilterSelection(value);
+        return Boolean(selected && (snapshot as { activeFilters?: Record<string, boolean> } | undefined)?.activeFilters?.[selected.filter] === selected.enabled);
+      },
+    },
+  }, open && !loading && scheduleFilters.length > 1, mutationState === "saving");
 
   if (!open) return null;
   return (
@@ -1139,15 +1233,6 @@ export function AgentScheduleModal({
                         dayGroups[activeDayCarouselIndex]?.primary ||
                         dayGroups[0]?.primary;
                       const hasDayCarousel = dayGroups.length > 1;
-                      const moveDayCarousel = (offset: number) => {
-                        if (!hasDayCarousel) return;
-                        setActiveDayCarouselIndexes((current) => ({
-                          ...current,
-                          [dayKey]:
-                            (activeDayCarouselIndex + offset + dayGroups.length) %
-                            dayGroups.length,
-                        }));
-                      };
                       return (
                         <div
                           key={dayKey}
@@ -1189,7 +1274,7 @@ export function AgentScheduleModal({
                             >
                               <button
                                 type="button"
-                                onClick={() => moveDayCarousel(-1)}
+                                onClick={() => moveDayCarousel(dayKey, -1)}
                                 disabled={!hasDayCarousel}
                                 aria-label={i18nT("planning_previous_action")}
                               >
@@ -1200,7 +1285,7 @@ export function AgentScheduleModal({
                               </small>
                               <button
                                 type="button"
-                                onClick={() => moveDayCarousel(1)}
+                                onClick={() => moveDayCarousel(dayKey, 1)}
                                 disabled={!hasDayCarousel}
                                 aria-label={i18nT("planning_next_action")}
                               >
@@ -1372,6 +1457,8 @@ export function AgentScheduleModal({
                                         {renderCalendarActions()}
                                       </span>
                                       {inspectionOnly || item.source === "history" ? null : <details
+                                        open={disclosures[item.scheduledActionId || item.id]?.actions ?? false}
+                                        onToggle={event => { const expanded = event.currentTarget.open; setDisclosures(previous => ({ ...previous, [item.scheduledActionId || item.id]: { ...previous[item.scheduledActionId || item.id], actions: expanded } })); }}
                                         className={
                                           styles.scheduleCalendarCardMobileActions
                                         }
@@ -1423,6 +1510,8 @@ export function AgentScheduleModal({
                                     >
                                       {channelLabels.length > 1 ? (
                                         <details
+                                          open={disclosures[item.scheduledActionId || item.id]?.channels ?? false}
+                                          onToggle={event => { const expanded = event.currentTarget.open; setDisclosures(previous => ({ ...previous, [item.scheduledActionId || item.id]: { ...previous[item.scheduledActionId || item.id], channels: expanded } })); }}
                                           className={
                                             styles.scheduleCalendarChannels
                                           }

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { readAccountCacheValue, writeAccountCacheValue } from "@/lib/browserAccountCache";
+import { getActiveBrowserUserId, readAccountCacheValue, writeAccountCacheValue } from "@/lib/browserAccountCache";
+import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { getSimpleFrenchApiError, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import type { NotificationItem } from "../dashboard.types";
@@ -59,15 +60,30 @@ export function useDashboardNotifications() {
   const [notificationsCount, setNotificationsCount] = useState(
     () => readCachedNotifications().totalCount,
   );
+  const notificationStateRef = useRef<CachedNotifications>({ items: notifications, totalCount: notificationsCount });
   const unreadNotificationsCount = useMemo(
     () => notifications.filter((item) => item.unread).length,
     [notifications],
   );
   const notificationsRequestSeqRef = useRef(0);
+  const { actorUserId, activeAccountId } = useDashboardViewerAccess();
+  const viewerScope = useRef({ actorUserId, activeAccountId });
+  const mounted = useRef(false);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; notificationsRequestSeqRef.current++; };
+  }, []);
+  useLayoutEffect(() => {
+    if (viewerScope.current.actorUserId !== actorUserId || viewerScope.current.activeAccountId !== activeAccountId) {
+      notificationsRequestSeqRef.current++;
+      viewerScope.current = { actorUserId, activeAccountId };
+    }
+  }, [actorUserId, activeAccountId]);
 
   const applyNotifications = useCallback(
     (items: NotificationItem[], totalCount: number, persist = true) => {
       const safeCount = Math.max(0, Math.round(totalCount));
+      notificationStateRef.current = { items, totalCount: safeCount };
       setNotifications(items);
       setNotificationsCount(safeCount);
       if (persist) writeCachedNotifications(items, safeCount);
@@ -76,13 +92,16 @@ export function useDashboardNotifications() {
   );
 
   const refreshNotifications = useCallback(async () => {
+    const expected = viewerScope.current;
+    const current = () => mounted.current && viewerScope.current === expected && Boolean(expected.actorUserId && expected.activeAccountId) && (!getActiveBrowserUserId() || getActiveBrowserUserId() === expected.activeAccountId);
+    if (!current()) return false;
     const requestSeq = ++notificationsRequestSeqRef.current;
     try {
       setNotificationsLoading(true);
       const res = await fetch("/api/notifications/feed?limit=12", { credentials: "include" });
       const json = await res.json().catch(() => null);
       if (!res.ok) throw new Error(await getSimpleFrenchApiError(res));
-      if (requestSeq !== notificationsRequestSeqRef.current) return;
+      if (requestSeq !== notificationsRequestSeqRef.current || !current()) return false;
       const nextItems = Array.isArray(json?.items) ? json.items : [];
       const rawTotalCount = Number(json?.totalCount);
       applyNotifications(
@@ -90,11 +109,13 @@ export function useDashboardNotifications() {
         Number.isFinite(rawTotalCount) ? rawTotalCount : nextItems.length,
       );
       setNotificationsError(null);
+      return true;
     } catch (e: unknown) {
-      if (requestSeq !== notificationsRequestSeqRef.current) return;
+      if (requestSeq !== notificationsRequestSeqRef.current || !current()) return false;
       setNotificationsError(getSimpleFrenchErrorMessage(e, "Impossible de charger les notifications pour le moment."));
+      return false;
     } finally {
-      if (requestSeq === notificationsRequestSeqRef.current) {
+      if (requestSeq === notificationsRequestSeqRef.current && current()) {
         setNotificationsLoading(false);
       }
     }
@@ -149,40 +170,68 @@ export function useDashboardNotifications() {
   }, [applyNotifications, refreshNotifications]);
 
   const markNotificationRead = useCallback(async (id: string) => {
+    const expected = viewerScope.current;
+    const current = () => mounted.current && viewerScope.current === expected && Boolean(expected.actorUserId && expected.activeAccountId) && (!getActiveBrowserUserId() || getActiveBrowserUserId() === expected.activeAccountId);
+    if (!current()) return;
+    const before = notificationStateRef.current;
+    notificationsRequestSeqRef.current++; setNotificationsLoading(false);
     try {
       const res = await fetch(`/api/notifications/${id}/read`, { method: "POST", credentials: "include" });
       if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible de traiter cette notification."));
-      const nextItems = notifications.filter((item) => item.id !== id);
-      applyNotifications(nextItems, Math.max(0, notificationsCount - 1));
+      if (!current()) return;
+      notificationsRequestSeqRef.current++; setNotificationsLoading(false);
+      // Never decrement an already refreshed count or resurrect another
+      // mutation's snapshot. The following GET is the count authority.
+      if (notificationStateRef.current === before && before.items.some(item => item.id === id)) applyNotifications(before.items.filter(item => item.id !== id), Math.max(0, before.totalCount - 1));
       setNotificationsError(null);
+      await refreshNotifications();
     } catch (e: unknown) {
+      if (!current()) return;
       setNotificationsError(getSimpleFrenchErrorMessage(e, "Impossible de traiter cette notification pour le moment."));
     }
-  }, [applyNotifications, notifications, notificationsCount]);
+  }, [applyNotifications, refreshNotifications]);
 
   const markAllNotificationsRead = useCallback(async () => {
+    const expected = viewerScope.current;
+    const current = () => mounted.current && viewerScope.current === expected && Boolean(expected.actorUserId && expected.activeAccountId) && (!getActiveBrowserUserId() || getActiveBrowserUserId() === expected.activeAccountId);
+    if (!current()) return;
+    const before = notificationStateRef.current;
+    notificationsRequestSeqRef.current++; setNotificationsLoading(false);
     try {
       const res = await fetch("/api/notifications/mark-all-read", { method: "POST", credentials: "include" });
       if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible de traiter toutes les notifications."));
-      applyNotifications([], 0);
+      if (!current()) return;
+      notificationsRequestSeqRef.current++; setNotificationsLoading(false);
+      if (notificationStateRef.current === before) applyNotifications([], 0);
       setNotificationsError(null);
+      await refreshNotifications();
     } catch (e: unknown) {
+      if (!current()) return;
       setNotificationsError(getSimpleFrenchErrorMessage(e, "Impossible de traiter toutes les notifications pour le moment."));
     }
-  }, [applyNotifications]);
+  }, [applyNotifications, refreshNotifications]);
 
   const deleteNotification = useCallback(async (id: string) => {
-    const previousItems = notifications;
-    const previousCount = notificationsCount;
+    const expected = viewerScope.current;
+    const current = () => mounted.current && viewerScope.current === expected && Boolean(expected.actorUserId && expected.activeAccountId) && (!getActiveBrowserUserId() || getActiveBrowserUserId() === expected.activeAccountId);
+    if (!current()) return;
+    const { items: previousItems, totalCount: previousCount } = notificationStateRef.current;
     const nextItems = previousItems.filter((item) => item.id !== id);
-    applyNotifications(nextItems, Math.max(0, previousCount - 1));
+    notificationsRequestSeqRef.current++; setNotificationsLoading(false);
+    applyNotifications(nextItems, Math.max(0, previousCount - (previousItems.some(item => item.id === id) ? 1 : 0)));
+    const optimistic = notificationStateRef.current;
     try {
       const res = await fetch(`/api/notifications/${id}`, { method: "DELETE", credentials: "include" });
       if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible de supprimer cette notification."));
+      if (!current()) return;
+      notificationsRequestSeqRef.current++; setNotificationsLoading(false);
+      await refreshNotifications();
     } catch {
-      applyNotifications(previousItems, previousCount);
+      if (!current()) return;
+      if (notificationStateRef.current === optimistic) applyNotifications(previousItems, previousCount);
+      else await refreshNotifications();
     }
-  }, [applyNotifications, notifications, notificationsCount]);
+  }, [applyNotifications, refreshNotifications]);
 
   return {
     notifications,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMailboxHistory } from "./_hooks/useMailboxHistory";
+import { useInrAssistantSendHistoryControls } from "../_hooks/useInrAssistantSendHistoryControls";
 import { useInrAssistantMailCommands } from "../_hooks/useInrAssistantMailCommands";
 import { inrAssistantMailDraftVersion, persistInrAssistantMailDraft, type InrAssistantMailDraftVersion } from "@/lib/inrAssistantMailDraftPersistence";
 import type { InrAssistantMailExecution } from "@/lib/inrAssistantMailLifecycle";
@@ -44,6 +45,7 @@ import {
 } from "@/lib/boosterVideoTransforms";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { canRemoveInstagramDraftLocally } from "@/lib/inrsend/instagramCapabilities";
+import { publicationEditSourceVersion } from "@/lib/inrsend/publicationEditVersion";
 
 import MailboxHeader from "./_components/MailboxHeader";
 import PublishAiConfigurationDrawer from "../booster/publier/components/PublishAiConfigurationDrawer";
@@ -59,6 +61,7 @@ import { useInrStudioSession } from "@/app/dashboard/_hooks/useInrStudioSession"
 import {
   consumeInrStudioReturn,
   createInrStudioHandoff,
+    clearInrStudioHandoff,
   type InrStudioReturnedMedia,
 } from "@/lib/inrStudioNavigation";
 import {
@@ -204,6 +207,8 @@ export default function MailboxClient({
     loadHistory,
     filteredItems,
     historyPageCount,
+    historyReadVersion,
+    historyDisplayedContextKey,
     visibleItems
   } = useMailboxHistory({ metaPilotEnabled });
 
@@ -246,6 +251,7 @@ export default function MailboxClient({
   const {
     openStudio,
     studio,
+    activeTab: publicationStudioTab,
     completeReturn: completeEmbeddedStudioReturn,
   } = useInrStudioSession({ onReturned: receiveEmbeddedStudioReturn });
   const [detailsSourceDocPayload, setDetailsSourceDocPayload] = useState<
@@ -1394,6 +1400,17 @@ export default function MailboxClient({
     () => getPublicationChannelPreset(activePublicationEditChannelKey),
     [activePublicationEditChannelKey],
   );
+
+  const publicationEditBaselineRef = useRef<{ identity: string; expectedState: Promise<string>; operationKey: string } | null>(null);
+  useEffect(() => {
+    if (detailsEditMode) return; // Never refresh a baseline while its form is being edited.
+    const publicationId = String((detailsItem?.raw as any)?.payload?.publication_id || "");
+    const channel = normalizeChannelKey(String(activeDetailsChannelEntry?.key || ""));
+    if (!detailsOpen || detailsItem?.source !== "app_events" || !activeAccountId || !publicationId || !channel) { publicationEditBaselineRef.current = null; return; }
+    const payload = structuredClone((detailsItem.raw as any).payload);
+    publicationEditBaselineRef.current = { identity: `${activeAccountId}:${publicationId}:${channel}`,
+      expectedState: publicationEditSourceVersion(activeAccountId, publicationId, channel, payload).catch(() => ""), operationKey: crypto.randomUUID() };
+  }, [activeAccountId, activeDetailsChannelEntry?.key, detailsEditMode, detailsItem, detailsOpen]);
 
   useEffect(() => {
     if (
@@ -2852,8 +2869,8 @@ export default function MailboxClient({
     setDetailsOpen(true);
   }
 
-  async function navigateDetails(direction: -1 | 1) {
-    if (!detailsItem || detailsNavigationBusy) return;
+  async function navigateDetails(direction: -1 | 1, canContinue: () => boolean = () => true) {
+    if (!detailsItem || detailsNavigationBusy || !canContinue()) return;
     const allowed = direction < 0 ? detailsCanNavigatePrevious : detailsCanNavigateNext;
     if (!allowed) return;
 
@@ -2869,6 +2886,7 @@ export default function MailboxClient({
       const targetPage = historyPage + direction;
       if (targetPage < 1) return;
       const loaded = await loadHistory({ page: targetPage });
+      if (!canContinue()) return;
       const pageItems = Array.isArray(loaded?.items) ? loaded.items : [];
       const target = direction > 0 ? pageItems[0] : pageItems[pageItems.length - 1];
       if (target) resetDetailsStateForItem(target);
@@ -2877,11 +2895,12 @@ export default function MailboxClient({
     }
   }
 
-  async function launchPublicationMediaGenerator(publicationBrief: string) {
+  async function launchPublicationMediaGenerator(publicationBrief: string, stillCurrent: () => boolean = () => true) {
+    if (!stillCurrent()) return;
     const channel = normalizeChannelKey(activePublicationEditChannelKey);
     setDetailsActionError(null);
     try {
-      const { href } = await createInrStudioHandoff({
+      const { href, handoff } = await createInrStudioHandoff({
         tab: "generate",
         origin: "inrsend-publish",
         publicationBrief,
@@ -2890,8 +2909,10 @@ export default function MailboxClient({
           channel,
         },
       });
+      if (!stillCurrent()) { await clearInrStudioHandoff(handoff.key); return; }
       openStudio(href);
     } catch (error) {
+      if (!stillCurrent()) return;
       const message =
         error instanceof Error
           ? error.message
@@ -2947,7 +2968,8 @@ export default function MailboxClient({
   const openPublicationImageModifier = (channel: string, imageKey: string) =>
     openPublicationImageInStudio("modify", channel, imageKey);
 
-  async function openPublicationVideoRetoucher(channelValue: string) {
+  async function openPublicationVideoRetoucher(channelValue: string, stillCurrent: () => boolean = () => true) {
+    if (!stillCurrent()) return;
     const channel = normalizeChannelKey(channelValue);
     const videoChannel = normalizeBoosterChannelKeyForVideo(channelValue);
     const video = publicationEditVideoByChannel[videoChannel];
@@ -2973,7 +2995,7 @@ export default function MailboxClient({
       const publicUrl = String(
         sourceRecord.publicUrl || sourceRecord.public_url || sourceRecord.url || "",
       ).trim();
-      const { href } = await createInrStudioHandoff({
+      const { href, handoff } = await createInrStudioHandoff({
         tab: "retouch",
         origin: "inrsend-publish",
         source: {
@@ -3003,8 +3025,10 @@ export default function MailboxClient({
           deferVideoPreparation: false,
         },
       });
+      if (!stillCurrent()) { await clearInrStudioHandoff(handoff.key); return; }
       openStudio(href);
     } catch (error) {
+      if (!stillCurrent()) return;
       setDetailsActionError(
         error instanceof Error
           ? error.message
@@ -3070,10 +3094,13 @@ export default function MailboxClient({
     setPublicationEditVideoByChannel(
       pendingStudioEditorSnapshot.videoByChannel,
     );
+    publicationEditBaselineRef.current = pendingStudioEditorSnapshot.editSourceVersion && activeAccountId
+      ? { identity: `${activeAccountId}:${String((targetItem.raw as any)?.payload?.publication_id || "")}:${normalizeChannelKey(pendingStudioEditorSnapshot.channel)}`, expectedState: Promise.resolve(pendingStudioEditorSnapshot.editSourceVersion), operationKey: pendingStudioEditorSnapshot.editOperationKey || crypto.randomUUID() }
+      : null; // A legacy snapshot cannot silently acquire a newer source version.
     setDetailsOpen(true);
     setDetailsEditMode(true);
     setPendingStudioEditorSnapshot(null);
-  }, [items, pendingStudioEditorSnapshot, resetDetailsStateForItem, setPublicationEditImagesByChannel, setPublicationEditVideoByChannel]);
+  }, [activeAccountId, items, pendingStudioEditorSnapshot, resetDetailsStateForItem, setPublicationEditImagesByChannel, setPublicationEditVideoByChannel]);
 
   useEffect(() => {
     const returnKey = String(searchParams?.get("studio_return") || "").trim();
@@ -3215,6 +3242,11 @@ export default function MailboxClient({
     if (!publicationId || !channel) return;
 
     const normalizedChannel = normalizeChannelKey(channel);
+    const baseline = publicationEditBaselineRef.current;
+    if (!baseline || baseline.identity !== `${activeAccountId}:${publicationId}:${normalizedChannel}`) {
+      setDetailsActionError("Rouvrez le détail de cette publication avant de l’enregistrer : sa version d’origine doit être vérifiée.");
+      return;
+    }
     if (
       normalizedChannel === "x" &&
       [
@@ -3243,6 +3275,8 @@ export default function MailboxClient({
     setDetailsActionError(null);
     setDetailsActionSuccess(null);
     try {
+      const expectedState = await baseline.expectedState;
+      if (!/^[a-f0-9]{64}$/.test(expectedState)) throw new Error("La version d’origine n’a pas pu être vérifiée. Rouvrez le détail avant de l’enregistrer.");
       const hashtags = publicationEditForm.hashtags
         .split(/[;,\n\s]+/)
         .map((tag) => tag.trim().replace(/^#+/, ""))
@@ -3382,6 +3416,8 @@ export default function MailboxClient({
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            expectedState,
+            operationKey: baseline.operationKey,
             title: publicationEditForm.title,
             content: publicationEditForm.content,
             cta: publicationEditForm.cta,
@@ -3769,6 +3805,17 @@ export default function MailboxClient({
     workflowReturnKey,
   ]);
 
+  const clearHistorySearch = () => {
+    setHistoryQuery("");
+    requestAnimationFrame(() => historySearchRef.current?.focus());
+  };
+  useInrAssistantSendHistoryControls({ enabled: folder === "publications" && !adsCampaignsSelected,
+    query: historyQuery, boxView, page: historyPage, pageCount: historyPageCount, filterAccountId,
+    displayedContextKey: historyDisplayedContextKey, readVersion: historyReadVersion, loading, searchOpen,
+    visibleItems, detailsOpen, detailsId, blocked: detailsActionBusy || detailsEditMode || detailsNavigationBusy,
+    setQuery: setHistoryQuery, clearSearch: clearHistorySearch, setSearchOpen, setBoxView: updateBoxView, loadHistory, openDetails,
+  });
+
   return (
     <div className={styles.page}>
       {!standardMode ? (
@@ -3832,10 +3879,7 @@ export default function MailboxClient({
               inputRef={historySearchRef}
               onChange={setHistoryQuery}
               onClose={() => setSearchOpen(false)}
-              onClear={() => {
-                setHistoryQuery("");
-                requestAnimationFrame(() => historySearchRef.current?.focus());
-              }}
+              onClear={clearHistorySearch}
             />
 
             <MailboxList
@@ -3907,6 +3951,7 @@ export default function MailboxClient({
           removePublicationVideo={removePublicationVideo}
           togglePublicationImage={togglePublicationImage}
           launchPublicationMediaGenerator={launchPublicationMediaGenerator}
+          publicationStudioTab={publicationStudioTab}
           openPublicationImageRetoucher={openPublicationImageRetoucher}
           openPublicationImageModifier={openPublicationImageModifier}
           openPublicationVideoRetoucher={openPublicationVideoRetoucher}

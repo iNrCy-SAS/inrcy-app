@@ -6,6 +6,8 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 import { getChannelPopoverPosition } from "../../app/dashboard/_components/channel-popover-position.ts";
+import * as localInterfaces from "../../lib/inrAssistantLocalInterface.ts";
+import * as nativeChannelLinks from "../../lib/inrAssistantNativeChannelLinks.ts";
 
 const require = createRequire(import.meta.url);
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -39,18 +41,29 @@ function runtime(path: string, overrides: Props = {}) {
     useCallback: (fn: RuntimeValue) => fn,
     useMemo: (fn: RuntimeValue) => fn(),
     useEffect(effect: () => unknown) { effects.push(effect); },
+    useLayoutEffect(effect: () => unknown) { effects.push(effect); },
   };
+  const nativeHelpers = new Map<string, Props>();
   const localRequire = (specifier: string): RuntimeValue => {
     if (specifier in overrides) return overrides[specifier];
     if (specifier === "react") return hooks;
     if (specifier === "react/jsx-runtime") return require(specifier);
+    if (specifier.endsWith("useInrAssistantNativePopover") || specifier.endsWith("useInrAssistantLocalInterface") || specifier.endsWith("useInrAssistantNativeChannelLinks")) {
+      const name = specifier.split("/").at(-1)!;
+      if (!nativeHelpers.has(name)) { const helperModule = { exports: {} as Props }; nativeHelpers.set(name, helperModule.exports);
+        const source = ts.transpileModule(read(`app/dashboard/_hooks/${name}.ts`), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+        new Function("module", "exports", "require", source)(helperModule, helperModule.exports, localRequire); }
+      return nativeHelpers.get(name);
+    }
+    if (specifier === "@/lib/inrAssistantLocalInterface") return localInterfaces;
+    if (specifier === "@/lib/inrAssistantNativeChannelLinks") return nativeChannelLinks;
     if (specifier.endsWith(".css")) return css;
     if (specifier.endsWith("EditableChannelUrlField")) return { __esModule: true, default: urlFieldStub };
     if (specifier.endsWith("channel-popover-position")) return require("../../app/dashboard/_components/channel-popover-position.ts");
     if (specifier.endsWith("channel-workspace-snapshot")) return { readChannelWorkspaceSnapshot: (_channel: string, fallback: unknown) => fallback, writeChannelWorkspaceSnapshot() {} };
     if (specifier === "next-intl") return { useTranslations: () => (key: string, values: Props = {}) => String(labels[key] || key).replace(/\{(\w+)\}/g, (match, name) => String(values[name] ?? match)) };
     if (specifier === "next/dynamic") return { __esModule: true, default: () => stub };
-    if (specifier === "next/navigation") return { useRouter: () => ({ replace() {} }), useSearchParams: () => new URLSearchParams() };
+    if (specifier === "next/navigation") return { usePathname: () => "/dashboard", useRouter: () => ({ replace() {} }), useSearchParams: () => new URLSearchParams() };
     if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: false }) };
     if (specifier.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (specifier.endsWith("useUnsavedExitGuard")) return { useUnsavedExitGuard() {} };

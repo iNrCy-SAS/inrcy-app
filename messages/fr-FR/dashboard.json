@@ -777,7 +777,9 @@
     "analysisNoSourcesHint": "Connectez un canal ou joignez un document pour lancer l’analyse.",
     "documentsAnalysisTitle": "Joindre des documents à l’analyse",
     "documentsDropHint": "PDF, images ou documents · 20 Mo par fichier",
-    "presentationTitle": "Présentation"
+    "presentationTitle": "Présentation",
+    "discardDraftMessage": "Les modifications non enregistrées de ce formulaire seront abandonnées. Les informations déjà enregistrées restent conservées.",
+    "resetPreferencesMessage": "Les préférences affichées seront remises aux valeurs par défaut. Cette action ne valide aucun achat ni changement de compte."
   },
   "aiConfiguration": {
     "pageDescription": "Réglez la manière dont l’IA écrit et adapte chaque contenu à vos objectifs.",

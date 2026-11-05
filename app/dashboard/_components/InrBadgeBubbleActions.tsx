@@ -1,11 +1,14 @@
 "use client";
 
+import { useInrAssistantRenderedPublicLink } from "../_hooks/useInrAssistantNativeChannelLinks";
 import { useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useTranslations } from "next-intl";
 import { createInrBadgeQrMatrix } from "@/lib/inrBadgeQr";
 import { createInrBadgeQrTrackingUrl, type InrBadgeProfileSummary } from "@/lib/inrBadge";
 import { getChannelPopoverPlacement } from "./channel-popover-position";
 import styles from "./DashboardChannelBubble.module.css";
+import { useInrAssistantNativePopover } from "../_hooks/useInrAssistantNativePopover";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 
 function BadgeActionIcon({ kind }: { kind: "qr" | "download" | "link" }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -34,12 +37,15 @@ export function InrBadgeQrButton({ publicUrl, companyName, compact = false }: { 
     catch { return []; }
   }, [publicUrl]);
   const size = matrix.length + 8;
+  const publicAnchor = useRef<HTMLAnchorElement>(null);
+  useInrAssistantRenderedPublicLink("inr_badge", publicUrl, publicAnchor, matrix.length > 0);
+  useInrAssistantNativePopover("badge_qr_options", menu, true, !matrix.length);
   return <div className={compact ? styles.badgeCopyAction : styles.resourceGroup}>
     <button ref={trigger} type="button" className={compact ? styles.iconAction : `${styles.resourcePill} ${styles.badgeQrTrigger}`} aria-label={t("qr_code_44742187")} title={t("qr_code_44742187")} disabled={!matrix.length} popoverTarget={id}><BadgeActionIcon kind="qr" />{compact ? null : t("qr_code_44742187")}</button>
     <div ref={menu} id={id} popover="auto" role="group" aria-label={t("qr_code_44742187")} className={`${styles.typesMenu} ${styles.badgeQrFrame}`} style={position} onBeforeToggle={place} onToggle={place}>
       <header className={`${styles.popoverHeader} ${styles.badgeQrHeader}`}><strong>{t("qr_code_44742187")}</strong><span className={styles.badgeQrCompany} title={companyName}>{companyName}</span><button type="button" popoverTarget={id} popoverTargetAction="hide" aria-label={bubble("close")}>×</button></header>
       <figure className={styles.badgeQrPaper}><svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${t("qr_code_44742187")} — ${companyName || "iNrCy"}`} className={styles.badgeQrCode} shapeRendering="crispEdges"><rect width={size} height={size} fill="white" /><path fill="#111827" d={matrix.flatMap((row, y) => row.flatMap((dark, x) => dark ? [`M${x + 4} ${y + 4}h1v1h-1z`] : [])).join("")} /></svg></figure>
-      {publicUrl ? <a className={styles.badgeQrLink} href={publicUrl} target="_blank" rel="noopener noreferrer">{publicUrl}</a> : null}
+      {publicUrl ? <a ref={publicAnchor} className={styles.badgeQrLink} href={publicUrl} target="_blank" rel="noopener noreferrer">{publicUrl}</a> : null}
     </div>
   </div>;
 }
@@ -51,6 +57,7 @@ export function InrBadgeDownloadButton({ publicUrl, profile }: { publicUrl: stri
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const pending = useRef(false);
+  useInrAssistantNativePopover("badge_download_options", menu, true, !publicUrl || busy);
   const download = async (format: "png" | "pdf") => {
     if (!publicUrl || pending.current) return;
     pending.current = true; setBusy(true); setError("");
@@ -74,11 +81,19 @@ export function InrBadgeDownloadButton({ publicUrl, profile }: { publicUrl: stri
 export function InrBadgeCopyButton({ publicUrl, onNotice, onError }: { publicUrl: string; onNotice: (notice: string) => void; onError: (error: string) => void }) {
   const t = useTranslations("settings");
   const bubble = useTranslations("dashboard.channelBubble");
+  const [copiedUrl, setCopiedUrl] = useState("");
+  const copyLink = async () => {
+    if (!publicUrl) throw new Error("Badge URL unavailable");
+    onNotice("");
+    try { await navigator.clipboard.writeText(publicUrl); setCopiedUrl(publicUrl); onNotice(t("lien_copie_8f514dc0")); }
+    catch { onError(t("impossible_de_copier_automatiquement_selectionne_df13c396")); throw new Error("Badge clipboard unavailable"); }
+  };
+  useInrAssistantLocalInterface("badge_link", { copiedUrl }, {
+    copy: { invoke: async value => { if (value !== "link") throw new Error("Badge link required"); await copyLink(); }, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "copiedUrl" in snapshot && snapshot.copiedUrl === publicUrl) },
+  }, true, !publicUrl);
   return <div className={styles.badgeCopyAction}>
     <button type="button" className={styles.iconAction} aria-label={t("copier_le_lien_2b135d8c")} title={t("copier_le_lien_2b135d8c")} disabled={!publicUrl} onClick={async () => {
-      onNotice("");
-      try { await navigator.clipboard.writeText(publicUrl); onNotice(t("lien_copie_8f514dc0")); }
-      catch { onError(t("impossible_de_copier_automatiquement_selectionne_df13c396")); }
+      try { await copyLink(); } catch {}
     }}><BadgeActionIcon kind="link" /><span className={styles.actionText} aria-hidden="true">{bubble("linkShort")}</span></button>
   </div>;
 }

@@ -17,6 +17,10 @@ const sources = {
   recovery: compile("app/dashboard/agent/_lib/agent.media-preview-recovery.ts"),
   "./agent.publish-preview": compile("app/dashboard/agent/_lib/agent.publish-preview.ts"),
   "./agent.utils": compile("app/dashboard/agent/_lib/agent.utils.ts"),
+  "../../_hooks/useInrAssistantLocalInterface": compile("app/dashboard/_hooks/useInrAssistantLocalInterface.ts"),
+  "@/lib/inrAssistantLocalInterface": compile("lib/inrAssistantLocalInterface.ts"),
+  "./inrAssistantNativeChannelLinks.ts": compile("lib/inrAssistantNativeChannelLinks.ts"),
+  "./inrAssistantRequestClauses.ts": compile("lib/inrAssistantRequestClauses.ts"),
 };
 const expired = "/api/storage/content?bucket=inrcy-pro-media&path=account-a%2Fold.png&token=fixture";
 const fresh = "/api/media-library/items/10000000-0000-4000-8000-000000000001/content?token=fixture-fresh";
@@ -26,9 +30,11 @@ type FixtureWindow = Window & { activeAccount: string; renderMedia(value: { src?
 
 const fixture = `
 const sources=${JSON.stringify(sources)},loaded={},messages=${JSON.stringify(JSON.parse(read("messages/fr-FR/media.json")))};
-window.activeAccount='account-a';const noOp=()=>{};
+window.activeAccount='account-a';
 function require(name){
  if(name==='next-intl')return {useTranslations:()=>key=>messages[key]||key};
+ if(name==='next/navigation')return {usePathname:()=>location.pathname};
+ if(name.endsWith('DashboardViewerAccessProvider'))return {useDashboardViewerAccess:()=>({actorUserId:'actor-a',activeAccountId:window.activeAccount,metaPilotEnabled:false})};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.activeAccount};
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
  if(name==='@/lib/inrAgentThreadsPublication')return {readInrAgentThreadsPublicationSettings:()=>({mode:'standard'})};
@@ -75,7 +81,10 @@ async function setup(page: Page, options: { payload?: unknown; image: (url: URL,
   });
   await page.goto("https://fixture.invalid/dashboard/agent/publications");
   await page.addScriptTag({ content: fixture });
-  await page.waitForFunction(() => Boolean((window as unknown as FixtureWindow).renderMedia));
+  await page.waitForFunction(() => Boolean((window as unknown as FixtureWindow).renderMedia)).catch(error => {
+    assert.deepEqual(errors, [], "The real image component and native hook must mount before exercising recovery");
+    throw error;
+  });
   return { requests, errors, release: () => metadataRelease?.() };
 }
 async function loaded(page: Page, selector = '[data-preview] img') {

@@ -3,6 +3,15 @@ import type { DashboardEdition } from "./dashboardEdition.ts";
 // Basic can execute its included manual tools. Agents and Premium operations
 // remain absent; native executors independently enforce the account's edition.
 const BASIC_SUPPORT_TOOLS = new Set([
+  "refreshBadgeThemeFromLogo", "resumePublicationDraft", "openNotificationAction",
+  "prepareStudioDraftReview",
+  "submitContentReport",
+  "formatBusinessDnaText",
+  "reconcileExistingCreditOrder",
+  "prepareGoogleBusinessDraftReview",
+  "readPublishedPublicationForEdit", "previewPublishedPublicationEdit", "applyPublishedPublicationEdit",
+  "readStudioSavedPreferences", "forgetStudioPreferenceBlock", "generateGoogleReviewReplyDraft",
+  "controlLocalInterface", "configureApplicationPreferences", "readSendPublicationHistory",
   "discoverCapabilities",
   "proposeHumanSupport", "readAppGuide", "getBusinessDna", "searchMedia", "getRecentPublications",
   "getAccountDiagnostics", "readWorkspaceSection", "recallPastDiscussions", "guideChannelConnection",
@@ -19,6 +28,7 @@ const BASIC_SUPPORT_TOOLS = new Set([
   "previewWebsiteReset", "applyWebsiteReset", "readBusinessDnaSchedule", "updateBusinessDnaSchedule", "previewReferralSubmission", "applyReferralSubmission",
   "acceptMediaGeneration", "discardMediaGeneration",
   "readGeneratorBusinessSettings", "updateGeneratorBusinessSettings",
+  "previewNotificationRemoval", "applyNotificationRemoval",
   "readAccountServices", "markNotificationsRead", "prepareAccountDocumentDownload", "configureCookieConsent",
   "readBusinessDnaSources", "previewBusinessDnaDocumentRemoval", "applyBusinessDnaDocumentRemoval", "readWebsiteConfiguration", "updateWebsiteConfiguration",
   "readNativeChannelPresentation", "updateNativeChannelPresentation", "readPublicationOptions", "quoteMediaGeneration", "readBusinessIdentity", "searchBusinessProfessions", "updateBusinessIdentity",

@@ -9,6 +9,7 @@ import {
   type AiMediaGeneratorPreferences,
 } from "@/lib/aiMediaGenerationPreferences";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
+import { useInrAssistantRefresh } from "./useInrAssistantRefresh";
 
 const PREFERENCES_ENDPOINT = "/api/media-generation/preferences";
 
@@ -39,6 +40,7 @@ export default function useAiMediaGeneratorPreferences() {
   );
   const [accountEpoch, setAccountEpoch] = useState(0);
   const accountEpochRef = useRef(0);
+  const preferenceMutationRef = useRef(0);
   const patchControllersRef = useRef(new Set<AbortController>());
 
   useEffect(() => {
@@ -100,12 +102,33 @@ export default function useAiMediaGeneratorPreferences() {
     };
   }, []);
 
+  useInrAssistantRefresh({ topics: ["settings"], scopeKey: `studio-preferences:${accountEpoch}`, blocked: !loaded || loading || savingBlockIds.size > 0, refresh: async ({ canApply }) => {
+    if (!canApply() || !loaded || loading || savingBlockIds.size > 0) return false;
+    const requestEpoch = accountEpochRef.current;
+    const requestMutation = preferenceMutationRef.current;
+    const controller = new AbortController();
+    patchControllersRef.current.add(controller);
+    try {
+      const response = await fetch(PREFERENCES_ENDPOINT, { method: "GET", cache: "no-store", credentials: "same-origin", headers: { Accept: "application/json" }, signal: controller.signal });
+      const nextPreferences = await readPreferencesResponse(response);
+      if (canApply() && !controller.signal.aborted && requestEpoch === accountEpochRef.current && requestMutation === preferenceMutationRef.current) {
+        // The creation form applies defaults once per account epoch. Refresh
+        // only its saved flags/defaults; never reapply or autosave local criteria.
+        setPreferences(nextPreferences);
+        return true;
+      }
+    } catch { /* Keep the last verified preferences and current creative draft. */ }
+    finally { patchControllersRef.current.delete(controller); }
+    return false;
+  } });
+
   const saveBlock = useCallback(
     async <K extends AiMediaGeneratorPreferenceBlockId>(
       blockId: K,
       saved: boolean,
       defaults: AiMediaGeneratorBlockDefaults[K],
     ) => {
+      preferenceMutationRef.current += 1;
       const controller = new AbortController();
       const requestEpoch = accountEpochRef.current;
       patchControllersRef.current.add(controller);

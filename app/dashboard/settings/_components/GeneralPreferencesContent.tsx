@@ -18,6 +18,8 @@ import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import AppAppearancePicker from "./AppAppearancePicker";
 import { DEFAULT_GENERAL_PREFERENCES, parseGeneralPreferencesPatch } from "@/lib/generalPreferences";
 import { useInrAssistantRefresh } from "../../_hooks/useInrAssistantRefresh";
+import { useInrAssistantBusinessFormCommands } from "../../_hooks/useInrAssistantBusinessFormCommands";
+import { confirmInrcy } from "@/lib/inrcyDialog";
 
 type Props = {
   mode?: "page" | "drawer";
@@ -122,6 +124,7 @@ const normalizePartialPreferences = (source: Record<string, unknown> | null | un
 
 export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedChange }: Props) {
   const i18nT = useTranslations("settings");
+  const formT = useTranslations("dashboard.aiMemory");
   const [form, setForm] = useState<PreferencesForm>(initialForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -353,6 +356,21 @@ export default function GeneralPreferencesContent({ mode = "drawer", onUnsavedCh
       localStorage.removeItem(CLIENT_LANGUAGE_CUSTOM_STORAGE_KEY);
     } catch {}
   };
+
+  useInrAssistantBusinessFormCommands({ id: "general", snapshot: { form, loading, saving }, busy: loading || saving || !savedPreferencesSignatureRef.current,
+    pendingChanges: Boolean(savedPreferencesSignatureRef.current && JSON.stringify(form) !== savedPreferencesSignatureRef.current),
+    isApplied: patch => patch.businessFormAction === "reset" ? JSON.stringify(form) === JSON.stringify({ ...initialForm, clientLanguage: readDefaultAppLanguage() })
+      : patch.businessFormAction === "discard" && JSON.stringify(form) === savedPreferencesSignatureRef.current,
+    apply: async (patch, scopeCurrent) => {
+      if (!["reset", "discard"].includes(patch.businessFormAction)) return false;
+      const dirty = JSON.stringify(form) !== savedPreferencesSignatureRef.current;
+      if (dirty && !await confirmInrcy({ title: patch.businessFormAction === "reset" ? i18nT("reinitialiser_e0e2ad54") : formT("cancelChanges"),
+        message: formT(patch.businessFormAction === "reset" ? "resetPreferencesMessage" : "discardDraftMessage"), variant: "warning" })) return false;
+      if (!scopeCurrent()) return false;
+      if (patch.businessFormAction === "reset") reset();
+      else { setForm(JSON.parse(savedPreferencesSignatureRef.current) as PreferencesForm); setSaved(false); setError(""); onUnsavedChange?.(false); }
+      return true;
+    } });
 
   return (
     <div className={styles.workspace} style={{ display: "grid", gap: 16 }}>

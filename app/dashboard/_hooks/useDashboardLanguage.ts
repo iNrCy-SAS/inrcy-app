@@ -39,6 +39,9 @@ const dbLanguageRequests = new Map<
   string,
   Promise<AppLanguageCode | null>
 >();
+export function rememberVerifiedDashboardLanguage(accountId: string, language: AppLanguageCode) {
+  dbLanguageCache.set(accountId, { language, expiresAt: Date.now() + DB_LANGUAGE_CACHE_TTL_MS });
+}
 let fallbackAuthUserId: string | null = null;
 let authUserIdRequest: Promise<string | null> | null = null;
 

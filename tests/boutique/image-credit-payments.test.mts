@@ -91,7 +91,7 @@ function fixture(options: { paid?: boolean; expired?: boolean; prepared?: boolea
     assert.ok(Object.hasOwn(modules,name),"Unmocked shared dependency "+name); return modules[name];
   });
   modules["@/lib/boutique/mediaCreditPayments"] = sharedRuntime.exports;
-  const runtime = {exports:{} as {startImageCreditCheckout:(args: Row)=>Promise<Row>;fulfillImageCreditCheckout:(session: string,event: string)=>Promise<boolean>;reconcileImageCreditRefund:(charge: string,event: string)=>Promise<boolean>;reconcileImageCreditDispute:(dispute: string,event: string)=>Promise<boolean>}};
+  const runtime = {exports:{} as {startImageCreditCheckout:(args: Row)=>Promise<Row>;fulfillImageCreditCheckout:typeof import("../../lib/boutique/imageCreditPayments.ts").fulfillImageCreditCheckout;reconcileImageCreditRefund:(charge: string,event: string)=>Promise<boolean>;reconcileImageCreditDispute:(dispute: string,event: string)=>Promise<boolean>}};
   new Function("module","exports","require",output)(runtime,runtime.exports,(name: string)=>{
     assert.ok(Object.hasOwn(modules,name),"Unmocked dependency "+name); return modules[name];
   });
@@ -123,6 +123,16 @@ test("server verified payment checks line items, intent and charge before grant"
   assert.equal(grant?.args.p_amount_subtotal_cents,500); assert.equal(grant?.args.p_amount_total_cents,600);
   assert.equal(grant?.args.p_account_id,accountId); assert.equal(grant?.args.p_refunded_amount_cents,0);
   assert.ok(f.reads.some(p=>p.includes("/line_items"))); assert.ok(f.reads.some(p=>p.includes("/payment_intents")));
+});
+test("authenticated reconciliation binds its exact existing order and cancellation before every native fulfillment mutation",async()=>{
+  for(const scope of [{orderId:"99999999-9999-4999-8999-999999999999",accountId},{orderId,accountId:"99999999-9999-4999-8999-999999999999"}]){
+    const f=fixture({paid:true,prepared:true});
+    await assert.rejects(f.api.fulfillImageCreditCheckout("cs_test","authenticated-checkout-return",scope),/PAYMENT_SCOPE_MISMATCH/);
+    assert.ok(!f.calls.some(c=>c.name==="fulfill_ai_media_image_credit_order"));
+  }
+  const f=fixture({paid:true,prepared:true}),controller=new AbortController();controller.abort();
+  await assert.rejects(f.api.fulfillImageCreditCheckout("cs_test","authenticated-checkout-return",{orderId,accountId,signal:controller.signal}),/PAYMENT_SCOPE_MISMATCH/);
+  assert.ok(!f.calls.some(c=>c.name==="fulfill_ai_media_image_credit_order"));
 });
 test("already refunded Stripe charge is reconciled atomically at fulfillment",async()=>{
   const f=fixture({paid:true,refunded:600});

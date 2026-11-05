@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import * as React from "react";
 import ts from "typescript";
+import { createNativeLocalHookLoader } from "./assistant-native-local-hooks.mts";
 
 // The transpiled components expose different prop/event shapes at this test boundary.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -16,6 +17,7 @@ const child = (props: Props) => React.createElement("div", {}, props.children);
 /** Execute the real component and event closures without a browser or live services. */
 export function channelRuntime(path: string, overrides: Props = {}) {
   const slots: unknown[] = [];
+  const effects: Array<() => unknown> = [];
   let cursor = 0;
   const hooks = {
     ...React,
@@ -25,30 +27,34 @@ export function channelRuntime(path: string, overrides: Props = {}) {
       return [slots[index], (next: unknown) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }];
     },
     useRef(initial: unknown) { const index = cursor++; return slots[index] ??= { current: initial }; },
-    useId: () => "test-channel",
+    useId: () => `test-channel-${cursor++}`,
     useCallback: (fn: unknown) => fn,
     useMemo: (fn: () => unknown) => fn(),
     useEffect() {},
+    useLayoutEffect(effect: () => unknown) { effects.push(effect); },
   };
   const browser = { location: { href: "", search: "" } };
   const localRequire = (specifier: string): unknown => {
     if (specifier in overrides) return overrides[specifier];
     if (specifier === "react") return hooks;
     if (specifier === "react/jsx-runtime") return require(specifier);
+    const native = nativeHooks(specifier);
+    if (native !== undefined) return native;
     if (specifier.endsWith(".css")) return css;
     if (specifier === "next/image") return { __esModule: true, default: "img" };
     if (specifier === "next-intl") return { useTranslations: (scope: string) => (key: string) => (scope === "shell" ? shellLabels : bubbleLabels)[key] || key };
-    if (specifier === "next/navigation") return { useRouter: () => ({ replace() {} }), useSearchParams: () => new URLSearchParams() };
-    if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: false }) };
+    if (specifier === "next/navigation") return { usePathname: () => '/dashboard', useRouter: () => ({ replace() {} }), useSearchParams: () => new URLSearchParams() };
+    if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "channel-actor", activeAccountId: "channel-account", metaPilotEnabled: false }) };
     if (specifier.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (specifier.endsWith("useUnsavedExitGuard")) return { useUnsavedExitGuard() {} };
     if (specifier.endsWith("DashboardUnsavedNavigationProvider")) return { useDashboardUnsavedNavigation: () => ({ requestNavigation: async (fn: () => void) => { fn(); return true; } }) };
     return { __esModule: true, default: child, DashboardPremiumLockIcon: child };
   };
+  const nativeHooks = createNativeLocalHookLoader(localRequire);
   const code = ts.transpileModule(read(path), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loadedModule = { exports: {} as Record<string, (props: Props) => React.ReactElement<Props>> };
   new Function("module", "exports", "require", "window", "fetch", code)(loadedModule, loadedModule.exports, localRequire, browser, () => { throw Error("Unexpected live request"); });
-  return { browser, render: (props: Props, name = "default") => { cursor = 0; return loadedModule.exports[name](props); } };
+  return { browser, render: (props: Props, name = "default") => { cursor = 0; const result = loadedModule.exports[name](props); for (const effect of effects.splice(0)) effect(); return result; } };
 }
 
 export function channelNodes(tree: React.ReactNode): React.ReactElement<Props>[] {

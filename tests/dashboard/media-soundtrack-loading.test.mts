@@ -33,14 +33,20 @@ async function setup(page: Page, config: { inline?: boolean; soundtrackId?: stri
     scheduler: packageSource("scheduler", "scheduler.development.js"),
     selector: compile("app/dashboard/_components/MediaSoundtrackSelector.tsx"),
     "@/lib/mediaSoundtrackSelection": compile("lib/mediaSoundtrackSelection.ts"),
+    localInterface: compile("app/dashboard/_hooks/useInrAssistantLocalInterface.ts"),
+    ...Object.fromEntries(["inrAssistantLocalInterface", "inrAssistantNativeChannelLinks", "inrAssistantRequestClauses"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
   };
-  await page.route("**/*", route => route.abort());
-  await page.setContent('<!doctype html><html><body><div id="root"></div></body></html>');
+  await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: '<!doctype html><html><body><div id="root"></div></body></html>' }) : route.abort());
+  await page.goto("https://soundtrack.invalid/dashboard/booster");
   await page.addScriptTag({ content: `
     const sources=${JSON.stringify(sources)},cache={},process={env:{NODE_ENV:'development'}};
     function require(name){
       if(name.endsWith('.css'))return{__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
       if(name==='next-intl')return{useTranslations:()=>key=>key};
+      if(name==='next/navigation')return{usePathname:()=>location.pathname};
+      if(name.endsWith('DashboardViewerAccessProvider'))return{useDashboardViewerAccess:()=>({actorUserId:'soundtrack-actor',activeAccountId:'soundtrack-account'})};
+      if(name.endsWith('useInrAssistantLocalInterface'))name='localInterface';
+      if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])name='@/lib/'+name.slice(2).replace(/\\.ts$/,'');
       if(cache[name])return cache[name].exports;
       if(!sources[name])throw Error('Unexpected development fixture import '+name);
       const module=cache[name]={exports:{}};new Function('require','module','exports','process',sources[name])(require,module,module.exports,process);return module.exports;

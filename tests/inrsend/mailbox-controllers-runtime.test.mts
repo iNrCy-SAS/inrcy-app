@@ -8,16 +8,20 @@ import { normalizeRecipientEmails } from "../../lib/crmRecipients.ts";
 import type { useMailboxHistory } from "../../app/dashboard/mails/_hooks/useMailboxHistory.ts";
 import type { useMailboxCrmRecipients } from "../../app/dashboard/mails/_hooks/useMailboxCrmRecipients.ts";
 import type { useMailboxPublicationMedia } from "../../app/dashboard/mails/_hooks/useMailboxPublicationMedia.ts";
+import * as localDriver from "../../lib/inrAssistantLocalInterface.ts";
+import * as historySelection from "../../lib/inrAssistantHistoryUiSelection.ts";
 
 type Slot = { value?: unknown; deps?: readonly unknown[]; cleanup?: () => void };
 type Hook<P, R> = (props: P) => R;
 
 // Runs the real hook bodies with React's persistent slot/dependency semantics.
 // Network, browser events and timers are local fakes; no service is contacted.
-function hookHarness<P, R>(name: string, initialProps: P, dependencies: Record<string, unknown>, globals: Record<string, unknown>) {
+let nextHookMount = 0;
+function hookHarness<P, R>(name: string, initialProps: P, dependencies: Record<string, unknown>, globals: Record<string, unknown>, extraSources: Record<string, string> = {}) {
   const slots: Slot[] = [];
   let cursor = 0, dirty = false, props = initialProps;
   let value!: R;
+  const hookMount = `native-history-${++nextHookMount}`;
   const effects: Array<() => void> = [], layouts: Array<() => void> = [];
   const changed = (previous: readonly unknown[] | undefined, next: readonly unknown[] | undefined) =>
     !previous || !next || previous.length !== next.length || next.some((item, index) => !Object.is(item, previous[index]));
@@ -33,6 +37,7 @@ function hookHarness<P, R>(name: string, initialProps: P, dependencies: Record<s
     return slot.value;
   };
   const react = {
+    useId() { return (slots[cursor++] ??= { value: `${hookMount}-${cursor}` }).value; },
     useState(initial: unknown) {
       const index = cursor++;
       const slot = slots[index] ??= { value: typeof initial === "function" ? initial() : initial };
@@ -53,11 +58,15 @@ function hookHarness<P, R>(name: string, initialProps: P, dependencies: Record<s
   const translate = (key: string) => key;
   const provided = { ...dependencies, react, "next-intl": { useTranslations: () => translate } };
   function loadModule(moduleName: string): { exports: Record<string, Hook<P, R>> } {
-    const source = readFileSync(new URL(`../../app/dashboard/mails/_hooks/${moduleName}.ts`, import.meta.url), "utf8");
+    const source = extraSources[moduleName] ?? readFileSync(new URL(`../../app/dashboard/mails/_hooks/${moduleName}.ts`, import.meta.url), "utf8");
     const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, esModuleInterop: true } }).outputText;
     const loaded = { exports: {} as Record<string, Hook<P, R>> };
     new Function("module", "exports", "require", ...Object.keys(globals), code)(loaded, loaded.exports, (id: string) => {
       if (id === "./useMailboxPublicationVideo") return loadModule("useMailboxPublicationVideo").exports;
+      if (id === "./useMailboxHistory") return loadModule("useMailboxHistory").exports;
+      if (id.endsWith("useInrAssistantSendHistoryControls")) return loadModule("$sendHistory").exports;
+      if (id.endsWith("useInrAssistantSendDetailsControls")) return loadModule("$sendDetails").exports;
+      if (id.endsWith("useInrAssistantLocalInterface")) return loadModule("$localInterface").exports;
       assert.ok(id in provided, `unexpected dependency: ${id}`);
       return provided[id as keyof typeof provided];
     }, ...Object.values(globals));
@@ -93,23 +102,221 @@ const counts = (publications = 0) => ({ mails: 0, factures: 0, devis: 0, publica
 const response = (payload: unknown, ok = true) => ({ ok, status: ok ? 200 : 503, json: async () => payload, text: async () => "offline" });
 const settle = async () => { for (let index = 0; index < 12; index++) await Promise.resolve(); };
 
-function historyHarness(snapshot: unknown = null) {
+const localHistoryScope = { actorUserId: "history-actor", accountId: "history-account", pathname: "/dashboard/mails" };
+function nativeHistoryControlSource() {
+  const path = "../../app/dashboard/mails/MailboxClient.tsx";
+  const source = readFileSync(new URL(path, import.meta.url), "utf8"), ast = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const declarations = new Map<string, ts.Node>();
+  const visit = (node: ts.Node) => {
+    if (ts.isFunctionDeclaration(node) && node.name && ["updateBoxView", "openDetails", "navigateDetails"].includes(node.name.text)) declarations.set(node.name.text, node);
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && ["resetDetailsStateForItem", "detailsItem", "detailsItemIndex", "detailsCanNavigatePrevious", "detailsCanNavigateNext"].includes(node.name.text)) declarations.set(node.name.text, node);
+    ts.forEachChild(node, visit);
+  }; visit(ast);
+  const reset = declarations.get("resetDetailsStateForItem"), update = declarations.get("updateBoxView"), open = declarations.get("openDetails");
+  assert.ok(reset && update && open);
+  const setters = [...new Set([...reset.getText(ast).matchAll(/\b(set\w+)\(/g)].map(match => match[1]))].filter(name => name !== "setSelectedId");
+  const detailsPath = "../../app/dashboard/mails/_components/MailboxDetailsModal.tsx", detailsSource = readFileSync(new URL(detailsPath, import.meta.url), "utf8"), detailsAst = ts.createSourceFile(detailsPath, detailsSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const nativeChoices = new Map<string, ts.Node>();
+  const collect = (node: ts.Node) => { if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && ["confirmDiscardPublicationEdit", "requestClose", "requestNavigate", "requestChannelChange"].includes(node.name.text)) nativeChoices.set(node.name.text, node); ts.forEachChild(node, collect); }; collect(detailsAst);
+  assert.equal(nativeChoices.size, 4, "All dirty-form callbacks must come from the native detail component");
+  return `import * as React from 'react';const {useState,useCallback,useMemo}=React;
+    import {useMailboxHistory} from './useMailboxHistory';
+    import {useInrAssistantSendHistoryControls} from '@/app/dashboard/_hooks/useInrAssistantSendHistoryControls';
+    import {useInrAssistantSendDetailsControls} from '@/app/dashboard/_hooks/useInrAssistantSendDetailsControls';
+    export function useMailboxAssistantHarness(props){
+      const native=useMailboxHistory(props),{setSelectedId,setBoxView,items,visibleItems,historyPage,historyPageCount,historyTotalCount,historyHasMorePotential,loadHistory}=native;
+      const [detailsOpen,setDetailsOpen]=useState(false);
+      const [detailsNavigationBusy,setDetailsNavigationBusy]=useState(false);
+      const [publicationEditDirty,setPublicationEditDirty]=useState(false);
+      const [publicationPreviewOpen,setPublicationPreviewOpen]=useState(false);
+      ${setters.map(name => `const [${name.slice(3,4).toLowerCase()+name.slice(4)},${name}]=useState(null);`).join('\n')}
+      const standardMode=true,searchParams=new URLSearchParams('folder=publications'),router={replace:href=>window.nativeRoutes.push(href)};
+      const ${reset.getText(ast)};
+      ${["detailsItem", "detailsItemIndex", "detailsCanNavigatePrevious", "detailsCanNavigateNext"].map(name => { const declaration=declarations.get(name);assert.ok(declaration);return `const ${declaration.getText(ast)};`; }).join('\n')}
+      ${update.getText(ast)}
+      ${open.getText(ast)}
+      ${declarations.get("navigateDetails")!.getText(ast)}
+      const onClose=()=>setDetailsOpen(false),onNavigate=navigateDetails,canNavigatePrevious=detailsCanNavigatePrevious,canNavigateNext=detailsCanNavigateNext,navigationBusy=detailsNavigationBusy;
+      const activePublicationEditChannelKey=detailsChannelKey||detailsItem?.channels?.[0]||'',i18nT=key=>key,confirmInrcy=options=>window.nativeConfirm(options);
+      ${["confirmDiscardPublicationEdit", "requestClose", "requestNavigate", "requestChannelChange"].map(name=>`const ${nativeChoices.get(name)!.getText(detailsAst)};`).join('\n')}
+      useInrAssistantSendHistoryControls({enabled:true,query:native.historyQuery,boxView:native.boxView,page:native.historyPage,pageCount:native.historyPageCount,filterAccountId:native.filterAccountId,
+        displayedContextKey:native.historyDisplayedContextKey,readVersion:native.historyReadVersion,loading:native.loading,searchOpen:native.searchOpen,visibleItems:native.visibleItems,
+        detailsOpen,detailsId,blocked:false,setQuery:native.setHistoryQuery,clearSearch:()=>native.setHistoryQuery(''),setSearchOpen:native.setSearchOpen,setBoxView:updateBoxView,loadHistory:native.loadHistory,openDetails});
+      useInrAssistantSendDetailsControls({enabled:detailsItem?.folder==='publications',open:detailsOpen,itemId:detailsId,channel:activePublicationEditChannelKey,visibleChannels:detailsItem?.channels||[],navigationBusy:detailsNavigationBusy,busy:detailsActionBusy,
+        canNavigatePrevious,canNavigateNext,previewOpen:publicationPreviewOpen,previewAllowed:detailsItem?.source==='app_events',close:requestClose,navigate:requestNavigate,changeChannel:requestChannelChange,setPreview:setPublicationPreviewOpen});
+      return {...native,detailsOpen,detailsId,detailsChannelKey,publicationPreviewOpen,detailsEditMode,publicationEditDirty,fixtureEdit:(dirty=true)=>{setDetailsEditMode(true);setPublicationEditDirty(dirty)},fixtureBusy:setDetailsActionBusy,fixtureOpen:()=>setDetailsOpen(true),fixtureClose:()=>setDetailsOpen(false)};
+    }`;
+}
+type HistoryWithDetails = ReturnType<typeof useMailboxHistory> & { detailsOpen?: boolean; detailsId?: string | null; detailsChannelKey?: string | null; publicationPreviewOpen?: boolean; detailsEditMode?: boolean; publicationEditDirty?: boolean; fixtureEdit?(dirty?: boolean): void; fixtureBusy?(value: boolean): void; fixtureOpen?(): void; fixtureClose?(): void };
+function historyHarness(snapshot: unknown = null, assistant = false) {
   const browser = browserFakes();
   const pages: Array<{ url: URL; resolve: (value: ReturnType<typeof response>) => void }> = [];
   let cacheReads = 0, countRequests = 0;
-  const hook = hookHarness<Parameters<typeof useMailboxHistory>[0], ReturnType<typeof useMailboxHistory>>("useMailboxHistory", { metaPilotEnabled: true }, {
+  let nativeCount = assistant ? 41 : 1;
+  let actor = localHistoryScope.actorUserId;
+  const nativeRoutes: string[] = [];
+  const confirmations: Array<{ options: unknown; resolve(value: boolean): void }> = [];
+  Object.assign(browser.window, { nativeRoutes, nativeConfirm: (options: unknown) => new Promise<boolean>(resolve => confirmations.push({ options, resolve })) });
+  const hook = hookHarness<Parameters<typeof useMailboxHistory>[0], HistoryWithDetails>(assistant ? "useMailboxAssistantHarness" : "useMailboxHistory", { metaPilotEnabled: true }, {
     "@/lib/metaChannelUiAccess": { filterMetaPilotItems: (items: unknown[]) => items },
     "@/lib/browserModuleSnapshotCache": { MODULE_SNAPSHOT_KEYS: { inrSendDefault: "history" }, readModuleSnapshot: () => { cacheReads++; return snapshot ? { data: snapshot } : null; }, writeModuleSnapshot() {} },
     "@/lib/profileVersioning": { PROFILE_VERSION_EVENT: "profile-version" },
     "../_lib/mailboxPhase1": { MAILBOX_PAGE_SIZE: 20, emptyFolderCounts: counts, normalizeFolderCounts: (value: unknown) => value },
     "../_lib/mailboxHistoryPreload": historyPolicy,
+    "../mails/_lib/mailboxHistoryPreload": historyPolicy,
+    "@/lib/inrAssistantLocalInterface": localDriver,
+    "@/lib/inrAssistantHistoryUiSelection": historySelection,
+    "next/navigation": { usePathname: () => localHistoryScope.pathname },
+    "../_components/DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ actorUserId: actor, activeAccountId: localHistoryScope.accountId }) },
   }, { ...browser, fetch: (value: string) => {
     const url = new URL(value, "https://local.test");
-    if (url.searchParams.has("countsOnly")) { countRequests++; return Promise.resolve(response({ countsIncluded: true, folderCounts: counts(1), draftFolderCounts: counts() })); }
+    if (url.searchParams.has("countsOnly")) { countRequests++; return Promise.resolve(response({ countsIncluded: true, folderCounts: counts(nativeCount), draftFolderCounts: counts(assistant ? nativeCount : 0) })); }
     return new Promise<ReturnType<typeof response>>(resolve => pages.push({ url, resolve }));
-  } });
-  return { hook, browser, pages, get cacheReads() { return cacheReads; }, get countRequests() { return countRequests; } };
+  } }, assistant ? {
+    useMailboxAssistantHarness: nativeHistoryControlSource(),
+    $sendHistory: readFileSync(new URL("../../app/dashboard/_hooks/useInrAssistantSendHistoryControls.ts", import.meta.url), "utf8"),
+    $localInterface: readFileSync(new URL("../../app/dashboard/_hooks/useInrAssistantLocalInterface.ts", import.meta.url), "utf8"),
+    $sendDetails: readFileSync(new URL("../../app/dashboard/_hooks/useInrAssistantSendDetailsControls.ts", import.meta.url), "utf8"),
+  } : {});
+  return { hook, browser, pages, nativeRoutes, confirmations, setCountTotal(value: number) { nativeCount = value; }, setActor(value: string) { actor = value; hook.render(); hook.flush(); }, get cacheReads() { return cacheReads; }, get countRequests() { return countRequests; } };
 }
+
+const nativeHistoryItem = (id: string) => ({ id, source: "app_events", folder: "publications", status: "sent", title: id, channels: ["facebook"], raw: { payload: { publication_id: id } } });
+const HISTORY_ID = "10000000-0000-4000-8000-000000000001", HISTORY_NEXT_ID = "20000000-0000-4000-8000-000000000002";
+function historyLocalCommand(operation: localDriver.InrAssistantLocalOperation, value: string | null = null) {
+  const hint = localDriver.getInrAssistantLocalInterfaceHints(localHistoryScope)?.find(item => item.id === "send_history");
+  assert.ok(hint, "Native history must have an owned displayed page before receiving a command");
+  return { command: "control_local_interface" as const, selection: { kind: "account_document" as const, id: "send_history" as const }, revision: hint.revision, operation, value };
+}
+async function initialAssistantHistory(t: { after(callback: () => void): void }) {
+  const h = historyHarness(null, true); t.after(() => h.hook.unmount());
+  h.hook.render(); h.hook.flush();
+  assert.equal(localDriver.getInrAssistantLocalInterfaceHints(localHistoryScope), undefined, "Unverified cached/initial data provides no usable port");
+  h.pages[0].resolve(response({ items: [nativeHistoryItem(HISTORY_ID)], page: 1, total: 41, hasMore: true }));
+  await settle(); h.hook.flush(); return h;
+}
+
+test("native assistant history waits for the actual query box-view and page readback without mailbox access", async t => {
+  const h = await initialAssistantHistory(t);
+  let completed = false;
+  const search = localDriver.runInrAssistantLocalInterface(historyLocalCommand("search", "toiture"), localHistoryScope, () => true).then(ok => { completed = true; return ok; });
+  await settle(); h.hook.flush(); assert.equal(completed, false);
+  assert.equal(h.pages.at(-1)?.url.searchParams.get("q"), "toiture");
+  h.pages.at(-1)!.resolve(response({ items: [nativeHistoryItem(HISTORY_ID)], page: 1, total: 41, hasMore: true }));
+  await settle(); assert.equal(completed, false, "An API response without its React commit is not success");
+  h.hook.flush(); assert.equal(await search, true); assert.equal(h.hook.current.historyQuery, "toiture"); assert.equal(h.hook.current.searchOpen, true);
+  const drafts = localDriver.runInrAssistantLocalInterface(historyLocalCommand("select", JSON.stringify({ field: "boxView", value: "drafts" })), localHistoryScope, () => true);
+  await settle(); h.hook.flush(); assert.equal(h.pages.at(-1)?.url.searchParams.get("boxView"), "drafts");
+  h.pages.at(-1)!.resolve(response({ items: [nativeHistoryItem(HISTORY_ID)], page: 1, total: 41, hasMore: true }));
+  await settle(); h.hook.flush(); assert.equal(await drafts, true); assert.ok(h.nativeRoutes.at(-1)?.includes("folder=publications&boxView=drafts"));
+  const next = localDriver.runInrAssistantLocalInterface(historyLocalCommand("select", JSON.stringify({ field: "page", value: "next" })), localHistoryScope, () => true);
+  assert.equal(h.pages.at(-1)?.url.searchParams.get("page"), "2");
+  h.pages.at(-1)!.resolve(response({ items: [nativeHistoryItem(HISTORY_NEXT_ID)], page: 2, total: 41, hasMore: true }));
+  await settle(); h.hook.flush(); assert.equal(await next, true); assert.equal(h.hook.current.historyPage, 2);
+  assert.equal(await localDriver.runInrAssistantLocalInterface(historyLocalCommand("select", JSON.stringify({ field: "page", value: 100 })), localHistoryScope, () => true), false);
+  assert.ok(h.pages.every(page => page.url.pathname === "/api/inrsend/history" && page.url.searchParams.get("folder") === "publications"));
+});
+
+test("native assistant opens only an already visible item revalidated by the owned native API", async t => {
+  const h = await initialAssistantHistory(t), calls = h.pages.length;
+  assert.equal(await localDriver.runInrAssistantLocalInterface(historyLocalCommand("select", JSON.stringify({ field: "item", value: HISTORY_NEXT_ID })), localHistoryScope, () => true), false);
+  assert.equal(h.pages.length, calls, "An unknown/model-supplied ID does not trigger a lookup or detail");
+  const pending = localDriver.runInrAssistantLocalInterface(historyLocalCommand("select", JSON.stringify({ field: "item", value: HISTORY_ID })), localHistoryScope, () => true);
+  assert.equal(h.hook.current.detailsOpen, false);
+  h.pages.at(-1)!.resolve(response({ items: [nativeHistoryItem(HISTORY_ID)], page: 1, total: 41, hasMore: true }));
+  await settle(); h.hook.flush(); assert.equal(await pending, true);
+  assert.equal(h.hook.current.detailsOpen, true); assert.equal(h.hook.current.detailsId, HISTORY_ID); assert.equal(h.hook.current.selectedId, HISTORY_ID);
+  assert.ok(!localDriver.getInrAssistantLocalInterfaceHints(localHistoryScope)?.some(port => port.id === "send_history"), "Opening the native detail blocks history commands that could drop its draft");
+});
+
+test("native assistant refuses a vanished item late actor change and failed query without claiming a visible result", async t => {
+  for (const failure of ["vanished", "actor", "read"] as const) {
+    const h = await initialAssistantHistory(t);
+    let current = true;
+    const command = failure === "read" ? historyLocalCommand("search", "offline") : historyLocalCommand("select", JSON.stringify({ field: "item", value: HISTORY_ID }));
+    const pending = localDriver.runInrAssistantLocalInterface(command, localHistoryScope, () => current);
+    await settle(); h.hook.flush();
+    if (failure === "actor") { h.setActor("other-actor"); current = false; }
+    h.pages.at(-1)!.resolve(failure === "read" ? response({ error: "offline" }, false) : response({ items: failure === "vanished" ? [] : [nativeHistoryItem(HISTORY_ID)], page: 1, total: 0, hasMore: false }));
+    await settle(); h.hook.flush();
+    if (failure === "read") { assert.equal(h.hook.current.historyReadVersion, 1); h.hook.unmount(); }
+    assert.equal(await pending, false); assert.equal(h.hook.current.detailsOpen, false);
+    h.hook.unmount();
+  }
+});
+
+function detailLocalCommand(id: "send_details" | "send_preview", operation: localDriver.InrAssistantLocalOperation, value: string | null = null) {
+  const hint = localDriver.getInrAssistantLocalInterfaceHints(localHistoryScope)?.find(item => item.id === id);
+  assert.ok(hint, `Expected native detail port ${id}`);
+  return { command: "control_local_interface" as const, selection: { kind: "account_document" as const, id }, operation, value, revision: hint.revision };
+}
+async function openedAssistantDetail(t: { after(callback: () => void): void }, multiple = true) {
+  const h = await initialAssistantHistory(t);
+  h.setCountTotal(multiple ? 2 : 41);
+  const open = localDriver.runInrAssistantLocalInterface(historyLocalCommand("select", JSON.stringify({ field: "item", value: HISTORY_ID })), localHistoryScope, () => true);
+  const first = { ...nativeHistoryItem(HISTORY_ID), channels: ["facebook", "instagram"] };
+  h.pages.at(-1)!.resolve(response({ items: multiple ? [first, nativeHistoryItem(HISTORY_NEXT_ID)] : [first], page: 1, total: multiple ? 2 : 41, hasMore: !multiple }));
+  await settle(); h.hook.flush(); assert.equal(await open, true); return h;
+}
+
+test("native detail controls use the real visible channel preview navigation and close callbacks after commit", async t => {
+  const h = await openedAssistantDetail(t), reads = h.pages.length;
+  assert.equal(await localDriver.runInrAssistantLocalInterface(detailLocalCommand("send_details", "select", "not-visible"), localHistoryScope, () => true), false);
+  const channel = localDriver.runInrAssistantLocalInterface(detailLocalCommand("send_details", "select", "instagram"), localHistoryScope, () => true);
+  await settle(); h.hook.flush(); assert.equal(await channel, true); assert.equal(h.hook.current.detailsChannelKey, "instagram");
+  for (const operation of ["open", "close"] as const) {
+    let committed = false;
+    const preview = localDriver.runInrAssistantLocalInterface(detailLocalCommand("send_preview", operation), localHistoryScope, () => true).then(ok => { committed = true; return ok; });
+    await settle(); assert.equal(committed, false); h.hook.flush(); assert.equal(await preview, true);
+    assert.equal(h.hook.current.publicationPreviewOpen, operation === "open");
+  }
+  const next = localDriver.runInrAssistantLocalInterface(detailLocalCommand("send_details", "next"), localHistoryScope, () => true);
+  await settle(); h.hook.flush(); assert.equal(await next, true); assert.equal(h.hook.current.detailsId, HISTORY_NEXT_ID);
+  const previous = localDriver.runInrAssistantLocalInterface(detailLocalCommand("send_details", "previous"), localHistoryScope, () => true);
+  await settle(); h.hook.flush(); assert.equal(await previous, true); assert.equal(h.hook.current.detailsId, HISTORY_ID);
+  const close = localDriver.runInrAssistantLocalInterface(detailLocalCommand("send_details", "close"), localHistoryScope, () => true);
+  await settle(); h.hook.flush(); assert.equal(await close, true); assert.equal(h.hook.current.detailsOpen, false);
+  assert.equal(h.pages.length, reads); assert.equal(h.confirmations.length, 0, "Read-only clean navigation never fabricates a confirmation");
+});
+
+test("native detail close preserves a dirty edit until the actual human confirmation and rejects busy controls", async t => {
+  const h = await openedAssistantDetail(t);
+  const command = detailLocalCommand("send_details", "close");
+  h.hook.current.fixtureBusy?.(true); h.hook.flush();
+  assert.equal(await localDriver.runInrAssistantLocalInterface(command, localHistoryScope, () => true), false);
+  assert.equal(h.confirmations.length, 0);
+  h.hook.current.fixtureBusy?.(false); h.hook.current.fixtureEdit?.(); h.hook.flush();
+  const close = localDriver.runInrAssistantLocalInterface(detailLocalCommand("send_details", "close"), localHistoryScope, () => true);
+  assert.equal(h.confirmations.length, 1); assert.equal(h.hook.current.detailsOpen, true); assert.equal(h.hook.current.publicationEditDirty, true);
+  h.confirmations[0].resolve(true); await settle(); h.hook.flush();
+  assert.equal(await close, true); assert.equal(h.hook.current.detailsOpen, false); assert.equal(h.hook.current.publicationEditDirty, false);
+});
+
+test("a declined or late detail confirmation cannot discard another scope or a reopened edit", async t => {
+  for (const mode of ["decline", "actor", "reopen"] as const) {
+    const h = await openedAssistantDetail(t); h.hook.current.fixtureEdit?.(); h.hook.flush();
+    let current = true;
+    const command = detailLocalCommand("send_details", "close"), close = localDriver.runInrAssistantLocalInterface(command, localHistoryScope, () => current);
+    assert.equal(h.confirmations.length, 1);
+    if (mode === "actor") { h.setActor("other-actor"); current = false; }
+    if (mode === "reopen") { h.hook.current.fixtureClose?.(); h.hook.flush(); h.hook.current.fixtureOpen?.(); h.hook.flush(); }
+    h.confirmations[0].resolve(mode !== "decline"); await settle(); h.hook.flush();
+    assert.equal(h.hook.current.detailsOpen, true); assert.equal(h.hook.current.publicationEditDirty, true); assert.equal(h.hook.current.detailsId, HISTORY_ID);
+    current = false; h.hook.unmount(); assert.equal(await close, false);
+  }
+});
+
+test("native cross-page detail navigation stops after a scope change before selecting a returned item", async t => {
+  const h = await openedAssistantDetail(t, false);
+  assert.ok(h.hook.current.historyPageCount > 1, JSON.stringify({ total: h.hook.current.historyTotalCount, hasMore: h.hook.current.historyHasMorePotential, page: h.hook.current.historyPage }));
+  assert.ok(localDriver.getInrAssistantLocalInterfaceHints(localHistoryScope)?.find(port => port.id === "send_details")?.operations.includes("next"));
+  let current = true;
+  const next = localDriver.runInrAssistantLocalInterface(detailLocalCommand("send_details", "next"), localHistoryScope, () => current);
+  await settle(); h.hook.flush(); assert.equal(h.pages.at(-1)?.url.searchParams.get("page"), "2");
+  h.setActor("other-actor"); current = false;
+  h.pages.at(-1)!.resolve(response({ items: [nativeHistoryItem(HISTORY_NEXT_ID)], page: 2, total: 41, hasMore: true }));
+  await settle(); h.hook.flush(); assert.equal(await next, false); assert.equal(h.hook.current.detailsId, HISTORY_ID);
+});
 
 test("history keeps server hydration empty, restores once, then forces the initial revalidation", async () => {
   const h = historyHarness({ items: [{ id: "cached" }], page: 1, total: 1, hasMore: false, folderCounts: counts(1), draftFolderCounts: counts() });

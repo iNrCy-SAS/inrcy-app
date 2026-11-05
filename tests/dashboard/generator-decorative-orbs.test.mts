@@ -16,6 +16,8 @@ function renderHub(active: boolean) {
   const loaded = { exports: {} as Value };
   const localRequire = (name: string): Value => {
     if (name === "react/jsx-runtime") return require(name);
+    if (name === "react") return { useState: (initial: unknown) => [initial, () => {}] };
+    if (name.endsWith("useInrAssistantLocalInterface")) return { useInrAssistantLocalInterface() {} };
     if (name === "next-intl") return { useTranslations: () => (key: string) => key === "generatorShortTitle" ? "Générateur" : key };
     if (name === "../_hooks/useDashboardI18n") return { useDashboardI18n: () => ({ hero: { active: "Actif", waiting: "En attente", refreshAria: "Actualiser", refreshTitle: "Actualiser" } }) };
     if (name.endsWith(".css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };

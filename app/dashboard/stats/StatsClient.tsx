@@ -3,7 +3,9 @@
 import { useLocale, useTranslations } from "next-intl";
 import { isStandardDashboardEdition } from "@/lib/dashboardEdition";
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { planInrAssistantStatsViewPatch, isInrAssistantStatsViewPatchApplied, selectedStatsVisibilityIndexRange, type InrAssistantStatsIndexHistory } from "@/lib/inrAssistantStatsViewState";
+import type { VisibilityIndexRange } from "@/lib/inrstats/visibilityIndexSnapshots";
 import styles from "./stats.module.css";
 import panorama from "./statsPanorama.module.css";
 import StatsEvolution from "./StatsEvolution";
@@ -145,6 +147,15 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
   const [statsEvolutionView, setStatsEvolutionView] = useState<"measured" | "index">("measured");
   const [statsMetric, setStatsMetric] = useState<"visibility" | "clicks">("visibility");
   const [statsChannel, setStatsChannel] = useState<CubeKey | "all">("all");
+  const [statsIndexSelection, setStatsIndexSelection] = useState<{ accountId: string; channel: string; preferredRange: VisibilityIndexRange }>({ accountId: activeAccountId, channel: "all", preferredRange: 3 });
+  const statsIndexChannel = statsIndexSelection.accountId === activeAccountId ? statsIndexSelection.channel : "all";
+  const statsIndexRange = statsIndexSelection.accountId === activeAccountId ? statsIndexSelection.preferredRange : 3;
+  const setStatsIndexChannel = (channel: string) => setStatsIndexSelection({ accountId: activeAccountId, channel, preferredRange: statsIndexRange });
+  const setStatsIndexRange = (preferredRange: VisibilityIndexRange) => setStatsIndexSelection({ accountId: activeAccountId, channel: statsIndexChannel, preferredRange });
+  const [statsIndexHistory, setStatsIndexHistory] = useState<InrAssistantStatsIndexHistory>({ accountId: "", channel: "all", range: null, availableRanges: [], ready: false });
+  const onStatsIndexHistoryChange = useCallback((state: InrAssistantStatsIndexHistory) => {
+    setStatsIndexHistory(previous => JSON.stringify(previous) === JSON.stringify(state) ? previous : state);
+  }, []);
   const [statsMenuOpen, setStatsMenuOpen] = useState(false);
   const [dailyBootReady, setDailyBootReady] = useState(false);
   const [mailStats, setMailStats] = useState<MailStatsSnapshot>(EMPTY_MAIL_STATS);
@@ -512,19 +523,21 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
     setStatsMenuOpen(false);
   };
 
+  const assistantStatsState = { accountId: activeAccountId, panel: activeStatsPanel, evolutionView: statsEvolutionView, metric: statsMetric, measuredChannel: statsChannel, indexChannel: statsIndexChannel,
+    indexHistory: { ...statsIndexHistory, range: selectedStatsVisibilityIndexRange(statsIndexHistory.availableRanges, statsIndexRange) } };
   useInrAssistantStatsCommands({ accountId: activeAccountId,
-    snapshot: { panel: activeStatsPanel, evolutionView: statsEvolutionView, metric: statsMetric, channel: statsChannel, channels: models.map(model => model.key) },
+    snapshot: { ...assistantStatsState, channels: models.map(model => model.key) },
     apply: patch => {
-      const allowed = new Set<string>(["all", "evolution", ...models.map(model => model.key)]);
-      if (patch.panel !== undefined && !allowed.has(patch.panel) || patch.channel !== undefined && !["all", ...models.map(model => model.key)].includes(patch.channel)) return false;
-      if (patch.panel !== undefined) selectStatsPanel(patch.panel);
-      if (patch.evolutionView !== undefined) setStatsEvolutionView(patch.evolutionView);
-      if (patch.metric !== undefined) setStatsMetric(patch.metric);
-      if (patch.channel !== undefined) setStatsChannel(patch.channel);
+      const changes = planInrAssistantStatsViewPatch(assistantStatsState, patch, models.map(model => model.key));
+      if (!changes) return false;
+      if (changes.panel !== undefined) selectStatsPanel(changes.panel);
+      if (changes.evolutionView !== undefined) setStatsEvolutionView(changes.evolutionView);
+      if (changes.metric !== undefined) setStatsMetric(changes.metric);
+      if (changes.measuredChannel !== undefined) setStatsChannel(changes.measuredChannel);
+      if (changes.indexChannel !== undefined || changes.indexRangeMonths !== undefined) setStatsIndexSelection({ accountId: activeAccountId, channel: changes.indexChannel ?? statsIndexChannel, preferredRange: changes.indexRangeMonths ?? statsIndexRange });
       return true;
     },
-    isApplied: patch => (patch.panel === undefined || activeStatsPanel === patch.panel) && (patch.evolutionView === undefined || statsEvolutionView === patch.evolutionView)
-      && (patch.metric === undefined || statsMetric === patch.metric) && (patch.channel === undefined || statsChannel === patch.channel),
+    isApplied: patch => isInrAssistantStatsViewPatchApplied(assistantStatsState, patch),
   });
 
   return (
@@ -675,7 +688,8 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
             }
           />
           <StatsEvolution key={activeAccountId} enabled={activeStatsPanel === "evolution"} accountId={activeAccountId} refreshKey={refreshNonce} channels={models} ready={bulkStatsReady && !isRefreshing}
-            view={statsEvolutionView} onViewChange={setStatsEvolutionView} metric={statsMetric} onMetricChange={setStatsMetric} channel={statsChannel} onChannelChange={setStatsChannel} />
+            view={statsEvolutionView} onViewChange={setStatsEvolutionView} metric={statsMetric} onMetricChange={setStatsMetric} channel={statsChannel} onChannelChange={setStatsChannel}
+            indexChannel={statsIndexChannel} onIndexChannelChange={setStatsIndexChannel} indexRange={statsIndexRange} onIndexRangeChange={setStatsIndexRange} onIndexHistoryStateChange={onStatsIndexHistoryChange} />
           {activeStatsPanel === "all" ? (
             <StatsOverview
               channels={overviewChannels}

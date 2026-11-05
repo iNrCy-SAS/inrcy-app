@@ -6,6 +6,16 @@ import { createQaExecutionPlan, executeQaPlan, npmScriptArguments } from "../../
 const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8"));
 const plans = JSON.parse(readFileSync(new URL("../../scripts/qa-plans.json", import.meta.url), "utf8"));
 
+test("npm prebuild requires complete Basic coverage before code-index verification and cleanup", () => {
+  assert.equal(typeof pkg.scripts.prebuild, "string");
+  assert.deepEqual(pkg.scripts.prebuild.split("&&").map(command => command.trim()), [
+    "node scripts/assistant-basic-coverage.mjs",
+    "node scripts/build-assistant-code-index.mjs --check",
+    "node scripts/prebuild-clean.mjs",
+  ], "The mandatory coverage check must fail the build before any index or cleanup command; no report-only mode or ignored failure is permitted");
+  assert.equal(pkg.scripts.build, "next build", "npm run build retains its mandatory prebuild lifecycle");
+});
+
 test("the full publication certification keeps all declared suites once and runs global checks last", () => {
   const expected = [];
   const collect = (name) => plans[name] ? plans[name].forEach(collect) : expected.push(name);

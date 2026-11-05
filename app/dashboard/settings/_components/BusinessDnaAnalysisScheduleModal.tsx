@@ -10,10 +10,13 @@ import {
   type BusinessDnaAutomaticSchedule,
 } from "@/lib/businessDnaAutomaticSchedule";
 import styles from "./BusinessDnaAnalysisScheduleModal.module.css";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 type Props = {
   open: boolean;
   onClose: () => void;
+  onOpen?: () => void;
+  assistantActive?: boolean;
 };
 
 function apiErrorMessage(payload: unknown, fallback: string) {
@@ -58,18 +61,24 @@ function parseSchedule(value: unknown): BusinessDnaAutomaticSchedule {
   };
 }
 
-export default function BusinessDnaAnalysisScheduleModal({ open, onClose }: Props) {
+export default function BusinessDnaAnalysisScheduleModal({ open, onClose, onOpen, assistantActive = true }: Props) {
   const t = useTranslations("dashboard.aiMemory");
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [completedLoadAttempt, setCompletedLoadAttempt] = useState(-1);
   const [error, setError] = useState("");
   const [schedule, setSchedule] = useState<BusinessDnaAutomaticSchedule>(
     defaultBusinessDnaAutomaticSchedule(),
   );
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  useInrAssistantLocalInterface("dna_schedule", { open, completedLoadAttempt, loading, error }, {
+    ...(onOpen ? { open: { invoke: onOpen, matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === true) } } : {}),
+    close: { invoke: onClose, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === false) },
+    ...(open && error ? { retry: { invoke: () => setLoadAttempt(attempt => attempt + 1), matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "completedLoadAttempt" in snapshot && "loading" in snapshot && "error" in snapshot && Number(snapshot.completedLoadAttempt) > loadAttempt && snapshot.loading === false && !snapshot.error) } } : {}),
+  }, assistantActive, loading || saving);
 
   useEffect(() => setMounted(true), []);
 
@@ -93,7 +102,7 @@ export default function BusinessDnaAnalysisScheduleModal({ open, onClose }: Prop
         setError(loadError instanceof Error ? loadError.message : t("analysisScheduleLoadError"));
       })
       .finally(() => {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted) { setCompletedLoadAttempt(loadAttempt); setLoading(false); }
       });
     return () => controller.abort();
   }, [loadAttempt, open, t]);

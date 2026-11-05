@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as studioForm from "../../lib/inrAssistantStudioFormSelection.ts";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
@@ -79,6 +80,8 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   };
   const preference = { videoEngine: initialEngine, imageEngine: "openai" as models.AiMediaImageEngine, videoResolution: models.getAiMediaVideoModel(initialEngine).defaultResolution, update(patch: Props) { Object.assign(preference, patch); } };
   const modules = new Map<string, unknown>([
+    ["../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface() {} }],
+    ["@/lib/inrAssistantStudioFormSelection", studioForm],
     ["react", react], ["react/jsx-runtime", { jsx, jsxs: jsx }],
     ["next-intl", { useLocale: () => "fr-FR", useTranslations: () => (key: string, values?: { credits?: string; provider?: string }) => {
       if (key === "ai_generator_final_authorization_images_label" || key === "ai_generator_final_authorization_voices_label") return frenchMessages[key].replace("{provider}", values?.provider || "");

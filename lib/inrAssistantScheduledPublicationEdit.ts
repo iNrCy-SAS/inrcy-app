@@ -1,10 +1,10 @@
 import { BOOSTER_PUBLICATION_CHANNELS } from "./boosterPublicationPolicy.ts";
 type Row = Record<string, unknown>;
 const row = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
-export type ScheduledPublicationEdit = { channel: string; operation: "text" | "media"; post: { title: string | null; content: string | null; hashtags: string[] | null } | null; mediaId: string | null; mediaOperation: "add" | "replace" | "remove" | null; mediaIndex: number | null };
+export type ScheduledPublicationEdit = { channel: string; operation: "text" | "media" | "cta"; post: { title?: string | null; content?: string | null; hashtags?: string[] | null; cta?: string | null; ctaMode?: string | null; ctaUrl?: string | null; ctaPhone?: string | null; ctaAction?: string | null } | null; mediaId: string | null; mediaOperation: "add" | "replace" | "remove" | null; mediaIndex: number | null };
 export function parseScheduledPublicationEdit(value: unknown): ScheduledPublicationEdit {
   const input = row(value), keys = ["channel", "operation", "post", "mediaId", "mediaOperation", "mediaIndex"];
-  if (Object.keys(input).length !== keys.length || keys.some(key => !Object.hasOwn(input, key)) || !BOOSTER_PUBLICATION_CHANNELS.includes(input.channel as never) || !["text", "media"].includes(String(input.operation))) throw new Error("Modification invalide");
+  if (Object.keys(input).length !== keys.length || keys.some(key => !Object.hasOwn(input, key)) || !BOOSTER_PUBLICATION_CHANNELS.includes(input.channel as never) || !["text", "media", "cta"].includes(String(input.operation))) throw new Error("Modification invalide");
   if (input.operation === "text") {
     const post = row(input.post);
     if (Object.keys(post).length !== 3 || ["title", "content", "hashtags"].some(key => !Object.hasOwn(post, key))
@@ -12,6 +12,13 @@ export function parseScheduledPublicationEdit(value: unknown): ScheduledPublicat
       || post.content !== null && (typeof post.content !== "string" || !post.content.trim() || post.content.length > 10000)
       || post.hashtags !== null && (!Array.isArray(post.hashtags) || post.hashtags.length > 40 || post.hashtags.some(item => typeof item !== "string" || item.length > 100))
       || Object.values(post).every(value => value === null) || input.mediaId !== null || input.mediaOperation !== null || input.mediaIndex !== null) throw new Error("Texte invalide");
+  } else if (input.operation === "cta") {
+    const post = row(input.post), fields = ["cta", "ctaMode", "ctaUrl", "ctaPhone", "ctaAction"];
+    if (Object.keys(post).length !== fields.length || fields.some(key => !Object.hasOwn(post, key)) || Object.values(post).every(value => value === null)
+      || fields.some(key => post[key] !== null && (typeof post[key] !== "string" || String(post[key]).length > (key === "ctaUrl" ? 2000 : key === "cta" ? 300 : 80)))
+      || post.ctaMode !== null && !["none", "website", "call", "message", "custom"].includes(String(post.ctaMode))
+      || post.ctaAction !== null && !["", "BOOK", "ORDER", "SHOP", "SIGN_UP"].includes(String(post.ctaAction))
+      || input.mediaId !== null || input.mediaOperation !== null || input.mediaIndex !== null) throw new Error("Appel à l’action invalide");
   } else if (input.post !== null || !["add", "replace", "remove"].includes(String(input.mediaOperation))
     || !Number.isInteger(input.mediaIndex) || Number(input.mediaIndex) < 0 || Number(input.mediaIndex) > 4
     || (input.mediaOperation === "remove" ? input.mediaId !== null : typeof input.mediaId !== "string" || !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(input.mediaId))) throw new Error("Média invalide");
@@ -30,6 +37,7 @@ export function scheduledPublicationChannelContent(value: unknown, channel: stri
 const assetKey = (value: unknown) => { const asset = row(value); return String(asset.mediaId || asset.id || asset.storagePath || asset.storage_path || ""); };
 export function scheduledPublicationEditResult(value: unknown, edit: ScheduledPublicationEdit) {
   const state = scheduledPublicationChannelContent(value, edit.channel);
+  if (edit.operation === "cta") return Object.fromEntries(["cta", "ctaMode", "ctaUrl", "ctaPhone", "ctaAction"].map(key => [key, state.post[key] ?? ""]));
   return edit.operation === "text" ? { title: state.post.title ?? "", content: state.post.content ?? state.post.text ?? "", hashtags: state.post.hashtags ?? [] }
     : { images: state.images.map(assetKey), video: state.video ? assetKey(state.video) : "", mode: state.mode };
 }
@@ -37,6 +45,11 @@ export function scheduledPublicationEditResult(value: unknown, edit: ScheduledPu
 export function buildScheduledPublicationEdit(value: unknown, edit: ScheduledPublicationEdit, asset?: Row) {
   const payload = row(value), publish = row(payload.publishPayload), state = scheduledPublicationChannelContent(value, edit.channel);
   const posts = { ...row(payload.postByChannel), ...row(publish.postByChannel) }, post = { ...state.post };
+  if (edit.operation === "cta") {
+    for (const [key, value] of Object.entries(edit.post!)) if (value !== null) post[key] = typeof value === "string" ? value.trim() : value;
+    posts[edit.channel] = post;
+    return { ...payload, postByChannel: posts, publishPayload: { ...publish, postByChannel: posts } };
+  }
   if (edit.operation === "text") {
     if (edit.post!.title !== null) post.title = edit.post!.title;
     if (edit.post!.content !== null) { post.content = edit.post!.content; post.text = edit.post!.content; }

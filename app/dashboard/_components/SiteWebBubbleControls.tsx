@@ -6,6 +6,7 @@ import type { buildDashboardPanelProps } from "../dashboard.panel-props";
 import EditableChannelUrlField from "./EditableChannelUrlField";
 import { getChannelPopoverPlacement } from "./channel-popover-position";
 import styles from "./DashboardChannelBubble.module.css";
+import { useInrAssistantNativePopover } from "../_hooks/useInrAssistantNativePopover";
 
 export type SiteWebBubbleProps = ReturnType<typeof buildDashboardPanelProps>["siteWebPanelProps"];
 
@@ -26,6 +27,7 @@ export function SiteGoogleConnectionButton({ product, connected, busy, canConnec
   const [position, setPosition] = useState<CSSProperties>({});
   const [pending, setPending] = useState(false);
   const inFlight = useRef(false);
+  useInrAssistantNativePopover(product === "GA4" ? "website_ga4_details" : "website_gsc_details", menu, true, !connected || busy || pending);
   const place = () => { if (trigger.current) setPosition(getChannelPopoverPlacement(trigger.current, menu.current, 320)); };
   const disconnect = async () => {
     if (busy || inFlight.current) return;

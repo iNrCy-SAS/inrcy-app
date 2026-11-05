@@ -207,13 +207,15 @@ export function createMediaCreditPayments(config: CreditConfig) {
   }
 
   /** Shared by signed webhooks and authenticated returns. Browser success alone never grants credit. */
-  async function fulfillCheckout(sessionId: string, eventId: string): Promise<boolean> {
+  async function fulfillCheckout(sessionId: string, eventId: string, expectedScope?: { orderId: string; accountId: string; signal?: AbortSignal }): Promise<boolean> {
     assert(/^cs_[\w]+$/.test(sessionId));
     const session = record(await stripeGet(`/checkout/sessions/${encodeURIComponent(sessionId)}`));
     const hints = metadata(session);
     if (hints.kind !== paymentKind) return false;
     const order = await getOrder(String(hints.order_id ?? ""));
     assert(order, errorCode("ORDER_NOT_FOUND"));
+    const current = () => !expectedScope || expectedScope.orderId === order.id && expectedScope.accountId === order.account_id && !expectedScope.signal?.aborted;
+    assert(current(), errorCode("PAYMENT_SCOPE_MISMATCH"));
     checkoutScope(session, order);
     if (session.payment_status !== "paid" || session.status !== "complete") {
       let terminal: "expired" | "failed" | null = session.status === "expired" ? "expired" : null;
@@ -228,6 +230,7 @@ export function createMediaCreditPayments(config: CreditConfig) {
         if (intent.status === "canceled" || (intent.status === "requires_payment_method" && intent.last_payment_error)) terminal = "failed";
       }
       if (terminal) {
+        assert(current(), errorCode("PAYMENT_SCOPE_MISMATCH"));
         const update = await supabaseAdmin.from(orderTable)
           .update({ status: terminal, updated_at: new Date().toISOString() }).eq("id", order.id).is("granted_at", null);
         if (update.error) throw new Error(update.error.message);
@@ -261,6 +264,7 @@ export function createMediaCreditPayments(config: CreditConfig) {
     const refunded = cents(charge.amount_refunded);
     assert(refunded <= cents(session.amount_total));
     const disputes = await currentDisputes(charge, order, intentId);
+    assert(current(), errorCode("PAYMENT_SCOPE_MISMATCH"));
     await rpc(`fulfill_ai_media_${config.mediaKind}_credit_order`, {
       p_order_id: order.id, p_account_id: order.account_id, p_checkout_session_id: sessionId,
       p_payment_intent_id: intentId, p_customer_id: order.stripe_customer_id, p_livemode: order.stripe_livemode,

@@ -1,0 +1,915 @@
+{
+  "app/_components/InrcyDialogProvider.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Provider générique de confirmation/prompt : il résout la réponse du dialogue demandé par son appelant, sans cible métier ou droit indépendant. Les confirmations métier restent inventoriées avec leur écran appelant.",
+    "gateFiles": [
+      "app/_components/InrcyDialogProvider.tsx"
+    ],
+    "gateAnchor": "onClick={() => finish(choice.value)}"
+  },
+  "app/auth/switch-account/SwitchAccountClient.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Portail personnel de sécurité/session/RGPD situé hors du Dashboard : iNrAssistant est monté uniquement dans app/dashboard/layout.tsx. Les identités, attestations du titulaire et décisions de suppression ne sont pas des actions métier du compte Basic automatisées. Cette exclusion ne revendique ni reprise de session ni suppression autonome ; leurs points d’accès et informations dans Mon compte restent inventoriés et les décisions personnelles restent explicites.",
+    "gateFiles": [
+      "app/dashboard/layout.tsx"
+    ],
+    "gateAnchor": "<DashboardAssistantProvider>"
+  },
+  "app/dashboard/DashboardClient.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/DashboardClient.tsx"
+    ],
+    "gateAnchor": "\"use client\";\nimport { useInrAssistantLocalInterface } from \"./_hooks/useInrAssi"
+  },
+  "app/dashboard/SettingsDrawer.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/SettingsDrawer.tsx"
+    ],
+    "gateAnchor": "\"use client\";\nimport { useInrAssistantLocalClose } from \"./_hooks/useInrAssistan",
+    "exclusions": {
+      "app/dashboard/SettingsDrawer.tsx#aside:09274b973c1588d5:1": {
+        "reason": "Conteneur interne : stopPropagation prévient une fermeture sur un clic dans le formulaire ; aucune action autonome ou modification métier.",
+        "gateAnchor": "onClick={(e) => e.stopPropagation()}"
+      }
+    }
+  },
+  "app/dashboard/_components/AdsChannelInfoModal.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "La fenêtre d’information Ads ne peut être ouverte par le professionnel Basique : son unique déclencheur partagé est disabled en mode standard/basic. Le menu Premium reste exclu par les droits natifs.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardModulesCard.tsx"
+    ],
+    "gateAnchor": "disabled={standardMode}"
+  },
+  "app/dashboard/_components/AiContentReportButton.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "gateAnchor": "\"use client\";\n\nimport { FormEvent, useEffect, useRef, useState } from \"react\";\ni"
+  },
+  "app/dashboard/_components/AiEngineInfoModal.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/AiEngineInfoModal.tsx"
+    ],
+    "gateAnchor": "\"use client\";\n\nimport { useTranslations } from \"next-intl\";\nimport { useInrAssis"
+  },
+  "app/dashboard/_components/CampaignFullscreenComposerHeader.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Auxiliaire utilisé exclusivement par les écrans Premium de campagnes Propulser/Fidéliser, de composeur mail individuel ou de CRM/agenda ; aucun de ces appels n’est un parcours Basique. Les droits de destination et API sont revérifiés côté serveur.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "\"/dashboard/propulser\","
+  },
+  "app/dashboard/_components/CampaignScheduleModal.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Auxiliaire utilisé exclusivement par les écrans Premium de campagnes Propulser/Fidéliser, de composeur mail individuel ou de CRM/agenda ; aucun de ces appels n’est un parcours Basique. Les droits de destination et API sont revérifiés côté serveur.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "\"/dashboard/propulser\","
+  },
+  "app/dashboard/_components/DashboardActionButton.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Renderer générique des actions href/onClick fournies par les modules. Les opérations Basique et les gates sont portées par les cartes et écrans appelants, pas par ce rendu partagé.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardActionButton.tsx"
+    ],
+    "gateAnchor": "onClick={action.onClick}"
+  },
+  "app/dashboard/_components/DashboardAgentLogoButton.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Aperçu d’agent Standard visible mais inopérant en Basique : hasAgentAutomationAccess(basic) est faux et le parent passe enabled=false. Les programmations manuelles Booster sont un parcours distinct inclus.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "app/dashboard/_components/DashboardModulesCard.tsx"
+    ],
+    "gateAnchor": "return edition !== \"basic\";"
+  },
+  "app/dashboard/_components/DashboardAssistantMessageContent.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardAssistantMessageContent.tsx"
+    ],
+    "gateAnchor": "\"use client\";\n\nimport type { ComponentProps, MouseEvent, ReactNode } from \"react",
+    "exclusions": {
+      "app/dashboard/_components/DashboardAssistantMessageContent.tsx#a:fa3344e2bc96792b:1": {
+        "reason": "Rendu de référence externe dans la conversation, filtré par safeHref : il ne constitue pas une fonction métier Basic. Les liens natifs des canaux sont inventoriés dans leur module, sans URL fournie par le modèle.",
+        "gateAnchor": "<a href={safeHref} title={typeof title === \"string\" ? title : undefined} target=\"_blank\" rel=\"noopener noreferrer\">{label}</a>"
+      }
+    }
+  },
+  "app/dashboard/_components/DashboardAssistantSession.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx"
+    ],
+    "gateAnchor": "\"use client\";\n\nimport { getInrAssistantContentReportHint } from \"@/lib/inrAssist",
+    "exclusions": {
+      "app/dashboard/_components/DashboardAssistantSession.tsx#dialog:483d57280538c1dc:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<dialog\n      ref={dialogRef} id=\"inrcy-assistant-dialog\" className={styles.dialog} aria-labelledby=\"inrcy-assistant-title\"\n      data-position={position}\n      data-disable-pull-refresh=\"true\" data-testid=\"dashboard-ass"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:1f4da767378fdaf0:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"button\" className={`${styles.iconButton} ${styles.positionButton}`} onClick={togglePosition}\n            aria-label={position === \"right\" ? copy.moveLeft : copy.moveRight} title={position === \"right\" ? copy"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:9e00e5cf60ba8d92:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"button\" className={styles.iconButton} onClick={minimize} aria-label={copy.minimize} title={copy.minimize}>\n            <svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M5 12h14\" /></svg>\n          </but"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:1d99bc1df1256c32:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"button\" className={styles.iconButton} aria-label={copy.newChat} title={copy.newChat}\n            disabled={pending || files.busy || !messages.length}\n            onClick={newConversation}>\n            <svg "
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:04f03695c1e567ba:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"button\" className={styles.iconButton} onClick={close} aria-label={copy.close} title={copy.close}>\n            <svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m6 6 12 12M6 18 18 6\" /></svg>\n          </"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:6ffdf47e771836d7:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"button\" key={suggestion}\n            onClick={() => { localEditRevisionRef.current++; setDraft(suggestion); composerRef.current?.focus(); }}>{suggestion}</button>"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:98663792693556dd:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button key={suggestion} type=\"button\"\n              onClick={() => { localEditRevisionRef.current++; setDraft(onboardingWelcome && suggestion === copy.onboardingConnect ? copy.onboardingRequest : suggestion); composerRe"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:0026043ac8344791:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"button\" disabled={pending || files.busy || Boolean(draft.trim()) || files.attachments.length > 0} onClick={() => continueTask(message.taskProgress?.outcome === \"processing\")}>{message.taskProgress.outcome ="
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:bbb9b2d2ee7996de:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"button\" className={styles.collaborationHeading} aria-expanded={collaborationExpanded} aria-controls=\"inrcy-assistant-collaboration\" onClick={() => setCollaborationExpanded(value => !value)}>\n              {"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:747186f1c19bce3e:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"button\" onClick={() => void send(retryMessages)}>{copy.retry}</button>"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:deb902553450e564:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"button\" disabled={files.busy} aria-label={`${attachmentCopy.remove} ${file.name}`} onClick={() => files.setAttachments(current => current.filter(item => item.id !== file.id))}>×</button>"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#form:85ce4027831297a9:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<form className={styles.composer} onSubmit={submit}>\n          <input hidden type=\"file\" ref={files.inputRef} multiple accept={ASSISTANT_ATTACHMENT_ACCEPT} onChange={event => { const selected = Array.from(event.target.fi"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#textarea:b7cf30280749d8b5:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<textarea ref={composerRef} value={draft} onChange={(event) => { localEditRevisionRef.current++; setDraft(event.target.value); }}\n            rows={2} maxLength={4000} aria-label={copy.placeholder} placeholder={copy.plac"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:990172e6314df88f:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"button\" onClick={files.selectLibrary}>{attachmentCopy.library}</button>"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:2672265d89d85049:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"button\" onClick={files.selectAudioLibrary}>{attachmentCopy.audioLibrary}</button>"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:53470d97590b512c:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"button\" className={styles.attachButton} aria-label={attachmentCopy.attach} title={attachmentCopy.attach} aria-expanded={files.menuOpen} disabled={pending || files.busy || files.attachments.length >= ASSISTA"
+      },
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:a1053b5d4c957fa9:1": {
+        "reason": "Infrastructure du canal de conversation : saisie/envoi ou reprise des instructions, fichiers attachés à cette saisie, dictée et présentation du chat. Ces contrôles ne sont pas des opérations métier Basic ; ils ne peuvent pas fabriquer leur propre autorisation utilisateur. Les décisions média, insertion Studio, contact et navigation métier restent recensées séparément.",
+        "gateAnchor": "<button type=\"submit\" className={styles.sendButton} aria-label={copy.send} title={copy.send} disabled={pending || files.busy || (!draft.trim() && !files.attachments.length)}>\n            <svg viewBox=\"0 0 24 24\" aria-hid"
+      }
+    }
+  },
+  "app/dashboard/_components/DashboardAssistantTrigger.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardAssistantTrigger.tsx"
+    ],
+    "gateAnchor": "\"use client\";\nimport Image from \"next/image\";\n\nimport { useDashboardAssistant, t",
+    "exclusions": {
+      "app/dashboard/_components/DashboardAssistantTrigger.tsx#button:2374ce457334a76c:1": {
+        "reason": "Lanceur du canal de conversation lui-même : point d’entrée humain des instructions, aucun outil ne s’auto-invoque.",
+        "gateAnchor": "<button type=\"button\" className={styles.trigger} onClick={toggleAssistant}\n    aria-label={assistantLabel} title={assistantLabel} aria-haspopup=\"dialog\"\n    aria-controls=\"inrcy-assistant-dialog\" aria-expanded={assistant"
+      }
+    }
+  },
+  "app/dashboard/_components/DashboardGeneratorHub.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardGeneratorHub.tsx"
+    ],
+    "gateAnchor": "\"use client\";\n\nimport { useTranslations } from \"next-intl\";\nimport { useDashboar"
+  },
+  "app/dashboard/_components/DashboardHero.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardHero.tsx"
+    ],
+    "gateAnchor": "\"use client\";\n\nimport { useEffect, useRef, useState } from \"react\";\nimport { use"
+  },
+  "app/dashboard/_components/DashboardMobileSelect.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Sélecteur générique contrôlé (options/value/onChange) : les choix de domaine sont recensés dans leurs composants parents et les valeurs interdites restent refusées.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardMobileSelect.tsx"
+    ],
+    "gateAnchor": "export default function DashboardMobileSelect"
+  },
+  "app/dashboard/_components/DashboardModulesCard.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardModulesCard.tsx"
+    ],
+    "gateAnchor": "\"use client\";\n\nimport type { DashboardPanelName } from \"../_hooks/useDashboardPa",
+    "exclusions": {
+      "app/dashboard/_components/DashboardModulesCard.tsx#DashboardAgentLogoButton:3a49c174caa1d7d0:1": {
+        "reason": "Aperçu des agents Standard, désactivé en Basique ; programmation manuelle via le bouton séparé conservée.",
+        "gateAnchor": "enabled={inrAgentEnabled && !locked}"
+      },
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:95748cb54ef5ee93:1": {
+        "reason": "Information Ads Premium : bouton explicitement disabled pour Basic/Standard.",
+        "gateAnchor": "disabled={standardMode}"
+      },
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:762bf5d4caa48f50:1": {
+        "reason": "Ce contrôle appartient aux choix de campagne Premium ou de comptabilité Founder, masqués/verrouillés en Basique par les gates de la carte et des destinations.",
+        "gateAnchor": "!standardMode"
+      },
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:f8064412d67f9ee8:1": {
+        "reason": "Ce contrôle appartient aux choix de campagne Premium ou de comptabilité Founder, masqués/verrouillés en Basique par les gates de la carte et des destinations.",
+        "gateAnchor": "!standardMode"
+      },
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:1274e5794074fb86:1": {
+        "reason": "Ce contrôle appartient aux choix de campagne Premium ou de comptabilité Founder, masqués/verrouillés en Basique par les gates de la carte et des destinations.",
+        "gateAnchor": "!standardMode"
+      },
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:581e04f9c6aca90f:1": {
+        "reason": "Ce contrôle appartient aux choix de campagne Premium ou de comptabilité Founder, masqués/verrouillés en Basique par les gates de la carte et des destinations.",
+        "gateAnchor": "!standardMode"
+      },
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:a662a4e674d1f2a6:1": {
+        "reason": "Ce contrôle appartient aux choix de campagne Premium ou de comptabilité Founder, masqués/verrouillés en Basique par les gates de la carte et des destinations.",
+        "gateAnchor": "!standardMode"
+      }
+    }
+  },
+  "app/dashboard/_components/DashboardSettingsDrawerContent.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx"
+    ],
+    "gateAnchor": "\"use client\";\n\nimport type { DashboardPanelName } from \"../_hooks/useDashboardPa"
+  },
+  "app/dashboard/_components/DashboardTopbar.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardTopbar.tsx"
+    ],
+    "gateAnchor": "\"use client\";\nimport Image from \"next/image\";\n\nimport type { DashboardPanelName ",
+    "exclusions": {
+      "app/dashboard/_components/DashboardTopbar.tsx#button:93dd567f035e515e:1": {
+        "reason": "Agent Standard indisponible en Basique : bouton désactivé et garde explicite avant navigation.",
+        "gateAnchor": "if (!inrAgentEnabled) return;"
+      },
+      "app/dashboard/_components/DashboardTopbar.tsx#button:4a4ca1b29113af81:1": {
+        "reason": "Contrôle propre à la conversation : le professionnel ouvre le canal par lequel il donne ses instructions. Aucun outil métier ne fabrique une nouvelle demande utilisateur.",
+        "gateAnchor": "<button type=\"button\" className={`${styles.ghostBtn} ${dockStyles.iconButton} ${dockStyles.assistPreview}`}\n        aria-label={assistantLabel} title={assistantLabel} aria-haspopup=\"dialog\" aria-expanded={assistantOpen}\n"
+      },
+      "app/dashboard/_components/DashboardTopbar.tsx#button:f28dd9cee2514336:1": {
+        "reason": "Encaissement et documents réservés au droit comptable Founder ; ce bouton n’est rendu que si accountingEnabled.",
+        "gateAnchor": "accountingEnabled ?"
+      },
+      "app/dashboard/_components/DashboardTopbar.tsx#button:4a4ebab69e22b72a:1": {
+        "reason": "Contrôle réservé au rôle administrateur confirmé ; non opérable dans le périmètre professionnel Basique.",
+        "gateAnchor": "isAdmin &&"
+      },
+      "app/dashboard/_components/DashboardTopbar.tsx#button:63524e922ae870dc:1": {
+        "reason": "Contrôle réservé au rôle administrateur confirmé ; non opérable dans le périmètre professionnel Basique.",
+        "gateAnchor": "isAdmin &&"
+      }
+    }
+  },
+  "app/dashboard/_components/DashboardWorkspaceHeader.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Bandeau générique : chaque action transmet exclusivement le callback et le disabled fournis par son écran appelant. Aucune cible métier ou permission n’est choisie dans ce renderer.",
+    "gateFiles": [
+      "app/dashboard/_components/DashboardWorkspaceHeader.tsx"
+    ],
+    "gateAnchor": "onClick={action.onClick}"
+  },
+  "app/dashboard/_components/DetailSequenceNavigation.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Auxiliaire utilisé exclusivement par les écrans Premium de campagnes Propulser/Fidéliser, de composeur mail individuel ou de CRM/agenda ; aucun de ces appels n’est un parcours Basique. Les droits de destination et API sont revérifiés côté serveur.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "\"/dashboard/crm\","
+  },
+  "app/dashboard/_components/EmojiPickerButton.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/EmojiPickerButton.tsx"
+    ],
+    "gateAnchor": "\"use client\";\n\nimport { useTranslations } from \"next-intl\";\n\n\nimport { useEffect"
+  },
+  "app/dashboard/_components/EstablishmentMenu.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/EstablishmentMenu.tsx"
+    ],
+    "gateAnchor": "\"use client\";\n\nimport { useCallback, useEffect, useRef, useState } from \"react\";"
+  },
+  "app/dashboard/_components/ResponsiveActionButton.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Renderer responsive de props href/onClick/type : aucune opération ou route métier choisie ici. Les contrôles effectifs sont inventoriés dans leurs parents.",
+    "gateFiles": [
+      "app/dashboard/_components/ResponsiveActionButton.tsx"
+    ],
+    "gateAnchor": "onClick={onClick}"
+  },
+  "app/dashboard/_components/ResponsiveBottomNav.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx"
+    ],
+    "gateAnchor": "\"use client\";\nimport { useInrAssistantLocalInterface } from \"../_hooks/useInrAss",
+    "exclusions": {
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#button:9f5e3066e6e5f9d8:1": {
+        "reason": "Renderer interne MobileMenuActionButton : appelle exclusivement onClick fourni ; les instances avec leur destination sont recensées séparément.",
+        "gateAnchor": "function MobileMenuActionButton"
+      },
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#MobileMenuActionButton:eb49e65bacda4857:1": {
+        "reason": "Entrée administrateur conditionnée au rôle autorisé ; aucune permission Basique supplémentaire.",
+        "gateAnchor": "isAdmin ?"
+      },
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#button:78be5224a8e9f015:1": {
+        "reason": "Entrée du canal de conversation lui-même ; elle ne constitue pas une opération métier que le modèle peut s’ordonner.",
+        "gateAnchor": "<button type=\"button\" className={[styles.item, styles.assistPreview].join(\" \")}\n            aria-label={assistantLabel} title={assistantLabel} aria-haspopup=\"dialog\" aria-expanded={assistantOpen}\n            aria-busy={a"
+      }
+    }
+  },
+  "app/dashboard/_components/RichMailEditor.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Auxiliaire utilisé exclusivement par les écrans Premium de campagnes Propulser/Fidéliser, de composeur mail individuel ou de CRM/agenda ; aucun de ces appels n’est un parcours Basique. Les droits de destination et API sont revérifiés côté serveur.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "\"/dashboard/propulser\","
+  },
+  "app/dashboard/_components/TemplateAiEngineSelector.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Auxiliaire utilisé exclusivement par les écrans Premium de campagnes Propulser/Fidéliser, de composeur mail individuel ou de CRM/agenda ; aucun de ces appels n’est un parcours Basique. Les droits de destination et API sont revérifiés côté serveur.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "\"/dashboard/propulser\","
+  },
+  "app/dashboard/_components/TemplateAttachmentPicker.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Auxiliaire utilisé exclusivement par les écrans Premium de campagnes Propulser/Fidéliser, de composeur mail individuel ou de CRM/agenda ; aucun de ces appels n’est un parcours Basique. Les droits de destination et API sont revérifiés côté serveur.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "\"/dashboard/propulser\","
+  },
+  "app/dashboard/_components/TemplateSubjectInlineEditor.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Auxiliaire utilisé exclusivement par les écrans Premium de campagnes Propulser/Fidéliser, de composeur mail individuel ou de CRM/agenda ; aucun de ces appels n’est un parcours Basique. Les droits de destination et API sont revérifiés côté serveur.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "\"/dashboard/propulser\","
+  },
+  "app/dashboard/_components/VideoCreditRecharge.tsx": {
+    "disposition": "basic",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "gateFiles": [
+      "app/dashboard/_components/VideoCreditRecharge.tsx"
+    ],
+    "gateAnchor": "\"use client\";\n\nimport { useCallback, useEffect, useId, useRef, useState } from \""
+  },
+  "app/dashboard/_components/WorkflowBaseModal.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Coquille générique de dialogue : le contenu métier et les opérations appartiennent aux composants appelants. Les règles de fermeture/focus restent natives.",
+    "gateFiles": [
+      "app/dashboard/_components/WorkflowBaseModal.tsx"
+    ],
+    "gateAnchor": "export default function BaseModal"
+  },
+  "app/dashboard/_documents/DocumentAdvancedSections.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/devis : accès refusé à Basic par les gates centralisées des routes (droit comptable Founder). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "const FOUNDER_ONLY_DASHBOARD_PREFIXES = ["
+  },
+  "app/dashboard/_documents/DocumentContactSection.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/devis : accès refusé à Basic par les gates centralisées des routes (droit comptable Founder). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "const FOUNDER_ONLY_DASHBOARD_PREFIXES = ["
+  },
+  "app/dashboard/_documents/DocumentParties.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/devis : accès refusé à Basic par les gates centralisées des routes (droit comptable Founder). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "const FOUNDER_ONLY_DASHBOARD_PREFIXES = ["
+  },
+  "app/dashboard/_documents/documentEditorShared.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/devis : accès refusé à Basic par les gates centralisées des routes (droit comptable Founder). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "const FOUNDER_ONLY_DASHBOARD_PREFIXES = ["
+  },
+  "app/dashboard/admin/commandes/AdminOrdersClient.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Écran réservé au rôle administrateur vérifié côté serveur par getMyRole ; il ne fait pas partie des opérations du professionnel Basique. Le plan commercial seul n’accorde jamais le rôle admin.",
+    "gateFiles": [
+      "app/dashboard/admin/commandes/page.tsx",
+      "lib/roles.ts"
+    ],
+    "gateAnchor": "if (!isAdmin)"
+  },
+  "app/dashboard/admin/diagnostics/AdminDiagnosticsClient.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Écran réservé au rôle administrateur vérifié côté serveur par getMyRole ; il ne fait pas partie des opérations du professionnel Basique. Le plan commercial seul n’accorde jamais le rôle admin.",
+    "gateFiles": [
+      "app/dashboard/admin/diagnostics/page.tsx",
+      "lib/roles.ts"
+    ],
+    "gateAnchor": "if (!isAdmin)"
+  },
+  "app/dashboard/admin/image-bank/ImageBankAdminClient.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Écran réservé au rôle administrateur vérifié côté serveur par getMyRole ; il ne fait pas partie des opérations du professionnel Basique. Le plan commercial seul n’accorde jamais le rôle admin.",
+    "gateFiles": [
+      "app/dashboard/admin/image-bank/page.tsx",
+      "lib/roles.ts"
+    ],
+    "gateAnchor": "if (!isAdmin)"
+  },
+  "app/dashboard/admin/page.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Écran réservé au rôle administrateur vérifié côté serveur par getMyRole ; il ne fait pas partie des opérations du professionnel Basique. Le plan commercial seul n’accorde jamais le rôle admin.",
+    "gateFiles": [
+      "app/dashboard/admin/page.tsx",
+      "lib/roles.ts"
+    ],
+    "gateAnchor": "if (!isAdmin)"
+  },
+  "app/dashboard/admin/settings/AdminSettingsClient.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Écran réservé au rôle administrateur vérifié côté serveur par getMyRole ; il ne fait pas partie des opérations du professionnel Basique. Le plan commercial seul n’accorde jamais le rôle admin.",
+    "gateFiles": [
+      "app/dashboard/admin/settings/page.tsx",
+      "lib/roles.ts"
+    ],
+    "gateAnchor": "if (!isAdmin)"
+  },
+  "app/dashboard/admin/subscribers/AdminSubscribersClient.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Écran réservé au rôle administrateur vérifié côté serveur par getMyRole ; il ne fait pas partie des opérations du professionnel Basique. Le plan commercial seul n’accorde jamais le rôle admin.",
+    "gateFiles": [
+      "app/dashboard/admin/subscribers/page.tsx",
+      "lib/roles.ts"
+    ],
+    "gateAnchor": "if (!isAdmin)"
+  },
+  "app/dashboard/admin/tools/AdminToolsClient.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Écran réservé au rôle administrateur vérifié côté serveur par getMyRole ; il ne fait pas partie des opérations du professionnel Basique. Le plan commercial seul n’accorde jamais le rôle admin.",
+    "gateFiles": [
+      "app/dashboard/admin/tools/page.tsx",
+      "lib/roles.ts"
+    ],
+    "gateAnchor": "if (!isAdmin)"
+  },
+  "app/dashboard/admin/trials/AdminTrialsClient.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Écran réservé au rôle administrateur vérifié côté serveur par getMyRole ; il ne fait pas partie des opérations du professionnel Basique. Le plan commercial seul n’accorde jamais le rôle admin.",
+    "gateFiles": [
+      "app/dashboard/admin/trials/page.tsx",
+      "lib/roles.ts"
+    ],
+    "gateAnchor": "if (!isAdmin)"
+  },
+  "app/dashboard/admin/users/AdminUsersClient.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Écran réservé au rôle administrateur vérifié côté serveur par getMyRole ; il ne fait pas partie des opérations du professionnel Basique. Le plan commercial seul n’accorde jamais le rôle admin.",
+    "gateFiles": [
+      "app/dashboard/admin/users/page.tsx",
+      "lib/roles.ts"
+    ],
+    "gateAnchor": "if (!isAdmin)"
+  },
+  "app/dashboard/ads/AdsCampaignAnalysisChoice.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/AdsCampaignDemoDialog.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/AdsCampaignTracking.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/AdsClient.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/AdsConnectionSettings.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/AdsDraftsMenu.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/ChatGPTAdsCampaignControls.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/ExternalAdsConnectionSettings.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/GoogleAdsCampaignControls.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/LinkedInAdsAudience.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/LinkedInAdsDelivery.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/LinkedInAdsLocationPicker.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/MetaAdsCampaignControls.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/MetaAdsLocationPicker.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/MetaAdsMediaPack.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/OpenaiAdsConnectionSettings.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/PinterestAdsCampaignControls.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/PreparedAdsCampaignControls.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/PreparedAdsNativeControls.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/TikTokAdsLocationPicker.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/ads/XAdsLocationPicker.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/ads : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/ads\","
+  },
+  "app/dashboard/agenda/AgendaClient.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/agenda : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/agenda\","
+  },
+  "app/dashboard/agenda/agenda.ui.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/agenda : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/agenda\","
+  },
+  "app/dashboard/crm/CRMClient.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/crm : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/crm\","
+  },
+  "app/dashboard/crm/_components/CRMContactModal.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/crm : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/crm\","
+  },
+  "app/dashboard/crm/_components/CRMContactsView.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/crm : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/crm\","
+  },
+  "app/dashboard/crm/_components/CRMHeader.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/crm : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/crm\","
+  },
+  "app/dashboard/crm/_components/CRMPagination.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/crm : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/crm\","
+  },
+  "app/dashboard/crm/_components/CRMToolbar.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/crm : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/crm\","
+  },
+  "app/dashboard/devis/ListPage.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/devis : accès refusé à Basic par les gates centralisées des routes (droit comptable Founder). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "const FOUNDER_ONLY_DASHBOARD_PREFIXES = ["
+  },
+  "app/dashboard/devis/new/page.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/devis : accès refusé à Basic par les gates centralisées des routes (droit comptable Founder). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "const FOUNDER_ONLY_DASHBOARD_PREFIXES = ["
+  },
+  "app/dashboard/factures/ListPage.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/factures : accès refusé à Basic par les gates centralisées des routes (droit comptable Founder). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "const FOUNDER_ONLY_DASHBOARD_PREFIXES = ["
+  },
+  "app/dashboard/factures/new/page.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/factures : accès refusé à Basic par les gates centralisées des routes (droit comptable Founder). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "const FOUNDER_ONLY_DASHBOARD_PREFIXES = ["
+  },
+  "app/dashboard/fideliser/components/enqueter/EnqueterModal.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/fideliser : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/fideliser\","
+  },
+  "app/dashboard/fideliser/components/informer/InformerModal.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/fideliser : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/fideliser\","
+  },
+  "app/dashboard/fideliser/components/suivre/SuivreModal.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/fideliser : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/fideliser\","
+  },
+  "app/dashboard/fideliser/page.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/fideliser : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/fideliser\","
+  },
+  "app/dashboard/propulser/components/offrir/OffrirModal.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/propulser : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/propulser\","
+  },
+  "app/dashboard/propulser/components/recolter/RecolterModal.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/propulser : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/propulser\","
+  },
+  "app/dashboard/propulser/components/valoriser/ValoriserModal.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/propulser : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/propulser\","
+  },
+  "app/dashboard/propulser/page.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Composant appelé par /dashboard/propulser : accès refusé à Basic par les gates centralisées des routes (fonction Premium). Aucun droit n’est inféré du nom du bouton.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts",
+      "proxy.ts"
+    ],
+    "gateAnchor": "\"/dashboard/propulser\","
+  },
+  "app/suppression-compte/DeletionRequestForm.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Portail personnel de sécurité/session/RGPD situé hors du Dashboard : iNrAssistant est monté uniquement dans app/dashboard/layout.tsx. Les identités, attestations du titulaire et décisions de suppression ne sont pas des actions métier du compte Basic automatisées. Cette exclusion ne revendique ni reprise de session ni suppression autonome ; leurs points d’accès et informations dans Mon compte restent inventoriés et les décisions personnelles restent explicites.",
+    "gateFiles": [
+      "app/dashboard/layout.tsx"
+    ],
+    "gateAnchor": "<DashboardAssistantProvider>"
+  },
+  "app/suppression-compte/page.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Portail personnel de sécurité/session/RGPD situé hors du Dashboard : iNrAssistant est monté uniquement dans app/dashboard/layout.tsx. Les identités, attestations du titulaire et décisions de suppression ne sont pas des actions métier du compte Basic automatisées. Cette exclusion ne revendique ni reprise de session ni suppression autonome ; leurs points d’accès et informations dans Mon compte restent inventoriés et les décisions personnelles restent explicites.",
+    "gateFiles": [
+      "app/dashboard/layout.tsx"
+    ],
+    "gateAnchor": "<DashboardAssistantProvider>"
+  }
+}

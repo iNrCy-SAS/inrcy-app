@@ -11,12 +11,18 @@ export async function prepareInrAssistantStatsUiAction(input: { command: string;
   if (input.documentId != null || input.documentKind != null || input.recipient != null) return { ok: false, status: "needs_details", code: "stats_view_unrelated_target", message: "La sélection d’une vue iNr’Stats ne prend ni document ni destinataire. Laissez documentId, documentKind et recipient à null." };
   if (!screen || !screen.availableCommands?.includes("configure_stats_view") || !isInrAssistantStatsUiCommandAvailable(input.command, screen.pathname, screen.selection?.kind)
     || !parseInrAssistantStatsUiCommand({ command: input.command, selection: screen.selection, revision: screen.revision, patch: { panel: "all" } })) return { ok: false, status: "needs_details", code: "stats_view_context_unavailable", message: "La vue iNr’Stats active et sa révision ne sont pas disponibles. Ouvrez iNr’Stats ou attendez la fin de son chargement avant de sélectionner sa vue." };
-  if (!input.patch || typeof input.patch !== "object" || Array.isArray(input.patch)) return { ok: false, status: "needs_details", code: "stats_view_invalid_patch", message: "Précisez au moins un réglage iNr’Stats dans patch : panel, evolutionView, metric ou channel. Pour la vue Évolution, utilisez panel=\"evolution\"." };
+  if (!input.patch || typeof input.patch !== "object" || Array.isArray(input.patch)) return { ok: false, status: "needs_details", code: "stats_view_invalid_patch", message: "Précisez au moins un réglage iNr’Stats dans patch : panel, evolutionView, metric, channel ou indexRangeMonths. Pour la vue Évolution, utilisez panel=\"evolution\"." };
   const patch = Object.fromEntries(Object.entries(input.patch || {}).filter(([, value]) => value != null));
   const command = parseInrAssistantStatsUiCommand({ command: input.command, selection: screen?.selection, revision: screen?.revision, patch });
-  if (!command) return { ok: false, status: "needs_details", code: "stats_view_invalid_patch", message: "Réglages iNr’Stats invalides : seuls panel (all, evolution ou canal), evolutionView (measured/index), metric (visibility/clicks) et channel (all ou canal Stats) sont acceptés. Laissez les réglages non demandés à null ; aucun changes ni réglage de publication." };
+  if (!command) return { ok: false, status: "needs_details", code: "stats_view_invalid_patch", message: "Réglages iNr’Stats invalides : panel (all, evolution ou canal), evolutionView (measured/index), metric (visibility/clicks), channel (all ou canal Stats), indexRangeMonths (1, 3, 6 ou 12, indice seulement). Une période verrouillée par l’historique reste indisponible. Laissez les réglages non demandés à null." };
   const text = options.currentUserMessage.replace(/```[\s\S]*?(?:```|$)|`[^`]*`|«[^»]*»|“[^”]*”|"[^"]*"|^>.*$/gm, " ");
   const normalize = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  if (command.patch.indexRangeMonths !== undefined) {
+    const numberWords = { 1: "un", 3: "trois", 6: "six", 12: "douze" } as const;
+    const months = command.patch.indexRangeMonths;
+    const period = new RegExp(`\\b(?:${months}|${numberWords[months]})\\s+mois\\b${months === 12 ? "|\\bun an\\b" : ""}`);
+    if (!period.test(normalize(input.instructionQuote || ""))) return { ok: false, status: "needs_instruction", message: "Indiquez explicitement la période de l’indice de visibilité à sélectionner : 1, 3, 6 ou 12 mois." };
+  }
   if (options.canStartWork?.() === false || !input.instructionQuote?.trim() || !text.includes(input.instructionQuote)
     || !isInrAssistantStatsUiCommandText(normalize(input.instructionQuote)) || !isInrAssistantStatsUiCommandText(normalize(text))) return { ok: false, status: "needs_instruction", message: "Demandez explicitement la vue ou les filtres iNr’Stats à afficher maintenant." };
   const auth = await requireUser();

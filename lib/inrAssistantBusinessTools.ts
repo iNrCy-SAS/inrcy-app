@@ -5,6 +5,8 @@ import { jsonSchema, tool } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DashboardEdition } from "./dashboardEdition.ts";
 import { enforceAiContentLengthForEdition } from "./aiContentLength.ts";
+import { AI_ENGINE_OPTIONS } from "./aiEnginePreference.ts";
+import { updateAiMemoryRecentNewsItem } from "./aiMemory.ts";
 import { decodeAiInstructionSections, encodeAiInstructionSections } from "./aiInstructionSections.ts";
 import { INR_ASSISTANT_ACCOUNT_GUIDES } from "./inrAssistantGuidesAccount.ts";
 import { DASHBOARD_CHANNEL_CREATE_HREF_BY_KEY } from "../app/dashboard/dashboard.channel-setup.ts";
@@ -19,17 +21,20 @@ const CONFIG_LINK = { label: "Configuration IA", href: "/dashboard/configuration
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
 const BUSINESS_FIELDS = ["description", "services", "interventionZones", "strengths", "customerTypes"];
 const LIST_FIELDS = ["services", "interventionZones", "strengths", "customerTypes", "specialties", "targetAudiences", "customerNeeds", "values", "brandPersonality", "commitments", "preferredVocabulary", "forbiddenVocabulary"];
-const DNA_FIELDS = [...BUSINESS_FIELDS, "mission", "specialties", "targetAudiences", "customerNeeds", "values", "brandPersonality", "commitments", "preferredVocabulary", "forbiddenVocabulary", "offersAndArguments", "keyArguments", "proofsAndObjections", "objectionResponses", "editorialStrategy", "campaignCalendar", ...DAYS.map(day => `hours.${day}`)];
+const NEWS_FIELDS = [0, 1, 2, 3].map(index => `recentNews.${index}`);
+const LOCATION_FIELDS = ["contentLocation.useHeadquarters", "contentLocation.primaryArea"];
+const DNA_FIELDS = [...BUSINESS_FIELDS, "mission", "specialties", "targetAudiences", "customerNeeds", "values", "brandPersonality", "commitments", "preferredVocabulary", "forbiddenVocabulary", "offersAndArguments", "keyArguments", "proofsAndObjections", "objectionResponses", "editorialStrategy", "campaignCalendar", ...DAYS.map(day => `hours.${day}`), ...LOCATION_FIELDS, ...NEWS_FIELDS];
 const DNA_TEXT_LIMITS: Record<string, number> = { description: 5000, mission: 800, offersAndArguments: 5000, keyArguments: 3000, proofsAndObjections: 5000, objectionResponses: 3000, editorialStrategy: 5000, campaignCalendar: 3000 };
 const DNA_LIST_LIMITS: Record<string, [number, number]> = { services: [20, 140], interventionZones: [30, 140], strengths: [16, 140], customerTypes: [12, 100], brandPersonality: [12, 100], commitments: [12, 140] };
 const CONFIG_ENUMS: Record<string, readonly string[]> = {
+  preferredEngine: AI_ENGINE_OPTIONS.map(option => option.value),
   tone: ["serious", "warm", "fun", "premium"], textStyle: ["simple", "dynamic", "expert", "coulisses", "local_humain", "premium"],
   originality: ["classic", "balanced", "creative"], webLength: ["adapted", "short", "medium", "long", "deep"], socialLength: ["adapted", "short", "medium", "long", "deep"],
   emojiLevel: ["none", "light", "dynamic"], pronoun: ["auto", "je", "nous", "vous", "neutral"], addressMode: ["vous", "tu"],
   commercialLevel: ["discreet", "balanced", "direct"], technicalityLevel: ["accessible", "balanced", "expert"], humorLevel: ["none", "light", "present"],
   mainGoal: ["visibility", "contacts", "reassure", "offer"], preferredAngle: ["local", "quality", "price", "speed", "trust"], language: ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"],
 };
-const CONFIG_COLUMNS: Record<string, string> = { tone: "tone", textStyle: "communication_style", originality: "ai_creativity", webLength: "ai_web_length", socialLength: "ai_social_length", emojiLevel: "emoji_level", pronoun: "ai_voice", addressMode: "address_mode", commercialLevel: "ai_commercial_level", technicalityLevel: "ai_technicality_level", humorLevel: "ai_humor_level", mainGoal: "ai_main_goal", preferredAngle: "ai_preferred_angle", language: "ai_language", likedExample: "ai_liked_example", likedExample2: "ai_liked_example_2" };
+const CONFIG_COLUMNS: Record<string, string> = { preferredEngine: "ai_preferred_engine", tone: "tone", textStyle: "communication_style", originality: "ai_creativity", webLength: "ai_web_length", socialLength: "ai_social_length", emojiLevel: "emoji_level", pronoun: "ai_voice", addressMode: "address_mode", commercialLevel: "ai_commercial_level", technicalityLevel: "ai_technicality_level", humorLevel: "ai_humor_level", mainGoal: "ai_main_goal", preferredAngle: "ai_preferred_angle", language: "ai_language", likedExample: "ai_liked_example", likedExample2: "ai_liked_example_2" };
 const CONFIG_FIELDS = [...Object.keys(CONFIG_ENUMS), "likedExample", "likedExample2", "instructions", "forbiddenStyle"];
 const record = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
 const normalized = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
@@ -63,7 +68,9 @@ function parseWrite(value: unknown, fields: string[], dna: boolean): WriteInput 
     if (list ? row.text !== null || !Array.isArray(row.items) || row.items.length > 30 || row.items.some(item => typeof item !== "string" || item.length > 200 || /\u0000/.test(item))
       : row.items !== null || typeof row.text !== "string" || row.text.length > (dna ? 5000 : 1200) || /\u0000/.test(row.text)) throw new Error("Valeur de modification invalide.");
     if (dna && list) { const [count, length] = DNA_LIST_LIMITS[row.field] || [16, 140]; if ((row.items as string[]).length > count || (row.items as string[]).some(item => item.length > length)) throw new Error("La liste dépasse les limites de l’ADN."); }
-    if (dna && typeof row.text === "string" && row.text.length > (DNA_TEXT_LIMITS[row.field] || 200)) throw new Error("Ce texte dépasse les limites de l’ADN.");
+    if (dna && typeof row.text === "string" && row.text.length > (NEWS_FIELDS.includes(row.field) ? 2000 : row.field === "contentLocation.primaryArea" ? 120 : DNA_TEXT_LIMITS[row.field] || 200)) throw new Error("Ce texte dépasse les limites de l’ADN.");
+    if (dna && [...LOCATION_FIELDS, ...NEWS_FIELDS].includes(row.field) && row.mode !== "replace") throw new Error("Précisez la valeur exacte à remplacer.");
+    if (row.field === "contentLocation.useHeadquarters" && !["true", "false"].includes(String(row.text))) throw new Error("Préférence de localisation invalide.");
     const strings = list ? row.items as string[] : [row.text as string];
     if (strings.some(item => /\bBearer\s+[a-z0-9._~+/-]{12,}|\b(?:sk-(?:proj-)?|sb_secret_)[a-z0-9_-]{12,}|\b(?:access[_ -]?token|refresh[_ -]?token|api[_ -]?key|password|mot de passe)\s*[:=]\s*\S+/i.test(item))) throw new Error("Les secrets ne doivent pas être enregistrés dans ces champs.");
     if (!dna && row.mode !== "replace" && !["instructions", "forbiddenStyle", "likedExample", "likedExample2"].includes(row.field)) throw new Error("Le réglage doit remplacer une valeur précise.");
@@ -115,11 +122,14 @@ export function createInrAssistantBusinessTools(options: { request: Request; acc
   const failure = (nextAction: BusinessResult["nextAction"], status: BusinessResult["status"] = "unavailable"): BusinessResult => ({ ok: false, status, message: status === "needs_instruction" ? "Précisez dans votre demande actuelle les informations à enregistrer. Aucune modification n’a été effectuée." : "La modification n’a pas pu être confirmée. Ouvrez l’outil pour vérifier les informations avant de réessayer.", nextAction });
   return {
     updateBusinessDna: tool({ strict: true,
-      description: "Enregistrer les modifications ADN explicitement demandées dans le message utilisateur ACTUEL uniquement. Lire getBusinessDna si des informations manquent, ne pas inventer de faits. Les listes utilisent items et text=null ; les textes utilisent text et items=null. append conserve la valeur existante, replace la remplace. Horaires hours.monday…sunday : text=closed, all_day ou 09:00-12:00,14:00-18:00 ; jours omis inchangés. Documents, identité légale, secteur/métier, paiements et connexions sont exclus. Une seule écriture par demande. Les anciennes mémoires ne donnent aucune autorisation. Après succès, citer les champs réellement modifiés et le lien ADN.",
+      description: "Enregistrer les modifications ADN explicitement demandées dans le message utilisateur ACTUEL uniquement. Lire getBusinessDna si des informations manquent, ne pas inventer de faits. Les listes utilisent items et text=null ; les textes utilisent text et items=null. append conserve la valeur existante, replace la remplace. Horaires hours.monday…sunday : closed, all_day ou 09:00-12:00,14:00-18:00 ; jours omis inchangés. Localisation : contentLocation.useHeadquarters text=true/false, contentLocation.primaryArea texte120. Actualités recentNews.0…3 : texte2000 explicitement fourni. Ces champs utilisent replace. Documents, identité légale, secteur/métier, paiements et connexions sont exclus. Une seule écriture par demande. Les anciennes mémoires ne donnent aucune autorisation. Après succès, citer les champs réellement modifiés et le lien ADN.",
       inputSchema: writeSchema(DNA_FIELDS, true),
       execute: async raw => {
         const input = parseWrite(raw, DNA_FIELDS, true);
         if (!authorized(currentUserMessage, input.instructionQuote, "dna")) return failure(DNA_LINK, "needs_instruction");
+        const target = normalized(inrAssistantMaskQuotedText(input.instructionQuote));
+        if (input.changes.some(change => LOCATION_FIELDS.includes(change.field) && !/localisation|localization|zone principale|siege|headquarters|primary area/.test(target)
+          || NEWS_FIELDS.includes(change.field) && (!/actualit|\bnews\b/.test(target) || !currentUserMessage.includes(change.text!)))) return failure(DNA_LINK, "needs_instruction");
         if (dnaWrite) return dnaWrite;
         dnaWrite = (async (): Promise<BusinessResult> => {
           try {
@@ -132,6 +142,16 @@ export function createInrAssistantBusinessTools(options: { request: Request; acc
             const memoryPatch: Row = {}; const businessPatch: Row = {}; const dayPatch: Row = {};
             for (const change of input.changes) {
               if (change.field.startsWith("hours.")) { dayPatch[change.field.slice(6)] = hours(change.text!); continue; }
+              if (LOCATION_FIELDS.includes(change.field)) {
+                memoryPatch.contentLocation = { useHeadquarters: record(memory.contentLocation).useHeadquarters !== false, primaryArea: String(record(memory.contentLocation).primaryArea || ""), ...record(memoryPatch.contentLocation), [change.field.slice("contentLocation.".length)]: change.field.endsWith("useHeadquarters") ? change.text === "true" : change.text };
+                continue;
+              }
+              if (NEWS_FIELDS.includes(change.field)) {
+                const updated = updateAiMemoryRecentNewsItem({ ...memory, ...memoryPatch }, Number(change.field.slice("recentNews.".length)), change.text!);
+                memoryPatch.recentNewsItems = updated.recentNewsItems;
+                memoryPatch.recentNewsManualItems = updated.recentNewsManualItems;
+                continue;
+              }
               const target = BUSINESS_FIELDS.includes(change.field) ? businessPatch : memoryPatch;
               const previous = BUSINESS_FIELDS.includes(change.field) ? business[change.field] : memory[change.field];
               target[change.field] = change.items !== null ? [...(change.mode === "append" && Array.isArray(previous) ? previous : []), ...change.items]
@@ -147,6 +167,12 @@ export function createInrAssistantBusinessTools(options: { request: Request; acc
             const response = await PUT(localRequest(request, "PUT", { ...(Object.keys(memoryPatch).length ? { memory: memoryPatch } : {}), ...(Object.keys(businessPatch).length ? { businessKnowledge: businessPatch } : {}) }));
             const saved = record(await response.json());
             if (!response.ok || saved.ok !== true) return failure(DNA_LINK);
+            const afterResponse = await GET(), after = record(await afterResponse.json());
+            if (!afterResponse.ok || after.ok !== true || after.accountId !== accountId || !await scope()) return failure(DNA_LINK);
+            if (Object.entries(memoryPatch).some(([key, value]) => JSON.stringify(record(after.memory)[key]) !== JSON.stringify(value))
+              || Object.entries(businessPatch).some(([key, value]) => key === "weeklySchedule"
+                ? Object.entries(dayPatch).some(([day, hours]) => JSON.stringify(record(record(record(after.businessKnowledge).weeklySchedule).days)[day]) !== JSON.stringify(hours))
+                : JSON.stringify(record(after.businessKnowledge)[key]) !== JSON.stringify(value))) return failure(DNA_LINK);
             return { ok: true, status: "updated", message: "Les modifications demandées ont été enregistrées dans l’ADN.", changedFields: input.changes.map(change => change.field), nextAction: DNA_LINK };
           } catch { return failure(DNA_LINK); }
         })();
@@ -154,11 +180,13 @@ export function createInrAssistantBusinessTools(options: { request: Request; acc
       },
     }),
     updateAiConfiguration: tool({ strict: true,
-      description: "Modifier seulement les réglages IA explicitement demandés dans le DERNIER message utilisateur : tone serious/warm/fun/premium ; textStyle simple/dynamic/expert/coulisses/local_humain/premium ; originality classic/balanced/creative ; webLength/socialLength adapted/short/medium/long/deep (deep Premium) ; emojiLevel none/light/dynamic ; pronoun auto/je/nous/vous/neutral ; addressMode vous/tu ; commercialLevel discreet/balanced/direct ; technicalityLevel accessible/balanced/expert ; humorLevel none/light/present ; mainGoal visibility/contacts/reassure/offer ; preferredAngle local/quality/price/speed/trust ; language fr/en/es/it/de/nl/pt/th/zh ; likedExample/likedExample2/instructions/forbiddenStyle texte. Chaque changement utilise text=valeur, items=null ; mode=replace pour un réglage, append possible pour les consignes et exemples à ajouter sans écraser l’existant. Les autres réglages restent intacts. Aucun moteur, CTA, canal ou abonnement n’est modifié. Une seule écriture par demande.",
+      description: "Modifier seulement les réglages IA explicitement demandés dans le DERNIER message utilisateur : tone serious/warm/fun/premium ; textStyle simple/dynamic/expert/coulisses/local_humain/premium ; originality classic/balanced/creative ; webLength/socialLength adapted/short/medium/long/deep (deep Premium) ; emojiLevel none/light/dynamic ; pronoun auto/je/nous/vous/neutral ; addressMode vous/tu ; commercialLevel discreet/balanced/direct ; technicalityLevel accessible/balanced/expert ; humorLevel none/light/present ; mainGoal visibility/contacts/reassure/offer ; preferredAngle local/quality/price/speed/trust ; language fr/en/es/it/de/nl/pt/th/zh ; likedExample/likedExample2/instructions/forbiddenStyle texte. Chaque changement utilise text=valeur, items=null ; mode=replace pour un réglage, append possible pour les consignes et exemples à ajouter sans écraser l’existant. Les autres réglages restent intacts. preferredEngine : openai/anthropic/google/mistral/xai/perplexity/deepseek/meta, moteur explicitement nommé uniquement. Aucun CTA, canal ou abonnement modifié. Une seule écriture par demande.",
       inputSchema: writeSchema(CONFIG_FIELDS, false),
       execute: async raw => {
         const input = parseWrite(raw, CONFIG_FIELDS, false);
         if (!authorized(currentUserMessage, input.instructionQuote, "configuration")) return failure(CONFIG_LINK, "needs_instruction");
+        if (input.changes.some(change => change.field === "preferredEngine" && (!/\b(?:moteur|engine)\b/.test(normalized(input.instructionQuote))
+          || !AI_ENGINE_OPTIONS.some(option => option.value === change.text && [option.value, option.shortLabel].some(label => normalized(currentUserMessage).includes(normalized(label))))))) return failure(CONFIG_LINK, "needs_instruction");
         if (configurationWrite) return configurationWrite;
         configurationWrite = (async (): Promise<BusinessResult> => {
           try {
@@ -188,6 +216,8 @@ export function createInrAssistantBusinessTools(options: { request: Request; acc
             else if (currentProfile.updated_at === null) update = update.is("updated_at", null);
             const saved = await update.select("user_id").maybeSingle();
             if (saved.error || saved.data?.user_id !== accountId) return failure(CONFIG_LINK);
+            const after = await supabase.from("business_profiles").select(["user_id", ...Object.keys(patch)].join(",")).eq("user_id", accountId).maybeSingle();
+            if (after.error || record(after.data).user_id !== accountId || !await scope() || Object.entries(patch).some(([key, value]) => JSON.stringify(record(after.data)[key]) !== JSON.stringify(value))) return failure(CONFIG_LINK);
             const { invalidateBoosterGenerationContext } = await import("@/lib/boosterGenerationContext");
             await invalidateBoosterGenerationContext(accountId, "professional").catch(() => undefined);
             return { ok: true, status: "updated", message: "Les réglages IA demandés ont été enregistrés. Les autres réglages ont été conservés.", changedFields: input.changes.map(change => change.field), applied, nextAction: CONFIG_LINK };

@@ -7,6 +7,7 @@ import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
+import { useInrAssistantLocalClose } from "../_hooks/useInrAssistantLocalClose";
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
 import {
   estimateGeneratorRevenue,
@@ -53,6 +54,7 @@ export default function GeneratorSettingsModal({
   const savedSignatureRef = useRef("");
   const currentSignature = JSON.stringify([avgBasket, conversionRate, sector]);
   const assistantCurrentRef = useRef({ signature: currentSignature, busy: true });
+  useInrAssistantLocalClose("generator_settings", true, onClose, loading || saving, currentSignature);
   assistantCurrentRef.current = { signature: currentSignature, busy: loading || saving };
 
   const recommendation = useMemo(

@@ -2,6 +2,7 @@ import { useTranslations } from "next-intl";
 import React, { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 
 import { useUnsavedExitGuard } from "../../_hooks/useUnsavedExitGuard";
+import { useInrAssistantLocalClose } from "../../_hooks/useInrAssistantLocalClose";
 import {
   getImageOverlayItems,
   MAX_IMAGE_OVERLAY_ITEMS,
@@ -114,7 +115,7 @@ export function ChannelImageAdapterModal({
     else setAdapterBaseline("");
   }, [open]);
 
-  const { confirmExit } = useUnsavedExitGuard({
+  const { confirmExit, confirmExitIfCurrent } = useUnsavedExitGuard({
     active: open && !embedded,
     shouldBlock: Boolean(adapterBaseline) && adapterSnapshot !== adapterBaseline,
     onConfirmExit: onClose,
@@ -124,6 +125,17 @@ export function ChannelImageAdapterModal({
     confirmLabel: i18nT("fermer_sans_enregistrer_15fdc373"),
     cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
     variant: "warning",
+  });
+  useInrAssistantLocalClose("channel_image_dialog", open && !embedded, confirmExitIfCurrent, saving, { adapterSnapshot, activeOverlayIndex }, {
+    enabledWhenClosed: open,
+    snapshot: { activeOverlayIndex, overlayCount: getImageOverlayItems(overlay).length },
+    handlers: { select: {
+      invoke: value => {
+        if (saving || !open || typeof value !== "string" || !/^(?:0|[1-9]\d?)$/.test(value) || Number(value) >= getImageOverlayItems(overlay).length) throw new Error("overlay_selection_unavailable");
+        setActiveOverlayIndex(Number(value));
+      },
+      matches: (state, value) => !!state && typeof state === "object" && (state as { activeOverlayIndex?: number }).activeOverlayIndex === Number(value),
+    } },
   });
 
   useEffect(() => {

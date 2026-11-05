@@ -9,6 +9,7 @@ import { MailSignatureSettingsContent } from "../../settings/_components/MailsSe
 import { useUnsavedExitGuard } from "../../_hooks/useUnsavedExitGuard";
 import ResponsiveActionButton from "../../_components/ResponsiveActionButton";
 import { getInrSendRetentionLabel } from "@/lib/inrsendRetention";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 import styles from "../mails.module.css";
 
 type Props = {
@@ -33,6 +34,10 @@ export default function MailboxHeader({
   founderMode = false,
 }: Props) {
   const i18nT = useTranslations("mails");
+  useInrAssistantLocalInterface("send_help", { open: helpOpen }, {
+    open: { invoke: () => onOpenHelp(), matches: snapshot => (snapshot as { open: boolean }).open },
+    close: { invoke: () => onCloseHelp(), matches: snapshot => !(snapshot as { open: boolean }).open },
+  }, standardMode);
   const [settingsHasUnsavedChanges, setSettingsHasUnsavedChanges] = useState(false);
   useEffect(() => {
     if (!settingsOpen) setSettingsHasUnsavedChanges(false);

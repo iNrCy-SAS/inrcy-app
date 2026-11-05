@@ -1,4 +1,5 @@
 "use client";
+import { useInrAssistantLocalInterface } from "./_hooks/useInrAssistantLocalInterface";
 import { isInrDirectoryEnabled } from "@/lib/inrDirectorySettings";
 
 import { clampDashboardChannelPowerForAccess, computeDashboardChannelPower } from "@/lib/dashboardChannelPower";
@@ -344,6 +345,10 @@ export default function DashboardClient({
   const dashboardCopy = useDashboardI18n();
   const topbarT = useTranslations("dashboard.topbar");
   const { panel, openPanel, closePanel, goToModule } = useDashboardPanelRouting();
+  useInrAssistantLocalInterface('inertia_help', { open: helpInertieOpen, panel }, {
+    open: { invoke: () => { if (panel !== 'inertie' && !helpInertieOpen) throw new Error('Inertia help unavailable'); setHelpInertieOpen(true); }, matches: value => Boolean(value && typeof value === 'object' && 'open' in value && value.open === true) },
+    close: { invoke: () => setHelpInertieOpen(false), matches: value => Boolean(value && typeof value === 'object' && 'open' in value && value.open === false) },
+  }, panel === 'inertie' || helpInertieOpen);
   const {
     accountId: completionAccountId,
     profileIncomplete,
@@ -3072,8 +3077,10 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
   }, [clearScheduledGeneratorRefreshes, fallbackToServerSyncThenGlobal, notifyStatsRefresh, refreshChannelBlocksFromApi, refreshGeneratorChannelFromApi, refreshOfficialChannelStates, triggerChannelRefresh, syncInstagramStateFromServer]);
   latestTriggerChannelsRefreshRef.current = triggerChannelsRefresh;
 
-  const handleSharedGeneratorRefresh = useCallback(async () => {
-    if (kpisLoading) return;
+  const generatorRefreshInFlightRef = useRef(false);
+  const handleSharedGeneratorRefresh = useCallback(async (): Promise<boolean> => {
+    if (kpisLoading || generatorRefreshInFlightRef.current) return false;
+    generatorRefreshInFlightRef.current = true;
     setKpisLoading(true);
 
     try {
@@ -3084,9 +3091,12 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
       if (!bootstrap?.ran) {
         await syncFromServerCacheIfNeeded(true);
       }
+      return true;
     } catch (error) {
       reportHandledClientError(error, "dashboard-generator-refresh");
+      return false;
     } finally {
+      generatorRefreshInFlightRef.current = false;
       setKpisLoading(false);
     }
   }, [applyBootstrapRefresh, kpisLoading, loadSiteWebSettings, syncFromServerCacheIfNeeded]);
@@ -3957,7 +3967,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
         <GeneratorSettingsModal
           opportunities={oppTotal}
           onClose={closeGeneratorSettings}
-          onSaved={handleSharedGeneratorRefresh}
+          onSaved={async () => { await handleSharedGeneratorRefresh(); }}
         />
       ) : null}
 
@@ -3985,9 +3995,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
             onDesktopLeftHost={setDesktopLeftHost}
             onDesktopRightHost={setDesktopRightHost}
             onOpenGeneratorHelp={openUsageGuide}
-            onRefreshGenerator={() => {
-              void handleSharedGeneratorRefresh();
-            }}
+            onRefreshGenerator={handleSharedGeneratorRefresh}
             kpisLoading={kpisLoading}
             generatorIsActive={generatorIsActive}
           />

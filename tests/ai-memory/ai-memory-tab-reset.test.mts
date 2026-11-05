@@ -13,7 +13,8 @@ test("iNrADN provides a confirmed reset at the bottom of every tab", () => {
   assert.match(ui, /justifyContent: "flex-end"/);
   assert.match(ui, /const resetCurrentTab = async/);
   assert.match(ui, /Cette action efface uniquement les informations de cet onglet/);
-  assert.match(ui, /body: JSON\.stringify\(\{ tab: tabToReset, preserveVocabulary: hideNavigation && tabToReset === "identity" \}\)/);
+  assert.match(ui, /body: JSON\.stringify\(\{ tab: tabToReset, preserveVocabulary: hideNavigation && tabToReset === "identity", expectedAccountId, expectedActorUserId \}\)/);
+  assert.match(ui, /if \(!confirmed \|\| !current\(\)\) return false/);
   assert.match(ui, /activeTab !== "analysis"/);
 });
 

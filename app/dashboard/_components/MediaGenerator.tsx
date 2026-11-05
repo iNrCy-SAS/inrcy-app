@@ -26,6 +26,8 @@ import useMediaGeneration, {
   type MediaGenerationTeamVideoSpeechMode,
 } from "@/app/dashboard/_hooks/useMediaGeneration";
 import useAiMediaGeneratorPreferences from "@/app/dashboard/_hooks/useAiMediaGeneratorPreferences";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import { parseInrAssistantStudioFormSelection, isInrAssistantStudioFormSelectionApplied, type InrAssistantStudioFormSnapshot } from "@/lib/inrAssistantStudioFormSelection";
 import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
 } from "@/app/dashboard/_components/MediaLibraryPickerModal";
@@ -289,6 +291,8 @@ export default function MediaGenerator({
     cancellable: generationCancellable,
     cancellationPending,
     canRecover,
+    recoveryContext,
+    quotaLoading,
     loadQuota,
     generate,
     retryRecovery,
@@ -356,6 +360,8 @@ export default function MediaGenerator({
     StudioReferenceImage[]
   >([]);
   const [libraryPickerOpen, setLibraryPickerOpen] = useState(false);
+  const [referenceInformationOpen, setReferenceInformationOpen] = useState(false);
+  const [quotaRefreshId, setQuotaRefreshId] = useState(0);
   const [inspirationBusy, setInspirationBusy] = useState(false);
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [characterVoiceBusy, setCharacterVoiceBusy] = useState(false);
@@ -382,6 +388,15 @@ export default function MediaGenerator({
   const recoveryInFlightRef = useRef(false);
   const busy = generationBusy || discarding;
   const operationLocked = busy || finishing || voiceBusy || inspirationBusy || characterVoiceBusy;
+  const referencePickerVisible = !creationScreen && activeSettingsTab === "selection" && mediaSourceMode === "real";
+  useInrAssistantLocalInterface("studio_guided_library", { open: libraryPickerOpen }, {
+    open: { invoke: () => { if (operationLocked || !referencePickerVisible || (!transformMode && inspirationImages.length >= MAX_INSPIRATION_IMAGES)) throw new Error("reference_picker_unavailable"); setLibraryPickerOpen(true); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
+    close: { invoke: () => setLibraryPickerOpen(false), matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
+  }, libraryPickerOpen || referencePickerVisible, operationLocked);
+  useInrAssistantLocalInterface("studio_reference_information", { open: referenceInformationOpen }, {
+    open: { invoke: () => setReferenceInformationOpen(true), matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
+    close: { invoke: () => setReferenceInformationOpen(false), matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
+  }, referencePickerVisible && !transformMode);
   const characterVoiceSelection = getCharacterVoiceSelectionState(
     kind === "video" && mediaSourceMode === "real" ? inspirationImages : []
   );
@@ -1439,6 +1454,62 @@ export default function MediaGenerator({
     );
   };
 
+  const assistantFormSnapshot: InrAssistantStudioFormSnapshot = {
+    mode: "guided", kind, locked: operationLocked, editorVisible: !teamVideoConsentOpen,
+    transformMode, publicationAvailable, activeTab: activeSettingsTab, subjectSource, creativeBrief,
+    sourceMode: mediaSourceMode, people: aiPeopleCriterion, setting: aiSettingCriterion, focus: aiFocusCriterion,
+    imagePurpose, format, imageStyle, visualDirection, useBrandColors, logoMode, textMode, exactText, textKeywords, textKeywordDraft,
+    speechMode: teamVideoSpeechMode, narrationVoice, narrationVoiceVariant, withMusic,
+    durationScene: { seconds: durationSeconds, sceneMode: videoSceneMode },
+  };
+  useInrAssistantLocalInterface("studio_recovery_guided", { confirmationOpen: cancelConfirmationOpen, canRecover, resultId: generationResult?.item.id ?? null, recoveryContext }, { review: {
+    invoke: () => { if (!canRecover || generationBusy || operationLocked) throw new Error("studio_recovery_unavailable"); setCancelConfirmationOpen(true); },
+    matches: state => !!state && typeof state === "object" && (state as { confirmationOpen?: boolean; canRecover?: boolean }).confirmationOpen === true && (state as { canRecover?: boolean }).canRecover === true,
+  } }, canRecover && !generationBusy, operationLocked);
+  useInrAssistantLocalInterface("studio_guided_form", { ...assistantFormSnapshot, quotaRefreshId, quotaAccountId: quota?.accountId ?? null }, {
+    ...(!quotaLoading ? { retry: {
+      invoke: async (_value: string | null, stillCurrent: () => boolean) => {
+        if (operationLocked) throw new Error("quota_refresh_unavailable");
+        const refreshed = await loadQuota({ force: true, canApply: stillCurrent, expectedAccountId: quota?.accountId ?? undefined });
+        if (!refreshed?.accountId || !stillCurrent()) throw new Error("quota_refresh_unconfirmed");
+        setQuotaRefreshId(current => current + 1);
+      },
+      matches: (state: unknown) => !!state && typeof state === "object" && (state as { quotaRefreshId?: number }).quotaRefreshId === quotaRefreshId + 1 && typeof (state as { quotaAccountId?: unknown }).quotaAccountId === "string",
+    } } : {}),
+    select: {
+      invoke: encoded => {
+        const change = parseInrAssistantStudioFormSelection(encoded, assistantFormSnapshot, (seconds, mode) => durations.includes(seconds) && canGenerateAiMediaVideoDuration(selectedVideoEngine, seconds, videoResolution, mode));
+        if (!change) throw new Error("studio_form_unavailable");
+        switch (change.field) {
+          case "activeTab": setActiveSettingsTab(change.value); break;
+          case "subjectSource": setSubjectSource(change.value); break;
+          case "creativeBrief": if (subjectSource === "custom") setCustomIdea(change.value); else setAiInstruction(change.value); break;
+          case "sourceMode": selectMediaSourceMode(change.value); break;
+          case "people": setAiPeopleCriterion(change.value); if (change.value === "none" && aiFocusCriterion === "people") setAiFocusCriterion("auto"); break;
+          case "setting": setAiSettingCriterion(change.value); break;
+          case "focus": setAiFocusCriterion(change.value); break;
+          case "imagePurpose": setImagePurpose(change.value); break;
+          case "format": setFormat(change.value); break;
+          case "imageStyle": setImageStyle(change.value); break;
+          case "visualDirection": setVisualDirection(change.value); break;
+          case "useBrandColors": setUseBrandColors(change.value); break;
+          case "logoMode": setLogoMode(change.value); break;
+          case "textMode": setTextMode(change.value); setWithText(change.value !== "none"); break;
+          case "exactText": setExactText(change.value); break;
+          case "textKeywords": setTextKeywords(normalizeTextKeywordValues(change.value)); setTextKeywordDraft(""); break;
+          case "textKeywordDraft": setTextKeywordDraft(change.value); break;
+          case "speechMode": if (change.value === "silent") throw new Error("studio_form_unavailable"); setTeamVideoSpeechMode(change.value); setTeamVideoVeoConsent(false); setTeamVideoConsentOpen(false); break;
+          case "narrationVoice": setNarrationVoice(change.value); setNarrationVoiceVariant(current => isAiMediaNarrationVoiceVariantForGender(current, change.value) ? current : defaultAiMediaNarrationVoiceVariant(change.value)); break;
+          case "narrationVoiceVariant": setNarrationVoiceVariant(change.value); break;
+          case "withMusic": setWithMusic(change.value); break;
+          case "durationScene": setDurationSeconds(change.value.seconds); setVideoSceneMode(change.value.sceneMode); break;
+          default: throw new Error("studio_form_unavailable");
+        }
+      },
+      matches: isInrAssistantStudioFormSelectionApplied,
+    },
+  }, !teamVideoConsentOpen, operationLocked);
+
   const teamVideoConsentDialog = teamVideoConsentOpen ? (
     <div className={styles.teamVideoConsentBackdrop}>
       <div
@@ -1552,6 +1623,7 @@ export default function MediaGenerator({
         handleSaveToLibrary={handleSaveToLibrary}
         handleGenerate={handleGenerate}
         handleEditCriteria={handleEditCriteria}
+        criteriaEditorState={{ activeTab: activeSettingsTab, targetTab: "subject", ready: !operationLocked && !teamVideoConsentOpen }}
         disabled={disabled}
         creditSummary={<MediaCreditQuoteSummary status={creditQuote} quota={quota} />}
         engineControls={engineControls}
@@ -1914,7 +1986,7 @@ export default function MediaGenerator({
                 <div className={styles.referenceDropzoneCopy}>
                   <div className={styles.referenceDropzoneHeading}>
                     <strong>Déposez vos références ici</strong>
-                    <details className={styles.referenceInfo}>
+                    <details className={styles.referenceInfo} open={referenceInformationOpen} onToggle={event => setReferenceInformationOpen(event.currentTarget.open)}>
                       <summary aria-label="Information sur les références">i</summary>
                       <p>
                         {t(

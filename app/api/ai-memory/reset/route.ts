@@ -119,10 +119,18 @@ async function removeReferenceDocuments(accountId: string, documents: AiMemoryRe
 }
 
 export async function POST(request: Request) {
-  const { supabase, activeUserId, errorResponse } = await requireUser();
+  const { supabase, activeUserId, authUserId, errorResponse } = await requireUser();
   if (errorResponse) return errorResponse;
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null;
+  // A destructive dialog was opened for this exact account/actor. These fields
+  // are comparisons only: authority always comes from the authenticated scope.
+  const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+  if (body && ('expectedAccountId' in body || 'expectedActorUserId' in body)
+    && (typeof body.expectedAccountId !== 'string' || !uuid.test(body.expectedAccountId) || body.expectedAccountId !== activeUserId
+      || typeof body.expectedActorUserId !== 'string' || !uuid.test(body.expectedActorUserId) || body.expectedActorUserId !== authUserId)) {
+    return NextResponse.json({ error: 'L’établissement ou la session a changé. Ouvrez de nouveau la confirmation.', code: 'reset_scope_changed' }, { status: 409 });
+  }
   const tab = String(body?.tab || "");
   if (!RESETTABLE_TABS.has(tab)) {
     return NextResponse.json({ error: "Onglet iNrADN invalide." }, { status: 400 });

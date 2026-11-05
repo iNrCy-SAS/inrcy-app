@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 
 
 import { useEffect, useRef } from "react";
@@ -23,6 +24,11 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
   const i18nT = useTranslations("booster");
   const activeOption = getAiEngineOption(activeEngine);
   const dialogRef = useRef<HTMLElement>(null);
+  useInrAssistantLocalInterface("engine_info", { open, activeEngine }, { close: {
+    invoke: () => onClose(),
+    matches: snapshot => !!snapshot && typeof snapshot === "object" && (snapshot as { open: boolean }).open === false,
+    allowUnmount: true,
+  } }, open, false, 1);
 
   useEffect(() => {
     if (!open) return;

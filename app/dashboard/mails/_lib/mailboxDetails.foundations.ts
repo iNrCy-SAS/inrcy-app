@@ -96,7 +96,7 @@ export type MailboxDetailsModalProps = {
   canNavigateNext: boolean;
   navigationLabel: string;
   navigationBusy: boolean;
-  onNavigate: (direction: -1 | 1) => Promise<void> | void;
+  onNavigate: (direction: -1 | 1, canContinue?: () => boolean) => Promise<void> | void;
   campaignRecipients: any[];
   campaignRecipientsLoading: boolean;
   campaignRecipientsPage: number;
@@ -117,10 +117,11 @@ export type MailboxDetailsModalProps = {
   activePublicationEditPreset: any;
   activePublicationEditAssets: any[];
   togglePublicationImage: (channel: string, imageKey: string) => void;
-  launchPublicationMediaGenerator: (publicationBrief: string) => Promise<void>;
+  launchPublicationMediaGenerator: (publicationBrief: string, stillCurrent?: () => boolean) => Promise<void>;
+  publicationStudioTab?: string | null;
   openPublicationImageRetoucher: (channel: string, imageKey: string) => void;
   openPublicationImageModifier: (channel: string, imageKey: string) => void;
-  openPublicationVideoRetoucher: (channel: string) => void;
+  openPublicationVideoRetoucher: (channel: string, stillCurrent?: () => boolean) => void | Promise<void>;
   resetPublicationImage?: (channel: string, imageKey: string) => void;
   movePublicationImage?: (channel: string, imageKey: string, direction: -1 | 1) => void;
   addPublicationFiles: (fileList: FileList | File[] | null) => void;

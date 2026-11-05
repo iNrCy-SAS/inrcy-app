@@ -58,7 +58,7 @@ test("the Facebook bubble exposes Classic, Reel, Story and an account default", 
   assert.match(facebookBubble, /publicationTypes: \{ value: fb\.facebookPublicationPreferences/);
   assert.match(facebookBubble, /onLoad: fb\.loadFacebookPublicationPreferences/);
   assert.match(facebookBubble, /onChange: fb\.saveFacebookPublicationPreferences/);
-  assert.match(channelBubble, /connection\?\.publicationTypes && hasResource \? <ChannelPublicationTypes name=\{item\.name\} settings=\{connection\.publicationTypes\}/);
+  assert.match(channelBubble, /connection\?\.publicationTypes && hasResource \? <ChannelPublicationTypes name=\{item\.name\} channel=\{item\.key\} settings=\{connection\.publicationTypes\}/);
   assert.match(publicationTypes, /mode: "classic", label: "instagram_classic_mode", checked: true/);
   assert.match(publicationTypes, /type="checkbox" checked=\{option\.checked\} disabled=\{busy \|\| option\.mode === "classic"\}/);
   assert.match(publicationTypes, /checked: settings\.value\.reelsEnabled, key: "reelsEnabled"/);

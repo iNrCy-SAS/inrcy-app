@@ -150,7 +150,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const statusOnly = Boolean(args.taskContext && args.actionInstruction && (args.taskIntent === "check_status" || args.taskContext.outcome === "processing" && !uiSteps.length));
   // A mounted screen intent such as “affiche la vue Évolution” can also
   // lexically resemble navigation. Its concrete server plan is authoritative.
-  const navigationRequested = uiSteps.length ? uiSteps.some(step => step.command === "navigateApplication" && !step.actions?.length && !appliedUi.has(step.id)) : isInrAssistantNavigationRequest(args.taskContext ? spokenRequest : latestRequest);
+  const navigationRequested = uiSteps.length ? uiSteps.some(step => inrAssistantUiStepTool(step) === "navigateApplication" && !step.actions?.length && !appliedUi.has(step.id)) : isInrAssistantNavigationRequest(args.taskContext ? spokenRequest : latestRequest);
   const screenCommandRequested = uiSteps.some(step => inrAssistantUiStepTool(step) === "runScreenCommand" && !step.actions?.length && !appliedUi.has(step.id));
   const draftOnly = isInrAssistantStudioDraftRequest(latestRequest);
   const insertRequest = requestsStudioInsertion(spokenRequest);
@@ -343,7 +343,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const readCounts = new Map<string,number>();
   const readBudget = createInrAssistantReadBudget();
   const readObjectiveAtStart = new Map<string, string>();
-  const previewActionNames = new Set(["previewCalendarAction","previewScheduledPublicationAction","previewScheduledPublicationEdit","previewGoogleBusinessProfileUpdate","previewMediaDeletion","previewPublicationLifecycleAction","previewIndividualMail","previewCommercialDocumentAction","previewCommercialTemplateAction","previewChannelResourceSelection","previewChannelDisconnection","previewGoogleReviewReplyAction","previewBusinessDnaDocumentRemoval","previewWebsiteAnalyticsDisconnection","previewPinterestBoardMutation","previewWebsiteReset","previewReferralSubmission"]);
+  const previewActionNames = new Set(["previewNotificationRemoval","previewPublishedPublicationEdit","previewCalendarAction","previewScheduledPublicationAction","previewScheduledPublicationEdit","previewGoogleBusinessProfileUpdate","previewMediaDeletion","previewPublicationLifecycleAction","previewIndividualMail","previewCommercialDocumentAction","previewCommercialTemplateAction","previewChannelResourceSelection","previewChannelDisconnection","previewGoogleReviewReplyAction","previewBusinessDnaDocumentRemoval","previewWebsiteAnalyticsDisconnection","previewPinterestBoardMutation","previewWebsiteReset","previewReferralSubmission"]);
   const observedActionNames = new Set([...Object.keys(INR_ASSISTANT_COMMANDS),...INR_ASSISTANT_UI_TASK_TOOLS,"previewCampaignAudience",...previewActionNames,"applyCalendarAction","applyScheduledPublicationAction"]);
   const privateApprovals=new Map(receipts.flatMap(receipt=>receipt.approvalReference && receipt.approvalToken && receipt.approvalKind?[[receipt.approvalReference,{token:receipt.approvalToken,kind:receipt.approvalKind}] as const]:[]));
   const resolvePreview=(reference:string)=>privateApprovals.get(reference)?.token??null;
@@ -397,7 +397,9 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const seenToolResults=new Set<string>();
   const resultToolName=(name:string, output:Record<string,unknown>):string => {
     if(name === "applyCalendarAction") return ({confirm:"confirmCalendarAppointment",update:"updateCalendarAppointment",cancel:"cancelCalendarAppointment",reject:"rejectCalendarAppointment"} as Record<string,string>)[String(output.action)]??name;
-    if(name === "applyScheduledPublicationAction") return ({reschedule:"updateScheduledPublication",cancel:"cancelScheduledPublication",retry:"retryScheduledPublication"} as Record<string,string>)[String(output.action)]??name;
+    if(name === "previewScheduledPublicationEdit" && output.ok === true && output.status === "unchanged") return "editScheduledPublication";
+    if(name === "applyPublishedPublicationEdit") return "editPublication";
+    if(name === "applyScheduledPublicationAction") return ({reschedule:"updateScheduledPublication",cancel:"cancelScheduledPublication",edit:"editScheduledPublication",retry:"retryScheduledPublication",publish_now:"publishScheduledPublicationNow"} as Record<string,string>)[String(output.action)]??name;
     return name;
   };
   const recordToolResult=(result:{toolName:string;toolCallId:string;output:unknown;input?:unknown}):boolean=>{
@@ -440,13 +442,13 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
                 }
                 return;
               }
-              if(["runScreenCommand","prepareMediaDownload","prepareStatsReportDownload","prepareAccountDocumentDownload","configureCookieConsent"].includes(result.toolName) && output.ok === true) uiCommand=parseInrAssistantUiCommand(output.uiCommand)??undefined;
+              if((isInrAssistantUiTaskTool(result.toolName) || ["prepareMediaDownload","prepareStatsReportDownload"].includes(result.toolName)) && output.ok === true) uiCommand=parseInrAssistantUiCommand(output.uiCommand)??undefined;
               const queuedActions=inrAssistantUiActionsFromToolResult(result.toolCallId,output);
               if(uiActions.length+queuedActions.length>INR_ASSISTANT_MAX_UI_ACTIONS) throw new InrAssistantInputError("La limite d’actions à transmettre au navigateur est atteinte. Les actions restantes n’ont pas été transmises.");
               const uiStep = uiStepCalls.get(result.toolCallId);
               if (uiStep && queuedActions.some(action => inrAssistantUiStepAcceptsAction(uiStep, action))) uiStep.actions = queuedActions;
               uiActions.push(...queuedActions);
-              if (["navigateApplication", "prepareCommercialDocumentForm"].includes(result.toolName) && output.ok === true && output.navigation && typeof output.navigation === "object") {
+              if (["navigateApplication", "prepareCommercialDocumentForm", "resumePublicationDraft", "openNotificationAction"].includes(result.toolName) && output.ok === true && output.navigation && typeof output.navigation === "object") {
                 const target=parseInrAssistantNavigation(output.navigation);
                 if(target) navigation=target;
               }
@@ -501,21 +503,21 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
       const next = mutationTail.then(async () => {
         if(checkpointFailed) throw new InrAssistantInputError("La tâche doit être vérifiée avant de poursuivre.");
         if(!inrAssistantPlanAllowsAction(objectives,name,receipts,appliedUi)) return {ok:false,status:"blocked",message:"Une étape explicitement demandée doit être terminée avant cette action."};
-        if((isInrAssistantUiTaskTool(name) || ["prepareMediaDownload","prepareStatsReportDownload","prepareAccountDocumentDownload","configureCookieConsent"].includes(name)) && uiActions.length>INR_ASSISTANT_MAX_UI_ACTIONS-2) return {ok:false,status:"blocked",message:"La limite d’actions du navigateur est atteinte. Cette action n’a pas été transmise."};
+        if((isInrAssistantUiTaskTool(name) || ["prepareMediaDownload","prepareStatsReportDownload","prepareAccountDocumentDownload","configureCookieConsent","configureApplicationPreferences","controlLocalInterface"].includes(name)) && uiActions.length>INR_ASSISTANT_MAX_UI_ACTIONS-2) return {ok:false,status:"blocked",message:"La limite d’actions du navigateur est atteinte. Cette action n’a pas été transmise."};
         const options=input[1] && typeof input[1] === "object"?input[1] as {toolCallId?:string}:{};
         const toolCallId=options.toolCallId??name+'-'+receipts.length;
         if (isInrAssistantUiTaskTool(name) && uiSteps.length) {
           const data = input[0] && typeof input[0] === "object" ? input[0] as Record<string, unknown> : {};
-          const clauseKey = (value: string) => value.replace(/[,.!?;:]+$/g, "").trim();
+          const clauseKey = (value: string) => inrAssistantRequestClauses(value).join(" ").replace(/[,.!?;:]+$/g, "").trim();
           const quotedClauses = typeof data.instructionQuote === "string" ? inrAssistantRequestClauses(data.instructionQuote).map(clauseKey) : [];
-          const command = name === "runScreenCommand" ? data.command : name === "prepareCurrentDocumentTemplate" ? "create_document_template" : name === "prepareAccountDocumentDownload" ? data.kind === "account_export" ? "download_account_export" : "download_subscription_invoice" : name === "configureCookieConsent" ? "configure_cookie_consent" : name;
+          const command = name === "runScreenCommand" ? data.command : name === "prepareCurrentDocumentTemplate" ? "create_document_template" : name === "prepareAccountDocumentDownload" ? data.kind === "account_export" ? "download_account_export" : data.kind === "subscription_invoice_hosted" ? "open_subscription_invoice_link" : "download_subscription_invoice" : name === "configureCookieConsent" ? "configure_cookie_consent" : name === "configureApplicationPreferences" ? "configure_application_preferences" : ["controlLocalInterface", "formatBusinessDnaText"].includes(name) ? "control_local_interface" : name === "submitContentReport" ? "submit_content_report" : name === "refreshBadgeThemeFromLogo" ? "refresh_badge_theme_from_logo" : name === "resumePublicationDraft" ? "navigateApplication" : name;
           // Preserve ordered full-clause matching, including explicit repeated
           // instructions. A shorter native verb/object quote needs one unique
           // match across ALL same-command steps, including completed steps.
-          const sameCommand = uiSteps.filter(candidate => candidate.command === command);
+          const sameCommand = uiSteps.filter(candidate => candidate.command === command && inrAssistantUiStepTool(candidate) === name);
           const exact = sameCommand.find(candidate => !candidate.actions?.length && !appliedUi.has(candidate.id) && quotedClauses.includes(clauseKey(candidate.instruction)));
           const matching = exact ? [] : name === "runScreenCommand" && quotedClauses.length === 1 && typeof data.instructionQuote === "string"
-            ? sameCommand.filter(candidate => candidate.command !== "navigateApplication" && candidate.command !== "prepareCommercialDocumentForm"
+            ? sameCommand.filter(candidate => candidate.command !== "navigateApplication" && candidate.command !== "prepareCommercialDocumentForm" && candidate.command !== "openNotificationAction"
               && clauseKey(candidate.instruction).includes(quotedClauses[0]) && isInrAssistantScreenCommandRequest(data.instructionQuote as string, candidate.command)) : [];
           const step = exact ?? (matching.length === 1 ? matching[0] : undefined);
           const expectedCommands = [...new Set(uiSteps.filter(candidate => !candidate.actions?.length && !appliedUi.has(candidate.id)).map(candidate => candidate.command))];
@@ -550,6 +552,11 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
             if(raw.token.length<=24000 && typeof raw.reference === "string" && /^IA-[A-F0-9]{12}$/.test(raw.reference) && INR_ASSISTANT_APPROVAL_KINDS.some(kind => kind === raw.approvalKind)) privateApprovals.set(raw.reference,{token:raw.token,kind:raw.approvalKind as NonNullable<InrAssistantActionReceipt["approvalKind"]>});
             const {token:_privateToken,...safe}=raw; output=safe;
           }
+        }
+        const pendingUiStep = uiStepCalls.get(toolCallId);
+        if (pendingUiStep && output && typeof output === "object" && (output as Record<string, unknown>).ok === true) {
+          const effects = inrAssistantUiActionsFromToolResult(toolCallId, output);
+          if (effects.length && effects.some(action => !inrAssistantUiStepAcceptsAction(pendingUiStep, action))) output = { ok: false, status: "blocked", message: "La commande d’écran ne correspond pas à l’étape prévue. Elle n’a pas été transmise au navigateur." };
         }
         const markerIndex=receipts.indexOf(marker);
         if(markerIndex>=0) receipts.splice(markerIndex,1);

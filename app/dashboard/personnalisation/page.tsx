@@ -19,6 +19,7 @@ import type { AiConfigurationContentHandle, AiConfigurationTab } from "../settin
 import styles from "./personalization.module.css";
 import formStyles from "./PersonalizationForms.module.css";
 import PersonalizationSectionIcon from "./PersonalizationSectionIcon";
+import { useInrAssistantBusinessFormCommands } from "../_hooks/useInrAssistantBusinessFormCommands";
 
 const AiMemoryContent = dynamic(() => import("../settings/_components/AiMemoryContent"));
 const AiConfigurationContent = dynamic(() => import("../settings/_components/AiConfigurationContent"));
@@ -113,6 +114,33 @@ export default function PersonalizationPage() {
   ] as const;
   const communicationMemoryVisible = communicationTab === "strategy" || communicationTab === "news";
 
+  // One visible owner publishes this workspace. Hidden children retain their
+  // drafts and expose only their native commit protocol through these refs.
+  useInrAssistantBusinessFormCommands({ id: "personalization", view: section === "communication" ? communicationTab : memoryTab === "documents" ? "analysis" : memoryTab, snapshot: { section, memoryTab, communicationTab, companyDirty, communicationDirty }, busy: voiceBusy,
+    pendingChanges: companyDirty || communicationDirty,
+    isApplied: patch => patch.businessFormAction === "select_tab" && (patch.businessFormTab === "analysis" ? section === "analysis"
+      : patch.businessFormTab === "company" ? section === "company" : patch.businessFormTab === "communication" ? section === "communication"
+      : companyTabs.some(tab => tab.key === patch.businessFormTab) ? section === "company" && memoryTab === patch.businessFormTab
+      : section === "communication" && communicationTab === patch.businessFormTab),
+    apply: async (patch, scopeCurrent) => {
+      if (patch.businessFormAction === "select_tab") {
+        const tab = patch.businessFormTab;
+        if (!tab || tab === "all") return false;
+        if (["analysis", "company", "communication"].includes(tab)) { selectSection(tab as Section); return true; }
+        if (companyTabs.some(item => item.key === tab)) {
+          selectSection("company"); companyRef.current?.selectTab?.(tab as AiMemoryWorkspaceTab); setMemoryTab(tab as AiMemoryWorkspaceTab); return true;
+        }
+        if (communicationTabs.some(item => item.key === tab)) {
+          selectSection("communication"); setCommunicationTab(tab as typeof communicationTab);
+          if (tab === "strategy" || tab === "news") { companyRef.current?.selectTab?.(tab); setMemoryTab(tab); }
+          return true;
+        }
+        return false;
+      }
+      const owner = section === "communication" && !communicationMemoryVisible ? communicationRef.current : companyRef.current;
+      return { committed: await owner?.runAssistantAction(patch, scopeCurrent) === true };
+    } });
+
   return (
     <main data-personalization-page data-analysis-view={section === "analysis" ? "true" : undefined} className={`${styles.page} ${formStyles.workspace}`} style={dashboardWorkspacePageStyle}>
       <DashboardWorkspaceHeader
@@ -167,6 +195,7 @@ export default function PersonalizationPage() {
             initialTab={memoryTab}
             visibleTabs={visibleMemoryTabs}
             hideNavigation
+            assistantActive={section !== "communication" || communicationMemoryVisible}
             vocabularyPortalTarget={section === "communication" && communicationTab === "instructions" ? vocabularyTarget : null}
             profileLabel={t("profileLabel")}
             onTabChange={setMemoryTab}
@@ -191,6 +220,7 @@ export default function PersonalizationPage() {
               edition={edition}
               workspaceMode
               hideNavigation
+              assistantActive={section === "communication" && !communicationMemoryVisible}
               initialTab={communicationMemoryVisible ? "parameters" : communicationTab as AiConfigurationTab}
               hideAiMemoryShortcut
               onVocabularyTargetChange={setVocabularyTarget}

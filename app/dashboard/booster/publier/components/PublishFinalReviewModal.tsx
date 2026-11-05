@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
+import { useInrAssistantLocalClose } from "../../../_hooks/useInrAssistantLocalClose";
 import type { ChannelKey, PublicationMediaType } from "../publishModal.shared";
 import css from "./PublishFinalReviewModal.module.css";
 
@@ -40,6 +41,7 @@ export default function PublishFinalReviewModal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const descriptionId = useId();
+  useInrAssistantLocalClose("publication_review", open, onClose, saving, items);
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;

@@ -777,7 +777,9 @@
     "analysisNoSourcesHint": "Ligue um canal ou anexe um documento para iniciar a análise.",
     "documentsAnalysisTitle": "Anexar documentos à análise",
     "documentsDropHint": "PDF, imagens ou documentos · 20 MB por ficheiro",
-    "presentationTitle": "Apresentação"
+    "presentationTitle": "Apresentação",
+    "discardDraftMessage": "As alterações não guardadas neste formulário serão descartadas. As informações já guardadas serão mantidas.",
+    "resetPreferencesMessage": "As preferências apresentadas regressarão aos valores predefinidos. Esta ação não confirma compras nem alterações de conta."
   },
   "aiConfiguration": {
     "pageDescription": "Defina como a IA escreve e adapta cada conteúdo aos seus objetivos.",

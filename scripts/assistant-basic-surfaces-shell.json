@@ -1,0 +1,2242 @@
+[
+  {
+    "id": "shell-553f5c0741411aed",
+    "label": "Afficher l’aide du panneau Inertie",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/DashboardClient.tsx"
+    ],
+    "sourceAnchor": "<HelpButton onClick={() => setHelpInertieOpen(true)} title={i18nT(\"aide_mon_inertie_beeca900\")} />",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic Inertia help uses its exact Dashboard native port and cannot open from an unrelated panel",
+    "controlIds": [
+      "app/dashboard/DashboardClient.tsx#HelpButton:0ff768e85f5abf4b:1"
+    ],
+    "status": "implemented",
+    "notes": "Port inertia_help borné au panneau Inertie réellement monté, ouverture/fermeture native et commit relu. Aucun changement de service ni de réglage.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-2840921c370ab2c3",
+    "label": "Choisir un onglet de Mon compte",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/DashboardClient.tsx"
+    ],
+    "sourceAnchor": "<DashboardAccountTabs panel={panel} onSelect={selectSettingsTab} />",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/settings-drawer-tab-navigation-runtime.test.mts"
+    ],
+    "testAnchor": "confirming a dirty settings tab switch navigates once without closing the drawer",
+    "controlIds": [
+      "app/dashboard/DashboardClient.tsx#DashboardAccountTabs:c32d34439d636788:1"
+    ],
+    "status": "implemented",
+    "notes": "Navigation native soumise aux droits de l’offre, au compte actif et à la protection des saisies. Une demande de navigation ne prouve pas encore l’ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-76766fbc4be03f29",
+    "label": "Choisir Produits ou Commandes dans la boutique",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/DashboardClient.tsx"
+    ],
+    "sourceAnchor": "<DashboardBoutiqueTabs panel={panel} view={boutiqueView} onSelect={selectBoutiqueTab} />",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/settings-drawer-tab-navigation-runtime.test.mts"
+    ],
+    "testAnchor": "confirming a dirty settings tab switch navigates once without closing the drawer",
+    "controlIds": [
+      "app/dashboard/DashboardClient.tsx#DashboardBoutiqueTabs:4c27755378a531e3:1"
+    ],
+    "status": "implemented",
+    "notes": "Navigation native soumise aux droits de l’offre, au compte actif et à la protection des saisies. Une demande de navigation ne prouve pas encore l’ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-432c08ed833c3d55",
+    "label": "Fermer le panneau par son arrière-plan",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/SettingsDrawer.tsx"
+    ],
+    "sourceAnchor": "<div\n      aria-hidden={!isOpen}\n      onClick={closeOnBackdrop ? onClose : undefined}\n      style={{\n        position: \"fixed\",\n        top: viewportOffsetTop,\n        left: 0,\n        right: 0,\n        bottom: \"auto\",\n",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic drawer close invokes the native guard and cannot acknowledge a still-open or reopened panel",
+    "controlIds": [
+      "app/dashboard/SettingsDrawer.tsx#div:5e3d84e3d2083efd:1"
+    ],
+    "status": "implemented",
+    "notes": "Port settings_drawer monté seulement avec le portail ouvert. Même callback natif onClose, confirmation du parent préservée ; un panneau encore ouvert ou une révision périmée ne donne pas de succès. Le contrôle sur arrière-plan reste soumis à closeOnBackdrop.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-81af7346af4622b5",
+    "label": "Fermer le panneau de réglages",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/SettingsDrawer.tsx"
+    ],
+    "sourceAnchor": "<button\n              type=\"button\"\n              onClick={onClose}\n              aria-label={t.drawer.close}\n              title={t.drawer.close}\n              style={{\n                border: \"1px solid var(--inrcy-the",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic drawer close invokes the native guard and cannot acknowledge a still-open or reopened panel",
+    "controlIds": [
+      "app/dashboard/SettingsDrawer.tsx#button:6f4feaa02c241546:1"
+    ],
+    "status": "implemented",
+    "notes": "Port settings_drawer monté seulement avec le portail ouvert. Même callback natif onClose, confirmation du parent préservée ; un panneau encore ouvert ou une révision périmée ne donne pas de succès. Le contrôle sur arrière-plan reste soumis à closeOnBackdrop.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-faf4fa58f29a4e5e",
+    "label": "Fermer ou annuler le signalement",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<button className={styles.closeButton} type=\"button\" onClick={() => setOpen(false)} aria-label={t(\"ai_report_close\")}>×</button>",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic content report preparation changes the native draft without sending or exposing private fields",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#button:5030baff5c7da015:1"
+    ],
+    "status": "implemented",
+    "notes": "Port content_report prépare uniquement le formulaire natif. Motif parmi les options, commentaire borné, aucun POST ; fermer attend le vrai commit.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-f15af5f4b3c1263d",
+    "label": "Fermer ou annuler le signalement",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<button className={styles.primaryButton} type=\"button\" onClick={() => setOpen(false)}>{t(\"ai_report_close\")}</button>",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic content report preparation changes the native draft without sending or exposing private fields",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#button:e638367515477418:1"
+    ],
+    "status": "implemented",
+    "notes": "Port content_report prépare uniquement le formulaire natif. Motif parmi les options, commentaire borné, aucun POST ; fermer attend le vrai commit.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-de0356b016f09c5a",
+    "label": "Transmettre le signalement réellement affiché",
+    "domain": "support",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<form onSubmit={submitReport}>\n            <span className={styles.eyebrow}>iNrCy</span>\n            <h2 id=\"ai-report-title\">{t(\"ai_report_dialog_title\")}</h2>\n            <p className={styles.intro}>{t(\"ai_report_dialo",
+    "capabilityId": "support.content-report",
+    "toolNames": [
+      "controlLocalInterface",
+      "submitContentReport"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic dedicated report submission uses the real native payload once and requires the sent render",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#form:0460f29400c60748:1"
+    ],
+    "status": "implemented",
+    "notes": "Outil dédié submitContentReport : ordre ACTUEL explicite, brouillon monté/révision/acteur/compte exacts, aucune donnée du modèle. Réponse native ok:true et rendu envoyé requis, tentative unique, délai borné et aucune relance automatique incertaine.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-e8cd61046efc546b",
+    "label": "Choisir le motif du signalement",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<select value={reason} onChange={(event) => setReason(event.target.value)}>\n                <option value=\"offensive\">{t(\"ai_report_reason_offensive\")}</option>\n                <option value=\"unsafe\">{t(\"ai_report_reason",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic content report preparation changes the native draft without sending or exposing private fields",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#select:d198d17dd330db3f:1"
+    ],
+    "status": "implemented",
+    "notes": "Port content_report prépare uniquement le formulaire natif. Motif parmi les options, commentaire borné, aucun POST ; fermer attend le vrai commit.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-8643df5ba09580bb",
+    "label": "Choisir le motif du signalement",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<option value=\"offensive\">{t(\"ai_report_reason_offensive\")}</option>",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic content report preparation changes the native draft without sending or exposing private fields",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#option:5301b9008515062c:1"
+    ],
+    "status": "implemented",
+    "notes": "Port content_report prépare uniquement le formulaire natif. Motif parmi les options, commentaire borné, aucun POST ; fermer attend le vrai commit.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-160b26a313cee7c0",
+    "label": "Choisir le motif du signalement",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<option value=\"unsafe\">{t(\"ai_report_reason_unsafe\")}</option>",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic content report preparation changes the native draft without sending or exposing private fields",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#option:10858a3a8c866b99:1"
+    ],
+    "status": "implemented",
+    "notes": "Port content_report prépare uniquement le formulaire natif. Motif parmi les options, commentaire borné, aucun POST ; fermer attend le vrai commit.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-4d2fbd7b52506442",
+    "label": "Choisir le motif du signalement",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<option value=\"false_information\">{t(\"ai_report_reason_false_information\")}</option>",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic content report preparation changes the native draft without sending or exposing private fields",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#option:dd281937553dd1b2:1"
+    ],
+    "status": "implemented",
+    "notes": "Port content_report prépare uniquement le formulaire natif. Motif parmi les options, commentaire borné, aucun POST ; fermer attend le vrai commit.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-938f206003b9b701",
+    "label": "Choisir le motif du signalement",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<option value=\"copyright\">{t(\"ai_report_reason_copyright\")}</option>",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic content report preparation changes the native draft without sending or exposing private fields",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#option:d809e88a2692b9e8:1"
+    ],
+    "status": "implemented",
+    "notes": "Port content_report prépare uniquement le formulaire natif. Motif parmi les options, commentaire borné, aucun POST ; fermer attend le vrai commit.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-c23e69d40ee0abbf",
+    "label": "Choisir le motif du signalement",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<option value=\"other\">{t(\"ai_report_reason_other\")}</option>",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic content report preparation changes the native draft without sending or exposing private fields",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#option:dd731ae589352e29:1"
+    ],
+    "status": "implemented",
+    "notes": "Port content_report prépare uniquement le formulaire natif. Motif parmi les options, commentaire borné, aucun POST ; fermer attend le vrai commit.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-372c7d5ce1c481c9",
+    "label": "Décrire le problème du contenu",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={4} maxLength={2000} placeholder={t(\"ai_report_details_placeholder\")} />",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic content report preparation changes the native draft without sending or exposing private fields",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#textarea:7fd2e29ef37b62c1:1"
+    ],
+    "status": "implemented",
+    "notes": "Port content_report prépare uniquement le formulaire natif. Motif parmi les options, commentaire borné, aucun POST ; fermer attend le vrai commit.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-0d39eb9d31565458",
+    "label": "Fermer ou annuler le signalement",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<button className={styles.secondaryButton} type=\"button\" onClick={() => setOpen(false)}>{t(\"ai_report_cancel\")}</button>",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic content report preparation changes the native draft without sending or exposing private fields",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#button:7e8433efa17b341b:1"
+    ],
+    "status": "implemented",
+    "notes": "Port content_report prépare uniquement le formulaire natif. Motif parmi les options, commentaire borné, aucun POST ; fermer attend le vrai commit.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-e95692d71d15c32d",
+    "label": "Transmettre le signalement réellement affiché",
+    "domain": "support",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<button className={styles.primaryButton} type=\"submit\" disabled={status === \"sending\"}>{status === \"sending\" ? t(\"ai_report_sending\") : t(\"ai_report_send\")}</button>",
+    "capabilityId": "support.content-report",
+    "toolNames": [
+      "controlLocalInterface",
+      "submitContentReport"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic dedicated report submission uses the real native payload once and requires the sent render",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#button:fe25eb4b0ec2b09f:1"
+    ],
+    "status": "implemented",
+    "notes": "Outil dédié submitContentReport : ordre ACTUEL explicite, brouillon monté/révision/acteur/compte exacts, aucune donnée du modèle. Réponse native ok:true et rendu envoyé requis, tentative unique, délai borné et aucune relance automatique incertaine.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-7f932a4c3c3864e5",
+    "label": "Ouvrir le signalement de contenu",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/AiContentReportButton.tsx"
+    ],
+    "sourceAnchor": "<button className={`${styles.reportButton} ${className}`.trim()} type=\"button\" onClick={showDialog} title={t(\"ai_report_button_title\")}>\n        <span aria-hidden=\"true\">⚑</span> {t(\"ai_report_button_label\")}\n      </but",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic content report preparation changes the native draft without sending or exposing private fields",
+    "controlIds": [
+      "app/dashboard/_components/AiContentReportButton.tsx#button:252b6fbb45ab38bf:1"
+    ],
+    "status": "implemented",
+    "notes": "Port content_report prépare uniquement le formulaire natif. Motif parmi les options, commentaire borné, aucun POST ; fermer attend le vrai commit.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-68869708aaff3bc6",
+    "label": "Fermer les informations sur les moteurs IA",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/AiEngineInfoModal.tsx"
+    ],
+    "sourceAnchor": "<button\n            type=\"button\"\n            onClick={onClose}\n            aria-label={i18nT(\"fermer_les_informations_sur_les_moteurs_a6165e55\")}\n            style={{\n              width: 34,\n              height: 34,\n ",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic engine info closes through the native parent and waits for its committed state",
+    "controlIds": [
+      "app/dashboard/_components/AiEngineInfoModal.tsx#button:fff179ca1a8ff01f:1"
+    ],
+    "status": "implemented",
+    "notes": "Port engine_info prioritaire seulement lorsque cette fenêtre est ouverte, callback natif parent et fermeture committée.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-2238fee9cb5cc372",
+    "label": "Suivre un lien interne sûr de la réponse",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardAssistantMessageContent.tsx"
+    ],
+    "sourceAnchor": "<a href={internal.href} data-inrcy-unguarded-navigation={onInternalNavigate ? \"true\" : undefined}\n    onClick={(event: MouseEvent<HTMLAnchorElement>) => {\n      if (!onInternalNavigate || event.defaultPrevented || event.",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-assistant-chat-runtime.test.mts"
+    ],
+    "testAnchor": "internal links and media navigation keep the assistant open and respect the dirty-form guard",
+    "controlIds": [
+      "app/dashboard/_components/DashboardAssistantMessageContent.tsx#a:f55acc7377e79a38:1"
+    ],
+    "status": "implemented",
+    "notes": "Les liens sont filtrés avant rendu et passent par la garde native des saisies.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-846d87ab1851555d",
+    "label": "Conserver ou écarter l’aperçu généré",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx"
+    ],
+    "sourceAnchor": "<button key={operation} type=\"button\" disabled={pending || files.busy || Boolean(draft.trim() || files.attachments.length)} onClick={() => {\n                if (controllerRef.current || draft.trim() || files.busy || file",
+    "capabilityId": "studio.preview",
+    "toolNames": [
+      "acceptMediaGeneration",
+      "discardMediaGeneration"
+    ],
+    "mode": "confirm",
+    "testFiles": [
+      "tests/dashboard/dashboard-assistant-media-preview-runtime.test.mts"
+    ],
+    "testAnchor": "the real Session sends localized preview decisions as explicit user requests plus exact untrusted IDs, never a private URL or save authority",
+    "controlIds": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:5b6ed5a7d1388831:1"
+    ],
+    "status": "implemented",
+    "notes": "Choix explicite créé par le bouton ; IDs bornés ne confèrent aucun droit. Les outils natifs recontrôlent le job possédé et l’aperçu exact ; une simple lecture/reprise ne sauvegarde jamais le média.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-017866cd795a6ba8",
+    "label": "Ouvrir Mes médias après le résultat enregistré",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" onClick={onOpenMediaLibrary}>{copy.mediaLibrary}<span aria-hidden=\"true\">↗</span></button>",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-assistant-chat-runtime.test.mts"
+    ],
+    "testAnchor": "internal links and media navigation keep the assistant open and respect the dirty-form guard",
+    "controlIds": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:2b9f99ea766e0ba4:1"
+    ],
+    "status": "implemented",
+    "notes": "Navigation native soumise aux droits de l’offre, au compte actif et à la protection des saisies. Une demande de navigation ne prouve pas encore l’ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-f2f9f7f367dcba67",
+    "label": "Insérer le prompt gratuit dans Studio",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={styles.studioDraftButton} data-testid=\"assistant-studio-draft\" disabled={pending || files.busy} onClick={() => void insertDraft(studioDraft, message)}>{studioDraft.mediaType === \"video\" ?",
+    "capabilityId": "studio.prompt",
+    "toolNames": [
+      "prepareStudioPrompt"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-assistant-chat-runtime.test.mts"
+    ],
+    "testAnchor": "server-confirmed free insertion runs after the chat controller releases and ignores late account changes",
+    "controlIds": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:526a98b63483d3c8:1"
+    ],
+    "status": "implemented",
+    "notes": "Le flux serveur d’insertion gratuite explicite utilise le même insertDraft natif après libération du contrôleur ; garde scope/epoch et ACK de l’insertion. Aucun lancement de génération ni écrasement silencieux.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-dfdb4a049e5e1fb3",
+    "label": "Préparer un résumé pour une personne de l’équipe",
+    "domain": "support",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" onClick={prepareHumanContact}>{copy.human}<span aria-hidden=\"true\">↗</span></button>",
+    "capabilityId": "support.human",
+    "toolNames": [
+      "proposeHumanSupport"
+    ],
+    "mode": "form",
+    "testFiles": [
+      "tests/dashboard/dashboard-assistant-chat-runtime.test.mts"
+    ],
+    "testAnchor": "human contact appears only after an explicit backend handoff and does not send email",
+    "controlIds": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:8dbcbd2ff5f03e36:1"
+    ],
+    "status": "implemented",
+    "notes": "proposeHumanSupport fournit le résumé de transmission et un handoff backend explicite. Équivalence de préparation du résumé uniquement : ne prétend pas cliquer le bouton ou ouvrir le composeur externe ; le professionnel vérifie puis transmet personnellement.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "not_demonstrated_for_assistant_driver",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "server_equivalent"
+  },
+  {
+    "id": "shell-2a48161d614af4b5",
+    "label": "Joindre un fichier choisi sur cet appareil",
+    "domain": "media",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx"
+    ],
+    "sourceAnchor": "<input hidden type=\"file\" ref={files.inputRef} multiple accept={ASSISTANT_ATTACHMENT_ACCEPT} onChange={event => { const selected = Array.from(event.target.files || []); event.target.value = \"\"; if (selected.length) void ",
+    "capabilityId": "media.read",
+    "toolNames": [
+      "searchMedia",
+      "readAttachedDocument",
+      "listImportableMediaAttachments"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/dashboard/dashboard-assistant-chat-runtime.test.mts"
+    ],
+    "testAnchor": "assistant submits user text without client model or plan and retries only on a user action",
+    "controlIds": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx#input:58bab951110169b2:1"
+    ],
+    "status": "native_only",
+    "notes": "Le navigateur ouvre son sélecteur natif ; aucun chemin local n’est fourni ni lu automatiquement par le modèle.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "human_required",
+    "handoffReason": "Le choix et l’autorisation d’accès à un fichier local appartiennent au professionnel dans le sélecteur du navigateur."
+  },
+  {
+    "id": "shell-8b069f3d9163bc87",
+    "label": "Joindre un fichier choisi sur cet appareil",
+    "domain": "media",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" onClick={files.selectDevice}>{attachmentCopy.device}</button>",
+    "capabilityId": "media.read",
+    "toolNames": [
+      "searchMedia",
+      "readAttachedDocument",
+      "listImportableMediaAttachments"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/dashboard/dashboard-assistant-chat-runtime.test.mts"
+    ],
+    "testAnchor": "assistant submits user text without client model or plan and retries only on a user action",
+    "controlIds": [
+      "app/dashboard/_components/DashboardAssistantSession.tsx#button:3d196ba2217d3873:1"
+    ],
+    "status": "native_only",
+    "notes": "Le navigateur ouvre son sélecteur natif ; aucun chemin local n’est fourni ni lu automatiquement par le modèle.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "human_required",
+    "handoffReason": "Le choix et l’autorisation d’accès à un fichier local appartiennent au professionnel dans le sélecteur du navigateur."
+  },
+  {
+    "id": "shell-175f74de9cd301bc",
+    "label": "Afficher l’aide du Générateur",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardGeneratorHub.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={styles.generatorAction} onClick={onOpenGeneratorHelp}\n            aria-label={helpT(\"aria\")} title={helpT(\"title\")} aria-haspopup=\"dialog\"><DashboardNavigationIcon kind=\"help\" /></button>",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-help-navigation-runtime.test.mts"
+    ],
+    "testAnchor": "opening and closing help changes no channel, generator or publication state",
+    "controlIds": [
+      "app/dashboard/_components/DashboardGeneratorHub.tsx#button:c83cfc2ab76c1e50:1"
+    ],
+    "status": "implemented",
+    "notes": "Navigation native soumise aux droits de l’offre, au compte actif et à la protection des saisies. Une demande de navigation ne prouve pas encore l’ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-2dfd00bcb86939e3",
+    "label": "Actualiser le Générateur",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardGeneratorHub.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={`${styles.generatorAction} ${styles.refreshAction}`} onClick={() => void refresh()}\n            disabled={kpisLoading} aria-busy={kpisLoading || undefined}\n            aria-label={t.hero.",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic generator refresh uses the native promise and rejects duplicate requests failures and busy state",
+    "controlIds": [
+      "app/dashboard/_components/DashboardGeneratorHub.tsx#button:f4daa48e00fb82ca:1"
+    ],
+    "status": "implemented",
+    "notes": "Le pilote fini generator+retry appelle le même callback natif que le bouton, attend son résultat réel puis le commit affiché ; busy, échec natif, compte changé ou appel doublé ne donnent aucun succès.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-322a6fac03c46a2e",
+    "label": "Ouvrir l’étape du cockpit à compléter",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardHero.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" onClick={step.action} className={styles.cockpitStageTrigger}>\n                    <span className={styles.cockpitStageIcon}><HeroIcon name={step.key} /></span>\n                    <small>{step.title",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-shared-tools-runtime.test.mts"
+    ],
+    "testAnchor": "Basic keeps publication, Stats, Studio, media library and Send history usable through either renderer",
+    "controlIds": [
+      "app/dashboard/_components/DashboardHero.tsx#button:8d8525bf911660d8:1"
+    ],
+    "status": "implemented",
+    "notes": "Navigation native soumise aux droits de l’offre, au compte actif et à la protection des saisies. Une demande de navigation ne prouve pas encore l’ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-77aa1bd6f0aec041",
+    "label": "Afficher une explication de l’état du cockpit",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardHero.tsx"
+    ],
+    "sourceAnchor": "<button\n                  type=\"button\"\n                  className={styles.cockpitInfoButton}\n                  aria-label={step.infoAria}\n                  aria-expanded={openInfo === step.key}\n                  onClic",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic dashboard information opens the requested native popover and closes it after a real commit",
+    "controlIds": [
+      "app/dashboard/_components/DashboardHero.tsx#button:92d8fa3bdc6c1adf:1"
+    ],
+    "status": "implemented",
+    "notes": "Action limitée au contrat natif et à son accusé de résultat ; aucune réussite fournisseur déduite du seul clic.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-cb48de0ddd4a4ba4",
+    "label": "Ouvrir le planning manuel des publications",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardModulesCard.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={`${signatureStyles.planningButton} ${signatureStyles.modulePlanning}`}\n          data-agent-planning-workspace={workspace}\n          disabled={locked}\n          onClick={() => locked ? st",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-shared-tools-runtime.test.mts"
+    ],
+    "testAnchor": "Basic keeps publication, Stats, Studio, media library and Send history usable through either renderer",
+    "controlIds": [
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:7275b105d1462c56:1"
+    ],
+    "status": "implemented",
+    "notes": "Le template de carte comprend des variantes payantes : seuls Stats/Studio/iNrSend-publications/Booster et planning manuel sont activés en Basique. Les autres variants restent désactivés ; aucune activation d’agent ni publication n’est déduite de cette navigation.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-a180bcc93be61c26",
+    "label": "Ouvrir Mes médias depuis Studio",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardModulesCard.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={`${signatureStyles.settingsButton} ${signatureStyles.studioLibrary}`}\n          aria-label={t.userMenu.media} title={t.userMenu.media} data-dashboard-prefetch=\"/dashboard/mediatheque\"\n   ",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-shared-tools-runtime.test.mts"
+    ],
+    "testAnchor": "Basic keeps publication, Stats, Studio, media library and Send history usable through either renderer",
+    "controlIds": [
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:010f39d182cbf795:1"
+    ],
+    "status": "implemented",
+    "notes": "Le template de carte comprend des variantes payantes : seuls Stats/Studio/iNrSend-publications/Booster et planning manuel sont activés en Basique. Les autres variants restent désactivés ; aucune activation d’agent ni publication n’est déduite de cette navigation.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-57f74c3a598b79bf",
+    "label": "Ouvrir les réglages du Générateur depuis Stats",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardModulesCard.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={`${signatureStyles.settingsButton} ${signatureStyles.statsSettings}`}\n          onClick={onOpenGeneratorSettings} aria-label={heroT(\"settingsAria\")} title={heroT(\"settingsTitle\")}\n       ",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-shared-tools-runtime.test.mts"
+    ],
+    "testAnchor": "Basic keeps publication, Stats, Studio, media library and Send history usable through either renderer",
+    "controlIds": [
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:9e0a5c7b52c5c5a8:1"
+    ],
+    "status": "implemented",
+    "notes": "Navigation native soumise aux droits de l’offre, au compte actif et à la protection des saisies. Une demande de navigation ne prouve pas encore l’ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-10d919ceb3a843aa",
+    "label": "Ouvrir un outil ou ses réglages autorisés",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardModulesCard.tsx"
+    ],
+    "sourceAnchor": "<button\n          type=\"button\"\n          className={signatureStyles.settingsButton}\n          aria-label={tool.settingsLabel}\n          title={t.notifications.settings}\n          onClick={() => startPanelOpening(standar",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-shared-tools-runtime.test.mts"
+    ],
+    "testAnchor": "Basic keeps publication, Stats, Studio, media library and Send history usable through either renderer",
+    "controlIds": [
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:029755d0c2493c29:1"
+    ],
+    "status": "implemented",
+    "notes": "Le template de carte comprend des variantes payantes : seuls Stats/Studio/iNrSend-publications/Booster et planning manuel sont activés en Basique. Les autres variants restent désactivés ; aucune activation d’agent ni publication n’est déduite de cette navigation.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-091237d9aa51807b",
+    "label": "Ouvrir un outil ou ses réglages autorisés",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardModulesCard.tsx"
+    ],
+    "sourceAnchor": "<button\n          type=\"button\"\n          className={signatureStyles.toolButton}\n          data-testid={tool.testId}\n          data-dashboard-prefetch={tool.unavailable || tool.onOpen || standardMode && tool.premiumOnly ",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-shared-tools-runtime.test.mts"
+    ],
+    "testAnchor": "Basic keeps publication, Stats, Studio, media library and Send history usable through either renderer",
+    "controlIds": [
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:d58d87fdc2660a6b:1"
+    ],
+    "status": "implemented",
+    "notes": "Le template de carte comprend des variantes payantes : seuls Stats/Studio/iNrSend-publications/Booster et planning manuel sont activés en Basique. Les autres variants restent désactivés ; aucune activation d’agent ni publication n’est déduite de cette navigation.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-c663fb53a4613377",
+    "label": "Ouvrir une publication Booster",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardModulesCard.tsx"
+    ],
+    "sourceAnchor": "<button\n                  type=\"button\"\n                  className={`${signatureStyles.primaryButton} ${signatureStyles.publishButton}`}\n                  data-testid={standardMode ? \"standard-booster-publish\" : \"premiu",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-shared-tools-runtime.test.mts"
+    ],
+    "testAnchor": "Basic keeps publication, Stats, Studio, media library and Send history usable through either renderer",
+    "controlIds": [
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:8bc2a5a25233646c:1"
+    ],
+    "status": "implemented",
+    "notes": "Le template de carte comprend des variantes payantes : seuls Stats/Studio/iNrSend-publications/Booster et planning manuel sont activés en Basique. Les autres variants restent désactivés ; aucune activation d’agent ni publication n’est déduite de cette navigation.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-f3c484229767746a",
+    "label": "Ouvrir le bilan existant Booster",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardModulesCard.tsx"
+    ],
+    "sourceAnchor": "<button\n                type=\"button\"\n                className={signatureStyles.boosterStats}\n                aria-label={t.modules.boosterStatsTitle}\n                title={t.modules.boosterStatsTitle}\n                ",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-shared-tools-runtime.test.mts"
+    ],
+    "testAnchor": "Basic keeps publication, Stats, Studio, media library and Send history usable through either renderer",
+    "controlIds": [
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:8923f05cf3332878:1"
+    ],
+    "status": "implemented",
+    "notes": "Le template de carte comprend des variantes payantes : seuls Stats/Studio/iNrSend-publications/Booster et planning manuel sont activés en Basique. Les autres variants restent désactivés ; aucune activation d’agent ni publication n’est déduite de cette navigation.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-843ba539721f9f91",
+    "label": "Consulter les offres supérieures",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardModulesCard.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={signatureStyles.premiumGateLock} aria-label={helpT(\"viewOffers\")} title={helpT(\"viewOffers\")} onClick={() => startPanelOpening(\"abonnement\")} data-testid=\"dashboard-premium-unlock\"><Dashb",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-shared-tools-runtime.test.mts"
+    ],
+    "testAnchor": "Basic keeps publication, Stats, Studio, media library and Send history usable through either renderer",
+    "controlIds": [
+      "app/dashboard/_components/DashboardModulesCard.tsx#button:64ba7366b1bac1ec:1"
+    ],
+    "status": "implemented",
+    "notes": "Le template de carte comprend des variantes payantes : seuls Stats/Studio/iNrSend-publications/Booster et planning manuel sont activés en Basique. Les autres variants restent désactivés ; aucune activation d’agent ni publication n’est déduite de cette navigation.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-1cee7ecff7debf4b",
+    "label": "Formulaire de parrainage dans les réglages",
+    "domain": "account",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx"
+    ],
+    "sourceAnchor": "<ReferralPanel\n          referralName={referralName}\n          referralPhone={referralPhone}\n          referralEmail={referralEmail}\n          referralFrom={referralFrom}\n          referralSubmitting={referralSubmitting}",
+    "capabilityId": "account.referral",
+    "toolNames": [
+      "previewReferralSubmission",
+      "applyReferralSubmission"
+    ],
+    "mode": "confirm",
+    "testFiles": [
+      "tests/ai-assistant/basic-referral-autonomy.test.mts"
+    ],
+    "testAnchor": "referral preview is signed only for current explicit coordinates, with no SMTP work before exact approval",
+    "controlIds": [
+      "app/dashboard/_components/DashboardSettingsDrawerContent.tsx#ReferralPanel:c1609ccea3df0bdd:1"
+    ],
+    "status": "implemented",
+    "notes": "Le wrapper transmet les coordonnées et submitReferral au formulaire natif. Les outils natifs de parrainage préparent un aperçu signé, exigent une confirmation exacte et vérifient le résultat ; équivalence serveur de la soumission, aucun clic ou remplissage du wrapper n’est prétendu.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "server_equivalent"
+  },
+  {
+    "id": "shell-0588eef3c32bd117",
+    "label": "Ouvrir l’aide de l’application",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardTopbar.tsx"
+    ],
+    "sourceAnchor": "<button\n        type=\"button\"\n        className={`${styles.ghostBtn} ${styles.gpsTopbarBtn} ${dockStyles.iconButton}`}\n        onClick={onOpenHelp}\n        aria-label={helpT(\"aria\")}\n        title={helpT(\"title\")}\n      ",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-help-navigation-runtime.test.mts"
+    ],
+    "testAnchor": "opening and closing help changes no channel, generator or publication state",
+    "controlIds": [
+      "app/dashboard/_components/DashboardTopbar.tsx#button:0655a0592c26c681:1"
+    ],
+    "status": "implemented",
+    "notes": "Navigation native soumise aux droits de l’offre, au compte actif et à la protection des saisies. Une demande de navigation ne prouve pas encore l’ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-8e9b7329b06a27e6",
+    "label": "Ouvrir la boutique",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardTopbar.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={`${styles.ghostBtn} ${dockStyles.iconButton}`}\n        aria-label={t.userMenu.shop} title={t.userMenu.shop} data-dashboard-panel=\"boutique\"\n        onClick={() => { setUserMenuOpen(false)",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/ai-assistant/ui-tools.test.mts"
+    ],
+    "testAnchor": "navigation validates current instruction and active account before emitting a UI command",
+    "controlIds": [
+      "app/dashboard/_components/DashboardTopbar.tsx#button:9a24e094f5b3e9f7:1"
+    ],
+    "status": "implemented",
+    "notes": "Navigation native soumise aux droits de l’offre, au compte actif et à la protection des saisies. Une demande de navigation ne prouve pas encore l’ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-51705ce5a6d7c27c",
+    "label": "Ouvrir le contact de l’équipe",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardTopbar.tsx"
+    ],
+    "sourceAnchor": "<button\n        type=\"button\"\n        className={`${styles.ghostBtn} ${styles.contactTopbarBtn} ${dockStyles.iconButton}`}\n        onClick={() => openPanel(\"contact\")}\n        aria-label={t.topbar.contact}\n        title=",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/ai-assistant/ui-tools.test.mts"
+    ],
+    "testAnchor": "navigation validates current instruction and active account before emitting a UI command",
+    "controlIds": [
+      "app/dashboard/_components/DashboardTopbar.tsx#button:0a3414b334406ab4:1"
+    ],
+    "status": "implemented",
+    "notes": "Navigation native soumise aux droits de l’offre, au compte actif et à la protection des saisies. Une demande de navigation ne prouve pas encore l’ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-ca0e84e7cee64114",
+    "label": "Ouvrir Mon compte",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardTopbar.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={`${styles.ghostBtn} ${dockStyles.headerButton}`}\n            aria-label={topbarT(\"myAccount\")} title={topbarT(\"myAccount\")} data-dashboard-action=\"account\"\n            onClick={() => { se",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/ai-assistant/ui-tools.test.mts"
+    ],
+    "testAnchor": "navigation validates current instruction and active account before emitting a UI command",
+    "controlIds": [
+      "app/dashboard/_components/DashboardTopbar.tsx#button:0a3d063955665f29:1"
+    ],
+    "status": "implemented",
+    "notes": "Navigation native soumise aux droits de l’offre, au compte actif et à la protection des saisies. Une demande de navigation ne prouve pas encore l’ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-b4532f89ec72f5b3",
+    "label": "Se déconnecter du compte authentifié",
+    "domain": "account",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardTopbar.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={`${styles.ghostBtn} ${dockStyles.headerButton}`}\n            aria-label={t.userMenu.logout} title={t.userMenu.logout} data-dashboard-action=\"logout\"\n            onClick={() => { setUserMe",
+    "capabilityId": "account.team",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/dashboard/dashboard-mobile-menu-runtime.test.mts"
+    ],
+    "testAnchor": "establishment switching still passes through the editor guard",
+    "controlIds": [
+      "app/dashboard/_components/DashboardTopbar.tsx#button:a97d612d6d12c258:1"
+    ],
+    "status": "native_only",
+    "notes": "La déconnexion native clôt la session et purge seulement son scope navigateur. L’assistant ne change pas d’identité en choisissant un argument.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "human_required",
+    "handoffReason": "La fermeture de la session authentifiée et la prochaine identité à utiliser restent un choix personnel de l’utilisateur."
+  },
+  {
+    "id": "shell-a3d4cc68952fc885",
+    "label": "Ouvrir l’aide de l’application",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardTopbar.tsx"
+    ],
+    "sourceAnchor": "<button\n          type=\"button\"\n          className={`${styles.mobileHeaderIconBtn} ${styles.mobileHeaderGpsBtn}`}\n          aria-label={helpT(\"aria\")}\n          title={helpT(\"title\")}\n          aria-haspopup=\"dialog\"\n  ",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-help-navigation-runtime.test.mts"
+    ],
+    "testAnchor": "opening and closing help changes no channel, generator or publication state",
+    "controlIds": [
+      "app/dashboard/_components/DashboardTopbar.tsx#button:6dfbdfd217e58c04:1"
+    ],
+    "status": "implemented",
+    "notes": "Navigation native soumise aux droits de l’offre, au compte actif et à la protection des saisies. Une demande de navigation ne prouve pas encore l’ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-739110d1fc94c5e8",
+    "label": "Ouvrir ou fermer le sélecteur d’emojis",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/EmojiPickerButton.tsx"
+    ],
+    "sourceAnchor": "<button\n        ref={buttonRef}\n        type=\"button\"\n        className={className}\n        style={buttonStyle}\n        onMouseDown={(event) => event.preventDefault()}\n        onClick={toggle}\n        aria-label={i18nT(\"",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic emoji controls use only visible native choices and acknowledge an actual insertion commit",
+    "controlIds": [
+      "app/dashboard/_components/EmojiPickerButton.tsx#button:d028c3c2e39632cd:1"
+    ],
+    "status": "implemented",
+    "notes": "Port emoji_picker à priorité privée pour le popup ouvert ; ambiguïté de lanceurs fermés refuse au lieu de deviner. Famille/emoji uniquement visibles du catalogue natif, même onSelect natif, commit après insertion réelle.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-021577175c913c18",
+    "label": "Rechercher un emoji",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/EmojiPickerButton.tsx"
+    ],
+    "sourceAnchor": "<input\n                ref={searchRef}\n                value={query}\n                onChange={(event) => setQuery(event.target.value)}\n                placeholder={i18nT(\"rechercher_un_emoji_ac220fec\")}\n                ",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic emoji controls use only visible native choices and acknowledge an actual insertion commit",
+    "controlIds": [
+      "app/dashboard/_components/EmojiPickerButton.tsx#input:8a08b8dbcf1f21f1:1"
+    ],
+    "status": "implemented",
+    "notes": "Port emoji_picker à priorité privée pour le popup ouvert ; ambiguïté de lanceurs fermés refuse au lieu de deviner. Famille/emoji uniquement visibles du catalogue natif, même onSelect natif, commit après insertion réelle.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-a8540e73fe2ef050",
+    "label": "Choisir une famille d’emojis",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/EmojiPickerButton.tsx"
+    ],
+    "sourceAnchor": "<button\n                      key={group.key}\n                      type=\"button\"\n                      role=\"tab\"\n                      aria-selected={activeGroup === group.key}\n                      onMouseDown={(event",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic emoji controls use only visible native choices and acknowledge an actual insertion commit",
+    "controlIds": [
+      "app/dashboard/_components/EmojiPickerButton.tsx#button:56dfd26d527691e1:1"
+    ],
+    "status": "implemented",
+    "notes": "Port emoji_picker à priorité privée pour le popup ouvert ; ambiguïté de lanceurs fermés refuse au lieu de deviner. Famille/emoji uniquement visibles du catalogue natif, même onSelect natif, commit après insertion réelle.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-794d32b587984a72",
+    "label": "Insérer l’emoji visible choisi dans le texte",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/EmojiPickerButton.tsx"
+    ],
+    "sourceAnchor": "<button\n                    key={`${emoji}-${index}`}\n                    type=\"button\"\n                    onMouseDown={(event) => event.preventDefault()}\n                    onClick={() => selectEmoji(emoji)}\n         ",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic emoji controls use only visible native choices and acknowledge an actual insertion commit",
+    "controlIds": [
+      "app/dashboard/_components/EmojiPickerButton.tsx#button:42c805ad9c937ba3:1"
+    ],
+    "status": "implemented",
+    "notes": "Port emoji_picker à priorité privée pour le popup ouvert ; ambiguïté de lanceurs fermés refuse au lieu de deviner. Famille/emoji uniquement visibles du catalogue natif, même onSelect natif, commit après insertion réelle.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-99810540211fe8d2",
+    "label": "Ouvrir fermer relire ou revenir dans le menu Établissements",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/EstablishmentMenu.tsx"
+    ],
+    "sourceAnchor": "<button\n        ref={triggerRef}\n        type=\"button\"\n        className={buttonClass}\n        aria-label={mobileLabel || buttonTitle}\n        title={buttonTitle}\n        aria-expanded={open}\n        onClick={toggleMenu}",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic establishment local controls require a visible native launcher and never switch or create an account",
+    "controlIds": [
+      "app/dashboard/_components/EstablishmentMenu.tsx#button:d5ddb74dcb799a92:1"
+    ],
+    "status": "implemented",
+    "notes": "Port establishment_menu sur la ref native explicitement visible ; priorité au popup réellement ouvert. Seuls ouvrir/fermer/relire et retour/annuler création sont permis. Aucun changement ou création d’établissement.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-e7f99d755cccf658",
+    "label": "Ouvrir fermer relire ou revenir dans le menu Établissements",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/EstablishmentMenu.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={menuStyles.backButton}\n                aria-label={mobileBackLabel} title={mobileBackLabel} onClick={closeToMenu}>\n                <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColo",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic establishment local controls require a visible native launcher and never switch or create an account",
+    "controlIds": [
+      "app/dashboard/_components/EstablishmentMenu.tsx#button:c8b48a79d6936838:1"
+    ],
+    "status": "implemented",
+    "notes": "Port establishment_menu sur la ref native explicitement visible ; priorité au popup réellement ouvert. Seuls ouvrir/fermer/relire et retour/annuler création sont permis. Aucun changement ou création d’établissement.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-19b9664b5b2c9049",
+    "label": "Ouvrir fermer relire ou revenir dans le menu Établissements",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/EstablishmentMenu.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" onClick={() => void load()}>{copy.retry}</button>",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic establishment local controls require a visible native launcher and never switch or create an account",
+    "controlIds": [
+      "app/dashboard/_components/EstablishmentMenu.tsx#button:36c31426f6fcadf6:1"
+    ],
+    "status": "implemented",
+    "notes": "Port establishment_menu sur la ref native explicitement visible ; priorité au popup réellement ouvert. Seuls ouvrir/fermer/relire et retour/annuler création sont permis. Aucun changement ou création d’établissement.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-f7e526044f7d3317",
+    "label": "Choisir explicitement un autre établissement",
+    "domain": "account",
+    "sourceFiles": [
+      "app/dashboard/_components/EstablishmentMenu.tsx"
+    ],
+    "sourceAnchor": "<button\n                    key={account.id}\n                    type=\"button\"\n                    className={`${styles.establishmentAccountRow} ${active ? styles.establishmentAccountRowActive : \"\"}`}\n                   ",
+    "capabilityId": "account.team",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/dashboard/dashboard-mobile-menu-runtime.test.mts"
+    ],
+    "testAnchor": "establishment switching still passes through the editor guard",
+    "controlIds": [
+      "app/dashboard/_components/EstablishmentMenu.tsx#button:71373268b2d69284:1"
+    ],
+    "status": "native_only",
+    "notes": "Le compte actif et les rôles sont choisis par les contrôles authentifiés natifs. navigateApplication ne bascule pas de compte et aucune valeur du modèle n’acquiert un droit sur un établissement.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "human_required",
+    "handoffReason": "Le titulaire choisit personnellement l’identité ou l’établissement autorisé ; ce choix change le périmètre de toutes les données et opérations."
+  },
+  {
+    "id": "shell-5a53057ce8ff20cf",
+    "label": "Créer un établissement autorisé",
+    "domain": "account",
+    "sourceFiles": [
+      "app/dashboard/_components/EstablishmentMenu.tsx"
+    ],
+    "sourceAnchor": "<input\n                            value={displayName}\n                            onChange={(event) => setDisplayName(event.target.value)}\n                            placeholder={`${copy.establishment} ${slot}`}\n      ",
+    "capabilityId": "account.team",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/dashboard/dashboard-mobile-menu-runtime.test.mts"
+    ],
+    "testAnchor": "establishment switching still passes through the editor guard",
+    "controlIds": [
+      "app/dashboard/_components/EstablishmentMenu.tsx#input:329d8e78a7cec2f6:1"
+    ],
+    "status": "native_only",
+    "notes": "Le compte actif et les rôles sont choisis par les contrôles authentifiés natifs. navigateApplication ne bascule pas de compte et aucune valeur du modèle n’acquiert un droit sur un établissement.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "human_required",
+    "handoffReason": "Le titulaire choisit personnellement l’identité ou l’établissement autorisé ; ce choix change le périmètre de toutes les données et opérations."
+  },
+  {
+    "id": "shell-b8b454d5bd53038e",
+    "label": "Ouvrir fermer relire ou revenir dans le menu Établissements",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/EstablishmentMenu.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" onClick={cancelCreate} disabled={creating}>{copy.cancel}</button>",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic establishment local controls require a visible native launcher and never switch or create an account",
+    "controlIds": [
+      "app/dashboard/_components/EstablishmentMenu.tsx#button:c1a0dbd3d1e78364:1"
+    ],
+    "status": "implemented",
+    "notes": "Port establishment_menu sur la ref native explicitement visible ; priorité au popup réellement ouvert. Seuls ouvrir/fermer/relire et retour/annuler création sont permis. Aucun changement ou création d’établissement.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-d04d1474d06d759a",
+    "label": "Créer un établissement autorisé",
+    "domain": "account",
+    "sourceFiles": [
+      "app/dashboard/_components/EstablishmentMenu.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={styles.establishmentCreateConfirm} onClick={() => void createAccount()} disabled={creating || displayName.trim().length < 2}>\n                            {creating ? copy.creating : copy.",
+    "capabilityId": "account.team",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/dashboard/dashboard-mobile-menu-runtime.test.mts"
+    ],
+    "testAnchor": "establishment switching still passes through the editor guard",
+    "controlIds": [
+      "app/dashboard/_components/EstablishmentMenu.tsx#button:c22858c96de45dc5:1"
+    ],
+    "status": "native_only",
+    "notes": "Le compte actif et les rôles sont choisis par les contrôles authentifiés natifs. navigateApplication ne bascule pas de compte et aucune valeur du modèle n’acquiert un droit sur un établissement.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "human_required",
+    "handoffReason": "Le titulaire choisit personnellement l’identité ou l’établissement autorisé ; ce choix change le périmètre de toutes les données et opérations."
+  },
+  {
+    "id": "shell-030aa388d1ca8490",
+    "label": "Choisir personnellement la création d’une nouvelle identité d’établissement",
+    "domain": "account",
+    "sourceFiles": [
+      "app/dashboard/_components/EstablishmentMenu.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" onClick={() => startCreate(slot)} className={styles.establishmentCreateButton}>\n                        <span>{copy.establishment} {slot}</span>\n                        <strong>＋ {copy.create}</stro",
+    "capabilityId": "account.team",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/dashboard/dashboard-mobile-menu-runtime.test.mts"
+    ],
+    "testAnchor": "establishment switching still passes through the editor guard",
+    "controlIds": [
+      "app/dashboard/_components/EstablishmentMenu.tsx#button:82332c3c82818205:1"
+    ],
+    "status": "native_only",
+    "notes": "Étape du parcours natif protégé de création/changement de périmètre du compte ; elle ne génère aucun nouveau droit Basic pour le modèle.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "human_required",
+    "handoffReason": "Le titulaire choisit lui-même la nouvelle identité d’établissement et ses droits dans le parcours natif de gestion des comptes."
+  },
+  {
+    "id": "shell-3b553ca66c415192",
+    "label": "Fermer le menu puis ouvrir le contact de l’équipe",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/EstablishmentMenu.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" onClick={() => { setOpen(false); onContact(); }}>{copy.contactAction}</button>",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/ai-assistant/ui-tools.test.mts"
+    ],
+    "testAnchor": "navigation validates current instruction and active account before emitting a UI command",
+    "controlIds": [
+      "app/dashboard/_components/EstablishmentMenu.tsx#button:1218534887a1f5ef:1"
+    ],
+    "status": "implemented",
+    "notes": "Composition des contrôles natifs establishment_menu+close puis navigateApplication(contact), garde des saisies conservée ; aucun mail envoyé ni établissement modifié.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-9f91ad5ed10a4d3c",
+    "label": "Afficher ou fermer les options du menu mobile",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx"
+    ],
+    "sourceAnchor": "<button\n            type=\"button\"\n            className={styles.menuBackdrop}\n            aria-label={t.drawer.close}\n            onClick={() => {\n              if (pendingKey !== null) return;\n              setMenuOpen(",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic mobile menu uses the native menu and language controls without navigation preference writes or logout",
+    "controlIds": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#button:b77b6c10909728c0:1"
+    ],
+    "status": "implemented",
+    "notes": "Port mobile_menu, composant mobile réellement monté et non masqué : menu et sous-menu Langue via setters/callbacks natifs, rendu relu, navigation en attente bloque. Aucun choix de langue enregistré par cette ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-93506ed284ae90ba",
+    "label": "Ouvrir un raccourci mobile autorisé",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx"
+    ],
+    "sourceAnchor": "<button key={option.id} className={styles.shortcutItem} type=\"button\" role=\"menuitem\"\n                    data-mobile-tool={option.id} data-tone={option.tone}\n                    aria-busy={shortcutLoadingVisible || unde",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-mobile-menu-runtime.test.mts"
+    ],
+    "testAnchor": "the mobile menu presents current tools once, with Founder-only accounting",
+    "controlIds": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#button:a3c1f468e05ceed5:1"
+    ],
+    "status": "implemented",
+    "notes": "Les choix de raccourci conservent leurs restrictions d’offre ; l’entrée native ne permet jamais Ads/comptabilité/campagnes hors pack. Les saisies non enregistrées restent protégées.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-af5c94aa63cc3da2",
+    "label": "Ouvrir Mon compte",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx"
+    ],
+    "sourceAnchor": "<MobileMenuActionButton label={menuT(\"account\")} icon={<DashboardNavigationIcon kind=\"account\" />}\n                  loading={isVisible(\"panel:compte\")} onClick={() => openDashboardPanel(\"compte\")} />",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-mobile-menu-runtime.test.mts"
+    ],
+    "testAnchor": "the mobile menu presents current tools once, with Founder-only accounting",
+    "controlIds": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#MobileMenuActionButton:c886faa1feef29b9:1"
+    ],
+    "status": "implemented",
+    "notes": "Les choix de raccourci conservent leurs restrictions d’offre ; l’entrée native ne permet jamais Ads/comptabilité/campagnes hors pack. Les saisies non enregistrées restent protégées.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-943c459448fe3a95",
+    "label": "Ouvrir la boutique",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx"
+    ],
+    "sourceAnchor": "<MobileMenuActionButton label={t.userMenu.shop} icon={<DashboardNavigationIcon kind=\"shop\" />} tone=\"violet\"\n                  loading={isVisible(\"panel:boutique\")} onClick={() => openDashboardPanel(\"boutique\")} />",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-mobile-menu-runtime.test.mts"
+    ],
+    "testAnchor": "the mobile menu presents current tools once, with Founder-only accounting",
+    "controlIds": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#MobileMenuActionButton:7b02cd4dd6e255ac:1"
+    ],
+    "status": "implemented",
+    "notes": "Les choix de raccourci conservent leurs restrictions d’offre ; l’entrée native ne permet jamais Ads/comptabilité/campagnes hors pack. Les saisies non enregistrées restent protégées.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-6bdba10144017f12",
+    "label": "Ouvrir le contact",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx"
+    ],
+    "sourceAnchor": "<MobileMenuActionButton label={t.topbar.contact} icon={<DashboardNavigationIcon kind=\"contact\" />} tone=\"pink\"\n                  loading={isVisible(\"panel:contact\")} onClick={() => openDashboardPanel(\"contact\")} />",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-mobile-menu-runtime.test.mts"
+    ],
+    "testAnchor": "the mobile menu presents current tools once, with Founder-only accounting",
+    "controlIds": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#MobileMenuActionButton:6185aaf201319c3c:1"
+    ],
+    "status": "implemented",
+    "notes": "Les choix de raccourci conservent leurs restrictions d’offre ; l’entrée native ne permet jamais Ads/comptabilité/campagnes hors pack. Les saisies non enregistrées restent protégées.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-18822ae6a50e204f",
+    "label": "Ouvrir l’aide",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx"
+    ],
+    "sourceAnchor": "<MobileMenuActionButton label={helpT(\"title\")} icon={<DashboardNavigationIcon kind=\"help\" />} tone=\"violet\"\n                  loading={isVisible(helpActionKey)} onClick={() => navigate(\"/dashboard?help=1\")} />",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-mobile-menu-runtime.test.mts"
+    ],
+    "testAnchor": "the mobile menu presents current tools once, with Founder-only accounting",
+    "controlIds": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#MobileMenuActionButton:ec9de5bd0270066a:1"
+    ],
+    "status": "implemented",
+    "notes": "Les choix de raccourci conservent leurs restrictions d’offre ; l’entrée native ne permet jamais Ads/comptabilité/campagnes hors pack. Les saisies non enregistrées restent protégées.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-50744999e68a89d6",
+    "label": "Afficher ou fermer les options du menu mobile",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx"
+    ],
+    "sourceAnchor": "<button className={styles.menuItem} type=\"button\" role=\"menuitem\" data-tone=\"blue\"\n                  aria-expanded={languageOpen} aria-controls=\"dashboard-mobile-languages\"\n                  onClick={() => setLanguageOpe",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic mobile menu uses the native menu and language controls without navigation preference writes or logout",
+    "controlIds": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#button:8883aba332968323:1"
+    ],
+    "status": "implemented",
+    "notes": "Port mobile_menu, composant mobile réellement monté et non masqué : menu et sous-menu Langue via setters/callbacks natifs, rendu relu, navigation en attente bloque. Aucun choix de langue enregistré par cette ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-72544dca1d527b05",
+    "label": "Déconnexion depuis le menu mobile",
+    "domain": "account",
+    "sourceFiles": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx"
+    ],
+    "sourceAnchor": "<button className={styles.menuDanger} type=\"button\" role=\"menuitem\" onClick={() => void handleLogout()}>\n                  <span className={styles.menuActionIcon} aria-hidden=\"true\"><DashboardNavigationIcon kind=\"logout\"",
+    "capabilityId": "account.team",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/dashboard/dashboard-mobile-menu-runtime.test.mts"
+    ],
+    "testAnchor": "establishment switching still passes through the editor guard",
+    "controlIds": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#button:cff70791fa95b875:1"
+    ],
+    "status": "native_only",
+    "notes": "Chemin natif de déconnexion, aucune session créée par le modèle.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "human_required",
+    "handoffReason": "L’utilisateur choisit personnellement de fermer sa session authentifiée."
+  },
+  {
+    "id": "shell-3d3ed16f2fd41fa4",
+    "label": "Choisir la langue affichée de l’application",
+    "domain": "account",
+    "sourceFiles": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx"
+    ],
+    "sourceAnchor": "<button key={option.value} type=\"button\"\n                  className={[styles.languageChoice, option.value === language ? styles.languageChoiceActive : \"\"].join(\" \")}\n                  aria-pressed={option.value === lang",
+    "capabilityId": "account.preferences",
+    "toolNames": [
+      "configureApplicationPreferences"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/ai-assistant/basic-application-preferences.test.mts"
+    ],
+    "testAnchor": "Basic application native preference ports verify readback and stop on stale scope or failed language persistence",
+    "controlIds": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#button:1a9903b8ec2542d1:1"
+    ],
+    "status": "implemented",
+    "notes": "Valeur explicite de langue, écriture et relecture native vérifiées par le port global. Langue d’interface distincte de la langue de génération IA.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-9e900b9d3ec42649",
+    "label": "Revenir à l’accueil",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx"
+    ],
+    "sourceAnchor": "<button\n            type=\"button\"\n            className={`${styles.item} ${homeActive ? styles.itemActive : \"\"}`}\n            aria-label={labels.home}\n            data-dashboard-mobile-home\n            aria-current={home",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/dashboard-mobile-menu-runtime.test.mts"
+    ],
+    "testAnchor": "the mobile menu presents current tools once, with Founder-only accounting",
+    "controlIds": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#button:81f894204d1feacd:1"
+    ],
+    "status": "implemented",
+    "notes": "Les choix de raccourci conservent leurs restrictions d’offre ; l’entrée native ne permet jamais Ads/comptabilité/campagnes hors pack. Les saisies non enregistrées restent protégées.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-79a24b1bf865cbb7",
+    "label": "Afficher ou fermer les options du menu mobile",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx"
+    ],
+    "sourceAnchor": "<button\n            type=\"button\"\n            className={`${styles.item} ${menuOpen ? styles.itemActive : \"\"}`}\n            aria-label={t.topbar.openMenu}\n            aria-expanded={menuOpen}\n            onClick={toggleM",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic mobile menu uses the native menu and language controls without navigation preference writes or logout",
+    "controlIds": [
+      "app/dashboard/_components/ResponsiveBottomNav.tsx#button:1e0e1733b3022a25:1"
+    ],
+    "status": "implemented",
+    "notes": "Port mobile_menu, composant mobile réellement monté et non masqué : menu et sous-menu Langue via setters/callbacks natifs, rendu relu, navigation en attente bloque. Aucun choix de langue enregistré par cette ouverture.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-3b14c5ecc6a767ca",
+    "label": "Choisir puis payer une recharge de crédits",
+    "domain": "account",
+    "sourceFiles": [
+      "app/dashboard/_components/VideoCreditRecharge.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" disabled={busy !== null || !catalogue?.canPurchase || !catalogue.packs.find((p) => p.key === pack.key)?.available}\n            aria-label={`${t(\"video_credit_buy\")} ${quantityLabel(pack.quantity)}, ",
+    "capabilityId": "account.subscription",
+    "toolNames": [
+      "prepareSubscriptionAction",
+      "navigateApplication"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/boutique/media-credit-client.test.mjs"
+    ],
+    "testAnchor": "shared pack retries retain scoped request keys and preserve the original video checkout namespace",
+    "controlIds": [
+      "app/dashboard/_components/VideoCreditRecharge.tsx#button:bfbe26baed9f16e3:1"
+    ],
+    "status": "native_only",
+    "notes": "Le paiement n’est jamais exécuté par l’assistant ; la clé de tentative est liée au titulaire et à l’établissement. Lire le solde ne lance aucun achat.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "human_required",
+    "handoffReason": "Le professionnel choisit le pack et valide lui-même le paiement auprès de Stripe, App Store ou Play Store."
+  },
+  {
+    "id": "shell-4aeadb86454192e3",
+    "label": "Choisir puis payer une recharge de crédits",
+    "domain": "account",
+    "sourceFiles": [
+      "app/dashboard/_components/VideoCreditRecharge.tsx"
+    ],
+    "sourceAnchor": "<a className={styles.checkoutLink} href={checkoutUrl} target=\"_blank\" rel=\"noopener noreferrer\">{t(\"video_credit_continue\")}</a>",
+    "capabilityId": "account.subscription",
+    "toolNames": [
+      "prepareSubscriptionAction",
+      "navigateApplication"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/boutique/media-credit-client.test.mjs"
+    ],
+    "testAnchor": "shared pack retries retain scoped request keys and preserve the original video checkout namespace",
+    "controlIds": [
+      "app/dashboard/_components/VideoCreditRecharge.tsx#a:c3b128dbc5b5a731:1"
+    ],
+    "status": "native_only",
+    "notes": "Le paiement n’est jamais exécuté par l’assistant ; la clé de tentative est liée au titulaire et à l’établissement. Lire le solde ne lance aucun achat.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "human_required",
+    "handoffReason": "Le professionnel choisit le pack et valide lui-même le paiement auprès de Stripe, App Store ou Play Store."
+  },
+  {
+    "id": "shell-47a891aa995864c4",
+    "label": "Consulter l’historique réel des commandes de crédits",
+    "domain": "account",
+    "sourceFiles": [
+      "app/dashboard/_components/VideoCreditRecharge.tsx"
+    ],
+    "sourceAnchor": "<summary>{t(\"video_credit_history\")}</summary>",
+    "capabilityId": "account.services",
+    "toolNames": [
+      "readAccountServices"
+    ],
+    "mode": "read",
+    "testFiles": [
+      "tests/ai-assistant/basic-account-services.test.mts"
+    ],
+    "testAnchor": "account services preserve the authenticated subscription holder vs active business distinction and remove billing URLs/secrets",
+    "controlIds": [
+      "app/dashboard/_components/VideoCreditRecharge.tsx#summary:08db2a479a92c9ea:1"
+    ],
+    "status": "implemented",
+    "notes": "Lecture native credit_orders paginée et scoped sur le compte, sans URL de paiement. Équivalence serveur de l’information affichée ; l’outil ne prétend pas déplier ce <details> ni acheter des crédits.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "server_equivalent"
+  },
+  {
+    "id": "shell-40e6265d44ec00d8",
+    "label": "Ouvrir ou fermer le catalogue de recharge sans acheter",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/VideoCreditRecharge.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={[styles.recharge, className].filter(Boolean).join(\" \")} disabled={disabled} data-media-kind={mediaKind}\n      aria-haspopup=\"dialog\" aria-controls={`${titleId}-dialog`}\n      aria-label={",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic recharge controls open the actual native dialog and wait for its close event without purchasing",
+    "controlIds": [
+      "app/dashboard/_components/VideoCreditRecharge.tsx#button:c012b19229bc447c:1"
+    ],
+    "status": "implemented",
+    "notes": "Port video_recharge : showModal/close natifs, fermeture réellement reçue et committée ; achat en cours désactive le port. Ni achat ni ouverture de checkout.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-338e4bb9031a7b90",
+    "label": "Ouvrir ou fermer le catalogue de recharge sans acheter",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/VideoCreditRecharge.tsx"
+    ],
+    "sourceAnchor": "<button type=\"button\" autoFocus disabled={purchaseBusy} onClick={() => dialog.current?.close()} aria-label={t(\"video_credit_close\")}>×</button>",
+    "capabilityId": "navigation.local-controls",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "testFiles": [
+      "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
+    ],
+    "testAnchor": "Basic recharge controls open the actual native dialog and wait for its close event without purchasing",
+    "controlIds": [
+      "app/dashboard/_components/VideoCreditRecharge.tsx#button:1644266970ea7f39:1"
+    ],
+    "status": "implemented",
+    "notes": "Port video_recharge : showModal/close natifs, fermeture réellement reçue et committée ; achat en cours désactive le port. Ni achat ni ouverture de checkout.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
+  }
+]

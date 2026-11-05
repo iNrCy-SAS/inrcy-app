@@ -1,5 +1,6 @@
 import { inrAssistantActionObjectives, inrAssistantRequiredCalls, inrAssistantRequestClauses, inrAssistantRoutingText, inrAssistantClauseIsAdvice, inrAssistantGoalCompleted, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
 import { INR_ASSISTANT_COMMANDS, type InrAssistantCommandFamily } from "./inrAssistantCommandRegistry.ts";
+import { getInrAssistantBasicShopReadView } from "./inrAssistantBasicShopRead.ts";
 import { inrAssistantUiStepTool, type InrAssistantUiStep } from "./inrAssistantUiTask.ts";
 /** A plan is bookkeeping, never authority to execute a native command. */
 export type InrAssistantObjective = {
@@ -34,6 +35,7 @@ const readers: Array<{
     { tool: "readToolSettings", family: "settings", label: "lire les réglages demandés", matches: /reglage|parametre|configuration|preference|notification/ },
     { tool: "readAdvertisingCampaigns", family: "advertising", label: "consulter la campagne publicitaire", matches: /publicit|\bads\b|sponsoris/ },
     { tool: "readScheduledPublications", family: "publication", label: "consulter les publications programmées", matches: /(?:publication|post).{0,50}(?:programm|planifi)|(?:programm|planifi).{0,50}(?:publication|post)/ },
+    { tool: "readSendPublicationHistory", family: "publication", label: "consulter l’historique Publications iNr’Send", matches: /(?:inrsend|inr.send).{0,80}(?:historique|publication|brouillon)|(?:historique|publication|brouillon).{0,80}(?:inrsend|inr.send)/ },
     { tool: "readPublicationWorkspace", family: "publication", label: "retrouver les brouillons de publication", matches: /(?:brouillon|proposition|historique).{0,50}(?:publication|post)|(?:publication|post).{0,50}(?:brouillon|proposition|historique)/ },
     { tool: "getRecentPublications", family: "publication", label: "consulter les publications demandées", matches: /publication|\bposts?\b/ },
     { tool: "readCommercialTemplates", family: "commercial", label: "consulter les modèles de documents", matches: /(?:modele|template).{0,60}(?:devis|facture|document)|(?:devis|facture|document).{0,60}(?:modele|template)/ },
@@ -58,7 +60,7 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
     const plan: InrAssistantObjective[] = [];
     const clauses = inrAssistantRequestClauses(message);
     for (const [clauseIndex, clause] of clauses.entries()) {
-        const screenStep = uiSteps.find(step => step.instruction === clause);
+        const screenStep = uiSteps.find(step => step.id === `ui_${clauseIndex}` && inrAssistantRequestClauses(step.instruction).length === 1 && inrAssistantRequestClauses(step.instruction)[0] === clause);
         if (screenStep) {
             plan.push({ id: screenStep.id, kind: "ui", tool: inrAssistantUiStepTool(screenStep), instruction: clause, count: 1 });
             continue;
@@ -68,7 +70,7 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
             plan.push({ id: `objective_${plan.length}`, kind: "action", tool: action.tool, instruction: clause, count: inrAssistantRequiredCalls(clause)[action.tool] ?? 1 });
         if (mutations.length || inrAssistantClauseIsAdvice(clause) || /^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(clause))
             continue;
-        if (!/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|recherch\w*|cherche\w*|retrouv\w*|liste\w*|verifi\w*|regarde\w*|montre\w*|affiche\w*|analyse\w*|diagnostiqu\w*|compare\w*|quels?|quelles?|combien|read|find|search|list|show|check)\b/.test(clause))
+        if (!getInrAssistantBasicShopReadView(clause) && !/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|recherch\w*|cherche\w*|retrouv\w*|liste\w*|verifi\w*|regarde\w*|montre\w*|affiche\w*|analyse\w*|diagnostiqu\w*|compare\w*|quels?|quelles?|combien|read|find|search|list|show|check)\b/.test(clause))
             continue;
         const previous = clauses[clauseIndex - 1] ?? "";
         // Resolve a short diagnostic follow-up only against the immediately
@@ -77,7 +79,7 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
             && /\b(?:ce qui se passe|ce probleme|cet incident|la cause|le blocage)\b/.test(clause)
             && diagnosticReader.matches.test(previous) && !inrAssistantClauseIsAdvice(previous)
             && !/^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(previous);
-        const reader = diagnosticFollowup ? diagnosticReader : readers.find(reader => reader.matches.test(clause) && !(reader.tool === "readAccountServices" && /notifications?/.test(clause) && /reglages?|parametres?|preferences?/.test(clause)));
+        const reader = getInrAssistantBasicShopReadView(clause) ? readers.find(reader => reader.tool === "readAccountServices") : diagnosticFollowup ? diagnosticReader : readers.find(reader => reader.matches.test(clause) && !(reader.tool === "readAccountServices" && /notifications?/.test(clause) && /reglages?|parametres?|preferences?/.test(clause)));
         if (reader?.tool === "getAccountDiagnostics" && /^(?:si|quand|lorsque|if|when|unless)\b|\b(?:si|quand|lorsque|if|when|unless)\s+(?:je|j'|tu|vous|nous|on|il|elle|le|la|les|un|une|the|i|you|we|they)\b/.test(clauses.join(" ")))
             continue;
         if (reader)
@@ -99,7 +101,7 @@ export function inrAssistantReadMatchesObjective(objective: InrAssistantObjectiv
     if (objective.kind !== "read") return false;
     const value = input && typeof input === "object" ? input as Record<string, unknown> : {};
     if (objective.tool === tool) {
-        if (tool === "readAccountServices") { const text=objective.instruction; const expected=/factures?|recu/.test(text) && /abonnement|inrcy/.test(text) ? "invoices" : /historique|commandes?/.test(text) && /credits?|recharges?/.test(text) ? "credit_orders" : /notifications?/.test(text) ? "notifications" : /credits?|recharges?/.test(text) ? "credits" : /abonnement|subscription/.test(text) ? "subscription" : /rgpd|donnees personnelles|cookies?/.test(text) ? "privacy" : /parrainage/.test(text) ? "referral_program" : undefined; return !expected || value.view === expected; }
+        if (tool === "readAccountServices") { const text=objective.instruction; const expected=getInrAssistantBasicShopReadView(text) ?? (/factures?|recu/.test(text) && /abonnement|inrcy/.test(text) ? "invoices" : /historique|commandes?/.test(text) && /credits?|recharges?/.test(text) ? "credit_orders" : /notifications?/.test(text) ? "notifications" : /credits?|recharges?/.test(text) ? "credits" : /abonnement|subscription/.test(text) ? "subscription" : /rgpd|donnees personnelles|cookies?/.test(text) ? "privacy" : /parrainage/.test(text) ? "referral_program" : undefined); return !expected || value.view === expected; }
         if (tool !== "readPublicationWorkspace") return true;
         const expectedView = /brouillon/.test(objective.instruction) ? "drafts" : /proposition|prepare/.test(objective.instruction) ? "prepared" : /historique/.test(objective.instruction) ? "history" : null;
         return expectedView === null || value.view === expectedView;
@@ -123,7 +125,7 @@ export function inrAssistantObjectiveReady(plan: InrAssistantObjective[], index:
     return plan.slice(0, index).every((_, previous) => inrAssistantObjectiveCompleted(plan, previous, receipts, appliedUi));
 }
 export function inrAssistantPlanAllowsAction(plan: InrAssistantObjective[], tool: string, receipts: InrAssistantActionReceipt[], appliedUi: ReadonlySet<string> = new Set()): boolean {
-    const index = plan.findIndex((objective, i) => objective.kind === "action" && objective.tool === tool && !inrAssistantObjectiveCompleted(plan, i, receipts, appliedUi));
+    const index = plan.findIndex((objective, i) => (objective.kind === "action" || objective.kind === "ui") && objective.tool === tool && !inrAssistantObjectiveCompleted(plan, i, receipts, appliedUi));
     // Discovery cannot bypass a pending browser step merely because a tool was
     // absent from the initial lexical plan.
     if (index < 0) return tool === "runScreenCommand" || tool === "navigateApplication" || !INR_ASSISTANT_COMMANDS[tool] || !plan.some((objective, i) => objective.kind === "ui" && !inrAssistantObjectiveCompleted(plan, i, receipts, appliedUi));
@@ -142,9 +144,17 @@ const prerequisiteReaders: Record<string, string[]> = {
     updateCommercialDocument: ["readCommercialDocuments"],
     finalizeCommercialDocument: ["readCommercialDocuments"],
     manageAdvertisingCampaign: ["readAdvertisingCampaigns"],
+    editPublication: ["getRecentPublications", "readPublishedPublicationForEdit"],
+    applyPublishedPublicationEdit: ["getRecentPublications", "readPublishedPublicationForEdit"],
     editPreparedPublication: ["readPublicationWorkspace"],
     updateScheduledPublication: ["readScheduledPublications"],
     cancelScheduledPublication: ["readScheduledPublications"],
+    editScheduledPublication: ["readScheduledPublications"],
+    publishScheduledPublicationNow: ["readScheduledPublications"],
+    reconcileExistingCreditOrder: ["readAccountServices"],
+    resumePublicationDraft: ["readSendPublicationHistory"],
+    openNotificationAction: ["readAccountServices"],
+    applyNotificationRemoval: ["readAccountServices"],
     retryScheduledPublication: ["readScheduledPublications"],
     modifyMedia: ["searchMedia"],
     updateMediaMetadata: ["searchMedia"],
@@ -184,7 +194,7 @@ type ReadAttempt = {
 export function createInrAssistantReadBudget() {
     const attempts = new Map<string, ReadAttempt[]>();
     const row = (value: unknown): Record<string, unknown> => value && typeof value === "object" ? value as Record<string, unknown> : {};
-    const paginated = new Set(["readAccountServices", "listGoogleReviews", "searchMedia", "listIndividualMailboxes", "readIndividualMailHistory", "discoverCapabilities", "readStatsReports", "readScheduledPublications", "readPublicationWorkspace", "readAdvertisingCampaigns", "readAttachedDocument", "readCommercialTemplates"]);
+    const paginated = new Set(["readSendPublicationHistory", "readAccountServices", "listGoogleReviews", "searchMedia", "listIndividualMailboxes", "readIndividualMailHistory", "discoverCapabilities", "readStatsReports", "readScheduledPublications", "readPublicationWorkspace", "readAdvertisingCampaigns", "readAttachedDocument", "readCommercialTemplates"]);
     const sameSearch = (left: Record<string, unknown>, right: Record<string, unknown>) => [...new Set([...Object.keys(left), ...Object.keys(right)])].filter(key => key !== "offset" && key !== "page" && key !== "cursor").every(key => JSON.stringify(left[key] ?? null) === JSON.stringify(right[key] ?? null));
     return {
         available(name: string) {

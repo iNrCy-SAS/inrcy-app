@@ -1,4 +1,5 @@
 "use client";
+import { useInrAssistantPlanningWorkspaceControls } from "../_hooks/useInrAssistantPlanningWorkspaceControls";
 
 import AgentPublicationIdeasEditor from "./_components/AgentPublicationIdeasEditor";
 import AgentWorkspaceHeader from "./_components/AgentWorkspaceHeader";
@@ -23,6 +24,7 @@ import { useLocale, useTranslations } from "next-intl";
 import {
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -44,11 +46,13 @@ import { makeAttachmentPath } from "@/app/dashboard/mails/_lib/mailboxPhase25";
 import {
   consumeInrStudioReturn,
   createInrStudioHandoff,
+  clearInrStudioHandoff,
   type InrStudioReturnedMedia,
 } from "@/lib/inrStudioNavigation";
 import { useInrStudioSession } from "../_hooks/useInrStudioSession";
 import { useUnsavedExitGuard } from "../_hooks/useUnsavedExitGuard";
 import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
+import { useInrAssistantScheduledPublicationControls } from "../_hooks/useInrAssistantScheduledPublicationControls";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import CampaignScheduleModal from "../_components/CampaignScheduleModal";
 import PublishScheduleModal, {
@@ -548,7 +552,7 @@ export default function AgentClient({ workspace = "publications" }: AgentClientP
 }
 
 function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { workspace: InrAgentWorkspace; manualPlanningOnly?: boolean }) {
-  const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId, actorUserId } = useDashboardViewerAccess();
   const i18nT = useTranslations("agent");
   const mediaT = useTranslations("media");
   const boosterT = useTranslations("booster");
@@ -632,6 +636,8 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
   const [scheduleOpen, setScheduleOpen] = useState(manualPlanningOnly);
   const [scheduledEditSession, setScheduledEditSession] =
     useState<ScheduledActionEditSession | null>(null);
+  const scheduledEditorScopeRef = useRef({ activeAccountId, actorUserId, session: scheduledEditSession });
+  useLayoutEffect(() => { scheduledEditorScopeRef.current = { activeAccountId, actorUserId, session: scheduledEditSession }; }, [activeAccountId, actorUserId, scheduledEditSession]);
   const [scheduleOnlyEdit, setScheduleOnlyEdit] =
     useState<ScheduleOnlyEditState | null>(null);
   const [scheduleOnlyEditError, setScheduleOnlyEditError] = useState<
@@ -2490,7 +2496,8 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     setPublishMediaPreviewOpen(true);
   }
 
-  async function openPublishImageInStudio(tab: "modify" | "retouch") {
+  async function openPublishImageInStudio(tab: "modify" | "retouch", stillCurrent: () => boolean = () => true) {
+    if (!stillCurrent()) return;
     if (manualPlanningOnly && tab === "modify" && !manualStudioCredits.modifyAllowed) { showNotice(manualStudioCreditHelp); return; }
     if (manualPlanningOnly && tab === "modify") manualStudioCredits.prepareModification();
     if (!publishMediaPreview?.url) {
@@ -2508,7 +2515,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
           currentPublishMediaRecord?.type
         ),
       });
-      const { href } = await createInrStudioHandoff({
+      const { href, handoff } = await createInrStudioHandoff({
         tab,
         origin: manualPlanningOnly ? "booster" : "inr-agent",
         source: {
@@ -2527,21 +2534,24 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
           scheduledEdit: Boolean(scheduledEditSession),
         },
       });
+      if (!stillCurrent()) { await clearInrStudioHandoff(handoff.key); return; }
       openStudio(href);
     } catch {
       showNotice(i18nT("image_adaptation_failed"));
     }
   }
 
-  async function openScheduledMediaGeneration() {
+  async function openScheduledMediaGeneration(stillCurrent: () => boolean = () => true) {
+    if (!stillCurrent()) return;
     if (!manualPlanningOnly || !scheduledEditSession || !selectedPreparedAction || !activePreviewChannel) return;
     if (!manualStudioCredits.generateAllowed) { showNotice(manualStudioCreditHelp); return; }
     try {
-      const { href } = await createInrStudioHandoff({ tab: "generate", origin: "booster",
+      const { href, handoff } = await createInrStudioHandoff({ tab: "generate", origin: "booster",
         publicationBrief: preparedChannelPreview?.body || selectedPreparedAction.summary || selectedPreparedAction.title,
         context: { actionId: selectedPreparedAction.id, channel: activePreviewChannel, mediaIndex: publishMediaActiveIndex,
           mediaType: publishMediaPreview?.kind === "video" ? "video" : "image", scheduledEdit: true, mediaMutation: "replace" },
       });
+      if (!stillCurrent()) { await clearInrStudioHandoff(handoff.key); return; }
       openStudio(href);
     } catch { showNotice(i18nT("publish_media_update_failed")); }
   }
@@ -2563,7 +2573,8 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     };
   }
 
-  async function openPublishVideoInStudio() {
+  async function openPublishVideoInStudio(stillCurrent: () => boolean = () => true) {
+    if (!stillCurrent()) return;
     if (!publishMediaPreview?.url) {
       showNotice(i18nT("add_video_first"));
       return;
@@ -2611,7 +2622,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         transformedVariants,
         videoSettingsByChannel,
       };
-      const { href } = await createInrStudioHandoff({
+      const { href, handoff } = await createInrStudioHandoff({
         tab: "retouch",
         origin: "inr-agent",
         source: {
@@ -2657,6 +2668,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
           deferVideoPreparation: false,
         },
       });
+      if (!stillCurrent()) { await clearInrStudioHandoff(handoff.key); return; }
       openStudio(href);
     } catch {
       showNotice(i18nT("publish_media_update_failed"));
@@ -3920,15 +3932,21 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       silent?: boolean;
       force?: boolean;
       onAfterExit?: () => void;
+      canContinue?: () => boolean;
+      onDecision?: () => void;
     } = {}
   ) {
     const session = scheduledEditSession;
+    if (options.canContinue?.() === false) { options.onDecision?.(); return false; }
     if (!session) {
       options.onAfterExit?.();
+      options.onDecision?.();
       return true;
     }
 
     const restorePreviousState = () => {
+      const current = scheduledEditorScopeRef.current;
+      if (options.canContinue?.() === false || current.activeAccountId !== activeAccountId || current.actorUserId !== actorUserId || current.session?.scheduledAction.id !== session.scheduledAction.id || current.session.scheduledAction.updatedAt !== session.scheduledAction.updatedAt || preparedActionDirtySignature(current.session.action) !== preparedActionDirtySignature(session.action)) { options.onDecision?.(); return false; }
       setScheduledEditSession(null);
       setValidationChoiceOpen(false);
       setValidationScheduleOpen(false);
@@ -3946,13 +3964,14 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         showNotice(i18nT("scheduled_edit_cancelled"));
       }
       options.onAfterExit?.();
+      options.onDecision?.();
+      return true;
     };
 
     if (!options.force) {
       const hasChanges = session.dirty;
       if (!hasChanges) {
-        restorePreviousState();
-        return true;
+        return restorePreviousState();
       }
       void confirmInrcy({
         eyebrow: i18nT("edition_inragent_f58f5494"),
@@ -3963,12 +3982,12 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         variant: "danger",
       }).then((confirmed) => {
         if (confirmed) restorePreviousState();
-      });
+        else options.onDecision?.();
+      }).catch(() => options.onDecision?.());
       return false;
     }
 
-    restorePreviousState();
-    return true;
+    return restorePreviousState();
   }
 
   useInrAssistantRefresh({ topics: ["agents"], accountId: activeAccountId, blocked: Boolean(settingsKey || publicationIdeasOpen || scheduledEditSession || campaignEditOpen || publishEditOpen || publishEditChoiceOpen || mailTextEditOpen || recipientsEditor.isOpen || mailAccountEditOpen || scheduleOnlyEdit || automationScheduleEdit || scheduleOpen || validationChoiceOpen || validationScheduleOpen || tiktokSettingsOpen || agentConfirmDialog || prepareNowConfirm || publishRegeneration || publicationChannelPreparing || agentReferenceBusy || publishChannelSelectionSaving) || saveState === "saving" || publicationIdeasSaveState === "saving" || campaignSaveState === "saving" || publishSaveState === "saving" || scheduleMutationState === "saving" || validationScheduleState === "saving" || publicationRestoreState === "saving", refresh: ({ canApply }) => refreshAssistantData(canApply) });
@@ -3987,14 +4006,30 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     variant: "danger",
   });
 
-  function openScheduledActionEditor(actionId: string | null | undefined) {
-    if (!actionId) return;
+  function requestPlanningWorkspace(target: "calendar" | "help", canContinue: () => boolean = () => true): Promise<void> {
+    return new Promise((resolve, reject) => {
+      let applied = false;
+      exitScheduledEditSession({ silent: true, canContinue, onAfterExit: () => {
+        if (!canContinue()) return;
+        if (target === "help") setHelpOpen(true);
+        else { setScheduleOpen(true); void refreshActions(true); void refreshScheduledActions(true); }
+        applied = true;
+      }, onDecision: () => { if (applied) resolve(); else reject(new Error("Planning navigation was cancelled or changed")); } });
+    });
+  }
+  useInrAssistantPlanningWorkspaceControls({ enabled: workspace === "publications", calendarOpen: scheduleOpen, helpOpen,
+    stateKey: JSON.stringify([selected.key, scheduledEditSession?.scheduledAction.id, scheduledEditSession?.scheduledAction.updatedAt]),
+    busy: scheduleMutationState === "saving" || publishSaveState === "saving" || Boolean(agentConfirmDialog), open: requestPlanningWorkspace, closeHelp: () => setHelpOpen(false) });
+
+  function openScheduledActionEditor(actionId: string | null | undefined, canContinue: () => boolean = () => true) {
+    if (!actionId || !canContinue()) return;
     if (scheduledEditSession) {
       if (scheduledEditSession.scheduledAction.id === actionId) return;
       if (
         !exitScheduledEditSession({
           silent: true,
-          onAfterExit: () => openScheduledActionEditor(actionId),
+          canContinue,
+          onAfterExit: () => openScheduledActionEditor(actionId, canContinue),
         })
       ) {
         return;
@@ -4507,9 +4542,10 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     });
   }
 
-  function handleScheduleRowOpenContent(item: ScheduleListItem) {
+  function handleScheduleRowOpenContent(item: ScheduleListItem, canContinue: () => boolean = () => true) {
+    if (!canContinue()) return;
     if (item.source === "manual") {
-      openScheduledActionEditor(item.scheduledActionId);
+      openScheduledActionEditor(item.scheduledActionId, canContinue);
       return;
     }
     if (item.source === "editorial") {
@@ -5325,6 +5361,49 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
   const editorialGenerationActive = actions.some(
     isInrAgentEditorialPreparationRunning
   );
+  const assistantScheduledDisplayKey = publishTextDraft.channel ? boosterDisplayKeyFromAgentChannel(publishTextDraft.channel) : null;
+  const assistantScheduledPost = { ...publishTextDraft, content: publishTextDraft.body, hashtags: publishTextDraft.hashtags.split(/[\s,;]+/).filter(Boolean) };
+  const assistantScheduledCtaChoice = assistantScheduledDisplayKey ? getPreferredCtaChoiceFromPost(assistantScheduledDisplayKey, assistantScheduledPost) : "none";
+  useInrAssistantScheduledPublicationControls({
+    enabled: manualPlanningOnly && Boolean(scheduledEditSession) && isPublishView && selectedPreparedAction?.id === scheduledEditSession?.action.id,
+    sessionId: scheduledEditSession?.scheduledAction.id ?? null, sourceVersion: scheduledEditSession?.scheduledAction.updatedAt ?? "", baseline: scheduledEditSession?.baselineSignature ?? "",
+    channel: activePreviewChannel || null, channels: previewNavigationChannels, dirty: scheduledEditDirty,
+    busy: agentWorking || publishMediaUploadState === "saving" || threadsModeSaveState === "saving" || pinterestBoardSaveState === "saving" || pinterestBoardsLoading || Boolean(studio),
+    actionSignature: scheduledEditSession ? preparedActionDirtySignature(scheduledEditSession.action) : "",
+    choiceOpen: publishEditChoiceOpen, textOpen: publishEditOpen, textDraft: publishTextDraft,
+    canEditContent: canEditSelectedPublication, canEditOptions: canReviewSelectedAction,
+    ctaChoice: assistantScheduledCtaChoice, ctaMode: getCtaModeForPreferredChoice(assistantScheduledCtaChoice),
+    ctaChoices: assistantScheduledDisplayKey ? getPreferredCtaOptionsForChannel(assistantScheduledDisplayKey).map(option => option.value) : [],
+    websiteUrl: publishCtaDefaults?.siteWebUrl ?? "", supportsHashtags: channelSupportsHashtags(publishTextDraft.channel || null),
+    expectedTextSignature: all => scheduledEditSession && publishTextDraft.channel ? preparedActionDirtySignature(updateScheduledEditPublishText(scheduledEditSession.action, publishTextDraft.channel, {
+      title: publishTextDraft.title.trim(), body: publishTextDraft.body.trim(), cta: publishTextDraft.cta.trim(), ctaMode: publishTextDraft.ctaMode, ctaUrl: publishTextDraft.ctaUrl.trim(), ctaPhone: publishTextDraft.ctaPhone.trim(), ctaAction: publishTextDraft.ctaAction, hashtags: publishTextDraft.hashtags,
+    }, all ? preparedChannels : [])) : "",
+    openEditor: () => setPublishEditChoiceOpen(true), closeEditor: () => { setPublishEditOpen(false); setPublishEditChoiceOpen(false); },
+    exitEditor: canContinue => new Promise<void>(resolve => { exitScheduledEditSession({ canContinue, onDecision: resolve }); }),
+    openText: openPublishTextEditor,
+    changeText: (field, value) => {
+      if (field === "ctaPhone" && assistantScheduledCtaChoice === "whatsapp") updatePublishCtaDraft({ ctaPhone: value, ctaUrl: buildBoosterWhatsAppUrl(value) });
+      else setPublishTextDraft(current => ({ ...current, [field]: value }));
+    },
+    changeCtaChoice: value => applyPublishPreferredCta(value as BoosterPreferredCta),
+    chooseWebsite: () => { if (publishCtaDefaults?.siteWebUrl) updatePublishCtaDraft({ ctaUrl: publishCtaDefaults.siteWebUrl }); },
+    applyText: async (all, canContinue) => { if (!canContinue() || !scheduledEditSession) throw new Error("scheduled_editor_stale"); await savePublishText({ applyToAllChannels: all }); },
+    changeChannel: value => { if (previewNavigationChannels.includes(value as ChannelKey)) selectPreviewChannel(value as ChannelKey); },
+    mediaOpen: publishMediaPreviewOpen, mediaCount: publishMediaPreview?.items?.length || (publishMediaPreview?.url ? 1 : 0), mediaIndex: publishMediaActiveIndex,
+    mediaAvailable: Boolean(publishMediaPreview?.url), mediaGhost: activeThreadsGhost, libraryOpen: publishMediaLibraryPickerOpen, studioOpen: Boolean(studio),
+    canGenerate: manualStudioCredits.generateAllowed, canModify: manualStudioCredits.modifyAllowed, mediaKind: publishMediaPreview?.kind ?? null,
+    mediaAllAllowed: Boolean(currentPublishMediaRecord && activePreviewChannel && preparedChannels.length > 1 && !(publishMediaPreview?.kind === "image" && preparedChannels.includes("youtube"))),
+    expectedMediaAllSignature: scheduledEditSession && activePreviewChannel && currentPublishMediaRecord ? preparedActionDirtySignature(updateScheduledEditPublishMedia(scheduledEditSession.action, activePreviewChannel, currentPublishMediaRecord, publishMediaActiveIndex, "replace", preparedChannels)) : "",
+    openMedia: openPublishMediaEditor, closeMedia: () => setPublishMediaPreviewOpen(false), setMediaIndex: setPublishMediaActiveIndex, setLibraryOpen: setPublishMediaLibraryPickerOpen,
+    openStudio: async (mode, canContinue) => { if (!canContinue() || !scheduledEditSession) throw new Error("scheduled_editor_stale"); if (mode === "generate") await openScheduledMediaGeneration(canContinue); else if (mode === "modify" || publishMediaPreview?.kind === "image") await openPublishImageInStudio(mode, canContinue); else await openPublishVideoInStudio(canContinue); },
+    applyMediaAll: async canContinue => { if (!canContinue() || !scheduledEditSession) throw new Error("scheduled_editor_stale"); await applyCurrentPublishMediaEverywhere(); },
+    placement: publishContentFormat, placements: publishPlacementOptions, storyEnabled: publishStoryOptionEnabled, hasUsableMedia: publishHasUsableMedia,
+    threadsMode: activeThreadsPublicationMode, threadsModes: metaPilotEnabled ? getEnabledThreadsPublicationModes(threadsPublicationPreferences) : [],
+    pinterestBoardId: activePinterestBoardId, pinterestBoardIds: !pinterestBoardsLoading && !pinterestBoardsError ? pinterestBoards.map(board => board.id) : [],
+    changePlacement: async (value, canContinue) => { if (!canContinue() || !scheduledEditSession) throw new Error("scheduled_editor_stale"); await savePublishPlacement(value.replace(/_story$/, "") as InrAgentPublicationPlacement, value.endsWith("_story")); },
+    changeThreadsMode: async (value, canContinue) => { if (!canContinue() || !scheduledEditSession) throw new Error("scheduled_editor_stale"); await saveThreadsPublicationMode(value as ThreadsPublicationMode); },
+    changePinterestBoard: async (value, canContinue) => { if (!canContinue() || !scheduledEditSession) throw new Error("scheduled_editor_stale"); await savePublishPinterestBoard(value); },
+  });
   const editorialQueueWaitingForCron = actions.some(
     isInrAgentEditorialPreparationWaitingForCron
   );
@@ -5383,10 +5462,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
             const changeMode = () => { setSelectedKey(mode); setSelectedPreparedActionId(null); };
             exitScheduledEditSession({ silent: true, onAfterExit: changeMode });
           }}
-          onHelp={() => {
-            const open = () => setHelpOpen(true);
-            exitScheduledEditSession({ silent: true, onAfterExit: open });
-          }}
+          onHelp={() => { void requestPlanningWorkspace("help").catch(() => {}); }}
           onIdeas={() => {
             const open = () => {
               setSettingsKey(null);
@@ -5398,14 +5474,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
           onPrepare={() => {
             exitScheduledEditSession({ silent: true, onAfterExit: () => testAutomationNow(selected.key) });
           }}
-          onPlanning={() => {
-            const open = () => {
-              setScheduleOpen(true);
-              void refreshActions(true);
-              void refreshScheduledActions(true);
-            };
-            exitScheduledEditSession({ silent: true, onAfterExit: open });
-          }}
+          onPlanning={() => { void requestPlanningWorkspace("calendar").catch(() => {}); }}
           onSettings={() => {
             const open = () => { setPublicationIdeasOpen(false); setSettingsKey(selected.key); };
             exitScheduledEditSession({ silent: true, onAfterExit: open });
@@ -5953,6 +6022,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                               </select>
                               <span className={styles.publicationMusicControl} data-agent-publication-music={activeMetaPublicationChannel}>
                                 <MediaSoundtrackSelector inline
+                                  assistantUiScope={scheduledEditSession ? "scheduled" : undefined}
                                   key={`${selectedPreparedAction?.id || "empty"}:${activeMetaPublicationChannel}`}
                                   channelLabel={agentChannelLabel(activeMetaPublicationChannel, runtimeT)}
                                   channelStyle={{ "--channel-color": PUBLISH_CHANNEL_IDENTITY[activeMetaPublicationChannel].color,
@@ -6650,7 +6720,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                   </div>
                 ) : (
                   <>
-                    {(isCampaignView || isPublishView) && (
+                    {!scheduledEditSession && (isCampaignView || isPublishView) && (
                       <button
                         type="button"
                         className={styles.saveCampaignDraftButton}
@@ -6895,6 +6965,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
 
       <PublishEditChoiceModal
         open={publishEditChoiceOpen}
+        activeEditor={publishEditOpen ? "text" : publishMediaPreviewOpen ? "media" : null}
         isPublishView={isPublishView}
         hasPreparedAction={Boolean(selectedPreparedAction)}
         mediaName={
@@ -7781,6 +7852,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         showStats={!manualPlanningOnly}
         onClose={() => setScheduleOpen(false)}
         onOpenContent={handleScheduleRowOpenContent}
+        openedItemId={scheduledEditSession?.scheduledAction.id ?? null}
         onReschedule={handleScheduleRowReschedule}
         onDelete={(item) => void handleScheduleRowDelete(item)}
       />

@@ -31,6 +31,7 @@ export function selectInrAssistantToolFamilies(latest: string, recentUserMessage
   const text = inrAssistantRoutingText([latest, ...recentUserMessages.slice(-2)].join(" ")).slice(0, 12_000);
   const families = new Set<InrAssistantToolFamily>();
   if (/\b(?:images?|videos?|photos?|medias?|visuel|affiche|flyer|studio|dessin|illustration|retouch|fond|logo)\b|图片|视频|รูป|วิดีโอ/.test(text)) families.add("media");
+  if (/inrsend|inr.send/.test(text)) families.add("publication");
   if (/\b(?:publications?|publie|publier|poste[rz]?|posts?|booster|program(?:me|mer|mation)|calendrier editorial|schedule|publish|brouillons?|contenu(?:s)?|redige)\b|发布|โพสต์/.test(text)) families.add("publication");
   if (/\b(?:adn|dna|ctas?|configuration|reglages?|emoji|consignes?|horaires|valeurs|missions?|connecter|connexion|canaux|canal|vouvoiement|tutoiement|ton|tone)\b|appels? a l.action|设置|企业|连接|บริษัท|เชื่อมต่อ/.test(text) ||
     /\b(?:bouton|appeler|call)\b.{0,70}\b(?:facebook|instagram|google|site|telephone)\b|\b(?:telephone|site)\b.{0,70}\bbouton\b/.test(text) ||

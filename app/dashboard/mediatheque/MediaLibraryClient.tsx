@@ -3,6 +3,7 @@ import { useInrAssistantLibraryOptimization } from "../_hooks/useInrAssistantLib
 import { useInrAssistantMediaLibraryCommands } from "../_hooks/useInrAssistantMediaLibraryCommands";
 import { useInrAssistantScreen } from "../_components/DashboardAssistantScreenContext";
 import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
+import { useInrAssistantLocalClose } from "../_hooks/useInrAssistantLocalClose";
 import MediaLibraryVideo from "./MediaLibraryVideo";
 
 import { useLocale, useTranslations } from "next-intl";
@@ -404,6 +405,28 @@ export default function MediaLibraryClient() {
   );
 
   const selectedFiles = files;
+  useInrAssistantLocalClose("media_import", importOpen, () => setImportOpen(false), uploading, { tags, files: files.map(file => [file.name, file.size, file.lastModified]) }, {
+    enabledWhenClosed: true,
+    snapshot: { fileKeys: files.map(file => getClientFileId(file, 0)) },
+    handlers: {
+      ...(!importOpen ? { open: { invoke: () => { if (uploading) throw new Error("import_busy"); setImportOpen(true); }, matches: (state: unknown) => !!state && typeof state === "object" && (state as { open?: boolean }).open === true } } : {}),
+      ...(importOpen && files.length ? {
+        clear: { invoke: () => { if (uploading) throw new Error("import_busy"); clearSelectedFiles(); }, matches: (state: unknown) => !!state && typeof state === "object" && (state as { fileKeys?: unknown[] }).fileKeys?.length === 0 },
+        select: { invoke: (value: string | null) => {
+          let parsed: unknown; try { parsed = JSON.parse(value ?? "null"); } catch { throw new Error("import_selection_invalid"); }
+          if (uploading || !parsed || typeof parsed !== "object" || Array.isArray(parsed) || Object.keys(parsed).length !== 1 || !Number.isSafeInteger((parsed as { removeIndex?: number }).removeIndex)) throw new Error("import_selection_invalid");
+          const index = (parsed as { removeIndex: number }).removeIndex;
+          if (index < 0 || index >= files.length) throw new Error("import_selection_invalid");
+          removeSelectedFile(index);
+        }, matches: (state: unknown, value: string | null) => {
+          if (!state || typeof state !== "object") return false;
+          let index: number; try { index = JSON.parse(value ?? "null").removeIndex; } catch { return false; }
+          const keys = (state as { fileKeys?: string[] }).fileKeys;
+          return Array.isArray(keys) && Number.isSafeInteger(index) && keys.length === files.length - 1 && keys.every((key, position) => key === getClientFileId(files[position < index ? position : position + 1], 0));
+        } },
+      } : {}),
+    },
+  });
   const selectedStats = useMemo(() => {
     const images = selectedFiles.filter(isImageFile).length;
     const videos = selectedFiles.filter(isVideoFile).length;

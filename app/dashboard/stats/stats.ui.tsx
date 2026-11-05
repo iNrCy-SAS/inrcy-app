@@ -6,6 +6,7 @@ import panorama from "./statsPanorama.module.css";
 import StatsTrendChart from "./StatsTrendChart";
 import type { StatsTrend } from "./stats.trends";
 import { fmtInt, type CubeModel, type InrcyPublicationType } from "./stats.shared";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 
 function Donut({ segments }: { segments: Array<{ label: string; value: number; colorVar: string }> }) {
   const total = segments.reduce((sum, segment) => sum + Math.max(0, segment.value), 0);
@@ -514,6 +515,10 @@ export function Cube({
   const [open, setOpen] = useState(false);
   const [showEvolution, setShowEvolution] = useState(true);
   const detailsOpen = forceOpen || open;
+  useInrAssistantLocalInterface("stats_channel_detail", { channel: model.key, view: showEvolution ? "evolution" : "distribution" }, { select: {
+    invoke: value => { if (!trend || model.loading || !statsReady || (value !== "evolution" && value !== "distribution")) throw new Error("stats_detail_unavailable"); setShowEvolution(value === "evolution"); },
+    matches: (state, value) => !!state && typeof state === "object" && (state as { channel?: string; view?: string }).channel === model.key && (state as { view?: string }).view === value,
+  } }, forceOpen && hideDetailsToggle && detailsOpen && !!trend && !model.loading && statsReady);
   const isSite = model.key === "site_web";
   const action = model.action;
   const localizedPill = action.pill;

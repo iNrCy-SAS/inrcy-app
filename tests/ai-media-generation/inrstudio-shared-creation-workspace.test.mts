@@ -78,6 +78,8 @@ function click(node: Element) {
 let instanceCount = 0;
 const modules = new Map<string, unknown>([
   ["react/jsx-runtime", { jsx: element, jsxs: element, Fragment: "fragment" }],
+  ["../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface() {} }],
+  ["@/lib/browserAccountCache", { getActiveBrowserUserId: () => null }],
   ["react", { useId: () => `creation-test-${++instanceCount}`, useState, useCallback: (callback: unknown) => callback }],
   ["./MediaResultViewer", { __esModule: true, default: () => null }],
   ["next/image", { __esModule: true, default: (props: Props) => element("img", props) }],

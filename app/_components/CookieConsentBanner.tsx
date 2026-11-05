@@ -3,8 +3,9 @@
 import { useTranslations } from "next-intl";
 
 
-import { useMemo, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { useId, useLayoutEffect, useMemo, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { usePathname } from "next/navigation";
+import { registerInrAssistantCookieOptions } from "@/lib/inrAssistantCookieOptions";
 
 type Consent = {
   v: 1;
@@ -75,6 +76,9 @@ export default function CookieConsentBanner() {
 
   const consentRaw = useSyncExternalStore(subscribeToConsent, getConsentSnapshot, () => null);
   const consent = useMemo(() => parseConsent(consentRaw), [consentRaw]);
+  const cookieOptionsId = useId();
+  useLayoutEffect(() => { registerInrAssistantCookieOptions(cookieOptionsId, { available: isClient && !pathname?.startsWith("/login") && !pathname?.startsWith("/legal"), open, setOpen }); }, [cookieOptionsId, isClient, pathname, open]);
+  useLayoutEffect(() => () => registerInrAssistantCookieOptions(cookieOptionsId, null), [cookieOptionsId]);
 
   if (!isClient) return null;
 

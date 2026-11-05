@@ -777,7 +777,9 @@
     "analysisNoSourcesHint": "Verbinden Sie einen Kanal oder fügen Sie ein Dokument hinzu, um die Analyse zu starten.",
     "documentsAnalysisTitle": "Dokumente zur Analyse hinzufügen",
     "documentsDropHint": "PDF, Bilder oder Dokumente · 20 MB pro Datei",
-    "presentationTitle": "Vorstellung"
+    "presentationTitle": "Vorstellung",
+    "discardDraftMessage": "Nicht gespeicherte Änderungen in diesem Formular werden verworfen. Bereits gespeicherte Informationen bleiben erhalten.",
+    "resetPreferencesMessage": "Die angezeigten Einstellungen werden auf die Standardwerte zurückgesetzt. Dadurch wird weder ein Kauf noch ein Kontowechsel bestätigt."
   },
   "aiConfiguration": {
     "pageDescription": "Legen Sie fest, wie die KI Inhalte schreibt und an Ihre Ziele anpasst.",

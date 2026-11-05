@@ -116,10 +116,13 @@ test("the first rendered frame contains preloaded monthly totals even while the 
     if (name.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
     return require(name);
   });
-  const props = { enabled: true, accountId: "account-a", refreshKey: 0, channels: [{ key: "facebook", title: "Facebook" }], ready: false };
+  const props = { enabled: true, accountId: "account-a", refreshKey: 0, channels: [{ key: "facebook", title: "Facebook" }], ready: false, metric: "visibility", channel: "all", onMetricChange() { assert.fail("Rendering cached history must not change the requested metric"); }, onChannelChange() { assert.fail("Rendering cached history must not change the channel filter"); } };
   const beforeEffects = renderToStaticMarkup(createElement(loaded.exports.default, props));
   assert.match(beforeEffects, /<strong>42,000<\/strong>/);
   assert.doesNotMatch(beforeEffects, /panorama_loading_months/);
+  const clicks = renderToStaticMarkup(createElement(loaded.exports.default, { ...props, metric: "clicks" }));
+  assert.doesNotMatch(clicks, /42,000/, "visibility totals must never be substituted for missing click measurements");
+  assert.match(clicks, /<strong>—<\/strong>/);
   h.switchAccount("account-b");
   const otherAccount = renderToStaticMarkup(createElement(loaded.exports.default, { ...props, accountId: "account-b" }));
   assert.doesNotMatch(otherAccount, /42,000/);

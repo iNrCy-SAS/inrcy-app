@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { INR_ASSISTANT_REFRESH_EVENT, assistantRefreshTopics, parseInrAssistantRefresh, subscribeInrAssistantRefresh } from "../../lib/inrAssistantRefresh.ts";
+import { INR_ASSISTANT_REFRESH_EVENT, INR_ASSISTANT_REFRESH_TOPICS, assistantRefreshTopics, parseInrAssistantRefresh, subscribeInrAssistantRefresh } from "../../lib/inrAssistantRefresh.ts";
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 const emit = (target: EventTarget, accountId = "a", topics = ["media"]) => target.dispatchEvent(new CustomEvent(INR_ASSISTANT_REFRESH_EVENT, { detail: { accountId, turnId: "turn", topics } }));
 test("refresh projects only real effects and never previews, reads, tokens, pending or uncertain actions", () => {
@@ -12,7 +12,9 @@ test("refresh projects only real effects and never previews, reads, tokens, pend
   ]);
   assert.deepEqual(values, ["media", "settings", "channels", "agents"]);
   assert.deepEqual(parseInrAssistantRefresh({ accountId: "a", turnId: "t", topics: ["media"], approvalToken: "SECRET" }), { accountId: "a", turnId: "t", topics: ["media"] });
-  for (const topics of [[], ["arbitrary"], ["media", "media", "media", "media", "media", "media", "media"]]) assert.equal(parseInrAssistantRefresh({ accountId: "a", turnId: "t", topics }), null);
+  assert.deepEqual(parseInrAssistantRefresh({ accountId: "a", turnId: "t", topics: [...INR_ASSISTANT_REFRESH_TOPICS] })?.topics, [...INR_ASSISTANT_REFRESH_TOPICS]);
+  assert.deepEqual(parseInrAssistantRefresh({ accountId: "a", turnId: "t", topics: ["media", "media"] })?.topics, ["media"]);
+  for (const topics of [[], ["arbitrary"], Array.from({ length: INR_ASSISTANT_REFRESH_TOPICS.length + 1 }, () => "media")]) assert.equal(parseInrAssistantRefresh({ accountId: "a", turnId: "t", topics }), null);
 });
 test("scoped refresh waits for editing to finish and coalesces repeated events", async () => {
   const target = new EventTarget(); let blocked = true, calls = 0;

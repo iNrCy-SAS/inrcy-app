@@ -9,7 +9,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "autonome",
       "booster"
     ],
-    "content": "iNr’Assistant peut préparer les contenus, choisir les médias par canal et appliquer les options disponibles : placement classique/Reel/Story Meta, Story associée, musique native, mode Threads classique/éphémère, CTA et tableau Pinterest réellement accessible. Les réglages de cadrage/adaptation natifs sont conservés. La validation peut répartir les canaux entre diffusion immédiate et dates de programmation distinctes, avec suivi de chaque résultat. Les programmations manuelles du Basique peuvent être relues, modifiées (date, texte, médias), annulées ou reprises lorsqu’elles sont admissibles, après aperçu exact confirmé. Les tâches de l’agent restent exclues du Basique ; un résultat incertain demande une vérification avant toute reprise.",
+    "content": "iNr’Assistant peut préparer les contenus, choisir les médias par canal et appliquer les options disponibles : placement classique/Reel/Story Meta, Story associée, musique native, mode Threads classique/éphémère, CTA et tableau Pinterest réellement accessible. Les réglages de cadrage/adaptation natifs sont conservés. La validation peut répartir les canaux entre diffusion immédiate et dates de programmation distinctes, avec suivi de chaque résultat. Les programmations manuelles du Basique peuvent être relues, modifiées (date, texte, médias), annulées ou reprises lorsqu’elles sont admissibles, après aperçu exact confirmé. Les tâches de l’agent restent exclues du Basique ; un résultat incertain demande une vérification avant toute reprise. L’historique Publications permet de rechercher puis reprendre un brouillon Booster précis, par référence citée ou titre unique réellement lu, sans générer ni publier. Le planning manuel permet aussi la diffusion immédiate d’une programmation encore admissible après aperçu confirmé, et l’édition de ses CTA explicites. Les publications déjà diffusées suivent un autre parcours : lire la version exacte, présenter les changements par canal, confirmer puis vérifier chaque résultat ; une issue fournisseur incertaine interdit de répéter aveuglément. Les contrôles locaux du formulaire (texte, médias, options et calendrier) modifient le brouillon ouvert ; ils ne constituent pas à eux seuls une sauvegarde ou une diffusion.",
     "sourceFiles": [
       "lib/inrAssistantPublicationTools.ts",
       "lib/inrAssistantScheduledPublicationTools.ts",
@@ -26,7 +26,13 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx",
       "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx",
       "messages/fr-FR/booster.json",
-      "lib/dashboardEdition.ts"
+      "lib/dashboardEdition.ts",
+      "lib/inrAssistantSendPublicationTools.ts",
+      "lib/inrAssistantPublishedPublicationTools.ts",
+      "lib/inrAssistantScheduledPublicationIntent.ts",
+      "lib/inrAssistantPublicationCtaPatch.ts",
+      "lib/inrAssistantScheduledEditorSelection.ts",
+      "app/dashboard/_hooks/useInrAssistantScheduledPublicationControls.ts"
     ]
   },
   {
@@ -39,7 +45,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "studio",
       "create"
     ],
-    "content": "iNr’Assistant peut présenter le devis natif sans lancer la génération, puis utiliser les moteurs, références, ADN et options de musique/narration/paroles disponibles du compte. Les crédits sont contrôlés par le moteur natif. Il ne déclare jamais une autorisation d’utilisation de l’identité à la place du professionnel.",
+    "content": "iNr’Assistant peut présenter le devis natif sans lancer la génération, puis utiliser les moteurs, références, ADN et options de musique/narration/paroles disponibles du compte. Les crédits sont contrôlés par le moteur natif. Il ne déclare jamais une autorisation d’utilisation de l’identité à la place du professionnel. Les champs, listes, références, musique, narration et bibliothèques du formulaire monté peuvent être préparés à partir de choix explicites. Les préférences mémorisées peuvent être lues ; oublier un bloc choisi conserve les autres réglages. Une mise à jour du solde ne lance ni achat ni génération.",
     "sourceFiles": [
       "lib/inrAssistantMediaTools.ts",
       "lib/productNavigation.ts",
@@ -52,7 +58,10 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "lib/aiMediaGenerationServer.ts",
       "lib/inrStudioModalPolicy.ts",
       "messages/fr-FR/media.json",
-      "lib/dashboardEdition.ts"
+      "lib/dashboardEdition.ts",
+      "lib/inrAssistantStudioFormSelection.ts",
+      "lib/inrAssistantStudioPreferenceTools.ts",
+      "lib/inrAssistantLocalInterfaceTools.ts"
     ]
   },
   {
@@ -139,7 +148,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "autonome",
       "reputation"
     ],
-    "content": "iNr’Assistant peut parcourir les avis au-delà de la première page, filtrer par note, date et présence de réponse, et répondre à un avis précis. Pour modifier ou supprimer une réponse existante, il présente un aperçu à confirmer, vérifie que l’avis n’a pas changé puis relit le résultat. La suppression concerne uniquement la réponse du professionnel, jamais l’avis du client. Une page partielle ne représente pas tous les avis.",
+    "content": "iNr’Assistant peut parcourir les avis au-delà de la première page, filtrer par note, date et présence de réponse, et répondre à un avis précis. Pour modifier ou supprimer une réponse existante, il présente un aperçu à confirmer, vérifie que l’avis n’a pas changé puis relit le résultat. La suppression concerne uniquement la réponse du professionnel, jamais l’avis du client. Une page partielle ne représente pas tous les avis. Chemin actuel : Accueil → Connecter mes canaux → bulle Google Business → Avis Google. Une réponse peut être préparée en brouillon avec le moteur natif puis vérifiée ; une génération de réponse ne publie rien.",
     "sourceFiles": [
       "lib/inrAssistantGoogleReviewTools.ts",
       "lib/googleReviewStateFingerprint.ts",
@@ -165,7 +174,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "business",
       "dna"
     ],
-    "content": "iNr’Assistant peut compléter les coordonnées, le nom, l’activité/profession du catalogue, la ville et un logo déjà importé, à partir des informations explicites du professionnel. Il vérifie la version puis relit les champs sauvegardés. Il peut lister les sources et documents ADN, choisir les sources d’analyse demandées et supprimer un document précis après aperçu confirmé. Pour un nouveau fichier local, le choix du fichier et l’autorisation native restent personnels.",
+    "content": "iNr’Assistant peut compléter les coordonnées, le nom, l’activité/profession du catalogue, la ville et un logo déjà importé, à partir des informations explicites du professionnel. Il vérifie la version puis relit les champs sauvegardés. Il peut lister les sources et documents ADN, choisir les sources d’analyse demandées et supprimer un document précis après aperçu confirmé. Pour un nouveau fichier local, le choix du fichier et l’autorisation native restent personnels. Les formulaires ouverts permettent les choix locaux, onglets et annulations natives. Pour les champs de texte enrichi, l’assistant peut appliquer gras, italique ou listes au passage littéral unique demandé, ou à tout le champ explicitement désigné, en utilisant la barre native ; la mise en forme ne prouve pas une sauvegarde serveur. La langue de rédaction IA et la langue d’affichage de l’application sont deux réglages distincts.",
     "sourceFiles": [
       "lib/inrAssistantBusinessIdentityTools.ts",
       "lib/businessIdentity.ts",
@@ -180,7 +189,11 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "app/dashboard/settings/_components/BusinessDnaAnalysisScheduleModal.tsx",
       "app/api/ai-memory/route.ts",
       "messages/fr-FR/dashboard.json",
-      "lib/inrAssistantBasicTargetIntents.ts"
+      "lib/inrAssistantBasicTargetIntents.ts",
+      "lib/inrAssistantBusinessRichText.ts",
+      "lib/inrAssistantBusinessRichTextUiTools.ts",
+      "lib/inrAssistantBusinessFormUiCommands.ts",
+      "lib/inrAssistantApplicationPreferences.ts"
     ]
   },
   {
@@ -193,7 +206,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "channels",
       "overview"
     ],
-    "content": "iNr’Assistant peut lister les ressources réellement accessibles chez Google Business, Facebook, Instagram, LinkedIn et Pinterest, puis préparer un changement de cible ou une déconnexion à confirmer. Le thème iNr’Badge, la présentation iNr’Search, le QR PNG/PDF et les réglages natifs du widget Site Web sont également pilotables. Les autorisations OAuth et l’installation du code sur un site externe restent des actions personnelles du professionnel.",
+    "content": "iNr’Assistant peut lister les ressources réellement accessibles chez Google Business, Facebook, Instagram, LinkedIn et Pinterest, puis préparer un changement de cible ou une déconnexion à confirmer. Le thème iNr’Badge, la présentation iNr’Search, le QR PNG/PDF et les réglages natifs du widget Site Web sont également pilotables. Les autorisations OAuth et l’installation du code sur un site externe restent des actions personnelles du professionnel. Le cockpit, ses filtres, liens et panneaux sont pilotés par les contrôles réellement montés. Pour iNr’Badge, les couleurs peuvent être recalculées depuis le logo enregistré : extraction native, sauvegarde conditionnelle et relecture exacte avant confirmation. La fiche Google permet de préparer les sections, catégories et horaires ; enregistrer le brouillon demande la confirmation native du professionnel. Un lien public transmis au navigateur ne prouve pas le chargement du site externe.",
     "sourceFiles": [
       "lib/inrAssistantChannelConfigurationTools.ts",
       "lib/inrAssistantNativePresentationTools.ts",
@@ -205,7 +218,12 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx",
       "app/dashboard/_hooks/useInrAssistantBadgeCommands.ts",
       "app/api/inrbadge/settings/route.ts",
-      "app/api/inr-search/settings/route.ts"
+      "app/api/inr-search/settings/route.ts",
+      "lib/inrAssistantBadgeIdentityTheme.ts",
+      "lib/inrAssistantBadgeIdentityThemeUiTools.ts",
+      "lib/inrAssistantGoogleBusinessDraftReview.ts",
+      "lib/inrAssistantNativeChannelLinks.ts",
+      "lib/inrAssistantLocalInterface.ts"
     ]
   },
   {
@@ -222,7 +240,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "produit",
       "décor"
     ],
-    "content": "iNr’Studio est disponible en Basique avec les crédits et moteurs autorisés. iNr’Assistant peut demander un aperçu temporaire plutôt qu’un enregistrement immédiat. L’aperçu prêt est affiché avec Conserver ce média et Écarter cet aperçu. Conserver vérifie la liaison entre la génération et son média puis relit l’enregistrement ; écarter refuse uniquement le brouillon temporaire, jamais un original déjà accepté. Consulter le statut ne sauvegarde pas silencieusement. Les crédits de génération déjà consommés ne sont pas remboursés par l’abandon. Les références peuvent être décrites comme produit, décor, personnage ou inspiration et les options natives de scènes/paroles restent soumises au moteur. Les autorisations d’identité fidèle et de voix personnelles restent dans le parcours natif du professionnel.",
+    "content": "iNr’Studio est disponible en Basique avec les crédits et moteurs autorisés. iNr’Assistant peut demander un aperçu temporaire plutôt qu’un enregistrement immédiat. L’aperçu prêt est affiché avec Conserver ce média et Écarter cet aperçu. Conserver vérifie la liaison entre la génération et son média puis relit l’enregistrement ; écarter refuse uniquement le brouillon temporaire, jamais un original déjà accepté. Consulter le statut ne sauvegarde pas silencieusement. Les crédits de génération déjà consommés ne sont pas remboursés par l’abandon. Les références peuvent être décrites comme produit, décor, personnage ou inspiration et les options natives de scènes/paroles restent soumises au moteur. Les autorisations d’identité fidèle et de voix personnelles restent dans le parcours natif du professionnel. Fermer, réinitialiser, abandonner ou reprendre une récupération ouvre les confirmations natives lorsqu’elles sont nécessaires : l’assistant attend le choix du professionnel et ne déclare pas le travail supprimé ou récupéré à l’ouverture du dialogue. Signaler un contenu demande un motif, un commentaire et un ordre actuel d’envoi ; seule une réponse native positive permet d’annoncer le signalement transmis.",
     "sourceFiles": [
       "lib/inrAssistantMediaTools.ts",
       "lib/inrAssistantMediaPreview.ts",
@@ -230,7 +248,11 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "app/dashboard/_components/DashboardAssistantSession.tsx",
       "lib/inrAssistantReplyReplay.ts",
       "lib/inrAssistantAttachmentStorage.ts",
-      "app/dashboard/_components/dashboardAssistantSessionState.ts"
+      "app/dashboard/_components/dashboardAssistantSessionState.ts",
+      "lib/inrAssistantStudioDraftReview.ts",
+      "lib/inrAssistantStudioDraftReviewUiTools.ts",
+      "lib/inrAssistantContentReport.ts",
+      "lib/inrAssistantContentReportTools.ts"
     ]
   },
   {
@@ -246,7 +268,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "cookies",
       "parrainage"
     ],
-    "content": "Les informations de compte sont accessibles dans Mon compte (/dashboard?panel=compte), les notifications dans /dashboard?panel=notifications, les factures d’abonnement dans /dashboard?panel=factures et les données RGPD dans /dashboard?panel=rgpd. L’abonnement et ses factures appartiennent au titulaire connecté ; les notifications et crédits dépendent de l’établissement actif. iNr’Assistant peut lire le solde natif du Studio, les packs et historiques sans achat ; une source indisponible reste inconnue, un vrai zéro reste zéro. Il peut marquer les notifications ciblées ou toutes comme lues sans les supprimer. L’export RGPD concerne le titulaire et tous ses établissements accessibles ; les données restent hors conversation et sont téléchargées dans le navigateur. Une facture exacte ou la dernière facture d’abonnement est résolue côté navigateur, sans URL fournie au modèle ; l’historique natif couvre les 100 dernières factures. Les cookies statistiques se règlent uniquement dans le navigateur courant ; les cookies nécessaires restent actifs. Un parrainage exige quatre coordonnées fournies, un aperçu confirmé et un reçu durable. L’acceptation SMTP ne prouve pas la livraison et un envoi incertain n’est pas répété automatiquement. Le paiement, le mot de passe et la suppression du compte gardent leur validation personnelle.",
+    "content": "Les informations de compte sont accessibles dans Mon compte (/dashboard?panel=compte), les notifications dans /dashboard?panel=notifications, les factures d’abonnement dans /dashboard?panel=factures et les données RGPD dans /dashboard?panel=rgpd. L’abonnement et ses factures appartiennent au titulaire connecté ; les notifications et crédits dépendent de l’établissement actif. iNr’Assistant peut lire le solde natif du Studio, les packs et historiques sans achat ; une source indisponible reste inconnue, un vrai zéro reste zéro. Il peut marquer les notifications ciblées ou toutes comme lues sans les supprimer. L’export RGPD concerne le titulaire et tous ses établissements accessibles ; les données restent hors conversation et sont téléchargées dans le navigateur. Une facture exacte ou la dernière facture d’abonnement est résolue côté navigateur, sans URL fournie au modèle ; l’historique natif couvre les 100 dernières factures. Les cookies statistiques se règlent uniquement dans le navigateur courant ; les cookies nécessaires restent actifs. Un parrainage exige quatre coordonnées fournies, un aperçu confirmé et un reçu durable. L’acceptation SMTP ne prouve pas la livraison et un envoi incertain n’est pas répété automatiquement. Le paiement, le mot de passe et la suppression du compte gardent leur validation personnelle. La langue d’affichage et le thème peuvent être modifiés et vérifiés. Ouvrir l’action d’une notification choisie vérifie sa destination native et les droits du forfait avant de la marquer lue puis de naviguer ; supprimer une notification nécessite son aperçu signé confirmé, sans supprimer le contenu lié. Une facture d’abonnement précise peut être téléchargée en PDF ou ouverte sur sa page Stripe native, sans paiement implicite. Une commande de recharge existante peut être vérifiée par son identifiant réel : les crédits ne sont annoncés comptabilisés que si la réponse native et l’écriture relue concordent. Le solde UI, son journal et les commandes de prestations Boutique sont lus séparément, avec pagination ; donnée indisponible ≠ zéro, aucune commande ni réparation du solde.",
     "sourceFiles": [
       "lib/inrAssistantAccountServiceTools.ts",
       "lib/inrAssistantAccountDocuments.ts",
@@ -256,7 +278,17 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "app/dashboard/settings/_components/RgpdContent.tsx",
       "app/api/notifications/[id]/read/route.ts",
       "app/api/notifications/feed/route.ts",
-      "lib/cookieConsentPreferences.ts"
+      "lib/cookieConsentPreferences.ts",
+      "lib/inrAssistantNotificationNavigation.ts",
+      "lib/inrAssistantNotificationNavigationTools.ts",
+      "lib/inrAssistantApplicationPreferenceTools.ts",
+      "lib/inrAssistantCreditOrderReconciliation.ts",
+      "lib/notificationRemovalState.ts",
+      "app/api/notifications/[id]/route.ts",
+      "lib/inrAssistantBasicShopRead.ts",
+      "lib/loyalty/inertia.ts",
+      "app/dashboard/settings/_components/InertiaContent.tsx",
+      "app/dashboard/settings/_components/BoutiqueContent.tsx"
     ]
   },
   {

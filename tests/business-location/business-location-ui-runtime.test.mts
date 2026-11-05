@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import ts from "typescript";
+import { createNativeLocalHookLoader } from "../helpers/assistant-native-local-hooks.mts";
 
 type Props = Record<string, unknown>;
 type Location = { postalCode: string; city: string };
@@ -49,7 +50,7 @@ function harness(fetchResponse: (method: string, account: string, body: Props) =
   const t = (key: string) => key;
   const hooks = {
     forwardRef: (component: unknown) => component,
-    useId: () => { cursor++; return "location-test"; },
+    useId: () => `location-test-${cursor++}`,
     useState(initial: unknown) {
       const index = cursor++;
       if (!slots[index]) slots[index] = { value: typeof initial === "function" ? initial() : initial };
@@ -74,6 +75,7 @@ function harness(fetchResponse: (method: string, account: string, body: Props) =
         slots[index] = { deps, cleanup: typeof cleanup === "function" ? cleanup : undefined };
       });
     },
+    useLayoutEffect(effect: () => void | (() => void), deps: unknown[]) { hooks.useEffect(effect, deps); },
     useImperativeHandle(target: typeof ref, create: () => Handle) { cursor++; target.current = create(); },
   };
   const onUnsavedChange = (next: boolean) => { dirty = next; };
@@ -81,12 +83,18 @@ function harness(fetchResponse: (method: string, account: string, body: Props) =
     react: hooks,
     "react/jsx-runtime": require("react/jsx-runtime"),
     "next-intl": { useTranslations: () => t },
+    "next/navigation": { usePathname: () => "/dashboard/personnalisation" },
+    "../_components/DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ actorUserId: ACCOUNT, activeAccountId: account, metaPilotEnabled: false }) },
     "@/lib/browserAccountCache": { getActiveBrowserUserId: () => account },
     "@/lib/boosterGenerationContextClient": { invalidateBoosterGenerationContextClient: async () => true },
     "@/lib/multicompte/constants": { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" },
     "@/lib/publicProfileRefreshClient": { PUBLIC_PROFILE_DATA_SAVED_EVENT: "profile-saved", refreshPublicProfileDependents: async () => { refreshes++; return true; } },
     "./BusinessLocationFields.module.css": { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) },
   };
+  const nativeHooks = createNativeLocalHookLoader((name: string) => {
+    assert.ok(Object.hasOwn(dependencies, name), name);
+    return dependencies[name];
+  });
   const loaded = { exports: {} as { default: (props: Props, ref: unknown) => ReactNode } };
   const fetchFixture = async (_url: string, options: RequestInit = {}) => {
     const method = options.method || "GET";
@@ -95,6 +103,8 @@ function harness(fetchResponse: (method: string, account: string, body: Props) =
     return fetchResponse(method, account, body);
   };
   new Function("module", "exports", "require", "fetch", compiled)(loaded, loaded.exports, (name: string) => {
+    const native = nativeHooks(name);
+    if (native !== undefined) return native;
     assert.ok(Object.hasOwn(dependencies, name), name);
     return dependencies[name];
   }, fetchFixture);

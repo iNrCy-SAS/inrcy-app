@@ -18,11 +18,13 @@ import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { isBoosterLinkCtaChoice } from "@/lib/boosterCtaActions";
 import styles from "./AiChannelCtaPanel.module.css";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 type Props = {
   value: AiChannelCtaMap;
   onChange: (value: AiChannelCtaMap) => void;
   disabled?: boolean;
+  assistantActive?: boolean;
 };
 
 const COPY = {
@@ -169,7 +171,7 @@ function automaticWebsite(channel: AiCtaChannel, destinations: AiChannelCtaDesti
   return destinations?.preferredWebsiteUrl || destinations?.siteWebUrl || "";
 }
 
-export default function AiChannelCtaPanel({ value, onChange, disabled = false }: Props) {
+export default function AiChannelCtaPanel({ value, onChange, disabled = false, assistantActive = true }: Props) {
   const { metaPilotEnabled, actorUserId, activeAccountId } = useDashboardViewerAccess();
   const AI_CTA_CHANNELS = ALL_AI_CTA_CHANNELS.filter(({ key }) => key !== "threads" || metaPilotEnabled);
   const language = useLocale().split("-")[0];
@@ -233,6 +235,15 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false }:
     setMenuOpen(false);
     setActiveChannel(AI_CTA_CHANNELS[nextIndex].key);
   };
+  useInrAssistantLocalInterface("writing_cta_channels", { activeChannel, menuOpen }, {
+    previous: { invoke: () => navigate(-1), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "activeChannel" in snapshot && "menuOpen" in snapshot && snapshot.activeChannel === AI_CTA_CHANNELS[(activeIndex - 1 + AI_CTA_CHANNELS.length) % AI_CTA_CHANNELS.length].key && snapshot.menuOpen === false) },
+    next: { invoke: () => navigate(1), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "activeChannel" in snapshot && "menuOpen" in snapshot && snapshot.activeChannel === AI_CTA_CHANNELS[(activeIndex + 1) % AI_CTA_CHANNELS.length].key && snapshot.menuOpen === false) },
+    select: { invoke: key => { const channel = AI_CTA_CHANNELS.find(channel => channel.key === key); if (!channel) throw new Error("CTA channel unavailable"); setMenuOpen(false); setActiveChannel(channel.key); }, matches: (snapshot, key) => Boolean(snapshot && typeof snapshot === "object" && "activeChannel" in snapshot && "menuOpen" in snapshot && snapshot.activeChannel === key && snapshot.menuOpen === false) },
+  }, assistantActive, disabled);
+  useInrAssistantLocalInterface("writing_cta_choices", { menuOpen }, {
+    open: { invoke: () => setMenuOpen(true), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "menuOpen" in snapshot && snapshot.menuOpen === true) },
+    close: { invoke: () => setMenuOpen(false), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "menuOpen" in snapshot && snapshot.menuOpen === false) },
+  }, assistantActive, disabled);
   const selected = activeSelection(activeChannel);
   const complete = isAiChannelCtaComplete(activeChannel, selected, destinations);
   const choices = getSupportedPreferredCtasForChannel(activeChannel).filter((choice) => choice !== "none");

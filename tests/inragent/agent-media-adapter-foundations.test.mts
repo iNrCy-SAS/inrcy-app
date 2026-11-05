@@ -21,7 +21,7 @@ test("AgentClient délègue modification et retouche image à iNrStudio", () => 
   );
   assert.match(
     client,
-    /openPublishImageInStudio\(tab: "modify" \| "retouch"\)/
+    /openPublishImageInStudio\(tab: "modify" \| "retouch", stillCurrent: \(\) => boolean = \(\) => true\)/
   );
   assert.match(
     client,
@@ -84,7 +84,7 @@ test("AgentClient délègue modification et retouche image à iNrStudio", () => 
 });
 
 test("AgentClient délègue la retouche vidéo à iNrStudio sans adaptateur local", () => {
-  const start = client.indexOf("async function openPublishVideoInStudio()");
+  const start = client.indexOf("async function openPublishVideoInStudio(stillCurrent: () => boolean = () => true)");
   const end = client.indexOf(
     "function openPublishMediaRetouchPreview()",
     start

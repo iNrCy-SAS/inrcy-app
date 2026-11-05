@@ -400,9 +400,12 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
     return premiumRequiredApiResponse();
   }
   const currentStatus = cleanText(scheduledRow.status, 40).toLowerCase();
+  const publishNow = requestBody.expectedOperation === "publish_now";
+  if ("expectedOperation" in requestBody && (!publishNow || !("expectedState" in requestBody))) return NextResponse.json({ error: "Cette exécution doit être vérifiée à nouveau." }, { status: 409 });
   if ("expectedState" in requestBody && (typeof requestBody.expectedState !== "string"
     || requestBody.expectedState !== scheduledPublicationFingerprint(scheduledRow)
-    || scheduledRow.action_type !== "publication" || scheduledRow.target_tool !== "booster" || currentStatus !== "failed")) {
+    || scheduledRow.action_type !== "publication" || scheduledRow.target_tool !== "booster"
+    || (publishNow ? !isManualBoosterPublicationSchedule(scheduledRow) || currentStatus !== "scheduled" || Number(scheduledRow.attempt_count || 0) !== 0 || Boolean(scheduledRow.executed_at) : currentStatus !== "failed"))) {
     return NextResponse.json({ error: "Cette reprise ne correspond plus à l’aperçu validé." }, { status: 409 });
   }
   if (currentStatus !== "scheduled" && currentStatus !== "failed") {
@@ -438,7 +441,12 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
     claim = scheduledRow.updated_at == null ? claim.is("updated_at", null) : claim.eq("updated_at", scheduledRow.updated_at);
   }
   if ("expectedState" in requestBody) {
-    claim = claim.eq("status", "failed").eq("updated_at", scheduledRow.updated_at).eq("payload", JSON.stringify(scheduledRow.payload));
+    claim = claim.eq("status", publishNow ? "scheduled" : "failed").eq("payload", JSON.stringify(scheduledRow.payload));
+    claim = scheduledRow.updated_at == null ? claim.is("updated_at", null) : claim.eq("updated_at", scheduledRow.updated_at);
+    if (publishNow) {
+      claim = claim.eq("source", "manual").eq("action_type", "publication").eq("target_tool", "booster").eq("scheduled_at", scheduledRow.scheduled_at);
+      claim = scheduledRow.executed_at == null ? claim.is("executed_at", null) : claim.eq("executed_at", scheduledRow.executed_at);
+    }
     claim = scheduledRow.attempt_count == null ? claim.is("attempt_count", null) : claim.eq("attempt_count", scheduledRow.attempt_count);
   }
   const { data: claimedRow, error: claimError } = await claim.select(SCHEDULED_ACTION_SELECT).maybeSingle();

@@ -8,6 +8,15 @@ const wrap = (name: string, execute: (input?: unknown, context?: unknown) => unk
   { requestId: "server-trace", onActivity: value => { rows.push(value); } },
 )[name].execute;
 
+test("Google reply draft progress confirms only a prepared draft and never claims publication", async () => {
+  for (const published of [false, true]) {
+    const rows: InrAssistantActivity[] = [];
+    await wrap("generateGoogleReviewReplyDraft", async () => ({ ok: true, status: "draft_ready", published }), rows)();
+    assert.equal(rows[1].status, published ? "blocked" : "completed");
+    assert.equal(rows[1].label, published ? "Le brouillon de réponse reste à vérifier" : "Brouillon de réponse Google préparé");
+  }
+});
+
 test("the shared activity parser bounds public fields and never copies private extras", () => {
   assert.deepEqual(parseInrAssistantActivity({ ...publicActivity, accountId: "PRIVATE", args: { prompt: "PRIVATE" }, error: "PRIVATE" }), publicActivity);
   for (const invalid of [null, [], {}, { ...publicActivity, id: "" }, { ...publicActivity, id: "x".repeat(101) },

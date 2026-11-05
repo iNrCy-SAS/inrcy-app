@@ -4,6 +4,7 @@ import { useId, useRef, useState, type CSSProperties, type FormEvent } from "rea
 import { useTranslations } from "next-intl";
 import styles from "./DashboardChannelBubble.module.css";
 import { getChannelPopoverPlacement } from "./channel-popover-position";
+import { useInrAssistantNativePopover } from "../_hooks/useInrAssistantNativePopover";
 
 export default function ChannelBoardCreator({ onCreate, disabled }: { onCreate: (name: string) => boolean | Promise<boolean>; disabled?: boolean }) {
   const t = useTranslations("dashboard.channelBubble");
@@ -16,6 +17,7 @@ export default function ChannelBoardCreator({ onCreate, disabled }: { onCreate: 
   const [name, setName] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
+  useInrAssistantNativePopover("channel_board", menu, true, Boolean(disabled || pending));
   const place = () => { if (trigger.current) setPosition(getChannelPopoverPlacement(trigger.current, menu.current, 300)); };
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

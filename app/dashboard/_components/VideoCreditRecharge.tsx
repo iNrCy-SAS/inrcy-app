@@ -7,6 +7,8 @@ import { detectClientBillingPlatform } from "@/lib/clientSubscriptionBilling";
 import { VIDEO_CREDIT_PACKS, isStripeCheckoutUrl } from "@/lib/boutique/videoCreditPacks";
 import { IMAGE_CREDIT_PACKS } from "@/lib/boutique/imageCreditPacks";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
+import { useInrAssistantRefresh } from "../_hooks/useInrAssistantRefresh";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 import styles from "./VideoCreditRecharge.module.css";
 
 type PackState = { key: string; available: boolean };
@@ -59,22 +61,28 @@ export function ImageCreditBalance() {
 function MediaCreditBalance({ mediaKind, refreshKey = 0 }: { mediaKind: MediaCreditKind; refreshKey?: number }) {
   const t = useTranslations("settings");
   const [balance, setBalance] = useState<{ included: number; purchased: number; debt: number; held: number } | null>(null);
+  const balanceLoader = useRef<((canApply?: () => boolean, accountId?: string) => Promise<boolean>) | null>(null);
+  useInrAssistantRefresh({ topics: ["credits"], scopeKey: `credit-balance:${mediaKind}:${refreshKey}`, blocked: false, refresh: async ({ canApply, accountId }) => Boolean(await balanceLoader.current?.(canApply, accountId)) });
   useEffect(() => {
     let active = true;
     let sequence = 0;
-    const load = async () => {
+    const load = async (canApply = () => true, accountId?: string) => {
+      if (!canApply()) return false;
       const request = ++sequence;
       const response = await fetch("/api/media-generation/quota", { cache: "no-store" }).catch(() => null);
       const data = response?.ok ? await response.json().catch(() => null) : null;
-      if (!active || request !== sequence || !data?.quota || data.quota.unlimited || !data.quota.creditsReady) return;
+      if (!active || request !== sequence || !canApply() || !data?.quota || (accountId && data.quota.accountId !== accountId) || data.quota.unlimited || !data.quota.creditsReady) return false;
       const counter = data.quota.credits;
-      if (typeof counter?.remaining === "number") setBalance({ included: counter.includedRemaining ?? counter.remaining,
+      if (typeof counter?.remaining !== "number" || !Number.isFinite(counter.remaining)) return false;
+      setBalance({ included: counter.includedRemaining ?? counter.remaining,
         purchased: counter.purchasedRemaining ?? 0, debt: counter.purchasedDebt ?? 0, held: counter.purchasedHeld ?? 0 });
+      return true;
     };
+    balanceLoader.current = load;
     void load();
     const changed = () => { setBalance(null); void load(); };
     window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, changed);
-    return () => { active = false; sequence++; window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, changed); };
+    return () => { active = false; sequence++; if (balanceLoader.current === load) balanceLoader.current = null; window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, changed); };
   }, [mediaKind, refreshKey]);
   const quantityLabel = (quantity: number) => t("media_credit_quantity", { credits: quantity });
   return balance ? <div className={styles.balance} role="status">
@@ -114,13 +122,14 @@ function MediaCreditPacksPanel({ mediaKind, onCheckoutOpened, onBusyChange }: Pa
   const requests = useRef(new Map<string, string>());
   const sequence = useRef(0);
   useEffect(() => { onBusyChange?.(busy !== null); }, [busy, onBusyChange]);
-  const load = useCallback(async () => {
+  const load = useCallback(async ({ canApply = () => true, expectedAccountId }: { canApply?: () => boolean; expectedAccountId?: string } = {}) => {
+    if (!canApply()) return false;
     const scopeEpoch = epoch.current;
     const request = ++sequence.current;
     const response = await fetch(options.endpoint, { cache: "no-store" }).catch(() => null);
     const data = response?.ok ? await response.json().catch(() => null) : null;
-    if (scopeEpoch !== epoch.current || request !== sequence.current) return;
-    if (data?.accountId && Array.isArray(data.packs)) {
+    if (scopeEpoch !== epoch.current || request !== sequence.current || !canApply()) return false;
+    if (data?.accountId && (!expectedAccountId || data.accountId === expectedAccountId) && Array.isArray(data.packs)) {
       setCatalogue(data as Catalogue);
       if (checkoutToRefresh.current && !(data.orders ?? []).some((order: Order) => !order.granted_at && !["expired", "failed", "refunded"].includes(order.status))) checkoutToRefresh.current = false;
       for (const order of (data.orders ?? []) as Order[]) {
@@ -129,9 +138,12 @@ function MediaCreditPacksPanel({ mediaKind, onCheckoutOpened, onBusyChange }: Pa
         if (requests.current.get(key) === order.request_key) requests.current.delete(key);
         try { if (sessionStorage.getItem(key) === order.request_key) sessionStorage.removeItem(key); } catch { /* Ref also fences retries. */ }
       }
+      return true;
     }
     else setNotice(t(options.unavailable));
+    return false;
   }, [mediaKind, options, t]);
+  useInrAssistantRefresh({ topics: ["credits"], scopeKey: `credit-catalogue:${mediaKind}`, blocked: busy !== null, refresh: async ({ canApply, accountId }) => load({ canApply, expectedAccountId: accountId }) });
   useEffect(() => {
     setWeb(detectClientBillingPlatform() === "web");
     void load();
@@ -252,12 +264,22 @@ export function MediaCreditRechargeButton({ mediaKind = "video", disabled = fals
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
   }, [onRefresh]);
+  const openRecharge = () => {
+    if (!dialog.current || disabled || purchaseBusy) throw new Error("credit_recharge_unavailable");
+    dialog.current.showModal();
+    setOpen(true);
+  };
+  useInrAssistantLocalInterface("video_recharge", { open, mediaKind }, {
+    ...(!open ? { open: { invoke: () => openRecharge(), matches: (snapshot: unknown) => (snapshot as { open: boolean }).open } } : {
+      close: { invoke: () => dialog.current?.close(), matches: (snapshot: unknown) => !(snapshot as { open: boolean }).open },
+    }),
+  }, web && !disabled, purchaseBusy, open ? 1 : 0);
   if (!web) return null;
   return <>
     <button type="button" className={[styles.recharge, className].filter(Boolean).join(" ")} disabled={disabled} data-media-kind={mediaKind}
       aria-haspopup="dialog" aria-controls={`${titleId}-dialog`}
       aria-label={`${t("video_credit_recharge")} · ${t("media_credit_recharge_title")}`}
-      onClick={() => { setOpen(true); dialog.current?.showModal(); }}>{t("video_credit_recharge")}</button>
+      onClick={openRecharge}>{t("video_credit_recharge")}</button>
     {createPortal(<dialog id={`${titleId}-dialog`} className={styles.dialog} ref={dialog} aria-labelledby={titleId}
       onCancel={event => { if (purchaseBusy) event.preventDefault(); }}
       onClose={() => { setOpen(false); setPurchaseBusy(false); onRefresh?.(); }}>

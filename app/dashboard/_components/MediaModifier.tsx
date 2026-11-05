@@ -42,6 +42,9 @@ import MediaEngineCreditControls, { MediaCreditQuoteSummary, MediaGenerationActi
 import MediaQuotaSummary from "./MediaQuotaSummary";
 import { recommendAiMediaModel } from "@/lib/aiMediaModelRecommendation";
 import { isAiMediaImageModelCompatible } from "@/lib/aiMediaModelCatalog";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import { parseInrAssistantStudioModifierSelection } from "@/lib/inrAssistantStudioModifierSelection";
+import { loadInrAssistantLibraryImage } from "@/lib/inrAssistantMediaUiClient";
 
 import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace";
 import styles from "./MediaModifier.module.css";
@@ -161,6 +164,9 @@ export default function MediaModifier({
   const initializedSourceRef = useRef<File | null>(null);
   const acceptInFlightRef = useRef(false);
   const [sourceImage, setSourceImage] = useState<SourceImage | null>(null);
+  const [sourceMediaId, setSourceMediaId] = useState<string | null>(null);
+  const [instructionFocused, setInstructionFocused] = useState(false);
+  const sourceRequestRef = useRef(0);
   const [instruction, setInstruction] = useState("");
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [sourceBusy, setSourceBusy] = useState(false);
@@ -226,6 +232,7 @@ export default function MediaModifier({
 
   useEffect(
     () => () => {
+      sourceRequestRef.current += 1;
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     },
     [],
@@ -240,20 +247,23 @@ export default function MediaModifier({
     onResultChange?.(result);
   }, [onResultChange, result]);
 
-  const selectSourceFile = useCallback(async (file: File | undefined) => {
-    if (!file || operationLocked || result) return;
+  const selectSourceFile = useCallback(async (file: File | undefined, stillCurrent: () => boolean = () => true, requestId?: number) => {
+    if (!file || operationLocked || result || !stillCurrent()) return false;
+    const run = requestId ?? ++sourceRequestRef.current;
+    const valid = () => stillCurrent() && sourceRequestRef.current === run;
     setActionError("");
     if (!isInrMediaImageFile(file)) {
       setActionError(
         t("ai_modifier_invalid_format", { formats: INR_MEDIA_IMAGE_FORMATS_LABEL }),
       );
-      return;
+      return false;
     }
     if (!file.size || file.size > AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES) {
       setActionError(t("ai_modifier_source_too_large"));
-      return;
+      return false;
     }
 
+    setSourceMediaId(null);
     setSourceBusy(true);
     let previewUrl = URL.createObjectURL(file);
     try {
@@ -269,6 +279,7 @@ export default function MediaModifier({
         dimensions = { width: master.width, height: master.height };
         preparedReference = await prepareMediaGenerationImageReference(master.file);
       }
+      if (!valid()) { URL.revokeObjectURL(previewUrl); return false; }
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
       previewUrlRef.current = previewUrl;
       setSourceImage({
@@ -277,11 +288,13 @@ export default function MediaModifier({
         ...dimensions,
         preparedReference,
       });
+      return true;
     } catch {
       URL.revokeObjectURL(previewUrl);
-      setActionError(t("ai_modifier_source_unreadable"));
+      if (valid()) setActionError(t("ai_modifier_source_unreadable"));
+      return false;
     } finally {
-      setSourceBusy(false);
+      if (sourceRequestRef.current === run) setSourceBusy(false);
     }
   }, [operationLocked, result, t]);
 
@@ -299,14 +312,19 @@ export default function MediaModifier({
 
   const removeSource = () => {
     if (operationLocked || result) return;
+    sourceRequestRef.current += 1;
     if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     previewUrlRef.current = "";
     setSourceImage(null);
+    setSourceMediaId(null);
     setActionError("");
     reset();
   };
 
-  const importLibraryImage = async (item: MediaLibraryPickerItem) => {
+  const importLibraryImage = async (item: MediaLibraryPickerItem, stillCurrent: () => boolean = () => true, requestId?: number) => {
+    const run = requestId ?? ++sourceRequestRef.current;
+    const valid = () => stillCurrent() && sourceRequestRef.current === run;
+    if (!valid()) return false;
     if (!item.signed_url) {
       throw new Error(t("ai_generator_inspiration_library_unavailable"));
     }
@@ -318,7 +336,11 @@ export default function MediaModifier({
     const file = new File([blob], libraryItemName(item), {
       type: blob.type || item.mime_type || "image/jpeg",
     });
-    await selectSourceFile(file);
+    if (!valid() || !await selectSourceFile(file, valid, run)) return false;
+    if (!valid()) return false;
+    setSourceMediaId(item.id);
+    setLibraryOpen(false);
+    return true;
   };
 
   const handleGenerate = async () => {
@@ -473,6 +495,33 @@ export default function MediaModifier({
     }
   };
 
+  useInrAssistantLocalInterface("studio_modifier", { instruction, sourceMediaId, sourcePresent: !!sourceImage, sourceName: sourceImage?.file.name, instructionFocused, libraryOpen, resultId: result?.item.id, canRecover }, {
+    ...(!result && !canRecover ? { open: { invoke: () => setLibraryOpen(true), matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && (snapshot as { libraryOpen?: boolean }).libraryOpen === true } } : {}),
+    ...(libraryOpen ? { close: { invoke: () => setLibraryOpen(false), matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && (snapshot as { libraryOpen?: boolean }).libraryOpen === false } } : {}),
+    select: {
+      invoke: async (encoded, stillCurrent) => {
+        const selection = parseInrAssistantStudioModifierSelection(encoded);
+        if (!selection || !stillCurrent()) throw new Error("studio_modifier_unavailable");
+        if ("action" in selection) {
+          if (selection.action === "edit_instruction") { handleEditInstruction(); return; }
+          if (result || canRecover) throw new Error("studio_modifier_result_locked");
+          removeSource(); return;
+        }
+        if (selection.field === "instruction") { setInstruction(selection.value); if (actionError) setActionError(""); return; }
+        if (result || canRecover) throw new Error("studio_modifier_result_locked");
+        const run = ++sourceRequestRef.current, valid = () => stillCurrent() && sourceRequestRef.current === run;
+        const item = await loadInrAssistantLibraryImage(selection.value, valid);
+        if (!item || !valid() || !await importLibraryImage(item, valid, run)) throw new Error("studio_modifier_source_unavailable");
+      },
+      matches: (snapshot, encoded) => {
+        const selection = parseInrAssistantStudioModifierSelection(encoded); if (!selection || !snapshot || typeof snapshot !== "object") return false;
+        const current = snapshot as { instruction?: string; sourceMediaId?: string; sourcePresent?: boolean; instructionFocused?: boolean };
+        return "action" in selection ? selection.action === "edit_instruction" ? current.instructionFocused === true : current.sourcePresent === false
+          : selection.field === "instruction" ? current.instruction === selection.value : current.sourcePresent === true && current.sourceMediaId === selection.value;
+      },
+    },
+  }, true, operationLocked);
+
   const engineControls = (
     <MediaEngineCreditControls kind="image" format={sourceFormat} operation="modify" videoEngine={enginePreference.videoEngine}
             recommendation={recommendAiMediaModel({ kind: "image", format: sourceFormat, operation: "modify", brief: instruction, language: locale, inspirationImagesCount: sourceImage ? 1 : 0, inputMode: "essential", identityMode: "auto" })}
@@ -505,6 +554,8 @@ export default function MediaModifier({
               disabled={baseOperationLocked}
               readOnly={voiceBusy}
               placeholder={t("ai_modifier_instruction_placeholder")}
+              onFocus={() => setInstructionFocused(true)}
+              onBlur={() => setInstructionFocused(false)}
               onChange={(event) => {
                 setInstruction(event.currentTarget.value);
                 if (actionError) setActionError("");

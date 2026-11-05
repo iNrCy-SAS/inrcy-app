@@ -1,8 +1,10 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import styles from "./subscriptionWorkspace.module.css";
+import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 type StripeInvoice = {
   id: string;
@@ -65,9 +67,15 @@ export default function SubscriptionInvoicesPanel() {
   const [error, setError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [page, setPage] = useState(0);
+  const [completedReload, setCompletedReload] = useState(-1);
+  const { actorUserId, activeAccountId } = useDashboardViewerAccess();
+  const viewerScope = useRef({ actorUserId, activeAccountId });
+  useLayoutEffect(() => { viewerScope.current = { actorUserId, activeAccountId }; }, [actorUserId, activeAccountId]);
 
   useEffect(() => {
     const controller = new AbortController();
+    const expected = { actorUserId, activeAccountId };
+    const current = () => !controller.signal.aborted && expected.actorUserId === viewerScope.current.actorUserId && expected.activeAccountId === viewerScope.current.activeAccountId;
 
     async function loadInvoices() {
       try {
@@ -79,26 +87,34 @@ export default function SubscriptionInvoicesPanel() {
           signal: controller.signal,
         });
         const payload = (await response.json().catch(() => ({}))) as InvoiceResponse;
+        if (!current()) return;
         if (!response.ok) {
           throw new Error(payload.error || i18nT("factures_stripe_erreur_7e2a5c11"));
         }
         setInvoices(Array.isArray(payload.invoices) ? payload.invoices : []);
+        setCompletedReload(reloadToken);
       } catch (cause: unknown) {
+        if (!current()) return;
         if (cause instanceof DOMException && cause.name === "AbortError") return;
         setError(cause instanceof Error ? cause.message : i18nT("factures_stripe_erreur_7e2a5c11"));
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (current()) setLoading(false);
       }
     }
 
     void loadInvoices();
     return () => controller.abort();
-  }, [i18nT, reloadToken]);
+  }, [i18nT, reloadToken, actorUserId, activeAccountId]);
 
   const pageSize = 5;
   const pageCount = Math.max(1, Math.ceil(invoices.length / pageSize));
   const activePage = Math.min(page, pageCount - 1);
   const visibleInvoices = invoices.slice(activePage * pageSize, (activePage + 1) * pageSize);
+  useInrAssistantLocalInterface("subscription_invoices", { page: activePage, invoiceIds: invoices.map(invoice => invoice.id), loading, error, completedReload }, {
+    ...(!error && activePage > 0 ? { previous: { invoke: () => setPage(activePage - 1), matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "page" in snapshot && snapshot.page === activePage - 1) } } : {}),
+    ...(!error && activePage + 1 < pageCount ? { next: { invoke: () => setPage(activePage + 1), matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "page" in snapshot && snapshot.page === activePage + 1) } } : {}),
+    ...(error ? { retry: { invoke: () => setReloadToken(value => value + 1), matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "completedReload" in snapshot && Number(snapshot.completedReload) > reloadToken && "loading" in snapshot && snapshot.loading === false && "error" in snapshot && !snapshot.error) } } : {}),
+  }, true, loading || !error && pageCount <= 1);
 
   return (
     <section aria-labelledby="subscription-invoices-title" className={styles.invoicesCard}>

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
+import { createNativeLocalHookLoader } from "../helpers/assistant-native-local-hooks.mts";
 
 // Run real event closures with isolated hooks; never call live account services.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -18,27 +19,33 @@ const items = Array.from({ length: 14 }, (_, index) => ({ key: index === 0 ? "gm
 function fixture() {
   let cursor = 0;
   const slots: Value[] = [];
+  const layoutEffects: Array<() => unknown> = [];
   let allowed = true;
   let mobile = true;
   let guards = 0;
   const hooks = { ...React,
     useState(initial: Value) { const index = cursor++; if (!(index in slots)) slots[index] = typeof initial === "function" ? initial() : initial; return [slots[index], (next: Value) => { slots[index] = typeof next === "function" ? next(slots[index]) : next; }]; },
     useRef(initial: Value) { const index = cursor++; return slots[index] ??= { current: initial }; },
-    useId: () => "channels-test", useEffect() {}, useMemo: (fn: Value) => fn(), useCallback: (fn: Value) => fn,
+    useId: () => `channels-test-${cursor++}`, useEffect() {}, useLayoutEffect: (effect: () => unknown) => { layoutEffects.push(effect); }, useMemo: (fn: Value) => fn(), useCallback: (fn: Value) => fn,
   };
   const localRequire = (name: string): Value => {
     if (name === "react") return hooks;
     if (name === "react/jsx-runtime") return require(name);
+    const native = nativeHooks(name);
+    if (native !== undefined) return native;
+    if (name === "next/navigation") return { usePathname: () => "/dashboard" };
+    if (name.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "channels-actor", activeAccountId: "channels-account", metaPilotEnabled: false }) };
     if (name.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (name.endsWith(".css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
     if (name === "./dashboard-channel-presentation") return { getChannelTone: () => "connected", getChannelSceneLayout: () => ({ centerSize: 300, centerY: 220, satelliteSize: 120, slots: Array.from({ length: 13 }, () => ({ x: 20, y: 20, size: 100 })) }) };
     if (name === "./DashboardUnsavedNavigationProvider") return { useDashboardUnsavedNavigation: () => ({ requestNavigation: async (fn: () => void) => { guards++; if (allowed) fn(); return allowed; } }) };
     return { __esModule: true, default: "test-component" };
   };
+  const nativeHooks = createNativeLocalHookLoader(localRequire);
   const loaded = { exports: {} as Value };
   new Function("require", "module", "exports", "window", code)(localRequire, loaded, loaded.exports, { matchMedia: () => ({ matches: mobile }) });
   const nodes = (tree: Value): Value[] => Array.isArray(tree) ? tree.flatMap(nodes) : React.isValidElement(tree) ? [tree, ...nodes(tree.props.children)] : [];
-  const render = () => { cursor = 0; return nodes(loaded.exports.default({ items, onClose() {} })); };
+  const render = () => { cursor = 0; const result = nodes(loaded.exports.default({ items, onClose() {} })); for (const effect of layoutEffects.splice(0)) effect(); return result; };
   const current = () => render().find(node => node.props.item)?.props.item.key;
   const swipe = (dx: number, dy = 0, options: { interactive?: boolean; cancel?: boolean; primary?: boolean; pointerId?: number } = {}) => {
     const target = render().find(node => typeof node.props.onPointerDown === "function");

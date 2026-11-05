@@ -266,7 +266,8 @@ test("le cockpit réunit deux étapes cliquables et garde son solde UI, les mét
   assert.equal((hero.match(/onClick=\{step\.action\}/g) || []).length, 1, "the title button replaces the duplicate action button");
   assert.match(hero, /uiBalance\.toLocaleString\(locale\)/);
   for (const metric of ["leadsWeek", "leadsMonth", "oppTotal", "estimatedValue"]) assert.ok(modules.includes(`overview.${metric}`), metric);
-  assert.match(generator, /onClick=\{onRefreshGenerator\}[\s\S]*?disabled=\{kpisLoading\}/);
+  assert.match(generator, /onClick=\{\(\) => void refresh\(\)\}[\s\S]*?disabled=\{kpisLoading\}/);
+  assert.match(generator, /if \(!await onRefreshGenerator\(\)\) return false/);
   assert.doesNotMatch(generator, /onOpenGeneratorSettings|settingsAria|settingsTitle/);
   assert.match(generator, /onClick=\{onOpenGeneratorHelp\}/);
   assert.match(modules, /startModuleNavigation\("\/dashboard\/stats", onOpenStats\)/);

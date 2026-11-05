@@ -29,6 +29,7 @@ export function inrAssistantUiPostScreenMatchesAction(action: InrAssistantUiActi
     && screen.pathname === (screen.selection.kind === "quote" ? "/dashboard/devis/new" : "/dashboard/factures/new"));
   if (action.type !== "command" || !("revision" in action.command) || !action.command.revision) return false;
   const command = action.command;
+  if (command.command === "control_local_interface" || command.command === "submit_content_report" || command.command === "refresh_badge_theme_from_logo") return false; // These helpers acknowledge native state, not a business form.
   if (command.command === "prepare_document_mail") return screen.pathname === "/dashboard/mails" && screen.selection.kind === "mail";
   const permitted = parseInrAssistantClientContext({ screen: { ...screen, availableCommands: [command.command] } })?.screen;
   return permitted?.availableCommands?.includes(command.command) === true

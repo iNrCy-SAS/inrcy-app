@@ -9,6 +9,8 @@ import type { InrcyAccountSummary, InrcyMultiAccountConfig } from "@/lib/multico
 import styles from "../dashboard.module.css";
 import DashboardNavigationIcon from "./DashboardNavigationIcon";
 import menuStyles from "./EstablishmentMenu.module.css";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import { useInrAssistantNativeControlVisibility } from "../_hooks/useInrAssistantNativeControlVisibility";
 
 type MenuPayload = {
   ok?: boolean;
@@ -155,6 +157,7 @@ export default function EstablishmentMenu({
   };
   const rootRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const assistantVisible = useInrAssistantNativeControlVisibility(triggerRef);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
@@ -163,6 +166,7 @@ export default function EstablishmentMenu({
   const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [payload, setPayload] = useState<MenuPayload | null>(null);
+  const [readVersion, setReadVersion] = useState(0);
   const closeToMenu = useCallback(() => {
     setOpen(false);
     triggerRef.current?.focus();
@@ -176,6 +180,7 @@ export default function EstablishmentMenu({
       const json = await response.json().catch(() => null) as MenuPayload | null;
       if (!response.ok || !json?.ok) throw new Error(json?.error || "Chargement impossible.");
       setPayload(json);
+      setReadVersion(previous => previous + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chargement impossible.");
     } finally {
@@ -278,6 +283,27 @@ export default function EstablishmentMenu({
     ? `${styles.mobileHeaderIconBtn} ${styles.mobileHeaderEstablishmentBtn}`
     : `${styles.ghostBtn} ${styles.establishmentTopbarBtn}`);
 
+  const toggleMenu = () => { const next = !open; if (next) onOpen?.(); setOpen(next); };
+  const cancelCreate = () => { setCreateSlot(null); setDisplayName(""); };
+  const establishmentSnapshot = { open, createSlot, readVersion };
+  useInrAssistantLocalInterface("establishment_menu", establishmentSnapshot, {
+    ...(!open ? { open: { invoke: () => toggleMenu(), matches: (snapshot: unknown) => (snapshot as typeof establishmentSnapshot).open } } : {
+      close: { invoke: () => closeToMenu(), matches: (snapshot: unknown) => !(snapshot as typeof establishmentSnapshot).open },
+      ...(!payload && error && !loading ? { retry: {
+        invoke: async () => { await load(); },
+        matches: (snapshot: unknown) => (snapshot as typeof establishmentSnapshot).readVersion > readVersion,
+      } } : {}),
+      select: {
+        invoke: (value: string | null) => {
+          if (value === "back" && mobile && mobileBackLabel) closeToMenu();
+          else if (value === "cancel_create" && createSlot !== null) cancelCreate();
+          else throw new Error("establishment_local_selection_unavailable");
+        },
+        matches: (snapshot: unknown, value: string | null) => value === "back" ? !(snapshot as typeof establishmentSnapshot).open : value === "cancel_create" && (snapshot as typeof establishmentSnapshot).createSlot === null,
+      },
+    }),
+  }, assistantVisible, loading || !!switchingId || creating, open ? 1 : 0);
+
   return (
     <div className={styles.establishmentMenuWrap} ref={rootRef}>
       <button
@@ -287,11 +313,7 @@ export default function EstablishmentMenu({
         aria-label={mobileLabel || buttonTitle}
         title={buttonTitle}
         aria-expanded={open}
-        onClick={() => {
-          const next = !open;
-          if (next) onOpen?.();
-          setOpen(next);
-        }}
+        onClick={toggleMenu}
       >
         <span className={styles.establishmentTopbarIcon} aria-hidden="true"><EstablishmentIcon /></span>
         {mobile && mobileLabel ? <span>{mobileLabel}</span> : null}
@@ -375,7 +397,7 @@ export default function EstablishmentMenu({
                           />
                         </label>
                         <div className={styles.establishmentCreateActions}>
-                          <button type="button" onClick={() => { setCreateSlot(null); setDisplayName(""); }} disabled={creating}>{copy.cancel}</button>
+                          <button type="button" onClick={cancelCreate} disabled={creating}>{copy.cancel}</button>
                           <button type="button" className={styles.establishmentCreateConfirm} onClick={() => void createAccount()} disabled={creating || displayName.trim().length < 2}>
                             {creating ? copy.creating : copy.confirm}
                           </button>

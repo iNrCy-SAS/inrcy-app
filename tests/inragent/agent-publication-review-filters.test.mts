@@ -10,6 +10,7 @@ import { countPublicationValidationStates, filterPublicationsByValidation } from
 import { canRestoreRefusedPublication, isHiddenRefusedPublication } from "../../app/dashboard/agent/_lib/agent.publication-visibility.ts";
 import { buildPublicationViewerItems, nextPublicationViewerId } from "../../app/dashboard/agent/_lib/agent.publication-carousel.ts";
 import { runtimeModules } from "./runtime-module-loader.mts";
+import { createNativeLocalHookLoader } from "../helpers/assistant-native-local-hooks.mts";
 
 const all = { validated: true, pending: true, refused: true };
 const actions = [
@@ -143,12 +144,16 @@ test("la fenêtre de régénération propose les deux périmètres et garde le n
   const javascript = ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const messages = JSON.parse(readFileSync(new URL("../../messages/fr-FR/agent.json", import.meta.url), "utf8"));
   const compiledModule = { exports: {} as { default: ComponentType<Record<string, unknown>> } };
-  new Function("require", "module", "exports", javascript)((id: string) => {
+  const dependency = (id: string): unknown => {
     if (id === "next-intl") return { useTranslations: () => (key: string) => messages[key] || key };
+    if (id === "next/navigation") return { usePathname: () => "/dashboard/agent" };
+    if (id.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "review-actor", activeAccountId: "review-account" }) };
     if (id.endsWith(".css")) return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
     if (id.includes("PublishExecution")) return { __esModule: true, default: () => null };
     return require(id);
-  }, compiledModule, compiledModule.exports);
+  };
+  const nativeHooks = createNativeLocalHookLoader(dependency);
+  new Function("require", "module", "exports", javascript)((id: string) => nativeHooks(id) ?? dependency(id), compiledModule, compiledModule.exports);
   const noop = () => {};
   const html = renderToStaticMarkup(createElement(compiledModule.exports.default, {
     publishExecutionProgress: null, publishSuccessSummary: null, campaignLaunchNotice: null,

@@ -34,7 +34,7 @@ export function useInrAssistantMediaLibraryCommands(options: Options) {
   // Keep the editor identity mounted while its native save is busy. Disable new
   // commands, but do not invalidate the scope of that same pending operation.
   useInrAssistantScreen(pathname === "/dashboard/mediatheque" ? { selection: { kind: "media", id }, revision,
-    step: "media", pendingChanges: options.pendingChanges, availableCommands: [...names, ...(options.optimizationAvailable ? ["optimize_media" as const] : [])], ...(options.selectedIds?.length ? { selectedMediaIds: options.selectedIds } : {}) } : null);
+    step: "media", pendingChanges: options.pendingChanges, availableCommands: [...names, ...(options.optimizationAvailable ? ["optimize_media" as const] : [])], ...(options.selectedIds && options.selectedIds.length > 25 ? { selectionOverflow: true } : options.selectedIds?.length ? { selectedMediaIds: options.selectedIds } : {}) } : null);
   useEffect(() => () => { pending.current?.finish(false); }, []);
   useEffect(() => {
     const names = JSON.parse(commands) as Command["command"][];

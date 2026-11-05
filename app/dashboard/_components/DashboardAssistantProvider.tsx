@@ -9,7 +9,13 @@ import { createClient } from "@/lib/supabaseClient";
 import { getInrAssistantClientScreen, selectInrAssistantClientScreen, parseInrAssistantClientContext, type InrAssistantClientScreen } from "@/lib/inrAssistantClientContext";
 import type { InrAssistantNavigation, InrAssistantUiCommand } from "@/lib/inrAssistantUiCommands";
 import { runInrAssistantUiActions, type InrAssistantUiAction, type InrAssistantUiResult } from "@/lib/inrAssistantUiActions";
+import { useInrAssistantNativeChannelLinks } from "../_hooks/useInrAssistantNativeChannelLinks";
+import { useInrAssistantCookieOptions } from "../_hooks/useInrAssistantCookieOptions";
+import { runInrAssistantContentReportCommand } from "@/lib/inrAssistantContentReport";
+import { runInrAssistantLocalInterface } from "@/lib/inrAssistantLocalInterface";
+import { applyNativeInrAssistantApplicationPreference } from "@/lib/inrAssistantApplicationPreferences";
 import { downloadInrAssistantAccountDocument } from "@/lib/inrAssistantAccountDocuments";
+import { runInrAssistantBadgeIdentityThemeCommand } from "@/lib/inrAssistantBadgeIdentityTheme";
 import { inrAssistantNavigationForm } from "@/lib/inrAssistantNavigationForm";
 import type { InrAssistantUiPostScreen } from "@/lib/inrAssistantUiPostScreen";
 import type { InrAssistantStudioDraft } from "@/lib/inrAssistantStudioDraft";
@@ -36,6 +42,8 @@ export function useDashboardAssistant() {
 }
 
 export default function DashboardAssistantProvider({ children }: { children: ReactNode }) {
+  useInrAssistantCookieOptions();
+  useInrAssistantNativeChannelLinks();
   const { actorUserId, activeAccountId } = useDashboardViewerAccess();
   const router = useRouter();
   const pathname = usePathname();
@@ -135,7 +143,27 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     // Auth/account events invalidate pending native work synchronously, before
     // React commits the new scope (including a later return to the same actor).
     const executionEpoch = uiExecution.current.epoch;
-    if (command.command === "download_account_export" || command.command === "download_subscription_invoice" || command.command === "configure_cookie_consent") {
+    const commandPathname = screenRef.current.pathname;
+    if (command.command === "submit_content_report") {
+      const stillCurrent = () => { const scope = navigationScopeRef.current; return uiExecution.current.epoch === executionEpoch && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId && screenRef.current.pathname === commandPathname && (getActiveBrowserUserId() || activeAccountId) === activeAccountId; };
+      if (!actorUserId || !activeAccountId) return false;
+      return await runInrAssistantContentReportCommand(command, { actorUserId, accountId: activeAccountId, pathname: commandPathname }, stillCurrent);
+    }
+    if (command.command === "control_local_interface") {
+      const stillCurrent = () => { const scope = navigationScopeRef.current; return uiExecution.current.epoch === executionEpoch && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId && screenRef.current.pathname === commandPathname && (getActiveBrowserUserId() || activeAccountId) === activeAccountId; };
+      return await runInrAssistantLocalInterface(command, { actorUserId, accountId: activeAccountId, pathname: commandPathname }, stillCurrent);
+    }
+    if (command.command === "refresh_badge_theme_from_logo") {
+      const stillCurrent = () => { const scope = navigationScopeRef.current; return uiExecution.current.epoch === executionEpoch && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId && screenRef.current.pathname === commandPathname && (getActiveBrowserUserId() || activeAccountId) === activeAccountId; };
+      if (!actorUserId || !activeAccountId) return false;
+      return await runInrAssistantBadgeIdentityThemeCommand(command, { actorUserId, accountId: activeAccountId, pathname: commandPathname }, stillCurrent);
+    }
+    if (command.command === "configure_application_preferences") {
+      const stillCurrent = () => { const scope = navigationScopeRef.current; return uiExecution.current.epoch === executionEpoch && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId && (getActiveBrowserUserId() || activeAccountId) === activeAccountId; };
+      if (!activeAccountId || !actorUserId) return false;
+      try { const applied = await applyNativeInrAssistantApplicationPreference(command, activeAccountId, actorUserId, stillCurrent); if (applied && command.preference === "language") router.refresh(); return applied; } catch { return false; }
+    }
+    if (command.command === "download_account_export" || command.command === "download_subscription_invoice" || command.command === "open_subscription_invoice_link" || command.command === "configure_cookie_consent") {
       const stillCurrent = () => { const scope = navigationScopeRef.current; return uiExecution.current.epoch === executionEpoch && scope.allowed && scope.actorUserId === actorUserId && scope.activeAccountId === activeAccountId && (getActiveBrowserUserId() || activeAccountId) === activeAccountId; };
       try { return await downloadInrAssistantAccountDocument(command, stillCurrent); } catch { return false; }
     }
@@ -227,7 +255,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
       }
       return applied && scopeCurrent();
     } catch { return false; }
-  }, [actorUserId, activeAccountId]);
+  }, [actorUserId, activeAccountId, router]);
   const executeUiActions = useCallback(async (actions: InrAssistantUiAction[], onResult?: (result: InrAssistantUiResult) => Promise<void>, beforeAction?: (action: InrAssistantUiAction) => Promise<boolean>) => {
     const execution = uiExecution.current;
     if (execution.busy) return actions.map(action => ({ actionId: action.id, source: "browser_reported" as const, status: "cancelled" as const }));
@@ -277,6 +305,10 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     };
     const navigate = async (navigation: InrAssistantNavigation) => {
       if (!isCurrent()) return false;
+      if (navigation.notificationMenuRevision) {
+        const closed = await runInrAssistantLocalInterface({ command: "control_local_interface", selection: { kind: "account_document", id: "notification_menu" }, revision: navigation.notificationMenuRevision, operation: "close", value: null }, { actorUserId, accountId: activeAccountId, pathname: screenRef.current.pathname }, isCurrent);
+        if (!closed || !isCurrent()) return false;
+      }
       const starting = screenRef.current;
       const target = new URL(navigation.href, "https://inrcy.local");
       const startingParams = new URLSearchParams(starting.query);

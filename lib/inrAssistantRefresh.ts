@@ -1,5 +1,5 @@
 export const INR_ASSISTANT_REFRESH_EVENT = "inrcy:assistant-mutation-confirmed";
-export const INR_ASSISTANT_REFRESH_TOPICS = ["media", "agents", "settings", "channels", "stats", "business"] as const;
+export const INR_ASSISTANT_REFRESH_TOPICS = ["media", "agents", "settings", "channels", "stats", "business", "notifications", "credits"] as const;
 export type InrAssistantRefreshTopic = typeof INR_ASSISTANT_REFRESH_TOPICS[number];
 export type InrAssistantRefresh = { accountId: string; turnId: string; topics: InrAssistantRefreshTopic[] };
 type Receipt = { tool: string; ok: boolean; status: string };
@@ -11,7 +11,12 @@ const TOOLS: Record<string, InrAssistantRefreshTopic[]> = {
   applyPinterestBoardMutation:["channels"], applyWebsiteReset:["channels","settings","stats"], applyGoogleReviewReplyAction:["channels"],
   acceptMediaGeneration:["media"], discardMediaGeneration:["media"],
   updateMediaMetadata: ["media"], importMediaAttachment: ["media"], applyMediaDeletion: ["media"], generateMedia: ["media"], modifyMedia: ["media"], getMediaGeneration: ["media"],
-  managePublicationIdeas: ["agents"], configureAgentAutomation: ["agents"], editPreparedPublication: ["agents"], applyPublicationLifecycleAction: ["agents"], preparePublication: ["agents"], executePublication: ["agents"], editPublication: ["agents"], applyScheduledPublicationAction: ["agents"], updateScheduledPublication: ["agents"], cancelScheduledPublication: ["agents"], retryScheduledPublication: ["agents"],
+  managePublicationIdeas: ["agents"], configureAgentAutomation: ["agents"], editPreparedPublication: ["agents"], applyPublicationLifecycleAction: ["agents"], preparePublication: ["agents"], executePublication: ["agents"], editPublication: ["agents"], applyScheduledPublicationAction: ["agents"], updateScheduledPublication: ["agents"], cancelScheduledPublication: ["agents"], retryScheduledPublication: ["agents"], publishScheduledPublicationNow: ["agents"], editScheduledPublication: ["agents"],
+  applyPublishedPublicationEdit: ["agents"],
+  reconcileExistingCreditOrder: ["credits"],
+  applyNotificationRemoval: ["notifications"],
+  markNotificationsRead: ["notifications"],
+  forgetStudioPreferenceBlock: ["settings"],
   updateToolSettings: ["settings", "channels"], setNativeChannelActivation: ["channels"], updateChannelPublicUrl: ["channels"], applyGoogleBusinessProfileUpdate: ["channels"], replyToGoogleReview: ["channels"],
   updateBusinessDna: ["business", "channels"], updateAiConfiguration: ["business", "settings"], configureBusinessCta: ["business", "channels"],
   refreshStatsSources: ["stats"], sendStatsReport: ["stats", "agents"],
@@ -19,7 +24,7 @@ const TOOLS: Record<string, InrAssistantRefreshTopic[]> = {
 const CONFIRMED = new Set(["saved", "saved_with_adjustments", "updated", "deleted", "deleted_locally", "cancelled_locally", "imported", "completed", "succeeded", "generated", "ready", "draft", "prepared", "pending_validation", "published", "scheduled", "cancelled", "confirmed", "sent", "restored", "refused", "already_processed", "already_configured", "previous_attempt_recorded", "success", "removed"]);
 /** Project only confirmed native effects. No receipt text, URL, approval or business data leaves the server here. */
 export function assistantRefreshTopics(receipts: readonly Receipt[]): InrAssistantRefreshTopic[] {
-  return [...new Set(receipts.filter(receipt => receipt.ok && (CONFIRMED.has(receipt.status) || receipt.tool === "refreshStatsSources" && receipt.status === "read")).flatMap(receipt => TOOLS[receipt.tool] ?? []))];
+  return [...new Set(receipts.filter(receipt => receipt.ok && (CONFIRMED.has(receipt.status) || ["refreshStatsSources", "markNotificationsRead", "reconcileExistingCreditOrder"].includes(receipt.tool) && receipt.status === "read" || receipt.tool === "applyNotificationRemoval" && receipt.status === "already_absent")).flatMap(receipt => TOOLS[receipt.tool] ?? []))];
 }
 export function parseInrAssistantRefresh(value: unknown): InrAssistantRefresh | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;

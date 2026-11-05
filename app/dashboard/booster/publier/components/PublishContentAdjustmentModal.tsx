@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
+import { useInrAssistantLocalClose } from "../../../_hooks/useInrAssistantLocalClose";
 import type { ChannelKey } from "../publishModal.shared";
 import { PUBLISH_CHANNEL_IDENTITY } from "./publishChannelIdentity";
 import css from "./PublishContentAdjustmentModal.module.css";
@@ -33,6 +34,7 @@ export default function PublishContentAdjustmentModal({ idea, instruction, chann
   const chosen = channels.filter(channel => selected.includes(channel.key)).map(channel => channel.key);
   const changed = subject.trim() !== idea.trim() || guidance.trim() !== instruction.trim();
   const progressValue = Math.round(Math.max(0, Math.min(100, progress || 0)));
+  useInrAssistantLocalClose("publication_adjustment", true, onClose, busy, { subject, guidance, chosen });
 
   useEffect(() => {
     const element = dialog.current;

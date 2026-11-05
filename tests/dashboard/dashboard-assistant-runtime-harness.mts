@@ -18,6 +18,12 @@ import * as accountDocuments from "../../lib/inrAssistantAccountDocuments.ts";
 import * as navigationForm from "../../lib/inrAssistantNavigationForm.ts";
 import * as autoContinuation from "../../lib/inrAssistantAutoContinuation.ts";
 import * as taskCopy from "../../app/dashboard/_components/dashboardAssistantTaskCopy.ts";
+import * as nativeChannelLinks from "../../lib/inrAssistantNativeChannelLinks.ts";
+import * as cookieOptions from "../../lib/inrAssistantCookieOptions.ts";
+import * as localInterface from "../../lib/inrAssistantLocalInterface.ts";
+import * as contentReport from "../../lib/inrAssistantContentReport.ts";
+import * as applicationPreferences from "../../lib/inrAssistantApplicationPreferences.ts";
+import * as badgeIdentityTheme from "../../lib/inrAssistantBadgeIdentityTheme.ts";
 
 const require = createRequire(import.meta.url);
 const source = readFileSync(new URL("../../app/dashboard/_components/DashboardAssistantProvider.tsx", import.meta.url), "utf8");
@@ -28,6 +34,9 @@ const extractedSources: Record<string, string> = Object.fromEntries([
   ["./DashboardAssistantSession", "app/dashboard/_components/DashboardAssistantSession.tsx"],
   ["./dashboardAssistantSessionState", "app/dashboard/_components/dashboardAssistantSessionState.ts"],
   ["../_hooks/useAssistantDialogViewport", "app/dashboard/_hooks/useAssistantDialogViewport.ts"],
+  ["../_hooks/useInrAssistantNativeChannelLinks", "app/dashboard/_hooks/useInrAssistantNativeChannelLinks.ts"],
+  ["../_hooks/useInrAssistantCookieOptions", "app/dashboard/_hooks/useInrAssistantCookieOptions.ts"],
+  ["./useInrAssistantLocalInterface", "app/dashboard/_hooks/useInrAssistantLocalInterface.ts"],
 ].map(([name, file]) => [name, ts.transpileModule(readFileSync(new URL("../../" + file, import.meta.url), "utf8"), {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText]));
@@ -54,6 +63,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
   const refs: { current: unknown }[] = [];
   let stateIndex = 0;
   let refIndex = 0;
+  let idIndex = 0;
   let effects: (() => void | (() => void))[] = [];
   const handoffs: string[] = [];
   const actions = { minimize: 0, replies: 0, close: 0, navigationChecks: 0 };
@@ -109,6 +119,9 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
       },
       useRef: (initial: unknown) => { const index = refIndex++; return refs[index] ||= { current: initial }; },
       useEffect: (effect: () => void | (() => void)) => effects.push(effect),
+      useLayoutEffect: (effect: () => void | (() => void)) => effects.push(effect),
+      useId: () => `fixture-native-${idIndex++}`,
+      useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot(),
     };
     if (name === "next-intl") return { useLocale: () => options.locale ?? "en-GB" };
     if (name === "next/navigation") return { useRouter: () => ({ push: (href: string) => { navigations.push(href); } }), usePathname: () => options.pathname || "/dashboard", useSearchParams: () => new URLSearchParams(options.query ?? "action=publish&token=secret") };
@@ -122,6 +135,12 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
     if (name === "@/lib/inrAssistantAccountDocuments") return accountDocuments;
     if (name === "@/lib/inrAssistantNavigationForm") return navigationForm;
     if (name === "@/lib/inrAssistantAutoContinuation") return autoContinuation;
+    if (name === "@/lib/inrAssistantNativeChannelLinks") return nativeChannelLinks;
+    if (name === "@/lib/inrAssistantCookieOptions") return cookieOptions;
+    if (name === "@/lib/inrAssistantLocalInterface") return localInterface;
+    if (name === "@/lib/inrAssistantContentReport") return contentReport;
+    if (name === "@/lib/inrAssistantApplicationPreferences") return applicationPreferences;
+    if (name === "@/lib/inrAssistantBadgeIdentityTheme") return badgeIdentityTheme;
     if (name === "./dashboardAssistantTaskCopy") return taskCopy;
     if (name === "./DashboardAssistantScreenContext") return { DashboardAssistantScreenContext: require("react").createContext(() => {}) };
     if (name === "./DashboardAssistantCommandContext") return { DashboardAssistantCommandContext: require("react").createContext(() => {}) };
@@ -131,7 +150,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
     if (name === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => activeAccountId };
     if (name === "@/lib/multicompte/constants") return { ACTIVE_INRCY_ACCOUNT_EVENT: "account-changed" };
     if (name === "@/lib/supabaseClient") return {};
-    if (name === "./DashboardViewerAccessProvider") return { useDashboardViewerAccess: () => ({ actorUserId: scope.actorUserId, activeAccountId: scope.activeAccountId }) };
+    if (name === "./DashboardViewerAccessProvider" || name === "../_components/DashboardViewerAccessProvider") return { useDashboardViewerAccess: () => ({ actorUserId: scope.actorUserId, activeAccountId: scope.activeAccountId }) };
     if (name === "./DashboardUnsavedNavigationProvider") return { useDashboardUnsavedNavigation: () => ({ requestNavigation: async (callback: () => unknown) => {
       actions.navigationChecks += 1;
       if (deferredNavigation) {
@@ -151,7 +170,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
   new Function("module", "exports", "require", "document", "MutationObserver", "localStorage", "sessionStorage", compiled)(moduleRecord, moduleRecord.exports, mockRequire, browserDocument, BrowserMutationObserver, browserStorage, browserStorage);
   let restored = false;
   const render = (open = true) => {
-    stateIndex = 0; refIndex = 0; effects = [];
+    stateIndex = 0; refIndex = 0; idIndex = 0; effects = [];
     const tree = moduleRecord.exports.TestSession({ ...scope, onboardingWelcome: options.onboardingWelcome === true, allowed: true, open, close: () => { actions.close += 1; }, minimize: () => { actions.minimize += 1; }, onReply: () => { actions.replies += 1; }, onHumanContact: (message: string) => { handoffs.push(message); }, onInternalNavigate: (href: string) => { navigations.push(href); }, onOpenMediaLibrary: () => { navigations.push("/dashboard/mediatheque"); }, onScreenCommand: async (value: uiCommands.InrAssistantUiCommand) => { screenCommands.push(value); return screenHandler(value); }, ...(uiHandler ? { onUiActions: uiHandler } : {}), onInsertStudioDraft: async (value: studioDraft.InrAssistantStudioDraft) => { studioInsertions.push(value); return insertHandler(value); }, screen: clientContext.getInrAssistantClientScreen(options.pathname || "/dashboard", new URLSearchParams(options.query ?? "action=publish&token=secret")) });
     if (restored) effects[9]();
     return tree;
@@ -179,7 +198,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
     closeNativeHelp: () => { if (nativeModal) nativeModal.isConnected = false; nativeModal = null; onMutation?.(); },
     body,
     providerRender: () => {
-      stateIndex = 0; refIndex = 0; effects = [];
+      stateIndex = 0; refIndex = 0; idIndex = 0; effects = [];
       return moduleRecord.exports.default({ children: "Page" });
     },
     switchAccount: () => { activeAccountId = "account-b"; },

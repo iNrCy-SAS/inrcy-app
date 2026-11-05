@@ -1,3 +1,4 @@
+import * as nativeRefresh from "../../lib/inrAssistantRefresh.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -43,6 +44,7 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
     },
     useRef(initial: unknown) { const index = cursor++; const slot = slots[index] ||= { value: { current: initial } }; return slot.value; },
     useCallback(callback: unknown, deps: readonly unknown[]) { const index = cursor++; const slot = slots[index] ||= {}; if (changed(slot.deps, deps)) { slot.deps = deps; slot.value = callback; } return slot.value; },
+    useLayoutEffect(callback: () => void | (() => void), deps: readonly unknown[]) { react.useEffect(callback, deps); },
     useEffect(callback: () => void | (() => void), deps: readonly unknown[]) {
       const index = cursor++; const slot = slots[index] ||= {};
       if (changed(slot.deps, deps)) { slot.deps = deps; effects.push(() => { slot.cleanup?.(); slot.cleanup = callback() || undefined; }); }
@@ -57,6 +59,14 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
     addEventListener(event: string, callback: () => void) { if (!listeners.has(event)) listeners.set(event, new Set()); listeners.get(event)!.add(callback); },
     removeEventListener(event: string, callback: () => void) { listeners.get(event)?.delete(callback); },
   };
+  const refreshHook = { exports: {} as typeof import("../../app/dashboard/_hooks/useInrAssistantRefresh.ts") };
+  const refreshCode = ts.transpileModule(readFileSync(new URL("../../app/dashboard/_hooks/useInrAssistantRefresh.ts", import.meta.url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
+  new Function("module", "exports", "require", refreshCode)(refreshHook, refreshHook.exports, (id: string) => {
+    if (id === "react") return react;
+    if (id === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => account };
+    if (id === "@/lib/inrAssistantRefresh") return { ...nativeRefresh, subscribeInrAssistantRefresh: (options: Parameters<typeof nativeRefresh.subscribeInrAssistantRefresh>[0]) => nativeRefresh.subscribeInrAssistantRefresh({ ...options, target: browser as unknown as EventTarget }) };
+    throw new Error('Unexpected native refresh hook dependency: ' + id);
+  });
   const fetch = (url: string, init: RequestInit = {}): Promise<Response> => {
     if (url.endsWith("/quota")) return Promise.resolve(Response.json({ quota: { ...quota(account), credits: { unit: "credit", remaining, reserved: 0 } } }));
     if (url === "/api/media-generation/drafts/draft-a/accept") {
@@ -86,6 +96,7 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
   const record = { exports: {} as { default: () => Hook } };
   new Function("module", "exports", "require", "window", "fetch", output)(record, record.exports, (id: string) => {
     if (id === "react") return react;
+    if (id === "./useInrAssistantRefresh") return refreshHook.exports;
     if (id === "@/lib/multicompte/constants") return { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" };
     if (id === "@/lib/aiMediaGenerationContracts") return contracts;
     if (id === "@/lib/mediaGenerationClientRequest") return clientRequestRules;

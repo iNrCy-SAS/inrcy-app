@@ -281,7 +281,7 @@ test("iNrSend conserve l’éditeur monté dans Studio et garde la restauration 
   assert.doesNotMatch(videoTool, /saveInrSendPublicationEditorSnapshot|router\.push\(href\)/);
   assert.match(
     modalSource,
-    /await launchPublicationMediaGenerator\(publicationMediaGeneratorBrief\)/,
+    /await launchPublicationMediaGenerator\(publicationMediaGeneratorBrief, stillCurrent\)/,
   );
   assert.match(
     modalSource,

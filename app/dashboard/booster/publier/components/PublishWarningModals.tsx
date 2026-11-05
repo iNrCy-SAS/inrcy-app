@@ -1,5 +1,6 @@
 import { useLocale, useTranslations } from "next-intl";
 import type { ReactNode } from "react";
+import { useInrAssistantLocalClose } from "../../../_hooks/useInrAssistantLocalClose";
 import { getLocalizedChannelLabel, type ChannelKey } from "../publishModal.shared";
 
 type PublishModalStyles = Readonly<Record<string, string>>;
@@ -88,6 +89,7 @@ export default function PublishWarningModals({
 }: PublishWarningModalsProps) {
   const locale = useLocale();
   const i18nT = useTranslations("booster");
+  useInrAssistantLocalClose("publication_warning", !!oversizedMedia || !!emptyContentChannel, () => { if (oversizedMedia) onCloseOversizedMedia(); else onCloseEmptyContentWarnings(); }, false, { oversizedMedia, emptyContentChannel });
   const displayBytes = (value: number) =>
     formatBytes(value, locale, i18nT("unit_kilobytes"), i18nT("unit_megabytes"));
   if (oversizedMedia) {

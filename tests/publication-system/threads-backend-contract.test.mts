@@ -63,7 +63,18 @@ test("Threads route keeps owned historical IDs, rejects published edits before a
   assert.ok(patch.indexOf("threads_edit_unsupported") < patch.indexOf("const incomingVideo"));
   assert.match(patch, /scope: "inrsend_threads_retry", idempotencyKey: publicationId/);
   assert.match(patch, /isMetaChannelPilotEnabledForActorAndAccount/);
-  assert.match(source, /\(channel === "site_web" \|\| channel === "threads"\) \? channelResult.external_id/);
+  const tree = ts.createSourceFile("publicationChannelActions.ts", source, ts.ScriptTarget.Latest, true);
+  const externalIdExpressions: string[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(tree) === "previousExternalId" && node.initializer) externalIdExpressions.push(node.initializer.getText(tree));
+    ts.forEachChild(node, visit);
+  }; visit(tree);
+  const ownedDeleteExpression = externalIdExpressions.find(expression => expression.includes('channel === "instagram"'));
+  assert.ok(ownedDeleteExpression, "The native delete route must protect saved Instagram, Threads and SiteWeb IDs");
+  const resolveDeleteId = new Function("channel", "body", "channelResult", "asRecord", `return ${ownedDeleteExpression}`) as (channel: string, body: RecordLike, result: RecordLike, asRecord: (value: unknown) => RecordLike) => unknown;
+  for (const channel of ["site_web", "threads", "instagram"]) assert.equal(resolveDeleteId(channel, { externalId: "foreign-model-id" }, { external_id: "owned-history-id" }, asRecord), "owned-history-id");
+  assert.equal(resolveDeleteId("threads", { externalId: "foreign-model-id" }, { threads_checkpoint: { postId: "owned-checkpoint-id" } }, asRecord), "owned-checkpoint-id");
+  assert.equal(resolveDeleteId("threads", { externalId: "foreign-model-id" }, {}, asRecord), null, "No remote ID may be invented when the owned native history has none");
   assert.match(read("app/api/booster/publish-now/route.ts"), /cronUserId\s*\? isMetaChannelPilotEnabledForAccount/);
   assert.match(read("app/api/booster/publish-now/route.ts"), /threads_async_worker_required/);
 });

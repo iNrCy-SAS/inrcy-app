@@ -2,7 +2,7 @@ import * as rejectedToolContext from "../../lib/inrAssistantRejectedToolContext.
 import * as uiTask from "../../lib/inrAssistantUiTask.ts";
 import * as clientScreen from "../../lib/inrAssistantClientContext.ts";
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
@@ -27,6 +27,26 @@ import * as actionCoverage from "../../lib/inrAssistantActionCoverage.ts";
 import * as commandRegistry from "../../lib/inrAssistantCommandRegistry.ts";
 import * as uiCommands from "../../lib/inrAssistantUiCommands.ts";
 import * as statsUiCommands from "../../lib/inrAssistantStatsUiCommands.ts";
+import * as businessFormUiCommands from "../../lib/inrAssistantBusinessFormUiCommands.ts";
+import * as businessFormActionClauses from "../../lib/inrAssistantActionClause.ts";
+import * as localInterfaces from "../../lib/inrAssistantLocalInterface.ts";
+import * as applicationPreferences from "../../lib/inrAssistantApplicationPreferences.ts";
+import * as studioDraftReview from "../../lib/inrAssistantStudioDraftReview.ts";
+import * as contentReport from "../../lib/inrAssistantContentReport.ts";
+import * as richText from "../../lib/inrAssistantBusinessRichText.ts";
+import * as creditReconciliation from "../../lib/inrAssistantCreditOrderReconciliation.ts";
+import * as googleDraftReview from "../../lib/inrAssistantGoogleBusinessDraftReview.ts";
+import * as studioPreferenceIntent from "../../lib/inrAssistantStudioPreferenceIntent.ts";
+import * as badgeIdentityTheme from "../../lib/inrAssistantBadgeIdentityTheme.ts";
+import * as notificationNavigation from "../../lib/inrAssistantNotificationNavigation.ts";
+import * as sendPublicationIntent from "../../lib/inrAssistantSendPublicationIntent.ts";
+import * as accountUiIntent from "../../lib/inrAssistantAccountUiIntent.ts";
+import * as basicShopRead from "../../lib/inrAssistantBasicShopRead.ts";
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
+import * as scheduledEditorSelection from "../../lib/inrAssistantScheduledEditorSelection.ts";
+import * as studioFormSelection from "../../lib/inrAssistantStudioFormSelection.ts";
+import * as nativeDashboardEdition from "../../lib/dashboardEdition.ts";
+import * as studioSavedPreferences from "../../lib/aiMediaGenerationPreferences.ts";
 import * as pureStatsViewRequest from "../../lib/inrAssistantPureStatsViewRequest.ts";
 import { getInrAssistantDocumentPrefillNavigation } from "../../lib/inrAssistantDocumentUiCommands.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
@@ -42,13 +62,16 @@ function loadClosedModule<T>(file: string, stubs: Record<string, unknown>): T {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const record = { exports: {} };
-  vm.runInNewContext(`(function(require,module,exports){${source}\n})`, { URL, setTimeout, clearTimeout })((name: string) => {
+  const pureDependencies: Record<string, unknown> = { "./inrAssistantBadgeIdentityTheme.ts": badgeIdentityTheme, "./inrAssistantNotificationNavigation.ts": notificationNavigation, "./inrAssistantSendPublicationIntent.ts": sendPublicationIntent, "./inrAssistantAccountUiIntent.ts": accountUiIntent, "./inrAssistantBasicShopRead.ts": basicShopRead, "./inrAssistantScheduledEditorSelection.ts": scheduledEditorSelection, "./inrAssistantStudioFormSelection.ts": studioFormSelection, "./inrAssistantUiCommands.ts": uiCommands };
+  vm.runInNewContext(`(function(require,module,exports){${source}\n})`, { URL, URLSearchParams, Request, Response, Headers, AbortSignal, setTimeout, clearTimeout })((name: string) => {
+    if (name in pureDependencies && !(name in stubs)) return pureDependencies[name];
     if (!(name in stubs)) throw new Error(`Unexpected dependency: ${name}`);
     return stubs[name];
   }, record, record.exports);
   return record.exports as T;
 }
 const memoryRuntime = loadClosedModule<typeof Memory>("inrAssistantMemory.ts", { "server-only": {}, "node:crypto": { randomUUID } });
+const notificationRemovalState = loadClosedModule<typeof import("../../lib/notificationRemovalState.ts")>("notificationRemovalState.ts", { "server-only": {}, "node:crypto": { createHash } });
 const memoryToolsRuntime = loadClosedModule<typeof MemoryTools>("inrAssistantMemoryTools.ts", {
   "server-only": {}, ai: { jsonSchema, tool }, "./inrAssistantMemory.ts": memoryRuntime,
 });
@@ -72,8 +95,11 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   statsFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   mailboxFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   publicationWorkspaceRead?: boolean;
+  nativeAccountServices?: boolean;
+  richTextOutputTransform?: (output: unknown) => unknown;
   guideCharacters?: number;
   accountRead?: (name:string,input:unknown)=>unknown;
+  nativeServices?: { auth: { activeUserId: string; authUserId: string }; draft?: (request: Request) => Promise<Response>; notificationFeed?: (request: Request) => Promise<Response>; notificationMark?: (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response> };
   cta?: { definition: ReturnType<typeof createCtaToolFixture>["definition"]; input: { target: "phone" | "website"; instructionQuote: string; channels: string[] | null } } } = {}) {
   const generations: { model: string; params: LanguageModelV3CallOptions }[] = [];
   const reservations: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number }[] = [];
@@ -278,6 +304,41 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
         } }),...options.extraTools };
     } },
   };
+  stubs["./inrAssistantLocalInterface.ts"] = localInterfaces;
+  stubs["./inrAssistantApplicationPreferences.ts"] = applicationPreferences;
+  stubs["./inrAssistantStudioDraftReview.ts"] = studioDraftReview;
+  stubs["./inrAssistantStudioDraftReviewUiTools.ts"] = loadClosedModule("inrAssistantStudioDraftReviewUiTools.ts", { "server-only": {}, ai: { tool, jsonSchema }, "./requireUser": { requireUser: async () => ({ errorResponse: Response.json({}, { status: 401 }) }) }, "./inrAssistantActionClause.ts": businessFormActionClauses, "./inrAssistantStudioDraftReview.ts": studioDraftReview });
+  stubs["./inrAssistantContentReport.ts"] = contentReport;
+  stubs["./inrAssistantContentReportTools.ts"] = loadClosedModule("inrAssistantContentReportTools.ts", { "server-only": {}, ai: { tool, jsonSchema }, "./requireUser": { requireUser: async () => ({ errorResponse: Response.json({}, { status: 401 }) }) }, "./inrAssistantActionClause.ts": businessFormActionClauses, "./inrAssistantContentReport.ts": contentReport });
+  stubs["./inrAssistantBusinessRichText.ts"] = richText;
+  const richTextTools = loadClosedModule<typeof import("../../lib/inrAssistantBusinessRichTextUiTools.ts")>("inrAssistantBusinessRichTextUiTools.ts", { "server-only": {}, ai: { tool, jsonSchema }, "./requireUser": { requireUser: async () => options.nativeServices?.auth ?? ({ errorResponse: Response.json({}, { status: 401 }) }) }, "./inrAssistantActionClause.ts": businessFormActionClauses, "./inrAssistantBusinessRichText.ts": richText });
+  stubs["./inrAssistantBusinessRichTextUiTools.ts"] = { createInrAssistantBusinessRichTextUiTools: (args: Parameters<typeof richTextTools.createInrAssistantBusinessRichTextUiTools>[0]) => {
+    const tools = richTextTools.createInrAssistantBusinessRichTextUiTools(args), definition = tools.formatBusinessDnaText;
+    return options.richTextOutputTransform ? { formatBusinessDnaText: { ...definition, execute: async (...executeArgs: Parameters<NonNullable<typeof definition.execute>>) => options.richTextOutputTransform!(await definition.execute!(...executeArgs)) } } : tools;
+  } };
+  stubs["./inrAssistantCreditOrderReconciliation.ts"] = creditReconciliation;
+  stubs["./inrAssistantGoogleBusinessDraftReview.ts"] = googleDraftReview;
+  stubs["./inrAssistantGoogleBusinessDraftUiTools.ts"] = loadClosedModule("inrAssistantGoogleBusinessDraftUiTools.ts", { "server-only": {}, ai: { tool, jsonSchema }, "./requireUser": { requireUser: async () => ({ errorResponse: Response.json({}, { status: 401 }) }) }, "./inrAssistantActionClause.ts": businessFormActionClauses, "./inrAssistantGoogleBusinessDraftReview.ts": googleDraftReview });
+  stubs["./inrAssistantStudioPreferenceIntent.ts"] = studioPreferenceIntent;
+  stubs["./inrAssistantBadgeIdentityTheme.ts"] = badgeIdentityTheme;
+  stubs["./inrAssistantNotificationNavigation.ts"] = notificationNavigation;
+  stubs["./inrAssistantSendPublicationIntent.ts"] = sendPublicationIntent;
+  stubs["./inrAssistantAccountUiIntent.ts"] = accountUiIntent;
+  stubs["./inrAssistantBasicShopRead.ts"] = basicShopRead;
+  const localDependencies = { "server-only": {}, ai: { tool, jsonSchema }, "./requireUser": { requireUser: async () => options.nativeServices?.auth ?? ({ errorResponse: Response.json({ error: "No authenticated native UI fixture" }, { status: 401 }) }) }, "./inrAssistantActionClause.ts": businessFormActionClauses, "./inrAssistantLocalInterface.ts": localInterfaces, "./inrAssistantApplicationPreferences.ts": applicationPreferences };
+  stubs["./inrAssistantLocalInterfaceTools.ts"] = loadClosedModule("inrAssistantLocalInterfaceTools.ts", localDependencies);
+  stubs["./inrAssistantApplicationPreferenceTools.ts"] = loadClosedModule("inrAssistantApplicationPreferenceTools.ts", localDependencies);
+  stubs["./inrAssistantStudioPreferenceTools.ts"] = loadClosedModule("inrAssistantStudioPreferenceTools.ts", { ...localDependencies, "./inrAssistantStudioPreferenceIntent.ts": studioPreferenceIntent, "./aiMediaGenerationPreferences.ts": studioSavedPreferences });
+  stubs["./inrAssistantBadgeIdentityThemeUiTools.ts"] = loadClosedModule("inrAssistantBadgeIdentityThemeUiTools.ts", localDependencies);
+  const notificationProjection = loadClosedModule("notifications.ts", { "server-only": {}, "@/lib/supabaseAdmin": { supabaseAdmin: { from: () => { throw new Error("No notification database execution in this fixture"); } } }, "@/lib/notificationWriter": { insertNotificationOnce: () => { throw new Error("No notification write in this fixture"); } } });
+  const noNativeRequest = async () => { throw new Error("No external native route is enabled for this fixture"); };
+  stubs["./inrAssistantNotificationNavigationTools.ts"] = loadClosedModule("inrAssistantNotificationNavigationTools.ts", { ...localDependencies, "./dashboardEdition.ts": nativeDashboardEdition, "./inrAssistantMemory.ts": memoryRuntime, "./notificationRemovalState.ts": notificationRemovalState, "./notifications": notificationProjection,
+    "@/app/api/notifications/feed/route": { GET: options.nativeServices?.notificationFeed ?? noNativeRequest }, "@/app/api/notifications/[id]/read/route": { POST: options.nativeServices?.notificationMark ?? noNativeRequest } });
+  stubs["./inrAssistantSendPublicationTools.ts"] = loadClosedModule("inrAssistantSendPublicationTools.ts", { ...localDependencies, "./inrAssistantMemory.ts": memoryRuntime, "@/app/api/booster/events/route": { GET: options.nativeServices?.draft ?? noNativeRequest } });
+  if (options.nativeAccountServices) stubs["./inrAssistantAccountServiceTools.ts"] = loadClosedModule("inrAssistantAccountServiceTools.ts", { ...localDependencies, "./inrAssistantMemory.ts": memoryRuntime, "./inrAssistantRequestClauses.ts": requestClauses,
+    "./inrAssistantActionPreview.ts": loadClosedModule("inrAssistantActionPreview.ts", { "server-only": {}, "node:crypto": { createHash, createHmac, timingSafeEqual }, "./inrAssistantRequestClauses.ts": requestClauses }),
+    "./notificationRemovalState.ts": notificationRemovalState, "./inrAssistantCreditOrderReconciliation.ts": creditReconciliation,
+  });
   stubs["./inrAssistantToolRegistry.ts"] = loadClosedModule<typeof ToolRegistry>("inrAssistantToolRegistry.ts", stubs);
   const compiled = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantGateway.ts", import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -298,6 +359,85 @@ const studioPromptRequest = "Écris un prompt pour créer une image de flyer pr�
 const studioPrompt = "Crée un flyer professionnel pour mon entreprise, dans un style moderne bleu et violet, avec un titre lisible et une présentation claire de mes services.";
 const studioPromptReply = `Voici le prompt préparé :\n\n> ${studioPrompt}\n\nFormat recommandé : landscape.\n\nVous pouvez l’insérer dans Studio puis vérifier les critères avant de générer.`;
 const toolNames = (params: LanguageModelV3CallOptions) => (params.tools ?? []).filter(tool => tool.type === "function").map(tool => tool.name);
+
+test("Basic SDK draft resume executes its real dedicated native reader and never substitutes generic navigation", async () => {
+  const id = "30000000-0000-4000-8000-000000000003", message = `Reprends le brouillon ${id}.`; let reads = 0;
+  const h = harness({ plan: [{ tool: "resumePublicationDraft", input: { draftId: id, title: null, instructionQuote: message } }], nativeServices: { auth: { activeUserId: basic.accountId, authUserId: "actor-a" }, draft: async request => { reads++; assert.equal(request.method, "GET"); assert.equal(new URL(request.url).searchParams.get("draftId"), id); return Response.json({ ok: true, event: { id, module: "booster", type: "publish_draft", payload: { secret: "PRIVATE_DRAFT" } } }); } } });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", actorUserId: "actor-a", supabase: {} as never, messages: [{ role: "user", content: message }] });
+  assert.equal(reads, 1, JSON.stringify({ reply, offered: h.generations.map(call => toolNames(call.params)), diagnostics: h.diagnostics })); assert.equal(reply.outcome, "partial", "The browser still has to confirm the exact draft screen");
+  assert.ok(h.generations.some(call => toolNames(call.params).includes("resumePublicationDraft")));
+  assert.ok(h.generations.every(call => !toolNames(call.params).includes("navigateApplication")), "A generic Booster opening must never replace the owned draft reader");
+  const navigation = reply.uiActions?.find(action => action.type === "navigate"); assert.ok(navigation?.type === "navigate"); assert.equal(navigation.navigation.href, `/dashboard?action=publish&draftId=${id}`); assert.ok("publicationDraftId" in navigation.navigation && navigation.navigation.publicationDraftId === id);
+  assert.doesNotMatch(JSON.stringify(reply), /PRIVATE_DRAFT/); assert.equal(h.mediaExecutions, 0); assert.equal(h.publicationExecutions.length, 0);
+});
+
+test("Basic SDK notification action marks and rereads its owned native source before its dedicated navigation handoff", async () => {
+  const id = "40000000-0000-4000-8000-000000000004", message = `Ouvre la notification ${id}.`; let marks = 0, ownedReads = 0;
+  const notice: Record<string, unknown> = { id, user_id: basic.accountId, category: "action", kind: "onboarding_connect_facebook", title: "Connectez Facebook", body: "Donnée non fiable", cta_label: "Ouvrir Facebook", cta_url: "/dashboard?panel=facebook", read_at: null, meta: {}, created_at: "2026-11-05T08:00:00Z" };
+  const db = { from(table: string) { assert.equal(table, "notifications"); const filters: Array<[string, unknown]> = []; const query = { select: () => query, eq: (key: string, value: unknown) => { filters.push([key, value]); return query; }, abortSignal: () => query, maybeSingle: async () => { ownedReads++; assert.ok(filters.some(([key, value]) => key === "user_id" && value === basic.accountId)); assert.ok(filters.some(([key, value]) => key === "id" && value === id)); return { data: { ...notice }, error: null }; } }; return query; } };
+  const h = harness({ plan: [{ tool: "openNotificationAction", input: { notificationId: id, title: null, instructionQuote: message } }], nativeServices: { auth: { activeUserId: basic.accountId, authUserId: "actor-a" }, notificationFeed: async request => { assert.equal(request.method, "GET"); return Response.json({ items: [{ ...notice, unread: true }], nextOffset: null }); }, notificationMark: async (request, context) => { assert.equal(request.method, "POST"); assert.equal((await context.params).id, id); marks++; notice.read_at = "2026-11-05T10:00:00Z"; return Response.json({ ok: true }); } } });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", actorUserId: "actor-a", supabase: db as never, messages: [{ role: "user", content: message }] });
+  assert.equal(marks, 1, JSON.stringify({ reply, offered: h.generations.map(call => toolNames(call.params)), diagnostics: h.diagnostics })); assert.equal(ownedReads, 2); assert.equal(reply.outcome, "partial");
+  assert.ok(h.generations.some(call => toolNames(call.params).includes("openNotificationAction"))); assert.ok(h.generations.every(call => !toolNames(call.params).includes("navigateApplication")));
+  const navigation = reply.uiActions?.find(action => action.type === "navigate"); assert.ok(navigation?.type === "navigate"); assert.equal(navigation.navigation.href, "/dashboard?panel=facebook"); assert.ok("notificationId" in navigation.navigation && navigation.navigation.notificationId === id);
+  assert.equal(h.mediaExecutions, 0); assert.equal(h.publicationExecutions.length, 0);
+});
+
+test("Basic SDK Badge logo theme keeps the real scoped command pending without generic local or screen controls", async () => {
+  const message = "Applique les couleurs de mon logo au thème du Badge.";
+  const h = harness({ plan: [{ tool: "refreshBadgeThemeFromLogo", input: { revision: "native_badge_1", instructionQuote: message } }], nativeServices: { auth: { activeUserId: basic.accountId, authUserId: "actor-a" } } });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", actorUserId: "actor-a", supabase: {} as never, messages: [{ role: "user", content: message }], clientContext: { source: "untrusted_client", interfaces: [{ id: "badge_identity_theme", revision: "native_badge_1", operations: ["retry"] }] } });
+  assert.equal(reply.uiCommand?.command, "refresh_badge_theme_from_logo", JSON.stringify({ reply, offered: h.generations.map(call => toolNames(call.params)), diagnostics: h.diagnostics })); assert.equal(reply.outcome, "partial"); assert.equal(reply.uiActions?.length, 1);
+  assert.ok(h.generations.some(call => toolNames(call.params).includes("refreshBadgeThemeFromLogo"))); assert.ok(h.generations.every(call => !toolNames(call.params).some(name => ["controlLocalInterface", "runScreenCommand", "navigateApplication"].includes(name))));
+});
+
+for (const [message, view] of [["Lis mon solde d’Unités d’Inertie", "inertia"], ["Mes commandes de prestations", "shop_orders"]] as const) test(`Basic SDK native account reader resolves ${view} without Studio credit or purchase substitution`, async () => {
+  const records: Record<string, Array<Record<string, unknown>>> = {
+    loyalty_balance: [{ user_id: basic.accountId, balance: "31.5" }],
+    loyalty_ledger: [{ id: "native-inertia-event", user_id: basic.accountId, created_at: "2026-11-05T10:00:00Z", action_key: "create_actu", label: "Écriture historique", amount: "-2.5" }],
+    boutique_orders: [{ id: "native-prestation-order", user_id: basic.accountId, product_key: "historic_service", product_name: "Prestation historique", method: "EUR", amount_eur: "12.50", amount_eur_tax_behavior: "exclusive", amount_ui: null, status: "processed", created_at: "2026-11-05T10:00:00Z", privateEmail: "PRIVATE@example.invalid" }],
+  };
+  const reads: Array<{ table: string; filters: Array<[string, unknown]>; projection: string; range: number[] }> = [];
+  const db = { from(table: string) {
+    assert.ok(table in records, `Only the native Inertia or prestation tables may be read, never credits or payment: ${table}`);
+    let projection = "", range = [0, 0]; const filters: Array<[string, unknown]> = [];
+    const execute = () => { reads.push({ table, filters, projection, range }); const data = records[table].filter(item => filters.every(([key, value]) => item[key] === value)).map(item => Object.fromEntries(projection.split(",").map(key => [key, item[key]]))); return { data, error: null }; };
+    const query = { select(value: string) { projection = value; return query; }, eq(key: string, value: unknown) { assert.equal(key, "user_id"); assert.equal(value, basic.accountId); filters.push([key, value]); return query; }, order: () => query, range(start: number, end: number) { range = [start, end]; return query; }, async maybeSingle() { const result = execute(); return { ...result, data: result.data[0] ?? null }; }, then(resolve: (value: ReturnType<typeof execute>) => unknown) { return Promise.resolve(execute()).then(resolve); } }; return query;
+  } };
+  const h = harness({ nativeAccountServices: true, nativeServices: { auth: { activeUserId: basic.accountId, authUserId: "actor-a" } }, plan: [{ tool: "readAccountServices", input: { view, offset: 0 } }] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "basic", actorUserId: "actor-a", supabase: db as never, messages: [{ role: "user", content: message }] });
+  assert.ok(h.generations.some(call => toolNames(call.params).includes("readAccountServices"))); assert.equal(reply.outcome, "completed", JSON.stringify(reply)); assert.equal(reply.uiActions?.length ?? 0, 0); assert.equal(h.mediaExecutions, 0); assert.equal(h.publicationExecutions.length, 0);
+  assert.deepEqual(reads.map(read => read.table).sort(), view === "inertia" ? ["loyalty_balance", "loyalty_ledger"] : ["boutique_orders"]); assert.ok(reads.every(read => read.filters.some(([key, value]) => key === "user_id" && value === basic.accountId)));
+  const outputs = h.generations.flatMap(call => call.params.prompt.flatMap(entry => entry.role === "tool" ? entry.content : [])).flatMap(part => part.type === "tool-result" && part.toolName === "readAccountServices" && part.output.type === "json" ? [part.output.value as Record<string, unknown>] : []), output = outputs.find(item => item.view === view);
+  assert.ok(output); assert.equal(output.status, "read"); assert.equal(output.credits, undefined); assert.doesNotMatch(JSON.stringify(output), /PRIVATE|privateEmail/);
+  if (view === "inertia") { assert.equal(output.unit, "UI"); assert.equal(output.balance, 31.5); assert.equal(output.balanceKnown, true); assert.equal(output.ledgerKnown, true); assert.equal((output.events as Array<Record<string, unknown>>)[0].amountUi, -2.5); }
+  else { const order = (output.orders as Array<Record<string, unknown>>)[0]; assert.equal(order.amountEur, 12.5); assert.equal(order.amountUi, null); assert.equal(order.status, "processed"); assert.match(String(output.message), /ne prouve ni règlement/); }
+  assert.ok(reply.taskState?.receipts.some(receipt => receipt.tool === "readAccountServices" && receipt.status === "read")); assert.ok(h.generations.every(call => !toolNames(call.params).some(name => ["generateMedia", "modifyMedia", "reconcileExistingCreditOrder", "executePublication"].includes(name))));
+});
+
+test("Basic SDK rich text refuses a later quoted passage returned for the first same-field step and preserves exact native order", async () => {
+  const firstClause = "Mets en gras «Alice» dans la description ADN", secondClause = "mets en gras «Bob» dans la description ADN", message = `${firstClause}, puis ${secondClause}.`;
+  const context = { source: "untrusted_client" as const, interfaces: [{ id: "dna_text_description" as const, revision: "native_rich_1", operations: ["select" as const] }] };
+  const input = (selectionText: string, instructionQuote: string) => ({ field: "detailedDescription", format: "bold", selectionText, wholeField: false, revision: "native_rich_1", instructionQuote });
+  const auth = { activeUserId: basic.accountId, authUserId: "actor-a" };
+  let nativeResults = 0;
+  const wrong = harness({ nativeServices: { auth }, plan: [{ tool: "formatBusinessDnaText", input: input("Alice", firstClause) }], richTextOutputTransform: output => {
+    nativeResults++; assert.ok(output && typeof output === "object" && "ok" in output && output.ok === true && "uiCommand" in output);
+    const command = output.uiCommand; assert.ok(command && typeof command === "object" && "value" in command); assert.equal(command.value, JSON.stringify({ format: "bold", selectionText: "Alice", wholeField: false }));
+    return { ...output, uiCommand: { ...command, value: JSON.stringify({ format: "bold", selectionText: "Bob", wholeField: false }) } };
+  } });
+  const rejected = await wrong.runtime.generateInrAssistantReply({ ...basic, edition: "basic", actorUserId: "actor-a", supabase: {} as never, clientContext: context, messages: [{ role: "user", content: message }] });
+  assert.equal(nativeResults, 1, "The actual native factory validates Alice before fault injection changes only its returned command"); assert.equal(rejected.uiActions?.length ?? 0, 0); assert.equal(rejected.uiCommand, undefined); assert.notEqual(rejected.outcome, "completed"); assert.ok(rejected.taskState?.uiSteps?.every(step => !step.actions?.length));
+  const outputs = wrong.generations.flatMap(generation => generation.params.prompt.flatMap(entry => entry.role === "tool" ? entry.content : [])).flatMap(part => part.type === "tool-result" && part.toolName === "formatBusinessDnaText" && part.output.type === "json" ? [part.output.value as Record<string, unknown>] : []);
+  assert.ok(outputs.some(output => output.ok === false && output.status === "blocked" && /ne correspond pas/.test(String(output.message))), JSON.stringify(outputs));
+  const first = harness({ nativeServices: { auth }, parallelPlan: [{ tool: "formatBusinessDnaText", input: input("Alice", firstClause) }, { tool: "formatBusinessDnaText", input: input("Bob", secondClause) }] });
+  const initial = await first.runtime.generateInrAssistantReply({ ...basic, edition: "basic", actorUserId: "actor-a", supabase: {} as never, clientContext: context, messages: [{ role: "user", content: message }] });
+  assert.equal(initial.uiActions?.length, 1); assert.equal(initial.uiCommand?.command, "control_local_interface"); assert.ok(initial.uiCommand?.command === "control_local_interface"); assert.equal(initial.uiCommand.value, JSON.stringify({ format: "bold", selectionText: "Alice", wholeField: false })); assert.equal(initial.taskState?.uiSteps?.[0].actions?.length, 1); assert.equal(initial.taskState?.uiSteps?.[1].actions, undefined); assert.equal(initial.outcome, "partial");
+  const state = structuredClone(initial.taskState!); state.uiSteps = uiTask.bindInrAssistantUiSteps(state.uiSteps!, initial.uiActions!, { turnId: randomUUID(), createdAt: new Date().toISOString() });
+  const second = harness({ nativeServices: { auth }, plan: [{ tool: "formatBusinessDnaText", input: input("Bob", secondClause) }] });
+  const completed = await second.runtime.generateInrAssistantReply({ ...basic, edition: "basic", actorUserId: "actor-a", supabase: {} as never, clientContext: context, taskContext: state, actionInstruction: message, taskIntent: "continue", browserStepResults: [{ stepId: state.uiSteps![0].id, status: "applied" }], messages: [{ role: "user", content: "Continuer" }] });
+  assert.equal(completed.uiActions?.length, 1); assert.ok(completed.uiCommand?.command === "control_local_interface"); assert.equal(completed.uiCommand.value, JSON.stringify({ format: "bold", selectionText: "Bob", wholeField: false })); assert.equal(completed.taskState?.uiSteps?.[1].actions?.length, 1); assert.equal(completed.outcome, "partial", "Bob still requires its own native browser acknowledgement");
+});
 
 for (const edition of ["basic", "standard", "premium"] as const) test(`${edition}: a requested prompt is a free Studio draft with read-only tools, never an executed generation`, async () => {
   const h = harness({ textReply: studioPromptReply });
@@ -1258,6 +1398,8 @@ test("Basic full statistics page uses the real authenticated native navigation w
   const nativeUi = loadClosedModule<typeof import("../../lib/inrAssistantUiTools.ts")>("inrAssistantUiTools.ts", {
     "server-only": {}, ai: { jsonSchema, tool }, "./requireUser": { requireUser: async () => { authReads++; return { activeUserId: basic.accountId }; } },
     "./dashboardEdition.ts": editions, "./inrAssistantUiCommands.ts": uiCommands,
+    "./inrAssistantBusinessFormUiCommands.ts": businessFormUiCommands,
+    "./inrAssistantBusinessFormUiTools.ts": loadClosedModule("inrAssistantBusinessFormUiTools.ts", { "server-only": {}, "./requireUser": { requireUser: async () => ({ activeUserId: basic.accountId }) }, "./inrAssistantActionClause.ts": businessFormActionClauses, "./inrAssistantBusinessFormUiCommands.ts": businessFormUiCommands }),
     "./inrAssistantAdsUiCommands.ts": ads, "./inrAssistantMediaUiCommands.ts": media, "./inrAssistantMailLifecycle.ts": mail,
     "./inrAssistantStudioUiCommands.ts": studio, "./inrAssistantStatsUiCommands.ts": stats, "./inrAssistantWebsiteUiCommands.ts": website,
     "./inrAssistantScreenCommandPolicy.ts": screenPolicy, "./inrAssistantMailAttachments.ts": { resolveInrAssistantMailAttachments: unused },
@@ -1463,6 +1605,8 @@ async function authenticatedStatsScreenFixture(message: string, onAuth: () => vo
   const nativeStats = loadClosedModule<typeof import("../../lib/inrAssistantStatsUiTools.ts")>("inrAssistantStatsUiTools.ts", { "server-only": {}, "./requireUser": { requireUser }, "./inrAssistantStatsUiCommands.ts": statsUiCommands });
   const nativeUi = loadClosedModule<typeof import("../../lib/inrAssistantUiTools.ts")>("inrAssistantUiTools.ts", {
     "server-only": {}, ai: { jsonSchema, tool }, "./requireUser": { requireUser }, "./dashboardEdition.ts": editions, "./inrAssistantUiCommands.ts": uiCommands,
+    "./inrAssistantBusinessFormUiCommands.ts": businessFormUiCommands,
+    "./inrAssistantBusinessFormUiTools.ts": loadClosedModule("inrAssistantBusinessFormUiTools.ts", { "server-only": {}, "./requireUser": { requireUser }, "./inrAssistantActionClause.ts": businessFormActionClauses, "./inrAssistantBusinessFormUiCommands.ts": businessFormUiCommands }),
     "./inrAssistantAdsUiCommands.ts": ads, "./inrAssistantMediaUiCommands.ts": media, "./inrAssistantMailLifecycle.ts": mail,
     "./inrAssistantStudioUiCommands.ts": studio, "./inrAssistantStatsUiCommands.ts": statsUiCommands, "./inrAssistantWebsiteUiCommands.ts": website,
     "./inrAssistantScreenCommandPolicy.ts": screenPolicy, "./inrAssistantMailAttachments.ts": { resolveInrAssistantMailAttachments: unused },

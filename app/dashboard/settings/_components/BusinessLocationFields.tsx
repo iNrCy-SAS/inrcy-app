@@ -7,6 +7,7 @@ import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGeneratio
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { PUBLIC_PROFILE_DATA_SAVED_EVENT, refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
 import styles from "./BusinessLocationFields.module.css";
+import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
 type BusinessLocation = { postalCode: string; city: string };
 type ContentLocation = { useHeadquarters: boolean; primaryArea: string };
@@ -15,6 +16,7 @@ type Props = {
   onChange: (value: ContentLocation) => void;
   disabled?: boolean;
   onUnsavedChange?: (dirty: boolean, signature: string) => void;
+  assistantActive?: boolean;
 };
 
 export type BusinessLocationFieldsHandle = {
@@ -48,7 +50,7 @@ function parseLocation(payload: unknown): { accountId: string; location: Busines
 }
 
 const BusinessLocationFields = forwardRef<BusinessLocationFieldsHandle, Props>(function BusinessLocationFields(
-  { value, onChange, disabled = false, onUnsavedChange },
+  { value, onChange, disabled = false, onUnsavedChange, assistantActive = true },
   ref,
 ) {
   const t = useTranslations("dashboard.aiMemory");
@@ -60,6 +62,7 @@ const BusinessLocationFields = forwardRef<BusinessLocationFieldsHandle, Props>(f
   const [error, setError] = useState("");
   const [source, setSource] = useState("");
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [completedLoadAttempt, setCompletedLoadAttempt] = useState(-1);
   const draftRef = useRef(EMPTY_LOCATION);
   const persistedRef = useRef(EMPTY_LOCATION);
   const accountRef = useRef("");
@@ -70,6 +73,9 @@ const BusinessLocationFields = forwardRef<BusinessLocationFieldsHandle, Props>(f
   const saveVersionRef = useRef(0);
   const persistedRevisionRef = useRef(0);
   const autofillAccountsRef = useRef(new Set<string>());
+  useInrAssistantLocalInterface("business_location", { completedLoadAttempt, loading, autofilling, error }, {
+    retry: { invoke: () => setLoadAttempt(attempt => attempt + 1), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "completedLoadAttempt" in snapshot && "loading" in snapshot && "autofilling" in snapshot && "error" in snapshot && Number(snapshot.completedLoadAttempt) > loadAttempt && snapshot.loading === false && snapshot.autofilling === false && !snapshot.error) },
+  }, assistantActive, loading || autofilling || saving || disabled || dirtyRef.current || !error);
 
   const publishDraft = useCallback((next: BusinessLocation) => {
     draftRef.current = next;
@@ -153,6 +159,7 @@ const BusinessLocationFields = forwardRef<BusinessLocationFieldsHandle, Props>(f
         }
       } finally {
         if (stillCurrent()) {
+          setCompletedLoadAttempt(loadAttempt);
           loadingRef.current = false;
           setLoading(false);
           setAutofilling(false);

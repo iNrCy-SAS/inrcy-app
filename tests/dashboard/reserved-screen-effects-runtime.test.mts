@@ -39,12 +39,12 @@ const sources: Record<string, string> = {
   "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   scheduler: packageSource("scheduler", "scheduler.production.js"),
 };
-for (const file of ["app/dashboard/agenda/agenda.shared.ts", "lib/inrCalendarGoogleSyncConstants.ts", "lib/visioAppointmentLifecycle.ts", "lib/aiMemory.ts", "lib/businessDnaRichText.ts", "lib/businessWeeklySchedule.ts", "lib/aiPromptBudget.ts", "lib/businessDnaManualAnalysisJob.ts", "lib/businessDnaChannelAvailability.ts", "lib/reconcileSavedDraft.ts", "app/dashboard/e-reputation/review-page-cache.ts"]) sources[file] = compile(file);
+for (const file of ["app/dashboard/_hooks/useInrAssistantLocalInterface.ts", "app/dashboard/_hooks/useInrAssistantLocalClose.ts", "app/dashboard/_hooks/useInrAssistantBusinessFormCommands.ts", "app/dashboard/_hooks/useInrAssistantRefresh.ts", "app/dashboard/_components/DashboardAssistantCommandContext.tsx", "app/dashboard/_components/DashboardAssistantScreenContext.tsx", "lib/inrAssistantLocalInterface.ts", "lib/inrAssistantBusinessFormUiCommands.ts", "lib/inrAssistantRequestClauses.ts", "lib/inrAssistantRefresh.ts", "app/dashboard/agenda/agenda.shared.ts", "lib/inrCalendarGoogleSyncConstants.ts", "lib/visioAppointmentLifecycle.ts", "lib/aiMemory.ts", "lib/businessDnaRichText.ts", "lib/businessWeeklySchedule.ts", "lib/aiPromptBudget.ts", "lib/businessDnaManualAnalysisJob.ts", "lib/businessDnaChannelAvailability.ts", "lib/reconcileSavedDraft.ts", "app/dashboard/e-reputation/review-page-cache.ts"]) sources[file] = compile(file);
 
 async function setup(page: Page, screen: keyof typeof screens, scenario = "") {
   await page.clock.install();
-  await page.route("**/*", route => route.abort());
-  await page.setContent('<div id="root"></div>');
+  await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: '<div id="root"></div>' }) : route.abort());
+  await page.goto("https://reserved-screen.fixture.invalid/dashboard");
   await page.evaluate(({ bundled, screenFile, screenName, scenarioName }) => {
     Object.assign(window, { bundledSources: bundled, screenFile, screenName, scenario: scenarioName });
   }, { bundled: { ...sources, [screens[screen][0]]: compile(screens[screen][0], screen) }, screenFile: screens[screen][0], screenName: screen, scenarioName: scenario });

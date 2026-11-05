@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useRef, type ReactNode, type TouchEvent } from "react";
 import styles from "../dashboard.module.css";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 
 type ChannelNavigationTarget = {
   name: string;
@@ -31,6 +32,10 @@ export default function ChannelSettingsHeader({
   const touchOriginRef = useRef<{ x: number; y: number } | null>(null);
   const previousLabel = `${statsT("canal_precedent_65f40ce6")} : ${previous.name}`;
   const nextLabel = `${statsT("canal_suivant_7b81611d")} : ${next.name}`;
+  useInrAssistantLocalInterface("channel_header", { name }, {
+    previous: { invoke: previous.onSelect, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "name" in snapshot && snapshot.name === previous.name) },
+    next: { invoke: next.onSelect, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "name" in snapshot && snapshot.name === next.name) },
+  });
 
   const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
     if (event.target instanceof Element && event.target.closest("button")) {

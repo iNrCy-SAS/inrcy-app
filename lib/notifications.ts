@@ -221,6 +221,9 @@ export function formatRelativeDate(iso: string) {
 }
 
 export function toNotificationPayload(row: NotificationRow) {
+  const currentStatsCopy = row.kind === "connect_stats" && row.cta_url === "/dashboard?panel=google_stats"
+    ? { cta_label: "Connecter les statistiques du site", cta_url: "/dashboard?panel=site_web" }
+    : null;
   const unifiedProfileCopy = row.kind === "onboarding_complete_activity"
     ? {
         title: "Complétez votre profil",
@@ -232,6 +235,7 @@ export function toNotificationPayload(row: NotificationRow) {
   return {
     ...row,
     ...(unifiedProfileCopy ?? {}),
+    ...(currentStatsCopy ?? {}),
     categoryLabel: getCategoryLabel(row.category),
     relativeDate: formatRelativeDate(row.created_at),
     unread: !row.read_at,

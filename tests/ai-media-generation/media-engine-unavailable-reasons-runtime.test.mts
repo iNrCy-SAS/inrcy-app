@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as studioForm from "../../lib/inrAssistantStudioFormSelection.ts";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
@@ -38,6 +39,9 @@ function load<T>(path: string, modules: Map<string, unknown>): T {
   const output = ts.transpileModule(read(path), { fileName: path, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const record = { exports: {} as T };
   new Function("module", "exports", "require", output)(record, record.exports, (specifier: string) => {
+    if (specifier.endsWith("useInrAssistantLocalInterface")) return { useInrAssistantLocalInterface() {} };
+    if (specifier === "@/lib/inrAssistantStudioFormSelection") return studioForm;
+    if (specifier === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => null };
     assert.ok(modules.has(specifier), `Unexpected dependency: ${specifier}`); return modules.get(specifier);
   });
   return record.exports;

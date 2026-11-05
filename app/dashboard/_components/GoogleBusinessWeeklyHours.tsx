@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { GOOGLE_BUSINESS_DAYS, type GoogleBusinessDay, type GoogleBusinessPeriod, type GoogleBusinessTime } from "@/lib/googleBusinessProfile";
 import styles from "./GoogleBusinessWeeklyHours.module.css";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 
 type Props = { periods: GoogleBusinessPeriod[]; disabled?: boolean; onChange: (periods: GoogleBusinessPeriod[]) => void };
 const timeText = (time: GoogleBusinessTime) => `${String(time.hours ?? 0).padStart(2,"0")}:${String(time.minutes ?? 0).padStart(2,"0")}`;
@@ -58,6 +59,12 @@ export default function GoogleBusinessWeeklyHours({ periods, disabled = false, o
   const current = dayRows[currentIndex];
   const openEditor = (day: GoogleBusinessDay) => { setPopupHost(weekRef.current?.closest("dialog") || null); setSlotIndex(0); setEditingDay(day); };
   const closeEditor = () => setEditingDay(null);
+  useInrAssistantLocalInterface("google_weekly_hours", { day: editingDay, open: Boolean(editingDay && popupHost), slot: currentIndex, periods }, {
+    ...(!editingDay ? { open: { invoke: (value: string | null) => { if (!GOOGLE_BUSINESS_DAYS.includes(value as GoogleBusinessDay) || !periods.some(period => period.openDay === value) || !weekRef.current?.closest("dialog")) throw new Error("Google hours day unavailable"); openEditor(value as GoogleBusinessDay); }, matches: (snapshot: unknown, value: string | null) => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === true && "day" in snapshot && snapshot.day === value) } } : {}),
+    ...(editingDay && popupHost ? { close: { invoke: closeEditor, matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === false) } } : {}),
+    ...(editingDay && popupHost && !allDay(dayRows) && currentIndex > 0 ? { previous: { invoke: () => setSlotIndex(currentIndex - 1), matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "day" in snapshot && snapshot.day === editingDay && "slot" in snapshot && snapshot.slot === currentIndex - 1) } } : {}),
+    ...(editingDay && popupHost && !allDay(dayRows) && currentIndex < dayRows.length - 1 ? { next: { invoke: () => setSlotIndex(currentIndex + 1), matches: (snapshot: unknown) => Boolean(snapshot && typeof snapshot === "object" && "day" in snapshot && snapshot.day === editingDay && "slot" in snapshot && snapshot.slot === currentIndex + 1) } } : {}),
+  }, true, disabled);
 
   return <div ref={weekRef} className={styles.week} data-google-weekly-hours>
     <fieldset disabled={disabled || Boolean(editingDay)} className={styles.weekFields}>

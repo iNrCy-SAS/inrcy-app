@@ -11,6 +11,8 @@ import type {
 import { resolveAiMediaPreviewFormat } from "@/lib/aiMediaGenerationContracts";
 import { AI_MEDIA_VIDEO_MODELS } from "@/lib/aiMediaModelCatalog";
 import { useMediaResultReveal } from "@/app/dashboard/_hooks/useMediaResultReveal";
+import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { MediaGenerationActions } from "./MediaEngineCreditControls";
 import DashboardMobileSelect from "./DashboardMobileSelect";
 import MediaResultViewer from "./MediaResultViewer";
@@ -49,6 +51,7 @@ type Props = {
   handleSaveToLibrary?: () => void | Promise<void>;
   handleGenerate: () => void | Promise<void>;
   handleEditCriteria: () => void | Promise<void>;
+  criteriaEditorState?: { activeTab: string; targetTab: string; ready: boolean };
   handleReset?: () => void;
   disabled: boolean;
   acceptMode: "library" | "insert";
@@ -170,6 +173,7 @@ export default function MediaGenerationCreationWorkspace({
   creditSummary,
   engineControls,
   handleEditCriteria,
+  criteriaEditorState,
   handleReset,
   disabled,
   acceptMode,
@@ -208,6 +212,24 @@ export default function MediaGenerationCreationWorkspace({
       })
     : format;
   const resultSavedToLibrary = Boolean(generationResult && !generationResult.draft);
+  useInrAssistantLocalInterface("studio_workspace", { expandedResult, resultKey, cancelConfirmationOpen, criteriaEditorState }, {
+    ...(!operationLocked && resultKey && generationResult?.item.signed_url ? { open: {
+      invoke: () => { reviewRef.current?.querySelector("video")?.pause(); setExpandedResult(resultKey); },
+      matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && (snapshot as { expandedResult?: string }).expandedResult === resultKey,
+    } } : {}),
+    ...(cancelConfirmationOpen && generationCancellable ? { close: {
+      invoke: () => setCancelConfirmationOpen(false),
+      matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && (snapshot as { cancelConfirmationOpen?: boolean }).cancelConfirmationOpen === false,
+    } } : {}),
+    ...(!operationLocked && criteriaEditorState ? { select: {
+      invoke: async (value: string | null) => { if (value !== "edit_criteria") throw new Error("studio_workspace_unavailable"); await handleEditCriteria(); },
+      matches: (snapshot: unknown, value: string | null) => {
+        if (value !== "edit_criteria" || !snapshot || typeof snapshot !== "object") return false;
+        const current = (snapshot as { criteriaEditorState?: { activeTab: string; targetTab: string; ready: boolean } }).criteriaEditorState;
+        return current?.ready === true && current.activeTab === current.targetTab;
+      },
+    } } : {}),
+  }, (!accountId || accountId === getActiveBrowserUserId()) && ((!operationLocked && (!!criteriaEditorState || !!resultKey && !!generationResult?.item.signed_url)) || (cancelConfirmationOpen && generationCancellable)));
   const progressLabel =
     progress >= 99
       ? t("ai_generator_stage_patience")

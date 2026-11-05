@@ -5,8 +5,9 @@ import { useTranslations } from "next-intl";
 import type { ChannelBubbleConnection } from "./channel-bubble.types";
 import styles from "./DashboardChannelBubble.module.css";
 import { getChannelPopoverPlacement } from "./channel-popover-position";
+import { useInrAssistantNativePopover } from "../_hooks/useInrAssistantNativePopover";
 
-export default function ChannelPublicationTypes({ name, settings, disabled }: { name: string; settings: NonNullable<ChannelBubbleConnection["publicationTypes"]>; disabled?: boolean }) {
+export default function ChannelPublicationTypes({ name, channel, settings, disabled }: { name: string; channel?: string; settings: NonNullable<ChannelBubbleConnection["publicationTypes"]>; disabled?: boolean }) {
   const t = useTranslations("dashboard.channelBubble");
   const shell = useTranslations("shell");
   const id = useId();
@@ -18,6 +19,8 @@ export default function ChannelPublicationTypes({ name, settings, disabled }: { 
   const [error, setError] = useState("");
   const place = () => { if (trigger.current) setPosition(getChannelPopoverPlacement(trigger.current, menu.current, 280)); };
   const busy = Boolean(disabled || pending || settings.loading || settings.saving);
+  const channelKey = channel || name.trim().toLowerCase();
+  useInrAssistantNativePopover(channelKey === "instagram" ? "channel_formats_instagram" : "channel_formats_facebook", menu, channelKey === "facebook" || channelKey === "instagram", busy);
   const change = async (patch: Parameters<typeof settings.onChange>[0]) => {
     if (saving.current || busy) return;
     saving.current = true; setPending(true); setError("");
