@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { chromium } from "@playwright/test";
 import ts from "typescript";
+import { transform } from "lightningcss";
 
 const require = createRequire(import.meta.url);
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
@@ -21,9 +22,12 @@ const modules = {
   menu: compile("app/dashboard/_components/ChannelConnectionMenu.tsx"),
   dialog: compile("app/dashboard/_components/ChannelParametersDialog.tsx"),
 };
-const css = read("app/dashboard/dashboard.module.css")
+const rawCss = read("app/dashboard/dashboard.module.css")
   + read("app/dashboard/_components/ChannelParametersDialog.module.css")
   + read("app/dashboard/_components/DashboardChannelBubble.module.css");
+// Exercise the same selector merging that exposed the production/local Next
+// regression: a raw stylesheet can hide :is()'s increased specificity.
+const css = transform({ filename: "instagram-connection.css", code: Buffer.from(rawCss), minify: true }).code.toString();
 
 /** Run the real components and React lifecycle in Chromium, with no remote service. */
 const fixture = `
@@ -76,6 +80,11 @@ test("Instagram menu keeps both Facebook flows, keyboard focus and the parent di
       if (evidenceDirectory) { mkdirSync(evidenceDirectory, { recursive: true }); await page.screenshot({ path: path.join(evidenceDirectory, `instagram-connexion-${width}-2026-10-28.png`) }); }
       assert.equal(await dialog.getByRole("button").count(), 4, "Close, direct, Facebook and its information button are initially visible");
       const info = page.getByRole("button", { name: "Votre compte Instagram professionnel doit être associé à la Page Facebook professionnelle connectée à iNrCy.", exact: true });
+      const infoBounds = await info.boundingBox();
+      assert.ok(infoBounds);
+      assert.equal(infoBounds.width, 28, "The information control remains a small circle after CSS optimization");
+      assert.equal(infoBounds.height, 28, "The main connection-button minimum height never stretches its information control");
+      assert.ok(infoBounds.x >= facebookBounds.x + facebookBounds.width - 32, "Information occupies only its corner, leaving the Facebook label exposed");
       await info.click();
       const note = page.getByRole("note");
       await note.waitFor();
