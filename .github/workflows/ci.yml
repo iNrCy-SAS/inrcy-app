@@ -105,7 +105,26 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Configure reliable Ubuntu APT downloads
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          # Hosted runners may resolve ubuntu.sources through this mirror list.
+          for source_file in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/apt-mirrors.txt; do
+            if [ -f "$source_file" ]; then
+              sudo sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' "$source_file"
+            fi
+          done
+          # Sort after the runner image's zz-retries; Playwright's sudo reads this file.
+          sudo tee /etc/apt/apt.conf.d/zzzz-ci-network >/dev/null <<'APT'
+          Acquire::Retries "2";
+          Acquire::http::Timeout "30";
+          Acquire::https::Timeout "30";
+          APT
+          apt-config shell CI_APT_RETRIES Acquire::Retries CI_APT_HTTP_TIMEOUT Acquire::http::Timeout CI_APT_HTTPS_TIMEOUT Acquire::https::Timeout
+
       - name: Install Chromium for layout contract tests
+        timeout-minutes: 10
         run: npx playwright install --with-deps chromium
 
       - name: Contract tests
@@ -207,7 +226,26 @@ jobs:
           name: next-build-${{ github.sha }}
           path: .next
 
+      - name: Configure reliable Ubuntu APT downloads
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          # Hosted runners may resolve ubuntu.sources through this mirror list.
+          for source_file in /etc/apt/sources.list.d/ubuntu.sources /etc/apt/apt-mirrors.txt; do
+            if [ -f "$source_file" ]; then
+              sudo sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' "$source_file"
+            fi
+          done
+          # Sort after the runner image's zz-retries; Playwright's sudo reads this file.
+          sudo tee /etc/apt/apt.conf.d/zzzz-ci-network >/dev/null <<'APT'
+          Acquire::Retries "2";
+          Acquire::http::Timeout "30";
+          Acquire::https::Timeout "30";
+          APT
+          apt-config shell CI_APT_RETRIES Acquire::Retries CI_APT_HTTP_TIMEOUT Acquire::http::Timeout CI_APT_HTTPS_TIMEOUT Acquire::https::Timeout
+
       - name: Install Playwright browsers
+        timeout-minutes: 10
         run: npx playwright install --with-deps chromium
 
       - name: Run E2E (local webServer)
