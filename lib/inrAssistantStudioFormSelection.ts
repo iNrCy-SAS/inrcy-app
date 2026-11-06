@@ -90,7 +90,14 @@ export function isInrAssistantStudioFormSelectionRequested(message: string, enco
   if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).length !== 2) return false;
   const { field, value } = input as { field?: string; value?: unknown }, text = inrAssistantUnquotedRequest(message);
   const fields: Record<string, RegExp> = { activeTab: /onglet|section|etape/, subjectSource: /source.{0,15}sujet|sujet.{0,15}source/, creativeBrief: /consigne|sujet|brief|instruction|idee/, sourceMode: /source|references?|selection/, people: /personnes?|personnages?/, setting: /decor|lieu|environnement/, focus: /priorite|focus|accent|mise? en avant/, imagePurpose: /composition|usage|objectif|flyer|affiche|banniere|infographie|fiche produit/, format: /format|carre|portrait|paysage|horizontal|vertical|story|1\s*:\s*1|4\s*:\s*5|9\s*:\s*16|16\s*:\s*9/, imageStyle: /style|photo|illustration|3d|graphique/, visualDirection: /direction|ambiance|intention visuelle/, useBrandColors: /couleurs?.{0,20}(?:marque|entreprise|adn)|charte/, logoMode: /logo/, textMode: /mode.{0,20}texte|texte.{0,20}(?:mode|exact|fourni|aucun|automati)/, exactText: /texte.{0,20}(?:exact|fourni)|(?:exact|fourni).{0,20}texte/, textKeywords: /mots.?(?:cles|dieses)|tags?/, textKeywordDraft: /mot.?(?:cle|diese)|tag/, speechMode: /paroles?|mode.{0,15}(?:audio|voix)|voix off|narration|silenc/, narrationVoice: /voix|narration/, narrationVoiceVariant: /voix|variante/, withMusic: /musique|bande.son/, durationScene: /duree|secondes?|\bsec\b|scenes?/, prompt: /prompt|consigne|instruction|brief/, useBusinessDna: /adn|dna/, spokenScript: /script|paroles?.{0,20}(?:exact|fourni)/, spokenScriptOpen: /script|paroles?.{0,20}(?:exact|fourni)/, withSubtitles: /sous.titres?/ };
-  if (!field || !fields[field]?.test(text)) return false;
+  if (!field || !(field === "spokenScriptOpen" ? /script|paroles?.{0,20}(?:exact|fourni|automati)/ : fields[field])?.test(text)) return false;
+  if (field === "spokenScriptOpen") {
+    const automatic = /(?:script|paroles?).{0,20}automati/.test(text);
+    const exact = /(?:script|paroles?).{0,20}(?:exact|fourni)/.test(text);
+    const choose = /\b(?:choisis\w*|selectionne\w*|mets|mettez)\b/.test(text);
+    if (automatic || choose) return typeof value === "boolean" && choose && exact !== automatic &&
+      !/\b(?:pas|jamais|non|sans|ne)\b|\bn['’]/.test(text) && value === exact;
+  }
   if (["exactText", "spokenScript", "textKeywordDraft"].includes(field)) return typeof value === "string" && message.includes(value);
   if (field === "textKeywords") return Array.isArray(value) && value.every(item => typeof item === "string" && message.includes(item));
   if (field === "narrationVoiceVariant") return typeof value === "string" && message.toLowerCase().includes(value.toLowerCase());

@@ -90,7 +90,7 @@ async function mount(page: Page) {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: html }) : route.abort());
-  await page.goto("http://studio-fixture.test/");
+  await page.goto("https://studio-fixture.test/");
   await page.getByLabel("Consignes visuelles", { exact: true }).waitFor();
   assert.deepEqual(errors, []);
   return errors;
@@ -118,6 +118,52 @@ async function assertBothFramesFit(page: Page, context: string) {
   }
 }
 
+async function assertSpeechHeaderCompact(page: Page, context: string) {
+  const layout = await page.locator(".free-spokenScriptSection").evaluate(section => {
+    const label = section.querySelector(".free-videoFrameHeading label")!;
+    const range = document.createRange(); range.selectNodeContents(label);
+    const titleLines = Array.from(range.getClientRects()).filter(rect => rect.width > 0).length;
+    const row = section.querySelector<HTMLElement>(".free-spokenScriptHeading")!;
+    const rowBounds = row.getBoundingClientRect();
+    const controls = Array.from(row.querySelectorAll<HTMLElement>("button,select")).map(element => ({
+      height: element.getBoundingClientRect().height,
+      fits: element.scrollWidth <= element.clientWidth + 1,
+    }));
+    return { titleLines, rowHeight: rowBounds.height, controls };
+  });
+  assert.equal(layout.titleLines, 1, `${context}: speech has one title line`);
+  assert.equal(layout.controls.length, 1, `${context}: one useful speech control`);
+  assert.ok(layout.rowHeight <= layout.controls[0].height + 1, `${context}: commands occupy only the second row`);
+  assert.equal(layout.controls[0].fits, true, `${context}: the speech control is not clipped`);
+}
+
+async function assertFramesNeverOverlap(page: Page, context: string) {
+  const layout = await page.evaluate(() => {
+    const visual = document.querySelector<HTMLElement>("[data-video-brief-frame]")!;
+    const speech = document.querySelector<HTMLElement>(".free-spokenScriptSection")!;
+    const rect = (element: HTMLElement) => {
+      const bounds = element.getBoundingClientRect();
+      return { top: bounds.top, bottom: bounds.bottom, height: bounds.height };
+    };
+    const content = [visual, speech].map(frame => ({
+      frame: rect(frame),
+      fields: Array.from(frame.querySelectorAll<HTMLElement>("textarea,[role=alert],[aria-live=polite]")).map(rect),
+    }));
+    return { content, visual: rect(visual), speech: rect(speech), overflow: document.documentElement.scrollWidth > innerWidth };
+  });
+  assert.ok(layout.visual.bottom < layout.speech.top, `${context}: visual and speech frames remain separated`);
+  for (const { frame, fields } of layout.content) for (const field of fields) {
+    assert.ok(field.top >= frame.top && field.bottom <= frame.bottom + 1, `${context}: editor content stays inside its own frame ${JSON.stringify({ frame, field })}`);
+  }
+  assert.equal(layout.overflow, false, `${context}: no horizontal overflow`);
+}
+
+async function selectSettingsTab(page: Page, value: string) {
+  const mobile = page.locator('.editor-mobileSettingsNavigation select');
+  if (await mobile.isVisible()) await mobile.selectOption(value);
+  else await page.locator(`[id$="-tab-${value}"]`).click();
+}
+
 test("both real video frames and counters fit reduced desktop viewports without a scrolling left panel", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
@@ -125,10 +171,12 @@ test("both real video frames and counters fit reduced desktop viewports without 
       const page = await browser.newPage({ viewport });
       const errors = await mount(page);
       await assertBothFramesFit(page, `${viewport.width}x${viewport.height} automatic`);
+      await assertSpeechHeaderCompact(page, `${viewport.width}x${viewport.height} automatic`);
       const visual = page.getByLabel("Consignes visuelles", { exact: true });
       const speech = page.getByLabel("Paroles à prononcer", { exact: true });
       await speech.fill("Bonjour, nous prenons soin de votre jardin.");
       await assertBothFramesFit(page, `${viewport.width}x${viewport.height} exact speech`);
+      await assertSpeechHeaderCompact(page, `${viewport.width}x${viewport.height} exact speech`);
       await page.screenshot({ path: path.join(taskRoot, `outputs/studio-video-compact-${viewport.width}x${viewport.height}.png`) });
       // Historical and over-budget drafts stay fully editable; counters and
       // errors remain available while long values scroll inside the inputs.
@@ -160,6 +208,7 @@ test("compact video instructions fit all nine locales while image guidance remai
       await page.evaluate(locale => { (window as unknown as FixtureWindow).fixtureLocale = locale; (window as unknown as FixtureWindow).renderStudio(); }, locale);
       await page.getByLabel(catalogs[locale].ai_generator_video_visual_brief_title, { exact: true }).waitFor();
       await assertBothFramesFit(page, locale);
+      await assertSpeechHeaderCompact(page, locale);
       assert.equal(await page.locator('[id$="-prompt-count"]').getAttribute("aria-live"), "polite");
       assert.equal(await page.locator('[id$="-spoken-script-count"]').getAttribute("aria-live"), "polite");
     }
@@ -170,6 +219,45 @@ test("compact video instructions fit all nine locales while image guidance remai
     assert.equal(await imagePrompt.getAttribute("maxlength"), "4000");
     await page.getByText(messages.ai_generator_free_prompt_hint, { exact: true }).waitFor();
     assert.equal(await page.locator("[data-video-brief-frame]").count(), 0);
+    assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test("short windows keep both video frames separate and the speech header on two rows in every locale", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    const errors = await mount(page);
+    await page.evaluate(() => { const fixture = window as unknown as FixtureWindow; fixture.fixtureUseRealWorkspace = true; fixture.renderStudio(); });
+    for (const viewport of [{ width: 1068, height: 570 }, { width: 1068, height: 768 }, { width: 1024, height: 768 }, { width: 900, height: 768 }, { width: 1100, height: 701 }, { width: 1160, height: 701 }, { width: 1366, height: 701 }, { width: 1024, height: 576 }, { width: 900, height: 460 }, { width: 390, height: 844 }, { width: 320, height: 640 }]) {
+      await page.setViewportSize(viewport);
+      for (const locale of Object.keys(catalogs)) {
+        await page.evaluate(locale => { const fixture = window as unknown as FixtureWindow; fixture.fixtureLocale = locale; fixture.renderStudio(); }, locale);
+        await page.getByLabel(catalogs[locale].ai_generator_spoken_script_label, { exact: true }).waitFor();
+        const context = `${viewport.width}x${viewport.height} ${locale}`;
+        await assertFramesNeverOverlap(page, context);
+        await assertSpeechHeaderCompact(page, context);
+        const speech = page.locator('textarea[id$="-spoken-script"]');
+        await speech.fill("Bonjour, nous prenons soin de votre jardin.");
+        await assertFramesNeverOverlap(page, `${context} exact`);
+        await assertSpeechHeaderCompact(page, `${context} exact`);
+        await page.locator('select[id$="-spoken-script-mode"]').selectOption("automatic");
+        assert.equal(await speech.inputValue(), "");
+        await selectSettingsTab(page, "criteria");
+        await page.locator('input[type=radio][value=silent]').check();
+        await selectSettingsTab(page, "prompt");
+        await assertSpeechHeaderCompact(page, `${context} silent`);
+        await assertFramesNeverOverlap(page, `${context} silent`);
+        assert.equal(await speech.isDisabled(), true);
+        assert.equal(await page.locator('select[id$="-spoken-script-mode"]').count(), 0);
+        await page.getByRole("button", { name: catalogs[locale].ai_generator_spoken_script_choose_audio, exact: true }).click();
+        assert.equal(await page.locator('[id$="-tab-criteria"]').getAttribute("aria-selected"), "true");
+      }
+      await page.evaluate(() => { const fixture = window as unknown as FixtureWindow; fixture.fixtureLocale = "fr-FR"; fixture.renderStudio(); });
+      await page.getByLabel("Paroles à prononcer", { exact: true }).waitFor();
+      await page.screenshot({ path: path.join(taskRoot, `outputs/studio-paroles-compact-${viewport.width}x${viewport.height}.png`), fullPage: true });
+    }
     assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }

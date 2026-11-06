@@ -176,9 +176,9 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     enterPrompt(value: string) { const input = find(tree, (node) => node.type === "textarea" && String(node.props.id).endsWith("-prompt")); (input.props.onChange as (event: unknown) => void)({ target: { value } }); render(); },
     setDuration(seconds: number, mode: "single" | "multi" = "single") { const node = find(tree, (item) => item.type === controls.default); (node.props.onDurationSceneChange as (seconds: number, mode: string) => void)(seconds, mode); render(); },
     async invokeGenerateCallback() { await (find(tree, node => node.type === "preview").props.handleGenerate as () => Promise<void>)(); await flush(); },
-    addSpeech() { const button = find(tree, (node) => node.type === "button" && String(node.props.id).endsWith("-add-spoken-script")); if (!button.props.disabled) (button.props.onClick as () => void)(); render(); },
+    addSpeech() { const menu = find(tree, (node) => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode")); if (!menu.props.disabled) (menu.props.onChange as (event: unknown) => void)({ target: { value: "exact" } }); render(); },
     enterSpeech(value: string) { const input = find(tree, (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script")); assert.equal(input.props.disabled, false); (input.props.onChange as (event: unknown) => void)({ target: { value } }); render(); },
-    removeSpeech() { const panel = find(tree, (node) => String(node.props.id).endsWith("-spoken-script-panel")); (find(panel, (node) => node.type === "button").props.onClick as () => void)(); render(); },
+    removeSpeech() { const menu = find(tree, (node) => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode")); (menu.props.onChange as (event: unknown) => void)({ target: { value: "automatic" } }); render(); },
     setTab(value: string) { (find(tree, (node) => node.type === "settings-tabs").props.onChange as (value: string) => void)(value); render(); },
     setSubtitles(checked: boolean) { const input = find(tree, (node) => node.props["data-media-subtitles"] !== undefined); if (!input.props.disabled) (input.props.onChange as (event: unknown) => void)({ target: { checked } }); render(); },
     async generate() { const button = find(tree, (node) => node.props["data-media-primary-action"] !== undefined); if (button.props.disabled) return; (button.props.onClick as () => void)(); await flush(); },
@@ -282,11 +282,11 @@ test("the actual active Free editor shows the real voice selector on video Perso
 
 test("the optional speech editor keeps exact script separate from the brief in both quote and generation", async () => {
   const h = harness();
-  const add = find(h.tree(), (node) => node.type === "button" && String(node.props.id).endsWith("-add-spoken-script"));
-  assert.equal(add.props["aria-pressed"], false);
-  assert.notEqual(find(h.tree(), (node) => node.props.id === add.props["aria-controls"]).props.hidden, true);
+  const mode = find(h.tree(), (node) => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode"));
+  assert.equal(mode.props.value, "automatic");
+  assert.equal(find(h.tree(), (node) => node.props.id === mode.props["aria-controls"]).type, "textarea");
   h.setSound("characters"); h.changePreferredVideoEngine("veo");
-  assert.notEqual(find(h.tree(), (node) => node.props.id === add.props["aria-controls"]).props.hidden, true, "both frames remain visible without making speech explicit");
+  assert.notEqual(find(h.tree(), (node) => node.props.id === mode.props["aria-controls"]).props.hidden, true, "both frames remain visible without making speech explicit");
   assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
   h.addSpeech();
   const script = '  Bonjour, je suis Océane.\n« iNrCy », notre application.  ';
@@ -354,8 +354,8 @@ test("removing speech clears the optional payload and permits no-speech mode wit
   assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
   h.setSound("silent");
   assert.equal(silent().props.checked, true);
-  assert.equal(find(h.tree(), (node) => node.type === "button" && String(node.props.id).endsWith("-add-spoken-script")).props.disabled, true);
-  assert.match(text(h.tree()), /ai_generator_spoken_script_silent_help/);
+  assert.equal(elements(h.tree()).some((node) => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode")), false, "silent mode never offers contradictory automatic or exact speech");
+  assert.match(text(h.tree()), /ai_generator_spoken_script_choose_audio/);
   await h.generate();
   assert.equal(h.requests.length, 1);
   assert.equal(Object.hasOwn(h.requests[0], "spokenScript"), false);

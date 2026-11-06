@@ -3,13 +3,29 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
-import { parseInrAssistantStudioFormSelection, isInrAssistantStudioFormSelectionApplied, type InrAssistantStudioFormSnapshot } from "../../lib/inrAssistantStudioFormSelection.ts";
+import { parseInrAssistantStudioFormSelection, isInrAssistantStudioFormSelectionApplied, isInrAssistantStudioFormSelectionRequested, type InrAssistantStudioFormSnapshot } from "../../lib/inrAssistantStudioFormSelection.ts";
 import { defaultAiMediaNarrationVoiceVariant, isAiMediaNarrationVoiceVariantForGender } from "../../lib/aiMediaNarrationVoices.ts";
 import { isInrStudioTabUnavailable, canSwitchInrStudioMediaType } from "../../lib/inrStudioModalPolicy.ts";
 
 const encode = (field: string, value: unknown) => JSON.stringify({ field, value });
 const guided = (): InrAssistantStudioFormSnapshot => ({ mode: "guided", kind: "image", editorVisible: true, locked: false, sourceMode: "criteria", people: "auto", speechMode: "voiceover", narrationVoice: "female", textMode: "ai", publicationAvailable: false, format: "square", creativeBrief: "Original" });
 const free = (): InrAssistantStudioFormSnapshot => ({ mode: "free", kind: "video", editorVisible: true, locked: false, speechMode: "voiceover", narrationVoice: "female", spokenScriptOpen: false, spokenScript: "", maxPromptLength: 3900 });
+
+test("Studio speech mode choices require an explicit unquoted request for the matching Exact or Automatic option", () => {
+  for (const message of ["Choisis les paroles exactes.", "Sélectionne les paroles exactes.", "Mets les paroles exactes.", "Active les paroles exactes."]) {
+    assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("spokenScriptOpen", true)), true, message);
+    assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("spokenScriptOpen", false)), false, message);
+  }
+  for (const message of ["Mets les paroles automatiques.", "Choisis les paroles automatiques.", "Sélectionnez les paroles automatiques."]) {
+    assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("spokenScriptOpen", false)), true, message);
+    assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("spokenScriptOpen", true)), false, message);
+  }
+  for (const message of ["Paroles automatiques", "Paroles exactes", "Ne choisis pas les paroles exactes.", "Ne mets pas les paroles automatiques.", "Choisis les paroles exactes ou les paroles automatiques.", "« Choisis les paroles exactes. »", 'Mets la consigne « Choisis les paroles exactes ».']) {
+    for (const value of [true, false]) assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("spokenScriptOpen", value)), false, message);
+  }
+  assert.equal(parseInrAssistantStudioFormSelection(encode("spokenScriptOpen", true), { ...free(), locked: true }), null);
+  assert.equal(parseInrAssistantStudioFormSelection(encode("spokenScriptOpen", true), { ...free(), speechMode: "silent" }), null);
+});
 
 test("Studio form selections accept only native finite fields and preserve omitted criteria without generation or consent", () => {
   for (const [field, value] of [["activeTab", "selection"], ["people", "two"], ["setting", "exterior"], ["focus", "product"], ["imagePurpose", "flyer"], ["format", "portrait"], ["imageStyle", "three_d"], ["visualDirection", "bold"], ["useBrandColors", false], ["logoMode", "visible"], ["textMode", "exact"], ["textKeywords", ["Nouveauté", "20 septembre"]], ["creativeBrief", "x".repeat(1600)]]) assert.ok(parseInrAssistantStudioFormSelection(encode(String(field), value), guided()), String(field));
@@ -71,6 +87,11 @@ test("the actual free Studio callbacks preserve prompt ownership and reset nativ
   };
   const native = actualHandlers("app/dashboard/_components/MediaFreeGenerator.tsx", deps).select, prompt = encode("prompt", "Nouveau texte de création");
   native.invoke(prompt); assert.equal(native.matches(state, prompt), false); pending.splice(0).forEach(commit => commit()); assert.equal(native.matches(state, prompt), true);
+  const exact = encode("spokenScriptOpen", true), automatic = encode("spokenScriptOpen", false);
+  native.invoke(exact); assert.equal(native.matches(state, exact), false); pending.splice(0).forEach(commit => commit()); assert.equal(native.matches(state, exact), true);
+  state = { ...state, spokenScript: "Paroles conservées avant le choix explicite" };
+  native.invoke(automatic); assert.equal(state.spokenScript, "Paroles conservées avant le choix explicite"); pending.splice(0).forEach(commit => commit());
+  assert.equal(native.matches(state, automatic), true); assert.equal(state.spokenScript, ""); assert.equal(resets, 0, "changing the script option cannot grant or reset voice consent");
   native.invoke(encode("narrationVoice", "male")); pending.splice(0).forEach(commit => commit()); assert.equal(state.narrationVoiceVariant, "Charon");
   native.invoke(encode("speechMode", "characters")); pending.splice(0).forEach(commit => commit()); assert.equal(resets, 1); assert.equal(state.prompt, "Nouveau texte de création");
   assert.throws(() => native.invoke(encode("generate", true)));

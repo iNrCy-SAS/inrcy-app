@@ -1312,39 +1312,38 @@ export default function MediaFreeGenerator({
           {kind === "video" ? <div className={styles.spokenScriptSection}>
             <div className={styles.videoFrameHeading}>
               <label htmlFor={`${instanceId}-spoken-script`}>{t("ai_generator_spoken_script_label")}</label>
-              <p id={`${instanceId}-spoken-script-help`}>{t("ai_generator_video_speech_frame_hint_short")}</p>
+              <p id={`${instanceId}-spoken-script-help`} className={styles.srOnly}>{t("ai_generator_video_speech_frame_hint_short")}</p>
             </div>
             <div id={`${instanceId}-spoken-script-panel`} className={styles.spokenScriptPanel} data-video-speech-frame data-invalid={speechInvalid ? true : undefined}>
-              <div className={styles.spokenScriptHeading}>
-                <span className={styles.speechModeBadge}>{t(spokenScriptOpen ? "ai_generator_video_speech_exact" : "ai_generator_video_speech_automatic")}</span>
-            {!spokenScriptOpen ?
-              <button
-                id={`${instanceId}-add-spoken-script`}
-                type="button"
-                className={styles.addSpokenScriptButton}
-                disabled={locked || speechMode === "silent"}
-                aria-pressed={false}
-                aria-controls={`${instanceId}-spoken-script-panel`}
-                aria-describedby={speechMode === "silent" ? `${instanceId}-spoken-script-silent-help` : undefined}
-                onClick={() => {
-                  setSpokenScriptOpen(true);
-                  window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus());
-                }}
-              ><span aria-hidden="true">＋</span>{t("ai_generator_spoken_script_add")}</button> : null}
-                {spokenScriptOpen ? <button type="button" disabled={locked} aria-controls={`${instanceId}-spoken-script-panel`}
-                  onClick={() => {
-                    setSpokenScript("");
-                    setSpokenScriptOpen(false);
-                    window.requestAnimationFrame(() => document.getElementById(`${instanceId}-add-spoken-script`)?.focus());
-                  }}>{t("ai_generator_video_speech_reset")}</button> : null}
+              <div className={styles.spokenScriptHeading} data-silent={speechMode === "silent"}>
+                {speechMode === "silent" ? <>
+                  <span className={styles.speechModeBadge}>{t("ai_generator_free_audio_silent")}</span>
+                  <button type="button" disabled={locked} aria-describedby={`${instanceId}-spoken-script-help ${instanceId}-spoken-script-budget`} onClick={() => {
+                    setActiveSettingsTab("criteria");
+                    window.requestAnimationFrame(() => document.getElementById(`${instanceId}-tab-criteria`)?.focus());
+                  }}>{t("ai_generator_spoken_script_choose_audio")}</button>
+                </> : <select
+                  id={`${instanceId}-spoken-script-mode`}
+                  className={styles.spokenScriptModeSelect}
+                  value={spokenScriptOpen ? "exact" : "automatic"}
+                  disabled={locked}
+                  aria-label={`${t("ai_generator_video_speech_automatic")} / ${t("ai_generator_video_speech_exact")}`}
+                  aria-controls={`${instanceId}-spoken-script`}
+                  aria-describedby={`${instanceId}-spoken-script-help`}
+                  onChange={(event) => {
+                    if (event.target.value === "exact") {
+                      setSpokenScriptOpen(true);
+                      window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus());
+                    } else {
+                      setSpokenScript("");
+                      setSpokenScriptOpen(false);
+                    }
+                  }}
+                >
+                  <option value="automatic">{t("ai_generator_video_speech_automatic")}</option>
+                  <option value="exact">{t("ai_generator_video_speech_exact")}</option>
+                </select>}
               </div>
-              {speechMode === "silent" ? <div className={styles.spokenScriptSilentHelp}>
-                <p id={`${instanceId}-spoken-script-silent-help`} className={styles.srOnly}>{t("ai_generator_spoken_script_silent_help")}</p>
-                <button type="button" disabled={locked} onClick={() => {
-                  setActiveSettingsTab("criteria");
-                  window.requestAnimationFrame(() => document.getElementById(`${instanceId}-tab-criteria`)?.focus());
-                }}>{t("ai_generator_spoken_script_choose_audio")}</button>
-              </div> : null}
               <div className={styles.spokenScriptInput}>
                 <textarea id={`${instanceId}-spoken-script`} value={spokenScript}
                   disabled={locked || speechMode === "silent"}
