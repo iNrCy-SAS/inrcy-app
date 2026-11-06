@@ -71,7 +71,7 @@
   "ai_generator_free_prompt_placeholder_image": "Ex. Crie um folheto elegante para o meu restaurante. Destaque o nosso menu de domingo por 29 €, uma fotografia apetitosa e o texto «Reserve a sua mesa». Ambiente acolhedor, tons creme e terracota.",
   "ai_generator_free_prompt_placeholder_video": "Ex. Uma visita cinematográfica à minha oficina: grandes planos dos gestos, seguidos de uma vista geral da equipa. Luz suave, movimentos fluidos. Voz-off: «Descubra o saber-fazer da nossa equipa».",
   "ai_generator_free_prompt_help": "Para reproduzir um texto exato, escreva-o entre aspas. Também pode ditar o seu pedido.",
-  "ai_generator_free_references_title": "Ficheiros de inspiração",
+  "ai_generator_free_references_title": "Imagens de inspiração",
   "ai_generator_free_references_hint": "Adicione até {count} referências para orientar a criação.",
   "ai_generator_free_references_video_hint": "Num vídeo importado, é utilizado um fotograma como referência visual.",
   "ai_generator_free_import": "Importar",
@@ -954,7 +954,7 @@
   "ai_generator_prompt_helper_text_video": "O texto no ecrã: peça-o separadamente das falas. Pode indicar «Sem texto no ecrã».",
   "ai_generator_prompt_helper_settings_image": "Escolha o formato em Critérios e o motor na barra inferior.",
   "ai_generator_prompt_helper_settings_video": "Escolha formato e som em Critérios; depois o motor e a duração na barra inferior.",
-  "ai_generator_prompt_helper_references": "Os conteúdos de inspiração e «Usar o meu ADN» são opcionais. Adicione-os se forem necessários.",
+  "ai_generator_prompt_helper_references": "As imagens de inspiração e «Usar o meu ADN» são opcionais. Adicione-as se forem necessárias.",
   "ai_generator_prompt_helper_example_label": "Um exemplo para começar",
   "ai_generator_prompt_helper_example_image": "Uma fotografia realista de um ramo de flores sobre uma mesa de madeira, luz natural e ambiente acolhedor.",
   "ai_generator_prompt_helper_example_video": "Na sua loja, uma florista prepara um ramo e mostra-o à câmara. Diz: «Descubra os nossos ramos da época.» Sem texto no ecrã.",
@@ -1043,5 +1043,6 @@
   "library_bulk_download_started": "A transferência do seu arquivo ZIP foi iniciada.",
   "library_bulk_download_failed": "Não foi possível preparar a transferência. Tente novamente.",
   "library_import_common_tags": "Etiquetas comuns (opcional)",
-  "library_filters": "Filtros"
+  "library_filters": "Filtros",
+  "ai_generator_inspiration_images_only": "Adicione apenas imagens como inspiração. Aqui não são aceites vídeos."
 }

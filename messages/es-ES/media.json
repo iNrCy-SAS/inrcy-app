@@ -71,7 +71,7 @@
   "ai_generator_free_prompt_placeholder_image": "Ej. Crea un folleto elegante para mi restaurante. Destaca nuestro menú del domingo por 29 €, una foto apetitosa y el texto «Reserva tu mesa». Ambiente cálido, tonos crema y terracota.",
   "ai_generator_free_prompt_placeholder_video": "Ej. Un recorrido cinematográfico por mi taller: primeros planos del trabajo manual y después una vista general del equipo. Luz suave, movimientos fluidos. Voz en off: «Descubre el saber hacer de nuestro equipo».",
   "ai_generator_free_prompt_help": "Para reproducir un texto exacto, escríbelo entre comillas. También puedes dictar tu solicitud.",
-  "ai_generator_free_references_title": "Contenido de inspiración",
+  "ai_generator_free_references_title": "Imágenes de inspiración",
   "ai_generator_free_references_hint": "Añade hasta {count} referencias para orientar la creación.",
   "ai_generator_free_references_video_hint": "Si importas un vídeo, se utilizará un fotograma como referencia visual.",
   "ai_generator_free_import": "Importar",
@@ -954,7 +954,7 @@
   "ai_generator_prompt_helper_text_video": "El texto en pantalla: pídelo por separado del diálogo si lo quieres. Puedes indicar «Sin texto en pantalla».",
   "ai_generator_prompt_helper_settings_image": "Elige el formato en Criterios y el motor en la barra inferior.",
   "ai_generator_prompt_helper_settings_video": "Elige el formato y el sonido en Criterios; después, el motor y la duración en la barra inferior.",
-  "ai_generator_prompt_helper_references": "Los medios de inspiración y «Usar mi ADN» son opcionales. Añádelos cuando los necesites.",
+  "ai_generator_prompt_helper_references": "Las imágenes de inspiración y «Usar mi ADN» son opcionales. Añádelas cuando las necesites.",
   "ai_generator_prompt_helper_example_label": "Un ejemplo para empezar",
   "ai_generator_prompt_helper_example_image": "Una foto realista de un ramo de flores sobre una mesa de madera, luz natural y ambiente acogedor.",
   "ai_generator_prompt_helper_example_video": "En su tienda, una florista prepara un ramo y lo presenta a cámara. Dice: «Descubre nuestros ramos de temporada». Sin texto en pantalla.",
@@ -1043,5 +1043,6 @@
   "library_bulk_download_started": "Se ha iniciado la descarga de tu archivo ZIP.",
   "library_bulk_download_failed": "No se pudo preparar la descarga. Inténtalo de nuevo.",
   "library_import_common_tags": "Etiquetas comunes (opcional)",
-  "library_filters": "Filtros"
+  "library_filters": "Filtros",
+  "ai_generator_inspiration_images_only": "Añade solo imágenes como inspiración. Aquí no se admiten vídeos."
 }

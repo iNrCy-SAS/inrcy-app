@@ -1,3 +1,4 @@
+import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
 import assert from "node:assert/strict";
 import * as studioForm from "../../lib/inrAssistantStudioFormSelection.ts";
 import { readFileSync } from "node:fs";
@@ -42,6 +43,7 @@ function load<T>(path: string, modules: Map<string, unknown>): T {
     if (specifier.endsWith("useInrAssistantLocalInterface")) return { useInrAssistantLocalInterface() {} };
     if (specifier === "@/lib/inrAssistantStudioFormSelection") return studioForm;
     if (specifier === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => null };
+    if (specifier === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy;
     assert.ok(modules.has(specifier), `Unexpected dependency: ${specifier}`); return modules.get(specifier);
   });
   return record.exports;

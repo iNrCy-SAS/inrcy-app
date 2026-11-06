@@ -16,6 +16,7 @@ import { sanitizeUniversalMediaSegment } from "@/lib/mediaUploadPolicy";
 import { requireUser } from "@/lib/requireUser";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { isStudioInspirationVideoReference, studioInspirationBytesAreVideo, STUDIO_INSPIRATION_IMAGES_ONLY_MESSAGE } from "@/lib/studioInspirationImagePolicy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -149,6 +150,9 @@ export async function POST(request: Request) {
         "identity_reference_path_invalid",
       );
     }
+    if (isStudioInspirationVideoReference({ name: fileName, type: mimeType })) {
+      return jsonError(STUDIO_INSPIRATION_IMAGES_ONLY_MESSAGE, 415, "identity_reference_images_only");
+    }
     if (!isInrMediaImageFile({ name: fileName, type: mimeType })) {
       return jsonError(
         "Ce format d’image n’est pas pris en charge.",
@@ -164,6 +168,9 @@ export async function POST(request: Request) {
       throw downloaded.error || new Error("identity_reference_download_failed");
     }
     const source = Buffer.from(await downloaded.data.arrayBuffer());
+    if (studioInspirationBytesAreVideo(source)) {
+      return jsonError(STUDIO_INSPIRATION_IMAGES_ONLY_MESSAGE, 415, "identity_reference_images_only");
+    }
     if (
       !source.byteLength ||
       source.byteLength > AI_MEDIA_INSPIRATION_SOURCE_MAX_BYTES

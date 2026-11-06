@@ -1447,7 +1447,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<input\n                  type=\"file\"\n                  multiple\n                  accept={kind === \"video\" ? VIDEO_ACCEPT : IMAGE_ACCEPT}\n                  disabled={\n                    locked ||\n                    references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT\n                  }\n                  onChange={(event) => {\n                    const files = Array.from(event.target.files || []);\n                    event.currentTarget.value = \"\";\n                    if (files.length) void addFiles(files);\n                  }}\n                />",
+    "sourceAnchor": "<input\n                  type=\"file\"\n                  multiple\n                  accept={IMAGE_ACCEPT}\n                  disabled={\n                    locked ||\n                    references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT\n                  }\n                  onChange={(event) => {\n                    const files = Array.from(event.target.files || []);\n                    event.currentTarget.value = \"\";\n                    if (files.length) void addFiles(files);\n                  }}\n                />",
     "capabilityId": "media.import",
     "toolNames": [
       "importMediaAttachment"
@@ -1461,7 +1461,17 @@
     "coverageStatus": "human_required",
     "handoffReason": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié.",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#input:85ea2c47581ac1f7:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#input:2be5161df2e413d8:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts",
+        "testAnchor": "free image: real file callback rejects video MIME, extension and hidden container, then accepts an image"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts",
+        "testAnchor": "free video: real file callback rejects video MIME, extension and hidden container, then accepts an image"
+      }
     ]
   },
   {
@@ -2513,7 +2523,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<input\n            id={inputId}\n            type=\"file\"\n            accept={\n              kind === \"video\"\n                ? INSPIRATION_MEDIA_ACCEPT\n                : INSPIRATION_IMAGE_ACCEPT\n            }\n            disabled={operationLocked}\n            onChange={(event) => {\n              const file = event.currentTarget.files?.[0];\n              event.currentTarget.value = \"\";\n              if (file) {\n                void prepareReferenceFile(file, args.role, args.characterIndex);\n              }\n            }}\n          />",
+    "sourceAnchor": "<input\n            id={inputId}\n            type=\"file\"\n            accept={INSPIRATION_IMAGE_ACCEPT}\n            disabled={operationLocked}\n            onChange={(event) => {\n              const file = event.currentTarget.files?.[0];\n              event.currentTarget.value = \"\";\n              if (file) {\n                void prepareReferenceFile(file, args.role, args.characterIndex);\n              }\n            }}\n          />",
     "capabilityId": "media.import",
     "toolNames": [
       "importMediaAttachment"
@@ -2527,7 +2537,17 @@
     "coverageStatus": "human_required",
     "handoffReason": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié.",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#input:ad37574a76e47e1f:1"
+      "app/dashboard/_components/MediaGenerator.tsx#input:43446270c76b16ed:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts",
+        "testAnchor": "guided image: real file callback rejects video MIME, extension and hidden container, then accepts an image"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts",
+        "testAnchor": "guided video: real file callback rejects video MIME, extension and hidden container, then accepts an image"
+      }
     ]
   },
   {
@@ -2980,7 +3000,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<input\n                    id=\"ai-media-reference-multiple\"\n                    type=\"file\"\n                    accept={\n                      kind === \"video\"\n                        ? INSPIRATION_MEDIA_ACCEPT\n                        : INSPIRATION_IMAGE_ACCEPT\n                    }\n                    multiple\n                    disabled={\n                      operationLocked ||\n                      inspirationImages.length >= MAX_INSPIRATION_IMAGES\n                    }\n                    onChange={(event) => {\n                      const files = Array.from(\n                        event.currentTarget.files || []\n                      );\n                      event.currentTarget.value = \"\";\n                      if (files.length) void handleReferenceFiles(files);\n                    }}\n                  />",
+    "sourceAnchor": "<input\n                    id=\"ai-media-reference-multiple\"\n                    type=\"file\"\n                    accept={INSPIRATION_IMAGE_ACCEPT}\n                    multiple\n                    disabled={\n                      operationLocked ||\n                      inspirationImages.length >= MAX_INSPIRATION_IMAGES\n                    }\n                    onChange={(event) => {\n                      const files = Array.from(\n                        event.currentTarget.files || []\n                      );\n                      event.currentTarget.value = \"\";\n                      if (files.length) void handleReferenceFiles(files);\n                    }}\n                  />",
     "capabilityId": "media.import",
     "toolNames": [
       "importMediaAttachment"
@@ -2994,7 +3014,17 @@
     "coverageStatus": "human_required",
     "handoffReason": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié.",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#input:31ca53a64f8fb08b:1"
+      "app/dashboard/_components/MediaGenerator.tsx#input:2b808b0958ec20b8:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts",
+        "testAnchor": "guided image: real file callback rejects video MIME, extension and hidden container, then accepts an image"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts",
+        "testAnchor": "guided video: real file callback rejects video MIME, extension and hidden container, then accepts an image"
+      }
     ]
   },
   {

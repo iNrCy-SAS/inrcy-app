@@ -32,7 +32,8 @@ import { readLinkedInAdsPlanIntent, selectLinkedInAdsPlanLocations } from "@/lib
 import { normalizeLinkedInDeliverySuggestion, readLinkedInHumanDeliveryConstraints } from "@/lib/adsLinkedInPlanDelivery";
 import { ADS_PLAN_EDITORIAL_INSTRUCTIONS, ADS_PLAN_STRATEGY_INSTRUCTIONS, adsPlanQualityRepairInstructions, adsPlanRepairDetails, canRepairAdsPlanQuality, selectAdsPlanLocations } from "@/lib/adsPlanQuality";
 import { aiGenerateJSON, getAiGenerationAttemptTrace } from "@/lib/aiGatewayClient";
-import { createAiOperationBudget } from "@/lib/aiGatewayPolicy";
+import { createAiOperationBudget, getAiFeaturePolicy } from "@/lib/aiGatewayPolicy";
+import { ADS_PLAN_CONTEXT_TOO_LARGE_MESSAGE, AdsPlanPromptBudgetError, buildAdsPlanBudgetedPrompt } from "@/lib/adsPlanPromptBudget";
 import { buildNormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import { buildAiContentLocationPromptPayload } from "@/lib/aiContentLocation";
 import { EMPTY_AI_MEMORY, normalizeAiMemory } from "@/lib/aiMemory";
@@ -94,6 +95,7 @@ function planRequestId(request: Request) {
 
 type PlanFailureCode =
   | "ADS_PROFILE_CONTEXT_UNAVAILABLE"
+  | "ADS_PLAN_CONTEXT_TOO_LARGE"
   | "ADS_PLAN_TIMEOUT"
   | "ADS_PLAN_ENGINE_RATE_LIMITED"
   | "ADS_PLAN_ENGINE_UNAVAILABLE"
@@ -110,6 +112,7 @@ function generationFailureCode(error: unknown): PlanFailureCode {
     ? (error as { code?: unknown }).code
     : undefined;
   const name = error instanceof Error ? error.name : "";
+  if (error instanceof AdsPlanPromptBudgetError || code === "ads_plan_input_budget_exceeded") return "ADS_PLAN_CONTEXT_TOO_LARGE";
   if (code === "ai_operation_deadline_exceeded" || name === "AbortError" || name === "TimeoutError") return "ADS_PLAN_TIMEOUT";
   if (code === "ai_gateway_rate_limit") return "ADS_PLAN_ENGINE_RATE_LIMITED";
   if (code === "ai_gateway_auth" || code === "ai_gateway_unavailable") return "ADS_PLAN_ENGINE_UNAVAILABLE";
@@ -160,7 +163,7 @@ function reportPlanFailure(args: {
   captureApiException(diagnosticRequest, Object.assign(new Error(code), { code }), {
     area: "ads",
     operation: `POST /api/ads/plan:${stage}`,
-    statusCode: code === "ADS_PLAN_TIMEOUT" ? 504 : code === "ADS_PROFILE_CONTEXT_UNAVAILABLE" ? 503 : 502,
+    statusCode: code === "ADS_PLAN_TIMEOUT" ? 504 : code === "ADS_PLAN_CONTEXT_TOO_LARGE" ? 422 : code === "ADS_PROFILE_CONTEXT_UNAVAILABLE" ? 503 : 502,
     provider,
   });
 }
@@ -239,12 +242,12 @@ L’historique éditorial et les noms de campagnes passées servent seulement à
 ${ADS_PLAN_EDITORIAL_INSTRUCTIONS}
 ${ADS_PLAN_STRATEGY_INSTRUCTIONS}
 rationale utilise un français métier (« visites du site », « maximisation des clics »), sans nom de champ ou code API tel que website_traffic ou maximize_clicks.
-primaryText contient au plus 500 caractères pour Google et Meta. Pour Google Search, c'est la synthèse rédigée de l'offre ; elle ne remplace ni les titres ni les descriptions. Si aucun suivi des conversions n'est attesté, privilégie une visite du site mesurable avec maximize_clicks ; ne présente jamais un suivi non vérifié comme déjà configuré.
-Pour Google Search : propose 8 à 12 requêtes distinctes et concrètes avec intention commerciale, ancrées dans les services réellement proposés. Donne 8 à 12 titres variés (30 caractères maximum chacun) et 3 à 4 descriptions complémentaires (90 caractères maximum chacune). Pour rédiger avec une marge fiable, vise 24 à 28 caractères par titre et 70 à 80 par description ; les textes naturellement plus courts conviennent, sans remplissage artificiel. Écris chaque description comme une seule phrase courte sur une idée et une action, sans accumuler marque, horaires et toutes les villes. Varie service, bénéfice vérifiable, zone connue et appel à l’action sans répétition. Ajoute 3 à 8 mots-clés négatifs seulement quand l’exclusion est clairement justifiée ; sinon laisse la liste vide. Ne promets aucun résultat et n’invente pas un lieu.
+primaryText contient au plus 500 caractères pour Google et Meta. ${provider === "google" ? "Pour Google Search, c'est la synthèse rédigée de l'offre ; elle ne remplace ni les titres ni les descriptions. " : ""}Si aucun suivi des conversions n'est attesté, privilégie une visite du site mesurable avec maximize_clicks ; ne présente jamais un suivi non vérifié comme déjà configuré.
+${provider === "google" ? `Pour Google Search : propose 8 à 12 requêtes distinctes et concrètes avec intention commerciale, ancrées dans les services réellement proposés. Donne 8 à 12 titres variés (30 caractères maximum chacun) et 3 à 4 descriptions complémentaires (90 caractères maximum chacune). Pour rédiger avec une marge fiable, vise 24 à 28 caractères par titre et 70 à 80 par description ; les textes naturellement plus courts conviennent, sans remplissage artificiel. Écris chaque description comme une seule phrase courte sur une idée et une action, sans accumuler marque, horaires et toutes les villes. Varie service, bénéfice vérifiable, zone connue et appel à l’action sans répétition. Ajoute 3 à 8 mots-clés négatifs seulement quand l’exclusion est clairement justifiée ; sinon laisse la liste vide. Ne promets aucun résultat et n’invente pas un lieu.
 Pour Google Search : organise les requêtes autour de cette seule offre et d'une même intention d'achat ou de prise de contact, comme les termes que le client chercherait réellement. Un métier seul, un nom de réseau social ou un terme générique de visibilité ne suffit pas sans lien avec l'offre. Évite les recherches purement informatives si le but est une demande commerciale. Les titres doivent rester autonomes dans n'importe quel assemblage ; répartis-les entre service, besoin concret, bénéfice attesté, différence vérifiée, zone et action, sans simples permutations. Les descriptions apportent des informations complémentaires et une prochaine étape claire. Vérifie que les exclusions ne contredisent ni les requêtes positives ni l'offre : n'exclus pas « gratuit » si l'offre est un essai gratuit, ni « formation » pour un organisme de formation. Sans exclusion justifiée, retourne [].
 Pour Google Search : garde mediaStrategy="search_text" et creativeType="image" par compatibilité du schéma, mais l’annonce publiée est uniquement textuelle (titres et descriptions). Ne promets pas de composant image et ne demande pas de génération de média : le connecteur actuel ne peut pas joindre un visuel Search via l’API Google Ads. Laisse mediaBrief, imageUrl et creativeUrl vides.
-Pour Google : propose uniquement une campagne Search immédiatement prise en charge avec bidStrategy="maximize_clicks" tant qu’aucune conversion primaire active du compte n’a été vérifiée. Les objectifs humains (devis, achat) ne créent aucune action de conversion. Les langues de Search sont déduites automatiquement des annonces et de la page de destination depuis septembre 2026 ; languages décrit seulement la langue rédactionnelle, jamais un filtre natif. targetAudiences décrit le public conseillé, sans prétendre appliquer une liste ou un filtre d’audience. Précise si les partenaires du Réseau de Recherche sont pertinents et n’active l’exploration Display que si elle est cohérente. Pour Performance Max : les mots-clés deviennent des thèmes de recherche, les audiences sont des signaux, et mediaBrief décrit les images, vidéos et textes à fournir, sans prétendre qu’ils existent déjà. Pour Display, Vidéo et Demand Gen, décris le média requis, son message et son usage dans mediaBrief. Pour Shopping, recommande un flux produit seulement si des produits sont attestés.
-Pour Meta : prépare une campagne Trafic vers le site immédiatement compatible avec le connecteur de démonstration : campaignType="meta_traffic", objective="website_traffic", conversionGoal="website_visit", conversionLocation="website", mediaStrategy="image", creativeType="image", callToAction="En savoir plus" et metaPlacements=["facebook_feed","instagram_feed","stories","reels"]. Rédige un primaryText concret, lisible et orienté vers l’action, avec une accroche propre à l’activité. Prépare le brief client et les zones exactes, sans prétendre transmettre des intérêts ou une expansion d’audience. keywords=[] et negativeKeywords=[]. Fournis exactement un titre et au maximum une description : une seule annonce est créée. Le serveur prépare le budget quotidien ou total, le calendrier et les enchères depuis le brief humain. Le résultat réellement optimisé est le clic sur le lien, sans Pixel ou promesse de conversion. mediaBrief décrit une création publicitaire professionnelle déclinable en deux visuels distincts : Feed 4:5 et Story/Reel 9:16, sans texte incrusté, faux résultat, attribut sensible ou promesse invérifiable. Les textes ne doivent pas attribuer au lecteur une caractéristique personnelle sensible.
+Pour Google : propose uniquement une campagne Search immédiatement prise en charge avec bidStrategy="maximize_clicks" tant qu’aucune conversion primaire active du compte n’a été vérifiée. Les objectifs humains (devis, achat) ne créent aucune action de conversion. Les langues de Search sont déduites automatiquement des annonces et de la page de destination depuis septembre 2026 ; languages décrit seulement la langue rédactionnelle, jamais un filtre natif. targetAudiences décrit le public conseillé, sans prétendre appliquer une liste ou un filtre d’audience. Précise si les partenaires du Réseau de Recherche sont pertinents et n’active l’exploration Display que si elle est cohérente. Pour Performance Max : les mots-clés deviennent des thèmes de recherche, les audiences sont des signaux, et mediaBrief décrit les images, vidéos et textes à fournir, sans prétendre qu’ils existent déjà. Pour Display, Vidéo et Demand Gen, décris le média requis, son message et son usage dans mediaBrief. Pour Shopping, recommande un flux produit seulement si des produits sont attestés.` : ""}
+${provider === "meta" ? `Pour Meta : prépare une campagne Trafic vers le site immédiatement compatible avec le connecteur de démonstration : campaignType="meta_traffic", objective="website_traffic", conversionGoal="website_visit", conversionLocation="website", mediaStrategy="image", creativeType="image", callToAction="En savoir plus" et metaPlacements=["facebook_feed","instagram_feed","stories","reels"]. Rédige un primaryText concret, lisible et orienté vers l’action, avec une accroche propre à l’activité. Prépare le brief client et les zones exactes, sans prétendre transmettre des intérêts ou une expansion d’audience. keywords=[] et negativeKeywords=[]. Fournis exactement un titre et au maximum une description : une seule annonce est créée. Le serveur prépare le budget quotidien ou total, le calendrier et les enchères depuis le brief humain. Le résultat réellement optimisé est le clic sur le lien, sans Pixel ou promesse de conversion. mediaBrief décrit une création publicitaire professionnelle déclinable en deux visuels distincts : Feed 4:5 et Story/Reel 9:16, sans texte incrusté, faux résultat, attribut sensible ou promesse invérifiable. Les textes ne doivent pas attribuer au lecteur une caractéristique personnelle sensible.` : ""}
 Le champ name doit permettre d’identifier l’offre, le canal et la zone si elle est connue. offer décrit le service vérifié, callToAction nomme une action réelle, mediaBrief indique le format, la scène et la preuve à montrer seulement si celle-ci est attestée. trackingParameters doit être une simple chaîne de paramètres UTM ou une chaîne vide, jamais un objet. destinationUrl doit reprendre l’URL fiable fournie dans preferredDestinationUrl ; n’invente aucune autre URL. urlExclusions ne doit contenir que des URL explicitement fournies. rationale explique en deux ou trois phrases le lien entre le besoin du professionnel, l’intention du client, le levier choisi et la mesure de conversion.`;
 }
 
@@ -502,11 +505,36 @@ export async function POST(request: Request) {
   }
 
   let reservation: AiCreditReservation | null = null;
-  let stage: "generation" | "validation" | "credits" = "credits";
+  let stage: "context" | "generation" | "validation" | "credits" = "context";
   const attemptedStages: string[] = [];
   let previousQualityIssues: string[] = [];
   let previousQualityDetails = "";
   try {
+    const generationSystem = `${planSystemPrompt(provider)}\n\n${ADS_BUDGET_RECOMMENDATION_INSTRUCTIONS}`;
+    const responseSchema = provider === "pinterest" ? pinterestAdsCampaignPlanResponseSchema()
+      : provider === "linkedin" ? linkedInAdsCampaignPlanResponseSchema() : undefined;
+    const preparePrompt = () => buildAdsPlanBudgetedPrompt({
+      system: generationSystem,
+      context,
+      // Explicit model requests use the Gateway's strict JSON transport.
+      jsonMode: "strict",
+      responseSchema,
+      maxInputChars: getAiFeaturePolicy("ads.generate").maxInputChars,
+      repair: {
+        issueCodes: previousQualityIssues,
+        instructions: adsPlanQualityRepairInstructions(previousQualityIssues),
+        details: previousQualityDetails,
+      },
+    });
+    // Reject an oversized indispensable core before reserving any product
+    // credit or attempting a paid model. Every repair is measured again below.
+    const initialPrompt = preparePrompt();
+    if (initialPrompt.compacted) console.info("[ads.plan] optional input compacted", {
+      requestId, provider, systemChars: initialPrompt.systemChars,
+      originalInputChars: initialPrompt.originalInputChars, inputChars: initialPrompt.inputChars,
+      totalChars: initialPrompt.totalChars, maxInputChars: initialPrompt.maxInputChars,
+    });
+    stage = "credits";
     const quota = await reserveAiCredits({ supabase: user.supabase, userId: user.activeUserId, action: "ads", credits: 1 });
     if (quota.errorResponse) return quota.errorResponse;
     reservation = quota.reservation;
@@ -515,6 +543,7 @@ export async function POST(request: Request) {
     const result = await generateAdsCampaignWithFallback({
       generate: async (model, index, qualityRepair = false) => {
         try {
+          const prompt = preparePrompt();
           return await aiGenerateJSON<Record<string, unknown>>({
             feature: "ads.generate",
             accountId: user.activeUserId,
@@ -523,10 +552,8 @@ export async function POST(request: Request) {
             // Ads owns Terra → Claude → Mistral → Gemini and one optional
             // primary repair, with four actual calls total and one deadline.
             allowProviderFallback: false,
-            system: `${planSystemPrompt(provider)}\n\n${ADS_BUDGET_RECOMMENDATION_INSTRUCTIONS}`,
-            input: `DONNÉES FIABLES DE L’ENTREPRISE :\n${JSON.stringify(context)}${previousQualityIssues.length
-              ? `\nCONTRÔLE QUALITÉ : la proposition précédente a été refusée pour ${previousQualityIssues.join(", ")}. ${adsPlanQualityRepairInstructions(previousQualityIssues)}\n${previousQualityDetails}`
-              : ""}`,
+            system: prompt.system,
+            input: prompt.input,
             ...(provider === "pinterest" ? { responseSchema: pinterestAdsCampaignPlanResponseSchema() } : {}),
             ...(provider === "linkedin" ? {
               responseSchema: linkedInAdsCampaignPlanResponseSchema(),
@@ -671,6 +698,7 @@ export async function POST(request: Request) {
           "ai_gateway_guard_unavailable",
           "ai_gateway_auth",
           "ai_gateway_invalid_request",
+          "ads_plan_input_budget_exceeded",
         ].includes(String(code || ""));
       },
     });
@@ -708,16 +736,18 @@ export async function POST(request: Request) {
     }, { headers: { "Cache-Control": "no-store", "X-Request-Id": requestId } });
   } catch (error) {
     await rollbackAiCredits(reservation);
-    const code = error instanceof AdsCampaignModelChainError || stage === "generation"
+    const code = error instanceof AdsCampaignModelChainError || error instanceof AdsPlanPromptBudgetError || stage === "generation"
       ? generationFailureCode(error)
       : "ADS_PLAN_GENERATION_FAILED";
     reportPlanFailure({ request, requestId, provider, code, stage, startedAt, error });
     return publicPlanError(
       code,
-      code === "ADS_PLAN_RESPONSE_INCOMPLETE"
+      code === "ADS_PLAN_CONTEXT_TOO_LARGE"
+        ? ADS_PLAN_CONTEXT_TOO_LARGE_MESSAGE
+        : code === "ADS_PLAN_RESPONSE_INCOMPLETE"
         ? "La proposition iNrCy est incomplète après trois moteurs. Réessayez ou choisissez le parcours manuel."
         : "La génération iNrCy n’a pas pu aboutir. Réessayez dans un instant ou choisissez le parcours manuel.",
-      code === "ADS_PLAN_TIMEOUT" ? 504 : code === "ADS_PLAN_ENGINE_UNAVAILABLE" ? 503 : 502,
+      code === "ADS_PLAN_CONTEXT_TOO_LARGE" ? 422 : code === "ADS_PLAN_TIMEOUT" ? 504 : code === "ADS_PLAN_ENGINE_UNAVAILABLE" ? 503 : 502,
       requestId,
     );
   }

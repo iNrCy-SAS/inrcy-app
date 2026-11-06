@@ -3,6 +3,7 @@ import {
   type AiMediaNarrationVoiceVariant,
 } from "./aiMediaNarrationVoices.ts";
 import { INR_MEDIA_IMAGE_MAX_BYTES } from "./mediaRules.ts";
+import { isStudioInspirationVideoReference, studioInspirationBase64IsVideo, STUDIO_INSPIRATION_IMAGES_ONLY_MESSAGE } from "./studioInspirationImagePolicy.ts";
 import { normalizeAiMediaCharacterVoiceSample, hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration, type AiMediaCharacterVoiceSample } from "./aiMediaCharacterVoices.ts";
 import {
   getAiMediaVideoDurations, getAiMediaVideoNativeDurations, getAiMediaVideoResolution,
@@ -500,6 +501,9 @@ function normalizeInspirationImages(
     const mimeType = String(source?.mimeType ?? "")
       .trim()
       .toLowerCase();
+    if (isStudioInspirationVideoReference(source)) {
+      throw new AiMediaRequestValidationError(STUDIO_INSPIRATION_IMAGES_ONLY_MESSAGE);
+    }
     if (
       !(["image/jpeg", "image/png", "image/webp"] as string[]).includes(
         mimeType
@@ -510,6 +514,9 @@ function normalizeInspirationImages(
       );
     }
     const data = typeof source?.data === "string" ? source.data.trim() : "";
+    if (studioInspirationBase64IsVideo(data)) {
+      throw new AiMediaRequestValidationError(STUDIO_INSPIRATION_IMAGES_ONLY_MESSAGE);
+    }
     if (
       data.length < 64 ||
       data.length > AI_MEDIA_INSPIRATION_MAX_IMAGE_BASE64_CHARS ||

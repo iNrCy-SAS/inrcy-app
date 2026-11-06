@@ -33,14 +33,12 @@ import {
 import {
   INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS,
   INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
-  INR_MEDIA_ALLOWED_VIDEO_EXTENSIONS,
-  INR_MEDIA_ALLOWED_VIDEO_MIME_TYPES,
-  isInrMediaVideoFile,
 } from "@/lib/mediaRules";
 import {
   prepareMediaGenerationImageReference,
-  prepareVideoReferenceFrame,
+  prepareMediaGenerationLibraryReferenceFile,
 } from "@/lib/mediaGenerationReferenceClient";
+import { assertStudioInspirationImageMetadata, StudioInspirationImageOnlyError } from "@/lib/studioInspirationImagePolicy";
 import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
 } from "./MediaLibraryPickerModal";
@@ -105,11 +103,6 @@ const ROLES = ["character", "environment", "product", "inspiration"] as const;
 const IMAGE_ACCEPT = [
   ...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
   ...INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS.map((extension) => `.${extension}`),
-].join(",");
-const VIDEO_ACCEPT = [
-  IMAGE_ACCEPT,
-  ...INR_MEDIA_ALLOWED_VIDEO_MIME_TYPES,
-  ...INR_MEDIA_ALLOWED_VIDEO_EXTENSIONS.map((extension) => `.${extension}`),
 ].join(",");
 
 function referencesForRequest(references: Reference[]) {
@@ -429,21 +422,19 @@ export default function MediaFreeGenerator({
     setActionError("");
     try {
       const prepared: Reference[] = [];
+      for (const file of files) assertStudioInspirationImageMetadata(file, t("ai_generator_inspiration_images_only"));
       for (const file of files.slice(
         0,
         AI_MEDIA_INSPIRATION_MAX_COUNT - references.length
       )) {
-        const fromVideo = kind === "video" && isInrMediaVideoFile(file);
-        const image = fromVideo
-          ? await prepareVideoReferenceFrame(file)
-          : await prepareMediaGenerationImageReference(file);
+        const image = await prepareMediaGenerationImageReference(file);
         if (sequence.current !== currentSequence) return;
         prepared.push({
           ...image,
           id: globalThis.crypto.randomUUID(),
           role: undefined,
           usage: undefined,
-          fromVideo,
+          fromVideo: false,
         });
       }
       setReferences((current) =>
@@ -453,7 +444,9 @@ export default function MediaFreeGenerator({
     } catch (caught) {
       if (sequence.current === currentSequence)
         setActionError(
-          caught instanceof Error
+          caught instanceof StudioInspirationImageOnlyError
+            ? t("ai_generator_inspiration_images_only")
+            : caught instanceof Error
             ? caught.message
             : t("ai_generator_free_refs_error")
         );
@@ -472,37 +465,13 @@ export default function MediaFreeGenerator({
     setReferencesBusy(true);
     setActionError("");
     try {
+      for (const item of items) assertStudioInspirationImageMetadata(item, t("ai_generator_inspiration_images_only"));
       const files = await Promise.all(
         items
           .slice(0, AI_MEDIA_INSPIRATION_MAX_COUNT - references.length)
-          .map(async (item) => {
-            if (!item.signed_url)
-              throw new Error(
-                t("ai_generator_inspiration_library_unavailable")
-              );
-            const response = await fetch(item.signed_url, {
-              cache: "no-store",
-            });
-            if (!response.ok)
-              throw new Error(
-                t("ai_generator_inspiration_library_unavailable")
-              );
-            const blob = await response.blob();
-            return new File(
-              [blob],
-              item.original_file_name ||
-                item.title ||
-                (item.media_type === "video"
-                  ? "reference.mp4"
-                  : "reference.jpg"),
-              {
-                type:
-                  blob.type ||
-                  item.mime_type ||
-                  (item.media_type === "video" ? "video/mp4" : "image/jpeg"),
-              }
-            );
-          })
+          .map(item => prepareMediaGenerationLibraryReferenceFile(item, t("ai_generator_inspiration_library_unavailable"), {
+            imagesOnly: true, imagesOnlyMessage: t("ai_generator_inspiration_images_only"),
+          }))
       );
       if (sequence.current !== currentSequence) return;
       await addFiles(files, true);
@@ -511,7 +480,9 @@ export default function MediaFreeGenerator({
     } catch (caught) {
       if (sequence.current === currentSequence)
         setActionError(
-          caught instanceof Error
+          caught instanceof StudioInspirationImageOnlyError
+            ? t("ai_generator_inspiration_images_only")
+            : caught instanceof Error
             ? caught.message
             : t("ai_generator_free_refs_error")
         );
@@ -965,7 +936,7 @@ export default function MediaFreeGenerator({
                 <input
                   type="file"
                   multiple
-                  accept={kind === "video" ? VIDEO_ACCEPT : IMAGE_ACCEPT}
+                  accept={IMAGE_ACCEPT}
                   disabled={
                     locked ||
                     references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT
@@ -1396,7 +1367,7 @@ export default function MediaFreeGenerator({
         open={libraryOpen}
         title={t("ai_generator_inspiration_library_title")}
         subtitle={t("ai_generator_inspiration_library_subtitle")}
-        accept={kind === "video" ? "all" : "image"}
+        accept="image"
         multiple
         maxSelection={Math.max(
           1,

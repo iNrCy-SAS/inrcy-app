@@ -1,3 +1,4 @@
+import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
 import assert from "node:assert/strict";
 import * as studioForm from "../../lib/inrAssistantStudioFormSelection.ts";
 import { readFileSync } from "node:fs";
@@ -117,7 +118,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   function load(file: string) {
     const output = ts.transpileModule(read(file), { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
     const record = { exports: {} as { default: (props: Props) => Element } };
-    new Function("module", "exports", "require", "window", "fetch", output)(record, record.exports, (id: string) => { if (id.endsWith(".module.css")) return css; assert.ok(modules.has(id), `Unexpected actual Free dependency ${id}`); return modules.get(id); }, browser, fetch);
+    new Function("module", "exports", "require", "window", "fetch", output)(record, record.exports, (id: string) => { if (id === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy; if (id.endsWith(".module.css")) return css; assert.ok(modules.has(id), `Unexpected actual Free dependency ${id}`); return modules.get(id); }, browser, fetch);
     return record.exports;
   }
   const voice = load("app/dashboard/_components/MediaCharacterVoiceInput.tsx"); modules.set("./MediaCharacterVoiceInput", { __esModule: true, ...voice });

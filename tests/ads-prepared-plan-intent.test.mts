@@ -8,6 +8,8 @@ import { defaultPreparedDeliverySettings, plannedNativeCalendar } from "../lib/a
 import { normalizeAdsCampaignPlan, isReviewableAdsCampaignPlan, adsCampaignPlanValidationIssueCodes } from "../lib/adsCampaignPlan.ts";
 import { parseAdsCampaignInput, isAdsChannelId, isAdsDraftAccountChannel } from "../lib/adsValidation.ts";
 import { assessAdsChannelDraft } from "../lib/adsChannelDrafts.ts";
+import * as promptBudget from "../lib/adsPlanPromptBudget.ts";
+import { getAiFeaturePolicy } from "../lib/aiGatewayPolicy.ts";
 
 const now = "2026-10-08T12:00:00.000Z";
 const context = { now, timezone: "Europe/Paris", country: "France", locations: ["Lille", "Arras"], companyName: "Atelier Exemple", services: ["Accompagnement professionnel"], destinationUrl: "https://example.fr/offre" };
@@ -164,7 +166,8 @@ test("successful real plan route preserves prepared totals, dates, geography and
       "@/lib/observability/request": { getRequestId: () => "prepared-test-request" }, "@/lib/observability/sentry": { captureApiException() {} }, "@/lib/rateLimit": { enforceRateLimit: async () => null },
       "@/lib/aiUsageQuota": { reserveAiCredits: async () => { credits++; return { reservation: {} }; }, commitAiCredits: async () => { committed++; }, rollbackAiCredits: async () => {} },
       "@/lib/aiGatewayClient": { getAiGenerationAttemptTrace: () => null, aiGenerateJSON: async (options: Record<string, unknown>) => { models++; modelContexts.push(JSON.parse(String(options.input).split("\n").slice(1).join("\n"))); return { ...raw(provider), budgetRecommendation: { dailyEuros: 25, durationDays: 14, rationale: "Un premier test concentré sur l’offre régionale permet de comparer les messages ; les dépenses seront adaptées après observation des résultats." } }; } },
-      "@/lib/aiGatewayPolicy": { createAiOperationBudget: () => ({}) },
+      "@/lib/aiGatewayPolicy": { createAiOperationBudget: () => ({}), getAiFeaturePolicy },
+      "@/lib/adsPlanPromptBudget": promptBudget,
       "@/lib/aiGenerationProfile": { buildNormalizedAiGenerationProfile: () => ({ business: { interventionZones: context.locations, city: "Lille", services: context.services, customerTypologies: ["Entreprises locales"], strengths: [] }, preferences: {} }) },
       "@/lib/aiMemory": { EMPTY_AI_MEMORY: memory, normalizeAiMemory: () => memory }, "@/lib/professionalBusinessIdentity": { resolveProfessionalCompanyNameFromProfile: () => context.companyName },
       "@/lib/aiContentLocation": contentLocation,

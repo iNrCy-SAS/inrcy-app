@@ -4,6 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as rules from "../../lib/mediaRules.ts";
+import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
 import { insertStudioReference, normalizeCharacterReferenceIndexes, type StudioReferenceImage } from "../../lib/mediaGenerationReferenceCollection.ts";
 
 const reference = (name: string, overrides: Partial<StudioReferenceImage> = {}): StudioReferenceImage => ({
@@ -49,6 +50,7 @@ function libraryRuntime(fetch: (url: string, options: RequestInit) => Promise<Re
   new Function("module", "exports", "require", "fetch", output)(record, record.exports, (name: string) => {
     if (name === "@/lib/aiMediaGenerationContracts") return contracts;
     if (name === "@/lib/mediaRules") return rules;
+    if (name === "./studioInspirationImagePolicy.ts") return inspirationImagePolicy;
     if (name === "@/lib/universalMediaUploadClient") return { uploadUniversalMediaFile: () => { throw new Error("Library reading must not upload a file"); } };
     throw new Error(`Unexpected reference dependency: ${name}`);
   }, fetch);

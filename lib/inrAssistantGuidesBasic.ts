@@ -47,7 +47,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "studio",
       "create"
     ],
-    "content": "iNr’Assistant peut présenter le devis natif sans lancer la génération, puis utiliser les moteurs, références, ADN et options de musique/narration/paroles disponibles du compte. Les crédits sont contrôlés par le moteur natif. Il ne déclare jamais une autorisation d’utilisation de l’identité à la place du professionnel. Les champs, listes, références, musique, narration et bibliothèques du formulaire monté peuvent être préparés à partir de choix explicites. Les préférences mémorisées peuvent être lues ; oublier un bloc choisi conserve les autres réglages. Une mise à jour du solde ne lance ni achat ni génération.",
+    "content": "iNr’Assistant peut présenter le devis natif sans lancer la génération, puis utiliser les moteurs, références, ADN et options de musique/narration/paroles disponibles du compte. Les références d’inspiration sont uniquement des images, même pour générer une vidéo. Les crédits sont contrôlés par le moteur natif. Il ne déclare jamais une autorisation d’utilisation de l’identité à la place du professionnel. Les champs, listes, références, musique, narration et bibliothèques du formulaire monté peuvent être préparés à partir de choix explicites. Les préférences mémorisées peuvent être lues ; oublier un bloc choisi conserve les autres réglages. Une mise à jour du solde ne lance ni achat ni génération.",
     "sourceFiles": [
       "lib/inrAssistantMediaTools.ts",
       "lib/productNavigation.ts",
@@ -55,6 +55,8 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx",
       "app/dashboard/_components/MediaGeneratorModal.tsx",
       "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/studioInspirationImagePolicy.ts",
+      "lib/aiMediaGenerationContracts.ts",
       "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx",
       "lib/aiMediaGlobalConstraints.ts",
       "lib/aiMediaGenerationServer.ts",

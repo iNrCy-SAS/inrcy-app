@@ -71,7 +71,7 @@
   "ai_generator_free_prompt_placeholder_image": "例如：为我的餐厅设计一张精美传单。突出29欧元的周日套餐，配上诱人的美食照片和“预订餐桌”字样。营造温馨氛围，采用奶油色和陶土色。",
   "ai_generator_free_prompt_placeholder_video": "例如：用电影风格介绍我的工作室，先展示操作细节，再展示团队全景。光线柔和，镜头流畅。旁白：“感受我们团队的精湛技艺”。",
   "ai_generator_free_prompt_help": "需要原样显示的文字请放在引号内。您也可以通过语音输入要求。",
-  "ai_generator_free_references_title": "灵感素材",
+  "ai_generator_free_references_title": "灵感图片",
   "ai_generator_free_references_hint": "最多添加 {count} 个参考素材，辅助创作。",
   "ai_generator_free_references_video_hint": "导入视频时，将提取其中一帧作为视觉参考。",
   "ai_generator_free_import": "导入",
@@ -954,7 +954,7 @@
   "ai_generator_prompt_helper_text_video": "屏幕文字：如有需要，请与台词分别说明。也可以注明“不要屏幕文字”。",
   "ai_generator_prompt_helper_settings_image": "在“条件”中选择画面比例，在底部栏选择引擎。",
   "ai_generator_prompt_helper_settings_video": "在“条件”中选择画面比例和声音，然后在底部栏选择引擎和时长。",
-  "ai_generator_prompt_helper_references": "参考素材和“使用我的企业 DNA”都是可选项，请按需添加。",
+  "ai_generator_prompt_helper_references": "参考图片和“使用我的企业 DNA”都是可选项，请按需添加。",
   "ai_generator_prompt_helper_example_label": "一个入门示例",
   "ai_generator_prompt_helper_example_image": "一张写实照片：木桌上放着一束鲜花，自然光，氛围温暖。",
   "ai_generator_prompt_helper_example_video": "花店里，一位花艺师扎好花束，然后展示给镜头。她说：“来看看我们的时令花束。”不要屏幕文字。",
@@ -1043,5 +1043,6 @@
   "library_bulk_download_started": "您的 ZIP 压缩文件已开始下载。",
   "library_bulk_download_failed": "无法准备下载，请重试。",
   "library_import_common_tags": "通用标签（可选）",
-  "library_filters": "筛选"
+  "library_filters": "筛选",
+  "ai_generator_inspiration_images_only": "灵感参考仅支持图片，此处不接受视频。"
 }

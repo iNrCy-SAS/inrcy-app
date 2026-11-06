@@ -70,6 +70,33 @@ function fiveReferences(encodedLength: number) {
   };
 }
 
+test("Studio rejects video inspirations before credit reservation or provider call for image and video generation", async () => {
+  const mp4 = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom"), Buffer.alloc(64)]).toString("base64");
+  for (const kind of ["image", "video"]) {
+    const runtime = route();
+    const original = { ...fiveReferences(88), kind };
+    for (const reference of [
+      { mimeType: "video/mp4", name: "image.jpg", data: mp4 },
+      { mimeType: "image/jpeg", name: "clip.MOV", data: "A".repeat(88) },
+      { mimeType: "image/jpeg", name: "image.jpg", data: mp4 },
+    ]) {
+      const request = { ...original, inspirationImages: [{ ...reference, role: "inspiration", usage: "inspiration" }] };
+      assert.throws(() => contracts.normalizeAiMediaGenerationRequest(request), { name: "AiMediaRequestValidationError", message: /uniquement des images/ });
+      const response = await runtime.post(JSON.stringify(request));
+      assert.equal(response.status, 400);
+      assert.match(JSON.stringify(await response.json()), /uniquement des images/);
+      assert.equal(runtime.reservations(), 0);
+      assert.equal(runtime.generations.length, 0);
+    }
+    const png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWQAAAABJRU5ErkJggg==";
+    const valid = { ...original, inspirationImages: [{ mimeType: "image/png", name: "photo.png", data: png, role: "inspiration", usage: "inspiration" }] };
+    assert.equal(contracts.normalizeAiMediaGenerationRequest(valid).inspirationImages[0].data, png);
+    assert.equal((await runtime.post(JSON.stringify(valid))).status, 200);
+    assert.equal(runtime.reservations(), 1);
+    assert.equal(runtime.generations.length, 1);
+  }
+});
+
 test("five references near the browser byte cap pass the real generation route without being lost", async () => {
   const length = 4 * Math.ceil(contracts.AI_MEDIA_INSPIRATION_NORMALIZED_MAX_BYTES / 3);
   const serialized = JSON.stringify(fiveReferences(length));

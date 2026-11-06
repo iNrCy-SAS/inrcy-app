@@ -71,7 +71,7 @@
   "ai_generator_free_prompt_placeholder_image": "Z. B. Erstelle einen eleganten Flyer für mein Restaurant. Hebe unser Sonntagsmenü für 29 € hervor, mit einem appetitlichen Foto und dem Text „Reservieren Sie Ihren Tisch“. Warme Atmosphäre, Creme- und Terrakottatöne.",
   "ai_generator_free_prompt_placeholder_video": "Z. B. Ein filmischer Rundgang durch meine Werkstatt: zuerst Nahaufnahmen der Handgriffe, dann ein Blick auf das ganze Team. Sanftes Licht, fließende Bewegungen. Sprechertext: „Entdecken Sie das Können unseres Teams“.",
   "ai_generator_free_prompt_help": "Setzen Sie exakte Texte in Anführungszeichen. Sie können Ihre Anfrage auch diktieren.",
-  "ai_generator_free_references_title": "Inspirationsmedien",
+  "ai_generator_free_references_title": "Inspirationsbilder",
   "ai_generator_free_references_hint": "Fügen Sie bis zu {count} Referenzen hinzu, um die Erstellung zu unterstützen.",
   "ai_generator_free_references_video_hint": "Bei einem importierten Video dient ein Einzelbild als visuelle Referenz.",
   "ai_generator_free_import": "Importieren",
@@ -954,7 +954,7 @@
   "ai_generator_prompt_helper_text_video": "Bildschirmtext: Wünschen Sie ihn ausdrücklich getrennt vom gesprochenen Text. Sie können „Kein Bildschirmtext“ angeben.",
   "ai_generator_prompt_helper_settings_image": "Wählen Sie das Format unter Kriterien und das Modell in der unteren Leiste.",
   "ai_generator_prompt_helper_settings_video": "Wählen Sie Format und Ton unter Kriterien, dann Modell und Dauer in der unteren Leiste.",
-  "ai_generator_prompt_helper_references": "Inspirationsmedien und „Meine Unternehmens-DNA verwenden“ sind optional. Nutzen Sie sie bei Bedarf.",
+  "ai_generator_prompt_helper_references": "Inspirationsbilder und „Meine Unternehmens-DNA verwenden“ sind optional. Nutzen Sie sie bei Bedarf.",
   "ai_generator_prompt_helper_example_label": "Ein Beispiel zum Einstieg",
   "ai_generator_prompt_helper_example_image": "Ein realistisches Foto eines Blumenstraußes auf einem Holztisch, natürliches Licht, warme Atmosphäre.",
   "ai_generator_prompt_helper_example_video": "Eine Floristin bindet in ihrem Laden einen Blumenstrauß und zeigt ihn der Kamera. Sie sagt: „Entdecken Sie unsere saisonalen Sträuße.“ Kein Bildschirmtext.",
@@ -1043,5 +1043,6 @@
   "library_bulk_download_started": "Der Download Ihres ZIP-Archivs wurde gestartet.",
   "library_bulk_download_failed": "Der Download konnte nicht vorbereitet werden. Versuchen Sie es erneut.",
   "library_import_common_tags": "Gemeinsame Tags (optional)",
-  "library_filters": "Filter"
+  "library_filters": "Filter",
+  "ai_generator_inspiration_images_only": "Fügen Sie zur Inspiration nur Bilder hinzu. Videos werden hier nicht akzeptiert."
 }

@@ -85,7 +85,7 @@ const nativeSources = {
   "./MediaModifier": compile(read("app/dashboard/_components/MediaModifier.tsx")),
   "./MediaGenerationCreationWorkspace": modules.workspace,
   "./DashboardMobileSelect": compile(read("app/dashboard/_components/DashboardMobileSelect.tsx")),
-  ...Object.fromEntries(["aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices", "inrAssistantStudioFormSelection", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
+  ...Object.fromEntries(["aiMediaModelCatalog", "aiMediaGenerationContracts", "studioInspirationImagePolicy", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices", "inrAssistantStudioFormSelection", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
 };
 const nativeFixture = `
 const sources=${JSON.stringify(nativeSources)},loaded={},messages=${JSON.stringify(JSON.parse(read("messages/fr-FR/media.json")))};

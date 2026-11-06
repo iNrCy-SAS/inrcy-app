@@ -71,7 +71,7 @@
   "ai_generator_free_prompt_placeholder_image": "เช่น สร้างใบปลิวสไตล์หรูสำหรับร้านอาหารของฉัน เน้นเมนูวันอาทิตย์ราคา 29 € พร้อมภาพอาหารน่ารับประทานและข้อความ “จองโต๊ะของคุณ” บรรยากาศอบอุ่น โทนสีครีมและดินเผา",
   "ai_generator_free_prompt_placeholder_video": "เช่น วิดีโอพาชมเวิร์กช็อปในสไตล์ภาพยนตร์ เริ่มจากภาพระยะใกล้ของการทำงาน แล้วแสดงภาพรวมของทีม แสงนุ่มนวล การเคลื่อนไหวลื่นไหล เสียงบรรยาย: “ค้นพบฝีมือและความเชี่ยวชาญของทีมเรา”",
   "ai_generator_free_prompt_help": "หากต้องการข้อความตรงตามที่ระบุ ให้ใส่ไว้ในเครื่องหมายคำพูด คุณสามารถพูดเพื่อป้อนคำอธิบายได้เช่นกัน",
-  "ai_generator_free_references_title": "สื่อสร้างแรงบันดาลใจ",
+  "ai_generator_free_references_title": "รูปภาพสร้างแรงบันดาลใจ",
   "ai_generator_free_references_hint": "เพิ่มสื่ออ้างอิงได้สูงสุด {count} รายการเพื่อเป็นแนวทางในการสร้าง",
   "ai_generator_free_references_video_hint": "สำหรับวิดีโอที่นำเข้า ระบบจะใช้ภาพหนึ่งเฟรมเป็นภาพอ้างอิง",
   "ai_generator_free_import": "นำเข้า",
@@ -954,7 +954,7 @@
   "ai_generator_prompt_helper_text_video": "ข้อความบนหน้าจอ: ระบุแยกจากคำพูดหากต้องการ หรือเขียนว่า “ไม่มีข้อความบนหน้าจอ”",
   "ai_generator_prompt_helper_settings_image": "เลือกรูปแบบในเกณฑ์ และเลือกเอนจินจากแถบด้านล่าง",
   "ai_generator_prompt_helper_settings_video": "เลือกรูปแบบและเสียงในเกณฑ์ จากนั้นเลือกเอนจินและระยะเวลาจากแถบด้านล่าง",
-  "ai_generator_prompt_helper_references": "สื่ออ้างอิงและ “ใช้ DNA ธุรกิจของฉัน” เป็นตัวเลือก เพิ่มเมื่อจำเป็นต่อคำขอ",
+  "ai_generator_prompt_helper_references": "รูปภาพอ้างอิงและ “ใช้ DNA ธุรกิจของฉัน” เป็นตัวเลือก เพิ่มเมื่อจำเป็นต่อคำขอ",
   "ai_generator_prompt_helper_example_label": "ตัวอย่างสำหรับเริ่มต้น",
   "ai_generator_prompt_helper_example_image": "ภาพถ่ายสมจริงของช่อดอกไม้บนโต๊ะไม้ แสงธรรมชาติ บรรยากาศอบอุ่น",
   "ai_generator_prompt_helper_example_video": "ในร้านดอกไม้ เจ้าของร้านจัดช่อดอกไม้แล้วนำเสนอต่อกล้อง เธอพูดว่า “พบกับช่อดอกไม้ประจำฤดูกาลของเรา” ไม่มีข้อความบนหน้าจอ",
@@ -1043,5 +1043,6 @@
   "library_bulk_download_started": "เริ่มดาวน์โหลดไฟล์ ZIP ของคุณแล้ว",
   "library_bulk_download_failed": "ไม่สามารถเตรียมการดาวน์โหลดได้ โปรดลองอีกครั้ง",
   "library_import_common_tags": "แท็กร่วม (ไม่บังคับ)",
-  "library_filters": "ตัวกรอง"
+  "library_filters": "ตัวกรอง",
+  "ai_generator_inspiration_images_only": "เพิ่มเฉพาะรูปภาพเพื่อเป็นแรงบันดาลใจ ไม่รับวิดีโอในส่วนนี้"
 }

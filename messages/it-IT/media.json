@@ -71,7 +71,7 @@
   "ai_generator_free_prompt_placeholder_image": "Es. Crea un volantino elegante per il mio ristorante. Metti in risalto il nostro menù della domenica a 29 €, una foto invitante e il testo «Prenota il tuo tavolo». Atmosfera calda, toni crema e terracotta.",
   "ai_generator_free_prompt_placeholder_video": "Es. Una visita cinematografica del mio laboratorio: primo piano sui gesti, poi una panoramica del team. Luce soffusa, movimenti fluidi. Voce fuori campo: «Scopri il saper fare del nostro team».",
   "ai_generator_free_prompt_help": "Per un testo esatto, scrivilo tra virgolette. Puoi anche dettare la richiesta.",
-  "ai_generator_free_references_title": "Media di ispirazione",
+  "ai_generator_free_references_title": "Immagini di ispirazione",
   "ai_generator_free_references_hint": "Aggiungi fino a {count} riferimenti per guidare la creazione.",
   "ai_generator_free_references_video_hint": "Per un video importato, viene usato un fotogramma come riferimento visivo.",
   "ai_generator_free_import": "Importa",
@@ -954,7 +954,7 @@
   "ai_generator_prompt_helper_text_video": "Testo sullo schermo: richiedilo separatamente dalle parole pronunciate. Puoi specificare «Nessun testo sullo schermo».",
   "ai_generator_prompt_helper_settings_image": "Scegli il formato in Criteri e il motore nella barra in basso.",
   "ai_generator_prompt_helper_settings_video": "Scegli formato e audio in Criteri, poi motore e durata nella barra in basso.",
-  "ai_generator_prompt_helper_references": "I media di ispirazione e «Usa il mio DNA» sono facoltativi. Aggiungili quando servono.",
+  "ai_generator_prompt_helper_references": "Le immagini di ispirazione e «Usa il mio DNA» sono opzionali. Aggiungile quando servono.",
   "ai_generator_prompt_helper_example_label": "Un esempio per iniziare",
   "ai_generator_prompt_helper_example_image": "Una foto realistica di un mazzo di fiori su un tavolo di legno, luce naturale e atmosfera accogliente.",
   "ai_generator_prompt_helper_example_video": "Nel suo negozio, una fiorista prepara un mazzo e lo mostra alla camera. Dice: «Scopri i nostri mazzi di stagione». Nessun testo sullo schermo.",
@@ -1043,5 +1043,6 @@
   "library_bulk_download_started": "Il download del tuo archivio ZIP è stato avviato.",
   "library_bulk_download_failed": "Impossibile preparare il download. Riprova.",
   "library_import_common_tags": "Tag comuni (facoltativi)",
-  "library_filters": "Filtri"
+  "library_filters": "Filtri",
+  "ai_generator_inspiration_images_only": "Aggiungi solo immagini come ispirazione. I video non sono accettati qui."
 }

@@ -44,15 +44,12 @@ import {
 import {
   INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS,
   INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
-  INR_MEDIA_ALLOWED_VIDEO_EXTENSIONS,
-  INR_MEDIA_ALLOWED_VIDEO_MIME_TYPES,
-  isInrMediaVideoFile,
 } from "@/lib/mediaRules";
 import {
   prepareMediaGenerationImageReference,
-  prepareVideoReferenceFrame,
   prepareMediaGenerationLibraryReferenceFile,
 } from "@/lib/mediaGenerationReferenceClient";
+import { assertStudioInspirationImageMetadata, StudioInspirationImageOnlyError } from "@/lib/studioInspirationImagePolicy";
 import { normalizeCharacterReferenceIndexes, insertStudioReference, type StudioReferenceImage } from "@/lib/mediaGenerationReferenceCollection";
 export { prepareMediaGenerationImageReference } from "@/lib/mediaGenerationReferenceClient";
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
@@ -190,12 +187,6 @@ const REFERENCE_ROLE_OPTIONS: Array<{
 const INSPIRATION_IMAGE_ACCEPT = [
   ...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
   ...INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS.map((extension) => `.${extension}`),
-].join(",");
-const INSPIRATION_MEDIA_ACCEPT = [
-  ...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
-  ...INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS.map((extension) => `.${extension}`),
-  ...INR_MEDIA_ALLOWED_VIDEO_MIME_TYPES,
-  ...INR_MEDIA_ALLOWED_VIDEO_EXTENSIONS.map((extension) => `.${extension}`),
 ].join(",");
 
 type RememberPreferenceControlProps = {
@@ -813,10 +804,8 @@ export default function MediaGenerator({
     if (manageBusy) setInspirationBusy(true);
     if (options.clearError !== false) setActionError("");
     try {
-      const prepared =
-        role === "inspiration" && isInrMediaVideoFile(file)
-          ? await prepareVideoReferenceFrame(file)
-          : await prepareMediaGenerationImageReference(file);
+      assertStudioInspirationImageMetadata(file, t("ai_generator_inspiration_images_only"));
+      const prepared = await prepareMediaGenerationImageReference(file);
       const proposedRole = insertion === "append" ? "character" : role;
       if (insertion === "replace") inspirationImages.filter((image) => image.role === role && (role !== "character" || image.characterIndex === characterIndex)).forEach((image) => { void deleteCharacterVoiceSample(image.voiceSample); });
       const next: StudioReferenceImage = {
@@ -841,7 +830,7 @@ export default function MediaGenerator({
       resetReferenceConsent();
     } catch (caught) {
       setActionError(
-        caught instanceof Error ? caught.message : t("ai_generator_error")
+        caught instanceof StudioInspirationImageOnlyError ? t("ai_generator_inspiration_images_only") : caught instanceof Error ? caught.message : t("ai_generator_error")
       );
     } finally {
       if (manageBusy) setInspirationBusy(false);
@@ -854,7 +843,8 @@ export default function MediaGenerator({
     options?: { manageBusy?: boolean; clearError?: boolean }
   ) => {
     const file = await prepareMediaGenerationLibraryReferenceFile(
-      item, t("ai_generator_inspiration_library_unavailable")
+      item, t("ai_generator_inspiration_library_unavailable"),
+      { imagesOnly: true, imagesOnlyMessage: t("ai_generator_inspiration_images_only") },
     );
     await prepareReferenceFile(
       file,
@@ -877,6 +867,7 @@ export default function MediaGenerator({
     setInspirationBusy(true);
     setActionError("");
     try {
+      for (const item of selected) assertStudioInspirationImageMetadata(item, t("ai_generator_inspiration_images_only"));
       for (const item of selected) {
         await prepareLibraryInspiration(
           item,
@@ -901,6 +892,7 @@ export default function MediaGenerator({
     setInspirationBusy(true);
     setActionError("");
     try {
+      for (const file of selected) assertStudioInspirationImageMetadata(file, t("ai_generator_inspiration_images_only"));
       for (const file of selected) {
         await prepareReferenceFile(
           file,
@@ -910,6 +902,8 @@ export default function MediaGenerator({
           { manageBusy: false, clearError: false }
         );
       }
+    } catch (caught) {
+      setActionError(caught instanceof StudioInspirationImageOnlyError ? t("ai_generator_inspiration_images_only") : caught instanceof Error ? caught.message : t("ai_generator_error"));
     } finally {
       setInspirationBusy(false);
     }
@@ -1414,11 +1408,7 @@ export default function MediaGenerator({
           <input
             id={inputId}
             type="file"
-            accept={
-              kind === "video"
-                ? INSPIRATION_MEDIA_ACCEPT
-                : INSPIRATION_IMAGE_ACCEPT
-            }
+            accept={INSPIRATION_IMAGE_ACCEPT}
             disabled={operationLocked}
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
@@ -2009,11 +1999,7 @@ export default function MediaGenerator({
                   <input
                     id="ai-media-reference-multiple"
                     type="file"
-                    accept={
-                      kind === "video"
-                        ? INSPIRATION_MEDIA_ACCEPT
-                        : INSPIRATION_IMAGE_ACCEPT
-                    }
+                    accept={INSPIRATION_IMAGE_ACCEPT}
                     multiple
                     disabled={
                       operationLocked ||
@@ -2723,7 +2709,7 @@ export default function MediaGenerator({
         open={libraryPickerOpen}
         title={t("ai_generator_inspiration_library_title")}
         subtitle={t("ai_generator_inspiration_library_subtitle")}
-        accept={kind === "video" ? "all" : "image"}
+        accept="image"
         multiple={!transformMode}
         maxSelection={
           transformMode

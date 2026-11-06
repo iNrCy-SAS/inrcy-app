@@ -53,7 +53,7 @@ const sources = {
   session: compile("app/dashboard/_hooks/useInrStudioSession.tsx"),
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaModifier": compile("app/dashboard/_components/MediaModifier.tsx"),
-  ...Object.fromEntries(["inrStudioNavigation", "inrStudioViewport", "inrStudioModalPolicy", "inrAssistantStudioHandoff", "inrAssistantStudioDraft", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaNarrationVoices", "mediaRules", "aiMediaCharacterVoices", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
+  ...Object.fromEntries(["inrStudioNavigation", "inrStudioViewport", "inrStudioModalPolicy", "inrAssistantStudioHandoff", "inrAssistantStudioDraft", "aiMediaModelCatalog", "aiMediaGenerationContracts", "studioInspirationImagePolicy", "aiMediaNarrationVoices", "mediaRules", "aiMediaCharacterVoices", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
 };
 const dictionaries = { booster: JSON.parse(read("messages/fr-FR/booster.json")), media: JSON.parse(read("messages/fr-FR/media.json")), shell: JSON.parse(read("messages/fr-FR/shell.json")) };
 const fixture = `

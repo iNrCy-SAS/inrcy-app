@@ -43,7 +43,7 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
     keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits"],
     content: `${productNavigationSummary("studio", false)} Puis choisir l’onglet Générer. Le menu supérieur devient un menu déroulant sur mobile. Choisir Image ou Vidéo.
 Dans Prompt, décrire scène, ambiance et textes exacts. « Utiliser mon ADN » ajoute les informations professionnelles pertinentes, logo/couleurs par défaut, coordonnées sur demande. Décoché : pas d’autres informations ADN. Consignes ET Interdictions de Personnalisation → Ma communication restent transmises, dans Studio et iNrAgent ; les interdictions priment. Les règles ne sont jamais coupées : un budget insuffisant ou un montage brut incapable de les appliquer provoque une erreur explicite. Une image déjà générée avec les règles peut être animée.
-Dans Critères, choisir le Format et, pour la vidéo, la Durée et les options disponibles. Les « Médias d’inspiration » viennent d’Importer ou Médiathèque : préciser le type et l’utilisation de chaque référence. Les compatibilités, le nombre de références et les durées dépendent du moteur affiché. Ne pas promettre qu’un moteur accepte toutes les références.
+Dans Critères, choisir le Format et, pour la vidéo, la Durée et les options disponibles. Les « Images d’inspiration » acceptent uniquement des images, depuis l’appareil ou la Médiathèque, même pour générer une vidéo. Préciser le type et l’utilisation de chaque référence. Les compatibilités, le nombre de références et les durées dépendent du moteur affiché.
 Pour les paroles vidéo : choisir Voix off ou Personnages dans Critères, puis « Ajouter paroles » et remplir « Paroles à prononcer ». « Sans parole » désactive cette saisie. Respecter l’autorisation proposée pour l’animation des personnes et la transmission des références.
 Vérifier le coût et le solde, puis « Générer une image » ou « Générer une vidéo ». Le rendu peut rester temporaire : cliquer « Enregistrer dans la Médiathèque » pour le conserver, ou « Utiliser ce média » si Studio a été ouvert depuis un autre outil. « Réajuster » permet de reprendre la demande ; une nouvelle génération peut consommer de nouveaux crédits. « Récupérer le résultat » reprend une tentative récupérable, sans promettre un résultat terminé.
 Accès : Basique, Standard (essai inclus) et Premium, avec les crédits et moteurs du compte. Basique n’inclut pas de crédits mensuels ; les recharges permettent de générer sans changer d’offre. Un lancement depuis Booster/une campagne peut verrouiller le type ou le format et réinsérer le résultat dans l’outil d’origine.`,
@@ -52,6 +52,8 @@ Accès : Basique, Standard (essai inclus) et Premium, avec les crédits et moteu
       "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx",
       "app/dashboard/_components/MediaGeneratorModal.tsx",
       "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/studioInspirationImagePolicy.ts",
+      "lib/aiMediaGenerationContracts.ts",
       "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx",
       "lib/aiMediaGlobalConstraints.ts",
       "lib/aiMediaGenerationServer.ts",
@@ -107,10 +109,12 @@ Accès : Basique, Standard (essai inclus) et Premium ; fichiers privés du compt
 Choisir le canal et utiliser ses réglages de connexion/compte publicitaire. « Lancer une campagne » ouvre le studio : « Créer manuellement » puis « Commencer → », ou « Créer avec iNrCy » puis « Préparer l’analyse → » et « Lancer l’analyse iNrCy ».
 En mode assisté, « Mode d’analyse » propose « Analyse libre iNrADN » (iNrCy choisit le cap) ou « Analyse par objectif précis » ; ce dernier demande « Résultat recherché » avant l’analyse.
 Les étapes varient avec la plateforme et le format. Google : Votre projet → (Analyse iNrCy en mode assisté) → Campagne → Enchères → Zones géographiques → Paramètres → Mots-clés → Annonce → Destination et suivi → Budget et calendrier → Vérifier et lancer. Google Search n’a pas d’étape média dédiée. LinkedIn a Audience, Format, Annonce, Média, Diffusion et suivi. Meta/Pinterest/ChatGPT ont leurs propres étapes : suivre les noms et avertissements affichés, pas un parcours générique inventé.
-Compléter objectif, zone/audience, création, destination/suivi, budget/calendrier et les ressources du compte demandées. Ajouter un média par « Générer » ou « Médiathèque » lorsque le format en exige un. « Enregistrer en brouillon » conserve la préparation ; ce n’est pas un lancement.
+Compléter objectif, zone/audience, création, destination/suivi, budget/calendrier et les ressources du compte demandées. Ajouter un média par « Générer » ou « Médiathèque » lorsque le format en exige un. « Enregistrer en brouillon » conserve la préparation ; ce n’est pas un lancement. Si le dossier reste trop volumineux après réduction des historiques, raccourcir les consignes ou les documents de référence ; ne pas relancer la même analyse en boucle.
 La dernière action dépend de la connexion, du canal, du format et de l’activation effective de la publication : « Lancer la campagne », « VALIDER », « VALIDER LE BROUILLON », ou création native en pause. Il faut revoir et autoriser le budget/diffusion, puis attendre la confirmation réelle. Ne pas promettre une diffusion si le résultat est un brouillon ou une campagne en pause.
 Le raccourci « Voir les campagnes dans iNr’Send » ouvre [Campagnes ADS](/dashboard/mails?folder=campagnes-ads). Les restrictions live, comptes/pixels/identités et activations serveur ne sont pas déductibles du forfait seul : se fier au contrôle courant, sans demander de jeton ou secret au professionnel.`,
     sourceFiles: ["lib/productNavigation.ts",
+      "app/api/ads/plan/route.ts",
+      "lib/adsPlanPromptBudget.ts",
       "app/dashboard/ads/page.tsx",
       "app/dashboard/ads/AdsClient.tsx",
       "app/dashboard/ads/AdsCampaignAnalysisChoice.tsx",

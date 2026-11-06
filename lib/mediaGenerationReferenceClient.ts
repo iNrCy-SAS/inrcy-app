@@ -16,6 +16,7 @@ import {
   isInrMediaImageFile,
 } from "@/lib/mediaRules";
 import { uploadUniversalMediaFile } from "@/lib/universalMediaUploadClient";
+import { assertStudioInspirationImageFile, assertStudioInspirationImageMetadata } from "./studioInspirationImagePolicy.ts";
 
 function canvasBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -183,6 +184,7 @@ async function prepareInspirationImageOnServer(
 export async function prepareMediaGenerationImageReference(
   file: File
 ): Promise<MediaGenerationInspirationImage> {
+  await assertStudioInspirationImageFile(file);
   if (!isInrMediaImageFile(file)) {
     throw new Error(`Formats acceptés : ${INR_MEDIA_IMAGE_FORMATS_LABEL}.`);
   }
@@ -280,12 +282,15 @@ type MediaGenerationLibraryReference = {
   mime_type?: string | null;
   original_file_name?: string | null;
   title?: string | null;
+  media_type?: string | null;
 };
 
 export async function prepareMediaGenerationLibraryReferenceFile(
   item: MediaGenerationLibraryReference,
   unavailableMessage: string,
+  options: { imagesOnly?: boolean; imagesOnlyMessage?: string } = {},
 ): Promise<File> {
+  if (options.imagesOnly) assertStudioInspirationImageMetadata(item, options.imagesOnlyMessage);
   if (!item.signed_url) {
     throw new Error(unavailableMessage);
   }
@@ -293,6 +298,7 @@ export async function prepareMediaGenerationLibraryReferenceFile(
   if (!response.ok) {
     throw new Error(unavailableMessage);
   }
+  if (options.imagesOnly) assertStudioInspirationImageMetadata({ type: response.headers.get("content-type") }, options.imagesOnlyMessage);
   const blob = await response.blob();
   const candidateMimeType = blob.type || item.mime_type || "";
   const videoReference = isInrMediaVideoFile({
@@ -311,5 +317,6 @@ export async function prepareMediaGenerationLibraryReferenceFile(
     item.original_file_name || item.title || "inspiration.jpg",
     { type: mimeType }
   );
+  if (options.imagesOnly) await assertStudioInspirationImageFile(file, options.imagesOnlyMessage);
   return file;
 }

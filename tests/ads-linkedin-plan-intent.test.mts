@@ -19,6 +19,8 @@ import * as quality from "../lib/adsPlanQuality.ts";
 import * as budgetRecommendation from "../lib/adsBudgetRecommendation.ts";
 import * as contentLocation from "../lib/aiContentLocation.ts";
 import { assertAiJsonMatchesSchema } from "../lib/aiJsonSchemaValidation.ts";
+import * as promptBudget from "../lib/adsPlanPromptBudget.ts";
+import { getAiFeaturePolicy } from "../lib/aiGatewayPolicy.ts";
 
 const brief = "Une image pour les visites du site en Hauts-de-France, pour les indépendants seuls et les entreprises de 2 à 10 salariés. Budget total 200 €. CTA En savoir plus.";
 const profileLocations = ["Lille", "Arras", "Lens", "Béthune", "Douai", "Calais", "Saint-Omer"];
@@ -149,7 +151,8 @@ function routeRuntime(fixedNow?: string) {
       assertAiJsonMatchesSchema(normalized, (options.responseSchema as { schema: Record<string, unknown> }).schema);
       return normalized;
     } }],
-    ["@/lib/aiGatewayPolicy", { createAiOperationBudget: () => ({}) }],
+    ["@/lib/aiGatewayPolicy", { createAiOperationBudget: () => ({}), getAiFeaturePolicy }],
+    ["@/lib/adsPlanPromptBudget", promptBudget],
     ["@/lib/aiGenerationProfile", { buildNormalizedAiGenerationProfile: () => ({ business: { interventionZones: profileLocations, city: "Harnes", services: context.services, customerTypologies: ["Entreprises locales"], strengths: [] }, preferences: {} }) }],
     ["@/lib/aiMemory", { EMPTY_AI_MEMORY: emptyMemory, normalizeAiMemory: () => emptyMemory }],
     ["@/lib/aiUsageQuota", { reserveAiCredits: async () => { reservations++; return { reservation: {} }; }, commitAiCredits: async () => {}, rollbackAiCredits: async () => {} }],

@@ -114,28 +114,37 @@ test("iNrStudio accepte le catalogue image Booster et convertit les formats navi
   const generator = read("app/dashboard/_components/MediaGenerator.tsx");
   const freeGenerator = read("app/dashboard/_components/MediaFreeGenerator.tsx");
   const referenceClient = read("lib/mediaGenerationReferenceClient.ts");
+  const inspirationPolicy = read("lib/studioInspirationImagePolicy.ts");
   const uploadPolicy = read("lib/mediaUploadPolicy.ts");
   const uploadIntent = read("app/api/media-pipeline/upload-intent/route.ts");
   const conversionRoute = read(
     "app/api/media-generation/normalize-reference/route.ts",
   );
 
-  assert.match(generator, /INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES/);
-  assert.match(generator, /INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS/);
-  assert.match(generator, /INR_MEDIA_ALLOWED_VIDEO_MIME_TYPES/);
-  assert.match(generator, /INR_MEDIA_ALLOWED_VIDEO_EXTENSIONS/);
-  assert.match(generator, /const INSPIRATION_MEDIA_ACCEPT/);
-  assert.match(
-    generator,
-    /kind === "video"\s*\? INSPIRATION_MEDIA_ACCEPT\s*:\s*INSPIRATION_IMAGE_ACCEPT/,
-  );
-  assert.match(generator, /prepareVideoReferenceFrame/);
+  for (const form of [generator, freeGenerator]) {
+    assert.match(form, /INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES/);
+    assert.match(form, /INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS/);
+    assert.doesNotMatch(form, /INR_MEDIA_ALLOWED_VIDEO_|prepareVideoReferenceFrame/);
+    assert.match(form, /assertStudioInspirationImageMetadata/);
+    assert.match(form, /ai_generator_inspiration_images_only/);
+    assert.match(form, /imagesOnly: true/);
+    assert.match(form, /accept="image"/);
+  }
+  assert.equal((generator.match(/accept=\{INSPIRATION_IMAGE_ACCEPT\}/g) || []).length, 2);
+  assert.match(freeGenerator, /accept=\{IMAGE_ACCEPT\}/);
+  assert.doesNotMatch(generator, /INSPIRATION_MEDIA_ACCEPT/);
+  assert.doesNotMatch(freeGenerator, /VIDEO_ACCEPT/);
   assert.match(generator, /htmlFor="ai-media-reference-multiple"/);
   assert.match(generator, /export \{ prepareMediaGenerationImageReference \} from "@\/lib\/mediaGenerationReferenceClient"/);
   assert.match(freeGenerator, /from "@\/lib\/mediaGenerationReferenceClient"/);
   assert.match(referenceClient, /target: "ai_identity_reference"/);
   assert.match(referenceClient, /prepareInspirationImageInBrowser/);
   assert.match(referenceClient, /prepareInspirationImageOnServer/);
+  assert.match(referenceClient, /await assertStudioInspirationImageFile\(file\);[\s\S]*?return await prepareInspirationImageInBrowser\(file\)/);
+  assert.match(inspirationPolicy, /type\.startsWith\("video\/"\)/);
+  assert.match(inspirationPolicy, /VIDEO_EXTENSIONS\.has\(extension\)/);
+  assert.match(inspirationPolicy, /studioInspirationBytesAreVideo\(prefix\)/);
+  assert.match(inspirationPolicy, /"avif"[\s\S]*?"heic"/);
   assert.match(referenceClient, /export async function prepareVideoReferenceFrame/);
   assert.match(uploadPolicy, /"ai_identity_reference"/);
   assert.match(uploadIntent, /folder: "studio-identity-reference"/);

@@ -1,3 +1,4 @@
+import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -55,6 +56,7 @@ function transpileModule(relative: string, modules: Map<string, unknown>) {
   new Function("module", "exports", "require", output)(record, record.exports, (specifier: string) => {
     if (specifier.startsWith("node:")) return nativeRequire(specifier);
     if (specifier === "./aiMediaGlobalConstraints.ts") return globalConstraints;
+    if (specifier === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy;
     assert.ok(modules.has(specifier), `Dépendance inattendue : ${specifier}`);
     return modules.get(specifier);
   });

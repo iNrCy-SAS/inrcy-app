@@ -71,7 +71,7 @@
   "ai_generator_free_prompt_placeholder_image": "E.g. Create an elegant flyer for my restaurant. Highlight our £29 Sunday menu, an appetising photo and the text “Book your table”. Warm atmosphere, cream and terracotta tones.",
   "ai_generator_free_prompt_placeholder_video": "E.g. A cinematic tour of my workshop: close-ups of the craft, then a wide view of the team. Soft lighting, smooth movement.",
   "ai_generator_free_prompt_help": "For exact wording, put your text in quotation marks. You can also dictate your brief.",
-  "ai_generator_free_references_title": "Inspiration media",
+  "ai_generator_free_references_title": "Inspiration images",
   "ai_generator_free_references_hint": "Add up to {count} references to guide the creation.",
   "ai_generator_free_references_video_hint": "An imported video supplies a still frame as a visual reference.",
   "ai_generator_free_import": "Import",
@@ -954,7 +954,7 @@
   "ai_generator_prompt_helper_text_video": "On-screen text: request it separately from speech if you want it. You can specify “No on-screen text”.",
   "ai_generator_prompt_helper_settings_image": "Choose the format in Criteria and the engine in the bottom bar.",
   "ai_generator_prompt_helper_settings_video": "Choose format and sound in Criteria, then the engine and duration in the bottom bar.",
-  "ai_generator_prompt_helper_references": "Inspiration media and “Use my business DNA” are optional. Add them when your request needs them.",
+  "ai_generator_prompt_helper_references": "Inspiration images and “Use my business DNA” are optional. Add them when your request needs them.",
   "ai_generator_prompt_helper_example_label": "An example to get started",
   "ai_generator_prompt_helper_example_image": "A realistic photo of a bouquet on a wooden table, natural light, a warm atmosphere.",
   "ai_generator_prompt_helper_example_video": "In her shop, a florist makes a bouquet and presents it to the camera. She says: “Discover our seasonal bouquets.” No on-screen text.",
@@ -1043,5 +1043,6 @@
   "library_bulk_download_started": "Your ZIP archive download has started.",
   "library_bulk_download_failed": "Unable to prepare the download. Please try again.",
   "library_import_common_tags": "Shared tags (optional)",
-  "library_filters": "Filters"
+  "library_filters": "Filters",
+  "ai_generator_inspiration_images_only": "Add images only for inspiration. Videos are not accepted here."
 }

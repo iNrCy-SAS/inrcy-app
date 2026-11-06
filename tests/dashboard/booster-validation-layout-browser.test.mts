@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
-import { chromium } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
 import ts from "typescript";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 import { durationReviewItems } from "./booster-duration-readiness-fixture.mts";
@@ -177,8 +177,15 @@ test("channel settings open from a gear, preserve all content states and synchro
   const format=dialog.getByRole('combobox',{name:messages.facebook_publication_format});await format.selectOption('classic');
   await dialog.getByRole('checkbox').uncheck();
   const music=dialog.locator('[data-soundtrack-inline]'),musicSelect=music.getByRole('combobox');assert.equal(await musicSelect.getAttribute('aria-disabled'),'true');
-  await format.selectOption('reel');await musicSelect.click();await dialog.getByRole('listbox').waitFor();
-  await dialog.getByRole('option',{name:catalogue[2].label,exact:true}).click();await music.locator('.music-preview').click();
+  await format.selectOption('reel');await musicSelect.click();const musicChoices=dialog.getByRole('listbox');await musicChoices.waitFor();
+  await expect(musicSelect).toHaveAttribute('aria-busy','false');await expect(musicChoices).toHaveAttribute('aria-disabled','false');
+  const musicChoice=dialog.getByRole('option',{name:catalogue[2].label,exact:true});
+  // Hover can scroll the active option. Let that controlled state settle before
+  // the real click, then verify selection before exercising audio playback.
+  await musicChoice.hover();await expect(musicChoice).toHaveAttribute('data-active','true');await musicChoice.click();
+  await expect(musicChoice).toHaveAttribute('aria-selected','true');
+  await expect.poll(()=>page.evaluate(()=>(window as unknown as {contentsValues:{soundtrackByChannel:{facebook:string|null}}}).contentsValues.soundtrackByChannel.facebook)).toBe(catalogue[2].id);
+  const musicPreview=music.locator('.music-preview');await expect(musicPreview).toBeEnabled();await musicPreview.click();
   assert.equal(await page.evaluate(()=>(window as unknown as {activeAudio:Set<unknown>}).activeAudio.size),1);
   const openBounds=await dialog.boundingBox(),listBounds=await dialog.getByRole('listbox').boundingBox();assert.ok(openBounds&&listBounds);assert.ok(listBounds.y>=openBounds.y&&listBounds.y+listBounds.height<=openBounds.y+openBounds.height,'Open music choices remain inside Settings');assert.ok(openBounds.y>=0&&openBounds.y+openBounds.height<=viewport.height+1);
   await page.keyboard.press('Escape');
