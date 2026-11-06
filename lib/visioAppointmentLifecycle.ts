@@ -3,6 +3,36 @@ export const VISIO_APPOINTMENT_ORIGIN_KEY = "inrcyAppointmentOrigin";
 export const VISIO_APPOINTMENT_LIFECYCLE_VERSION_KEY =
   "inrcyAppointmentLifecycleVersion";
 export const VISIO_APPOINTMENT_LIFECYCLE_VERSION = "v1";
+export const VISIO_APPOINTMENT_MANUAL_CANCELLATION_KEY = "inrcyAppointmentManualCancellation";
+export const VISIO_APPOINTMENT_MANUAL_CANCELLATION_VALUE = "v1";
+export const VISIO_APPOINTMENT_MANUAL_CANCELLATION_AT_KEY = "inrcyAppointmentManualCancellationAt";
+export const VISIO_APPOINTMENT_MANUAL_CANCELLATION_ACTOR_KEY = "inrcyAppointmentManualCancellationBy";
+
+/** Written only by the authorized human cancellation action, never by sync. */
+export function hasExplicitVisioAppointmentCancellation(event: {
+  extendedProperties?: { private?: Record<string, string> };
+}) {
+  const properties = event.extendedProperties?.private || {};
+  const actor = properties[VISIO_APPOINTMENT_MANUAL_CANCELLATION_ACTOR_KEY] || "";
+  const at = properties[VISIO_APPOINTMENT_MANUAL_CANCELLATION_AT_KEY] || "";
+  const atMs = Date.parse(at);
+  return properties[VISIO_APPOINTMENT_STATUS_KEY] === "appointment_cancelled" &&
+    properties[VISIO_APPOINTMENT_MANUAL_CANCELLATION_KEY] === VISIO_APPOINTMENT_MANUAL_CANCELLATION_VALUE &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(actor) &&
+    Number.isFinite(atMs) && new Date(atMs).toISOString() === at;
+}
+
+export function visioAppointmentCancellationProperties(
+  event: { extendedProperties?: { private?: Record<string, string> } },
+  status: VisioAppointmentStatus,
+) {
+  const properties = event.extendedProperties?.private || {};
+  return Object.fromEntries([
+    VISIO_APPOINTMENT_MANUAL_CANCELLATION_KEY,
+    VISIO_APPOINTMENT_MANUAL_CANCELLATION_AT_KEY,
+    VISIO_APPOINTMENT_MANUAL_CANCELLATION_ACTOR_KEY,
+  ].map(key => [key, status === "appointment_cancelled" ? properties[key] || "" : ""]));
+}
 export const VISIO_APPOINTMENT_LIFECYCLE_CUTOVER_AT =
   "2026-09-10T20:40:29.000Z";
 
@@ -189,9 +219,8 @@ export function canExplicitlyConfirmPendingSignup(input: {
 }
 
 /**
- * Google Agenda users can express the same business transition by changing
- * the event colour. Only colours that map to an allowed lifecycle transition
- * are accepted; decorative or accidental colours never corrupt the status.
+ * Colours may express non-cancelling lifecycle changes. Cancellation and
+ * reopening a cancelled appointment require the authorized human status API.
  */
 export function visioAppointmentStatusAfterColorChange(input: {
   currentStatus: VisioAppointmentStatus;
@@ -199,6 +228,10 @@ export function visioAppointmentStatusAfterColorChange(input: {
   colorId: unknown;
 }) {
   const requestedStatus = visioAppointmentStatusForColor(input.colorId);
+  // A colour is presentation, never authorization to cancel an appointment.
+  // A confirmed cancellation can only be reopened by the same human API.
+  if (requestedStatus === "appointment_cancelled" || requestedStatus === "signup_cancelled" ||
+    input.currentStatus === "appointment_cancelled") return input.currentStatus;
   if (
     requestedStatus &&
     requestedStatus !== input.currentStatus &&

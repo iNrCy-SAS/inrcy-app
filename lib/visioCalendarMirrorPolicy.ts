@@ -5,6 +5,9 @@ import {
   VISIO_APPOINTMENT_LIFECYCLE_VERSION_KEY,
   VISIO_APPOINTMENT_ORIGIN_KEY,
   VISIO_APPOINTMENT_STATUS_KEY,
+  isVisioAppointmentStatus,
+  visioAppointmentColorId,
+  visioAppointmentCancellationProperties,
 } from "./visioAppointmentLifecycle.ts";
 
 export const TEAM_CALENDAR_MIRROR_KEY = "inrcyTeamMirror";
@@ -396,6 +399,9 @@ export function teamCalendarMirrorContentSignature(event: TeamCalendarEvent) {
     appointmentOrigin: properties.inrcyAppointmentOrigin || "",
     appointmentLifecycleVersion:
       properties.inrcyAppointmentLifecycleVersion || "",
+    appointmentManualCancellation: properties.inrcyAppointmentManualCancellation || "",
+    appointmentManualCancellationAt: properties.inrcyAppointmentManualCancellationAt || "",
+    appointmentManualCancellationBy: properties.inrcyAppointmentManualCancellationBy || "",
     calendarReplica: properties.inrcyCalendarReplica || "",
     canonicalEventId: properties.inrcyCanonicalEventId || "",
     replicaFingerprint: properties.inrcyReplicaFingerprint || "",
@@ -733,7 +739,9 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
       : `[${member.name}] ${sourceSummary}`,
     description: details.join("\n\n"),
     location: isPrivate ? "" : String(event.location || "").trim(),
-    colorId: event.colorId,
+    colorId: isVisioAppointmentStatus(sourcePrivate[VISIO_APPOINTMENT_STATUS_KEY])
+      ? visioAppointmentColorId(sourcePrivate[VISIO_APPOINTMENT_STATUS_KEY] as import("./visioAppointmentLifecycle.ts").VisioAppointmentStatus)
+      : event.colorId,
     // A normal source event must keep its details visible to readers of the
     // shared team calendar. Sensitive source events are still redacted above
     // and remain private.
@@ -745,6 +753,9 @@ export function buildTeamCalendarMirrorBody(input: TeamCalendarMirrorInput) {
     reminders: { useDefault: false, overrides: [] },
     extendedProperties: {
       private: {
+        ...(isVisioAppointmentStatus(sourcePrivate[VISIO_APPOINTMENT_STATUS_KEY])
+          ? visioAppointmentCancellationProperties(event, sourcePrivate[VISIO_APPOINTMENT_STATUS_KEY] as import("./visioAppointmentLifecycle.ts").VisioAppointmentStatus)
+          : {}),
         ...(sourcePrivate.inrcyBooking
           ? { inrcyBooking: sourcePrivate.inrcyBooking }
           : {}),

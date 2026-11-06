@@ -12,6 +12,11 @@ import {
   scheduledStatusForOrigin,
   visioAppointmentStatusAfterColorChange,
   visioAppointmentStatusForColor,
+  hasExplicitVisioAppointmentCancellation,
+  VISIO_APPOINTMENT_MANUAL_CANCELLATION_KEY,
+  VISIO_APPOINTMENT_MANUAL_CANCELLATION_VALUE,
+  VISIO_APPOINTMENT_MANUAL_CANCELLATION_AT_KEY,
+  VISIO_APPOINTMENT_MANUAL_CANCELLATION_ACTOR_KEY,
 } from "../../lib/visioAppointmentLifecycle.ts";
 
 test("chaque statut métier possède exactement la couleur Google convenue", () => {
@@ -160,7 +165,7 @@ test("un changement de couleur Google ne produit qu'une transition métier autor
       origin: "signup_with_appointment",
       colorId: "9",
     }),
-    "appointment_scheduled_direct",
+    "appointment_cancelled",
   );
   assert.equal(
     visioAppointmentStatusAfterColorChange({
@@ -186,4 +191,33 @@ test("un changement de couleur Google ne produit qu'une transition métier autor
     }),
     "appointment_scheduled_direct",
   );
+});
+
+test("les couleurs rouge et rose ne constituent jamais une décision humaine d'annuler un rendez-vous", () => {
+  for (const colorId of ["11", "4"]) {
+    assert.equal(visioAppointmentStatusAfterColorChange({ currentStatus: "appointment_scheduled_direct", origin: "signup_with_appointment", colorId }), "appointment_scheduled_direct");
+    assert.equal(visioAppointmentStatusAfterColorChange({ currentStatus: "appointment_signed", origin: "signup_with_appointment", colorId }), "appointment_signed");
+  }
+});
+
+test("un statut annulé ne peut pas être réouvert par une simple couleur Google", () => {
+  for (const colorId of ["9", "7", "10"]) {
+    assert.equal(visioAppointmentStatusAfterColorChange({ currentStatus: "appointment_cancelled", origin: "signup_with_appointment", colorId }), "appointment_cancelled");
+  }
+});
+
+test("le marqueur d'autorité humaine est distinct de la couleur et des seules métadonnées de cycle", () => {
+  const privateProperties: Record<string, string> = lifecyclePrivateProperties({ status: "appointment_cancelled", origin: "signup_with_appointment" });
+  assert.equal(privateProperties[VISIO_APPOINTMENT_MANUAL_CANCELLATION_KEY], undefined);
+  const colourOnly = { colorId: "11", extendedProperties: { private: privateProperties } };
+  assert.equal(hasExplicitVisioAppointmentCancellation(colourOnly), false);
+  const marked = { ...privateProperties, [VISIO_APPOINTMENT_MANUAL_CANCELLATION_KEY]: VISIO_APPOINTMENT_MANUAL_CANCELLATION_VALUE, [VISIO_APPOINTMENT_MANUAL_CANCELLATION_AT_KEY]: "2026-11-06T14:00:00.000Z", [VISIO_APPOINTMENT_MANUAL_CANCELLATION_ACTOR_KEY]: "11111111-1111-4111-8111-111111111111" };
+  assert.equal(hasExplicitVisioAppointmentCancellation({ extendedProperties: { private: marked } }), true);
+  for (const key of [VISIO_APPOINTMENT_MANUAL_CANCELLATION_AT_KEY, VISIO_APPOINTMENT_MANUAL_CANCELLATION_ACTOR_KEY]) {
+    assert.equal(hasExplicitVisioAppointmentCancellation({ extendedProperties: { private: { ...marked, [key]: "" } } }), false);
+  }
+  assert.equal(hasExplicitVisioAppointmentCancellation({ extendedProperties: { private: { ...marked, [VISIO_APPOINTMENT_MANUAL_CANCELLATION_AT_KEY]: "invalid" } } }), false);
+  assert.equal(hasExplicitVisioAppointmentCancellation({ extendedProperties: { private: { ...marked, [VISIO_APPOINTMENT_MANUAL_CANCELLATION_ACTOR_KEY]: "invalid" } } }), false);
+  assert.equal(hasExplicitVisioAppointmentCancellation({ extendedProperties: { private: { ...marked, [VISIO_APPOINTMENT_MANUAL_CANCELLATION_KEY]: "invalid" } } }), false);
+  assert.equal(hasExplicitVisioAppointmentCancellation({ extendedProperties: { private: { ...marked, inrcyAppointmentStatus: "appointment_scheduled_direct" } } }), false);
 });
