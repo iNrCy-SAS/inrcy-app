@@ -658,6 +658,7 @@
 @media(max-width:520px) { .connectChoices:has(.connectMenu) { flex-direction:column; align-items:stretch; gap:12px; min-height:180px; padding:20px 0; } .connectChoices:has(.connectMenu) > :is(button,a),.connectChoices:has(.connectMenu) > .connectMenu { flex:0 0 auto; } .connectMenu > button { justify-content:center; } .connectMenuChoices,.connectMenuInfoPanel { position:static; box-sizing:border-box; width:100%; max-width:100%; margin-top:8px; } }
 .typesMenu { position: fixed; inset: auto; box-sizing: border-box; margin: 0; padding: 12px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; color: #edf5ff; color-scheme: dark; border: 1px solid #8aabf080; border-radius: 17px; background: linear-gradient(125deg,#112950,#27204b); box-shadow: 0 14px 45px #0009,inset 0 1px 1px #dfeaff26; }
 .typesMenu::backdrop { background: transparent; }
+.typesMenu:popover-open { display: block; }
 .popoverHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; color: #f1f6ff; font-size: 13px; line-height: 1.4; }
 .popoverHeader strong { min-width: 0; overflow-wrap: anywhere; }
 .popoverHeader button { display: grid; place-items: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; border: 1px solid #b1c8ff4d; border-radius: 50%; background: #94b9ff14; color: #e3efff; font: inherit; font-size: 22px; cursor: pointer; }

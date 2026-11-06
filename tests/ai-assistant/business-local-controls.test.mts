@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import * as browserPopover from "../../lib/browserPopover.ts";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
@@ -160,7 +161,7 @@ test("Basic native popover controls use only their explicit element and wait for
   const key = "native-popover"; let revision = 0;
   const source = ts.transpileModule(readFileSync(new URL("../../app/dashboard/_hooks/useInrAssistantNativePopover.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const helperModule = { exports: {} as typeof import("../../app/dashboard/_hooks/useInrAssistantNativePopover.ts") }, effects: Array<() => (() => void) | void> = [];
-  const dependencies: Row = { react: { useState: () => [renderedOpen, (value: boolean) => { renderedOpen = value; }], useLayoutEffect: (effect: () => (() => void) | void) => effects.push(effect) }, "./useInrAssistantLocalInterface": { useInrAssistantLocalInterface: (id: driver.InrAssistantLocalInterface, snapshot: unknown, handlers: driver.InrAssistantLocalInterfaceRegistration["handlers"], enabled: boolean, busy: boolean) => driver.registerInrAssistantLocalInterface(key, enabled ? { ...scope, id, snapshot, handlers, busy, revision: `popover_${++revision}` } : null) } };
+  const dependencies: Row = { "@/lib/browserPopover": browserPopover, react: { useState: () => [renderedOpen, (value: boolean) => { renderedOpen = value; }], useLayoutEffect: (effect: () => (() => void) | void) => effects.push(effect) }, "./useInrAssistantLocalInterface": { useInrAssistantLocalInterface: (id: driver.InrAssistantLocalInterface, snapshot: unknown, handlers: driver.InrAssistantLocalInterfaceRegistration["handlers"], enabled: boolean, busy: boolean) => driver.registerInrAssistantLocalInterface(key, enabled ? { ...scope, id, snapshot, handlers, busy, revision: `popover_${++revision}` } : null) } };
   vm.runInNewContext(`(function(require,module,exports){${source}\n})`)((name: string) => { assert.ok(name in dependencies, name); return dependencies[name]; }, helperModule, helperModule.exports);
   const commit = () => { cleanup?.(); effects.length = 0; helperModule.exports.useInrAssistantNativePopover("channel_board", { current: element as unknown as HTMLElement }); for (const effect of effects) cleanup = effect() || undefined; };
   const run = (operation: "open" | "close") => { const hint = driver.getInrAssistantLocalInterfaceHints(scope)?.find(hint => hint.id === "channel_board"); assert.ok(hint); return driver.runInrAssistantLocalInterface({ command: "control_local_interface", selection: { kind: "account_document", id: "channel_board" }, operation, revision: hint.revision, value: null }, scope, () => true); };

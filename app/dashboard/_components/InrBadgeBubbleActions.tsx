@@ -9,6 +9,7 @@ import { getChannelPopoverPlacement } from "./channel-popover-position";
 import styles from "./DashboardChannelBubble.module.css";
 import { useInrAssistantNativePopover } from "../_hooks/useInrAssistantNativePopover";
 import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import CompatiblePopover from "./CompatiblePopover";
 
 function BadgeActionIcon({ kind }: { kind: "qr" | "download" | "link" }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -19,7 +20,7 @@ function BadgeActionIcon({ kind }: { kind: "qr" | "download" | "link" }) {
 function useBadgePopover(width: number) {
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDialogElement>(null);
   const [position, setPosition] = useState<CSSProperties>({});
   const place = (event: { newState: string }) => {
     if (event.newState === "open" && trigger.current) setPosition(getChannelPopoverPlacement(trigger.current, menu.current, width));
@@ -42,11 +43,11 @@ export function InrBadgeQrButton({ publicUrl, companyName, compact = false }: { 
   useInrAssistantNativePopover("badge_qr_options", menu, true, !matrix.length);
   return <div className={compact ? styles.badgeCopyAction : styles.resourceGroup}>
     <button ref={trigger} type="button" className={compact ? styles.iconAction : `${styles.resourcePill} ${styles.badgeQrTrigger}`} aria-label={t("qr_code_44742187")} title={t("qr_code_44742187")} disabled={!matrix.length} popoverTarget={id}><BadgeActionIcon kind="qr" />{compact ? null : t("qr_code_44742187")}</button>
-    <div ref={menu} id={id} popover="auto" role="group" aria-label={t("qr_code_44742187")} className={`${styles.typesMenu} ${styles.badgeQrFrame}`} style={position} onBeforeToggle={place} onToggle={place}>
+    <CompatiblePopover ref={menu} id={id} popover="auto" role="group" aria-label={t("qr_code_44742187")} className={`${styles.typesMenu} ${styles.badgeQrFrame}`} style={position} onBeforeToggle={place} onToggle={place}>
       <header className={`${styles.popoverHeader} ${styles.badgeQrHeader}`}><strong>{t("qr_code_44742187")}</strong><span className={styles.badgeQrCompany} title={companyName}>{companyName}</span><button type="button" popoverTarget={id} popoverTargetAction="hide" aria-label={bubble("close")}>×</button></header>
       <figure className={styles.badgeQrPaper}><svg viewBox={`0 0 ${size} ${size}`} role="img" aria-label={`${t("qr_code_44742187")} — ${companyName || "iNrCy"}`} className={styles.badgeQrCode} shapeRendering="crispEdges"><rect width={size} height={size} fill="white" /><path fill="#111827" d={matrix.flatMap((row, y) => row.flatMap((dark, x) => dark ? [`M${x + 4} ${y + 4}h1v1h-1z`] : [])).join("")} /></svg></figure>
       {publicUrl ? <a ref={publicAnchor} className={styles.badgeQrLink} href={publicUrl} target="_blank" rel="noopener noreferrer">{publicUrl}</a> : null}
-    </div>
+    </CompatiblePopover>
   </div>;
 }
 
@@ -70,11 +71,11 @@ export function InrBadgeDownloadButton({ publicUrl, profile }: { publicUrl: stri
   };
   return <>
     <button ref={trigger} type="button" className={styles.iconAction} aria-label={t("telecharger_b332d06d")} title={t("telecharger_b332d06d")} popoverTarget={id} disabled={!publicUrl || busy}><BadgeActionIcon kind="download" /><span className={styles.actionText} aria-hidden="true">{t("telecharger_b332d06d")}</span></button>
-    <div ref={menu} id={id} popover="auto" role="group" aria-label={t("choisir_un_format_de_telechargement_42324b61")} className={styles.typesMenu} style={position} onBeforeToggle={place} onToggle={place}>
+    <CompatiblePopover ref={menu} id={id} popover="auto" role="group" aria-label={t("choisir_un_format_de_telechargement_42324b61")} className={styles.typesMenu} style={position} onBeforeToggle={place} onToggle={place}>
       <header className={styles.popoverHeader}><strong>{t("telecharger_b332d06d")}</strong><button type="button" popoverTarget={id} popoverTargetAction="hide" aria-label={bubble("close")}>×</button></header>
       <div className={styles.badgeDownloadChoices}>{(["png", "pdf"] as const).map(format => <button key={format} type="button" disabled={busy} onClick={() => void download(format)}>{format.toUpperCase()}</button>)}</div>
       {error ? <p role="alert" className={styles.typesError}>{error}</p> : null}
-    </div>
+    </CompatiblePopover>
   </>;
 }
 

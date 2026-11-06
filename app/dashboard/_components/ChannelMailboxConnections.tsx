@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import type { ChannelMailboxSlot } from "./channel-bubble.types";
 import styles from "./DashboardChannelBubble.module.css";
 import { getChannelPopoverPlacement } from "./channel-popover-position";
+import CompatiblePopover from "./CompatiblePopover";
 
 type SlotProps = { slot: ChannelMailboxSlot; disabled?: boolean; onAction: (action: () => unknown | Promise<unknown>) => void };
 
@@ -12,7 +13,7 @@ export function MailboxConnectionButton({ slot, disabled, onAction }: SlotProps)
   const t = useTranslations("dashboard.channelBubble");
   const id = `${useId()}-${slot.number}`;
   const trigger = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDialogElement>(null);
   const [position, setPosition] = useState<CSSProperties>({});
   const place = () => { if (trigger.current) setPosition(getChannelPopoverPlacement(trigger.current, menu.current, 300)); };
   const actions = slot.address ? [
@@ -28,14 +29,14 @@ export function MailboxConnectionButton({ slot, disabled, onAction }: SlotProps)
       <span className={styles.mailboxSlotLabel}>{slot.address ? <span className={styles.mailboxSlotDot} aria-hidden="true" /> : <span aria-hidden="true">＋</span>}<strong>{label}</strong></span>
       <span className={styles.mailboxSlotProvider}>{slot.provider}</span>
     </button>
-    {!directConnect && actions.length ? <div ref={menu} id={id} popover="auto" role="group" aria-label={accessibleLabel} className={`${styles.typesMenu} ${styles.mailboxMenu}`} style={position} onBeforeToggle={event => {
+    {!directConnect && actions.length ? <CompatiblePopover ref={menu} id={id} popover="auto" role="group" aria-label={accessibleLabel} className={`${styles.typesMenu} ${styles.mailboxMenu}`} style={position} onBeforeToggle={event => {
       if (event.newState !== "open") return;
       place();
     }} onToggle={event => { if (event.newState === "open") place(); }}>
       <header className={styles.popoverHeader}><strong>{slot.address || `${t("mailboxSlot", { number: slot.number })} — ${t("connect")}`}</strong><button type="button" popoverTarget={id} popoverTargetAction="hide" aria-label={t("close")}>×</button></header>
       {slot.statusLabel ? <p className={styles.typesHint}>{slot.provider} — {slot.statusLabel}</p> : null}
       <div className={styles.mailboxActions}>{actions.map(action => <button key={action.label} type="button" disabled={disabled || slot.disabled} data-danger={"danger" in action && action.danger ? "true" : undefined} onClick={() => { menu.current?.hidePopover(); onAction(action.action); }}>{"danger" in action && action.danger ? <span aria-hidden="true">× </span> : null}{action.label}</button>)}</div>
-    </div> : null}
+    </CompatiblePopover> : null}
   </>;
 }
 

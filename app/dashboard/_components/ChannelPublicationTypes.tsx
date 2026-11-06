@@ -6,13 +6,14 @@ import type { ChannelBubbleConnection } from "./channel-bubble.types";
 import styles from "./DashboardChannelBubble.module.css";
 import { getChannelPopoverPlacement } from "./channel-popover-position";
 import { useInrAssistantNativePopover } from "../_hooks/useInrAssistantNativePopover";
+import CompatiblePopover from "./CompatiblePopover";
 
 export default function ChannelPublicationTypes({ name, channel, settings, disabled }: { name: string; channel?: string; settings: NonNullable<ChannelBubbleConnection["publicationTypes"]>; disabled?: boolean }) {
   const t = useTranslations("dashboard.channelBubble");
   const shell = useTranslations("shell");
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDialogElement>(null);
   const saving = useRef(false);
   const [position, setPosition] = useState<CSSProperties>({});
   const [pending, setPending] = useState(false);
@@ -33,7 +34,7 @@ export default function ChannelPublicationTypes({ name, channel, settings, disab
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="6" width="15" height="15" rx="3" /><path d="M7 3h11a3 3 0 0 1 3 3v11M9 11l5 3-5 3v-6Z" /></svg>
       <span className={styles.actionText} aria-hidden="true">{t("formatsShort")}</span>
     </button>
-    <div ref={menu} id={id} popover="auto" className={styles.typesMenu} role="group" aria-label={`${t("publicationTypes")} — ${name}`} style={position} onBeforeToggle={event => {
+    <CompatiblePopover ref={menu} id={id} popover="auto" className={styles.typesMenu} role="group" aria-label={`${t("publicationTypes")} — ${name}`} style={position} onBeforeToggle={event => {
       if (event.newState !== "open") return;
       place();
       setError("");
@@ -50,6 +51,6 @@ export default function ChannelPublicationTypes({ name, channel, settings, disab
       </div>)}
       <p className={styles.typesHint}>★ {shell("instagram_default_publication_mode")}</p>
       {error || settings.error ? <p className={styles.typesError} role="alert">{settings.error || error}</p> : null}
-    </div>
+    </CompatiblePopover>
   </>;
 }

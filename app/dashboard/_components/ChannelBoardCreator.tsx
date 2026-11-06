@@ -5,12 +5,13 @@ import { useTranslations } from "next-intl";
 import styles from "./DashboardChannelBubble.module.css";
 import { getChannelPopoverPlacement } from "./channel-popover-position";
 import { useInrAssistantNativePopover } from "../_hooks/useInrAssistantNativePopover";
+import CompatiblePopover from "./CompatiblePopover";
 
 export default function ChannelBoardCreator({ onCreate, disabled }: { onCreate: (name: string) => boolean | Promise<boolean>; disabled?: boolean }) {
   const t = useTranslations("dashboard.channelBubble");
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const submitting = useRef(false);
   const [position, setPosition] = useState<CSSProperties>({});
@@ -36,7 +37,7 @@ export default function ChannelBoardCreator({ onCreate, disabled }: { onCreate: 
     <button ref={trigger} type="button" className={`${styles.iconAction} ${styles.createBoardTrigger}`} popoverTarget={id} disabled={disabled || pending} aria-label={t("createBoard")} title={t("createBoard")}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
     </button>
-    <div ref={menu} id={id} popover="auto" role="group" aria-label={t("createBoard")} className={`${styles.typesMenu} ${styles.boardCreator}`} style={position} onBeforeToggle={event => {
+    <CompatiblePopover ref={menu} id={id} popover="auto" role="group" aria-label={t("createBoard")} className={`${styles.typesMenu} ${styles.boardCreator}`} style={position} onBeforeToggle={event => {
       if (event.newState !== "open") return;
       place();
       setError("");
@@ -48,6 +49,6 @@ export default function ChannelBoardCreator({ onCreate, disabled }: { onCreate: 
         {error ? <p className={styles.typesError} role="alert">{error}</p> : null}
         <button type="submit" className={styles.action} disabled={disabled || pending || !name.trim()}>{pending ? t("loading") : t("createBoard")}</button>
       </form>
-    </div>
+    </CompatiblePopover>
   </>;
 }

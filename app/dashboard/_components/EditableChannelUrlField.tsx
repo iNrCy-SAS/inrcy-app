@@ -131,6 +131,7 @@ export default function EditableChannelUrlField({
     setDraftChangedByUser(false);
     setErrorCode(null);
     setEditing(false);
+    if (editorOnly) inputRef.current?.closest<HTMLElement>("[popover]")?.hidePopover?.();
   };
 
   useInrAssistantNativeChannelLink(channel, target, { kind: "draft", identity: value, state: { draft, value, editing, changed: draftChangedByUser }, blocked: saving, invoke: operation => { if (operation !== "clear" || saving) throw new Error("Channel draft unavailable"); cancelEditing(); }, matches: state => Boolean(state && typeof state === "object" && "draft" in state && "value" in state && "changed" in state && state.draft === state.value && state.changed === false) });

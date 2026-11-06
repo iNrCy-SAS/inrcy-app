@@ -7,6 +7,7 @@ import EditableChannelUrlField from "./EditableChannelUrlField";
 import { getChannelPopoverPlacement } from "./channel-popover-position";
 import styles from "./DashboardChannelBubble.module.css";
 import { useInrAssistantNativePopover } from "../_hooks/useInrAssistantNativePopover";
+import CompatiblePopover from "./CompatiblePopover";
 
 export type SiteWebBubbleProps = ReturnType<typeof buildDashboardPanelProps>["siteWebPanelProps"];
 
@@ -23,7 +24,7 @@ export function SiteGoogleConnectionButton({ product, connected, busy, canConnec
   const t = useTranslations("dashboard.channelBubble");
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
+  const menu = useRef<HTMLDialogElement>(null);
   const [position, setPosition] = useState<CSSProperties>({});
   const [pending, setPending] = useState(false);
   const inFlight = useRef(false);
@@ -41,10 +42,10 @@ export function SiteGoogleConnectionButton({ product, connected, busy, canConnec
       <strong><span className={styles.siteGoogleDot} aria-hidden="true" />{product}</strong><small>{busy || pending ? t("loading") : connected ? t("connectedShort") : t("connect")}</small>
     </button>
     {connected ? <button type="button" className={styles.siteGoogleDisconnect} aria-label={`${t("disconnect")} ${product}`} title={`${t("disconnect")} ${product}`} disabled={busy || pending} onClick={() => void disconnect()}>×</button> : null}
-    {connected ? <div ref={menu} id={id} popover="auto" role="group" aria-label={`${product} — ${t("connectedShort")}`} className={`${styles.typesMenu} ${styles.siteGoogleDetails}`} style={position} onBeforeToggle={event => { if (event.newState === "open") place(); }} onToggle={event => { if (event.newState === "open") place(); }}>
+    {connected ? <CompatiblePopover ref={menu} id={id} popover="auto" role="group" aria-label={`${product} — ${t("connectedShort")}`} className={`${styles.typesMenu} ${styles.siteGoogleDetails}`} style={position} onBeforeToggle={event => { if (event.newState === "open") place(); }} onToggle={event => { if (event.newState === "open") place(); }}>
       <header className={styles.popoverHeader}><strong>{product === "GA4" ? "Google Analytics 4" : "Google Search Console"}</strong><button type="button" popoverTarget={id} popoverTargetAction="hide" aria-label={t("close")}>×</button></header>
       <dl>{details.map(detail => <div key={detail.label}><dt>{detail.label}</dt><dd>{detail.value || "—"}</dd></div>)}</dl>
-    </div> : null}
+    </CompatiblePopover> : null}
   </div>;
 }
 

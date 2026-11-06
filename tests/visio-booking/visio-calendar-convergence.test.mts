@@ -600,8 +600,8 @@ test("duplicate cleanup preserves an ambiguous red appointment and its preferred
   const originalRed = harness.get(sharedCalendarId, mirror.id!);
   for (let pass = 0; pass < 2; pass++) {
     const sync = await harness.runSync();
-    assert.deepEqual(sync.writes, [], "a mixed cancelled/scheduled family requires a human decision before any automatic write");
     assert.equal(sync.writes.some(request => request.calendarId === sharedCalendarId && request.eventId === mirror.id && request.body?.status === "cancelled"), false, "deduplication must not erase the only cancelled representation in favour of a blue duplicate");
+    assert.deepEqual(sync.writes, [], "a mixed cancelled/scheduled family requires a human decision before any automatic write");
     assert.deepEqual(harness.get(sharedCalendarId, mirror.id!), originalRed, "the ambiguous cancellation remains intact without a human decision");
     assertScheduled(harness.get(sharedCalendarId, blue.id!));
     assertScheduled(harness.get(publicMember.calendarId, source.id!));

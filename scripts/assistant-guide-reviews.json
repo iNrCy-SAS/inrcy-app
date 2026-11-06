@@ -377,9 +377,10 @@
       }
     },
     "calendar": {
-      "guideDigest": "c42681bf78b6f1c8c69a8bd5b04a5d6980d4d52a03ca4ae8a8733aece91349fc",
+      "guideDigest": "1907234b9d84bf47ab2daf46ca2a95a4c2d0530c0f034dac79346302ae2fcd9b",
       "sources": {
         "app/api/calendar/events/route.ts": "41e4096293cb85c9820ecc6a1f063104e79144369add711bbdb4a17296971103",
+        "app/api/internal/visio-booking/appointments/route.ts": "c7164416ad76f3c46a8eeca63e2780c7784709092a2cc6ffacc37624a45dc374",
         "app/dashboard/agenda/AgendaClient.tsx": "7f7f5b7074adc8f99508a552f19539dd70ab9558e4dbb9b10d061ddcc7ff13d1",
         "app/dashboard/agenda/agenda.ui.tsx": "11153d19996173b860a8553ffdcad7f8b32d57bfcfb1d08164b28980ea5cd3f3",
         "app/dashboard/agenda/page.tsx": "62cfc23a08e0a05af413be917af1808796ba96605a7cde0d038daf53dc9b4d5d",
@@ -387,6 +388,9 @@
         "app/dashboard/settings/_components/AgendaSettingsContent.tsx": "0477181cc0dd59a9ad7ecc6f298cf807f80f3e746225459822566cb5043e0522",
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
+        "lib/visioAppointmentLifecycle.ts": "84375db8bd67fea36fd99e0fefe23de0c706bdcfd41aa099ad0db40b663f7e26",
+        "lib/visioBookingGoogle.ts": "0aacd8f4db89bc0a25f99fb3f3a050580a4dd4dff7874c4eb3f2257f09809dd7",
+        "lib/visioCalendarMirrorPolicy.ts": "e63786559cd304416e2c148affa7eb5ae1805ee4524f2078056cc386ec7ac224",
         "messages/fr-FR/agenda.json": "8bfc76690d53640023200dbfb9f383215234835e130080b7ebb19be0e9b6309e"
       }
     },
@@ -421,7 +425,7 @@
         "app/dashboard/_components/DashboardChannelWorkspace.tsx": "40b602b769c0d00fb6292e47e06546340db4c69c8dc3c8aa7c80fa8c08e3f085",
         "app/dashboard/_components/DashboardChannelsModal.tsx": "0da98de6de3759c4a492a50cf1fc4e7305d8b2e215ef5ae30e10a7138fee8ce4",
         "app/dashboard/_components/DashboardFluxBubble.tsx": "ee819a50db88ba8e86bc91d2065158766eed736c98fdc6e01bccf29d8028c5f2",
-        "app/dashboard/_components/InrBadgeBubbleActions.tsx": "564cba14e5bf21dcbdfaa2d4c344b751bc65e978ee5bacb8367ad9fd17806809",
+        "app/dashboard/_components/InrBadgeBubbleActions.tsx": "2dddb3e4afe880f860ca638bc4cb487bf7614f4e844f5d452229161d9443f01a",
         "app/dashboard/_hooks/channels/useThreadsChannel.ts": "ca967c2c8b16ad6a3601e589956c975904729a0c28136103e3f92fabb9ee574f",
         "app/dashboard/settings/_components/InrSearchPresentationSettings.tsx": "4bb0d516722e077bc36678b7c60ad3058e4a8e5a0cd878c7fe28b0f02604e9cc",
         "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx": "debe1d1b26ddf2b6e0045bc19d5c6a261f137b3f9ae2274e9dfc4580c217876b",
@@ -456,7 +460,7 @@
     "channel-mails": {
       "guideDigest": "bb9deec9705b7dc7e3662971075650f2ae54b4958de06e69c314d2533061467c",
       "sources": {
-        "app/dashboard/_components/ChannelMailboxConnections.tsx": "6be97d861423568ee361ef7c528074fa08ff0d59fa673d83e4e72fcb796f607e",
+        "app/dashboard/_components/ChannelMailboxConnections.tsx": "330419d74df7882e1dfca516eaf8c9a049d2155b7373605f04e6f9ed13ef9f8a",
         "app/dashboard/_components/DashboardChannelWorkspace.tsx": "40b602b769c0d00fb6292e47e06546340db4c69c8dc3c8aa7c80fa8c08e3f085",
         "app/dashboard/_components/DashboardChannelsModal.tsx": "0da98de6de3759c4a492a50cf1fc4e7305d8b2e215ef5ae30e10a7138fee8ce4",
         "app/dashboard/_components/DashboardFluxBubble.tsx": "ee819a50db88ba8e86bc91d2065158766eed736c98fdc6e01bccf29d8028c5f2",
@@ -469,7 +473,7 @@
     "channel-pinterest": {
       "guideDigest": "621c19d99e326e0ef17223c4eee785d66fefe85d2e8165ca8470633be98ec1ea",
       "sources": {
-        "app/dashboard/_components/ChannelBoardCreator.tsx": "f02522164ae975ed6b7c8023b34b83974b85e8f3cd94b228cb39a6555677e3b9",
+        "app/dashboard/_components/ChannelBoardCreator.tsx": "95379714a4cfc14aa924db8ccf6ebcb7685ce5c6b8cf9fb9024137c3e9ace616",
         "app/dashboard/_components/DashboardChannelWorkspace.tsx": "40b602b769c0d00fb6292e47e06546340db4c69c8dc3c8aa7c80fa8c08e3f085",
         "app/dashboard/_components/DashboardChannelsModal.tsx": "0da98de6de3759c4a492a50cf1fc4e7305d8b2e215ef5ae30e10a7138fee8ce4",
         "app/dashboard/_components/DashboardFluxBubble.tsx": "ee819a50db88ba8e86bc91d2065158766eed736c98fdc6e01bccf29d8028c5f2",
@@ -484,8 +488,8 @@
         "app/dashboard/_components/DashboardChannelWorkspace.tsx": "40b602b769c0d00fb6292e47e06546340db4c69c8dc3c8aa7c80fa8c08e3f085",
         "app/dashboard/_components/DashboardChannelsModal.tsx": "0da98de6de3759c4a492a50cf1fc4e7305d8b2e215ef5ae30e10a7138fee8ce4",
         "app/dashboard/_components/DashboardFluxBubble.tsx": "ee819a50db88ba8e86bc91d2065158766eed736c98fdc6e01bccf29d8028c5f2",
-        "app/dashboard/_components/EditableChannelUrlField.tsx": "1f248c8d6a9470d5b3c129c36c8d6070df53b234344232e874a0399c21827e71",
-        "app/dashboard/_components/SiteWebBubbleControls.tsx": "3167f650fe9fb9f447123068c5e61a0199411fa34d642cbae7ad98917b49f092",
+        "app/dashboard/_components/EditableChannelUrlField.tsx": "07a264aed86ed0df953659fc691ea2b67f52885e6f82ef2e551e57c3a783bbb6",
+        "app/dashboard/_components/SiteWebBubbleControls.tsx": "5dc73a3b395d6171e9e0cf9b7daca4f483549977460cc2f796acd1903a14a45c",
         "app/dashboard/_components/SiteWebWidgetSettings.tsx": "566bc2285e0a59bcbcb36d5193826bb75460a60d80b388705ac71240d66fbeba",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
         "messages/fr-FR/dashboard.json": "0fe869c438bf05ece2849a3dce991e2721a203541484e1f79a479bdc19e8e68e"

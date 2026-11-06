@@ -8,6 +8,7 @@ import ts from "typescript";
 import { getChannelPopoverPosition } from "../../app/dashboard/_components/channel-popover-position.ts";
 import * as localInterfaces from "../../lib/inrAssistantLocalInterface.ts";
 import * as nativeChannelLinks from "../../lib/inrAssistantNativeChannelLinks.ts";
+import * as browserPopover from "../../lib/browserPopover.ts";
 
 const require = createRequire(import.meta.url);
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -48,15 +49,16 @@ function runtime(path: string, overrides: Props = {}) {
     if (specifier in overrides) return overrides[specifier];
     if (specifier === "react") return hooks;
     if (specifier === "react/jsx-runtime") return require(specifier);
-    if (specifier.endsWith("useInrAssistantNativePopover") || specifier.endsWith("useInrAssistantLocalInterface") || specifier.endsWith("useInrAssistantNativeChannelLinks")) {
+    if (specifier.endsWith("useInrAssistantNativePopover") || specifier.endsWith("useInrAssistantLocalInterface") || specifier.endsWith("useInrAssistantNativeChannelLinks") || specifier.endsWith("CompatiblePopover")) {
       const name = specifier.split("/").at(-1)!;
       if (!nativeHelpers.has(name)) { const helperModule = { exports: {} as Props }; nativeHelpers.set(name, helperModule.exports);
-        const source = ts.transpileModule(read(`app/dashboard/_hooks/${name}.ts`), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+        const source = ts.transpileModule(read(name === "CompatiblePopover" ? "app/dashboard/_components/CompatiblePopover.tsx" : `app/dashboard/_hooks/${name}.ts`), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
         new Function("module", "exports", "require", source)(helperModule, helperModule.exports, localRequire); }
       return nativeHelpers.get(name);
     }
     if (specifier === "@/lib/inrAssistantLocalInterface") return localInterfaces;
     if (specifier === "@/lib/inrAssistantNativeChannelLinks") return nativeChannelLinks;
+    if (specifier === "@/lib/browserPopover") return browserPopover;
     if (specifier.endsWith(".css")) return css;
     if (specifier.endsWith("EditableChannelUrlField")) return { __esModule: true, default: urlFieldStub };
     if (specifier.endsWith("channel-popover-position")) return require("../../app/dashboard/_components/channel-popover-position.ts");
