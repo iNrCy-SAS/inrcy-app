@@ -100,7 +100,10 @@ async function assertBothFramesFit(page: Page, context: string) {
   const layout = await page.evaluate(() => {
     const panels = document.querySelector<HTMLElement>(".free-videoSettingsPane .editor-settingsPanels")!;
     const bounds = panels.getBoundingClientRect();
-    const targets = ["[data-video-brief-frame]", ".free-spokenScriptSection", 'textarea[id$="-prompt"]', 'textarea[id$="-spoken-script"]', '[id$="-prompt-count"]', '[id$="-spoken-script-count"]'].map(selector => ({ selector, element: document.querySelector<HTMLElement>(selector)! }));
+    const targets = ["[data-video-brief-frame]", ".free-spokenScriptSection", 'textarea[id$="-prompt"]', 'textarea[id$="-spoken-script"]', '[id$="-prompt-count"]', '[id$="-spoken-script-count"]'].flatMap(selector => {
+      const element = document.querySelector<HTMLElement>(selector);
+      return element ? [{ selector, element }] : [];
+    });
     targets.push(...Array.from(document.querySelectorAll<HTMLElement>(".free-promptPanel [role=alert]")).map((element, index) => ({ selector: `validation error ${index + 1}`, element })));
     const fields = targets.map(({ selector, element }) => {
       const rect = element.getBoundingClientRect();
@@ -173,7 +176,11 @@ test("both real video frames and counters fit reduced desktop viewports without 
       await assertBothFramesFit(page, `${viewport.width}x${viewport.height} automatic`);
       await assertSpeechHeaderCompact(page, `${viewport.width}x${viewport.height} automatic`);
       const visual = page.getByLabel("Consignes visuelles", { exact: true });
-      const speech = page.getByLabel("Paroles à prononcer", { exact: true });
+      const speech = page.locator('textarea[id$="-spoken-script"]');
+      assert.equal(await speech.count(), 0, "automatic speech has no editor");
+      await page.getByText(messages.ai_generator_video_speech_automatic_hint, { exact: true }).waitFor();
+      await page.screenshot({ path: path.join(taskRoot, `outputs/studio-paroles-auto-${viewport.width}x${viewport.height}.png`) });
+      await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
       await speech.fill("Bonjour, nous prenons soin de votre jardin.");
       await assertBothFramesFit(page, `${viewport.width}x${viewport.height} exact speech`);
       await assertSpeechHeaderCompact(page, `${viewport.width}x${viewport.height} exact speech`);
@@ -210,6 +217,9 @@ test("compact video instructions fit all nine locales while image guidance remai
       await assertBothFramesFit(page, locale);
       await assertSpeechHeaderCompact(page, locale);
       assert.equal(await page.locator('[id$="-prompt-count"]').getAttribute("aria-live"), "polite");
+      assert.equal(await page.locator('textarea[id$="-spoken-script"]').count(), 0);
+      await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
+      await assertBothFramesFit(page, `${locale} exact`);
       assert.equal(await page.locator('[id$="-spoken-script-count"]').getAttribute("aria-live"), "polite");
     }
     await page.evaluate(() => { (window as unknown as FixtureWindow).fixtureLocale = "fr-FR"; (window as unknown as FixtureWindow).renderStudio("x".repeat(3900), "image"); });
@@ -234,28 +244,35 @@ test("short windows keep both video frames separate and the speech header on two
       await page.setViewportSize(viewport);
       for (const locale of Object.keys(catalogs)) {
         await page.evaluate(locale => { const fixture = window as unknown as FixtureWindow; fixture.fixtureLocale = locale; fixture.renderStudio(); }, locale);
-        await page.getByLabel(catalogs[locale].ai_generator_spoken_script_label, { exact: true }).waitFor();
+        await page.locator('select[id$="-spoken-script-mode"]').waitFor();
         const context = `${viewport.width}x${viewport.height} ${locale}`;
         await assertFramesNeverOverlap(page, context);
         await assertSpeechHeaderCompact(page, context);
         const speech = page.locator('textarea[id$="-spoken-script"]');
+        assert.equal(await speech.count(), 0, `${context}: automatic mode has no editor`);
+        await page.getByText(catalogs[locale].ai_generator_video_speech_automatic_hint, { exact: true }).waitFor();
+        await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
         await speech.fill("Bonjour, nous prenons soin de votre jardin.");
         await assertFramesNeverOverlap(page, `${context} exact`);
         await assertSpeechHeaderCompact(page, `${context} exact`);
         await page.locator('select[id$="-spoken-script-mode"]').selectOption("automatic");
-        assert.equal(await speech.inputValue(), "");
+        assert.equal(await speech.count(), 0);
+        await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
+        assert.equal(await speech.inputValue(), "", "returning to exact starts with the explicitly cleared script");
+        await page.locator('select[id$="-spoken-script-mode"]').selectOption("automatic");
         await selectSettingsTab(page, "criteria");
         await page.locator('input[type=radio][value=silent]').check();
         await selectSettingsTab(page, "prompt");
         await assertSpeechHeaderCompact(page, `${context} silent`);
         await assertFramesNeverOverlap(page, `${context} silent`);
-        assert.equal(await speech.isDisabled(), true);
+        assert.equal(await speech.count(), 0, "silent mode has no inactive speech editor or 0/0 counter");
+        assert.equal(await page.locator('[id$="-spoken-script-count"]').count(), 0);
         assert.equal(await page.locator('select[id$="-spoken-script-mode"]').count(), 0);
         await page.getByRole("button", { name: catalogs[locale].ai_generator_spoken_script_choose_audio, exact: true }).click();
         assert.equal(await page.locator('[id$="-tab-criteria"]').getAttribute("aria-selected"), "true");
       }
       await page.evaluate(() => { const fixture = window as unknown as FixtureWindow; fixture.fixtureLocale = "fr-FR"; fixture.renderStudio(); });
-      await page.getByLabel("Paroles à prononcer", { exact: true }).waitFor();
+      await page.locator('select[id$="-spoken-script-mode"]').waitFor();
       await page.screenshot({ path: path.join(taskRoot, `outputs/studio-paroles-compact-${viewport.width}x${viewport.height}.png`), fullPage: true });
     }
     assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
@@ -282,6 +299,7 @@ test("real recovery card keeps check and pause visible on desktop and mobile whi
       await page.getByRole("heading", { name: messages.ai_generator_recovery_checking, exact: true }).waitFor();
       assert.equal(await pause.isEnabled(), true);
       const visual = page.getByLabel("Consignes visuelles", { exact: true });
+      await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
       const speech = page.getByLabel("Paroles à prononcer", { exact: true });
       assert.equal(await visual.isEditable(), true);
       assert.equal(await speech.isEditable(), true);
@@ -335,6 +353,7 @@ test("real Studio video frames render on desktop and mobile and block oversized 
       const page = await browser.newPage({ viewport });
       const errors = await mount(page);
       const visual = page.getByLabel("Consignes visuelles", { exact: true });
+      await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
       const speech = page.getByLabel("Paroles à prononcer", { exact: true });
       await assert.doesNotReject(() => speech.waitFor({ state: "visible" }));
       assert.equal(await visual.getAttribute("maxlength"), null);

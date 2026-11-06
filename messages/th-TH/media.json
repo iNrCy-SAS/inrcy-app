@@ -23,6 +23,7 @@
   "ai_generator_video_speech_too_long": "คำพูดนี้เกินขีดจำกัด โปรดย่อหรือเลือกความยาววิดีโอที่รองรับและยาวขึ้น",
   "ai_generator_video_speech_legacy": "พบคำพูดในคำสั่งด้านภาพ ระบบนับคำพูดโดยไม่แก้ไขคำขอของคุณ",
   "ai_generator_video_speech_automatic": "คำพูดอัตโนมัติ",
+  "ai_generator_video_speech_automatic_hint": "AI เขียนคำพูดตามคำแนะนำและระยะเวลาที่เลือก",
   "ai_generator_video_speech_exact": "คำพูดตามข้อความ",
   "ai_generator_video_speech_reset": "กลับไปใช้คำพูดอัตโนมัติ",
   "ai_generator_video_speech_silent": "โหมดไม่มีคำพูด: จะไม่มีการพูดข้อความ เลือกโหมดเสียงได้ในเกณฑ์",

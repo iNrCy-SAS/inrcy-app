@@ -23,6 +23,7 @@
   "ai_generator_video_speech_too_long": "这些台词超出可用额度。请缩短文本，或选择更长且兼容的时长。",
   "ai_generator_video_speech_legacy": "已在画面说明中检测到台词。系统会计数，但不会修改您的要求。",
   "ai_generator_video_speech_automatic": "自动台词",
+  "ai_generator_video_speech_automatic_hint": "AI 根据您的要求和时长编写台词。",
   "ai_generator_video_speech_exact": "准确台词",
   "ai_generator_video_speech_reset": "恢复自动台词",
   "ai_generator_video_speech_silent": "无台词模式：不会说出任何文本。请在条件设置中选择音频模式。",

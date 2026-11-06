@@ -184,6 +184,7 @@ export default function MediaFreeGenerator({
   const [withSubtitles, setWithSubtitles] = useState(false);
   const [speechMode, setSpeechMode] =
     useState<"voiceover" | "characters" | "silent">("voiceover");
+  const exactSpeechEditorVisible = kind === "video" && spokenScriptOpen && speechMode !== "silent";
   const [voice, setVoice] = useState<MediaGenerationNarrationVoice>("female");
   const [voiceVariant, setVoiceVariant] =
     useState<MediaGenerationNarrationVoiceVariant>("Kore");
@@ -1230,7 +1231,7 @@ export default function MediaFreeGenerator({
         </section>
         <section
           className={`${styles.promptPanel} ${editorStyles.tabPanel}`}
-          data-spoken-script-open={kind === "video" && spokenScriptOpen}
+          data-spoken-script-open={exactSpeechEditorVisible}
           role="tabpanel" id={`${instanceId}-panel-prompt`} aria-labelledby={`${instanceId}-tab-prompt`} hidden={activeSettingsTab !== "prompt"}
         >
           {kind === "image" ? <div className={styles.panelHeading}>
@@ -1309,16 +1310,16 @@ export default function MediaFreeGenerator({
           </p> : misplacedSpeechBlocking ? <p id={`${instanceId}-visual-brief-error`} className={styles.videoFrameError} role="alert">{t("ai_generator_video_speech_move")}</p> : null}
           {misplacedSpeech && spokenScriptOpen ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_override_notice")}</p> : null}
           </div>
-          {kind === "video" ? <div className={styles.spokenScriptSection}>
+          {kind === "video" ? <div className={styles.spokenScriptSection} data-exact={exactSpeechEditorVisible}>
             <div className={styles.videoFrameHeading}>
-              <label htmlFor={`${instanceId}-spoken-script`}>{t("ai_generator_spoken_script_label")}</label>
+              <label htmlFor={`${instanceId}-${speechMode === "silent" ? "spoken-script-choose-audio" : exactSpeechEditorVisible ? "spoken-script" : "spoken-script-mode"}`}>{t("ai_generator_spoken_script_label")}</label>
               <p id={`${instanceId}-spoken-script-help`} className={styles.srOnly}>{t("ai_generator_video_speech_frame_hint_short")}</p>
             </div>
-            <div id={`${instanceId}-spoken-script-panel`} className={styles.spokenScriptPanel} data-video-speech-frame data-invalid={speechInvalid ? true : undefined}>
+            <div className={styles.spokenScriptPanel} data-video-speech-frame data-invalid={speechInvalid ? true : undefined}>
               <div className={styles.spokenScriptHeading} data-silent={speechMode === "silent"}>
                 {speechMode === "silent" ? <>
                   <span className={styles.speechModeBadge}>{t("ai_generator_free_audio_silent")}</span>
-                  <button type="button" disabled={locked} aria-describedby={`${instanceId}-spoken-script-help ${instanceId}-spoken-script-budget`} onClick={() => {
+                  <button id={`${instanceId}-spoken-script-choose-audio`} type="button" disabled={locked} aria-label={t("ai_generator_spoken_script_choose_audio")} aria-describedby={`${instanceId}-spoken-script-help`} onClick={() => {
                     setActiveSettingsTab("criteria");
                     window.requestAnimationFrame(() => document.getElementById(`${instanceId}-tab-criteria`)?.focus());
                   }}>{t("ai_generator_spoken_script_choose_audio")}</button>
@@ -1328,7 +1329,7 @@ export default function MediaFreeGenerator({
                   value={spokenScriptOpen ? "exact" : "automatic"}
                   disabled={locked}
                   aria-label={`${t("ai_generator_video_speech_automatic")} / ${t("ai_generator_video_speech_exact")}`}
-                  aria-controls={`${instanceId}-spoken-script`}
+                  aria-controls={`${instanceId}-spoken-script-panel`}
                   aria-describedby={`${instanceId}-spoken-script-help`}
                   onChange={(event) => {
                     if (event.target.value === "exact") {
@@ -1344,9 +1345,11 @@ export default function MediaFreeGenerator({
                   <option value="exact">{t("ai_generator_video_speech_exact")}</option>
                 </select>}
               </div>
+              <div id={`${instanceId}-spoken-script-panel`} className={styles.spokenScriptContent}>
+              {exactSpeechEditorVisible ? <>
               <div className={styles.spokenScriptInput}>
                 <textarea id={`${instanceId}-spoken-script`} value={spokenScript}
-                  disabled={locked || speechMode === "silent"}
+                  disabled={locked}
                   aria-invalid={speechInvalid ? true : undefined}
                   aria-describedby={`${instanceId}-spoken-script-help ${instanceId}-spoken-script-count ${instanceId}-spoken-script-budget${speechInvalid ? ` ${instanceId}-spoken-script-error` : ""}`}
                   placeholder={t("ai_generator_spoken_script_placeholder")}
@@ -1357,17 +1360,19 @@ export default function MediaFreeGenerator({
                 </span>
               </div>
               <p id={`${instanceId}-spoken-script-budget`} className={styles.promptHelp}
-                title={explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty") : speechMode === "silent" ? t("ai_generator_video_speech_silent") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}>
-                <span aria-hidden="true">{explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty_short") : speechMode === "silent" ? t("ai_generator_free_audio_silent") : t("ai_generator_video_speech_budget_short", { seconds: duration, model: videoModel.label })}</span>
-                <span className={styles.srOnly}>{explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty") : speechMode === "silent" ? t("ai_generator_video_speech_silent") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}</span>
+                title={explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}>
+                <span aria-hidden="true">{explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty_short") : t("ai_generator_video_speech_budget_short", { seconds: duration, model: videoModel.label })}</span>
+                <span className={styles.srOnly}>{explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}</span>
               </p>
+              </> : speechMode !== "silent" ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_automatic_hint")}</p> : null}
               {!spokenScriptOpen && speechState.script ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_legacy")}</p> : null}
-              {speechState.segmentBudgets.length > 1 && speechMode === "characters" ? <div className={styles.speechSegments}>
+              {(exactSpeechEditorVisible || Boolean(speechState.script)) && speechState.segmentBudgets.length > 1 && speechMode === "characters" ? <div className={styles.speechSegments}>
                 {speechState.segmentBudgets.map((segment, index) => <span key={index} data-invalid={segment.issue ? true : undefined}>
                   {t("ai_generator_video_speech_segment", { index: index + 1, seconds: segment.durationSeconds, count: segment.units.toLocaleString(locale), max: segment.maxUnits.toLocaleString(locale), unit: speechUnit })}
                 </span>)}
               </div> : null}
               {speechInvalid ? <p id={`${instanceId}-spoken-script-error`} className={styles.videoFrameError} role="alert">{speechError}</p> : null}
+              </div>
             </div>
           </div> : <p id={`${instanceId}-prompt-help`} className={styles.promptHelp}>
             {requiredPromptSuffix ? "Les critères du canal sont ajoutés automatiquement à votre consigne." : t("ai_generator_free_prompt_help")}

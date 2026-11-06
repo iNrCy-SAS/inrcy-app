@@ -23,6 +23,7 @@
   "ai_generator_video_speech_too_long": "Dieser Sprechtext überschreitet das verfügbare Budget. Kürzen Sie ihn oder wählen Sie eine längere kompatible Dauer.",
   "ai_generator_video_speech_legacy": "In Ihren visuellen Anweisungen wurde Sprechtext erkannt. Er wird gezählt, ohne Ihre Anfrage zu ändern.",
   "ai_generator_video_speech_automatic": "Automatischer Sprechtext",
+  "ai_generator_video_speech_automatic_hint": "Die KI schreibt den Sprechtext passend zu Ihren Vorgaben und zur Dauer.",
   "ai_generator_video_speech_exact": "Exakter Sprechtext",
   "ai_generator_video_speech_reset": "Zum automatischen Sprechtext zurückkehren",
   "ai_generator_video_speech_silent": "Stummmodus: Es werden keine Wörter gesprochen. Wählen Sie den Audiomodus unter Kriterien.",

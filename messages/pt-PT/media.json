@@ -23,6 +23,7 @@
   "ai_generator_video_speech_too_long": "Estas palavras ultrapassam o limite disponível. Encurte-as ou escolha uma duração compatível mais longa.",
   "ai_generator_video_speech_legacy": "Foram detetadas palavras a pronunciar nas instruções visuais. São contadas sem alterar o pedido.",
   "ai_generator_video_speech_automatic": "Fala automática",
+  "ai_generator_video_speech_automatic_hint": "A IA escreve a fala segundo as suas indicações e a duração.",
   "ai_generator_video_speech_exact": "Palavras exatas",
   "ai_generator_video_speech_reset": "Voltar à fala automática",
   "ai_generator_video_speech_silent": "Modo sem fala: nenhum texto será pronunciado. Escolha o modo de áudio em Critérios.",

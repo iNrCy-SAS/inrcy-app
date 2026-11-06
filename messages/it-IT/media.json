@@ -23,6 +23,7 @@
   "ai_generator_video_speech_too_long": "Queste parole superano il limite disponibile. Le accorci oppure scelga una durata compatibile più lunga.",
   "ai_generator_video_speech_legacy": "Nelle istruzioni visive sono state rilevate parole da pronunciare. Sono conteggiate senza modificare la richiesta.",
   "ai_generator_video_speech_automatic": "Parole automatiche",
+  "ai_generator_video_speech_automatic_hint": "L’IA scrive le parole in base alle tue indicazioni e alla durata.",
   "ai_generator_video_speech_exact": "Parole esatte",
   "ai_generator_video_speech_reset": "Torna alle parole automatiche",
   "ai_generator_video_speech_silent": "Modalità senza parole: nessun testo verrà pronunciato. Scelga la modalità audio in Criteri.",

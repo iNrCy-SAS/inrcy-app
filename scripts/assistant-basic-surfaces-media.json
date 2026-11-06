@@ -1955,20 +1955,21 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<select\n                  id={`${instanceId}-spoken-script-mode`}\n                  className={styles.spokenScriptModeSelect}\n                  value={spokenScriptOpen ? \"exact\" : \"automatic\"}\n                  disabled={locked}\n                  aria-label={`${t(\"ai_generator_video_speech_automatic\")} / ${t(\"ai_generator_video_speech_exact\")}`}\n                  aria-controls={`${instanceId}-spoken-script`}\n                  aria-describedby={`${instanceId}-spoken-script-help`}\n                  onChange={(event) => {\n                    if (event.target.value === \"exact\") {\n                      setSpokenScriptOpen(true);\n                      window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus());\n                    } else {\n                      setSpokenScript(\"\");\n                      setSpokenScriptOpen(false);\n                    }\n                  }}\n                >\n                  <option value=\"automatic\">{t(\"ai_generator_video_speech_automatic\")}</option>\n                  <option value=\"exact\">{t(\"ai_generator_video_speech_exact\")}</option>\n                </select>",
+    "sourceAnchor": "<select\n                  id={`${instanceId}-spoken-script-mode`}\n                  className={styles.spokenScriptModeSelect}\n                  value={spokenScriptOpen ? \"exact\" : \"automatic\"}\n                  disabled={locked}\n                  aria-label={`${t(\"ai_generator_video_speech_automatic\")} / ${t(\"ai_generator_video_speech_exact\")}`}\n                  aria-controls={`${instanceId}-spoken-script-panel`}\n                  aria-describedby={`${instanceId}-spoken-script-help`}\n                  onChange={(event) => {\n                    if (event.target.value === \"exact\") {\n                      setSpokenScriptOpen(true);\n                      window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus());\n                    } else {\n                      setSpokenScript(\"\");\n                      setSpokenScriptOpen(false);\n                    }\n                  }}\n                >\n                  <option value=\"automatic\">{t(\"ai_generator_video_speech_automatic\")}</option>\n                  <option value=\"exact\">{t(\"ai_generator_video_speech_exact\")}</option>\n                </select>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Champ unique typé studio_free_form : choix Paroles exactes via spokenScriptOpen=true, Paroles automatiques via spokenScriptOpen=false avec effacement explicite du script ; ACK après rendu, sans génération ni autorisation vocale implicite. Contraintes UI : kind === \"video\", speechMode !== \"silent\", verrouillage natif préservé.",
+    "notes": "Champ unique typé studio_free_form : Paroles exactes via spokenScriptOpen=true affiche le champ et son compteur ; Paroles automatiques via spokenScriptOpen=false efface explicitement le script et affiche seulement une aide, sans champ ni compteur. ACK après rendu ; aucun lancement ni consentement vocal implicite. Contraintes UI : kind === \"video\", speechMode !== \"silent\", verrouillage natif préservé ; aria-controls vise le panneau stable.",
     "testFiles": [
-      "tests/ai-assistant/studio-native-form-controls.test.mts"
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
     ],
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:20d5b0b03049f92f:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:5690accafb1f3f39:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:9f944cd37c813c70:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:e876ef7049b0c400:1"
     ],
@@ -1976,6 +1977,10 @@
       {
         "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
         "testAnchor": "Studio speech mode choices require an explicit unquoted request for the matching Exact or Automatic option"
+      },
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "short windows keep both video frames separate and the speech header on two rows in every locale"
       }
     ]
   },
@@ -1986,20 +1991,27 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" disabled={locked} aria-describedby={`${instanceId}-spoken-script-help ${instanceId}-spoken-script-budget`} onClick={() => {\n                    setActiveSettingsTab(\"criteria\");\n                    window.requestAnimationFrame(() => document.getElementById(`${instanceId}-tab-criteria`)?.focus());\n                  }}>{t(\"ai_generator_spoken_script_choose_audio\")}</button>",
+    "sourceAnchor": "<button id={`${instanceId}-spoken-script-choose-audio`} type=\"button\" disabled={locked} aria-label={t(\"ai_generator_spoken_script_choose_audio\")} aria-describedby={`${instanceId}-spoken-script-help`} onClick={() => {\n                    setActiveSettingsTab(\"criteria\");\n                    window.requestAnimationFrame(() => document.getElementById(`${instanceId}-tab-criteria`)?.focus());\n                  }}>{t(\"ai_generator_spoken_script_choose_audio\")}</button>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Champ unique typé studio_free_form : onglet, prompt borné, ADN, format, mode audio/paroles, voix, musique et sous-titres ; garde format imposé, mode silencieux, autorisations et champs cachés natifs. ACK après rendu ; génération et préférences guidées séparées. Contraintes UI : speechMode === \"silent\" ; kind === \"video\".",
+    "notes": "Champ unique typé studio_free_form : retour à l’onglet Critères via activeTab=criteria pour choisir le mode audio. En Sans parole, aucun faux champ ni compteur ; le bouton conserve son libellé accessible et le verrouillage natif. ACK après rendu, sans génération ni consentement. Contraintes UI : speechMode === \"silent\" ; kind === \"video\".",
     "testFiles": [
-      "tests/ai-assistant/studio-native-form-controls.test.mts"
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
     ],
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:250f70cfb4e91c0a:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:5782585928760f83:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "short windows keep both video frames separate and the speech header on two rows in every locale"
+      }
     ]
   },
   {
@@ -2009,20 +2021,27 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<textarea id={`${instanceId}-spoken-script`} value={spokenScript}\n                  disabled={locked || speechMode === \"silent\"}\n                  aria-invalid={speechInvalid ? true : undefined}\n                  aria-describedby={`${instanceId}-spoken-script-help ${instanceId}-spoken-script-count ${instanceId}-spoken-script-budget${speechInvalid ? ` ${instanceId}-spoken-script-error` : \"\"}`}\n                  placeholder={t(\"ai_generator_spoken_script_placeholder\")}\n                  onChange={(event) => { setSpokenScriptOpen(true); setSpokenScript(event.target.value); }} />",
+    "sourceAnchor": "<textarea id={`${instanceId}-spoken-script`} value={spokenScript}\n                  disabled={locked}\n                  aria-invalid={speechInvalid ? true : undefined}\n                  aria-describedby={`${instanceId}-spoken-script-help ${instanceId}-spoken-script-count ${instanceId}-spoken-script-budget${speechInvalid ? ` ${instanceId}-spoken-script-error` : \"\"}`}\n                  placeholder={t(\"ai_generator_spoken_script_placeholder\")}\n                  onChange={(event) => { setSpokenScriptOpen(true); setSpokenScript(event.target.value); }} />",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Champ unique typé studio_free_form : onglet, prompt borné, ADN, format, mode audio/paroles, voix, musique et sous-titres ; garde format imposé, mode silencieux, autorisations et champs cachés natifs. ACK après rendu ; génération et préférences guidées séparées. Contraintes UI : kind === \"video\".",
+    "notes": "Champ unique typé studio_free_form : saisir spokenScript seulement après choix Paroles exactes. Champ et compteur montés uniquement si exactSpeechEditorVisible (kind === \"video\" && spokenScriptOpen && speechMode !== \"silent\") ; refus natif des champs cachés, du verrouillage et des paroles hors budget. Paroles automatiques et Sans parole n’affichent pas de textarea ni compteur. ACK après rendu ; aucune génération ni autorisation implicite.",
     "testFiles": [
-      "tests/ai-assistant/studio-native-form-controls.test.mts"
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
     ],
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#textarea:80cf1d56a3a0b130:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#textarea:cb585fad50a613ae:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "short windows keep both video frames separate and the speech header on two rows in every locale"
+      }
     ]
   },
   {

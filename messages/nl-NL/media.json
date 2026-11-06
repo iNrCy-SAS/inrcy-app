@@ -23,6 +23,7 @@
   "ai_generator_video_speech_too_long": "Deze tekst overschrijdt het beschikbare budget. Kort hem in of kies een langere, geschikte duur.",
   "ai_generator_video_speech_legacy": "Er is gesproken tekst in uw visuele instructies gevonden. Die wordt geteld zonder uw verzoek te wijzigen.",
   "ai_generator_video_speech_automatic": "Automatische spraak",
+  "ai_generator_video_speech_automatic_hint": "AI schrijft de tekst op basis van uw instructies en de duur.",
   "ai_generator_video_speech_exact": "Exacte woorden",
   "ai_generator_video_speech_reset": "Terug naar automatische spraak",
   "ai_generator_video_speech_silent": "Stille modus: er worden geen woorden uitgesproken. Kies de audiomodus onder Criteria.",

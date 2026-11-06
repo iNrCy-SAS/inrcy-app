@@ -244,7 +244,7 @@
         "lib/inrAssistantMediaLibraryTools.ts": "4a08f0e1a2081ce5d21b81efdf65b1f97e3c457781eb89b79366b262e373d567",
         "lib/inrAssistantMediaUiTools.ts": "2f15e337d2db730aae585760d3d98b392b52f7876aa6005f33744298ccb29ebf",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/media.json": "1aea5c9b0f28a62522e15ac76642e14533ffedef14eeefe20d6294a871fcf908"
+        "messages/fr-FR/media.json": "b9a11a6f92913ed4aa4cce1ab6a3ce81cb309957b816edc5f18d3fb5a65d39ab"
       }
     },
     "basic-reputation": {
@@ -284,9 +284,9 @@
       }
     },
     "basic-studio-create": {
-      "guideDigest": "e21e539f826514046ce112c1d6f2bd60923fdd218e74b79b224c9eb49d9b220e",
+      "guideDigest": "522003fc2e66fb3d7f8a649ed7cae6ae79d046166783caf2ca120f0b547dccf8",
       "sources": {
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "d5e25b83e0114222cf00133a2c7fa463e05920f9b890441a5cb3c034cf6fd5ba",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "3e6bfef20b1aa5f1b1b769c89729760af2ada9de02eee1a300f6195d82b854f1",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "c972cb26397fa81a3696747a65fc0b28673c2e2a86f2501eb838822d7cddeb74",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
         "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx": "5ecaf5325711c7b8093154067cf905e279f6fdf3b13dc083fb9a30f3175f06e8",
@@ -303,7 +303,7 @@
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
         "lib/studioInspirationImagePolicy.ts": "0ab78c05540a02cc11912ed154430592824fa53492768bd0efb9c62772f8c3c0",
-        "messages/fr-FR/media.json": "1aea5c9b0f28a62522e15ac76642e14533ffedef14eeefe20d6294a871fcf908"
+        "messages/fr-FR/media.json": "b9a11a6f92913ed4aa4cce1ab6a3ce81cb309957b816edc5f18d3fb5a65d39ab"
       }
     },
     "basic-studio-edit": {
@@ -319,7 +319,7 @@
         "lib/inrAssistantStudioUiCommands.ts": "694e047a4f9a4f79e0a358f35a5aaad17b96dbe95c2fbcb42e22b0291e44a7af",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/media.json": "1aea5c9b0f28a62522e15ac76642e14533ffedef14eeefe20d6294a871fcf908"
+        "messages/fr-FR/media.json": "b9a11a6f92913ed4aa4cce1ab6a3ce81cb309957b816edc5f18d3fb5a65d39ab"
       }
     },
     "basic-studio-preview": {
@@ -632,7 +632,7 @@
         "lib/inrAssistantMediaLibraryTools.ts": "4a08f0e1a2081ce5d21b81efdf65b1f97e3c457781eb89b79366b262e373d567",
         "lib/inrAssistantMediaUiTools.ts": "2f15e337d2db730aae585760d3d98b392b52f7876aa6005f33744298ccb29ebf",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/media.json": "1aea5c9b0f28a62522e15ac76642e14533ffedef14eeefe20d6294a871fcf908"
+        "messages/fr-FR/media.json": "b9a11a6f92913ed4aa4cce1ab6a3ce81cb309957b816edc5f18d3fb5a65d39ab"
       }
     },
     "notifications": {
@@ -758,9 +758,9 @@
       }
     },
     "studio-create": {
-      "guideDigest": "18864414636a1cdb71b70eaad730af22e0c99614168cd47810579e7626b75bbd",
+      "guideDigest": "f85a1e423e0e8cfa5d0a28e9284ffbc6be7debfe910f59a542998a76475b956f",
       "sources": {
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "d5e25b83e0114222cf00133a2c7fa463e05920f9b890441a5cb3c034cf6fd5ba",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "3e6bfef20b1aa5f1b1b769c89729760af2ada9de02eee1a300f6195d82b854f1",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "c972cb26397fa81a3696747a65fc0b28673c2e2a86f2501eb838822d7cddeb74",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
         "app/dashboard/_components/MediaModifier.tsx": "7dbadb9759f0f7da103cdc44cf47bad1b16b91c6f95eb8ab081916864ab2f508",
@@ -777,7 +777,7 @@
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
         "lib/studioInspirationImagePolicy.ts": "0ab78c05540a02cc11912ed154430592824fa53492768bd0efb9c62772f8c3c0",
-        "messages/fr-FR/media.json": "1aea5c9b0f28a62522e15ac76642e14533ffedef14eeefe20d6294a871fcf908"
+        "messages/fr-FR/media.json": "b9a11a6f92913ed4aa4cce1ab6a3ce81cb309957b816edc5f18d3fb5a65d39ab"
       }
     },
     "studio-edit": {
@@ -793,7 +793,7 @@
         "lib/inrAssistantStudioUiCommands.ts": "694e047a4f9a4f79e0a358f35a5aaad17b96dbe95c2fbcb42e22b0291e44a7af",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/media.json": "1aea5c9b0f28a62522e15ac76642e14533ffedef14eeefe20d6294a871fcf908"
+        "messages/fr-FR/media.json": "b9a11a6f92913ed4aa4cce1ab6a3ce81cb309957b816edc5f18d3fb5a65d39ab"
       }
     },
     "studio-transfer-recovery": {

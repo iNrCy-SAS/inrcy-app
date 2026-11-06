@@ -23,6 +23,7 @@
   "ai_generator_video_speech_too_long": "Ces paroles dépassent le budget disponible. Raccourcissez-les ou choisissez une durée compatible plus longue.",
   "ai_generator_video_speech_legacy": "Des paroles ont été repérées dans vos consignes. Elles sont comptées sans modifier votre demande.",
   "ai_generator_video_speech_automatic": "Paroles automatiques",
+  "ai_generator_video_speech_automatic_hint": "L’IA rédige les paroles selon vos consignes et la durée.",
   "ai_generator_video_speech_exact": "Paroles exactes",
   "ai_generator_video_speech_reset": "Revenir aux paroles automatiques",
   "ai_generator_video_speech_silent": "Mode Sans paroles : aucun texte ne sera prononcé. Le mode audio se choisit dans Critères.",

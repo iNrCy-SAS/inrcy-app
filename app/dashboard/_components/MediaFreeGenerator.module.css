@@ -1290,6 +1290,8 @@
 .spokenScriptHeading button:focus-visible { outline: 2px solid #9adcf5; outline-offset: 3px; }
 .spokenScriptPanel { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .spokenScriptPanel[hidden] { display: none; }
+.spokenScriptContent { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.spokenScriptContent:empty { display: none; }
 .spokenScriptHeading { display: flex; align-items: center; justify-content: space-between; flex-wrap: nowrap; gap: 6px 12px; }
 .spokenScriptHeading > * { min-width: 0; }
 .spokenScriptHeading[data-silent="true"] { white-space: nowrap; }
@@ -1331,6 +1333,7 @@
     display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; padding: 8px; gap: 5px;
   }
   .workspace[data-media-kind="video"] .promptPanel .spokenScriptSection { flex-grow: 1.18; }
+  .workspace[data-media-kind="video"] .promptPanel .spokenScriptSection[data-exact="false"] { flex: 0 0 auto; min-height: auto; }
   .workspace[data-media-kind="video"] .videoFrameHeading { flex: 0 0 auto; margin: 0; }
   .workspace[data-media-kind="video"] .videoFrameHeading label { font-size: 14px; }
   .workspace[data-media-kind="video"] .videoFrameHeading p { margin-top: 3px; line-height: 1.35; }
@@ -1342,12 +1345,15 @@
   }
   .workspace[data-media-kind="video"] .promptToolbar { flex: 0 0 auto; min-height: 26px; padding: 3px 11px 6px; }
   .workspace[data-media-kind="video"] .spokenScriptPanel { flex: 1 1 auto; min-height: 0; gap: 3px; }
+  .workspace[data-media-kind="video"] .spokenScriptContent { flex: 1 1 auto; min-height: 0; gap: 3px; }
+  .workspace[data-media-kind="video"] .spokenScriptSection[data-exact="false"] .spokenScriptPanel,
+  .workspace[data-media-kind="video"] .spokenScriptSection[data-exact="false"] .spokenScriptContent { flex: 0 0 auto; min-height: auto; }
   .workspace[data-media-kind="video"] .spokenScriptHeading { flex: 0 0 auto; min-height: 24px; gap: 3px 8px; }
   .workspace[data-media-kind="video"] .spokenScriptHeading button { min-height: 24px; padding: 3px 0; }
   .workspace[data-media-kind="video"] .spokenScriptInput { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 90px; }
   .workspace[data-media-kind="video"] .spokenScriptInput textarea { flex: 1 1 auto; height: 64px; min-height: 64px; max-height: none; padding: 8px 11px; resize: none; line-height: 1.5; }
   .workspace[data-media-kind="video"] .spokenScriptCounter { flex: 0 0 auto; padding: 2px 11px 6px; line-height: 1.35; }
-  .workspace[data-media-kind="video"] .spokenScriptPanel > .promptHelp { flex: 0 0 auto; }
+  .workspace[data-media-kind="video"] .spokenScriptContent > .promptHelp { flex: 0 0 auto; }
   .workspace[data-media-kind="video"] .videoFrameError { flex: 0 0 auto; margin-top: 0; line-height: 1.35; }
 }
 
@@ -1358,7 +1364,10 @@
   .workspace[data-media-kind="video"] .videoBriefFrame,
   .workspace[data-media-kind="video"] .promptPanel .spokenScriptSection { flex:0 0 auto;min-height:auto; }
   .workspace[data-media-kind="video"][data-view="editor"] .videoBriefFrame .promptContainer { flex:0 0 auto;min-height:112px; }
+  .workspace[data-media-kind="video"][data-view="editor"] .promptPanel[data-spoken-script-open="false"] .videoBriefFrame,
+  .workspace[data-media-kind="video"][data-view="editor"] .promptPanel[data-spoken-script-open="false"] .videoBriefFrame .promptContainer { flex:1 0 auto; }
   .workspace[data-media-kind="video"] .spokenScriptPanel { flex:0 0 auto;min-height:auto; }
+  .workspace[data-media-kind="video"] .spokenScriptContent { flex:0 0 auto;min-height:auto; }
   .workspace[data-media-kind="video"] .spokenScriptInput { flex:0 0 auto;min-height:110px; }
   .workspace[data-media-kind="video"] .spokenScriptInput textarea { flex:none;height:82px;min-height:82px; }
 }
