@@ -500,10 +500,11 @@ test("iNr Studio propose le même micro corrigé au brief créatif unifié", () 
     mediaGenerator,
     /const operationLocked = busy \|\| finishing \|\| voiceBusy \|\| inspirationBusy/,
   );
-  assert.ok(
-    (mediaGenerator.match(/maxLength=\{creativeBriefMaximum\}/g) || []).length >= 2,
-    "la textarea et son micro doivent partager la limite du brief créatif",
-  );
+  assert.match(mediaGenerator, /const creativeBriefMaximum = getAiMediaVisualBriefMaxChars\(kind, "guided"\)/);
+  assert.match(mediaGenerator, /maxLength=\{kind === "video" \? undefined : creativeBriefMaximum\}/,
+    "un ancien texte vidéo reste éditable sans troncature tandis que l'image garde sa limite");
+  assert.match(mediaGenerator, /creativeBriefTooLong \|\|/,
+    "un texte vidéo au-dessus du budget bloque la génération malgré l'absence de troncature");
 });
 
 test("Booster Générer expose exactement deux champs vocaux via le composant partagé", () => {

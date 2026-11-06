@@ -134,7 +134,7 @@ const studioSources = {
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaFreeGenerator": compile("app/dashboard/_components/MediaFreeGenerator.tsx"),
   "./MediaBusinessDnaHelp": compile("app/dashboard/_components/MediaBusinessDnaHelp.tsx"),
-  ...Object.fromEntries(["studioVideoRetouchPersistence", "aiMediaModelCatalog", "aiMediaGenerationContracts", "studioInspirationImagePolicy", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices", "inrAssistantStudioFormSelection"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
+  ...Object.fromEntries(["studioVideoRetouchPersistence", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoSpeechBudget", "aiMediaSpokenScript", "studioInspirationImagePolicy", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices", "inrAssistantStudioFormSelection"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
 };
 const studioFixture = `
 const sources=${JSON.stringify(studioSources)}, loaded={};

@@ -4,10 +4,11 @@ import {
   AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS,
   AiMediaRequestValidationError,
   normalizeAiMediaGenerationRequest,
+  normalizeAiMediaSpokenScript,
 } from "../../lib/aiMediaGenerationContracts.ts";
 
 const visual = 'Océane présente l’application. La marque se prononce « inertie ».';
-const script = '  Bonjour, je suis Océane !\n\nNotre offre : 58 € HT/mois.\n你好，欢迎！ 👩🏽‍💻  ';
+const script = '  Océane !\n\n58 €.\n你好！ 👩🏽‍💻  ';
 function request(overrides: Record<string, unknown> = {}) {
   return normalizeAiMediaGenerationRequest({
     requestId: "original-explicit-script-test", source: "studio", operation: "generate", creationMode: "free",
@@ -38,7 +39,8 @@ test("an explicit empty script remains distinguishable from an absent legacy spe
 
 test("spoken scripts have a strict independent 4000-character limit with no silent truncation", () => {
   const maximum = "é".repeat(AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS);
-  assert.equal(request({ spokenScript: maximum }).spokenScript, maximum);
+  assert.equal(normalizeAiMediaSpokenScript(maximum), maximum);
+  assert.throws(() => request({ spokenScript: maximum }), /AI_MEDIA_EXACT_DIALOGUE_TOO_LONG/, "the technical cap never authorizes speech that cannot fit the selected duration");
   for (const spokenScript of [null, 1, true, {}, [], maximum + "!", "Bonjour\u0000!", "Bonjour\u0007!"]) {
     assert.throws(() => request({ spokenScript }), AiMediaRequestValidationError);
   }

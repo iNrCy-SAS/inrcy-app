@@ -2,7 +2,8 @@ import "server-only";
 
 import { jsonSchema, tool } from "ai";
 import { normalizeAiMediaGenerationRequest, type AiMediaLibraryPickerItem, type AiMediaOutputFormat } from "./aiMediaGenerationContracts.ts";
-import { getAiMediaImageModel, getAiMediaVideoModel, isAiMediaVideoEngineAvailable, type AiMediaImageEngine, type AiMediaVideoEngine } from "./aiMediaModelCatalog.ts";
+import { getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
+import { getAiMediaImageModel, getAiMediaVideoModel, isAiMediaVideoEngineAvailable, type AiMediaImageEngine, type AiMediaVideoEngine, type AiMediaVideoResolution } from "./aiMediaModelCatalog.ts";
 import { permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
 import { inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
 import { isInrAssistantMediaPreviewButtonRequest } from "./inrAssistantMediaPreview.ts";
@@ -88,6 +89,8 @@ function parseInput(value: unknown): MediaInput {
     (input.mediaType === "image" && input.durationSeconds != null)) {
     throw new MediaToolError("Les critères du média sont invalides. Précisez le média souhaité avant de relancer.");
   }
+  const promptLimit = getAiMediaVisualBriefMaxChars(input.mediaType === "video" ? "video" : "image", "free");
+  if (typeof input.prompt === "string" && input.prompt.length > promptLimit) throw new MediaToolError(`Le brief visuel de la vidéo est limité à ${promptLimit} caractères. Placez les paroles exactes dans le champ « Paroles à prononcer ».`);
   if (input.settings != null && (!Array.isArray(input.settings) || input.settings.length > SETTING_FIELDS.length)) throw new MediaToolError("Réglages Studio invalides.");
   const settings = new Set<string>();
   for (const entry of input.settings as Array<Record<string, unknown>> ?? []) {
@@ -301,6 +304,14 @@ export function createInrAssistantMediaTools(options: {
         throw new MediaToolError(`La durée souhaitée dépasse le plafond de cet établissement${Number.isSafeInteger(maxDuration) ? ` (${maxDuration} secondes)` : ""}. Choisissez une durée autorisée.`);
       }
       const videoModel = engine.videoEngine ? getAiMediaVideoModel(engine.videoEngine) : null;
+      if (input.mediaType === "video") {
+        const speech = getAiMediaVideoSpeechState({ kind: "video", creationMode: "free", freePrompt: input.prompt,
+          spokenScript: settings.spokenScript as string | undefined, withNarration: settings.withNarration === true,
+          teamVideoSpeechMode: settings.teamVideoSpeechMode === "characters" ? "characters" : "voiceover",
+          durationSeconds, videoEngine: engine.videoEngine, videoResolution: (settings.videoResolution || videoModel?.defaultResolution) as AiMediaVideoResolution | undefined,
+          sceneMode: settings.sceneMode === "multi" ? "multi" : "single" });
+        if (speech.issue) throw new MediaToolError(speech.issue.message);
+      }
       const source = modification ? await (await import("./inrAssistantMediaSource.ts")).loadInrAssistantImageReference(modification.sourceMediaId) : null;
       const referenceIds = (settings.referenceMediaIds ?? []) as string[];
       delete settings.referenceMediaIds;
@@ -400,7 +411,7 @@ export function createInrAssistantMediaTools(options: {
   return {
     acceptMediaGeneration: tool({ strict: true, description: "Enregistrer un aperçu Studio sur ordre explicite actuel ou poursuivre un enregistrement déjà autorisé et prouvé côté serveur. requestId et mediaId du même résultat ready_to_save. Job du compte relu, accept natif puis draft=false vérifié ; aucun crédit ni génération. Déjà enregistré : aucune seconde écriture.", inputSchema: draftDecisionSchema, execute: async raw => decideDraft(parseDraftDecision(raw), "accept"), toModelOutput: ({ output }) => modelOutput(output) }),
     discardMediaGeneration: tool({ strict: true, description: "Refuser uniquement un aperçu temporaire Studio sur ordre explicite actuel. requestId et mediaId liés par le job du compte ; DELETE natif puis absence relue. Ne supprime jamais un média déjà accepté, ne rembourse aucun crédit et ne régénère rien. Résultat incertain : ne pas répéter.", inputSchema: draftDecisionSchema, execute: async raw => decideDraft(parseDraftDecision(raw), "discard"), toModelOutput: ({ output }) => modelOutput(output) }),
-    quoteMediaGeneration: tool({ strict: true, description: "Obtenir le vrai devis Studio, moteur/durée/références/réglages identiques à generateMedia. Lecture seule : aucun débit, génération ou sauvegarde. settings[{field,valueJson}] encode les valeurs JSON ; referenceMediaIds contient uniquement des IDs d’images actives du compte. Aucun consentement identité n’est fourni implicitement.", inputSchema: jsonSchema<MediaInput>({ type: "object", properties: { mediaType: { type: "string", enum: ["image", "video"] }, resultMode: { type: ["string", "null"], enum: ["save", "preview", null] }, prompt: { type: "string", minLength: 3, maxLength: 4000 }, format: { type: ["string", "null"], enum: [...FORMATS, null] }, durationSeconds: { type: ["integer", "null"], minimum: 4, maximum: 30 }, settings: { type: ["array", "null"], maxItems: SETTING_FIELDS.length, items: { type: "object", properties: { field: { type: "string", enum: [...SETTING_FIELDS] }, valueJson: { type: "string", maxLength: 6000 } }, required: ["field", "valueJson"], additionalProperties: false } } }, required: ["mediaType", "prompt", "format", "durationSeconds", "settings", "resultMode"], additionalProperties: false }, { validate: value => { try { return { success: true, value: parseInput(value) }; } catch { return { success: false, error: new Error("Réglages Studio invalides") }; } } }), execute: async raw => generate(parseInput(raw), undefined, true), toModelOutput: ({ output }) => modelOutput(output) }),
+    quoteMediaGeneration: tool({ strict: true, description: "Obtenir le vrai devis Studio, moteur/durée/références/réglages identiques à generateMedia. Lecture seule : aucun débit, génération ou sauvegarde. settings[{field,valueJson}] encode les valeurs JSON ; referenceMediaIds contient uniquement des IDs d’images actives du compte. Aucun consentement identité n’est fourni implicitement.", inputSchema: jsonSchema<MediaInput>({ type: "object", properties: { mediaType: { type: "string", enum: ["image", "video"] }, resultMode: { type: ["string", "null"], enum: ["save", "preview", null] }, prompt: { type: "string", minLength: 3, maxLength: 4000, description: "Brief visuel : vidéo 500 caractères max, image 4000. Paroles exactes : réglage spokenScript, avec le mode de voix demandé." }, format: { type: ["string", "null"], enum: [...FORMATS, null] }, durationSeconds: { type: ["integer", "null"], minimum: 4, maximum: 30 }, settings: { type: ["array", "null"], maxItems: SETTING_FIELDS.length, items: { type: "object", properties: { field: { type: "string", enum: [...SETTING_FIELDS] }, valueJson: { type: "string", maxLength: 6000 } }, required: ["field", "valueJson"], additionalProperties: false } } }, required: ["mediaType", "prompt", "format", "durationSeconds", "settings", "resultMode"], additionalProperties: false }, { validate: value => { try { return { success: true, value: parseInput(value) }; } catch { return { success: false, error: new Error("Réglages Studio invalides") }; } } }), execute: async raw => generate(parseInput(raw), undefined, true), toModelOutput: ({ output }) => modelOutput(output) }),
     cancelMediaGeneration: tool({
       strict: true,
       description: "Demander l’arrêt natif d’une tentative Studio identifiée par son requestId réel. L’arrêt n’est possible qu’avant réservation des crédits ; une génération déjà en traitement continue chez le fournisseur. Ne jamais promettre remboursement, annulation fournisseur ni suppression du média terminé. Une simple question ou vérification de statut n’autorise pas cette action.",
@@ -448,11 +459,11 @@ export function createInrAssistantMediaTools(options: {
       }, toModelOutput: ({ output }) => modelOutput(output),
     }),
     generateMedia: tool({
-      description: "Créer réellement une image ou une vidéo demandée par le pro et l’enregistrer dans sa Médiathèque. Écris toi-même le brief créatif précis à partir de son besoin et de son ADN : sujet, style, composition, texte et paroles exacts si demandés. Choisis le format et la durée adaptés ; le pro n’a pas à écrire un prompt ni choisir un fournisseur. Le serveur choisit un moteur Studio compatible et utilise les vrais crédits média du compte. Une seule création par demande ; ne pas lancer pour une simple question d’aide, ni annoncer un média enregistré avant le résultat completed.",
+      description: "Créer une image/vidéo sur demande actuelle et l’enregistrer dans Mes médias. Rédige le brief depuis le besoin et l’ADN, choisis format/durée ; le pro ne choisit ni prompt ni fournisseur. Moteur compatible et crédits réels du compte. Une création par demande, jamais sur simple question d’aide ; média enregistré uniquement si completed.",
       inputSchema: jsonSchema<MediaInput>({
         type: "object", properties: {
           mediaType: { type: "string", enum: ["image", "video"] },
-          prompt: { type: "string", minLength: 3, maxLength: 4_000 },
+          prompt: { type: "string", minLength: 3, maxLength: 4_000, description: "Brief visuel : vidéo 500 caractères max, image 4000. Paroles exactes : réglage spokenScript, avec le mode de voix demandé." },
           format: { type: ["string", "null"], enum: [...FORMATS, null], description: "Format adapté au besoin du pro, ou null pour le format courant." },
           durationSeconds: { type: ["integer", "null"], minimum: 4, maximum: 30, description: "Durée vidéo en secondes ou null ; toujours null pour une image." },
           resultMode: { type: ["string", "null"], enum: ["save", "preview", null], description: "preview laisse un aperçu temporaire à accepter/refuser ; save/null enregistre le nouveau média (défaut)." },

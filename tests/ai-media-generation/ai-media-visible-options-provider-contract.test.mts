@@ -945,14 +945,14 @@ test("la compaction ne supprime aucune option Image autoritaire du prompt fourni
   assert.doesNotMatch(prompt, /Journée portes ouvertes — 24 septembre/);
 });
 
-test("les prompts canoniques Image et Vidéo gardent 2 000 + 2 400 caractères et cinq références sans perte", () => {
+test("les prompts canoniques gardent les budgets Image historiques et Vidéo 500 caractères avec cinq références sans perte", () => {
   const exactLength = (seed: string, length: number) =>
     seed.repeat(Math.ceil(length / seed.length)).slice(0, length);
-  const idea = exactLength(
+  const imageIdea = exactLength(
     "SUJET_LONG_5REFS scène artisanale concrète, produit central et équipe en action. ",
     2_000,
   );
-  const instruction = exactLength(
+  const imageInstruction = exactLength(
     "INSTRUCTION_LONGUE_5REFS conserver chaque geste, chaque objet, chaque personne et chaque lieu sans substitution. ",
     2_400,
   );
@@ -993,6 +993,8 @@ test("les prompts canoniques Image et Vidéo gardent 2 000 + 2 400 caractères e
   ];
 
   for (const kind of ["image", "video"] as const) {
+    const idea = kind === "video" ? imageIdea.slice(0, 500) : imageIdea;
+    const instruction = kind === "video" ? imageInstruction.slice(0, 500) : imageInstruction;
     const profile = imageProfileFixture();
     const verboseContext = exactLength(
       "Contexte professionnel documenté avec matières, services, preuves et méthode spécifiques. ",
@@ -1035,6 +1037,15 @@ test("les prompts canoniques Image et Vidéo gardent 2 000 + 2 400 caractères e
         inspirationImages: references,
       }),
     );
+    if (kind === "video") {
+      assert.equal(request.idea.length, 500);
+      assert.equal(request.aiInstruction.length, 500);
+      assert.throws(() => normalizeAiMediaGenerationRequest(baseRequest({ kind, idea: `${idea}!` })), /500 caractères maximum/);
+      assert.throws(() => normalizeAiMediaGenerationRequest(baseRequest({ kind, aiInstruction: `${instruction}!` })), /500 caractères maximum/);
+    } else {
+      assert.equal(request.idea.length, 2_000);
+      assert.equal(request.aiInstruction.length, 2_400);
+    }
     const prompt = buildAiMediaPrompt({
       request,
       profile,

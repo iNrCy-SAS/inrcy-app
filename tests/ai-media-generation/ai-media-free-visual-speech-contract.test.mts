@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
 import { AI_MEDIA_VIDEO_MODELS, type AiMediaVideoEngine } from "../../lib/aiMediaModelCatalog.ts";
-import { buildAiMediaFreeVideoScenePrompt, AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT } from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import { buildAiMediaFreeVideoScenePrompt, AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT, getAiMediaFreeVideoPromptMaxCharacters } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import { buildAiMediaVideoProviderContract } from "../../lib/aiMediaVideoProviderContract.ts";
 import type { AiVideoProviderGenerationArgs } from "../../lib/aiVideoProviderTypes.ts";
 
@@ -91,7 +91,7 @@ test("the visual speech contract stays inside the transport budget without trunc
     assert.ok(prompt.length <= 3_200, `${model.id}/${speech}: ${prompt.length}`);
     assert.ok(prompt.includes(args.plan.subline));
     assert.ok(prompt.includes(args.plan.scenes[0].visualBrief));
-    args.plan.subline = "D".repeat(3_200);
+    args.plan.subline = "D".repeat(Math.max(3_200, getAiMediaFreeVideoPromptMaxCharacters(model.id)));
     assert.throws(() => buildAiMediaFreeVideoScenePrompt(args, 0, 8), /ai_video_instruction_contract_too_long/);
   }
 });

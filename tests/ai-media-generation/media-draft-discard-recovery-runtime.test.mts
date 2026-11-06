@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
+import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as models from "../../lib/aiMediaModelCatalog.ts";
 import * as transport from "../../lib/aiMediaGenerationTransport.ts";
 import * as recovery from "../../lib/aiMediaGenerationRecovery.ts";
@@ -44,6 +45,7 @@ function harness() {
     ["./useInrAssistantRefresh", refreshModule.exports],
     ["react", react], ["@/lib/multicompte/constants", { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" }],
     ["@/lib/aiMediaGenerationContracts", contracts], ["@/lib/aiMediaModelCatalog", models],
+    ["@/lib/aiMediaVideoSpeechBudget", speechBudget],
     ["@/lib/aiMediaGenerationTransport", transport], ["@/lib/aiMediaGenerationRecovery", recovery],
     ["@/lib/aiMediaCharacterVoiceClient", characterVoices],
     ["@/lib/mediaGenerationClientRequest", clientRequestRules],

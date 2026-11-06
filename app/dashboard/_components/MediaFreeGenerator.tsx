@@ -22,10 +22,9 @@ import useMediaGeneration, {
 } from "@/app/dashboard/_hooks/useMediaGeneration";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import {
-  AI_MEDIA_FREE_PROMPT_MAX_CHARS,
   AI_MEDIA_INSPIRATION_MAX_COUNT,
-  AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS,
 } from "@/lib/aiMediaGenerationContracts";
+import { detectAiMediaVideoVisualBriefSpeech, getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "@/lib/aiMediaVideoSpeechBudget";
 import {
   AI_MEDIA_NARRATION_VOICE_VARIANTS,
   defaultAiMediaNarrationVoiceVariant,
@@ -92,7 +91,6 @@ type Reference = Omit<
   fromVideo: boolean;
 };
 
-const MAX_PROMPT = AI_MEDIA_FREE_PROMPT_MAX_CHARS;
 const FORMATS: { id: MediaGenerationFormat; ratio: string }[] = [
   { id: "square", ratio: "1:1" },
   { id: "portrait", ratio: "4:5" },
@@ -254,15 +252,32 @@ export default function MediaFreeGenerator({
   // images and all other roles can freely share the five available slots.
   const roleLimitExceeded = references.filter((reference) => reference.role === "character" &&
     (reference.usage === "required" || (kind === "video" && reference.voiceMode === "provided"))).length > 3;
-  const maxUserPromptLength = Math.max(0, MAX_PROMPT - (requiredPromptSuffix ? requiredPromptSuffix.length + 1 : 0));
+  const maxUserPromptLength = Math.max(0, getAiMediaVisualBriefMaxChars(kind) - (requiredPromptSuffix ? requiredPromptSuffix.length + 1 : 0));
   const effectivePrompt = [prompt.trim(), requiredPromptSuffix.trim()].filter(Boolean).join(" ");
+  const misplacedSpeech = kind === "video" ? detectAiMediaVideoVisualBriefSpeech(effectivePrompt) : null;
+  const misplacedSpeechBlocking = Boolean(misplacedSpeech) && !spokenScriptOpen;
+  const speechState = getAiMediaVideoSpeechState({
+    kind, creationMode: "free", freePrompt: effectivePrompt,
+    ...(kind === "video" && spokenScriptOpen ? { spokenScript } : {}),
+    withNarration: effectiveWithNarration, teamVideoSpeechMode: requestSpeechMode,
+    durationSeconds: duration, videoEngine: selectedVideoEngine,
+    videoResolution, sceneMode, language: locale,
+  });
+  const speechInvalid = kind === "video" && Boolean(speechState.issue);
+  const speechUnit = t(speechState.unit === "mots" ? "ai_generator_video_speech_words" : "ai_generator_video_speech_characters");
+  const speechError = speechState.issue?.code === "AI_MEDIA_VIDEO_DURATION_INVALID"
+    ? t("ai_generator_model_duration_unavailable", { seconds: duration })
+    : speechState.issue?.code === "AI_MEDIA_INVALID_SPEECH_MODE"
+      ? t("ai_generator_spoken_script_silent_help") : t("ai_generator_video_speech_too_long");
   const hasSpokenScript = kind === "video" && spokenScript.trim().length > 0;
   const spokenScriptConflict = hasSpokenScript && speechMode === "silent";
   const durationUnavailable = kind === "video" && (!durations.includes(duration) || !canGenerateAiMediaVideoDuration(selectedVideoEngine, duration, videoResolution, sceneMode));
   const referenceCompatible = kind === "video" ? isMediaVideoReferenceCompatible(selectedVideoEngine, references.length, characterVoiceSelection.hasProvidedVoice) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: references.length });
   const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(selectedVideoEngine, effectivePrompt);
   const promptReady = prompt.trim().length >= 3 && prompt.length <= maxUserPromptLength;
-  const promptWarning = operationLocked ? "" : !promptReady
+  const promptWarning = operationLocked ? "" : kind === "video" && prompt.length > maxUserPromptLength
+    ? t("ai_generator_video_brief_too_long", { max: maxUserPromptLength }) : misplacedSpeechBlocking
+    ? t("ai_generator_video_speech_move") : !promptReady
     ? t("ai_generator_idea_required")
     : !briefCompatible ? t("ai_generator_engine_brief_too_long") : "";
   const referenceCompatibilityReason = kind === "video"
@@ -293,7 +308,7 @@ export default function MediaFreeGenerator({
     teamVideoSpeechMode: requestSpeechMode,
     ...(kind === "video" ? { withSubtitles: effectiveWithSubtitles } : {}),
     ...(kind === "video" && spokenScriptOpen ? { spokenScript } : {}),
-  }, quota, !durationUnavailable && referenceCompatible && briefCompatible);
+  }, quota, !durationUnavailable && referenceCompatible && briefCompatible && (kind !== "video" || !speechInvalid && !misplacedSpeechBlocking && promptReady));
   const creditInsufficient = creditQuote.insufficient;
   const modelRecommendation = recommendAiMediaModel({ kind, format: fixedFormat || format, operation: "generate", brief: effectivePrompt,
     durationSeconds: duration, sceneMode, withNarration: effectiveWithNarration,
@@ -318,6 +333,8 @@ export default function MediaFreeGenerator({
     !characterVoiceSpeechConflict &&
     !characterVoiceDurationExceeded &&
     !spokenScriptConflict &&
+    !speechInvalid &&
+    !misplacedSpeechBlocking &&
     (!identityRequired || identityConsent) &&
     (!teamConsentRequired || teamConsent);
   const resetDate =
@@ -731,6 +748,7 @@ export default function MediaFreeGenerator({
   const assistantFormSnapshot: InrAssistantStudioFormSnapshot = {
     mode: "free", kind, locked: operationLocked, editorVisible: !reviewingRecovery && !stopConfirmOpen,
     fixedFormat, maxPromptLength: maxUserPromptLength, activeTab: activeSettingsTab, prompt, useBusinessDna, format,
+    videoEngine: selectedVideoEngine, videoResolution, language: locale,
     durationScene: { seconds: duration, sceneMode }, speechMode, spokenScript, spokenScriptOpen,
     narrationVoice: voice, narrationVoiceVariant: voiceVariant, withMusic, withSubtitles: effectiveWithSubtitles,
   };
@@ -863,7 +881,7 @@ export default function MediaFreeGenerator({
       data-view="editor"
     >
       <div className={editorStyles.editorBody}>
-        <div className={editorStyles.settingsPane}>
+        <div className={`${editorStyles.settingsPane} ${kind === "video" ? styles.videoSettingsPane : ""}`}>
           <MediaGenerationSettingsTabs idPrefix={instanceId} activeTab={activeSettingsTab} onChange={setActiveSettingsTab} tabs={[
             { id: "prompt", label: t("ai_generator_editor_tab_prompt"), warning: promptWarning },
             { id: "criteria", label: t("ai_generator_editor_tab_criteria"), warning: criteriaWarning },
@@ -1217,7 +1235,12 @@ export default function MediaFreeGenerator({
             </label>
             <MediaBusinessDnaHelp />
           </div>
-          <div className={styles.promptContainer}>
+          <div className={kind === "video" ? styles.videoBriefFrame : undefined} data-video-brief-frame={kind === "video" ? true : undefined}>
+          {kind === "video" ? <div className={styles.videoFrameHeading}>
+            <label htmlFor={`${instanceId}-prompt`}>{t("ai_generator_video_visual_brief_title")}</label>
+            <p id={`${instanceId}-visual-brief-help`}>{t("ai_generator_video_visual_brief_hint")}</p>
+          </div> : null}
+          <div className={styles.promptContainer} data-invalid={kind === "video" && (prompt.length > maxUserPromptLength || misplacedSpeechBlocking) ? true : undefined}>
             <label
               className={styles.srOnly}
               htmlFor={`${instanceId}-prompt`}
@@ -1227,10 +1250,11 @@ export default function MediaFreeGenerator({
             <textarea
               id={`${instanceId}-prompt`}
               value={prompt}
-              maxLength={maxUserPromptLength}
+              maxLength={kind === "video" ? undefined : maxUserPromptLength}
               disabled={busy || finishing || referencesBusy || characterVoiceBusy}
               readOnly={voiceBusy}
-              aria-describedby={kind === "image" ? `${instanceId}-prompt-help` : undefined}
+              aria-invalid={kind === "video" && (prompt.length > maxUserPromptLength || misplacedSpeechBlocking) ? true : undefined}
+              aria-describedby={kind === "image" ? `${instanceId}-prompt-help` : `${instanceId}-visual-brief-help ${instanceId}-prompt-count${prompt.length > maxUserPromptLength || misplacedSpeechBlocking ? ` ${instanceId}-visual-brief-error` : ""}`}
               placeholder={t(
                 kind === "video"
                   ? "ai_generator_free_prompt_placeholder_video"
@@ -1239,7 +1263,7 @@ export default function MediaFreeGenerator({
               onChange={(event) => setPrompt(event.target.value)}
             />
             <div className={styles.promptToolbar}>
-              <span>
+              <span id={`${instanceId}-prompt-count`} aria-live={kind === "video" ? "polite" : undefined}>
                 {prompt.length.toLocaleString(locale)} /{" "}
                 {maxUserPromptLength.toLocaleString(locale)}
               </span>
@@ -1255,14 +1279,23 @@ export default function MediaFreeGenerator({
               />
             </div>
           </div>
+          {kind === "video" && prompt.length > maxUserPromptLength ? <p id={`${instanceId}-visual-brief-error`} className={styles.videoFrameError} role="alert">
+            {t("ai_generator_video_brief_too_long", { max: maxUserPromptLength })}
+          </p> : misplacedSpeechBlocking ? <p id={`${instanceId}-visual-brief-error`} className={styles.videoFrameError} role="alert">{t("ai_generator_video_speech_move")}</p> : null}
+          {misplacedSpeech && spokenScriptOpen ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_override_notice")}</p> : null}
+          </div>
           {kind === "video" ? <div className={styles.spokenScriptSection}>
+            <div className={styles.videoFrameHeading}>
+              <label htmlFor={`${instanceId}-spoken-script`}>{t("ai_generator_spoken_script_label")}</label>
+              <p id={`${instanceId}-spoken-script-help`}>{t("ai_generator_video_speech_frame_hint")}</p>
+            </div>
             {!spokenScriptOpen ? <>
               <button
                 id={`${instanceId}-add-spoken-script`}
                 type="button"
                 className={styles.addSpokenScriptButton}
                 disabled={locked || speechMode === "silent"}
-                aria-expanded={false}
+                aria-pressed={false}
                 aria-controls={`${instanceId}-spoken-script-panel`}
                 aria-describedby={speechMode === "silent" ? `${instanceId}-spoken-script-silent-help` : undefined}
                 onClick={() => {
@@ -1278,27 +1311,38 @@ export default function MediaFreeGenerator({
                 }}>{t("ai_generator_spoken_script_choose_audio")}</button>
               </div> : null}
             </> : null}
-            <div id={`${instanceId}-spoken-script-panel`} hidden={!spokenScriptOpen} className={styles.spokenScriptPanel}>
+            <div id={`${instanceId}-spoken-script-panel`} className={styles.spokenScriptPanel} data-video-speech-frame data-invalid={speechInvalid ? true : undefined}>
               <div className={styles.spokenScriptHeading}>
-                <label htmlFor={`${instanceId}-spoken-script`}>{t("ai_generator_spoken_script_label")} <span>{t("ai_generator_free_optional")}</span></label>
-                <button type="button" disabled={locked} aria-controls={`${instanceId}-spoken-script-panel`} aria-expanded={true}
+                <span className={styles.speechModeBadge}>{t(spokenScriptOpen ? "ai_generator_video_speech_exact" : "ai_generator_video_speech_automatic")}</span>
+                {spokenScriptOpen ? <button type="button" disabled={locked} aria-controls={`${instanceId}-spoken-script-panel`}
                   onClick={() => {
                     setSpokenScript("");
                     setSpokenScriptOpen(false);
                     window.requestAnimationFrame(() => document.getElementById(`${instanceId}-add-spoken-script`)?.focus());
-                  }}>{t("ai_generator_spoken_script_remove")}</button>
+                  }}>{t("ai_generator_video_speech_reset")}</button> : null}
               </div>
               <div className={styles.spokenScriptInput}>
                 <textarea id={`${instanceId}-spoken-script`} value={spokenScript}
-                  maxLength={AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS} disabled={locked || speechMode === "silent"}
-                  aria-describedby={`${instanceId}-spoken-script-help ${instanceId}-spoken-script-count`}
+                  disabled={locked || speechMode === "silent"}
+                  aria-invalid={speechInvalid ? true : undefined}
+                  aria-describedby={`${instanceId}-spoken-script-help ${instanceId}-spoken-script-count ${instanceId}-spoken-script-budget${speechInvalid ? ` ${instanceId}-spoken-script-error` : ""}`}
                   placeholder={t("ai_generator_spoken_script_placeholder")}
-                  onChange={(event) => setSpokenScript(event.target.value)} />
-                <span id={`${instanceId}-spoken-script-count`} className={styles.spokenScriptCounter}>
-                  {spokenScript.length.toLocaleString(locale)} / {AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS.toLocaleString(locale)}
+                  onChange={(event) => { setSpokenScriptOpen(true); setSpokenScript(event.target.value); }} />
+                <span id={`${instanceId}-spoken-script-count`} className={styles.spokenScriptCounter} aria-live="polite">
+                  {t("ai_generator_video_speech_count", { count: speechState.units.toLocaleString(locale), max: speechState.maxUnits.toLocaleString(locale), unit: speechUnit })}
+                  {" · "}{t("ai_generator_video_speech_character_count", { count: speechState.characters.toLocaleString(locale), max: speechState.maxCharacters.toLocaleString(locale) })}
                 </span>
               </div>
-              <p id={`${instanceId}-spoken-script-help`} className={styles.promptHelp}>{t("ai_generator_spoken_script_help")}</p>
+              <p id={`${instanceId}-spoken-script-budget`} className={styles.promptHelp}>
+                {explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty") : speechMode === "silent" ? t("ai_generator_video_speech_silent") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}
+              </p>
+              {!spokenScriptOpen && speechState.script ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_legacy")}</p> : null}
+              {speechState.segmentBudgets.length > 1 && speechMode === "characters" ? <div className={styles.speechSegments}>
+                {speechState.segmentBudgets.map((segment, index) => <span key={index} data-invalid={segment.issue ? true : undefined}>
+                  {t("ai_generator_video_speech_segment", { index: index + 1, seconds: segment.durationSeconds, count: segment.units.toLocaleString(locale), max: segment.maxUnits.toLocaleString(locale), unit: speechUnit })}
+                </span>)}
+              </div> : null}
+              {speechInvalid ? <p id={`${instanceId}-spoken-script-error`} className={styles.videoFrameError} role="alert">{speechError}</p> : null}
             </div>
           </div> : <p id={`${instanceId}-prompt-help`} className={styles.promptHelp}>
             {requiredPromptSuffix ? "Les critères du canal sont ajoutés automatiquement à votre consigne." : t("ai_generator_free_prompt_help")}

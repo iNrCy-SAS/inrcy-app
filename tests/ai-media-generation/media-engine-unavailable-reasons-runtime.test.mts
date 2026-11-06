@@ -1,3 +1,4 @@
+import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
 import assert from "node:assert/strict";
 import * as studioForm from "../../lib/inrAssistantStudioFormSelection.ts";
@@ -44,6 +45,7 @@ function load<T>(path: string, modules: Map<string, unknown>): T {
     if (specifier === "@/lib/inrAssistantStudioFormSelection") return studioForm;
     if (specifier === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => null };
     if (specifier === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy;
+    if (specifier === "@/lib/aiMediaVideoSpeechBudget") return speechBudget;
     assert.ok(modules.has(specifier), `Unexpected dependency: ${specifier}`); return modules.get(specifier);
   });
   return record.exports;
@@ -185,8 +187,8 @@ test("les avertissements concernent le bon onglet et ne confondent pas critères
     const tree = freeEditor(options).render(); assert.equal(warning(tree, "criteria"), ""); assert.equal(warning(tree, "prompt"), "");
   }
   assert.equal(warning(freeEditor({ prompt: "" }).render(), "prompt"), t("ai_generator_idea_required"));
-  const long = freeEditor({ engine: "wan-flash", references: [reference(1, "product", "required")], prompt: "x".repeat(1501) }).render();
-  assert.equal(warning(long, "prompt"), t("ai_generator_engine_brief_too_long")); assert.equal(warning(long, "criteria"), "");
+  const long = freeEditor({ engine: "wan-flash", references: [reference(1, "product", "required")], prompt: "x".repeat(501) }).render();
+  assert.equal(warning(long, "prompt"), t("ai_generator_video_brief_too_long", { max: 500 })); assert.equal(warning(long, "criteria"), "");
   const locked = freeEditor({ engine: "wan-flash", busy: true }).render(); assert.equal(warning(locked, "prompt"), ""); assert.equal(warning(locked, "criteria"), "");
   const image = freeEditor({ kind: "image", imageEngine: "recraft", references: [reference(1, "product", "required")] }).render();
   assert.equal(warning(image, "criteria"), t("ai_generator_image_references_unavailable"));

@@ -8,6 +8,7 @@ import * as catalogue from "../../lib/aiMediaModelCatalog.ts";
 import * as mediaIntent from "../../lib/inrAssistantMediaIntent.ts";
 import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import * as mediaPreview from "../../lib/inrAssistantMediaPreview.ts";
+import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import type * as MediaTools from "../../lib/inrAssistantMediaTools.ts";
 
 const mediaId = "20000000-0000-4000-8000-000000000001";
@@ -29,6 +30,7 @@ function harness(options: HarnessOptions = {}) {
     "server-only": {},
     ai: { tool: (value: unknown) => value, jsonSchema: (schema: unknown, config: unknown) => ({ schema, ...config as object }) },
     "./aiMediaGenerationContracts.ts": { normalizeAiMediaGenerationRequest },
+    "./aiMediaVideoSpeechBudget.ts": speechBudget,
     "./aiMediaModelCatalog.ts": catalogue,
     "./inrAssistantMediaIntent.ts": mediaIntent,
     "./inrAssistantRequestClauses.ts": requestClauses,
@@ -114,6 +116,24 @@ test("all media provider schemas require every declared property while legacy ru
   for (const [name, tool] of Object.entries(h.tools)) inspect((tool.inputSchema as unknown as { schema: unknown }).schema, name);
   assert.equal(h.tools.generateMedia.inputSchema.validate?.(imageInput).success, true);
   assert.equal(h.tools.modifyMedia.inputSchema.validate?.({ sourceMediaId, instruction: "Éclaircis le fond" }).success, true);
+});
+
+test("assistant video briefs use 500 characters and exact dialogue is refused before quote or paid generation", async () => {
+  const video = { mediaType: "video", prompt: "v".repeat(500), format: "story", durationSeconds: 8, resultMode: "preview", settings: [] };
+  const h = harness();
+  assert.equal(h.tools.generateMedia.inputSchema.validate?.(video).success, true);
+  assert.equal(h.tools.generateMedia.inputSchema.validate?.({ ...video, prompt: "v".repeat(501) }).success, false);
+  assert.equal(h.tools.quoteMediaGeneration.inputSchema.validate?.({ ...video, prompt: "v".repeat(501) }).success, false);
+  assert.equal(h.tools.generateMedia.inputSchema.validate?.({ ...imageInput, prompt: "i".repeat(3900) }).success, true);
+  assert.equal(h.calls.length, 0);
+  const result = await h.tools.generateMedia.execute({ ...video, prompt: "Un atelier filmé en lumière naturelle.", settings: [
+    { field: "videoEngine", valueJson: '"veo"' }, { field: "teamVideoSpeechMode", valueJson: '"characters"' },
+    { field: "spokenScript", valueJson: JSON.stringify("Bonjour ".repeat(40)) },
+  ] });
+  assert.equal(result.status, "failed");
+  assert.match(result.message, /paroles|plan|réplique/i);
+  assert.doesNotMatch(result.message, /AI_MEDIA_|ai_media_/);
+  assert.ok(!h.calls.some(call => ["quote", "generate", "accept"].includes(call.stage)));
 });
 
 test("a read-only follow-up distinguishes ready draft from saved media without accepting or generating", async()=>{

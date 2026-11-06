@@ -36,6 +36,7 @@ import {
   AI_MEDIA_INSPIRATION_MAX_COUNT,
   aiMediaBriefRequestsVisibleText,
 } from "@/lib/aiMediaGenerationContracts";
+import { getAiMediaVisualBriefMaxChars } from "@/lib/aiMediaVideoSpeechBudget";
 import {
   AI_MEDIA_NARRATION_VOICE_VARIANTS,
   defaultAiMediaNarrationVoiceVariant,
@@ -587,7 +588,8 @@ export default function MediaGenerator({
       ? customIdea.trim()
       : "";
   const creativeBrief = subjectSource === "custom" ? customIdea : aiInstruction;
-  const creativeBriefMaximum = 1_600;
+  const creativeBriefMaximum = getAiMediaVisualBriefMaxChars(kind, "guided");
+  const creativeBriefTooLong = kind === "video" && creativeBrief.length > creativeBriefMaximum;
   const effectiveWithText = textMode !== "none";
   const structuredVisualStyle: MediaGenerationVisualStyle =
     visualDirection === "bold"
@@ -691,7 +693,7 @@ export default function MediaGenerator({
     inspirationImagesCount: referenceCount, withNarration: effectiveWithNarration,
     hasProvidedCharacterVoice: characterVoiceSelection.hasProvidedVoice,
     teamVideoSpeechMode,
-  }, quota, !videoDurationUnavailable && referenceCompatible && briefCompatible);
+  }, quota, !videoDurationUnavailable && referenceCompatible && briefCompatible && !creativeBriefTooLong);
   const videoCreditInsufficient = creditQuote.insufficient;
   const modelRecommendation = recommendAiMediaModel({ kind, format, operation: "generate", brief: modelBrief,
     durationSeconds, sceneMode: videoSceneMode, withNarration: effectiveWithNarration,
@@ -724,6 +726,7 @@ export default function MediaGenerator({
     !creditQuote.ready ||
     !referenceCompatible ||
     !briefCompatible ||
+    creativeBriefTooLong ||
     characterVoiceSelection.missingSample ||
     characterVoiceSpeechConflict ||
     characterVoiceDurationExceeded ||
@@ -1705,21 +1708,22 @@ export default function MediaGenerator({
             className={`${styles.essentialTextareaField} ${styles.creativeBriefField}`}
           >
             <span>
-              Votre consigne à l’IA
+              {kind === "video" ? t("ai_generator_video_visual_brief_title") : "Votre consigne à l’IA"}
               <small>
                 {subjectSource === "custom"
                   ? "Obligatoire"
                   : "Facultative, mais fortement recommandée"}
               </small>
+              {kind === "video" ? <small id={`${instanceId}-visual-brief-count`} aria-live="polite">{creativeBrief.length} / {creativeBriefMaximum}</small> : null}
             </span>
             <div className={styles.customTextareaWrap}>
               <textarea
                 value={creativeBrief}
                 aria-invalid={
-                  subjectSource === "custom" && creativeBrief.trim().length < 3
+                  creativeBriefTooLong || subjectSource === "custom" && creativeBrief.trim().length < 3
                 }
                 aria-describedby={
-                  subjectSource === "custom" && creativeBrief.trim().length < 3
+                  creativeBriefTooLong ? `${instanceId}-visual-brief-error` : subjectSource === "custom" && creativeBrief.trim().length < 3
                     ? "ai-media-creative-brief-alert"
                     : undefined
                 }
@@ -1736,7 +1740,7 @@ export default function MediaGenerator({
                     ? "Ex. Crée un flyer premium pour notre journée portes ouvertes, avec notre produit au centre, une lumière chaleureuse et une zone claire pour la date…"
                     : "Ex. Filme notre équipe préparant la commande, commence par un plan large puis rapproche-toi du produit, avec une ambiance énergique…"
                 }
-                maxLength={creativeBriefMaximum}
+                maxLength={kind === "video" ? undefined : creativeBriefMaximum}
                 disabled={busy || finishing}
                 readOnly={voiceBusy}
                 rows={6}
@@ -1757,6 +1761,8 @@ export default function MediaGenerator({
                 }}
               />
             </div>
+            {kind === "video" ? <small>{t("ai_generator_video_visual_brief_hint")}</small> : null}
+            {creativeBriefTooLong ? <small id={`${instanceId}-visual-brief-error`} className={styles.fieldAlert} role="alert">{t("ai_generator_video_brief_too_long", { max: creativeBriefMaximum })}</small> : null}
             {subjectSource === "custom" && creativeBrief.trim().length < 3 ? (
               <small
                 id="ai-media-creative-brief-alert"

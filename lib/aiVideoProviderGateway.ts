@@ -8,7 +8,7 @@ import {
   rollbackAiGatewayAccountAttempt,
 } from "@/lib/aiGatewayAccountGuard";
 import { bufferFromUint8ArrayView } from "./aiMediaBuffer.ts";
-import { AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT, buildAiMediaFreeVideoPresentationContract, splitAiMediaFreeQuotedSpeech } from "./aiMediaFreeGenerationPrompt.ts";
+import { buildAiMediaFreeVideoScenePrompt, buildAiMediaFreeWanFlashPrompt, buildAiMediaVideoCharacterReferenceDirection, buildAiMediaVideoFinalFrameDirection, getAiMediaFreeVideoPromptMaxCharacters } from "./aiMediaFreeGenerationPrompt.ts";
 import { AiMediaRequestValidationError } from "@/lib/aiMediaGenerationContracts";
 import {
   getAiMediaVideoModel,
@@ -39,40 +39,18 @@ const diagnostic = (value: unknown) => redactAiMediaSensitiveText(value, 1000)
   .replace(/https?:\/\/[^\s"'<>]+/gi, "[provider-url-redacted]");
 
 /** Dense Wan transport retains the complete user contract and exact spoken line. */
-export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, validatedPrompt: string, index = 0, duration = args.request.durationSeconds ?? 8): string {
+export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, _validatedPrompt: string, index = 0, duration = args.request.durationSeconds ?? 8): string {
+  if (args.request.creationMode === "free") return buildAiMediaFreeWanFlashPrompt(args, index, duration);
   const { providerContract: contract } = args;
-  const separateVoiceover = args.request.creationMode === "free" && args.request.teamVideoSpeechMode !== "characters";
-  const user = separateVoiceover ? splitAiMediaFreeQuotedSpeech(contract.instruction).visualPrompt : contract.instruction;
-  const visualSubject = separateVoiceover ? splitAiMediaFreeQuotedSpeech(contract.subject).visualPrompt : contract.subject;
-  const subject = visualSubject && visualSubject !== user && !user.includes(visualSubject) ? visualSubject : "";
+  const subject = contract.subject && contract.subject !== contract.instruction && !contract.instruction.includes(contract.subject) ? contract.subject : "";
   const scene = String(args.plan.scenes[index]?.visualBrief || "").trim();
   const action = scene.length <= 150 ? scene : `${scene.slice(0, 100).replace(/\s+\S*$/, "")}… ${scene.slice(-40).replace(/^\S*\s/, "")}`;
-  const visualSpeech = args.request.creationMode === "free"
-    ? validatedPrompt.split("\n").find((line) => line.startsWith("VISUAL SPEECH:")) || ""
-    : "";
-  // Wan has only 1,500 characters. Compress our envelope, never the user's
-  // wording, so the new silence rule does not crowd out previously valid briefs.
-  const compactSilence = separateVoiceover && Boolean(visualSpeech);
-  const audio = args.request.creationMode === "free"
-    ? validatedPrompt.split("\n").filter((line) => /^(?:NATIVE DIALOGUE:|NATIVE VOICEOVER:|AUDIO PRONUNCIATION:|No native voices|EXTERNAL VOICEOVER CAPTIONS:)/.test(line)).join("\n")
-    : buildGoogleVideoTeamSpeechDirection(args, index);
   const prompt = [
-    contract.globalMediaConstraints || "",
-    `SHOT ${index + 1}/${args.plan.scenes.length};${duration}s. Move from frame 1; no bars.`,
-    ...(args.request.creationMode === "free" ? [AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT] : []),
-    compactSilence ? "VISUAL SPEECH: No speaking/articulation/mimed speech/lip-sync; natural gestures, gaze, smiles. Overrides speaking below." : visualSpeech,
-    subject ? `SUBJECT: ${subject}` : "",
-    `USER: ${user}`,
-    `PARAMS: ${contract.parameters}`,
-    `REFERENCES: ${contract.references}`,
-    action ? `ACTION: ${action}` : "",
-    audio,
-    compactSilence ? "" : `Speech language: ${args.contentLanguage || "fr"}. No repeated lines.`,
-    args.request.creationMode === "free"
-      ? compactSilence
-        ? `Fill frame. No split/panels/collage unless asked. Subtitles ${args.request.withSubtitles ? "ON: faithful, same language as speech" : "OFF: no speech captions"}. Other requested visual text allowed.`
-        : buildAiMediaFreeVideoPresentationContract(args.request)
-      : "No visual text, numbers, UI, logos or technical annotations; overlays are added separately.",
+    contract.globalMediaConstraints || "", `SHOT ${index + 1}/${args.plan.scenes.length};${duration}s. Move from frame 1; no bars.`,
+    subject ? `SUBJECT: ${subject}` : "", `USER: ${contract.instruction}`, `PARAMS: ${contract.parameters}`,
+    `REFERENCES: ${contract.references}`, action ? `ACTION: ${action}` : "", buildGoogleVideoTeamSpeechDirection(args, index),
+    `Speech language: ${args.contentLanguage || "fr"}. No repeated lines.`,
+    "No visual text, numbers, UI, logos or technical annotations; overlays are added separately.",
   ].filter(Boolean).join("\n");
   if (prompt.length > 1500) throw new Error(`ai_video_instruction_contract_too_long:${prompt.length}:1500`);
   return prompt;
@@ -109,23 +87,13 @@ export function buildGatewayAiVideoRequest(
     throw new AiMediaRequestValidationError("Grok Imagine 1.5 accepte plusieurs références en 720p uniquement. Choisissez 720p ou une seule image de référence pour générer en 1080p.");
   }
   assertAiVideoReferenceTeamProviderEgress(args, model.provider);
-  const completePrompt = buildGoogleVideoScenePrompt(args, index, duration, { continuationFrame: Boolean(continuityFrame) });
-  let text = model.id === "wan-flash" ? buildWanFlashVideoPrompt(args, completePrompt, index, duration) : completePrompt;
+  const completePrompt = args.request.creationMode === "free"
+    ? model.id === "wan-flash" ? buildAiMediaFreeWanFlashPrompt(args, index, duration, Boolean(continuityFrame))
+      : buildAiMediaFreeVideoScenePrompt(args, index, duration, { continuationFrame: Boolean(continuityFrame) })
+    : buildGoogleVideoScenePrompt(args, index, duration, { continuationFrame: Boolean(continuityFrame) });
+  let text = model.id === "wan-flash" && args.request.creationMode !== "free" ? buildWanFlashVideoPrompt(args, completePrompt, index, duration) : completePrompt;
   if (nativeSubjectReferences) {
-    let audioIndex = 0;
-    const characterMap = args.request.inspirationImages.flatMap((image, imageIndex) => {
-      if (image.role !== "character") return [];
-      const imageToken = model.id === "heygen" ? `<Picture ${imageIndex + 1}>` : `Image ${imageIndex + 1}`;
-      let voiceDirection = "use a stable AI voice";
-      if (image.voiceMode === "provided") {
-        audioIndex += 1;
-        const audioToken = model.id === "heygen" ? `<Audio ${audioIndex}>` : `Audio ${audioIndex}`;
-        voiceDirection = model.id === "wan27" ? "use only its attached referenceVoice"
-          : `speak the new dialogue using only the voice characteristics of ${audioToken}; ignore the words spoken in that recording`;
-      }
-      return [`${imageToken} = character${imageIndex + 1}${image.characterIndex ? ` = Studio character ${image.characterIndex}` : ""}; ${voiceDirection}`];
-    });
-    if (characterMap.length) text += `\nCHARACTER REFERENCES: ${characterMap.join(". ")}. Never exchange faces or voice assignments.`;
+    text += buildAiMediaVideoCharacterReferenceDirection(args.request);
     if (model.id === "wan27" && text.length > 5_000) throw new AiMediaRequestValidationError("La consigne complète dépasse la limite de 5 000 caractères de Wan 2.7. Raccourcissez le brief avant de générer.");
     if (model.id === "wan3" && text.length > 20_000) throw new AiMediaRequestValidationError("La consigne complète dépasse la limite de 20 000 caractères de Wan 3.0. Raccourcissez le brief avant de générer.");
   }
@@ -140,12 +108,16 @@ export function buildGatewayAiVideoRequest(
     ? (args.request.format === "story" || args.request.format === "portrait" ? "9:16" : "16:9")
     : requestedAspectRatio;
   if (model.id === "heygen" && (!references.length || nativeSubjectReferences) && resolution === "1080p" && requestedAspectRatio !== aspectRatio) {
-    text += args.request.format === "square"
-      ? "\nFINAL 1:1 SAFE FRAME: keep every essential subject, full face and important detail inside the central square (middle 56% of the width); the sides will be cropped. This is a composition instruction, never on-screen text."
-      : "\nFINAL 4:5 SAFE FRAME: keep every essential subject, full face and important detail inside the centred 4:5 area (middle 70% of the height); the top and bottom will be cropped. This is a composition instruction, never on-screen text.";
+    text += buildAiMediaVideoFinalFrameDirection({ ...args.request, videoResolution: resolution });
   }
   if (model.id === "heygen" && text.length > 32_000) {
     throw new AiMediaRequestValidationError("La consigne complète dépasse la limite de 32 000 caractères de HeyGen. Raccourcissez le brief avant de générer.");
+  }
+  const finalPromptLimit = model.id === "wan-flash" ? 1_500
+    : model.id === "heygen" && args.request.creationMode !== "free" ? 32_000
+    : getAiMediaFreeVideoPromptMaxCharacters(model.id);
+  if (text.length > finalPromptLimit) {
+    throw new Error(`ai_video_instruction_contract_too_long:${text.length}:${finalPromptLimit}`);
   }
   const shortSide = resolution === "1080p" ? 1080 : resolution === "768p" ? 768 : 720;
   const [aspectWidth, aspectHeight] = aspectRatio.split(":").map(Number);

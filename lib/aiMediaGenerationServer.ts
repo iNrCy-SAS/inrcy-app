@@ -17,7 +17,7 @@ import { buildAiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import { chooseAiMediaCastingVariation } from "@/lib/aiMediaCastingVariation";
 import { writeAiMediaHeadline } from "@/lib/aiMediaCopywriter";
 import { buildAiMediaFreeBasePlan, prepareAiMediaFreeCreativePlan, writeAiMediaFreeNarration } from "@/lib/aiMediaFreeGenerationPlan";
-import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, getAiMediaFreeImageSize, isAiMediaProfileLogoApplicationRequested, usesAiMediaAutomaticImageLogo, resolveAiMediaFreeDialogueSequence, resolveAiMediaFreeSpeechLanguage, splitAiMediaFreeNarrationByScene } from "@/lib/aiMediaFreeGenerationPrompt";
+import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, buildAiMediaFreeVideoBusinessDnaDirection, getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, getAiMediaFreeImageSize, isAiMediaProfileLogoApplicationRequested, usesAiMediaAutomaticImageLogo, resolveAiMediaFreeDialogueSequence, resolveAiMediaFreeSpeechLanguage, splitAiMediaFreeNarrationByScene } from "@/lib/aiMediaFreeGenerationPrompt";
 import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover } from "@/lib/aiMediaFreeVoiceoverPolicy";
 import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
 import { buildAiMediaLocalLogoCompositionPrompt } from "./aiMediaLocalLogoCompositionPrompt.ts";
@@ -1122,11 +1122,9 @@ export async function generateAndSaveAiMedia(args: {
         contentLanguage: speechLanguage,
         nativeNarrationLines,
         subtitleLines,
-        ...(useFreeDna ? { businessDnaDirection: [
-          promptBrandColors.length ? `Use the official palette ${promptBrandColors.join(", ")} unless the brief specifies other colours.` : "",
-          localDnaLogo ? "The exact official logo is added locally afterwards; do not draw or duplicate it in the scene." : "",
-          "Use exact requested business facts from the creative direction only; no automatic contact text, slogans, captions or subtitles. Explicit brief overrides business defaults.",
-        ].filter(Boolean).join(" ") } : {}),
+        ...(useFreeDna ? { businessDnaDirection: buildAiMediaFreeVideoBusinessDnaDirection({
+          colors: promptBrandColors, hasLocalLogo: Boolean(localDnaLogo),
+        }) } : {}),
         ...overrides,
         identityTeamProviderEgressConsent: request.teamVideoProviderConsent,
         signal: args.signal,

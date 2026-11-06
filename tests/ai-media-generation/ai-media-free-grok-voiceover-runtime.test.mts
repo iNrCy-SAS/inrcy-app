@@ -16,7 +16,7 @@ import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
 import * as spokenScript from "../../lib/aiMediaSpokenScript.ts";
 import * as pronunciation from "../../lib/aiMediaPronunciation.ts";
 import { classifyVeoFailure } from "../../lib/aiVideoReliability.ts";
-import { getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage, usesAiMediaAutomaticImageLogo } from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import { buildAiMediaFreeVideoBusinessDnaDirection, getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage, usesAiMediaAutomaticImageLogo } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as localLogoComposition from "../../lib/aiMediaLocalLogoCompositionPrompt.ts";
 import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
@@ -71,7 +71,7 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
     ["@/lib/aiMediaCastingVariation", { chooseAiMediaCastingVariation: () => null }],
     ["@/lib/aiMediaFreeGenerationPlan", { buildAiMediaFreeBasePlan: () => plan, prepareAiMediaFreeCreativePlan: async () => plan, writeAiMediaFreeNarration: freeNarration }],
     ["@/lib/aiMediaFreeGenerationPrompt", { AI_MEDIA_FREE_PROMPT_VERSION: "test-free-version", getAiMediaFreeImageSize: () => "1024x1536",
-      getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage, usesAiMediaAutomaticImageLogo, splitAiMediaFreeNarrationByScene: () => [script],
+      buildAiMediaFreeVideoBusinessDnaDirection, getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage, usesAiMediaAutomaticImageLogo, splitAiMediaFreeNarrationByScene: () => [script],
       buildAiMediaFreeSceneFramePrompt: () => "One controlled full-frame initial instant, no storyboard.",
       resolveAiMediaFreeDialogueSequence: () => ["Bonjour, je façonne un vase."] }],
     ["@/lib/aiMediaFreeVoiceoverPolicy", { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover: options.nativeVoiceover ? () => false : usesSeparateAiMediaFreeVoiceover }],
@@ -211,6 +211,7 @@ for (const engine of ["wan27", "wan3", "heygen"] as const) {
       name: "voice-of-second-character.wav" };
     const original = request(engine, { durationSeconds: 8, videoResolution: engine === "heygen" ? "768p" : "720p",
       inputMode: "essential", teamVideoSpeechMode: "characters", withNarration: false,
+      spokenScript: characterCount === 2 ? "Bonjour, je façonne un vase. Et moi, je le décore." : "Bonjour, je façonne un vase.",
       identityConsent: true, identityReferenceSetId: randomUUID(), teamVideoProviderConsent: engine,
       freePrompt: characterCount === 2
         ? "Le premier personnage dit : « Bonjour, je façonne un vase. » La seconde répond : « Et moi, je le décore. » Chacun parle avec sa propre voix."

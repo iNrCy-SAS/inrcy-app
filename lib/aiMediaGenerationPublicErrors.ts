@@ -57,7 +57,7 @@ export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
   AI_MEDIA_EXACT_NARRATION_TOO_LONG: {
     status: 422,
     reason: "Le texte exact demandé pour la voix off est trop long pour cette durée.",
-    action: "Raccourcissez les paroles entre guillemets ou augmentez la durée. Vos paroles exactes ne seront pas coupées automatiquement.",
+    action: "Raccourcissez le texte du champ « Paroles à prononcer » ou augmentez la durée. Vos paroles exactes ne seront pas coupées automatiquement.",
   },
   AI_MEDIA_NARRATION_TOO_LONG: {
     status: 422,
@@ -69,20 +69,25 @@ export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
     reason: "Une réplique ne tient pas dans le plan vidéo prévu.",
     action: "Raccourcissez les répliques ou choisissez une durée plus longue avec plusieurs plans.",
   },
+  AI_MEDIA_EXACT_DIALOGUE_TOO_LONG: {
+    status: 422,
+    reason: "Les paroles exactes des personnages dépassent le temps disponible dans un plan.",
+    action: "Raccourcissez la réplique concernée ou choisissez une durée supérieure. Vos paroles exactes restent conservées.",
+  },
   AI_MEDIA_EXACT_TEXT_TOO_DENSE: {
     status: 422,
-    reason: "Les textes ou les valeurs exactes demandés sont trop nombreux pour cette durée.",
-    action: "Réduisez les éléments à afficher ou augmentez la durée de la vidéo.",
+    reason: "La description préparée du film contient trop d’éléments exacts à préserver.",
+    action: "Réduisez le nombre de textes ou de valeurs à afficher, puis réessayez.",
   },
   AI_MEDIA_EXACT_DIALOGUE_INVALID: {
     status: 422,
     reason: "Les paroles exactes n’ont pas pu être préparées en respectant votre demande.",
-    action: "Indiquez des phrases complètes entre guillemets, adaptées à la durée choisie.",
+    action: "Renseignez des phrases complètes dans le champ « Paroles à prononcer », adaptées à la durée choisie.",
   },
   AI_MEDIA_CHARACTER_DIALOGUE_MISSING: {
     status: 422,
     reason: "La préparation des répliques des personnages est incomplète.",
-    action: "Précisez qui parle et les phrases à prononcer dans votre prompt, puis réessayez.",
+    action: "Dans le Studio Libre, précisez les répliques dans le champ « Paroles à prononcer », puis réessayez.",
   },
   AI_MEDIA_VIDEO_SPEECH_MISSING: {
     status: 422,
@@ -102,7 +107,7 @@ export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
   AI_MEDIA_VIDEO_SPEECH_MISMATCH: {
     status: 422,
     reason: "Les paroles de la vidéo ne correspondent pas aux répliques prévues.",
-    action: "Indiquez des répliques courtes entre guillemets ou essayez un autre moteur.",
+    action: "Indiquez des répliques courtes dans le champ « Paroles à prononcer » ou essayez un autre moteur.",
   },
   AI_MEDIA_VIDEO_NATIVE_SPEECH_REJECTED: {
     status: 422,
@@ -392,6 +397,8 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
   if (isAiMediaSpeechVerificationUnavailable(error)) return result("AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE");
   if (match(/ai_media_generated_narration_invalid/)) return result("AI_MEDIA_GENERATED_NARRATION_INVALID");
   if (match(/\bai_media_exact_narration_too_long\b/)) return result("AI_MEDIA_EXACT_NARRATION_TOO_LONG");
+  if (match(/\bai_media_exact_dialogue_too_long\b/)) return result("AI_MEDIA_EXACT_DIALOGUE_TOO_LONG");
+  if (match(/\bai_media_exact_text_too_dense\b/)) return result("AI_MEDIA_EXACT_TEXT_TOO_DENSE");
   if (/texte exact.{0,20}voix off.{0,20}trop long/.test(plain)) return result("AI_MEDIA_EXACT_NARRATION_TOO_LONG");
   if (/voix off.{0,35}trop longue|narration.{0,20}too long/.test(plain)) return result("AI_MEDIA_NARRATION_TOO_LONG");
   if (/replique.{0,30}trop longue|dialogue.{0,20}too long/.test(plain)) return result("AI_MEDIA_DIALOGUE_TOO_LONG");

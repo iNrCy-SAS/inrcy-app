@@ -1,5 +1,7 @@
+import { getAiMediaFreeSpeechBudget, getAiMediaFreeRequestedLanguage, getAiMediaFreeRequestedDialogue, splitAiMediaFreeQuotedSpeech, getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
+export { getAiMediaFreeSpeechBudget, getAiMediaFreeRequestedLanguage, resolveAiMediaFreeSpeechLanguage, getAiMediaFreeRequestedDialogue, splitAiMediaFreeQuotedSpeech } from "./aiMediaVideoSpeechBudget.ts";
 import { createHash } from "node:crypto";
-import { AI_MEDIA_FORMAT_SPECS, AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS, AiMediaRequestValidationError, type AiMediaGenerationRequest } from "./aiMediaGenerationContracts.ts";
+import { AI_MEDIA_FORMAT_SPECS, AiMediaRequestValidationError, type AiMediaGenerationRequest } from "./aiMediaGenerationContracts.ts";
 import { buildAiMediaBusinessDnaPayload } from "./aiMediaBusinessDna.ts";
 import { buildAiMediaGlobalConstraints } from "./aiMediaGlobalConstraints.ts";
 import type { AiMediaPromptBuilderArgs } from "./aiMediaPromptShared.ts";
@@ -11,8 +13,55 @@ import { fitPromptPayloadToJsonBudget } from "./aiPromptBudget.ts";
 import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
 import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
 import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
+import { buildAiMediaVideoProviderContract } from "./aiMediaVideoProviderContract.ts";
 
-export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v13-global-media-rules";
+export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v14-provider-budget-repair";
+
+/** Verified final provider ceilings, including appended reference bindings.
+ * https://vercel.com/ai-gateway/models/wan-v2.7-r2v
+ * https://vercel.com/ai-gateway/models/wan-v3.0-video
+ * The existing 3,200-character ceiling remains for other transports.
+ */
+export function getAiMediaFreeVideoPromptMaxCharacters(engine: AiMediaGenerationRequest["videoEngine"]) {
+  return engine === "wan-flash" ? 1_500 : engine === "wan27" ? 5_000 : engine === "wan3" ? 20_000 : 3_200;
+}
+
+/** The Gateway appends these exact bindings after the scene prompt. Reserve
+ * them before fitting any generated direction, including a continuity clip. */
+export function buildAiMediaVideoCharacterReferenceDirection(request: AiMediaGenerationRequest) {
+  const hasProvidedVoice = request.inspirationImages.some(image => image.voiceMode === "provided" && image.voiceSample);
+  if (request.videoEngine !== "wan27" && !hasProvidedVoice) return "";
+  let audioIndex = 0;
+  const characters = request.inspirationImages.flatMap((image, index) => {
+    if (image.role !== "character") return [];
+    const imageToken = request.videoEngine === "heygen" ? `<Picture ${index + 1}>` : `Image ${index + 1}`;
+    let voiceDirection = "use a stable AI voice";
+    if (image.voiceMode === "provided") {
+      audioIndex += 1;
+      voiceDirection = request.videoEngine === "wan27" ? "use only its attached referenceVoice"
+        : `speak the new dialogue using only the voice characteristics of ${request.videoEngine === "heygen" ? `<Audio ${audioIndex}>` : `Audio ${audioIndex}`}; ignore the words spoken in that recording`;
+    }
+    return [`${imageToken} = character${index + 1}${image.characterIndex ? ` = Studio character ${image.characterIndex}` : ""}; ${voiceDirection}`];
+  });
+  return characters.length ? `\nCHARACTER REFERENCES: ${characters.join(". ")}. Never exchange faces or voice assignments.` : "";
+}
+
+export function buildAiMediaFreeVideoBusinessDnaDirection(args: { colors: readonly string[]; hasLocalLogo: boolean }) {
+  return [
+    args.colors.length ? `Use the official palette ${args.colors.join(", ")} unless the brief specifies other colours.` : "",
+    args.hasLocalLogo ? "The exact official logo is added locally afterwards; do not draw or duplicate it in the scene." : "",
+    "Use exact requested business facts from the creative direction only; no automatic contact text, slogans, captions or subtitles. Explicit brief overrides business defaults.",
+  ].filter(Boolean).join(" ");
+}
+
+export function buildAiMediaVideoFinalFrameDirection(request: AiMediaGenerationRequest) {
+  if (request.videoEngine !== "heygen" || request.videoResolution !== "1080p") return "";
+  return request.format === "square"
+    ? "\nFINAL 1:1 SAFE FRAME: keep every essential subject, full face and important detail inside the central square (middle 56% of the width); the sides will be cropped. This is a composition instruction, never on-screen text."
+    : request.format === "portrait"
+      ? "\nFINAL 4:5 SAFE FRAME: keep every essential subject, full face and important detail inside the centred 4:5 area (middle 70% of the height); the top and bottom will be cropped. This is a composition instruction, never on-screen text."
+      : "";
+}
 
 /** Shared by the video planner, first frame and provider shots; references alone never select animation. */
 export const AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT = "RENDER: Photoreal humans/scenes; non-photo style only on explicit brief request, never from refs alone.";
@@ -97,51 +146,6 @@ function nativeNarrationTone(variant: AiMediaGenerationRequest["narrationVoiceVa
   }
 }
 
-/** Free dialogue has no commercial fallback and never rewrites quoted speech. */
-export function getAiMediaFreeRequestedDialogue(prompt: string) {
-  // A first-person presentation followed by a colon is an explicit script,
-  // just like "dit". Keep it out of the planner's visual protected literals.
-  // Requiring a human subject avoids treating a sign/title's presentation as speech.
-  const pattern = /(?:(?:\b(?:dit|dis|disent|dire|dira|déclare|déclarent|répond|répondent|prononce|prononcent|récite|récitent|says?|speak|speaks|reply|replies|dice|diga|dicono|sagt|zegt|diz)\b|\b(?:réplique|dialogue|dialog|phrase\s+(?:exacte|à\s+(?:dire|prononcer))))[^«“"]{0,90}|(\b(?:je|tu|il|elle|on|nous|vous|ils|elles|personnage|présentateur|présentatrice|professionnel|professionnelle|homme|femme)\s+(?:pr[ée]sent(?:e|es|ent|ons|ez|era|eront)|expliqu(?:e|es|ent|ons|ez|era|eront))\b[^«“"\n]{0,90}:\s*))[«“"]([^»”"]+)[»”"]/giu;
-  return Array.from(prompt.matchAll(pattern)).flatMap((match) => {
-    const before = prompt.slice(Math.max(0, (match.index || 0) - 80), match.index);
-    // A pronunciation guide specifies how a name sounds, not an extra line.
-    if (/\bse\s*$/iu.test(before) && /^prononc/iu.test(match[0])) return [];
-    if (/^(?:prononce|prononcent)\b/iu.test(match[0]) && /\b(?:marque|nom|mot|sigle)\b[^.!?\n]{0,50}$/iu.test(before)) return [];
-    const presentation = match[1]?.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-    if (presentation) {
-      const visualLabel = /\b(?:texte|titre|inscription|message|mots?|slogan|legende)\s*(?:exact(?:e|s)?\s*)?[:=]\s*$/.test(presentation);
-      const visualSupport = /\b(?:pancarte|panneau|affiche|ecran|enseigne|etiquette|support|tshirt|t-shirt)\b/.test(presentation);
-      const displayAction = /\b(?:affichant|affiche|affichent|afficher|portant|porte|portent|inscrit|inscrite|ecrit|ecrite)\b/.test(presentation);
-      // Presenting a labelled sign or screen describes visible wording. Only
-      // this new presentation shortcut is filtered; explicit "dit" stays oral.
-      if (visualLabel && (visualSupport || displayAction)) return [];
-    }
-    return [match[2]!.replace(/\s+/g, " ").trim()];
-  });
-}
-
-/** Separate quoted speech from the visual brief without changing explicitly displayed wording. */
-export function splitAiMediaFreeQuotedSpeech(prompt: string) {
-  const audioOnlyQuotes = new Set<string>();
-  const visualPrompt = prompt.replace(/[«“"]([^»”"]+)[»”"]/g, (quote: string, line: string, offset: number) => {
-    const before = prompt.slice(0, offset);
-    // A previous quotation cannot lend its speech verb to a later visual text.
-    const boundary = Math.max(before.lastIndexOf("»"), before.lastIndexOf("”"), before.lastIndexOf('"'));
-    const context = before.slice(boundary + 1) + quote;
-    // A sign that "says" something still explicitly requests visual wording.
-    if (/(?:^|[^\p{L}])(?:pancartes?|panneaux?|affiches?|titres?|écrans?|textes?|signs?|posters?|titles?|screens?|captions?|subtitles?)\s+(?:(?:qui|that)\s+)?(?:dit|disent|déclare|déclarent|says?)\s*[:=]?\s*[«“"]/iu.test(context)) return quote;
-    const dialogue = getAiMediaFreeRequestedDialogue(context);
-    const narration = context.match(/(?:voix\s*off|narration|texte\s+(?:prononc[ée]|[àa]\s+dire))\s*(?:exacte?\s*)?[:=]\s*[«“"]([^»”"]+)[»”"]/i)?.[1];
-    const pronunciation = /\b(?:se\s+prononce|prononciation\s+de\s+[\p{L}\p{N}_'-]+)\s*[:=]?\s*[«“"]/iu.test(context);
-    if (!dialogue.length && narration === undefined && !pronunciation) return quote;
-    audioOnlyQuotes.add(line.replace(/\u0000/g, "").replace(/\s+/g, " ").trim());
-    // The complete speech span includes prices, URLs and dates that are only spoken.
-    return "";
-  });
-  return { visualPrompt, audioOnlyQuotes: [...audioOnlyQuotes] };
-}
-
 /** A dedicated script is authoritative; legacy quoted dialogue remains supported when absent. */
 export function getAiMediaFreeRequestedDialogueLines(request: AiMediaGenerationRequest): string[] {
   if (typeof request.spokenScript === "string") {
@@ -151,52 +155,11 @@ export function getAiMediaFreeRequestedDialogueLines(request: AiMediaGenerationR
   return getAiMediaFreeRequestedDialogue(request.freePrompt || "");
 }
 
-export function getAiMediaFreeSpeechBudget(durationSeconds = 8, language = "fr", text = "") {
-  const nonSpaceScript = /^(?:zh|ja|th)(?:-|$)/i.test(language) || /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}]/u.test(text);
-  const maxWords = Math.max(1, Math.floor((Math.max(2, durationSeconds) - 1) * 2));
-  return {
-    maxUnits: maxWords * (nonSpaceScript ? 3 : 1),
-    maxCharacters: Math.min(620, maxWords * (nonSpaceScript ? 4 : 10)),
-    unit: nonSpaceScript ? "caractères prononcés" : "mots",
-    units: nonSpaceScript ? Array.from(text.replace(/[^\p{L}\p{N}]/gu, "")).length : text.split(/\s+/u).filter(Boolean).length,
-  };
-}
-
 /** Reject impossible exact voice-over before reserving credits or preparing an AI plan. */
 export function assertAiMediaFreeExactNarrationFits(request: AiMediaGenerationRequest) {
   if (!usesSeparateAiMediaFreeVoiceover(request)) return;
-  const explicit = typeof request.spokenScript === "string";
-  const script = explicit ? request.spokenScript! : request.freePrompt?.match(/(?:voix\s*off|narration|texte\s+(?:prononc[ée]|[àa]\s+dire))\s*(?:exacte?\s*)?[:=]\s*[«“"]([^»”"]+)[»”"]/i)?.[1]?.trim();
-  // An explicit empty script means silence, including when an old quote remains in the brief.
-  if (!script?.trim()) return;
-  const language = resolveAiMediaFreeSpeechLanguage(request.freePrompt || "", script);
-  const budget = getAiMediaFreeSpeechBudget(request.durationSeconds || 8, language, script);
-  if (script.length > (explicit ? AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS : 620) || budget.units > budget.maxUnits) {
-    throw new AiMediaRequestValidationError("ai_media_exact_narration_too_long");
-  }
-}
-
-/** Explicit language wins over profile defaults, including for quoted speech. */
-export function getAiMediaFreeRequestedLanguage(prompt: string): string | undefined {
-  const normalized = prompt.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const languages: Array<[string, string]> = [["fr", "francais|french"], ["en", "anglais|english"], ["es", "espagnol|spanish"], ["de", "allemand|german"], ["it", "italien|italian"], ["pt", "portugais|portuguese"], ["nl", "neerlandais|dutch"], ["zh", "chinois|mandarin|chinese"], ["ja", "japonais|japanese"], ["ko", "coreen|korean"], ["th", "thai|thaï"], ["ar", "arabe|arabic"]];
-  return languages.find(([, names]) => new RegExp(`\\b(?:en|in|langue|language)\\s*(?:[:=]\\s*)?(?:${names})\\b`).test(normalized))?.[0];
-}
-
-export function resolveAiMediaFreeSpeechLanguage(prompt: string, script: string, fallbackLanguage = "fr", generatedLanguage?: string): string {
-  const explicit = getAiMediaFreeRequestedLanguage(prompt);
-  if (explicit) return explicit;
-  if (/^[a-z]{2}(?:-[A-Z]{2})?$/.test(generatedLanguage || "")) return generatedLanguage!;
-  if (/[\p{Script=Hiragana}\p{Script=Katakana}]/u.test(script)) return "ja";
-  if (/\p{Script=Han}/u.test(script)) return "zh";
-  if (/\p{Script=Thai}/u.test(script)) return "th";
-  if (/\p{Script=Hangul}/u.test(script)) return "ko";
-  // Conservative inference for exact quotations; ambiguous short wording keeps
-  // the profile language. No paid language-identification call is introduced.
-  const words = script.toLowerCase().match(/[\p{L}]+/gu) || [];
-  const markers: Record<string, string[]> = { en: ["the", "our", "your", "with", "and", "this", "you", "we", "for", "welcome", "discover"], fr: ["le", "la", "les", "notre", "votre", "avec", "et", "vous", "nous", "pour", "bonjour"], es: ["el", "los", "nuestro", "nuestra", "con", "bienvenidos", "descubre", "para"], de: ["der", "die", "das", "unser", "unsere", "mit", "und", "willkommen"], it: ["il", "gli", "nostro", "nostra", "benvenuti", "scopri", "della"] };
-  const scores = Object.entries(markers).map(([language, tokens]) => ({ language, score: words.filter((word) => tokens.includes(word)).length })).sort((a, b) => b.score - a.score);
-  return scores[0].score >= 2 && scores[0].score > scores[1].score ? scores[0].language : fallbackLanguage || "fr";
+  const state = getAiMediaVideoSpeechState(request);
+  if (state.issue) throw new AiMediaRequestValidationError(`${state.issue.code.toLowerCase()}: ${state.issue.message}`);
 }
 
 export function validateAiMediaFreeDialogueLine(line: string, durationSeconds = 8, language = "fr") {
@@ -463,11 +426,14 @@ export function buildAiMediaFreeSceneFramePrompt(args: AiMediaPromptBuilderArgs)
 }
 
 /** Free Omni/Veo transport never invokes the guided visual/speech prompt rules. */
-export function buildAiMediaFreeVideoScenePrompt(
-  args: AiVideoProviderGenerationArgs,
+type FreeVideoScenePromptArgs = Pick<AiVideoProviderGenerationArgs,
+  "request" | "plan" | "providerContract" | "contentLanguage" | "nativeNarrationLines" | "subtitleLines" | "businessDnaDirection">;
+
+function renderAiMediaFreeVideoScenePrompt(
+  args: FreeVideoScenePromptArgs,
   index: number,
   durationSeconds: number,
-  options: { continuation?: boolean; continuationFrame?: boolean; firstFrameTag?: boolean } = {},
+  options: { continuation?: boolean; continuationFrame?: boolean; firstFrameTag?: boolean; compactEnvelope?: boolean } = {},
 ) {
   const scene = args.plan.scenes[index];
   const nativeDialogue = args.request.teamVideoSpeechMode === "characters";
@@ -503,10 +469,13 @@ export function buildAiMediaFreeVideoScenePrompt(
       : isGrok
         ? `Create a ${durationSeconds}-second ${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio} video. The actions happen successively in time within the video, using the entire canvas.`
         : `FREE CREATIVE FILM, shot ${index + 1}/${args.plan.scenes.length}, ${durationSeconds}s.`;
-  let compactEnvelope = false;
+  // Flash rebuilds this intermediate envelope through its smaller wire format.
+  const maximum = args.request.videoEngine === "wan-flash" ? 3_200 : getAiMediaFreeVideoPromptMaxCharacters(args.request.videoEngine);
+  const reservedCharacters = buildAiMediaVideoCharacterReferenceDirection(args.request).length + buildAiMediaVideoFinalFrameDirection(args.request).length;
+  let compactEnvelope = options.compactEnvelope === true;
   const render = () => [
     args.providerContract.globalMediaConstraints || "",
-    compactEnvelope ? `SHOT ${index + 1}/${args.plan.scenes.length}; ${durationSeconds}s; ${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio}; action.` : opening,
+    compactEnvelope ? `SHOT ${index + 1}/${args.plan.scenes.length}; ${durationSeconds}s; ${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio}; action.${options.continuation ? " [# Sources <PREVIOUS_VIDEO>@Video1] Continue prior action; same cast/style/place; no restart." : options.continuationFrame ? ` ${options.firstFrameTag ? "[# Sources <FIRST_FRAME>@Image1] " : ""}Continue supplied prior final frame; same cast/style/place; no restart.` : ""}` : opening,
     compactEnvelope ? "RENDER: Photoreal by default; non-photo only if explicitly requested, never from refs alone." : AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
     ...(!nativeDialogue ? [compactEnvelope
       ? "VISUAL SPEECH: No speaking/articulation/mimed speech/lip-sync; natural gestures/gaze/smiles; overrides speaking below."
@@ -515,7 +484,10 @@ export function buildAiMediaFreeVideoScenePrompt(
     `THIS SHOT: ${nativeDialogue ? splitAiMediaFreeQuotedSpeech(visualBrief).visualPrompt : visualBrief}`,
     // The integrity/fingerprint contract is checked in code. xAI receives the
     // visual brief, not technical hashes that can be interpreted as lettering.
-    ...(isGrok ? [] : [`PARAMETERS: ${args.providerContract.parameters}`]),
+    // Format, duration, scene count, speech, subtitles and music are already
+    // expressed below or applied by the compositor. Hashes stay code-only in
+    // the compact envelope; the full contract is still integrity-checked.
+    ...(isGrok || compactEnvelope ? [] : [`PARAMETERS: ${args.providerContract.parameters}`]),
     `REFERENCES: ${args.providerContract.references}`,
     ...(args.request.useBusinessDna && args.businessDnaDirection ? [`BUSINESS IDENTITY: ${args.businessDnaDirection}`] : []),
     buildAiMediaFreeVideoPresentationContract(args.request, compactEnvelope),
@@ -543,13 +515,107 @@ export function buildAiMediaFreeVideoScenePrompt(
       : []),
   ].filter(Boolean).join("\n");
   let prompt = render();
-  if (prompt.length > 3_200 && args.providerContract.globalMediaConstraints && !options.continuation && !options.continuationFrame) {
+  if (prompt.length + reservedCharacters > Math.min(3_200, maximum) && !compactEnvelope) {
     // Only our envelope is compressible. Complete account rules, scene/brief,
     // references and exact speech remain mandatory and unchanged.
     compactEnvelope = true;
     prompt = render();
   }
-  // Fail before any media call rather than truncate the professional's requirements.
-  if (prompt.length > 3_200) throw new Error(`ai_video_instruction_contract_too_long:${prompt.length}:3200`);
+  return { prompt, reservedCharacters, maximum };
+}
+
+export function buildAiMediaFreeVideoScenePrompt(
+  args: FreeVideoScenePromptArgs,
+  index: number,
+  durationSeconds: number,
+  options: { continuation?: boolean; continuationFrame?: boolean; firstFrameTag?: boolean; compactEnvelope?: boolean } = {},
+) {
+  const { prompt, reservedCharacters, maximum } = renderAiMediaFreeVideoScenePrompt(args, index, durationSeconds, options);
+  // The measured suffix is appended unchanged by the Gateway afterwards.
+  if (prompt.length + reservedCharacters > maximum) throw new Error(`ai_video_instruction_contract_too_long:${prompt.length + reservedCharacters}:${maximum}`);
   return prompt;
+}
+
+function renderAiMediaFreeWanFlashPrompt(args: FreeVideoScenePromptArgs, index: number, duration: number, continuation = false) {
+  const envelope = renderAiMediaFreeVideoScenePrompt(args, index, duration, { compactEnvelope: true, continuationFrame: continuation }).prompt;
+  const separateVoiceover = args.request.teamVideoSpeechMode !== "characters";
+  const user = separateVoiceover ? splitAiMediaFreeQuotedSpeech(args.providerContract.instruction).visualPrompt : args.providerContract.instruction;
+  const subject = separateVoiceover ? splitAiMediaFreeQuotedSpeech(args.providerContract.subject).visualPrompt : args.providerContract.subject;
+  const audio = envelope.split("\n").filter(line => /^(?:NATIVE DIALOGUE:|NATIVE VOICEOVER:|AUDIO PRONUNCIATION:|EXTERNAL VOICEOVER CAPTIONS:)/.test(line)).join("\n");
+  return [
+    args.providerContract.globalMediaConstraints || "",
+    `SHOT ${index + 1}/${args.plan.scenes.length};${duration}s;${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio}. Full frame; no bars.${continuation ? " Continue final frame; same cast/place; no restart." : " Move from frame 1."}`,
+    AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
+    separateVoiceover ? "VISUAL SPEECH: No speaking/articulation/mimed speech/lip-sync; No native voices or dialogue. Natural gestures/gaze/smiles; overrides speaking below." : "",
+    subject && subject !== user && !user.includes(subject) ? `SUBJECT: ${subject}` : "",
+    `USER: ${user}`,
+    `REFERENCES: ${args.providerContract.references}`,
+    `ACTION: ${args.plan.scenes[index]?.visualBrief || "Follow the requested action."}`,
+    args.request.useBusinessDna && args.businessDnaDirection ? `BUSINESS IDENTITY: ${args.businessDnaDirection}` : "",
+    audio,
+    `No split/panels/collage unless asked. Subtitles ${args.request.withSubtitles ? "ON: faithful, same language as speech" : "OFF: no speech captions"}. Other requested visual text allowed. No unrequested ads/logo/CTA/notes.`,
+  ].filter(Boolean).join("\n");
+}
+
+/** The same complete Flash wire format is measured by the planner and sent by
+ * the Gateway. Only generated ACTION copy is eligible for bounded rewriting. */
+export function buildAiMediaFreeWanFlashPrompt(args: FreeVideoScenePromptArgs, index: number, duration: number, continuation = false) {
+  const prompt = renderAiMediaFreeWanFlashPrompt(args, index, duration, continuation);
+  if (prompt.length > 1_500) throw new Error(`ai_video_instruction_contract_too_long:${prompt.length}:1500`);
+  return prompt;
+}
+
+/** Account rules, exact speech, reference bindings and continuity are mandatory.
+ * Only generated direction shares the remaining room. Placeholders measure
+ * capacity; they are never submitted to a provider or used as creative copy. */
+export function getAiMediaFreeVideoCreativeBudget(args: {
+  request: AiMediaGenerationRequest;
+  globalMediaConstraints: string;
+  brandColors?: readonly string[];
+  requiredDirectionCharacters?: number;
+  language?: string;
+}) {
+  const durations = getAiMediaVideoSegmentDurations(args.request.durationSeconds || 8, args.request.videoEngine, args.request.videoResolution, args.request.sceneMode);
+  const exact = args.request.teamVideoSpeechMode === "characters" ? getAiMediaFreeRequestedDialogueLines(args.request) : [];
+  const speechLanguage = getAiMediaVideoSpeechState({ ...args.request, language: args.language }).language;
+  const scenes = durations.map((duration, index) => ({
+    eyebrow: "", title: "", body: "", spokenReply: "", layout: "hero" as const,
+    visualBrief: "V".repeat(300),
+    spokenLine: exact.length ? exact[index] || "" : args.request.teamVideoSpeechMode === "characters" ? "S".repeat(
+      getAiMediaFreeSpeechBudget(duration, speechLanguage).unit === "mots"
+        ? getAiMediaFreeSpeechBudget(duration, speechLanguage).maxCharacters : getAiMediaFreeSpeechBudget(duration, speechLanguage).maxUnits,
+    ) : "",
+  }));
+  const subtitleLines = typeof args.request.spokenScript === "string"
+    ? splitAiMediaSpokenScript(args.request.spokenScript, durations)
+    : durations.map(() => "S".repeat(620));
+  const contract = buildAiMediaVideoProviderContract({ request: args.request, durationSeconds: durations[0], brandColors: args.brandColors || [],
+    globalMediaConstraints: args.globalMediaConstraints, ...(args.request.withSubtitles ? { subtitleLines } : {}) });
+  const provider: FreeVideoScenePromptArgs = { request: args.request, plan: { headline: "", subline: "D", companyName: "", cta: "", scenes }, providerContract: contract,
+    contentLanguage: speechLanguage,
+    ...(args.request.useBusinessDna ? { businessDnaDirection: buildAiMediaFreeVideoBusinessDnaDirection({ colors: args.brandColors || [], hasLocalLogo: true }) } : {}), subtitleLines };
+  if (args.request.videoEngine === "wan-flash") {
+    // Direction is not transmitted by this model's wire format. Preserve it as
+    // planning context; fit the generated action against every real clip.
+    provider.plan.scenes.forEach(scene => { scene.visualBrief = "A"; });
+    const available = Math.min(...durations.map((duration, index) => 1_500 - renderAiMediaFreeWanFlashPrompt(provider, index, duration,
+      index > 0 && args.request.sceneMode !== "multi").length + 1));
+    if (available < 40) throw new Error(`ai_video_instruction_contract_too_long:${1_500 - available + 40}:1500`);
+    return { directionMaxCharacters: 1_200 + (args.requiredDirectionCharacters || 0), sceneMaxCharacters: Math.min(300, available) };
+  }
+  let directionMaxCharacters = 0;
+  for (const sceneMaxCharacters of [300, 180, 120, 60]) {
+    provider.plan.scenes.forEach(scene => { scene.visualBrief = "V".repeat(sceneMaxCharacters); });
+    const available = durations.map((duration, index) => {
+      const { prompt, maximum, reservedCharacters } = renderAiMediaFreeVideoScenePrompt(provider, index, duration, {
+        compactEnvelope: true, continuationFrame: index > 0 && args.request.sceneMode !== "multi", firstFrameTag: index > 0,
+      });
+      return maximum - reservedCharacters - prompt.length + 1;
+    });
+    directionMaxCharacters = Math.min(...available);
+    if (directionMaxCharacters >= Math.max(180, args.requiredDirectionCharacters || 3) || sceneMaxCharacters === 60 && directionMaxCharacters >= (args.requiredDirectionCharacters || 3)) {
+      return { directionMaxCharacters, sceneMaxCharacters };
+    }
+  }
+  throw new Error(`ai_video_instruction_contract_too_long:${getAiMediaFreeVideoPromptMaxCharacters(args.request.videoEngine) - directionMaxCharacters + (args.requiredDirectionCharacters || 3)}:${getAiMediaFreeVideoPromptMaxCharacters(args.request.videoEngine)}`);
 }

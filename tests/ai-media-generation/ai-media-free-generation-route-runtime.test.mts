@@ -33,6 +33,7 @@ new Function("module", "exports", "require", quoteOutput)(quoteRecord, quoteReco
 type ReservationCall = {
   accountId: string; actorAuthUserId: string; requestKey: string;
   requestFingerprint: string; mediaKind: string; surface: string; quotaAmount: number; quotaUnit: string;
+  metadata?: Record<string, unknown>;
 };
 
 function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; cancelledKey?: string; cancellationConflictKey?: string; providerFails?: boolean; providerError?: Error; preparationError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void>; checkpoint?: "saved" | "lost_ack" | "unavailable"; compositionFails?: boolean; cleanupFails?: boolean } = {}) {
@@ -196,13 +197,47 @@ test("exact narration exceeding duration is rejected before reservation or AI wo
   }
 });
 
-test("narration preflight preserves exact text and leaves silent or character requests to their existing pipeline", () => {
-  for (const overrides of [{ spokenScript: "Bonjour, bienvenue !" }, { spokenScript: "", freePrompt: 'Voix off : « ' + "Bonjour ".repeat(40) + ' »' }, { spokenScript: "Bonjour ".repeat(40), teamVideoSpeechMode: "characters" }]) {
+test("speech preflight preserves valid exact copy and explicit silence while refusing impossible character speech", () => {
+  for (const overrides of [{ spokenScript: "Bonjour, bienvenue !" }, { spokenScript: "", freePrompt: 'Voix off : « ' + "Bonjour ".repeat(40) + ' »' }, { spokenScript: "Bonjour, bienvenue !", teamVideoSpeechMode: "characters" }]) {
     const input = contracts.normalizeAiMediaGenerationRequest(body({ kind: "video", videoEngine: "grok-lite", durationSeconds: 4, withNarration: true, ...overrides }));
     const before = JSON.stringify(input);
     assert.doesNotThrow(() => assertAiMediaFreeExactNarrationFits(input));
     assert.equal(JSON.stringify(input), before);
   }
+  assert.throws(() => contracts.normalizeAiMediaGenerationRequest(body({ kind: "video", videoEngine: "grok-lite", durationSeconds: 4,
+    withNarration: false, teamVideoSpeechMode: "characters", spokenScript: "Bonjour ".repeat(40) })), /AI_MEDIA_EXACT_DIALOGUE_TOO_LONG/);
+});
+
+test("exact character dialogue is rejected before credits or AI work in both JSON and streaming, including legacy quotations", async () => {
+  for (const streamed of [false, true]) for (const speech of [{ spokenScript: "Bonjour ".repeat(40) }, { freePrompt: `Un personnage dit « ${"Bonjour ".repeat(40)} »` }]) {
+    const route = loadRoute();
+    const raw = await route.post(body({ kind: "video", videoEngine: "veo", durationSeconds: 8, withNarration: false, teamVideoSpeechMode: "characters", ...speech }), streamed ? {
+      headers: { "Content-Type": "application/json", Accept: generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE },
+    } : {});
+    const response = await generationTransport.readAiMediaGenerationResponse(raw, () => {});
+    assert.equal(response.status, 422);
+    const payload = response.payload as Record<string, unknown>;
+    assert.equal(payload.code, "AI_MEDIA_EXACT_DIALOGUE_TOO_LONG");
+    assert.match(String(payload.error), /paroles exactes|réplique/i);
+    assert.equal(route.reservationCalls.length, 0);
+    assert.equal(route.generationCalls.length, 0);
+    assert.equal(route.paidCalls(), 0);
+  }
+});
+
+test("reservation observability uses the active free prompt version and safe separate input lengths", async () => {
+  const route = loadRoute();
+  const visual = "Un atelier en lumière naturelle.";
+  const spokenScript = "Bonjour, bienvenue dans mon atelier.";
+  const response = await route.post(body({ kind: "video", videoEngine: "veo", durationSeconds: 8, freePrompt: visual,
+    withNarration: false, teamVideoSpeechMode: "characters", spokenScript }));
+  assert.equal(response.status, 200);
+  const metadata = route.reservationCalls[0].metadata!;
+  assert.equal(metadata.prompt_version, "test-free-version");
+  assert.equal(metadata.free_prompt_char_count, visual.length);
+  assert.equal(metadata.spoken_script_char_count, spokenScript.length);
+  assert.ok(!JSON.stringify(metadata).includes(visual));
+  assert.ok(!JSON.stringify(metadata).includes(spokenScript));
 });
 
 test("an unavailable requested profile logo releases the reservation without paid work or a saved result", async () => {
@@ -552,7 +587,7 @@ test("l'empreinte sépare les parcours et couvre la fin d'un long prompt Libre",
 
 test("exact speech reaches the original generator separately and changing it cannot replay a prior request ID", async () => {
   const route = loadRoute();
-  const prefix = "Paroles exactes. ".repeat(200);
+  const prefix = "Paroles exactes. ";
   const spokenScript = `${prefix}\n58 € HT/mois : FIN_ALPHA`;
   const input = body({ kind: "video", durationSeconds: 8, videoEngine: "veo", teamVideoSpeechMode: "characters", spokenScript });
   assert.equal((await route.post(input)).status, 200);

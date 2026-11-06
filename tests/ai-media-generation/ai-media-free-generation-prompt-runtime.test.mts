@@ -327,8 +327,8 @@ test("le réalisateur Libre distingue une scène continue de plusieurs plans", a
   }
 });
 
-test("le contrat vidéo libre garde les 4 000 caractères sans style guidé ni perte des références", () => {
-  const input = request({ kind: "video", durationSeconds: 16, freePrompt: "x".repeat(4_000), withNarration: true });
+test("le contrat vidéo libre garde les 500 caractères sans style guidé ni perte des références", () => {
+  const input = request({ kind: "video", durationSeconds: 16, freePrompt: "x".repeat(500), withNarration: true });
   const contract = buildAiMediaVideoProviderContract({ request: input, durationSeconds: 8, brandColors: ["#abcdef"] });
   assert.equal(contract.instruction, input.freePrompt);
   assert.equal(contract.subject, "");
@@ -394,7 +394,7 @@ test("l’ADN choisi atteint le réalisateur et la voix off comme contexte facul
 test("un découpage vidéo incomplet est refusé avant les appels média", async () => {
   for (const result of [{ direction: "Court film", scenes: [] }, { direction: "Court film", scenes: ["Un seul plan"] }, { direction: "", scenes: ["Premier plan", "Second plan"] }]) {
     const runtime = loadPlan(result);
-    await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 16 }), profile }), contracts.AiMediaRequestValidationError);
+    await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 16 }), profile }), result.direction ? contracts.AiMediaRequestValidationError : AiJsonResponseNormalizationError);
   }
 });
 
@@ -404,7 +404,10 @@ test("la voix off Libre respecte le texte exact et refuse de le tronquer pour te
   const result = await runtime.writeAiMediaFreeNarration({ accountId: "test", request: input, profile, plan: runtime.buildAiMediaFreeBasePlan(input) });
   assert.equal(result?.script, "Découvrez un monde merveilleux.");
   assert.equal(runtime.calls.length, 0);
-  const tooLong = request({ kind: "video", durationSeconds: 8, withNarration: true, freePrompt: `Voix off : « ${"mot ".repeat(30)}. »` });
+  // A restored legacy request still reaches the narration guard; new requests
+  // are rejected earlier by the shared preflight without cutting exact copy.
+  const tooLong = { ...input, freePrompt: `Voix off : « ${"mot ".repeat(30)}. »` };
+  assert.throws(() => request({ kind: "video", durationSeconds: 8, withNarration: true, freePrompt: tooLong.freePrompt }), contracts.AiMediaRequestValidationError);
   await assert.rejects(runtime.writeAiMediaFreeNarration({ accountId: "test", request: tooLong, profile, plan: runtime.buildAiMediaFreeBasePlan(tooLong) }), contracts.AiMediaRequestValidationError);
 });
 
@@ -544,13 +547,14 @@ test("le réalisateur Libre prépare des personnages parlants sans rédacteur ou
   assert.equal(runtime.calls.length, 1);
 });
 
-test("le dialogue Libre conserve une citation même courte et située après 2 000 caractères", async () => {
+test("un ancien dialogue Libre conserve une citation même courte et située après 2 000 caractères", async () => {
   const runtime = loadPlan({ direction: "Un astronaute dans un dessin animé.", scenes: [
     { visualBrief: "L'astronaute dit bonjour.", spokenLine: "Une réplique inventée par erreur." },
     { visualBrief: "Il salue la planète en silence.", spokenLine: "Autre réplique non demandée." },
   ] });
   const freePrompt = `${"Des étoiles brillent au loin. ".repeat(80)} L'astronaute dit : « Bonjour ! »`;
-  const input = request({ kind: "video", durationSeconds: 16, teamVideoSpeechMode: "characters", freePrompt });
+  const input = { ...request({ kind: "video", durationSeconds: 16, teamVideoSpeechMode: "characters" }), freePrompt };
+  assert.throws(() => request({ kind: "video", durationSeconds: 16, teamVideoSpeechMode: "characters", freePrompt }), contracts.AiMediaRequestValidationError);
   const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: input, profile });
   assert.deepEqual(plan.scenes.map((scene) => scene.spokenLine), ["Bonjour !", ""]);
   assert.deepEqual(freePrompts.resolveAiMediaFreeDialogueSequence({ request: input, plan }), ["Bonjour !", ""]);
@@ -607,7 +611,7 @@ test("quoted and generated voiceovers share the explicitly requested language ov
 test("les citations trop longues ou trop nombreuses restent rejetées avant tout appel IA", async () => {
   for (const freePrompt of ['Il dit « Bonjour ! ». Elle répond « Salut ! ».', `Il dit « ${"mot ".repeat(15)} ».`]) {
     const runtime = loadPlan({});
-    await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters", freePrompt }), profile }), contracts.AiMediaRequestValidationError);
+    await assert.rejects(async () => runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters", freePrompt }), profile }), contracts.AiMediaRequestValidationError);
     assert.equal(runtime.calls.length, 0);
   }
 });

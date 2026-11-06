@@ -243,6 +243,26 @@ test("small offer context preserves Basic Studio eligibility and distinguishes s
   }
 });
 
+test("media generation intent selects Studio without redirecting publication creation", async () => {
+  for (const question of [
+    "Le forfait Basique permet-il de générer une image ?",
+    "Peut-on générer une vidéo avec le forfait Basique ?",
+    "Can Basic generate a picture?",
+    "Comment générer une image pour ma publication ?",
+  ]) {
+    const result = await runtime.createInrAssistantAppGuideTool().execute!({ topic: question }, { toolCallId: "media-guide", messages: [] });
+    assert.ok("guides" in result);
+    assert.equal(result.guides[0]?.id, "studio-create", question);
+    const knowledge = runtime.getInrAssistantAppKnowledge(question, 1200);
+    assert.ok(knowledge.length <= 1200);
+    assert.match(knowledge, /Basique, Standard et Premium ont accès/);
+    assert.match(knowledge, /crédits/);
+  }
+  const publication = await runtime.createInrAssistantAppGuideTool().execute!({ topic: "Comment générer une publication avec une image ?" }, { toolCallId: "publication-guide", messages: [] });
+  assert.ok("guides" in publication);
+  assert.notEqual(publication.guides[0]?.id, "studio-create");
+});
+
 test("an unknown guide query does not certify a weak incidental body match", async () => {
   const result = await runtime.createInrAssistantAppGuideTool().execute!({ topic: "quantique zorbulator" }, { toolCallId: "unknown", messages: [] });
   assert.ok("found" in result);

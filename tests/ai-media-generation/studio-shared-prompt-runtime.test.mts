@@ -1,3 +1,4 @@
+import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
 import assert from "node:assert/strict";
 import * as studioForm from "../../lib/inrAssistantStudioFormSelection.ts";
@@ -57,6 +58,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
   new Function("module", "exports", "require", "window", "document", "HTMLElement", output)(record, record.exports, (name: string) => {
     if (name.endsWith(".module.css")) return styles;
     if (name === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy;
+    if (name === "@/lib/aiMediaVideoSpeechBudget") return speechBudget;
     assert.ok(modules.has(name), `Unexpected UI dependency: ${name}`); return modules.get(name);
   }, {
     addEventListener(name: string, listener: () => void) { const list = listeners.get(name) || new Set(); list.add(listener); listeners.set(name, list); },

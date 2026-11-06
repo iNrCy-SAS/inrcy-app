@@ -41,12 +41,13 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
     id: "studio-create",
     title: "iNrStudio : générer une image ou une vidéo",
     keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits"],
-    content: `${productNavigationSummary("studio", false)} Puis choisir l’onglet Générer. Le menu supérieur devient un menu déroulant sur mobile. Choisir Image ou Vidéo.
-Dans Prompt, décrire scène, ambiance et textes exacts. « Utiliser mon ADN » ajoute les informations professionnelles pertinentes, logo/couleurs par défaut, coordonnées sur demande. Décoché : pas d’autres informations ADN. Consignes ET Interdictions de Personnalisation → Ma communication restent transmises, dans Studio et iNrAgent ; les interdictions priment. Les règles ne sont jamais coupées : un budget insuffisant ou un montage brut incapable de les appliquer provoque une erreur explicite. Une image déjà générée avec les règles peut être animée.
-Dans Critères, choisir le Format et, pour la vidéo, la Durée et les options disponibles. Les « Images d’inspiration » acceptent uniquement des images, depuis l’appareil ou la Médiathèque, même pour générer une vidéo. Préciser le type et l’utilisation de chaque référence. Les compatibilités, le nombre de références et les durées dépendent du moteur affiché.
-Pour les paroles vidéo : choisir Voix off ou Personnages dans Critères, puis « Ajouter paroles » et remplir « Paroles à prononcer ». « Sans parole » désactive cette saisie. Respecter l’autorisation proposée pour l’animation des personnes et la transmission des références.
-Vérifier le coût et le solde, puis « Générer une image » ou « Générer une vidéo ». Le rendu peut rester temporaire : cliquer « Enregistrer dans la Médiathèque » pour le conserver, ou « Utiliser ce média » si Studio a été ouvert depuis un autre outil. « Réajuster » permet de reprendre la demande ; une nouvelle génération peut consommer de nouveaux crédits. « Récupérer le résultat » reprend une tentative récupérable, sans promettre un résultat terminé.
-Accès : Basique, Standard (essai inclus) et Premium, avec les crédits et moteurs du compte. Basique n’inclut pas de crédits mensuels ; les recharges permettent de générer sans changer d’offre. Un lancement depuis Booster/une campagne peut verrouiller le type ou le format et réinsérer le résultat dans l’outil d’origine.`,
+    content: `${productNavigationSummary("studio", false)} Onglet Générer, puis Image ou Vidéo ; menu déroulant en haut sur mobile.
+Vidéo : « Consignes visuelles » décrit scène, ambiance et textes à afficher : 500 caractères maximum, 200 à 300 conseillés, une idée principale. Les répliques et voix off vont dans le cadre distinct « Paroles à prononcer » ; un slogan à afficher reste visuel. Image : 4 000 caractères maximum.
+« Utiliser mon ADN » ajoute les informations professionnelles pertinentes, logo/couleurs par défaut, coordonnées sur demande. Décoché : pas d’autre ADN. Consignes ET Interdictions de Personnalisation → Ma communication restent transmises dans Studio et iNrAgent ; les interdictions priment. Les règles ne sont jamais coupées : budget insuffisant ou montage brut incapable de les appliquer = erreur explicite. Une image générée avec les règles peut être animée.
+Dans Critères : Format, Durée vidéo, options et Voix off/Personnages/Sans parole. Remplir « Paroles à prononcer » : compteur selon durée, plans, moteur et langue. Réduire les paroles trop longues ou choisir une durée compatible ; aucun texte exact n’est coupé. Un ancien brouillon trop long reste visible et modifiable. « Sans parole » désactive les paroles. Respecter les autorisations d’animation des personnes et de transmission des références.
+« Images d’inspiration » : uniquement des images depuis l’appareil ou la Médiathèque, même en vidéo. Choisir leur type/utilisation ; compatibilités, nombre et durées selon le moteur.
+Vérifier coût/solde, puis « Générer une image » ou « Générer une vidéo ». Conserver le rendu temporaire avec « Enregistrer dans la Médiathèque » ou « Utiliser ce média ». « Réajuster » reprend les critères ; régénérer peut consommer des crédits. « Récupérer le résultat » reprend une tentative récupérable, sans garantir son achèvement.
+Basique, Standard (essai inclus), Premium : crédits et moteurs du compte. Basique sans crédits mensuels ; les recharges permettent de générer sans changer d’offre. Depuis Booster/campagne, type ou format peut être fixé ; réinsertion dans l’outil d’origine.`,
     sourceFiles: ["lib/inrAssistantMediaTools.ts", "lib/productNavigation.ts",
       "app/dashboard/generer-media/page.tsx",
       "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx",
@@ -54,6 +55,7 @@ Accès : Basique, Standard (essai inclus) et Premium, avec les crédits et moteu
       "app/dashboard/_components/MediaFreeGenerator.tsx",
       "lib/studioInspirationImagePolicy.ts",
       "lib/aiMediaGenerationContracts.ts",
+      "lib/aiMediaVideoSpeechBudget.ts",
       "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx",
       "lib/aiMediaGlobalConstraints.ts",
       "lib/aiMediaGenerationServer.ts",

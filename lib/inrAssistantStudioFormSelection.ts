@@ -1,5 +1,7 @@
 import type { AiMediaSubjectSource, AiMediaOutputFormat, AiMediaImageStyle, AiMediaImagePurpose, AiMediaVisualDirection, AiMediaLogoMode, AiMediaTextMode, AiMediaPeopleCriterion, AiMediaSettingCriterion, AiMediaFocusCriterion, AiMediaTeamVideoSpeechMode } from "./aiMediaGenerationContracts.ts";
 import { AI_MEDIA_FREE_PROMPT_MAX_CHARS, AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS } from "./aiMediaGenerationContracts.ts";
+import { getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
+import type { AiMediaVideoEngine, AiMediaVideoResolution } from "./aiMediaModelCatalog.ts";
 import { isAiMediaNarrationVoiceVariantForGender, type AiMediaNarrationVoiceVariant } from "./aiMediaNarrationVoices.ts";
 import { inrAssistantRequestClauses, inrAssistantUnquotedRequest } from "./inrAssistantRequestClauses.ts";
 
@@ -16,6 +18,7 @@ export type InrAssistantStudioFormSelection = { [K in keyof Values]: { field: K;
 export type InrAssistantStudioFormSnapshot = Partial<Values> & {
   mode: "guided" | "free"; kind: "image" | "video"; locked: boolean; editorVisible: boolean;
   transformMode?: boolean; publicationAvailable?: boolean; fixedFormat?: string; maxPromptLength?: number;
+  videoEngine?: AiMediaVideoEngine | null; videoResolution?: AiMediaVideoResolution | null; language?: string;
 };
 const choices: Partial<Record<keyof Values, readonly unknown[]>> = {
   subjectSource: ["profile", "publication", "custom"], sourceMode: ["ai", "criteria", "real"],
@@ -49,13 +52,23 @@ export function parseInrAssistantStudioFormSelection(value: string | null, state
   if (field === "withSubtitles" && (state.speechMode === "silent" || state.spokenScriptOpen && !state.spokenScript?.trim())) return null;
   if (choices[field] && !choices[field]!.includes(next)) return null;
   if (["useBrandColors", "useBusinessDna", "withMusic", "withSubtitles", "spokenScriptOpen"].includes(field) && typeof next !== "boolean") return null;
-  const textLimits: Partial<Record<keyof Values, number>> = { creativeBrief: 1600, exactText: 600, textKeywordDraft: 160, prompt: Math.min(AI_MEDIA_FREE_PROMPT_MAX_CHARS, state.maxPromptLength ?? AI_MEDIA_FREE_PROMPT_MAX_CHARS), spokenScript: AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS };
+  const textLimits: Partial<Record<keyof Values, number>> = { creativeBrief: getAiMediaVisualBriefMaxChars(state.kind, "guided"), exactText: 600, textKeywordDraft: 160, prompt: Math.min(getAiMediaVisualBriefMaxChars(state.kind, "free"), state.maxPromptLength ?? AI_MEDIA_FREE_PROMPT_MAX_CHARS), spokenScript: AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS };
   if (textLimits[field] !== undefined && (typeof next !== "string" || next.length > textLimits[field]!)) return null;
   if (field === "textKeywords" && (!Array.isArray(next) || next.length > 6 || next.some(item => typeof item !== "string" || item.length < 2 || item.length > 48 || /[,;\n\r\t]|\s{2,}|^#|#$/.test(item) || item !== item.trim()) || new Set(next.map(item => item.toLocaleLowerCase())).size !== next.length)) return null;
   if (field === "durationScene") {
     if (!next || typeof next !== "object" || Array.isArray(next)) return null;
     const pair = next as Record<string, unknown>;
     if (Object.keys(pair).length !== 2 || !Object.hasOwn(pair, "seconds") || !Object.hasOwn(pair, "sceneMode") || typeof pair.seconds !== "number" || !Number.isInteger(pair.seconds) || !["single", "multi"].includes(String(pair.sceneMode)) || !durationAllowed?.(pair.seconds, pair.sceneMode as "single" | "multi")) return null;
+  }
+  if (state.kind === "video" && state.mode === "free" && ["spokenScript", "durationScene", "speechMode"].includes(field)) {
+    const durationScene = field === "durationScene" ? next as Values["durationScene"] : state.durationScene;
+    const speechMode = field === "speechMode" ? next as Values["speechMode"] : state.speechMode;
+    const speech = getAiMediaVideoSpeechState({ kind: "video", creationMode: "free", freePrompt: state.prompt,
+      spokenScript: field === "spokenScript" ? next as string : state.spokenScriptOpen ? state.spokenScript : undefined,
+      withNarration: speechMode === "voiceover", teamVideoSpeechMode: speechMode === "characters" ? "characters" : "voiceover",
+      durationSeconds: durationScene?.seconds, sceneMode: durationScene?.sceneMode, videoEngine: state.videoEngine,
+      videoResolution: state.videoResolution, language: state.language });
+    if (speech.issue) return null;
   }
   return row as InrAssistantStudioFormSelection;
 }

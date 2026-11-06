@@ -74,7 +74,7 @@ test("Studio rejects video inspirations before credit reservation or provider ca
   const mp4 = Buffer.concat([Buffer.from([0, 0, 0, 24]), Buffer.from("ftypisom"), Buffer.alloc(64)]).toString("base64");
   for (const kind of ["image", "video"]) {
     const runtime = route();
-    const original = { ...fiveReferences(88), kind };
+    const original = { ...fiveReferences(88), kind, ...(kind === "video" ? { freePrompt: "é".repeat(500) } : {}) };
     for (const reference of [
       { mimeType: "video/mp4", name: "image.jpg", data: mp4 },
       { mimeType: "image/jpeg", name: "clip.MOV", data: "A".repeat(88) },

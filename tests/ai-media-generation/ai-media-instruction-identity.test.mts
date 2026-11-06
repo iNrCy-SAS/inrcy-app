@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { getAiMediaVisualBriefMaxChars } from "../../lib/aiMediaVideoSpeechBudget.ts";
 
 const read = (path: string) => readFileSync(path, "utf8");
 const readPromptArchitecture = () =>
@@ -25,7 +26,10 @@ test("la consigne ponctuelle traverse le client, le prompt et les rédacteurs sa
   const server = read("lib/aiMediaGenerationServer.ts");
 
   assert.match(generator, /aiInstruction: generationAiInstruction/);
-  assert.match(generator, /const creativeBriefMaximum = 1_600/);
+  assert.match(generator, /const creativeBriefMaximum = getAiMediaVisualBriefMaxChars\(kind, "guided"\)/);
+  assert.equal(getAiMediaVisualBriefMaxChars("image", "guided"), 1_600);
+  assert.equal(getAiMediaVisualBriefMaxChars("video", "guided"), 500);
+  assert.match(generator, /const creativeBriefTooLong = kind === "video" && creativeBrief\.length > creativeBriefMaximum/);
   assert.match(generator, /maxLength=\{creativeBriefMaximum\}/);
   assert.match(
     hook,

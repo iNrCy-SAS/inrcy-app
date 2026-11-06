@@ -262,7 +262,9 @@ test("an explicitly empty speech block remains silent despite old quoted speech 
 
 test("duration guards reject an oversized exact voiceover without rewriting or truncating it", async () => {
   const spokenScript = "Bonjour à toutes et à tous, nous sommes heureux de vous présenter notre application et toutes ses fonctionnalités.";
-  const input = request({ spokenScript, durationSeconds: 4 });
+  assert.throws(() => request({ spokenScript, durationSeconds: 4 }), contracts.AiMediaRequestValidationError);
+  // Restored legacy data reaches the same exact-speech guard without truncation.
+  const input = { ...request(), spokenScript, durationSeconds: 4 };
   const runtime = loadPlanner(visualResponse);
   await assert.rejects(runtime.writeAiMediaFreeNarration({ accountId: "offline-test", request: input, profile,
     plan: runtime.buildAiMediaFreeBasePlan(input) }), contracts.AiMediaRequestValidationError);

@@ -273,13 +273,16 @@ test("un ADN et un brief longs ne peuvent supprimer la garde anti-nuancier du pr
 
   assert.equal(AI_MEDIA_COMPILED_PROMPT_MAX_CHARS, 11_800);
   for (const kind of ["image", "video"] as const) {
+    const longIdea = `${SUBJECT}. ${longText}`.slice(0, 2_000);
+    const longInstruction = `${INSTRUCTION} ${longText}`.slice(0, 600);
+    const settings = { kind, identityMode: "reference_team" as const, inspirationImages: [REFERENCE, REFERENCE, REFERENCE],
+      idea: longIdea, aiInstruction: longInstruction, textKeywords: ["jardin", "rosier", "atelier"] };
+    if (kind === "video") assert.throws(() => requestFixture(settings), /500 caractères maximum/);
+    const validated = requestFixture(kind === "video" ? { ...settings, idea: longIdea.slice(0, 500), aiInstruction: longInstruction.slice(0, 500) } : settings);
     const prompt = buildAiMediaPrompt({
-      request: requestFixture({
-        kind, identityMode: "reference_team", inspirationImages: [REFERENCE, REFERENCE, REFERENCE],
-        idea: `${SUBJECT}. ${longText}`.slice(0, 2_000),
-        aiInstruction: `${INSTRUCTION} ${longText}`.slice(0, 600),
-        textKeywords: ["jardin", "rosier", "atelier"],
-      }),
+      // Keep the legacy long server payload in this compiled-prompt test while
+      // proving the current Studio normalizer rejects new video briefs >500.
+      request: { ...validated, idea: longIdea, aiInstruction: longInstruction },
       profile, brandColors: INCIDENT_COLORS, hasLogo: true,
       copy: { headline: HEADLINE },
       deferVisibleElementsToComposer: true,

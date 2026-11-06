@@ -6,10 +6,10 @@ import { useInrAssistantRefresh } from "./useInrAssistantRefresh";
 import type { MediaLibraryPickerItem } from "@/app/dashboard/_components/MediaLibraryPickerModal";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import {
-  AI_MEDIA_FREE_PROMPT_MAX_CHARS,
   normalizeAiMediaSpokenScript,
   normalizeAiMediaWithSubtitles,
 } from "@/lib/aiMediaGenerationContracts";
+import { getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "@/lib/aiMediaVideoSpeechBudget";
 import { normalizeAiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
 import { AI_MEDIA_GENERATION_STREAM_TYPE, readAiMediaGenerationResponse } from "@/lib/aiMediaGenerationTransport";
 import { getCharacterVoiceSelectionState, isProvidedCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration } from "@/lib/aiMediaCharacterVoiceClient";
@@ -673,8 +673,9 @@ export default function useMediaGeneration() {
       if (pendingRecoveryRef.current && !recoveryPointer) throw new Error("Récupérez le résultat de la tentative précédente avant de générer un autre média.");
       if (request.creationMode === "free") {
         const freePrompt = String(request.freePrompt || "").trim();
-        if (freePrompt.length < 3 || freePrompt.length > AI_MEDIA_FREE_PROMPT_MAX_CHARS) {
-          throw new Error(`Décrivez votre média en 3 à ${AI_MEDIA_FREE_PROMPT_MAX_CHARS.toLocaleString("fr-FR")} caractères.`);
+        const promptLimit = getAiMediaVisualBriefMaxChars(request.kind, "free");
+        if (freePrompt.length < 3 || freePrompt.length > promptLimit) {
+          throw new Error(`Décrivez votre ${request.kind === "video" ? "vidéo" : "image"} en 3 à ${promptLimit.toLocaleString("fr-FR")} caractères.`);
         }
         const spokenScript = request.kind === "video"
           ? normalizeAiMediaSpokenScript(request.spokenScript)
@@ -705,6 +706,12 @@ export default function useMediaGeneration() {
         };
       }
       if (request.kind === "video") {
+        if (request.creationMode === "free") {
+          const speech = getAiMediaVideoSpeechState(request);
+          if (speech.issue) throw new Error(speech.issue.message);
+        } else if ([request.idea, request.aiInstruction].some(value => typeof value === "string" && value.length > getAiMediaVisualBriefMaxChars("video", "guided"))) {
+          throw new Error("Décrivez le visuel de votre vidéo en 500 caractères maximum. Votre texte a été conservé.");
+        }
         const voiceSelection = getCharacterVoiceSelectionState(request.inspirationImages || []);
         if (voiceSelection.missingSample) throw new Error("Insérez un vocal pour chaque personnage en voix fournie.");
         if (voiceSelection.hasProvidedVoice && request.teamVideoSpeechMode !== "characters") throw new Error("Les voix fournies sont utilisées en mode Personnages.");

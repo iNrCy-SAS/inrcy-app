@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
+import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as models from "../../lib/aiMediaModelCatalog.ts";
 import * as transport from "../../lib/aiMediaGenerationTransport.ts";
 import * as recovery from "../../lib/aiMediaGenerationRecovery.ts";
@@ -99,6 +100,7 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
     if (id === "./useInrAssistantRefresh") return refreshHook.exports;
     if (id === "@/lib/multicompte/constants") return { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" };
     if (id === "@/lib/aiMediaGenerationContracts") return contracts;
+    if (id === "@/lib/aiMediaVideoSpeechBudget") return speechBudget;
     if (id === "@/lib/mediaGenerationClientRequest") return clientRequestRules;
     if (id === "@/lib/aiMediaModelCatalog") return models;
     if (id === "@/lib/aiMediaGenerationTransport") return transport;

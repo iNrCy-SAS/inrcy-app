@@ -159,7 +159,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
         const target = resolve(dirname(path), id.endsWith(".ts") ? id : `${id}.ts`);
         if (CATALOGUE_COMPLEMENT_MODULES.has(target)) return load(target);
         const name = basename(target);
-        if (name === "notifications.ts") return load(target);
+        if (["notifications.ts", "aiMediaVideoSpeechBudget.ts", "aiMediaVideoTimeline.ts", "aiMediaSpokenScript.ts"].includes(name)) return load(target);
         assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["aiEnginePreference.ts", "businessDnaActivityAutofill.ts", "businessDnaRichText.ts", "appLanguage.ts", "appAppearanceTheme.ts", "mediaRules.ts", "publicationEditVersion.ts", "aiMediaGenerationPreferences.ts", "aiMediaNarrationVoices.ts", "boosterCta.ts", "boosterFormatting.ts", "boosterPublicationSafety.ts", "notificationRemovalState.ts", "generatorSettings.ts", "facebookPublicationPreferences.ts", "instagramPublicationPreferences.ts", "threadsPublicationPreferences.ts", "referralRequest.ts", "cookieConsentPreferences.ts", "activityCatalog.ts", "activitySectors.ts", "activityJobs.ts", "activityJobSynonyms.ts", "inrSearchDisplaySettings.ts", "inrBadgeTheme.ts", "imageOverlay.ts", "imageOverlayLinkUrl.ts", "businessIdentity.ts", "activityJobSearch.ts", "activityJobCatalog.ts", "googleReviewStateFingerprint.ts", "statsCalendarMonths.ts", "monthlyMeasuredStats.ts", "manualBoosterPublicationSchedule.ts", "productNavigation.ts", "commercialDocumentTemplate.ts", "mediaLibraryAudio.ts", "commercialDocumentDraft.ts", "commercialDocumentValidation.ts", "commercialDocumentUpdate.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterCtaActions.ts", "boosterWhatsappCta.ts", "generalPreferences.ts", "googleBusinessProfile.ts", "channelPublicUrl.ts", "instagramCapabilities.ts", "instagramCaptionLimits.ts", "pinterestTextLimits.ts"].includes(name), `Unexpected dependency ${id}`);
         return load(target);
       }
@@ -312,7 +312,7 @@ for (const scenario of scenarios) test(`real schema budget matrix: ${scenario.na
   let failure: unknown;
   let reply: Awaited<ReturnType<typeof h.runtime.generateInrAssistantReply>> | undefined;
   try { reply = await h.runtime.generateInrAssistantReply(input); } catch (error) { failure = error; }
-  if (failure) t.diagnostic(JSON.stringify({scenario:scenario.name,schemas:h.schemas.map(({name,description,schema})=>({name,bytes:bytes({name,description,inputSchema:schema})}))}));
+  if (failure) t.diagnostic(JSON.stringify({scenario:scenario.name,diagnostic:(failure as {diagnostic?:unknown}).diagnostic,schemas:h.schemas.map(({name,description,schema})=>({name,bytes:bytes({name,description,inputSchema:schema})}))}));
   assert.equal(failure, undefined, `Actual Gateway rejects a normal ${scenario.name} request before any external operation: ${String(failure)}`);
   if (scenario.name === "navigate-crm") {
     assert.equal(h.navigationPreparations, 1, "Pure navigation prepares the native command exactly once");

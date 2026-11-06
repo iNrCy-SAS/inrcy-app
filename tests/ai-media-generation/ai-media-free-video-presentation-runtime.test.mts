@@ -247,7 +247,7 @@ test("le contrat compact respecte le plafond natif, sans tronquer les directions
       assert.ok(transport.length <= 3_200, `${model.id}/${speech}: ${transport.length} caractères`);
       assert.ok(transport.includes(plan.subline));
       assert.ok(transport.includes(plan.scenes[0].visualBrief));
-      assert.throws(() => prompts.buildAiMediaFreeVideoScenePrompt(provider(input, { ...plan, subline: "X".repeat(3_200) }, narration), 0, durationSeconds), /ai_video_instruction_contract_too_long/);
+      assert.throws(() => prompts.buildAiMediaFreeVideoScenePrompt(provider(input, { ...plan, subline: "X".repeat(Math.max(3_200, prompts.getAiMediaFreeVideoPromptMaxCharacters(model.id))) }, narration), 0, durationSeconds), /ai_video_instruction_contract_too_long/);
     }
   }
   assert.notEqual(prompts.AI_MEDIA_FREE_PROMPT_VERSION, "inrcy-free-creative-v2-native-voice");

@@ -13,9 +13,11 @@ const free = (): InrAssistantStudioFormSnapshot => ({ mode: "free", kind: "video
 
 test("Studio form selections accept only native finite fields and preserve omitted criteria without generation or consent", () => {
   for (const [field, value] of [["activeTab", "selection"], ["people", "two"], ["setting", "exterior"], ["focus", "product"], ["imagePurpose", "flyer"], ["format", "portrait"], ["imageStyle", "three_d"], ["visualDirection", "bold"], ["useBrandColors", false], ["logoMode", "visible"], ["textMode", "exact"], ["textKeywords", ["Nouveauté", "20 septembre"]], ["creativeBrief", "x".repeat(1600)]]) assert.ok(parseInrAssistantStudioFormSelection(encode(String(field), value), guided()), String(field));
-  for (const [field, value] of [["activeTab", "criteria"], ["prompt", "x".repeat(3900)], ["useBusinessDna", true], ["withMusic", false], ["withSubtitles", true], ["spokenScriptOpen", true], ["speechMode", "characters"], ["narrationVoiceVariant", "Kore"]]) assert.ok(parseInrAssistantStudioFormSelection(encode(String(field), value), free()), String(field));
+  for (const [field, value] of [["activeTab", "criteria"], ["prompt", "x".repeat(500)], ["useBusinessDna", true], ["withMusic", false], ["withSubtitles", true], ["spokenScriptOpen", true], ["speechMode", "characters"], ["narrationVoiceVariant", "Kore"]]) assert.ok(parseInrAssistantStudioFormSelection(encode(String(field), value), free()), String(field));
   const before = guided(); parseInrAssistantStudioFormSelection(encode("format", "story"), before); assert.equal(before.format, "square"); assert.equal(before.creativeBrief, "Original");
-  assert.ok(parseInrAssistantStudioFormSelection(encode("prompt", "\n".repeat(3900)), free()), "JSON escaping does not reduce the native prompt character limit");
+  assert.ok(parseInrAssistantStudioFormSelection(encode("prompt", "\n".repeat(500)), free()), "JSON escaping does not reduce the 500-character video brief allowance");
+  assert.equal(parseInrAssistantStudioFormSelection(encode("prompt", "x".repeat(501)), free()), null);
+  assert.ok(parseInrAssistantStudioFormSelection(encode("prompt", "x".repeat(3900)), { ...free(), kind: "image" }), "the image allowance remains unchanged");
   for (const field of ["identityConsent", "teamConsent", "generate", "save", "delete", "engine", "mediaId", "url", "script", "saved", "__proto__"]) assert.equal(parseInrAssistantStudioFormSelection(encode(field, true), guided()), null, field);
   for (const value of [{ field: "format", value: "square", submit: true }, { field: "format" }, [], null, "text"]) assert.equal(parseInrAssistantStudioFormSelection(JSON.stringify(value), guided()), null);
 });

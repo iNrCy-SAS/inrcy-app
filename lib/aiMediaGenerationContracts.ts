@@ -3,6 +3,7 @@ import {
   type AiMediaNarrationVoiceVariant,
 } from "./aiMediaNarrationVoices.ts";
 import { INR_MEDIA_IMAGE_MAX_BYTES } from "./mediaRules.ts";
+import { AI_MEDIA_VIDEO_SPOKEN_SCRIPT_MAX_CHARS, getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
 import { isStudioInspirationVideoReference, studioInspirationBase64IsVideo, STUDIO_INSPIRATION_IMAGES_ONLY_MESSAGE } from "./studioInspirationImagePolicy.ts";
 import { normalizeAiMediaCharacterVoiceSample, hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration, type AiMediaCharacterVoiceSample } from "./aiMediaCharacterVoices.ts";
 import {
@@ -133,7 +134,7 @@ export const AI_MEDIA_GENERATION_MAX_BODY_BYTES = 4 * 1024 * 1024;
 export const AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS = 1_200;
 export const AI_MEDIA_FREE_PROMPT_MAX_CHARS = 4_000;
 /** Optional exact speech, separate from the visual brief. */
-export const AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS = 4_000;
+export const AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS = AI_MEDIA_VIDEO_SPOKEN_SCRIPT_MAX_CHARS;
 
 export type AiMediaFormatSpec = {
   format: AiMediaOutputFormat;
@@ -645,10 +646,11 @@ export function normalizeAiMediaGenerationRequest(
     if (body.operation === "modify" || body.source !== "studio") {
       throw new AiMediaRequestValidationError("Le mode Libre est disponible dans Générer du Studio.");
     }
-    if (typeof body.freePrompt !== "string" || body.freePrompt.length > AI_MEDIA_FREE_PROMPT_MAX_CHARS) {
-      throw new AiMediaRequestValidationError(`Décrivez votre média en ${AI_MEDIA_FREE_PROMPT_MAX_CHARS.toLocaleString("fr-FR")} caractères maximum.`);
+    const freePromptLimit = getAiMediaVisualBriefMaxChars(body.kind === "video" ? "video" : "image", "free");
+    if (typeof body.freePrompt !== "string" || body.freePrompt.length > freePromptLimit) {
+      throw new AiMediaRequestValidationError(`Décrivez votre ${body.kind === "video" ? "vidéo" : "image"} en ${freePromptLimit.toLocaleString("fr-FR")} caractères maximum. Les paroles ont leur champ séparé.`);
     }
-    freePrompt = normalizeAiInstruction(body.freePrompt, AI_MEDIA_FREE_PROMPT_MAX_CHARS);
+    freePrompt = normalizeAiInstruction(body.freePrompt, freePromptLimit);
     if (freePrompt.length < 3) {
       throw new AiMediaRequestValidationError("Décrivez le média souhaité avant de générer.");
     }
@@ -695,6 +697,10 @@ export function normalizeAiMediaGenerationRequest(
     throw new AiMediaRequestValidationError("Origine de génération invalide.");
   }
 
+  if (source === "studio" && kind === "video" && operation !== "modify" && creationMode !== "free" &&
+    [body.idea, body.aiInstruction].some(value => typeof value === "string" && value.length > getAiMediaVisualBriefMaxChars("video", "guided"))) {
+    throw new AiMediaRequestValidationError("Décrivez le visuel de votre vidéo en 500 caractères maximum. Votre texte a été conservé.");
+  }
   const rawIdea = cleanText(body.idea, 2_000);
   const rawSubjectSource = cleanText(body.subjectSource, 40);
   if (
@@ -1250,7 +1256,7 @@ export function normalizeAiMediaGenerationRequest(
   });
   const sceneMode = normalizedRequestedSceneMode;
 
-  return {
+  const normalizedRequest: AiMediaGenerationRequest = {
     requestId,
     creationMode,
     freePrompt: creationMode === "free" ? freePrompt : undefined,
@@ -1320,6 +1326,11 @@ export function normalizeAiMediaGenerationRequest(
     inspirationImages,
     source,
   };
+  if (normalizedRequest.kind === "video" && normalizedRequest.creationMode === "free") {
+    const speech = getAiMediaVideoSpeechState(normalizedRequest);
+    if (speech.issue) throw new AiMediaRequestValidationError(speech.issue.code);
+  }
+  return normalizedRequest;
 }
 
 /** Shared client/server applicability: local identity animation has no generated scene joins. */

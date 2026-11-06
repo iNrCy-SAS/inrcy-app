@@ -27,7 +27,7 @@ const STOP = new Set(["comment", "quoi", "faire", "pourquoi", "peux", "veux", "d
 for (const word of ["modifier", "changer", "gerer", "trouver", "retrouver", "consulter", "creer", "generer", "envoyer", "importer", "exporter", "ajouter", "supprimer", "aider", "manage", "find", "change", "edit", "create", "generate", "please", "puis", "peut"]) STOP.add(word);
 const NAVIGATION_IDS: Readonly<Record<string, (typeof PRODUCT_NAVIGATION)[number]["id"]>> = {
   "channels-overview": "channels", reputation: "reviews",
-  "studio-create": "studio", "studio-edit": "studio", "media-library": "media", booster: "publish",
+  "studio-create": "studio", "basic-studio-create": "studio", "studio-edit": "studio", "media-library": "media", booster: "publish",
   stats: "stats", send: "send", crm: "crm", calendar: "calendar", emailing: "campaigns", ads: "ads",
   subscription: "subscription", "subscription-cancel-invoices": "subscription", account: "account",
   invoices: "invoices", quotes: "quotes", "business-dna": "business-dna", "ai-configuration": "ai-configuration",
@@ -64,6 +64,8 @@ function rankGuides(query: string) {
   if (exact) return [{ guide: exact, score: 1000, index: 0 }];
   const normalized = searchQuery(query);
   const tokens = normalized.split(/[^a-z0-9]+/).filter((token) => token.length >= 3 && !STOP.has(token));
+  const mediaGeneration = /\b(?:generer|genere|generation|generate|generating)\b(?:(?!\b(?:post|publication|contenu|texte|legende|caption|content)\b)[^.!?;]){0,50}\b(?:image|videos?|medias?|visuels?|pictures?|photos?)\b/.test(normalized);
+  const publicationGeneration = /\b(?:generer|genere|generation|generate|generating)\b(?:(?!\b(?:image|video|media|visuel|picture|photo)\b)[^.!?;]){0,50}\b(?:post|publication|caption)\b/.test(normalized);
   return INR_ASSISTANT_APP_GUIDES.map((guide, index) => {
     const title = normalize(guide.title);
     const destination = NAVIGATION_IDS[guide.id];
@@ -77,6 +79,8 @@ function rankGuides(query: string) {
     const interfaceLanguage = /\blangue\b/.test(normalized) && !/contenu|publication|communication|generation|redaction/.test(normalized);
     const receivedMail = /mail|email|message|messagerie/.test(normalized) && /recu|recep|repondre|inbox|received/.test(normalized);
     const score = (isReviewsQuery(query) && guide.id === "reputation" ? 200 : 0)
+      + (mediaGeneration && guide.id === "studio-create" ? 220 : 0)
+      + (publicationGeneration && guide.id === "booster" ? 220 : 0)
       + (subscriptionInvoice && guide.id === "subscription-cancel-invoices" ? 250 : 0)
       + (companyDetails && guide.id === "business-dna" ? 220 : 0)
       + (interfaceLanguage && guide.id === "account-preferences-privacy" ? 220 : 0)

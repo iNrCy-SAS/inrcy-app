@@ -8,6 +8,7 @@ import * as models from "../../lib/aiMediaModelCatalog.ts";
 import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
 import * as videoOptions from "../../lib/aiMediaVideoClientOptions.ts";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
+import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as narration from "../../lib/aiMediaNarrationVoices.ts";
 import * as rules from "../../lib/mediaRules.ts";
 import * as voiceRules from "../../lib/aiMediaCharacterVoices.ts";
@@ -24,7 +25,7 @@ const find = (tree: unknown, predicate: (node: Element) => boolean) => { const n
 const text = (tree: unknown): string => Array.isArray(tree) ? tree.map(text).join("") : typeof tree === "string" || typeof tree === "number" ? String(tree) : tree && typeof tree === "object" && "props" in tree ? text((tree as Element).props.children) : "";
 
 /** Execute the real Free editor, reusable voice input and engine controls; only external IO is mocked. */
-function harness(kind: "video" | "image" = "video", initialEngine: models.AiMediaVideoEngine = "omni", sampleDurationSeconds = 2) {
+function harness(kind: "video" | "image" = "video", initialEngine: models.AiMediaVideoEngine = "omni", sampleDurationSeconds = 2, options: { initialPrompt?: string; locale?: string } = {}) {
   const parentSlots: Slot[] = []; const childSlots = new Map<string, Slot[]>();
   let slots = parentSlots; let cursor = 0; let dirty = false; let tree!: Element;
   const effects: Array<() => void> = []; const listeners = new Map<string, Set<() => void>>();
@@ -84,14 +85,16 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     ["../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface() {} }],
     ["@/lib/inrAssistantStudioFormSelection", studioForm],
     ["react", react], ["react/jsx-runtime", { jsx, jsxs: jsx }],
-    ["next-intl", { useLocale: () => "fr-FR", useTranslations: () => (key: string, values?: { credits?: string; provider?: string }) => {
-      if (key === "ai_generator_final_authorization_images_label" || key === "ai_generator_final_authorization_voices_label") return frenchMessages[key].replace("{provider}", values?.provider || "");
+    ["next-intl", { useLocale: () => options.locale || "fr-FR", useTranslations: () => (key: string, values?: Record<string, string | number>) => {
+      if (key.startsWith("ai_generator_video_")) return (frenchMessages[key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
+      if (key === "ai_generator_final_authorization_images_label" || key === "ai_generator_final_authorization_voices_label") return frenchMessages[key].replace("{provider}", String(values?.provider || ""));
       if (key === "ai_generator_final_authorization_short" || key === "ai_generator_final_authorization_details") return frenchMessages[key];
       return values?.credits ? `${key} ${values.credits}` : key;
     } }],
     ["@/app/dashboard/_hooks/useMediaGeneration", { __esModule: true, default: () => hook, MediaGenerationAccountChangedError: class extends Error {}, MediaGenerationCancelledError: class extends Error {} }],
     ["@/lib/multicompte/constants", { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" }],
     ["@/lib/aiMediaGenerationContracts", contracts], ["@/lib/aiMediaNarrationVoices", narration], ["@/lib/mediaRules", rules],
+    ["@/lib/aiMediaVideoSpeechBudget", speechBudget],
     ["@/lib/aiMediaModelCatalog", models], ["@/lib/aiMediaVideoTimeline", timeline], ["@/lib/aiMediaVideoClientOptions", videoOptions],
     ["@/lib/aiMediaCharacterVoices", voiceRules], ["@/lib/aiMediaCharacterVoiceClient", { ...voiceClient, deleteCharacterVoiceSample: async (value: voiceRules.AiMediaCharacterVoiceSample | undefined) => { if (value) deleted.push(value.path); } }],
     ["@/lib/aiMediaCharacterVoiceRecorderClient", { beginCharacterVoiceRecording() { assert.fail("These tests never activate a microphone"); }, CharacterVoiceRecorderUnavailableError: class extends Error {} }],
@@ -124,7 +127,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   const voice = load("app/dashboard/_components/MediaCharacterVoiceInput.tsx"); modules.set("./MediaCharacterVoiceInput", { __esModule: true, ...voice });
   const controls = load("app/dashboard/_components/MediaEngineCreditControls.tsx"); modules.set("./MediaEngineCreditControls", { __esModule: true, ...controls });
   const free = load("app/dashboard/_components/MediaFreeGenerator.tsx");
-  const props = { source: "studio", acceptMode: "library", mediaType: kind, initialPrompt: "Le personnage présente son métier avec sa voix.", onAccepted() {} };
+  const props = { source: "studio", acceptMode: "library", mediaType: kind, initialPrompt: options.initialPrompt ?? "Le personnage présente son métier avec sa voix.", onAccepted() {} };
   const render = () => {
     let count = 0;
     do { assert.ok(++count < 20); slots = parentSlots; cursor = 0; dirty = false; tree = free.default(props); for (const effect of effects.splice(0)) effect(); } while (dirty);
@@ -160,6 +163,9 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     async abandonRecovery() { (find(tree, (node) => node.type === "preview").props.handleConfirmGenerationStop as () => void)(); await flush(); },
     removePhoto(index: number) { (find(cards()[index], (node) => node.type === "button").props.onClick as () => void)(); render(); },
     setSound(value: string) { const input = find(tree, (node) => node.type === "input" && node.props.type === "radio" && node.props.value === value); (input.props.onChange as () => void)(); render(); },
+    enterPrompt(value: string) { const input = find(tree, (node) => node.type === "textarea" && String(node.props.id).endsWith("-prompt")); (input.props.onChange as (event: unknown) => void)({ target: { value } }); render(); },
+    setDuration(seconds: number, mode: "single" | "multi" = "single") { const node = find(tree, (item) => item.type === controls.default); (node.props.onDurationSceneChange as (seconds: number, mode: string) => void)(seconds, mode); render(); },
+    async invokeGenerateCallback() { await (find(tree, node => node.type === "preview").props.handleGenerate as () => Promise<void>)(); await flush(); },
     addSpeech() { const button = find(tree, (node) => node.type === "button" && String(node.props.id).endsWith("-add-spoken-script")); if (!button.props.disabled) (button.props.onClick as () => void)(); render(); },
     enterSpeech(value: string) { const input = find(tree, (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script")); assert.equal(input.props.disabled, false); (input.props.onChange as (event: unknown) => void)({ target: { value } }); render(); },
     removeSpeech() { const panel = find(tree, (node) => String(node.props.id).endsWith("-spoken-script-panel")); (find(panel, (node) => node.type === "button").props.onClick as () => void)(); render(); },
@@ -171,6 +177,80 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     dispose() { for (const bank of [parentSlots, ...childSlots.values()]) for (const slot of bank) slot.cleanup?.(); },
   };
 }
+
+test("video visual brief accepts 500 characters and preserves oversized historical drafts before blocking the real callback", async () => {
+  const h = harness("video", "wan3", 2, { initialPrompt: "x".repeat(501) });
+  const visual = () => find(h.tree(), node => node.type === "textarea" && String(node.props.id).endsWith("-prompt"));
+  assert.equal(visual().props.value, "x".repeat(501));
+  assert.equal(visual().props.maxLength, undefined);
+  assert.equal(visual().props["aria-invalid"], true);
+  assert.match(text(h.tree()), /Consignes visuelles|200 à 300/);
+  assert.ok(elements(h.tree()).some(node => node.props["data-video-speech-frame"] === true));
+  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 0);
+  h.enterPrompt("x".repeat(500));
+  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].freePrompt, "x".repeat(500));
+  h.dispose();
+});
+
+test("video speech live budget blocks seven words at four seconds then preserves them when duration and engine change", async () => {
+  const h = harness("video", "wan3"); h.setDuration(4); h.setSound("characters");
+  const script = "un deux trois quatre cinq six sept";
+  h.enterSpeech(script);
+  assert.match(text(h.tree()), /7 \/ 6 mots/);
+  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 0);
+  h.setDuration(8); h.changePreferredVideoEngine("veo");
+  assert.equal(find(h.tree(), node => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script")).props.value, script);
+  assert.match(text(h.tree()), /7 \/ 14 mots/);
+  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].spokenScript, script);
+  assert.equal(h.requests[0].withNarration, false, "character dialogue must still be counted without separate narration");
+  assert.equal(h.requests[0].teamVideoSpeechMode, "characters");
+  h.dispose();
+});
+
+test("two real video segments and CJK speech use their own live budgets without truncating exact input", async () => {
+  const h = harness("video", "wan3", 2, { locale: "zh-CN" });
+  h.setDuration(8, "multi"); h.setSound("characters");
+  const script = "你".repeat(37);
+  h.enterSpeech(script);
+  assert.match(text(h.tree()), /37 \/ 36 caractères prononcés/);
+  assert.match(text(h.tree()), /Plan 1 \(4 s\)/);
+  assert.match(text(h.tree()), /Plan 2 \(4 s\)/);
+  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 0);
+  h.setDuration(30);
+  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].spokenScript, script);
+  h.dispose();
+});
+
+test("oral instructions in the visual frame require an explicit speech choice while visible slogans stay visual", async () => {
+  const h = harness();
+  const prompt = 'Le personnage dit : « Bonjour, notre atelier vous accueille. »';
+  h.enterPrompt(prompt);
+  assert.match(text(h.tree()), /Vous avez écrit des paroles dans les consignes visuelles/);
+  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 0);
+  h.enterSpeech("");
+  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].freePrompt, prompt, "a warning never moves or deletes the original wording");
+  assert.equal(h.requests[0].spokenScript, "", "explicit silence stays authoritative over legacy speech");
+  assert.equal(h.requests[0].withNarration, false);
+  h.dispose();
+  const visual = harness(); visual.enterPrompt('Un panneau affiche le slogan « Bienvenue au jardin ».');
+  await visual.invokeGenerateCallback(); assert.equal(visual.requests.length, 1);
+  assert.equal(Object.hasOwn(visual.requests[0], "spokenScript"), false);
+  visual.dispose();
+});
+
+test("image creation keeps its original 4000-character brief and never gains video frames", async () => {
+  const h = harness("image", "omni", 2, { initialPrompt: "x".repeat(2500) });
+  const input = find(h.tree(), node => node.type === "textarea" && String(node.props.id).endsWith("-prompt"));
+  assert.equal(input.props.maxLength, 4000);
+  assert.equal(elements(h.tree()).some(node => node.props["data-video-brief-frame"] === true || node.props["data-video-speech-frame"] === true), false);
+  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].freePrompt, "x".repeat(2500));
+  h.dispose();
+});
 
 test("the actual active Free editor shows the real voice selector on video Personne cards for both usages", async () => {
   for (const usage of ["required", "inspiration"]) {
@@ -193,16 +273,16 @@ test("the actual active Free editor shows the real voice selector on video Perso
 test("the optional speech editor keeps exact script separate from the brief in both quote and generation", async () => {
   const h = harness();
   const add = find(h.tree(), (node) => node.type === "button" && String(node.props.id).endsWith("-add-spoken-script"));
-  assert.equal(add.props["aria-expanded"], false);
-  assert.equal(find(h.tree(), (node) => node.props.id === add.props["aria-controls"]).props.hidden, true);
+  assert.equal(add.props["aria-pressed"], false);
+  assert.notEqual(find(h.tree(), (node) => node.props.id === add.props["aria-controls"]).props.hidden, true);
   h.setSound("characters"); h.changePreferredVideoEngine("veo");
-  assert.equal(find(h.tree(), (node) => node.props.id === add.props["aria-controls"]).props.hidden, true, "voice and engine choices never open the optional speech editor");
+  assert.notEqual(find(h.tree(), (node) => node.props.id === add.props["aria-controls"]).props.hidden, true, "both frames remain visible without making speech explicit");
   assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
   h.addSpeech();
   const script = '  Bonjour, je suis Océane.\n« iNrCy », notre application.  ';
   h.enterSpeech(script);
   const input = () => find(h.tree(), (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script"));
-  assert.equal(input().props.maxLength, contracts.AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS);
+  assert.equal(input().props.maxLength, undefined, "pasting exact words never silently truncates them");
   assert.equal(h.quoteInputs.at(-1)!.spokenScript, script);
   h.setTab("criteria"); h.setSound("characters"); h.setTab("prompt");
   assert.equal(input().props.value, script, "criteria and speech-mode changes preserve the script");
@@ -276,7 +356,7 @@ test("account changes erase speech and image creation never offers or submits it
   const h = harness(); h.addSpeech(); h.enterSpeech("Un texte privé du compte A.");
   h.changeAccount();
   assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
-  assert.equal(find(h.tree(), (node) => String(node.props.id).endsWith("-spoken-script-panel")).props.hidden, true);
+  assert.notEqual(find(h.tree(), (node) => String(node.props.id).endsWith("-spoken-script-panel")).props.hidden, true);
   h.addSpeech();
   assert.equal(find(h.tree(), (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script")).props.value, "");
   h.dispose();

@@ -9,6 +9,7 @@ import * as mediaRecovery from "../../lib/aiMediaGenerationRecovery.ts";
 import * as clientRequestRules from "../../lib/mediaGenerationClientRequest.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 import * as mediaContracts from "../../lib/aiMediaGenerationContracts.ts";
+import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as assistantRefresh from "../../lib/inrAssistantRefresh.ts";
 
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
@@ -77,6 +78,7 @@ function hookRuntime() {
       return { ACTIVE_INRCY_ACCOUNT_EVENT: "fixture-account-change" };
     }
     if (specifier === "@/lib/aiMediaGenerationContracts") return mediaContracts;
+    if (specifier === "@/lib/aiMediaVideoSpeechBudget") return speechBudget;
     if (specifier === "@/lib/mediaGenerationClientRequest") return clientRequestRules;
     if (specifier === "@/lib/aiMediaModelCatalog") return mediaModels;
     if (specifier === "@/lib/aiMediaGenerationTransport") return mediaTransport;
