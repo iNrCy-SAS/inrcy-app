@@ -13,9 +13,10 @@ import { magasin_meublesJobTemplates } from './magasin_meubles';
 import { magasin_vetementsJobTemplates } from './magasin_vetements';
 import { opticienJobTemplates } from './opticien';
 import { torrefacteurJobTemplates } from './torrefacteur';
+import { import_exportJobTemplates } from './import_export';
 
 export { commerce_boutiqueTemplates };
 
 export function buildCommerceBoutiqueJobTemplates() {
-  return [bijouterieJobTemplates, boulangerieJobTemplates, boutique_modeJobTemplates, boutique_cafe_theJobTemplates, cavisteJobTemplates, epicerieJobTemplates, fleuristeJobTemplates, friperieJobTemplates, librairieJobTemplates, magasin_meublesJobTemplates, magasin_vetementsJobTemplates, opticienJobTemplates, torrefacteurJobTemplates].flatMap((definition) => createJobTemplates(definition));
+  return [import_exportJobTemplates, bijouterieJobTemplates, boulangerieJobTemplates, boutique_modeJobTemplates, boutique_cafe_theJobTemplates, cavisteJobTemplates, epicerieJobTemplates, fleuristeJobTemplates, friperieJobTemplates, librairieJobTemplates, magasin_meublesJobTemplates, magasin_vetementsJobTemplates, opticienJobTemplates, torrefacteurJobTemplates].flatMap((definition) => createJobTemplates(definition));
 }

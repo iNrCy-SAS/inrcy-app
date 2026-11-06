@@ -1,4 +1,4 @@
-import { ACTIVITY_CATALOG, BEAUTE_BIEN_ETRE_JOB_ALIASES, VOYANCE_ARTS_DIVINATOIRES_JOB_ALIASES } from "./activityCatalog.ts";
+import { ACTIVITY_CATALOG, ACTIVITY_JOB_ALIASES, BEAUTE_BIEN_ETRE_JOB_ALIASES, VOYANCE_ARTS_DIVINATOIRES_JOB_ALIASES } from "./activityCatalog.ts";
 import type { ActivitySectorCategory } from "./activitySectors.ts";
 
 export type ActivityJobSearchResult = {
@@ -64,6 +64,7 @@ const JOB_ALIASES: Partial<
     ],
   },
   commerce_boutique: {
+    ...ACTIVITY_JOB_ALIASES.commerce_boutique,
     e_commerce: ["e-commerce", "ecommerce", "commerce en ligne", "boutique en ligne", "vente en ligne", "e-commerçant", "e-commerçante", "e-shop", "eshop", "site marchand"],
     magasin_vetements: [
       "boutique de vêtements",
@@ -82,6 +83,7 @@ const JOB_ALIASES: Partial<
     boutique_cafe_the: ["boutique de café", "magasin de café et thé", "comptoir de café et thé"],
   },
   culture_creation: {
+    ...ACTIVITY_JOB_ALIASES.culture_creation,
     ecrivain_auteur: [
       "écrivain", "écrivaine", "ecrivain", "ecrivaine", "auteur", "auteure", "autrice",
       "romancier", "romancière", "romanciere",
@@ -98,6 +100,7 @@ const JOB_ALIASES: Partial<
     illustrateur: ["illustrateur", "illustratrice", "illustration artistique"],
     sculpteur: ["sculpteur", "sculptrice", "sculpture artistique"],
   },
+  tourisme: ACTIVITY_JOB_ALIASES.tourisme,
   evenementiel: {
     dj: ["disc jockey", "disc-jockey", "animation musicale DJ"],
     magicien: [

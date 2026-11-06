@@ -22,6 +22,7 @@ import {
 
 const expectedJobs = [
   'ecrivain_auteur',
+  'editeur_livres',
   'artiste',
   'artiste_peintre',
   'musicien_interprete',
@@ -49,7 +50,7 @@ test('le profil distingue les créations artistiques de la peinture en bâtiment
   assert.equal(getGeneratorRecommendation(stored).sectorLabel, 'Arts / Culture / Création');
 });
 
-test('les huit métiers ont leurs prestations et des modèles distincts', () => {
+test('les neuf métiers ont leurs prestations et des modèles distincts', () => {
   assert.deepEqual(getJobsForSector('culture_creation').map((job) => job.value), expectedJobs);
   assert.deepEqual(
     cultureCreationJobTemplates.map((definition) => definition.professionKey),

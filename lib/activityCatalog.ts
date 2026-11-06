@@ -168,6 +168,7 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
   commerce_boutique: {
     label: 'Commerce / Boutique',
     jobs: {
+      import_export: { label: 'Import-export', services: ['Sourcing de produits', 'Recherche de fournisseurs internationaux', 'Importation de marchandises', 'Exportation de marchandises', 'Négoce international', 'Coordination logistique', 'Suivi des commandes internationales', 'Devis commercial'] },
       e_commerce: { label: 'E-commerce / Boutique en ligne', services: ['Vente en ligne', 'Catalogue produits', 'Nouveautés et collections', 'Conseils produits', 'Livraison de commandes', 'Suivi de commande', 'Service après-vente', 'Offres promotionnelles'] },
       bijouterie: { label: 'Bijouterie', services: ['Bijoux', 'Montres', 'Réparation bijou', 'Création personnalisée', 'Gravure', 'Conseil cadeau', 'Entretien', 'Commande spéciale'] },
       boulangerie: { label: 'Boulangerie / Pâtisserie', services: ['Pain du jour', 'Pâtisseries', 'Commande spéciale', 'Pièces montées', 'Snacking', 'Traiteur sucré / salé', 'Livraison', 'Formules entreprise'] },
@@ -203,6 +204,7 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
     label: 'Arts / Culture / Création',
     jobs: {
       ecrivain_auteur: { label: 'Écrivain / Auteur', services: ['Livres et ouvrages', 'Rencontre d’auteur', 'Séance de dédicace', 'Lecture publique', 'Atelier d’écriture', 'Intervention culturelle', 'Conférence', 'Projet éditorial'] },
+      editeur_livres: { label: 'Éditeur de livres / Maison d’édition', services: ['Catalogue de livres', 'Nouveautés éditoriales', 'Collections éditoriales', 'Présentation des auteurs', 'Travail éditorial sur les manuscrits', 'Fabrication des ouvrages', 'Diffusion et distribution des livres', 'Rencontres et salons du livre'] },
       artiste: { label: 'Artiste / Créateur', services: ['Œuvres originales', 'Portfolio', 'Exposition', 'Commande artistique', 'Collaboration créative', 'Atelier découverte', 'Rencontre avec l’artiste', 'Projet culturel'] },
       artiste_peintre: { label: 'Artiste peintre', services: ['Tableaux originaux', 'Peinture sur commande', 'Portrait artistique', 'Exposition', 'Vente d’œuvres', 'Série artistique', 'Atelier peinture', 'Portfolio'] },
       musicien_interprete: { label: 'Musicien / Interprète', services: ['Concert', 'Prestation musicale', 'Répertoire musical', 'Session d’enregistrement', 'Accompagnement musical', 'Événement culturel', 'Collaboration artistique', 'Projet musical'] },
@@ -477,6 +479,7 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
   tourisme: {
     label: 'Tourisme',
     jobs: {
+      agence_voyages: { label: 'Agence de voyages', services: ['Conseil en voyages', 'Séjours sur mesure', 'Circuits touristiques', 'Réservation de transports', 'Réservation d’hébergements', 'Voyages de groupe', 'Préparation du séjour', 'Suivi des réservations'] },
       camping: { label: 'Camping', services: ['Emplacements', 'Mobil-homes', 'Réservation séjour', 'Activités', 'Piscine / loisirs', 'Services vacanciers', 'Offre famille', 'Disponibilités'] },
       location_saisonniere: { label: 'Location saisonnière', services: ['Location courte durée', 'Week-end', 'Séjour vacances', 'Accueil voyageurs', 'Ménage / linge', 'Disponibilités', 'Réservation', 'Conciergerie'] },
       guide_touristique: { label: 'Guide touristique', services: ['Visite guidée', 'Circuit privé', 'Visite groupe', 'Patrimoine local', 'Balade découverte', 'Excursion', 'Réservation', 'Conseil séjour'] },
@@ -498,6 +501,18 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
   },};
 
 /** Shared by profession restoration and search, so the same wording selects the same job. */
+export const ACTIVITY_JOB_ALIASES: Partial<Record<ActivitySectorCategory, Record<string, string[]>>> = {
+  commerce_boutique: {
+    import_export: ['Import export', 'Import / Export', 'Importation exportation', 'Importateur', 'Importatrice', 'Exportateur', 'Exportatrice', 'Importateur-exportateur', 'Société d’import-export', 'Entreprise d’import-export', 'Commerce international', 'Négoce international'],
+  },
+  tourisme: {
+    agence_voyages: ['Agence de voyage', 'Agences de voyages', 'Agence voyages', 'Agent de voyage', 'Agent de voyages', 'Agente de voyages', 'Conseiller en voyages', 'Conseillère en voyages', 'Voyagiste', 'Tour-opérateur', 'Tour operator', 'Organisation de voyages'],
+  },
+  culture_creation: {
+    editeur_livres: ['Éditeur de livres', 'Éditrice de livres', 'Éditeur de livre', 'Éditeur d’ouvrages', 'Maison d’édition', 'Maison d’édition de livres', 'Édition de livres', 'Édition littéraire', 'Éditeur littéraire', 'Éditrice littéraire'],
+  },
+};
+
 export const BEAUTE_BIEN_ETRE_JOB_ALIASES: Record<string, string[]> = {
   boutique_cosmetiques: ['Cosmétiques', 'Cosmétique', 'Boutique cosmétique', 'Magasin de cosmétiques', 'Commerce de cosmétiques', 'Commerce cosmétique', 'Boutique beauté', 'Beauty shop', 'Cosmetics shop', 'Vente de cosmétiques', 'Skincare', 'Skin care'],
   marque_cosmetique: ['Marque cosmétique', 'Créateur de marque cosmétique', 'Créatrice de marque cosmétique', 'Marque beauté', 'Marque de skincare', 'Cosmetics brand'],
@@ -754,6 +769,9 @@ export function findJobValueByLabel(sector: string, label: string) {
   for (const [value, job] of Object.entries(pack.jobs)) {
     if (normalizeJobLabel(job.label) === normalized) return value;
   }
+  const sharedAlias = Object.entries(ACTIVITY_JOB_ALIASES[sector as ActivitySectorCategory] || {})
+    .find(([, aliases]) => aliases.some((alias) => normalizeJobLabel(alias) === normalized))?.[0];
+  if (sharedAlias) return sharedAlias;
   if (sector === 'beaute_bien_etre') {
     return Object.entries(BEAUTE_BIEN_ETRE_JOB_ALIASES)
       .find(([, aliases]) => aliases.some((alias) => normalizeJobLabel(alias) === normalized))?.[0] || '';

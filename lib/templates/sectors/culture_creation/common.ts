@@ -38,6 +38,24 @@ export const cultureCreationJobTemplates: JobTemplateDefinition[] = [
   },
   {
     sector: 'culture_creation',
+    professionKey: 'editeur_livres',
+    professionLabel: 'Éditeur de livres / Maison d’édition',
+    pack: {
+      label: 'Éditeur de livres / Maison d’édition',
+      signature: 'faire découvrir une ligne éditoriale, des auteurs et des livres réellement publiés ou annoncés',
+      promoLead: 'présenter un livre, une collection ou une rencontre littéraire avec les dates et disponibilités confirmées',
+      infoLead: 'partager le travail éditorial, les nouveautés du catalogue et le parcours des ouvrages',
+      followLead: 'suivre les demandes de livres, les échanges avec les auteurs et les partenariats éditoriaux',
+      surveyLead: 'comprendre les attentes des lecteurs, libraires et partenaires pour les prochaines publications',
+      seasonal: 'parution ou rendez-vous littéraire de saison, selon le programme éditorial confirmé',
+      loyalty: 'nouvelle parution destinée aux lecteurs et partenaires qui suivent déjà la maison d’édition',
+      maintenance: 'un rappel utile concernant une parution, une commande ou une rencontre littéraire',
+      localHook: 'édition de livres et découverte d’auteurs',
+      audience: 'lecteurs, auteurs, libraires, bibliothèques et partenaires du livre',
+    },
+  },
+  {
+    sector: 'culture_creation',
     professionKey: 'artiste',
     professionLabel: 'Artiste / Créateur',
     pack: {

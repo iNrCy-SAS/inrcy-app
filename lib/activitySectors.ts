@@ -108,6 +108,11 @@ export function inferSectorCategoryFromProfession(input?: string | null): Activi
   if (divinationSector) return divinationSector;
   const beautyProductSector = inferBeautyProductSector(value);
   if (beautyProductSector) return beautyProductSector;
+  const primary = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim()
+    .replace(/^(?:je suis|nous sommes|un|une|le|la|les|mon|ma|notre)\s+/, '');
+  if (/^(?:(?:societe|entreprise) d )?(?:import export|importation exportation|importateur|importatrice|exportateur|exportatrice|commerce international|negoce international)\b/.test(primary) && !/\b(?:donnees|fichiers|contacts|csv)\b/.test(primary)) return 'commerce_boutique';
+  if (/^(?:agences? (?:de )?voyages?|agente? de voyages?|conseill(?:er|ere) en voyages?|voyagiste|tour operateur|tour operator|organisation de voyages)\b/.test(primary)) return 'tourisme';
+  if (/^(?:(?:editeur|editrice) (?:de livres?|d ouvrages|litteraire)|maison d edition|edition (?:de livres|litteraire))\b/.test(primary)) return 'culture_creation';
   if (/(bois de chauffage|bûche|buche|stère|stere|granulé|granule|exploitant forestier|exploitation forestière|exploitation forestiere|travaux forestiers|débardage|debardage|scierie|négoce de bois|negoce de bois|bois sur pied|coupe forestière|coupe forestiere)/.test(value)) return 'bois_foret';
   if (/(architecte d’intérieur|architecte d'interieur|architecte interieur|architecte|décorateur d’intérieur|decorateur d'interieur|decorateur interieur|déco intérieur|deco interieur|maître d’œuvre|maitre d'oeuvre|maitre oeuvre|bureau d’études bâtiment|bureau d'etudes batiment|bureau etudes batiment|design intérieur|design interieur)/.test(value)) return 'architecture_design';
   if (/(agricult|exploitation agricole|exploitant agricole|exploitante agricole|arboricul|fruiticul|verger|producteur de fruits|productrice de fruits|céréalier|cerealier|producteur de céréales|producteur de cereales|producteur local|ferme|vente directe|maraîcher|maraicher|apiculteur|miel|pépiniériste|pepinieriste|viticulteur|domaine viticole|vigneron|produits locaux|panier local)/.test(value)) return 'agriculture_producteurs';
