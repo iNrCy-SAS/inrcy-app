@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, realpathSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { chromium, type Page } from "@playwright/test";
@@ -9,12 +9,28 @@ import ts from "typescript";
 
 const require = createRequire(import.meta.url);
 const repo = fileURLToPath(new URL("../../", import.meta.url));
+const realRepo = realpathSync(repo);
 const mocked = new Set([
   "@/lib/browserAccountCache", "@/lib/supabaseClient", "@/lib/profileLogo",
   "@/lib/boosterGenerationContextClient", "@/lib/publicProfileRefreshClient",
   "@/lib/inrcyDialog", "@/lib/userFacingErrors",
 ]);
 const packageSource = (name: string, file: string) => readFileSync(join(dirname(require.resolve(`${name}/package.json`)), "cjs", file), "utf8");
+
+function fixtureModuleFile(base: string) {
+  const inside = (root: string, file: string) => {
+    const local = relative(root, file);
+    return local !== ".." && !local.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) && !isAbsolute(local);
+  };
+  const absolute = resolve(base);
+  assert.ok(inside(repo, absolute), `Fixture import escapes the repository: ${base}`);
+  const target = [absolute, `${absolute}.ts`, `${absolute}.tsx`, join(absolute, "index.ts"), join(absolute, "index.tsx")]
+    .find(candidate => /\.tsx?$/.test(candidate) && existsSync(candidate) && statSync(candidate).isFile());
+  assert.ok(target, `Unresolved fixture module ${base}`);
+  const actual = realpathSync(target);
+  assert.ok(inside(realRepo, actual), `Fixture import resolves outside the repository: ${base}`);
+  return actual;
+}
 
 function modules(component: string) {
   const sources: Record<string, string> = {
@@ -26,6 +42,7 @@ function modules(component: string) {
   };
   const links: Record<string, Record<string, string>> = {};
   function add(file: string) {
+    file = fixtureModuleFile(file);
     const id = file.replaceAll("\\", "/");
     if (sources[id]) return id;
     const source = readFileSync(file, "utf8");
@@ -38,9 +55,7 @@ function modules(component: string) {
       if (mocked.has(specifier) || specifier.endsWith(".css") || specifier.endsWith("channel-workspace-snapshot")) continue;
       const base = specifier.startsWith("@/") ? resolve(repo, specifier.slice(2)) : specifier.startsWith(".") ? resolve(dirname(file), specifier) : null;
       if (!base || !base.replaceAll("\\", "/").includes("/lib/") && !/\/_hooks\/useInrAssistant|DashboardAssistant(?:Screen|Command)Context/.test(base.replaceAll("\\", "/"))) continue;
-      const target = [base, base + ".ts", base + ".tsx"].find(candidate => existsSync(candidate));
-      if (!target) throw Error(`Unresolved fixture import ${specifier}`);
-      links[id][specifier] = add(target);
+      links[id][specifier] = add(base);
     }
     return id;
   }

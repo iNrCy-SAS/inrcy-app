@@ -19,6 +19,8 @@ import type * as Guides from "../../lib/inrAssistantAppGuides.ts";
 import type { InrAssistantActivity } from "../../lib/inrAssistantActivity.ts";
 
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
+const CATALOGUE_COMPLEMENT_MODULES = new Set(["index.ts", "internationalTrade.ts", "travelTourism.ts", "bookPublishing.ts"]
+  .map(file => resolve(ROOT, "lib/activityCatalogComplements", file)));
 const ACCOUNT = "10000000-0000-4000-8000-000000000001", ACTOR = "20000000-0000-4000-8000-000000000001";
 const MEDIA = "30000000-0000-4000-8000-000000000001", DRAFT = "40000000-0000-4000-8000-000000000001";
 const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
@@ -155,6 +157,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
       if (id.startsWith(".")) {
         if (/^\.\.\/messages\/fr-FR\/[a-zA-Z-]+\.json$/.test(id)) return { default: JSON.parse(readFileSync(resolve(dirname(path), id), "utf8")) };
         const target = resolve(dirname(path), id.endsWith(".ts") ? id : `${id}.ts`);
+        if (CATALOGUE_COMPLEMENT_MODULES.has(target)) return load(target);
         const name = basename(target);
         if (name === "notifications.ts") return load(target);
         assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["aiEnginePreference.ts", "businessDnaActivityAutofill.ts", "businessDnaRichText.ts", "appLanguage.ts", "appAppearanceTheme.ts", "mediaRules.ts", "publicationEditVersion.ts", "aiMediaGenerationPreferences.ts", "aiMediaNarrationVoices.ts", "boosterCta.ts", "boosterFormatting.ts", "boosterPublicationSafety.ts", "notificationRemovalState.ts", "generatorSettings.ts", "facebookPublicationPreferences.ts", "instagramPublicationPreferences.ts", "threadsPublicationPreferences.ts", "referralRequest.ts", "cookieConsentPreferences.ts", "activityCatalog.ts", "activitySectors.ts", "activityJobs.ts", "activityJobSynonyms.ts", "inrSearchDisplaySettings.ts", "inrBadgeTheme.ts", "imageOverlay.ts", "imageOverlayLinkUrl.ts", "businessIdentity.ts", "activityJobSearch.ts", "activityJobCatalog.ts", "googleReviewStateFingerprint.ts", "statsCalendarMonths.ts", "monthlyMeasuredStats.ts", "manualBoosterPublicationSchedule.ts", "productNavigation.ts", "commercialDocumentTemplate.ts", "mediaLibraryAudio.ts", "commercialDocumentDraft.ts", "commercialDocumentValidation.ts", "commercialDocumentUpdate.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterCtaActions.ts", "boosterWhatsappCta.ts", "generalPreferences.ts", "googleBusinessProfile.ts", "channelPublicUrl.ts", "instagramCapabilities.ts", "instagramCaptionLimits.ts", "pinterestTextLimits.ts"].includes(name), `Unexpected dependency ${id}`);
@@ -244,6 +247,9 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
     modules.set(path, moduleRecord.exports); return moduleRecord.exports;
   }
   const runtime = load("lib/inrAssistantGateway.ts") as typeof Gateway;
+  const catalogue = load("lib/activityCatalogComplements/index.ts").ACTIVITY_PROFESSION_COMPLEMENTS;
+  assert.ok(Array.isArray(catalogue), "The real profession registry must be loaded in the schema matrix");
+  assert.equal(catalogue.length, 58, "Schema verification includes every delivered profession, without a reduced catalogue fixture");
   return { runtime, providerCalls, reservations, schemas, generatedInputs, publicationActions, get actionExecutions() { return actionExecutions; }, get navigationPreparations() { return navigationPreparations; },
     conversation: load("lib/inrAssistantConversation.ts") as typeof Conversation,
     guides: load("lib/inrAssistantAppGuides.ts") as typeof Guides };
