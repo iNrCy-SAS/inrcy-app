@@ -33,6 +33,10 @@ type Props = {
   generationInProgress?: boolean;
   cancellationPending?: boolean;
   recoveryPending?: boolean;
+  recoveryChecking?: boolean;
+  canPauseRecovery?: boolean;
+  handleRetryRecovery?: () => void | Promise<void>;
+  handlePauseRecovery?: () => void;
   kind: MediaGenerationKind;
   format: MediaGenerationFormat;
   durationSeconds: number;
@@ -153,6 +157,10 @@ export default function MediaGenerationCreationWorkspace({
   generationInProgress,
   cancellationPending = false,
   recoveryPending = false,
+  recoveryChecking = false,
+  canPauseRecovery = false,
+  handleRetryRecovery,
+  handlePauseRecovery,
   kind,
   format,
   durationSeconds,
@@ -194,6 +202,7 @@ export default function MediaGenerationCreationWorkspace({
   const resultKey = generationResult ? `${accountId}:${generationResult.item.id}` : null;
   const embedded = variant === "embedded";
   const rendering = generationInProgress ?? operationLocked;
+  const recoveryActive = recoveryPending || recoveryChecking;
   const { reviewRef, headingRef } = useMediaResultReveal({
     accountId,
     running: rendering,
@@ -201,7 +210,7 @@ export default function MediaGenerationCreationWorkspace({
     resultAccountId: generationResult?.quota?.accountId,
   });
   const creationError = actionError || error;
-  const showCreationError = !rendering && !generationResult &&
+  const showCreationError = !recoveryActive && !rendering && !generationResult &&
     (embedded ? Boolean(creationError) : creationStarted);
   const previewKind = generationResult?.item.media_type ?? kind;
   const resultPreviewFormat = generationResult
@@ -268,7 +277,7 @@ export default function MediaGenerationCreationWorkspace({
       data-media-kind={previewKind}
       data-creation-mode={creationMode}
       data-media-creation-stage={
-        generationResult ? "result" : rendering ? "progress" : showCreationError ? "error" : "idle"
+        generationResult ? "result" : recoveryActive ? "recovery" : rendering ? "progress" : showCreationError ? "error" : "idle"
       }
     >
       <div className={styles.creationBackdrop} aria-hidden="true">
@@ -279,14 +288,29 @@ export default function MediaGenerationCreationWorkspace({
 
       {overlay}
 
-      {!generationResult && !rendering && !showCreationError ? <div className={editorStyles.idle}>
+      {recoveryActive && !generationResult ? <section className={editorStyles.recoveryPanel} data-media-recovery-panel aria-labelledby={`${instanceId}-recovery-title`}>
+        <h3 id={`${instanceId}-recovery-title`}>{t(cancellationPending ? "ai_generator_editor_stop_pending" : recoveryChecking ? "ai_generator_recovery_checking" : "ai_generator_recovery_title")}</h3>
+        {!cancellationPending ? <p role="status" aria-live="polite">{t("ai_generator_recovery_continue")}</p> : null}
+        <div className={editorStyles.recoveryPanelActions}>
+          <button type="button" onClick={() => { void handleRetryRecovery?.(); }} disabled={recoveryChecking || operationLocked || !handleRetryRecovery} data-media-recovery-check>
+            {t("ai_generator_recovery_check")}
+          </button>
+          <button type="button" onClick={handlePauseRecovery} disabled={cancellationPending || !canPauseRecovery || !handlePauseRecovery} data-media-recovery-pause>
+            {t("ai_generator_recovery_pause")}
+          </button>
+        </div>
+        <p className={editorStyles.recoveryExplanation}>{t("ai_generator_recovery_generation_blocked")}</p>
+        {creationError ? <p className={editorStyles.recoveryError} role="status">{creationError}</p> : null}
+      </section> : null}
+
+      {!recoveryActive && !generationResult && !rendering && !showCreationError ? <div className={editorStyles.idle}>
         <span className={editorStyles.idleIcon} aria-hidden="true">✦</span>
         <p className={styles.creationEyebrow}>iNr’Studio</p>
         <h3>{t("ai_generator_editor_preview_title")}</h3>
         <p>{t("ai_generator_editor_preview_hint")}</p>
       </div> : null}
 
-      {rendering && !generationResult ? (
+      {rendering && !recoveryActive && !generationResult ? (
         <div
           className={styles.creationProgress}
           role="status"

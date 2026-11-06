@@ -147,6 +147,9 @@ export default function MediaFreeGenerator({
     cancellable,
     cancellationPending,
     canRecover,
+    recovering = false,
+    canPauseRecovery = false,
+    pauseRecovery,
     recoveryContext,
     loadQuota,
     generate,
@@ -195,6 +198,8 @@ export default function MediaFreeGenerator({
   const [activeSettingsTab, setActiveSettingsTab] = useState("prompt");
   const [editingRecoveredId, setEditingRecoveredId] = useState<string | null>(null);
   const reviewingRecovery = Boolean(recoveryContext || canRecover || (result?.recovered && editingRecoveredId !== result.item.id));
+  const recoveryPending = Boolean(canRecover || recovering || recoveryContext);
+  const editorAvailable = !reviewingRecovery || recoveryPending;
   const [activeAttempt, setActiveAttempt] = useState<{ kind: MediaGenerationKind; format: MediaGenerationFormat; durationSeconds: number } | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [quotaRefreshId, setQuotaRefreshId] = useState(0);
@@ -203,9 +208,15 @@ export default function MediaFreeGenerator({
   const sequence = useRef(0);
   const operationInFlight = useRef(false);
   const referenceSetId = useRef("");
-  const operationLocked = busy || finishing || voiceBusy || referencesBusy || characterVoiceBusy;
+  const submittedVoicePaths = useRef(new Set<string>());
+  const operationLocked = cancellationPending || ((busy || finishing) && !recovering) || voiceBusy || referencesBusy || characterVoiceBusy;
   const locked = operationLocked;
-  const referencePickerVisible = !creationScreen && !reviewingRecovery && activeSettingsTab === "criteria";
+  const releaseUnusedVoiceSample = (sample: Parameters<typeof deleteCharacterVoiceSample>[0]) => {
+    // A submitted request owns its original audio even if the next draft is
+    // edited or recovery is paused. Existing storage expiry cleans it later.
+    if (sample && !recoveryPending && !submittedVoicePaths.current.has(sample.path)) void deleteCharacterVoiceSample(sample);
+  };
+  const referencePickerVisible = (!creationScreen || recoveryPending) && editorAvailable && activeSettingsTab === "criteria";
   useInrAssistantLocalInterface("studio_free_library", { open: libraryOpen }, {
     open: { invoke: () => { if (locked || !referencePickerVisible || references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT) throw new Error("reference_picker_unavailable"); setLibraryOpen(true); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
     close: { invoke: () => setLibraryOpen(false), matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
@@ -367,7 +378,7 @@ export default function MediaFreeGenerator({
   }, [quota?.accountId, quotaLoading]);
 
   const recoveryGuardPending = !quota?.accountId || quotaLoading ||
-    recoveryAccountChecked !== quota.accountId || Boolean(canRecover || recoveryContext);
+    recoveryAccountChecked !== quota.accountId || recoveryPending;
   useLayoutEffect(() => {
     onPendingRecoveryChange?.(recoveryGuardPending);
     return () => onPendingRecoveryChange?.(false);
@@ -379,9 +390,9 @@ export default function MediaFreeGenerator({
 
   useLayoutEffect(() => {
     if (recoveryIncompatible) return;
-    if (recoveredFormat) setFormat(recoveredFormat);
+    if (result?.recovered && editingRecoveredId !== result.item.id && recoveredFormat) setFormat(recoveredFormat);
     if (recoveryContext && recoveryContext.kind !== mediaType) onRecoveryKind?.(recoveryContext.kind);
-  }, [recoveredFormat, recoveryContext, recoveryIncompatible, mediaType, onRecoveryKind]);
+  }, [recoveredFormat, recoveryContext, recoveryIncompatible, mediaType, onRecoveryKind, result, editingRecoveredId]);
 
   useEffect(() => {
     const clearAccountState = () => {
@@ -432,7 +443,7 @@ export default function MediaFreeGenerator({
   };
 
   const addFiles = async (files: File[], lockOwned = false) => {
-    if (!lockOwned && (locked || operationInFlight.current)) return;
+    if (!lockOwned && (locked || (operationInFlight.current && !recoveryPending))) return;
     const currentSequence = sequence.current;
     operationInFlight.current = true;
     setReferencesBusy(true);
@@ -476,7 +487,7 @@ export default function MediaFreeGenerator({
   };
 
   const addLibraryFiles = async (items: MediaLibraryPickerItem[]) => {
-    if (locked || operationInFlight.current) return;
+    if (locked || (operationInFlight.current && !recoveryPending)) return;
     const currentSequence = sequence.current;
     operationInFlight.current = true;
     setReferencesBusy(true);
@@ -518,7 +529,7 @@ export default function MediaFreeGenerator({
     const previous = references.find((reference) => reference.id === id);
     const clearsVoice = (Object.hasOwn(patch, "role") && patch.role !== "character") || patch.voiceMode === "ai";
     if (previous?.voiceSample && (clearsVoice || (Object.hasOwn(patch, "voiceSample") && previous.voiceSample.path !== patch.voiceSample?.path))) {
-      void deleteCharacterVoiceSample(previous.voiceSample);
+      releaseUnusedVoiceSample(previous.voiceSample);
     }
     setReferences((current) =>
       current.map((reference) =>
@@ -541,7 +552,7 @@ export default function MediaFreeGenerator({
   };
 
   const removeReference = (id: string) => {
-    void deleteCharacterVoiceSample(references.find((reference) => reference.id === id)?.voiceSample);
+    releaseUnusedVoiceSample(references.find((reference) => reference.id === id)?.voiceSample);
     setReferences((current) => current.filter((reference) => reference.id !== id));
     resetConsent();
   };
@@ -559,6 +570,7 @@ export default function MediaFreeGenerator({
       if (result?.draft) await discardDraft(result);
       if (sequence.current !== currentSequence) return;
       setStopConfirmOpen(false);
+      for (const reference of references) if (reference.voiceSample?.path) submittedVoicePaths.current.add(reference.voiceSample.path);
       await generate({
         ...creditQuote.authorization,
         imageEngine: enginePreference.imageEngine,
@@ -602,7 +614,9 @@ export default function MediaFreeGenerator({
       });
     } catch (caught) {
       if (sequence.current !== currentSequence) return;
-      if (
+      if (caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError") {
+        retryableFailure = true;
+      } else if (
         !(caught instanceof MediaGenerationAccountChangedError) &&
         !(caught instanceof MediaGenerationCancelledError)
       ) {
@@ -645,7 +659,7 @@ export default function MediaFreeGenerator({
         setTeamConsent(false);
       }
     } catch (caught) {
-      if (sequence.current === currentSequence && !(caught instanceof MediaGenerationAccountChangedError)) {
+      if (sequence.current === currentSequence && !(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
         setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
       }
     } finally {
@@ -666,7 +680,7 @@ export default function MediaFreeGenerator({
         if (!recovered) setCreationScreen(false);
       }
     } catch (caught) {
-      if (sequence.current === currentSequence && !(caught instanceof MediaGenerationAccountChangedError)) {
+      if (sequence.current === currentSequence && !(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
         setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
       }
     } finally {
@@ -746,16 +760,22 @@ export default function MediaFreeGenerator({
   };
 
   const assistantFormSnapshot: InrAssistantStudioFormSnapshot = {
-    mode: "free", kind, locked: operationLocked, editorVisible: !reviewingRecovery && !stopConfirmOpen,
+    mode: "free", kind, locked: operationLocked, editorVisible: editorAvailable && !stopConfirmOpen,
     fixedFormat, maxPromptLength: maxUserPromptLength, activeTab: activeSettingsTab, prompt, useBusinessDna, format,
     videoEngine: selectedVideoEngine, videoResolution, language: locale,
     durationScene: { seconds: duration, sceneMode }, speechMode, spokenScript, spokenScriptOpen,
     narrationVoice: voice, narrationVoiceVariant: voiceVariant, withMusic, withSubtitles: effectiveWithSubtitles,
   };
-  useInrAssistantLocalInterface("studio_recovery_free", { confirmationOpen: stopConfirmOpen, canRecover, resultId: result?.item.id ?? null, recoveryContext }, { review: {
+  useInrAssistantLocalInterface("studio_recovery_free", { confirmationOpen: stopConfirmOpen, canRecover, recovering, canPauseRecovery, resultId: result?.item.id ?? null, recoveryContext }, { retry: {
+    invoke: () => { if (!canRecover || recovering || recoveryIncompatible || operationLocked) throw new Error("studio_recovery_unavailable"); void handleRecoverResult(); },
+    matches: state => !!state && typeof state === "object" && ((state as { recovering?: boolean }).recovering === true || Boolean((state as { resultId?: string | null }).resultId)),
+  }, stop: {
+    invoke: () => { if (!canPauseRecovery || operationLocked || !pauseRecovery()) throw new Error("studio_recovery_pause_unavailable"); },
+    matches: state => !!state && typeof state === "object" && (state as { recovering?: boolean; canRecover?: boolean }).recovering === false && (state as { canRecover?: boolean }).canRecover === true,
+  }, review: {
     invoke: () => { if (!canRecover || recoveryIncompatible || busy || operationLocked) throw new Error("studio_recovery_unavailable"); setStopConfirmOpen(true); },
     matches: state => !!state && typeof state === "object" && (state as { confirmationOpen?: boolean; canRecover?: boolean }).confirmationOpen === true && (state as { canRecover?: boolean }).canRecover === true,
-  } }, canRecover && !busy && !recoveryIncompatible, operationLocked);
+  } }, (canRecover || recovering) && !recoveryIncompatible, operationLocked);
   useInrAssistantLocalInterface("studio_free_form", { ...assistantFormSnapshot, quotaRefreshId, quotaAccountId: quota?.accountId ?? null }, {
     ...(!quotaLoading ? { retry: {
       invoke: async (_value: string | null, stillCurrent: () => boolean) => {
@@ -788,9 +808,9 @@ export default function MediaFreeGenerator({
       },
       matches: isInrAssistantStudioFormSelectionApplied,
     },
-  }, !reviewingRecovery && !stopConfirmOpen, operationLocked);
+  }, editorAvailable && !stopConfirmOpen, operationLocked);
 
-  const engineControls = reviewingRecovery ? null : (
+  const engineControls = !editorAvailable ? null : (
     <MediaEngineCreditControls kind={kind} format={fixedFormat || format} videoEngine={selectedVideoEngine}
             imageEngine={enginePreference.imageEngine} resolution={videoResolution}
             durationSeconds={duration} sceneMode={sceneMode} onDurationSceneChange={(seconds, mode) => { setDuration(seconds); setSceneMode(mode); }} videoMaxDurationSeconds={maxDuration}
@@ -803,7 +823,7 @@ export default function MediaFreeGenerator({
             hasProvidedCharacterVoice={characterVoiceSelection.hasProvidedVoice}
             onVideoEngineChange={(videoEngine, resolution) => { resetConsent(); enginePreference.update({ videoEngine, videoResolution: resolution ?? getAiMediaVideoModel(videoEngine).defaultResolution }); }}
             onImageEngineChange={(imageEngine) => { resetConsent(); enginePreference.update({ imageEngine }); }}
-            onResolutionChange={(resolution) => { resetConsent(); enginePreference.update({ videoResolution: resolution }); }} />
+            onResolutionChange={(resolution) => { resetConsent(); enginePreference.update({ videoEngine: selectedVideoEngine, videoResolution: resolution }); }} />
   );
   const creditSummary = reviewingRecovery
     ? <MediaRecoveredCreditSummary creditsUsed={result?.creditsUsed} />
@@ -811,12 +831,12 @@ export default function MediaFreeGenerator({
 
   const generationAction = <button
     type="button" className={styles.primaryButton} data-media-primary-action
-    disabled={recoveryIncompatible || (busy ? !cancellable : canRecover ? operationLocked : Boolean(result) || !canGenerate)}
-    title={busy && !cancellable ? t("ai_generator_editor_stop_locked") : undefined}
-    onClick={() => { if (busy) setStopConfirmOpen(true); else if (canRecover) void handleRecoverResult(); else if (!result) void handleGenerate(); }}
+    disabled={recoveryIncompatible || (recoveryPending ? recovering || operationLocked : busy ? !cancellable : Boolean(result) || !canGenerate)}
+    title={recoveryPending ? t("ai_generator_recovery_generation_blocked") : busy && !cancellable ? t("ai_generator_editor_stop_locked") : undefined}
+    onClick={() => { if (recoveryPending) void handleRecoverResult(); else if (busy) setStopConfirmOpen(true); else if (!result) void handleGenerate(); }}
   >
-    <span aria-hidden="true">{busy ? "■" : "✦"}</span>
-    {t(busy ? "ai_generator_editor_stop" : canRecover ? "ai_generator_editor_recover" : kind === "video" ? "ai_generator_generate_video" : "ai_generator_generate_image")}
+    <span aria-hidden="true">{busy && !recoveryPending ? "■" : "✦"}</span>
+    {t(recoveryPending ? recovering ? "ai_generator_recovery_checking" : "ai_generator_recovery_check" : busy ? "ai_generator_editor_stop" : kind === "video" ? "ai_generator_generate_video" : "ai_generator_generate_image")}
   </button>;
 
   const preview = (
@@ -825,7 +845,11 @@ export default function MediaFreeGenerator({
         variant="embedded"
         creationStarted={creationScreen}
         generationInProgress={busy}
-        recoveryPending={canRecover}
+        recoveryPending={recoveryPending}
+        recoveryChecking={recovering}
+        canPauseRecovery={canPauseRecovery}
+        handleRetryRecovery={handleRecoverResult}
+        handlePauseRecovery={() => { pauseRecovery?.(); }}
         cancellationPending={cancellationPending}
         kind={busy && activeAttempt ? activeAttempt.kind : kind}
         format={busy && activeAttempt ? activeAttempt.format : format}
@@ -845,7 +869,7 @@ export default function MediaFreeGenerator({
         handleSaveToLibrary={handleSaveToLibrary}
         handleGenerate={handleGenerate}
         handleEditCriteria={handleEdit}
-        criteriaEditorState={{ activeTab: activeSettingsTab, targetTab: "prompt", ready: !reviewingRecovery && !operationLocked }}
+        criteriaEditorState={{ activeTab: activeSettingsTab, targetTab: "prompt", ready: editorAvailable && !operationLocked }}
         handleReset={canRecover ? undefined : onReset}
         disabled={!canGenerate || canRecover}
         creditSummary={creditSummary}
@@ -880,7 +904,7 @@ export default function MediaFreeGenerator({
       data-media-kind={kind}
       data-view="editor"
     >
-      <div className={editorStyles.editorBody}>
+      <div className={editorStyles.editorBody} data-recovery-pending={recoveryPending}>
         <div className={`${editorStyles.settingsPane} ${kind === "video" ? styles.videoSettingsPane : ""}`}>
           <MediaGenerationSettingsTabs idPrefix={instanceId} activeTab={activeSettingsTab} onChange={setActiveSettingsTab} tabs={[
             { id: "prompt", label: t("ai_generator_editor_tab_prompt"), warning: promptWarning },
@@ -1209,7 +1233,7 @@ export default function MediaFreeGenerator({
           data-spoken-script-open={kind === "video" && spokenScriptOpen}
           role="tabpanel" id={`${instanceId}-panel-prompt`} aria-labelledby={`${instanceId}-tab-prompt`} hidden={activeSettingsTab !== "prompt"}
         >
-          <div className={styles.panelHeading}>
+          {kind === "image" ? <div className={styles.panelHeading}>
             <span className={styles.promptIcon} aria-hidden="true">
               ✦
             </span>
@@ -1222,7 +1246,7 @@ export default function MediaFreeGenerator({
               </div>
               <p>{t("ai_generator_free_prompt_hint")}</p>
             </div>
-          </div>
+          </div> : null}
           <div className={styles.businessDnaRow}>
             <label className={styles.businessDnaOption}>
               <input
@@ -1234,11 +1258,12 @@ export default function MediaFreeGenerator({
               <strong>{t("ai_generator_use_business_dna_label")}</strong>
             </label>
             <MediaBusinessDnaHelp />
+            {kind === "video" ? <MediaPromptHelp kind={kind} /> : null}
           </div>
           <div className={kind === "video" ? styles.videoBriefFrame : undefined} data-video-brief-frame={kind === "video" ? true : undefined}>
           {kind === "video" ? <div className={styles.videoFrameHeading}>
             <label htmlFor={`${instanceId}-prompt`}>{t("ai_generator_video_visual_brief_title")}</label>
-            <p id={`${instanceId}-visual-brief-help`}>{t("ai_generator_video_visual_brief_hint")}</p>
+            <p id={`${instanceId}-visual-brief-help`}>{t("ai_generator_video_visual_brief_hint_short")}</p>
           </div> : null}
           <div className={styles.promptContainer} data-invalid={kind === "video" && (prompt.length > maxUserPromptLength || misplacedSpeechBlocking) ? true : undefined}>
             <label
@@ -1251,7 +1276,7 @@ export default function MediaFreeGenerator({
               id={`${instanceId}-prompt`}
               value={prompt}
               maxLength={kind === "video" ? undefined : maxUserPromptLength}
-              disabled={busy || finishing || referencesBusy || characterVoiceBusy}
+              disabled={operationLocked}
               readOnly={voiceBusy}
               aria-invalid={kind === "video" && (prompt.length > maxUserPromptLength || misplacedSpeechBlocking) ? true : undefined}
               aria-describedby={kind === "image" ? `${instanceId}-prompt-help` : `${instanceId}-visual-brief-help ${instanceId}-prompt-count${prompt.length > maxUserPromptLength || misplacedSpeechBlocking ? ` ${instanceId}-visual-brief-error` : ""}`}
@@ -1271,7 +1296,7 @@ export default function MediaFreeGenerator({
                 value={prompt}
                 onChange={setPrompt}
                 onBusyChange={setVoiceBusy}
-                disabled={busy || finishing || referencesBusy || characterVoiceBusy}
+                disabled={operationLocked}
                 maxLength={maxUserPromptLength}
                 purpose="instruction"
                 contextLabel={t("ai_generator_free_prompt_label")}
@@ -1287,9 +1312,12 @@ export default function MediaFreeGenerator({
           {kind === "video" ? <div className={styles.spokenScriptSection}>
             <div className={styles.videoFrameHeading}>
               <label htmlFor={`${instanceId}-spoken-script`}>{t("ai_generator_spoken_script_label")}</label>
-              <p id={`${instanceId}-spoken-script-help`}>{t("ai_generator_video_speech_frame_hint")}</p>
+              <p id={`${instanceId}-spoken-script-help`}>{t("ai_generator_video_speech_frame_hint_short")}</p>
             </div>
-            {!spokenScriptOpen ? <>
+            <div id={`${instanceId}-spoken-script-panel`} className={styles.spokenScriptPanel} data-video-speech-frame data-invalid={speechInvalid ? true : undefined}>
+              <div className={styles.spokenScriptHeading}>
+                <span className={styles.speechModeBadge}>{t(spokenScriptOpen ? "ai_generator_video_speech_exact" : "ai_generator_video_speech_automatic")}</span>
+            {!spokenScriptOpen ?
               <button
                 id={`${instanceId}-add-spoken-script`}
                 type="button"
@@ -1302,18 +1330,7 @@ export default function MediaFreeGenerator({
                   setSpokenScriptOpen(true);
                   window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus());
                 }}
-              ><span aria-hidden="true">＋</span>{t("ai_generator_spoken_script_add")}</button>
-              {speechMode === "silent" ? <div className={styles.spokenScriptSilentHelp}>
-                <p id={`${instanceId}-spoken-script-silent-help`}>{t("ai_generator_spoken_script_silent_help")}</p>
-                <button type="button" disabled={locked} onClick={() => {
-                  setActiveSettingsTab("criteria");
-                  window.requestAnimationFrame(() => document.getElementById(`${instanceId}-tab-criteria`)?.focus());
-                }}>{t("ai_generator_spoken_script_choose_audio")}</button>
-              </div> : null}
-            </> : null}
-            <div id={`${instanceId}-spoken-script-panel`} className={styles.spokenScriptPanel} data-video-speech-frame data-invalid={speechInvalid ? true : undefined}>
-              <div className={styles.spokenScriptHeading}>
-                <span className={styles.speechModeBadge}>{t(spokenScriptOpen ? "ai_generator_video_speech_exact" : "ai_generator_video_speech_automatic")}</span>
+              ><span aria-hidden="true">＋</span>{t("ai_generator_spoken_script_add")}</button> : null}
                 {spokenScriptOpen ? <button type="button" disabled={locked} aria-controls={`${instanceId}-spoken-script-panel`}
                   onClick={() => {
                     setSpokenScript("");
@@ -1321,6 +1338,13 @@ export default function MediaFreeGenerator({
                     window.requestAnimationFrame(() => document.getElementById(`${instanceId}-add-spoken-script`)?.focus());
                   }}>{t("ai_generator_video_speech_reset")}</button> : null}
               </div>
+              {speechMode === "silent" ? <div className={styles.spokenScriptSilentHelp}>
+                <p id={`${instanceId}-spoken-script-silent-help`} className={styles.srOnly}>{t("ai_generator_spoken_script_silent_help")}</p>
+                <button type="button" disabled={locked} onClick={() => {
+                  setActiveSettingsTab("criteria");
+                  window.requestAnimationFrame(() => document.getElementById(`${instanceId}-tab-criteria`)?.focus());
+                }}>{t("ai_generator_spoken_script_choose_audio")}</button>
+              </div> : null}
               <div className={styles.spokenScriptInput}>
                 <textarea id={`${instanceId}-spoken-script`} value={spokenScript}
                   disabled={locked || speechMode === "silent"}
@@ -1333,8 +1357,10 @@ export default function MediaFreeGenerator({
                   {" · "}{t("ai_generator_video_speech_character_count", { count: speechState.characters.toLocaleString(locale), max: speechState.maxCharacters.toLocaleString(locale) })}
                 </span>
               </div>
-              <p id={`${instanceId}-spoken-script-budget`} className={styles.promptHelp}>
-                {explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty") : speechMode === "silent" ? t("ai_generator_video_speech_silent") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}
+              <p id={`${instanceId}-spoken-script-budget`} className={styles.promptHelp}
+                title={explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty") : speechMode === "silent" ? t("ai_generator_video_speech_silent") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}>
+                <span aria-hidden="true">{explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty_short") : speechMode === "silent" ? t("ai_generator_free_audio_silent") : t("ai_generator_video_speech_budget_short", { seconds: duration, model: videoModel.label })}</span>
+                <span className={styles.srOnly}>{explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty") : speechMode === "silent" ? t("ai_generator_video_speech_silent") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}</span>
               </p>
               {!spokenScriptOpen && speechState.script ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_legacy")}</p> : null}
               {speechState.segmentBudgets.length > 1 && speechMode === "characters" ? <div className={styles.speechSegments}>
@@ -1382,8 +1408,8 @@ export default function MediaFreeGenerator({
           </a> : canRecover && !busy ? <div className={styles.recoveryActions} data-media-recovery-actions>
             {generationAction}
             <button type="button" className={styles.recoveryStop} disabled={operationLocked}
-              aria-label={t("ai_generator_editor_abandon")} title={t("ai_generator_editor_abandon")}
-              onClick={() => setStopConfirmOpen(true)}>{t("ai_generator_editor_stop")}</button>
+              aria-label={t("ai_generator_recovery_cancel")} title={t("ai_generator_editor_abandon")}
+              onClick={() => setStopConfirmOpen(true)}>{t("ai_generator_recovery_cancel")}</button>
           </div> : generationAction}
           </div>
         </MediaGenerationActions>

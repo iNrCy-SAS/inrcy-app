@@ -176,7 +176,7 @@ export default function MediaModifier({
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [actionError, setActionError] = useState("");
   const [cancelConfirmationOpen, setCancelConfirmationOpen] = useState(false);
-  const [recovering, setRecovering] = useState(false);
+  const [recoveryActionBusy, setRecoveryActionBusy] = useState(false);
   const {
     quota,
     status,
@@ -187,6 +187,9 @@ export default function MediaModifier({
     cancellable: generationCancellable,
     cancellationPending,
     canRecover,
+    recovering = false,
+    canPauseRecovery = false,
+    pauseRecovery,
     cancelGeneration,
     retryRecovery,
     cancelRecovery,
@@ -197,13 +200,12 @@ export default function MediaModifier({
     discardDraft,
     reset,
   } = useMediaGeneration();
+  const recoveryPending = canRecover || recovering;
   const baseOperationLocked =
-    sourceBusy ||
+    ((sourceBusy || generationBusy || recoveryActionBusy) && !recovering) ||
     Boolean(initialSourceLoading && !sourceImage && initialPreview?.url) ||
-    generationBusy ||
-    finishing ||
-    recovering;
-  const operationLocked = baseOperationLocked || voiceBusy;
+    finishing;
+  const operationLocked = cancellationPending || baseOperationLocked || voiceBusy;
   const enginePreference = useMediaEnginePreference(quota?.accountId);
   const sourceFormat = sourceImage ? closestFormat(sourceImage.width, sourceImage.height) : "square";
   const imageEngineCompatible = isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "modify", inspirationImagesCount: sourceImage ? 1 : 0 });
@@ -344,7 +346,7 @@ export default function MediaModifier({
   };
 
   const handleGenerate = async () => {
-    if (operationLocked || canRecover || !creditQuote.ready || creditQuote.insufficient) return;
+    if (operationLocked || recoveryPending || !creditQuote.ready || creditQuote.insufficient) return;
     setActionError("");
     if (!sourceImage) {
       setActionError(t("ai_modifier_missing_source"));
@@ -396,7 +398,8 @@ export default function MediaModifier({
     } catch (caught) {
       if (
         caught instanceof MediaGenerationCancelledError ||
-        caught instanceof MediaGenerationAccountChangedError
+        caught instanceof MediaGenerationAccountChangedError ||
+        (caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")
       ) {
         return;
       }
@@ -418,18 +421,18 @@ export default function MediaModifier({
   const handleRecovery = async (abandon = false) => {
     if (!canRecover || operationLocked || recoveryInFlightRef.current) return;
     recoveryInFlightRef.current = true;
-    setRecovering(true);
+    setRecoveryActionBusy(true);
     setActionError("");
     try {
       if (abandon) await cancelRecovery();
       else await retryRecovery();
     } catch (caught) {
-      if (!(caught instanceof MediaGenerationAccountChangedError)) {
+      if (!(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
         setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
       }
     } finally {
       recoveryInFlightRef.current = false;
-      setRecovering(false);
+      setRecoveryActionBusy(false);
     }
   };
 
@@ -495,7 +498,14 @@ export default function MediaModifier({
     }
   };
 
-  useInrAssistantLocalInterface("studio_modifier", { instruction, sourceMediaId, sourcePresent: !!sourceImage, sourceName: sourceImage?.file.name, instructionFocused, libraryOpen, resultId: result?.item.id, canRecover }, {
+  useInrAssistantLocalInterface("studio_modifier", { instruction, sourceMediaId, sourcePresent: !!sourceImage, sourceName: sourceImage?.file.name, instructionFocused, libraryOpen, resultId: result?.item.id, canRecover, recovering, canPauseRecovery }, {
+    ...(recoveryPending ? { retry: {
+      invoke: () => { if (!canRecover || recovering || operationLocked) throw new Error("studio_recovery_unavailable"); void handleRecovery(); },
+      matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && ((snapshot as { recovering?: boolean }).recovering === true || Boolean((snapshot as { resultId?: string }).resultId)),
+    }, stop: {
+      invoke: () => { if (!canPauseRecovery || operationLocked || !pauseRecovery()) throw new Error("studio_recovery_pause_unavailable"); },
+      matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && (snapshot as { recovering?: boolean; canRecover?: boolean }).recovering === false && (snapshot as { canRecover?: boolean }).canRecover === true,
+    } } : {}),
     ...(!result && !canRecover ? { open: { invoke: () => setLibraryOpen(true), matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && (snapshot as { libraryOpen?: boolean }).libraryOpen === true } } : {}),
     ...(libraryOpen ? { close: { invoke: () => setLibraryOpen(false), matches: (snapshot: unknown) => !!snapshot && typeof snapshot === "object" && (snapshot as { libraryOpen?: boolean }).libraryOpen === false } } : {}),
     select: {
@@ -533,7 +543,7 @@ export default function MediaModifier({
   );
 
   return (
-    <div className={styles.workspace} data-state={status}>
+    <div className={styles.workspace} data-state={status} data-recovery-pending={recoveryPending}>
       <main className={styles.formContent}>
         <section className={styles.panel} aria-labelledby="modifier-instruction-title">
           <header className={styles.panelHeader}>
@@ -621,8 +631,12 @@ export default function MediaModifier({
                 accountId={quota?.accountId}
                 variant="embedded"
                 creationStarted
-                generationInProgress={sourceBusy || generationBusy || recovering}
-                recoveryPending={canRecover}
+                generationInProgress={sourceBusy || generationBusy || recoveryActionBusy}
+                recoveryPending={recoveryPending}
+                recoveryChecking={recovering}
+                canPauseRecovery={canPauseRecovery}
+                handleRetryRecovery={() => handleRecovery()}
+                handlePauseRecovery={() => { pauseRecovery?.(); }}
                 cancellationPending={cancellationPending}
                 kind="image"
                 format={sourceFormat}
@@ -740,18 +754,18 @@ export default function MediaModifier({
         <MediaGenerationActions>
           {engineControls}
           <MediaCreditQuoteSummary status={creditQuote} quota={quota} />
-          {canRecover && !generationBusy ? <button type="button" className={styles.secondaryButton} onClick={handleRequestGenerationStop} disabled={operationLocked}>{t("ai_generator_editor_stop")}</button> : null}
+          {canRecover && !generationBusy ? <button type="button" className={styles.secondaryButton} onClick={handleRequestGenerationStop} disabled={operationLocked}>{t("ai_generator_recovery_cancel")}</button> : null}
           <button
             type="button"
             className={styles.primaryButton}
             data-media-primary-action
             onClick={() => {
-              if (generationBusy) handleRequestGenerationStop();
-              else if (canRecover) void handleRecovery();
+              if (recoveryPending) void handleRecovery();
+              else if (generationBusy) handleRequestGenerationStop();
               else if (!result) void handleGenerate();
             }}
-            title={generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
-            disabled={generationBusy ? !generationCancellable : canRecover ? operationLocked :
+            title={recoveryPending ? t("ai_generator_recovery_generation_blocked") : generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
+            disabled={recoveryPending ? recovering || operationLocked : generationBusy ? !generationCancellable :
               Boolean(result) || operationLocked ||
               !sourceImage ||
               instruction.trim().length < 3 ||
@@ -760,7 +774,7 @@ export default function MediaModifier({
             }
           >
             <span aria-hidden="true">{generationBusy ? "■" : "✦"}</span>
-            {t(generationBusy ? "ai_generator_editor_stop" : canRecover ? "ai_generator_editor_recover" : "ai_modifier_action")}
+            {t(recoveryPending ? recovering ? "ai_generator_recovery_checking" : "ai_generator_recovery_check" : generationBusy ? "ai_generator_recovery_cancel" : "ai_modifier_action")}
           </button>
         </MediaGenerationActions>
       </footer>

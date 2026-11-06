@@ -13,6 +13,7 @@ import * as narration from "../../lib/aiMediaNarrationVoices.ts";
 import * as rules from "../../lib/mediaRules.ts";
 import * as voiceRules from "../../lib/aiMediaCharacterVoices.ts";
 import * as voiceClient from "../../lib/aiMediaCharacterVoiceClient.ts";
+import { quoteAiMediaCredits, type AiMediaCreditsQuoteInput } from "../../lib/aiMediaCreditsPricing.ts";
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
 
 type Props = Record<string, unknown>;
@@ -25,7 +26,7 @@ const find = (tree: unknown, predicate: (node: Element) => boolean) => { const n
 const text = (tree: unknown): string => Array.isArray(tree) ? tree.map(text).join("") : typeof tree === "string" || typeof tree === "number" ? String(tree) : tree && typeof tree === "object" && "props" in tree ? text((tree as Element).props.children) : "";
 
 /** Execute the real Free editor, reusable voice input and engine controls; only external IO is mocked. */
-function harness(kind: "video" | "image" = "video", initialEngine: models.AiMediaVideoEngine = "omni", sampleDurationSeconds = 2, options: { initialPrompt?: string; locale?: string } = {}) {
+function harness(kind: "video" | "image" = "video", initialEngine: models.AiMediaVideoEngine = "omni", sampleDurationSeconds = 2, options: { initialPrompt?: string; locale?: string; realEnginePreference?: boolean } = {}) {
   const parentSlots: Slot[] = []; const childSlots = new Map<string, Slot[]>();
   let slots = parentSlots; let cursor = 0; let dirty = false; let tree!: Element;
   const effects: Array<() => void> = []; const listeners = new Map<string, Set<() => void>>();
@@ -64,9 +65,10 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   type RecoveredResult = { item: { id: string; media_type: "video" | "image" }; format: MediaGenerationRequest["format"]; recovered: true };
   let failGenerationForRecovery = false; let recoveryFailure = false;
   const recoveredResult: RecoveredResult = { item: { id: "recovered-paid-result", media_type: kind }, format: kind === "video" ? "story" : "square", recovered: true };
-  const hook = { quota, quotaLoading: false, busy: false, progress: 0, error: "", result: null as RecoveredResult | null, canRecover: false,
+  const hook = { quota, quotaLoading: false, busy: false, progress: 0, error: "", result: null as RecoveredResult | null, canRecover: false, recovering: false, canPauseRecovery: false,
     recoveryContext: null as { kind: "video" | "image"; format: MediaGenerationRequest["format"] } | null,
     loadQuota() {},
+    pauseRecovery() { if (!hook.canPauseRecovery) return false; hook.busy = false; hook.recovering = false; hook.canPauseRecovery = false; hook.canRecover = true; return true; },
     generate: async (request: MediaGenerationRequest): Promise<void> => {
       requests.push(request);
       if (failGenerationForRecovery) { failGenerationForRecovery = false; hook.canRecover = true; hook.recoveryContext = { kind, format: request.format }; throw new Error("A paid generation needs recovery"); }
@@ -81,6 +83,9 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     },
   };
   const preference = { videoEngine: initialEngine, imageEngine: "openai" as models.AiMediaImageEngine, videoResolution: models.getAiMediaVideoModel(initialEngine).defaultResolution, update(patch: Props) { Object.assign(preference, patch); } };
+  const preferenceKey = "inrcy:media-engines:v1:account-a";
+  const storedPreferences = new Map([[preferenceKey, JSON.stringify({ videoEngine: initialEngine, imageEngine: preference.imageEngine, videoResolution: preference.videoResolution })]]);
+  const localStorage = { getItem: (key: string) => storedPreferences.get(key) ?? null, setItem: (key: string, value: string) => { storedPreferences.set(key, value); } };
   const modules = new Map<string, unknown>([
     ["../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface() {} }],
     ["@/lib/inrAssistantStudioFormSelection", studioForm],
@@ -101,7 +106,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     ["@/lib/mediaGenerationReferenceClient", { prepareMediaGenerationImageReference: async (file: File) => ({ name: file.name, data: Buffer.from("synthetic-photo").toString("base64"), mimeType: "image/png" }) }],
     ["@/lib/aiMediaModelRecommendation", { recommendAiMediaModel: () => null }],
     ["../_hooks/useMediaEnginePreference", { __esModule: true, default: () => preference }],
-    ["../_hooks/useMediaCreditQuote", { __esModule: true, default: (input: Props) => { quoteInputs.push(input); return { ready: true, insufficient: false, authorization: { expectedCredits: 88 }, quote: { totalCredits: 88 } }; } }],
+    ["../_hooks/useMediaCreditQuote", { __esModule: true, default: (input: Props) => { quoteInputs.push(input); const quote = options.realEnginePreference ? quoteAiMediaCredits(input as AiMediaCreditsQuoteInput) : { totalCredits: 88 }; return { ready: true, insufficient: false, authorization: { expectedCredits: quote.totalCredits }, quote }; } }],
     ["./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings-tabs" }],
   ]);
   for (const name of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaPromptHelp", "./MediaBusinessDnaHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceLibraryPicker"]) modules.set(name, { __esModule: true, default: name });
@@ -121,11 +126,12 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   function load(file: string) {
     const output = ts.transpileModule(read(file), { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
     const record = { exports: {} as { default: (props: Props) => Element } };
-    new Function("module", "exports", "require", "window", "fetch", output)(record, record.exports, (id: string) => { if (id === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy; if (id.endsWith(".module.css")) return css; assert.ok(modules.has(id), `Unexpected actual Free dependency ${id}`); return modules.get(id); }, browser, fetch);
+    new Function("module", "exports", "require", "window", "fetch", "localStorage", output)(record, record.exports, (id: string) => { if (id === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy; if (id.endsWith(".module.css")) return css; assert.ok(modules.has(id), `Unexpected actual Free dependency ${id}`); return modules.get(id); }, browser, fetch, localStorage);
     return record.exports;
   }
   const voice = load("app/dashboard/_components/MediaCharacterVoiceInput.tsx"); modules.set("./MediaCharacterVoiceInput", { __esModule: true, ...voice });
   const controls = load("app/dashboard/_components/MediaEngineCreditControls.tsx"); modules.set("./MediaEngineCreditControls", { __esModule: true, ...controls });
+  if (options.realEnginePreference) modules.set("../_hooks/useMediaEnginePreference", { __esModule: true, ...load("app/dashboard/_hooks/useMediaEnginePreference.ts") });
   const free = load("app/dashboard/_components/MediaFreeGenerator.tsx");
   const props = { source: "studio", acceptMode: "library", mediaType: kind, initialPrompt: options.initialPrompt ?? "Le personnage présente son métier avec sa voix.", onAccepted() {} };
   const render = () => {
@@ -144,6 +150,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   const flush = async () => { for (let at = 0; at < 5; at++) { await new Promise((resolve) => setImmediate(resolve)); render(); } };
   render();
   return { cards, tree: () => tree, requests, quoteInputs, deleted, uploads, uploadedSamples, sample, render, flush,
+    storedEnginePreference: () => JSON.parse(localStorage.getItem(preferenceKey) || "null") as Props,
     renderVoice,
     renderEngines() { const node = find(tree, (item) => item.type === controls.default); return renderChild("engines", controls, node.props); },
     renderEngineInfo() { const node = find(tree, (item) => item.type === controls.default); let child = renderChild("engines", controls, node.props); (find(child, (item) => item.type === "button" && item.props["aria-haspopup"] === "dialog").props.onClick as () => void)(); child = renderChild("engines", controls, node.props); const info = find(child, (item) => typeof item.type === "function" && item.type.name === "MediaEngineInfoModal"); return renderChild("engine-info", { default: info.type as (props: Props) => Element }, info.props); },
@@ -158,6 +165,9 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     consent(checked = true) { const authorization = find(tree, (node) => node.props["data-media-final-authorization"] !== undefined); (find(authorization, (node) => node.type === "input").props.onChange as (event: unknown) => void)({ target: { checked } }); render(); },
     regenerationConsent(checked: boolean) { const consents = find(tree, (node) => node.type === "preview").props.regenerationConsents as Array<{ onChange: (checked: boolean) => void }>; assert.equal(consents.length, 1); consents[0].onChange(checked); render(); },
     failNextGenerationForRecovery() { failGenerationForRecovery = true; },
+    beginRecoveryChecking() { hook.busy = true; hook.recovering = true; hook.canRecover = true; hook.canPauseRecovery = true; hook.recoveryContext = { kind, format: "story" }; render(); },
+    pauseRecoveryChecking() { (find(tree, node => node.type === "preview").props.handlePauseRecovery as () => void)(); render(); },
+    clearRecoveryState() { hook.busy = false; hook.recovering = false; hook.canRecover = false; hook.canPauseRecovery = false; hook.recoveryContext = null; render(); },
     setRecoveryFailure(value: boolean) { recoveryFailure = value; },
     editRecovered() { (find(tree, (node) => node.type === "preview").props.handleEditCriteria as () => void)(); render(); },
     async abandonRecovery() { (find(tree, (node) => node.type === "preview").props.handleConfirmGenerationStop as () => void)(); await flush(); },
@@ -443,6 +453,69 @@ test("available supplied-voice engines remain selected or can be selected with t
     assert.equal(String(menu.props.value).split(":")[0], engine);
     h.consent(); await h.generate(); assert.equal(h.requests.length, 1); assert.equal(h.requests[0].videoEngine, engine); assert.equal(h.requests[0].teamVideoSpeechMode, "characters");
     assert.equal(h.requests[0].inspirationImages![0].voiceSample?.path, h.sample.path); h.dispose();
+  }
+});
+
+test("the real hydrated MiniMax preference persists automatic supplied-voice Wan 2.7 and 1080p together without losing speech or consent guards", async () => {
+  const script = "Bonjour, nous prenons soin de votre jardin.";
+  const h = harness("video", "minimax-h3", 8.4, { realEnginePreference: true, initialPrompt: "Le jardinier présente son jardin. Lumière naturelle." });
+  assert.equal(h.storedEnginePreference().videoEngine, "minimax-h3");
+  assert.equal(h.storedEnginePreference().videoResolution, "768p");
+  await h.addPhoto("photo-jim.png"); h.criteria(0, "character", "required"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
+  assert.equal(h.quoteInputs.at(-1)!.videoEngine, "wan27");
+  assert.equal(h.storedEnginePreference().videoEngine, "minimax-h3", "the automatic compatible recommendation must not overwrite a saved engine before a user choice");
+  h.enterSpeech(script); h.setDuration(10); h.consent();
+  const authorization = () => find(h.tree(), node => node.type === "input" && String(node.props.id).endsWith("-authorization"));
+  assert.equal(authorization().props.checked, true);
+  h.selectEngine("wan27", "1080p"); await h.flush();
+  assert.equal(h.storedEnginePreference().videoEngine, "wan27");
+  assert.equal(h.storedEnginePreference().videoResolution, "1080p");
+  assert.equal(find(h.renderEngines(), node => node.type === "select" && String(node.props.id).endsWith("-engine")).props.value, "wan27:1080p");
+  assert.equal(authorization().props.checked, false, "changing effective resolution still revokes authorization");
+  await h.generate(); assert.equal(h.requests.length, 0);
+  h.setDuration(8); h.setDuration(10); await h.flush();
+  const quote = h.quoteInputs.at(-1)!;
+  assert.equal(quote.videoEngine, "wan27"); assert.equal(quote.videoResolution, "1080p");
+  assert.equal(quote.durationSeconds, 10); assert.equal(quote.spokenScript, script); assert.equal(quote.hasProvidedCharacterVoice, true);
+  assert.equal(quoteAiMediaCredits(quote as AiMediaCreditsQuoteInput).totalCredits, 157);
+  h.consent(); await h.generate();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].videoEngine, "wan27"); assert.equal(h.requests[0].videoResolution, "1080p");
+  assert.equal(h.requests[0].expectedCredits, 157); assert.equal(h.requests[0].spokenScript, script);
+  assert.equal(h.requests[0].inspirationImages![0].voiceSample?.path, h.sample.path);
+  assert.equal(h.requests[0].identityConsent, true);
+  h.dispose();
+});
+
+test("the actual Free callbacks retain submitted voice samples through recovery edits and pause without relaunching the paid request", async () => {
+  for (const phase of ["checking", "paused", "resolved"] as const) for (const change of ["role", "voice", "remove", "replace"] as const) {
+    const h = harness("video", "wan27");
+    await h.addPhoto(); h.criteria(0, "character", "required"); h.chooseVoice(0, "provided"); await h.uploadVoice(0); h.consent(); await h.generate();
+    assert.equal(h.requests.length, 1, "one explicitly authorized submission captures its original sample paths");
+    const submittedPath = h.requests[0].inspirationImages![0].voiceSample!.path;
+    assert.equal(submittedPath, h.sample.path);
+    h.beginRecoveryChecking();
+    if (phase !== "checking") h.pauseRecoveryChecking();
+    if (phase === "resolved") h.clearRecoveryState();
+    if (change === "role") h.criteria(0, "environment", "inspiration");
+    else if (change === "voice") h.chooseVoice(0, "ai");
+    else if (change === "remove") h.removePhoto(0);
+    else await h.uploadVoice(0);
+    assert.deepEqual(h.deleted, [], `${phase}/${change}: original submitted audio is retained for existing expiry`);
+    assert.equal(h.requests.length, 1, "editing or pausing never starts another request");
+    assert.equal(h.requests[0].inspirationImages![0].voiceSample!.path, submittedPath, "the submitted request keeps its own immutable audio association");
+    h.dispose();
+  }
+});
+
+test("Free recovery hydration preserves voices without an in-memory snapshot and ordinary unused voices are still deleted", async () => {
+  for (const pending of [true, false]) {
+    const h = harness("video", "wan27"); await h.addPhoto(); h.criteria(0, "character", "required"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
+    if (pending) { h.beginRecoveryChecking(); h.pauseRecoveryChecking(); }
+    h.chooseVoice(0, "ai");
+    assert.deepEqual(h.deleted, pending ? [] : [h.sample.path]);
+    assert.equal(h.requests.length, 0);
+    h.dispose();
   }
 });
 

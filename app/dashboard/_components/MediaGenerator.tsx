@@ -283,6 +283,9 @@ export default function MediaGenerator({
     cancellable: generationCancellable,
     cancellationPending,
     canRecover,
+    recovering = false,
+    canPauseRecovery = false,
+    pauseRecovery,
     recoveryContext,
     quotaLoading,
     loadQuota,
@@ -378,8 +381,14 @@ export default function MediaGenerator({
   }
   const acceptInFlightRef = useRef(false);
   const recoveryInFlightRef = useRef(false);
-  const busy = generationBusy || discarding;
-  const operationLocked = busy || finishing || voiceBusy || inspirationBusy || characterVoiceBusy;
+  const submittedVoicePaths = useRef(new Set<string>());
+  const recoveryPending = Boolean(canRecover || recovering || recoveryContext);
+  const busy = (generationBusy && !recovering) || discarding;
+  const operationLocked = cancellationPending || busy || finishing || voiceBusy || inspirationBusy || characterVoiceBusy;
+  const releaseUnusedVoiceSample = (sample: Parameters<typeof deleteCharacterVoiceSample>[0]) => {
+    // A submitted request retains its own audio until normal storage expiry.
+    if (sample && !recoveryPending && !submittedVoicePaths.current.has(sample.path)) void deleteCharacterVoiceSample(sample);
+  };
   const referencePickerVisible = !creationScreen && activeSettingsTab === "selection" && mediaSourceMode === "real";
   useInrAssistantLocalInterface("studio_guided_library", { open: libraryPickerOpen }, {
     open: { invoke: () => { if (operationLocked || !referencePickerVisible || (!transformMode && inspirationImages.length >= MAX_INSPIRATION_IMAGES)) throw new Error("reference_picker_unavailable"); setLibraryPickerOpen(true); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
@@ -717,6 +726,7 @@ export default function MediaGenerator({
     });
   const disabled =
     operationLocked ||
+    recoveryPending ||
     !subjectReady ||
     (textMode === "exact" && exactText.trim().length < 2) ||
     visibleTextModeConflict ||
@@ -776,7 +786,7 @@ export default function MediaGenerator({
     role: MediaGenerationReferenceRole,
     characterIndex?: 1 | 2 | 3
   ) => {
-    inspirationImages.filter((image) => image.role === role && (role !== "character" || image.characterIndex === characterIndex)).forEach((image) => { void deleteCharacterVoiceSample(image.voiceSample); });
+    inspirationImages.filter((image) => image.role === role && (role !== "character" || image.characterIndex === characterIndex)).forEach((image) => { releaseUnusedVoiceSample(image.voiceSample); });
     setInspirationImages((current) =>
       current.filter(
         (image) =>
@@ -810,7 +820,7 @@ export default function MediaGenerator({
       assertStudioInspirationImageMetadata(file, t("ai_generator_inspiration_images_only"));
       const prepared = await prepareMediaGenerationImageReference(file);
       const proposedRole = insertion === "append" ? "character" : role;
-      if (insertion === "replace") inspirationImages.filter((image) => image.role === role && (role !== "character" || image.characterIndex === characterIndex)).forEach((image) => { void deleteCharacterVoiceSample(image.voiceSample); });
+      if (insertion === "replace") inspirationImages.filter((image) => image.role === role && (role !== "character" || image.characterIndex === characterIndex)).forEach((image) => { releaseUnusedVoiceSample(image.voiceSample); });
       const next: StudioReferenceImage = {
         ...prepared,
         clientReferenceId: createIdentityReferenceSetId(),
@@ -913,7 +923,7 @@ export default function MediaGenerator({
   };
 
   const removeReferenceAt = (index: number) => {
-    void deleteCharacterVoiceSample(inspirationImages[index]?.voiceSample);
+    releaseUnusedVoiceSample(inspirationImages[index]?.voiceSample);
     setInspirationImages((current) =>
       normalizeCharacterReferenceIndexes(
         current.filter((_, currentIndex) => currentIndex !== index)
@@ -952,7 +962,7 @@ export default function MediaGenerator({
     index: number,
     role: StudioRequiredReferenceRole
   ) => {
-    if (role !== "character") void deleteCharacterVoiceSample(inspirationImages[index]?.voiceSample);
+    if (role !== "character") releaseUnusedVoiceSample(inspirationImages[index]?.voiceSample);
     setInspirationImages((current) => {
       const next = current.map((reference, currentIndex) => {
         if (currentIndex === index) return {
@@ -967,7 +977,7 @@ export default function MediaGenerator({
   };
 
   const setCharacterVoiceMode = (index: number, mode: "ai" | "provided") => {
-    if (mode === "ai") void deleteCharacterVoiceSample(inspirationImages[index]?.voiceSample);
+    if (mode === "ai") releaseUnusedVoiceSample(inspirationImages[index]?.voiceSample);
     setInspirationImages((current) => current.map((reference, currentIndex) => currentIndex === index && reference.role === "character"
       ? { ...reference, voiceMode: mode, voiceSample: mode === "provided" ? reference.voiceSample : undefined }
       : reference));
@@ -977,7 +987,7 @@ export default function MediaGenerator({
 
   const setCharacterVoiceSample = (index: number, sample: AiMediaCharacterVoiceSample | undefined) => {
     const previous = inspirationImages[index]?.voiceSample;
-    if (previous?.path !== sample?.path) void deleteCharacterVoiceSample(previous);
+    if (previous?.path !== sample?.path) releaseUnusedVoiceSample(previous);
     setInspirationImages((current) => current.map((reference, currentIndex) => currentIndex === index && reference.role === "character"
       ? { ...reference, voiceSample: sample }
       : reference));
@@ -1107,7 +1117,9 @@ export default function MediaGenerator({
       }
     }
 
+    let recoveryPaused = false;
     try {
+      for (const reference of mediaSourceMode === "real" ? inspirationImages : []) if (reference.voiceSample?.path) submittedVoicePaths.current.add(reference.voiceSample.path);
       await generate({
         ...creditQuote.authorization,
         imageEngine: enginePreference.imageEngine,
@@ -1176,6 +1188,11 @@ export default function MediaGenerator({
       });
     } catch (caught) {
       if (sequence !== generationSequenceRef.current) return;
+      if (caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError") {
+        recoveryPaused = true;
+        setActionError("");
+        return;
+      }
       if (caught instanceof MediaGenerationAccountChangedError) {
         setActionError("");
         return;
@@ -1190,9 +1207,11 @@ export default function MediaGenerator({
     } finally {
       // L'accord porte sur un essai de génération précis. Une nouvelle
       // tentative, réussie ou non, exige donc une confirmation fraîche.
-      if (identityConsentRequired) setIdentityConsent(false);
-      setTeamVideoVeoConsent(false);
-      setTeamVideoConsentOpen(false);
+      if (!recoveryPaused) {
+        if (identityConsentRequired) setIdentityConsent(false);
+        setTeamVideoVeoConsent(false);
+        setTeamVideoConsentOpen(false);
+      }
     }
   };
 
@@ -1246,7 +1265,7 @@ export default function MediaGenerator({
     try {
       await retryRecovery();
     } catch (caught) {
-      if (sequence === generationSequenceRef.current && !(caught instanceof MediaGenerationAccountChangedError)) {
+      if (sequence === generationSequenceRef.current && !(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
         setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
       }
     } finally {
@@ -1263,7 +1282,7 @@ export default function MediaGenerator({
       const recovered = await cancelRecovery();
       if (sequence === generationSequenceRef.current && !recovered) setCreationScreen(false);
     } catch (caught) {
-      if (sequence === generationSequenceRef.current && !(caught instanceof MediaGenerationAccountChangedError)) {
+      if (sequence === generationSequenceRef.current && !(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
         setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
       }
     } finally {
@@ -1455,10 +1474,16 @@ export default function MediaGenerator({
     speechMode: teamVideoSpeechMode, narrationVoice, narrationVoiceVariant, withMusic,
     durationScene: { seconds: durationSeconds, sceneMode: videoSceneMode },
   };
-  useInrAssistantLocalInterface("studio_recovery_guided", { confirmationOpen: cancelConfirmationOpen, canRecover, resultId: generationResult?.item.id ?? null, recoveryContext }, { review: {
+  useInrAssistantLocalInterface("studio_recovery_guided", { confirmationOpen: cancelConfirmationOpen, canRecover, recovering, canPauseRecovery, resultId: generationResult?.item.id ?? null, recoveryContext }, { retry: {
+    invoke: () => { if (!canRecover || recovering || operationLocked) throw new Error("studio_recovery_unavailable"); void handleRecoverResult(); },
+    matches: state => !!state && typeof state === "object" && ((state as { recovering?: boolean }).recovering === true || Boolean((state as { resultId?: string | null }).resultId)),
+  }, stop: {
+    invoke: () => { if (!canPauseRecovery || operationLocked || !pauseRecovery()) throw new Error("studio_recovery_pause_unavailable"); },
+    matches: state => !!state && typeof state === "object" && (state as { recovering?: boolean; canRecover?: boolean }).recovering === false && (state as { canRecover?: boolean }).canRecover === true,
+  }, review: {
     invoke: () => { if (!canRecover || generationBusy || operationLocked) throw new Error("studio_recovery_unavailable"); setCancelConfirmationOpen(true); },
     matches: state => !!state && typeof state === "object" && (state as { confirmationOpen?: boolean; canRecover?: boolean }).confirmationOpen === true && (state as { canRecover?: boolean }).canRecover === true,
-  } }, canRecover && !generationBusy, operationLocked);
+  } }, canRecover || recovering, operationLocked);
   useInrAssistantLocalInterface("studio_guided_form", { ...assistantFormSnapshot, quotaRefreshId, quotaAccountId: quota?.accountId ?? null }, {
     ...(!quotaLoading ? { retry: {
       invoke: async (_value: string | null, stillCurrent: () => boolean) => {
@@ -1583,12 +1608,12 @@ export default function MediaGenerator({
 
   const generationAction = <button
     type="button" className={styles.generateButton} data-media-primary-action
-    disabled={generationBusy ? !generationCancellable : canRecover ? operationLocked : disabled}
-    title={generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
-    onClick={() => { if (generationBusy) handleRequestGenerationStop(); else if (canRecover) void handleRecoverResult(); else void handleGenerate(); }}
+    disabled={recoveryPending ? recovering || operationLocked : generationBusy ? !generationCancellable : disabled}
+    title={recoveryPending ? t("ai_generator_recovery_generation_blocked") : generationBusy && !generationCancellable ? t("ai_generator_editor_stop_locked") : undefined}
+    onClick={() => { if (recoveryPending) void handleRecoverResult(); else if (generationBusy) handleRequestGenerationStop(); else void handleGenerate(); }}
   >
-    <span aria-hidden="true">{generationBusy ? "■" : generationResult ? "↻" : "✦"}</span>
-    <strong>{t(generationBusy ? "ai_generator_editor_stop" : canRecover ? "ai_generator_editor_recover" : generationResult ? "ai_generator_regenerate" : kind === "image" ? "ai_generator_generate_image" : "ai_generator_generate_video")}</strong>
+    <span aria-hidden="true">{generationBusy && !recoveryPending ? "■" : generationResult ? "↻" : "✦"}</span>
+    <strong>{t(recoveryPending ? recovering ? "ai_generator_recovery_checking" : "ai_generator_recovery_check" : generationBusy ? "ai_generator_editor_stop" : generationResult ? "ai_generator_regenerate" : kind === "image" ? "ai_generator_generate_image" : "ai_generator_generate_video")}</strong>
   </button>;
 
   const preview = (
@@ -1597,7 +1622,11 @@ export default function MediaGenerator({
         variant="embedded"
         creationStarted={creationScreen}
         generationInProgress={generationBusy}
-        recoveryPending={canRecover}
+        recoveryPending={recoveryPending}
+        recoveryChecking={recovering}
+        canPauseRecovery={canPauseRecovery}
+        handleRetryRecovery={handleRecoverResult}
+        handlePauseRecovery={() => { pauseRecovery?.(); }}
         cancellationPending={cancellationPending}
         kind={generationBusy && activeAttempt ? activeAttempt.kind : kind}
         format={generationBusy && activeAttempt ? activeAttempt.format : format}
@@ -1652,7 +1681,7 @@ export default function MediaGenerator({
   return (
     <div className={styles.generator} data-origin={origin} data-layout="editor">
       {teamVideoConsentDialog}
-      <div className={editorStyles.editorBody}>
+      <div className={editorStyles.editorBody} data-recovery-pending={recoveryPending}>
         <div className={editorStyles.settingsPane}>
           <MediaGenerationSettingsTabs idPrefix={instanceId} activeTab={activeSettingsTab} onChange={setActiveSettingsTab} tabs={[{ id: "subject", label: t("ai_generator_redesign_subject_title") }, { id: "selection", label: t("ai_generator_redesign_selection_title") }, { id: "direction", label: t("ai_generator_editor_tab_style") }, { id: "finish", label: t(kind === "video" ? "ai_generator_editor_tab_text_voice" : "ai_generator_redesign_image_finish_title") }]} />
           <div className={`${styles.essentialGrid} ${editorStyles.settingsPanels}`} data-testid="inr-studio-essential-grid">
@@ -2705,8 +2734,8 @@ export default function MediaGenerator({
           {canRecover && !generationBusy ? <div className={styles.recoveryActions} data-media-recovery-actions>
             {generationAction}
             <button type="button" className={styles.recoveryStop} disabled={operationLocked}
-              aria-label={t("ai_generator_editor_abandon")} title={t("ai_generator_editor_abandon")}
-              onClick={() => setCancelConfirmationOpen(true)}>{t("ai_generator_editor_stop")}</button>
+              aria-label={t("ai_generator_recovery_cancel")} title={t("ai_generator_editor_abandon")}
+              onClick={() => setCancelConfirmationOpen(true)}>{t("ai_generator_recovery_cancel")}</button>
           </div> : generationAction}
         </MediaGenerationActions>
       </div>

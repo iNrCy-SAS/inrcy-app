@@ -1373,25 +1373,37 @@
   },
   {
     "id": "basic.media.0059",
-    "label": "Génération engagée auprès du moteur, arrêt indisponible.",
+    "label": "Vérifier mon média / action principale selon l’état natif",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<button\n    type=\"button\" className={styles.primaryButton} data-media-primary-action\n    disabled={recoveryIncompatible || (busy ? !cancellable : canRecover ? operationLocked : Boolean(result) || !canGenerate)}\n    title={busy && !cancellable ? t(\"ai_generator_editor_stop_locked\") : undefined}\n    onClick={() => { if (busy) setStopConfirmOpen(true); else if (canRecover) void handleRecoverResult(); else if (!result) void handleGenerate(); }}\n  >\n    <span aria-hidden=\"true\">{busy ? \"■\" : \"✦\"}</span>\n    {t(busy ? \"ai_generator_editor_stop\" : canRecover ? \"ai_generator_editor_recover\" : kind === \"video\" ? \"ai_generator_generate_video\" : \"ai_generator_generate_image\")}\n  </button>",
-    "capabilityId": "studio.read",
+    "sourceAnchor": "<button\n    type=\"button\" className={styles.primaryButton} data-media-primary-action\n    disabled={recoveryIncompatible || (recoveryPending ? recovering || operationLocked : busy ? !cancellable : Boolean(result) || !canGenerate)}\n    title={recoveryPending ? t(\"ai_generator_recovery_generation_blocked\") : busy && !cancellable ? t(\"ai_generator_editor_stop_locked\") : undefined}\n    onClick={() => { if (recoveryPending) void handleRecoverResult(); else if (busy) setStopConfirmOpen(true); else if (!result) void handleGenerate(); }}\n  >\n    <span aria-hidden=\"true\">{busy && !recoveryPending ? \"■\" : \"✦\"}</span>\n    {t(recoveryPending ? recovering ? \"ai_generator_recovery_checking\" : \"ai_generator_recovery_check\" : busy ? \"ai_generator_editor_stop\" : kind === \"video\" ? \"ai_generator_generate_video\" : \"ai_generator_generate_image\")}\n  </button>",
+    "capabilityId": "studio.form",
     "toolNames": [
-      "getMediaGeneration"
+      "controlLocalInterface"
     ],
-    "mode": "read",
-    "notes": "Reprise du suivi du même identifiant ; ne lance pas de génération de remplacement, ne consomme pas un second crédit. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "mode": "form",
+    "notes": "En récupération, retry utilise le bridge local du Studio libre, guidé ou Modifier réellement monté : vérifier le même identifiant par GET, sans nouvelle génération, annulation ni acceptation du brouillon. Le navigateur confirme la vérification en cours ou le résultat rendu ; compte, révision et verrou natif restent contrôlés. Hors récupération, génération et confirmation d’annulation gardent leurs parcours distincts ; aucune permission de les lancer ne vient du contrôle retry.",
     "testFiles": [
-      "tests/ai-assistant/media-tools.test.mts"
+      "tests/ai-assistant/studio-recovery-local-controls.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-media-generation/media-generation-cross-tab-recovery-runtime.test.mts"
     ],
-    "testAnchor": "a read-only follow-up distinguishes ready draft from saved media without accepting or generating",
+    "testAnchor": "the actual Free Guided and Modifier recovery bridges check the same result or pause locally without generation or cancellation",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:57600e27b2d4990c:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:3a5f40570f171cf1:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "real recovery card keeps check and pause visible on desktop and mobile while editing stays available and no generation or cancellation is sent"
+      },
+      {
+        "file": "tests/ai-media-generation/media-generation-cross-tab-recovery-runtime.test.mts",
+        "testAnchor": "pausing a pending recovery GET preserves its identity, photo and credits, then resumes that exact job"
+      }
     ]
   },
   {
@@ -1896,7 +1908,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<textarea\n              id={`${instanceId}-prompt`}\n              value={prompt}\n              maxLength={kind === \"video\" ? undefined : maxUserPromptLength}\n              disabled={busy || finishing || referencesBusy || characterVoiceBusy}\n              readOnly={voiceBusy}\n              aria-invalid={kind === \"video\" && (prompt.length > maxUserPromptLength || misplacedSpeechBlocking) ? true : undefined}\n              aria-describedby={kind === \"image\" ? `${instanceId}-prompt-help` : `${instanceId}-visual-brief-help ${instanceId}-prompt-count${prompt.length > maxUserPromptLength || misplacedSpeechBlocking ? ` ${instanceId}-visual-brief-error` : \"\"}`}\n              placeholder={t(\n                kind === \"video\"\n                  ? \"ai_generator_free_prompt_placeholder_video\"\n                  : \"ai_generator_free_prompt_placeholder_image\"\n              )}\n              onChange={(event) => setPrompt(event.target.value)}\n            />",
+    "sourceAnchor": "<textarea\n              id={`${instanceId}-prompt`}\n              value={prompt}\n              maxLength={kind === \"video\" ? undefined : maxUserPromptLength}\n              disabled={operationLocked}\n              readOnly={voiceBusy}\n              aria-invalid={kind === \"video\" && (prompt.length > maxUserPromptLength || misplacedSpeechBlocking) ? true : undefined}\n              aria-describedby={kind === \"image\" ? `${instanceId}-prompt-help` : `${instanceId}-visual-brief-help ${instanceId}-prompt-count${prompt.length > maxUserPromptLength || misplacedSpeechBlocking ? ` ${instanceId}-visual-brief-error` : \"\"}`}\n              placeholder={t(\n                kind === \"video\"\n                  ? \"ai_generator_free_prompt_placeholder_video\"\n                  : \"ai_generator_free_prompt_placeholder_image\"\n              )}\n              onChange={(event) => setPrompt(event.target.value)}\n            />",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -1909,7 +1921,7 @@
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#textarea:79685eb386ef4062:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#textarea:bfcc1557187cecb9:1"
     ]
   },
   {
@@ -1919,7 +1931,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<MediaSubjectVoiceButton\n                value={prompt}\n                onChange={setPrompt}\n                onBusyChange={setVoiceBusy}\n                disabled={busy || finishing || referencesBusy || characterVoiceBusy}\n                maxLength={maxUserPromptLength}\n                purpose=\"instruction\"\n                contextLabel={t(\"ai_generator_free_prompt_label\")}\n                placement=\"inline\"\n              />",
+    "sourceAnchor": "<MediaSubjectVoiceButton\n                value={prompt}\n                onChange={setPrompt}\n                onBusyChange={setVoiceBusy}\n                disabled={operationLocked}\n                maxLength={maxUserPromptLength}\n                purpose=\"instruction\"\n                contextLabel={t(\"ai_generator_free_prompt_label\")}\n                placement=\"inline\"\n              />",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
@@ -1933,7 +1945,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Le microphone et la voix personnelle nécessitent le contrôle natif et le choix du professionnel. L’assistant peut fournir la consigne écrite sans usurper une capture ou un consentement vocal.",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#MediaSubjectVoiceButton:58df808cc4a9612c:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#MediaSubjectVoiceButton:59ae5084fed437e3:1"
     ]
   },
   {
@@ -2101,25 +2113,25 @@
   },
   {
     "id": "basic.media.0090",
-    "label": "Abandonner la tentative",
+    "label": "Annuler la génération",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={styles.recoveryStop} disabled={operationLocked}\n              aria-label={t(\"ai_generator_editor_abandon\")} title={t(\"ai_generator_editor_abandon\")}\n              onClick={() => setStopConfirmOpen(true)}>{t(\"ai_generator_editor_stop\")}</button>",
+    "sourceAnchor": "<button type=\"button\" className={styles.recoveryStop} disabled={operationLocked}\n              aria-label={t(\"ai_generator_recovery_cancel\")} title={t(\"ai_generator_editor_abandon\")}\n              onClick={() => setStopConfirmOpen(true)}>{t(\"ai_generator_recovery_cancel\")}</button>",
     "capabilityId": "studio.draft-review",
     "toolNames": [
       "prepareStudioDraftReview"
     ],
     "mode": "confirm",
-    "notes": "Ouvre uniquement la confirmation native exacte de réinitialisation/abandon de tentative du Studio concerné ; le professionnel garde le choix final. Les callbacks finaux confirmReset, cancelRecovery et suppression ne sont jamais appelés par ce tool ; compte/acteur/révision et dialogue rendu sont contrôlés. Contraintes UI : canRecover && !busy ; recoveryIncompatible.",
+    "notes": "Ouvre uniquement la confirmation native d’annulation de la tentative du Studio concerné ; le professionnel garde le choix final. Cette action est distincte de la pause locale de vérification. Ni cancelRecovery, ni suppression, ni génération ne sont exécutés par prepareStudioDraftReview. Compte, révision, propriétaire et état de confirmation sont contrôlés ; indisponible pendant une vérification ou un verrou natif.",
     "testFiles": [
       "tests/ai-assistant/studio-draft-review.test.mts"
     ],
     "testAnchor": "the actual Studio review callbacks open their existing confirmation without cancelling a job or deleting a draft",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:9e0927fe5c84ebed:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:493cf322d9108a93:1"
     ]
   },
   {
@@ -2670,25 +2682,37 @@
   },
   {
     "id": "basic.media.0114",
-    "label": "Génération engagée auprès du moteur, arrêt indisponible.",
+    "label": "Vérifier mon média / action principale selon l’état natif",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<button\n    type=\"button\" className={styles.generateButton} data-media-primary-action\n    disabled={generationBusy ? !generationCancellable : canRecover ? operationLocked : disabled}\n    title={generationBusy && !generationCancellable ? t(\"ai_generator_editor_stop_locked\") : undefined}\n    onClick={() => { if (generationBusy) handleRequestGenerationStop(); else if (canRecover) void handleRecoverResult(); else void handleGenerate(); }}\n  >\n    <span aria-hidden=\"true\">{generationBusy ? \"■\" : generationResult ? \"↻\" : \"✦\"}</span>\n    <strong>{t(generationBusy ? \"ai_generator_editor_stop\" : canRecover ? \"ai_generator_editor_recover\" : generationResult ? \"ai_generator_regenerate\" : kind === \"image\" ? \"ai_generator_generate_image\" : \"ai_generator_generate_video\")}</strong>\n  </button>",
-    "capabilityId": "studio.cancel",
+    "sourceAnchor": "<button\n    type=\"button\" className={styles.generateButton} data-media-primary-action\n    disabled={recoveryPending ? recovering || operationLocked : generationBusy ? !generationCancellable : disabled}\n    title={recoveryPending ? t(\"ai_generator_recovery_generation_blocked\") : generationBusy && !generationCancellable ? t(\"ai_generator_editor_stop_locked\") : undefined}\n    onClick={() => { if (recoveryPending) void handleRecoverResult(); else if (generationBusy) handleRequestGenerationStop(); else void handleGenerate(); }}\n  >\n    <span aria-hidden=\"true\">{generationBusy && !recoveryPending ? \"■\" : generationResult ? \"↻\" : \"✦\"}</span>\n    <strong>{t(recoveryPending ? recovering ? \"ai_generator_recovery_checking\" : \"ai_generator_recovery_check\" : generationBusy ? \"ai_generator_editor_stop\" : generationResult ? \"ai_generator_regenerate\" : kind === \"image\" ? \"ai_generator_generate_image\" : \"ai_generator_generate_video\")}</strong>\n  </button>",
+    "capabilityId": "studio.form",
     "toolNames": [
-      "cancelMediaGeneration"
+      "controlLocalInterface"
     ],
-    "mode": "execute",
-    "notes": "Annulation avant engagement fournisseur seulement ; après engagement, pas d’arrêt ni remboursement affirmé. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "mode": "form",
+    "notes": "En récupération, retry utilise le bridge local du Studio libre, guidé ou Modifier réellement monté : vérifier le même identifiant par GET, sans nouvelle génération, annulation ni acceptation du brouillon. Le navigateur confirme la vérification en cours ou le résultat rendu ; compte, révision et verrou natif restent contrôlés. Hors récupération, génération et confirmation d’annulation gardent leurs parcours distincts ; aucune permission de les lancer ne vient du contrôle retry.",
     "testFiles": [
-      "tests/ai-assistant/media-tools.test.mts"
+      "tests/ai-assistant/studio-recovery-local-controls.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-media-generation/media-generation-cross-tab-recovery-runtime.test.mts"
     ],
-    "testAnchor": "media cancellation only claims a pre-reservation stop and never pretends a running provider job can be cancelled",
+    "testAnchor": "the actual Free Guided and Modifier recovery bridges check the same result or pause locally without generation or cancellation",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#button:0ad666f08e99c920:1"
+      "app/dashboard/_components/MediaGenerator.tsx#button:01b9e47727ed685d:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "real recovery card keeps check and pause visible on desktop and mobile while editing stays available and no generation or cancellation is sent"
+      },
+      {
+        "file": "tests/ai-media-generation/media-generation-cross-tab-recovery-runtime.test.mts",
+        "testAnchor": "pausing a pending recovery GET preserves its identity, photo and credits, then resumes that exact job"
+      }
     ]
   },
   {
@@ -3748,25 +3772,25 @@
   },
   {
     "id": "basic.media.0160",
-    "label": "Abandonner la tentative",
+    "label": "Annuler la génération",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={styles.recoveryStop} disabled={operationLocked}\n              aria-label={t(\"ai_generator_editor_abandon\")} title={t(\"ai_generator_editor_abandon\")}\n              onClick={() => setCancelConfirmationOpen(true)}>{t(\"ai_generator_editor_stop\")}</button>",
+    "sourceAnchor": "<button type=\"button\" className={styles.recoveryStop} disabled={operationLocked}\n              aria-label={t(\"ai_generator_recovery_cancel\")} title={t(\"ai_generator_editor_abandon\")}\n              onClick={() => setCancelConfirmationOpen(true)}>{t(\"ai_generator_recovery_cancel\")}</button>",
     "capabilityId": "studio.draft-review",
     "toolNames": [
       "prepareStudioDraftReview"
     ],
     "mode": "confirm",
-    "notes": "Ouvre uniquement la confirmation native exacte de réinitialisation/abandon de tentative du Studio concerné ; le professionnel garde le choix final. Les callbacks finaux confirmReset, cancelRecovery et suppression ne sont jamais appelés par ce tool ; compte/acteur/révision et dialogue rendu sont contrôlés. Contraintes UI : canRecover && !generationBusy.",
+    "notes": "Ouvre uniquement la confirmation native d’annulation de la tentative du Studio concerné ; le professionnel garde le choix final. Cette action est distincte de la pause locale de vérification. Ni cancelRecovery, ni suppression, ni génération ne sont exécutés par prepareStudioDraftReview. Compte, révision, propriétaire et état de confirmation sont contrôlés ; indisponible pendant une vérification ou un verrou natif.",
     "testFiles": [
       "tests/ai-assistant/studio-draft-review.test.mts"
     ],
     "testAnchor": "the actual Studio review callbacks open their existing confirmation without cancelling a job or deleting a draft",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#button:103fc40a90e6792d:1"
+      "app/dashboard/_components/MediaGenerator.tsx#button:de742c78a6495780:1"
     ]
   },
   {
@@ -4674,18 +4698,18 @@
   },
   {
     "id": "basic.media.0200",
-    "label": "Stop",
+    "label": "Annuler la génération",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaModifier.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={styles.secondaryButton} onClick={handleRequestGenerationStop} disabled={operationLocked}>{t(\"ai_generator_editor_stop\")}</button>",
+    "sourceAnchor": "<button type=\"button\" className={styles.secondaryButton} onClick={handleRequestGenerationStop} disabled={operationLocked}>{t(\"ai_generator_recovery_cancel\")}</button>",
     "capabilityId": "studio.cancel",
     "toolNames": [
       "cancelMediaGeneration"
     ],
     "mode": "execute",
-    "notes": "Annulation avant engagement fournisseur seulement ; après engagement, pas d’arrêt ni remboursement affirmé. Contraintes UI : canRecover && !generationBusy.",
+    "notes": "Annulation explicite par son parcours et sa confirmation natifs, distincte de Mettre en pause la vérification. Le contrôle local stop de studio_modifier suspend seulement la lecture et ne déclenche pas cette annulation. Une tentative engagée ne promet ni arrêt fournisseur ni remboursement ; le même identifiant reste suivi.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -4697,25 +4721,37 @@
   },
   {
     "id": "basic.media.0201",
-    "label": "Génération engagée auprès du moteur, arrêt indisponible.",
+    "label": "Vérifier mon média / action principale selon l’état natif",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaModifier.tsx"
     ],
-    "sourceAnchor": "<button\n            type=\"button\"\n            className={styles.primaryButton}\n            data-media-primary-action\n            onClick={() => {\n              if (generationBusy) handleRequestGenerationStop();\n              else if (canRecover) void handleRecovery();\n              else if (!result) void handleGenerate();\n            }}\n            title={generationBusy && !generationCancellable ? t(\"ai_generator_editor_stop_locked\") : undefined}\n            disabled={generationBusy ? !generationCancellable : canRecover ? operationLocked :\n              Boolean(result) || operationLocked ||\n              !sourceImage ||\n              instruction.trim().length < 3 ||\n              quotaLoading || !creditQuote.ready || creditQuote.insufficient ||\n              imageQuotaExhausted\n            }\n          >",
-    "capabilityId": "studio.cancel",
+    "sourceAnchor": "<button\n            type=\"button\"\n            className={styles.primaryButton}\n            data-media-primary-action\n            onClick={() => {\n              if (recoveryPending) void handleRecovery();\n              else if (generationBusy) handleRequestGenerationStop();\n              else if (!result) void handleGenerate();\n            }}\n            title={recoveryPending ? t(\"ai_generator_recovery_generation_blocked\") : generationBusy && !generationCancellable ? t(\"ai_generator_editor_stop_locked\") : undefined}\n            disabled={recoveryPending ? recovering || operationLocked : generationBusy ? !generationCancellable :\n              Boolean(result) || operationLocked ||\n              !sourceImage ||\n              instruction.trim().length < 3 ||\n              quotaLoading || !creditQuote.ready || creditQuote.insufficient ||\n              imageQuotaExhausted\n            }\n          >\n            <span aria-hidden=\"true\">{generationBusy ? \"■\" : \"✦\"}</span>\n            {t(recoveryPending ? recovering ? \"ai_generator_recovery_checking\" : \"ai_generator_recovery_check\" : generationBusy ? \"ai_generator_recovery_cancel\" : \"ai_modifier_action\")}\n          </button>",
+    "capabilityId": "studio.form",
     "toolNames": [
-      "cancelMediaGeneration"
+      "controlLocalInterface"
     ],
-    "mode": "execute",
-    "notes": "Annulation avant engagement fournisseur seulement ; après engagement, pas d’arrêt ni remboursement affirmé. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "mode": "form",
+    "notes": "En récupération, retry utilise le bridge local du Studio libre, guidé ou Modifier réellement monté : vérifier le même identifiant par GET, sans nouvelle génération, annulation ni acceptation du brouillon. Le navigateur confirme la vérification en cours ou le résultat rendu ; compte, révision et verrou natif restent contrôlés. Hors récupération, génération et confirmation d’annulation gardent leurs parcours distincts ; aucune permission de les lancer ne vient du contrôle retry.",
     "testFiles": [
-      "tests/ai-assistant/media-tools.test.mts"
+      "tests/ai-assistant/studio-recovery-local-controls.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-media-generation/media-generation-cross-tab-recovery-runtime.test.mts"
     ],
-    "testAnchor": "media cancellation only claims a pre-reservation stop and never pretends a running provider job can be cancelled",
+    "testAnchor": "the actual Free Guided and Modifier recovery bridges check the same result or pause locally without generation or cancellation",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaModifier.tsx#button:96fde1aa4d1f5059:1"
+      "app/dashboard/_components/MediaModifier.tsx#button:6f691419ad0e62bc:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "real recovery card keeps check and pause visible on desktop and mobile while editing stays available and no generation or cancellation is sent"
+      },
+      {
+        "file": "tests/ai-media-generation/media-generation-cross-tab-recovery-runtime.test.mts",
+        "testAnchor": "pausing a pending recovery GET preserves its identity, photo and credits, then resumes that exact job"
+      }
     ]
   },
   {
@@ -15073,5 +15109,93 @@
     "controlIds": [],
     "coverageStatus": "implemented",
     "notes": "Variante du bouton partagé Modifier les critères : studio_modifier select=edit_instruction appelle le callback natif et confirme le focus reçu par le textarea via son onFocus réel ; ni reset de job ni traitement payant."
+  },
+  {
+    "id": "basic.studio.recovery-check",
+    "label": "Vérifier mon média",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "app/dashboard/_components/MediaGenerator.tsx",
+      "app/dashboard/_components/MediaModifier.tsx",
+      "app/dashboard/_hooks/useMediaGeneration.ts",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<button type=\"button\" onClick={() => { void handleRetryRecovery?.(); }} disabled={recoveryChecking || operationLocked || !handleRetryRecovery} data-media-recovery-check>\n            {t(\"ai_generator_recovery_check\")}\n          </button>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "Contrôle natif partagé par Libre, Guidé et Modifier : retry vérifie le même requestId par GET uniquement, même avec un devis épuisé. Aucun POST de génération, annulation, enregistrement ou nouveau débit n’est lancé. Le bridge monté, le compte et sa révision sont vérifiés ; un ordre émis seul n’atteste pas le résultat. Les lectures tardives et les changements de compte ne remplacent pas un autre résultat.",
+    "testFiles": [
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-recovery-local-controls.test.mts",
+      "tests/ai-media-generation/media-generation-cross-tab-recovery-runtime.test.mts"
+    ],
+    "testAnchor": "real recovery card keeps check and pause visible on desktop and mobile while editing stays available and no generation or cancellation is sent",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-recovery-local-controls.test.mts",
+        "testAnchor": "the actual Free Guided and Modifier recovery bridges check the same result or pause locally without generation or cancellation"
+      },
+      {
+        "file": "tests/ai-media-generation/media-generation-cross-tab-recovery-runtime.test.mts",
+        "testAnchor": "pausing a pending recovery GET preserves its identity, photo and credits, then resumes that exact job"
+      },
+      {
+        "file": "tests/ai-assistant/studio-recovery-local-controls.test.mts",
+        "testAnchor": "Studio pause and verification requests never reinterpret generation cancellation or a fresh render as a local pause"
+      }
+    ],
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:b4933f7331d91bf4:1"
+    ]
+  },
+  {
+    "id": "basic.studio.recovery-pause",
+    "label": "Mettre la vérification en pause",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "app/dashboard/_components/MediaGenerator.tsx",
+      "app/dashboard/_components/MediaModifier.tsx",
+      "app/dashboard/_hooks/useMediaGeneration.ts",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<button type=\"button\" onClick={handlePauseRecovery} disabled={cancellationPending || !canPauseRecovery || !handlePauseRecovery} data-media-recovery-pause>\n            {t(\"ai_generator_recovery_pause\")}\n          </button>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "Contrôle natif partagé par Libre, Guidé et Modifier : stop interrompt seulement la lecture ou son délai local, sans POST d’annulation ni génération. Le requestId, le média et le pointeur restent récupérables ; les critères restent éditables et une nouvelle génération reste bloquée tant que la tentative n’est pas résolue. Pause interdite pendant un véritable ACK d’annulation. Le bridge confirme recovering=false et canRecover=true ; aucun remboursement ou arrêt fournisseur n’est déduit.",
+    "testFiles": [
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-recovery-local-controls.test.mts",
+      "tests/ai-media-generation/media-generation-cross-tab-recovery-runtime.test.mts"
+    ],
+    "testAnchor": "real recovery card keeps check and pause visible on desktop and mobile while editing stays available and no generation or cancellation is sent",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-recovery-local-controls.test.mts",
+        "testAnchor": "the actual Free Guided and Modifier recovery bridges check the same result or pause locally without generation or cancellation"
+      },
+      {
+        "file": "tests/ai-media-generation/media-generation-cross-tab-recovery-runtime.test.mts",
+        "testAnchor": "pausing a pending recovery GET preserves its identity, photo and credits, then resumes that exact job"
+      },
+      {
+        "file": "tests/ai-assistant/studio-recovery-local-controls.test.mts",
+        "testAnchor": "Studio pause and verification requests never reinterpret generation cancellation or a fresh render as a local pause"
+      }
+    ],
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:d16b4b69d0c704cc:1"
+    ]
   }
 ]

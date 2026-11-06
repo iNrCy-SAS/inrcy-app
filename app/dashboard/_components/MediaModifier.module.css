@@ -9,6 +9,12 @@
   color: #f7fbff;
 }
 
+@media(max-width:760px) {
+  .workspace[data-recovery-pending="true"] .mediaPanel { grid-row:1;min-height:0; }
+  .workspace[data-recovery-pending="true"] .formContent > .panel:not(.mediaPanel) { grid-row:2; }
+  .workspace[data-recovery-pending="true"] .mediaStage { min-height:300px; }
+}
+
 .formContent,
 .resultContent {
   min-width: 0;

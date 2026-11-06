@@ -11,6 +11,7 @@ function PromptHelpDialog({ kind, onClose }: { kind: MediaGenerationKind; onClos
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const tipKeys = [
+    ...(kind === "video" ? ["ai_generator_video_visual_brief_hint", "ai_generator_video_speech_frame_hint"] : []),
     `ai_generator_prompt_helper_subject_${kind}`,
     `ai_generator_prompt_helper_style_${kind}`,
     ...(kind === "video" ? ["ai_generator_prompt_helper_sound_video"] : []),

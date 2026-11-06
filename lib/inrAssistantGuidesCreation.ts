@@ -46,7 +46,7 @@ Vidéo : « Consignes visuelles » décrit scène, ambiance et textes à affiche
 « Utiliser mon ADN » ajoute les informations professionnelles pertinentes, logo/couleurs par défaut, coordonnées sur demande. Décoché : pas d’autre ADN. Consignes ET Interdictions de Personnalisation → Ma communication restent transmises dans Studio et iNrAgent ; les interdictions priment. Les règles ne sont jamais coupées : budget insuffisant ou montage brut incapable de les appliquer = erreur explicite. Une image générée avec les règles peut être animée.
 Dans Critères : Format, Durée vidéo, options et Voix off/Personnages/Sans parole. Remplir « Paroles à prononcer » : compteur selon durée, plans, moteur et langue. Réduire les paroles trop longues ou choisir une durée compatible ; aucun texte exact n’est coupé. Un ancien brouillon trop long reste visible et modifiable. « Sans parole » désactive les paroles. Respecter les autorisations d’animation des personnes et de transmission des références.
 « Images d’inspiration » : uniquement des images depuis l’appareil ou la Médiathèque, même en vidéo. Choisir leur type/utilisation ; compatibilités, nombre et durées selon le moteur.
-Vérifier coût/solde, puis « Générer une image » ou « Générer une vidéo ». Conserver le rendu temporaire avec « Enregistrer dans la Médiathèque » ou « Utiliser ce média ». « Réajuster » reprend les critères ; régénérer peut consommer des crédits. « Récupérer le résultat » reprend une tentative récupérable, sans garantir son achèvement.
+Vérifier coût/solde, puis « Générer une image » ou « Générer une vidéo ». Conserver le rendu temporaire avec « Enregistrer dans la Médiathèque » ou « Utiliser ce média ». « Réajuster » reprend les critères ; régénérer peut consommer des crédits. Dans Générer et Modifier, « Vérifier mon média » lit la même tentative, sans relance ni garantie de résultat. Mettre en pause la vérification ou quitter conserve son identifiant pour reprendre ; les critères restent modifiables. Une nouvelle génération attend sa résolution. « Annuler la génération » ouvre une confirmation distincte ; un arrêt ne prouve pas l’absence de débit.
 Basique, Standard (essai inclus), Premium : crédits et moteurs du compte. Basique sans crédits mensuels ; les recharges permettent de générer sans changer d’offre. Depuis Booster/campagne, type ou format peut être fixé ; réinsertion dans l’outil d’origine.`,
     sourceFiles: ["lib/inrAssistantMediaTools.ts", "lib/productNavigation.ts",
       "app/dashboard/generer-media/page.tsx",
@@ -57,6 +57,9 @@ Basique, Standard (essai inclus), Premium : crédits et moteurs du compte. Basiq
       "lib/aiMediaGenerationContracts.ts",
       "lib/aiMediaVideoSpeechBudget.ts",
       "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx",
+      "app/dashboard/_hooks/useMediaGeneration.ts",
+      "lib/inrAssistantLocalInterface.ts",
+      "app/dashboard/_components/MediaModifier.tsx",
       "lib/aiMediaGlobalConstraints.ts",
       "lib/aiMediaGenerationServer.ts",
       "lib/inrStudioModalPolicy.ts",

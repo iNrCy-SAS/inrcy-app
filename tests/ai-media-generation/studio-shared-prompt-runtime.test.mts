@@ -274,6 +274,21 @@ test("the real generation form reports unresolved paid recovery separately from 
   assert.equal(f.generations, 0); f.dispose();
 });
 
+test("a paid recovery keeps replacement guarded while the native Studio Close remains available", async () => {
+  let closes = 0;
+  const f = fixture({ onClose() { closes++; } }); let tree = f.render(); const panel = f.createPanel();
+  f.hookState.canRecover = true;
+  panel.render(f.panel(tree).props); tree = f.render();
+  assert.equal(await f.replacement(), false, "An incoming assistant brief must wait for scoped recovery hydration");
+  const close = find(tree, node => node.type === "button" && node.props["aria-label"] === "fermer_5ab4ec64");
+  assert.equal(close.props.disabled, false);
+  click(close);
+  assert.equal(closes, 1);
+  assert.equal(f.hookState.canRecover, true, "Closing never cancels or clears the paid attempt");
+  assert.equal(f.generations, 0);
+  f.dispose();
+});
+
 test("replacement stays blocked from the first mount until the scoped quota and recovery pointer have hydrated", async () => {
   const f = fixture({ initialFreePrompt: "Prompt gratuit de l’assistant" }); let tree = f.render();
   assert.deepEqual(f.state, { busy: true, hasDraft: true }); assert.equal(await f.replacement(), false);

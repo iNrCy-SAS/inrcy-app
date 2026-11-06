@@ -119,7 +119,8 @@ test("reload selects the owning Video Activity before recovery, preserves its re
   let tree = videoPanel.render(videoProps);
   assert.equal(find(tree, (node) => node.type === "input" && node.props.value === "story").props.checked, true);
   assert.equal(find(tree, (node) => node.type === "textarea").props.placeholder, "ai_generator_free_prompt_placeholder_video");
-  assert.equal(elements(tree).some((node) => node.type === "new-quote" || node.type === "engines"), false);
+  assert.equal(elements(tree).some((node) => node.type === "new-quote"), false, "the cost of a new draft must not be shown as the recovered charge");
+  assert.equal(elements(tree).some((node) => node.type === "engines"), true, "the next draft's engine and duration stay editable while the existing result is checked");
   (find(tree, (node) => node.props["data-media-primary-action"] !== undefined).props.onClick as () => void)();
   await new Promise((resolve) => setImmediate(resolve)); tree = videoPanel.render(videoProps);
   assert.equal(reads, 1); assert.equal(find(tree, (node) => node.type === "preview").props.generationResult, result);
@@ -171,7 +172,9 @@ test("uncertain recovery is presented separately from a confirmed generation fai
   const view = runtime("app/dashboard/_components/MediaGenerationCreationWorkspace.tsx", deps);
   const props = { variant: "embedded", kind: "video", format: "story", durationSeconds: 15, progress: 0, operationLocked: false, generationInProgress: false, finishing: false, generationResult: null, generationCancellable: false, disabled: true, error: "Le résultat n'a pas encore pu être vérifié.", acceptMode: "library" };
   const pending = view.render({ ...props, recoveryPending: true });
-  assert.match(text(pending), /ai_generator_editor_recover/);
+  assert.match(text(pending), /ai_generator_recovery_title/);
+  assert.ok(elements(pending).some(node => node.props["data-media-recovery-check"] !== undefined));
+  assert.ok(elements(pending).some(node => node.props["data-media-recovery-pause"] !== undefined));
   assert.doesNotMatch(text(pending), /ai_generator_creation_failed_title/);
   assert.equal(elements(pending).some((node) => node.props.role === "alert"), false);
   const failed = view.render({ ...props, recoveryPending: false });
