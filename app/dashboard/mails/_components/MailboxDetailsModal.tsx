@@ -14,6 +14,8 @@ import { readSanitizedElementHtml, sanitizeHtml } from "@/lib/sanitizeHtml";
 import { editableHtmlToSiteText, renderBoosterSiteContentHtml, renderBoosterSiteInlineHtml, stripSiteTextFormatting } from "@/lib/boosterFormatting";
 import { PINTEREST_DESCRIPTION_MAX_LENGTH, PINTEREST_TITLE_MAX_LENGTH } from "@/lib/pinterestTextRules";
 import { getPinterestPublicationEditText, orderPinterestPublicationEditImages } from "../_lib/pinterestPublicationEditText";
+import { getInstagramPublicationEditText } from "../_lib/instagramPublicationEditText";
+import { INSTAGRAM_CAPTION_MAX_LENGTH } from "@/lib/instagramCaptionLimits";
 import {
   buildBoosterWhatsAppUrl,
   getBoosterWhatsAppPhoneFromUrl,
@@ -1098,6 +1100,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     ].some(containsForbiddenXUrl);
   const pinterestTitleCounterId = React.useId();
   const pinterestDescriptionCounterId = React.useId();
+  const instagramCaptionCounterId = React.useId();
   const pinterestPublicationText = React.useMemo(() => {
     if (activePublicationEditChannelKey !== "pinterest") return null;
     const selectedImages = activePublicationEditVideo && !activePublicationEditVideo.removed && activePublicationEditVideo.previewUrl
@@ -1112,6 +1115,18 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   }, [activePublicationEditChannelKey, activePublicationEditAssets, activePublicationEditVideo, publicationEditForm, publicationCtaDefaults, publicationCtaDefaultsReady]);
   const pinterestTitleIssue = pinterestPublicationText?.issues.find(issue => issue.field === "title");
   const pinterestDescriptionIssue = pinterestPublicationText?.issues.find(issue => issue.field === "description");
+  const instagramPublicationText = React.useMemo(() => {
+    if (activePublicationEditChannelKey !== "instagram") return null;
+    const selectedImages = activePublicationEditVideo && !activePublicationEditVideo.removed && activePublicationEditVideo.previewUrl
+      ? [] : activePublicationEditAssets.filter(asset => asset.selected).slice(0, 5);
+    const images = orderPinterestPublicationEditImages(selectedImages, asset => Boolean(asset.sourceUrl && !asset.file && !(asset.savedTransform
+      ? !arePublicationTransformsEquivalent(asset.transform, asset.savedTransform)
+      : isPublicationTransformModified(asset.transform, "instagram"))));
+    return getInstagramPublicationEditText(publicationEditForm, images, {
+      websiteUrl: publicationCtaDefaultsReady ? publicationCtaDefaults?.siteWebUrl : undefined,
+      phone: publicationCtaDefaultsReady ? publicationCtaDefaults?.phone : undefined,
+    });
+  }, [activePublicationEditChannelKey, activePublicationEditAssets, activePublicationEditVideo, publicationEditForm, publicationCtaDefaults, publicationCtaDefaultsReady]);
 
   const markPublicationEditDirty = React.useCallback(() => {
     setPublicationEditDirty(true);
@@ -2271,7 +2286,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       disabled={
                                         detailsActionBusy ||
                                         publicationEditHasForbiddenXUrl ||
-                                        Boolean(pinterestPublicationText?.issues.length)
+                                        Boolean(pinterestPublicationText?.issues.length) ||
+                                        Boolean(instagramPublicationText?.issue)
                                       }
                                     >
                                       {detailsActionBusy ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}
@@ -2503,8 +2519,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                               placeholder={i18nT("titre_eb97899a")}
                                               rows={2}
                                               disabled={detailsActionBusy}
-                                              aria-describedby={pinterestPublicationText ? pinterestTitleCounterId : undefined}
-                                              aria-invalid={Boolean(pinterestTitleIssue) || undefined}
+                                              aria-describedby={pinterestPublicationText ? pinterestTitleCounterId : instagramPublicationText ? instagramCaptionCounterId : undefined}
+                                              aria-invalid={Boolean(pinterestTitleIssue || instagramPublicationText?.issue) || undefined}
                                             />
                                           ) : (
                                             <input
@@ -2514,8 +2530,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                               className={styles.publicationFieldInput}
                                               placeholder={i18nT("titre_eb97899a")}
                                               disabled={detailsActionBusy}
-                                              aria-describedby={pinterestPublicationText ? pinterestTitleCounterId : undefined}
-                                              aria-invalid={Boolean(pinterestTitleIssue) || undefined}
+                                              aria-describedby={pinterestPublicationText ? pinterestTitleCounterId : instagramPublicationText ? instagramCaptionCounterId : undefined}
+                                              aria-invalid={Boolean(pinterestTitleIssue || instagramPublicationText?.issue) || undefined}
                                             />
                                           )}
                                           {pinterestPublicationText ? (
@@ -2581,8 +2597,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                               placeholder={i18nT("contenu_f3cb82af")}
                                               rows={8}
                                               disabled={detailsActionBusy}
-                                              aria-describedby={pinterestPublicationText ? pinterestDescriptionCounterId : undefined}
-                                              aria-invalid={Boolean(pinterestDescriptionIssue) || undefined}
+                                              aria-describedby={pinterestPublicationText ? pinterestDescriptionCounterId : instagramPublicationText ? instagramCaptionCounterId : undefined}
+                                              aria-invalid={Boolean(pinterestDescriptionIssue || instagramPublicationText?.issue) || undefined}
                                             />
                                           )}
                                           {pinterestPublicationText ? (
@@ -2594,6 +2610,17 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                                   : i18nT("calcul_en_cours_d976e804")}
                                               <div>{i18nT("pinterest_publication_description_count_help")}</div>
                                               {pinterestDescriptionIssue ? <div role="alert">{i18nT("pinterest_publication_description_too_long", { count: pinterestDescriptionIssue.excess })}</div> : null}
+                                            </div>
+                                          ) : null}
+                                          {instagramPublicationText ? (
+                                            <div id={instagramCaptionCounterId} aria-live="polite" style={{ marginTop: 6, fontSize: 12, color: instagramPublicationText.issue ? "#ff8f8f" : "rgba(255,255,255,0.68)" }}>
+                                              {publicationCtaDefaultsReady
+                                                ? i18nT("instagram_publication_caption_count", { count: instagramPublicationText.length, max: INSTAGRAM_CAPTION_MAX_LENGTH })
+                                                : publicationCtaDefaultsFailedScope === publicationCtaScope
+                                                  ? i18nT("pinterest_publication_defaults_unavailable")
+                                                  : i18nT("calcul_en_cours_d976e804")}
+                                              <div>{i18nT("instagram_publication_caption_count_help")}</div>
+                                              {instagramPublicationText.issue ? <div role="alert">{i18nT("instagram_publication_caption_too_long", { count: instagramPublicationText.excess })}</div> : null}
                                             </div>
                                           ) : null}
                                         </div>
@@ -2799,6 +2826,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                               className={styles.publicationFieldInput}
                                               placeholder={i18nT("maconnerie_lens_btp_6517298b")}
                                               disabled={detailsActionBusy}
+                                              aria-describedby={instagramPublicationText ? instagramCaptionCounterId : undefined}
+                                              aria-invalid={Boolean(instagramPublicationText?.issue) || undefined}
                                             />
                                           </div>
                                         ) : null}

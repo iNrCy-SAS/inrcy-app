@@ -53,6 +53,23 @@ test("Facebook instructions select the live direct connection flow over obsolete
   assert.ok(text.length <= 4800);
 });
 
+test("questions about Instagram caption lengths retrieve reviewed generated ranges and the complete-caption limit without inventing extra space", async () => {
+  const question = "Combien de caractères pour une légende Instagram, Court ou Approfondi ?";
+  const text = runtime.getInrAssistantAppKnowledge(question);
+  assert.match(text, /\[publication-lengths\]/);
+  assert.match(text, /Instagram : 260–650 \/ 150–280 \/ 300–500 \/ 620–1000 \/ 1000–1800 ; corps max 1800/);
+  assert.match(text, /légende finale ne dépasse pas 2200 caractères, titre, CTA, URL ou téléphone, séparateurs et hashtags compris/);
+  assert.match(text, /Approfondi \(Premium selon les droits\)/);
+  assert.match(text, /saisie manuelle ou déjà validée n’est pas raccourcie automatiquement/);
+  const bounded = runtime.getInrAssistantAppKnowledge(question, 1200);
+  assert.match(bounded, /légende finale ne dépasse pas 2200 caractères/);
+  const tool = runtime.createInrAssistantAppGuideTool();
+  const result = await tool.execute!({ topic: question }, { toolCallId: "caption-lengths", messages: [] });
+  assert.ok("guides" in result); assert.equal(result.guides[0]?.id, "publication-lengths");
+  assert.match(result.guides[0].content, /Pinterest : titre au plus 100 ; description finale au plus 800/);
+  assert.doesNotMatch(result.guides[0].content, /Instagram[^\n]*corps max 2200/);
+});
+
 test("CTA guidance follows the real mode normalizer and never invents a profile fallback", async () => {
   const cta = load("./lib/aiChannelCtaPreferences.ts") as typeof import("../../lib/aiChannelCtaPreferences.ts");
   const guide = runtime.INR_ASSISTANT_APP_GUIDES.find(({ id }) => id === "publication-cta")!;

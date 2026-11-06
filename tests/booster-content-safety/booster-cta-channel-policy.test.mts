@@ -99,7 +99,8 @@ test("Instagram and TikTok never truncate the selected phone CTA", () => {
   const cta = read("lib/boosterCta.ts");
   const publishNow = read("app/api/booster/publish-now/route.ts");
 
-  assert.match(cta, /base\.length > 2200[\s\S]*?Raccourcissez le contenu/);
+  assert.match(cta, /getBoosterInstagramCaptionState\(post, context\)[\s\S]*?if \(state\.issue\) throw new InstagramCaptionValidationError/);
+  assert.match(cta, /const caption = \[base, tagLine\]\.filter\(Boolean\)\.join\("\\n\\n"\)/);
   assert.doesNotMatch(cta, /captionWithTags[\s\S]*?\.slice\(0, 2200\)/);
   assert.match(publishNow, /canonMessage\.length > 2200[\s\S]*?Raccourcissez le contenu/);
   assert.doesNotMatch(publishNow, /tiktokCaptionWithTags[\s\S]*?\.slice\(0, 2200\)/);

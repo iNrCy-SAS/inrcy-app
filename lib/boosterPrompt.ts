@@ -182,7 +182,7 @@ const CHANNEL_COMPACT_CONTRACTS: Record<BoosterChannels, string> = {
   facebook:
     "Facebook humain, local et conversationnel. Titre 40–80. Proximité et interaction naturelle. Mini-liste facultative. CTA non agressif.",
   instagram:
-    "Instagram visuel, vivant et spontané. Titre 35–70. Paragraphes courts. Hashtags ciblés si utiles. Ne jamais inventer ‘lien en bio’.",
+    "Instagram visuel, vivant et spontané. Titre 35–70. Paragraphes courts. Hashtags ciblés si utiles. La légende finale complète, titre, contenu, CTA, coordonnées et hashtags compris, ne dépasse jamais 2 200 caractères. Réserve leur place dans la plage de contenu choisie ; content ne dépasse jamais 1 800 caractères. Ne jamais inventer ‘lien en bio’.",
   threads:
     "Threads bref, humain, utile et conversationnel. Le texte final complet (titre, contenu et CTA) ne dépasse jamais 500 caractères. Pas de hashtag ajouté. Texte seul, image, vidéo ou carrousel possibles. Ne pas imiter une légende Instagram ni inventer un lien en bio.",
   linkedin:

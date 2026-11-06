@@ -1,6 +1,8 @@
 import { createPublicationSubmission } from "./publicationSubmission";
 import { loadPublicationDraft, savePublicationDraft } from "./publicationDraftSession";
 import { useBoosterGeneration } from "./useBoosterGeneration";
+import { fitGeneratedInstagramPost } from "@/lib/instagramGeneratedCaption";
+import { getPrimaryImageInteractionLink } from "@/lib/boosterImageInteractionCta";
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { useInrAssistantScreen } from "../../_components/DashboardAssistantScreenContext";
 import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
@@ -352,7 +354,16 @@ export default function PublishModal({
       intent: { creationMode, idea, publicationInstruction, selectedForGeneration, selectedChannels, selectedAiPreferredEngine, hasWrittenChannelContent, theme, contentStyle },
       media: { videoFile, videoPreviewUrl, videoDurationSeconds, videoStorageContext, images, useImagesForAI, documentFiles, videoAiContextRef, getOrPrepareAiImagePayload, getOrPrepareVideoFramesForAI },
       workspace: { unifiedMediaConsumptionClientAvailable, mediaWorkspaceId, waitForPersistentWorkspaceReadiness, persistentMediaWorkspaceEnabled, startPersistentAiMediaPreparation, mediaPipelineCutoverEnabled, ensurePersistentMediaWorkspace },
-      editor: { publicationActorScopeRef, currentPostsRef, getDisplayPost, getLiveInstagramHashtags, xHashtagsInput, ctaDefaults, setImgError, setDuplicateFeedback, setPostsByChannel, setIdea, setPublicationInstruction, setXHashtagsInput, setContentAdjustmentSession, setDocumentFiles, setPdfAttachmentError, pdfInputRef, setContentWorkspaceOpen, setSynchronizedActiveChannel, scrollToContentWorkspace },
+      editor: { publicationActorScopeRef, currentPostsRef, getDisplayPost, getLiveInstagramHashtags, xHashtagsInput, ctaDefaults, setImgError, setDuplicateFeedback, setPostsByChannel, setIdea, setPublicationInstruction, setXHashtagsInput, setContentAdjustmentSession, setDocumentFiles, setPdfAttachmentError, pdfInputRef, setContentWorkspaceOpen, setSynchronizedActiveChannel, scrollToContentWorkspace,
+        fitGeneratedInstagramCopy: post => fitGeneratedInstagramPost(post, {
+          websiteUrl: getWebsiteUrlForChannel("instagram", ctaDefaults), phone: ctaDefaults?.phone || "",
+        }, resolveChannelMediaMode("instagram") === "images" ? getPrimaryImageInteractionLink(
+          getPublishImageKeysForChannel("instagram").map(imageKey => ({
+            transform: channelImageEditors.instagram?.transforms?.[imageKey] || getOptimizedTransform("instagram", imageMetaByKey[imageKey]),
+            imageMeta: imageMetaByKey[imageKey],
+          })),
+        ) : null),
+      },
     }),
   });
   const [documentFiles, setDocumentFiles] = useState<File[]>([]);

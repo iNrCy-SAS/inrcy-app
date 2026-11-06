@@ -9,13 +9,16 @@ const statement = "Remplace la photo et le bouton de cette publication Facebook 
 process.env.INRCY_ASSISTANT_APPROVAL_SECRET = "published-publication-unit-signing-secret-32-characters";
 const changes = [{ field: "cta", valueJson: JSON.stringify({ ctaMode: "website", ctaUrl: "https://business.test/offre", cta: "Voir l’offre" }) }, { field: "media", valueJson: JSON.stringify({ mediaType: "images", images: [{ mediaId: MEDIA }] }) }];
 
-function harness(channel: "facebook" | "site_web" | "pinterest" = "facebook") {
+function harness(channel: "facebook" | "site_web" | "pinterest" | "instagram" = "facebook") {
   let account = ACCOUNT, actor = ACTOR, status = "delivered", uncertain = false, ignoreMedia = false, afterPatch = () => {}, calls = 0, effects = 0;
   let pinterestRejection: Row | null = null, mediaDownloads = 0;
   const pinterestValidations: { accountId: string; body: Row; current: Row }[] = [];
+  let instagramRejection: Row | null = null;
+  const instagramValidations: { accountId: string; body: Row; current: Row }[] = [];
   const bytes = new Uint8Array([1, 2, 3]);
   const asset: Row = { id: MEDIA, user_id: ACCOUNT, bucket_name: "inrcy-pro-media", storage_path: `users/${ACCOUNT}/owned.png`, media_type: "image", mime_type: "image/png", size_bytes: bytes.length, upload_status: "uploaded", updated_at: "2026-11-05", source: "upload", is_active: true, original_file_name: "Offre retouchée.png", title: "Offre", duration_seconds: null };
   let payload: Row = { publication_id: PUBLICATION, channels: [channel, "instagram"], postByChannel: { [channel]: { title: "Titre", content: "Texte", hashtags: [], ctaMode: "none", cta: "", ctaUrl: "", ctaPhone: "", ctaAction: "", images: ["https://owned.test/original.png"], attachments: [{ imageKey: "old", url: "https://owned.test/original.png" }] }, instagram: { content: "Instagram conservé", images: ["https://owned.test/instagram.png"] } }, results: { [channel]: { ok: true, external_id: "native-channel", status: "delivered" }, instagram: { ok: true, external_id: "native-instagram", status: "delivered" } } };
+  if (channel === "instagram") (payload.postByChannel as Row).instagram = { title: "Titre", content: "Texte", hashtags: [], ctaMode: "none", cta: "", ctaUrl: "", ctaPhone: "", ctaAction: "", images: ["https://owned.test/original.png"], attachments: [{ imageKey: "old", url: "https://owned.test/original.png" }] };
   const locks = new Map<string, { id: string; result: Row | null }>(), saved = new Map<string, string>();
   const { guardPublishedPublicationEdit } = runtimeModules()<typeof import("../../lib/inrsend/publicationEditGuard.ts")>("lib/inrsend/publicationEditGuard.ts");
   const currentPost = () => (payload.postByChannel as Row)[channel] as Row;
@@ -28,6 +31,10 @@ function harness(channel: "facebook" | "site_web" | "pinterest" = "facebook") {
     assert.equal(channel, "pinterest", "other channels do not use the Pinterest validation boundary");
     pinterestValidations.push({ accountId, body: structuredClone(body), current: structuredClone(current) });
     return pinterestRejection ? Response.json(pinterestRejection, { status: 400 }) : null;
+  }, validateInstagramPublicationEdit: async (accountId: string, body: Row, current: Row) => {
+    assert.equal(channel, "instagram", "other channels do not use the Instagram validation boundary");
+    instagramValidations.push({ accountId, body: structuredClone(body), current: structuredClone(current) });
+    return instagramRejection ? Response.json(instagramRejection, { status: 400 }) : null;
   }, createPublicationChannelHandlers: (requestedChannel: string) => ({ PATCH: async (request: Request) => {
     calls++; assert.equal(requestedChannel, channel); assert.equal(request.headers.get("cookie"), "session=fixture"); assert.equal(request.headers.has("x-cron-secret"), false); const body: Row = await request.json();
     return guardPublishedPublicationEdit({ body, currentScope: async () => account === ACCOUNT && actor === ACTOR, readVersion: async () => (await readState(ACCOUNT, PUBLICATION, channel))!.sourceVersion,
@@ -51,7 +58,7 @@ function harness(channel: "facebook" | "site_web" | "pinterest" = "facebook") {
   const read = () => run(create(), "readPublishedPublicationForEdit", { publicationId: PUBLICATION, channel });
   const preview = async (message = statement, selectedChanges: unknown = changes) => { const view = await read(); const result = await run(create(message), "previewPublishedPublicationEdit", { publicationId: PUBLICATION, channel, sourceVersion: view.sourceVersion, changes: selectedChanges, instructionQuote: message }); if (typeof result.reference === "string") saved.set(result.reference, String(result.token)); return result; };
   const apply = (preview: Row, message = `Confirme ${preview.reference}`, tools = create(message)) => run(tools, "applyPublishedPublicationEdit", { reference: preview.reference, instructionQuote: message });
-  return { create, run, read, preview, apply, asset, pinterestValidations, get mediaDownloads() { return mediaDownloads; }, get previewCount() { return saved.size; }, rejectPinterest(issue: Row | null) { pinterestRejection = issue; }, get payload() { return payload; }, get calls() { return calls; }, get effects() { return effects; }, account() { account = "other"; }, actor() { actor = "other"; }, pending() { status = "processing"; }, change() { currentPost().content = "Autre modification"; }, uncertain() { uncertain = true; }, ignoreMedia() { ignoreMedia = true; }, switchAfter() { afterPatch = () => { account = "other"; }; } };
+  return { create, run, read, preview, apply, asset, pinterestValidations, instagramValidations, get mediaDownloads() { return mediaDownloads; }, get previewCount() { return saved.size; }, rejectPinterest(issue: Row | null) { pinterestRejection = issue; }, rejectInstagram(issue: Row | null) { instagramRejection = issue; }, get payload() { return payload; }, get calls() { return calls; }, get effects() { return effects; }, account() { account = "other"; }, actor() { actor = "other"; }, pending() { status = "processing"; }, change() { currentPost().content = "Autre modification"; }, uncertain() { uncertain = true; }, ignoreMedia() { ignoreMedia = true; }, switchAfter() { afterPatch = () => { account = "other"; }; } };
 }
 
 test("Basic published edits read an owned delivered channel and require the exact signed CTA/media preview before any external work", async () => {
@@ -166,4 +173,45 @@ test("other published channels keep their existing flow without consulting Pinte
     assert.equal(preview.ok, true); assert.equal((await h.apply(preview)).ok, true);
     assert.equal(h.pinterestValidations.length, 0); assert.equal(h.calls, 1); assert.equal(h.effects, 1);
   }
+});
+
+const instagramStatement = "Modifie le texte, le bouton et les images de cette publication Instagram déjà publiée.";
+const instagramTextIssue = { ok: false, code: "instagram_caption_too_long", field: "caption", length: 2242, limit: 2200, excess: 42, error: "Votre légende Instagram est trop longue de 42 caractères. Raccourcissez-la pour enregistrer vos modifications." };
+
+test("Instagram edit preview validates the full native caption before signing or downloading and a corrected source can be applied exactly once", async () => {
+  const h = harness("instagram"), before = await h.read();
+  h.rejectInstagram(instagramTextIssue);
+  const refused = await h.preview(instagramStatement, pinterestChanges("Texte à raccourcir"));
+  assert.equal(refused.ok, false); assert.equal(refused.status, "invalid_input");
+  for (const key of ["code", "field", "length", "limit", "excess"] as const) assert.equal(refused[key], instagramTextIssue[key]);
+  assert.equal(refused.message, instagramTextIssue.error);
+  assert.equal(h.previewCount, 0); assert.equal(h.mediaDownloads, 0); assert.equal(h.calls, 0); assert.equal(h.effects, 0);
+  assert.equal(h.pinterestValidations.length, 0);
+  assert.equal(h.instagramValidations[0].current.sourceVersion, before.sourceVersion);
+  assert.deepEqual(h.instagramValidations[0].body.retainedImages, ["https://owned.test/original.png"]);
+  assert.equal((await h.read()).sourceVersion, before.sourceVersion);
+  h.rejectInstagram(null);
+  const corrected = await h.preview(instagramStatement, pinterestChanges("Texte corrigé"));
+  assert.equal(corrected.ok, true);
+  assert.equal((await h.apply(corrected)).ok, true);
+  await h.apply(corrected);
+  assert.equal(h.effects, 1); assert.equal(h.mediaDownloads, 1, "the correction is not downloaded or submitted a second time");
+});
+
+test("Instagram signed correction rechecks the native complete caption before media work and PATCH", async () => {
+  const h = harness("instagram"), preview = await h.preview(instagramStatement, pinterestChanges("Texte préparé"));
+  assert.equal(preview.ok, true); assert.equal(h.instagramValidations.length, 1);
+  h.rejectInstagram(instagramTextIssue);
+  const refused = await h.apply(preview);
+  assert.equal(refused.ok, false); assert.equal(refused.status, "invalid_input"); assert.equal(refused.code, "instagram_caption_too_long");
+  assert.equal(h.instagramValidations.length, 2); assert.equal(h.mediaDownloads, 0); assert.equal(h.calls, 0); assert.equal(h.effects, 0);
+});
+
+test("Instagram manual published edits may use more than the generated-body budget when the full native caption remains valid", async () => {
+  const h = harness("instagram"), content = "x".repeat(1900);
+  const preview = await h.preview("Modifie le texte de cette publication Instagram déjà publiée.", [{ field: "content", valueJson: JSON.stringify(content) }]);
+  assert.equal(preview.ok, true); assert.equal(h.instagramValidations.length, 1);
+  assert.equal(h.instagramValidations[0].body.content, content);
+  assert.equal((await h.apply(preview)).ok, true); assert.equal(h.effects, 1);
+  assert.equal(((h.payload.postByChannel as Row).instagram as Row).content, content);
 });

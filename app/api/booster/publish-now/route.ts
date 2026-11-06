@@ -88,7 +88,7 @@ import { siteWebImageMediaPatch } from "@/lib/siteWebPublications";
 import {
   buildBoosterGmbSummary,
   buildBoosterHashtagLine,
-  buildBoosterInstagramCaption,
+  getBoosterInstagramCaptionState,
   buildBoosterMessage,
   buildBoosterThreadsPostText,
   buildBoosterNativeDestinationMessage,
@@ -169,7 +169,7 @@ import {
 import { ensureSystemManagedInrSearch, notifyInrSearchIndexing, revalidateInrSearchPublicRoutes } from "@/lib/inrSearchProvisioning";
 import { buildInrSearchPublicUrl, getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
 import { normalizeImageOverlay } from "@/lib/imageOverlay";
-import { buildSiteImageInteractionMetadata } from "@/lib/imageInteractions";
+import { buildSiteImageInteractionMetadata, getMediaImageInteractions, normalizeImageInteractions } from "@/lib/imageInteractions";
 import {
   MediaWorkspaceConsumptionError,
   resolveWorkspacePublicationConsumption,
@@ -356,6 +356,68 @@ function getPublicationChannelState(
       const unsupportedChannel: never = channel;
       throw new Error(`Canal de publication inconnu: ${unsupportedChannel}`);
     }
+  }
+}
+
+/** Read only: reject manual caption overflow before durable ingress or media work. */
+async function validateBoosterInstagramPublication(userId: string, body: JsonRecord, placements: readonly string[], onValidatedContext?: (context: Readonly<{ websiteUrl: string; phone: string }>) => void): Promise<Response | null> {
+  // Stories carry no caption. A combined Reel/Story selection still validates
+  // the caption that will actually be sent with the Reel.
+  if (placements.length && placements.every(placement => placement === "story")) return null;
+  try {
+    const [profileRes, configRes] = await Promise.all([
+      supabaseAdmin.from("profiles").select("phone").eq("user_id", userId).maybeSingle(),
+      supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle(),
+    ]);
+    if (profileRes.error || configRes.error) throw new Error("instagram_caption_context_unavailable");
+    const phone = String(asRecord(profileRes.data).phone || "").trim();
+    const siteWebUrl = String(asRecord(asRecord(asRecord(configRes.data).settings).site_web).url || "").trim();
+    const defaults: BoosterCtaDefaults = { preferredWebsiteUrl: siteWebUrl, preferredWebsiteLabel: siteWebUrl ? "Site web connecté" : "", siteWebUrl, phone, preferredCta: "site" };
+    const context = { websiteUrl: getPreferredWebsiteUrlForChannel("instagram", defaults), phone };
+    const resolver = createPublishNowPostResolver({ post: asRecord(body.post) as PostPayload, postByChannel: asRecord(body.postByChannel) as PostByChannel });
+    let post = resolver("instagram");
+    const mode = normalizePublicationMediaType(asRecord(body.mediaModeByChannel).instagram || body.mediaType);
+    if (mode === "images") {
+      const rawChannelImages = asRecord(body.imagesByChannel).instagram;
+      let images: unknown[] = Array.isArray(rawChannelImages) ? rawChannelImages : Array.isArray(body.images) ? body.images : [];
+      const workspaceId = String(body.mediaWorkspaceId || "").trim();
+      const strictMediaCutover = body.mediaPipelineCutoverV1 === true && isLegacyMediaTransportCutoverEnabled();
+      if (workspaceId && (strictMediaCutover || !Array.isArray(rawChannelImages))) {
+        // The media preparation path copies these same owned source metadata.
+        // No download, signed media URL, conversion or status mutation is needed
+        // to account for a link that will become part of the caption.
+        const workspace = await supabaseAdmin.from("publication_workspaces").select("id").eq("id", workspaceId).eq("account_id", userId).maybeSingle();
+        if (workspace.error || !workspace.data) throw new Error("instagram_caption_workspace_unavailable");
+        const selected = await supabaseAdmin.from("publication_workspace_media")
+          .select("position,media_settings,media_id,pro_media_library!inner(user_id,media_type,media_metadata)")
+          .eq("workspace_id", workspaceId).eq("pro_media_library.user_id", userId).order("position", { ascending: true });
+        if (selected.error) throw new Error("instagram_caption_images_unavailable");
+        const workspaceImages = (selected.data || []).map((value: unknown) => asRecord(value)).filter(item => {
+          const media = asRecord(Array.isArray(item.pro_media_library) ? item.pro_media_library[0] : item.pro_media_library);
+          return media.user_id === userId && media.media_type === "image";
+        }).slice(0, 5).map(item => {
+          const media = asRecord(Array.isArray(item.pro_media_library) ? item.pro_media_library[0] : item.pro_media_library);
+          const metadata = asRecord(media.media_metadata), settings = asRecord(item.media_settings);
+          const directSource = asRecord(settings.source_metadata);
+          const source = Object.keys(directSource).length ? directSource : asRecord(metadata.source_metadata || asRecord(metadata.media_settings).source_metadata);
+          const interactions = normalizeImageInteractions(source.interactions)
+            || normalizeImageInteractions(asRecord(source.source_metadata).interactions)
+            || getMediaImageInteractions({ media_metadata: metadata });
+          return { imageMeta: { ...(interactions ? { interactions } : {}) } };
+        });
+        if (workspaceImages.length) images = workspaceImages;
+      }
+      post = applyImageInteractionCtaFallback("instagram", post, getPrimaryImageInteractionLink(images));
+    }
+    const caption = getBoosterInstagramCaptionState(post, context);
+    if (!caption.issue) {
+      onValidatedContext?.(Object.freeze({ ...context }));
+      return null;
+    }
+    const issue = caption.issue;
+    return NextResponse.json({ ok: false, code: issue.code, error_code: issue.code, error: issue.message, user_message: issue.message, field: issue.field, length: issue.length, limit: issue.limit, excess: issue.excess, retryable: false }, { status: 400 });
+  } catch {
+    return NextResponse.json({ ok: false, code: "instagram_caption_validation_unavailable", retryable: true, error: "La légende Instagram n’a pas pu être vérifiée. Réessayez dans quelques instants ; aucune publication n’a été lancée." }, { status: 503 });
   }
 }
 
@@ -720,6 +782,11 @@ async function publishNowHandler(req: Request) {
           getMetaTargetSettings(requestedFacebookPlacements[0] || "classic"),
         )
       : null;
+    let validatedInstagramCtaContext: Readonly<{ websiteUrl: string; phone: string }> | undefined;
+    if (selected.includes("instagram")) {
+      const invalidCaption = await validateBoosterInstagramPublication(userId, asRecord(body), requestedInstagramPlacements, context => { validatedInstagramCtaContext = context; });
+      if (invalidCaption) return invalidCaption;
+    }
     const clientPreflightFailuresByChannel =
       normalizeClientPreflightFailuresByChannel(
         body.clientPreflightFailuresByChannel,
@@ -4587,13 +4654,16 @@ async function publishNowHandler(req: Request) {
             continue;
           }
 
-          const instagramCaption =
-            instagramPublicationSettings?.placement === "story"
-              ? ""
-              : buildBoosterInstagramCaption(channelPost, {
-                websiteUrl: getPublicationWebsiteUrl("instagram"),
-                phone: businessPhone,
-                });
+          const instagramCaptionState = instagramPublicationSettings?.placement === "story"
+            ? null
+            : getBoosterInstagramCaptionState(channelPost, validatedInstagramCtaContext ?? { websiteUrl: getPublicationWebsiteUrl("instagram"), phone: businessPhone });
+          if (instagramCaptionState?.issue) {
+            const issue = instagramCaptionState.issue;
+            await setDelivery(ch, { status: "failed", error: issue.message });
+            results[ch] = { ok: false, code: issue.code, error: issue.message, user_message: issue.message, field: issue.field, length: issue.length, limit: issue.limit, excess: issue.excess, retryable: false };
+            continue;
+          }
+          const instagramCaption = instagramCaptionState?.caption || "";
           const instagramTokenCandidates = buildInstagramPublishTokenCandidates(
             ig,
             fbRow,

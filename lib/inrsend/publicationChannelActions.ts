@@ -11,6 +11,7 @@ import { publicationEditSourceVersion, normalizePublicationEditHashtag as normal
 import { guardPublishedPublicationEdit, PublicationEditSourceChangedError } from "./publicationEditGuard";
 import { buildPinterestPublicationText } from "@/lib/pinterestTextRules";
 import { PinterestTextValidationError } from "@/lib/pinterestTextLimits";
+import { InstagramCaptionValidationError } from "@/lib/instagramCaptionLimits";
 import { normalizeSiteWebChannelMap, normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { primarySiteWebArticle, siteWebArticleIdsFromPayload, siteWebImageMediaPatch } from "@/lib/siteWebPublications";
@@ -43,6 +44,7 @@ import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import {
   buildBoosterGmbSummary,
   buildBoosterInstagramCaption,
+  getBoosterInstagramCaptionState,
   buildBoosterMessage,
   buildBoosterThreadsPostText,
   buildBoosterNativeDestinationMessage,
@@ -233,6 +235,11 @@ function pinterestTextIssueResponse(issue: PinterestTextIssue) {
   return NextResponse.json({ ok: false, error: issue.message, user_message: issue.message, code: issue.code, error_code: issue.code, field: issue.field, length: issue.length, limit: issue.limit, excess: issue.excess }, { status: 400 });
 }
 
+type InstagramCaptionIssue = NonNullable<ReturnType<typeof getBoosterInstagramCaptionState>["issue"]>;
+function instagramCaptionIssueResponse(issue: InstagramCaptionIssue) {
+  return NextResponse.json({ ok: false, error: issue.message, user_message: issue.message, code: issue.code, error_code: issue.code, field: issue.field, length: issue.length, limit: issue.limit, excess: issue.excess }, { status: 400 });
+}
+
 function buildPublicationEditPost(currentPost: PostPayload, body: JsonRecord): PostPayload {
   return {
     title: String(body.title ?? currentPost.title ?? "").trim(),
@@ -248,20 +255,26 @@ function buildPublicationEditPost(currentPost: PostPayload, body: JsonRecord): P
   };
 }
 
-async function loadPublicationCtaContext(userId: string, channel: ChannelKey) {
+class PublicationCtaContextUnavailableError extends Error {
+  constructor() { super("Les coordonnées utilisées dans la publication n’ont pas pu être vérifiées. Réessayez dans quelques instants ; aucune modification n’a été lancée."); }
+}
+
+async function loadPublicationCtaContext(userId: string, channel: ChannelKey, requireVerified = false) {
   const [profileRes, proCfgRes] = await Promise.all([
     supabaseAdmin.from("profiles").select("phone").eq("user_id", userId).maybeSingle(),
     supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle(),
   ]);
+  if (requireVerified && (profileRes.error || proCfgRes.error)) throw new PublicationCtaContextUnavailableError();
   const phone = String(asRecord(profileRes.data).phone ?? "").trim();
   const proSettings = asRecord(asRecord(proCfgRes.data).settings);
   const siteWebUrl = String(asRecord(proSettings.site_web).url || "").trim();
   const defaults: BoosterCtaDefaults = { preferredWebsiteUrl: siteWebUrl, preferredWebsiteLabel: siteWebUrl ? "Site web connecté" : "", siteWebUrl, phone, preferredCta: "site" };
   return { websiteUrl: getPreferredWebsiteUrlForChannel(channel, defaults), phone, siteWebUrl, proSettings };
 }
+type PublicationCtaContext = Readonly<Awaited<ReturnType<typeof loadPublicationCtaContext>>>;
 
 /** Mirrors the native retained-then-new image order without uploading assets. */
-export async function validatePinterestPublicationEdit(userId: string, body: JsonRecord, state: NonNullable<Awaited<ReturnType<typeof readInrSendPublicationEditState>>>) {
+export async function validatePinterestPublicationEdit(userId: string, body: JsonRecord, state: NonNullable<Awaited<ReturnType<typeof readInrSendPublicationEditState>>>, context?: PublicationCtaContext) {
   let post = buildPublicationEditPost(state.post, body);
   if (normalizePublicationMediaType(body.mediaType || getEventPublicationMediaType(state.eventPayload, state.publication, "pinterest")) === "images") {
     const retained = Array.isArray(body.retainedImages) ? body.retainedImages.map(value => String(value || "").trim()).filter(Boolean) : state.images.images;
@@ -270,8 +283,22 @@ export async function validatePinterestPublicationEdit(userId: string, body: Jso
     const selected = [...indexes.map(index => state.images.editableAttachments[index]).filter(Boolean), ...newImages].slice(0, 5);
     post = applyImageInteractionCtaFallback("pinterest", post, getPrimaryImageInteractionLink(selected));
   }
-  const text = buildPinterestPublicationText(post, await loadPublicationCtaContext(userId, "pinterest"));
+  const text = buildPinterestPublicationText(post, context ?? await loadPublicationCtaContext(userId, "pinterest", true));
   return text.issues[0] ? pinterestTextIssueResponse(text.issues[0]) : null;
+}
+
+/** Read-only caption validation shares the native retained-then-new image order. */
+export async function validateInstagramPublicationEdit(userId: string, body: JsonRecord, state: NonNullable<Awaited<ReturnType<typeof readInrSendPublicationEditState>>>, context?: PublicationCtaContext) {
+  let post = buildPublicationEditPost(state.post, body);
+  if (normalizePublicationMediaType(body.mediaType || getEventPublicationMediaType(state.eventPayload, state.publication, "instagram")) === "images") {
+    const retained = Array.isArray(body.retainedImages) ? body.retainedImages.map(value => String(value || "").trim()).filter(Boolean) : state.images.images;
+    const indexes = [...new Set(retained.map(url => state.images.images.indexOf(url)).filter(index => index >= 0))];
+    const newImages = Array.isArray(body.newImages) ? body.newImages.map(asRecord).filter(image => String(image.dataUrl || "").trim()) : [];
+    const selected = [...indexes.map(index => state.images.editableAttachments[index]).filter(Boolean), ...newImages].slice(0, 5);
+    post = applyImageInteractionCtaFallback("instagram", post, getPrimaryImageInteractionLink(selected));
+  }
+  const text = getBoosterInstagramCaptionState(post, context ?? await loadPublicationCtaContext(userId, "instagram", true));
+  return text.issue ? instagramCaptionIssueResponse(text.issue) : null;
 }
 
 function isFacebookStoryOnlyPublication(eventPayload: JsonRecord) {
@@ -1216,6 +1243,7 @@ async function replaceChannelDelivery(params: {
   video?: PersistedVideoAttachment | null;
   imageSet?: ImageSet | null;
   onAssetsMayBeInUse?: () => void;
+  ctaContext?: PublicationCtaContext;
 }) {
   const { userId, publicationId, channel, previousExternalId, publication, eventPayload, nextPost, imageSet } = params;
   const markAssetsMayBeInUse = () => params.onAssetsMayBeInUse?.();
@@ -1281,7 +1309,7 @@ async function replaceChannelDelivery(params: {
     .filter(Boolean)
     .slice(0, 5);
 
-  const { websiteUrl, phone, siteWebUrl, proSettings } = await loadPublicationCtaContext(userId, channel);
+  const { websiteUrl, phone, siteWebUrl, proSettings } = params.ctaContext ?? await loadPublicationCtaContext(userId, channel);
 
   const canonMessage = buildBoosterMessage(channel, nextPost, { websiteUrl, phone });
 
@@ -1548,6 +1576,8 @@ async function replaceChannelDelivery(params: {
   }
 
   if (channel === "instagram") {
+    // Validate the complete caption before deleting any previous Instagram post.
+    const caption = buildBoosterInstagramCaption(nextPost, { websiteUrl, phone });
     const ig = asRecord(igRow);
     const igUserId = String(ig.resource_id ?? "");
     const igAuthMode = resolveInstagramAuthMode(ig.meta);
@@ -1582,7 +1612,6 @@ async function replaceChannelDelivery(params: {
         { sourceLabel: "instagram", row: igRow },
         { sourceLabel: "facebook", row: fbRow },
       ]).map((candidate) => ({ source: candidate.source, accessToken: candidate.token }));
-      const caption = buildBoosterInstagramCaption(nextPost, { websiteUrl, phone });
       markAssetsMayBeInUse();
       const resp = await instagramPublishVideoWithTokenFallback({
         authMode: igAuthMode,
@@ -1639,7 +1668,6 @@ async function replaceChannelDelivery(params: {
       { sourceLabel: "instagram", row: igRow },
       { sourceLabel: "facebook", row: fbRow },
     ]).map((candidate) => ({ source: candidate.source, accessToken: candidate.token }));
-    const caption = buildBoosterInstagramCaption(nextPost, { websiteUrl, phone });
     markAssetsMayBeInUse();
     const resp = await instagramPublishImagesBestEffortWithTokenFallback({
       authMode: igAuthMode,
@@ -2778,19 +2806,28 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
       const { publicationId } = await context.params, body = asRecord(await req.json().catch(() => null));
       const currentScope = async () => { const current = await requireUser(); return !req.signal.aborted && !current.errorResponse && current.activeUserId === auth.activeUserId && current.authUserId === auth.authUserId; };
       let validatedState: Awaited<ReturnType<typeof readInrSendPublicationEditState>> = null;
+      let validatedCtaContext: PublicationCtaContext | undefined;
       return await guardPublishedPublicationEdit({ body, currentScope,
         readVersion: async () => { const state = await readInrSendPublicationEditState(auth.activeUserId, publicationId, channel); if (!state) throw new Error("publication_missing"); validatedState = state; return state.sourceVersion; },
-        validate: channel === "pinterest" ? async () => {
+        validate: channel === "pinterest" || channel === "instagram" ? async () => {
           if (!validatedState) throw new Error("publication_missing");
-          return validatePinterestPublicationEdit(auth.activeUserId, body, validatedState);
+          // Freeze only this native request's owned CTA context. Provider work
+          // must use the exact defaults whose complete caption was accepted.
+          validatedCtaContext = Object.freeze(await loadPublicationCtaContext(auth.activeUserId, channel, true));
+          return channel === "instagram"
+            ? validateInstagramPublicationEdit(auth.activeUserId, body, validatedState, validatedCtaContext)
+            : validatePinterestPublicationEdit(auth.activeUserId, body, validatedState, validatedCtaContext);
         } : undefined,
         acquire: (version, fingerprint) => acquireExecutionIdempotencyLock({ supabase: supabaseAdmin, userId: auth.activeUserId, scope: "inrsend_publication_edit", idempotencyKey: `${publicationId}:${channel}:${version}`, metadata: { publicationId, channel, sourceVersion: version, requestFingerprint: fingerprint }, ttlMs: 5 * 60_000 }),
         seal: (lockId, result) => completeExecutionIdempotencyLockOrThrow({ supabase: supabaseAdmin, lockId, result }),
-        mutate: () => PATCH_NATIVE(req, context, body),
+        mutate: () => PATCH_NATIVE(req, context, body, validatedCtaContext),
       });
-    } catch { return NextResponse.json({ ok: false, code: "publication_edit_guard_unavailable", error: "La publication n’a pas pu être vérifiée avant modification. Vérifiez son état avant toute nouvelle tentative." }, { status: 409 }); }
+    } catch (error) {
+      if (error instanceof PublicationCtaContextUnavailableError) return NextResponse.json({ ok: false, code: "publication_caption_context_unavailable", error: error.message, retryable: true }, { status: 503 });
+      return NextResponse.json({ ok: false, code: "publication_edit_guard_unavailable", error: "La publication n’a pas pu être vérifiée avant modification. Vérifiez son état avant toute nouvelle tentative." }, { status: 409 });
+    }
   }
-  async function PATCH_NATIVE(req: Request, context: { params: Promise<{ publicationId: string }> }, parsedBody?: JsonRecord) {
+  async function PATCH_NATIVE(req: Request, context: { params: Promise<{ publicationId: string }> }, parsedBody?: JsonRecord, validatedCtaContext?: PublicationCtaContext) {
     const attemptStartedAt = new Date().toISOString();
     let providerAccountId: string | null = null;
     let unpersistedCreatedStoragePaths: string[] = [];
@@ -2966,6 +3003,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         video,
         imageSet,
         onAssetsMayBeInUse: imageUseGuard.markAssetsMayBeInUse,
+        ctaContext: validatedCtaContext,
       });
 
       const replaceWarning = String(
@@ -3065,6 +3103,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
       }
       if (e instanceof PublicationEditSourceChangedError) return jsonUserFacingError(e.message, { status: 409, code: "publication_edit_source_changed" });
       if (e instanceof PinterestTextValidationError) return pinterestTextIssueResponse(e.issue);
+      if (e instanceof InstagramCaptionValidationError) return instagramCaptionIssueResponse(e.issue);
       captureApiException(req, e, {
         area: "booster",
         operation: `PATCH /api/inrsend/publications/:publicationId/${channel}`,

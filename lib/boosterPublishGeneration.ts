@@ -25,8 +25,10 @@ import {
 } from "@/lib/boosterPrompt";
 import { normalizeBoosterStructuredResponse } from "@/lib/boosterStructuredResponseNormalization";
 import { buildBoosterCtaGenerationInstructions } from "@/lib/boosterCtaGenerationInstructions";
-import { applySafePreferredCta, type BoosterCtaDefaults } from "@/lib/boosterCtaPreferences";
-import { buildBoosterMessage, buildBoosterHashtagLine } from "@/lib/boosterCta";
+import { applySafePreferredCta, getPreferredWebsiteUrlForChannel, type BoosterCtaDefaults } from "@/lib/boosterCtaPreferences";
+import { buildBoosterMessage, buildBoosterHashtagLine, getBoosterInstagramCaptionState, type BoosterCtaContext } from "@/lib/boosterCta";
+import { INSTAGRAM_CAPTION_MAX_LENGTH, InstagramCaptionValidationError } from "./instagramCaptionLimits.ts";
+import { fitGeneratedInstagramPost } from "./instagramGeneratedCaption.ts";
 import { sanitizeGmbGeneratedPost } from "@/lib/googleBusinessCompliance";
 import { getAiEngineTemperature, getAiLanguageLabel } from "@/lib/aiWritingProfile";
 import { prepareMediaForSelectedWriter } from "@/lib/aiMediaUnderstanding";
@@ -517,6 +519,20 @@ function fitGeneratedXPost(post: ChannelPost): ChannelPost {
       .filter(Boolean),
   };
   return fitGeneratedXContent(normalized);
+}
+
+function instagramGenerationContext(defaults: BoosterCtaDefaults | null | undefined): BoosterCtaContext {
+  return { websiteUrl: getPreferredWebsiteUrlForChannel("instagram", defaults), phone: defaults?.phone || "" };
+}
+
+function buildInstagramGenerationBudgetInstructions(defaults: BoosterCtaDefaults | null | undefined) {
+  const configured = applySafePreferredCta({
+    channel: "instagram", post: { title: "", content: "", cta: "", hashtags: [] }, defaults, preserveExplicit: false,
+  });
+  const state = getBoosterInstagramCaptionState(configured, instagramGenerationContext(defaults));
+  if (state.issue) throw new InstagramCaptionValidationError(state.issue);
+  const available = Math.max(0, INSTAGRAM_CAPTION_MAX_LENGTH - state.length - (state.length ? 2 : 0));
+  return `BUDGET INSTAGRAM : la légende complète ne dépasse jamais ${INSTAGRAM_CAPTION_MAX_LENGTH} caractères, titre, content, CTA, coordonnées, séparateurs et hashtags compris. Le CTA réellement configuré occupe ${state.length} caractères ; il reste au maximum ${available} caractères à répartir entre le titre, content et les hashtags, séparateurs compris. Le champ content reste dans la plage de longueur choisie et ne dépasse jamais 1 800 caractères. Prévois la place des hashtags effectivement retenus dès la rédaction. Ne coupe ni ne remplace les coordonnées du CTA pour faire tenir la légende.`;
 }
 
 function normalizePost(channel: BoosterChannels, raw: Partial<ChannelPost> | undefined): ChannelPost {
@@ -1602,7 +1618,10 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
         destinations: args.ctaDefaults,
       })
     : "";
-  const extraInstructions = [args.extraInstructions, ctaInstructions]
+  const instagramBudgetInstructions = channels.includes("instagram")
+    ? buildInstagramGenerationBudgetInstructions(args.ctaDefaults)
+    : "";
+  const extraInstructions = [args.extraInstructions, ctaInstructions, instagramBudgetInstructions]
     .filter(Boolean)
     .join("\n\n");
 
@@ -2000,6 +2019,12 @@ export async function generateSharedBoosterPosts(args: GenerateSharedBoosterPost
     safeVersions.x = fitGeneratedXContent(applySafePreferredCta({
       channel: "x", post: safeVersions.x, defaults: args.ctaDefaults, preserveExplicit: false,
     }));
+  }
+  if (safeVersions.instagram) {
+    const configured = args.ctaDefaults ? applySafePreferredCta({
+      channel: "instagram", post: safeVersions.instagram, defaults: args.ctaDefaults, preserveExplicit: false,
+    }) : safeVersions.instagram;
+    safeVersions.instagram = fitGeneratedInstagramPost(configured, instagramGenerationContext(args.ctaDefaults));
   }
 
   return {

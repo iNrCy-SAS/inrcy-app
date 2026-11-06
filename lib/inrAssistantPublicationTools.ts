@@ -6,6 +6,7 @@ import { jsonSchema, tool } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BOOSTER_PUBLICATION_CHANNELS, BOOSTER_PUBLICATION_CHANNEL_LABELS, type BoosterPublicationChannelKey as Channel } from "./boosterPublicationPolicy.ts";
 import { BOOSTER_CHANNEL_CONTENT_RULES } from "./boosterChannelRules.ts";
+import { INSTAGRAM_CAPTION_MAX_LENGTH } from "./instagramCaptionLimits.ts";
 import { classifyBoosterPublicationResult } from "./boosterPublicationOutcome.ts";
 
 type Row = Record<string, unknown>;
@@ -47,6 +48,11 @@ function tags(value: unknown): string[] | undefined {
   if (!Array.isArray(value) || value.length > 20 || value.some((item) => typeof item !== "string" || item.length > 60)) throw new PublicationInputError("Hashtags invalides.");
   return [...new Set(value.map((item) => String(item).trim()).filter(Boolean))];
 }
+// Generated Instagram bodies keep their editorial headroom; manual drafts use
+// the native envelope and the full-caption preflight still gates publication.
+function manualPostContentMaximum(channel: Channel): number {
+  return channel === "instagram" ? INSTAGRAM_CAPTION_MAX_LENGTH : BOOSTER_CHANNEL_CONTENT_RULES[channel].max;
+}
 function post(value: unknown): Post {
   const input = row(value); strict(input, ["channel", "title", "content", "cta", "hashtags", "ctaMode", "ctaUrl", "ctaPhone", "ctaAction"]);
   if (!BOOSTER_PUBLICATION_CHANNELS.includes(input.channel as Channel)) throw new PublicationInputError("Canal de publication invalide.");
@@ -54,7 +60,7 @@ function post(value: unknown): Post {
   if (input.cta != null && (typeof input.cta !== "string" || input.cta.length > 300)) throw new PublicationInputError("Appel à l’action invalide.");
   for (const field of ["ctaMode", "ctaUrl", "ctaPhone", "ctaAction"]) if (input[field] != null && (typeof input[field] !== "string" || String(input[field]).length > (field === "ctaUrl" ? 2000 : 80))) throw new PublicationInputError("Destination d’appel à l’action invalide.");
   if (input.ctaMode != null && !["none", "website", "call", "message", "custom"].includes(String(input.ctaMode))) throw new PublicationInputError("Choix d’appel à l’action invalide.");
-  return { channel, title: text(input.title, 180)!, content: text(input.content, BOOSTER_CHANNEL_CONTENT_RULES[channel].max)!,
+  return { channel, title: text(input.title, 180)!, content: text(input.content, manualPostContentMaximum(channel))!,
     cta: typeof input.cta === "string" ? input.cta.trim() : undefined, hashtags: tags(input.hashtags), ...Object.fromEntries(["ctaMode", "ctaUrl", "ctaPhone", "ctaAction"].filter(key => input[key] != null).map(key => [key, String(input[key]).trim()])) };
 }
 function prepareInput(value: unknown): PrepareInput {
@@ -119,7 +125,7 @@ function editInput(value: unknown): EditInput {
   if (!BOOSTER_PUBLICATION_CHANNELS.includes(input.channel as Channel)) throw new PublicationInputError("Canal invalide.");
   const channel = input.channel as Channel;
   const parsed = { publicationId: id(input.publicationId), channel, title: text(input.title, 180, true),
-    content: text(input.content, BOOSTER_CHANNEL_CONTENT_RULES[channel].max, true), hashtags: tags(input.hashtags) };
+    content: text(input.content, manualPostContentMaximum(channel), true), hashtags: tags(input.hashtags) };
   if (parsed.title === undefined && parsed.content === undefined && parsed.hashtags === undefined) throw new PublicationInputError("Précisez la correction souhaitée.");
   return parsed;
 }

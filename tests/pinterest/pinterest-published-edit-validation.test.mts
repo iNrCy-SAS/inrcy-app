@@ -93,6 +93,7 @@ test("the actual Pinterest PATCH routes over-limit input through read-only valid
     requireUser: async () => ({ activeUserId: "owned-account", authUserId: "owned-actor", errorResponse: null }),
     readInrSendPublicationEditState: async () => h.state,
     validatePinterestPublicationEdit: h.validate,
+    loadPublicationCtaContext: async () => ({ websiteUrl: "https://example.test/", phone: "0123456789", siteWebUrl: "https://example.test/", proSettings: {} }),
     acquireExecutionIdempotencyLock: async () => { acquisitions++; throw new Error("invalid input must not acquire a lock"); },
     completeExecutionIdempotencyLockOrThrow: async () => { throw new Error("invalid input must not seal a receipt"); },
     captureApiException: () => { captures++; },

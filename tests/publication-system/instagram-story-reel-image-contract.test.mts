@@ -358,15 +358,29 @@ test("new Instagram format settings survive immediate and scheduled durable disp
 });
 
 test("ordered Instagram Reel images become one vertical MP4 while Reels retain their caption", () => {
+  const instagramBranchStart = route.indexOf('if (ch === "instagram") {');
+  const instagramBranchEnd = route.indexOf('if (ch === "linkedin") {', instagramBranchStart);
+  assert.notEqual(instagramBranchStart, -1);
+  assert.ok(instagramBranchEnd > instagramBranchStart);
+  const instagramBranch = route.slice(instagramBranchStart, instagramBranchEnd);
   assert.match(
-    route,
+    instagramBranch,
     /instagramPublicationSettings &&[\s\S]*?mediaModeByChannel\[ch\] === "images"[\s\S]*?createInstagramImageMotionVideo/,
   );
-  assert.match(route, /instagram_image_motion_preparation_failed/);
+  assert.match(instagramBranch, /instagram_image_motion_preparation_failed/);
+  // Runtime boundaries, corrected retries and Story-only exemption are covered
+  // by instagram-caption-native-validation.test.mts. This checks that dispatch
+  // actually uses that same validated caption rather than rebuilding it later.
   assert.match(
-    route,
-    /instagramPublicationSettings\?\.placement === "story"[\s\S]*?\? ""[\s\S]*?: buildBoosterInstagramCaption/,
+    instagramBranch,
+    /const instagramCaptionState = instagramPublicationSettings\?\.placement === "story"\s*\? null\s*:\s*getBoosterInstagramCaptionState\(channelPost, validatedInstagramCtaContext \?\?/,
   );
+  assert.match(instagramBranch, /if \(instagramCaptionState\?\.issue\) \{[\s\S]*?await setDelivery\(ch, \{ status: "failed", error: issue\.message \}\);[\s\S]*?retryable: false[\s\S]*?continue;[\s\S]*?const instagramCaption = instagramCaptionState\?\.caption \|\| "";/);
+  for (const publisher of ["instagramCreateVideoCheckpointWithTokenFallback", "instagramPublishVideoCheckpointWithTokenFallback", "instagramPublishImagesBestEffortWithTokenFallback"]) {
+    assert.match(instagramBranch, new RegExp(`${publisher}\\(\\{[\\s\\S]*?caption: instagramCaption`));
+  }
+  assert.ok(instagramBranch.indexOf("const instagramCaption =") < instagramBranch.indexOf("createInstagramImageMotionVideo("), "invalid copy is rejected before a motion video is prepared");
+  assert.doesNotMatch(instagramBranch, /caption:\s*(?:canonMessage|channelPost\.content|buildBoosterInstagramCaption\()/);
   assert.match(motion, /imageStoragePaths[\s\S]*?\.slice\(0, 5\)/);
   assert.match(motion, /buildMotionFilter\(framePaths\.length, durationSeconds, args\.preserveComposition\)/);
   assert.match(motion, /const OUTPUT_WIDTH = 1_080/);

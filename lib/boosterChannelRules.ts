@@ -88,7 +88,9 @@ export const BOOSTER_CHANNEL_CONTENT_RULES: Record<
     long: { min: 620, max: 1000 },
     deep: { min: 1000, max: 1800 },
     detailed: { min: 620, max: 950 },
-    max: 2200,
+    // Generated body only: leave room for the title, configured CTA and tags.
+    // Existing professional edits keep the full 2,200-character caption check.
+    max: 1800,
   },
   threads: {
     adapted: { min: 180, max: 300 },
@@ -304,11 +306,14 @@ export function limitBoosterGeneratedTitle(
 export function limitBoosterGeneratedContent(
   channel: BoosterChannelKey,
   content: string,
+  contentBudget = BOOSTER_CHANNEL_CONTENT_RULES[channel].max,
 ) {
-  return truncateAtNaturalBoundary(
+  const limited = truncateAtNaturalBoundary(
     content,
-    BOOSTER_CHANNEL_CONTENT_RULES[channel].max,
+    Math.max(0, Math.min(BOOSTER_CHANNEL_CONTENT_RULES[channel].max, contentBudget)),
   );
+  // The conservative Instagram UTF-16 budget must never split an emoji pair.
+  return channel === "instagram" ? limited.replace(/[\uD800-\uDBFF]$/u, "").trimEnd() : limited;
 }
 
 /**

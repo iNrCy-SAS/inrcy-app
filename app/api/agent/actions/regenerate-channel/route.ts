@@ -30,6 +30,7 @@ import { getBoosterGenerationContext } from "@/lib/boosterGenerationContext";
 import { loadBoosterCtaDefaults } from "@/lib/boosterCtaDefaultsServer";
 import { applySafePreferredCta } from "@/lib/boosterCtaPreferences";
 import { generateSharedBoosterPosts } from "@/lib/boosterPublishGeneration";
+import { fitGeneratedInstagramPost } from "@/lib/instagramGeneratedCaption";
 import type { BoosterChannels, BoosterTheme } from "@/lib/boosterPrompt";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { requireUser } from "@/lib/requireUser";
@@ -419,12 +420,20 @@ export async function POST(request: Request) {
             : regeneratedPost.callToAction,
           hashtags: regeneratedPost.hashtags,
         };
-        nextPostByChannel[targetChannel] = applySafePreferredCta({
+        const configuredPost = applySafePreferredCta({
           channel: targetChannel as BoosterChannels,
           post: editorialPost,
           defaults: ctaDefaults,
           preserveExplicit: true,
         });
+        // This is newly requested AI copy. The preserved CTA can be longer
+        // than today's default, so size the result after that choice is final.
+        if (targetChannel === "instagram") {
+          const fitted = fitGeneratedInstagramPost(configuredPost, {
+            websiteUrl: ctaDefaults.preferredWebsiteUrl || ctaDefaults.siteWebUrl || "", phone: ctaDefaults.phone || "",
+          });
+          nextPostByChannel[targetChannel] = { ...fitted, subject: fitted.title, text: fitted.content, body: fitted.content };
+        } else nextPostByChannel[targetChannel] = configuredPost;
       }
       const nextNested = { ...nested, postByChannel: nextPostByChannel };
       const nextPayload = {

@@ -54,7 +54,7 @@ test("Booster uses the validated SEO length table for every channel", () => {
       long: { min: 620, max: 1000 },
       deep: { min: 1000, max: 1800 },
       detailed: { min: 620, max: 950 },
-      max: 2200,
+      max: 1800,
     },
     threads: {
       adapted: { min: 180, max: 300 },

@@ -35,6 +35,7 @@ import styles from "./mails.module.css";
 import { createClient } from "@/lib/supabaseClient";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import { getPinterestPublicationEditText, orderPinterestPublicationEditImages } from "./_lib/pinterestPublicationEditText";
+import { getInstagramPublicationEditText } from "./_lib/instagramPublicationEditText";
 import {
   containsForbiddenXUrl,
   X_FORBIDDEN_URL_ERROR,
@@ -3262,21 +3263,11 @@ export default function MailboxClient({
       setDetailsActionError(X_FORBIDDEN_URL_ERROR);
       return;
     }
-    if (normalizedChannel === "instagram") {
-      const confirmed = await confirmInrcy({
-        title: i18nT("instagram_business_edit_warning_title"),
-        message: i18nT("instagram_business_edit_warning_message"),
-        confirmLabel: i18nT("instagram_business_edit_warning_confirm"),
-        variant: "warning",
-      });
-      if (!confirmed) return;
-    }
-
     setDetailsActionBusy(true);
     setDetailsActionError(null);
     setDetailsActionSuccess(null);
     try {
-      if (normalizedChannel === "pinterest") {
+      if (normalizedChannel === "pinterest" || normalizedChannel === "instagram") {
         const defaultsResponse = await fetch("/api/booster/cta-defaults", { cache: "no-store" });
         if (!defaultsResponse.ok) throw new Error(i18nT("pinterest_publication_defaults_unavailable"));
         const defaults = await defaultsResponse.json().catch(() => null);
@@ -3286,11 +3277,24 @@ export default function MailboxClient({
           ? [] : (publicationEditImagesByChannel[normalizedChannel]?.assets || []).filter(asset => asset.selected).slice(0, 5);
         const images = orderPinterestPublicationEditImages(selectedImages, asset => Boolean(asset.sourceUrl && !asset.file && !(asset.savedTransform
           ? !arePublicationTransformsEquivalent(asset.transform, asset.savedTransform)
-          : isPublicationTransformModified(asset.transform, "pinterest"))));
-        const issue = getPinterestPublicationEditText(publicationEditForm, images, {
-          websiteUrl: String(defaults.siteWebUrl || ""), phone: String(defaults.phone || ""),
-        }).issues[0];
-        if (issue) throw new Error(i18nT(issue.field === "title" ? "pinterest_publication_title_too_long" : "pinterest_publication_description_too_long", { count: issue.excess }));
+          : isPublicationTransformModified(asset.transform, normalizedChannel))));
+        const context = { websiteUrl: String(defaults.siteWebUrl || ""), phone: String(defaults.phone || "") };
+        if (normalizedChannel === "pinterest") {
+          const issue = getPinterestPublicationEditText(publicationEditForm, images, context).issues[0];
+          if (issue) throw new Error(i18nT(issue.field === "title" ? "pinterest_publication_title_too_long" : "pinterest_publication_description_too_long", { count: issue.excess }));
+        } else {
+          const issue = getInstagramPublicationEditText(publicationEditForm, images, context).issue;
+          if (issue) throw new Error(i18nT("instagram_publication_caption_too_long", { count: issue.excess }));
+        }
+      }
+      if (normalizedChannel === "instagram") {
+        const confirmed = await confirmInrcy({
+          title: i18nT("instagram_business_edit_warning_title"),
+          message: i18nT("instagram_business_edit_warning_message"),
+          confirmLabel: i18nT("instagram_business_edit_warning_confirm"),
+          variant: "warning",
+        });
+        if (!confirmed) return;
       }
       const expectedState = await baseline.expectedState;
       if (!/^[a-f0-9]{64}$/.test(expectedState)) throw new Error("La version d’origine n’a pas pu être vérifiée. Rouvrez le détail avant de l’enregistrer.");

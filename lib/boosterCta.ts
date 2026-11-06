@@ -12,6 +12,7 @@ import {
   sanitizeGoogleBusinessPublicationText,
 } from "@/lib/boosterPublicationSafety";
 import { getBoosterLinkCtaChoice, type BoosterLinkCtaAction } from "@/lib/boosterCtaActions";
+import { getInstagramCaptionIssue, INSTAGRAM_CAPTION_MAX_LENGTH, InstagramCaptionValidationError } from "./instagramCaptionLimits.ts";
 export {
   buildBoosterWhatsAppUrl,
   getBoosterWhatsAppPhoneFromUrl,
@@ -442,15 +443,23 @@ export function buildBoosterHashtagLine(
   return buildUniqueBoosterHashtagLine(baseText, post?.hashtags, maxTags);
 }
 
-export function buildBoosterInstagramCaption(post: Partial<BoosterPostLike> | null | undefined, context?: BoosterCtaContext) {
+/** Full Instagram caption used by the counter and the publisher. Selected
+ * hashtags are never discarded merely to hide an over-limit caption. */
+export function getBoosterInstagramCaptionState(post: Partial<BoosterPostLike> | null | undefined, context?: BoosterCtaContext) {
   const normalizedPost = normalizeBoosterInstagramPostHashtags(post || {}, 8);
   const base = buildBoosterMessage("instagram", normalizedPost, context);
-  if (base.length > 2200) {
-    throw new Error("La légende Instagram, CTA compris, dépasse 2 200 caractères. Raccourcissez le contenu pour conserver le numéro choisi.");
-  }
   const tagLine = buildBoosterHashtagLine(normalizedPost, base, 8);
-  const captionWithTags = tagLine ? `${base}\n\n${tagLine}` : base;
-  return captionWithTags.length <= 2200 ? captionWithTags.trim() : base.trim();
+  const caption = [base, tagLine].filter(Boolean).join("\n\n").trim();
+  const issue = getInstagramCaptionIssue(caption);
+  return { caption, text: caption, length: caption.length, count: caption.length,
+    max: INSTAGRAM_CAPTION_MAX_LENGTH, limit: INSTAGRAM_CAPTION_MAX_LENGTH,
+    excess: issue?.excess ?? 0, issue };
+}
+
+export function buildBoosterInstagramCaption(post: Partial<BoosterPostLike> | null | undefined, context?: BoosterCtaContext) {
+  const state = getBoosterInstagramCaptionState(post, context);
+  if (state.issue) throw new InstagramCaptionValidationError(state.issue);
+  return state.caption;
 }
 
 /** Texte exact envoyé à X, CTA et hashtags inclus. */

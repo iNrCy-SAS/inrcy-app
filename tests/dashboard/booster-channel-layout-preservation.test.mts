@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 
 import {
   editableHtmlToSiteText,
@@ -60,14 +61,22 @@ test("Facebook and Instagram Reels preserve text while Instagram Stories suppres
   assert.match(publishRoute, /message: canonMessage/);
   assert.match(
     publishRoute,
-    /instagramPublicationSettings\?\.placement === "story"[\s\S]*?\? ""[\s\S]*?: buildBoosterInstagramCaption\(channelPost/,
+    /const instagramCaptionState = instagramPublicationSettings\?\.placement === "story"\s*\? null\s*:\s*getBoosterInstagramCaptionState\(channelPost, validatedInstagramCtaContext \?\?/,
   );
+  assert.match(publishRoute, /if \(instagramCaptionState\?\.issue\) \{[\s\S]*?await setDelivery\(ch, \{ status: "failed", error: issue\.message \}\);[\s\S]*?continue;[\s\S]*?const instagramCaption = instagramCaptionState\?\.caption \|\| "";/);
   assert.match(
     publishRoute,
     /buildBoosterHashtagLine\(channelPost, canonMessage, 8\)/,
   );
   assert.match(publishRoute, /caption: instagramCaption/);
   assert.match(publishRoute, /text: canonMessage/);
+  const native = runtimeModules()<typeof import("../../lib/boosterCta.ts")>("lib/boosterCta.ts");
+  const paragraphs = "Première ligne.\n\nDeuxième ligne.\n\nTroisième ligne.";
+  const post = { content: paragraphs, ctaMode: "none", hashtags: [] };
+  const caption = native.getBoosterInstagramCaptionState(post);
+  assert.equal(caption.issue, null);
+  assert.equal(caption.caption, paragraphs, "validating the final Reel caption preserves authored paragraphs");
+  assert.equal(native.buildBoosterMessage("facebook", post), paragraphs);
 });
 
 test("TikTok, YouTube and Pinterest append optional parts with paragraph separators", () => {

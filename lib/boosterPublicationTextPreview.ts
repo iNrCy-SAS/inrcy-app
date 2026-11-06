@@ -1,6 +1,6 @@
 import {
   buildBoosterHashtagLine,
-  buildBoosterInstagramCaption,
+  getBoosterInstagramCaptionState,
   buildBoosterMessage,
   buildCtaTextForNativeDestination,
   sanitizeBoosterPostForStructuredCta,
@@ -8,7 +8,6 @@ import {
   type BoosterPostLike,
 } from "@/lib/boosterCta";
 import { stripSiteTextFormattingPreserveLayout } from "@/lib/boosterFormatting";
-import { normalizeBoosterInstagramPostHashtags } from "@/lib/boosterPublicationSafety";
 import { getXPostTextMetrics, X_POST_WEIGHTED_LENGTH_MAX } from "@/lib/xChannel";
 
 export type BoosterPreviewChannel =
@@ -106,17 +105,8 @@ export function getBoosterPublicationTextPreview(
   }
 
   if (channel === "instagram") {
-    const normalizedPost = normalizeBoosterInstagramPostHashtags(post || {}, 8);
-    const base = buildBoosterMessage("instagram", normalizedPost, context);
-    if (base.length > 2200) {
-      // The publisher rejects this required text. Avoid throwing while the
-      // editor renders the counter so the user can shorten it.
-      return { text: base, count: base.length, max: 2200, hashtagsOmitted: false };
-    }
-    const text = buildBoosterInstagramCaption(normalizedPost, context);
-    const tagLine = buildBoosterHashtagLine(normalizedPost, base, 8);
-    const hashtagsOmitted = Boolean(tagLine) && `${base}\n\n${tagLine}`.length > 2200;
-    return { text, count: text.length, max: 2200, hashtagsOmitted };
+    const state = getBoosterInstagramCaptionState(post, context);
+    return { text: state.caption, count: state.length, max: state.max, hashtagsOmitted: false };
   }
 
   // The X publisher sends buildBoosterMessage; it does not append the

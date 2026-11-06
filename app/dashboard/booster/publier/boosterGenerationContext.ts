@@ -54,6 +54,8 @@ export type BoosterGenerationContext = {
     getLiveInstagramHashtags: () => string[];
     xHashtagsInput: string;
     ctaDefaults: BoosterCtaDefaults | null;
+    /** Called only on fresh AI results, using current media/CTA selections. */
+    fitGeneratedInstagramCopy?: (post: ChannelPost) => ChannelPost;
     setImgError: Setter<string>;
     setDuplicateFeedback: (value: null) => void;
     setPostsByChannel: Setter<Partial<Record<ChannelKey, ChannelPost>>>;

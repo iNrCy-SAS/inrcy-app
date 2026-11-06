@@ -711,6 +711,10 @@ export function useBoosterGeneration({ i18nT, runtimeT, readContext }: {
       const versions = json?.versions || {};
       if (!generationIsCurrent()) return;
       const sanitizedVersions = sanitizePostsForEditor(versions, ctaDefaults);
+      if (generationChannels.includes("instagram") && sanitizedVersions.instagram) {
+        const fitInstagram = readContext().editor.fitGeneratedInstagramCopy;
+        if (fitInstagram) sanitizedVersions.instagram = fitInstagram(sanitizedVersions.instagram);
+      }
       if (contentAdjustment) {
         if (generationChannels.some(channel => JSON.stringify(currentPostsRef.current[channel]) !== JSON.stringify(baselinePosts[channel]))) throw new Error(i18nT("adjust_conflict"));
         const revised = mergeBoosterContentAdjustment(currentPostsRef.current, sanitizedVersions, generationChannels);
