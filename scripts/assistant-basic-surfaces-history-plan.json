@@ -2421,7 +2421,7 @@
     "sourceFiles": [
       "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
     ],
-    "sourceAnchor": "<button\n                                      type=\"button\"\n                                      className={styles.btnPrimary}\n                                      onClick={saveChannelPublication}\n                                      dis",
+    "sourceAnchor": "<button\n                                      type=\"button\"\n                                      className={styles.btnPrimary}\n                                      onClick={saveChannelPublication}\n                                      disabled={\n                                        detailsActionBusy ||\n                                        publicationEditHasForbiddenXUrl ||\n                                        Boolean(pinterestPublicationText?.issues.length)\n                                      }\n                                    >\n                                      {detailsActionBusy ? i18nT(\"enregistrement_e7d5f232\") : i18nT(\"enregistrer_f7c8bcd8\")}\n                                    </button>",
     "capabilityId": "publication.published-edit",
     "toolNames": [
       "readPublishedPublicationForEdit",
@@ -2435,9 +2435,19 @@
     ],
     "testAnchor": "Basic published edits read an owned delivered channel and require the exact signed CTA/media preview before any external work",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:8d1840d8b1a1bef7:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:1beaa5153e7b37f7:1"
     ],
-    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. CTA/URL/téléphone et texte/média publié disposent du workflow owned/versionné et de son aperçu signé. La sauvegarde distante vérifiée ne prétend pas remplir le formulaire local ; risques de remplacement et limites de canaux natifs conservés. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées."
+    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. CTA/URL/téléphone et texte/média publié disposent du workflow owned/versionné et de son aperçu signé. La sauvegarde distante vérifiée ne prétend pas remplir le formulaire local ; risques de remplacement et limites de canaux natifs conservés. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées. Revue corrective Pinterest : même contrôle et même prise en charge serveur, limites partagées de 100 caractères pour le titre et de 800 pour la description, compteur accessible incluant CTA/hashtags et contrôle du callback avant tout upload/PATCH. Aucun nouveau contrôle ni droit autonome ajouté.",
+    "additionalProofs": [
+      {
+        "file": "tests/inrsend/mailbox-pinterest-edit-validation.test.mts",
+        "testAnchor": "the native Pinterest editor counts the exact assembled description and Unicode characters"
+      },
+      {
+        "file": "tests/inrsend/mailbox-pinterest-edit-validation.test.mts",
+        "testAnchor": "an invalid native Pinterest save never submits or consumes the operation, and a corrected save can use that same source version"
+      }
+    ]
   },
   {
     "id": "history-plan-07efe27bfb24e8bb",
@@ -2517,7 +2527,7 @@
     "sourceFiles": [
       "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
     ],
-    "sourceAnchor": "<textarea\n                                              value={publicationEditForm.title}\n                                              onChange={(e) => updatePublicationEdit({ title: e.target.value })}\n                                     ",
+    "sourceAnchor": "<textarea\n                                              value={publicationEditForm.title}\n                                              onChange={(e) => updatePublicationEdit({ title: e.target.value })}\n                                              className={`${styles.publicationFieldInput} ${styles.publicationFieldInputMultiline}`}\n                                              placeholder={i18nT(\"titre_eb97899a\")}\n                                              rows={2}\n                                              disabled={detailsActionBusy}\n                                              aria-describedby={pinterestPublicationText ? pinterestTitleCounterId : undefined}\n                                              aria-invalid={Boolean(pinterestTitleIssue) || undefined}\n                                            />",
     "capabilityId": "publication.published-edit",
     "toolNames": [
       "readPublishedPublicationForEdit",
@@ -2531,9 +2541,19 @@
     ],
     "testAnchor": "Basic published edits read an owned delivered channel and require the exact signed CTA/media preview before any external work",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#textarea:6995e88e239b259c:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#textarea:e1074ac4bd8b3ab4:1"
     ],
-    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Texte publié modifiable via lecture owned et aperçu signé scellé sur le canal exact ; champs omis préservés. Le formulaire local reste distinct ; les refus natifs ne deviennent jamais une nouvelle publication. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées."
+    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Texte publié modifiable via lecture owned et aperçu signé scellé sur le canal exact ; champs omis préservés. Le formulaire local reste distinct ; les refus natifs ne deviennent jamais une nouvelle publication. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées. Revue corrective Pinterest : même contrôle et même prise en charge serveur, limites partagées de 100 caractères pour le titre et de 800 pour la description, compteur accessible incluant CTA/hashtags et contrôle du callback avant tout upload/PATCH. Aucun nouveau contrôle ni droit autonome ajouté.",
+    "additionalProofs": [
+      {
+        "file": "tests/inrsend/mailbox-pinterest-edit-validation.test.mts",
+        "testAnchor": "the native Pinterest editor counts the exact assembled description and Unicode characters"
+      },
+      {
+        "file": "tests/inrsend/mailbox-pinterest-edit-validation.test.mts",
+        "testAnchor": "an invalid native Pinterest save never submits or consumes the operation, and a corrected save can use that same source version"
+      }
+    ]
   },
   {
     "id": "history-plan-94b277443504e4aa",
@@ -2542,7 +2562,7 @@
     "sourceFiles": [
       "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
     ],
-    "sourceAnchor": "<input\n                                              type=\"text\"\n                                              value={publicationEditForm.title}\n                                              onChange={(e) => updatePublicationEdit({ title: e",
+    "sourceAnchor": "<input\n                                              type=\"text\"\n                                              value={publicationEditForm.title}\n                                              onChange={(e) => updatePublicationEdit({ title: e.target.value })}\n                                              className={styles.publicationFieldInput}\n                                              placeholder={i18nT(\"titre_eb97899a\")}\n                                              disabled={detailsActionBusy}\n                                              aria-describedby={pinterestPublicationText ? pinterestTitleCounterId : undefined}\n                                              aria-invalid={Boolean(pinterestTitleIssue) || undefined}\n                                            />",
     "capabilityId": "publication.published-edit",
     "toolNames": [
       "readPublishedPublicationForEdit",
@@ -2556,9 +2576,19 @@
     ],
     "testAnchor": "Basic published edits read an owned delivered channel and require the exact signed CTA/media preview before any external work",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#input:f62fd31215041ff3:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#input:2317ae0c7ba7a3da:1"
     ],
-    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Texte publié modifiable via lecture owned et aperçu signé scellé sur le canal exact ; champs omis préservés. Le formulaire local reste distinct ; les refus natifs ne deviennent jamais une nouvelle publication. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées."
+    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Texte publié modifiable via lecture owned et aperçu signé scellé sur le canal exact ; champs omis préservés. Le formulaire local reste distinct ; les refus natifs ne deviennent jamais une nouvelle publication. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées. Revue corrective Pinterest : même contrôle et même prise en charge serveur, limites partagées de 100 caractères pour le titre et de 800 pour la description, compteur accessible incluant CTA/hashtags et contrôle du callback avant tout upload/PATCH. Aucun nouveau contrôle ni droit autonome ajouté.",
+    "additionalProofs": [
+      {
+        "file": "tests/inrsend/mailbox-pinterest-edit-validation.test.mts",
+        "testAnchor": "the native Pinterest editor counts the exact assembled description and Unicode characters"
+      },
+      {
+        "file": "tests/inrsend/mailbox-pinterest-edit-validation.test.mts",
+        "testAnchor": "an invalid native Pinterest save never submits or consumes the operation, and a corrected save can use that same source version"
+      }
+    ]
   },
   {
     "id": "history-plan-9b805fe4052d06a4",
@@ -2617,7 +2647,7 @@
     "sourceFiles": [
       "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
     ],
-    "sourceAnchor": "<textarea\n                                              value={publicationEditForm.content}\n                                              onChange={(e) => updatePublicationEdit({ content: e.target.value })}\n                                 ",
+    "sourceAnchor": "<textarea\n                                              value={publicationEditForm.content}\n                                              onChange={(e) => updatePublicationEdit({ content: e.target.value })}\n                                              className={styles.publicationFieldTextarea}\n                                              placeholder={i18nT(\"contenu_f3cb82af\")}\n                                              rows={8}\n                                              disabled={detailsActionBusy}\n                                              aria-describedby={pinterestPublicationText ? pinterestDescriptionCounterId : undefined}\n                                              aria-invalid={Boolean(pinterestDescriptionIssue) || undefined}\n                                            />",
     "capabilityId": "publication.published-edit",
     "toolNames": [
       "readPublishedPublicationForEdit",
@@ -2631,9 +2661,19 @@
     ],
     "testAnchor": "Basic published edits read an owned delivered channel and require the exact signed CTA/media preview before any external work",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#textarea:209f263c143c0d2e:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#textarea:fe01e02a4cf8c32e:1"
     ],
-    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Texte publié modifiable via lecture owned et aperçu signé scellé sur le canal exact ; champs omis préservés. Le formulaire local reste distinct ; les refus natifs ne deviennent jamais une nouvelle publication. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées."
+    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Texte publié modifiable via lecture owned et aperçu signé scellé sur le canal exact ; champs omis préservés. Le formulaire local reste distinct ; les refus natifs ne deviennent jamais une nouvelle publication. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées. Revue corrective Pinterest : même contrôle et même prise en charge serveur, limites partagées de 100 caractères pour le titre et de 800 pour la description, compteur accessible incluant CTA/hashtags et contrôle du callback avant tout upload/PATCH. Aucun nouveau contrôle ni droit autonome ajouté.",
+    "additionalProofs": [
+      {
+        "file": "tests/inrsend/mailbox-pinterest-edit-validation.test.mts",
+        "testAnchor": "the native Pinterest editor counts the exact assembled description and Unicode characters"
+      },
+      {
+        "file": "tests/inrsend/mailbox-pinterest-edit-validation.test.mts",
+        "testAnchor": "an invalid native Pinterest save never submits or consumes the operation, and a corrected save can use that same source version"
+      }
+    ]
   },
   {
     "id": "history-plan-968c669b6a737b93",

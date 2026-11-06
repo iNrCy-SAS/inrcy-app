@@ -177,7 +177,7 @@ test("Booster sends deduplicated copy to LinkedIn media while text fallback keep
   );
   assert.match(
     route,
-    /const pinterestCta = buildCtaTextForNativeDestination\(/,
+    /const pinterestText = buildPinterestPublicationText\([\s\S]*?includeTitle: false/,
   );
 });
 
@@ -192,19 +192,10 @@ test("iNrSend replacement follows the same native destination and text-fallback 
     source,
     /fallbackResp = await linkedinPublishText\(\{[\s\S]*?text: canonMessage/,
   );
-  assert.match(
-    source,
-    /const pinterestNativeMessage = buildBoosterNativeDestinationMessage\(/,
-  );
-  assert.match(source, /if \(pinterestNativeMessage\.length > 500\)/);
-  assert.match(
-    source,
-    /const descriptionWithTags = \[pinterestNativeMessage, tagLine\]\s*\.filter\(Boolean\)\s*\.join\("\\n\\n"\)/,
-  );
-  assert.match(
-    source,
-    /const description = descriptionWithTags\.length <= 500\s*\? descriptionWithTags\s*:\s*pinterestNativeMessage/,
-  );
+  assert.match(source, /const pinterestText = buildPinterestPublicationText\(nextPost, \{ websiteUrl, phone \}\)/);
+  assert.match(source, /if \(pinterestText\.issues\[0\]\) throw new PinterestTextValidationError/);
+  assert.match(source, /const \{ title: pinterestTitle, description \} = pinterestText/);
+  assert.doesNotMatch(source, /descriptionWithTags\.length <= 500|pinterestNativeMessage\.length > 500/);
 });
 
 test("Facebook Story never receives the automatic image CTA and reports the API limitation", () => {

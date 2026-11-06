@@ -7,6 +7,7 @@ import {
 } from "@/lib/pinterestVideoProtocol";
 import { buildPinterestImageMediaSource } from "@/lib/pinterestImagePinPayload";
 import { preparePinterestCarouselImages } from "@/lib/pinterestCarouselImages";
+import { preparePinterestPinText } from "./pinterestTextLimits.ts";
 import {
   ensureFrenchPublicationErrorMessage,
   getProviderPublicationErrorMessage,
@@ -78,23 +79,6 @@ export type PinterestCreateVideoPinArgs = {
   coverBucket?: string | null;
   link?: string | null;
 };
-
-function cleanSingleLineText(value: unknown, maxLength: number) {
-  return String(value || "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, maxLength)
-    .trim();
-}
-
-function cleanMultilineText(value: unknown, maxLength: number) {
-  return String(value || "")
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .trim()
-    .slice(0, maxLength)
-    .trim();
-}
 
 function normalizePublicUrl(value: unknown) {
   const raw = String(value || "").trim();
@@ -538,6 +522,7 @@ export async function createPinterestImagePin({
   imageUrls,
   link,
 }: PinterestCreateImagePinArgs): Promise<PinterestCreatePinResult> {
+  const pinText = preparePinterestPinText(title, description);
   const token = String(accessToken || "").trim();
   const cleanUserId = String(userId || "").trim();
   const cleanBoardId = String(boardId || "").trim();
@@ -560,8 +545,7 @@ export async function createPinterestImagePin({
 
   const payload: Record<string, unknown> = {
     board_id: cleanBoardId,
-    title: cleanSingleLineText(title || "Publication iNrCy", 100),
-    description: cleanMultilineText(description || "", 500),
+    ...pinText,
     media_source: mediaSource,
   };
 
@@ -813,6 +797,7 @@ export async function createPinterestVideoPin({
   coverBucket,
   link,
 }: PinterestCreateVideoPinArgs): Promise<PinterestCreatePinResult> {
+  const pinText = preparePinterestPinText(title, description);
   const token = String(accessToken || "").trim();
   const cleanUserId = String(userId || "").trim();
   const cleanBoardId = String(boardId || "").trim();
@@ -869,8 +854,7 @@ export async function createPinterestVideoPin({
       apiBaseUrl: getPinterestApiBaseUrl(),
       accessToken: token,
       boardId: cleanBoardId,
-      title: cleanSingleLineText(title || "Publication iNrCy", 100),
-      description: cleanMultilineText(description || "", 500),
+      ...pinText,
       link: normalizePublicUrl(link) || null,
       coverImageUrl: prepared.coverImageUrl,
       videoFile,
@@ -942,6 +926,7 @@ export async function updatePinterestPin({
   link,
   boardId,
 }: PinterestUpdatePinArgs): Promise<PinterestCreatePinResult> {
+  const pinText = preparePinterestPinText(title, description);
   const token = String(accessToken || "").trim();
   const cleanPinId = String(pinId || "").trim();
   if (!token)
@@ -949,8 +934,7 @@ export async function updatePinterestPin({
   if (!cleanPinId) throw new Error("Épingle Pinterest introuvable.");
 
   const payload: Record<string, unknown> = {
-    title: cleanSingleLineText(title || "Publication iNrCy", 100),
-    description: cleanMultilineText(description || "", 500),
+    ...pinText,
   };
 
   const cleanBoardId = String(boardId || "").trim();

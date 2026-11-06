@@ -7,6 +7,7 @@ import { getThreadsPublicationPreflightFailure } from "@/lib/threadsPublicationP
 import { NextResponse, after } from "next/server";
 import { inrAgentImagesForPlacement } from "@/lib/inrAgentMediaFormats";
 import { requireUser } from "@/lib/requireUser";
+import { buildPinterestPublicationText } from "@/lib/pinterestTextRules";
 import {
   buildInternalCronHeaders,
   getAppOriginFromRequest,
@@ -91,7 +92,6 @@ import {
   buildBoosterMessage,
   buildBoosterThreadsPostText,
   buildBoosterNativeDestinationMessage,
-  buildCtaTextForNativeDestination,
   buildCtaTextForChannel,
   getBoosterCtaDestinationUrlForChannel,
   getBoosterGmbCallToAction,
@@ -168,7 +168,6 @@ import {
 } from "@/lib/boosterVideoTransforms";
 import { ensureSystemManagedInrSearch, notifyInrSearchIndexing, revalidateInrSearchPublicRoutes } from "@/lib/inrSearchProvisioning";
 import { buildInrSearchPublicUrl, getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
-import { stripSiteTextFormattingPreserveLayout } from "@/lib/boosterFormatting";
 import { normalizeImageOverlay } from "@/lib/imageOverlay";
 import { buildSiteImageInteractionMetadata } from "@/lib/imageInteractions";
 import {
@@ -6122,49 +6121,18 @@ async function publishNowHandler(req: Request) {
               phone: businessPhone,
             },
           );
-          const pinterestContent = stripSiteTextFormattingPreserveLayout(
-            pinterestPost.content || "",
+          const pinterestText = buildPinterestPublicationText(
+            { ...pinterestPost, title: pinterestPost.title || post.title || "Publication iNrCy" },
+            { websiteUrl: getPublicationWebsiteUrl("pinterest"), phone: businessPhone },
+            { includeTitle: false },
           );
-          if (pinterestContent.length > 500) {
-            const pinterestUserError =
-              "Le contenu Pinterest dépasse 500 caractères. Raccourcissez-le avant de publier pour conserver exactement votre mise en page.";
-            await setDelivery(ch, {
-              status: "failed",
-              error: pinterestUserError,
-            });
-            results[ch] = { ok: false, error: pinterestUserError };
-            continue;
-          }
-
-          const pinterestCta = buildCtaTextForNativeDestination(
-            "pinterest",
-            pinterestPost,
-            {
-              websiteUrl: getPublicationWebsiteUrl("pinterest"),
-              phone: businessPhone,
-            },
-          );
-          const pinterestTagLine = buildBoosterHashtagLine(
-            pinterestPost,
-            [pinterestContent, pinterestCta].filter(Boolean).join("\n\n"),
-            8,
-          );
-          const pinterestRequiredDescription = [pinterestContent, pinterestCta]
-            .filter(Boolean)
-            .join("\n\n");
-          if (pinterestRequiredDescription.length > 500) {
-            const pinterestUserError =
-              "Le texte et le CTA Pinterest dépassent 500 caractères. Raccourcissez le contenu pour conserver le numéro ou le lien choisi.";
+          if (pinterestText.issues[0]) {
+            const pinterestUserError = pinterestText.issues[0].message;
             await setDelivery(ch, { status: "failed", error: pinterestUserError });
-            results[ch] = { ok: false, error: pinterestUserError };
+            results[ch] = { ok: false, error: pinterestUserError, code: pinterestText.issues[0].code, retryable: false };
             continue;
           }
-          const descriptionWithTags = [pinterestRequiredDescription, pinterestTagLine]
-            .filter(Boolean)
-            .join("\n\n");
-          const description = descriptionWithTags.length <= 500
-            ? descriptionWithTags
-            : pinterestRequiredDescription;
+          const { title: pinterestTitle, description } = pinterestText;
           const pinterestLink =
             getBoosterCtaDestinationUrlForChannel(
               "pinterest",
@@ -6202,7 +6170,7 @@ async function publishNowHandler(req: Request) {
                 accessToken: pinterestAccessToken,
                 userId,
                 boardId,
-                title: channelPost.title || post.title || "Publication iNrCy",
+                title: pinterestTitle,
                 description,
                 videoUrl: pinterestVideoUrl,
                 videoStoragePath: channelVideo.storagePath,
@@ -6320,11 +6288,7 @@ async function publishNowHandler(req: Request) {
               operationId: pinterestOperationId,
               sourceFingerprint: pinterestSourceFingerprint,
               boardId,
-              title: String(
-                channelPost.title || post.title || "Publication iNrCy",
-              )
-                .trim()
-                .slice(0, 100),
+              title: pinterestTitle,
               description,
               link: pinterestLink,
               coverImageUrl: pinterestCoverImageUrl,
@@ -6572,7 +6536,7 @@ async function publishNowHandler(req: Request) {
             accessToken: pinterestAccessToken,
             userId,
             boardId,
-            title: channelPost.title || post.title || "Publication iNrCy",
+            title: pinterestTitle,
             description,
             imageUrls: pinterestImageUrls,
             link: pinterestLink,

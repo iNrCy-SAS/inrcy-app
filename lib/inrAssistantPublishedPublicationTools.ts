@@ -44,7 +44,7 @@ function parsedChanges(changes: Change[], channel: Channel): Row {
   for (const change of changes) {
     if (seen.has(change.field) || typeof change.valueJson !== "string" || change.valueJson.length > 12000) throw new Error("Invalid change"); seen.add(change.field);
     const value: unknown = JSON.parse(change.valueJson);
-    if (change.field === "title" || change.field === "content") { if (typeof value !== "string" || value.length > (change.field === "title" ? 180 : BOOSTER_CHANNEL_CONTENT_RULES[channel].max)) throw new Error("Invalid text"); patch[change.field] = value.trim(); }
+    if (change.field === "title" || change.field === "content") { if (typeof value !== "string" || value.length > (channel === "pinterest" ? 12000 : change.field === "title" ? 180 : BOOSTER_CHANNEL_CONTENT_RULES[channel].max)) throw new Error("Invalid text"); patch[change.field] = value.trim(); }
     else if (change.field === "hashtags") { if (!Array.isArray(value) || value.length > 20 || value.some(item => typeof item !== "string" || item.length > 60)) throw new Error("Invalid hashtags"); patch.hashtags = [...new Set(value.map(item => normalizePublicationEditHashtag(String(item))).filter(Boolean))]; }
     else if (change.field === "cta") {
       const cta = parseInrAssistantPublicationCtaPatch(value);
@@ -116,6 +116,26 @@ export function createInrAssistantPublishedPublicationTools(options: { request: 
     const selected = Object.fromEntries(Object.entries(patch).filter(([key]) => ["cta", "ctaMode", "ctaUrl", "ctaPhone", "ctaAction"].includes(key)));
     if (!isInrAssistantPublicationCtaPatchValid(input.channel, current.post, selected)) throw new Error("CTA incomplete");
   }
+  async function validatePinterestText(input: Target, patch: Row, current: Awaited<ReturnType<typeof state>>): Promise<Row | null> {
+    if (input.channel !== "pinterest") return null;
+    const body: Row = { ...patch };
+    delete body.media;
+    const selection = patch.media as MediaChange | undefined;
+    if (selection) {
+      body.mediaType = selection.mediaType;
+      body.retainedImages = selection.mediaType === "images"
+        ? selection.images.filter((source): source is { currentIndex: number } => "currentIndex" in source).map(source => current.images.images[source.currentIndex])
+        : [];
+      // Library replacements are appended without image-interaction metadata by
+      // this tool. Existing retained interactions are resolved by the native validator.
+      body.newImages = [];
+    }
+    const native = await import("./inrsend/publicationChannelActions");
+    const rejected = await native.validatePinterestPublicationEdit(options.accountId, body, current);
+    if (!rejected) return null;
+    const issue = row(await rejected.json());
+    return { ...fail("invalid_input", String(issue.error || "Raccourcissez le texte Pinterest avant de préparer cette correction.")), code: issue.code, field: issue.field, length: issue.length, limit: issue.limit, excess: issue.excess };
+  }
   function local(path: string, method: string, body?: unknown) { const headers = new Headers({ accept: "application/json" }); for (const key of ["cookie", "authorization"]) { const value = options.request.headers.get(key); if (value) headers.set(key, value); } if (body !== undefined) headers.set("content-type", "application/json"); return new Request(new URL(path, options.request.url), { method, headers, signal: options.request.signal, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); }
   const attempts = new Map<string, Promise<Row>>();
   return {
@@ -123,7 +143,7 @@ export function createInrAssistantPublishedPublicationTools(options: { request: 
     previewPublishedPublicationEdit: tool({ strict: true, description: "Préparer l’aperçu signé d’une correction d’un canal déjà publié : title/content/hashtags, cta={cta?,ctaMode?,ctaUrl?,ctaPhone?,ctaAction?} ponctuel, media={mediaType:images,images:[{currentIndex:0},{mediaId:UUID}]} (0..5 images) ou {mediaType:video,mediaId:UUID}. Valeurs JSON explicites uniquement ; champs absents conservés. Une copie déjà retouchée en Médiathèque peut remplacer un média. Aucune URL/base64 ni génération/adaptation vidéo implicite. Présenter effets, texte et sources avant Confirme IA-… ; le parcours natif peut remplacer le post externe et ses interactions.", inputSchema: schema<Preview>({ ...targetSchema, sourceVersion: { type: "string", pattern: "^[a-f0-9]{64}$" }, changes: { type: "array", minItems: 1, maxItems: 5, items: { type: "object", properties: { field: { type: "string", enum: ["title", "content", "hashtags", "cta", "media"] }, valueJson: { type: "string", maxLength: 12000 } }, required: ["field", "valueJson"], additionalProperties: false } }, instructionQuote: { type: "string", maxLength: 1200 } }, parsePreview), execute: async raw => {
       const input = parsePreview(raw);
       if (!isInrAssistantPublishedPublicationEditRequest(options.currentUserMessage, input.instructionQuote)) return fail("needs_instruction", "Demandez explicitement la correction de cette publication déjà diffusée.");
-      try { if (!await scope(true)) return fail("blocked", "La session et l’abonnement doivent être vérifiés."); const current = await state(input); if (current.sourceVersion !== input.sourceVersion) return fail("stale_source", "Cette publication a changé depuis sa lecture. Relisez-la avant de préparer la correction."); const patch = parsedChanges(input.changes, input.channel); await validateCta(input, patch, current); const assets = await sources(patch, current); if (!await scope(true)) return fail("blocked", "L’établissement actif a changé.");
+      try { if (!await scope(true)) return fail("blocked", "La session et l’abonnement doivent être vérifiés."); const current = await state(input); if (current.sourceVersion !== input.sourceVersion) return fail("stale_source", "Cette publication a changé depuis sa lecture. Relisez-la avant de préparer la correction."); const patch = parsedChanges(input.changes, input.channel); await validateCta(input, patch, current); const pinterestIssue = await validatePinterestText(input, patch, current); if (pinterestIssue) return pinterestIssue; const assets = await sources(patch, current); if (!await scope(true)) return fail("blocked", "L’établissement actif a changé.");
         const preview = createAssistantActionPreview({ accountId: options.accountId, actorUserId: options.actorUserId, kind: "published_publication_edit", targetId: input.publicationId, fingerprint: current.sourceVersion, patch: { channel: input.channel, changes: input.changes, mediaFingerprint: assistantActionFingerprint(assets) } });
         return { ok: true, status: "preview_ready", approvalKind: "published_publication_edit", ...preview, proposal: { before: describe(input, current), changedFields: input.changes.map(change => change.field), afterPost: { ...current.post, ...Object.fromEntries(Object.entries(patch).filter(([key]) => key !== "media")) }, media: patch.media ?? "conservés", librarySources: assets.map(item => ({ mediaId: item.id, name: safe(item.title || item.original_file_name), kind: item.media_type })), effect: "Modifie uniquement ce canal. Le traitement natif peut créer un remplacement et retirer l’ancien post ; les liens, réactions ou commentaires peuvent ne pas être conservés. Aucun autre canal relancé." }, message: `Vérifiez le texte, les destinations, les médias et cet effet externe puis dites « Confirme ${preview.reference} ».`, nextAction: LINK, untrustedContent: true };
       } catch { return fail("unavailable", "L’aperçu n’a pas pu être vérifié. Vérifiez la publication, le CTA et les médias possédés ; aucun canal modifié."); }
@@ -136,7 +156,7 @@ export function createInrAssistantPublishedPublicationTools(options: { request: 
         try {
           const parsed = parsePreview({ publicationId: approved.targetId, channel: approved.patch.channel, sourceVersion: approved.fingerprint, changes: approved.patch.changes, instructionQuote: "Aperçu confirmé" }), current = await state(parsed);
           if (current.sourceVersion !== approved.fingerprint) return fail("stale_source", "La publication a changé depuis l’aperçu. Relisez son résultat ; ne relancez pas cette correction automatiquement.");
-          const patch = parsedChanges(parsed.changes, parsed.channel); await validateCta(parsed, patch, current); const assets = await sources(patch, current);
+          const patch = parsedChanges(parsed.changes, parsed.channel); await validateCta(parsed, patch, current); const pinterestIssue = await validatePinterestText(parsed, patch, current); if (pinterestIssue) return pinterestIssue; const assets = await sources(patch, current);
           if (assistantActionFingerprint(assets) !== approved.patch.mediaFingerprint) return fail("stale_media", "Un média source a changé. Préparez un nouvel aperçu après relecture.");
           const body: Row = { ...patch, expectedState: approved.fingerprint, operationKey: approved.reference }; delete body.media;
           const selection = patch.media as MediaChange | undefined;

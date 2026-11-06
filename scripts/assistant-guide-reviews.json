@@ -121,7 +121,7 @@
       }
     },
     "basic-booster": {
-      "guideDigest": "6761653a17f7d83f465893211466fc43c83a506a55cb88425c33127f44e72563",
+      "guideDigest": "5b07964c5420159afbb19767a51239a38965846cef4d561a266118cdc6511f48",
       "sources": {
         "app/dashboard/_components/dashboardMobileMenuModel.ts": "c4d9be815f9b6064e2498e4b23d907265e325d0ddfd14b167b8056c57a6deb88",
         "app/dashboard/_hooks/useInrAssistantScheduledPublicationControls.ts": "b2821f84dc12790da8378f745023dfcc84444bd9c6408f48f726772e61192ef2",
@@ -137,12 +137,14 @@
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
         "lib/inrAssistantPublicationCtaPatch.ts": "0d80b728c0a9ee85567cbb5bdb8b75e7bcd1f6cb8b1deddde9744e82e2d5da1a",
         "lib/inrAssistantPublicationTools.ts": "f088249ca99e571ce5078f5ef050d0c5bc0cfb94a874314a1e088649d0f97d3b",
-        "lib/inrAssistantPublishedPublicationTools.ts": "0db70dc90e6edabfa4978b2e52e3097f4e0bcd99f2b6f4a29102d561b507097c",
+        "lib/inrAssistantPublishedPublicationTools.ts": "a1b1937af873a564a7b946aa9724dffceffefe9d0bf05871126564b5d074dc08",
         "lib/inrAssistantScheduledEditorSelection.ts": "a074ab78b8a3fab7567b52076bc43cc4d25e25f5b341126a843fb1469c16b149",
         "lib/inrAssistantScheduledPublicationEdit.ts": "2271abc778f051b3d6d54957ccbe9c293b5a14ffabfaff27d9bef336f5691fd2",
         "lib/inrAssistantScheduledPublicationIntent.ts": "5ae1c160de4abaea90b7b67ee800bdf8b4fc5e0583a3c193c78a09b642e66cb9",
         "lib/inrAssistantScheduledPublicationTools.ts": "2dd2eaa38a9472dc748c59dbfaddf06a55dbf6b58a3601ab89bd5165acefb0ec",
         "lib/inrAssistantSendPublicationTools.ts": "8529457ab9234734ead91133b49163692d58a7ea759024be9a09a2761cbfbb27",
+        "lib/pinterestTextLimits.ts": "28771bd0581ee73e9ed2a19ad93a0e40a8a8a0456ea81cf9b2a84e6b56f35089",
+        "lib/pinterestTextRules.ts": "7bba0e1ebc5199e7655564afd93d3e4595969e53dc38bfa6a9740091bd7d0e98",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
         "messages/fr-FR/booster.json": "99dd04b6ccce12ef93dab568467d1517c234e6a8d88b5a8538f46cf3fa22f6e0"
       }
@@ -566,7 +568,7 @@
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
         "messages/fr-FR/growth.json": "78966e34296d702031c82f134b63856bd4ed8aeffff97c79b815dd18d13f54e6",
-        "messages/fr-FR/mails.json": "2e587744a8bf1b2f60168fe6861fd918c897b7f97005eb2701eb8a2c4f3f0256"
+        "messages/fr-FR/mails.json": "0eb199a2f708592f1cc58401760a26b292cb70b6df789f338412e957c5e800f8"
       }
     },
     "establishments": {
@@ -699,19 +701,21 @@
       }
     },
     "send": {
-      "guideDigest": "a1caa54a5f75f0986e7141d220aaf5741939616fd49d9287443cd7a3d24d9329",
+      "guideDigest": "472761c3a3012637d9935292aa0d6dc27021b8b3c712de3ca976e874a258df7e",
       "sources": {
-        "app/dashboard/mails/MailboxClient.tsx": "bd7dfec06864c3e499a46f443f489c3bec0e47f657f1d574d604d163f38af44d",
+        "app/dashboard/mails/MailboxClient.tsx": "9f8487c0fb539c119c47f7c6694d0e43b095891a994df61a6d6a1cc3a93a3c6d",
         "app/dashboard/mails/_components/FolderTabs.tsx": "9c8e69bc79595e5abcc0bf8cf6a82cb82d6a312a14d5dbb7acf77510c21dfe1c",
-        "app/dashboard/mails/_components/MailboxDetailsModal.tsx": "c928718c7140ccdd644d2a0a6b4865d99236b03a3c3f5d870fa207139d1d45f5",
+        "app/dashboard/mails/_components/MailboxDetailsModal.tsx": "629b0eee38535ec9b14d37caf47deefc550eb5da83e772b2943161f9aaf40342",
         "app/dashboard/mails/_components/MailboxToolbar.tsx": "79398ed35be4f76caf208a750056b75070e53fffb571f9d9534cd7196e8ba949",
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
         "lib/inrsend/instagramCapabilities.ts": "0046f1b02ecd7670ccf6f2890c45772be148292aba4e935590ccf68c48b53989",
-        "lib/inrsend/publicationChannelActions.ts": "ea7157d27a9a25160ed5ab6c061e67b744acb44545686d158195ad7ed09e6208",
+        "lib/inrsend/publicationChannelActions.ts": "403f2c4ed88e47c7a78f1c5e3d895700b0e95617fb4ad4f45ee748ac4b549490",
         "lib/inrsend/threadsCapabilities.ts": "f951094e52aac3b9f2398082a4771e98d57f6ded0873c94314e03f2dac0a7b02",
         "lib/inrsendRetention.ts": "02aa112a30464577739b85a08ba4bd81d461c770bbbcfaa20cb2ce91b5afad37",
+        "lib/pinterestTextLimits.ts": "28771bd0581ee73e9ed2a19ad93a0e40a8a8a0456ea81cf9b2a84e6b56f35089",
+        "lib/pinterestTextRules.ts": "7bba0e1ebc5199e7655564afd93d3e4595969e53dc38bfa6a9740091bd7d0e98",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/mails.json": "2e587744a8bf1b2f60168fe6861fd918c897b7f97005eb2701eb8a2c4f3f0256"
+        "messages/fr-FR/mails.json": "0eb199a2f708592f1cc58401760a26b292cb70b6df789f338412e957c5e800f8"
       }
     },
     "shop-inertia": {

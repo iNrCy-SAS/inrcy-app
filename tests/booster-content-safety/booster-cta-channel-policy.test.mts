@@ -86,10 +86,13 @@ test("Pinterest never drops or cuts an Appeler CTA to fit its description limit"
   const publishNow = read("app/api/booster/publish-now/route.ts");
   const inrSend = read("lib/inrsend/publicationChannelActions.ts");
 
-  assert.match(publishNow, /pinterestRequiredDescription\.length > 500[\s\S]*?Raccourcissez le contenu/);
-  assert.match(publishNow, /descriptionWithTags\.length <= 500[\s\S]*?: pinterestRequiredDescription/);
-  assert.match(inrSend, /pinterestNativeMessage\.length > 500[\s\S]*?Raccourcissez le contenu/);
+  assert.match(publishNow, /pinterestText = buildPinterestPublicationText\([\s\S]*?if \(pinterestText\.issues\[0\]\)/);
+  assert.match(publishNow, /const \{ title: pinterestTitle, description \} = pinterestText/);
+  assert.match(inrSend, /pinterestText = buildPinterestPublicationText\([\s\S]*?throw new PinterestTextValidationError/);
   assert.doesNotMatch(inrSend, /pinterestNativeMessage, tagLine\][\s\S]*?\.slice\(0, 500\)/);
+  const rules = read("lib/pinterestTextRules.ts");
+  assert.match(rules, /\[message, tagLine\]\.filter\(Boolean\)\.join\("\\n\\n"\)/);
+  assert.doesNotMatch(rules, /\.slice\(|descriptionWithTags\.length/);
 });
 
 test("Instagram and TikTok never truncate the selected phone CTA", () => {

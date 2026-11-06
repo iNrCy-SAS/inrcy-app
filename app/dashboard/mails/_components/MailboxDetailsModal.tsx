@@ -12,6 +12,8 @@ import { useInrAssistantSendNativeLinks } from "../../_hooks/useInrAssistantSend
 import { useInrAssistantSendEditorControls } from "../../_hooks/useInrAssistantSendEditorControls";
 import { readSanitizedElementHtml, sanitizeHtml } from "@/lib/sanitizeHtml";
 import { editableHtmlToSiteText, renderBoosterSiteContentHtml, renderBoosterSiteInlineHtml, stripSiteTextFormatting } from "@/lib/boosterFormatting";
+import { PINTEREST_DESCRIPTION_MAX_LENGTH, PINTEREST_TITLE_MAX_LENGTH } from "@/lib/pinterestTextRules";
+import { getPinterestPublicationEditText, orderPinterestPublicationEditImages } from "../_lib/pinterestPublicationEditText";
 import {
   buildBoosterWhatsAppUrl,
   getBoosterWhatsAppPhoneFromUrl,
@@ -76,6 +78,7 @@ import {
   getChannelIndicatorMeta,
   getPublicationBackgroundMode,
   arePublicationTransformsEquivalent,
+  isPublicationTransformModified,
   isCancelledChannelResult,
   isDeletedChannelResult,
   isFailedChannelResult,
@@ -473,7 +476,7 @@ function isAccountingDashboardHref(value: unknown) {
 }
 
 export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
-  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
   const i18nT = useTranslations("mails");
   const mediaT = useTranslations("media");
   const locale = useLocale();
@@ -1071,6 +1074,10 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
 
   const [publicationEditDirty, setPublicationEditDirty] = React.useState(false);
   const [publicationCtaDefaults, setPublicationCtaDefaults] = React.useState<BoosterCtaDefaults | null>(null);
+  const [publicationCtaDefaultsScope, setPublicationCtaDefaultsScope] = React.useState<string | null>(null);
+  const [publicationCtaDefaultsFailedScope, setPublicationCtaDefaultsFailedScope] = React.useState<string | null>(null);
+  const publicationCtaScope = `${activeAccountId}:${activePublicationId}`;
+  const publicationCtaDefaultsReady = publicationCtaDefaultsScope === publicationCtaScope && publicationCtaDefaults !== null;
   const publicationSiteContentEditorRef = React.useRef<HTMLDivElement | null>(null);
 
   const publicationDisplayKey = React.useMemo<DisplayKey>(() => {
@@ -1089,6 +1096,22 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       publicationEditForm.ctaUrl,
       publicationEditForm.hashtags,
     ].some(containsForbiddenXUrl);
+  const pinterestTitleCounterId = React.useId();
+  const pinterestDescriptionCounterId = React.useId();
+  const pinterestPublicationText = React.useMemo(() => {
+    if (activePublicationEditChannelKey !== "pinterest") return null;
+    const selectedImages = activePublicationEditVideo && !activePublicationEditVideo.removed && activePublicationEditVideo.previewUrl
+      ? [] : activePublicationEditAssets.filter(asset => asset.selected).slice(0, 5);
+    const images = orderPinterestPublicationEditImages(selectedImages, asset => Boolean(asset.sourceUrl && !asset.file && !(asset.savedTransform
+      ? !arePublicationTransformsEquivalent(asset.transform, asset.savedTransform)
+      : isPublicationTransformModified(asset.transform, "pinterest"))));
+    return getPinterestPublicationEditText(publicationEditForm, images, {
+      websiteUrl: publicationCtaDefaultsReady ? publicationCtaDefaults?.siteWebUrl : undefined,
+      phone: publicationCtaDefaultsReady ? publicationCtaDefaults?.phone : undefined,
+    });
+  }, [activePublicationEditChannelKey, activePublicationEditAssets, activePublicationEditVideo, publicationEditForm, publicationCtaDefaults, publicationCtaDefaultsReady]);
+  const pinterestTitleIssue = pinterestPublicationText?.issues.find(issue => issue.field === "title");
+  const pinterestDescriptionIssue = pinterestPublicationText?.issues.find(issue => issue.field === "description");
 
   const markPublicationEditDirty = React.useCallback(() => {
     setPublicationEditDirty(true);
@@ -1213,11 +1236,14 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   React.useEffect(() => {
     let alive = true;
     if (!open || !detailsEditMode || detailsItem?.source !== "app_events") return () => { alive = false; };
+    setPublicationCtaDefaults(null);
+    setPublicationCtaDefaultsScope(null);
+    setPublicationCtaDefaultsFailedScope(null);
 
     (async () => {
       try {
         const res = await fetch("/api/booster/cta-defaults", { cache: "no-store" as const });
-        if (!res.ok) return;
+        if (!res.ok) throw new Error("publication_cta_defaults_unavailable");
         const json = await res.json().catch(() => ({}));
         if (!alive) return;
         setPublicationCtaDefaults({
@@ -1228,7 +1254,9 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
           preferredCta: normalizeBoosterPreferredCta(json?.preferredCta),
           aiLanguage: normalizeBoosterAiLanguage(json?.aiLanguage),
         });
+        setPublicationCtaDefaultsScope(publicationCtaScope);
       } catch {
+        if (alive) setPublicationCtaDefaultsFailedScope(publicationCtaScope);
         // CTA defaults are helpful but not required to edit a publication.
       }
     })();
@@ -1236,7 +1264,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     return () => {
       alive = false;
     };
-  }, [open, detailsEditMode, detailsItem?.source]);
+  }, [open, detailsEditMode, detailsItem?.source, publicationCtaScope]);
 
   const applyPublicationSiteContentFormat = React.useCallback((kind: "bold" | "italic" | "underline") => {
     if (!isSiteDisplayKey(publicationDisplayKey) || typeof document === "undefined") return;
@@ -2242,7 +2270,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       onClick={saveChannelPublication}
                                       disabled={
                                         detailsActionBusy ||
-                                        publicationEditHasForbiddenXUrl
+                                        publicationEditHasForbiddenXUrl ||
+                                        Boolean(pinterestPublicationText?.issues.length)
                                       }
                                     >
                                       {detailsActionBusy ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")}
@@ -2474,6 +2503,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                               placeholder={i18nT("titre_eb97899a")}
                                               rows={2}
                                               disabled={detailsActionBusy}
+                                              aria-describedby={pinterestPublicationText ? pinterestTitleCounterId : undefined}
+                                              aria-invalid={Boolean(pinterestTitleIssue) || undefined}
                                             />
                                           ) : (
                                             <input
@@ -2483,8 +2514,16 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                               className={styles.publicationFieldInput}
                                               placeholder={i18nT("titre_eb97899a")}
                                               disabled={detailsActionBusy}
+                                              aria-describedby={pinterestPublicationText ? pinterestTitleCounterId : undefined}
+                                              aria-invalid={Boolean(pinterestTitleIssue) || undefined}
                                             />
                                           )}
+                                          {pinterestPublicationText ? (
+                                            <div id={pinterestTitleCounterId} aria-live="polite" style={{ marginTop: 6, fontSize: 12, color: pinterestTitleIssue ? "#ff8f8f" : "rgba(255,255,255,0.68)" }}>
+                                              {i18nT("pinterest_publication_title_count", { count: pinterestPublicationText.titleLength, max: PINTEREST_TITLE_MAX_LENGTH })}
+                                              {pinterestTitleIssue ? <div role="alert">{i18nT("pinterest_publication_title_too_long", { count: pinterestTitleIssue.excess })}</div> : null}
+                                            </div>
+                                          ) : null}
                                         </div>
                                         <div>
                                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 6 }}>
@@ -2542,8 +2581,21 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                               placeholder={i18nT("contenu_f3cb82af")}
                                               rows={8}
                                               disabled={detailsActionBusy}
+                                              aria-describedby={pinterestPublicationText ? pinterestDescriptionCounterId : undefined}
+                                              aria-invalid={Boolean(pinterestDescriptionIssue) || undefined}
                                             />
                                           )}
+                                          {pinterestPublicationText ? (
+                                            <div id={pinterestDescriptionCounterId} aria-live="polite" style={{ marginTop: 6, fontSize: 12, color: pinterestDescriptionIssue ? "#ff8f8f" : "rgba(255,255,255,0.68)" }}>
+                                              {publicationCtaDefaultsReady
+                                                ? i18nT("pinterest_publication_description_count", { count: pinterestPublicationText.descriptionLength, max: PINTEREST_DESCRIPTION_MAX_LENGTH })
+                                                : publicationCtaDefaultsFailedScope === publicationCtaScope
+                                                  ? i18nT("pinterest_publication_defaults_unavailable")
+                                                  : i18nT("calcul_en_cours_d976e804")}
+                                              <div>{i18nT("pinterest_publication_description_count_help")}</div>
+                                              {pinterestDescriptionIssue ? <div role="alert">{i18nT("pinterest_publication_description_too_long", { count: pinterestDescriptionIssue.excess })}</div> : null}
+                                            </div>
+                                          ) : null}
                                         </div>
                                         <div>
                                           {(() => {

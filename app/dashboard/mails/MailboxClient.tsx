@@ -34,6 +34,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import styles from "./mails.module.css";
 import { createClient } from "@/lib/supabaseClient";
 import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
+import { getPinterestPublicationEditText, orderPinterestPublicationEditImages } from "./_lib/pinterestPublicationEditText";
 import {
   containsForbiddenXUrl,
   X_FORBIDDEN_URL_ERROR,
@@ -3275,6 +3276,22 @@ export default function MailboxClient({
     setDetailsActionError(null);
     setDetailsActionSuccess(null);
     try {
+      if (normalizedChannel === "pinterest") {
+        const defaultsResponse = await fetch("/api/booster/cta-defaults", { cache: "no-store" });
+        if (!defaultsResponse.ok) throw new Error(i18nT("pinterest_publication_defaults_unavailable"));
+        const defaults = await defaultsResponse.json().catch(() => null);
+        if (!defaults || typeof defaults !== "object") throw new Error(i18nT("pinterest_publication_defaults_unavailable"));
+        const editVideo = publicationEditVideoByChannel[normalizedChannel];
+        const selectedImages = editVideo && !editVideo.removed && editVideo.previewUrl
+          ? [] : (publicationEditImagesByChannel[normalizedChannel]?.assets || []).filter(asset => asset.selected).slice(0, 5);
+        const images = orderPinterestPublicationEditImages(selectedImages, asset => Boolean(asset.sourceUrl && !asset.file && !(asset.savedTransform
+          ? !arePublicationTransformsEquivalent(asset.transform, asset.savedTransform)
+          : isPublicationTransformModified(asset.transform, "pinterest"))));
+        const issue = getPinterestPublicationEditText(publicationEditForm, images, {
+          websiteUrl: String(defaults.siteWebUrl || ""), phone: String(defaults.phone || ""),
+        }).issues[0];
+        if (issue) throw new Error(i18nT(issue.field === "title" ? "pinterest_publication_title_too_long" : "pinterest_publication_description_too_long", { count: issue.excess }));
+      }
       const expectedState = await baseline.expectedState;
       if (!/^[a-f0-9]{64}$/.test(expectedState)) throw new Error("La version d’origine n’a pas pu être vérifiée. Rouvrez le détail avant de l’enregistrer.");
       const hashtags = publicationEditForm.hashtags

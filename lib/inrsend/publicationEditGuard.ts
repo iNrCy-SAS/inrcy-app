@@ -13,6 +13,8 @@ export class PublicationEditSourceChangedError extends Error { constructor() { s
 export async function guardPublishedPublicationEdit(options: {
   body: Row; currentScope: () => Promise<boolean>; readVersion: () => Promise<string>;
   acquire: (key: string, fingerprint: string) => Promise<LockResult>;
+  /** Read-only validation must finish before a source version is consumed. */
+  validate?: () => Promise<Response | null>;
   seal: (lockId: string, result: Row) => Promise<void>; mutate: () => Promise<Response>;
 }): Promise<Response> {
   const condition = parsePublicationEditPrecondition(options.body);
@@ -21,6 +23,13 @@ export async function guardPublishedPublicationEdit(options: {
   const { expectedState } = condition;
   const patch = { ...options.body }; delete patch.expectedState; delete patch.operationKey;
   const fingerprint = assistantActionFingerprint(patch), versionBeforeLock = await options.readVersion();
+  if (options.validate) {
+    if (versionBeforeLock !== expectedState) return Response.json({ ok: false, code: "publication_edit_source_changed", error: "La publication ou la session a changé. Rouvrez son détail avant de modifier ce canal." }, { status: 409 });
+    if (!await options.currentScope()) return Response.json({ ok: false, code: "publication_edit_scope_changed", error: "La session ou l’établissement actif a changé." }, { status: 409 });
+    const invalid = await options.validate();
+    if (!await options.currentScope()) return Response.json({ ok: false, code: "publication_edit_scope_changed", error: "La session ou l’établissement actif a changé." }, { status: 409 });
+    if (invalid) return invalid;
+  }
   const lock = await options.acquire(expectedState, fingerprint);
   if (!await options.currentScope()) return Response.json({ ok: false, code: "publication_edit_scope_changed", error: "La session ou l’établissement actif a changé." }, { status: 409 });
   if (lock.state === "completed") {

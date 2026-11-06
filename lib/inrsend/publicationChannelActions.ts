@@ -9,6 +9,8 @@ import { threadsPublish, threadsDeletePost, buildThreadsMediaSourceIdentity, THR
 import { acquireExecutionIdempotencyLock, failExecutionIdempotencyLock, completeExecutionIdempotencyLock, completeExecutionIdempotencyLockOrThrow } from "@/lib/executionIdempotency";
 import { publicationEditSourceVersion, normalizePublicationEditHashtag as normalizeHashtag } from "./publicationEditVersion";
 import { guardPublishedPublicationEdit, PublicationEditSourceChangedError } from "./publicationEditGuard";
+import { buildPinterestPublicationText } from "@/lib/pinterestTextRules";
+import { PinterestTextValidationError } from "@/lib/pinterestTextLimits";
 import { normalizeSiteWebChannelMap, normalizeSiteWebPublicationPayload } from "@/lib/siteWebChannel";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { primarySiteWebArticle, siteWebArticleIdsFromPayload, siteWebImageMediaPatch } from "@/lib/siteWebPublications";
@@ -40,7 +42,6 @@ import { randomUUID } from "crypto";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import {
   buildBoosterGmbSummary,
-  buildBoosterHashtagLine,
   buildBoosterInstagramCaption,
   buildBoosterMessage,
   buildBoosterThreadsPostText,
@@ -225,6 +226,52 @@ type PersistedVideoAttachment = {
 
 function asRecord(v: unknown): JsonRecord {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as JsonRecord) : {};
+}
+
+type PinterestTextIssue = ReturnType<typeof buildPinterestPublicationText>["issues"][number];
+function pinterestTextIssueResponse(issue: PinterestTextIssue) {
+  return NextResponse.json({ ok: false, error: issue.message, user_message: issue.message, code: issue.code, error_code: issue.code, field: issue.field, length: issue.length, limit: issue.limit, excess: issue.excess }, { status: 400 });
+}
+
+function buildPublicationEditPost(currentPost: PostPayload, body: JsonRecord): PostPayload {
+  return {
+    title: String(body.title ?? currentPost.title ?? "").trim(),
+    content: String(body.content ?? currentPost.content ?? "").trim(),
+    cta: String(body.cta ?? currentPost.cta ?? "").trim(),
+    ctaMode: String(body.ctaMode ?? currentPost.ctaMode ?? "").trim(),
+    ctaUrl: String(body.ctaUrl ?? currentPost.ctaUrl ?? "").trim(),
+    ctaPhone: String(body.ctaPhone ?? currentPost.ctaPhone ?? "").trim(),
+    ctaAction: String(body.ctaAction ?? currentPost.ctaAction ?? "").trim(),
+    hashtags: Array.isArray(body.hashtags)
+      ? body.hashtags.map((tag: unknown) => normalizeHashtag(String(tag || ""))).filter(Boolean).slice(0, 20)
+      : currentPost.hashtags,
+  };
+}
+
+async function loadPublicationCtaContext(userId: string, channel: ChannelKey) {
+  const [profileRes, proCfgRes] = await Promise.all([
+    supabaseAdmin.from("profiles").select("phone").eq("user_id", userId).maybeSingle(),
+    supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle(),
+  ]);
+  const phone = String(asRecord(profileRes.data).phone ?? "").trim();
+  const proSettings = asRecord(asRecord(proCfgRes.data).settings);
+  const siteWebUrl = String(asRecord(proSettings.site_web).url || "").trim();
+  const defaults: BoosterCtaDefaults = { preferredWebsiteUrl: siteWebUrl, preferredWebsiteLabel: siteWebUrl ? "Site web connecté" : "", siteWebUrl, phone, preferredCta: "site" };
+  return { websiteUrl: getPreferredWebsiteUrlForChannel(channel, defaults), phone, siteWebUrl, proSettings };
+}
+
+/** Mirrors the native retained-then-new image order without uploading assets. */
+export async function validatePinterestPublicationEdit(userId: string, body: JsonRecord, state: NonNullable<Awaited<ReturnType<typeof readInrSendPublicationEditState>>>) {
+  let post = buildPublicationEditPost(state.post, body);
+  if (normalizePublicationMediaType(body.mediaType || getEventPublicationMediaType(state.eventPayload, state.publication, "pinterest")) === "images") {
+    const retained = Array.isArray(body.retainedImages) ? body.retainedImages.map(value => String(value || "").trim()).filter(Boolean) : state.images.images;
+    const indexes = [...new Set(retained.map(url => state.images.images.indexOf(url)).filter(index => index >= 0))];
+    const newImages = Array.isArray(body.newImages) ? body.newImages.map(asRecord).filter(image => String(image.dataUrl || "").trim()) : [];
+    const selected = [...indexes.map(index => state.images.editableAttachments[index]).filter(Boolean), ...newImages].slice(0, 5);
+    post = applyImageInteractionCtaFallback("pinterest", post, getPrimaryImageInteractionLink(selected));
+  }
+  const text = buildPinterestPublicationText(post, await loadPublicationCtaContext(userId, "pinterest"));
+  return text.issues[0] ? pinterestTextIssueResponse(text.issues[0]) : null;
 }
 
 function isFacebookStoryOnlyPublication(eventPayload: JsonRecord) {
@@ -1234,27 +1281,7 @@ async function replaceChannelDelivery(params: {
     .filter(Boolean)
     .slice(0, 5);
 
-  const [profileRes, proCfgRes] = await Promise.all([
-    supabaseAdmin.from("profiles").select("phone").eq("user_id", userId).maybeSingle(),
-    supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle(),
-  ]);
-  const profile = asRecord(profileRes.data);
-  const proCfg = asRecord(proCfgRes.data);
-  const proSettings = asRecord(proCfg.settings);
-  const proSiteWeb = asRecord(proSettings.site_web);
-  const siteWebUrl = String(proSiteWeb.url || "").trim();
-  const phone = String(profile.phone ?? "").trim();
-  const publicationCtaDefaults: BoosterCtaDefaults = {
-    preferredWebsiteUrl: siteWebUrl,
-    preferredWebsiteLabel: siteWebUrl ? "Site web connecté" : "",
-    siteWebUrl,
-    phone,
-    preferredCta: "site",
-  };
-  const websiteUrl = getPreferredWebsiteUrlForChannel(
-    channel,
-    publicationCtaDefaults,
-  );
+  const { websiteUrl, phone, siteWebUrl, proSettings } = await loadPublicationCtaContext(userId, channel);
 
   const canonMessage = buildBoosterMessage(channel, nextPost, { websiteUrl, phone });
 
@@ -2179,6 +2206,9 @@ async function replaceChannelDelivery(params: {
   }
 
   if (channel === "pinterest") {
+    const pinterestText = buildPinterestPublicationText(nextPost, { websiteUrl, phone });
+    if (pinterestText.issues[0]) throw new PinterestTextValidationError(pinterestText.issues[0]);
+    const { title: pinterestTitle, description } = pinterestText;
     const accessToken = await getPinterestAccessToken(userId);
     if (!accessToken) throw new Error("Pinterest à reconnecter. Rendez-vous dans Canaux.");
     if (!previousExternalId) throw new Error("Épingle Pinterest introuvable dans l’historique iNr’Send.");
@@ -2187,25 +2217,6 @@ async function replaceChannelDelivery(params: {
     const boardId = String(channelResult.board_id || "").trim();
     if (!boardId) throw new Error("Tableau Pinterest introuvable. Configurez Pinterest puis réessayez.");
 
-    const pinterestNativeMessage = buildBoosterNativeDestinationMessage(
-      "pinterest",
-      nextPost,
-      { websiteUrl, phone },
-    );
-    const tagLine = buildBoosterHashtagLine(
-      nextPost,
-      pinterestNativeMessage,
-      8,
-    );
-    if (pinterestNativeMessage.length > 500) {
-      throw new Error("Le texte et le CTA Pinterest dépassent 500 caractères. Raccourcissez le contenu avant de republier.");
-    }
-    const descriptionWithTags = [pinterestNativeMessage, tagLine]
-      .filter(Boolean)
-      .join("\n\n");
-    const description = descriptionWithTags.length <= 500
-      ? descriptionWithTags
-      : pinterestNativeMessage;
     const link =
       getBoosterCtaDestinationUrlForChannel("pinterest", nextPost, {
         websiteUrl,
@@ -2218,7 +2229,7 @@ async function replaceChannelDelivery(params: {
         accessToken,
         userId,
         boardId,
-        title: nextPost.title || "Publication iNrCy",
+        title: pinterestTitle || "Publication iNrCy",
         description,
         videoUrl,
         videoStoragePath: video.storagePath,
@@ -2291,7 +2302,7 @@ async function replaceChannelDelivery(params: {
         accessToken,
         userId,
         boardId,
-        title: nextPost.title || "Publication iNrCy",
+        title: pinterestTitle || "Publication iNrCy",
         description,
         imageUrls: params.imageUrls,
         link,
@@ -2364,7 +2375,7 @@ async function replaceChannelDelivery(params: {
           accessToken,
           pinId: previousExternalId,
           boardId,
-          title: nextPost.title || "Publication iNrCy",
+          title: pinterestTitle || "Publication iNrCy",
           description,
           link,
         });
@@ -2766,8 +2777,13 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
       const auth = await requireUser(); if (auth.errorResponse) return auth.errorResponse;
       const { publicationId } = await context.params, body = asRecord(await req.json().catch(() => null));
       const currentScope = async () => { const current = await requireUser(); return !req.signal.aborted && !current.errorResponse && current.activeUserId === auth.activeUserId && current.authUserId === auth.authUserId; };
+      let validatedState: Awaited<ReturnType<typeof readInrSendPublicationEditState>> = null;
       return await guardPublishedPublicationEdit({ body, currentScope,
-        readVersion: async () => { const state = await readInrSendPublicationEditState(auth.activeUserId, publicationId, channel); if (!state) throw new Error("publication_missing"); return state.sourceVersion; },
+        readVersion: async () => { const state = await readInrSendPublicationEditState(auth.activeUserId, publicationId, channel); if (!state) throw new Error("publication_missing"); validatedState = state; return state.sourceVersion; },
+        validate: channel === "pinterest" ? async () => {
+          if (!validatedState) throw new Error("publication_missing");
+          return validatePinterestPublicationEdit(auth.activeUserId, body, validatedState);
+        } : undefined,
         acquire: (version, fingerprint) => acquireExecutionIdempotencyLock({ supabase: supabaseAdmin, userId: auth.activeUserId, scope: "inrsend_publication_edit", idempotencyKey: `${publicationId}:${channel}:${version}`, metadata: { publicationId, channel, sourceVersion: version, requestFingerprint: fingerprint }, ttlMs: 5 * 60_000 }),
         seal: (lockId, result) => completeExecutionIdempotencyLockOrThrow({ supabase: supabaseAdmin, lockId, result }),
         mutate: () => PATCH_NATIVE(req, context, body),
@@ -2837,18 +2853,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
       }
 
       const currentPost = getChannelPost(ctx.eventPayload, ctx.publication, channel);
-      const nextPost: PostPayload = {
-        title: String(body.title ?? currentPost.title ?? "").trim(),
-        content: String(body.content ?? currentPost.content ?? "").trim(),
-        cta: String(body.cta ?? currentPost.cta ?? "").trim(),
-        ctaMode: String(body.ctaMode ?? currentPost.ctaMode ?? "").trim(),
-        ctaUrl: String(body.ctaUrl ?? currentPost.ctaUrl ?? "").trim(),
-        ctaPhone: String(body.ctaPhone ?? currentPost.ctaPhone ?? "").trim(),
-        ctaAction: String(body.ctaAction ?? currentPost.ctaAction ?? "").trim(),
-        hashtags: Array.isArray(body.hashtags)
-          ? body.hashtags.map((tag: unknown) => normalizeHashtag(String(tag || ""))).filter(Boolean).slice(0, 20)
-          : currentPost.hashtags,
-      };
+      const nextPost = buildPublicationEditPost(currentPost, body);
 
       const mediaType = normalizePublicationMediaType(body.mediaType || getEventPublicationMediaType(ctx.eventPayload, ctx.publication, channel));
       const requestedVideoSettings = asRecord(body.videoSettings);
@@ -3059,6 +3064,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
         });
       }
       if (e instanceof PublicationEditSourceChangedError) return jsonUserFacingError(e.message, { status: 409, code: "publication_edit_source_changed" });
+      if (e instanceof PinterestTextValidationError) return pinterestTextIssueResponse(e.issue);
       captureApiException(req, e, {
         area: "booster",
         operation: `PATCH /api/inrsend/publications/:publicationId/${channel}`,
