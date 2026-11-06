@@ -224,6 +224,28 @@ test("directory QR targets the same badge and preserves the QR analytics marker"
   assert.equal(new URL(target).searchParams.get("src"), "qr");
 });
 
+test("public free search uses approved aliases of the actual profession without fuzzy cross-trade matches", async () => {
+  const company = (sector: string, label: string) => {
+    const profession = catalog.resolveDirectoryProfession(`[[SECTOR:${sector}]] ${label}`);
+    return { ...profession, companyName: `Atelier ${profession.professionSlug}`, sectorSlug: catalog.directorySlug(profession.sectorLabel),
+      city: "Arras", citySlug: "arras", department: "Pas-de-Calais", departmentSlug: "pas-de-calais", region: "Hauts-de-France", regionSlug: "hauts-de-france",
+      slug: profession.professionSlug, url: "https://app.inrcy.com/badge/atelier", qrUrl: "https://app.inrcy.com/api/public/directory/qr/atelier", updatedAt: null };
+  };
+  const companies = [company("services_entreprises", "Traducteur / Interprète de langues"), company("culture_creation", "Traducteur littéraire"),
+    company("agriculture_producteurs", "Agriculteur"), company("communication", "Maquettiste éditorial / PAO"),
+    company("communication", "Imprimeur"), company("commerce_boutique", "Librairie / Papeterie")];
+  const api = load<QueryModule>("lib/inrDirectoryQuery.ts", { "@/lib/inrDirectoryPublic": { listInrDirectoryCompanies: async () => companies } });
+  for (const [query, label] of [["Traductrice", "Traducteur / Interprète de langues"], ["Traductrice littéraire", "Traducteur littéraire"],
+    ["Maquettiste PAO", "Maquettiste éditorial / PAO"], ["Imprimerie", "Imprimeur"], ["Libraire", "Librairie / Papeterie"]]) {
+    const result = await api.getInrDirectoryResult(new URLSearchParams({ q: query }));
+    assert.equal(result.total, 1, query);
+    assert.equal(result.items[0].profession, label, query);
+  }
+  assert.equal((await api.getInrDirectoryResult(new URLSearchParams({ q: "Traducteur" }))).items.some(company => company.profession === "Agriculteur"), false);
+  assert.equal((await api.getInrDirectoryResult(new URLSearchParams({ q: "Traducteurr" }))).total, 0, "public aliases must not use fuzzy suggestions");
+  assert.equal((await api.getInrDirectoryResult(new URLSearchParams({ q: "Correction orthographique" }))).total, 0, "catalogue service suggestions are not published account services");
+});
+
 type TableRow = Record<string, unknown>;
 type TableResult = { data: TableRow[]; error: unknown };
 type TableQuery = PromiseLike<TableResult> & {
@@ -298,6 +320,61 @@ test("the public listing contains only opted-in eligible complete profiles and n
   assert.match(items[0].url, /\/badge\//); assert.doesNotMatch(items[0].url, /\/entreprises\//);
   assert.equal(items[0].profession, "Maçon");
   assert.doesNotMatch(JSON.stringify(items), /private|never-public|contact_email|admin_email|phone|user_id/);
+});
+
+function publicServicesFixture(searchPatch: Record<string, unknown> = {}, options: { searchEligible?: boolean; lookupError?: boolean; directoryEnabled?: boolean } = {}) {
+  const search = { enabled: true, slug: "atelier-public", activationVersion: 1, activationRequested: true, publicationReady: true,
+    sections: { services: true, contact: false }, display: { email: false, phone: false, contactName: false, address: false }, ...searchPatch };
+  const tables = {
+    pro_tools_configs: [{ user_id: accountId, settings: { inrDirectory: { enabled: options.directoryEnabled !== false, activationVersion: 1 }, inrSearch: search } }],
+    profiles: [{ user_id: accountId, company_legal_name: "Atelier Lecture", first_name: "Private", last_name: "Contact", hq_city: "Arras", hq_zip: "62000",
+      hq_address: "8 rue Secrète", phone: "0612345678", contact_email: "hidden@example.test", admin_email: "private-admin@example.test" }],
+    business_profiles: [{ user_id: accountId, sector: "[[SECTOR:communication]] Maquettiste éditorial / PAO",
+      services: ["— Préparation de fichiers EPUB", "Correction de manuscrits", "Contact hidden@example.test 06 12 34 56 78"], business_description: "private-adn-description", internal_notes: "private-adn-notes" }],
+  };
+  const calls: string[][] = [];
+  const publicApi = load<PublicModule>("lib/inrDirectoryPublic.ts", {
+    "@/lib/supabaseAdmin": { supabaseAdmin: tableClient(tables) },
+    "@/lib/inrSearchEligibility": {
+      filterEligibleInrDirectoryAccountIds: async () => new Set([accountId]),
+      filterEligibleInrSearchAccountIds: async (ids: string[]) => { calls.push(ids); if (options.lookupError) throw new Error("Search access unavailable"); return new Set(options.searchEligible === false ? [] : ids); },
+    },
+  });
+  const query = load<QueryModule>("lib/inrDirectoryQuery.ts", { "@/lib/inrDirectoryPublic": publicApi });
+  return { publicApi, query, calls };
+}
+
+test("only services already visible on an eligible published Search page enter public directory search", async () => {
+  const h = publicServicesFixture();
+  const companies = await h.publicApi.listInrDirectoryCompanies();
+  assert.equal(companies.length, 1);
+  assert.deepEqual(companies[0].services, ["Préparation de fichiers EPUB", "Correction de manuscrits", "Contact"]);
+  assert.deepEqual(h.calls, [[accountId]], "service publication eligibility is checked in a batch");
+  assert.doesNotMatch(JSON.stringify(companies), /hidden@example|0612345678|06 12 34 56 78|private-adn|private-admin|8 rue Secrète/);
+  for (const q of ["Préparation de fichiers EPUB", "Correction de manuscrits"]) assert.equal((await h.query.getInrDirectoryResult(new URLSearchParams({ q }))).total, 1, q);
+  for (const q of ["hidden@example.test", "06 12 34 56 78", "private-adn-description", "Conception de maquettes éditoriales"]) {
+    assert.equal((await h.query.getInrDirectoryResult(new URLSearchParams({ q }))).total, 0, q);
+  }
+});
+
+test("hidden, unrequested, disabled, missing or ineligible Search never publishes ADN services through directory consent", async () => {
+  const cases = [
+    { patch: { sections: { services: false } } }, { patch: { enabled: false } }, { patch: { activationRequested: false } },
+    { patch: { publicationReady: false } }, { patch: { slug: "" } }, { patch: {}, options: { searchEligible: false } },
+    { patch: {}, options: { lookupError: true } },
+  ];
+  for (const entry of cases) {
+    const h = publicServicesFixture(entry.patch, entry.options);
+    const companies = await h.publicApi.listInrDirectoryCompanies();
+    assert.equal(companies.length, 1, "a hidden or unavailable secondary channel does not remove an eligible directory card");
+    assert.deepEqual(companies[0].services, []);
+    assert.equal((await h.query.getInrDirectoryResult(new URLSearchParams({ q: "Préparation de fichiers EPUB" }))).total, 0);
+  }
+  const disabled = publicServicesFixture({}, { directoryEnabled: false });
+  assert.deepEqual(await disabled.publicApi.listInrDirectoryCompanies(), [], "a published Search page never overrides directory exclusion");
+  assert.deepEqual(disabled.calls, []);
+  const legacy = publicServicesFixture({ activationVersion: undefined, activationRequested: undefined });
+  assert.ok((await legacy.publicApi.listInrDirectoryCompanies())[0].services?.includes("Préparation de fichiers EPUB"), "existing public Search pages retain their published service visibility");
 });
 
 test("the QR endpoint rejects invalid slugs and returns a first-party SVG with a quiet zone", async () => {

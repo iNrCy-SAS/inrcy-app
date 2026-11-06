@@ -1,4 +1,5 @@
 import type { ActivitySectorCategory } from '@/lib/activitySectors';
+import { ACTIVITY_EXISTING_PROFESSION_ALIASES, ACTIVITY_PROFESSION_COMPLEMENTS } from './activityCatalogComplements/index.ts';
 
 type JobCatalog = {
   label: string;
@@ -444,7 +445,7 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
       mise_en_relation_particuliers: { label: 'Plateforme entre particuliers', services: ['Création de profil', 'Publication d’une annonce', 'Recherche par critères', 'Mise en relation entre particuliers', 'Messagerie sécurisée', 'Gestion des favoris', 'Signalement / modération', 'Support utilisateurs'] },
       marketplace_services: { label: 'Marketplace de services', services: ['Catalogue de services', 'Recherche de prestataires', 'Dépôt d’une demande', 'Réservation de service', 'Mise en relation', 'Avis et évaluations', 'Espace prestataire', 'Support utilisateurs'] },
       annuaire_comparateur: { label: 'Annuaire / comparateur en ligne', services: ['Référencement professionnel', 'Recherche par activité', 'Recherche géolocalisée', 'Fiche professionnelle', 'Demande de contact', 'Demande de devis', 'Avis et recommandations', 'Offres de visibilité'] },
-      plateforme_reservation: { label: 'Plateforme de réservation', services: ['Recherche de disponibilités', 'Réservation en ligne', 'Confirmation automatique', 'Rappels de rendez-vous', 'Gestion des annulations', 'Espace prestataire', 'Planning en ligne', 'Support réservation'] },
+      plateforme_reservation: { label: 'Plateforme de réservation', services: ['Recherche de disponibilités', 'Réservation en ligne', 'Confirmation de réservation', 'Rappels de réservation', 'Gestion des modifications et annulations', 'Gestion des offres réservables', 'Calendrier des disponibilités', 'Support réservation'] },
       plateforme_emploi_talents: { label: 'Plateforme emploi / talents', services: ['Publication d’offres', 'Création de profil candidat', 'Recherche de talents', 'Matching candidat / recruteur', 'Gestion des candidatures', 'Prise de rendez-vous', 'Alertes emploi', 'Espace recruteur'] },
       communaute_reseau: { label: 'Communauté / réseau professionnel', services: ['Création de profil', 'Annuaire des membres', 'Groupes thématiques', 'Mise en relation professionnelle', 'Messagerie', 'Événements communautaires', 'Partage de ressources', 'Animation de communauté'] },
       logiciel_saas: { label: 'Logiciel / service en ligne (SaaS)', services: ['Création de compte', 'Abonnement en ligne', 'Tableau de bord', 'Automatisation', 'Collaboration en équipe', 'Intégrations', 'Assistance utilisateur', 'Démonstration produit'] },
@@ -500,6 +501,12 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
     },
   },};
 
+for (const profession of ACTIVITY_PROFESSION_COMPLEMENTS) {
+  const jobs = ACTIVITY_CATALOG[profession.sector].jobs;
+  if (jobs[profession.professionKey]) throw new Error(`Duplicate activity profession: ${profession.sector}/${profession.professionKey}`);
+  jobs[profession.professionKey] = { label: profession.professionLabel, services: [...profession.services] };
+}
+
 /** Shared by profession restoration and search, so the same wording selects the same job. */
 export const ACTIVITY_JOB_ALIASES: Partial<Record<ActivitySectorCategory, Record<string, string[]>>> = {
   commerce_boutique: {
@@ -512,6 +519,12 @@ export const ACTIVITY_JOB_ALIASES: Partial<Record<ActivitySectorCategory, Record
     editeur_livres: ['Éditeur de livres', 'Éditrice de livres', 'Éditeur de livre', 'Éditeur d’ouvrages', 'Maison d’édition', 'Maison d’édition de livres', 'Édition de livres', 'Édition littéraire', 'Éditeur littéraire', 'Éditrice littéraire'],
   },
 };
+
+for (const entry of [...ACTIVITY_PROFESSION_COMPLEMENTS, ...ACTIVITY_EXISTING_PROFESSION_ALIASES]) {
+  if (!ACTIVITY_CATALOG[entry.sector].jobs[entry.professionKey]) throw new Error(`Unknown activity alias target: ${entry.sector}/${entry.professionKey}`);
+  const aliases = ACTIVITY_JOB_ALIASES[entry.sector] ??= {};
+  aliases[entry.professionKey] = [...new Set([...(aliases[entry.professionKey] || []), ...entry.aliases])];
+}
 
 export const BEAUTE_BIEN_ETRE_JOB_ALIASES: Record<string, string[]> = {
   boutique_cosmetiques: ['Cosmétiques', 'Cosmétique', 'Boutique cosmétique', 'Magasin de cosmétiques', 'Commerce de cosmétiques', 'Commerce cosmétique', 'Boutique beauté', 'Beauty shop', 'Cosmetics shop', 'Vente de cosmétiques', 'Skincare', 'Skin care'],

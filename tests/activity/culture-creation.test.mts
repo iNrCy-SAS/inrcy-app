@@ -15,12 +15,13 @@ import {
 } from '../../lib/activityCatalog.ts';
 import { searchActivityJobs } from '../../lib/activityJobSearch.ts';
 import { getGeneratorRecommendation } from '../../lib/generatorSettings.ts';
+import { ACTIVITY_PROFESSION_COMPLEMENTS } from '../../lib/activityCatalogComplements/index.ts';
 import {
   culture_creationTemplates,
   cultureCreationJobTemplates,
 } from '../../lib/templates/sectors/culture_creation/common.ts';
 
-const expectedJobs = [
+const legacyJobs = [
   'ecrivain_auteur',
   'editeur_livres',
   'artiste',
@@ -31,6 +32,11 @@ const expectedJobs = [
   'illustrateur',
   'sculpteur',
 ];
+const complementJobs = [
+  'agent_litteraire', 'traducteur_litteraire', 'responsable_editorial', 'editeur_presse',
+  'editeur_livres_numeriques', 'scenariste', 'bibliothecaire', 'archiviste',
+];
+const cultureComplements = ACTIVITY_PROFESSION_COMPLEMENTS.filter((entry) => entry.sector === 'culture_creation');
 
 test('le profil distingue les créations artistiques de la peinture en bâtiment', () => {
   assert.deepEqual(
@@ -50,15 +56,16 @@ test('le profil distingue les créations artistiques de la peinture en bâtiment
   assert.equal(getGeneratorRecommendation(stored).sectorLabel, 'Arts / Culture / Création');
 });
 
-test('les neuf métiers ont leurs prestations et des modèles distincts', () => {
-  assert.deepEqual(getJobsForSector('culture_creation').map((job) => job.value), expectedJobs);
+test('les neuf métiers historiques et les huit compléments culturels ont leurs prestations et des modèles distincts', () => {
+  assert.deepEqual(getJobsForSector('culture_creation').map((job) => job.value), [...legacyJobs, ...complementJobs]);
   assert.deepEqual(
     cultureCreationJobTemplates.map((definition) => definition.professionKey),
-    expectedJobs,
+    legacyJobs,
   );
+  assert.deepEqual(cultureComplements.map((definition) => definition.professionKey), complementJobs);
   assert.equal(culture_creationTemplates.sector, 'culture_creation');
 
-  for (const definition of cultureCreationJobTemplates) {
+  for (const definition of [...cultureCreationJobTemplates, ...cultureComplements]) {
     assert.equal(definition.sector, 'culture_creation');
     assert.equal(getServicesForSectorAndJob('culture_creation', definition.professionKey).length, 8);
     for (const field of [

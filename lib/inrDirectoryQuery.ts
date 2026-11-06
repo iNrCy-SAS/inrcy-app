@@ -1,5 +1,5 @@
 import { listInrDirectoryCompanies, type InrDirectoryCompany } from "@/lib/inrDirectoryPublic";
-import { directorySlug, getDirectoryProfessionFacets } from "@/lib/inrDirectoryCatalog";
+import { directorySlug, getDirectoryProfessionFacets, resolveDirectoryProfession } from "@/lib/inrDirectoryCatalog";
 
 function facet(companies: InrDirectoryCompany[], key: "city" | "department" | "region" | "sectorLabel") {
   const map = new Map<string, { slug: string; label: string; count: number }>();
@@ -19,7 +19,12 @@ export async function getInrDirectoryResult(params: URLSearchParams, origin?: st
     secteur: params.get("secteur") || params.get("sector") || "", ville: params.get("ville") || params.get("city") || "",
     departement: params.get("departement") || params.get("department") || "", region: params.get("region") || "" };
   const query = normalizeText(filters.q);
-  const companies = allCompanies.filter(company => (!query || normalizeText([company.companyName, company.profession, company.sectorLabel, company.city, company.department, company.region].join(" ")).includes(query))
+  // Resolve only approved exact names. Fuzzy profession suggestions must never
+  // make a public company match another trade (e.g. traducteur/producteur).
+  const requestedProfession = query ? resolveDirectoryProfession(filters.q) : null;
+  const companies = allCompanies.filter(company => (!query
+    || normalizeText([company.companyName, company.profession, company.sectorLabel, company.city, company.department, company.region, ...(company.services || [])].join(" ")).includes(query)
+    || Boolean(requestedProfession?.catalogMatch && company.professionSlug === requestedProfession.professionSlug && company.sectorCategory === requestedProfession.sectorCategory))
     && (!filters.metier || company.professionSlug === directorySlug(filters.metier))
     && (!filters.secteur || company.sectorSlug === directorySlug(filters.secteur))
     && (!filters.ville || company.citySlug === directorySlug(filters.ville))

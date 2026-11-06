@@ -1,6 +1,7 @@
 import { ACTIVITY_SECTOR_OPTIONS } from '@/lib/activitySectors';
 import type { TemplateDef } from '@/lib/messageTemplates';
-import { createSectorTemplates, type SectorTemplateDefinition } from './shared';
+import { createJobTemplates, createSectorTemplates, type SectorTemplateDefinition } from './shared';
+import { ACTIVITY_PROFESSION_COMPLEMENTS } from '../../activityCatalogComplements/index.ts';
 import { agriculture_producteursTemplates, buildAgricultureProducteursJobTemplates } from './agriculture_producteurs';
 import { architecture_designTemplates, buildArchitectureDesignJobTemplates } from './architecture_design';
 import { bois_foretTemplates, buildBoisForetJobTemplates } from './bois_foret';
@@ -80,6 +81,9 @@ export const SECTOR_TEMPLATE_DEFINITIONS: Record<string, SectorTemplateDefinitio
 export function buildSectorTemplates(): TemplateDef[] {
   const out: TemplateDef[] = [];
   for (const option of ACTIVITY_SECTOR_OPTIONS) {
+    for (const profession of ACTIVITY_PROFESSION_COMPLEMENTS) {
+      if (profession.sector === option.value) out.push(...createJobTemplates(profession));
+    }
     const definition = SECTOR_TEMPLATE_DEFINITIONS[option.value];
     if (definition) out.push(...(option.value === 'voyance_arts_divinatoires'
       ? createVoyanceSectorTemplates(definition) : createSectorTemplates(definition)));

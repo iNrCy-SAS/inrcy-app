@@ -1,3 +1,5 @@
+import { inferComplementaryActivitySector } from './activityCatalogComplements/index.ts';
+
 export const ACTIVITY_SECTOR_OPTIONS = [
   { value: 'animalier', label: 'Animalier' },
   { value: 'agriculture_producteurs', label: 'Agriculture / Producteurs locaux' },
@@ -102,6 +104,8 @@ function inferDivinationSector(value: string): ActivitySectorCategory | null {
 export function inferSectorCategoryFromProfession(input?: string | null): ActivitySectorCategory {
   const value = String(input || '').toLowerCase();
   if (!value) return DEFAULT_ACTIVITY_SECTOR;
+  const complementarySector = inferComplementaryActivitySector(value);
+  if (complementarySector) return inferBeautyProductSector(value) ?? complementarySector;
 
   if (/(économie sociale et solidaire|economie sociale et solidaire|économie sociale & solidaire|economie sociale & solidaire|\bess\b|association loi 1901|association d’intérêt général|association d'interet general|organisme d’intérêt général|organisme d'interet general|coopérative|cooperative|\bscop\b|\bscic\b|entreprise sociale|entreprise solidaire|\besus\b|utilité sociale|utilite sociale|fintech mutualiste|holding fintech mutualiste|finance solidaire|finance à impact|finance a impact|financement mutualiste|inclusion financière|inclusion financiere|investissement à impact|investissement a impact|impact investing|infrastructure mutualiste|structure d’insertion|structure d'insertion|\bsiae\b|atelier chantier d’insertion|atelier chantier d'insertion|entreprise d’insertion|entreprise d'insertion|association intermédiaire|association intermediaire|\besat\b|entreprise adaptée|entreprise adaptee|mutuelle|fondation|fonds de dotation|ressourcerie|recyclerie|centre social|tiers[- ]lieu solidaire|\bong\b|solidarité internationale|solidarite internationale)/.test(value) || /^\s*association\s*$/.test(value)) return 'economie_sociale_solidaire';
   const divinationSector = inferDivinationSector(value);

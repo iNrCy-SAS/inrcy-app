@@ -306,6 +306,16 @@ const JOB_ALIASES: Partial<
   },
 };
 
+// The picker, saved-label restoration and assistant use the same reviewed
+// profession aliases, including additions in sectors with older local aliases.
+for (const [rawSector, professions] of Object.entries(ACTIVITY_JOB_ALIASES)) {
+  const sector = rawSector as ActivitySectorCategory;
+  const aliases = JOB_ALIASES[sector] ??= {};
+  for (const [profession, names] of Object.entries(professions)) {
+    aliases[profession] = [...new Set([...(aliases[profession] || []), ...names])];
+  }
+}
+
 function normalizeSearchText(value: string) {
   return String(value || "")
     .normalize("NFD")
