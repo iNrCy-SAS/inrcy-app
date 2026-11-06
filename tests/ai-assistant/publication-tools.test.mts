@@ -8,6 +8,7 @@ import ts from "typescript";
 import * as channelPolicy from "../../lib/boosterPublicationPolicy.ts";
 import * as channelRules from "../../lib/boosterChannelRules.ts";
 import * as instagramCaptionLimits from "../../lib/instagramCaptionLimits.ts";
+import * as pinterestTextLimits from "../../lib/pinterestTextLimits.ts";
 import * as outcomes from "../../lib/boosterPublicationOutcome.ts";
 import type * as PublicationTools from "../../lib/inrAssistantPublicationTools.ts";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
@@ -87,6 +88,7 @@ function harness(options: {
     ai: { tool: (definition: unknown) => definition, jsonSchema: (schema: unknown, config: Row) => ({ schema, ...config }) },
     "./boosterPublicationPolicy.ts": channelPolicy, "./boosterChannelRules.ts": channelRules, "./boosterPublicationOutcome.ts": outcomes,
     "./instagramCaptionLimits.ts": instagramCaptionLimits,
+    "./pinterestTextLimits.ts": pinterestTextLimits,
     "@/lib/requireUser": { requireUser: async () => { calls.push({ action: "auth" }); return { errorResponse: null, activeUserId: options.wrongScope ? FOREIGN : ACCOUNT, authUserId: "authenticated-actor", supabase }; } },
     "@/lib/accountSubscriptionAccess": { getActiveSubscriptionAccountIds: async (ids: string[]) => { assert.deepEqual(Array.from(ids), [ACCOUNT]); return new Set(options.inactive ? [] : [ACCOUNT]); } },
     "@/lib/mediaLibraryContentUrl": { buildMediaLibraryContentUrl: (id: string) => { minted.push(id); return `/api/media-library/items/${id}/content?token=PRIVATE_SIGNED_TOKEN`; } },
@@ -545,7 +547,55 @@ test("Instagram manual draft and legacy edit parsers reject 2201 characters befo
   assert.equal(h.calls.length, 0); assert.equal(h.queries.length, 0);
 });
 
-test("manual content parsing preserves the historical channel maxima outside Instagram", async () => {
+test("Pinterest manual preparation preserves 600 characters and accepts 800 Unicode points without changing the generated body budget", async () => {
+  assert.equal(channelRules.BOOSTER_CHANNEL_CONTENT_RULES.pinterest.max, 500);
+  for (const content of ["x".repeat(600), "😀".repeat(800)]) {
+    const title = "😀".repeat(100);
+    const h = harness({ message: "Prépare une publication Pinterest avec ce texte", drafts: false });
+    const input = { ...prepare, posts: [{ ...post, channel: "pinterest", title, content, hashtags: [] }] };
+    const validate = (h.tools.preparePublication.inputSchema as unknown as { validate(value: unknown): { success: boolean } }).validate;
+    assert.equal(validate(input).success, true);
+    assert.equal((await h.tools.preparePublication.execute(input)).status, "draft");
+    const saved = record(h.calls.find(call => call.action === "draft-post")?.body?.payload);
+    assert.equal(record(record(saved.postByChannel).pinterest).content, content);
+    assert.equal(record(record(saved.postByChannel).pinterest).title, title);
+    assert.equal(h.calls.filter(call => call.action === "draft-post").length, 1);
+    assert.equal(h.calls.some(call => call.action === "publish" || call.action === "edit"), false);
+    const legacy = harness({ message: "Modifie le texte de cette publication Pinterest" });
+    const edit = { publicationId: PUBLICATION, channel: "pinterest", title, content, hashtags: null };
+    assert.equal((legacy.tools.editPublication.inputSchema as unknown as { validate(value: unknown): { success: boolean } }).validate(edit).success, true);
+    assert.equal((await legacy.tools.editPublication.execute(edit)).status, "needs_clarification", "the signed native published-edit workflow remains required");
+    assert.equal(legacy.calls.some(call => ["edit", "draft-post", "publish"].includes(call.action)), false);
+  }
+});
+
+test("Pinterest manual draft and legacy edit reject 801 Unicode points before authentication, reads or writes", async () => {
+  const h = harness({ message: "Prépare une publication Pinterest et modifie cette publication" });
+  for (const content of ["x".repeat(801), "😀".repeat(801)]) {
+    const input = { ...prepare, posts: [{ ...post, channel: "pinterest", content }] };
+    const edit = { publicationId: PUBLICATION, channel: "pinterest", title: null, content, hashtags: null };
+    for (const [tool, value] of [[h.tools.preparePublication, input], [h.tools.editPublication, edit]] as const) {
+      assert.equal((tool.inputSchema as unknown as { validate(value: unknown): { success: boolean } }).validate(value).success, false);
+      await assert.rejects(tool.execute(value));
+    }
+  }
+  assert.equal(h.calls.length, 0); assert.equal(h.queries.length, 0);
+});
+
+test("Pinterest manual title parsers reject 101 Unicode points before authentication, reads or writes", async () => {
+  const h = harness({ message: "Prépare une publication Pinterest et modifie cette publication" });
+  for (const title of ["x".repeat(101), "😀".repeat(101)]) {
+    const input = { ...prepare, posts: [{ ...post, channel: "pinterest", title }] };
+    const edit = { publicationId: PUBLICATION, channel: "pinterest", title, content: null, hashtags: null };
+    for (const [tool, value] of [[h.tools.preparePublication, input], [h.tools.editPublication, edit]] as const) {
+      assert.equal((tool.inputSchema as unknown as { validate(value: unknown): { success: boolean } }).validate(value).success, false);
+      await assert.rejects(tool.execute(value));
+    }
+  }
+  assert.equal(h.calls.length, 0); assert.equal(h.queries.length, 0);
+});
+
+test("manual content parsing preserves the historical channel maxima outside Instagram and Pinterest", async () => {
   const h = harness();
   for (const channel of ["facebook", "gmb", "inr_search"] as const) {
     const input = { ...prepare, posts: [{ ...post, channel, content: "x".repeat(channelRules.BOOSTER_CHANNEL_CONTENT_RULES[channel].max + 1) }] };

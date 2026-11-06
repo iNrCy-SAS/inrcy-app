@@ -2,12 +2,10 @@ import {
   buildBoosterHashtagLine,
   getBoosterInstagramCaptionState,
   buildBoosterMessage,
-  buildCtaTextForNativeDestination,
-  sanitizeBoosterPostForStructuredCta,
   type BoosterCtaContext,
   type BoosterPostLike,
 } from "@/lib/boosterCta";
-import { stripSiteTextFormattingPreserveLayout } from "@/lib/boosterFormatting";
+import { buildPinterestPublicationText, PINTEREST_DESCRIPTION_MAX_LENGTH } from "./pinterestTextRules.ts";
 import { getXPostTextMetrics, X_POST_WEIGHTED_LENGTH_MAX } from "@/lib/xChannel";
 
 export type BoosterPreviewChannel =
@@ -48,8 +46,8 @@ function normalizeYoutubeHashtag(input: string): string {
 
 /**
  * Mirror the channel-specific text sent by Booster without publishing anything.
- * A red count means the required text itself exceeds the channel limit; optional
- * hashtags that the publisher omits are excluded from the displayed total.
+ * Instagram and Pinterest retain their complete text, including hashtags, and
+ * report overflow. Other channels follow their own publisher hashtag policy.
  */
 export function getBoosterPublicationTextPreview(
   channel: BoosterPreviewChannel,
@@ -63,17 +61,8 @@ export function getBoosterPublicationTextPreview(
   }
 
   if (channel === "pinterest") {
-    const sanitizedPost = sanitizeBoosterPostForStructuredCta(post, context);
-    const content = stripSiteTextFormattingPreserveLayout(
-      sanitizedPost.content || "",
-    );
-    const cta = buildCtaTextForNativeDestination(
-      "pinterest",
-      sanitizedPost,
-      context,
-    );
-    const required = [content, cta].filter(Boolean).join("\n\n");
-    return withOptionalHashtags(required, sanitizedPost, 500);
+    const state = buildPinterestPublicationText(post, context, { includeTitle: false });
+    return { text: state.description, count: state.descriptionLength, max: PINTEREST_DESCRIPTION_MAX_LENGTH, hashtagsOmitted: false };
   }
 
   if (channel === "tiktok") {

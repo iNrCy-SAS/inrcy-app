@@ -92,18 +92,31 @@ test("Pinterest native CTA retains the label but not the structured Pin link", (
   assert.doesNotMatch(text, /example\.com/);
 });
 
-test("Pinterest counter follows the sent description, excluding the native link and omitted tags", () => {
+test("Pinterest counter preserves the complete sent description beyond 500, including CTA and hashtags but excluding the native link", () => {
   const result = previews.getBoosterPublicationTextPreview("pinterest", {
-    content: "A".repeat(480),
+    content: "A".repeat(600),
     ctaMode: "custom",
     cta: "Voir le site",
     ctaUrl: "https://example.com/reservation",
     hashtags: ["maison"],
   });
-  assert.equal(result.text, `${"A".repeat(480)}\n\nVoir le site`);
+  assert.equal(result.text, `${"A".repeat(600)}\n\nVoir le site\n\n#maison`);
   assert.equal(result.count, result.text.length);
-  assert.equal(result.hashtagsOmitted, true);
+  assert.equal(result.hashtagsOmitted, false);
+  assert.equal(result.max, 800);
   assert.ok(result.count <= result.max);
+  assert.doesNotMatch(result.text, /example\.com/);
+});
+
+test("Pinterest counter accepts 800 Unicode characters and flags 801 without truncating or adding the separate title", () => {
+  for (const unit of ["A", "é", "😀"]) {
+    const post = { title: "Un titre séparé", content: unit.repeat(800), ctaMode: "none", hashtags: [] };
+    const exact = previews.getBoosterPublicationTextPreview("pinterest", post);
+    assert.equal(exact.text, post.content); assert.equal(exact.count, 800); assert.equal(exact.max, 800);
+    assert.equal(exact.hashtagsOmitted, false);
+    const overflow = previews.getBoosterPublicationTextPreview("pinterest", { ...post, content: unit.repeat(801) });
+    assert.equal(overflow.text, unit.repeat(801)); assert.equal(overflow.count, 801); assert.ok(overflow.count > overflow.max);
+  }
 });
 
 test("TikTok counter excludes tags dropped at the limit", () => {

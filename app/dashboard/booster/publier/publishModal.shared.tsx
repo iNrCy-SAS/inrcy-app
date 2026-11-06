@@ -42,6 +42,7 @@ import {
   type BoosterCtaMode,
 } from "@/lib/boosterCta";
 import { getBoosterPublicationTextPreview } from "@/lib/boosterPublicationTextPreview";
+import { PINTEREST_DESCRIPTION_MAX_LENGTH } from "@/lib/pinterestTextLimits";
 import {
   BOOSTER_CHANNEL_TITLE_MAX_LENGTH,
   INR_SEARCH_CONTENT_MAX_LENGTH,
@@ -1303,7 +1304,7 @@ export const CHANNEL_TEXT_GUIDELINES: Record<
     cta: 120,
     hashtags: 8,
     totalLabel: "Description Pinterest finale",
-    totalMax: 500,
+    totalMax: PINTEREST_DESCRIPTION_MAX_LENGTH,
     totalValue: (post, context) =>
       getBoosterPublicationTextPreview("pinterest", post, context).count,
   },

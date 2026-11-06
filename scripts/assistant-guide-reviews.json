@@ -136,7 +136,7 @@
         "lib/boosterContentAdjustment.ts": "ec13042871b5d59c1ab7725fa4a23e30fd2ff44df022bebed774365c66460f2b",
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
         "lib/inrAssistantPublicationCtaPatch.ts": "0d80b728c0a9ee85567cbb5bdb8b75e7bcd1f6cb8b1deddde9744e82e2d5da1a",
-        "lib/inrAssistantPublicationTools.ts": "7a563a5821fe6cfbbaf8116fb80748972b9546d1e66db6c6a9960df91e7d2de8",
+        "lib/inrAssistantPublicationTools.ts": "08262951516107c62c6c506056927aa3bd81babb796e0e1de759187a43183314",
         "lib/inrAssistantPublishedPublicationTools.ts": "eca6b7d2be5c0da12e3654c77e3459e6c1f4bb6ea9fc5f6bac9bd12b08489ad7",
         "lib/inrAssistantScheduledEditorSelection.ts": "a074ab78b8a3fab7567b52076bc43cc4d25e25f5b341126a843fb1469c16b149",
         "lib/inrAssistantScheduledPublicationEdit.ts": "2271abc778f051b3d6d54957ccbe9c293b5a14ffabfaff27d9bef336f5691fd2",
@@ -347,7 +347,7 @@
         "app/dashboard/booster/publier/components/publishWizard.ts": "b54f29d7b57a1252946984a4f3b3c8a31669bc64b45eb986aae44eff8e6b2f35",
         "lib/boosterContentAdjustment.ts": "ec13042871b5d59c1ab7725fa4a23e30fd2ff44df022bebed774365c66460f2b",
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
-        "lib/inrAssistantPublicationTools.ts": "7a563a5821fe6cfbbaf8116fb80748972b9546d1e66db6c6a9960df91e7d2de8",
+        "lib/inrAssistantPublicationTools.ts": "08262951516107c62c6c506056927aa3bd81babb796e0e1de759187a43183314",
         "lib/inrAssistantScheduledPublicationEdit.ts": "2271abc778f051b3d6d54957ccbe9c293b5a14ffabfaff27d9bef336f5691fd2",
         "lib/inrAssistantScheduledPublicationTools.ts": "2dd2eaa38a9472dc748c59dbfaddf06a55dbf6b58a3601ab89bd5165acefb0ec",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
@@ -585,7 +585,7 @@
         "app/dashboard/DashboardClient.tsx": "d611371b58584fa706ddea98a93b93561e43dae888ed68277b1d10e6c1f829d4",
         "lib/inrAssistantChannelTools.ts": "03931df536915478705aff248cdc84bdefbdc13d782687411455abd41c98e5f5",
         "lib/inrAssistantContext.ts": "95943456dc85bd7f90849fb3acf4a24e52139892bda0e577c6fc776497aa756e",
-        "lib/inrAssistantPublicationTools.ts": "7a563a5821fe6cfbbaf8116fb80748972b9546d1e66db6c6a9960df91e7d2de8"
+        "lib/inrAssistantPublicationTools.ts": "08262951516107c62c6c506056927aa3bd81babb796e0e1de759187a43183314"
       }
     },
     "help": {

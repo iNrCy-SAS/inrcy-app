@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { BOOSTER_PUBLICATION_CHANNELS, BOOSTER_PUBLICATION_CHANNEL_LABELS, type BoosterPublicationChannelKey as Channel } from "./boosterPublicationPolicy.ts";
 import { BOOSTER_CHANNEL_CONTENT_RULES } from "./boosterChannelRules.ts";
 import { INSTAGRAM_CAPTION_MAX_LENGTH } from "./instagramCaptionLimits.ts";
+import { countPinterestCharacters, PINTEREST_DESCRIPTION_MAX_LENGTH, PINTEREST_TITLE_MAX_LENGTH } from "./pinterestTextLimits.ts";
 import { classifyBoosterPublicationResult } from "./boosterPublicationOutcome.ts";
 
 type Row = Record<string, unknown>;
@@ -48,10 +49,23 @@ function tags(value: unknown): string[] | undefined {
   if (!Array.isArray(value) || value.length > 20 || value.some((item) => typeof item !== "string" || item.length > 60)) throw new PublicationInputError("Hashtags invalides.");
   return [...new Set(value.map((item) => String(item).trim()).filter(Boolean))];
 }
-// Generated Instagram bodies keep their editorial headroom; manual drafts use
-// the native envelope and the full-caption preflight still gates publication.
+// Generated Instagram/Pinterest bodies keep their editorial headroom. Manual
+// drafts use the native envelope; complete native text is still preflighted.
 function manualPostContentMaximum(channel: Channel): number {
-  return channel === "instagram" ? INSTAGRAM_CAPTION_MAX_LENGTH : BOOSTER_CHANNEL_CONTENT_RULES[channel].max;
+  return channel === "instagram" ? INSTAGRAM_CAPTION_MAX_LENGTH
+    : channel === "pinterest" ? PINTEREST_DESCRIPTION_MAX_LENGTH : BOOSTER_CHANNEL_CONTENT_RULES[channel].max;
+}
+function manualPostContent(value: unknown, channel: Channel, nullable = false): string | undefined {
+  if (channel !== "pinterest") return text(value, manualPostContentMaximum(channel), nullable);
+  return pinterestText(value, PINTEREST_DESCRIPTION_MAX_LENGTH, nullable);
+}
+function manualPostTitle(value: unknown, channel: Channel, nullable = false): string | undefined {
+  return channel === "pinterest" ? pinterestText(value, PINTEREST_TITLE_MAX_LENGTH, nullable) : text(value, 180, nullable);
+}
+function pinterestText(value: unknown, maximum: number, nullable: boolean): string | undefined {
+  if (value == null && nullable) return undefined;
+  if (typeof value !== "string" || countPinterestCharacters(value) > maximum || !value.trim()) throw new PublicationInputError("Texte de publication invalide.");
+  return value.trim();
 }
 function post(value: unknown): Post {
   const input = row(value); strict(input, ["channel", "title", "content", "cta", "hashtags", "ctaMode", "ctaUrl", "ctaPhone", "ctaAction"]);
@@ -60,7 +74,7 @@ function post(value: unknown): Post {
   if (input.cta != null && (typeof input.cta !== "string" || input.cta.length > 300)) throw new PublicationInputError("Appel à l’action invalide.");
   for (const field of ["ctaMode", "ctaUrl", "ctaPhone", "ctaAction"]) if (input[field] != null && (typeof input[field] !== "string" || String(input[field]).length > (field === "ctaUrl" ? 2000 : 80))) throw new PublicationInputError("Destination d’appel à l’action invalide.");
   if (input.ctaMode != null && !["none", "website", "call", "message", "custom"].includes(String(input.ctaMode))) throw new PublicationInputError("Choix d’appel à l’action invalide.");
-  return { channel, title: text(input.title, 180)!, content: text(input.content, manualPostContentMaximum(channel))!,
+  return { channel, title: manualPostTitle(input.title, channel)!, content: manualPostContent(input.content, channel)!,
     cta: typeof input.cta === "string" ? input.cta.trim() : undefined, hashtags: tags(input.hashtags), ...Object.fromEntries(["ctaMode", "ctaUrl", "ctaPhone", "ctaAction"].filter(key => input[key] != null).map(key => [key, String(input[key]).trim()])) };
 }
 function prepareInput(value: unknown): PrepareInput {
@@ -124,8 +138,8 @@ function editInput(value: unknown): EditInput {
   const input = row(value); strict(input, ["publicationId", "channel", "title", "content", "hashtags"]);
   if (!BOOSTER_PUBLICATION_CHANNELS.includes(input.channel as Channel)) throw new PublicationInputError("Canal invalide.");
   const channel = input.channel as Channel;
-  const parsed = { publicationId: id(input.publicationId), channel, title: text(input.title, 180, true),
-    content: text(input.content, manualPostContentMaximum(channel), true), hashtags: tags(input.hashtags) };
+  const parsed = { publicationId: id(input.publicationId), channel, title: manualPostTitle(input.title, channel, true),
+    content: manualPostContent(input.content, channel, true), hashtags: tags(input.hashtags) };
   if (parsed.title === undefined && parsed.content === undefined && parsed.hashtags === undefined) throw new PublicationInputError("Précisez la correction souhaitée.");
   return parsed;
 }
