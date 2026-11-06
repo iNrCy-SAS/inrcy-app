@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 
 function read(path: string) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -498,13 +499,35 @@ test("iNr Studio propose le même micro corrigé au brief créatif unifié", () 
 
   assert.match(
     mediaGenerator,
-    /const operationLocked = busy \|\| finishing \|\| voiceBusy \|\| inspirationBusy/,
+    /const operationLocked = cancellationPending \|\| busy \|\| finishing \|\| voiceBusy \|\| inspirationBusy \|\| characterVoiceBusy/,
   );
   assert.match(mediaGenerator, /const creativeBriefMaximum = getAiMediaVisualBriefMaxChars\(kind, "guided"\)/);
   assert.match(mediaGenerator, /maxLength=\{kind === "video" \? undefined : creativeBriefMaximum\}/,
     "un ancien texte vidéo reste éditable sans troncature tandis que l'image garde sa limite");
   assert.match(mediaGenerator, /creativeBriefTooLong \|\|/,
     "un texte vidéo au-dessus du budget bloque la génération malgré l'absence de troncature");
+});
+
+test("Studio recovery checks leave editing available while real generation, microphone and other exclusive operations remain locked", () => {
+  const source = ts.createSourceFile("MediaGenerator.tsx", mediaGenerator, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const expressions = new Map<string, string>();
+  function visit(node: ts.Node) {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && ["busy", "operationLocked"].includes(node.name.text) && node.initializer) expressions.set(node.name.text, node.initializer.getText(source));
+    ts.forEachChild(node, visit);
+  }
+  visit(source); assert.equal(expressions.size, 2);
+  const defaults = { generationBusy: false, recovering: false, discarding: false, cancellationPending: false, finishing: false, voiceBusy: false, inspirationBusy: false, characterVoiceBusy: false };
+  const isLocked = (patch: Partial<typeof defaults>) => {
+    const state = { ...defaults, ...patch };
+    return new Function(...Object.keys(state), `const busy = (${expressions.get("busy")}); return (${expressions.get("operationLocked")});`)(...Object.values(state));
+  };
+  assert.equal(isLocked({}), false);
+  assert.equal(isLocked({ generationBusy: true }), true, "a real generation locks editing");
+  assert.equal(isLocked({ generationBusy: true, recovering: true }), false, "GET-only recovery checks allow editing");
+  for (const lock of ["voiceBusy", "inspirationBusy", "characterVoiceBusy", "finishing", "discarding", "cancellationPending"] as const) {
+    assert.equal(isLocked({ [lock]: true }), true, `${lock} keeps its normal lock`);
+    assert.equal(isLocked({ generationBusy: true, recovering: true, [lock]: true }), true, `${lock} remains locked during a recovery check`);
+  }
 });
 
 test("Booster Générer expose exactement deux champs vocaux via le composant partagé", () => {

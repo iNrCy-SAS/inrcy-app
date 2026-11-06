@@ -1,6 +1,6 @@
 {
-  "ai_generator_recovery_title": "Ihr Medium wird erstellt",
-  "ai_generator_recovery_continue": "Die Erstellung läuft weiter. Sie können Ihre Einstellungen ändern.",
+  "ai_generator_recovery_title": "Finden Sie Ihre Kreation wieder",
+  "ai_generator_recovery_continue": "Ihr Versuch bleibt gespeichert. Während der Überprüfung können Sie Ihre Einstellungen ändern.",
   "ai_generator_recovery_check": "Mein Medium prüfen",
   "ai_generator_recovery_checking": "Medium wird geprüft…",
   "ai_generator_recovery_pause": "Prüfung pausieren",
@@ -321,7 +321,7 @@
   "ai_generator_team_video_consent_required": "Bestätigen Sie diese Erlaubnis, um die echte Animation zu starten.",
   "ai_generator_team_video_consent_title": "Personen wirklich animieren?",
   "ai_generator_kind_video_hint_team_cinematic": "Teamkomposition und echte Bewegungen mit Gemini/Veo",
-  "ai_generator_stage_team_animation": "Personen werden realistisch animiert…",
+  "ai_generator_stage_team_animation": "Videosequenzen werden animiert…",
   "ai_generator_video_creation_detail_team_cinematic": "iNrCy stellt das Team zusammen, anschließend erzeugt Gemini/Veo echte Bewegungen in einem {duration}-Sekunden-Video.",
   "ai_generator_reference_team_consent_label": "Ich bestätige, dass jedes Foto eine andere volljährige Person zeigt, die entweder ich selbst bin oder mir die Nutzung ihres Bildes für diese Generierung erlaubt hat.",
   "ai_generator_reference_team_hint": "Fügen Sie 2 oder 3 Fotos hinzu, jeweils mit einer anderen autorisierten volljährigen Person. iNrCy stellt das Team anschließend im Bild oder Video zusammen.",

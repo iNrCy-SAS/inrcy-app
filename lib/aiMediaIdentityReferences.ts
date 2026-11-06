@@ -71,15 +71,22 @@ export type PreparedAiMediaIdentityReferences = {
  * appelé. Les octets sources et les sorties restent exclusivement en mémoire.
  */
 export async function prepareAiMediaIdentityReferences(
-  images: readonly AiMediaInspirationImage[]
+  images: readonly AiMediaInspirationImage[],
+  options: { format?: "webp" | "png"; signal?: AbortSignal } = {},
 ): Promise<PreparedAiMediaIdentityReferences> {
+  options.signal?.throwIfAborted();
   if (!images.length) return { buffers: [], providerImages: [] };
+  const outputFormat = options.format || "webp";
+  // PNG preserves every decoded pixel. Its worst-case size at the existing
+  // 1280px bound is larger than WebP, within the private video input budget.
+  const maxOutputBytes = outputFormat === "png" ? 20 * 1024 * 1024 : AI_MEDIA_IDENTITY_REFERENCE_MAX_OUTPUT_BYTES;
 
   try {
     const buffers = await Promise.all(
       images.map(async (image) => {
+        options.signal?.throwIfAborted();
         const input = Buffer.from(image.data, "base64");
-        if (input.byteLength < 48) {
+        if (input.byteLength < 48 || (outputFormat === "png" && input.byteLength > 20 * 1024 * 1024)) {
           throw new AiMediaIdentityReferenceValidationError();
         }
 
@@ -109,21 +116,24 @@ export async function prepareAiMediaIdentityReferences(
           throw new AiMediaIdentityReferenceValidationError();
         }
 
-        const { data, info } = await source
+        const normalized = source
           .rotate()
           .resize({
             width: AI_MEDIA_IDENTITY_REFERENCE_MAX_DIMENSION,
             height: AI_MEDIA_IDENTITY_REFERENCE_MAX_DIMENSION,
             fit: "inside",
             withoutEnlargement: true,
-          })
-          .webp({ quality: 90, effort: 4 })
+          });
+        const { data, info } = await (outputFormat === "png"
+          ? normalized.png({ compressionLevel: 9 })
+          : normalized.webp({ quality: 90, effort: 4 }))
           .toBuffer({ resolveWithObject: true });
+        options.signal?.throwIfAborted();
 
         if (
           !data.byteLength ||
-          data.byteLength > AI_MEDIA_IDENTITY_REFERENCE_MAX_OUTPUT_BYTES ||
-          info.format !== "webp" ||
+          data.byteLength > maxOutputBytes ||
+          info.format !== outputFormat ||
           info.width > AI_MEDIA_IDENTITY_REFERENCE_MAX_DIMENSION ||
           info.height > AI_MEDIA_IDENTITY_REFERENCE_MAX_DIMENSION
         ) {
@@ -136,7 +146,7 @@ export async function prepareAiMediaIdentityReferences(
     return {
       buffers: buffers.map(({ data }) => data),
       providerImages: buffers.map(({ data, image }) => ({
-        mimeType: "image/webp" as const,
+        mimeType: outputFormat === "png" ? "image/png" as const : "image/webp" as const,
         data: data.toString("base64"),
         ...(image.role ? { role: image.role } : {}),
         ...(image.usage ? { usage: image.usage } : {}),
@@ -150,7 +160,16 @@ export async function prepareAiMediaIdentityReferences(
       })),
     };
   } catch (error) {
+    options.signal?.throwIfAborted();
     if (error instanceof AiMediaIdentityReferenceValidationError) throw error;
     throw new AiMediaIdentityReferenceValidationError();
   }
+}
+
+/** Google Gateway first frames require actual JPEG/PNG bytes, not WebP relabelled as PNG. */
+export async function prepareGoogleAiVideoReferenceImages(
+  images: readonly AiMediaInspirationImage[],
+  signal?: AbortSignal,
+): Promise<AiMediaInspirationImage[]> {
+  return (await prepareAiMediaIdentityReferences(images, { format: "png", signal })).providerImages;
 }

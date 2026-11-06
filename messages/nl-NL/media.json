@@ -1,6 +1,6 @@
 {
-  "ai_generator_recovery_title": "Je media wordt gemaakt",
-  "ai_generator_recovery_continue": "Het maken gaat door. Je kunt je instellingen aanpassen.",
+  "ai_generator_recovery_title": "Vind je creatie terug",
+  "ai_generator_recovery_continue": "Je poging blijft bewaard. Je kunt je instellingen tijdens de controle aanpassen.",
   "ai_generator_recovery_check": "Mijn media controleren",
   "ai_generator_recovery_checking": "Media wordt gecontroleerd…",
   "ai_generator_recovery_pause": "Controle pauzeren",
@@ -321,7 +321,7 @@
   "ai_generator_team_video_consent_required": "Vink deze toestemming aan om de echte animatie te starten.",
   "ai_generator_team_video_consent_title": "Personen echt animeren?",
   "ai_generator_kind_video_hint_team_cinematic": "Teamsamenstelling en echte beweging met Gemini/Veo",
-  "ai_generator_stage_team_animation": "Personen worden echt geanimeerd…",
+  "ai_generator_stage_team_animation": "Videoscènes worden geanimeerd…",
   "ai_generator_video_creation_detail_team_cinematic": "iNrCy stelt het team samen, waarna Gemini/Veo echte beweging maakt in een video van {duration} seconden.",
   "ai_generator_reference_team_consent_label": "Ik bevestig dat elke foto een andere volwassene toont die ik zelf ben of die mij toestemming heeft gegeven diens beeltenis voor deze generatie te gebruiken.",
   "ai_generator_reference_team_hint": "Voeg 2 of 3 foto's toe, met in elke afbeelding één andere bevoegde volwassene. iNrCy stelt het team daarna samen in de afbeelding of video.",

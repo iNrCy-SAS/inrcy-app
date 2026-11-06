@@ -6,6 +6,8 @@ import path from "node:path";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import sharp from "sharp";
+import * as identityReferences from "../../lib/aiMediaIdentityReferences.ts";
 import * as catalog from "../../lib/aiMediaModelCatalog.ts";
 import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
 import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
@@ -92,6 +94,7 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-i
       recordAiGatewayAccountFailure: async () => noOp(),
     }],
     ["./aiMediaBuffer.ts", { bufferFromUint8ArrayView }],
+    ["./aiMediaIdentityReferences.ts", identityReferences],
     ["./aiMediaFreeGenerationPrompt.ts", freePrompt],
     ["@/lib/aiMediaGenerationContracts", { AiMediaRequestValidationError }],
     ["./aiMediaModelCatalog.ts", catalog],
@@ -314,6 +317,87 @@ test("the installed AI SDK serializes HeyGen native options and an inline first 
   } });
   const result = await experimental_generateVideo({ ...input, model: gateway.video("heygen/heygen-video-1") } as Parameters<typeof experimental_generateVideo>[0]);
   assert.equal(calls, 1); assert.equal(result.videos.length, 1);
+});
+
+test("Veo Lite sends a real PNG first frame through the installed SDK after the real WebP precomposition", async () => {
+  const source = readFileSync(path.join(process.cwd(), "lib/aiMediaReferenceTeam.ts"), "utf8");
+  const ast = ts.createSourceFile("aiMediaReferenceTeam.ts", source, ts.ScriptTarget.Latest, true);
+  const declaration = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "prepareReferenceTeamCompositionForAnimation");
+  assert.ok(declaration);
+  const javascript = ts.transpileModule(declaration.getText(ast), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const exports = {} as { prepareReferenceTeamCompositionForAnimation: (buffer: Buffer) => Promise<{ data: string; mimeType: "image/webp" }> };
+  new Function("exports", "sharp", javascript)(exports, sharp);
+  const original = await sharp({ create: { width: 96, height: 64, channels: 3, background: "#357a6b" } }).png().toBuffer();
+  const composed = await exports.prepareReferenceTeamCompositionForAnimation(original);
+  assert.equal((await sharp(Buffer.from(composed.data, "base64")).metadata()).format, "webp");
+  await withMockCredentials(async () => {
+    const context = loadRuntime(), args = argsFor("veo-lite", 1, 8);
+    args.request.videoResolution = "1080p"; args.request.withNarration = false; args.request.withMusic = false;
+    args.request.inspirationImages = [{ ...composed, role: "environment", usage: "required" }];
+    await context.runtime.createGatewayAiVideoProvider("veo-lite").generate(args);
+    const input = context.observed()!;
+    const { createGateway, experimental_generateVideo } = await import("ai");
+    let calls = 0;
+    const captured: { wire?: { image: { mediaType: string; data: string }; resolution: string; duration: number } } = {};
+    const gateway = createGateway({ apiKey: "unit-test-no-network", fetch: async (_url, init) => {
+      calls++;
+      captured.wire = JSON.parse(String(init?.body));
+      const result = { type: "result", videos: [{ type: "base64", mediaType: "video/mp4", data: Buffer.from("local-video").toString("base64") }], warnings: [] };
+      return new Response(`data: ${JSON.stringify(result)}\n\n`, { headers: { "content-type": "text/event-stream" } });
+    } });
+    await experimental_generateVideo({ ...input, model: gateway.video("google/veo-3.1-lite-generate-001") } as Parameters<typeof experimental_generateVideo>[0]);
+    const wire = captured.wire;
+    assert.ok(wire);
+    assert.equal(wire.image.mediaType, "image/png");
+    const bytes = Buffer.from(wire.image.data, "base64");
+    assert.equal(bytes.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
+    assert.equal((await sharp(bytes).metadata()).format, "png");
+    assert.equal(wire.resolution, "1920x1080"); assert.equal(wire.duration, 8);
+    assert.equal(calls, 1); assert.equal(context.counters.requests, 1);
+    assert.equal(context.hostedImages.length, 0); assert.equal(context.privateChecks(), 0);
+    assert.equal(args.request.inspirationImages[0].mimeType, "image/webp", "The original reference remains untouched");
+  });
+});
+
+test("Google video preparation keeps reference roles and orientation while stripping metadata from real JPEG, PNG and WebP", async () => {
+  for (const format of ["jpeg", "png", "webp"] as const) {
+    const image = await sharp({ create: { width: 96, height: 64, channels: 3, background: "#48638f" } })
+      .withMetadata({ orientation: 6, exif: { IFD0: { Artist: "PRIVATE-ARTIST" } } }).toFormat(format).toBuffer();
+    const input = { mimeType: `image/${format}` as "image/jpeg" | "image/png" | "image/webp", data: image.toString("base64"), role: "environment" as const, usage: "required" as const };
+    const [prepared] = await identityReferences.prepareGoogleAiVideoReferenceImages([input]);
+    assert.equal(prepared.mimeType, "image/png"); assert.equal(prepared.role, "environment"); assert.equal(prepared.usage, "required");
+    const bytes = Buffer.from(prepared.data, "base64"), metadata = await sharp(bytes).metadata();
+    assert.equal(metadata.format, "png"); assert.equal(metadata.width, 64); assert.equal(metadata.height, 96);
+    assert.equal(metadata.exif, undefined); assert.equal(metadata.xmp, undefined); assert.equal(metadata.orientation, undefined);
+    assert.equal(input.data, image.toString("base64")); assert.equal(input.mimeType, `image/${format}`);
+  }
+});
+
+test("Veo Lite rejects mismatched MIME, corrupt image bytes and oversized inputs before any supplier reservation or request", async () => {
+  const webp = await sharp({ create: { width: 32, height: 32, channels: 3, background: "#735148" } }).webp().toBuffer();
+  const oversized = Buffer.alloc(20 * 1024 * 1024 + 1); oversized.write("RIFF", 0); oversized.write("WEBP", 8);
+  await withMockCredentials(async () => {
+    for (const image of [
+      { mimeType: "image/png" as const, data: webp.toString("base64") },
+      { mimeType: "image/webp" as const, data: Buffer.from("corrupt image bytes repeated to exceed minimum bytes ".repeat(3)).toString("base64") },
+      { mimeType: "image/webp" as const, data: oversized.toString("base64") },
+    ]) {
+      const context = loadRuntime(), args = argsFor("veo-lite", 1, 8); args.request.inspirationImages = [image];
+      await assert.rejects(context.runtime.createGatewayAiVideoProvider("veo-lite").generate(args), identityReferences.AiMediaIdentityReferenceValidationError);
+      assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 }); assert.equal(context.hostedImages.length, 0);
+    }
+  });
+});
+
+test("Google video image preparation keeps pixel and dimension limits and respects abort before provider work", async () => {
+  const large = await sharp({ create: { width: 1600, height: 800, channels: 3, background: "#45728a" } }).webp().toBuffer();
+  const [prepared] = await identityReferences.prepareGoogleAiVideoReferenceImages([{ mimeType: "image/webp", data: large.toString("base64") }]);
+  const metadata = await sharp(Buffer.from(prepared.data, "base64")).metadata();
+  assert.equal(metadata.width, 1280); assert.equal(metadata.height, 640);
+  const tooManyPixels = await sharp({ create: { width: 5000, height: 5000, channels: 3, background: "#735148" } }).png().toBuffer();
+  await assert.rejects(identityReferences.prepareGoogleAiVideoReferenceImages([{ mimeType: "image/png", data: tooManyPixels.toString("base64") }]), identityReferences.AiMediaIdentityReferenceValidationError);
+  const controller = new AbortController(), reason = new Error("test-local-abort"); controller.abort(reason);
+  await assert.rejects(identityReferences.prepareGoogleAiVideoReferenceImages([{ mimeType: "image/webp", data: large.toString("base64") }], controller.signal), error => error === reason);
 });
 
 test("Wan Libre conserve la séparation audio/texte et le plein cadre dans son transport compact", () => {

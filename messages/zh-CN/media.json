@@ -1,6 +1,6 @@
 {
-  "ai_generator_recovery_title": "正在创建您的媒体",
-  "ai_generator_recovery_continue": "创建仍在继续。您可以修改设置。",
+  "ai_generator_recovery_title": "找回您的作品",
+  "ai_generator_recovery_continue": "本次创作记录已保留。检查期间，您可以修改设置。",
   "ai_generator_recovery_check": "检查我的媒体",
   "ai_generator_recovery_checking": "正在检查媒体…",
   "ai_generator_recovery_pause": "暂停检查",
@@ -321,7 +321,7 @@
   "ai_generator_team_video_consent_required": "请勾选此授权以开始真实动画。",
   "ai_generator_team_video_consent_title": "真正让人物动起来？",
   "ai_generator_kind_video_hint_team_cinematic": "使用 Gemini/Veo 合成团队并生成真实动作",
-  "ai_generator_stage_team_animation": "正在生成真实人物动作…",
+  "ai_generator_stage_team_animation": "正在制作视频镜头动画…",
   "ai_generator_video_creation_detail_team_cinematic": "iNrCy 先合成团队，随后 Gemini/Veo 在 {duration} 秒视频中生成真实动作。",
   "ai_generator_reference_team_consent_label": "我确认每张照片均为不同的成年人，该成年人是我本人，或已授权我在本次生成中使用其肖像。",
   "ai_generator_reference_team_hint": "请添加 2 或 3 张照片，每张仅包含一位不同且已授权的成年人。iNrCy 随后会在图片或视频中合成团队画面。",

@@ -199,9 +199,15 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
   return {
     id: providerId,
     model: model.modelId,
-    async generate(args): Promise<AiVideoProviderResult> {
-      if (args.signal?.aborted) throw args.signal.reason ?? new Error("ai_media_generation_cancelled");
-      if (args.request.videoEngine !== engine) throw new Error("ai_video_gateway_engine_mismatch");
+    async generate(initialArgs): Promise<AiVideoProviderResult> {
+      if (initialArgs.signal?.aborted) throw initialArgs.signal.reason ?? new Error("ai_media_generation_cancelled");
+      if (initialArgs.request.videoEngine !== engine) throw new Error("ai_video_gateway_engine_mismatch");
+      let args = initialArgs;
+      if (model.provider === "google" && initialArgs.request.inspirationImages.length) {
+        const { prepareGoogleAiVideoReferenceImages } = await import("./aiMediaIdentityReferences.ts");
+        const inspirationImages = await prepareGoogleAiVideoReferenceImages(initialArgs.request.inspirationImages, initialArgs.signal);
+        args = { ...initialArgs, request: { ...initialArgs.request, inspirationImages } };
+      }
       const durations = getAiMediaVideoSegmentDurations(args.request.durationSeconds ?? 8, engine, args.request.videoResolution, args.request.sceneMode);
       const hasProvidedVoice = hasProvidedAiMediaCharacterVoice(args.request.inspirationImages);
       const inputModel = getAiMediaVideoModelForCharacterVoice(engine, hasProvidedVoice);

@@ -1,6 +1,6 @@
 {
-  "ai_generator_recovery_title": "Your media is being created",
-  "ai_generator_recovery_continue": "Creation continues. You can edit your settings.",
+  "ai_generator_recovery_title": "Find your creation",
+  "ai_generator_recovery_continue": "Your attempt is saved. You can edit your settings while we check its status.",
   "ai_generator_recovery_check": "Check my media",
   "ai_generator_recovery_checking": "Checking your media…",
   "ai_generator_recovery_pause": "Pause checking",
@@ -321,7 +321,7 @@
   "ai_generator_team_video_consent_required": "Tick this authorisation to start real animation.",
   "ai_generator_team_video_consent_title": "Really animate the people?",
   "ai_generator_kind_video_hint_team_cinematic": "Team composition followed by real movement with Gemini/Veo",
-  "ai_generator_stage_team_animation": "Animating the people with real movement…",
+  "ai_generator_stage_team_animation": "Animating video scenes…",
   "ai_generator_video_creation_detail_team_cinematic": "iNrCy composes the team, then Gemini/Veo creates real movement in a {duration}-second video.",
   "ai_generator_reference_team_consent_label": "I confirm that each photo shows a different adult who is either me or has authorised me to use their likeness for this generation.",
   "ai_generator_reference_team_hint": "Add 2 or 3 photos, with one distinct authorised adult in each image. iNrCy will then compose the team in the image or video.",

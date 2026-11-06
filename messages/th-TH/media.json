@@ -1,6 +1,6 @@
 {
-  "ai_generator_recovery_title": "กำลังสร้างสื่อของคุณ",
-  "ai_generator_recovery_continue": "การสร้างยังดำเนินต่อ คุณสามารถแก้ไขการตั้งค่าได้",
+  "ai_generator_recovery_title": "ค้นหาผลงานของคุณ",
+  "ai_generator_recovery_continue": "รายการสร้างนี้ยังถูกเก็บไว้ คุณสามารถแก้ไขการตั้งค่าระหว่างการตรวจสอบได้",
   "ai_generator_recovery_check": "ตรวจสอบสื่อของฉัน",
   "ai_generator_recovery_checking": "กำลังตรวจสอบสื่อ…",
   "ai_generator_recovery_pause": "พักการตรวจสอบ",
@@ -321,7 +321,7 @@
   "ai_generator_team_video_consent_required": "ทำเครื่องหมายอนุญาตนี้เพื่อเริ่มการเคลื่อนไหวจริง",
   "ai_generator_team_video_consent_title": "ทำให้บุคคลเคลื่อนไหวจริงหรือไม่?",
   "ai_generator_kind_video_hint_team_cinematic": "จัดองค์ประกอบทีมและสร้างการเคลื่อนไหวจริงด้วย Gemini/Veo",
-  "ai_generator_stage_team_animation": "กำลังทำให้บุคคลเคลื่อนไหวจริง…",
+  "ai_generator_stage_team_animation": "กำลังสร้างการเคลื่อนไหวของฉากวิดีโอ…",
   "ai_generator_video_creation_detail_team_cinematic": "iNrCy จัดองค์ประกอบทีม จากนั้น Gemini/Veo สร้างการเคลื่อนไหวจริงในวิดีโอความยาว {duration} วินาที",
   "ai_generator_reference_team_consent_label": "ฉันขอยืนยันว่าแต่ละรูปเป็นบุคคลผู้ใหญ่คนละคน ซึ่งเป็นตัวฉันเองหรือได้อนุญาตให้ฉันใช้ภาพของเขาสำหรับการสร้างครั้งนี้",
   "ai_generator_reference_team_hint": "เพิ่มรูป 2 หรือ 3 รูป โดยแต่ละรูปมีบุคคลผู้ใหญ่ที่ได้รับอนุญาตคนละหนึ่งคน จากนั้น iNrCy จะจัดองค์ประกอบทีมในภาพหรือวิดีโอ",

@@ -244,7 +244,7 @@
         "lib/inrAssistantMediaLibraryTools.ts": "4a08f0e1a2081ce5d21b81efdf65b1f97e3c457781eb89b79366b262e373d567",
         "lib/inrAssistantMediaUiTools.ts": "2f15e337d2db730aae585760d3d98b392b52f7876aa6005f33744298ccb29ebf",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/media.json": "a05f4de7616c79208fb83a011c1de4c2505aa6dcdbbb75cde8191c49fa57748c"
+        "messages/fr-FR/media.json": "33ef615b78020ead687bd3a18981e66a194b04c0dc21c4c9b5d45d2321358664"
       }
     },
     "basic-reputation": {
@@ -303,7 +303,7 @@
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
         "lib/studioInspirationImagePolicy.ts": "0ab78c05540a02cc11912ed154430592824fa53492768bd0efb9c62772f8c3c0",
-        "messages/fr-FR/media.json": "a05f4de7616c79208fb83a011c1de4c2505aa6dcdbbb75cde8191c49fa57748c"
+        "messages/fr-FR/media.json": "33ef615b78020ead687bd3a18981e66a194b04c0dc21c4c9b5d45d2321358664"
       }
     },
     "basic-studio-edit": {
@@ -319,7 +319,7 @@
         "lib/inrAssistantStudioUiCommands.ts": "694e047a4f9a4f79e0a358f35a5aaad17b96dbe95c2fbcb42e22b0291e44a7af",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/media.json": "a05f4de7616c79208fb83a011c1de4c2505aa6dcdbbb75cde8191c49fa57748c"
+        "messages/fr-FR/media.json": "33ef615b78020ead687bd3a18981e66a194b04c0dc21c4c9b5d45d2321358664"
       }
     },
     "basic-studio-preview": {
@@ -632,7 +632,7 @@
         "lib/inrAssistantMediaLibraryTools.ts": "4a08f0e1a2081ce5d21b81efdf65b1f97e3c457781eb89b79366b262e373d567",
         "lib/inrAssistantMediaUiTools.ts": "2f15e337d2db730aae585760d3d98b392b52f7876aa6005f33744298ccb29ebf",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/media.json": "a05f4de7616c79208fb83a011c1de4c2505aa6dcdbbb75cde8191c49fa57748c"
+        "messages/fr-FR/media.json": "33ef615b78020ead687bd3a18981e66a194b04c0dc21c4c9b5d45d2321358664"
       }
     },
     "notifications": {
@@ -777,7 +777,7 @@
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
         "lib/studioInspirationImagePolicy.ts": "0ab78c05540a02cc11912ed154430592824fa53492768bd0efb9c62772f8c3c0",
-        "messages/fr-FR/media.json": "a05f4de7616c79208fb83a011c1de4c2505aa6dcdbbb75cde8191c49fa57748c"
+        "messages/fr-FR/media.json": "33ef615b78020ead687bd3a18981e66a194b04c0dc21c4c9b5d45d2321358664"
       }
     },
     "studio-edit": {
@@ -793,7 +793,7 @@
         "lib/inrAssistantStudioUiCommands.ts": "694e047a4f9a4f79e0a358f35a5aaad17b96dbe95c2fbcb42e22b0291e44a7af",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/media.json": "a05f4de7616c79208fb83a011c1de4c2505aa6dcdbbb75cde8191c49fa57748c"
+        "messages/fr-FR/media.json": "33ef615b78020ead687bd3a18981e66a194b04c0dc21c4c9b5d45d2321358664"
       }
     },
     "studio-transfer-recovery": {
