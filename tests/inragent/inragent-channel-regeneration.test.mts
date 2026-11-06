@@ -39,7 +39,10 @@ test("iNrAgent regenerates content for the selected channel or atomically for ev
   assert.match(contentBranch, /hashtags: regeneratedPost\.hashtags/);
   assert.match(contentBranch, /applySafePreferredCta\(/);
   assert.match(contentBranch, /preserveExplicit: true/);
-  assert.match(contentBranch, /nextPostByChannel\[targetChannel\] = applySafePreferredCta/);
+  assert.match(contentBranch, /const configuredPost = applySafePreferredCta\(\{[\s\S]*?post: editorialPost,[\s\S]*?preserveExplicit: true/);
+  assert.match(contentBranch, /if \(targetChannel === "instagram"\) \{[\s\S]*?const fitted = fitGeneratedInstagramPost\(configuredPost,/);
+  assert.match(contentBranch, /nextPostByChannel\[targetChannel\] = \{ \.\.\.fitted, subject: fitted\.title, text: fitted\.content, body: fitted\.content \}/);
+  assert.match(contentBranch, /else nextPostByChannel\[targetChannel\] = configuredPost/);
   assert.match(
     contentBranch,
     /previewText: buildPublishPreviewTextFromPosts\(nextPostByChannel, action\.previewText\)/,

@@ -151,7 +151,8 @@ test("Booster and iNrAgent send the same saved channel CTA defaults to the AI wr
   const agent = readAgentPublicationPreparationSource();
   const regenerated = readFileSync(new URL("../../app/api/agent/actions/regenerate-channel/route.ts", import.meta.url), "utf8");
   assert.match(shared, /buildBoosterCtaGenerationInstructions\(/);
-  assert.match(shared, /const extraInstructions = \[args\.extraInstructions, ctaInstructions\]/);
+  assert.match(shared, /const extraInstructions = \[args\.extraInstructions, ctaInstructions, instagramBudgetInstructions\]/);
+  assert.match(shared, /const instagramBudgetInstructions = channels\.includes\("instagram"\)[\s\S]*?\? buildInstagramGenerationBudgetInstructions\(args\.ctaDefaults\)[\s\S]*?: ""/);
   assert.ok((shared.match(/\bextraInstructions,\s*aiFeature/g) || []).length >= 1);
   for (const source of [booster, agent, regenerated]) {
     assert.match(source, /generateSharedBoosterPosts\(\{[\s\S]*?ctaDefaults/);

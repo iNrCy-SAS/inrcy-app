@@ -10,6 +10,7 @@ import {
 } from "../../lib/aiGatewayResponse.ts";
 import { AI_ENGINE_OPTIONS } from "../../lib/aiEnginePreference.ts";
 import { AI_FEATURE_POLICIES } from "../../lib/aiGatewayPolicy.ts";
+import { BOOSTER_CHANNEL_CONTENT_RULES, limitBoosterGeneratedContent } from "../../lib/boosterChannelRules.ts";
 import {
   sanitizeBoosterSiteText,
   stripSiteTextFormattingPreserveLayout,
@@ -120,10 +121,15 @@ test("the per-channel length grid raises capacity with a bounded safety margin",
   assert.match(channelRules, /site_web:\s*\{[\s\S]*?deep:\s*\{ min:\s*3000, max:\s*4500 \}[\s\S]*?max:\s*5000/);
   assert.match(channelRules, /site_web:\s*\{[\s\S]*?deep:\s*\{ min:\s*3000, max:\s*4500 \}[\s\S]*?max:\s*5000/);
   assert.match(channelRules, /inr_search:\s*\{[\s\S]*?max:\s*300/);
-  assert.match(
-    channelRules,
-    /return truncateAtNaturalBoundary\([\s\S]*?BOOSTER_CHANNEL_CONTENT_RULES\[channel\]\.max/,
-  );
+  for (const channel of Object.keys(BOOSTER_CHANNEL_CONTENT_RULES) as Array<keyof typeof BOOSTER_CHANNEL_CONTENT_RULES>) {
+    const generated = limitBoosterGeneratedContent(channel, "Une phrase complète. ".repeat(400));
+    assert.ok(generated.length > 0, `${channel}: a normal generation still contains content`);
+    assert.ok(generated.length <= BOOSTER_CHANNEL_CONTENT_RULES[channel].max, `${channel}: the real limiter respects the declared ceiling`);
+    assert.equal(limitBoosterGeneratedContent(channel, "Un texte court."), "Un texte court.", `${channel}: valid content is preserved`);
+  }
+  const instagramBudgeted = limitBoosterGeneratedContent("instagram", "🙂".repeat(1400), 1777);
+  assert.ok(instagramBudgeted.length > 0 && instagramBudgeted.length <= 1777);
+  assert.doesNotMatch(instagramBudgeted, /[\uD800-\uDBFF]$/u, "Instagram fitting must not split a Unicode surrogate pair");
   assert.match(boosterGeneration, /getBoosterContentLengthForChannel/);
   assert.match(boosterGeneration, /Math\.ceil\(rule\.max \/ estimatedCharsPerToken\) \+ 260/);
   assert.match(boosterGeneration, /languageCode === "zh"[\s\S]*?languageCode === "th"/);
