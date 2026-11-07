@@ -578,14 +578,36 @@ test("une migration absente bloque avant le fournisseur, même avec un devis val
 });
 
 test("chaque fournisseur accepte une durée compatible avec deux clips maximum et débite le devis du serveur", async () => {
-  for (const [videoEngine, durationSeconds, expectedCredits] of [["grok-lite", 4, 19], ["grok", 30, 428], ["omni", 20, 207], ["veo", 16, 167], ["minimax-h3", 30, 247], ["wan3", 30, 307], ["veo-lite", 16, 87]] as const) {
+  for (const [videoEngine, durationSeconds, expectedCredits] of [["grok-lite", 4, 19], ["grok", 30, 428], ["omni", 20, 207], ["veo", 16, 167], ["minimax-h3", 30, 247], ["wan3", 30, 307], ["veo-lite", 16, 55]] as const) {
     const route = loadRoute({ maximumDuration: 30 });
-    const response = await route.post(body({ kind: "video", videoEngine, durationSeconds }));
+    const response = await route.post(body({ kind: "video", videoEngine, durationSeconds, withNarration: false, teamVideoSpeechMode: "voiceover" }));
     assert.equal(response.status, 200, await response.text());
     assert.equal(route.reservationCalls[0]!.quotaAmount, expectedCredits);
     assert.equal(route.reservationCalls[0]!.quotaUnit, "credit");
     assert.equal(route.generationCalls[0]!.request.videoEngine, videoEngine);
     assert.equal(route.generationCalls[0]!.request.durationSeconds, durationSeconds);
+  }
+});
+
+test("les devis Veo distinguent audio natif et silence avant de réserver exactement les crédits autorisés", async () => {
+  for (const [videoEngine, silentCredits, nativeCredits] of [["veo", 167, 247], ["veo-lite", 55, 87]] as const) {
+    for (const speaking of [false, true]) {
+      const route = loadRoute({ maximumDuration: 30 });
+      const input = body({ kind: "video", videoEngine, durationSeconds: 16, withNarration: false,
+        teamVideoSpeechMode: speaking ? "characters" : "voiceover", spokenScript: speaking ? "Bonjour, bienvenue." : "" });
+      const expected = speaking ? nativeCredits : silentCredits;
+      assert.ok("expectedCredits" in input, "le serveur a produit un devis valide pour cette variante");
+      assert.equal(input.expectedCredits, expected);
+      const response = await route.post(input);
+      assert.equal(response.status, 200, await response.text());
+      assert.equal(route.reservationCalls.length, 1);
+      assert.equal(route.reservationCalls[0].quotaAmount, expected);
+      assert.equal(route.reservationCalls[0].quotaUnit, "credit");
+      assert.equal(route.generationCalls.length, 1);
+      assert.equal(route.generationCalls[0].request.spokenScript, speaking ? "Bonjour, bienvenue." : "");
+      assert.equal(route.completionCalls.length, 1);
+      assert.equal(route.failureCalls.length, 0);
+    }
   }
 });
 
@@ -682,16 +704,25 @@ test("exact speech reaches the original generator separately and changing it can
 
 test("an explicitly empty script has a different server identity from absent legacy speech", async () => {
   const route = loadRoute();
-  const input = body({ kind: "video", durationSeconds: 8, videoEngine: "veo", teamVideoSpeechMode: "characters",
-    freePrompt: 'Une femme dit « Bienvenue ». ' });
+  const parameters = { kind: "video", durationSeconds: 8, videoEngine: "veo", teamVideoSpeechMode: "characters",
+    freePrompt: 'Une femme dit « Bienvenue ». ' };
+  const input = body(parameters);
   assert.equal((await route.post(input)).status, 200);
   assert.equal(route.generationCalls[0].request.spokenScript, undefined);
-  const conflict = await route.post({ ...input, spokenScript: "" });
+  const stale = await route.post({ ...input, spokenScript: "" });
+  assert.equal(stale.status, 409);
+  assert.equal((await stale.json()).code, "AI_MEDIA_CREDIT_QUOTE_CHANGED");
+  assert.equal(route.reservationCalls.length, 1, "le devis audio précédent ne peut pas financer une autre variante");
+  const silentInput = body({ ...parameters, spokenScript: "" });
+  assert.ok("expectedCredits" in silentInput && "expectedCredits" in input);
+  assert.ok(Number(silentInput.expectedCredits) < Number(input.expectedCredits));
+  const conflict = await route.post(silentInput);
   assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json()).code, "AI_MEDIA_IDEMPOTENCY_CONFLICT");
   assert.notEqual(route.reservationCalls[0].requestFingerprint, route.reservationCalls[1].requestFingerprint);
   assert.equal(route.generationCalls.length, 1);
   const empty = loadRoute();
-  assert.equal((await empty.post(body({ ...input, spokenScript: "" }))).status, 200);
+  assert.equal((await empty.post(silentInput)).status, 200);
   assert.equal(empty.generationCalls[0].request.spokenScript, "");
 });
 

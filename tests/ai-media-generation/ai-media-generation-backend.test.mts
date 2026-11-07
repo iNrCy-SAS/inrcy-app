@@ -1157,7 +1157,8 @@ test("image Gateway, vidéo Omni/Veo et médiathèque respectent le contrat univ
     omni,
     /details\.includes\("ai_video_omni_clip_billable_failure"\)/
   );
-  assert.match(omni, /googleVeoVideoProvider\.generate/);
+  assert.match(omni, /createGatewayAiVideoProvider\("veo"\)\.generate/);
+  assert.doesNotMatch(omni, /googleVeoVideoProvider\.generate/);
   assert.match(omni, /actualCostMicroUsd \+ fallbackCostMicroUsd/);
   assert.match(omni, /reserveAiGatewayAccountAttempt/);
   assert.match(omni, /commitAiGatewayAccountAttempt/);

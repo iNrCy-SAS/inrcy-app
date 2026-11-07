@@ -108,7 +108,9 @@ test("l’équipe cinématique conserve le moteur choisi, tente Omni après Veo 
   assert.match(server, /identityTeamGoogleEgressConsent: providerRequest\.teamVideoVeoConsent/);
   assert.match(server, /identityTeamProviderEgressConsent: request\.teamVideoProviderConsent/);
   assert.match(server, /request\.videoEngine !== "veo" \|\| !\[8, 16\]\.includes\(request\.durationSeconds \|\| 8\)/);
-  assert.match(server, /request: \{ \.\.\.request, videoEngine: "omni" \}/);
+  assert.match(server, /const modelRequest = usesSeparateAiMediaFreeVoiceover\(request\)[\s\S]*?\? \{ \.\.\.request, withNarration: false, withSubtitles: false \}/);
+  assert.match(server, /request: \{ \.\.\.modelRequest, videoEngine: "omni" \}/);
+  assert.doesNotMatch(server, /request: \{ \.\.\.request, videoEngine: "omni" \}/);
   assert.match(server, /veo_fallback_to_omni/);
   assert.match(server, /video_engine_\$\{failureArgs\.engine\}_failure_\$\{failure\.kind\}/);
   assert.match(server, /redactAiMediaSensitiveText\(failure\.details, 500\)/);

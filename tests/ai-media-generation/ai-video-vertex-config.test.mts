@@ -3,16 +3,18 @@ import test from "node:test";
 import { createVeoVertexClientOptions, resolveVeoApiBackend, resolveVeoModelCandidates, resolveVeoVertexClientOptions, supportsVeoReferenceImages } from "../../lib/aiVideoReliability.ts";
 
 test("Vertex migre les surcharges preview vers -001 sans réactiver les modèles retirés", () => {
-  assert.deepEqual(resolveVeoModelCandidates({ backend: "vertex" }), ["veo-3.1-fast-generate-001", "veo-3.1-lite-generate-001"]);
-  assert.deepEqual(resolveVeoModelCandidates({ backend: "vertex", primary: "veo-3.1-generate-preview", fallbacks: "veo-3.1-lite-generate-preview,veo-3.1-lite-generate-001,veo-3.0-fast-generate-001" }), ["veo-3.1-generate-001", "veo-3.1-lite-generate-001"]);
+  assert.deepEqual(resolveVeoModelCandidates({ backend: "vertex" }), ["veo-3.1-fast-generate-001"]);
+  assert.deepEqual(resolveVeoModelCandidates({ backend: "vertex", primary: "veo-3.1-generate-preview", fallbacks: "veo-3.1-lite-generate-preview,veo-3.1-lite-generate-001,veo-3.0-fast-generate-001" }), ["veo-3.1-generate-001"]);
+  assert.deepEqual(resolveVeoModelCandidates({ backend: "vertex", primary: "veo-3.1-lite-generate-preview", fallbacks: "veo-3.1-fast-generate-001" }), ["veo-3.1-lite-generate-001"], "la migration conserve le modèle choisi, sans substitution automatique");
   assert.deepEqual(resolveVeoModelCandidates({ backend: "vertex", fallbacks: "" }), ["veo-3.1-fast-generate-001"]);
   assert.equal(supportsVeoReferenceImages("veo-3.1-fast-generate-001"), true);
   assert.equal(supportsVeoReferenceImages("veo-3.1-lite-generate-001"), false);
 });
 
-test("l'activation Vertex est explicite et une faute de configuration ne sélectionne pas un autre service", () => {
-  assert.equal(resolveVeoApiBackend(undefined), "gemini");
+test("l'outillage direct utilise Vertex et refuse Gemini retiré ou une configuration inconnue", () => {
+  assert.equal(resolveVeoApiBackend(undefined), "vertex");
   assert.equal(resolveVeoApiBackend("vertex"), "vertex");
+  assert.throws(() => resolveVeoApiBackend("gemini"), /ai_video_veo_legacy_backend_retired/);
   assert.throws(() => resolveVeoApiBackend("vertx"), /ai_video_veo_backend_invalid/);
 });
 

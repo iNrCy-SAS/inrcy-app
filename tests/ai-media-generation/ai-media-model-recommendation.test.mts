@@ -21,7 +21,16 @@ test("a silent brief or another spoken language does not claim French dialogue s
   for (const brief of ["Un paysage sans voix ni narration.", "Une promenade sans dialogue.", "The character speaks in English."]) {
     assert.deepEqual(recommendAiMediaModel({ kind: "video", durationSeconds: 8, brief }), { engine: "grok-lite", reason: "economy" });
   }
-  assert.deepEqual(recommendAiMediaModel({ kind: "video", durationSeconds: 8, withNarration: true, language: "en-US" }), { engine: "grok-lite", reason: "economy" });
+  const input = Object.freeze({ kind: "video" as const, durationSeconds: 8, withNarration: true, language: "en-US" });
+  const result = recommendAiMediaModel(input);
+  assert.ok(result);
+  assert.equal(result.reason, "economy", "une voix anglaise ne justifie pas la recommandation dialogue français");
+  const compatibleCosts = AI_MEDIA_AVAILABLE_VIDEO_MODELS.flatMap(model => {
+    try { return [estimateAiMediaVideoSupplierCostMicroUsd({ ...input, videoEngine: model.id, videoResolution: model.defaultResolution })]; }
+    catch { return []; }
+  });
+  const selected = getAiMediaVideoModel(result.engine);
+  assert.equal(estimateAiMediaVideoSupplierCostMicroUsd({ ...input, videoEngine: result.engine, videoResolution: selected.defaultResolution }), Math.min(...compatibleCosts), "la suggestion suit le coût actuel, y compris Veo sans audio avec voix off séparée");
 });
 
 test("one continuous long scene prefers an exact native output instead of a joined pair", () => {
