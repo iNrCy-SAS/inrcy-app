@@ -553,17 +553,10 @@ function normalizeInspirationImages(
         "Chaque média doit indiquer son rôle et son utilisation."
       );
     }
-    if (
-      requireExplicitUsage &&
-      rawRole === "inspiration" &&
-      rawUsage !== "inspiration"
-    ) {
-      throw new AiMediaRequestValidationError(
-        "Une référence « Inspiration libre » doit rester une inspiration."
-      );
-    }
-    // Compatibilité : les rôles structurés historiques étaient déjà choisis
-    // comme des contraintes. Le rôle `inspiration` reste, lui, non fidèle.
+    // Role describes the content; usage describes whether it is mandatory.
+    // A generic Image can therefore be required, while Inspiration is an
+    // explicit optional-use choice. Preserve defaults for historical clients
+    // that did not send a usage; the free editor still sends it explicitly.
     const usage = (rawUsage ||
       (rawRole && rawRole !== "inspiration"
         ? "required"

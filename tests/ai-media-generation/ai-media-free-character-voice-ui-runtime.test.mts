@@ -86,8 +86,9 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   const preferenceKey = "inrcy:media-engines:v1:account-a";
   const storedPreferences = new Map([[preferenceKey, JSON.stringify({ videoEngine: initialEngine, imageEngine: preference.imageEngine, videoResolution: preference.videoResolution })]]);
   const localStorage = { getItem: (key: string) => storedPreferences.get(key) ?? null, setItem: (key: string, value: string) => { storedPreferences.set(key, value); } };
+  const interfaces = new Map<string, { pendingReferenceRole?: string | null }>();
   const modules = new Map<string, unknown>([
-    ["../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface() {} }],
+    ["../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface(id: string, snapshot: { pendingReferenceRole?: string | null }) { interfaces.set(id, snapshot); } }],
     ["@/lib/inrAssistantStudioFormSelection", studioForm],
     ["react", react], ["react/jsx-runtime", { jsx, jsxs: jsx }],
     ["next-intl", { useLocale: () => options.locale || "fr-FR", useTranslations: () => (key: string, values?: Record<string, string | number>) => {
@@ -144,10 +145,48 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     const child = component.default(input); for (const effect of effects.splice(0)) effect(); slots = parentSlots;
     return child;
   };
-  const cards = () => elements(tree).filter((node) => node.props["data-reference-id"]);
-  const voiceNode = (index: number) => find(cards()[index], (node) => node.type === voice.default);
-  const renderVoice = (index: number) => renderChild(String(cards()[index].props["data-reference-id"]), voice, voiceNode(index).props);
+  const currentVideoDialog = () => elements(tree).find(node => typeof node.type === "function" && node.type.name === "MediaSettingsDialog");
+  const closeSettings = () => { const dialog = currentVideoDialog(); if (dialog) { assert.equal(dialog.props.closeBlocked, false); (dialog.props.onClose as () => void)(); render(); } };
+  const openSettings = (name: "images" | "audio") => {
+    if (currentVideoDialog()?.props.kind === name) return;
+    assert.ok(kind === "video" || name === "images", "image creation has no audio dialog");
+    closeSettings();
+    const button = find(tree, node => name === "images" ? node.props["data-media-role-add"] === "inspiration" : node.props["data-video-audio-button"] !== undefined);
+    assert.equal(button.props.disabled, false); (button.props.onClick as () => void)(); render();
+    assert.equal(currentVideoDialog()?.props.kind, name, "the real native launcher opens the requested settings dialog");
+  };
+  const cards = () => {
+    let rendered = elements(tree).filter(node => node.props["data-reference-id"]);
+    if (rendered.length) return rendered;
+    closeSettings();
+    const thumbnail = elements(tree).find(node => node.props["data-media-reference-open"] !== undefined);
+    if (!thumbnail) return [];
+    assert.equal(thumbnail.props.disabled, false); (thumbnail.props.onClick as () => void)(); render();
+    rendered = elements(tree).filter(node => node.props["data-reference-id"]);
+    return rendered;
+  };
+  const renderVoice = (index: number) => {
+    const referenceId = String(cards()[index].props["data-reference-id"]);
+    closeSettings();
+    const audio = find(tree, node => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode"));
+    if (audio.props.value !== "characters") { (audio.props.onChange as (event: unknown) => void)({ target: { value: "characters" } }); render(); }
+    openSettings("audio");
+    const group = elements(tree).find(node => node.props.className === "videoCharacterVoice" && node.key === referenceId);
+    return renderChild(referenceId, voice, find(group, node => node.type === voice.default).props);
+  };
   const flush = async () => { for (let at = 0; at < 5; at++) { await new Promise((resolve) => setImmediate(resolve)); render(); } };
+  const beginReferenceAddition = (role: string) => {
+    closeSettings(); const launcher = find(tree, node => node.props["data-media-role-add"] === role);
+    assert.equal(launcher.props.disabled, false); (launcher.props.onClick as () => void)(); render();
+    assert.equal(interfaces.get("studio_media_images")?.pendingReferenceRole, role, "the native role launcher captures the import role");
+    assert.equal(elements(tree).some(node => node.props["data-reference-add-role"] !== undefined), false, "adding from a role icon does not ask for the role a second time");
+  };
+  const selectReferenceFiles = async (files: File[]) => {
+    const input = find(tree, node => node.type === "input" && node.props.type === "file");
+    (input.props.onClick as (() => void) | undefined)?.();
+    (input.props.onChange as (event: unknown) => void)({ currentTarget: { files, value: "" }, target: { files, value: "" } });
+    await flush();
+  };
   render();
   return { cards, tree: () => tree, requests, quoteInputs, deleted, uploads, uploadedSamples, sample, render, flush,
     storedEnginePreference: () => JSON.parse(localStorage.getItem(preferenceKey) || "null") as Props,
@@ -158,8 +197,10 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     selectImageEngine(engine: models.AiMediaImageEngine) { const node = find(tree, (item) => item.type === controls.default); const child = renderChild("engines", controls, node.props); const menu = find(child, (item) => item.type === "select" && String(item.props.id).endsWith("-engine")); (menu.props.onChange as (event: unknown) => void)({ target: { value: engine } }); render(); },
     changePreferredVideoEngine(engine: models.AiMediaVideoEngine) { preference.update({ videoEngine: engine, videoResolution: models.getAiMediaVideoModel(engine).defaultResolution }); render(); },
     changePreferredImageEngine(engine: models.AiMediaImageEngine) { preference.update({ imageEngine: engine }); render(); },
-    async addPhoto(name = "personnage.png") { const input = find(tree, (node) => node.type === "input" && node.props.type === "file"); (input.props.onChange as (event: unknown) => void)({ currentTarget: { files: [new File(["synthetic-photo"], name, { type: "image/png" })], value: "" }, target: { files: [new File(["synthetic-photo"], name, { type: "image/png" })], value: "" } }); await flush(); },
-    criteria(index: number, role: string, usage: string) { const menus = elements(cards()[index]).filter((node) => node.type === "select"); (menus[0].props.onChange as (event: unknown) => void)({ target: { value: role } }); render(); const refreshed = elements(cards()[index]).filter((node) => node.type === "select"); (refreshed[1].props.onChange as (event: unknown) => void)({ target: { value: usage } }); render(); },
+    openAudioSettings: () => openSettings("audio"), closeSettings,
+    beginReferenceAddition, selectReferenceFiles,
+    async addPhoto(name = "personnage.png", role = "inspiration") { beginReferenceAddition(role); await selectReferenceFiles([new File(["synthetic-photo"], name, { type: "image/png" })]); assert.equal(currentVideoDialog(), undefined, "only a successful import closes the add chooser"); },
+    criteria(index: number, role: string, usage: string) { const menu = find(cards()[index], node => node.type === "select"); (menu.props.onChange as (event: unknown) => void)({ target: { value: role } }); render(); const toggle = find(cards()[index], node => node.props["data-reference-inspiration-toggle"] !== undefined); if (toggle.props["aria-pressed"] !== (usage === "inspiration")) (toggle.props.onClick as () => void)(); render(); },
     chooseVoice(index: number, mode: "ai" | "provided") { const child = renderVoice(index); (find(child, (node) => node.type === "select").props.onChange as (event: unknown) => void)({ target: { value: mode } }); render(); },
     async uploadVoice(index: number) { const child = renderVoice(index); const input = find(child, (node) => node.type === "input" && node.props.type === "file"); (input.props.onChange as (event: unknown) => void)({ currentTarget: { files: [new File(["wav-voice"], "vocal.wav", { type: "audio/wav" })], value: "" } }); await flush(); },
     consent(checked = true) { const authorization = find(tree, (node) => node.props["data-media-final-authorization"] !== undefined); (find(authorization, (node) => node.type === "input").props.onChange as (event: unknown) => void)({ target: { checked } }); render(); },
@@ -172,7 +213,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     editRecovered() { (find(tree, (node) => node.type === "preview").props.handleEditCriteria as () => void)(); render(); },
     async abandonRecovery() { (find(tree, (node) => node.type === "preview").props.handleConfirmGenerationStop as () => void)(); await flush(); },
     removePhoto(index: number) { (find(cards()[index], (node) => node.type === "button").props.onClick as () => void)(); render(); },
-    setSound(value: string) { const input = find(tree, (node) => node.type === "input" && node.props.type === "radio" && node.props.value === value); (input.props.onChange as () => void)(); render(); },
+    setSound(value: string) { const audioWasOpen = currentVideoDialog()?.props.kind === "audio"; closeSettings(); const select = find(tree, node => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode")); (select.props.onChange as (event: unknown) => void)({ target: { value } }); render(); if (audioWasOpen) openSettings("audio"); },
     enterPrompt(value: string) { const input = find(tree, (node) => node.type === "textarea" && String(node.props.id).endsWith("-prompt")); (input.props.onChange as (event: unknown) => void)({ target: { value } }); render(); },
     setDuration(seconds: number, mode: "single" | "multi" = "single") { const node = find(tree, (item) => item.type === controls.default); (node.props.onDurationSceneChange as (seconds: number, mode: string) => void)(seconds, mode); render(); },
     async invokeGenerateCallback() { await (find(tree, node => node.type === "preview").props.handleGenerate as () => Promise<void>)(); await flush(); },
@@ -186,14 +227,49 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
       const input = find(tree, (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script")); assert.equal(input.props.disabled, false); (input.props.onChange as (event: unknown) => void)({ target: { value } }); render();
     },
     removeSpeech() { const menu = find(tree, (node) => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode")); (menu.props.onChange as (event: unknown) => void)({ target: { value: "automatic" } }); render(); },
-    setTab(value: string) { (find(tree, (node) => node.type === "settings-tabs").props.onChange as (value: string) => void)(value); render(); },
-    setSubtitles(checked: boolean) { const input = find(tree, (node) => node.props["data-media-subtitles"] !== undefined); if (!input.props.disabled) (input.props.onChange as (event: unknown) => void)({ target: { checked } }); render(); },
+    setSubtitles(checked: boolean) { openSettings("audio"); const input = find(tree, (node) => node.props["data-media-subtitles"] !== undefined); if (!input.props.disabled) (input.props.onChange as (event: unknown) => void)({ target: { checked } }); render(); },
     async generate() { const button = find(tree, (node) => node.props["data-media-primary-action"] !== undefined); if (button.props.disabled) return; (button.props.onClick as () => void)(); await flush(); },
     deferVoiceUpload() { deferUpload = true; }, finishVoiceUpload() { uploadReply?.(); },
     changeAccount() { for (const callback of [...listeners.get("account-change") || []]) callback(); render(); },
     dispose() { for (const bank of [parentSlots, ...childSlots.values()]) for (const slot of bank) slot.cleanup?.(); },
   };
 }
+
+test("native role launchers make Inspiration optional and Personne Decor Produit required without migrating existing references", async () => {
+  for (const kind of ["image", "video"] as const) {
+    const h = harness(kind, "wan27");
+    for (const [index, role] of ["inspiration", "character", "environment", "product"].entries()) {
+      await h.addPhoto(`${role}.png`, role);
+      const card = h.cards()[index];
+      assert.equal(find(card, node => node.type === "select").props.value, role);
+      assert.equal(find(card, node => node.props["data-reference-inspiration-toggle"] !== undefined).props["aria-pressed"], role === "inspiration", `${kind}/${role}: only the Inspiration launcher defaults to optional`);
+      assert.equal(h.requests.length, 0, "adding or classifying a photo cannot generate a media");
+      h.criteria(index, role, "inspiration");
+      assert.equal(find(h.cards()[index], node => node.props["data-reference-inspiration-toggle"] !== undefined).props["aria-pressed"], true);
+      h.criteria(index, role, "required");
+      assert.equal(find(h.cards()[index], node => node.props["data-reference-inspiration-toggle"] !== undefined).props["aria-pressed"], false, "the same explicit toggle restores a required reference");
+    }
+    assert.equal(h.quoteInputs.at(-1)!.identityMode, "professional", "a required person retains the native image rights gate");
+    await h.generate(); assert.equal(h.requests.length, 0, "the untouched human authorization still blocks generation");
+    h.dispose();
+  }
+});
+
+test("the native add chooser preserves the draft on file cancellation and shows a refused file error inside the open dialog", async () => {
+  for (const kind of ["image", "video"] as const) {
+    const h = harness(kind, "wan27"); h.beginReferenceAddition("character");
+    await h.selectReferenceFiles([]);
+    let dialog = find(h.tree(), node => typeof node.type === "function" && node.type.name === "MediaSettingsDialog");
+    assert.equal(dialog.props.addRole, "character");
+    assert.equal(h.quoteInputs.at(-1)!.inspirationImagesCount, 0);
+    await h.selectReferenceFiles([new File(["video"], "ref.mp4", { type: "video/mp4" })]);
+    dialog = find(h.tree(), node => typeof node.type === "function" && node.type.name === "MediaSettingsDialog");
+    assert.ok(elements(dialog).some(node => node.props.role === "alert" && text(node).includes("ai_generator_inspiration_images_only")), "a refusal is readable inside the active chooser");
+    assert.equal(h.quoteInputs.at(-1)!.inspirationImagesCount, 0); assert.equal(h.requests.length, 0);
+    assert.deepEqual(h.deleted, []); assert.equal(h.uploads.length, 0);
+    h.dispose();
+  }
+});
 
 test("video visual brief accepts 500 characters and preserves oversized historical drafts before blocking the real callback", async () => {
   const h = harness("video", "wan3", 2, { initialPrompt: "x".repeat(501) });
@@ -269,19 +345,20 @@ test("image creation keeps its original 4000-character brief and never gains vid
   h.dispose();
 });
 
-test("the actual active Free editor shows the real voice selector on video Personne cards for both usages", async () => {
+test("the actual compact Free editor retains image roles and the real Audio voice selector for both Personne usages", async () => {
   for (const usage of ["required", "inspiration"]) {
     const h = harness(); await h.addPhoto(); h.criteria(0, "character", usage);
     const selector = find(h.renderVoice(0), (node) => node.type === "select"); assert.equal(selector.props.value, "ai");
     assert.equal(selector.props["aria-label"], "ai_generator_character_voice_label");
     assert.equal(elements(selector).filter((node) => node.type === "option").length, 2);
-    assert.equal(elements(h.cards()[0]).filter((node) => node.type === "select").length + elements(h.renderVoice(0)).filter((node) => node.type === "select").length, 3, "Role, usage and voice are the three reference menus");
+    assert.equal(elements(h.cards()[0]).filter((node) => node.type === "select").length + elements(h.renderVoice(0)).filter((node) => node.type === "select").length, 2, "Role and voice retain their real selectors");
+    assert.equal(find(h.cards()[0], node => node.props["data-reference-inspiration-toggle"] !== undefined).props["aria-pressed"], usage === "inspiration", "only the explicit inspiration toggle makes the reference optional");
     assert.equal(find(h.renderVoice(0), (node) => node.type === "label").props.className, "srOnly", "The voice name stays accessible without a separate visible heading");
     h.chooseVoice(0, "provided");
     const directActions = elements(h.renderVoice(0)).filter((node) => node.type === "button").map((node) => node.props.children);
     for (const action of ["import", "record", "library"]) assert.ok(directActions.includes(`ai_generator_character_voice_${action}`));
     assert.equal(directActions.includes("ai_generator_character_voice_upload"), false);
-    assert.equal(find(h.tree(), (node) => node.props["data-character-voices"] !== undefined).props["data-character-voices"], "true"); h.dispose();
+    h.cards(); assert.equal(find(h.tree(), (node) => node.props["data-character-voices"] !== undefined).props["data-character-voices"], "true"); h.dispose();
   }
   const image = harness("image"); await image.addPhoto(); image.criteria(0, "character", "required");
   assert.equal(elements(image.cards()[0]).some((node) => typeof node.type === "function" && String(node.type).includes("MediaCharacterVoiceInput")), false); image.dispose();
@@ -302,7 +379,7 @@ test("the optional speech editor keeps exact script separate from the brief in b
   const input = () => find(h.tree(), (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script"));
   assert.equal(input().props.maxLength, undefined, "pasting exact words never silently truncates them");
   assert.equal(h.quoteInputs.at(-1)!.spokenScript, script);
-  h.setTab("criteria"); h.setSound("characters"); h.setTab("prompt");
+  h.openAudioSettings(); h.setSound("characters"); h.closeSettings();
   assert.equal(input().props.value, script, "criteria and speech-mode changes preserve the script");
   await h.generate();
   assert.equal(h.requests.length, 1);
@@ -338,7 +415,7 @@ test("empty speech temporarily silences the request while retaining the professi
   const h = harness(); h.setSound("characters"); h.setSubtitles(true); h.addSpeech();
   assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
   assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode, "voiceover");
-  assert.equal(find(h.tree(), (node) => node.type === "input" && node.props.value === "characters").props.checked, true);
+  assert.equal(find(h.tree(), (node) => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode")).props.value, "characters");
   h.enterSpeech("Bienvenue chez nous.");
   assert.equal(h.quoteInputs.at(-1)!.withSubtitles, true);
   assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode, "characters");
@@ -353,17 +430,18 @@ test("empty speech temporarily silences the request while retaining the professi
 
 test("removing speech clears the optional payload and permits no-speech mode without hidden text", async () => {
   const h = harness(); h.addSpeech(); h.enterSpeech("Bonjour, bienvenue chez nous.");
-  const silent = () => find(h.tree(), (node) => node.type === "input" && node.props.type === "radio" && node.props.value === "silent");
+  const silent = () => find(h.tree(), (node) => node.type === "option" && node.props.value === "silent");
+  const sound = () => find(h.tree(), node => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode"));
   assert.equal(silent().props.disabled, true);
   h.setSound("silent");
-  assert.equal(silent().props.checked, false, "even a stale event cannot discard active speech");
+  assert.notEqual(sound().props.value, "silent", "even a stale event cannot discard active speech");
   assert.equal(h.quoteInputs.at(-1)!.spokenScript, "Bonjour, bienvenue chez nous.");
   h.removeSpeech();
   assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
   h.setSound("silent");
-  assert.equal(silent().props.checked, true);
+  assert.equal(sound().props.value, "silent");
   assert.equal(elements(h.tree()).some((node) => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode")), false, "silent mode never offers contradictory automatic or exact speech");
-  assert.match(text(h.tree()), /ai_generator_spoken_script_choose_audio/);
+  assert.equal(sound().props.disabled, false, "the compact audio selector remains available in silent mode");
   await h.generate();
   assert.equal(h.requests.length, 1);
   assert.equal(Object.hasOwn(h.requests[0], "spokenScript"), false);
@@ -390,6 +468,7 @@ test("account changes erase speech and image creation never offers or submits it
 
 test("video subtitles default off and the same explicit choice reaches quote and generation", async () => {
   const defaultVideo = harness();
+  defaultVideo.openAudioSettings();
   const control = find(defaultVideo.tree(), (node) => node.props["data-media-subtitles"] !== undefined);
   assert.equal(control.props.type, "checkbox");
   assert.equal(control.props.checked, false);
@@ -399,8 +478,8 @@ test("video subtitles default off and the same explicit choice reaches quote and
   assert.equal(defaultVideo.requests[0].withSubtitles, false);
   defaultVideo.dispose();
   for (const mode of ["voiceover", "characters"]) {
-    const h = harness(); h.setTab("criteria"); h.setSound(mode); h.setSubtitles(true);
-    h.setTab("prompt"); h.setTab("criteria");
+    const h = harness(); h.openAudioSettings(); h.setSound(mode); h.setSubtitles(true);
+    h.closeSettings(); h.openAudioSettings();
     assert.equal(find(h.tree(), (node) => node.props["data-media-subtitles"] !== undefined).props.checked, true);
     assert.equal(h.quoteInputs.at(-1)!.withSubtitles, true);
     await h.generate();
@@ -420,9 +499,11 @@ test("silent video disables subtitles without blocking generation; account reset
   control = find(h.tree(), (node) => node.props["data-media-subtitles"] !== undefined);
   assert.equal(control.props.checked, true, "returning to speech retains the professional’s subtitle choice");
   h.changeAccount();
+  h.openAudioSettings();
   assert.equal(find(h.tree(), (node) => node.props["data-media-subtitles"] !== undefined).props.checked, false);
   assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false); h.dispose();
   const fresh = harness();
+  fresh.openAudioSettings();
   assert.equal(find(fresh.tree(), (node) => node.props["data-media-subtitles"] !== undefined).props.checked, false, "a newly mounted form starts without subtitles"); fresh.dispose();
   const image = harness("image");
   assert.equal(elements(image.tree()).some((node) => node.props["data-media-subtitles"] !== undefined), false);
@@ -434,7 +515,7 @@ test("silent video disables subtitles without blocking generation; account reset
 test("the real Free voice import enables only supported engines and aligns quote and payload with inspiration voices", async () => {
   const h = harness(); await h.addPhoto("premier.png"); await h.addPhoto("deuxieme.png");
   h.criteria(0, "character", "inspiration"); h.criteria(1, "character", "required"); h.chooseVoice(0, "provided");
-  assert.equal(find(h.tree(), (node) => node.type === "input" && node.props.value === "characters").props.checked, true);
+  assert.equal(find(h.tree(), (node) => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode")).props.value, "characters");
   const quote = h.quoteInputs.at(-1)!; assert.equal(quote.videoEngine, "wan27"); assert.equal(quote.withNarration, false); assert.equal(quote.teamVideoSpeechMode, "characters");
   const engines = h.renderEngines(); const engineMenu = find(engines, (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
   const options = elements(engineMenu).filter((node) => node.type === "option");
@@ -544,10 +625,10 @@ test("one explicit footer authorization covers two required people and their dis
     const providerConsent = find(authorization, (node) => node.type === "label");
     assert.equal(elements(h.tree()).filter((node) => node.type === "label" && node.props.className === "consent").length, 1);
     assert.equal(elements(footer).filter((node) => node.type === "input" && node.props.type === "checkbox").length, 1);
-    const criteria = find(h.tree(), (node) => node.type === "section" && String(node.props.id).endsWith("-panel-criteria"));
-    assert.equal(elements(criteria).some((node) => node.type === "label" && node.props.className === "consent"), false);
-    const tabs = find(h.tree(), (node) => node.type === "settings-tabs").props.tabs as Array<{ id: string; warning: string }>;
-    assert.equal(tabs.find((tab) => tab.id === "criteria")!.warning, "", "Missing footer authorization must not point to Criteria");
+    assert.equal(elements(h.tree()).some((node) => node.type === "settings-tabs"), false, "video has one settings view");
+    for (const name of ["images", "audio"]) assert.equal(find(h.tree(), node => name === "images" ? node.props["data-media-role-add"] === "inspiration" : node.props["data-video-audio-button"] !== undefined).props["data-invalid"], undefined, "Missing footer authorization must not point to Images or Audio");
+    const settingsDialog = elements(h.tree()).find(node => typeof node.type === "function" && node.type.name === "MediaSettingsDialog");
+    if (settingsDialog) assert.equal(elements(settingsDialog).some((node) => node.type === "label" && node.props.className === "consent"), false);
     assert.equal(find(providerConsent, (node) => node.type === "input").props.checked, false);
     const expectedConsent = `Je confirme que chaque personne représentée est majeure et que je dispose des droits et autorisations pour utiliser son image et sa voix. J’autorise l’envoi des photos et des vocaux fournis à ${models.getAiMediaVideoModelForCharacterVoice(engine, true).providerLabel} pour cette génération.`;
     assert.equal(text(providerConsent), frenchMessages.ai_generator_final_authorization_short);

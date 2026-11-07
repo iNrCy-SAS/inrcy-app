@@ -34,35 +34,76 @@ const freeCallbacks = callbacks("app/dashboard/_components/MediaFreeGenerator.ts
 
 function uiHarness(mode: "guided" | "free", kind: "image" | "video") {
   const errors: string[] = [], calls: string[] = [];
+  const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
+  type Stage = "image" | "library";
+  const gates: Partial<Record<Stage, ReturnType<typeof deferred>>> = {}, entered: typeof gates = {};
+  const sequence = { current: 0 };
+  let dialog: string | null = "images", libraryOpen = false;
   let references: Array<Record<string, unknown>> = [];
   const setReferences = (update: (current: typeof references) => typeof references) => { references = update(references); };
   const context: Record<string, unknown> = {
     ...policy, kind, Error, crypto: globalThis.crypto, MAX_INSPIRATION_IMAGES: 5, AI_MEDIA_INSPIRATION_MAX_COUNT: 5,
-    inspirationImages: [], references: [], characterReferences: [], locked: false, transformMode: false,
-    sequence: { current: 0 }, operationInFlight: { current: false },
+    inspirationImages: [], references: [], characterReferences: [], locked: false, transformMode: false, recoveryPending: false, pendingReferenceRole: "inspiration",
+    sequence, operationInFlight: { current: false },
     t: (key: string) => key === "ai_generator_inspiration_images_only" ? "Images uniquement, les vidéos ne sont pas acceptées ici." : key,
     setActionError: (error: string) => { if (error) errors.push(error); },
-    setInspirationBusy() {}, setReferencesBusy() {}, setRealCharacterCount() {}, resetReferenceConsent() {}, resetConsent() {}, setLibraryOpen() {},
+    setInspirationBusy() {}, setReferencesBusy() {}, setRealCharacterCount() {}, resetReferenceConsent() {}, resetConsent() {}, setLibraryOpen(value: boolean) { libraryOpen = value; },
+    setMediaSettingsDialog(value: string | null) { dialog = value; }, setSelectedReferenceId() {},
     setReferences, setInspirationImages: setReferences, insertStudioReference, createIdentityReferenceSetId: () => "new-reference",
     deleteCharacterVoiceSample: async () => { calls.push("delete-voice"); },
     prepareMediaGenerationImageReference: async (file: File) => {
       await policy.assertStudioInspirationImageFile(file);
       calls.push(`prepare-image:${file.name}`);
+      entered.image?.resolve(); if (gates.image) await gates.image.promise;
       return { name: file.name, data: imageBytes.toString("base64"), mimeType: "image/png" };
     },
     prepareMediaGenerationLibraryReferenceFile: async (item: Record<string, unknown>, _message: string, options: { imagesOnly?: boolean }) => {
       assert.equal(options.imagesOnly, true);
       policy.assertStudioInspirationImageMetadata(item);
       calls.push("library-fetch");
+      entered.library?.resolve(); if (gates.library) await gates.library.promise;
       return image();
     },
   };
   const code = mode === "guided" ? guidedCallbacks : freeCallbacks;
-  return { errors, calls, references: () => references, run: (expression: string, input: unknown) => {
+  return { errors, calls, references: () => references, dialog: () => dialog, libraryOpen: () => libraryOpen,
+    setRole(role: string | null) { context.pendingReferenceRole = role; }, openLibrary() { libraryOpen = true; }, changeAccount() { sequence.current++; },
+    defer(stage: Stage) { gates[stage] = deferred(); entered[stage] = deferred(); }, waitFor(stage: Stage) { assert.ok(entered[stage]); return entered[stage].promise; }, resume(stage: Stage) { gates[stage]?.resolve(); },
+    run: (expression: string, input: unknown) => {
     context.input = input;
     return vm.runInNewContext(`(() => { ${code}\nreturn ${expression}; })()`, context) as Promise<void>;
   } };
 }
+
+test("free role imports and library selections retain the clicked role across asynchronous preparation and close only after success", async () => {
+  for (const kind of ["image", "video"] as const) for (const route of ["image", "library"] as const) for (const role of ["inspiration", "character", "environment", "product"]) {
+    const h = uiHarness("free", kind); h.setRole(role); h.defer(route);
+    if (route === "library") h.openLibrary();
+    const pending = h.run(route === "image" ? "addFiles([input])" : "addLibraryFiles(input)", route === "image" ? image() : [{ title: "photo.png", mime_type: "image/png" }]);
+    await h.waitFor(route);
+    assert.equal(h.references().length, 0); assert.equal(h.dialog(), "images", "preparation cannot prematurely close the chooser");
+    h.setRole(role === "product" ? "character" : "product");
+    h.resume(route); await pending;
+    assert.equal(h.references().length, 1);
+    assert.equal(h.references()[0].role, role, `${kind}/${route}: the in-flight selection cannot inherit a later role`);
+    assert.equal(h.references()[0].usage, role === "inspiration" ? "inspiration" : "required");
+    assert.equal(h.dialog(), null, "only a successful addition closes the chooser");
+    assert.equal(h.libraryOpen(), false);
+  }
+});
+
+test("free reference preparation refuses late account writes and keeps an invalid selection open with its error", async () => {
+  for (const route of ["image", "library"] as const) {
+    const h = uiHarness("free", "video"); h.setRole("character"); h.defer(route);
+    const pending = h.run(route === "image" ? "addFiles([input])" : "addLibraryFiles(input)", route === "image" ? image() : [{ title: "photo.png", mime_type: "image/png" }]);
+    await h.waitFor(route); h.changeAccount(); h.resume(route); await pending;
+    assert.equal(h.references().length, 0, `${route}: the old account cannot receive a late reference`);
+  }
+  const invalid = uiHarness("free", "video"); invalid.setRole("environment");
+  await invalid.run("addFiles([input])", invalidFiles()[0]);
+  assert.equal(invalid.dialog(), "images"); assert.equal(invalid.references().length, 0);
+  assert.deepEqual(invalid.calls, []); assert.match(invalid.errors[0], /Images uniquement/);
+});
 
 async function assertFileCallback(mode: "guided" | "free", kind: "image" | "video") {
   const h = uiHarness(mode, kind);

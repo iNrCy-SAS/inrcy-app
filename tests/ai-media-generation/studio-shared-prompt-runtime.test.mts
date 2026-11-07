@@ -187,17 +187,17 @@ test("a shared generation brief follows Image/Video Activities and dictation whi
   click(mediaRadio(modalTree, "video")); modalTree = f.render();
   const video = f.createPanel(); let videoTree = video.render(f.panel(modalTree).props);
   assert.equal(find(videoTree, node => node.type === "textarea").props.value, "Un flyer pour mon atelier");
-  assert.equal(find(videoTree, node => node.type === "input" && node.props.value === "story").props.checked, true);
+  assert.equal(find(videoTree, node => node.type === "select" && String(node.props.id).endsWith("-media-format")).props.value, "story");
   (find(videoTree, node => node.type === "./MediaSubjectVoiceButton").props.onChange as (value: string) => void)("Un flyer dicté pour mon atelier");
   modalTree = f.render(); click(mediaRadio(modalTree, "image")); modalTree = f.render();
   imageTree = image.render(f.panel(modalTree).props);
   assert.equal(find(imageTree, node => node.type === "textarea").props.value, "Un flyer dicté pour mon atelier");
-  assert.equal(find(imageTree, node => node.type === "input" && node.props.value === "square").props.checked, true);
-  (find(imageTree, node => node.type === "input" && node.props.value === "landscape").props.onChange as () => void)();
+  assert.equal(find(imageTree, node => node.type === "select" && String(node.props.id).endsWith("-media-format")).props.value, "square");
+  (find(imageTree, node => node.type === "select" && String(node.props.id).endsWith("-media-format")).props.onChange as (event: unknown) => void)({ target: { value: "landscape" } });
   imageTree = image.render(f.panel(modalTree).props);
-  assert.equal(find(imageTree, node => node.type === "input" && node.props.value === "landscape").props.checked, true);
+  assert.equal(find(imageTree, node => node.type === "select" && String(node.props.id).endsWith("-media-format")).props.value, "landscape");
   click(mediaRadio(f.render(), "video")); modalTree = f.render(); videoTree = video.render(f.panel(modalTree).props);
-  assert.equal(find(videoTree, node => node.type === "input" && node.props.value === "story").props.checked, true);
+  assert.equal(find(videoTree, node => node.type === "select" && String(node.props.id).endsWith("-media-format")).props.value, "story");
   assert.equal(f.generations, 0); f.dispose();
 });
 

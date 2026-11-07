@@ -1261,17 +1261,22 @@
 .videoFrameHeading { margin-bottom: 10px; }
 .videoFrameHeading label { color: #f2f6ff; font-size: 16px; font-weight: 750; }
 .videoFrameHeading p { margin: 5px 0 0; color: #bdcbe4; font-size: 12px; line-height: 1.55; }
-.workspace[data-media-kind="video"][data-view="editor"] .videoBriefFrame .promptContainer { flex: 0 0 auto; min-height: 0; }
-.workspace[data-media-kind="video"][data-view="editor"] .videoBriefFrame .promptContainer textarea {
+.workspace[data-view="editor"] .videoBriefFrame .promptContainer { flex: 0 0 auto; min-height: 0; }
+.workspace[data-view="editor"] .videoBriefFrame .promptContainer textarea {
   box-sizing: border-box; flex: 0 0 auto; height: clamp(180px, 21vh, 220px);
   min-height: clamp(180px, 21vh, 220px); max-height: clamp(180px, 21vh, 220px);
   resize: none; overflow-y: auto;
 }
-.videoBriefFeedback { display: grid; flex: 0 0 auto; min-width: 0; font-size: 12px; line-height: 1.35; }
+.videoBriefFeedback { display: grid; flex: 0 0 auto; min-width: 0; font-size: 11px; line-height: 1.25; }
 .videoBriefFeedback > * { grid-area: 1 / 1; min-width: 0; margin: 0; font-size: inherit; line-height: inherit; }
 .videoBriefFeedback > .videoFrameError,
 .videoBriefFeedback > .promptHelp { margin: 0; font-size: inherit; line-height: inherit; }
 .videoBriefFeedbackSizer { visibility: hidden; }
+.workspace .promptToolbar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.promptToolbar > span:first-child { grid-column: 1; }
+.workspace[data-media-kind="video"] .promptToolbar > span:first-child { min-width: 9ch; font-variant-numeric: tabular-nums; }
+.promptToolbar > .videoBriefFeedback { grid-column: 2; min-width: 0; align-self: center; }
+.promptToolbar > :last-child { grid-column: 3; justify-self: end; }
 .videoBriefFrame .promptContainer[data-invalid="true"],
 .spokenScriptPanel[data-invalid="true"] .spokenScriptInput { border-color: #f3a2b0; }
 .videoFrameError { margin: 8px 0 0; color: #ffb4c0; font-size: 12px; line-height: 1.55; }
@@ -1283,7 +1288,7 @@
   .videoBriefFrame, .promptPanel .spokenScriptSection { padding: 12px; }
   .workspace[data-media-kind="video"] .videoSettingsPane { max-height: none; min-height: 0; }
   .videoFrameHeading label { font-size: 16px; }
-  .workspace[data-media-kind="video"][data-view="editor"] .videoBriefFrame .promptContainer textarea { font-size: 16px; line-height: 1.4; padding: 10px 12px; }
+  .workspace[data-view="editor"] .videoBriefFrame .promptContainer textarea { font-size: 16px; line-height: 1.4; padding: 10px 12px; }
 }
 
 .audioSection .subtitlesOption { grid-column: 1 / -1; grid-row: 4; }
@@ -1294,6 +1299,117 @@
 .spokenScriptPanel[hidden] { display: none; }
 .spokenScriptContent { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
 .spokenScriptContent:empty { display: none; }
+.videoTools { display: grid; grid-template-columns: minmax(0, 1fr); flex: 0 0 auto; align-items: start; gap: 4px; min-width: 0; }
+.mediaToolsTitle { color: #e3efff; font-size: 12px; font-weight: 700; line-height: 1.2; }
+.referenceAddControl { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.videoTools:focus-visible { outline: 2px solid #9adcf5; outline-offset: 3px; border-radius: 9px; }
+.referenceRoleToolbar { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); flex: 0 0 auto; gap: 4px; align-items: stretch; width: 100%; }
+.referenceRoleButton { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; width: 100%; min-height: 42px; padding: 3px 2px; border: 1px solid #7895b45c; border-radius: 7px; color: #c8ddf4; background: #142944; cursor: pointer; }
+.referenceRoleButton svg { flex: 0 0 18px; width: 18px; height: 18px; }
+.referenceRoleLabel { display: block; max-width: 100%; min-width: 0; color: inherit; font-size: 11px; line-height: 1.1; text-align: center; overflow-wrap: anywhere; }
+.referenceRoleButton[aria-expanded="true"] { color: #f0fbff; border-color: #70cce4; background: #20445c; }
+.referenceRoleButton[data-invalid="true"] { border-color: #d9a957; }
+.referenceRoleButton:disabled { opacity: .5; cursor: default; }
+.referenceRoleButton:focus-visible, .mediaReferenceOpen:focus-visible, .mediaReferenceOptional:focus-visible, .referenceInspirationToggle:focus-visible { outline: 2px solid #9adcf5; outline-offset: 2px; }
+.referenceIconWarning { position: absolute; top: -4px; right: -3px; display: grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; background: #ffce81; color: #17233b; font-size: 9px; font-weight: 800; }
+.mediaReferenceThumbs { display: flex; flex: 0 0 auto; flex-wrap: nowrap; gap: 4px; min-width: 0; }
+.mediaReferenceThumb { position: relative; flex: 0 0 52px; width: 52px; height: 36px; }
+.mediaReferenceOpen { display: block; width: 36px; height: 36px; padding: 0; border: 1px solid #72b4c6; border-radius: 7px; background: #122c45; cursor: pointer; overflow: hidden; }
+.mediaReferenceOpen img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.mediaReferenceOptional { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid #7388ad; border-radius: 7px; color: #acc2dc; background: #172b47; font: inherit; font-size: 18px; cursor: pointer; }
+.mediaReferenceOptional[aria-pressed="true"] { color: #201c36; border-color: #efc881; background: #efc881; }
+.mediaReferenceThumb[data-usage="inspiration"] .mediaReferenceOpen { border-color: #efc881; }
+.mediaReferenceOpen:disabled, .mediaReferenceOptional:disabled { opacity: .55; cursor: default; }
+.referenceAddRole { display: flex; align-items: center; gap: 10px; margin-top: 12px; color: #c4d5ed; font-size: 12px; }
+.referenceAddRole > span { flex: 0 0 auto; }
+.referenceAddRole select { flex: 1; min-width: 0; min-height: 36px; padding: 7px 9px; border: 1px solid #819bb55c; border-radius: 8px; color: #e6f1ff; background: #142640; font: inherit; }
+.referenceInspirationToggle { display: flex; align-items: center; justify-content: center; gap: 5px; min-height: 34px; padding: 6px 8px; border: 1px solid #8c9fb35c; border-radius: 8px; color: #b9cce5; background: #18304c; font: inherit; font-size: 12px; cursor: pointer; }
+.referenceInspirationToggle[aria-pressed="true"] { color: #ffe5af; border-color: #dfbd78; background: #5b4624; }
+.reference[data-selected="true"] { outline: 2px solid #8fd8ef; outline-offset: 2px; }
+.videoFormatControl { display: flex; flex-direction: row; align-items: center; gap: 8px; min-width: 0; color: #cbd8f3; font-size: 12px; }
+.mediaFormatRow { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+.mediaFormatRow > .videoFormatControl { flex: 1 1 160px; }
+.mediaFormatRow > .businessDnaRow { flex: 0 0 auto; margin-inline-start: auto; }
+.videoFormatControl > span { flex: 0 0 auto; }
+.videoFormatControl select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 32px; padding: 4px 8px; border: 1px solid rgba(131,171,233,.4); border-radius: 9px; color: #e3efff; background: #142442; font: inherit; }
+.videoFormatControl select:disabled { opacity: .6; }
+.videoFormatControl select:focus-visible { outline: 2px solid #9adcf5; outline-offset: 2px; }
+.videoSettingsButton { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 6px; box-sizing: border-box; max-width: 100%; min-height: 32px; padding: 5px 9px; border: 1px solid rgba(131,171,233,.4); border-radius: 9px; color: #dceaff; background: #182b49; font: inherit; font-size: 12px; line-height: 1.35; cursor: pointer; }
+.videoSettingsButton[data-has-images="true"] { border-color: #62b2cb; background: #17394b; }
+.videoSettingsButton[data-invalid="true"] { border-color: #d9a957; }
+.videoSettingsButton:disabled { opacity: .55; cursor: default; }
+.videoSettingsButton:focus-visible { outline: 2px solid #9adcf5; outline-offset: 2px; }
+.videoImageThumbs { display: flex; flex: 0 0 auto; }
+.videoImageThumbs img { width: 22px; height: 22px; border: 1px solid #7baac5; border-radius: 5px; object-fit: cover; }
+.videoImageThumbs img + img { margin-inline-start: -8px; }
+.videoWarningBadge { display: inline-grid; place-items: center; flex: 0 0 16px; width: 16px; height: 16px; border-radius: 50%; color: #1c2036; background: #ffce81; font-size: 11px; font-weight: 800; }
+.videoSpeechTitleRow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; }
+.videoSpeechTitleRow > label { min-width: 0; flex: 1; }
+.spokenScriptHeading.videoSpeechModeRow { display: grid; grid-template-columns: minmax(64px, 72px) minmax(72px, .65fr) minmax(0, 1.35fr); gap: 6px; align-items: center; }
+.spokenScriptHeading .videoFrameHeading { min-width: 0; margin: 0; }
+.spokenScriptHeading .videoSpeechTitleRow { min-height: 0; }
+.spokenScriptHeading .videoSpeechTitleRow > label { font-size: 12px; line-height: 1.2; }
+.videoSpeechModeRow > select { width: 100%; min-width: 0; }
+.videoSpeechModeRow[data-silent="true"] { grid-template-columns: minmax(64px, 72px) minmax(0, 1fr); }
+@media (max-width: 1100px) {
+  .spokenScriptHeading.videoSpeechModeRow { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 3px 6px; }
+  .spokenScriptHeading .videoFrameHeading { grid-column: 1 / -1; }
+  .videoSpeechModeRow[data-silent="true"] { grid-template-columns: minmax(0, 1fr); }
+}
+.mediaSettingsDialog { --media-settings-side: min(560px, calc(100vw - 32px), calc(100dvh - 32px)); position: fixed; inset: 0; margin: auto; box-sizing: border-box; width: var(--media-settings-side); height: var(--media-settings-side); min-width: 0; min-height: 0; max-width: none; max-height: none; aspect-ratio: 1; padding: 0; border: 1px solid #729bc7; border-radius: 20px; color: #edf5ff; background: linear-gradient(145deg, #14314e, #171d39); box-shadow: 0 24px 90px #02071399; overflow: hidden; }
+.mediaSettingsDialog[open] { display: flex; flex-direction: column; }
+.mediaSettingsDialog::backdrop { background: #030a20b8; }
+.mediaSettingsDialogHeader { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 14px; padding: 14px 18px; border-bottom: 1px solid #52729266; }
+.mediaSettingsDialogHeader h2 { margin: 0; color: #f1f6ff; font: inherit; font-size: 18px; font-weight: 750; }
+.mediaSettingsDialogHeader button { display: grid; place-items: center; flex: 0 0 36px; width: 36px; height: 36px; padding: 0; border: 1px solid #8caac777; border-radius: 50%; color: #ecf5ff; background: #263a59; font: inherit; font-size: 25px; cursor: pointer; }
+.mediaSettingsDialogHeader button:disabled { opacity: .5; cursor: default; }
+.mediaSettingsDialogHeader button:focus-visible { outline: 2px solid #9adcf5; outline-offset: 2px; }
+.mediaSettingsDialogBody { flex: 1 1 auto; min-height: 0; padding: 16px 18px; overflow: auto; overscroll-behavior: contain; }
+.mediaSettingsDialog .audioSection { padding: 0; border: 0; }
+.mediaSettingsDialog .referenceActions { margin-top: 12px; }
+.mediaSettingsDialog[data-add-mode="true"] { --media-settings-side: min(420px, calc(100vw - 32px), calc(100dvh - 32px)); --media-add-accent: 104, 179, 220; border-color: rgba(var(--media-add-accent), .55); }
+.mediaSettingsDialog[data-add-mode="true"][data-add-role="character"] { --media-add-accent: 150, 162, 232; }
+.mediaSettingsDialog[data-add-mode="true"][data-add-role="environment"] { --media-add-accent: 112, 181, 164; }
+.mediaSettingsDialog[data-add-mode="true"][data-add-role="product"] { --media-add-accent: 173, 151, 218; }
+.mediaSettingsDialog[data-add-mode="true"] .mediaSettingsDialogHeader { border-bottom-color: rgba(var(--media-add-accent), .18); }
+.mediaSettingsDialog[data-add-mode="true"] .mediaSettingsDialogBody { display: flex; flex-direction: column; padding: 20px; }
+.mediaAddContent { display: flex; flex: 1 0 auto; flex-direction: column; align-items: center; justify-content: center; gap: 18px; min-width: 0; min-height: 0; text-align: center; }
+.mediaAddIcon { display: grid; place-items: center; flex: 0 0 64px; width: 64px; height: 64px; border-radius: 50%; color: rgb(var(--media-add-accent)); background: rgba(var(--media-add-accent), .09); }
+.mediaAddIcon svg { width: 34px; height: 34px; }
+.mediaAddTitle { max-width: 100%; margin: 0; color: #eef6ff; font: inherit; font-size: 20px; line-height: 1.3; font-weight: 700; overflow-wrap: anywhere; }
+.mediaAddActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-self: stretch; gap: 12px; width: 100%; max-width: 340px; margin: 0 auto; }
+.mediaAddActions > button,
+.mediaAddActions > label,
+.mediaAddOption { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; box-sizing: border-box; min-width: 0; min-height: 106px; margin: 0; padding: 14px 8px; border: 1px solid rgba(var(--media-add-accent), .38); border-radius: 14px; color: #e1efff; background: rgba(var(--media-add-accent), .055); font: inherit; font-size: 13px; line-height: 1.35; font-weight: 650; text-align: center; cursor: pointer; overflow-wrap: anywhere; }
+.mediaAddActions > button:hover:not(:disabled),
+.mediaAddActions > label:not([data-disabled="true"]):hover { border-color: rgba(var(--media-add-accent), .7); background: rgba(var(--media-add-accent), .1); }
+.mediaAddActions > button:focus-visible,
+.mediaAddActions > label:focus-within { outline: 2px solid rgb(var(--media-add-accent)); outline-offset: 3px; }
+.mediaAddActions > button:disabled,
+.mediaAddActions > label[data-disabled="true"] { opacity: .5; cursor: default; }
+.mediaAddOptionIcon { display: grid; place-items: center; color: rgb(var(--media-add-accent)); font-size: 25px; line-height: 1; }
+.mediaAddOptionIcon svg { width: 27px; height: 27px; }
+@media (max-width: 420px), (max-height: 500px) {
+  .mediaSettingsDialog[data-add-mode="true"] .mediaSettingsDialogBody { padding: 14px; }
+  .mediaAddContent { gap: 14px; }
+  .mediaAddIcon { flex-basis: 50px; width: 50px; height: 50px; }
+  .mediaAddIcon svg { width: 29px; height: 29px; }
+  .mediaAddTitle { font-size: 18px; }
+  .mediaAddActions { gap: 9px; }
+  .mediaAddActions > button, .mediaAddActions > label, .mediaAddOption { min-height: 90px; gap: 8px; padding: 10px 6px; font-size: 12px; }
+}
+.videoCharacterVoices { display: grid; gap: 12px; }
+.videoCharacterVoice { min-width: 0; padding: 12px; border: 1px solid #8b9dc444; border-radius: 12px; background: #0b1934aa; }
+.videoCharacterVoiceHeading { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; min-width: 0; }
+.videoCharacterVoiceHeading img { flex: 0 0 38px; width: 38px; height: 38px; border-radius: 8px; object-fit: cover; }
+.videoCharacterVoiceHeading strong { min-width: 0; overflow-wrap: anywhere; font-size: 12px; line-height: 1.4; }
+@media (max-width: 760px) {
+  .mediaSettingsDialogHeader { padding: 10px 12px; }
+  .mediaSettingsDialogBody { padding: 12px; }
+  .videoTools, .videoSpeechModeRow { gap: 6px; }
+  .videoSettingsButton, .videoFormatControl select { min-height: 36px; }
+  .videoImageThumbs img { width: 20px; height: 20px; }
+}
 .spokenScriptHeading { display: flex; align-items: center; justify-content: space-between; flex-wrap: nowrap; gap: 6px 12px; }
 .spokenScriptHeading > * { min-width: 0; }
 .spokenScriptHeading[data-silent="true"] { white-space: nowrap; }
@@ -1323,22 +1439,25 @@
   .workspace .recoveryActions { flex:none;width:100%;gap:8px; }
   .workspace .recoveryActions > .primaryButton { flex:1 1 0;min-width:150px;white-space:normal; }
   .workspace .recoveryStop { flex:1 1 0;min-width:140px;padding:8px; }
-  .workspace[data-media-kind="video"][data-view="editor"] .promptPanel {
-    min-height: 100%; height: auto; padding: 10px; gap: 6px;
+  .workspace[data-view="editor"] .promptPanel {
+    min-height: 100%; height: auto; padding: 7px; gap: 3px;
   }
-  .workspace[data-media-kind="video"] .businessDnaRow { flex: 0 0 auto; min-height: 32px; }
-  .workspace[data-media-kind="video"] .businessDnaRow > :last-child { margin-inline-start: auto; }
-  .workspace[data-media-kind="video"] .videoBriefFrame,
-  .workspace[data-media-kind="video"] .promptPanel .spokenScriptSection {
-    display: flex; flex: 0 0 auto; flex-direction: column; min-height: auto; padding: 8px; gap: 5px;
+  .workspace .businessDnaRow { flex: 0 0 auto; min-height: 24px; }
+  .workspace .businessDnaRow > :last-child { margin-inline-start: auto; }
+  .workspace .videoBriefFrame,
+  .workspace .promptPanel .spokenScriptSection {
+    display: flex; flex: 0 0 auto; flex-direction: column; min-height: auto; padding: 0; border: 0; background: none; gap: 4px;
   }
-  .workspace[data-media-kind="video"] .videoFrameHeading { flex: 0 0 auto; margin: 0; }
-  .workspace[data-media-kind="video"] .videoFrameHeading label { font-size: 14px; }
-  .workspace[data-media-kind="video"] .videoFrameHeading p { margin-top: 3px; line-height: 1.35; }
-  .workspace[data-media-kind="video"][data-view="editor"] .videoBriefFrame .promptContainer textarea {
+  .workspace .videoFrameHeading { flex: 0 0 auto; margin: 0; }
+  .workspace .videoFrameHeading label { font-size: 14px; }
+  .workspace .spokenScriptHeading .videoSpeechTitleRow > label { font-size: 12px; }
+  .workspace .videoFrameHeading p { margin-top: 2px; font-size: 11px; line-height: 1.3; }
+  .workspace .videoBriefFrame > .videoFrameHeading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+  .workspace .videoBriefFrame > .videoFrameHeading p { margin: 0; }
+  .workspace[data-view="editor"] .videoBriefFrame .promptContainer textarea {
     padding: 9px 11px; line-height: 1.5;
   }
-  .workspace[data-media-kind="video"] .promptToolbar { flex: 0 0 auto; min-height: 26px; padding: 3px 11px 6px; }
+  .workspace .promptToolbar { flex: 0 0 auto; min-height: 26px; padding: 3px 11px 6px; }
   .workspace[data-media-kind="video"] .spokenScriptPanel { flex: 0 0 auto; min-height: auto; gap: 3px; }
   .workspace[data-media-kind="video"] .spokenScriptContent { flex: 0 0 auto; min-height: auto; gap: 3px; }
   .workspace[data-media-kind="video"] .spokenScriptHeading { flex: 0 0 auto; min-height: 24px; gap: 3px 8px; }
@@ -1347,5 +1466,45 @@
   .workspace[data-media-kind="video"] .spokenScriptInput textarea { flex: 0 0 auto; height: 64px; min-height: 64px; max-height: none; padding: 8px 11px; resize: none; line-height: 1.5; }
   .workspace[data-media-kind="video"] .spokenScriptCounter { flex: 0 0 auto; padding: 2px 11px 6px; line-height: 1.35; }
   .workspace[data-media-kind="video"] .spokenScriptContent > .promptHelp { flex: 0 0 auto; }
-  .workspace[data-media-kind="video"] .videoFrameError { flex: 0 0 auto; margin-top: 0; line-height: 1.35; }
+  .workspace[data-media-kind="video"] .spokenScriptPanel .videoFrameError { flex: 0 0 auto; margin-top: 0; line-height: 1.35; }
 }
+
+.workspace .videoBriefFrame,
+.workspace .videoFormatControl,
+.workspace .referenceAddControl,
+.workspace .promptPanel .spokenScriptSection { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.workspace .videoBriefFrame > .videoFrameHeading > label,
+.workspace .videoFormatControl > .mediaToolsTitle { color: #c7ddf8; }
+.workspace .referenceAddControl > .mediaToolsTitle { color: #b8dfdf; }
+.workspace .spokenScriptSection .videoSpeechTitleRow > label { color: #ddccf1; }
+
+@media (min-width: 761px) and (max-height: 819px) {
+  .workspace[data-view="editor"][data-media-kind="video"] .videoBriefFrame .promptContainer textarea { height: 160px; min-height: 160px; max-height: 160px; }
+}
+
+/* Use the available height for comfortable section spacing. Low windows keep
+   the compact arrangement above, with the same fixed editor heights. */
+@media (min-width: 761px) and (min-height: 820px) {
+  .workspace[data-view="editor"] .promptPanel { padding: 10px 10px 0; gap: 8px; }
+  .workspace .videoBriefFrame { padding: 8px 12px 0; gap: 6px; }
+  .workspace .videoBriefFrame > .videoFrameHeading { justify-content: space-between; gap: 4px 10px; }
+  .workspace .videoFrameHeading label { font-size: 14px; line-height: 1.3; }
+  .workspace .videoFrameHeading p { line-height: 1.4; }
+  .videoTools { gap: 8px; }
+  .mediaFormatRow { gap: 8px 12px; }
+  .workspace .videoFormatControl { padding: 4px 10px; }
+  .workspace .referenceAddControl { padding: 0 10px; gap: 6px; }
+  .referenceRoleToolbar { gap: 6px; }
+  .workspace .promptPanel .spokenScriptSection { padding: 3px 12px; }
+  .workspace[data-media-kind="video"] .spokenScriptPanel { gap: 6px; }
+  .workspace[data-media-kind="video"] .spokenScriptHeading.videoSpeechModeRow { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 6px 8px; }
+  .workspace .spokenScriptHeading .videoFrameHeading { grid-column: 1 / -1; }
+  .workspace .spokenScriptHeading .videoSpeechTitleRow > label { font-size: 14px; line-height: 1.3; }
+  .workspace[data-media-kind="video"] .videoSpeechModeRow[data-silent="true"] { grid-template-columns: minmax(0, 1fr); }
+}
+
+.videoBriefFrame > .videoFrameHeading { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.videoBriefFrame > .videoFrameHeading > label { flex: 0 1 auto; min-width: 0; }
+.videoBriefHeadingHelp { display: flex; flex: 0 1 auto; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; max-width: 100%; margin-inline-start: auto; }
+.workspace .videoBriefHeadingHelp > p { min-width: 0; margin: 0; text-align: right; }
+.videoBriefHeadingHelp > button { flex: 0 0 auto; }

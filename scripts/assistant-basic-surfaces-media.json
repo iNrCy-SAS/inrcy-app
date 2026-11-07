@@ -1407,49 +1407,34 @@
     ]
   },
   {
-    "id": "basic.media.0060",
-    "label": "Prompt",
-    "domain": "studio",
-    "sourceFiles": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx"
-    ],
-    "sourceAnchor": "<MediaGenerationSettingsTabs idPrefix={instanceId} activeTab={activeSettingsTab} onChange={setActiveSettingsTab} tabs={[\n            { id: \"prompt\", label: t(\"ai_generator_editor_tab_prompt\"), warning: promptWarning },\n            { id: \"criteria\", label: t(\"ai_generator_editor_tab_criteria\"), warning: criteriaWarning },\n          ]} />",
-    "capabilityId": "studio.form",
-    "toolNames": [
-      "controlLocalInterface"
-    ],
-    "mode": "form",
-    "notes": "Champ unique typé studio_free_form : onglet, prompt borné, ADN, format, mode audio/paroles, voix, musique et sous-titres ; garde format imposé, mode silencieux, autorisations et champs cachés natifs. ACK après rendu ; génération et préférences guidées séparées. Contraintes UI : contrôle présent dans ce composant manuel.",
-    "testFiles": [
-      "tests/ai-assistant/studio-native-form-controls.test.mts"
-    ],
-    "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
-    "coverageStatus": "implemented",
-    "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#MediaGenerationSettingsTabs:511e8f0ba703ee30:1"
-    ]
-  },
-  {
     "id": "basic.media.0061",
-    "label": "Renseigner radio",
+    "label": "Format Image / Vidéo",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<input\n                    type=\"radio\"\n                    name={`${instanceId}-format`}\n                    value={option.id}\n                    checked={format === option.id}\n                    onChange={() => setFormat(option.id)}\n                  />",
+    "sourceAnchor": "<select id={`${instanceId}-media-format`} value={format} disabled={locked || Boolean(fixedFormat)} onChange={event => setFormat(event.target.value as MediaGenerationFormat)}>\n                  {FORMATS.filter(option => !fixedFormat || option.id === fixedFormat).map(option => <option key={option.id} value={option.id}>{t(`ai_generator_format_${option.id}`)} · {option.ratio}</option>)}\n                </select>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Champ unique typé studio_free_form : onglet, prompt borné, ADN, format, mode audio/paroles, voix, musique et sous-titres ; garde format imposé, mode silencieux, autorisations et champs cachés natifs. ACK après rendu ; génération et préférences guidées séparées. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "notes": "Champ format de studio_free_form, commun Image/Vidéo dans le panneau unique. Liste finie et format imposé natif préservés ; ACK après rendu, sans génération ni consentement.",
     "testFiles": [
-      "tests/ai-assistant/studio-native-form-controls.test.mts"
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
     ],
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#input:483c8670801a42f2:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:6dd3af479f4db9ea:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#option:f1cf1dcc157bec08:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "the compact Image panel retains 4000 characters, four role launchers and real assistant focus without video audio controls"
+      }
     ]
   },
   {
@@ -1459,21 +1444,22 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<input\n                  type=\"file\"\n                  multiple\n                  accept={IMAGE_ACCEPT}\n                  disabled={\n                    locked ||\n                    references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT\n                  }\n                  onChange={(event) => {\n                    const files = Array.from(event.target.files || []);\n                    event.currentTarget.value = \"\";\n                    if (files.length) void addFiles(files);\n                  }}\n                />",
+    "sourceAnchor": "<input\n                  type=\"file\"\n                  multiple\n                  accept={IMAGE_ACCEPT}\n                  disabled={\n                    locked || !pendingReferenceRole ||\n                    references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT\n                  }\n                  onClick={() => { referenceImportIntent.current = pendingReferenceRole ? { role: pendingReferenceRole, sequence: sequence.current } : null; }}\n                  onChange={(event) => {\n                    const files = Array.from(event.target.files || []);\n                    event.currentTarget.value = \"\";\n                    const intent = referenceImportIntent.current ?? (pendingReferenceRole ? { role: pendingReferenceRole, sequence: sequence.current } : null);\n                    referenceImportIntent.current = null;\n                    if (files.length && intent && intent.sequence === sequence.current) void addFiles(files, false, intent.role);\n                  }}\n                />",
     "capabilityId": "media.import",
     "toolNames": [
       "importMediaAttachment"
     ],
     "mode": "handoff",
-    "notes": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "notes": "Le professionnel choisit le fichier local après le bouton qui déduit son rôle. Rôle et session capturés avant le sélecteur ; Inspiration facultative, trois autres rôles Obligatoires. La fenêtre d’ajout se ferme après succès ; annulation/refus conserve le brouillon. Limites et sélections tardives protégées. Une pièce jointe du chat peut suivre importMediaAttachment ; aucun accès implicite au disque ni consentement.",
     "testFiles": [
-      "tests/ai-assistant/media-library-tools.test.mts"
+      "tests/ai-assistant/media-library-tools.test.mts",
+      "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts"
     ],
     "testAnchor": "attachment import transfers the exact original through native prepare/finalize, verifies it and avoids duplicate imports",
     "coverageStatus": "human_required",
     "handoffReason": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié.",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#input:2be5161df2e413d8:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#input:bb56254591448a68:1"
     ],
     "additionalProofs": [
       {
@@ -1483,6 +1469,14 @@
       {
         "file": "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts",
         "testAnchor": "free video: real file callback rejects video MIME, extension and hidden container, then accepts an image"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts",
+        "testAnchor": "free role imports and library selections retain the clicked role across asynchronous preparation and close only after success"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts",
+        "testAnchor": "free reference preparation refuses late account writes and keeps an invalid selection open with its error"
       }
     ]
   },
@@ -1493,20 +1487,36 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<button\n                type=\"button\"\n                className={styles.secondaryButton}\n                disabled={\n                  locked ||\n                  references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT\n                }\n                onClick={() => setLibraryOpen(true)}\n              >\n                {t(\"ai_generator_free_library\")}\n              </button>",
+    "sourceAnchor": "<button\n                type=\"button\"\n                className={`${styles.secondaryButton} ${styles.mediaAddOption}`}\n                disabled={\n                  locked || !pendingReferenceRole ||\n                  references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT\n                }\n                onClick={() => setLibraryOpen(true)}\n              >\n                <span className={styles.mediaAddOptionIcon} aria-hidden=\"true\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.7\" strokeLinecap=\"round\" strokeLinejoin=\"round\"><path d=\"M3 5h7l2 2h9v13H3V5Zm4 7h10M7 16h7\" /></svg></span>\n                {t(\"ai_generator_free_library\")}\n              </button>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Ouvrir/fermer le sélecteur Médiathèque du Studio guidé, libre ou retoucheur exact ; onglet/source visibles, capacité et verrou natifs contrôlés. ACK du dialogue rendu, sans import automatique ni consentement. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "notes": "studio_free_library ouvre la vraie Médiathèque enfant après le rôle déduit du bouton d’ajout. Dialogues imbriqués, quota et verrou natifs ; ajout réussi ferme ensuite la fenêtre d’ajout. ACK de visibilité, sans import automatique, génération ou consentement.",
     "testFiles": [
-      "tests/ai-assistant/native-media-navigation-controls.test.mts"
+      "tests/ai-assistant/native-media-navigation-controls.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts"
     ],
     "testAnchor": "the actual Studio library and reference information controls preserve native visibility, capacity and operation locks",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:c7150840b5ad572f:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:51f1ea3aa1929274:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "real assistant callbacks focus the mounted video sections including same-value aliases and open the actual library through Images"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts",
+        "testAnchor": "free role imports and library selections retain the clicked role across asynchronous preparation and close only after success"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-inspiration-images-only-runtime.test.mts",
+        "testAnchor": "free reference preparation refuses late account writes and keeps an invalid selection open with its error"
+      }
     ]
   },
   {
@@ -1539,7 +1549,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<select\n                      aria-label={t(\"ai_generator_free_reference_role\", {\n                        index: index + 1,\n                      })}\n                      aria-invalid={!reference.role || undefined}\n                      data-incomplete={!reference.role || undefined}\n                      value={reference.role ?? \"\"}\n                      disabled={locked}\n                      onChange={(event) =>\n                        updateReference(reference.id, {\n                          role: event.target.value\n                            ? (event.target.value as MediaGenerationReferenceRole)\n                            : undefined,\n                        })\n                      }\n                    >",
+    "sourceAnchor": "<select\n                      aria-label={t(\"ai_generator_free_reference_role\", {\n                        index: index + 1,\n                      })}\n                      aria-invalid={!reference.role || undefined}\n                      data-incomplete={!reference.role || undefined}\n                      value={reference.role ?? \"\"}\n                      disabled={locked}\n                      onChange={(event) =>\n                        updateReference(reference.id, {\n                          role: event.target.value\n                            ? (event.target.value as MediaGenerationReferenceRole)\n                            : undefined,\n                        })\n                      }\n                    >\n                      <option value=\"\" disabled>\n                        {t(\"ai_generator_free_reference_role_placeholder\")}\n                      </option>\n                      {ROLES.map((role) => (\n                        <option key={role} value={role}>\n                          {t(`ai_generator_free_role_${role}`)}\n                        </option>\n                      ))}\n                    </select>",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
@@ -1603,94 +1613,33 @@
   },
   {
     "id": "basic.media.0068",
-    "label": "Utilisation de la référence {index}",
+    "label": "Inspiration facultative — référence",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<select\n                      aria-label={t(\"ai_generator_free_reference_usage\", {\n                        index: index + 1,\n                      })}\n                      aria-invalid={!reference.usage || undefined}\n                      data-incomplete={!reference.usage || undefined}\n                      value={reference.usage ?? \"\"}\n                      disabled={locked}\n                      onChange={(event) =>\n                        updateReference(reference.id, {\n                          usage: event.target.value\n                            ? (event.target.value as MediaGenerationReferenceUsage)\n                            : undefined,\n                        })\n                      }\n                    >",
-    "capabilityId": "studio.generate",
+    "sourceAnchor": "<button type=\"button\" className={styles.referenceInspirationToggle} data-reference-inspiration-toggle={reference.id}\n                      aria-label={t(\"ai_generator_reference_inspiration_toggle\", { index: index + 1 })} aria-pressed={reference.usage === \"inspiration\"} disabled={locked}\n                      onClick={() => updateReference(reference.id, { usage: reference.usage === \"inspiration\" ? \"required\" : \"inspiration\" })}>\n                      <span aria-hidden=\"true\">{reference.usage === \"inspiration\" ? \"✦\" : \"✧\"}</span>{t(\"ai_generator_reference_inspiration\")}\n                    </button>",
+    "capabilityId": "studio.form",
     "toolNames": [
-      "generateMedia"
+      "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Référence possédée, rôle character/environment/product/inspiration et usage déclarés explicitement ; aucune identité fidèle ni voix fournie sans parcours humain. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : references.length.",
+    "notes": "studio_media_images.select(inspiration:N:true|false), même bouton dans les détails et sur la miniature. N est borné aux références présentes ; l’ID capturé reste autoritaire après réordonnancement. true rend facultatif, false remet Obligatoire ; ACK sur le même ID et usage. Nouvelles inspirations facultatives, trois autres rôles Obligatoires ; références existantes conservées. Refus verrouillage, suppression/remplacement/révision périmée ; aucun consentement ni génération.",
     "testFiles": [
-      "tests/ai-assistant/media-tools.test.mts"
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts"
     ],
-    "testAnchor": "Studio image references are resolved by owned IDs and included in native quote and generation",
-    "coverageStatus": "server_equivalent",
+    "testAnchor": "the actual image reference controls acknowledge the captured ID after reorder and reject removal, replacement or stale indices",
+    "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:a5ec9d8005fe61b9:1"
-    ]
-  },
-  {
-    "id": "basic.media.0069",
-    "label": "Choisissez une utilisation",
-    "domain": "studio",
-    "sourceFiles": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:d2d17d351ec1df3b:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:f862ae28fb3f2c92:1"
     ],
-    "sourceAnchor": "<option value=\"\" disabled>\n                        {t(\"ai_generator_free_reference_usage_placeholder\")}\n                      </option>",
-    "capabilityId": "studio.generate",
-    "toolNames": [
-      "generateMedia"
-    ],
-    "mode": "form",
-    "notes": "Référence possédée, rôle character/environment/product/inspiration et usage déclarés explicitement ; aucune identité fidèle ni voix fournie sans parcours humain. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : references.length.",
-    "testFiles": [
-      "tests/ai-assistant/media-tools.test.mts"
-    ],
-    "testAnchor": "Studio image references are resolved by owned IDs and included in native quote and generation",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#option:327e054c86baa631:2"
-    ]
-  },
-  {
-    "id": "basic.media.0070",
-    "label": "Obligatoire",
-    "domain": "studio",
-    "sourceFiles": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx"
-    ],
-    "sourceAnchor": "<option value=\"required\">\n                          {t(\"ai_generator_free_usage_required\")}\n                        </option>",
-    "capabilityId": "studio.generate",
-    "toolNames": [
-      "generateMedia"
-    ],
-    "mode": "form",
-    "notes": "Référence possédée, rôle character/environment/product/inspiration et usage déclarés explicitement ; aucune identité fidèle ni voix fournie sans parcours humain. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : reference.role !== \"inspiration\" ; references.length.",
-    "testFiles": [
-      "tests/ai-assistant/media-tools.test.mts"
-    ],
-    "testAnchor": "Studio image references are resolved by owned IDs and included in native quote and generation",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#option:5b2ab52b3863ebae:1"
-    ]
-  },
-  {
-    "id": "basic.media.0071",
-    "label": "Idée",
-    "domain": "studio",
-    "sourceFiles": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx"
-    ],
-    "sourceAnchor": "<option value=\"inspiration\">\n                        {t(\"ai_generator_free_usage_inspiration\")}\n                      </option>",
-    "capabilityId": "studio.generate",
-    "toolNames": [
-      "generateMedia"
-    ],
-    "mode": "form",
-    "notes": "Référence possédée, rôle character/environment/product/inspiration et usage déclarés explicitement ; aucune identité fidèle ni voix fournie sans parcours humain. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : references.length.",
-    "testFiles": [
-      "tests/ai-assistant/media-tools.test.mts"
-    ],
-    "testAnchor": "Studio image references are resolved by owned IDs and included in native quote and generation",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#option:4c6589b52a701feb:1"
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "native role launchers make Inspiration optional and Personne Decor Produit required without migrating existing references"
+      }
     ]
   },
   {
@@ -1718,26 +1667,33 @@
   },
   {
     "id": "basic.media.0073",
-    "label": "Renseigner radio",
+    "label": "Mode Voix off / Personnages / Sans parole",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<input\n                      type=\"radio\"\n                      name={`${instanceId}-speech-mode`}\n                      value={mode}\n                      checked={speechMode === mode}\n                      disabled={mode === \"silent\" && hasSpokenScript}\n                      aria-describedby={mode === \"silent\" && hasSpokenScript ? `${instanceId}-speech-mode-help` : undefined}\n                      onChange={() => {\n                        if (mode === \"silent\" && hasSpokenScript) return;\n                        setSpeechMode(mode);\n                        resetConsent();\n                      }}\n                    />",
-    "capabilityId": "studio.generate",
+    "sourceAnchor": "<select id={`${instanceId}-video-speech-mode`} className={styles.spokenScriptModeSelect} value={speechMode} disabled={locked}\n                  aria-describedby={hasSpokenScript ? `${instanceId}-speech-mode-help` : undefined}\n                  onChange={event => { const mode = event.target.value as typeof speechMode; if (mode === \"silent\" && hasSpokenScript) return; setSpeechMode(mode); resetConsent(); }}>\n                  {([\"voiceover\", \"characters\", \"silent\"] as const).map(mode => <option key={mode} value={mode} disabled={mode === \"silent\" && hasSpokenScript}>{t(`ai_generator_free_audio_${mode}`)}</option>)}\n                </select>",
+    "capabilityId": "studio.form",
     "toolNames": [
-      "generateMedia"
+      "controlLocalInterface"
     ],
-    "mode": "handoff",
-    "notes": "Déclaration personnelle de droits, identité, voix ou musique : le professionnel la confirme dans le contrôle natif ; l’assistant ne déduit jamais un consentement. Contraintes UI : kind === \"video\".",
+    "mode": "form",
+    "notes": "studio_free_form sélectionne speechMode dans le bandeau vidéo. Valeurs finies, Sans parole interdit si texte exact présent, autorisations vocales réinitialisées par le setter natif mais jamais accordées. ACK après rendu ; Image ne présente pas ce contrôle.",
     "testFiles": [
-      "tests/ai-assistant/media-tools.test.mts"
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
     ],
-    "testAnchor": "non-identical character inspiration works but faithful identity, provided voice and malformed reference roles cannot acquire implicit consent",
-    "coverageStatus": "human_required",
-    "handoffReason": "Déclaration personnelle de droits, identité, voix ou musique : le professionnel la confirme dans le contrôle natif ; l’assistant ne déduit jamais un consentement.",
+    "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
+    "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#input:3e90a165057fdb59:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:ae4b672393494244:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#option:95ff67061cc132aa:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "the single video panel keeps the prompt visible while native Images/Audio dialogs isolate Escape and preserve drafts"
+      }
     ]
   },
   {
@@ -1885,7 +1841,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<input\n                type=\"checkbox\"\n                checked={useBusinessDna}\n                disabled={operationLocked}\n                onChange={(event) => setUseBusinessDna(event.target.checked)}\n              />",
+    "sourceAnchor": "<input\n                    type=\"checkbox\"\n                    checked={useBusinessDna}\n                    disabled={operationLocked}\n                    onChange={(event) => setUseBusinessDna(event.target.checked)}\n                  />",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -1908,20 +1864,20 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<textarea\n              id={`${instanceId}-prompt`}\n              value={prompt}\n              maxLength={kind === \"video\" ? undefined : maxUserPromptLength}\n              disabled={operationLocked}\n              readOnly={voiceBusy}\n              aria-invalid={kind === \"video\" && (prompt.length > maxUserPromptLength || misplacedSpeechBlocking) ? true : undefined}\n              aria-describedby={kind === \"image\" ? `${instanceId}-prompt-help` : `${instanceId}-visual-brief-help ${instanceId}-prompt-count${prompt.length > maxUserPromptLength || misplacedSpeechBlocking ? ` ${instanceId}-visual-brief-error` : \"\"}`}\n              placeholder={t(\n                kind === \"video\"\n                  ? \"ai_generator_free_prompt_placeholder_video\"\n                  : \"ai_generator_free_prompt_placeholder_image\"\n              )}\n              onChange={(event) => setPrompt(event.target.value)}\n            />",
+    "sourceAnchor": "<textarea\n              id={`${instanceId}-prompt`}\n              value={prompt}\n              maxLength={kind === \"video\" ? undefined : maxUserPromptLength}\n              disabled={operationLocked}\n              readOnly={voiceBusy}\n              title={promptWarning || undefined}\n              aria-invalid={kind === \"video\" && (prompt.length > maxUserPromptLength || misplacedSpeechBlocking) ? true : undefined}\n              aria-describedby={kind === \"image\" ? `${instanceId}-prompt-help` : `${instanceId}-visual-brief-help ${instanceId}-prompt-count${prompt.length > maxUserPromptLength || misplacedSpeechBlocking ? ` ${instanceId}-visual-brief-error` : \"\"}`}\n              placeholder={t(\n                kind === \"video\"\n                  ? \"ai_generator_free_prompt_placeholder_video\"\n                  : \"ai_generator_free_prompt_placeholder_image\"\n              )}\n              onChange={(event) => setPrompt(event.target.value)}\n            />",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Champ unique typé studio_free_form : onglet, prompt borné, ADN, format, mode audio/paroles, voix, musique et sous-titres ; garde format imposé, mode silencieux, autorisations et champs cachés natifs. ACK après rendu ; génération et préférences guidées séparées. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "notes": "Prompt natif toujours visible dans le panneau unique Image/Vidéo ; 4000 caractères Image, 500 Vidéo. Ancien brouillon vidéo surdimensionné conservé puis génération bloquée, sans coupe. studio_free_form applique prompt seulement, compte/acteur/verrou et ACK natifs conservés, aucun lancement.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts"
     ],
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#textarea:bfcc1557187cecb9:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#textarea:6875d63d568bcb6f:1"
     ]
   },
   {
@@ -1929,7 +1885,8 @@
     "label": "Votre demande",
     "domain": "studio",
     "sourceFiles": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx"
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "app/globals.css"
     ],
     "sourceAnchor": "<MediaSubjectVoiceButton\n                value={prompt}\n                onChange={setPrompt}\n                onBusyChange={setVoiceBusy}\n                disabled={operationLocked}\n                maxLength={maxUserPromptLength}\n                purpose=\"instruction\"\n                contextLabel={t(\"ai_generator_free_prompt_label\")}\n                placement=\"inline\"\n              />",
     "capabilityId": "studio.generate",
@@ -1939,13 +1896,20 @@
     "mode": "handoff",
     "notes": "Le microphone et la voix personnelle nécessitent le contrôle natif et le choix du professionnel. L’assistant peut fournir la consigne écrite sans usurper une capture ou un consentement vocal. Contraintes UI : contrôle présent dans ce composant manuel.",
     "testFiles": [
-      "tests/ai-assistant/media-tools.test.mts"
+      "tests/ai-assistant/media-tools.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
     ],
     "testAnchor": "non-identical character inspiration works but faithful identity, provided voice and malformed reference roles cannot acquire implicit consent",
     "coverageStatus": "human_required",
     "handoffReason": "Le microphone et la voix personnelle nécessitent le contrôle natif et le choix du professionnel. L’assistant peut fournir la consigne écrite sans usurper une capture ou un consentement vocal.",
     "controlIds": [
       "app/dashboard/_components/MediaFreeGenerator.tsx#MediaSubjectVoiceButton:59ae5084fed437e3:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "fixed visual prompts retain the speech banner position across Auto and Exact while both frames remain usable"
+      }
     ]
   },
   {
@@ -1985,36 +1949,6 @@
       {
         "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
         "testAnchor": "real fixed geometry survives 0, 500, 501 and whitespace-heavy visual drafts through Auto→Exact→Auto"
-      }
-    ]
-  },
-  {
-    "id": "basic.media.0084",
-    "label": "Choisir le mode audio",
-    "domain": "studio",
-    "sourceFiles": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx"
-    ],
-    "sourceAnchor": "<button id={`${instanceId}-spoken-script-choose-audio`} type=\"button\" disabled={locked} aria-label={t(\"ai_generator_spoken_script_choose_audio\")} aria-describedby={`${instanceId}-spoken-script-help`} onClick={() => {\n                    setActiveSettingsTab(\"criteria\");\n                    window.requestAnimationFrame(() => document.getElementById(`${instanceId}-tab-criteria`)?.focus());\n                  }}>{t(\"ai_generator_spoken_script_choose_audio\")}</button>",
-    "capabilityId": "studio.form",
-    "toolNames": [
-      "controlLocalInterface"
-    ],
-    "mode": "form",
-    "notes": "Champ unique typé studio_free_form : retour à l’onglet Critères via activeTab=criteria pour choisir le mode audio. En Sans parole, aucun faux champ ni compteur ; le bouton conserve son libellé accessible et le verrouillage natif. ACK après rendu, sans génération ni consentement. Contraintes UI : speechMode === \"silent\" ; kind === \"video\".",
-    "testFiles": [
-      "tests/ai-assistant/studio-native-form-controls.test.mts",
-      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
-    ],
-    "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
-    "coverageStatus": "implemented",
-    "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:5782585928760f83:1"
-    ],
-    "additionalProofs": [
-      {
-        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
-        "testAnchor": "short windows keep both video frames separate and the speech header on two rows in every locale"
       }
     ]
   },
@@ -15204,6 +15138,140 @@
     "coverageStatus": "implemented",
     "controlIds": [
       "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx#button:d16b4b69d0c704cc:1"
+    ]
+  },
+  {
+    "id": "basic.studio.media-dialog-close",
+    "label": "Fermer ajout ou réglages Images / Son",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "coverageStatus": "implemented",
+    "sourceAnchor": "<dialog id={id} ref={dialogRef} className={styles.mediaSettingsDialog} data-media-settings-dialog={kind} data-add-mode={addRole ? \"true\" : undefined} data-add-role={addRole}\n    aria-labelledby={titleId} aria-modal=\"true\"\n    onKeyDown={(event) => event.stopPropagation()}\n    onCancel={(event) => { event.preventDefault(); event.stopPropagation(); if (!closeBlocked) onClose(); }}\n    onClose={(event) => event.stopPropagation()}\n    onClick={(event) => { event.stopPropagation(); if (event.target === event.currentTarget && !closeBlocked) {\n      const rect = event.currentTarget.getBoundingClientRect();\n      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();\n    } }}>\n    <header className={styles.mediaSettingsDialogHeader}><h2 id={titleId}>{title}</h2>\n      <button ref={closeRef} type=\"button\" disabled={closeBlocked} aria-label={closeLabel} onClick={onClose}>×</button>\n    </header>\n    <div className={styles.mediaSettingsDialogBody}>{children}</div>\n  </dialog>",
+    "controlIds": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx#dialog:66a3dc9f9a0799b3:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:707a09cd18884eb8:1"
+    ],
+    "notes": "studio_media_images.close ou studio_video_audio.close selon le dialogue monté. Ajout carré compact : seulement Importer/Médiathèque, sans liste de rôle supplémentaire ; fermeture automatique après succès. Croix, Escape et extérieur conservent le brouillon et isolent le parent. Fermeture Images refusée si sa Médiathèque enfant est ouverte ; verrouillage et ACK fermé préservés. Aucun abandon, génération ni annulation de job.",
+    "testFiles": [
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
+    ],
+    "testAnchor": "the actual compact video dialog callbacks preserve native locks and wait for committed visibility",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "the single video panel keeps the prompt visible while native Images/Audio dialogs isolate Escape and preserve drafts"
+      },
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "the compact Image panel retains 4000 characters, four role launchers and real assistant focus without video audio controls"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.reference-role-add",
+    "label": "Inspiration / Personnage / Décor / Produit",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "coverageStatus": "implemented",
+    "sourceAnchor": "<button key={role} type=\"button\" className={styles.referenceRoleButton} data-media-role-add={role}\n                  data-invalid={!operationLocked && Boolean(referenceSettingsWarning) || undefined}\n                  disabled={locked || !referencePickerVisible || references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT}\n                  aria-label={label} title={label} data-inrcy-tooltip-title={label} aria-haspopup=\"dialog\" aria-expanded={mediaSettingsDialog === \"images\" && pendingReferenceRole === role}\n                  aria-controls={mediaSettingsDialog === \"images\" ? `${instanceId}-media-images-dialog` : undefined}\n                  aria-describedby={!operationLocked && referenceSettingsWarning ? `${instanceId}-media-images-warning` : undefined}\n                  onClick={() => { setPendingReferenceRole(role); setSelectedReferenceId(null); setActionError(\"\"); setMediaSettingsDialog(\"images\"); }}>\n                  <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.7\" strokeLinecap=\"round\" strokeLinejoin=\"round\" aria-hidden=\"true\"><path d={REFERENCE_ROLE_PATHS[role]} /></svg>\n                  <span className={styles.referenceRoleLabel}>{label}</span>\n                  {!operationLocked && referenceSettingsWarning ? <span className={styles.referenceIconWarning} aria-hidden=\"true\">!</span> : null}\n                </button>",
+    "controlIds": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:7db738163fd88210:1"
+    ],
+    "notes": "studio_media_images.open(role:inspiration|character|environment|product) déduit le rôle avant ajout, sans select À ajouter. Snapshot open+pendingReferenceRole confirmé ; open(null) ouvre Inspiration. Nouvelles inspirations facultatives, trois autres rôles Obligatoires, existants conservés. Fenêtre Importer/Médiathèque fermée après ajout réussi ; limites, compte et verrou natifs. Aucune importation, génération, identité fidèle ou voix autorisée implicitement. Un template natif présente quatre choix, sans inventer quatre contrôles par image ou compte.",
+    "testFiles": [
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
+    ],
+    "testAnchor": "the actual compact video dialog callbacks preserve native locks and wait for committed visibility",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "native role launchers make Inspiration optional and Personne Decor Produit required without migrating existing references"
+      },
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "the compact Image panel retains 4000 characters, four role launchers and real assistant focus without video audio controls"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.video-sound-open",
+    "label": "Son — réglages vidéo",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "coverageStatus": "implemented",
+    "sourceAnchor": "<button type=\"button\" className={styles.referenceRoleButton} data-video-audio-button disabled={locked || !editorAvailable || stopConfirmOpen}\n                data-invalid={!operationLocked && Boolean(audioSettingsWarning) || undefined}\n                aria-label={t(\"ai_generator_essential_sound_title\")} title={t(\"ai_generator_essential_sound_title\")} data-inrcy-tooltip-title={t(\"ai_generator_essential_sound_title\")} aria-haspopup=\"dialog\" aria-expanded={mediaSettingsDialog === \"audio\"}\n                aria-controls={mediaSettingsDialog === \"audio\" ? `${instanceId}-video-audio-dialog` : undefined}\n                aria-describedby={!operationLocked && audioSettingsWarning ? `${instanceId}-video-audio-warning` : undefined}\n                onClick={() => setMediaSettingsDialog(\"audio\")}>\n                <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.7\" strokeLinecap=\"round\" strokeLinejoin=\"round\" aria-hidden=\"true\"><path d=\"M11 5 6 9H3v6h3l5 4V5Zm4 3a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14\" /></svg>\n                <span className={styles.referenceRoleLabel}>{t(\"ai_generator_essential_sound_title\")}</span>\n                {!operationLocked && audioSettingsWarning ? <span className={styles.referenceIconWarning} aria-hidden=\"true\">!</span> : null}\n              </button>",
+    "controlIds": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:428474f58ab4dc0f:1"
+    ],
+    "notes": "studio_video_audio.open ouvre les réglages voix off, voix par personnage, musique et sous-titres ; vidéo seulement. Snapshot open après rendu ; verrou, enfant et compte préservés. Les choix/consentements restent leurs contrôles natifs ; aucun son créé ni média généré à l’ouverture.",
+    "testFiles": [
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
+    ],
+    "testAnchor": "the actual compact video dialog callbacks preserve native locks and wait for committed visibility",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "the single video panel keeps the prompt visible while native Images/Audio dialogs isolate Escape and preserve drafts"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.reference-open",
+    "label": "Ouvrir une miniature de référence",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "coverageStatus": "implemented",
+    "sourceAnchor": "<button type=\"button\" className={styles.mediaReferenceOpen} data-media-reference-open={index} disabled={locked}\n                aria-label={`${t(\"ai_generator_free_reference\", { index: index + 1 })} · ${reference.name} · ${t(reference.usage === \"inspiration\" ? \"ai_generator_free_usage_inspiration\" : reference.usage === \"required\" ? \"ai_generator_free_usage_required\" : \"ai_generator_free_reference_criteria_required\")}`}\n                title={reference.name} aria-haspopup=\"dialog\" onClick={() => { setSelectedReferenceId(reference.id); setPendingReferenceRole(reference.role ?? null); setMediaSettingsDialog(\"images\"); }}>\n                <img src={`data:${reference.mimeType};base64,${reference.data}`} alt=\"\" />\n              </button>",
+    "controlIds": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:9d7af6240ec9f0eb:1"
+    ],
+    "notes": "studio_media_images.select(reference:N) ouvre les détails de la référence présente, ID capturé puis ACK sur le même ID après rendu. Indice hors plage, remplacement/suppression ou verrou refusés ; aucune copie, importation ou génération. Les changements de rôle existant restent leur équivalent serveur séparé.",
+    "testFiles": [
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
+    ],
+    "testAnchor": "the actual image reference controls acknowledge the captured ID after reorder and reject removal, replacement or stale indices",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "the compact Image panel retains 4000 characters, four role launchers and real assistant focus without video audio controls"
+      }
     ]
   }
 ]

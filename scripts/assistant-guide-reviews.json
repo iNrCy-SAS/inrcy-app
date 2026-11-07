@@ -208,7 +208,7 @@
         "lib/inrAssistantBasicTargetIntents.ts": "265ba197d5a85ea32ec57ae1c5213e0497d752fca3a8f1a07b064b86dbc41b6e",
         "lib/inrAssistantChannelConfigurationTools.ts": "e01a2601087db3446a41dbdd0f57207dbec2c66879c58312f0b9c8913d4649d8",
         "lib/inrAssistantGoogleBusinessDraftReview.ts": "161c07e5bbd5c6170e44e2e207bffef4105174178423e1182992c0d69fe1f2f6",
-        "lib/inrAssistantLocalInterface.ts": "57b4c95330cedb911ae957fae742de219ca25501ae51257feacdc7235129eb3a",
+        "lib/inrAssistantLocalInterface.ts": "3a788d85538a0d8f4960fb054fa51f28f119df5201660420b1c63491f8f9559f",
         "lib/inrAssistantNativeChannelLinks.ts": "e56faf67a6c42b6f39e6a974eaa4cf538029b13f906bdc1012a8ea0c47e88a17",
         "lib/inrAssistantNativePresentationTools.ts": "ac0d07af82ed551db6a5840e4d12de3201f410359b502a34db61a18bff1fabbf",
         "lib/inrAssistantWebsiteTools.ts": "2923ecf92698586f9e072b104a3b5a130088d4322109058df3b6c47b3460f5a4",
@@ -244,7 +244,7 @@
         "lib/inrAssistantMediaLibraryTools.ts": "4a08f0e1a2081ce5d21b81efdf65b1f97e3c457781eb89b79366b262e373d567",
         "lib/inrAssistantMediaUiTools.ts": "2f15e337d2db730aae585760d3d98b392b52f7876aa6005f33744298ccb29ebf",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/media.json": "b9a11a6f92913ed4aa4cce1ab6a3ce81cb309957b816edc5f18d3fb5a65d39ab"
+        "messages/fr-FR/media.json": "f02493ec6d1238437f1ada3e4be0612cd7ac00695a6b3ef75040474e4a29ffca"
       }
     },
     "basic-reputation": {
@@ -284,26 +284,26 @@
       }
     },
     "basic-studio-create": {
-      "guideDigest": "522003fc2e66fb3d7f8a649ed7cae6ae79d046166783caf2ca120f0b547dccf8",
+      "guideDigest": "541ca7a735404c60dc5d7067278dffbe805fca5cb63401ba5b70ec6877db7fce",
       "sources": {
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "dedf6bd941ee8893b8d1de4b8468c45b84148f858c1a05cfe23931ad052014d0",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "d557b06e18eacd4d5139f73e4fa3051aa695067961d3c95a356c3743eba47bd7",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "c972cb26397fa81a3696747a65fc0b28673c2e2a86f2501eb838822d7cddeb74",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
         "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx": "5ecaf5325711c7b8093154067cf905e279f6fdf3b13dc083fb9a30f3175f06e8",
         "app/dashboard/generer-media/page.tsx": "f54b22c7dd115ad020cf0e8697ca169838fccaaeef9a8b421c2cc6cacff5c6ea",
-        "lib/aiMediaGenerationContracts.ts": "c1a2776942866e5c09507ee83267140d07d77eedb2728b2aad75248a6a814555",
+        "lib/aiMediaGenerationContracts.ts": "55e0b52044652b9786d10562d33d776989b87ab60e3dcbe9b3bca49be246911a",
         "lib/aiMediaGenerationServer.ts": "210358b62f6856b2b32a45ba36b9d9e76343be700a79a05452fbc4ae2075814e",
         "lib/aiMediaGlobalConstraints.ts": "681159facf8a021722c449b3579af60e4b69ca9f70145c3c101eda0824e2c1d0",
         "lib/aiMediaVideoSpeechBudget.ts": "cd596e78a82629816542bb93f679867bc393e3f2d8dc974f7112b06d0280f15a",
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
-        "lib/inrAssistantLocalInterfaceTools.ts": "4adbe4fadfbdbd3c2f513cac27a366bcc96622380e080ec59a960e07c12c453e",
+        "lib/inrAssistantLocalInterfaceTools.ts": "ee8e8e6d513fd9b30b6cabd94c0c8f4d3f57894f8aa5c93543aaf9d563098538",
         "lib/inrAssistantMediaTools.ts": "263e5839d1323feb88bfc10129bcfa631237a62a10f8cd907e8de809048e0e1d",
         "lib/inrAssistantStudioFormSelection.ts": "39fb88244a169a01153d075b4d869c9cd080cdae4094ed197bcf804fd2d5f2e8",
         "lib/inrAssistantStudioPreferenceTools.ts": "41f89f164a9b51d4400e4e4c3ebaaedea9e722a1054e145bf3433b86265d0a5d",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
         "lib/studioInspirationImagePolicy.ts": "0ab78c05540a02cc11912ed154430592824fa53492768bd0efb9c62772f8c3c0",
-        "messages/fr-FR/media.json": "b9a11a6f92913ed4aa4cce1ab6a3ce81cb309957b816edc5f18d3fb5a65d39ab"
+        "messages/fr-FR/media.json": "f02493ec6d1238437f1ada3e4be0612cd7ac00695a6b3ef75040474e4a29ffca"
       }
     },
     "basic-studio-edit": {
@@ -319,7 +319,7 @@
         "lib/inrAssistantStudioUiCommands.ts": "694e047a4f9a4f79e0a358f35a5aaad17b96dbe95c2fbcb42e22b0291e44a7af",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/media.json": "b9a11a6f92913ed4aa4cce1ab6a3ce81cb309957b816edc5f18d3fb5a65d39ab"
+        "messages/fr-FR/media.json": "f02493ec6d1238437f1ada3e4be0612cd7ac00695a6b3ef75040474e4a29ffca"
       }
     },
     "basic-studio-preview": {
@@ -632,7 +632,7 @@
         "lib/inrAssistantMediaLibraryTools.ts": "4a08f0e1a2081ce5d21b81efdf65b1f97e3c457781eb89b79366b262e373d567",
         "lib/inrAssistantMediaUiTools.ts": "2f15e337d2db730aae585760d3d98b392b52f7876aa6005f33744298ccb29ebf",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/media.json": "b9a11a6f92913ed4aa4cce1ab6a3ce81cb309957b816edc5f18d3fb5a65d39ab"
+        "messages/fr-FR/media.json": "f02493ec6d1238437f1ada3e4be0612cd7ac00695a6b3ef75040474e4a29ffca"
       }
     },
     "notifications": {
@@ -758,26 +758,27 @@
       }
     },
     "studio-create": {
-      "guideDigest": "f85a1e423e0e8cfa5d0a28e9284ffbc6be7debfe910f59a542998a76475b956f",
+      "guideDigest": "b72623a11e312f7fc5135c923203edee94785ea3e8463d5ec1bde4af9e491325",
       "sources": {
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "dedf6bd941ee8893b8d1de4b8468c45b84148f858c1a05cfe23931ad052014d0",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "d557b06e18eacd4d5139f73e4fa3051aa695067961d3c95a356c3743eba47bd7",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "c972cb26397fa81a3696747a65fc0b28673c2e2a86f2501eb838822d7cddeb74",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
         "app/dashboard/_components/MediaModifier.tsx": "7dbadb9759f0f7da103cdc44cf47bad1b16b91c6f95eb8ab081916864ab2f508",
         "app/dashboard/_hooks/useMediaGeneration.ts": "6794fba6aabd84ce6c210878eb6a343ea6f67b57ffffa6c4c1ae9b86c3518803",
         "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx": "5ecaf5325711c7b8093154067cf905e279f6fdf3b13dc083fb9a30f3175f06e8",
         "app/dashboard/generer-media/page.tsx": "f54b22c7dd115ad020cf0e8697ca169838fccaaeef9a8b421c2cc6cacff5c6ea",
-        "lib/aiMediaGenerationContracts.ts": "c1a2776942866e5c09507ee83267140d07d77eedb2728b2aad75248a6a814555",
+        "lib/aiMediaGenerationContracts.ts": "55e0b52044652b9786d10562d33d776989b87ab60e3dcbe9b3bca49be246911a",
         "lib/aiMediaGenerationServer.ts": "210358b62f6856b2b32a45ba36b9d9e76343be700a79a05452fbc4ae2075814e",
         "lib/aiMediaGlobalConstraints.ts": "681159facf8a021722c449b3579af60e4b69ca9f70145c3c101eda0824e2c1d0",
         "lib/aiMediaVideoSpeechBudget.ts": "cd596e78a82629816542bb93f679867bc393e3f2d8dc974f7112b06d0280f15a",
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
-        "lib/inrAssistantLocalInterface.ts": "57b4c95330cedb911ae957fae742de219ca25501ae51257feacdc7235129eb3a",
+        "lib/inrAssistantLocalInterface.ts": "3a788d85538a0d8f4960fb054fa51f28f119df5201660420b1c63491f8f9559f",
+        "lib/inrAssistantLocalInterfaceTools.ts": "ee8e8e6d513fd9b30b6cabd94c0c8f4d3f57894f8aa5c93543aaf9d563098538",
         "lib/inrAssistantMediaTools.ts": "263e5839d1323feb88bfc10129bcfa631237a62a10f8cd907e8de809048e0e1d",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
         "lib/studioInspirationImagePolicy.ts": "0ab78c05540a02cc11912ed154430592824fa53492768bd0efb9c62772f8c3c0",
-        "messages/fr-FR/media.json": "b9a11a6f92913ed4aa4cce1ab6a3ce81cb309957b816edc5f18d3fb5a65d39ab"
+        "messages/fr-FR/media.json": "f02493ec6d1238437f1ada3e4be0612cd7ac00695a6b3ef75040474e4a29ffca"
       }
     },
     "studio-edit": {
@@ -793,7 +794,7 @@
         "lib/inrAssistantStudioUiCommands.ts": "694e047a4f9a4f79e0a358f35a5aaad17b96dbe95c2fbcb42e22b0291e44a7af",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
-        "messages/fr-FR/media.json": "b9a11a6f92913ed4aa4cce1ab6a3ce81cb309957b816edc5f18d3fb5a65d39ab"
+        "messages/fr-FR/media.json": "f02493ec6d1238437f1ada3e4be0612cd7ac00695a6b3ef75040474e4a29ffca"
       }
     },
     "studio-transfer-recovery": {

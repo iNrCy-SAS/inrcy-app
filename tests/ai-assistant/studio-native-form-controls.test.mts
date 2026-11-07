@@ -6,10 +6,105 @@ import ts from "typescript";
 import { parseInrAssistantStudioFormSelection, isInrAssistantStudioFormSelectionApplied, isInrAssistantStudioFormSelectionRequested, type InrAssistantStudioFormSnapshot } from "../../lib/inrAssistantStudioFormSelection.ts";
 import { defaultAiMediaNarrationVoiceVariant, isAiMediaNarrationVoiceVariantForGender } from "../../lib/aiMediaNarrationVoices.ts";
 import { isInrStudioTabUnavailable, canSwitchInrStudioMediaType } from "../../lib/inrStudioModalPolicy.ts";
+import { isInrAssistantLocalInterfaceRequest, isInrAssistantLocalInterfaceValueRequested, parseInrAssistantLocalInterfaceCommand } from "../../lib/inrAssistantLocalInterface.ts";
 
 const encode = (field: string, value: unknown) => JSON.stringify({ field, value });
 const guided = (): InrAssistantStudioFormSnapshot => ({ mode: "guided", kind: "image", editorVisible: true, locked: false, sourceMode: "criteria", people: "auto", speechMode: "voiceover", narrationVoice: "female", textMode: "ai", publicationAvailable: false, format: "square", creativeBrief: "Original" });
 const free = (): InrAssistantStudioFormSnapshot => ({ mode: "free", kind: "video", editorVisible: true, locked: false, speechMode: "voiceover", narrationVoice: "female", spokenScriptOpen: false, spokenScript: "", maxPromptLength: 3900 });
+
+test("Studio media dialogs authorize only explicit native image/audio opening and closing without financial actions", () => {
+  for (const [target, label] of [["studio_media_images", "images"], ["studio_video_audio", "audio"]] as const) {
+    for (const operation of ["open", "close"] as const) {
+      const command = { command: "control_local_interface", selection: { kind: "account_document", id: target }, revision: "native_1", operation, value: null };
+      assert.ok(parseInrAssistantLocalInterfaceCommand(command));
+      assert.equal(parseInrAssistantLocalInterfaceCommand({ ...command, value: "https://foreign.test" }), null);
+      const verb = operation === "open" ? "Ouvre" : "Ferme";
+      assert.equal(isInrAssistantLocalInterfaceRequest(`${verb} les réglages ${label} du Studio.`, target, operation), true);
+      for (const message of [`Ne ${verb.toLowerCase()} pas les réglages ${label} du Studio.`, `Comment ouvrir les réglages ${label} du Studio ?`, `Le document dit « ${verb} les réglages ${label} du Studio ».`, `${verb} la fenêtre du Studio.`]) {
+        assert.equal(isInrAssistantLocalInterfaceRequest(message, target, operation), false, message);
+      }
+    }
+    for (const operation of ["generate", "select", "retry", "stop", "save", "delete"]) assert.equal(parseInrAssistantLocalInterfaceCommand({ command: "control_local_interface", selection: { kind: "account_document", id: target }, revision: "native_1", operation, value: null }), null);
+  }
+  assert.equal(isInrAssistantLocalInterfaceRequest("Ouvre les réglages audio du Studio.", "studio_media_images", "open"), false);
+  assert.equal(isInrAssistantLocalInterfaceRequest("Ouvre les réglages images du Studio.", "studio_video_audio", "open"), false);
+  assert.equal(isInrAssistantLocalInterfaceRequest("Ouvre les options maison du Studio.", "studio_video_audio", "open"), false, "a substring such as maison is not an audio choice");
+});
+
+test("Studio image role and reference commands bind the explicit unquoted role, one-based photo number and inspiration intent", () => {
+  const base = { command: "control_local_interface", selection: { kind: "account_document", id: "studio_media_images" }, revision: "native_1" };
+  for (const [value, message, operation] of [
+    ["role:inspiration", "Ouvre le bouton Image du Studio.", "open"],
+    ["role:inspiration", "Ouvre le bouton Inspiration du Studio.", "open"],
+    ["role:character", "Ouvre les images Personnage du Studio.", "open"],
+    ["role:environment", "Ouvre les images Décor du Studio.", "open"],
+    ["role:product", "Ouvre les images Produit du Studio.", "open"],
+    ["reference:0", "Ouvre la photo 1 du Studio.", "select"],
+    ["reference:4", "Sélectionne la référence 5 du Studio.", "select"],
+    ["inspiration:1:true", "Mets la photo 2 du Studio en Inspiration.", "select"],
+    ["inspiration:1:false", "Mets la photo 2 du Studio obligatoire.", "select"],
+  ] as const) {
+    assert.ok(parseInrAssistantLocalInterfaceCommand({ ...base, operation, value }));
+    assert.equal(isInrAssistantLocalInterfaceRequest(message, "studio_media_images", operation), true, message);
+    assert.equal(isInrAssistantLocalInterfaceValueRequested(message, "studio_media_images", operation, value), true, message);
+  }
+  for (const [value, message] of [
+    ["role:character", "Ouvre les images Produit du Studio."],
+    ["role:character", "Ouvre les images Personnage ou Produit du Studio."],
+    ["role:character", "Ouvre la photo 2 Personnage du Studio."],
+    ["role:product", "Ouvre les images du Studio. Le mot « Produit » est affiché."],
+    ["reference:0", "Ouvre la photo 2 du Studio."], ["reference:0", "Ouvre la photo 1 ou la photo 2 du Studio."],
+    ["inspiration:1:true", "Mets la photo 2 du Studio obligatoire."], ["inspiration:1:false", "Mets la photo 2 du Studio en Inspiration."],
+    ["inspiration:1:true", "Mets la photo 2 du Studio en Inspiration ou obligatoire."], ["inspiration:1:true", "Affiche la photo 2 du Studio et le mot « Inspiration »."],
+  ] as const) assert.equal(isInrAssistantLocalInterfaceValueRequested(message, "studio_media_images", value.startsWith("role:") ? "open" : "select", value), false, message);
+  for (const value of ["role:person", "role:character:upload", "reference:5", "reference:-1", "reference:01", "inspiration:0:1", "inspiration:0:TRUE", "inspiration:0", "https://foreign.test"]) {
+    for (const operation of ["open", "select"]) assert.equal(parseInrAssistantLocalInterfaceCommand({ ...base, operation, value }), null, value);
+  }
+});
+
+test("the actual compact video dialog callbacks preserve native locks and wait for committed visibility", () => {
+  for (const dialog of ["images", "audio"] as const) {
+    let open: string | null = null;
+    let pendingRole: string | null = null;
+    const pending: Array<() => void> = [];
+    const deps = { kind: "video", locked: false, referencePickerVisible: true, editorAvailable: true, stopConfirmOpen: false, libraryOpen: false, setActionError: (value: string) => assert.equal(value, ""), get pendingReferenceRole() { return pendingRole; }, get mediaSettingsDialog() { return open; }, setMediaSettingsDialog: (value: string | null) => pending.push(() => { open = value; }), setPendingReferenceRole: (value: string | null) => pending.push(() => { pendingRole = value; }), setSelectedReferenceId: (value: string | null) => { assert.equal(value, null); } };
+    const handlers = actualHandlers("app/dashboard/_components/MediaFreeGenerator.tsx", deps, dialog === "images" ? "studio_media_images" : "studio_video_audio");
+    handlers.open.invoke(null); assert.equal(open, null); assert.equal(handlers.open.matches({ open: false }, null), false);
+    pending.splice(0).forEach(commit => commit()); assert.equal(open, dialog); assert.equal(handlers.open.matches({ open: true }, null), true);
+    if (dialog === "images") assert.equal(pendingRole, "inspiration", "generic opening offers a usable default without a second role selector");
+    deps.locked = true; assert.throws(() => handlers.open.invoke(null)); assert.throws(() => handlers.close.invoke(null)); deps.locked = false;
+    if (dialog === "images") { deps.libraryOpen = true; assert.throws(() => handlers.close.invoke(null)); deps.libraryOpen = false; }
+    handlers.close.invoke(null); assert.equal(handlers.close.matches({ open: true }, null), false); pending.splice(0).forEach(commit => commit()); assert.equal(open, null); assert.equal(handlers.close.matches({ open: false }, null), true);
+    deps.kind = "image";
+    if (dialog === "audio") assert.throws(() => handlers.open.invoke(null));
+    else { handlers.open.invoke(null); pending.splice(0).forEach(commit => commit()); assert.equal(open, "images", "images remain available in the compact image editor"); }
+  }
+});
+
+test("the actual image reference controls acknowledge the captured ID after reorder and reject removal, replacement or stale indices", () => {
+  let references = [{ id: "reference-a", role: "character", usage: "required" }, { id: "reference-b", role: "product", usage: "required" }];
+  let open: string | null = null, selected: string | null = null, pendingRole: string | null = null;
+  const commits: Array<() => void> = [], updates: string[] = [];
+  const deps = {
+    locked: false, libraryOpen: false, referencePickerVisible: true, referenceAction: { current: null }, setActionError: (value: string) => assert.equal(value, ""), get references() { return references; },
+    setPendingReferenceRole: (value: string | null) => commits.push(() => { pendingRole = value; }), setSelectedReferenceId: (value: string) => commits.push(() => { selected = value; }), setMediaSettingsDialog: (value: string) => commits.push(() => { open = value; }),
+    updateReference: (id: string, patch: { usage: string }) => { updates.push(id); commits.push(() => { references = references.map(reference => reference.id === id ? { ...reference, ...patch } : reference); }); },
+  };
+  const handlers = actualHandlers("app/dashboard/_components/MediaFreeGenerator.tsx", deps, "studio_media_images");
+  const snapshot = () => ({ open: open === "images", selectedReferenceId: selected, pendingReferenceRole: pendingRole, references });
+  handlers.open.invoke("role:product"); assert.equal(handlers.open.matches(snapshot(), "role:product"), false); commits.splice(0).forEach(commit => commit()); assert.equal(handlers.open.matches(snapshot(), "role:product"), true);
+  handlers.select.invoke("inspiration:0:true"); assert.deepEqual(updates, ["reference-a"]); assert.equal(handlers.select.matches(snapshot(), "inspiration:0:true"), false);
+  references.reverse(); commits.splice(0).forEach(commit => commit());
+  assert.equal(handlers.select.matches(snapshot(), "inspiration:0:true"), true, "reordering preserves confirmation for the same captured ID");
+  assert.equal(references.find(reference => reference.id === "reference-b")?.usage, "required", "the reference now at index zero is untouched");
+  references = [{ id: "replacement", role: "character", usage: "inspiration" }, references[0]];
+  assert.equal(handlers.select.matches(snapshot(), "inspiration:0:true"), false, "a same-index replacement cannot impersonate the captured reference");
+  handlers.select.invoke("reference:1"); assert.equal(handlers.select.matches(snapshot(), "reference:1"), false); commits.splice(0).forEach(commit => commit());
+  assert.equal(selected, "reference-b"); assert.equal(handlers.select.matches(snapshot(), "reference:1"), true);
+  assert.equal(handlers.select.matches(snapshot(), "reference:0"), false, "an acknowledgement is tied to its exact encoded command");
+  for (const value of ["reference:2", "reference:5", "reference:-1", "inspiration:0", "inspiration:0:TRUE", "reference:0:true"]) assert.throws(() => handlers.select.invoke(value));
+  deps.locked = true; assert.throws(() => handlers.select.invoke("inspiration:0:false")); assert.equal(commits.length, 0);
+});
 
 test("Studio speech mode choices require an explicit unquoted request for the matching Exact or Automatic option", () => {
   for (const message of ["Choisis les paroles exactes.", "Sélectionne les paroles exactes.", "Mets les paroles exactes.", "Active les paroles exactes."]) {
@@ -56,10 +151,10 @@ test("Studio form selections retain native hidden, locked, duration, voice and e
   assert.equal(parseInrAssistantStudioFormSelection(duration, free(), () => false), null);
 });
 
-function actualHandlers(file: string, deps: Record<string, unknown>) {
+function actualHandlers(file: string, deps: Record<string, unknown>, interfaceId?: string) {
   const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression: ts.Expression | undefined;
-  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && node.expression.getText(ast) === "useInrAssistantLocalInterface" && node.arguments[0]?.getText(ast).includes("studio_")) expression = node.arguments[2]; ts.forEachChild(node, visit); }; visit(ast); assert.ok(expression);
+  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && node.expression.getText(ast) === "useInrAssistantLocalInterface" && (interfaceId ? node.arguments[0]?.getText(ast) === JSON.stringify(interfaceId) : node.arguments[0]?.getText(ast).includes("studio_"))) expression = node.arguments[2]; ts.forEachChild(node, visit); }; visit(ast); assert.ok(expression);
   const compiled = ts.transpileModule(`(${expression.getText(ast)})`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText.trim().replace(/;$/, "");
   return vm.runInNewContext(`(function(deps){with(deps){return ${compiled};}})`)(deps) as Record<string, { invoke: (value: string | null) => void; matches: (snapshot: unknown, value: string | null) => boolean; allowUnmount?: boolean }>;
 }
@@ -81,7 +176,7 @@ test("the actual guided Studio callbacks apply native setters and acknowledge on
 test("the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them", () => {
   let state = { ...free(), prompt: "Original", narrationVoiceVariant: "Kore" }, resets = 0;
   const pending: Array<() => void> = []; const setter = (key: string) => (value: unknown) => pending.push(() => { state = { ...state, [key]: value }; });
-  const deps = { quotaLoading: true, get assistantFormSnapshot() { return state; }, durations: [8, 12], selectedVideoEngine: "fixture", videoResolution: "720p", canGenerateAiMediaVideoDuration: () => true,
+  const deps = { quotaLoading: true, kind: "video", isSettingsNavigationApplied: () => true, get assistantFormSnapshot() { return state; }, durations: [8, 12], selectedVideoEngine: "fixture", videoResolution: "720p", canGenerateAiMediaVideoDuration: () => true,
     parseInrAssistantStudioFormSelection, isInrAssistantStudioFormSelectionApplied, defaultAiMediaNarrationVoiceVariant, resetConsent: () => resets++,
     setPrompt: setter("prompt"), setVoice: setter("narrationVoice"), setVoiceVariant: setter("narrationVoiceVariant"), setSpeechMode: setter("speechMode"), setSpokenScript: setter("spokenScript"), setSpokenScriptOpen: setter("spokenScriptOpen"),
   };

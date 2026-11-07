@@ -4,6 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import { canOpenPublishWizardStep } from "../../app/dashboard/booster/publier/components/publishWizard.ts";
+import { isInrAssistantLocalInterfaceRequest, isInrAssistantLocalInterfaceValueRequested } from "../../lib/inrAssistantLocalInterface.ts";
 
 type Handler = { invoke: (value: string | null, stillCurrent?: () => boolean) => void | Promise<void>; matches: (state: unknown, value: string | null) => boolean };
 function actual<T>(file: string, id: string, argument: number, deps: Record<string, unknown>): T {
@@ -55,13 +56,27 @@ test("the actual media import controls alter only locally staged files and never
 test("the actual Studio library and reference information controls preserve native visibility, capacity and operation locks", () => {
   for (const [file, id, deps] of [
     ["MediaGenerator", "studio_guided_library", { operationLocked: false, referencePickerVisible: true, transformMode: false, inspirationImages: [], MAX_INSPIRATION_IMAGES: 5, setLibraryPickerOpen: () => {} }],
-    ["MediaFreeGenerator", "studio_free_library", { locked: false, referencePickerVisible: true, references: [], AI_MEDIA_INSPIRATION_MAX_COUNT: 5, setLibraryOpen: () => {} }],
+    ["MediaFreeGenerator", "studio_free_library", { kind: "image", locked: false, referencePickerVisible: true, references: [], AI_MEDIA_INSPIRATION_MAX_COUNT: 5, setLibraryOpen: () => {}, setMediaSettingsDialog: () => {} }],
     ["MediaRetoucher", "studio_retouch_library", { sourcePreparing: false, saving: false, setLibraryOpen: () => {} }],
   ] as const) {
-    let opened = false; const values: Record<string, unknown> = { ...deps, setLibraryPickerOpen: (value: boolean) => { opened = value; }, setLibraryOpen: (value: boolean) => { opened = value; } };
+    let opened = false, role: string | null = null; const values: Record<string, unknown> = { ...deps, pendingReferenceRole: null, setPendingReferenceRole: (value: string) => { role = value; }, setSelectedReferenceId: (value: string | null) => assert.equal(value, null), setLibraryPickerOpen: (value: boolean) => { opened = value; }, setLibraryOpen: (value: boolean) => { opened = value; } };
     const handlers = actual<Record<string, Handler>>(`app/dashboard/_components/${file}.tsx`, id, 2, values); handlers.open.invoke(null); assert.equal(opened, true); assert.equal(handlers.open.matches({ open: false }, null), false); assert.equal(handlers.open.matches({ open: true }, null), true); handlers.close.invoke(null); assert.equal(opened, false);
+    if (id === "studio_free_library") { assert.equal(role, "inspiration", "the native library always has a usable add role"); values.references = Array.from({ length: 5 }, () => ({})); assert.throws(() => handlers.open.invoke(null)); values.references = []; }
     if (id === "studio_retouch_library") values.saving = true; else values.referencePickerVisible = false; assert.throws(() => handlers.open.invoke(null));
   }
+  for (const pendingReferenceRole of [null, "product"]) {
+    const videoChanges: unknown[] = [];
+    const videoLibrary = actual<Record<string, Handler>>("app/dashboard/_components/MediaFreeGenerator.tsx", "studio_free_library", 2, {
+      kind: "video", locked: false, referencePickerVisible: true, references: [], AI_MEDIA_INSPIRATION_MAX_COUNT: 5, pendingReferenceRole,
+      setPendingReferenceRole: (value: string) => videoChanges.push(["role", value]), setSelectedReferenceId: (value: string | null) => videoChanges.push(["selected", value]),
+      setMediaSettingsDialog: (value: string) => videoChanges.push(["dialog", value]), setLibraryOpen: (value: boolean) => videoChanges.push(["library", value]),
+    });
+    videoLibrary.open.invoke(null);
+    assert.deepEqual(videoChanges, [["role", pendingReferenceRole ?? "inspiration"], ["selected", null], ["dialog", "images"], ["library", true]], "the library opens after capturing its real role inside the visible add dialog");
+  }
+  const inspiration = "Ouvre le bouton Inspiration du Studio.";
+  assert.equal(isInrAssistantLocalInterfaceRequest(inspiration, "studio_media_images", "open"), true);
+  assert.equal(isInrAssistantLocalInterfaceValueRequested(inspiration, "studio_media_images", "open", "role:inspiration"), true);
   let open = false; const info = actual<Record<string, Handler>>("app/dashboard/_components/MediaGenerator.tsx", "studio_reference_information", 2, { setReferenceInformationOpen: (value: boolean) => { open = value; } }); info.open.invoke(null); assert.equal(open, true); assert.equal(info.open.matches({ open }, null), true); info.close.invoke(null); assert.equal(open, false);
   const source = readFileSync(new URL("../../app/dashboard/_components/MediaGenerator.tsx", import.meta.url), "utf8"); assert.match(source, /<details className=\{styles.referenceInfo\} open=\{referenceInformationOpen\} onToggle=/);
 });

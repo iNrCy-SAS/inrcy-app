@@ -1,7 +1,7 @@
 "use client";
 
 import { useLocale, useTranslations } from "next-intl";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 import { parseInrAssistantStudioFormSelection, isInrAssistantStudioFormSelectionApplied, type InrAssistantStudioFormSnapshot } from "@/lib/inrAssistantStudioFormSelection";
 import useMediaGeneration, {
@@ -46,7 +46,7 @@ import MediaCharacterVoiceInput from "./MediaCharacterVoiceInput";
 import { deleteCharacterVoiceSample, getCharacterVoiceSelectionState } from "@/lib/aiMediaCharacterVoiceClient";
 import { AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, exceedsAiMediaCharacterVoiceEngineDuration, isAiMediaCharacterVoiceEngine } from "@/lib/aiMediaCharacterVoices";
 import MediaPromptHelp from "./MediaPromptHelp";
-import MediaGenerationCreationWorkspace, { MediaGenerationSettingsTabs } from "./MediaGenerationCreationWorkspace";
+import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace";
 import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
 import MediaBusinessDnaHelp from "./MediaBusinessDnaHelp";
 import MediaQuotaSummary from "./MediaQuotaSummary";
@@ -98,6 +98,12 @@ const FORMATS: { id: MediaGenerationFormat; ratio: string }[] = [
   { id: "landscape", ratio: "16:9" },
 ];
 const ROLES = ["character", "environment", "product", "inspiration"] as const;
+const REFERENCE_ROLE_PATHS = {
+  inspiration: "m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3ZM20 2v4m-2-2h4",
+  character: "M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a8 8 0 0 1 16 0v2",
+  environment: "M12 3 5 12h4l-4 5h6v4h2v-4h6l-4-5h4L12 3Z",
+  product: "m12 3 9 5v8l-9 5-9-5V8l9-5Zm0 9 9-4m-9 4L3 8m9 4v9M7 5.8 16 11",
+} as const;
 const IMAGE_ACCEPT = [
   ...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
   ...INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS.map((extension) => `.${extension}`),
@@ -112,6 +118,42 @@ function referencesForRequest(references: Reference[]) {
     characterIndex += 1;
     return { ...reference, characterIndex: characterIndex as 1 | 2 | 3 };
   });
+}
+
+function MediaSettingsDialog({ id, kind, title, closeLabel, closeBlocked, initialFocusId, addRole, onClose, children }: {
+  id: string; kind: "images" | "audio"; title: string; closeLabel: string; closeBlocked: boolean; initialFocusId?: string; addRole?: MediaGenerationReferenceRole; onClose: () => void; children: ReactNode;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const initialFocus = useRef(initialFocusId);
+  const titleId = useId();
+  useLayoutEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialog.showModal();
+    const target = initialFocus.current ? document.getElementById(initialFocus.current) : closeRef.current;
+    target?.focus({ preventScroll: true });
+    if (initialFocus.current) target?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    return () => {
+      dialog.close();
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+    };
+  }, []);
+  return <dialog id={id} ref={dialogRef} className={styles.mediaSettingsDialog} data-media-settings-dialog={kind} data-add-mode={addRole ? "true" : undefined} data-add-role={addRole}
+    aria-labelledby={titleId} aria-modal="true"
+    onKeyDown={(event) => event.stopPropagation()}
+    onCancel={(event) => { event.preventDefault(); event.stopPropagation(); if (!closeBlocked) onClose(); }}
+    onClose={(event) => event.stopPropagation()}
+    onClick={(event) => { event.stopPropagation(); if (event.target === event.currentTarget && !closeBlocked) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
+    } }}>
+    <header className={styles.mediaSettingsDialogHeader}><h2 id={titleId}>{title}</h2>
+      <button ref={closeRef} type="button" disabled={closeBlocked} aria-label={closeLabel} onClick={onClose}>×</button>
+    </header>
+    <div className={styles.mediaSettingsDialogBody}>{children}</div>
+  </dialog>;
 }
 
 /** Free creation owns its state and never reads the guided generator's defaults. */
@@ -180,6 +222,8 @@ export default function MediaFreeGenerator({
   const [duration, setDuration] = useState<MediaGenerationVideoDuration>(8);
   const [sceneMode, setSceneMode] = useState<MediaGenerationVideoSceneMode>("single");
   const [references, setReferences] = useState<Reference[]>([]);
+  const [pendingReferenceRole, setPendingReferenceRole] = useState<MediaGenerationReferenceRole | null>(null);
+  const [selectedReferenceId, setSelectedReferenceId] = useState<string | null>(null);
   const [withMusic, setWithMusic] = useState(true);
   const [withSubtitles, setWithSubtitles] = useState(false);
   const [speechMode, setSpeechMode] =
@@ -197,6 +241,7 @@ export default function MediaFreeGenerator({
   const [savingToLibrary, setSavingToLibrary] = useState(false);
   const [creationScreen, setCreationScreen] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState("prompt");
+  const [mediaSettingsDialog, setMediaSettingsDialog] = useState<"images" | "audio" | null>(null);
   const [editingRecoveredId, setEditingRecoveredId] = useState<string | null>(null);
   const reviewingRecovery = Boolean(recoveryContext || canRecover || (result?.recovered && editingRecoveredId !== result.item.id));
   const recoveryPending = Boolean(canRecover || recovering || recoveryContext);
@@ -210,6 +255,8 @@ export default function MediaFreeGenerator({
   const operationInFlight = useRef(false);
   const referenceSetId = useRef("");
   const submittedVoicePaths = useRef(new Set<string>());
+  const referenceImportIntent = useRef<{ role: MediaGenerationReferenceRole; sequence: number } | null>(null);
+  const referenceAction = useRef<{ encoded: string; id: string; usage?: "required" | "inspiration" } | null>(null);
   const operationLocked = cancellationPending || ((busy || finishing) && !recovering) || voiceBusy || referencesBusy || characterVoiceBusy;
   const locked = operationLocked;
   const releaseUnusedVoiceSample = (sample: Parameters<typeof deleteCharacterVoiceSample>[0]) => {
@@ -217,11 +264,43 @@ export default function MediaFreeGenerator({
     // edited or recovery is paused. Existing storage expiry cleans it later.
     if (sample && !recoveryPending && !submittedVoicePaths.current.has(sample.path)) void deleteCharacterVoiceSample(sample);
   };
-  const referencePickerVisible = (!creationScreen || recoveryPending) && editorAvailable && activeSettingsTab === "criteria";
+  const referencePickerVisible = editorAvailable && !stopConfirmOpen;
   useInrAssistantLocalInterface("studio_free_library", { open: libraryOpen }, {
-    open: { invoke: () => { if (locked || !referencePickerVisible || references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT) throw new Error("reference_picker_unavailable"); setLibraryOpen(true); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
+    open: { invoke: () => { if (locked || !referencePickerVisible || references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT) throw new Error("reference_picker_unavailable"); setPendingReferenceRole(pendingReferenceRole ?? "inspiration"); setSelectedReferenceId(null); setMediaSettingsDialog("images"); setLibraryOpen(true); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
     close: { invoke: () => setLibraryOpen(false), matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
   }, libraryOpen || referencePickerVisible, locked);
+  useInrAssistantLocalInterface("studio_media_images", { open: mediaSettingsDialog === "images", pendingReferenceRole, selectedReferenceId, references: references.map(({ id, role, usage }) => ({ id, role, usage })) }, {
+    open: { invoke: value => {
+      if (locked || libraryOpen || !referencePickerVisible || value !== null && !/^role:(?:inspiration|character|environment|product)$/.test(value)) throw new Error("studio_images_unavailable");
+      setPendingReferenceRole(value ? value.slice(5) as MediaGenerationReferenceRole : "inspiration");
+      setSelectedReferenceId(null);
+      setActionError("");
+      setMediaSettingsDialog("images");
+    }, matches: (state, value) => !!state && typeof state === "object" && (state as { open?: boolean }).open === true &&
+      (value === null || (state as { pendingReferenceRole?: string }).pendingReferenceRole === value.slice(5)) },
+    select: { invoke: value => {
+      if (locked || libraryOpen || !referencePickerVisible) throw new Error("studio_reference_unavailable");
+      const match = value?.match(/^(reference|inspiration):([0-4])(?::(true|false))?$/);
+      if (!match || (match[1] === "reference" ? match[3] !== undefined : match[3] === undefined)) throw new Error("studio_reference_unavailable");
+      const reference = references[Number(match[2])];
+      if (!reference) throw new Error("studio_reference_unavailable");
+      const usage = match[1] === "inspiration" ? match[3] === "true" ? "inspiration" : "required" : undefined;
+      referenceAction.current = { encoded: value!, id: reference.id, usage };
+      if (usage) updateReference(reference.id, { usage });
+      else { setSelectedReferenceId(reference.id); setPendingReferenceRole(reference.role ?? null); setMediaSettingsDialog("images"); }
+    }, matches: (state, value) => {
+      const action = referenceAction.current;
+      if (!action || action.encoded !== value || !state || typeof state !== "object") return false;
+      const current = state as { open?: boolean; selectedReferenceId?: string; references?: Array<{ id: string; usage?: string }> };
+      const reference = current.references?.find(item => item.id === action.id);
+      return Boolean(reference && (action.usage ? reference.usage === action.usage : current.open && current.selectedReferenceId === action.id));
+    } },
+    close: { invoke: () => { if (mediaSettingsDialog !== "images" || locked || libraryOpen) throw new Error("studio_images_busy"); setMediaSettingsDialog(null); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
+  }, referencePickerVisible || mediaSettingsDialog === "images", locked);
+  useInrAssistantLocalInterface("studio_video_audio", { open: mediaSettingsDialog === "audio" }, {
+    open: { invoke: () => { if (kind !== "video" || locked || libraryOpen || !editorAvailable || stopConfirmOpen) throw new Error("studio_audio_unavailable"); setMediaSettingsDialog("audio"); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
+    close: { invoke: () => { if (mediaSettingsDialog !== "audio" || locked) throw new Error("studio_audio_busy"); setMediaSettingsDialog(null); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
+  }, kind === "video" && ((editorAvailable && !stopConfirmOpen) || mediaSettingsDialog === "audio"), locked);
   const characterVoiceSelection = getCharacterVoiceSelectionState(kind === "video" ? references : []);
   const selectedVideoEngine = characterVoiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(enginePreference.videoEngine)
     ? "wan27" : enginePreference.videoEngine;
@@ -310,6 +389,13 @@ export default function MediaFreeGenerator({
     : characterVoiceDurationExceeded ? t("ai_generator_character_voice_wan3_duration_limit") : "";
   const photoRequiredHint = kind === "video" && !videoModel.supportsTextToVideo
     ? t("ai_generator_model_photo_required") : "";
+  const referenceSettingsWarning = kind === "image" ? criteriaWarning : !referenceCompatible
+    ? referenceCompatibilityReason : referenceCriteriaIncomplete ? t("ai_generator_free_reference_criteria_required")
+    : roleLimitExceeded ? t("ai_generator_free_role_limit") : "";
+  const audioSettingsWarning = characterVoiceSelection.missingSample ? t("ai_generator_character_voice_sample_missing")
+    : characterVoiceSpeechConflict ? t("ai_generator_character_voice_speech_required")
+    : characterVoiceDurationExceeded ? t("ai_generator_character_voice_wan3_duration_limit")
+    : speechInvalid ? speechError : spokenScriptConflict ? t("ai_generator_spoken_script_silent_help") : "";
   const creditQuote = useMediaCreditQuote({ kind, format: fixedFormat || format, operation: "generate", creationMode: "free",
     inputMode: "essential", identityMode,
     videoEngine: selectedVideoEngine, imageEngine: enginePreference.imageEngine,
@@ -372,6 +458,8 @@ export default function MediaFreeGenerator({
     return () => onBusyChange?.(false);
   }, [onBusyChange, operationLocked]);
 
+  useEffect(() => { setMediaSettingsDialog(null); }, [kind]);
+
   useEffect(() => {
     // The hook's earlier effect hydrates the scoped recovery pointer once quota
     // identifies the account. Do not permit replacement before that first check.
@@ -404,6 +492,9 @@ export default function MediaFreeGenerator({
       setSpokenScriptOpen(false);
       setUseBusinessDna(false);
       setReferences([]);
+      setPendingReferenceRole(null);
+      setSelectedReferenceId(null);
+      referenceAction.current = null;
       setFormat(fixedFormat || (kind === "video" ? "story" : "square"));
       setDuration(8);
       setSceneMode("single");
@@ -415,6 +506,7 @@ export default function MediaFreeGenerator({
       setIdentityConsent(false);
       setTeamConsent(false);
       setLibraryOpen(false);
+      setMediaSettingsDialog(null);
       setStopConfirmOpen(false);
       setActionError("");
       setReferencesBusy(false);
@@ -443,8 +535,9 @@ export default function MediaFreeGenerator({
     setTeamConsent(checked);
   };
 
-  const addFiles = async (files: File[], lockOwned = false) => {
-    if (!lockOwned && (locked || (operationInFlight.current && !recoveryPending))) return;
+  const addFiles = async (files: File[], lockOwned = false, requestedRole: MediaGenerationReferenceRole | null = pendingReferenceRole): Promise<boolean> => {
+    if (!lockOwned && (locked || (operationInFlight.current && !recoveryPending))) return false;
+    if (!requestedRole) { setActionError(t("ai_generator_reference_choose_role")); return false; }
     const currentSequence = sequence.current;
     operationInFlight.current = true;
     setReferencesBusy(true);
@@ -457,19 +550,22 @@ export default function MediaFreeGenerator({
         AI_MEDIA_INSPIRATION_MAX_COUNT - references.length
       )) {
         const image = await prepareMediaGenerationImageReference(file);
-        if (sequence.current !== currentSequence) return;
+        if (sequence.current !== currentSequence) return false;
         prepared.push({
           ...image,
           id: globalThis.crypto.randomUUID(),
-          role: undefined,
-          usage: undefined,
+          role: requestedRole,
+          usage: requestedRole === "inspiration" ? "inspiration" : "required",
           fromVideo: false,
         });
       }
+      if (!prepared.length) return false;
       setReferences((current) =>
         [...current, ...prepared].slice(0, AI_MEDIA_INSPIRATION_MAX_COUNT)
       );
       resetConsent();
+      setMediaSettingsDialog(null);
+      return true;
     } catch (caught) {
       if (sequence.current === currentSequence)
         setActionError(
@@ -479,6 +575,7 @@ export default function MediaFreeGenerator({
             ? caught.message
             : t("ai_generator_free_refs_error")
         );
+      return false;
     } finally {
       if (sequence.current === currentSequence) {
         setReferencesBusy(false);
@@ -489,6 +586,8 @@ export default function MediaFreeGenerator({
 
   const addLibraryFiles = async (items: MediaLibraryPickerItem[]) => {
     if (locked || (operationInFlight.current && !recoveryPending)) return;
+    const requestedRole = pendingReferenceRole;
+    if (!requestedRole) { setActionError(t("ai_generator_reference_choose_role")); return; }
     const currentSequence = sequence.current;
     operationInFlight.current = true;
     setReferencesBusy(true);
@@ -503,9 +602,9 @@ export default function MediaFreeGenerator({
           }))
       );
       if (sequence.current !== currentSequence) return;
-      await addFiles(files, true);
+      const added = await addFiles(files, true, requestedRole);
       if (sequence.current !== currentSequence) return;
-      setLibraryOpen(false);
+      if (added) setLibraryOpen(false);
     } catch (caught) {
       if (sequence.current === currentSequence)
         setActionError(
@@ -540,10 +639,10 @@ export default function MediaFreeGenerator({
               ...reference,
               ...patch,
               ...(clearsVoice ? { voiceMode: "ai" as const, voiceSample: undefined } : {}),
-              // A usage belongs to a role. Clearing it avoids carrying an
-              // authoritative choice from a product or person onto another role.
-              ...(Object.hasOwn(patch, "role") && patch.role !== reference.role
-                ? { usage: undefined }
+              // Changing the subject type preserves the professional's choice
+              // between a required reference and optional inspiration.
+              ...(patch.role && !reference.usage
+                ? { usage: "required" as const }
                 : {}),
             }
       )
@@ -760,6 +859,19 @@ export default function MediaFreeGenerator({
     }
   };
 
+  const focusSettingsSection = (section: string) => {
+    const target = document.getElementById(`${instanceId}-${section === "criteria" ? "media-tools" : "prompt"}`);
+    target?.focus({ preventScroll: true });
+    return Boolean(target && document.activeElement === target);
+  };
+  const isSettingsNavigationApplied = (encoded: string | null) => {
+    if (!encoded) return false;
+    let change: { field?: string; value?: string };
+    try { change = JSON.parse(encoded); } catch { return false; }
+    if (change.field !== "activeTab") return true;
+    const target = document.getElementById(`${instanceId}-${change.value === "criteria" ? "media-tools" : "prompt"}`);
+    return Boolean(target && document.activeElement === target);
+  };
   const assistantFormSnapshot: InrAssistantStudioFormSnapshot = {
     mode: "free", kind, locked: operationLocked, editorVisible: editorAvailable && !stopConfirmOpen,
     fixedFormat, maxPromptLength: maxUserPromptLength, activeTab: activeSettingsTab, prompt, useBusinessDna, format,
@@ -792,7 +904,7 @@ export default function MediaFreeGenerator({
         const change = parseInrAssistantStudioFormSelection(encoded, assistantFormSnapshot, (seconds, mode) => durations.includes(seconds) && canGenerateAiMediaVideoDuration(selectedVideoEngine, seconds, videoResolution, mode));
         if (!change) throw new Error("studio_form_unavailable");
         switch (change.field) {
-          case "activeTab": setActiveSettingsTab(change.value); break;
+          case "activeTab": if (!focusSettingsSection(change.value)) throw new Error("studio_section_unavailable"); setActiveSettingsTab(change.value); break;
           case "prompt": setPrompt(change.value); break;
           case "useBusinessDna": setUseBusinessDna(change.value); break;
           case "format": setFormat(change.value); break;
@@ -807,9 +919,245 @@ export default function MediaFreeGenerator({
           default: throw new Error("studio_form_unavailable");
         }
       },
-      matches: isInrAssistantStudioFormSelectionApplied,
+      matches: (snapshot, encoded) => isInrAssistantStudioFormSelectionApplied(snapshot, encoded) && isSettingsNavigationApplied(encoded),
     },
   }, editorAvailable && !stopConfirmOpen, operationLocked);
+
+  const referenceAddTitle = t(pendingReferenceRole ? `ai_generator_reference_add_${pendingReferenceRole}_title` : "ai_generator_reference_add_title");
+  const addReferenceControls = (<div className={styles.mediaAddContent}>
+            <div className={styles.mediaAddIcon} aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d={REFERENCE_ROLE_PATHS[pendingReferenceRole ?? "inspiration"]} /></svg>
+            </div>
+            <div className={styles.mediaAddActions}>
+              <label
+                className={`${styles.importButton} ${styles.mediaAddOption}`}
+                data-disabled={
+                  locked || !pendingReferenceRole ||
+                  references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT
+                }
+              >
+                <span className={styles.mediaAddOptionIcon} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" /></svg></span>
+                {t("ai_generator_free_import")}
+                <input
+                  type="file"
+                  multiple
+                  accept={IMAGE_ACCEPT}
+                  disabled={
+                    locked || !pendingReferenceRole ||
+                    references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT
+                  }
+                  onClick={() => { referenceImportIntent.current = pendingReferenceRole ? { role: pendingReferenceRole, sequence: sequence.current } : null; }}
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files || []);
+                    event.currentTarget.value = "";
+                    const intent = referenceImportIntent.current ?? (pendingReferenceRole ? { role: pendingReferenceRole, sequence: sequence.current } : null);
+                    referenceImportIntent.current = null;
+                    if (files.length && intent && intent.sequence === sequence.current) void addFiles(files, false, intent.role);
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                className={`${styles.secondaryButton} ${styles.mediaAddOption}`}
+                disabled={
+                  locked || !pendingReferenceRole ||
+                  references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT
+                }
+                onClick={() => setLibraryOpen(true)}
+              >
+                <span className={styles.mediaAddOptionIcon} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 5h7l2 2h9v13H3V5Zm4 7h10M7 16h7" /></svg></span>
+                {t("ai_generator_free_library")}
+              </button>
+            </div>
+            {referencesBusy ? (
+              <p className={styles.muted} role="status">
+                {t("ai_generator_free_refs_loading")}
+              </p>
+            ) : null}
+            {actionError ? <p className={styles.videoFrameError} role="alert">{actionError}</p> : null}
+          </div>);
+
+  const referenceControls = (<div className={styles.referencesSection}>
+            {references.length ? (
+              <div className={styles.references} data-character-voices={kind === "video" ? "true" : undefined}>
+                {references.map((reference, index) => (
+                  <div id={`${instanceId}-reference-${reference.id}`} tabIndex={-1} className={styles.reference} key={reference.id} data-reference-id={reference.id} data-selected={selectedReferenceId === reference.id}>
+                    <div className={styles.referenceImage}>
+                      <img
+                        src={`data:${reference.mimeType};base64,${reference.data}`}
+                        alt={t("ai_generator_free_reference", {
+                          index: index + 1,
+                        })}
+                      />
+                      <span>{index + 1}</span>
+                      <button
+                        type="button"
+                        aria-label={t(
+                          "ai_generator_free_reference_remove",
+                          { index: index + 1 }
+                        )}
+                        disabled={locked}
+                        onClick={() => removeReference(reference.id)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                    <small
+                      className={styles.fileName}
+                      title={reference.name}
+                    >
+                      {reference.name}
+                    </small>
+                    <select
+                      aria-label={t("ai_generator_free_reference_role", {
+                        index: index + 1,
+                      })}
+                      aria-invalid={!reference.role || undefined}
+                      data-incomplete={!reference.role || undefined}
+                      value={reference.role ?? ""}
+                      disabled={locked}
+                      onChange={(event) =>
+                        updateReference(reference.id, {
+                          role: event.target.value
+                            ? (event.target.value as MediaGenerationReferenceRole)
+                            : undefined,
+                        })
+                      }
+                    >
+                      <option value="" disabled>
+                        {t("ai_generator_free_reference_role_placeholder")}
+                      </option>
+                      {ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          {t(`ai_generator_free_role_${role}`)}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="button" className={styles.referenceInspirationToggle} data-reference-inspiration-toggle={reference.id}
+                      aria-label={t("ai_generator_reference_inspiration_toggle", { index: index + 1 })} aria-pressed={reference.usage === "inspiration"} disabled={locked}
+                      onClick={() => updateReference(reference.id, { usage: reference.usage === "inspiration" ? "required" : "inspiration" })}>
+                      <span aria-hidden="true">{reference.usage === "inspiration" ? "✦" : "✧"}</span>{t("ai_generator_reference_inspiration")}
+                    </button>
+                    <small>{t(reference.usage === "inspiration" ? "ai_generator_free_usage_inspiration" : reference.usage === "required" ? "ai_generator_free_usage_required" : "ai_generator_free_reference_criteria_required")}</small>
+
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {references.some((reference) => reference.fromVideo) ? (
+              <p className={styles.muted}>
+                {t("ai_generator_free_references_video_hint")}
+              </p>
+            ) : null}
+            {referenceSettingsWarning && referenceSettingsWarning !== photoRequiredHint ? (
+              <p className={styles.muted} role="alert">{referenceSettingsWarning}</p>
+            ) : null}
+          </div>);
+
+  const audioControls = (<div className={styles.audioSection}>
+              {audioSettingsWarning ? <p className={styles.muted} role="alert">{audioSettingsWarning}</p> : null}
+              {characterVoiceSpeechConflict ? <button type="button" className={styles.secondaryButton} disabled={locked} onClick={() => setSpeechMode("characters")}>{t("ai_generator_character_voice_switch_characters")}</button> : null}
+
+              {speechMode === "characters" ? (
+                <p className={styles.muted} role="note">
+                  {t("ai_generator_essential_character_speech_notice")}
+                </p>
+              ) : null}
+              {effectiveWithNarration ? (
+                <div className={styles.voiceOptions}>
+                  <label>
+                    <span>{t("ai_generator_narration_voice_label")}</span>
+                    <select
+                      value={voice}
+                      disabled={locked}
+                      onChange={(event) => {
+                        const next = event.target
+                          .value as MediaGenerationNarrationVoice;
+                        setVoice(next);
+                        setVoiceVariant(
+                          defaultAiMediaNarrationVoiceVariant(next)
+                        );
+                      }}
+                    >
+                      {(["female", "male"] as const).map((gender) => (
+                        <option key={gender} value={gender}>
+                          {t(`ai_generator_narration_voice_${gender}`)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span>
+                      {t("ai_generator_narration_voice_variant_label")}
+                    </span>
+                    <select
+                      value={voiceVariant}
+                      disabled={locked}
+                      onChange={(event) =>
+                        setVoiceVariant(
+                          event.target
+                            .value as MediaGenerationNarrationVoiceVariant
+                        )
+                      }
+                    >
+                      {AI_MEDIA_NARRATION_VOICE_VARIANTS[voice].map(
+                        (variant) => (
+                          <option key={variant} value={variant}>
+                            {t(
+                              `ai_generator_narration_voice_variant_${variant.toLowerCase()}`
+                            )}
+                          </option>
+                        )
+                      )}
+                    </select>
+                  </label>
+                </div>
+              ) : null}
+              {speechMode === "characters" ? <div className={styles.videoCharacterVoices}>
+                {references.filter(reference => reference.role === "character").map(reference => <div key={reference.id} className={styles.videoCharacterVoice}>
+                  <div className={styles.videoCharacterVoiceHeading}><img src={`data:${reference.mimeType};base64,${reference.data}`} alt="" />
+                    <strong>{t("ai_generator_free_reference", { index: references.findIndex(item => item.id === reference.id) + 1 })} · {reference.name}</strong></div>
+                  <MediaCharacterVoiceInput mode={reference.voiceMode} sample={reference.voiceSample} disabled={locked}
+                    onModeChange={voiceMode => updateReference(reference.id, { voiceMode })}
+                    onSampleChange={voiceSample => updateReference(reference.id, { voiceSample })}
+                    onBusyChange={setCharacterVoiceBusy} />
+                </div>)}
+              </div> : null}
+              <label className={styles.musicOption}>
+                <input
+                  type="checkbox"
+                  checked={withMusic}
+                  disabled={locked}
+                  onChange={(event) => setWithMusic(event.target.checked)}
+                />
+                <span>{t("ai_generator_free_music")}</span>
+              </label>
+              <label className={`${styles.musicOption} ${styles.subtitlesOption}`}>
+                <input
+                  type="checkbox"
+                  checked={effectiveWithSubtitles}
+                  disabled={locked || speechMode === "silent" || explicitlyEmptySpokenScript}
+                  data-media-subtitles
+                  onChange={(event) => setWithSubtitles(event.target.checked)}
+                />
+                <span>{t("ai_generator_free_subtitles")}</span>
+              </label>
+            </div>);
+
+  const libraryPicker = (<MediaLibraryPickerModal
+        open={libraryOpen}
+        title={t("ai_generator_video_images_dialog_title")}
+        subtitle={t("ai_generator_free_references_hint", { count: AI_MEDIA_INSPIRATION_MAX_COUNT })}
+        accept="image"
+        multiple
+        maxSelection={Math.max(
+          1,
+          AI_MEDIA_INSPIRATION_MAX_COUNT - references.length
+        )}
+        confirmLabel={t("ai_generator_inspiration_library_confirm")}
+        onClose={() => setLibraryOpen(false)}
+        onConfirm={addLibraryFiles}
+      />);
 
   const engineControls = !editorAvailable ? null : (
     <MediaEngineCreditControls kind={kind} format={fixedFormat || format} videoEngine={selectedVideoEngine}
@@ -907,378 +1255,29 @@ export default function MediaFreeGenerator({
     >
       <div className={editorStyles.editorBody} data-recovery-pending={recoveryPending}>
         <div className={`${editorStyles.settingsPane} ${kind === "video" ? styles.videoSettingsPane : ""}`}>
-          <MediaGenerationSettingsTabs idPrefix={instanceId} activeTab={activeSettingsTab} onChange={setActiveSettingsTab} tabs={[
-            { id: "prompt", label: t("ai_generator_editor_tab_prompt"), warning: promptWarning },
-            { id: "criteria", label: t("ai_generator_editor_tab_criteria"), warning: criteriaWarning },
-          ]} />
           <div className={editorStyles.settingsPanels}>
-        <section
-          className={`${styles.parameters} ${editorStyles.tabPanel}`}
-          role="tabpanel" id={`${instanceId}-panel-criteria`} aria-labelledby={`${instanceId}-tab-criteria`} hidden={activeSettingsTab !== "criteria"}
-        >
-          <div className={styles.panelHeading}>
-            <span className={styles.panelIcon} aria-hidden="true">
-              ◈
-            </span>
-            <div>
-              <h2 id={`${instanceId}-parameters`}>
-                {t("ai_generator_free_parameters_title")}
-              </h2>
-              <p>{t("ai_generator_free_parameters_hint")}</p>
-            </div>
-          </div>
-          <fieldset className={`${styles.fieldset} ${styles.formatFieldset}`} disabled={locked}>
-            <legend>{t("ai_generator_free_format_label")}</legend>
-            <div className={styles.formatOptions}>
-              {FORMATS.filter((option) => !fixedFormat || option.id === fixedFormat).map((option) => (
-                <label
-                  className={styles.formatOption}
-                  data-selected={format === option.id}
-                  key={option.id}
-                >
-                  <input
-                    type="radio"
-                    name={`${instanceId}-format`}
-                    value={option.id}
-                    checked={format === option.id}
-                    onChange={() => setFormat(option.id)}
-                  />
-                  <span
-                    className={styles.formatIcon}
-                    data-format={option.id}
-                    aria-hidden="true"
-                  />
-                  <strong>{t(`ai_generator_format_${option.id}`)}</strong>
-                  <small>{option.ratio}</small>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <div className={styles.referencesSection}>
-            <div className={styles.sectionHeading}>
-              <h3>{t("ai_generator_free_references_title")}</h3>
-              {kind !== "video" || videoModel.supportsTextToVideo ? <span>{t("ai_generator_free_optional")}</span> : null}
-            </div>
-            <p className={styles.muted} role={criteriaWarning && criteriaWarning === photoRequiredHint ? "alert" : undefined}>
-              {photoRequiredHint
-                ? photoRequiredHint
-                : t("ai_generator_free_references_hint", {
-                    count: AI_MEDIA_INSPIRATION_MAX_COUNT,
-                  })}
-            </p>
-            <div className={styles.referenceActions}>
-              <label
-                className={styles.importButton}
-                data-disabled={
-                  locked ||
-                  references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT
-                }
-              >
-                <span aria-hidden="true">＋</span>
-                {t("ai_generator_free_import")}
-                <input
-                  type="file"
-                  multiple
-                  accept={IMAGE_ACCEPT}
-                  disabled={
-                    locked ||
-                    references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT
-                  }
-                  onChange={(event) => {
-                    const files = Array.from(event.target.files || []);
-                    event.currentTarget.value = "";
-                    if (files.length) void addFiles(files);
-                  }}
-                />
-              </label>
-              <button
-                type="button"
-                className={styles.secondaryButton}
-                disabled={
-                  locked ||
-                  references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT
-                }
-                onClick={() => setLibraryOpen(true)}
-              >
-                {t("ai_generator_free_library")}
-              </button>
-            </div>
-            {referencesBusy ? (
-              <p className={styles.muted} role="status">
-                {t("ai_generator_free_refs_loading")}
-              </p>
-            ) : null}
-            {references.length ? (
-              <div className={styles.references} data-character-voices={kind === "video" ? "true" : undefined}>
-                {references.map((reference, index) => (
-                  <div className={styles.reference} key={reference.id} data-reference-id={reference.id}>
-                    <div className={styles.referenceImage}>
-                      <img
-                        src={`data:${reference.mimeType};base64,${reference.data}`}
-                        alt={t("ai_generator_free_reference", {
-                          index: index + 1,
-                        })}
-                      />
-                      <span>{index + 1}</span>
-                      <button
-                        type="button"
-                        aria-label={t(
-                          "ai_generator_free_reference_remove",
-                          { index: index + 1 }
-                        )}
-                        disabled={locked}
-                        onClick={() => removeReference(reference.id)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <small
-                      className={styles.fileName}
-                      title={reference.name}
-                    >
-                      {reference.name}
-                    </small>
-                    <select
-                      aria-label={t("ai_generator_free_reference_role", {
-                        index: index + 1,
-                      })}
-                      aria-invalid={!reference.role || undefined}
-                      data-incomplete={!reference.role || undefined}
-                      value={reference.role ?? ""}
-                      disabled={locked}
-                      onChange={(event) =>
-                        updateReference(reference.id, {
-                          role: event.target.value
-                            ? (event.target.value as MediaGenerationReferenceRole)
-                            : undefined,
-                        })
-                      }
-                    >
-                      <option value="" disabled>
-                        {t("ai_generator_free_reference_role_placeholder")}
-                      </option>
-                      {ROLES.map((role) => (
-                        <option key={role} value={role}>
-                          {t(`ai_generator_free_role_${role}`)}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      aria-label={t("ai_generator_free_reference_usage", {
-                        index: index + 1,
-                      })}
-                      aria-invalid={!reference.usage || undefined}
-                      data-incomplete={!reference.usage || undefined}
-                      value={reference.usage ?? ""}
-                      disabled={locked}
-                      onChange={(event) =>
-                        updateReference(reference.id, {
-                          usage: event.target.value
-                            ? (event.target.value as MediaGenerationReferenceUsage)
-                            : undefined,
-                        })
-                      }
-                    >
-                      <option value="" disabled>
-                        {t("ai_generator_free_reference_usage_placeholder")}
-                      </option>
-                      {reference.role !== "inspiration" ? (
-                        <option value="required">
-                          {t("ai_generator_free_usage_required")}
-                        </option>
-                      ) : null}
-                      <option value="inspiration">
-                        {t("ai_generator_free_usage_inspiration")}
-                      </option>
-                    </select>
-                    {kind === "video" && reference.role === "character" ? <MediaCharacterVoiceInput
-                      mode={reference.voiceMode} sample={reference.voiceSample} disabled={locked}
-                      onModeChange={(voiceMode) => updateReference(reference.id, { voiceMode })}
-                      onSampleChange={(voiceSample) => updateReference(reference.id, { voiceSample })}
-                      onBusyChange={setCharacterVoiceBusy}
-                    /> : null}
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {references.some((reference) => reference.fromVideo) ? (
-              <p className={styles.muted}>
-                {t("ai_generator_free_references_video_hint")}
-              </p>
-            ) : null}
-            {criteriaWarning && criteriaWarning !== photoRequiredHint ? (
-              <p className={styles.muted} role="alert">{criteriaWarning}</p>
-            ) : null}
-            {characterVoiceSpeechConflict ? <button type="button" className={styles.secondaryButton} disabled={locked} onClick={() => setSpeechMode("characters")}>{t("ai_generator_character_voice_switch_characters")}</button> : null}
-          </div>
-          {kind === "video" ? (
-            <div className={styles.audioSection}>
-              <h3>{t("ai_generator_essential_sound_title")}</h3>
-              <fieldset className={styles.soundChoices} disabled={locked}>
-                <legend className={styles.srOnly}>
-                  {t("ai_generator_essential_sound_title")}
-                </legend>
-                {(["voiceover", "characters", "silent"] as const).map((mode) => (
-                  <label
-                    className={styles.soundChoice}
-                    data-selected={speechMode === mode}
-                    data-disabled={mode === "silent" && hasSpokenScript}
-                    key={mode}
-                  >
-                    <input
-                      type="radio"
-                      name={`${instanceId}-speech-mode`}
-                      value={mode}
-                      checked={speechMode === mode}
-                      disabled={mode === "silent" && hasSpokenScript}
-                      aria-describedby={mode === "silent" && hasSpokenScript ? `${instanceId}-speech-mode-help` : undefined}
-                      onChange={() => {
-                        if (mode === "silent" && hasSpokenScript) return;
-                        setSpeechMode(mode);
-                        resetConsent();
-                      }}
-                    />
-                    <span>
-                      <strong>
-                        {t(`ai_generator_free_audio_${mode}`)}
-                      </strong>
-                      <small>
-                        {t(`ai_generator_free_audio_${mode}_hint`)}
-                      </small>
-                    </span>
-                  </label>
-                ))}
-              </fieldset>
-              {hasSpokenScript ? <p id={`${instanceId}-speech-mode-help`} className={styles.muted}>
-                {t("ai_generator_spoken_script_remove_for_silent")}
-              </p> : null}
-              {speechMode === "characters" ? (
-                <p className={styles.muted} role="note">
-                  {t("ai_generator_essential_character_speech_notice")}
-                </p>
-              ) : null}
-              {effectiveWithNarration ? (
-                <div className={styles.voiceOptions}>
-                  <label>
-                    <span>{t("ai_generator_narration_voice_label")}</span>
-                    <select
-                      value={voice}
-                      disabled={locked}
-                      onChange={(event) => {
-                        const next = event.target
-                          .value as MediaGenerationNarrationVoice;
-                        setVoice(next);
-                        setVoiceVariant(
-                          defaultAiMediaNarrationVoiceVariant(next)
-                        );
-                      }}
-                    >
-                      {(["female", "male"] as const).map((gender) => (
-                        <option key={gender} value={gender}>
-                          {t(`ai_generator_narration_voice_${gender}`)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span>
-                      {t("ai_generator_narration_voice_variant_label")}
-                    </span>
-                    <select
-                      value={voiceVariant}
-                      disabled={locked}
-                      onChange={(event) =>
-                        setVoiceVariant(
-                          event.target
-                            .value as MediaGenerationNarrationVoiceVariant
-                        )
-                      }
-                    >
-                      {AI_MEDIA_NARRATION_VOICE_VARIANTS[voice].map(
-                        (variant) => (
-                          <option key={variant} value={variant}>
-                            {t(
-                              `ai_generator_narration_voice_variant_${variant.toLowerCase()}`
-                            )}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </label>
-                </div>
-              ) : null}
-              <label className={styles.musicOption}>
-                <input
-                  type="checkbox"
-                  checked={withMusic}
-                  disabled={locked}
-                  onChange={(event) => setWithMusic(event.target.checked)}
-                />
-                <span>{t("ai_generator_free_music")}</span>
-              </label>
-              <label className={`${styles.musicOption} ${styles.subtitlesOption}`}>
-                <input
-                  type="checkbox"
-                  checked={effectiveWithSubtitles}
-                  disabled={locked || speechMode === "silent" || explicitlyEmptySpokenScript}
-                  data-media-subtitles
-                  onChange={(event) => setWithSubtitles(event.target.checked)}
-                />
-                <span>{t("ai_generator_free_subtitles")}</span>
-              </label>
-            </div>
-          ) : null}
-        </section>
+
         <section
           className={`${styles.promptPanel} ${editorStyles.tabPanel}`}
           data-spoken-script-open={exactSpeechEditorVisible}
-          role="tabpanel" id={`${instanceId}-panel-prompt`} aria-labelledby={`${instanceId}-tab-prompt`} hidden={activeSettingsTab !== "prompt"}
+          id={`${instanceId}-panel-prompt`}
         >
-          {kind === "image" ? <div className={styles.panelHeading}>
-            <span className={styles.promptIcon} aria-hidden="true">
-              ✦
-            </span>
-            <div className={styles.promptHeadingCopy}>
-              <div className={styles.promptTitleRow}>
-                <h2 id={`${instanceId}-prompt-title`}>
-                  {t("ai_generator_free_prompt_title")}
-                </h2>
-                <MediaPromptHelp kind={kind} />
-              </div>
-              <p>{t("ai_generator_free_prompt_hint")}</p>
+          <div className={styles.videoBriefFrame} data-media-brief-frame data-video-brief-frame={kind === "video" ? true : undefined}>
+          <div className={styles.videoFrameHeading}>
+            <label htmlFor={`${instanceId}-prompt`}>{t(kind === "video" ? "ai_generator_video_visual_brief_title" : "ai_generator_free_prompt_label")}</label>
+            <div className={styles.videoBriefHeadingHelp}>
+              {kind === "video" ? <p id={`${instanceId}-visual-brief-help`}>{t("ai_generator_video_visual_brief_hint_short")}</p> : null}
+              <MediaPromptHelp kind={kind} />
             </div>
-          </div> : null}
-          <div className={styles.businessDnaRow}>
-            <label className={styles.businessDnaOption}>
-              <input
-                type="checkbox"
-                checked={useBusinessDna}
-                disabled={operationLocked}
-                onChange={(event) => setUseBusinessDna(event.target.checked)}
-              />
-              <strong>{t("ai_generator_use_business_dna_label")}</strong>
-            </label>
-            <MediaBusinessDnaHelp />
-            {kind === "video" ? <MediaPromptHelp kind={kind} /> : null}
           </div>
-          <div className={kind === "video" ? styles.videoBriefFrame : undefined} data-video-brief-frame={kind === "video" ? true : undefined}>
-          {kind === "video" ? <div className={styles.videoFrameHeading}>
-            <label htmlFor={`${instanceId}-prompt`}>{t("ai_generator_video_visual_brief_title")}</label>
-            <p id={`${instanceId}-visual-brief-help`}>{t("ai_generator_video_visual_brief_hint_short")}</p>
-          </div> : null}
           <div className={styles.promptContainer} data-invalid={kind === "video" && (prompt.length > maxUserPromptLength || misplacedSpeechBlocking) ? true : undefined}>
-            <label
-              className={styles.srOnly}
-              htmlFor={`${instanceId}-prompt`}
-            >
-              {t("ai_generator_free_prompt_label")}
-            </label>
             <textarea
               id={`${instanceId}-prompt`}
               value={prompt}
               maxLength={kind === "video" ? undefined : maxUserPromptLength}
               disabled={operationLocked}
               readOnly={voiceBusy}
+              title={promptWarning || undefined}
               aria-invalid={kind === "video" && (prompt.length > maxUserPromptLength || misplacedSpeechBlocking) ? true : undefined}
               aria-describedby={kind === "image" ? `${instanceId}-prompt-help` : `${instanceId}-visual-brief-help ${instanceId}-prompt-count${prompt.length > maxUserPromptLength || misplacedSpeechBlocking ? ` ${instanceId}-visual-brief-error` : ""}`}
               placeholder={t(
@@ -1293,6 +1292,15 @@ export default function MediaFreeGenerator({
                 {prompt.length.toLocaleString(locale)} /{" "}
                 {maxUserPromptLength.toLocaleString(locale)}
               </span>
+              {kind === "video" ? <div className={styles.videoBriefFeedback}>
+                <span className={styles.videoBriefFeedbackSizer} aria-hidden="true">{t("ai_generator_video_brief_too_long", { max: maxUserPromptLength })}</span>
+                <span className={styles.videoBriefFeedbackSizer} aria-hidden="true">{t("ai_generator_video_speech_move")}</span>
+                <span className={styles.videoBriefFeedbackSizer} aria-hidden="true">{t("ai_generator_video_speech_override_notice")}</span>
+                {prompt.length > maxUserPromptLength ? <p id={`${instanceId}-visual-brief-error`} className={styles.videoFrameError} role="alert">
+                  {t("ai_generator_video_brief_too_long", { max: maxUserPromptLength })}
+                </p> : misplacedSpeechBlocking ? <p id={`${instanceId}-visual-brief-error`} className={styles.videoFrameError} role="alert">{t("ai_generator_video_speech_move")}</p>
+                  : misplacedSpeech && spokenScriptOpen ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_override_notice")}</p> : null}
+              </div> : null}
               <MediaSubjectVoiceButton
                 value={prompt}
                 onChange={setPrompt}
@@ -1305,30 +1313,87 @@ export default function MediaFreeGenerator({
               />
             </div>
           </div>
-          {kind === "video" ? <div className={styles.videoBriefFeedback}>
-            <span className={styles.videoBriefFeedbackSizer} aria-hidden="true">{t("ai_generator_video_brief_too_long", { max: maxUserPromptLength })}</span>
-            <span className={styles.videoBriefFeedbackSizer} aria-hidden="true">{t("ai_generator_video_speech_move")}</span>
-            <span className={styles.videoBriefFeedbackSizer} aria-hidden="true">{t("ai_generator_video_speech_override_notice")}</span>
-            {prompt.length > maxUserPromptLength ? <p id={`${instanceId}-visual-brief-error`} className={styles.videoFrameError} role="alert">
-              {t("ai_generator_video_brief_too_long", { max: maxUserPromptLength })}
-            </p> : misplacedSpeechBlocking ? <p id={`${instanceId}-visual-brief-error`} className={styles.videoFrameError} role="alert">{t("ai_generator_video_speech_move")}</p>
-              : misplacedSpeech && spokenScriptOpen ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_override_notice")}</p> : null}
-          </div> : null}
           </div>
-          {kind === "video" ? <div className={styles.spokenScriptSection} data-exact={exactSpeechEditorVisible}>
-            <div className={styles.videoFrameHeading}>
-              <label htmlFor={`${instanceId}-${speechMode === "silent" ? "spoken-script-choose-audio" : exactSpeechEditorVisible ? "spoken-script" : "spoken-script-mode"}`}>{t("ai_generator_spoken_script_label")}</label>
-              <p id={`${instanceId}-spoken-script-help`} className={styles.srOnly}>{t("ai_generator_video_speech_frame_hint_short")}</p>
+          <div id={`${instanceId}-media-tools`} className={styles.videoTools} data-media-tools tabIndex={-1} role="group" aria-label={t("ai_generator_editor_tab_criteria")}>
+            <div className={styles.mediaFormatRow}>
+              <label className={styles.videoFormatControl} htmlFor={`${instanceId}-media-format`}><span className={styles.mediaToolsTitle}>{t("ai_generator_free_format_label")}</span>
+                <select id={`${instanceId}-media-format`} value={format} disabled={locked || Boolean(fixedFormat)} onChange={event => setFormat(event.target.value as MediaGenerationFormat)}>
+                  {FORMATS.filter(option => !fixedFormat || option.id === fixedFormat).map(option => <option key={option.id} value={option.id}>{t(`ai_generator_format_${option.id}`)} · {option.ratio}</option>)}
+                </select>
+              </label>
+              <div className={styles.businessDnaRow}>
+                <label className={styles.businessDnaOption}>
+                  <input
+                    type="checkbox"
+                    checked={useBusinessDna}
+                    disabled={operationLocked}
+                    onChange={(event) => setUseBusinessDna(event.target.checked)}
+                  />
+                  <strong>{t("ai_generator_use_business_dna_label")}</strong>
+                </label>
+                <MediaBusinessDnaHelp />
+              </div>
             </div>
+            <div className={styles.referenceAddControl}>
+              <span id={`${instanceId}-add-media-title`} className={styles.mediaToolsTitle}>{t("ai_generator_add_media_title")}</span>
+              <div className={styles.referenceRoleToolbar} role="group" aria-labelledby={`${instanceId}-add-media-title`}>
+              {(["inspiration", "character", "environment", "product"] as const).map(role => {
+                const label = t(role === "inspiration" ? "ai_generator_reference_inspiration" : role === "character" ? "ai_generator_add_reference_character" : `ai_generator_free_role_${role}`);
+                return <button key={role} type="button" className={styles.referenceRoleButton} data-media-role-add={role}
+                  data-invalid={!operationLocked && Boolean(referenceSettingsWarning) || undefined}
+                  disabled={locked || !referencePickerVisible || references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT}
+                  aria-label={label} title={label} data-inrcy-tooltip-title={label} aria-haspopup="dialog" aria-expanded={mediaSettingsDialog === "images" && pendingReferenceRole === role}
+                  aria-controls={mediaSettingsDialog === "images" ? `${instanceId}-media-images-dialog` : undefined}
+                  aria-describedby={!operationLocked && referenceSettingsWarning ? `${instanceId}-media-images-warning` : undefined}
+                  onClick={() => { setPendingReferenceRole(role); setSelectedReferenceId(null); setActionError(""); setMediaSettingsDialog("images"); }}>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={REFERENCE_ROLE_PATHS[role]} /></svg>
+                  <span className={styles.referenceRoleLabel}>{label}</span>
+                  {!operationLocked && referenceSettingsWarning ? <span className={styles.referenceIconWarning} aria-hidden="true">!</span> : null}
+                </button>;
+              })}
+              {kind === "video" ? <button type="button" className={styles.referenceRoleButton} data-video-audio-button disabled={locked || !editorAvailable || stopConfirmOpen}
+                data-invalid={!operationLocked && Boolean(audioSettingsWarning) || undefined}
+                aria-label={t("ai_generator_essential_sound_title")} title={t("ai_generator_essential_sound_title")} data-inrcy-tooltip-title={t("ai_generator_essential_sound_title")} aria-haspopup="dialog" aria-expanded={mediaSettingsDialog === "audio"}
+                aria-controls={mediaSettingsDialog === "audio" ? `${instanceId}-video-audio-dialog` : undefined}
+                aria-describedby={!operationLocked && audioSettingsWarning ? `${instanceId}-video-audio-warning` : undefined}
+                onClick={() => setMediaSettingsDialog("audio")}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Zm4 3a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14" /></svg>
+                <span className={styles.referenceRoleLabel}>{t("ai_generator_essential_sound_title")}</span>
+                {!operationLocked && audioSettingsWarning ? <span className={styles.referenceIconWarning} aria-hidden="true">!</span> : null}
+              </button> : null}
+              </div>
+            </div>
+            {!operationLocked && referenceSettingsWarning ? <span id={`${instanceId}-media-images-warning`} className={styles.srOnly}>{referenceSettingsWarning}</span> : null}
+            {!operationLocked && audioSettingsWarning ? <span id={`${instanceId}-video-audio-warning`} className={styles.srOnly}>{audioSettingsWarning}</span> : null}
+          </div>
+          {references.length ? <div className={styles.mediaReferenceThumbs} data-media-reference-thumbnails role="list" aria-label={t("ai_generator_free_references_title")}>
+            {references.map((reference, index) => <div key={reference.id} className={styles.mediaReferenceThumb} data-usage={reference.usage} role="listitem">
+              <button type="button" className={styles.mediaReferenceOpen} data-media-reference-open={index} disabled={locked}
+                aria-label={`${t("ai_generator_free_reference", { index: index + 1 })} · ${reference.name} · ${t(reference.usage === "inspiration" ? "ai_generator_free_usage_inspiration" : reference.usage === "required" ? "ai_generator_free_usage_required" : "ai_generator_free_reference_criteria_required")}`}
+                title={reference.name} aria-haspopup="dialog" onClick={() => { setSelectedReferenceId(reference.id); setPendingReferenceRole(reference.role ?? null); setMediaSettingsDialog("images"); }}>
+                <img src={`data:${reference.mimeType};base64,${reference.data}`} alt="" />
+              </button>
+              <button type="button" className={styles.mediaReferenceOptional} data-reference-inspiration-toggle={reference.id} disabled={locked}
+                aria-label={t("ai_generator_reference_inspiration_toggle", { index: index + 1 })} title={t("ai_generator_reference_inspiration_toggle", { index: index + 1 })}
+                aria-pressed={reference.usage === "inspiration"} onClick={() => updateReference(reference.id, { usage: reference.usage === "inspiration" ? "required" : "inspiration" })}><span aria-hidden="true">{reference.usage === "inspiration" ? "✦" : "✧"}</span></button>
+            </div>)}
+          </div> : null}
+          {kind === "video" ? <div className={styles.spokenScriptSection} data-exact={exactSpeechEditorVisible}>
             <div className={styles.spokenScriptPanel} data-video-speech-frame data-invalid={speechInvalid ? true : undefined}>
-              <div className={styles.spokenScriptHeading} data-silent={speechMode === "silent"}>
-                {speechMode === "silent" ? <>
-                  <span className={styles.speechModeBadge}>{t("ai_generator_free_audio_silent")}</span>
-                  <button id={`${instanceId}-spoken-script-choose-audio`} type="button" disabled={locked} aria-label={t("ai_generator_spoken_script_choose_audio")} aria-describedby={`${instanceId}-spoken-script-help`} onClick={() => {
-                    setActiveSettingsTab("criteria");
-                    window.requestAnimationFrame(() => document.getElementById(`${instanceId}-tab-criteria`)?.focus());
-                  }}>{t("ai_generator_spoken_script_choose_audio")}</button>
-                </> : <select
+              <div className={`${styles.spokenScriptHeading} ${styles.videoSpeechModeRow}`} data-silent={speechMode === "silent"}>
+                <div className={styles.videoFrameHeading}>
+                  <div className={styles.videoSpeechTitleRow}>
+                    <label htmlFor={`${instanceId}-${speechMode === "silent" ? "video-speech-mode" : exactSpeechEditorVisible ? "spoken-script" : "spoken-script-mode"}`}>{t("ai_generator_video_sound_and_speech_title")}</label>
+                  </div>
+                  <p id={`${instanceId}-spoken-script-help`} className={styles.srOnly}>{t("ai_generator_video_speech_frame_hint_short")}</p>
+                </div>
+                <label className={styles.srOnly} htmlFor={`${instanceId}-video-speech-mode`}>{t("ai_generator_essential_sound_title")}</label>
+                <select id={`${instanceId}-video-speech-mode`} className={styles.spokenScriptModeSelect} value={speechMode} disabled={locked}
+                  aria-describedby={hasSpokenScript ? `${instanceId}-speech-mode-help` : undefined}
+                  onChange={event => { const mode = event.target.value as typeof speechMode; if (mode === "silent" && hasSpokenScript) return; setSpeechMode(mode); resetConsent(); }}>
+                  {(["voiceover", "characters", "silent"] as const).map(mode => <option key={mode} value={mode} disabled={mode === "silent" && hasSpokenScript}>{t(`ai_generator_free_audio_${mode}`)}</option>)}
+                </select>
+                {speechMode !== "silent" ? <select
                   id={`${instanceId}-spoken-script-mode`}
                   className={styles.spokenScriptModeSelect}
                   value={spokenScriptOpen ? "exact" : "automatic"}
@@ -1348,8 +1413,9 @@ export default function MediaFreeGenerator({
                 >
                   <option value="automatic">{t("ai_generator_video_speech_automatic")}</option>
                   <option value="exact">{t("ai_generator_video_speech_exact")}</option>
-                </select>}
+                </select> : null}
               </div>
+              {hasSpokenScript ? <p id={`${instanceId}-speech-mode-help`} className={styles.srOnly}>{t("ai_generator_spoken_script_remove_for_silent")}</p> : null}
               <div id={`${instanceId}-spoken-script-panel`} className={styles.spokenScriptContent}>
               {exactSpeechEditorVisible ? <>
               <div className={styles.spokenScriptInput}>
@@ -1364,7 +1430,7 @@ export default function MediaFreeGenerator({
                   {" · "}{t("ai_generator_video_speech_character_count", { count: speechState.characters.toLocaleString(locale), max: speechState.maxCharacters.toLocaleString(locale) })}
                 </span>
               </div>
-              <p id={`${instanceId}-spoken-script-budget`} className={styles.promptHelp}
+              <p id={`${instanceId}-spoken-script-budget`} className={explicitlyEmptySpokenScript ? styles.promptHelp : styles.srOnly}
                 title={explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}>
                 <span aria-hidden="true">{explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty_short") : t("ai_generator_video_speech_budget_short", { seconds: duration, model: videoModel.label })}</span>
                 <span className={styles.srOnly}>{explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}</span>
@@ -1379,7 +1445,7 @@ export default function MediaFreeGenerator({
               {speechInvalid ? <p id={`${instanceId}-spoken-script-error`} className={styles.videoFrameError} role="alert">{speechError}</p> : null}
               </div>
             </div>
-          </div> : <p id={`${instanceId}-prompt-help`} className={styles.promptHelp}>
+          </div> : <p id={`${instanceId}-prompt-help`} className={styles.srOnly}>
             {requiredPromptSuffix ? "Les critères du canal sont ajoutés automatiquement à votre consigne." : t("ai_generator_free_prompt_help")}
           </p>}
         </section>
@@ -1442,20 +1508,13 @@ export default function MediaFreeGenerator({
           {t("ai_generator_origin_changed")}
         </p>
       ) : null}
-      <MediaLibraryPickerModal
-        open={libraryOpen}
-        title={t("ai_generator_inspiration_library_title")}
-        subtitle={t("ai_generator_inspiration_library_subtitle")}
-        accept="image"
-        multiple
-        maxSelection={Math.max(
-          1,
-          AI_MEDIA_INSPIRATION_MAX_COUNT - references.length
-        )}
-        confirmLabel={t("ai_generator_inspiration_library_confirm")}
-        onClose={() => setLibraryOpen(false)}
-        onConfirm={addLibraryFiles}
-      />
+      {mediaSettingsDialog === "images" ? <MediaSettingsDialog id={`${instanceId}-media-images-dialog`} kind="images" title={selectedReferenceId ? t("ai_generator_video_images_dialog_title") : referenceAddTitle} addRole={selectedReferenceId ? undefined : pendingReferenceRole ?? "inspiration"} closeLabel={t("ai_generator_video_settings_close")} closeBlocked={locked || libraryOpen} initialFocusId={selectedReferenceId ? `${instanceId}-reference-${selectedReferenceId}` : undefined} onClose={() => setMediaSettingsDialog(null)}>
+        {selectedReferenceId ? referenceControls : addReferenceControls}
+        {libraryPicker}
+      </MediaSettingsDialog> : null}
+      {kind === "video" && mediaSettingsDialog === "audio" ? <MediaSettingsDialog id={`${instanceId}-video-audio-dialog`} kind="audio" title={t("ai_generator_video_audio_dialog_title")} closeLabel={t("ai_generator_video_settings_close")} closeBlocked={locked} onClose={() => setMediaSettingsDialog(null)}>
+        {audioControls}
+      </MediaSettingsDialog> : null}
     </div>
   );
 }

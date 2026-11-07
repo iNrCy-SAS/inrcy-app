@@ -147,49 +147,59 @@ function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMedia
   modules.set("./MediaEngineCreditControls", { __esModule: true, default: "engine-controls", isMediaVideoReferenceCompatible: controls().component.isMediaVideoReferenceCompatible, MediaCreditQuoteSummary: "credit-summary", MediaGenerationActions: "actions" });
   const component = load<{ default: (props: FreeProps) => Element }>("app/dashboard/_components/MediaFreeGenerator.tsx", modules);
   const render = () => { cursor = 0; return component.default({ source: "studio", acceptMode: "library", mediaType: options.kind || "video", initialPrompt: options.prompt ?? "Une baleine traverse les nuages.", onAccepted() {} }); };
-  return { render };
+  return { render, openImages() { const tree = render(); const launcher = find(tree, node => node.props["data-media-role-add"] === "inspiration"); (launcher.props.onClick as () => void)(); return render(); } };
 }
 const reference = (id: number, role?: "product" | "character", usage?: "required" | "inspiration"): Reference => ({ id: `ref-${id}`, mimeType: "image/png", data: "A".repeat(64), fromVideo: false, role, usage });
-const warnings = (tree: unknown) => find(tree, (node) => node.type === "settings-tabs").props.tabs as Array<{ id: string; warning: string }>;
-const warning = (tree: unknown, id: string) => warnings(tree).find((tab) => tab.id === id)?.warning;
+const imagesLauncher = (tree: unknown) => find(tree, node => node.props["data-media-role-add"] === "inspiration");
+const imagesWarning = (tree: unknown) => {
+  const launcher = imagesLauncher(tree);
+  if (!launcher.props["data-invalid"]) return "";
+  const ids = String(launcher.props["aria-describedby"] || "").split(/\s+/);
+  return ids.map(id => text(find(tree, node => node.props.id === id))).join(" ");
+};
+const promptError = (tree: unknown) => text(elements(tree).find(node => node.props.role === "alert" && String(node.props.id).endsWith("-visual-brief-error")));
 
-test("Critères explique la photo obligatoire sous Wan sans la présenter comme facultative ni répéter le message", () => {
-  const tree = freeEditor({ engine: "wan-flash" }).render();
-  assert.equal(warning(tree, "criteria"), t("ai_generator_model_photo_required"));
-  assert.equal(warning(tree, "prompt"), "");
-  const references = find(tree, (node) => node.props.className === "referencesSection");
-  assert.ok(!text(references).includes(t("ai_generator_free_optional")));
-  const alerts = elements(references).filter((node) => node.props.role === "alert");
-  assert.equal(alerts.length, 1); assert.equal(text(alerts[0]), t("ai_generator_model_photo_required"));
+test("les lanceurs Images expliquent la photo obligatoire sous Wan et le détail natif ne la présente pas comme facultative", () => {
+  const runtime = freeEditor({ engine: "wan-flash" }); const tree = runtime.render();
+  assert.equal(imagesWarning(tree), t("ai_generator_model_photo_required"));
+  assert.equal(promptError(tree), "");
+  const dialog = find(runtime.openImages(), node => typeof node.type === "function" && node.type.name === "MediaSettingsDialog");
+  assert.equal(dialog.props.addRole, "inspiration");
+  assert.ok(!text(dialog).includes(t("ai_generator_free_optional")));
+  assert.equal(find(dialog, node => node.type === "input" && node.props.type === "file").props.disabled, false, "the required-photo warning still leads to a usable native import");
+  assert.equal(elements(dialog).some(node => node.props["data-reference-add-role"] !== undefined), false, "the chosen role is not requested twice");
   const ready = freeEditor({ engine: "wan-flash", references: [reference(1, "product", "required")] }).render();
-  assert.equal(warning(ready, "criteria"), "");
+  assert.equal(imagesWarning(ready), "");
 });
 
-test("les erreurs de références restent dans Critères et l’autorisation finale reste au footer", () => {
+test("les erreurs de références restent dans Images et l’autorisation finale reste au footer", () => {
   const incomplete = freeEditor({ references: [reference(1)] }).render();
-  assert.equal(warning(incomplete, "criteria"), t("ai_generator_free_reference_criteria_required"));
+  assert.equal(imagesWarning(incomplete), t("ai_generator_free_reference_criteria_required"));
   const exceeded = freeEditor({ references: [1, 2, 3, 4].map((id) => reference(id, "character", "required")) }).render();
-  assert.equal(warning(exceeded, "criteria"), t("ai_generator_free_role_limit"));
+  assert.equal(imagesWarning(exceeded), t("ai_generator_free_role_limit"));
   const runtime = freeEditor({ references: [reference(1, "character", "required"), reference(2, "character", "required")] });
-  let tree = runtime.render(); assert.equal(warning(tree, "criteria"), "", "L’autorisation manquante ne doit pas renvoyer vers Critères");
+  let tree = runtime.render(); assert.equal(imagesWarning(tree), "", "L’autorisation manquante ne doit pas renvoyer vers Images");
   const footer = find(tree, (node) => node.props["data-media-footer"] !== undefined);
   const authorization = find(footer, (node) => node.props["data-media-final-authorization"] !== undefined);
   const checkbox = find(authorization, (node) => node.type === "input" && node.props.type === "checkbox");
   assert.equal(checkbox.props.checked, false);
   assert.equal(find(tree, (node) => node.props["data-media-primary-action"] !== undefined).props.disabled, true);
   (checkbox.props.onChange as (event: { target: { checked: boolean } }) => void)({ target: { checked: true } });
-  tree = runtime.render(); assert.equal(warning(tree, "criteria"), "");
+  tree = runtime.render(); assert.equal(imagesWarning(tree), "");
   assert.equal(find(tree, (node) => node.props["data-media-primary-action"] !== undefined).props.disabled, false);
 });
 
-test("les avertissements concernent le bon onglet et ne confondent pas critères, crédits ou génération en cours", () => {
+test("les avertissements du panneau unique distinguent les références, la consigne, les crédits et une génération en cours", () => {
   for (const options of [{ kind: "image" as const }, { quoteReady: false }, { remaining: 0 }]) {
-    const tree = freeEditor(options).render(); assert.equal(warning(tree, "criteria"), ""); assert.equal(warning(tree, "prompt"), "");
+    const tree = freeEditor(options).render(); assert.equal(imagesWarning(tree), ""); assert.equal(promptError(tree), "");
   }
-  assert.equal(warning(freeEditor({ prompt: "" }).render(), "prompt"), t("ai_generator_idea_required"));
+  const empty = freeEditor({ prompt: "" }).render();
+  assert.equal(find(empty, node => node.type === "textarea").props.value, "");
+  assert.equal(find(empty, node => node.props["data-media-primary-action"] !== undefined).props.disabled, true, "une consigne vide ne peut pas lancer une génération");
+  assert.equal(imagesWarning(empty), "", "une consigne vide ne devient pas une erreur de photo");
   const long = freeEditor({ engine: "wan-flash", references: [reference(1, "product", "required")], prompt: "x".repeat(501) }).render();
-  assert.equal(warning(long, "prompt"), t("ai_generator_video_brief_too_long", { max: 500 })); assert.equal(warning(long, "criteria"), "");
-  const locked = freeEditor({ engine: "wan-flash", busy: true }).render(); assert.equal(warning(locked, "prompt"), ""); assert.equal(warning(locked, "criteria"), "");
+  assert.equal(promptError(long), t("ai_generator_video_brief_too_long", { max: 500 })); assert.equal(imagesWarning(long), "");
+  const locked = freeEditor({ engine: "wan-flash", busy: true }).render(); assert.equal(promptError(locked), ""); assert.equal(imagesWarning(locked), ""); assert.equal(imagesLauncher(locked).props.disabled, true);
   const image = freeEditor({ kind: "image", imageEngine: "recraft", references: [reference(1, "product", "required")] }).render();
-  assert.equal(warning(image, "criteria"), t("ai_generator_image_references_unavailable"));
+  assert.equal(imagesWarning(image), t("ai_generator_image_references_unavailable"));
 });

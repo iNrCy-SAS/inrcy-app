@@ -117,7 +117,7 @@ test("reload selects the owning Video Activity before recovery, preserves its re
   const videoPanel = runtime("app/dashboard/_components/MediaFreeGenerator.tsx", freeModules);
   const videoProps = { ...panel.props, onResultChange(value: unknown) { callbackResults.push(value); (panel.props.onResultChange as (result: unknown) => void)(value); } };
   let tree = videoPanel.render(videoProps);
-  assert.equal(find(tree, (node) => node.type === "input" && node.props.value === "story").props.checked, true);
+  assert.equal(find(tree, (node) => node.type === "select" && String(node.props.id).endsWith("-media-format")).props.value, "story");
   assert.equal(find(tree, (node) => node.type === "textarea").props.placeholder, "ai_generator_free_prompt_placeholder_video");
   assert.equal(elements(tree).some((node) => node.type === "new-quote"), false, "the cost of a new draft must not be shown as the recovered charge");
   assert.equal(elements(tree).some((node) => node.type === "engines"), true, "the next draft's engine and duration stay editable while the existing result is checked");
@@ -143,7 +143,10 @@ test("reload selects the owning Video Activity before recovery, preserves its re
     const adsTree = ads.render({ source: "studio", acceptMode: "insert", mediaType: "image", imageOnly: true, fixedFormat: "square", onAccepted() {}, onRecoveryKind() { assert.fail("Ads cannot switch to an incompatible panel"); } });
     const links = elements(adsTree).filter((node) => node.props["data-media-recovery-studio-link"] !== undefined);
     assert.equal(links.length, incompatible ? 1 : 0, `${kind}/${format}: only an incompatible recovery is sent to the general Studio`);
-    assert.equal(find(adsTree, (node) => node.type === "input" && node.props.value === "square").props.checked, true, "The constrained square radio remains checked");
+    const formatSelect = find(adsTree, (node) => node.type === "select" && String(node.props.id).endsWith("-media-format"));
+    assert.equal(formatSelect.props.value, "square", "The constrained square format remains selected");
+    assert.equal(formatSelect.props.disabled, true);
+    assert.deepEqual(elements(formatSelect).filter(node => node.type === "option").map(node => node.props.value), ["square"]);
     if (incompatible) {
       assert.equal(links[0].props.href, "/dashboard/generer-media");
       assert.equal(elements(adsTree).some((node) => node.props["data-media-primary-action"] !== undefined), false);
