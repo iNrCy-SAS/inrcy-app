@@ -85,7 +85,7 @@ const nativeSources = {
   "./MediaModifier": compile(read("app/dashboard/_components/MediaModifier.tsx")),
   "./MediaGenerationCreationWorkspace": modules.workspace,
   "./DashboardMobileSelect": compile(read("app/dashboard/_components/DashboardMobileSelect.tsx")),
-  ...Object.fromEntries(["aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoSpeechBudget", "aiMediaSpokenScript", "studioInspirationImagePolicy", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices", "inrAssistantStudioFormSelection", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
+  ...Object.fromEntries(["aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoSpeechBudget", "aiMediaSpokenScript", "studioInspirationImagePolicy", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices", "aiMediaSoundtrackDefinitions", "inrAssistantStudioFormSelection", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
 };
 const nativeFixture = `
 const sources=${JSON.stringify(nativeSources)},loaded={},messages=${JSON.stringify(JSON.parse(read("messages/fr-FR/media.json")))};
@@ -127,7 +127,7 @@ function require(name){
  if(name==='./MediaEngineCreditControls')return {__esModule:true,default:()=>null,isMediaVideoReferenceCompatible:()=>true,MediaCreditQuoteSummary:()=>null,MediaRecoveredCreditSummary:()=>null,MediaGenerationActions:props=>props.children};
  if(name==='@/lib/aiMediaModelRecommendation')return {recommendAiMediaModel:()=>null};
  if(name==='./MediaGenerator')return {prepareMediaGenerationImageReference:async()=>{throw Error('No reference preparation expected')}};
- if(['next/link','./DashboardAssistantTrigger','./MediaRetoucher','./MediaVideoRetoucher','./MediaLibraryPickerModal','@/app/dashboard/_components/MediaLibraryPickerModal','./MediaSubjectVoiceButton','./MediaPromptHelp','./MediaQuotaSummary','./MediaCharacterVoiceInput'].includes(name))return {__esModule:true,default:()=>null};
+ if(['next/link','./DashboardAssistantTrigger','./MediaRetoucher','./MediaVideoRetoucher','./MediaLibraryPickerModal','@/app/dashboard/_components/MediaLibraryPickerModal','./MediaSubjectVoiceButton','./MediaPromptHelp','./MediaQuotaSummary','./MediaCharacterVoiceInput','./StudioMusicLibrary','./StudioVoicePool'].includes(name))return {__esModule:true,default:()=>null};
  if(['@/lib/imageOverlay','@/lib/imageInteractions','@/lib/mediaLibraryUploadClient','@/lib/mediaRetoucherRenderClient','@/lib/boosterVideoTransformClient','@/app/dashboard/booster/publier/publishModal.shared','@/lib/mediaGenerationReferenceClient','@/lib/mediaImageEditMasterClient'].includes(name))return {};
  if(loaded[name])return loaded[name].exports;
  if(!sources[name])throw Error('Unexpected native Studio fixture dependency '+name);

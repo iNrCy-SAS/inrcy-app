@@ -33,6 +33,7 @@ function tab(storage: ReturnType<typeof memory>, backend: ReturnType<typeof serv
   const slots: Slot[] = [], effects: Array<() => void> = [];
   const target = new EventTarget(), document = Object.assign(new EventTarget(), { visibilityState: "visible" });
   const calls: Array<{ url: string; method: string }> = [];
+  const generationBodies: Array<Record<string, unknown>> = [];
   const deferred: Array<{ signal: AbortSignal; resolve: (response: Response) => void }> = [];
   const cancellationAcks: Array<{ resolve: (response: Response) => void }> = [];
   const timers = new Map<ReturnType<typeof setTimeout>, number>();
@@ -65,6 +66,7 @@ function tab(storage: ReturnType<typeof memory>, backend: ReturnType<typeof serv
   const fetch = (url: string, init: RequestInit = {}): Promise<Response> => {
     const method = init.method || "GET";
     calls.push({ url, method });
+    if (url === "/api/media-generation/generate") generationBodies.push(JSON.parse(String(init.body)));
     if (url.endsWith("/quota")) {
       if (deferQuota) { deferQuota = false; return new Promise(resolve => quotaReplies.push({ resolve })); }
       return Promise.resolve(Response.json({ quota: { accountId: account, creditsReady: true, credits: { remaining: 100, reserved: 0 } } }));
@@ -112,7 +114,7 @@ function tab(storage: ReturnType<typeof memory>, backend: ReturnType<typeof serv
   const storageEvent = (key: string | null = storageKey()) => { const event = new Event("storage"); Object.defineProperty(event, "key", { value: key }); target.dispatchEvent(event); };
   render();
   return {
-    calls, deferred, cancellationAcks, quotaReplies, render, flush, storageEvent, form: () => form, status: () => hook,
+    calls, generationBodies, deferred, cancellationAcks, quotaReplies, render, flush, storageEvent, form: () => form, status: () => hook,
     pollTimers: () => [...timers.values()].filter(delay => delay === 2_000).length,
     async ready() { await hook.loadQuota(); await flush(); },
     focus() { target.dispatchEvent(new Event("focus")); },
@@ -302,4 +304,99 @@ test("changing account after a recovery pause preserves the new account and igno
   instance.deferred[0].resolve(Response.json({ ok: true, status: "completed", draft: false, item: backend.item })); await instance.flush();
   assert.equal(instance.status().result, null); assert.equal(instance.status().quota?.accountId, "account-b");
   assert.equal(instance.status().canRecover, true); assert.deepEqual(recovery.readAiMediaGenerationRecovery(storage, "account-a"), pointer); assert.deepEqual(recovery.readAiMediaGenerationRecovery(storage, "account-b"), other); instance.dispose();
+});
+
+const musicRequest = { source: "studio", kind: "video", format: "landscape", subjectSource: "custom", idea: "Un jardin lumineux.",
+  creationMode: "free", freePrompt: "Un jardin lumineux.", videoEngine: "omni", durationSeconds: 8, withMusic: true,
+  soundtrackId: "jazz-velours", textKeywords: [], imageStyle: "photo", peopleMode: "auto", useBrandColors: false, logoMode: "none" } as const;
+
+test("the real generation hook transmits selected music in Free and Guided and omits stale choices for Auto or music off", async () => {
+  for (const patch of [{}, { creationMode: "guided" as const }, { soundtrackId: null }, { withMusic: false }, { kind: "image" as const, imageEngine: "grok" as const }]) {
+    const storage = memory(), backend = server(), instance = tab(storage, backend); await instance.ready(); instance.deferGenerate();
+    const request = { ...musicRequest, textKeywords: [] as string[], ...patch };
+    const creating = instance.status().generate(request); await instance.flush();
+    assert.equal(instance.generationBodies.length, 1);
+    const sent = instance.generationBodies[0];
+    assert.equal(sent.soundtrackId, request.kind === "video" && request.withMusic ? request.soundtrackId ?? undefined : undefined);
+    assert.equal(recovery.readAiMediaGenerationRecovery(storage, "account-a")?.requestId, sent.requestId);
+    instance.deferred[0].resolve(Response.json({ ok: true, draft: true, item: backend.item })); await creating; await instance.flush(); instance.dispose();
+  }
+});
+
+test("an uncertain selected-music attempt resumes the same job and saved soundtrack without another generation", async () => {
+  const storage = memory(), backend = server(), instance = tab(storage, backend); await instance.ready();
+  instance.deferGenerate(); instance.deferStatus();
+  const creating = instance.status().generate({ ...musicRequest, textKeywords: [] }).catch((error: Error) => error);
+  await instance.flush();
+  assert.equal(instance.generationBodies[0].soundtrackId, "jazz-velours");
+  instance.deferred[0].resolve(new Response('{"ok":', { headers: { "Content-Type": "application/json" } })); await instance.flush();
+  const identity = recovery.readAiMediaGenerationRecovery(storage, "account-a")?.requestId; assert.ok(identity);
+  assert.equal(instance.status().pauseRecovery(), true); assert.equal((await creating as Error).name, "MediaGenerationRecoveryPausedError"); await instance.flush();
+  instance.deferStatus(); const resumed = instance.status().retryRecovery(); await instance.flush();
+  instance.deferred[2].resolve(Response.json({ ok: true, status: "completed", draft: true, item: backend.item, soundtrack: { id: "jazz-velours", name: "Jazz velours" } }));
+  await resumed; await instance.flush();
+  assert.equal(instance.status().result?.soundtrack?.id, "jazz-velours");
+  assert.ok(statusReads(instance).every(call => call.url.endsWith(`requestId=${identity}`)));
+  assert.equal(instance.generationBodies.length, 1); assert.equal(instance.calls.filter(call => call.url.endsWith("/cancel")).length, 0); instance.dispose();
+});
+
+test("changing accounts cannot publish a late selected-soundtrack generation into the new account", async () => {
+  const storage = memory(), backend = server(), instance = tab(storage, backend); await instance.ready(); instance.deferGenerate();
+  const creating = instance.status().generate({ ...musicRequest, textKeywords: [] }).catch((error: Error) => error); await instance.flush();
+  instance.changeAccount("account-b"); await instance.flush();
+  instance.deferred[0].resolve(Response.json({ ok: true, draft: true, item: backend.item, soundtrack: { id: "jazz-velours", name: "Jazz velours" } }));
+  await creating; await instance.flush();
+  assert.equal(instance.status().quota?.accountId, "account-b"); assert.equal(instance.status().result, null);
+  assert.equal(instance.generationBodies.length, 1); assert.equal(instance.generationBodies[0].soundtrackId, "jazz-velours");
+  assert.equal(recovery.readAiMediaGenerationRecovery(storage, "account-b"), null); instance.dispose();
+});
+
+function narratorSample() {
+  const time = Date.now();
+  return { path: `_studio-voice-references/${new Date(time).toISOString().slice(0, 10)}/account-a__${time}__11111111-1111-4111-8111-111111111111.wav`,
+    name: "ma-voix.wav", mimeType: "audio/wav" as const, durationSeconds: 6, sizeBytes: 192_044 };
+}
+
+test("the real hook sends only the chosen off-screen narrator and clears inactive clone controls from AI Characters and Image payloads", async () => {
+  for (const patch of [{}, { narrationVoiceMode: "ai" as const }, { teamVideoSpeechMode: "characters" as const }, { kind: "image" as const, imageEngine: "grok" as const }]) {
+    const storage = memory(), backend = server(), instance = tab(storage, backend); await instance.ready(); instance.deferGenerate();
+    const voice = narratorSample();
+    const request = { ...musicRequest, textKeywords: [] as string[], withNarration: true, spokenScript: "Bonjour, découvrez notre jardin.", teamVideoSpeechMode: "voiceover" as const,
+      narrationVoiceMode: "provided" as const, narrationVoiceSample: voice, narrationVoiceConsent: true, narrationVoiceGender: "female" as const, ...patch };
+    const creating = instance.status().generate(request); await instance.flush();
+    const sent = instance.generationBodies[0]; assert.ok(sent);
+    const active = request.kind === "video" && request.teamVideoSpeechMode === "voiceover" && request.narrationVoiceMode === "provided";
+    assert.equal(sent.narrationVoiceMode, active ? "provided" : undefined);
+    assert.deepEqual(sent.narrationVoiceSample, active ? voice : undefined);
+    assert.equal(sent.narrationVoiceConsent, active ? true : undefined); assert.equal(sent.narrationVoiceGender, active ? "female" : undefined);
+    assert.ok(sent.inspirationImages === undefined || Array.isArray(sent.inspirationImages) && sent.inspirationImages.length === 0);
+    assert.doesNotMatch(JSON.stringify(sent), /data:audio|base64/);
+    instance.deferred[0].resolve(Response.json({ ok: true, draft: true, item: backend.item })); await creating; await instance.flush(); instance.dispose();
+  }
+});
+
+test("an uncertain cloned narrator resumes its existing job without resubmitting a reference or synthesizing another attempt", async () => {
+  const storage = memory(), backend = server(), instance = tab(storage, backend); await instance.ready(); instance.deferGenerate(); instance.deferStatus();
+  const voice = narratorSample();
+  const creating = instance.status().generate({ ...musicRequest, textKeywords: [], withNarration: true, spokenScript: "Bonjour.", teamVideoSpeechMode: "voiceover",
+    narrationVoiceMode: "provided", narrationVoiceSample: voice, narrationVoiceConsent: true, narrationVoiceGender: "auto" }).catch((error: Error) => error);
+  await instance.flush(); assert.equal((instance.generationBodies[0].narrationVoiceSample as { path: string }).path, voice.path);
+  instance.deferred[0].resolve(new Response('{"ok":', { headers: { "Content-Type": "application/json" } })); await instance.flush();
+  const identity = recovery.readAiMediaGenerationRecovery(storage, "account-a")?.requestId; assert.ok(identity);
+  assert.equal(instance.status().pauseRecovery(), true); assert.equal((await creating as Error).name, "MediaGenerationRecoveryPausedError"); await instance.flush();
+  instance.deferStatus(); const resumed = instance.status().retryRecovery(); await instance.flush();
+  instance.deferred[2].resolve(Response.json({ ok: true, status: "completed", draft: true, item: backend.item })); await resumed; await instance.flush();
+  assert.equal(instance.status().result?.item.id, backend.item.id); assert.equal(instance.generationBodies.length, 1);
+  assert.ok(statusReads(instance).every(call => call.url.endsWith(`requestId=${identity}`))); instance.dispose();
+});
+
+test("a late cloned-narrator result cannot populate another active account", async () => {
+  const storage = memory(), backend = server(), instance = tab(storage, backend); await instance.ready(); instance.deferGenerate();
+  const voice = narratorSample();
+  const creating = instance.status().generate({ ...musicRequest, textKeywords: [], withNarration: true, spokenScript: "Bonjour.", teamVideoSpeechMode: "voiceover",
+    narrationVoiceMode: "provided", narrationVoiceSample: voice, narrationVoiceConsent: true }).catch((error: Error) => error);
+  await instance.flush(); instance.changeAccount("account-b"); await instance.flush();
+  instance.deferred[0].resolve(Response.json({ ok: true, draft: true, item: backend.item })); await creating; await instance.flush();
+  assert.equal(instance.status().result, null); assert.equal(instance.status().quota?.accountId, "account-b");
+  assert.equal(instance.generationBodies.length, 1); assert.equal(recovery.readAiMediaGenerationRecovery(storage, "account-b"), null); instance.dispose();
 });

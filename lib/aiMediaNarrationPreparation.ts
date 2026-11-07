@@ -7,6 +7,7 @@ import { generateAiMediaNarrationAudio } from "@/lib/aiMediaNarrationAudio";
 import { AiMediaNarrationTooLongError, prepareAiMediaNarrationAudioForVideo } from "@/lib/aiMediaGeneratedVideo";
 import { safeAiMediaErrorMessage } from "@/lib/aiMediaSensitiveText";
 import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
+import type { PreparedAiMediaNarrationVoice } from "./aiMediaNarrationVoicePreflight.ts";
 
 type NarrationInput = Parameters<typeof writeAiMediaNarration>[0];
 type FreeNarrationInput = Parameters<typeof writeAiMediaFreeNarration>[0];
@@ -23,6 +24,7 @@ export async function prepareAiMediaNarration(args: {
   recentPublications: NarrationInput["recentPublications"];
   durationSeconds: number;
   narrationSignal: AbortSignal;
+  providedVoice?: PreparedAiMediaNarrationVoice | null;
   measure: <T>(stage: string, action: () => Promise<T>) => Promise<T>;
 }) {
   const { context, narrationRequest, preparedNativeNarration, isFreeCreation, profile, creativePlan,
@@ -48,6 +50,15 @@ export async function prepareAiMediaNarration(args: {
         throw new Error("ai_media_narration_copy_unavailable");
       }
       const audio = await measure(`narration_audio${stageSuffix}`, () =>
+        narrationRequest.narrationVoiceMode === "provided" ? (async () => {
+          if (!args.providedVoice || narrationRequest.narrationVoiceConsent !== true) throw new Error("ai_media_voice_clone_reference_missing");
+          const { generateAiMediaClonedNarrationAudio } = await import("./aiMediaNarrationVoiceClone.ts");
+          return generateAiMediaClonedNarrationAudio({
+            accountId: context.accountId, narration, reference: args.providedVoice,
+            narrationVoiceConsent: true, narrationVoiceGender: narrationRequest.narrationVoiceGender || "auto",
+            durationSeconds, signal: narrationSignal,
+          });
+        })() :
         generateAiMediaNarrationAudio({
           accountId: context.accountId,
           narration,
@@ -79,6 +90,7 @@ export async function prepareAiMediaNarration(args: {
         context.signal?.throwIfAborted();
         if (
           error instanceof AiMediaNarrationTooLongError &&
+          !(narrationRequest.narrationVoiceMode === "provided" && narrationRequest.spokenScript?.trim()) &&
           preflightAttempt < 2
         ) {
           // Réécrire une vraie phrase plus concise, puis la resynthétiser,

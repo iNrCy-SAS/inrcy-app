@@ -1483,7 +1483,7 @@
 .workspace .spokenScriptSection .videoSpeechTitleRow > label { color: #ddccf1; }
 
 @media (min-width: 761px) and (max-height: 819px) {
-  .workspace[data-view="editor"][data-media-kind="video"] .videoBriefFrame .promptContainer textarea { height: 160px; min-height: 160px; max-height: 160px; }
+  .workspace[data-view="editor"][data-media-kind="video"] .videoBriefFrame .promptContainer textarea { height: 140px; min-height: 140px; max-height: 140px; }
 }
 
 /* Use the available height for comfortable section spacing. Low windows keep
@@ -1499,7 +1499,7 @@
   .workspace .videoFormatControl { padding: 4px 10px; }
   .workspace .referenceAddControl { padding: 0 10px; gap: 6px; }
   .referenceRoleToolbar { gap: 6px; }
-  .workspace .promptPanel .spokenScriptSection { padding: 3px 12px; }
+  .workspace .promptPanel .spokenScriptSection { padding: 1px 12px; }
   .workspace[data-media-kind="video"] .spokenScriptPanel { gap: 6px; }
   .workspace[data-media-kind="video"] .spokenScriptHeading.videoSpeechModeRow { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 6px 8px; }
   .workspace .spokenScriptHeading .videoFrameHeading { grid-column: 1 / -1; }
@@ -1512,3 +1512,51 @@
 .videoBriefHeadingHelp { display: flex; flex: 0 1 auto; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; max-width: 100%; margin-inline-start: auto; }
 .workspace .videoBriefHeadingHelp > p { min-width: 0; margin: 0; text-align: right; }
 .videoBriefHeadingHelp > button { flex: 0 0 auto; }
+
+/* The three voice decisions share one fixed row. Details stay in their
+   own dialogs, preserving the visual brief and Exact editor positions. */
+.workspace[data-media-kind="video"] .spokenScriptHeading.videoSpeechModeRow { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 6px; }
+.workspace[data-media-kind="video"] .spokenScriptHeading > .videoFrameHeading { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.speechSelectField { display: flex; flex-direction: column; gap: 3px; min-width: 0; margin: 0; }
+.voiceSourceField { grid-column: 3; grid-row: 1 / span 2; }
+.inlineSubtitles { display: flex; grid-column: 1 / 3; grid-row: 2; align-items: center; align-self: start; gap: 6px; min-width: 0; margin: 0; color: #c6d7ec; font-size: 11px; line-height: 1.4; }
+.inlineSubtitles input { flex: 0 0 auto; margin: 0; }
+.speechSelectField > span, .voiceMenuHeading > label { color: #ddccf1; font-size: 12px; font-weight: 650; line-height: 1.35; }
+.voiceMenuHeading { display: flex; align-items: center; justify-content: space-between; gap: 5px; min-height: 16px; }
+.workspace[data-media-kind="video"] .spokenScriptHeading .voiceSettingsMain,
+.workspace[data-media-kind="video"] .spokenScriptHeading [data-voice-pool-settings] { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; min-height: 26px; padding: 4px 8px; border: 1px solid #829fbd66; border-radius: 7px; background: #1c304b; color: #d9eaff; font: inherit; font-size: 11px; line-height: 1.3; text-decoration: none; cursor: pointer; }
+.workspace[data-media-kind="video"] .spokenScriptHeading .voiceSettingsMain:disabled,
+.workspace[data-media-kind="video"] .spokenScriptHeading [data-voice-pool-settings]:disabled { opacity: .5; cursor: default; }
+.workspace .spokenScriptHeading .voiceSettingsButton { display: inline-grid; place-items: center; min-height: 16px; height: 16px; width: 22px; margin: 0; padding: 0; color: #b9d9f2; text-decoration: none; font-size: 14px; line-height: 1; }
+.voiceQuickAccess { display: flex; align-items: center; gap: 7px; min-height: 22px; min-width: 0; }
+.voicePersonSummary { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 42%; }
+.voicePersonSummary img { width: 22px; height: 22px; flex: 0 0 22px; border-radius: 5px; object-fit: cover; }
+.voicePersonSummary > span, .voiceSampleSummary { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b9c9e1; font-size: 11px; }
+.voiceDetailsButton { flex: 0 0 auto; padding: 3px 7px; border: 1px solid #8ca5c05c; border-radius: 6px; background: #1a2e49; color: #d4e8ff; font: inherit; font-size: 11px; cursor: pointer; }
+.voiceDetailsButton:disabled { opacity: .5; cursor: default; }
+.voiceDetailsButton:focus-visible { outline: 2px solid #9adcf5; outline-offset: 2px; }
+.voicePersonChoice { display: flex; flex-direction: column; gap: 7px; min-width: 0; font-size: 12px; }
+.voicePersonChoice select { width: 100%; min-height: 36px; padding: 7px 9px; border: 1px solid #819bb55c; border-radius: 8px; color: #e6f1ff; background: #142640; font: inherit; }
+@media (max-width: 480px) {
+  .workspace[data-media-kind="video"] .spokenScriptHeading.videoSpeechModeRow { gap: 5px; }
+  .speechSelectField > span, .voiceMenuHeading > label { font-size: 11px; }
+  .speechSelectField .spokenScriptModeSelect { padding-inline: 5px; font-size: 11px; }
+  .voiceQuickAccess { flex-wrap: wrap; }
+  .voicePersonSummary { max-width: 100%; }
+  .voiceDetailsButton { min-height: 30px; }
+}
+
+@media (min-width: 761px) {
+  /* Share the existing counter row with its short empty-script explanation.
+     Both texts have separate widths; neither covers the editable field. */
+  .workspace[data-media-kind="video"] .promptToolbar { padding-block: 2px; }
+  .workspace[data-media-kind="video"] .spokenScriptContent { position: relative; }
+  .workspace[data-media-kind="video"] .spokenScriptCounter { box-sizing: border-box; width: 55%; max-width: 55%; }
+  .workspace[data-media-kind="video"] .spokenScriptContent > .promptHelp[id$="-spoken-script-budget"] {
+    position: absolute; top: 66px; right: 10px; max-width: 44%; margin: 0; font-size: 11px; line-height: 1.3;
+  }
+}
+@media (min-width: 761px) and (max-height: 819px) {
+  .workspace[data-media-kind="video"] .spokenScriptInput { min-height: 86px; }
+  .workspace[data-media-kind="video"] .spokenScriptCounter { padding-bottom: 2px; }
+}

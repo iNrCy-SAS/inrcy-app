@@ -10,6 +10,9 @@ import styles from "./MediaCharacterVoiceInput.module.css";
 import MediaCharacterVoiceLibraryPicker from "./MediaCharacterVoiceLibraryPicker";
 
 type Props = {
+  context?: "character" | "narration";
+  active?: boolean;
+  hideModeControl?: boolean;
   mode?: "ai" | "provided";
   sample?: AiMediaCharacterVoiceSample;
   disabled: boolean;
@@ -19,10 +22,11 @@ type Props = {
 };
 type RecordingState = "closed" | "idle" | "starting" | "recording" | "preview";
 
-export default function MediaCharacterVoiceInput({ mode = "ai", sample, disabled, onModeChange, onSampleChange, onBusyChange }: Props) {
+export default function MediaCharacterVoiceInput({ context = "character", active = true, hideModeControl = false, mode = "ai", sample, disabled, onModeChange, onSampleChange, onBusyChange }: Props) {
   const t = useTranslations("media");
   const id = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const sampleAudioRef = useRef<HTMLAudioElement>(null);
   const infoRef = useRef<HTMLDivElement>(null);
   const infoFocusDismissedRef = useRef(false);
   const uploadRef = useRef<AbortController | null>(null);
@@ -39,6 +43,11 @@ export default function MediaCharacterVoiceInput({ mode = "ai", sample, disabled
   const locallyBusy = libraryOpen || uploading || recordingState === "starting" || recordingState === "recording" || recordingState === "preview";
   const externallyLocked = disabled && !locallyBusy;
   const recordingOpen = recordingState !== "closed";
+  useEffect(() => {
+    const audio = sampleAudioRef.current;
+    if (!active) audio?.pause();
+    return () => audio?.pause();
+  }, [active, sample?.path, recordingOpen]);
 
   const setBusy = (busy: boolean) => {
     if (!busy && !ownsBusyRef.current) return;
@@ -148,7 +157,8 @@ export default function MediaCharacterVoiceInput({ mode = "ai", sample, disabled
     }
   };
 
-  return <div className={styles.voice} data-character-voice-mode={mode}>
+  return <div className={styles.voice} data-character-voice-mode={mode} data-voice-context={context}>
+    {!hideModeControl ? <>
     <label className={styles.srOnly} htmlFor={`${id}-mode`}>{t("ai_generator_character_voice_label")}</label>
     <select id={`${id}-mode`} aria-label={t("ai_generator_character_voice_label")} value={mode} disabled={disabled || uploading || recordingOpen} onChange={(event) => {
       setError(""); onModeChange(event.target.value === "provided" ? "provided" : "ai");
@@ -156,6 +166,7 @@ export default function MediaCharacterVoiceInput({ mode = "ai", sample, disabled
       <option value="ai">{t("ai_generator_character_voice_ai")}</option>
       <option value="provided">{t("ai_generator_character_voice_provided")}</option>
     </select>
+    </> : null}
     {mode === "provided" ? <div className={styles.sample}>
       <input ref={inputRef} id={`${id}-file`} className={styles.fileInput} type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,.mp3,.wav" disabled={disabled || uploading || recordingOpen} aria-label={t("ai_generator_character_voice_import")} aria-describedby={`${id}-limits`} onChange={(event) => {
         const file = event.currentTarget.files?.[0]; event.currentTarget.value = ""; if (file) void uploadSample(file);
@@ -186,7 +197,7 @@ export default function MediaCharacterVoiceInput({ mode = "ai", sample, disabled
           <small className={styles.fileName} title={sample.name}>{sample.name}</small>
           <button type="button" className={styles.removeButton} disabled={disabled || uploading} aria-label={t("ai_generator_character_voice_remove")} title={t("ai_generator_character_voice_remove")} onClick={() => { setError(""); onSampleChange(undefined); }}>×</button>
         </div>
-        <audio key={sample.path} controls preload="metadata" src={getCharacterVoicePreviewUrl(sample)} aria-label={t("ai_generator_character_voice_preview")} />
+        <audio ref={sampleAudioRef} key={sample.path} controls preload="metadata" src={getCharacterVoicePreviewUrl(sample)} aria-label={t(context === "narration" ? "ai_generator_narration_voice_label" : "ai_generator_character_voice_preview")} />
       </> : null}
       {libraryOpen ? <MediaCharacterVoiceLibraryPicker onClose={() => { setLibraryOpen(false); setBusy(false); }} onSelect={(mediaId) => void selectLibrarySample(mediaId)} /> : null}
       {recordingOpen ? <div className={styles.recorder}>

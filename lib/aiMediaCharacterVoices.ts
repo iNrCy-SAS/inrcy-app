@@ -1,6 +1,8 @@
 /** Browser-safe character voice references; recordings never enter the generation JSON. */
 export const AI_MEDIA_CHARACTER_VOICE_MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
 export const AI_MEDIA_CHARACTER_VOICE_MIN_SECONDS = 1;
+/** Clean reference duration required by Studio's multilingual voice-clone path. */
+export const AI_MEDIA_NARRATION_VOICE_MIN_SECONDS = 5;
 export const AI_MEDIA_CHARACTER_VOICE_MAX_SECONDS = 10;
 export const AI_MEDIA_CHARACTER_VOICE_SAMPLE_RATE = 16_000;
 export const AI_MEDIA_CHARACTER_VOICE_MAX_NORMALIZED_BYTES = 320_044;

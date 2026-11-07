@@ -171,9 +171,15 @@ export type MediaGenerationRequest = {
   withText?: boolean;
   textKeywords: string[];
   withMusic?: boolean;
+  /** Bundled catalogue choice; absent/null means Auto. */
+  soundtrackId?: string | null;
   withNarration?: boolean;
   narrationVoice?: MediaGenerationNarrationVoice;
   narrationVoiceVariant?: MediaGenerationNarrationVoiceVariant;
+  narrationVoiceMode?: "ai" | "provided";
+  narrationVoiceSample?: AiMediaCharacterVoiceSample | null;
+  narrationVoiceConsent?: boolean;
+  narrationVoiceGender?: "auto" | "female" | "male";
   format: MediaGenerationFormat;
   typology?: MediaGenerationTypology;
   visualStyle?: MediaGenerationVisualStyle;
@@ -309,6 +315,7 @@ export function buildGenerationAttemptKey(
     withText: textMode !== "none",
     textKeywords: textMode === "ai" ? request.textKeywords : [],
     withMusic: request.kind === "video" && Boolean(request.withMusic),
+    ...(request.kind === "video" && request.withMusic && request.soundtrackId ? { soundtrackId: request.soundtrackId } : {}),
     withNarration: request.kind === "video" && Boolean(request.withNarration),
     narrationVoice:
       request.kind === "video" && request.withNarration
@@ -318,6 +325,10 @@ export function buildGenerationAttemptKey(
       request.kind === "video" && request.withNarration
         ? request.narrationVoiceVariant || null
         : null,
+    ...(request.kind === "video" && request.withNarration && request.teamVideoSpeechMode !== "characters" && request.narrationVoiceMode === "provided" ? {
+      narrationVoiceMode: "provided", narrationVoiceSample: request.narrationVoiceSample?.path,
+      narrationVoiceConsent: request.narrationVoiceConsent === true, narrationVoiceGender: request.narrationVoiceGender || "auto",
+    } : {}),
     format: request.format,
     typology: request.typology || "service",
     visualStyle: request.visualStyle || "brand",

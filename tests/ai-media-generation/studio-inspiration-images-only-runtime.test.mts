@@ -44,11 +44,11 @@ function uiHarness(mode: "guided" | "free", kind: "image" | "video") {
   const context: Record<string, unknown> = {
     ...policy, kind, Error, crypto: globalThis.crypto, MAX_INSPIRATION_IMAGES: 5, AI_MEDIA_INSPIRATION_MAX_COUNT: 5,
     inspirationImages: [], references: [], characterReferences: [], locked: false, transformMode: false, recoveryPending: false, pendingReferenceRole: "inspiration",
-    sequence, operationInFlight: { current: false },
+    sequence, operationInFlight: { current: false }, voiceModeIntent: { current: null }, voiceReferences: [],
     t: (key: string) => key === "ai_generator_inspiration_images_only" ? "Images uniquement, les vidéos ne sont pas acceptées ici." : key,
     setActionError: (error: string) => { if (error) errors.push(error); },
     setInspirationBusy() {}, setReferencesBusy() {}, setRealCharacterCount() {}, resetReferenceConsent() {}, resetConsent() {}, setLibraryOpen(value: boolean) { libraryOpen = value; },
-    setMediaSettingsDialog(value: string | null) { dialog = value; }, setSelectedReferenceId() {},
+    setMediaSettingsDialog(value: string | null) { dialog = value; }, setSelectedReferenceId() {}, setVoiceReferenceId() {}, setSpeechMode() {},
     setReferences, setInspirationImages: setReferences, insertStudioReference, createIdentityReferenceSetId: () => "new-reference",
     deleteCharacterVoiceSample: async () => { calls.push("delete-voice"); },
     prepareMediaGenerationImageReference: async (file: File) => {

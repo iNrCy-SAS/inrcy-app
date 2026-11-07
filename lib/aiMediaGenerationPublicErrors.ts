@@ -24,6 +24,37 @@ export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
     reason: "Le vocal d’un personnage est momentanément indisponible.",
     action: "Réessayez dans quelques instants ou ajoutez à nouveau le vocal.",
   },
+  AI_MEDIA_NARRATION_VOICE_INVALID: {
+    status: 400,
+    reason: "Le vocal choisi pour la voix off est absent, expiré ou inutilisable.",
+    action: "Ajoutez à nouveau un vocal clair de 5 à 10 secondes dans le compte actuel.",
+  },
+  AI_MEDIA_NARRATION_VOICE_CONSENT_REQUIRED: {
+    status: 400,
+    reason: "L’autorisation d’utiliser cette voix n’a pas été confirmée.",
+    action: "Confirmez dans les réglages Voix que vous disposez des droits nécessaires et autorisez la synthèse.",
+  },
+  AI_MEDIA_NARRATION_VOICE_LANGUAGE_UNSUPPORTED: {
+    status: 400,
+    reason: "La lecture avec votre voix n’est pas encore disponible dans cette langue.",
+    action: "Choisissez une autre langue de narration ou sélectionnez explicitement une voix IA.",
+  },
+  AI_MEDIA_VOICE_CLONE_SCRIPT_INVALID: {
+    status: 422,
+    reason: "Les paroles n’ont pas pu être préparées pour votre voix.",
+    action: "Utilisez des phrases complètes adaptées à la durée ou choisissez les paroles automatiques. Votre texte reste conservé.",
+  },
+  AI_MEDIA_VOICE_CLONE_OUTPUT_INVALID: {
+    status: 502,
+    reason: "Le service n’a pas produit une piste exploitable avec votre voix.",
+    action: "Réessayez dans quelques instants. Votre vocal et vos paroles restent conservés.",
+  },
+  AI_MEDIA_VOICE_CLONE_UNAVAILABLE: {
+    status: 503,
+    reason: "Le service de lecture avec votre voix est momentanément indisponible.",
+    action: "Réessayez dans quelques instants ou contactez l’assistance. Votre vocal et vos paroles restent conservés.",
+    retryAfterSeconds: 30,
+  },
   AI_MEDIA_QUOTA_REACHED: {
     status: 403,
     reason: "Le solde disponible ne suffit pas pour cette génération.",
@@ -384,6 +415,12 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
   const plain = text.replace(/[_-]+/g, " ");
   const match = (pattern: RegExp) => pattern.test(text);
   const result = (code: AiMediaPublicErrorCode) => explanation(code);
+  if (match(/\bai_media_voice_clone_consent_required\b/)) return result("AI_MEDIA_NARRATION_VOICE_CONSENT_REQUIRED");
+  if (match(/\bai_media_voice_clone_(?:reference_(?:invalid|duration_invalid|missing)|video_duration_invalid)\b/)) return result("AI_MEDIA_NARRATION_VOICE_INVALID");
+  if (match(/\bai_media_voice_clone_language_unsupported\b/)) return result("AI_MEDIA_NARRATION_VOICE_LANGUAGE_UNSUPPORTED");
+  if (match(/\bai_media_voice_clone_script_invalid\b/)) return result("AI_MEDIA_VOICE_CLONE_SCRIPT_INVALID");
+  if (match(/\bai_media_voice_clone_(?:output_invalid|audio_[a-z0-9_]+|response_[a-z0-9_]+)\b/)) return result("AI_MEDIA_VOICE_CLONE_OUTPUT_INVALID");
+  if (match(/\bai_media_voice_clone_[a-z0-9_]+\b/)) return result("AI_MEDIA_VOICE_CLONE_UNAVAILABLE");
   if (match(/\bai_media_profile_logo_unavailable\b|logo enregistre dans votre profil est absent ou illisible/)) return result("AI_MEDIA_PROFILE_LOGO_UNAVAILABLE");
   if (match(/\bvoice_(?:reference_(?:invalid_or_expired|missing)|audio_\w+|account_invalid)\b|ai_video_reference_voice_(?:url_missing|assignment_invalid)/)) return result("AI_MEDIA_CHARACTER_VOICE_INVALID");
   if (match(/\bvoice_(?:storage_unavailable|reference_unavailable)\b/)) return result("AI_MEDIA_CHARACTER_VOICE_UNAVAILABLE");

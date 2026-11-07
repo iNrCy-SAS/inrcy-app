@@ -103,7 +103,7 @@ test("reload selects the owning Video Activity before recovery, preserves its re
   freeModules.set("@/lib/aiMediaModelRecommendation", { recommendAiMediaModel: () => null });
   freeModules.set("../_hooks/useMediaEnginePreference", { __esModule: true, default: () => ({ imageEngine: "recraft", videoEngine: "omni", videoResolution: "720p", update() {} }) });
   freeModules.set("../_hooks/useMediaCreditQuote", { __esModule: true, default: () => ({ ready: true, insufficient: false, quote: { totalCredits: 4 }, authorization: {} }) });
-  for (const name of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaPromptHelp", "./MediaBusinessDnaHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceInput"]) freeModules.set(name, { __esModule: true, default: name });
+  for (const name of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaPromptHelp", "./MediaBusinessDnaHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceInput", "./StudioMusicLibrary", "./StudioVoicePool"]) freeModules.set(name, { __esModule: true, default: name });
   freeModules.set("./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings" });
   freeModules.set("./MediaEngineCreditControls", { __esModule: true, default: "engines", isMediaVideoReferenceCompatible: () => true, MediaCreditQuoteSummary: "new-quote", MediaRecoveredCreditSummary: "recorded-cost", MediaGenerationActions: "actions" });
   const imagePanel = runtime("app/dashboard/_components/MediaFreeGenerator.tsx", freeModules);

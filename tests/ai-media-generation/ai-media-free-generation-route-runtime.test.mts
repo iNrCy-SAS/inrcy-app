@@ -14,6 +14,10 @@ import { AiJsonResponseNormalizationError } from "../../lib/aiJsonResponseNormal
 import * as generationTransport from "../../lib/aiMediaGenerationTransport.ts";
 import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
 import { assertAiMediaFreeExactNarrationFits } from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import { runtimeModules } from "../inragent/runtime-module-loader.mts";
+import type { PreparedAiMediaNarrationVoice } from "../../lib/aiMediaNarrationVoicePreflight.ts";
+const clonePolicy = runtimeModules({ "@/lib/aiGatewayAccountGuard": {} })<typeof import("../../lib/aiMediaNarrationVoiceClone.ts")>("lib/aiMediaNarrationVoiceClone.ts");
+const narrationLanguage = runtimeModules({ "./aiMediaGenerationContracts.ts": contracts, "@/lib/supabaseAdmin": { supabaseAdmin: { storage: {} } } })<typeof import("../../lib/aiMediaNarrationVoicePreflight.ts")>("lib/aiMediaNarrationVoicePreflight.ts");
 
 const quoteOutput = ts.transpileModule(readFileSync(new URL("../../lib/aiMediaCreditQuoteServer.ts", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -36,9 +40,12 @@ type ReservationCall = {
   metadata?: Record<string, unknown>;
 };
 
-function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; cancelledKey?: string; cancellationConflictKey?: string; providerFails?: boolean; providerError?: Error; preparationError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void>; checkpoint?: "saved" | "lost_ack" | "unavailable"; compositionFails?: boolean; cleanupFails?: boolean } = {}) {
+function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; cancelledKey?: string; cancellationConflictKey?: string; providerFails?: boolean; providerError?: Error; preparationError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void>; checkpoint?: "saved" | "lost_ack" | "unavailable"; compositionFails?: boolean; cleanupFails?: boolean;
+  narrator?: { configured?: boolean; language?: string; profileFails?: boolean; error?: Error; reference?: PreparedAiMediaNarrationVoice } } = {}) {
   const reservationCalls: ReservationCall[] = [];
-  const generationCalls: Array<{ request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal }> = [];
+  const generationCalls: Array<{ request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal; preparedNarrationVoice?: PreparedAiMediaNarrationVoice | null }> = [];
+  const narratorPreflights: Array<{ accountId: string; sample: contracts.AiMediaGenerationRequest["narrationVoiceSample"]; consent: boolean; language: string }> = [];
+  const narratorEvents: string[] = [];
   const lifetimes: Promise<unknown>[] = [];
   let authenticationCalls = 0;
   let paidCalls = 0;
@@ -56,6 +63,16 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
   class QuotaError extends Error {}
   const modules = new Map<string, unknown>([
     ["@/lib/aiMediaGenerationPublicErrors", publicErrors],
+    ["@/lib/aiMediaNarrationVoiceClone", { isAiMediaVoiceCloneConfigured: () => options.narrator?.configured !== false, supportsAiMediaClonedNarrationLanguage: clonePolicy.supportsAiMediaClonedNarrationLanguage }],
+    ["@/lib/aiMediaNarrationVoicePreflight", {
+      resolveAiMediaNarrationVoiceLanguage: narrationLanguage.resolveAiMediaNarrationVoiceLanguage,
+      preflightAiMediaNarrationVoice: async (args: { accountId: string; sample: contracts.AiMediaGenerationRequest["narrationVoiceSample"]; consent: boolean; language: string }) => {
+        narratorPreflights.push(args); narratorEvents.push("private-voice");
+        assert.equal(args.accountId, "active-account-test"); assert.equal(args.consent, true);
+        if (options.narrator?.error) throw options.narrator.error;
+        return options.narrator?.reference;
+      },
+    }],
     ["@/lib/aiMediaCompositionRecovery", {
       persistAiMediaCompositionCheckpoint: async (args: Record<string, unknown>) => {
         if (options.checkpoint !== "saved") throw new Error("checkpoint unavailable");
@@ -76,6 +93,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
       AiMediaGenerationQuotaError: QuotaError,
       createAiMediaRequestFingerprint,
       reserveAiMediaGeneration: async (args: ReservationCall) => {
+        narratorEvents.push("reserve");
         reservationCalls.push(args);
         if (options.cancellationConflictKey === args.requestKey) throw Object.assign(new QuotaError("Cette tentative a été fermée avant sa réservation."), { code: "AI_MEDIA_IDEMPOTENCY_CONFLICT", httpStatus: 409 });
         if (options.cancelledKey === args.requestKey) return { outcome: "replayed", status: "failed", jobId: "cancelled-job-a" };
@@ -107,7 +125,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
     }],
     ["@/lib/aiUsageQuota", { isAdminUserForAi: async () => false }],
     ["@/lib/aiMediaGenerationServer", {
-      generateAndSaveAiMedia: async (args: { request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal; onBillableWorkStarted?: () => void | Promise<void>; onCompositionReady?: (args: unknown) => Promise<void> }) => {
+      generateAndSaveAiMedia: async (args: { request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal; preparedNarrationVoice?: PreparedAiMediaNarrationVoice | null; onBillableWorkStarted?: () => void | Promise<void>; onCompositionReady?: (args: unknown) => Promise<void> }) => {
         generationCalls.push(args);
         await options.preparation;
         args.signal?.throwIfAborted();
@@ -135,7 +153,13 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
         authenticationCalls += 1;
         await options.authentication;
         return options.authenticated === false ? null : {
-          scope: { activeUserId: "active-account-test", authUserId: "actor-test" }, supabase: {},
+          scope: { activeUserId: "active-account-test", authUserId: "actor-test" }, supabase: { from(table: string) {
+            assert.ok(options.narrator, "legacy AI requests must not read clone language");
+            assert.ok(["profiles", "business_profiles"].includes(table));
+            const query = { select() { return query; }, eq(key: string, value: string) { assert.equal(key, "user_id"); assert.equal(value, "active-account-test"); return query; },
+              order() { return query; }, limit() { return query; }, async maybeSingle() { return { data: { ai_language: options.narrator?.language ?? "fr" }, error: options.narrator?.profileFails ? { message: "synthetic unavailable" } : null }; } };
+            return query;
+          } },
         };
       },
     }],
@@ -150,7 +174,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
     return modules.get(specifier);
   }, { info() {}, warn() {}, error() {} });
   return {
-    reservationCalls, generationCalls, completionCalls, failureCalls, lifetimes, releasedCheckpoints,
+    reservationCalls, generationCalls, completionCalls, failureCalls, lifetimes, releasedCheckpoints, narratorPreflights, narratorEvents,
     paidCalls: () => paidCalls, authenticationCalls: () => authenticationCalls,
     post: (body: unknown, init: RequestInit = {}) => record.exports.POST(new Request("https://example.invalid/api/media-generation/generate", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...init,
@@ -170,6 +194,58 @@ function body(overrides: Record<string, unknown> = {}) {
     return { expectedCredits: quote.totalCredits, creditTariffVersion: quote.tariffVersion, creditQuoteId: quote.quoteId, ...input };
   } catch { return input; }
 }
+
+function narratorRequest() {
+  const time = Date.now(), date = new Date(time).toISOString().slice(0, 10);
+  const path = `_studio-voice-references/${date}/active-account-test__${time}__11111111-1111-4111-8111-111111111111.wav`;
+  const reference = { accountId: "active-account-test", path, buffer: Buffer.from("owned reference boundary fixture"), durationSeconds: 6, language: "fr" };
+  const request = { kind: "video", videoEngine: "omni", durationSeconds: 8, freePrompt: "Un jardin baigné de lumière.", spokenScript: "Bonjour, découvrez notre jardin.", withNarration: true, teamVideoSpeechMode: "voiceover",
+    narrationVoiceMode: "provided", narrationVoiceSample: { path, mimeType: "audio/wav", name: "ma-voix.wav", durationSeconds: 6, sizeBytes: 192_044 }, narrationVoiceConsent: true, narrationVoiceGender: "auto" };
+  return { reference, request };
+}
+
+test("the real generation route preloads the owned narrator before credits and forwards those exact bytes without a photo", async () => {
+  const { reference, request } = narratorRequest(), route = loadRoute({ narrator: { reference } });
+  const response = await route.post(body(request)); assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+  assert.equal(route.narratorPreflights.length, 1); assert.equal(route.narratorPreflights[0].accountId, "active-account-test");
+  assert.equal(route.narratorPreflights[0].language, "fr"); assert.deepEqual(route.narratorEvents.slice(0, 2), ["private-voice", "reserve"]);
+  assert.equal(route.generationCalls[0].preparedNarrationVoice, reference);
+  assert.equal(route.generationCalls[0].request.spokenScript, request.spokenScript); assert.equal(route.generationCalls[0].request.narrationVoiceSample?.path, reference.path);
+  assert.deepEqual(route.generationCalls[0].request.inspirationImages, []); assert.equal(route.generationCalls[0].request.videoEngine, "omni");
+});
+
+test("four supplied character voices are refused by the real route before credits or any provider call even on optional photos", async () => {
+  const { request } = narratorRequest();
+  const inspirationImages = Array.from({ length: 4 }, (_, index) => ({ mimeType: "image/png", data: "a".repeat(96), role: "character", usage: "inspiration",
+    characterIndex: index % 3 + 1, voiceMode: "provided", voiceSample: { ...request.narrationVoiceSample, durationSeconds: 4, sizeBytes: 128_044 } }));
+  const route = loadRoute(), response = await route.post(body({ ...request, videoEngine: "wan27", withNarration: false, teamVideoSpeechMode: "characters", inspirationImages,
+    identityReferenceSetId: "11111111-1111-4111-8111-111111111111", identityConsent: true, teamVideoProviderConsent: true }));
+  assert.equal(response.status, 400); assert.match(JSON.stringify(await response.json()), /maximum trois vocaux/);
+  assert.equal(route.reservationCalls.length, 0); assert.equal(route.narratorPreflights.length, 0); assert.equal(route.generationCalls.length, 0); assert.equal(route.paidCalls(), 0);
+});
+
+test("the real route refuses missing clone readiness unsupported speech or unverifiable language without reserving credits", async () => {
+  for (const narrator of [{ configured: false }, { language: "th" }, { profileFails: true }]) {
+    const { reference, request } = narratorRequest(), route = loadRoute({ narrator: { reference, ...narrator } });
+    const response = await route.post(body({ ...request, spokenScript: undefined, freePrompt: "Un jardin lumineux." }));
+    assert.equal(response.status, narrator.configured === false ? 503 : 400);
+    assert.equal(route.narratorPreflights.length, 0); assert.equal(route.reservationCalls.length, 0); assert.equal(route.paidCalls(), 0);
+  }
+});
+
+test("a missing expired or foreign narrator fails before credit reservation and cannot become a generic voice", async () => {
+  const { reference, request } = narratorRequest();
+  const route = loadRoute({ narrator: { reference, error: new contracts.AiMediaRequestValidationError("Ce vocal est introuvable ou a expiré.") } });
+  const response = await route.post(body(request)); assert.equal(response.status, 400);
+  assert.equal(route.narratorPreflights.length, 1); assert.equal(route.reservationCalls.length, 0); assert.equal(route.generationCalls.length, 0); assert.equal(route.paidCalls(), 0);
+});
+
+test("the real route fingerprints the explicitly chosen narrator and does not pay for a changed voice under the same request ID", async () => {
+  const { reference, request } = narratorRequest(), route = loadRoute({ narrator: { reference } });
+  assert.equal((await route.post(body(request))).status, 200);
+  const response = await route.post(body({ ...request, narrationVoiceSample: { ...request.narrationVoiceSample, path: reference.path.replace("11111111-1111", "22222222-2222") } }));
+  assert.equal(response.status, 409); assert.equal(route.generationCalls.length, 1); assert.equal(route.paidCalls(), 1);
+});
 
 test("les créations libres passent par la même authentification avant tout débit", async () => {
   const route = loadRoute({ authenticated: false });

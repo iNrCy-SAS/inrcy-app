@@ -17,7 +17,7 @@ for (const [name, file] of [["react", "react.production.js"], ["react/jsx-runtim
   const packageName = name.startsWith("react-dom") ? "react-dom" : name.startsWith("react") ? "react" : name;
   sources[name] = readFileSync(path.join(path.dirname(require.resolve(`${packageName}/package.json`)), "cjs", file), "utf8");
 }
-const stubNames = new Set(["next-intl", "@/app/dashboard/_hooks/useMediaGeneration", "../_hooks/useMediaGeneration", "../_hooks/useMediaEnginePreference", "../_hooks/useMediaCreditQuote", "../_hooks/useInrAssistantLocalInterface", "@/lib/mediaGenerationReferenceClient", "./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaCharacterVoiceInput", "./MediaBusinessDnaHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceLibraryPicker", "./MediaGenerationCreationWorkspace"]);
+const stubNames = new Set(["next-intl", "@/app/dashboard/_hooks/useMediaGeneration", "../_hooks/useMediaGeneration", "../_hooks/useMediaEnginePreference", "../_hooks/useMediaCreditQuote", "../_hooks/useInrAssistantLocalInterface", "@/lib/mediaGenerationReferenceClient", "./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaBusinessDnaHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceLibraryPicker", "./MediaGenerationCreationWorkspace"]);
 for (const name of ["next/image", "@/app/dashboard/_hooks/useMediaResultReveal", "@/lib/browserAccountCache", "./MediaResultViewer", "./DashboardMobileSelect"]) stubNames.add(name);
 stubNames.add("./VideoCreditRecharge");
 function add(file: string) {
@@ -50,10 +50,11 @@ window.studioRequests=[];window.studioQuotes=[];window.networkCalls=0;window.fix
 window.fixtureUseRealWorkspace=false;window.fixtureRecovery={pending:false,checking:false,cancelling:false};window.recoveryOperations={reads:0,pauses:0,cancels:0};
 window.fixtureStudioInterfaces={};window.parentEscapes=0;
 window.fixtureReferencePreparationEnabled=false;window.referencePreparations=0;
+window.fixtureVoiceUploadsEnabled=false;window.fixtureVoiceUploads=0;window.fixtureMusicCatalogueEnabled=false;window.fixtureMusicCatalogueCalls=0;window.fixtureAudioPlays=[];window.fixtureAudioPauses=0;
 const fixturePngCanvas=document.createElement('canvas');fixturePngCanvas.width=fixturePngCanvas.height=2;
 const fixturePngContext=fixturePngCanvas.getContext('2d');fixturePngContext.fillStyle='#4080c0';fixturePngContext.fillRect(0,0,2,2);window.fixtureReferencePng=fixturePngCanvas.toDataURL('image/png').split(',')[1];
 document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented)window.parentEscapes++});
-window.fetch=()=>{window.networkCalls++;throw Error('This local fixture never calls a remote API')};
+window.fetch=(url,init)=>{if(url==='/api/media-generation/voice-reference'&&window.fixtureVoiceUploadsEnabled){window.fixtureVoiceUploads++;if(init.method!=='POST')throw Error('Only local test uploads');return Promise.resolve(Response.json({ok:true,sample:{path:'_studio-voice-references/2026-11-07/fixture__1794042000000__00000000-0000-4000-8000-'+String(window.fixtureVoiceUploads).padStart(12,'0')+'.wav',mimeType:'audio/wav',name:'vocal-'+window.fixtureVoiceUploads+'.wav',durationSeconds:8,sizeBytes:256044}}))}if(url==='/api/booster/soundtracks'&&window.fixtureMusicCatalogueEnabled){window.fixtureMusicCatalogueCalls++;return Promise.resolve(Response.json({ok:true,soundtracks:['piano-serein','guitare-solaire'].map(id=>({id,label:id,description:'Extrait local de test',durationSeconds:24,audioPreview:'/api/booster/soundtracks/'+id+'/preview?v=24'}))}))}window.networkCalls++;throw Error('This local fixture never calls a remote API')};
 const noOp=()=>{};
 function require(name){
  if(loaded[name])return loaded[name].exports;
@@ -67,7 +68,7 @@ function require(name){
    cancelRecovery:async()=>{window.recoveryOperations.cancels++},cancelGeneration:()=>{window.recoveryOperations.cancels++;return false}};
  },MediaGenerationAccountChangedError:class extends Error{},MediaGenerationCancelledError:class extends Error{}};
  if(name.endsWith('useMediaEnginePreference'))return {__esModule:true,default:()=>{const[value,setValue]=React.useState({imageEngine:'openai',videoEngine:'wan3',videoResolution:'720p'});return {...value,update:patch=>setValue(current=>({...current,...patch}))}}};
- if(name.endsWith('useMediaCreditQuote'))return {__esModule:true,default:input=>{window.studioQuotes.push(input);return {ready:true,insufficient:false,authorization:{expectedCredits:88,creditQuoteId:'fixture-quote'},quote:{totalCredits:88}}}};
+ if(name.endsWith('useMediaCreditQuote'))return {__esModule:true,default:(input,quota,enabled)=>{window.studioQuotes.push({...input,enabled});return {ready:true,insufficient:false,authorization:{expectedCredits:88,creditQuoteId:'fixture-quote'},quote:{totalCredits:88}}}};
  if(name.endsWith('useInrAssistantLocalInterface'))return {useInrAssistantLocalInterface:(id,snapshot,handlers,enabled,locked)=>{React.useLayoutEffect(()=>{window.fixtureStudioInterfaces[id]={snapshot,handlers,enabled,locked}})}};
  if(name==='@/lib/mediaGenerationReferenceClient')return {async prepareMediaGenerationImageReference(file){if(!window.fixtureReferencePreparationEnabled)throw Error('No uploads allowed');window.referencePreparations++;return {name:file.name,data:window.fixtureReferencePng,mimeType:'image/png'}},prepareMediaGenerationLibraryReferenceFile(){throw Error('No uploads allowed')}};
  if(name==='./MediaGenerationCreationWorkspace')return {__esModule:true,default:props=>window.fixtureUseRealWorkspace?React.createElement(require('app/dashboard/_components/MediaGenerationCreationWorkspace.tsx').default,props):React.createElement('div',{'data-media-creation-stage':true,style:{padding:24}},'Aperçu de votre vidéo'),MediaGenerationSettingsTabs:props=>window.fixtureUseRealWorkspace?React.createElement(require('app/dashboard/_components/MediaGenerationCreationWorkspace.tsx').MediaGenerationSettingsTabs,props):React.createElement('div',{className:'editor-tabs',role:'tablist'},props.tabs.map(tab=>React.createElement('button',{key:tab.id,id:props.idPrefix+'-tab-'+tab.id,role:'tab','aria-selected':props.activeTab===tab.id,onClick:()=>props.onChange(tab.id)},tab.label)))};
@@ -79,8 +80,8 @@ function require(name){
  if(name==='./MediaSubjectVoiceButton'||name==='./MediaQuotaSummary'||name==='./MediaBusinessDnaHelp')return {__esModule:true,default:require('app/dashboard/_components/'+name.slice(2)+'.tsx').default};
  if(name==='./VideoCreditRecharge')return {MediaCreditRechargeButton:()=>{throw Error('No credit purchase is available in this fixture')}};
  if(name==='./MediaLibraryPickerModal')return {__esModule:true,default:props=>props.open?React.createElement('section',{'data-fixture-library-open':true},React.createElement('button',{type:'button',onClick:props.onClose},'Fermer la médiathèque de test')):null};
- if(name==='./MediaCharacterVoiceInput'||name==='./MediaCharacterVoiceLibraryPicker')return {__esModule:true,default:()=>null};
- if(name.endsWith('.css')){const prefix=name.includes('FreeGenerator')?'free-':name.includes('CreationWorkspace')?'editor-':name.includes('EngineCreditControls')?'engine-':name.includes('PromptHelp')?'help-':name.includes('QuotaSummary')?'quota-':name.includes('MediaGenerator.module')?'gen-':'other-';return {__esModule:true,default:new Proxy({},{get:(_,key)=>prefix+String(key)})};}
+ if(name==='./MediaCharacterVoiceLibraryPicker')return {__esModule:true,default:()=>null};
+ if(name.endsWith('.css')){const prefix=name.includes('FreeGenerator')?'free-':name.includes('CreationWorkspace')?'editor-':name.includes('EngineCreditControls')?'engine-':name.includes('PromptHelp')?'help-':name.includes('QuotaSummary')?'quota-':name.includes('MediaGenerator.module')?'gen-':name.includes('StudioMusicLibrary')?'music-':name.includes('StudioVoicePool')?'pool-':name.includes('MediaCharacterVoiceInput')?'voice-':'other-';return {__esModule:true,default:new Proxy({},{get:(_,key)=>prefix+String(key)})};}
  if(name==='app/dashboard/_components/MediaEngineCreditControls.ts')name='app/dashboard/_components/MediaEngineCreditControls.tsx';
  if(!sources[name])throw Error('Missing browser fixture module '+name);
  const record=loaded[name]={exports:{}};new Function('require','module','exports',sources[name])(require,record,record.exports);return record.exports;
@@ -91,7 +92,7 @@ window.renderStudio=(prompt='Un jardinier taille une haie. Lumière naturelle, p
 window.renderStudio();
 `;
 const prefix = (css: string, name: string) => css.replace(/\.([a-zA-Z_][\w-]*)/g, `.${name}-$1`);
-const css = prefix(read("app/dashboard/_components/MediaFreeGenerator.module.css"), "free") + prefix(read("app/dashboard/_components/MediaGenerationCreationWorkspace.module.css"), "editor") + prefix(read("app/dashboard/_components/MediaEngineCreditControls.module.css"), "engine") + prefix(read("app/dashboard/_components/MediaGeneratorModal.module.css"), "modal") + prefix(read("app/dashboard/_components/MediaPromptHelp.module.css"), "help") + prefix(read("app/dashboard/_components/MediaGenerator.module.css"), "gen") + prefix(read("app/dashboard/_components/MediaQuotaSummary.module.css"), "quota");
+const css = prefix(read("app/dashboard/_components/MediaFreeGenerator.module.css"), "free") + prefix(read("app/dashboard/_components/MediaGenerationCreationWorkspace.module.css"), "editor") + prefix(read("app/dashboard/_components/MediaEngineCreditControls.module.css"), "engine") + prefix(read("app/dashboard/_components/MediaGeneratorModal.module.css"), "modal") + prefix(read("app/dashboard/_components/MediaPromptHelp.module.css"), "help") + prefix(read("app/dashboard/_components/MediaGenerator.module.css"), "gen") + prefix(read("app/dashboard/_components/MediaQuotaSummary.module.css"), "quota") + prefix(read("app/dashboard/_components/StudioMusicLibrary.module.css"), "music") + prefix(read("app/dashboard/_components/StudioVoicePool.module.css"), "pool") + prefix(read("app/dashboard/_components/MediaCharacterVoiceInput.module.css"), "voice");
 const globalCss = readFileSync(require.resolve("tailwindcss/preflight.css"), "utf8") + read("app/globals.css").replace('@import "tailwindcss";', "");
 // Use the real opted-in tool shell attributes and header classes. Its available
 // height follows global workspace CSS and actual navigation content, not a test height.
@@ -99,7 +100,7 @@ const globalCss = readFileSync(require.resolve("tailwindcss/preflight.css"), "ut
 const html = `<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${globalCss}</style><style>${css}</style></head><body><div class="modal-layer" data-inrcy-tool-overlay data-disable-pull-refresh="true"><section class="modal-dialog" data-inrcy-tool-dialog data-studio-tab="generate" data-creation-mode="free"><header class="modal-header"><div class="modal-moduleIdentity"><span class="modal-icon" aria-hidden="true">✦</span><div><div class="modal-studioTitleRow"><strong class="modal-studioWordmark"><span>iNrS</span><b>tudio</b></strong></div><p>${messages.ai_generator_made_inrcy_hint}</p></div></div><div class="modal-heading"><nav class="modal-studioTabs"><button type="button" class="modal-studioTab" data-studio-tab="generate" data-active="true">${messages.ai_generator_studio_tab_generate}</button><button type="button" class="modal-studioTab" data-studio-tab="modify" data-active="false">${messages.ai_generator_studio_tab_modify}</button><button type="button" class="modal-studioTab" data-studio-tab="retouch" data-active="false">${messages.ai_generator_studio_tab_retouch}</button></nav><div class="modal-mediaTypeTabs"><button type="button"><span aria-hidden="true">▣</span>${messages.image_50e19fda}</button><button type="button" data-active="true"><span aria-hidden="true">▶</span>${messages.video_304f6ca4}</button></div></div><div class="modal-headerActions"><a class="modal-mediaLibraryLink"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4.75 5.75h14.5v12.5H4.75z"/><path d="m7.25 15 3.15-3.15 2.35 2.35 1.65-1.65 2.35 2.45"/><circle cx="15.5" cy="9" r="1.35"/></svg><span>${messages.mediatheque_e4fa8e31}</span></a><button type="button" class="modal-close"><span>${messages.fermer_5ab4ec64}</span><i aria-hidden="true">×</i></button></div></header><div class="modal-body"><div id="root" class="modal-generationWorkspace"></div></div></section></div><script>${fixture.replace(/<\/script/gi, "<\\/script")}</script></body></html>`;
 
 type LocalInterface = { snapshot: unknown; handlers: Record<string, { invoke(value: string | null): unknown; matches(snapshot: unknown, value: string | null): boolean }>; enabled: boolean; locked: boolean };
-type FixtureWindow = Window & { studioRequests: Array<Record<string, unknown>>; networkCalls: number; fixtureLocale: string; renderStudio(prompt?: string, kind?: string): void; fixtureUseRealWorkspace: boolean; fixtureRecovery: { pending: boolean; checking: boolean; cancelling: boolean }; refreshRecovery(): void; recoveryOperations: { reads: number; pauses: number; cancels: number }; fixtureStudioInterfaces: Record<string, LocalInterface>; parentEscapes: number; fixtureReferencePreparationEnabled: boolean; fixtureReferencePng: string; referencePreparations: number };
+type FixtureWindow = Window & { studioRequests: Array<Record<string, unknown>>; networkCalls: number; fixtureLocale: string; renderStudio(prompt?: string, kind?: string): void; fixtureUseRealWorkspace: boolean; fixtureRecovery: { pending: boolean; checking: boolean; cancelling: boolean }; refreshRecovery(): void; recoveryOperations: { reads: number; pauses: number; cancels: number }; fixtureStudioInterfaces: Record<string, LocalInterface>; parentEscapes: number; fixtureReferencePreparationEnabled: boolean; fixtureReferencePng: string; referencePreparations: number; fixtureVoiceUploadsEnabled: boolean; fixtureVoiceUploads: number; fixtureMusicCatalogueEnabled: boolean; fixtureMusicCatalogueCalls: number; fixtureAudioPlays: string[]; fixtureAudioPauses: number };
 async function mount(page: Page) {
   mkdirSync(path.join(taskRoot, "outputs"), { recursive: true });
   const errors: string[] = [];
@@ -152,6 +153,7 @@ async function videoGeometry(page: Page) {
     const sectionBounds = section.getBoundingClientRect(), headingBounds = heading.getBoundingClientRect();
     const style = getComputedStyle(prompt);
     return {
+      compactDesktop: innerWidth > 760 && innerHeight <= 819,
       promptHeight: promptBounds.height,
       usableLines: (promptBounds.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)) / parseFloat(style.lineHeight),
       bannerTop: sectionBounds.top - paneBounds.top + panels.scrollTop,
@@ -163,7 +165,7 @@ async function videoGeometry(page: Page) {
 }
 
 function assertSameVideoGeometry(before: Awaited<ReturnType<typeof videoGeometry>>, after: Awaited<ReturnType<typeof videoGeometry>>, context: string, viewportStable = false) {
-  assert.ok(before.usableLines >= 6 && before.usableLines <= 10, `${context}: the real prompt provides roughly eight readable lines (${before.usableLines})`);
+  assert.ok(before.usableLines >= (before.compactDesktop ? 5 : 6) && before.usableLines <= 10, `${context}: the prompt retains its authorized readable allowance for this viewport (${before.usableLines})`);
   for (const key of ["promptHeight", "bannerTop", "controlTop"] as const) {
     assert.ok(Math.abs(after[key] - before[key]) <= 1, `${context}: ${key} stays constant, ${JSON.stringify({ before, after })}`);
   }
@@ -172,20 +174,21 @@ function assertSameVideoGeometry(before: Awaited<ReturnType<typeof videoGeometry
 
 async function assertSpeechHeaderCompact(page: Page, context: string) {
   const layout = await page.locator(".free-spokenScriptSection").evaluate(section => {
-    const label = section.querySelector(".free-videoFrameHeading label")!;
-    const range = document.createRange(); range.selectNodeContents(label);
-    const titleLines = Array.from(range.getClientRects()).filter(rect => rect.width > 0).length;
     const row = section.querySelector<HTMLElement>(".free-spokenScriptHeading")!;
+    const labels = Array.from(row.querySelectorAll<HTMLSelectElement>("select")).map(select => Array.from(row.querySelectorAll<HTMLLabelElement>("label")).find(label => label.htmlFor === select.id && label.getBoundingClientRect().width > 1)!);
+    const titleLines = Math.max(...labels.map(label => { const range = document.createRange(); range.selectNodeContents(label.querySelector("span") ?? label); return Array.from(range.getClientRects()).filter(rect => rect.width > 0).length; }));
     const rowBounds = row.getBoundingClientRect();
-    const controls = Array.from(row.querySelectorAll<HTMLElement>("button,select")).map(element => ({
+    const controls = Array.from(row.querySelectorAll<HTMLElement>("select")).map(element => ({
       height: element.getBoundingClientRect().height,
       fits: element.scrollWidth <= element.clientWidth + 1,
     }));
-    return { titleLines, rowHeight: rowBounds.height, controls };
+    return { titleLines, titleCount: labels.length, detailsCount: row.querySelectorAll("[data-video-audio-button]").length, rowHeight: rowBounds.height, controls };
   });
   assert.ok(layout.titleLines >= 1 && layout.titleLines <= 2, `${context}: the sound and speech title remains compact`);
-  assert.ok(layout.controls.length >= 1 && layout.controls.length <= 2, `${context}: only audio and Auto/Exact controls appear in the compact row`);
-  assert.ok(layout.rowHeight <= 2 * Math.max(...layout.controls.map(control => control.height)) + 10, `${context}: commands occupy at most two compact rows`);
+  assert.equal(layout.controls.length, 3, `${context}: the compact row retains the three Personnages, Paroles and Voix menus`);
+  assert.equal(layout.titleCount, 3, `${context}: each menu keeps its own visible label`);
+  assert.equal(layout.detailsCount, 1, `${context}: the voice settings button remains present`);
+  assert.ok(layout.rowHeight <= 3 * Math.max(...layout.controls.map(control => control.height)) + 24, `${context}: menus, their labels and the visible Settings/subtitle row remain compact`);
   assert.equal(layout.controls.every(control => control.fits), true, `${context}: speech controls are not clipped`);
 }
 
@@ -222,6 +225,15 @@ async function assertUsualDesktopPanelNeedsNoScroll(page: Page, context: string)
   });
   assert.ok(layout.scrollHeight <= layout.clientHeight + 1, `${context}: the usual desktop editor fits without an internal scroll ${JSON.stringify(layout)}`);
   for (const field of layout.fields) assert.ok(field.top >= layout.top - 1 && field.bottom <= layout.bottom + 1, `${context}: every normal input and its settings remain visible ${JSON.stringify({ field, layout })}`);
+  const emptyHelp = await page.locator('.free-spokenScriptContent > .free-promptHelp[id$="-spoken-script-budget"]').evaluateAll(nodes => nodes.map(node => {
+    const helper = node as HTMLElement, counter = helper.parentElement!.querySelector<HTMLElement>('[id$="-spoken-script-count"]')!;
+    const help = helper.getBoundingClientRect(), count = counter.getBoundingClientRect();
+    return { help: { left: help.left, right: help.right, top: help.top, bottom: help.bottom }, count: { left: count.left, right: count.right, top: count.top, bottom: count.bottom }, fits: helper.scrollWidth <= helper.clientWidth + 1 && helper.scrollHeight <= helper.clientHeight + 1 };
+  }));
+  for (const { help, count, fits } of emptyHelp) {
+    assert.ok(help.right <= count.left + 1 || count.right <= help.left + 1 || help.bottom <= count.top + 1 || count.bottom <= help.top + 1, `${context}: the empty-script explanation never covers its word counter ${JSON.stringify({ help, count })}`);
+    assert.equal(fits, true, `${context}: the empty-script explanation is complete and unclipped`);
+  }
   return layout;
 }
 
@@ -452,7 +464,7 @@ test("the single video panel keeps the prompt visible while native Images/Audio 
           assert.equal(await page.locator('[data-media-reference-open]').count(), 0, "cancelling cannot append a reference");
           assert.equal(await page.evaluate(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_media_images.snapshot as { pendingReferenceRole?: string }).pendingReferenceRole), "inspiration");
         }
-        if (kind === "audio") await dialog.locator('[data-media-subtitles]').check();
+
         const parentEscapes = await page.evaluate(() => (window as unknown as FixtureWindow).parentEscapes);
         await page.keyboard.press("Escape");
         await dialog.waitFor({ state: "detached" });
@@ -461,14 +473,125 @@ test("the single video panel keeps the prompt visible while native Images/Audio 
         assert.equal(await visual.inputValue(), prompt); assert.equal(await speech.inputValue(), script);
         assert.equal(await format.inputValue(), "landscape");
       }
+      await page.locator('[data-media-subtitles]').check();
       await page.locator('[data-video-audio-button]').click();
-      await page.locator('[data-media-settings-dialog="audio"] [data-media-subtitles]').waitFor();
-      assert.equal(await page.locator('[data-media-settings-dialog="audio"] [data-media-subtitles]').isChecked(), true, "closing/reopening retains audio settings");
+      await page.locator('[data-media-settings-dialog="audio"]').waitFor();
+      assert.equal(await page.locator('[data-media-subtitles]').isChecked(), true, "the visible main checkbox retains its state through voice settings");
       await page.keyboard.press("Escape");
       await page.keyboard.press("Escape");
       assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).parentEscapes), 1, "the parent observer is active outside child dialogs");
       assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).studioRequests.length), 0);
       assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
+      assert.deepEqual(errors, []); await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test("the real Studio music dialog previews live catalogue choices and retains the draft through Auto Off and Escape", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const viewport of [{ width: 1707, height: 842 }, { width: 390, height: 844 }]) {
+      const page = await browser.newPage({ viewport }); const errors = await mount(page);
+      await page.evaluate(() => {
+        const fixture = window as unknown as FixtureWindow; fixture.fixtureMusicCatalogueEnabled = true;
+        HTMLMediaElement.prototype.play = function() { fixture.fixtureAudioPlays.push(this.src); Object.defineProperty(this, "paused", { configurable: true, value: false }); return Promise.resolve(); };
+        HTMLMediaElement.prototype.pause = function() { fixture.fixtureAudioPauses++; Object.defineProperty(this, "paused", { configurable: true, value: true }); };
+        HTMLMediaElement.prototype.load = function() {};
+      });
+      await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
+      await fillCommittedStudioText(page, "spokenScript", "Bonjour, bienvenue chez nous.");
+      const visual = page.locator('textarea[id$="-prompt"]'), speech = page.locator('textarea[id$="-spoken-script"]');
+      const initial = { prompt: await visual.inputValue(), script: await speech.inputValue() };
+      const launcher = page.locator("[data-video-music-button]"); await launcher.click();
+      const dialog = page.locator('[data-media-settings-dialog="music"]'); await dialog.waitFor({ state: "visible" });
+      await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_video_music?.snapshot as { ready?: boolean })?.ready === true);
+      assert.equal(await dialog.locator("[data-studio-music-track]").count(), 2, "the real parser exposes only the locally supplied catalogue");
+      assert.equal(await page.evaluate(() => Object.keys((window as unknown as FixtureWindow).fixtureStudioInterfaces).some(id => id.startsWith("publication_soundtrack_"))), false);
+      const beforePreview = await page.evaluate(() => (window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_video_music.snapshot as { soundtrackId: string | null; withMusic: boolean });
+      await dialog.locator('[data-studio-music-preview="guitare-solaire"]').click();
+      await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_video_music.snapshot as { playbackActive?: boolean }).playbackActive === true);
+      const played = await page.evaluate(() => { const fixture = window as unknown as FixtureWindow; return { snapshot: fixture.fixtureStudioInterfaces.studio_video_music.snapshot as { soundtrackId: string | null; withMusic: boolean }, url: fixture.fixtureAudioPlays.at(-1) }; });
+      assert.equal(played.snapshot.soundtrackId, beforePreview.soundtrackId); assert.equal(played.snapshot.withMusic, beforePreview.withMusic);
+      assert.equal(new URL(played.url!).pathname + new URL(played.url!).search, "/api/booster/soundtracks/guitare-solaire/preview?v=24");
+      await dialog.locator('[data-studio-music-track="piano-serein"]').click();
+      await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_video_music.snapshot as { soundtrackId?: string }).soundtrackId === "piano-serein");
+      await dialog.locator('[data-studio-music-preview="piano-serein"]').click();
+      await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_video_music.snapshot as { playbackActive?: boolean }).playbackActive === true);
+      const pauses = await page.evaluate(() => (window as unknown as FixtureWindow).fixtureAudioPauses), parentEscapes = await page.evaluate(() => (window as unknown as FixtureWindow).parentEscapes);
+      await page.keyboard.press("Escape"); await dialog.waitFor({ state: "detached" });
+      await page.waitForFunction(before => (window as unknown as FixtureWindow).fixtureAudioPauses > before, pauses);
+      assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).parentEscapes), parentEscapes, "closing the music dialog does not close its Studio parent");
+      assert.equal(await visual.inputValue(), initial.prompt); assert.equal(await speech.inputValue(), initial.script);
+      await launcher.click(); await dialog.waitFor({ state: "visible" });
+      await dialog.locator("[data-studio-music-auto]").click(); await page.waitForFunction(() => { const state = (window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_video_music.snapshot as { withMusic?: boolean; soundtrackId?: string | null }; return state.withMusic === true && state.soundtrackId === null; });
+      assert.equal(await dialog.locator("[data-studio-music-auto]").getAttribute("aria-pressed"), "true");
+      await dialog.locator("[data-studio-music-off]").click(); await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_video_music.snapshot as { withMusic?: boolean }).withMusic === false);
+      assert.equal(await dialog.locator("[data-studio-music-off]").getAttribute("aria-pressed"), "true");
+      await page.keyboard.press("Escape"); await dialog.waitFor({ state: "detached" });
+      assert.equal(await speech.inputValue(), initial.script);
+      assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).studioRequests.length), 0); assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
+      assert.deepEqual(errors, []); await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+
+test("real Studio voice Settings opens the three-source pool and preserves new speech and the visible subtitle checkbox without a photo", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const viewport of [{ width: 1707, height: 842 }, { width: 1440, height: 900 }, { width: 1366, height: 768 }, { width: 390, height: 844 }]) {
+      const page = await browser.newPage({ viewport }); const errors = await mount(page);
+      await page.evaluate(() => { const fixture = window as unknown as FixtureWindow; fixture.fixtureVoiceUploadsEnabled = true; fixture.fixtureReferencePreparationEnabled = true; HTMLMediaElement.prototype.pause = function() {}; });
+      const visual = page.getByLabel("Consignes visuelles", { exact: true });
+      const prompt = await visual.inputValue();
+      await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact"); await fillCommittedStudioText(page, "spokenScript", "Bonjour, bienvenue dans notre atelier.");
+      await page.locator('select[id$="-video-voice-mode"]').selectOption("provided");
+      const settings = page.locator('[data-voice-pool-settings]'); await settings.waitFor();
+      assert.equal(await page.locator('[data-video-audio-button]').count(), 0, "Real uses one Settings entry rather than a second hidden gear");
+      assert.equal(await page.locator('[data-voice-pool-import]').count(), 0, "no file import or three vocal chips are shown in the main panel");
+      const subtitles = page.locator('[data-media-subtitles]'); assert.equal(await subtitles.isVisible(), true); await subtitles.check();
+      await settings.click(); const dialog = page.locator('[data-media-settings-dialog="voices"]'); await dialog.waitFor({ state: "visible" });
+      assert.equal(await dialog.locator('input[type="file"]').count(), 1, "the actual reusable voice importer is mounted in Settings");
+      assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).fixtureVoiceUploads), 0, "opening Settings never uploads or records a vocal");
+      await dialog.locator('input[type="file"]').setInputFiles({ name: "voix.wav", mimeType: "audio/wav", buffer: Buffer.from("local-synthetic-audio") });
+      await page.waitForFunction(() => (((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_voice_pool.snapshot as { profiles: unknown[] }).profiles.length === 1));
+      assert.equal(await dialog.locator('[data-voice-profile]').count(), 1);
+      const portalLayout = await dialog.evaluate(element => {
+        const chip = element.querySelector<HTMLElement>('[data-voice-profile]')!, row = chip.parentElement!, count = row.querySelector<HTMLElement>('.pool-count')!;
+        const chipBounds = chip.getBoundingClientRect(), dialogBounds = element.getBoundingClientRect(), chipStyle = getComputedStyle(chip), rowStyle = getComputedStyle(row);
+        return { side: dialogBounds.width, height: dialogBounds.height, centerX: dialogBounds.x + dialogBounds.width / 2, centerY: dialogBounds.y + dialogBounds.height / 2, chipHeight: chipBounds.height, chipFont: parseFloat(chipStyle.fontSize), paddingX: parseFloat(chipStyle.paddingLeft), paddingY: parseFloat(chipStyle.paddingTop), gap: parseFloat(rowStyle.gap), countFont: parseFloat(getComputedStyle(count).fontSize), selected: chip.getAttribute('aria-pressed') };
+      });
+      assert.ok(Math.abs(portalLayout.side - portalLayout.height) <= 1 && Math.abs(portalLayout.centerX - viewport.width / 2) <= 1 && Math.abs(portalLayout.centerY - viewport.height / 2) <= 1, "the actual portaled pool stays square and centered");
+      assert.ok(portalLayout.chipHeight >= 34 && portalLayout.chipFont >= 12 && portalLayout.paddingX >= 10 && portalLayout.paddingY >= 6 && portalLayout.gap >= 8 && portalLayout.countFont >= 12, `portaled vocal chips retain their real readable styles ${JSON.stringify(portalLayout)}`);
+      assert.equal(portalLayout.selected, "true");
+      const pool = await page.evaluate(() => (window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_voice_pool.snapshot as { profiles: Array<{ id: string; target: unknown }> });
+      assert.equal(pool.profiles[0].target, "narration"); assert.equal(await page.locator('[data-media-reference-open]').count(), 0);
+      await page.evaluate(() => (window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_voice_pool.handlers.select.invoke("gender:0:male"));
+      await page.waitForFunction(() => (window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_voice_pool.handlers.select.matches((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_voice_pool.snapshot, "gender:0:male"));
+      assert.equal(await dialog.locator('input[type="checkbox"]').isChecked(), false, "import and gender choice cannot grant voice cloning consent");
+      await dialog.locator('input[type="checkbox"]').check();
+      const parentEscapes = await page.evaluate(() => (window as unknown as FixtureWindow).parentEscapes); await page.keyboard.press("Escape");
+      await dialog.waitFor({ state: "hidden" }); assert.equal(await settings.evaluate(element => document.activeElement === element), true);
+      assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).parentEscapes), parentEscapes);
+      assert.equal(await subtitles.isVisible(), true); assert.equal(await subtitles.isChecked(), true); await subtitles.uncheck(); assert.equal(await subtitles.isChecked(), false);
+      assert.equal(await visual.inputValue(), prompt); assert.equal(await page.locator('textarea[id$="-spoken-script"]').inputValue(), "Bonjour, bienvenue dans notre atelier.");
+      await settings.click(); await dialog.waitFor({ state: "visible" });
+      assert.equal(await dialog.locator('[data-voice-profile]').count(), 1); assert.equal(await dialog.locator('input[type="checkbox"]').isChecked(), true);
+      await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
+      if (viewport.width > 760) {
+        await assertUsualDesktopPanelNeedsNoScroll(page, `${viewport.width}x${viewport.height} Real voiceover with Exact and no photo`);
+        await page.locator('[data-media-role-add="character"]').click();
+        const imageDialog = page.locator('[data-media-settings-dialog="images"]');
+        const referencePng = await page.evaluate(() => (window as unknown as FixtureWindow).fixtureReferencePng);
+        await imageDialog.locator('input[type="file"]').setInputFiles({ name: "moi.png", mimeType: "image/png", buffer: Buffer.from(referencePng, "base64") });
+        await imageDialog.waitFor({ state: "detached" });
+        await page.waitForFunction(() => document.querySelectorAll('[data-media-reference-open]').length === 1);
+        assert.equal(await page.locator('select[id$="-video-speech-mode"]').inputValue(), "voiceover");
+        assert.equal(await page.locator('select[id$="-video-voice-mode"]').inputValue(), "provided");
+        await assertUsualDesktopPanelNeedsNoScroll(page, `${viewport.width}x${viewport.height} Real voiceover with one required photo and Exact`);
+      }
+      assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).fixtureVoiceUploads), 1);
+      assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).studioRequests.length), 0); assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
       assert.deepEqual(errors, []); await page.close();
     }
   } finally { await browser.close(); }
@@ -617,7 +740,7 @@ test("short windows keep both video frames separate and the speech header on two
         await assertFramesNeverOverlap(page, `${context} silent`);
         assert.equal(await speech.count(), 0, "silent mode has no inactive speech editor or 0/0 counter");
         assert.equal(await page.locator('[id$="-spoken-script-count"]').count(), 0);
-        assert.equal(await page.locator('select[id$="-spoken-script-mode"]').count(), 0);
+        assert.equal(await page.locator('select[id$="-spoken-script-mode"]').isDisabled(), true);
         await page.locator('select[id$="-video-speech-mode"]').selectOption("voiceover");
         assert.equal(await page.locator('select[id$="-spoken-script-mode"]').isVisible(), true);
       }

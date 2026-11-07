@@ -15,6 +15,7 @@ import {
 import { classifyAiMediaGenerationError, getAiMediaGenerationPublicError } from "@/lib/aiMediaGenerationPublicErrors";
 import { AI_MEDIA_PROMPT_VERSION } from "@/lib/aiMediaGenerationPrompt";
 import { AI_MEDIA_FREE_PROMPT_VERSION, assertAiMediaFreeExactNarrationFits } from "@/lib/aiMediaFreeGenerationPrompt";
+import type { PreparedAiMediaNarrationVoice } from "@/lib/aiMediaNarrationVoicePreflight";
 import {
   AiMediaGenerationQuotaError,
   completeAiMediaGeneration,
@@ -178,9 +179,15 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
     withText: request.withText,
     textKeywords: request.textKeywords,
     withMusic: request.withMusic,
+    // Omitted for Auto so retries of pre-selection requests retain their digest.
+    ...(request.withMusic && request.soundtrackId ? { soundtrackId: request.soundtrackId } : {}),
     withNarration: request.withNarration,
     narrationVoice: request.narrationVoice,
     narrationVoiceVariant: request.narrationVoiceVariant,
+    ...(request.narrationVoiceMode === "provided" ? {
+      narrationVoiceMode: "provided", narrationVoiceSample: request.narrationVoiceSample?.path,
+      narrationVoiceConsent: request.narrationVoiceConsent === true, narrationVoiceGender: request.narrationVoiceGender || "auto",
+    } : {}),
     format: request.format,
     typology: request.typology,
     visualStyle: request.visualStyle,
@@ -336,6 +343,23 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
       compatibleRequestBody,
     );
     context.requestId = normalizedRequest.requestId;
+    let preparedNarrationVoice: PreparedAiMediaNarrationVoice | null = null;
+    if (normalizedRequest.narrationVoiceMode === "provided") {
+      const { isAiMediaVoiceCloneConfigured, supportsAiMediaClonedNarrationLanguage } = await import("@/lib/aiMediaNarrationVoiceClone");
+      if (!isAiMediaVoiceCloneConfigured()) return jsonError({ status: 503, code: "AI_MEDIA_VOICE_CLONE_UNAVAILABLE", message: "La synthèse avec votre voix est momentanément indisponible. Votre vocal est conservé." });
+      const { preflightAiMediaNarrationVoice, resolveAiMediaNarrationVoiceLanguage } = await import("@/lib/aiMediaNarrationVoicePreflight");
+      const [voiceProfile, voiceBusiness] = await Promise.all([
+        current.supabase.from("profiles").select("*").eq("user_id", context.accountId).maybeSingle(),
+        current.supabase.from("business_profiles").select("*").eq("user_id", context.accountId).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      if (voiceProfile.error || voiceBusiness.error) throw new AiMediaRequestValidationError("La langue de narration n’a pas pu être vérifiée. Réessayez dans quelques instants ; aucun crédit n’a été réservé.");
+      const language = resolveAiMediaNarrationVoiceLanguage({ profile: voiceProfile.data, business: voiceBusiness.data, request: normalizedRequest });
+      if (!supportsAiMediaClonedNarrationLanguage(language)) throw new AiMediaRequestValidationError("La synthèse avec votre voix n’est pas disponible dans cette langue. Choisissez une autre langue de narration.");
+      preparedNarrationVoice = await preflightAiMediaNarrationVoice({
+        accountId: context.accountId, sample: normalizedRequest.narrationVoiceSample,
+        consent: normalizedRequest.narrationVoiceConsent, signal: options.signal, language,
+      });
+    }
 
     try { assertAiMediaFreeExactNarrationFits(normalizedRequest); }
     catch (error) {
@@ -421,9 +445,13 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
         with_text: normalizedRequest.withText,
         text_keyword_count: normalizedRequest.textKeywords.length,
         with_music: normalizedRequest.withMusic,
+        requested_soundtrack_id: normalizedRequest.soundtrackId || null,
         with_narration: normalizedRequest.withNarration,
         narration_voice: normalizedRequest.narrationVoice,
         narration_voice_variant: normalizedRequest.narrationVoiceVariant,
+        narration_voice_mode: normalizedRequest.narrationVoiceMode || "ai",
+        narration_voice_gender: normalizedRequest.narrationVoiceGender || "auto",
+        narration_voice_consent_recorded_at: normalizedRequest.narrationVoiceConsent ? new Date().toISOString() : null,
         format: normalizedRequest.format,
         typology: normalizedRequest.typology,
         visual_style: normalizedRequest.visualStyle,
@@ -585,6 +613,7 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
       jobId: context.jobId,
       edition: accountEdition || undefined,
       request: normalizedRequest,
+      preparedNarrationVoice,
       videoMaxDurationSeconds,
       // Leave time for persistence/finalization before the platform's 800s limit.
       signal: AbortSignal.any([options.signal, AbortSignal.timeout(720_000)]),

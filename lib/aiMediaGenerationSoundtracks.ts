@@ -24,7 +24,7 @@ export type LoadedAiMediaSoundtrack = AiMediaSoundtrackDefinition & {
 export type AiMediaSoundtrackLoadOptions =
   AiMediaSoundtrackSelectionOptions & {
     durationSeconds?: AiMediaSoundtrackDuration;
-    /** Server-selected persisted track for deterministic series/recovery. */
+    /** Explicit catalogue choice or persisted track for deterministic recovery. */
     soundtrackId?: string;
   };
 

@@ -22,6 +22,7 @@ import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover 
 import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
 import { buildAiMediaLocalLogoCompositionPrompt } from "./aiMediaLocalLogoCompositionPrompt.ts";
 import { prepareAiMediaNarration } from "@/lib/aiMediaNarrationPreparation";
+import type { PreparedAiMediaNarrationVoice } from "./aiMediaNarrationVoicePreflight.ts";
 import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
 import {
   AiGatewayAccountLimitError,
@@ -306,6 +307,8 @@ export async function generateAndSaveAiMedia(args: {
   jobId: string;
   edition?: DashboardEdition;
   request: AiMediaGenerationRequest;
+  /** Owned reference bytes preloaded before the API reserves credits. */
+  preparedNarrationVoice?: PreparedAiMediaNarrationVoice | null;
   /** Autorisation résolue avant réservation, contrôlée une seconde fois ici. */
   videoMaxDurationSeconds?: AiMediaVideoDurationLimit;
   /** Internal Agent contract; Studio's existing composition policy is unchanged. */
@@ -350,6 +353,16 @@ export async function generateAndSaveAiMedia(args: {
   };
 
   args.signal?.throwIfAborted();
+  let preparedNarrationVoice = args.request.narrationVoiceMode === "provided" ? args.preparedNarrationVoice ?? null : null;
+  if (args.request.narrationVoiceMode === "provided") {
+    if (preparedNarrationVoice && (preparedNarrationVoice.accountId !== args.accountId || preparedNarrationVoice.path !== args.request.narrationVoiceSample?.path)) {
+      throw new AiMediaRequestValidationError("Le vocal choisi ne correspond plus au compte actuel. Choisissez-le de nouveau.");
+    }
+    if (!preparedNarrationVoice) {
+      const { preflightAiMediaNarrationVoice } = await import("./aiMediaNarrationVoicePreflight.ts");
+      preparedNarrationVoice = await preflightAiMediaNarrationVoice({ accountId: args.accountId, sample: args.request.narrationVoiceSample, consent: args.request.narrationVoiceConsent, signal: args.signal });
+    }
+  }
   if (args.request.kind === "video") {
     const authorizedDuration =
       args.videoMaxDurationSeconds ??
@@ -393,7 +406,7 @@ export async function generateAndSaveAiMedia(args: {
   }
 
   const recentSoundtrackIdsTask =
-    args.request.kind === "video" && args.request.withMusic
+    args.request.kind === "video" && args.request.withMusic && !args.request.soundtrackId
       ? measure("soundtrack_history", () =>
           getRecentAiMediaSoundtrackIds({
             supabase: args.supabase,
@@ -472,6 +485,7 @@ export async function generateAndSaveAiMedia(args: {
   const profile = buildNormalizedAiGenerationProfile({
     profile: generationContext.profile,
     business: generationContext.business,
+    ...(preparedNarrationVoice?.language ? { preferences: { ai_language: preparedNarrationVoice.language } } : {}),
     idea: providerRequest.idea,
     theme: providerRequest.idea,
     style: "",
@@ -1483,6 +1497,7 @@ export async function generateAndSaveAiMedia(args: {
       recentPublications: generationContext.recentPublications,
       durationSeconds,
       narrationSignal: narrationController.signal,
+      providedVoice: preparedNarrationVoice,
       measure,
     });
     const narrationTask =
@@ -1571,6 +1586,7 @@ export async function generateAndSaveAiMedia(args: {
             selectionKey: `${args.accountId}:${args.jobId}`,
             excludedIds: recentSoundtrackIds,
             durationSeconds,
+            ...(providerRequest.soundtrackId ? { soundtrackId: providerRequest.soundtrackId } : {}),
           },
         );
         return { value, warnings: [] as string[] };
@@ -2077,7 +2093,7 @@ export async function generateAndSaveAiMedia(args: {
           : narration && narrationAudio
           ? {
               enabled: true,
-              delivery: nativeVoiceoverRequested ? "tts_fallback" : "tts",
+              delivery: providerRequest.narrationVoiceMode === "provided" ? "voice_clone_tts" : nativeVoiceoverRequested ? "tts_fallback" : "tts",
               model: narrationAudio.model,
               voice: narrationAudio.voice,
               language: narration.language,
@@ -2120,9 +2136,12 @@ export async function generateAndSaveAiMedia(args: {
           with_text: providerRequest.withText,
           text_keyword_count: providerRequest.textKeywords.length,
           with_music: providerRequest.withMusic,
+          requested_soundtrack_id: providerRequest.soundtrackId || null,
           with_narration: providerRequest.withNarration,
           narration_voice: providerRequest.narrationVoice,
           narration_voice_variant: providerRequest.narrationVoiceVariant,
+          narration_voice_mode: providerRequest.narrationVoiceMode || "ai",
+          narration_voice_gender: providerRequest.narrationVoiceGender || "auto",
           format: providerRequest.format,
           typology: providerRequest.typology,
           visual_style: providerRequest.visualStyle,

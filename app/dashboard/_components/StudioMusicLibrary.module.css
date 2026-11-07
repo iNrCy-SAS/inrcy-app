@@ -1,0 +1,15 @@
+.library { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.library button { color: #e5efff; background: #19314c; border: 1px solid #698dab66; border-radius: 10px; font: inherit; cursor: pointer; }
+.library button:disabled { opacity: .5; cursor: default; }
+.library button:focus-visible { outline: 2px solid #9adcf5; outline-offset: 2px; }
+.library button[aria-pressed="true"] { border-color: #82c9d9; background: #21495b; }
+.defaults { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.defaults button { min-height: 40px; padding: 8px 10px; }
+.tracks { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.tracks li { display: flex; gap: 8px; align-items: stretch; min-width: 0; }
+.choice { display: flex; flex: 1; flex-direction: column; gap: 4px; min-width: 0; padding: 10px 12px; text-align: start; }
+.choice span { font-weight: 650; }
+.choice small { color: #b8cbdc; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.preview { flex: 0 0 42px; width: 42px; }
+.notice, .library p { margin: 0; color: #c7d6e9; font-size: 12px; line-height: 1.5; }
+.notice button { margin-top: 8px; padding: 7px 12px; }

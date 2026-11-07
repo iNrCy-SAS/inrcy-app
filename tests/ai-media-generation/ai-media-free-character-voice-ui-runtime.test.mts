@@ -13,12 +13,14 @@ import * as narration from "../../lib/aiMediaNarrationVoices.ts";
 import * as rules from "../../lib/mediaRules.ts";
 import * as voiceRules from "../../lib/aiMediaCharacterVoices.ts";
 import * as voiceClient from "../../lib/aiMediaCharacterVoiceClient.ts";
+import * as soundtracks from "../../lib/mediaSoundtrackSelection.ts";
 import { quoteAiMediaCredits, type AiMediaCreditsQuoteInput } from "../../lib/aiMediaCreditsPricing.ts";
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
 
 type Props = Record<string, unknown>;
 type Element = { type: unknown; props: Props; key?: string };
 type Slot = { value?: unknown; setter?: (value: unknown) => void; deps?: unknown[]; cleanup?: () => void };
+type NativeEntry = { snapshot: Props; handlers: Record<string, { invoke(value: string | null): unknown; matches(snapshot: unknown, value: string | null): boolean }>; enabled: boolean; locked: boolean };
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
 const frenchMessages = JSON.parse(read("messages/fr-FR/media.json")) as Record<string, string>;
 const elements = (tree: unknown): Element[] => Array.isArray(tree) ? tree.flatMap(elements) : tree && typeof tree === "object" && "props" in tree ? [tree as Element, ...elements((tree as Element).props.children)] : [];
@@ -33,7 +35,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   const requests: MediaGenerationRequest[] = []; const quoteInputs: Props[] = []; const deleted: string[] = []; const uploads: FormData[] = [];
   const uploadedSamples: voiceRules.AiMediaCharacterVoiceSample[] = [];
   const sample: voiceRules.AiMediaCharacterVoiceSample = { path: `_studio-voice-references/2026-10-19/account-a__1792404000000__00000000-0000-4000-8000-000000000001.wav`, mimeType: "audio/wav", name: "ma-voix.wav", durationSeconds: sampleDurationSeconds, sizeBytes: sampleDurationSeconds * 32_000 + 44 };
-  let uploadReply: (() => void) | undefined; let deferUpload = false;
+  let uploadReply: (() => void) | undefined; let deferUpload = false; let voiceUploadError = false;
   const react = {
     useId: () => "real-free-voice",
     useState(initial: unknown) {
@@ -86,11 +88,12 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   const preferenceKey = "inrcy:media-engines:v1:account-a";
   const storedPreferences = new Map([[preferenceKey, JSON.stringify({ videoEngine: initialEngine, imageEngine: preference.imageEngine, videoResolution: preference.videoResolution })]]);
   const localStorage = { getItem: (key: string) => storedPreferences.get(key) ?? null, setItem: (key: string, value: string) => { storedPreferences.set(key, value); } };
-  const interfaces = new Map<string, { pendingReferenceRole?: string | null }>();
+  const interfaces = new Map<string, Props>(), nativeEntries = new Map<string, NativeEntry>();
   const modules = new Map<string, unknown>([
-    ["../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface(id: string, snapshot: { pendingReferenceRole?: string | null }) { interfaces.set(id, snapshot); } }],
+    ["../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface(id: string, snapshot: Props, handlers: NativeEntry["handlers"], enabled = true, locked = false) { interfaces.set(id, snapshot); nativeEntries.set(id, { snapshot, handlers, enabled, locked }); } }],
     ["@/lib/inrAssistantStudioFormSelection", studioForm],
     ["react", react], ["react/jsx-runtime", { jsx, jsxs: jsx }],
+    ["react-dom", { createPortal: (content: Element) => content }],
     ["next-intl", { useLocale: () => options.locale || "fr-FR", useTranslations: () => (key: string, values?: Record<string, string | number>) => {
       if (key.startsWith("ai_generator_video_")) return (frenchMessages[key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
       if (key === "ai_generator_final_authorization_images_label" || key === "ai_generator_final_authorization_voices_label") return frenchMessages[key].replace("{provider}", String(values?.provider || ""));
@@ -103,18 +106,30 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     ["@/lib/aiMediaVideoSpeechBudget", speechBudget],
     ["@/lib/aiMediaModelCatalog", models], ["@/lib/aiMediaVideoTimeline", timeline], ["@/lib/aiMediaVideoClientOptions", videoOptions],
     ["@/lib/aiMediaCharacterVoices", voiceRules], ["@/lib/aiMediaCharacterVoiceClient", { ...voiceClient, deleteCharacterVoiceSample: async (value: voiceRules.AiMediaCharacterVoiceSample | undefined) => { if (value) deleted.push(value.path); } }],
+    ["@/lib/mediaSoundtrackSelection", soundtracks],
     ["@/lib/aiMediaCharacterVoiceRecorderClient", { beginCharacterVoiceRecording() { assert.fail("These tests never activate a microphone"); }, CharacterVoiceRecorderUnavailableError: class extends Error {} }],
     ["@/lib/mediaGenerationReferenceClient", { prepareMediaGenerationImageReference: async (file: File) => ({ name: file.name, data: Buffer.from("synthetic-photo").toString("base64"), mimeType: "image/png" }) }],
     ["@/lib/aiMediaModelRecommendation", { recommendAiMediaModel: () => null }],
     ["../_hooks/useMediaEnginePreference", { __esModule: true, default: () => preference }],
-    ["../_hooks/useMediaCreditQuote", { __esModule: true, default: (input: Props) => { quoteInputs.push(input); const quote = options.realEnginePreference ? quoteAiMediaCredits(input as AiMediaCreditsQuoteInput) : { totalCredits: 88 }; return { ready: true, insufficient: false, authorization: { expectedCredits: quote.totalCredits }, quote }; } }],
+    ["../_hooks/useMediaCreditQuote", { __esModule: true, default: (input: Props, _quota: unknown, enabled: boolean) => { quoteInputs.push({ ...input, enabled }); const quote = options.realEnginePreference ? quoteAiMediaCredits(input as AiMediaCreditsQuoteInput) : { totalCredits: 88 }; return { ready: true, insufficient: false, authorization: { expectedCredits: quote.totalCredits }, quote }; } }],
     ["./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings-tabs" }],
   ]);
   for (const name of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaPromptHelp", "./MediaBusinessDnaHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceLibraryPicker"]) modules.set(name, { __esModule: true, default: name });
-  const browser = { addEventListener(name: string, callback: () => void) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name)!.add(callback); }, removeEventListener(name: string, callback: () => void) { listeners.get(name)?.delete(callback); }, requestAnimationFrame() { return 1; } };
-  const fetch = async (_url: string, init: RequestInit) => {
+  class FakeElement { isConnected = true; focus() { document.activeElement = this; } click() {} pause() {} showModal() {} close() {} getBoundingClientRect() { return { left: 0, top: 0, right: 560, bottom: 560 }; } }
+  const document = { body: {}, activeElement: null as FakeElement | null };
+  const commitRefs = (child: Element) => { for (const node of elements(child)) if (typeof node.type === "string" && node.props.ref && typeof node.props.ref === "object") { const ref = node.props.ref as { current: unknown }; ref.current ||= new FakeElement(); } };
+  const browser = { addEventListener(name: string, callback: () => void) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name)!.add(callback); }, removeEventListener(name: string, callback: () => void) { listeners.get(name)?.delete(callback); }, requestAnimationFrame() { return 1; }, setTimeout, clearTimeout };
+  let musicCatalogueMode: "ready" | "error" = "ready", musicCatalogueCalls = 0, musicPauses = 0, musicPlaybackDeferred = false;
+  let finishMusicPlayback: (() => void) | undefined, musicAudioRef: { current: unknown } | undefined;
+  const musicPlays: string[] = [];
+  const musicTracks = ["piano-serein", "guitare-solaire"].map(id => ({ id, label: id, description: "Extrait local de test", durationSeconds: 24, audioPreview: `/api/booster/soundtracks/${id}/preview?v=24` }));
+  const musicAudio = { paused: true, src: "", pause() { musicPauses++; this.paused = true; }, removeAttribute(name: string) { assert.equal(name, "src"); this.src = ""; }, load() {},
+    play() { this.paused = false; musicPlays.push(this.src); return musicPlaybackDeferred ? new Promise<void>(resolve => { finishMusicPlayback = resolve; }) : Promise.resolve(); } };
+  const fetch = async (_url: string, init: RequestInit = {}) => {
+    if (_url === "/api/booster/soundtracks") { musicCatalogueCalls++; assert.equal(init.credentials, "same-origin"); return musicCatalogueMode === "error" ? Response.json({}, { status: 503 }) : Response.json({ ok: true, soundtracks: musicTracks }); }
     uploads.push(init.body as FormData);
     if (deferUpload) await new Promise<void>((resolve) => { uploadReply = resolve; });
+    if (voiceUploadError) return Response.json({ ok: false, message: "Le vocal n’a pas pu être importé." }, { status: 503 });
     const uploadNumber = uploads.length;
     const uploadedSample = uploadNumber === 1 ? sample : {
       ...sample,
@@ -127,22 +142,24 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   function load(file: string) {
     const output = ts.transpileModule(read(file), { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
     const record = { exports: {} as { default: (props: Props) => Element } };
-    new Function("module", "exports", "require", "window", "fetch", "localStorage", output)(record, record.exports, (id: string) => { if (id === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy; if (id.endsWith(".module.css")) return css; assert.ok(modules.has(id), `Unexpected actual Free dependency ${id}`); return modules.get(id); }, browser, fetch, localStorage);
+    new Function("module", "exports", "require", "window", "fetch", "localStorage", "document", "HTMLElement", output)(record, record.exports, (id: string) => { if (id === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy; if (id.endsWith(".module.css")) return css; assert.ok(modules.has(id), `Unexpected actual Free dependency ${id}`); return modules.get(id); }, browser, fetch, localStorage, document, FakeElement);
     return record.exports;
   }
   const voice = load("app/dashboard/_components/MediaCharacterVoiceInput.tsx"); modules.set("./MediaCharacterVoiceInput", { __esModule: true, ...voice });
+  const music = load("app/dashboard/_components/StudioMusicLibrary.tsx"); modules.set("./StudioMusicLibrary", { __esModule: true, ...music });
+  const pool = load("app/dashboard/_components/StudioVoicePool.tsx"); modules.set("./StudioVoicePool", { __esModule: true, ...pool });
   const controls = load("app/dashboard/_components/MediaEngineCreditControls.tsx"); modules.set("./MediaEngineCreditControls", { __esModule: true, ...controls });
   if (options.realEnginePreference) modules.set("../_hooks/useMediaEnginePreference", { __esModule: true, ...load("app/dashboard/_hooks/useMediaEnginePreference.ts") });
   const free = load("app/dashboard/_components/MediaFreeGenerator.tsx");
   const props = { source: "studio", acceptMode: "library", mediaType: kind, initialPrompt: options.initialPrompt ?? "Le personnage présente son métier avec sa voix.", onAccepted() {} };
   const render = () => {
     let count = 0;
-    do { assert.ok(++count < 20); slots = parentSlots; cursor = 0; dirty = false; tree = free.default(props); for (const effect of effects.splice(0)) effect(); } while (dirty);
+    do { assert.ok(++count < 20); slots = parentSlots; cursor = 0; dirty = false; tree = free.default(props); if (kind === "video") renderPool(); for (const effect of effects.splice(0)) effect(); } while (dirty);
     return tree;
   };
-  const renderChild = (id: string, component: { default: (props: Props) => Element }, input: Props) => {
+  const renderChild = (id: string, component: { default: (props: Props) => Element }, input: Props, commit?: (child: Element) => void) => {
     slots = childSlots.get(id) || []; childSlots.set(id, slots); cursor = 0;
-    const child = component.default(input); for (const effect of effects.splice(0)) effect(); slots = parentSlots;
+    const child = component.default(input); commit?.(child); for (const effect of effects.splice(0)) effect(); slots = parentSlots;
     return child;
   };
   const currentVideoDialog = () => elements(tree).find(node => typeof node.type === "function" && node.type.name === "MediaSettingsDialog");
@@ -156,6 +173,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     assert.equal(currentVideoDialog()?.props.kind, name, "the real native launcher opens the requested settings dialog");
   };
   const cards = () => {
+    if (nativeEntries.get("studio_voice_pool")?.snapshot.open) closePool();
     let rendered = elements(tree).filter(node => node.props["data-reference-id"]);
     if (rendered.length) return rendered;
     closeSettings();
@@ -165,17 +183,50 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     rendered = elements(tree).filter(node => node.props["data-reference-id"]);
     return rendered;
   };
-  const renderVoice = (index: number) => {
-    const referenceId = String(cards()[index].props["data-reference-id"]);
+  let poolTree: Element, voiceTree: Element;
+  const renderPool = () => {
+    const node = find(tree, item => item.type === pool.default);
+    poolTree = renderChild("pool", pool, node.props, commitRefs);
+    const child = elements(poolTree).find(item => item.type === voice.default);
+    if (child) voiceTree = renderChild("pool-voice", voice, child.props, commitRefs);
+    return poolTree;
+  };
+  const closePool = () => { const dialog = find(poolTree, node => node.type === "dialog"); (dialog.props.onCancel as (event: unknown) => void)({ preventDefault() {}, stopPropagation() {} }); render(); };
+  const selectVoicePerson = (referenceId: string) => {
+    if (nativeEntries.get("studio_voice_pool")?.snapshot.open) closePool();
     closeSettings();
     const audio = find(tree, node => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode"));
     if (audio.props.value !== "characters") { (audio.props.onChange as (event: unknown) => void)({ target: { value: "characters" } }); render(); }
-    openSettings("audio");
-    const group = elements(tree).find(node => node.props.className === "videoCharacterVoice" && node.key === referenceId);
-    return renderChild(referenceId, voice, find(group, node => node.type === voice.default).props);
+    const select = nativeEntries.get("studio_free_form")!.handlers.select;
+    select.invoke(JSON.stringify({ field: "voiceReferenceId", value: referenceId })); render();
+    closeSettings();
+  };
+  const chooseMainVoice = (mode: "ai" | "provided") => {
+    if (nativeEntries.get("studio_voice_pool")?.snapshot.open) closePool();
+    closeSettings(); const select = find(tree, node => node.type === "select" && String(node.props.id).endsWith("-video-voice-mode"));
+    assert.equal(select.props.disabled, false); (select.props.onChange as (event: unknown) => void)({ target: { value: mode } }); render();
+  };
+  const renderVoice = (index: number) => {
+    const referenceId = String(cards()[index].props["data-reference-id"]);
+    selectVoicePerson(referenceId);
+    const snapshot = nativeEntries.get("studio_voice_pool")!.snapshot as Props & { profiles: Array<{ id: string; target: { characterId: string } | string | null }> };
+    const profile = snapshot.profiles.find(profile => profile.target && typeof profile.target === "object" && profile.target.characterId === referenceId);
+    if (profile) { const button = find(poolTree, node => node.props["data-voice-profile"] === profile.id); (button.props.onClick as () => void)(); render(); }
+    else { chooseMainVoice("provided"); const button = find(poolTree, node => node.props["data-voice-pool-settings"] !== undefined); assert.equal(button.props.disabled, false); (button.props.onClick as () => void)(); render(); if (nativeEntries.get("studio_voice_pool")!.snapshot.editingId) { const add = find(poolTree, node => node.props["data-voice-pool-add"] !== undefined); (add.props.onClick as () => void)(); render(); } }
+    return voiceTree;
   };
   const flush = async () => { for (let at = 0; at < 5; at++) { await new Promise((resolve) => setImmediate(resolve)); render(); } };
+  const renderMusic = () => {
+    const node = find(tree, item => item.type === music.default);
+    return renderChild("music", music, node.props, child => {
+      const audio = elements(child).find(item => item.type === "audio");
+      if (audio) { musicAudioRef = audio.props.ref as { current: unknown }; musicAudioRef.current = musicAudio; }
+      else if (musicAudioRef) musicAudioRef.current = null;
+    });
+  };
+  const flushMusic = async () => { for (let at = 0; at < 5; at++) { await new Promise(resolve => setImmediate(resolve)); render(); renderMusic(); } };
   const beginReferenceAddition = (role: string) => {
+    if (nativeEntries.get("studio_voice_pool")?.snapshot.open) closePool();
     closeSettings(); const launcher = find(tree, node => node.props["data-media-role-add"] === role);
     assert.equal(launcher.props.disabled, false); (launcher.props.onClick as () => void)(); render();
     assert.equal(interfaces.get("studio_media_images")?.pendingReferenceRole, role, "the native role launcher captures the import role");
@@ -189,8 +240,26 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   };
   render();
   return { cards, tree: () => tree, requests, quoteInputs, deleted, uploads, uploadedSamples, sample, render, flush,
+    renderMusic, flushMusic, musicTracks, musicPlays, musicAudio,
+    musicNative() { renderMusic(); return nativeEntries.get("studio_video_music")!; },
+    musicReads: () => musicCatalogueCalls, musicPauseCount: () => musicPauses,
+    setMusicCatalogue(mode: "ready" | "error") { musicCatalogueMode = mode; },
+    setMusicLocked(locked: boolean) { hook.busy = locked; render(); renderMusic(); },
+    changeMusicAccount(id: string) { quota.accountId = id; for (const callback of [...listeners.get("account-change") || []]) callback(); render(); renderMusic(); },
+    deferMusicPlay() { musicPlaybackDeferred = true; }, finishMusicPlay() { finishMusicPlayback?.(); musicPlaybackDeferred = false; },
+    mountedInterfaces: () => [...nativeEntries.keys()],
     storedEnginePreference: () => JSON.parse(localStorage.getItem(preferenceKey) || "null") as Props,
-    renderVoice,
+    renderVoice, poolTree: () => poolTree, voiceTree: () => voiceTree, closePool,
+    poolNative: () => nativeEntries.get("studio_voice_pool")!,
+    audioNative: () => nativeEntries.get("studio_video_audio")!,
+    setVoiceUploadError(value: boolean) { voiceUploadError = value; },
+    beginVocalImport() { chooseMainVoice("provided"); const button = find(poolTree, node => node.props["data-voice-pool-settings"] !== undefined); assert.equal(button.props.disabled, false); (button.props.onClick as () => void)(); render(); if (nativeEntries.get("studio_voice_pool")!.snapshot.editingId) { const add = find(poolTree, node => node.props["data-voice-pool-add"] !== undefined); (add.props.onClick as () => void)(); render(); } },
+    async selectVocalFile(file: File) { const input = find(voiceTree, node => node.type === "input" && node.props.type === "file"); (input.props.onChange as (event: unknown) => void)({ currentTarget: { files: [file], value: "" } }); await flush(); },
+    reverseProfiles() { const component = find(tree, node => node.type === pool.default); (component.props.onChange as (profiles: unknown[]) => void)([...(component.props.profiles as unknown[])].reverse()); render(); },
+    setLocked(locked: boolean) { hook.busy = locked; render(); },
+    removePoolVocal() { const remove = find(voiceTree, node => node.type === "button" && node.props["aria-label"] === "ai_generator_character_voice_remove"); assert.equal(remove.props.disabled, false); (remove.props.onClick as () => void)(); render(); },
+    async importNarrator() { chooseMainVoice("provided"); const button = find(poolTree, node => node.props["data-voice-pool-settings"] !== undefined); assert.equal(button.props.disabled, false); (button.props.onClick as () => void)(); render(); if (nativeEntries.get("studio_voice_pool")!.snapshot.editingId) { const add = find(poolTree, node => node.props["data-voice-pool-add"] !== undefined); (add.props.onClick as () => void)(); render(); } const input = find(voiceTree, node => node.type === "input" && node.props.type === "file"); (input.props.onChange as (event: unknown) => void)({ currentTarget: { files: [new File(["wav-voice"], "narration.wav", { type: "audio/wav" })], value: "" } }); await flush(); },
+    narrationConsent(checked = true) { const input = find(poolTree, node => node.type === "input" && node.props.type === "checkbox"); (input.props.onChange as (event: unknown) => void)({ target: { checked } }); render(); },
     renderEngines() { const node = find(tree, (item) => item.type === controls.default); return renderChild("engines", controls, node.props); },
     renderEngineInfo() { const node = find(tree, (item) => item.type === controls.default); let child = renderChild("engines", controls, node.props); (find(child, (item) => item.type === "button" && item.props["aria-haspopup"] === "dialog").props.onClick as () => void)(); child = renderChild("engines", controls, node.props); const info = find(child, (item) => typeof item.type === "function" && item.type.name === "MediaEngineInfoModal"); return renderChild("engine-info", { default: info.type as (props: Props) => Element }, info.props); },
     selectEngine(engine: models.AiMediaVideoEngine, resolution = models.getAiMediaVideoModel(engine).defaultResolution) { const node = find(tree, (item) => item.type === controls.default); const child = renderChild("engines", controls, node.props); const menu = find(child, (item) => item.type === "select" && String(item.props.id).endsWith("-engine")); (menu.props.onChange as (event: unknown) => void)({ target: { value: `${engine}:${resolution}` } }); render(); },
@@ -201,7 +270,10 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     beginReferenceAddition, selectReferenceFiles,
     async addPhoto(name = "personnage.png", role = "inspiration") { beginReferenceAddition(role); await selectReferenceFiles([new File(["synthetic-photo"], name, { type: "image/png" })]); assert.equal(currentVideoDialog(), undefined, "only a successful import closes the add chooser"); },
     criteria(index: number, role: string, usage: string) { const menu = find(cards()[index], node => node.type === "select"); (menu.props.onChange as (event: unknown) => void)({ target: { value: role } }); render(); const toggle = find(cards()[index], node => node.props["data-reference-inspiration-toggle"] !== undefined); if (toggle.props["aria-pressed"] !== (usage === "inspiration")) (toggle.props.onClick as () => void)(); render(); },
-    chooseVoice(index: number, mode: "ai" | "provided") { const child = renderVoice(index); (find(child, (node) => node.type === "select").props.onChange as (event: unknown) => void)({ target: { value: mode } }); render(); },
+    chooseVoice(index: number, mode: "ai" | "provided") { const id = String(cards()[index].props["data-reference-id"]); selectVoicePerson(id); chooseMainVoice(mode); },
+    chooseMainVoice,
+    voiceSnapshot: () => interfaces.get("studio_free_form") as Props & { voiceReferences: Array<{ id: string; name: string; voiceMode: string; referenceIndex: number }>; voiceMode: string; spokenScriptOpen: boolean; spokenScript: string },
+    selectVoicePerson,
     async uploadVoice(index: number) { const child = renderVoice(index); const input = find(child, (node) => node.type === "input" && node.props.type === "file"); (input.props.onChange as (event: unknown) => void)({ currentTarget: { files: [new File(["wav-voice"], "vocal.wav", { type: "audio/wav" })], value: "" } }); await flush(); },
     consent(checked = true) { const authorization = find(tree, (node) => node.props["data-media-final-authorization"] !== undefined); (find(authorization, (node) => node.type === "input").props.onChange as (event: unknown) => void)({ target: { checked } }); render(); },
     regenerationConsent(checked: boolean) { const consents = find(tree, (node) => node.type === "preview").props.regenerationConsents as Array<{ onChange: (checked: boolean) => void }>; assert.equal(consents.length, 1); consents[0].onChange(checked); render(); },
@@ -213,7 +285,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     editRecovered() { (find(tree, (node) => node.type === "preview").props.handleEditCriteria as () => void)(); render(); },
     async abandonRecovery() { (find(tree, (node) => node.type === "preview").props.handleConfirmGenerationStop as () => void)(); await flush(); },
     removePhoto(index: number) { (find(cards()[index], (node) => node.type === "button").props.onClick as () => void)(); render(); },
-    setSound(value: string) { const audioWasOpen = currentVideoDialog()?.props.kind === "audio"; closeSettings(); const select = find(tree, node => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode")); (select.props.onChange as (event: unknown) => void)({ target: { value } }); render(); if (audioWasOpen) openSettings("audio"); },
+    setSound(value: string) { const audioWasOpen = currentVideoDialog()?.props.kind === "audio"; closeSettings(); const select = find(tree, node => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode")); (select.props.onChange as (event: unknown) => void)({ target: { value } }); render(); if (audioWasOpen && !find(tree, node => node.props["data-video-audio-button"] !== undefined).props.disabled) openSettings("audio"); },
     enterPrompt(value: string) { const input = find(tree, (node) => node.type === "textarea" && String(node.props.id).endsWith("-prompt")); (input.props.onChange as (event: unknown) => void)({ target: { value } }); render(); },
     setDuration(seconds: number, mode: "single" | "multi" = "single") { const node = find(tree, (item) => item.type === controls.default); (node.props.onDurationSceneChange as (seconds: number, mode: string) => void)(seconds, mode); render(); },
     async invokeGenerateCallback() { await (find(tree, node => node.type === "preview").props.handleGenerate as () => Promise<void>)(); await flush(); },
@@ -227,13 +299,217 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
       const input = find(tree, (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script")); assert.equal(input.props.disabled, false); (input.props.onChange as (event: unknown) => void)({ target: { value } }); render();
     },
     removeSpeech() { const menu = find(tree, (node) => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode")); (menu.props.onChange as (event: unknown) => void)({ target: { value: "automatic" } }); render(); },
-    setSubtitles(checked: boolean) { openSettings("audio"); const input = find(tree, (node) => node.props["data-media-subtitles"] !== undefined); if (!input.props.disabled) (input.props.onChange as (event: unknown) => void)({ target: { checked } }); render(); },
+    setSubtitles(checked: boolean) { const input = find(tree, (node) => node.props["data-media-subtitles"] !== undefined); if (!input.props.disabled) (input.props.onChange as (event: unknown) => void)({ target: { checked } }); render(); },
     async generate() { const button = find(tree, (node) => node.props["data-media-primary-action"] !== undefined); if (button.props.disabled) return; (button.props.onClick as () => void)(); await flush(); },
     deferVoiceUpload() { deferUpload = true; }, finishVoiceUpload() { uploadReply?.(); },
     changeAccount() { for (const callback of [...listeners.get("account-change") || []]) callback(); render(); },
     dispose() { for (const bank of [parentSlots, ...childSlots.values()]) for (const slot of bank) slot.cleanup?.(); },
   };
 }
+
+test("the real Studio music library binds catalogue choices, confirms preview and preserves Auto Off and account scope without generation", async () => {
+  const h = harness();
+  try {
+    const closed = h.musicNative(); closed.handlers.open.invoke(null); await h.flushMusic();
+    let entry = h.musicNative(); assert.equal(entry.snapshot.open, true); assert.equal(entry.snapshot.ready, true);
+    assert.deepEqual(entry.snapshot.catalogue, h.musicTracks.map(track => track.id));
+    assert.equal(h.musicReads(), 1);
+    const previewId = h.musicTracks[1].id;
+    await entry.handlers.play.invoke(previewId); await h.flushMusic(); entry = h.musicNative();
+    assert.equal(entry.snapshot.withMusic, true); assert.equal(entry.snapshot.soundtrackId, null, "previewing an unselected track never changes the default Auto choice");
+    assert.equal(entry.snapshot.playingId, previewId); assert.equal(entry.snapshot.playbackActive, true);
+    assert.equal(entry.handlers.play.matches(entry.snapshot, previewId), true);
+    assert.equal(h.musicPlays.at(-1), h.musicTracks[1].audioPreview);
+    entry.handlers.stop.invoke(null); await h.flushMusic(); entry = h.musicNative();
+    assert.equal(entry.handlers.stop.matches(entry.snapshot, null), true); assert.equal(h.musicAudio.paused, true);
+    const trackId = h.musicTracks[0].id, select = entry.handlers.select;
+    select.invoke(trackId); assert.equal(select.matches(entry.snapshot, trackId), false); await h.flushMusic(); entry = h.musicNative();
+    assert.equal(select.matches(entry.snapshot, trackId), true); assert.equal(entry.snapshot.soundtrackId, trackId); assert.equal(entry.snapshot.withMusic, true);
+    entry.handlers.select.invoke("auto"); await h.flushMusic(); entry = h.musicNative();
+    assert.equal(entry.snapshot.withMusic, true); assert.equal(entry.snapshot.soundtrackId, null); assert.equal(entry.handlers.select.matches(entry.snapshot, "auto"), true);
+    entry.handlers.select.invoke("off"); await h.flushMusic(); entry = h.musicNative();
+    assert.equal(entry.snapshot.withMusic, false); assert.equal(entry.snapshot.soundtrackId, null); assert.equal(entry.handlers.select.matches(entry.snapshot, "off"), true);
+    entry.handlers.select.invoke(trackId); await h.flushMusic(); entry = h.musicNative();
+    await entry.handlers.play.invoke(null); await h.flushMusic(); assert.equal(h.musicAudio.paused, false);
+    const beforeClose = h.musicPauseCount(); h.musicNative().handlers.close.invoke(null); await h.flushMusic(); entry = h.musicNative();
+    assert.equal(entry.snapshot.open, false); assert.equal(h.musicAudio.paused, true); assert.equal(h.musicAudio.src, ""); assert.ok(h.musicPauseCount() > beforeClose, "closing pauses the captured audio even after its dialog ref is cleared");
+    const old = entry; h.changeMusicAccount("account-b"); await h.flushMusic(); entry = h.musicNative();
+    assert.equal(entry.snapshot.scopeKey, "account-b"); assert.equal(entry.snapshot.withMusic, true); assert.equal(entry.snapshot.soundtrackId, null, "another account starts with Auto rather than the previous selected track");
+    assert.equal(old.handlers.select.matches(entry.snapshot, trackId), false, "another account cannot acknowledge the previous selection");
+    assert.equal(h.mountedInterfaces().some(id => id.startsWith("publication_soundtrack_")), false);
+    assert.equal(h.requests.length, 0); assert.equal(h.uploads.length, 0);
+  } finally { h.dispose(); }
+});
+
+test("Studio music controls reject unavailable tracks and stale playback while locked and retry only the current account catalogue", async () => {
+  const h = harness();
+  try {
+    h.setMusicCatalogue("error"); h.musicNative().handlers.open.invoke(null); await h.flushMusic();
+    let entry = h.musicNative(); assert.equal(entry.snapshot.ready, false); assert.throws(() => entry.handlers.select.invoke("unavailable-track"));
+    const retry = entry.handlers.retry; h.setMusicCatalogue("ready"); retry.invoke(null); assert.equal(retry.matches(entry.snapshot, null), false);
+    await h.flushMusic(); entry = h.musicNative(); assert.equal(entry.snapshot.ready, true); assert.equal(retry.matches(entry.snapshot, null), true); assert.equal(h.musicReads(), 2);
+    assert.throws(() => entry.handlers.select.invoke("https://foreign.test/audio.mp3"));
+    h.setMusicLocked(true); entry = h.musicNative(); assert.equal(entry.locked, true);
+    for (const action of [() => entry.handlers.open.invoke(null), () => entry.handlers.close.invoke(null), () => entry.handlers.select.invoke("off"), () => entry.handlers.play.invoke(h.musicTracks[0].id), () => entry.handlers.retry.invoke(null)]) {
+      await assert.rejects(async () => { await action(); });
+    }
+    h.setMusicLocked(false); entry = h.musicNative(); h.deferMusicPlay();
+    const pending = entry.handlers.play.invoke(h.musicTracks[0].id) as Promise<unknown>;
+    h.changeMusicAccount("account-c"); h.finishMusicPlay(); await assert.rejects(pending); await h.flushMusic(); entry = h.musicNative();
+    assert.equal(entry.snapshot.scopeKey, "account-c"); assert.equal(entry.snapshot.playingId, null); assert.equal(entry.snapshot.playbackActive, false); assert.equal(h.musicAudio.paused, true);
+    assert.equal(h.requests.length, 0); assert.equal(h.uploads.length, 0);
+  } finally { h.dispose(); }
+});
+
+
+test("the real Studio vocal pool imports at most three sources and binds native choices to captured profile and photo IDs", async () => {
+  const h = harness("video", "minimax-h3", 8);
+  try {
+    await h.addPhoto("Produit.png", "product"); await h.addPhoto("Alice.png", "character");
+    h.chooseMainVoice("provided"); let pendingEntry = h.poolNative();
+    pendingEntry.handlers.open.invoke(null); h.render(); pendingEntry = h.poolNative(); assert.equal(pendingEntry.handlers.open.matches(pendingEntry.snapshot, null), true); assert.equal(h.uploads.length, 0);
+    pendingEntry.handlers.open.invoke("new"); h.render(); pendingEntry = h.poolNative(); assert.equal(pendingEntry.handlers.open.matches(pendingEntry.snapshot, "new"), true); assert.equal(h.uploads.length, 0, "opening a draft never uploads, records or grants consent");
+    pendingEntry.handlers.close.invoke(null); h.render(); assert.equal(h.poolNative().handlers.close.matches(h.poolNative().snapshot, null), true);
+    for (let at = 0; at < 3; at++) await h.importNarrator();
+    let entry = h.poolNative();
+    const profiles = entry.snapshot.profiles as Array<{ id: string; target: unknown; gender: string }>;
+    assert.equal(profiles.length, 3); assert.equal(new Set(profiles.map(profile => profile.id)).size, 3);
+    assert.equal(h.uploads.length, 3); assert.equal(elements(h.poolTree()).some(node => node.props["data-voice-pool-add"] !== undefined), false);
+    assert.throws(() => entry.handlers.open.invoke("new"), /full/); assert.equal(h.uploads.length, 3);
+    const activate = entry.handlers.select; activate.invoke("active:2"); h.render(); entry = h.poolNative(); assert.equal(activate.matches(entry.snapshot, "active:2"), true); assert.equal(entry.snapshot.activeNarrationVoiceId, profiles[2].id);
+    const firstId = profiles[0].id;
+    entry.handlers.open.invoke("voice:0"); h.render(); entry = h.poolNative();
+    const gender = entry.handlers.select; gender.invoke("gender:0:female"); assert.equal(gender.matches(entry.snapshot, "gender:0:female"), false);
+    h.render(); entry = h.poolNative(); assert.equal(gender.matches(entry.snapshot, "gender:0:female"), true);
+    h.reverseProfiles(); entry = h.poolNative(); assert.equal(gender.matches(entry.snapshot, "gender:0:female"), true, "reorder does not redirect the captured vocal ID");
+    assert.equal((entry.snapshot.profiles as Array<{ id: string; gender: string }>).find(profile => profile.id === firstId)!.gender, "female");
+    const target = entry.handlers.select; target.invoke("target:2:reference:1"); h.render(); entry = h.poolNative();
+    assert.equal(target.matches(entry.snapshot, "target:2:reference:1"), true);
+    const attached = (entry.snapshot.profiles as Array<{ id: string; target: unknown }>).find(profile => profile.id === firstId)!;
+    assert.deepEqual(attached.target, { characterId: (entry.snapshot.characters as Array<{ id: string }>)[0].id });
+    assert.equal(h.uploads.length, 3); assert.equal(h.requests.length, 0);
+    const pendingConsent = find(h.tree(), node => node.props["data-media-final-authorization"] !== undefined);
+    assert.equal(find(pendingConsent, node => node.type === "input").props.checked, false, "native assignment never grants image or voice permission");
+    entry.handlers.open.invoke("voice:0"); h.render(); entry = h.poolNative();
+    assert.throws(() => entry.handlers.select.invoke("target:0:reference:1"), /target_unavailable/, "one photo cannot silently receive a second source");
+    entry.handlers.open.invoke("voice:2"); h.render(); entry = h.poolNative();
+    entry.handlers.select.invoke("target:2:none"); h.render(); entry = h.poolNative(); assert.equal(entry.handlers.select.matches(entry.snapshot, "target:2:none"), true);
+    assert.equal((entry.snapshot.profiles as Array<{ id: string; target: unknown }>).find(profile => profile.id === firstId)!.target, null); assert.deepEqual(h.deleted, []);
+    const beforeScope = entry;
+    h.setLocked(true); entry = h.poolNative(); assert.equal(entry.locked, true);
+    for (const action of [() => entry.handlers.open.invoke("voice:0"), () => entry.handlers.close.invoke(null), () => entry.handlers.select.invoke("gender:2:male")]) assert.throws(action);
+    h.setLocked(false); h.removePoolVocal(); entry = h.poolNative(); assert.equal(beforeScope.handlers.select.matches(entry.snapshot, "target:2:none"), false, "an explicitly removed source cannot acknowledge the previous captured ID");
+    h.changeMusicAccount("account-b"); entry = h.poolNative(); assert.equal(entry.snapshot.scopeKey, "account-b");
+    assert.deepEqual(entry.snapshot.profiles, []); assert.equal(beforeScope.handlers.select.matches(entry.snapshot, "target:2:none"), false);
+    assert.equal(h.requests.length, 0);
+  } finally { h.dispose(); }
+});
+
+
+test("a second independent vocal preserves an occupied character assignment and stays unassigned until an explicit new choice", async () => {
+  const h = harness("video", "wan27", 8);
+  try {
+    await h.addPhoto("Alice.png", "character"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
+    const first = (h.poolNative().snapshot.profiles as Array<{ id: string; target: unknown }>)[0];
+    h.poolNative().handlers.open.invoke("new"); h.render();
+    await h.selectVocalFile(new File(["wav"], "second.wav", { type: "audio/wav" }));
+    const profiles = h.poolNative().snapshot.profiles as Array<{ id: string; target: unknown }>;
+    assert.equal(profiles.length, 2); assert.deepEqual(profiles[0].target, first.target); assert.equal(profiles[1].target, null, "a new source cannot silently compete for an already occupied photo");
+    assert.deepEqual(h.deleted, []); h.closePool(); h.enterSpeech("Bonjour, bienvenue dans notre atelier."); h.consent(); await h.generate();
+    assert.equal(h.requests.length, 1); assert.equal(h.requests[0].inspirationImages![0].voiceSample!.path, h.uploadedSamples[0].path); assert.notEqual(h.uploadedSamples[0].path, h.uploadedSamples[1].path);
+  } finally { h.dispose(); }
+});
+
+test("the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload", async () => {
+  for (const speech of ["auto", "exact"]) {
+    const h = harness("video", "minimax-h3", 8);
+    try {
+      assert.equal(h.audioNative().enabled, true, "the mounted AI settings entry is initially available");
+      h.chooseMainVoice("provided"); assert.equal(h.audioNative().enabled, false, "Real exposes only the vocal pool rather than the hidden AI settings");
+      assert.throws(() => h.audioNative().handlers.open.invoke(null)); assert.equal(h.poolNative().enabled, true);
+      await h.importNarrator(); const entry = h.poolNative();
+      assert.equal((entry.snapshot.profiles as unknown[]).length, 1); assert.equal(h.quoteInputs.at(-1)!.enabled, false);
+      assert.equal(h.voiceSnapshot().voiceMode, "provided"); assert.deepEqual(h.voiceSnapshot().voiceReferences, []); assert.equal(h.voiceSnapshot().voiceReferenceId, undefined);
+      assert.equal(h.quoteInputs.at(-1)!.videoEngine, "minimax-h3", "voiceover cloning does not select a character-only Wan engine");
+      await h.invokeGenerateCallback(); assert.equal(h.requests.length, 0, "upload alone never grants cloning consent");
+      entry.handlers.select.invoke("gender:0:male"); h.render(); h.narrationConsent();
+      h.addSpeech(); h.enterSpeech(""); assert.equal(h.quoteInputs.at(-1)!.enabled, false);
+      await h.invokeGenerateCallback(); assert.equal(h.requests.length, 0); assert.equal(h.voiceSnapshot().spokenScriptOpen, true); assert.equal(h.voiceSnapshot().spokenScript, "");
+      const words = "Bonjour, bienvenue dans notre atelier.";
+      if (speech === "auto") h.removeSpeech(); else h.enterSpeech(words);
+      h.setSubtitles(true); assert.equal(h.quoteInputs.at(-1)!.enabled, true);
+      await h.generate(); assert.equal(h.requests.length, 1);
+      const request = h.requests[0]; assert.equal(request.narrationVoiceMode, "provided"); assert.equal(request.narrationVoiceSample!.path, h.sample.path);
+      assert.equal(request.narrationVoiceConsent, true); assert.equal(request.narrationVoiceGender, "male"); assert.equal(request.withNarration, true); assert.equal(request.withSubtitles, true);
+      assert.equal(request.inspirationImages?.length ?? 0, 0); assert.equal(Object.hasOwn(request, "spokenScript"), speech === "exact");
+      if (speech === "exact") assert.equal(request.spokenScript, words, "the source vocal is a reference for new words rather than a replay request");
+      assert.deepEqual(h.deleted, []);
+    } finally { h.dispose(); }
+  }
+});
+
+test("the real direct vocal importer keeps invalid format and upload errors visible without adding a source or generating", async () => {
+  const h = harness("video", "wan27", 8);
+  try {
+    h.beginVocalImport(); assert.equal(h.poolNative().snapshot.open, true);
+    await h.selectVocalFile(new File(["not-audio"], "video.mp4", { type: "video/mp4" }));
+    assert.equal(h.uploads.length, 0); assert.equal(h.poolNative().snapshot.open, true); assert.match(text(find(h.voiceTree(), node => node.props.role === "alert")), /file_error/);
+    h.setVoiceUploadError(true); await h.selectVocalFile(new File(["wav"], "vocal.wav", { type: "audio/wav" }));
+    assert.equal(h.uploads.length, 1); assert.equal(h.poolNative().snapshot.open, true); assert.match(text(find(h.voiceTree(), node => node.props.role === "alert")), /n’a pas pu être importé/);
+    assert.deepEqual(h.poolNative().snapshot.profiles, []); assert.equal(h.requests.length, 0);
+    h.setVoiceUploadError(false); await h.selectVocalFile(new File(["wav"], "vocal.wav", { type: "audio/wav" }));
+    assert.equal((h.poolNative().snapshot.profiles as unknown[]).length, 1); assert.equal(elements(h.voiceTree()).some(node => node.props.role === "alert"), false);
+  } finally { h.dispose(); }
+});
+
+test("the real three-menu voice flow binds supplied audio to the selected photo and never changes another person's voice", async () => {
+  const h = harness();
+  try {
+    await h.addPhoto("Alice.png", "character"); await h.addPhoto("Bob.png", "character");
+    h.setSound("characters"); const [alice, bob] = h.voiceSnapshot().voiceReferences;
+    h.chooseMainVoice("provided");
+    assert.deepEqual(h.voiceSnapshot().voiceReferences.map(reference => reference.voiceMode), ["ai", "ai"], "choosing Real alone cannot assign it to every person");
+    h.selectVoicePerson(bob.id); assert.equal(h.voiceSnapshot().voiceReferences.find(reference => reference.id === bob.id)!.voiceMode, "ai", "selecting a person only selects the target"); h.chooseMainVoice("provided");
+    const actions = elements(h.renderVoice(1)).filter(node => node.type === "button").map(node => node.props.children);
+    for (const action of ["import", "record", "library"]) assert.ok(actions.includes(`ai_generator_character_voice_${action}`));
+    assert.equal(h.uploads.length, 0, "opening the three native choices never imports or records a voice");
+    await h.uploadVoice(1); h.selectVoicePerson(alice.id);
+    assert.equal(h.voiceSnapshot().voiceReferences.find(reference => reference.id === alice.id)!.voiceMode, "ai", "the one-shot intent cannot convert another person during inspection");
+    assert.equal(h.voiceSnapshot().voiceReferences.find(reference => reference.id === bob.id)!.voiceMode, "provided");
+    assert.deepEqual(h.deleted, []); h.chooseMainVoice("ai"); assert.deepEqual(h.deleted, [], "changing Alice to AI cannot delete Bob's vocal");
+    h.selectVoicePerson(bob.id); h.chooseMainVoice("ai"); assert.deepEqual(h.deleted, [], "choosing AI detaches the vocal without deleting its independent profile");
+    assert.equal((h.poolNative().snapshot.profiles as Array<{ target: unknown }>)[0].target, null);
+    assert.equal(h.requests.length, 0);
+  } finally { h.dispose(); }
+});
+
+test("provided voice with Exact empty preserves the draft and blocks quote and generation until the professional chooses Auto or supplies speech", async () => {
+  for (const resolution of ["auto", "exact"]) {
+    const h = harness("video", "minimax-h3", 2, { realEnginePreference: true });
+    try {
+      await h.addPhoto("Moi.png", "character"); h.chooseVoice(0, "provided"); await h.uploadVoice(0); h.addSpeech(); h.enterSpeech("");
+      assert.equal(h.voiceSnapshot().spokenScriptOpen, true); assert.equal(h.voiceSnapshot().spokenScript, ""); assert.equal(h.quoteInputs.at(-1)!.enabled, false);
+      assert.equal(find(h.tree(), node => node.props["data-video-voice-script-warning"] !== undefined).props.role, "alert");
+      h.consent(); await h.invokeGenerateCallback(); assert.equal(h.requests.length, 0); assert.equal(h.uploads.length, 1);
+      assert.equal(h.quoteInputs.at(-1)!.videoEngine, "wan27"); assert.equal(h.storedEnginePreference().videoEngine, "minimax-h3", "a temporary compatible recommendation preserves the saved preference");
+      if (resolution === "auto") h.removeSpeech(); else h.enterSpeech("Bonjour, bienvenue chez nous.");
+      assert.equal(h.quoteInputs.at(-1)!.enabled, true); assert.equal(h.voiceSnapshot().voiceReferences[0].voiceMode, "provided");
+      h.consent(); await h.generate(); assert.equal(h.requests.length, 1); assert.equal(h.requests[0].withNarration, false); assert.equal(h.requests[0].inspirationImages![0].voiceSample!.path, h.sample.path);
+      assert.equal(Object.hasOwn(h.requests[0], "spokenScript"), resolution === "exact");
+    } finally { h.dispose(); }
+  }
+});
+
+test("unattached supplied-voice intent is cancelled by a new speech choice while attached samples remain linked", async () => {
+  const h = harness();
+  try {
+    h.setSound("characters"); h.chooseMainVoice("provided"); assert.equal(h.uploads.length, 0); h.setSound("silent"); h.setSound("voiceover");
+    await h.addPhoto("Moi.png", "character"); h.setSound("characters"); assert.equal(h.voiceSnapshot().voiceReferences[0].voiceMode, "ai", "a later photo cannot revive a cancelled Real intent");
+    h.chooseMainVoice("provided"); await h.uploadVoice(0); const path = h.sample.path;
+    h.setSound("voiceover"); h.setSound("characters"); h.consent(); await h.generate();
+    assert.equal(h.requests[0].inspirationImages![0].voiceSample!.path, path); assert.deepEqual(h.deleted, []);
+  } finally { h.dispose(); }
+});
 
 test("native role launchers make Inspiration optional and Personne Decor Produit required without migrating existing references", async () => {
   for (const kind of ["image", "video"] as const) {
@@ -345,20 +621,17 @@ test("image creation keeps its original 4000-character brief and never gains vid
   h.dispose();
 });
 
-test("the actual compact Free editor retains image roles and the real Audio voice selector for both Personne usages", async () => {
+test("the compact Free editor retains both Personne usages and opens the real independent vocal actions", async () => {
   for (const usage of ["required", "inspiration"]) {
     const h = harness(); await h.addPhoto(); h.criteria(0, "character", usage);
-    const selector = find(h.renderVoice(0), (node) => node.type === "select"); assert.equal(selector.props.value, "ai");
-    assert.equal(selector.props["aria-label"], "ai_generator_character_voice_label");
-    assert.equal(elements(selector).filter((node) => node.type === "option").length, 2);
-    assert.equal(elements(h.cards()[0]).filter((node) => node.type === "select").length + elements(h.renderVoice(0)).filter((node) => node.type === "select").length, 2, "Role and voice retain their real selectors");
-    assert.equal(find(h.cards()[0], node => node.props["data-reference-inspiration-toggle"] !== undefined).props["aria-pressed"], usage === "inspiration", "only the explicit inspiration toggle makes the reference optional");
-    assert.equal(find(h.renderVoice(0), (node) => node.type === "label").props.className, "srOnly", "The voice name stays accessible without a separate visible heading");
     h.chooseVoice(0, "provided");
+    assert.equal(find(h.tree(), node => node.type === "select" && String(node.props.id).endsWith("-video-voice-mode")).props.value, "provided");
+    assert.equal(find(h.cards()[0], node => node.props["data-reference-inspiration-toggle"] !== undefined).props["aria-pressed"], usage === "inspiration", "only the explicit inspiration toggle makes the reference optional");
     const directActions = elements(h.renderVoice(0)).filter((node) => node.type === "button").map((node) => node.props.children);
     for (const action of ["import", "record", "library"]) assert.ok(directActions.includes(`ai_generator_character_voice_${action}`));
     assert.equal(directActions.includes("ai_generator_character_voice_upload"), false);
-    h.cards(); assert.equal(find(h.tree(), (node) => node.props["data-character-voices"] !== undefined).props["data-character-voices"], "true"); h.dispose();
+    assert.equal(elements(h.renderVoice(0)).some(node => node.type === "select"), false, "the pool input does not duplicate the main AI/Real choice");
+    assert.equal(h.uploads.length, 0); assert.equal(h.requests.length, 0); h.dispose();
   }
   const image = harness("image"); await image.addPhoto(); image.criteria(0, "character", "required");
   assert.equal(elements(image.cards()[0]).some((node) => typeof node.type === "function" && String(node.type).includes("MediaCharacterVoiceInput")), false); image.dispose();
@@ -440,7 +713,8 @@ test("removing speech clears the optional payload and permits no-speech mode wit
   assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
   h.setSound("silent");
   assert.equal(sound().props.value, "silent");
-  assert.equal(elements(h.tree()).some((node) => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode")), false, "silent mode never offers contradictory automatic or exact speech");
+  assert.equal(find(h.tree(), node => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode")).props.disabled, true, "the persistent speech menu cannot activate contradictory speech in silent mode");
+  assert.equal(find(h.tree(), node => node.type === "select" && String(node.props.id).endsWith("-video-voice-mode")).props.disabled, true, "the persistent voice menu is disabled in silent mode");
   assert.equal(sound().props.disabled, false, "the compact audio selector remains available in silent mode");
   await h.generate();
   assert.equal(h.requests.length, 1);
@@ -491,12 +765,13 @@ test("video subtitles default off and the same explicit choice reaches quote and
 
 test("silent video disables subtitles without blocking generation; account reset clears the choice and images omit it", async () => {
   const h = harness(); h.setSubtitles(true); h.setSound("silent");
-  let control = find(h.tree(), (node) => node.props["data-media-subtitles"] !== undefined);
-  assert.equal(control.props.checked, false); assert.equal(control.props.disabled, true);
+  assert.equal(find(h.tree(), node => node.props["data-video-audio-button"] !== undefined).props.disabled, true, "silent mode keeps the voice settings unavailable");
+  assert.equal(find(h.tree(), node => node.props["data-media-subtitles"] !== undefined).props.disabled, true, "the visible subtitle checkbox remains disabled in silent mode");
   assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
   await h.generate(); assert.equal(h.requests.length, 1); assert.equal(h.requests[0].withSubtitles, false);
   h.setSound("voiceover");
-  control = find(h.tree(), (node) => node.props["data-media-subtitles"] !== undefined);
+  h.openAudioSettings();
+  const control = find(h.tree(), (node) => node.props["data-media-subtitles"] !== undefined);
   assert.equal(control.props.checked, true, "returning to speech retains the professional’s subtitle choice");
   h.changeAccount();
   h.openAudioSettings();
@@ -597,12 +872,15 @@ test("the actual Free callbacks retain submitted voice samples through recovery 
   }
 });
 
-test("Free recovery hydration preserves voices without an in-memory snapshot and ordinary unused voices are still deleted", async () => {
+test("Free recovery hydration and ordinary AI changes preserve the independent vocal until its explicit removal", async () => {
   for (const pending of [true, false]) {
     const h = harness("video", "wan27"); await h.addPhoto(); h.criteria(0, "character", "required"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
     if (pending) { h.beginRecoveryChecking(); h.pauseRecoveryChecking(); }
     h.chooseVoice(0, "ai");
-    assert.deepEqual(h.deleted, pending ? [] : [h.sample.path]);
+    assert.deepEqual(h.deleted, [], "AI changes only detach the reusable source");
+    assert.equal((h.poolNative().snapshot.profiles as Array<{ target: unknown }>)[0].target, null);
+    h.chooseVoice(0, "provided"); const entry = h.poolNative(); entry.handlers.open.invoke("voice:0"); h.render(); h.removePoolVocal();
+    assert.deepEqual(h.deleted, pending ? [] : [h.sample.path], "only explicit source removal releases an unsubmitted vocal");
     assert.equal(h.requests.length, 0);
     h.dispose();
   }
@@ -626,7 +904,8 @@ test("one explicit footer authorization covers two required people and their dis
     assert.equal(elements(h.tree()).filter((node) => node.type === "label" && node.props.className === "consent").length, 1);
     assert.equal(elements(footer).filter((node) => node.type === "input" && node.props.type === "checkbox").length, 1);
     assert.equal(elements(h.tree()).some((node) => node.type === "settings-tabs"), false, "video has one settings view");
-    for (const name of ["images", "audio"]) assert.equal(find(h.tree(), node => name === "images" ? node.props["data-media-role-add"] === "inspiration" : node.props["data-video-audio-button"] !== undefined).props["data-invalid"], undefined, "Missing footer authorization must not point to Images or Audio");
+    assert.equal(find(h.tree(), node => node.props["data-media-role-add"] === "inspiration").props["data-invalid"], undefined);
+    assert.equal(find(h.poolTree(), node => node.props["data-voice-pool-settings"] !== undefined).props["data-invalid"], undefined, "Missing footer authorization must not point to the voice settings");
     const settingsDialog = elements(h.tree()).find(node => typeof node.type === "function" && node.type.name === "MediaSettingsDialog");
     if (settingsDialog) assert.equal(elements(settingsDialog).some((node) => node.type === "label" && node.props.className === "consent"), false);
     assert.equal(find(providerConsent, (node) => node.type === "input").props.checked, false);
@@ -740,16 +1019,16 @@ test("Wan 3 blocks over fifteen seconds of samples without discarding them or ch
   assert.equal(h.requests[0].inspirationImages!.filter((image) => image.voiceSample).length, 2); h.dispose();
 });
 
-test("voice Inspiration alone requires permission but retains identity auto, and incompatible sound cannot silently discard it", async () => {
+test("voice Inspiration retains permission and its reusable source while silent requests omit inactive character voices", async () => {
   const h = harness(); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
   assert.equal(h.quoteInputs.at(-1)!.identityMode, "auto"); assert.match(text(h.tree()), /son image et sa voix/);
-  h.consent(); h.setSound("silent"); await h.generate(); assert.equal(h.requests.length, 0); assert.ok(text(h.tree()).includes("ai_generator_character_voice_speech_required"));
-  h.setSound("characters"); h.consent(); await h.generate(); assert.equal(h.requests[0].identityMode, "auto"); assert.equal(h.requests[0].identityConsent, true); h.dispose();
+  h.consent(); h.setSound("silent"); await h.generate(); assert.equal(h.requests.length, 1); assert.equal(h.requests[0].inspirationImages![0].voiceSample, undefined); assert.deepEqual(h.deleted, []);
+  h.setSound("characters"); h.consent(); await h.generate(); assert.equal(h.requests[1].identityMode, "auto"); assert.equal(h.requests[1].identityConsent, true); assert.equal(h.requests[1].inspirationImages![0].voiceSample!.path, h.sample.path); h.dispose();
 });
 
 test("switching back to AI restores regular engines, and pending voice uploads lock the actual Free editor and clear on account change", async () => {
   const h = harness(); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided"); await h.uploadVoice(0); h.chooseVoice(0, "ai");
-  assert.equal(h.quoteInputs.at(-1)!.videoEngine, "omni"); assert.deepEqual(h.deleted, [h.sample.path]);
+  assert.equal(h.quoteInputs.at(-1)!.videoEngine, "omni"); assert.deepEqual(h.deleted, []); assert.equal((h.poolNative().snapshot.profiles as unknown[]).length, 1);
   h.chooseVoice(0, "provided"); h.deferVoiceUpload(); const pending = h.uploadVoice(0); await h.flush();
   assert.equal(find(h.tree(), (node) => node.type === "textarea").props.disabled, true);
   h.changeAccount(); assert.equal(h.cards().length, 0); h.finishVoiceUpload(); await pending;

@@ -3,9 +3,10 @@ import {
   type AiMediaNarrationVoiceVariant,
 } from "./aiMediaNarrationVoices.ts";
 import { INR_MEDIA_IMAGE_MAX_BYTES } from "./mediaRules.ts";
+import { findAiMediaSoundtrack } from "./aiMediaSoundtrackDefinitions.ts";
 import { AI_MEDIA_VIDEO_SPOKEN_SCRIPT_MAX_CHARS, getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
 import { isStudioInspirationVideoReference, studioInspirationBase64IsVideo, STUDIO_INSPIRATION_IMAGES_ONLY_MESSAGE } from "./studioInspirationImagePolicy.ts";
-import { normalizeAiMediaCharacterVoiceSample, hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration, type AiMediaCharacterVoiceSample } from "./aiMediaCharacterVoices.ts";
+import { normalizeAiMediaCharacterVoiceSample, hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, type AiMediaCharacterVoiceSample } from "./aiMediaCharacterVoices.ts";
 import {
   getAiMediaVideoDurations, getAiMediaVideoNativeDurations, getAiMediaVideoResolution,
   normalizeAiMediaVideoEngine, normalizeAiMediaImageEngine, isAiMediaImageModelCompatible,
@@ -69,6 +70,9 @@ export type AiMediaVideoSceneMode = "single" | "multi";
 export type AiMediaTeamVideoMode = "cinematic" | "montage";
 export type AiMediaTeamVideoSpeechMode = "voiceover" | "characters";
 export type AiMediaNarrationVoice = "female" | "male";
+export type AiMediaNarrationVoiceMode = "ai" | "provided";
+/** Descriptive for a cloned voice; never changes its original timbre. */
+export type AiMediaNarrationVoiceGender = "auto" | "female" | "male";
 export type AiMediaInputMode = "legacy" | "essential";
 export type AiMediaTextMode = "none" | "ai" | "exact";
 /** Parcours créatif explicite de Générer ; Modifier n'en consomme aucun. */
@@ -253,9 +257,15 @@ export type AiMediaGenerationRequest = {
   withText: boolean;
   textKeywords: string[];
   withMusic: boolean;
+  /** Exact bundled iNrCy track; null/omitted retains the historical Auto choice. */
+  soundtrackId?: string | null;
   withNarration: boolean;
   narrationVoice: AiMediaNarrationVoice | null;
   narrationVoiceVariant: AiMediaNarrationVoiceVariant | null;
+  narrationVoiceMode?: AiMediaNarrationVoiceMode;
+  narrationVoiceSample?: AiMediaCharacterVoiceSample | null;
+  narrationVoiceConsent?: boolean;
+  narrationVoiceGender?: AiMediaNarrationVoiceGender;
   format: AiMediaOutputFormat;
   typology: AiMediaTypology;
   visualStyle: AiMediaVisualStyle;
@@ -593,6 +603,14 @@ function normalizeInspirationImages(
     };
   });
 
+  // Supplied voices count even when their photo is only an inspiration.
+  // Enforce the three-source contract for legacy clients as well as the UI.
+  if (normalized.filter((image) => image.voiceMode === "provided").length > 3) {
+    throw new AiMediaRequestValidationError(
+      "Utilisez au maximum trois vocaux pour les personnages de cette vidéo."
+    );
+  }
+
   if (inputMode === "essential") {
     const characterIndexes = normalized
       .filter(
@@ -628,6 +646,9 @@ export function normalizeAiMediaGenerationRequest(
     ? normalizeAiMediaSpokenScript(body.spokenScript)
     : undefined;
   const explicitEmptySpokenScript = typeof spokenScript === "string" && !spokenScript.trim();
+  if (explicitEmptySpokenScript && body.narrationVoiceMode === "provided" && body.teamVideoSpeechMode !== "characters") {
+    throw new AiMediaRequestValidationError("Ajoutez les paroles exactes à faire lire avec votre voix ou choisissez les paroles automatiques.");
+  }
   const requestedWithSubtitles = creationMode === "free" && body.kind === "video"
     ? body.withSubtitles
     : undefined;
@@ -661,8 +682,11 @@ export function normalizeAiMediaGenerationRequest(
       durationSeconds: body.durationSeconds, sceneMode: body.sceneMode,
       connectScenes: body.connectScenes,
       withMusic: body.withMusic,
+      soundtrackId: body.soundtrackId,
       withNarration: explicitEmptySpokenScript || body.teamVideoSpeechMode === "characters" ? false : body.withNarration,
       narrationVoice: body.narrationVoice, narrationVoiceVariant: body.narrationVoiceVariant,
+      narrationVoiceMode: body.narrationVoiceMode, narrationVoiceSample: body.narrationVoiceSample,
+      narrationVoiceConsent: body.narrationVoiceConsent, narrationVoiceGender: body.narrationVoiceGender,
       videoEngine: body.videoEngine, imageEngine: body.imageEngine,
       videoResolution: body.videoResolution,
       expectedCredits: body.expectedCredits, creditTariffVersion: body.creditTariffVersion,
@@ -682,6 +706,12 @@ export function normalizeAiMediaGenerationRequest(
     body.kind === "image" || body.kind === "video" ? body.kind : null;
   if (!kind) {
     throw new AiMediaRequestValidationError("Type de média invalide.");
+  }
+  const withMusic = kind === "video" && body.withMusic === true;
+  const requestedSoundtrackId = withMusic ? body.soundtrackId : null;
+  const soundtrack = requestedSoundtrackId != null ? findAiMediaSoundtrack(requestedSoundtrackId) : undefined;
+  if (requestedSoundtrackId != null && !soundtrack) {
+    throw new AiMediaRequestValidationError("Cette musique n’est pas disponible. Choisissez une piste du catalogue iNrCy ou le mode automatique.");
   }
 
   const source =
@@ -1208,6 +1238,24 @@ export function normalizeAiMediaGenerationRequest(
   // contrat, avant même de démarrer le pipeline de narration.
   const withNarration =
     requestedWithNarration && teamVideoSpeechMode !== "characters";
+  const rawNarrationMode = withNarration ? body.narrationVoiceMode : undefined;
+  if (rawNarrationMode != null && !["ai", "provided"].includes(String(rawNarrationMode))) {
+    throw new AiMediaRequestValidationError("Type de voix off invalide.");
+  }
+  const narrationVoiceMode: AiMediaNarrationVoiceMode = withNarration && rawNarrationMode === "provided" ? "provided" : "ai";
+  const rawNarrationGender = withNarration ? body.narrationVoiceGender : undefined;
+  if (rawNarrationGender != null && !["auto", "female", "male"].includes(String(rawNarrationGender))) {
+    throw new AiMediaRequestValidationError("Indication de voix off invalide.");
+  }
+  const narrationVoiceGender: AiMediaNarrationVoiceGender = rawNarrationGender === "female" || rawNarrationGender === "male" ? rawNarrationGender : "auto";
+  const narrationVoiceSample = narrationVoiceMode === "provided" ? normalizeAiMediaCharacterVoiceSample(body.narrationVoiceSample) : null;
+  if (narrationVoiceMode === "provided" && (!narrationVoiceSample || narrationVoiceSample.durationSeconds < AI_MEDIA_NARRATION_VOICE_MIN_SECONDS)) {
+    throw new AiMediaRequestValidationError("Ajoutez un vocal clair de 5 à 10 secondes pour faire lire de nouvelles paroles avec votre voix.");
+  }
+  const narrationVoiceConsent = narrationVoiceMode === "provided" && body.narrationVoiceConsent === true;
+  if (narrationVoiceMode === "provided" && !narrationVoiceConsent) {
+    throw new AiMediaRequestValidationError("Confirmez que vous disposez des droits sur cette voix et autorisez sa synthèse avant de générer.");
+  }
   const withSubtitles = creationMode === "free" && kind === "video"
     ? normalizeAiMediaWithSubtitles(requestedWithSubtitles, withNarration || teamVideoSpeechMode === "characters")
     : undefined;
@@ -1272,7 +1320,8 @@ export function normalizeAiMediaGenerationRequest(
     exactText: textMode === "exact" ? exactText : "",
     withText,
     textKeywords: textMode === "ai" ? normalizedTextKeywords : [],
-    withMusic: kind === "video" && body.withMusic === true,
+    withMusic,
+    soundtrackId: soundtrack?.id ?? null,
     withNarration,
     narrationVoice:
       kind === "video" && withNarration
@@ -1282,6 +1331,7 @@ export function normalizeAiMediaGenerationRequest(
       kind === "video" && withNarration && rawNarrationVoiceVariant
         ? (rawNarrationVoiceVariant as AiMediaNarrationVoiceVariant)
         : null,
+    narrationVoiceMode, narrationVoiceSample, narrationVoiceConsent, narrationVoiceGender,
     format: format as AiMediaOutputFormat,
     typology: typology as AiMediaTypology,
     visualStyle: visualStyle as AiMediaVisualStyle,

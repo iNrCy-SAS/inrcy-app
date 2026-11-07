@@ -84,7 +84,7 @@ test("the actual Studio library and reference information controls preserve nati
 test("the actual Studio quota retry acknowledges only its fresh native read and keeps a failed or stale request unconfirmed", async () => {
   for (const [file, id] of [["MediaGenerator", "studio_guided_form"], ["MediaFreeGenerator", "studio_free_form"]]) {
     let refreshId = 3, valid = true, reply: { accountId: string } | null = { accountId: "account" };
-    const deps = { quotaLoading: false, quotaRefreshId: 3, operationLocked: false, quota: { accountId: "account" }, isInrAssistantStudioFormSelectionApplied: () => false,
+    const deps = { quotaLoading: false, quotaRefreshId: 3, operationLocked: false, quota: { accountId: "account" }, isInrAssistantStudioFormSelectionApplied: () => false, committedFormSelectionMatches: () => false,
       loadQuota: async (options: { force: boolean; canApply: () => boolean; expectedAccountId: string }) => { assert.equal(options.force, true); assert.equal(options.expectedAccountId, "account"); assert.equal(options.canApply(), valid); return reply; }, setQuotaRefreshId: (update: (value: number) => number) => { refreshId = update(refreshId); } };
     const handler = actual<Record<string, Handler>>(`app/dashboard/_components/${file}.tsx`, id, 2, deps).retry;
     await handler.invoke(null, () => valid); assert.equal(refreshId, 4); assert.equal(handler.matches({ quotaRefreshId: 3, quotaAccountId: "account" }, null), false); assert.equal(handler.matches({ quotaRefreshId: 4, quotaAccountId: "account" }, null), true); assert.equal(handler.matches({ quotaRefreshId: 4, quotaAccountId: null }, null), false);

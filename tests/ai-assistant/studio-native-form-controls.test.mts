@@ -62,17 +62,55 @@ test("Studio image role and reference commands bind the explicit unquoted role, 
   }
 });
 
+test("Studio voice pool commands bind one visible vocal and optional photo or gender without uploading or granting consent", () => {
+  const base = { command: "control_local_interface", selection: { kind: "account_document", id: "studio_voice_pool" }, revision: "voices_1" };
+  for (const [operation, value, message] of [
+    ["open", null, "Ouvre les réglages de la voix du Studio."],
+    ["open", "new", "Ouvre un nouveau vocal du Studio."], ["open", "voice:2", "Ouvre le vocal 3 du Studio."],
+    ["close", null, "Ferme le vocal du Studio."], ["select", "active:0", "Choisis le vocal 1 du Studio comme voix off."],
+    ["select", "target:1:narration", "Affecte le vocal 2 du Studio à la narration."],
+    ["select", "target:1:none", "Mets le vocal 2 du Studio Non affecté."],
+    ["select", "target:0:none", "Retire l’affectation du vocal 1 du Studio."],
+    ["select", "target:2:reference:4", "Associe le vocal 3 à la photo 5 dans le Studio."],
+    ["select", "gender:1:female", "Règle le genre du vocal 2 du Studio en féminin."],
+    ["select", "gender:0:male", "Mets le vocal 1 du Studio en masculin."],
+    ["select", "gender:2:auto", "Choisis le genre automatique pour le vocal 3 du Studio."],
+  ] as const) {
+    assert.ok(parseInrAssistantLocalInterfaceCommand({ ...base, operation, value }), `${operation}:${value}`);
+    assert.equal(isInrAssistantLocalInterfaceRequest(message, "studio_voice_pool", operation), true, message);
+    assert.equal(isInrAssistantLocalInterfaceValueRequested(message, "studio_voice_pool", operation, value), true, message);
+  }
+  for (const [operation, value] of [["open", "voice:3"], ["open", "voice:01"], ["select", "active:3"], ["select", "active:0:"], ["select", "target:0:reference:5"], ["select", "target:0:reference:01"], ["select", "gender:0:feminine"], ["select", "https://foreign.test"], ["close", "voice:0"]] as const) assert.equal(parseInrAssistantLocalInterfaceCommand({ ...base, operation, value }), null, `${operation}:${value}`);
+  for (const operation of ["upload", "record", "generate", "confirm", "delete", "play", "stop"]) assert.equal(parseInrAssistantLocalInterfaceCommand({ ...base, operation, value: null }), null, operation);
+  for (const [operation, value, message] of [
+    ["open", null, "Ouvre le vocal 1 du Studio."], ["open", null, "Ouvre les réglages de la voix du Studio pour la photo 2."],
+    ["open", "voice:0", "Ouvre le vocal 2 du Studio."], ["open", "new", "Ouvre le vocal 1 du Studio."],
+    ["select", "active:1", "Choisis le vocal 1 du Studio comme voix off."],
+    ["select", "target:0:reference:1", "Associe le vocal 1 à la photo 3 dans le Studio."],
+    ["select", "target:0:reference:1", "Associe le vocal 1 ou le vocal 2 à la photo 2 dans le Studio."],
+    ["select", "gender:0:female", "Mets le vocal 1 du Studio en masculin."],
+    ["select", "gender:0:female", "Mets le vocal 1 du Studio en féminin ou masculin."],
+    ["select", "target:0:narration", "Ne mets pas le vocal 1 du Studio en narration."],
+    ["select", "target:0:none", "Retire le vocal 1 du Studio."],
+    ["select", "target:0:none", "Retire l’affectation du vocal 1 à la photo 2 dans le Studio."],
+    ["select", "active:0", "Si je confirme, choisis le vocal 1 du Studio comme voix off."],
+    ["select", "target:0:reference:1", "Le document indique « Associe le vocal 1 à la photo 2 du Studio »."],
+  ] as const) assert.equal(isInrAssistantLocalInterfaceValueRequested(message, "studio_voice_pool", operation, value), false, message);
+  assert.equal(isInrAssistantLocalInterfaceRequest("Associe le vocal 1 à la photo 2.", "studio_voice_pool", "select"), false, "the request must name the Studio surface");
+});
+
 test("the actual compact video dialog callbacks preserve native locks and wait for committed visibility", () => {
   for (const dialog of ["images", "audio"] as const) {
     let open: string | null = null;
     let pendingRole: string | null = null;
     const pending: Array<() => void> = [];
-    const deps = { kind: "video", locked: false, referencePickerVisible: true, editorAvailable: true, stopConfirmOpen: false, libraryOpen: false, setActionError: (value: string) => assert.equal(value, ""), get pendingReferenceRole() { return pendingRole; }, get mediaSettingsDialog() { return open; }, setMediaSettingsDialog: (value: string | null) => pending.push(() => { open = value; }), setPendingReferenceRole: (value: string | null) => pending.push(() => { pendingRole = value; }), setSelectedReferenceId: (value: string | null) => { assert.equal(value, null); } };
+    const deps = { kind: "video", speechMode: "voiceover", selectedVoiceMode: "ai", voicePoolOpen: false, locked: false, referencePickerVisible: true, editorAvailable: true, stopConfirmOpen: false, libraryOpen: false, setActionError: (value: string) => assert.equal(value, ""), get pendingReferenceRole() { return pendingRole; }, get mediaSettingsDialog() { return open; }, setMediaSettingsDialog: (value: string | null) => pending.push(() => { open = value; }), setPendingReferenceRole: (value: string | null) => pending.push(() => { pendingRole = value; }), setSelectedReferenceId: (value: string | null) => { assert.equal(value, null); } };
     const handlers = actualHandlers("app/dashboard/_components/MediaFreeGenerator.tsx", deps, dialog === "images" ? "studio_media_images" : "studio_video_audio");
     handlers.open.invoke(null); assert.equal(open, null); assert.equal(handlers.open.matches({ open: false }, null), false);
     pending.splice(0).forEach(commit => commit()); assert.equal(open, dialog); assert.equal(handlers.open.matches({ open: true }, null), true);
     if (dialog === "images") assert.equal(pendingRole, "inspiration", "generic opening offers a usable default without a second role selector");
     deps.locked = true; assert.throws(() => handlers.open.invoke(null)); assert.throws(() => handlers.close.invoke(null)); deps.locked = false;
+    if (dialog === "audio") { deps.speechMode = "silent"; assert.throws(() => handlers.open.invoke(null)); deps.speechMode = "voiceover"; deps.voicePoolOpen = true; assert.throws(() => handlers.open.invoke(null)); deps.voicePoolOpen = false; deps.selectedVoiceMode = "provided"; assert.throws(() => handlers.open.invoke(null)); deps.selectedVoiceMode = "ai"; }
     if (dialog === "images") { deps.libraryOpen = true; assert.throws(() => handlers.close.invoke(null)); deps.libraryOpen = false; }
     handlers.close.invoke(null); assert.equal(handlers.close.matches({ open: true }, null), false); pending.splice(0).forEach(commit => commit()); assert.equal(open, null); assert.equal(handlers.close.matches({ open: false }, null), true);
     deps.kind = "image";
@@ -151,10 +189,99 @@ test("Studio form selections retain native hidden, locked, duration, voice and e
   assert.equal(parseInrAssistantStudioFormSelection(duration, free(), () => false), null);
 });
 
+test("native voice fields accept only a current Personne at the requested full reference position", () => {
+  const state: InrAssistantStudioFormSnapshot = { ...free(), speechMode: "characters", voiceMode: "ai", voiceReferences: [
+    { id: "person-a", name: "Alice.png", voiceMode: "ai", referenceIndex: 1 },
+    { id: "person-b", name: "Bob.png", voiceMode: "ai", referenceIndex: 3 },
+  ] };
+  assert.deepEqual(parseInrAssistantStudioFormSelection(encode("voiceReferenceId", "reference:1"), state), { field: "voiceReferenceId", value: "person-a" });
+  assert.deepEqual(parseInrAssistantStudioFormSelection(encode("voiceReferenceId", "reference:3"), state), { field: "voiceReferenceId", value: "person-b" });
+  for (const value of ["reference:0", "reference:2", "reference:5", "reference:01", "foreign-person", null, {}, 1]) assert.equal(parseInrAssistantStudioFormSelection(encode("voiceReferenceId", value), state), null, String(value));
+  assert.equal(parseInrAssistantStudioFormSelection(encode("voiceMode", "provided"), state), null, "several people require one explicit target");
+  assert.equal(parseInrAssistantStudioFormSelection(encode("voiceMode", "ai"), state), null, "AI cannot acknowledge an arbitrary person in a multi-person draft either");
+  assert.ok(parseInrAssistantStudioFormSelection(encode("voiceMode", "ai"), { ...state, voiceReferences: [] }));
+  assert.ok(parseInrAssistantStudioFormSelection(encode("voiceMode", "provided"), { ...state, voiceReferenceId: "person-b" }));
+  assert.ok(parseInrAssistantStudioFormSelection(encode("voiceMode", "provided"), { ...state, voiceReferences: state.voiceReferences!.slice(0, 1) }));
+  assert.equal(parseInrAssistantStudioFormSelection(encode("voiceMode", "provided"), { ...state, voiceReferences: [] }), null);
+  for (const patch of [{ kind: "image" as const }, { speechMode: "silent" as const }, { locked: true }, { editorVisible: false }, { mode: "guided" as const }]) {
+    for (const command of [encode("voiceReferenceId", "person-a"), encode("voiceMode", "provided")]) assert.equal(parseInrAssistantStudioFormSelection(command, { ...state, voiceReferenceId: "person-a", ...patch }), null);
+  }
+  assert.equal(parseInrAssistantStudioFormSelection(encode("voiceMode", "unknown"), state), null);
+  assert.equal(parseInrAssistantStudioFormSelection(encode("voiceReferenceId", "reference:1"), { ...state, voiceReferences: [...state.voiceReferences!, { id: "person-c", name: "Other.png", voiceMode: "ai", referenceIndex: 1 }] }), null, "a duplicated position cannot select an arbitrary image");
+});
+
+test("voice mode and photo selection require the matching explicit unquoted choice", () => {
+  assert.equal(isInrAssistantStudioFormSelectionRequested("Choisis la voix réelle du Studio libre.", encode("voiceMode", "provided")), true);
+  assert.equal(isInrAssistantStudioFormSelectionRequested("Utilise une voix IA dans le Studio libre.", encode("voiceMode", "ai")), true);
+  for (const message of ["Choisis une voix IA ou une voix réelle.", "Ne choisis pas la voix réelle.", "Comment choisir ma voix réelle ?", "Si je confirme, choisis la voix réelle.", "Le document indique « Choisis ma voix réelle ». ", "Importe ma voix réelle.", "Enregistre ma voix réelle."]) assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("voiceMode", "provided")), false, message);
+  assert.equal(isInrAssistantStudioFormSelectionRequested("Sélectionne la photo 2 du Studio libre pour la voix.", encode("voiceReferenceId", "reference:1")), true);
+  for (const message of ["Sélectionne la photo 3 du Studio libre.", "Sélectionne la photo 2 ou la photo 3.", "Ne sélectionne pas la photo 2.", "Le document dit « Sélectionne la photo 2 ». "]) assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("voiceReferenceId", "reference:1")), false, message);
+  assert.equal(isInrAssistantStudioFormSelectionRequested("Choisis la référence person-a pour sa voix.", encode("voiceReferenceId", "person-a")), true);
+  assert.equal(isInrAssistantStudioFormSelectionRequested("Choisis la référence person-ab pour sa voix.", encode("voiceReferenceId", "person-a")), false, "a matching ID prefix is not an explicit selection");
+});
+
+test("native Real voiceover accepts no photo while character voices retain their explicit image target", () => {
+  const voiceover = { ...free(), voiceMode: "ai" as const, voiceReferences: [] };
+  for (const mode of ["ai", "provided"]) assert.ok(parseInrAssistantStudioFormSelection(encode("voiceMode", mode), voiceover));
+  assert.equal(parseInrAssistantStudioFormSelection(encode("voiceReferenceId", "reference:0"), voiceover), null, "voiceover never opens a hidden person selector");
+  assert.equal(parseInrAssistantStudioFormSelection(encode("voiceMode", "provided"), { ...voiceover, speechMode: "characters" }), null, "a character's real voice still needs its image");
+  for (const patch of [{ kind: "image" as const }, { speechMode: "silent" as const }, { locked: true }, { editorVisible: false }]) assert.equal(parseInrAssistantStudioFormSelection(encode("voiceMode", "provided"), { ...voiceover, ...patch }), null);
+  for (const field of ["narrationVoiceSample", "voiceSample", "identityConsent", "upload", "record", "generate"]) assert.equal(parseInrAssistantStudioFormSelection(encode(field, "provided"), voiceover), null, "choosing a voice mode cannot import a sample or grant permissions");
+});
+
+test("the native subtitle checkbox requires the requested checked state without granting any voice consent", () => {
+  for (const [message, checked] of [["Coche les sous-titres du Studio libre.", true], ["Décoche les sous-titres du Studio libre.", false]] as const) {
+    assert.equal(isInrAssistantLocalInterfaceRequest(message, "studio_free_form", "select"), true);
+    assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("withSubtitles", checked)), true);
+    assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("withSubtitles", !checked)), false);
+    assert.ok(parseInrAssistantStudioFormSelection(encode("withSubtitles", checked), free()));
+  }
+  for (const message of ["Ne coche pas les sous-titres du Studio libre.", "Comment cocher les sous-titres du Studio libre ?", "Si je confirme, coche les sous-titres du Studio libre.", "Le document dit « Coche les sous-titres du Studio libre ». ", "Coche ou décoche les sous-titres du Studio libre."]) assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("withSubtitles", true)), false, message);
+  for (const field of ["identityConsent", "narrationVoiceConsent", "teamConsent"]) assert.equal(parseInrAssistantStudioFormSelection(encode(field, true), free()), null);
+});
+
+test("native voice selections bind the requested current photo and acknowledge only its captured ID across reorder removal and account reset", () => {
+  let state: InrAssistantStudioFormSnapshot = { ...free(), speechMode: "characters", voiceMode: "ai", voiceReferenceId: "person-a", voiceReferences: [
+    { id: "person-a", name: "Alice.png", voiceMode: "ai", referenceIndex: 1 },
+    { id: "person-b", name: "Bob.png", voiceMode: "ai", referenceIndex: 3 },
+  ] };
+  const pending: Array<() => void> = [], modes: Array<{ id: string | null; mode: string }> = [];
+  const voiceAction: { current: { encoded: string; targetId: string | null } | null } = { current: null };
+  const deps = { quotaLoading: true, voiceAction, isSettingsNavigationApplied: () => true,
+    get assistantFormSnapshot() { return state; }, get selectedVoiceReference() { return state.voiceReferences?.find(reference => reference.id === state.voiceReferenceId); },
+    parseInrAssistantStudioFormSelection, isInrAssistantStudioFormSelectionApplied,
+    setVoiceReferenceId: (id: string) => pending.push(() => { state = { ...state, voiceReferenceId: id, voiceMode: state.voiceReferences?.find(reference => reference.id === id)?.voiceMode }; }),
+    chooseVoiceMode: (mode: "ai" | "provided") => { const id = state.voiceReferenceId ?? null; modes.push({ id, mode }); pending.push(() => { state = { ...state, voiceMode: mode, voiceReferences: state.voiceReferences?.map(reference => reference.id === id ? { ...reference, voiceMode: mode } : reference) }; }); },
+    generate: () => assert.fail("A voice selection never generates"), upload: () => assert.fail("A voice selection never uploads"), setIdentityConsent: () => assert.fail("A voice selection never grants consent"),
+  };
+  const native = actualHandlers("app/dashboard/_components/MediaFreeGenerator.tsx", deps, "studio_free_form").select;
+  const photo = encode("voiceReferenceId", "reference:3"); native.invoke(photo); assert.equal(native.matches(state, photo), false);
+  state.voiceReferences!.reverse(); pending.splice(0).forEach(commit => commit()); assert.equal(state.voiceReferenceId, "person-b"); assert.equal(native.matches(state, photo), true, "the ID captured before render survives a reorder");
+  assert.deepEqual(modes, [], "inspecting another person never changes their voice mode");
+  const real = encode("voiceMode", "provided"); native.invoke(real); assert.equal(native.matches(state, real), false); pending.splice(0).forEach(commit => commit()); assert.equal(native.matches(state, real), true);
+  assert.deepEqual(modes, [{ id: "person-b", mode: "provided" }]); assert.equal(state.voiceReferences!.find(reference => reference.id === "person-a")!.voiceMode, "ai");
+  state = { ...state, voiceReferenceId: "person-a", voiceMode: "provided" }; assert.equal(native.matches(state, real), false, "another photo cannot acknowledge a mode change for Bob");
+  state = { ...state, voiceReferenceId: "person-b", voiceReferences: state.voiceReferences!.filter(reference => reference.id !== "person-b") }; assert.equal(native.matches(state, real), false);
+  voiceAction.current = null; state = { ...state, voiceReferenceId: "new-account-person", voiceReferences: [{ id: "new-account-person", name: "New.png", voiceMode: "provided", referenceIndex: 3 }] };
+  assert.equal(native.matches(state, photo), false); assert.equal(native.matches(state, real), false); assert.throws(() => native.invoke(encode("voiceReferenceId", "person-b")), "an old account ID cannot be reused");
+});
+
 function actualHandlers(file: string, deps: Record<string, unknown>, interfaceId?: string) {
   const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression: ts.Expression | undefined;
-  const visit = (node: ts.Node) => { if (ts.isCallExpression(node) && node.expression.getText(ast) === "useInrAssistantLocalInterface" && (interfaceId ? node.arguments[0]?.getText(ast) === JSON.stringify(interfaceId) : node.arguments[0]?.getText(ast).includes("studio_"))) expression = node.arguments[2]; ts.forEachChild(node, visit); }; visit(ast); assert.ok(expression);
+  const helpers = new Map<string, ts.Expression>();
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && node.expression.getText(ast) === "useInrAssistantLocalInterface" && (interfaceId ? node.arguments[0]?.getText(ast) === JSON.stringify(interfaceId) : node.arguments[0]?.getText(ast).includes("studio_"))) expression = node.arguments[2];
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && ["isVoiceSelectionApplied", "committedFormSelectionMatches"].includes(node.name.text)) helpers.set(node.name.text, node.initializer);
+    ts.forEachChild(node, visit);
+  }; visit(ast); assert.ok(expression);
+  if (helpers.size && !Object.hasOwn(deps, "voiceAction")) deps.voiceAction = { current: null };
+  for (const name of ["isVoiceSelectionApplied", "committedFormSelectionMatches"]) {
+    const helper = helpers.get(name);
+    if (!helper) continue;
+    const code = ts.transpileModule(`(${helper.getText(ast)})`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText.trim().replace(/;$/, "");
+    deps[name] = vm.runInNewContext(`(function(deps){with(deps){return ${code};}})`)(deps);
+  }
   const compiled = ts.transpileModule(`(${expression.getText(ast)})`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText.trim().replace(/;$/, "");
   return vm.runInNewContext(`(function(deps){with(deps){return ${compiled};}})`)(deps) as Record<string, { invoke: (value: string | null) => void; matches: (snapshot: unknown, value: string | null) => boolean; allowUnmount?: boolean }>;
 }

@@ -43,6 +43,7 @@ function handler(name: string, context: Record<string, unknown>) {
 function audioControls(kind: "image" | "video", speechMode: "voiceover" | "characters" | "silent") {
   const context = { kind, speechMode, explicitlyEmptySpokenScript: false };
   return {
+    speechMode,
     effectiveWithNarration: evaluate(initializer("effectiveWithNarration"), context) as boolean,
     requestSpeechMode: evaluate(initializer("requestSpeechMode"), context) as "voiceover" | "characters",
   };
@@ -84,6 +85,8 @@ function resultContext() {
     hasSpokenScript: false,
     spokenScript: "",
     spokenScriptOpen: false,
+    soundtrackId: null, projectedReferences: [], submittedVoicePaths: { current: new Set<string>() },
+    providedNarrationVoiceActive: false, narrationVoiceSample: undefined, narrationVoiceMode: "ai", narrationVoiceConsent: false, activeNarrationProfile: undefined,
     effectiveWithSubtitles: false,
     videoModel: { provider: "google" },
     setCreationScreen: (value: boolean) => { events.push(`creation:${value}`); },
@@ -296,7 +299,7 @@ test("Libre reprend le rôle du lancement et son usage sans imposer un personnag
     let closes = 0, resets = 0;
     const run = evaluate(initializer("addFiles"), {
       locked: false, operationInFlight: { current: false }, recoveryPending: false,
-      pendingReferenceRole: role, sequence: { current: 0 }, references,
+      pendingReferenceRole: role, sequence: { current: 0 }, references, voiceModeIntent: { current: null }, voiceReferences: [],
       AI_MEDIA_INSPIRATION_MAX_COUNT, assertStudioInspirationImageMetadata, StudioInspirationImageOnlyError,
       prepareMediaGenerationImageReference: async (file: { name: string }) => ({ name: file.name, mimeType: "image/png", data: "A".repeat(64) }),
       setReferences: (update: (current: typeof references) => typeof references) => { references = update(references); },
@@ -338,7 +341,7 @@ test("les commandes UI Libre transmettent le son choisi sans fuite des paramètr
       discardDraft: async () => {},
       prompt: "  Mon scénario libre  ", effectivePrompt: "Mon scénario libre", source: "studio", kind: "video", format: "story", fixedFormat: undefined, duration: 16, sceneMode: "single",
       withMusic, ...audioControls("video", sound), voice: "male", voiceVariant: "Charon",
-      references, referencesForRequest: (value: unknown) => value,
+      references, projectedReferences: references, referencesForRequest: (value: unknown) => value,
       personReferences: [], identityRequired: false, identityConsent: false,
       teamConsentRequired: false, teamConsent: false, referenceSetId: { current: "refs-session-a" },
       MediaGenerationCancelledError: class extends Error {},
@@ -398,7 +401,7 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
   }
   for (const locked of [false, true]) assert.equal(evaluate(attribute(select.openingElement, "disabled"), { locked }), locked);
   const voiceOptions = nodes.find((node): node is ts.ConditionalExpression =>
-    ts.isConditionalExpression(node) && node.condition.getText(parsed) === "effectiveWithNarration" &&
+    ts.isConditionalExpression(node) && node.condition.getText(parsed) === 'effectiveWithNarration && narrationVoiceMode === "ai"' &&
       node.whenTrue.getText(parsed).includes("styles.voiceOptions"));
   assert.ok(voiceOptions);
   assert.doesNotMatch(source, /setWithNarration|checked=\{withNarration\}/);
@@ -415,7 +418,7 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
   }) as () => void;
   for (const next of ["characters", "silent", "voiceover", "silent", "characters", "voiceover"] as const) {
     const onChange = evaluate(attribute(select.openingElement, "onChange"), {
-      hasSpokenScript: false,
+      hasSpokenScript: false, characterVoiceSelection: { hasProvidedVoice: false }, voiceModeIntent: { current: null }, setVoiceSourcePreference: (mode: string) => assert.equal(mode, "ai"),
       setSpeechMode: (value: typeof speechMode) => { speechMode = value; },
       resetConsent,
     }) as (event: { target: { value: string } }) => void;
@@ -423,7 +426,7 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
     assert.equal(speechMode, next);
     assert.equal(evaluate(attribute(select.openingElement, "value"), { speechMode }), next);
     const derived = audioControls("video", speechMode);
-    assert.equal(evaluate(voiceOptions.condition, derived), next === "voiceover");
+    assert.equal(evaluate(voiceOptions.condition, { ...derived, narrationVoiceMode: "ai" }), next === "voiceover");
     assert.equal(withMusic, true, "Changing the speech selector must not change music.");
   }
   assert.deepEqual(consentChanges, [false, false, false, false, false, false]);
@@ -437,18 +440,13 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
   blockSilent({ target: { value: "silent" } });
   assert.equal(speechMode, "voiceover");
 
-  const music = nodes.filter(ts.isJsxSelfClosingElement).find((node) =>
-    node.tagName.getText(parsed) === "input" && node.getText(parsed).includes("checked={withMusic}"));
-  assert.ok(music);
-  assert.match(music.getText(parsed), /type="checkbox"/);
+  const music = nodes.filter(ts.isJsxSelfClosingElement).find(node => node.tagName.getText(parsed) === "StudioMusicLibrary");
+  assert.ok(music); let soundtrackId: string | null = null;
   for (const locked of [false, true]) assert.equal(evaluate(attribute(music, "disabled"), { locked }), locked);
-  const changeMusic = evaluate(attribute(music, "onChange"), {
-    setWithMusic: (value: boolean) => { withMusic = value; },
-  }) as (event: { target: { checked: boolean } }) => void;
-  for (const checked of [false, true]) {
-    changeMusic({ target: { checked } });
-    assert.equal(evaluate(attribute(music, "checked"), { withMusic }), checked);
-    assert.equal(speechMode, "voiceover", "Changing music must not change the speech selector.");
+  const changeMusic = evaluate(attribute(music, "onChange"), { setWithMusic: (value: boolean) => { withMusic = value; }, setSoundtrackId: (value: string | null) => { soundtrackId = value; } }) as (enabled: boolean, id: string | null) => void;
+  for (const [enabled, id] of [[false, null], [true, null], [true, "piano-serein"]] as const) {
+    changeMusic(enabled, id); assert.equal(evaluate(attribute(music, "withMusic"), { withMusic }), enabled); assert.equal(soundtrackId, id);
+    assert.equal(speechMode, "voiceover", "Choosing Auto, Off or a catalogue track cannot change speech mode.");
   }
   for (const mode of ["voiceover", "characters", "silent"] as const) assert.equal(audioControls("image", mode).effectiveWithNarration, false);
 });

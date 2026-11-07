@@ -3,7 +3,7 @@ import { inrAssistantMaskQuotedText, inrAssistantClauseIsAdvice } from './inrAss
 
 /** Finite local UI helpers only: no selector, URL, script, account switch,
  * consent, submit, delete, provider write or arbitrary component callback. */
-export const INR_ASSISTANT_LOCAL_INTERFACES = ['generator', 'help', 'help_dialog', 'contact', 'legal', 'channel_board', 'channel_formats', 'badge_actions', 'website_actions', 'channel_parameters', 'channel_header', 'engine_info', 'profession_picker', 'dna_sources', 'business_location', 'dna_schedule', 'studio_guided_form', 'studio_free_form', 'studio_media_images', 'studio_video_audio', 'studio_workspace', 'studio_result_viewer', 'studio_modal', 'badge_qr_options', 'badge_download_options', 'badge_link', 'channel_formats_facebook', 'channel_formats_instagram', 'cookie_options', 'website_ga4_details', 'website_gsc_details', 'writing_web_length_options', 'writing_social_length_options', 'language_options', 'notification_menu', 'planning_calendar', 'send_history', 'send_details', 'planning_day', 'planning_filters', 'send_preview', 'generator_settings', 'booster_stats', 'publication_media_preview', 'publication_adjustment', 'publication_review', 'publication_warning', 'channel_image_dialog', 'channel_image_viewer', 'google_review_details', 'media_import', 'writing_cta_channels', 'writing_cta_choices', 'subscription_activation_choice', 'studio_modifier', 'google_profile_draft', 'google_primary_category', 'google_additional_category', 'public_channel_link', 'channel_link_editor', 'channel_link_draft', 'publication_soundtrack_facebook', 'publication_soundtrack_instagram', 'emoji_picker', 'content_report', 'settings_drawer', 'dashboard_info', 'establishment_menu', 'mobile_menu', 'video_recharge', 'dna_text_description', 'dna_text_mission', 'dna_text_offers', 'dna_text_arguments', 'dna_text_proofs', 'dna_text_responses', 'dna_text_strategy', 'dna_text_calendar', 'publication_wizard', 'stats_channel_detail', 'studio_guided_library', 'studio_free_library', 'studio_retouch_library', 'studio_reference_information', 'studio_draft_reset', 'studio_draft_close', 'studio_draft_abandon', 'studio_recovery_guided', 'studio_recovery_free', 'publication_tiktok_settings', 'google_profile_sections', 'google_special_hours', 'google_weekly_hours', 'google_profile_reload', 'inertia_help', 'scheduled_publication_channel', 'scheduled_publication_editor', 'scheduled_publication_text_form', 'scheduled_publication_media', 'scheduled_publication_library', 'scheduled_publication_options', 'scheduled_publication_workspace', 'search_presentation', 'channel_cockpit', 'channel_cockpit_filter', 'inertia_views', 'boutique_views', 'boutique_help', 'subscription_details', 'subscription_invoices', 'planning_edit_choice', 'planning_workspace', 'planning_confirmation', 'planning_image', 'send_help', 'send_links', 'send_editor', 'pinterest_board_name', 'pinterest_boards', 'badge_identity_theme', 'planning_item'] as const;
+export const INR_ASSISTANT_LOCAL_INTERFACES = ['generator', 'help', 'help_dialog', 'contact', 'legal', 'channel_board', 'channel_formats', 'badge_actions', 'website_actions', 'channel_parameters', 'channel_header', 'engine_info', 'profession_picker', 'dna_sources', 'business_location', 'dna_schedule', 'studio_guided_form', 'studio_free_form', 'studio_media_images', 'studio_video_audio', 'studio_video_music', 'studio_voice_pool', 'studio_workspace', 'studio_result_viewer', 'studio_modal', 'badge_qr_options', 'badge_download_options', 'badge_link', 'channel_formats_facebook', 'channel_formats_instagram', 'cookie_options', 'website_ga4_details', 'website_gsc_details', 'writing_web_length_options', 'writing_social_length_options', 'language_options', 'notification_menu', 'planning_calendar', 'send_history', 'send_details', 'planning_day', 'planning_filters', 'send_preview', 'generator_settings', 'booster_stats', 'publication_media_preview', 'publication_adjustment', 'publication_review', 'publication_warning', 'channel_image_dialog', 'channel_image_viewer', 'google_review_details', 'media_import', 'writing_cta_channels', 'writing_cta_choices', 'subscription_activation_choice', 'studio_modifier', 'google_profile_draft', 'google_primary_category', 'google_additional_category', 'public_channel_link', 'channel_link_editor', 'channel_link_draft', 'publication_soundtrack_facebook', 'publication_soundtrack_instagram', 'emoji_picker', 'content_report', 'settings_drawer', 'dashboard_info', 'establishment_menu', 'mobile_menu', 'video_recharge', 'dna_text_description', 'dna_text_mission', 'dna_text_offers', 'dna_text_arguments', 'dna_text_proofs', 'dna_text_responses', 'dna_text_strategy', 'dna_text_calendar', 'publication_wizard', 'stats_channel_detail', 'studio_guided_library', 'studio_free_library', 'studio_retouch_library', 'studio_reference_information', 'studio_draft_reset', 'studio_draft_close', 'studio_draft_abandon', 'studio_recovery_guided', 'studio_recovery_free', 'publication_tiktok_settings', 'google_profile_sections', 'google_special_hours', 'google_weekly_hours', 'google_profile_reload', 'inertia_help', 'scheduled_publication_channel', 'scheduled_publication_editor', 'scheduled_publication_text_form', 'scheduled_publication_media', 'scheduled_publication_library', 'scheduled_publication_options', 'scheduled_publication_workspace', 'search_presentation', 'channel_cockpit', 'channel_cockpit_filter', 'inertia_views', 'boutique_views', 'boutique_help', 'subscription_details', 'subscription_invoices', 'planning_edit_choice', 'planning_workspace', 'planning_confirmation', 'planning_image', 'send_help', 'send_links', 'send_editor', 'pinterest_board_name', 'pinterest_boards', 'badge_identity_theme', 'planning_item'] as const;
 export const INR_ASSISTANT_LOCAL_OPERATIONS = ['close', 'open', 'search', 'select', 'copy', 'previous', 'next', 'retry', 'clear', 'review', 'play', 'stop'] as const;
 export type InrAssistantLocalInterface = typeof INR_ASSISTANT_LOCAL_INTERFACES[number];
 export type InrAssistantLocalOperation = typeof INR_ASSISTANT_LOCAL_OPERATIONS[number];
@@ -12,7 +12,8 @@ const ALLOWED_OPERATIONS: Record<InrAssistantLocalInterface, readonly InrAssista
   channel_board: ['open', 'close'], channel_formats: ['open', 'close'], badge_actions: ['open', 'close'], website_actions: ['open', 'close'], channel_parameters: ['close'], channel_header: ['previous', 'next'],
   engine_info: ['open', 'close'], profession_picker: ['open', 'close', 'search', 'retry', 'clear'], dna_sources: ['retry'], business_location: ['retry'], dna_schedule: ['open', 'close', 'retry'],
   studio_guided_form: ['select', 'retry'], studio_free_form: ['select', 'retry'], studio_workspace: ['open', 'close', 'select'], studio_result_viewer: ['close', 'select'], studio_modal: ['close', 'select'],
-  studio_media_images: ['open', 'close', 'select'], studio_video_audio: ['open', 'close'],
+  studio_media_images: ['open', 'close', 'select'], studio_video_audio: ['open', 'close'], studio_video_music: ['open', 'close', 'select', 'play', 'stop', 'retry'],
+  studio_voice_pool: ['open', 'close', 'select'],
   badge_qr_options: ['open', 'close'], badge_download_options: ['open', 'close'], badge_link: ['copy'], channel_formats_facebook: ['open', 'close'], channel_formats_instagram: ['open', 'close'], cookie_options: ['open', 'close'],
   website_ga4_details: ['open', 'close'], website_gsc_details: ['open', 'close'],
   writing_web_length_options: ['open', 'close'], writing_social_length_options: ['open', 'close'], language_options: ['open', 'close'], notification_menu: ['open', 'close'],
@@ -52,6 +53,16 @@ export function parseInrAssistantLocalInterfaceCommand(value: unknown): InrAssis
       : row.operation === "close" ? row.value === null : typeof row.value === "string" && /^(?:reference:[0-4]|inspiration:[0-4]:(?:true|false))$/.test(row.value);
     return valid ? { command: row.command, selection: { kind: "account_document", id: selection.id }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: row.value as string | null } : null;
   }
+  if (selection.id === "studio_video_music") {
+    const trackId = typeof row.value === "string" && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(row.value) && row.value.length <= 100;
+    const valid = row.operation === "select" ? trackId : row.operation === "play" ? row.value === null || trackId && row.value !== "auto" && row.value !== "off" : row.value === null;
+    return valid ? { command: row.command, selection: { kind: "account_document", id: selection.id }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: row.value as string | null } : null;
+  }
+  if (selection.id === "studio_voice_pool") {
+    const valid = row.operation === "close" || row.operation === "open" && row.value === null ? row.value === null : typeof row.value === "string" &&
+      (row.operation === "open" ? /^(?:new|voice:[0-2])$/.test(row.value) : /^(?:active:[0-2]|target:[0-2]:(?:none|narration|reference:[0-4])|gender:[0-2]:(?:auto|female|male))$/.test(row.value));
+    return valid ? { command: row.command, selection: { kind: "account_document", id: selection.id }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: row.value as string | null } : null;
+  }
   if (channelLink) return INR_ASSISTANT_PUBLIC_LINK_TARGETS.includes(row.value as never) ? { command: row.command, selection: { kind: "account_document", id: selection.id as InrAssistantLocalInterface }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: String(row.value) } : null;
   if (selection.id === "google_weekly_hours" && ["open", "select"].includes(String(row.operation))) return ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"].includes(String(row.value)) ? { command: row.command, selection: { kind: "account_document", id: selection.id }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: String(row.value) } : null;
   if (selection.id === "pinterest_board_name" && row.operation === "open") return typeof row.value === "string" && row.value.trim().length > 0 && row.value.length <= 300 ? { command: row.command, selection: { kind: "account_document", id: selection.id }, revision: row.revision, operation: row.operation, value: row.value } : null;
@@ -67,7 +78,9 @@ const TARGETS: Record<InrAssistantLocalInterface, RegExp> = {
   dna_sources: /adn|dna|sources?|documents?/, business_location: /localisation|adresse|siege|zone/, dna_schedule: /analyse|adn|programmation/,
   studio_guided_form: /formulaire (?:du |de |d[u'] ?)?studio guide|studio guide/, studio_free_form: /formulaire (?:du |de |d[u'] ?)?studio libre|studio libre/,
   studio_media_images: /\b(?:images?|photos?|references?|inspirations?|miniatures?|personnages?|decors?|produits?)\b.{0,35}\bstudio\b|\bstudio\b.{0,35}\b(?:images?|photos?|references?|inspirations?|miniatures?|personnages?|decors?|produits?)\b/,
-  studio_video_audio: /(?:fenetre|reglages?|parametres?|options?|panneau|details?).{0,20}\b(?:audio|son|voix)\b.{0,35}studio|studio.{0,35}(?:fenetre|reglages?|parametres?|options?|panneau|details?).{0,20}\b(?:audio|son|voix)\b/,
+  studio_video_audio: /(?:fenetre|reglages?|parametres?|options?|panneau|details?).{0,20}\b(?:audio|son|voix|vocaux)\b.{0,35}studio|studio.{0,35}(?:fenetre|reglages?|parametres?|options?|panneau|details?).{0,20}\b(?:audio|son|voix|vocaux)\b|\b(?:voix|vocaux)\b.{0,35}\bstudio\b|\bstudio\b.{0,35}\b(?:voix|vocaux)\b/,
+  studio_video_music: /\b(?:musique|musiques|bande.son|catalogue musical|bibliotheque musicale|chanson)\b.{0,50}\bstudio\b|\bstudio\b.{0,50}\b(?:musique|musiques|bande.son|catalogue musical|bibliotheque musicale|chanson)\b/,
+  studio_voice_pool: /\b(?:vocal|vocaux|profil vocal|echantillon vocal|reglages? (?:de |des |de la )?voix)\b.{0,60}\bstudio\b|\bstudio\b.{0,60}\b(?:vocal|vocaux|profil vocal|echantillon vocal|reglages? (?:de |des |de la )?voix)\b/,
   studio_workspace: /(?:criteres|apercu|creation).{0,35}studio|studio.{0,35}(?:criteres|apercu|creation)/, studio_result_viewer: /zoom.{0,35}(?:studio|apercu|image)|(?:studio|apercu agrandi).{0,35}zoom|image agrandie/, studio_modal: /(?:mode|type|fenetre|selecteur).{0,35}studio|studio.{0,35}(?:mode|type|fenetre|selecteur)/,
   badge_qr_options: /(?:qr|code).{0,30}badge|badge.{0,30}(?:qr|code)/, badge_download_options: /(?:telechargement|formats?).{0,30}badge|badge.{0,30}(?:telechargement|formats?)/, badge_link: /badge/,
   channel_formats_facebook: /(?:formats?|types? de publication).{0,40}facebook|facebook.{0,40}(?:formats?|types? de publication)/, channel_formats_instagram: /(?:formats?|types? de publication).{0,40}instagram|instagram.{0,40}(?:formats?|types? de publication)/,
@@ -200,6 +213,8 @@ export function isInrAssistantLocalInterfaceRequest(message: string, target?: In
   }
   if (target === "notification_menu" && operation && !/^(?:(?:peux|pourrais)[ -]tu\s+|(?:pouvez|pourriez)[ -]vous\s+)?(?:ouvre\w*|affiche\w*|montre\w*|ferme\w*|referme\w*|masque\w*|open|close|show|hide)\s+(?:(?:le|la|les|mon|ma|mes)\s+)?(?:notifications?|cloche|menu\s+(?:des?\s+)?notifications?)\b/.test(text)) return false;
   if (target && operation === "select") {
+    if (target === "studio_free_form" && /\b(?:coche\w*|decoche\w*)\b/.test(text) && /\bsous.titres?\b/.test(text)) return TARGETS[target].test(text);
+    if (target === "studio_voice_pool") return TARGETS[target].test(text) && (OPERATIONS.select.test(text) || /\b(?:associe\w*|affecte\w*|attribue\w*|relie\w*|definis\w*|active\w*|desaffecte\w*|dissocie\w*|detache\w*)\b|\bretire\w*\b.{0,20}\b(?:affectation|association|rattachement)\b/.test(text));
     if (target === "send_history" && !/vue|page|ligne|element|selection|choisi|brouillon|envoy/.test(text)) return false;
     if (target === "send_details" && !/canal|selection|choisi/.test(text)) return false;
   }
@@ -209,6 +224,43 @@ export function isInrAssistantLocalInterfaceRequest(message: string, target?: In
 }
 export function isInrAssistantLocalInterfaceValueRequested(message: string, target: InrAssistantLocalInterface, operation: InrAssistantLocalOperation, value: string | null): boolean {
   const text = message.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  if (target === "studio_voice_pool") {
+    const unquoted = inrAssistantMaskQuotedText(message).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+    if (/\b(?:pas|jamais|ne|non|si|ou|soit|comment|pourquoi)\b|\bn['’]|\?/.test(unquoted.replace(/\bnon affecte\b/g, "libre"))) return false;
+    if (operation === "close") return value === null;
+    const voices = [...unquoted.matchAll(/\b(?:vocal|echantillon(?: vocal)?|profil vocal)\s*(?:n[°o]?\.?\s*)?([1-3])\b/g)].map(match => Number(match[1]) - 1);
+    const photos = [...unquoted.matchAll(/\b(?:photo|image|reference|miniature)\s*(?:n[°o]?\.?\s*)?([1-5])\b/g)].map(match => Number(match[1]) - 1);
+    if (operation === "open") {
+      if (value === null) return voices.length === 0 && photos.length === 0 && /\breglages?\b/.test(unquoted) && /\b(?:voix|vocaux)\b/.test(unquoted);
+      if (value === "new") return voices.length === 0 && /\b(?:nouveau|nouvel|ajout)\b/.test(unquoted) && /\bvocal\b/.test(unquoted);
+      const voice = typeof value === "string" && /^voice:([0-2])$/.exec(value);
+      return !!voice && voices.length === 1 && voices[0] === Number(voice[1]) && photos.length === 0;
+    }
+    if (operation !== "select" || !value) return false;
+    const choice = /^(active|target|gender):([0-2])(?::(.+))?$/.exec(value);
+    if (!choice || voices.length !== 1 || voices[0] !== Number(choice[2])) return false;
+    if (choice[1] === "active") return choice[3] === undefined && photos.length === 0 && /\b(?:voix\s*off|narration|narrateur|actif)\b/.test(unquoted);
+    if (choice[1] === "target") {
+      if (choice[3] === "none") return photos.length === 0 && /\bnon affecte\b|\baucune (?:affectation|association)\b|\b(?:desaffecte\w*|dissocie\w*|detache\w*)\b|\bretire\w*\b.{0,20}\b(?:affectation|association|rattachement)\b/.test(unquoted);
+      if (choice[3] === "narration") return photos.length === 0 && /\b(?:voix\s*off|narration|narrateur)\b/.test(unquoted);
+      const photo = /^reference:([0-4])$/.exec(choice[3]);
+      return !!photo && photos.length === 1 && photos[0] === Number(photo[1]) && /\b(?:associe\w*|affecte\w*|attribue\w*|relie\w*|mets|selectionne\w*|choisis)\b/.test(unquoted);
+    }
+    const genders: Record<string, RegExp> = { auto: /\bauto(?:matique)?\b/, female: /\bfeminin(?:e)?\b|\bfemme\b/, male: /\bmasculin(?:e)?\b|\bhomme\b/ };
+    const matches = Object.keys(genders).filter(gender => genders[gender].test(unquoted));
+    return photos.length === 0 && matches.length === 1 && matches[0] === choice[3];
+  }
+  if (target === "studio_video_music") {
+    if (operation !== "select" && operation !== "play") return value === null;
+    if (operation === "play" && value === null) return true;
+    if (!value || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) return false;
+    const unquoted = inrAssistantMaskQuotedText(message).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+    const off = /\bsans musique\b|\baucune musique\b|\b(?:desactive|coupe|enleve)\b.{0,20}\bmusique\b/.test(unquoted);
+    const automatic = /\bauto(?:matique)?\b/.test(unquoted);
+    if (value === "off") return operation === "select" && off && !automatic;
+    if (value === "auto") return operation === "select" && automatic && !off;
+    return !off && !automatic && (` ${text.replace(/[^a-z0-9]+/g, " ").trim()} `).includes(` ${value.replaceAll("-", " ")} `);
+  }
   if (target === "studio_media_images") {
     const unquoted = inrAssistantMaskQuotedText(message).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
     if (value === null) return operation === "open" || operation === "close";

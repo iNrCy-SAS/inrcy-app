@@ -1,0 +1,18 @@
+.pool { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.settings { width: 100%; min-height: 26px; padding: 4px 8px; border: 1px solid #829fbd66; border-radius: 7px; color: #d9eaff; background: #1c304b; font: inherit; font-size: 11px; cursor: pointer; }
+.inline { display: flex; align-items: center; flex-wrap: wrap; gap: 3px; min-width: 0; }
+.details .inline { gap: 8px; }
+.details .inline button { min-height: 34px; padding: 6px 10px; border: 1px solid #839fbe66; border-radius: 8px; background: #1b2d48; color: #dceaff; font: inherit; font-size: 12px; text-decoration: none; cursor: pointer; }
+.inline button:disabled { opacity: .5; cursor: default; }
+.inline .chip { min-width: 22px; padding-inline: 4px; }
+.inline .chip[aria-pressed="true"] { border-color: #9ed7dc; background: #264d5a; }
+.inline .more { font-size: 15px; line-height: 1; }
+.count { flex: 0 0 auto; padding: 4px 2px; color: #c5d7ec; font-size: 12px; font-weight: 650; line-height: 1.4; }
+.details { display: flex; flex-direction: column; gap: 14px; }
+.details > label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.details select { min-height: 34px; padding: 6px 9px; border: 1px solid #829cb35c; border-radius: 8px; color: #e1edff; background: #142640; font: inherit; }
+.details p { margin: 0; color: #b7c7dd; font-size: 11px; line-height: 1.45; }
+.details > button { min-height: 34px; padding: 6px 10px; border: 1px solid #829cb35c; border-radius: 8px; color: #e1edff; background: #1b3851; font: inherit; font-size: 12px; cursor: pointer; }
+.details .consent { flex-direction: row; align-items: flex-start; gap: 8px; line-height: 1.5; }
+.consent input { flex: 0 0 auto; margin-top: 2px; }
+.settings:focus-visible, .details button:focus-visible, .details select:focus-visible, .details input:focus-visible { outline: 2px solid #9adcf5; outline-offset: 2px; }

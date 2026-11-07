@@ -47,6 +47,30 @@ test("nested causes outrank generic wrappers, including timeouts over AbortError
   assert.equal(explain(new Error("ai_media_generation_cancelled")).code, "AI_MEDIA_GENERATION_CANCELLED");
 });
 
+test("cloned narrator failures remain human-readable in generation and recovery without leaking provider diagnostics", () => {
+  const cases = [
+    ["ai_media_voice_clone_reference_invalid", "AI_MEDIA_NARRATION_VOICE_INVALID"],
+    ["ai_media_voice_clone_reference_duration_invalid", "AI_MEDIA_NARRATION_VOICE_INVALID"],
+    ["ai_media_voice_clone_consent_required", "AI_MEDIA_NARRATION_VOICE_CONSENT_REQUIRED"],
+    ["ai_media_voice_clone_language_unsupported", "AI_MEDIA_NARRATION_VOICE_LANGUAGE_UNSUPPORTED"],
+    ["ai_media_voice_clone_script_invalid", "AI_MEDIA_VOICE_CLONE_SCRIPT_INVALID"],
+    ["ai_media_voice_clone_audio_format_mismatch", "AI_MEDIA_VOICE_CLONE_OUTPUT_INVALID"],
+    ["ai_media_voice_clone_output_invalid", "AI_MEDIA_VOICE_CLONE_OUTPUT_INVALID"],
+    ["ai_media_voice_clone_provider_http_401", "AI_MEDIA_VOICE_CLONE_UNAVAILABLE"],
+    ["ai_media_voice_clone_provider_http_402", "AI_MEDIA_VOICE_CLONE_UNAVAILABLE"],
+    ["ai_media_voice_clone_provider_http_429", "AI_MEDIA_VOICE_CLONE_UNAVAILABLE"],
+    ["ai_media_voice_clone_credentials_missing", "AI_MEDIA_VOICE_CLONE_UNAVAILABLE"],
+    ["ai_media_voice_clone_timeout", "AI_MEDIA_VOICE_CLONE_UNAVAILABLE"],
+  ];
+  for (const [cause, expected] of cases) {
+    const raw = new Error("ai_media_narration_unavailable", { cause: new Error(cause + " https://private.invalid/voice?token=secret FAL_KEY=private") });
+    const live = explain(raw), recovered = explain({ error_code: "ai_media_narration_unavailable", error_details: [{ message: cause }] });
+    assert.equal(live.code, expected); assert.equal(recovered.code, expected);
+    assert.doesNotMatch(live.message, /ai_media_|FAL_KEY|https:|token=|secret|http_\d/);
+    assert.doesNotMatch(live.action, /recharg|autre moteur/);
+  }
+});
+
 test("a supplier minimum-balance refusal has a precise operator-facing cause without a wallet recharge request", () => {
   const diagnostic = "Video generation requires a minimum balance of $10. Your current balance is insufficient. Visit https://provider.invalid/billing?token=private to top up your credits.";
   const error = new Error("Video provider unavailable", { cause: new Error(diagnostic) });

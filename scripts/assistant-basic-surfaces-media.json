@@ -1672,7 +1672,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<select id={`${instanceId}-video-speech-mode`} className={styles.spokenScriptModeSelect} value={speechMode} disabled={locked}\n                  aria-describedby={hasSpokenScript ? `${instanceId}-speech-mode-help` : undefined}\n                  onChange={event => { const mode = event.target.value as typeof speechMode; if (mode === \"silent\" && hasSpokenScript) return; setSpeechMode(mode); resetConsent(); }}>\n                  {([\"voiceover\", \"characters\", \"silent\"] as const).map(mode => <option key={mode} value={mode} disabled={mode === \"silent\" && hasSpokenScript}>{t(`ai_generator_free_audio_${mode}`)}</option>)}\n                </select>",
+    "sourceAnchor": "<select id={`${instanceId}-video-speech-mode`} className={styles.spokenScriptModeSelect} value={speechMode} disabled={locked}\n                  aria-describedby={hasSpokenScript ? `${instanceId}-speech-mode-help` : undefined}\n                  onChange={event => {\n                    const mode = event.target.value as typeof speechMode;\n                    if (mode === \"silent\" && hasSpokenScript) return;\n                    if (mode !== \"characters\" && !characterVoiceSelection.hasProvidedVoice) { voiceModeIntent.current = null; setVoiceSourcePreference(\"ai\"); }\n                    setSpeechMode(mode); resetConsent();\n                  }}>\n                  {([\"voiceover\", \"characters\", \"silent\"] as const).map(mode => <option key={mode} value={mode} disabled={mode === \"silent\" && hasSpokenScript}>{t(`ai_generator_free_audio_${mode}`)}</option>)}\n                </select>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -1686,7 +1686,7 @@
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:ae4b672393494244:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:992eb6a59a90c278:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:95ff67061cc132aa:1"
     ],
     "additionalProofs": [
@@ -1709,7 +1709,7 @@
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Champ unique typé studio_free_form : onglet, prompt borné, ADN, format, mode audio/paroles, voix, musique et sous-titres ; garde format imposé, mode silencieux, autorisations et champs cachés natifs. ACK après rendu ; génération et préférences guidées séparées. Contraintes UI : effectiveWithNarration ; kind === \"video\".",
+    "notes": "Champ IA de studio_free_form pour le genre ou la variante de narration. Disponible seulement en voix off IA ; les vocaux réels utilisent leur profil séparé et descriptif. Liste native finie, compte, verrou, champ réellement visible et ACK après rendu ; aucun lancement ni consentement accordé.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts"
     ],
@@ -1732,7 +1732,7 @@
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Champ unique typé studio_free_form : onglet, prompt borné, ADN, format, mode audio/paroles, voix, musique et sous-titres ; garde format imposé, mode silencieux, autorisations et champs cachés natifs. ACK après rendu ; génération et préférences guidées séparées. Contraintes UI : effectiveWithNarration ; kind === \"video\".",
+    "notes": "Champ IA de studio_free_form pour le genre ou la variante de narration. Disponible seulement en voix off IA ; les vocaux réels utilisent leur profil séparé et descriptif. Liste native finie, compte, verrou, champ réellement visible et ACK après rendu ; aucun lancement ni consentement accordé.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts"
     ],
@@ -1755,7 +1755,7 @@
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Champ unique typé studio_free_form : onglet, prompt borné, ADN, format, mode audio/paroles, voix, musique et sous-titres ; garde format imposé, mode silencieux, autorisations et champs cachés natifs. ACK après rendu ; génération et préférences guidées séparées. Contraintes UI : effectiveWithNarration ; kind === \"video\".",
+    "notes": "Champ IA de studio_free_form pour le genre ou la variante de narration. Disponible seulement en voix off IA ; les vocaux réels utilisent leur profil séparé et descriptif. Liste native finie, compte, verrou, champ réellement visible et ACK après rendu ; aucun lancement ni consentement accordé.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts"
     ],
@@ -1778,7 +1778,7 @@
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Champ unique typé studio_free_form : onglet, prompt borné, ADN, format, mode audio/paroles, voix, musique et sous-titres ; garde format imposé, mode silencieux, autorisations et champs cachés natifs. ACK après rendu ; génération et préférences guidées séparées. Contraintes UI : effectiveWithNarration ; kind === \"video\".",
+    "notes": "Champ IA de studio_free_form pour le genre ou la variante de narration. Disponible seulement en voix off IA ; les vocaux réels utilisent leur profil séparé et descriptif. Liste native finie, compte, verrou, champ réellement visible et ACK après rendu ; aucun lancement ni consentement accordé.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts"
     ],
@@ -1790,48 +1790,82 @@
   },
   {
     "id": "basic.media.0078",
-    "label": "Renseigner checkbox",
+    "label": "Musiques — Automatique / Sans musique",
     "domain": "studio",
     "sourceFiles": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx"
+      "app/dashboard/_components/StudioMusicLibrary.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/inrAssistantLocalInterface.ts"
     ],
-    "sourceAnchor": "<input\n                  type=\"checkbox\"\n                  checked={withMusic}\n                  disabled={locked}\n                  onChange={(event) => setWithMusic(event.target.checked)}\n                />",
+    "sourceAnchor": "<button type=\"button\" aria-pressed={withMusic && !soundtrackId} disabled={disabled} data-studio-music-auto onClick={() => choose(true, null)}>{musicT(\"publication_music_auto\")}</button>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Champ unique typé studio_free_form : onglet, prompt borné, ADN, format, mode audio/paroles, voix, musique et sous-titres ; garde format imposé, mode silencieux, autorisations et champs cachés natifs. ACK après rendu ; génération et préférences guidées séparées. Contraintes UI : kind === \"video\".",
+    "notes": "studio_video_music.select(auto|off) actionne les vrais setters du catalogue vidéo ouvert. Auto active la musique et efface le choix explicite ; Sans musique désactive et efface soundtrackId. Compte et verrou natifs, état réellement rendu avant ACK. Aucune URL arbitraire, génération ou facturation. Le catalogue musical est distinct des voix.",
     "testFiles": [
-      "tests/ai-assistant/studio-native-form-controls.test.mts"
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-music-navigation.test.mts"
     ],
-    "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
+    "testAnchor": "the real Studio music library binds catalogue choices, confirms preview and preserves Auto Off and account scope without generation",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#input:d9da181213e7b630:1"
+      "app/dashboard/_components/StudioMusicLibrary.tsx#button:5ea715724f238587:1",
+      "app/dashboard/_components/StudioMusicLibrary.tsx#button:2586e370b5ca7ca7:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "Studio music controls reject unavailable tracks and stale playback while locked and retry only the current account catalogue"
+      },
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "the real Studio music dialog previews live catalogue choices and retains the draft through Auto Off and Escape"
+      },
+      {
+        "file": "tests/ai-assistant/studio-music-navigation.test.mts",
+        "testAnchor": "Studio music instructions distinguish the music catalogue from voices and require the explicitly chosen track"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-music-selection-runtime.test.mts",
+        "testAnchor": "the actual server soundtrack task loads the selected bundled bytes instead of Auto or recent-track exclusions"
+      }
     ]
   },
   {
     "id": "basic.media.0079",
-    "label": "Renseigner checkbox",
+    "label": "Sous-titres",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<input\n                  type=\"checkbox\"\n                  checked={effectiveWithSubtitles}\n                  disabled={locked || speechMode === \"silent\" || explicitlyEmptySpokenScript}\n                  data-media-subtitles\n                  onChange={(event) => setWithSubtitles(event.target.checked)}\n                />",
+    "sourceAnchor": "<input type=\"checkbox\" checked={effectiveWithSubtitles} disabled={locked || speechMode === \"silent\" || explicitlyEmptySpokenScript}\n                    data-media-subtitles onChange={event => setWithSubtitles(event.target.checked)} />",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Champ unique typé studio_free_form : onglet, prompt borné, ADN, format, mode audio/paroles, voix, musique et sous-titres ; garde format imposé, mode silencieux, autorisations et champs cachés natifs. ACK après rendu ; génération et préférences guidées séparées. Contraintes UI : kind === \"video\".",
+    "notes": "Checkbox unique sous les trois menus du panneau vidéo. studio_free_form.select(withSubtitles) applique le choix explicite et confirme le même état après rendu ; aucune autorisation de voix accordée. Sous-titres inactifs en Sans parole ou Paroles exactes vides, choix conservé lors des changements temporaires puis omis pour une image ; changement de compte réinitialisé. Aucun lancement ni devis payé.",
     "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
       "tests/ai-assistant/studio-native-form-controls.test.mts"
     ],
-    "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
+    "testAnchor": "video subtitles default off and the same explicit choice reaches quote and generation",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#input:15f03ba1ae27af5b:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#input:5e7cc17c172f3c08:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "silent video disables subtitles without blocking generation; account reset clears the choice and images omit it"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "the native subtitle checkbox requires the requested checked state without granting any voice consent"
+      }
     ]
   },
   {
@@ -1919,7 +1953,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<select\n                  id={`${instanceId}-spoken-script-mode`}\n                  className={styles.spokenScriptModeSelect}\n                  value={spokenScriptOpen ? \"exact\" : \"automatic\"}\n                  disabled={locked}\n                  aria-label={`${t(\"ai_generator_video_speech_automatic\")} / ${t(\"ai_generator_video_speech_exact\")}`}\n                  aria-controls={`${instanceId}-spoken-script-panel`}\n                  aria-describedby={`${instanceId}-spoken-script-help`}\n                  onChange={(event) => {\n                    if (event.target.value === \"exact\") {\n                      setSpokenScriptOpen(true);\n                      window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus({ preventScroll: true }));\n                    } else {\n                      setSpokenScript(\"\");\n                      setSpokenScriptOpen(false);\n                    }\n                  }}\n                >\n                  <option value=\"automatic\">{t(\"ai_generator_video_speech_automatic\")}</option>\n                  <option value=\"exact\">{t(\"ai_generator_video_speech_exact\")}</option>\n                </select>",
+    "sourceAnchor": "<select\n                  id={`${instanceId}-spoken-script-mode`}\n                  className={styles.spokenScriptModeSelect}\n                  value={spokenScriptOpen ? \"exact\" : \"automatic\"}\n                  disabled={locked || speechMode === \"silent\"}\n                  aria-label={`${t(\"ai_generator_video_speech_automatic\")} / ${t(\"ai_generator_video_speech_exact\")}`}\n                  aria-controls={`${instanceId}-spoken-script-panel`}\n                  aria-describedby={`${instanceId}-spoken-script-help`}\n                  onChange={(event) => {\n                    if (event.target.value === \"exact\") {\n                      setSpokenScriptOpen(true);\n                      window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus({ preventScroll: true }));\n                    } else {\n                      setSpokenScript(\"\");\n                      setSpokenScriptOpen(false);\n                    }\n                  }}\n                >\n                  <option value=\"automatic\">{t(\"ai_generator_video_speech_automatic\")}</option>\n                  <option value=\"exact\">{t(\"ai_generator_video_speech_exact\")}</option>\n                </select>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -1933,7 +1967,7 @@
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:1974bca032f3fdc6:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:5e12ef9fd5bb7d2b:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:9f944cd37c813c70:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:e876ef7049b0c400:1"
     ],
@@ -1949,6 +1983,14 @@
       {
         "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
         "testAnchor": "real fixed geometry survives 0, 500, 501 and whitespace-heavy visual drafts through Auto→Exact→Auto"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "provided voice with Exact empty preserves the draft and blocks quote and generation until the professional chooses Auto or supplies speech"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload"
       }
     ]
   },
@@ -1979,6 +2021,14 @@
       {
         "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
         "testAnchor": "short windows keep both video frames separate and the speech header on two rows in every locale"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "provided voice with Exact empty preserves the draft and blocks quote and generation until the professional chooses Auto or supplies speech"
       }
     ]
   },
@@ -15142,7 +15192,7 @@
   },
   {
     "id": "basic.studio.media-dialog-close",
-    "label": "Fermer ajout ou réglages Images / Son",
+    "label": "Fermer Images / Voix IA / Musiques",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx",
@@ -15159,7 +15209,7 @@
       "app/dashboard/_components/MediaFreeGenerator.tsx#dialog:66a3dc9f9a0799b3:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#button:707a09cd18884eb8:1"
     ],
-    "notes": "studio_media_images.close ou studio_video_audio.close selon le dialogue monté. Ajout carré compact : seulement Importer/Médiathèque, sans liste de rôle supplémentaire ; fermeture automatique après succès. Croix, Escape et extérieur conservent le brouillon et isolent le parent. Fermeture Images refusée si sa Médiathèque enfant est ouverte ; verrouillage et ACK fermé préservés. Aucun abandon, génération ni annulation de job.",
+    "notes": "studio_media_images.close, studio_video_audio.close ou studio_video_music.close selon le dialogue réel. Le catalogue Musiques arrête la préécoute à la fermeture ; le pool de vocaux possède son propre contrôle studio_voice_pool.close. Images attend la fermeture de sa Médiathèque enfant. Croix, Escape et extérieur isolent le parent, gardent brouillons et verrous, ACK après état fermé. Aucun job annulé ou média généré.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts",
       "tests/dashboard/studio-video-brief-speech-browser.test.mts"
@@ -15173,6 +15223,14 @@
       {
         "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
         "testAnchor": "the compact Image panel retains 4000 characters, four role launchers and real assistant focus without video audio controls"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real Studio music library binds catalogue choices, confirms preview and preserves Auto Off and account scope without generation"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "Studio music controls reject unavailable tracks and stale playback while locked and retry only the current account catalogue"
       }
     ]
   },
@@ -15192,9 +15250,10 @@
     "coverageStatus": "implemented",
     "sourceAnchor": "<button key={role} type=\"button\" className={styles.referenceRoleButton} data-media-role-add={role}\n                  data-invalid={Boolean(roleWarning) || undefined}\n                  disabled={locked || !referencePickerVisible || references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT}\n                  aria-label={label} title={tooltip} data-inrcy-tooltip-title={tooltip} aria-haspopup=\"dialog\" aria-expanded={mediaSettingsDialog === \"images\" && pendingReferenceRole === role}\n                  aria-controls={mediaSettingsDialog === \"images\" ? `${instanceId}-media-images-dialog` : undefined}\n                  aria-describedby={visibleReferenceWarning ? `${instanceId}-media-images-warning` : undefined}\n                  onClick={() => { setPendingReferenceRole(role); setSelectedReferenceId(null); setActionError(\"\"); setMediaSettingsDialog(\"images\"); }}>\n                  <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.7\" strokeLinecap=\"round\" strokeLinejoin=\"round\" aria-hidden=\"true\"><path d={REFERENCE_ROLE_PATHS[role]} /></svg>\n                  <span className={styles.referenceRoleLabel}>{label}</span>\n                  {roleWarning ? <span className={styles.referenceIconWarning} aria-hidden=\"true\">!</span> : null}\n                </button>",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:a89e5c7563f605be:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:a89e5c7563f605be:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:5b28ef8b6e55cab2:1"
     ],
-    "notes": "studio_media_images.open(role:inspiration|character|environment|product) déduit le rôle avant ajout, sans select À ajouter. Snapshot open+pendingReferenceRole confirmé ; open(null) ouvre Inspiration. Nouvelles inspirations facultatives, trois autres rôles Obligatoires, existants conservés. Fenêtre Importer/Médiathèque fermée après ajout réussi ; limites, compte et verrou natifs. Aucune importation, génération, identité fidèle ou voix autorisée implicitement. Un template natif présente quatre choix, sans inventer quatre contrôles par image ou compte.",
+    "notes": "studio_media_images.open(role:inspiration|character|environment|product) déduit le rôle avant ajout, sans select À ajouter. Snapshot open+pendingReferenceRole confirmé ; open(null) ouvre Inspiration. Nouvelles inspirations facultatives, trois autres rôles Obligatoires, existants conservés. Fenêtre Importer/Médiathèque fermée après ajout réussi ; limites, compte et verrou natifs. Aucune importation, génération, identité fidèle ou voix autorisée implicitement. Un template natif présente quatre choix, sans inventer quatre contrôles par image ou compte. En mode Personnages, Ajouter un personnage depuis les réglages Voix ouvre ce même parcours d’ajout ; aucune photo nécessaire à une voix off réelle.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts",
       "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
@@ -15214,7 +15273,7 @@
   },
   {
     "id": "basic.studio.video-sound-open",
-    "label": "Son — réglages vidéo",
+    "label": "Voix IA — Réglages",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx",
@@ -15226,20 +15285,28 @@
     ],
     "mode": "form",
     "coverageStatus": "implemented",
-    "sourceAnchor": "<button type=\"button\" className={styles.referenceRoleButton} data-video-audio-button disabled={locked || !editorAvailable || stopConfirmOpen}\n                data-invalid={!operationLocked && Boolean(audioSettingsWarning) || undefined}\n                aria-label={t(\"ai_generator_essential_sound_title\")} title={t(\"ai_generator_essential_sound_title\")} data-inrcy-tooltip-title={t(\"ai_generator_essential_sound_title\")} aria-haspopup=\"dialog\" aria-expanded={mediaSettingsDialog === \"audio\"}\n                aria-controls={mediaSettingsDialog === \"audio\" ? `${instanceId}-video-audio-dialog` : undefined}\n                aria-describedby={!operationLocked && audioSettingsWarning ? `${instanceId}-video-audio-warning` : undefined}\n                onClick={() => setMediaSettingsDialog(\"audio\")}>\n                <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.7\" strokeLinecap=\"round\" strokeLinejoin=\"round\" aria-hidden=\"true\"><path d=\"M11 5 6 9H3v6h3l5 4V5Zm4 3a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14\" /></svg>\n                <span className={styles.referenceRoleLabel}>{t(\"ai_generator_essential_sound_title\")}</span>\n                {!operationLocked && audioSettingsWarning ? <span className={styles.referenceIconWarning} aria-hidden=\"true\">!</span> : null}\n              </button>",
+    "sourceAnchor": "<button type=\"button\" className={styles.voiceSettingsMain} data-video-audio-button disabled={locked || speechMode === \"silent\"}\n                    aria-haspopup=\"dialog\" aria-expanded={mediaSettingsDialog === \"audio\"} aria-controls={mediaSettingsDialog === \"audio\" ? `${instanceId}-video-audio-dialog` : undefined}\n                    onClick={() => setMediaSettingsDialog(\"audio\")}>{t(\"ai_generator_voice_details\")}</button>",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:428474f58ab4dc0f:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:212ca6ef7e8cd931:1"
     ],
-    "notes": "studio_video_audio.open ouvre les réglages voix off, voix par personnage, musique et sous-titres ; vidéo seulement. Snapshot open après rendu ; verrou, enfant et compte préservés. Les choix/consentements restent leurs contrôles natifs ; aucun son créé ni média généré à l’ouverture.",
+    "notes": "studio_video_audio.open ouvre les vrais réglages de la voix IA du panneau vidéo, distincts du catalogue Musiques et des profils de voix réelles. Personnages conserve son sélecteur de photo ; la voix off IA conserve genre et variante. État ouvert confirmé après rendu, sous compte et verrou natifs. Aucun son, fichier, consentement ou média créé à l’ouverture.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts",
-      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts"
     ],
     "testAnchor": "the actual compact video dialog callbacks preserve native locks and wait for committed visibility",
     "additionalProofs": [
       {
-        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
-        "testAnchor": "the single video panel keeps the prompt visible while native Images/Audio dialogs isolate Escape and preserve drafts"
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native voice selections bind the requested current photo and acknowledge only its captured ID across reorder removal and account reset"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native Real voiceover accepts no photo while character voices retain their explicit image target"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real Studio vocal pool imports at most three sources and binds native choices to captured profile and photo IDs"
       }
     ]
   },
@@ -15273,5 +15340,568 @@
         "testAnchor": "the compact Image panel retains 4000 characters, four role launchers and real assistant focus without video audio controls"
       }
     ]
+  },
+  {
+    "id": "basic.studio.music-open",
+    "label": "Musiques — ouvrir le catalogue iNrCy",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={styles.referenceRoleButton} data-video-music-button disabled={locked || !editorAvailable || stopConfirmOpen}\n                aria-label={t(\"ai_generator_music_title\")} title={t(\"ai_generator_music_title\")} data-inrcy-tooltip-title={t(\"ai_generator_music_title\")} aria-haspopup=\"dialog\" aria-expanded={mediaSettingsDialog === \"music\"}\n                aria-controls={mediaSettingsDialog === \"music\" ? `${instanceId}-video-music-dialog` : undefined}\n                onClick={() => setMediaSettingsDialog(\"music\")}>\n                <svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.7\" strokeLinecap=\"round\" strokeLinejoin=\"round\" aria-hidden=\"true\"><path d=\"M9 18V5l12-2v13M9 8l12-2M9 18c0 1.7-1.8 3-4 3s-4-1.3-4-3 1.8-3 4-3 4 1.3 4 3Zm12-2c0 1.7-1.8 3-4 3s-4-1.3-4-3 1.8-3 4-3 4 1.3 4 3Z\" /></svg>\n                <span className={styles.referenceRoleLabel}>{t(\"ai_generator_music_title\")}</span>\n              </button>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_video_music.open ouvre le catalogue musical iNrCy pour la vidéo. Compte, disponibilité, verrou et état ouvert après rendu contrôlés ; lecture du catalogue et préécoute seulement, sans génération ni paiement.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:3303992939f8dc8e:1"
+    ],
+    "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-music-navigation.test.mts"
+    ],
+    "testAnchor": "the real Studio music library binds catalogue choices, confirms preview and preserves Auto Off and account scope without generation",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "Studio music controls reject unavailable tracks and stale playback while locked and retry only the current account catalogue"
+      },
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "the real Studio music dialog previews live catalogue choices and retains the draft through Auto Off and Escape"
+      },
+      {
+        "file": "tests/ai-assistant/studio-music-navigation.test.mts",
+        "testAnchor": "Studio music instructions distinguish the music catalogue from voices and require the explicitly chosen track"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-music-selection-runtime.test.mts",
+        "testAnchor": "the actual server soundtrack task loads the selected bundled bytes instead of Auto or recent-track exclusions"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.music-track",
+    "label": "Musiques — choisir une piste du catalogue",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioMusicLibrary.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/aiMediaGenerationContracts.ts",
+      "lib/aiMediaGenerationServer.ts",
+      "lib/aiMediaGenerationSoundtracks.ts"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={styles.choice} data-studio-music-track={track.id} aria-pressed={withMusic && soundtrackId === track.id} disabled={disabled} onClick={() => choose(true, track.id)}>\n          <span>{track.label}</span><small>{track.description}</small>\n        </button>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_video_music.select(id) choisit uniquement une piste présente dans le catalogue chargé du compte. Le vrai onChange transmet withMusic=true et le même soundtrackId au formulaire ; hook, normalisation, déduplication et mixage le conservent. URL, indice ou ID inconnu refusé. ACK après rendu ; aucun lancement.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/StudioMusicLibrary.tsx#button:ab04f733f1387829:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioMusicLibrary:c046bc450c697037:1"
+    ],
+    "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-music-navigation.test.mts"
+    ],
+    "testAnchor": "the real Studio music library binds catalogue choices, confirms preview and preserves Auto Off and account scope without generation",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "Studio music controls reject unavailable tracks and stale playback while locked and retry only the current account catalogue"
+      },
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "the real Studio music dialog previews live catalogue choices and retains the draft through Auto Off and Escape"
+      },
+      {
+        "file": "tests/ai-assistant/studio-music-navigation.test.mts",
+        "testAnchor": "Studio music instructions distinguish the music catalogue from voices and require the explicitly chosen track"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-music-selection-runtime.test.mts",
+        "testAnchor": "the actual server soundtrack task loads the selected bundled bytes instead of Auto or recent-track exclusions"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.music-preview",
+    "label": "Musiques — préécouter / arrêter",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioMusicLibrary.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={styles.preview} data-studio-music-preview={track.id} disabled={disabled} aria-pressed={playingId === track.id}\n          aria-label={musicT(playingId === track.id ? \"publication_music_stop_track\" : \"publication_music_preview_track\", { name: track.label })}\n          onClick={() => void preview(track)}>{playingId === track.id ? \"■\" : \"▶\"}</button>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_video_music.play(id|null) lit la préécoute du catalogue explicitement désignée ou la piste déjà choisie. ACK seulement après lecture audio réellement active ; stop arrête uniquement cette préécoute. Choix musical conservé. Fermeture, verrou ou compte changé interrompent la lecture ; réponse ancienne refusée. Aucun média généré ni fichier importé.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/StudioMusicLibrary.tsx#button:1ac892e7173e3cc5:1"
+    ],
+    "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-music-navigation.test.mts"
+    ],
+    "testAnchor": "the real Studio music library binds catalogue choices, confirms preview and preserves Auto Off and account scope without generation",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "Studio music controls reject unavailable tracks and stale playback while locked and retry only the current account catalogue"
+      },
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "the real Studio music dialog previews live catalogue choices and retains the draft through Auto Off and Escape"
+      },
+      {
+        "file": "tests/ai-assistant/studio-music-navigation.test.mts",
+        "testAnchor": "Studio music instructions distinguish the music catalogue from voices and require the explicitly chosen track"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-music-selection-runtime.test.mts",
+        "testAnchor": "the actual server soundtrack task loads the selected bundled bytes instead of Auto or recent-track exclusions"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.music-retry",
+    "label": "Musiques — réessayer le catalogue",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioMusicLibrary.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<button type=\"button\" disabled={disabled} onClick={() => setAttempt(value => value + 1)}>{commonT(\"retry\")}</button>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_video_music.retry relit seulement le catalogue après échec dans la fenêtre ouverte. ACK sur compte identique, tentative fraîche et catalogue prêt ; réponse obsolète ignorée. Aucun choix automatique de piste ni appel de génération.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/StudioMusicLibrary.tsx#button:ac316f24ab691436:1"
+    ],
+    "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-music-navigation.test.mts"
+    ],
+    "testAnchor": "the real Studio music library binds catalogue choices, confirms preview and preserves Auto Off and account scope without generation",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "Studio music controls reject unavailable tracks and stale playback while locked and retry only the current account catalogue"
+      },
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "the real Studio music dialog previews live catalogue choices and retains the draft through Auto Off and Escape"
+      },
+      {
+        "file": "tests/ai-assistant/studio-music-navigation.test.mts",
+        "testAnchor": "Studio music instructions distinguish the music catalogue from voices and require the explicitly chosen track"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-music-selection-runtime.test.mts",
+        "testAnchor": "the actual server soundtrack task loads the selected bundled bytes instead of Auto or recent-track exclusions"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.voice-mode",
+    "label": "Voix IA / Voix réelle",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<select id={`${instanceId}-video-voice-mode`} className={styles.spokenScriptModeSelect} value={selectedVoiceMode} disabled={locked || speechMode === \"silent\"}\n                    aria-describedby={audioSettingsWarning ? `${instanceId}-video-audio-warning` : undefined}\n                    onChange={event => chooseVoiceMode(event.target.value === \"provided\" ? \"provided\" : \"ai\")}>\n                    <option value=\"ai\">{t(\"ai_generator_character_voice_ai\")}</option>\n                    <option value=\"provided\">{t(\"ai_generator_voice_real\")}</option>\n                  </select>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_free_form.select(voiceMode) suit le vrai choix IA/Réelle. En Voix off, une voix réelle fonctionne sans personnage ni photo et prépare les réglages du vocal narrateur ; un seul narrateur actif est envoyé. En Personnages, le choix exige la photo ciblée sans ambiguïté et ne propage rien aux autres personnes. Références, verrou, compte et ACK contrôlés ; import, enregistrement et consentement restent humains.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:3c3de75defb8be95:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#option:fe0ec7c00fbf85d1:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#option:9dec90f1f0128c60:1"
+    ],
+    "testFiles": [
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts"
+    ],
+    "testAnchor": "native Real voiceover accepts no photo while character voices retain their explicit image target",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native voice selections bind the requested current photo and acknowledge only its captured ID across reorder removal and account reset"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.voice-person",
+    "label": "Voix Personnages — choisir la photo",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<select id={`${instanceId}-voice-character`} value={selectedVoiceReference?.id ?? \"\"} disabled={locked}\n                  onChange={event => {\n                    const target = voiceReferences.find(reference => reference.id === event.target.value);\n                    if (!target) return;\n                    setVoiceReferenceId(target.id);\n                    const intendedMode = voiceModeIntent.current;\n                    voiceModeIntent.current = null;\n                    if (intendedMode) updateReference(target.id, { voiceMode: intendedMode });\n                    else setVoiceSourcePreference(target.voiceMode ?? \"ai\");\n                  }}>\n                  <option value=\"\" disabled>{t(\"ai_generator_voice_choose_person\")}</option>\n                  {voiceReferences.map(reference => <option key={reference.id} value={reference.id}>{reference.name}</option>)}\n                </select>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_free_form.select(voiceReferenceId) choisit seulement une photo Personnage présente par ID stable ou position explicitement demandée. Personnages uniquement : ce sélecteur ne s’impose jamais à la voix off. ACK sur le même ID capturé après rendu ; suppression, remplacement, indice périmé ou changement de compte refusés. Aucun vocal attribué aux autres photos, upload ou consentement.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:6abfa304ec4747c9:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#option:327e054c86baa631:2",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#option:4c045fb9bdcc80b0:1"
+    ],
+    "testFiles": [
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts"
+    ],
+    "testAnchor": "native voice selections bind the requested current photo and acknowledge only its captured ID across reorder removal and account reset",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native Real voiceover accepts no photo while character voices retain their explicit image target"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real Studio vocal pool imports at most three sources and binds native choices to captured profile and photo IDs"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.voice-pool-settings",
+    "label": "Voix réelle — Réglages des trois vocaux",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioVoicePool.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<button type=\"button\" className={styles.settings} data-voice-pool-settings disabled={disabled || !portalReady || !available} aria-haspopup=\"dialog\" aria-expanded={open} onClick={openSettings}>{t(\"ai_generator_voice_details\")}</button>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_voice_pool.open(null) ouvre les Réglages réels ; open(voice:N) ouvre le profil existant explicitement demandé. Pool maximum trois vocaux indépendants, identifiants stables et compte courant. Les callbacks du conteneur ne donnent aucun droit à importer, enregistrer, supprimer un fichier ou cocher le consentement. Ces gestes humains restent classés séparément ; seules ouverture et sélections finies disposent du bridge. Aucun lancement automatique.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/StudioVoicePool.tsx#button:faad2b4634b43527:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioVoicePool:9df229f7d574b76c:1"
+    ],
+    "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-native-form-controls.test.mts"
+    ],
+    "testAnchor": "the real Studio vocal pool imports at most three sources and binds native choices to captured profile and photo IDs",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "real Studio voice Settings opens the three-source pool and preserves new speech and the visible subtitle checkbox without a photo"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native Real voiceover accepts no photo while character voices retain their explicit image target"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native voice selections bind the requested current photo and acknowledge only its captured ID across reorder removal and account reset"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.voice-pool-open",
+    "label": "Vocal — ouvrir ou préparer un profil",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioVoicePool.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<button key={profile.id} type=\"button\" className={styles.chip} data-voice-profile={profile.id} disabled={disabled}\n            aria-label={`${t(\"ai_generator_voice_profile\", { index: index + 1 })} · ${profile.sample.name}`} title={profile.sample.name}\n            aria-pressed={profile.id === editingId} onClick={() => edit(profile)}>{t(\"ai_generator_voice_profile\", { index: index + 1 })}</button>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_voice_pool.open(voice:N|new) ouvre le profil explicitement choisi ou prépare un emplacement vide si moins de trois sources existent. ACK sur ID du profil ou du brouillon capturé, compte identique, fenêtre ouverte après rendu. Ajouter prépare seulement Importer/Enregistrer/Médiathèque ; aucun fichier ni enregistrement créé par ce contrôle.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/StudioVoicePool.tsx#button:d63de075fde142aa:1",
+      "app/dashboard/_components/StudioVoicePool.tsx#button:5224282f001e165f:1"
+    ],
+    "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-native-form-controls.test.mts"
+    ],
+    "testAnchor": "the real Studio vocal pool imports at most three sources and binds native choices to captured profile and photo IDs",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "real Studio voice Settings opens the three-source pool and preserves new speech and the visible subtitle checkbox without a photo"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native Real voiceover accepts no photo while character voices retain their explicit image target"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native voice selections bind the requested current photo and acknowledge only its captured ID across reorder removal and account reset"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.voice-pool-close",
+    "label": "Fermer les Réglages des vocaux",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioVoicePool.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<dialog ref={dialogRef} className={dialogStyles.mediaSettingsDialog} data-media-settings-dialog=\"voices\" aria-labelledby={`${id}-title`} aria-modal=\"true\"\n      onKeyDown={event => event.stopPropagation()} onCancel={event => { event.preventDefault(); event.stopPropagation(); if (!disabled) setOpen(false); }}\n      onClose={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); if (event.target !== event.currentTarget || disabled) return; const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) setOpen(false); }}>\n      <header className={dialogStyles.mediaSettingsDialogHeader}><h2 id={`${id}-title`}>{t(\"ai_generator_voice_details\")}</h2><button ref={closeRef} type=\"button\" disabled={disabled} aria-label={t(\"ai_generator_video_settings_close\")} onClick={() => setOpen(false)}>×</button></header>\n      <div className={`${dialogStyles.mediaSettingsDialogBody} ${styles.details}`}>\n        <div className={styles.inline}>\n          {profiles.map((profile, index) => <button key={profile.id} type=\"button\" className={styles.chip} data-voice-profile={profile.id} disabled={disabled}\n            aria-label={`${t(\"ai_generator_voice_profile\", { index: index + 1 })} · ${profile.sample.name}`} title={profile.sample.name}\n            aria-pressed={profile.id === editingId} onClick={() => edit(profile)}>{t(\"ai_generator_voice_profile\", { index: index + 1 })}</button>)}\n          <span className={styles.count}>{t(\"ai_generator_voice_pool_count\", { count: profiles.length })}</span>\n          {profiles.length < 3 ? <button type=\"button\" data-voice-pool-add disabled={disabled} onClick={() => begin()}>{t(\"ai_generator_character_voice_upload\")}</button> : null}\n        </div>\n        {edited ? <>\n          <label>{t(\"ai_generator_voice_pool_target\")}<select value={edited.target === null ? \"none\" : edited.target === \"narration\" ? \"narration\" : edited.target.characterId} disabled={disabled} onChange={event => changeTarget(event.target.value)}>\n            <option value=\"none\">{t(\"ai_generator_voice_pool_unassigned\")}</option>\n            <option value=\"narration\">{t(\"ai_generator_free_audio_voiceover\")}</option>\n            {characters.map(character => <option key={character.id} value={character.id} disabled={profiles.some(profile => profile.id !== edited.id && profile.target && profile.target !== \"narration\" && profile.target.characterId === character.id)}>{character.name}</option>)}\n          </select></label>\n          <label>{t(\"ai_generator_voice_pool_gender\")}<select value={edited.gender} disabled={disabled} onChange={event => changeGender(event.target.value as StudioVoiceProfile[\"gender\"])}>\n            <option value=\"auto\">{t(\"ai_generator_people_auto\")}</option><option value=\"female\">{t(\"ai_generator_narration_voice_female\")}</option><option value=\"male\">{t(\"ai_generator_narration_voice_male\")}</option>\n          </select></label>\n          <p>{t(\"ai_generator_voice_pool_gender_help\")}</p>\n        </> : null}\n        <MediaCharacterVoiceInput context={edited?.target && edited.target !== \"narration\" ? \"character\" : \"narration\"} active={open} hideModeControl mode=\"provided\" sample={current?.sample} disabled={disabled}\n          onModeChange={() => undefined} onSampleChange={changeSample} onBusyChange={onBusyChange} />\n        {current?.target === \"narration\" ? <>\n          <button type=\"button\" data-voice-narration-active disabled={disabled || activeNarrationVoiceId === current.id} onClick={() => onNarrationChange(current.id)}>{t(\"ai_generator_voice_pool_activate\")}</button>\n          {activeNarrationVoiceId === current.id ? <label className={styles.consent}><input type=\"checkbox\" checked={narrationConsent} disabled={disabled} onChange={event => onNarrationConsentChange(event.target.checked)} />{t(\"ai_generator_narration_voice_consent\")}</label> : null}\n        </> : null}\n      </div>\n    </dialog>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_voice_pool.close ferme le vrai dialogue avec croix, Escape ou extérieur sans supprimer les vocaux ni le brouillon. Verrou et ACK de fermeture, propagation isolée et retour de focus natifs conservés. Aucun abandon, annulation de job ou nouvelle génération.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/StudioVoicePool.tsx#dialog:cd1c38038cd9f90f:1",
+      "app/dashboard/_components/StudioVoicePool.tsx#button:2629d6ed505832b6:1"
+    ],
+    "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-native-form-controls.test.mts"
+    ],
+    "testAnchor": "the real Studio vocal pool imports at most three sources and binds native choices to captured profile and photo IDs",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "real Studio voice Settings opens the three-source pool and preserves new speech and the visible subtitle checkbox without a photo"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native Real voiceover accepts no photo while character voices retain their explicit image target"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native voice selections bind the requested current photo and acknowledge only its captured ID across reorder removal and account reset"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.voice-pool-target",
+    "label": "Vocal — affecter à une voix off ou à un personnage",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioVoicePool.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<select value={edited.target === null ? \"none\" : edited.target === \"narration\" ? \"narration\" : edited.target.characterId} disabled={disabled} onChange={event => changeTarget(event.target.value)}>\n            <option value=\"none\">{t(\"ai_generator_voice_pool_unassigned\")}</option>\n            <option value=\"narration\">{t(\"ai_generator_free_audio_voiceover\")}</option>\n            {characters.map(character => <option key={character.id} value={character.id} disabled={profiles.some(profile => profile.id !== edited.id && profile.target && profile.target !== \"narration\" && profile.target.characterId === character.id)}>{character.name}</option>)}\n          </select>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_voice_pool.select(target:N:narration|none|reference:M) agit sur le profil sauvegardé déjà ouvert et la photo Personnage explicitement désignée. ACK sur IDs profil et photo capturés ; aucun déplacement vers une photo réordonnée, remplacée ou étrangère. Affectation double d’une photo refusée ; none retire seulement le lien et conserve le vocal. Les choix d’un emplacement vide se font humainement avant import ; aucune voix clonée ou autorisée implicitement.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/StudioVoicePool.tsx#select:1b57cc9e8cd848a6:1",
+      "app/dashboard/_components/StudioVoicePool.tsx#option:fda82d713a866b7d:1",
+      "app/dashboard/_components/StudioVoicePool.tsx#option:47aee232ffdf4246:1",
+      "app/dashboard/_components/StudioVoicePool.tsx#option:7dcce56e9cf70a6a:1"
+    ],
+    "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-native-form-controls.test.mts"
+    ],
+    "testAnchor": "the real Studio vocal pool imports at most three sources and binds native choices to captured profile and photo IDs",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "real Studio voice Settings opens the three-source pool and preserves new speech and the visible subtitle checkbox without a photo"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native Real voiceover accepts no photo while character voices retain their explicit image target"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native voice selections bind the requested current photo and acknowledge only its captured ID across reorder removal and account reset"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.voice-pool-gender",
+    "label": "Vocal — genre Auto / Féminin / Masculin",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioVoicePool.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<select value={edited.gender} disabled={disabled} onChange={event => changeGender(event.target.value as StudioVoiceProfile[\"gender\"])}>\n            <option value=\"auto\">{t(\"ai_generator_people_auto\")}</option><option value=\"female\">{t(\"ai_generator_narration_voice_female\")}</option><option value=\"male\">{t(\"ai_generator_narration_voice_male\")}</option>\n          </select>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_voice_pool.select(gender:N:auto|female|male) renseigne uniquement le profil sauvegardé explicitement ouvert, ACK sur son ID stable. Genre descriptif de la voix réelle, sans prétendre détecter, transformer le sexe vocal ou remplacer la référence. Compte et verrou natifs préservés ; aucun consentement ni synthèse lancée.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/StudioVoicePool.tsx#select:8f83183b10933ac2:1",
+      "app/dashboard/_components/StudioVoicePool.tsx#option:5b3fc80626ecdc1d:1",
+      "app/dashboard/_components/StudioVoicePool.tsx#option:595a6806739e53e6:1",
+      "app/dashboard/_components/StudioVoicePool.tsx#option:1cdd038cc3fb6f9f:1"
+    ],
+    "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-native-form-controls.test.mts"
+    ],
+    "testAnchor": "the real Studio vocal pool imports at most three sources and binds native choices to captured profile and photo IDs",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "real Studio voice Settings opens the three-source pool and preserves new speech and the visible subtitle checkbox without a photo"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native Real voiceover accepts no photo while character voices retain their explicit image target"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "native voice selections bind the requested current photo and acknowledge only its captured ID across reorder removal and account reset"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.voice-pool-active",
+    "label": "Vocal — choisir la voix off active",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioVoicePool.tsx",
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/aiMediaNarrationPreparation.ts",
+      "lib/aiMediaNarrationVoiceClone.ts",
+      "lib/aiMediaNarrationVoicePreflight.ts",
+      "lib/aiMediaGenerationContracts.ts"
+    ],
+    "sourceAnchor": "<button type=\"button\" data-voice-narration-active disabled={disabled || activeNarrationVoiceId === current.id} onClick={() => onNarrationChange(current.id)}>{t(\"ai_generator_voice_pool_activate\")}</button>",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_voice_pool.select(active:N) choisit un unique profil déjà affecté à la narration. ACK sur le même ID actif après rendu ; aucun mélange arbitraire des trois vocaux. La voix réelle lit de nouvelles paroles Auto/Exact via le fournisseur configuré, pas une simple lecture du fichier source. Cette sélection ne lance aucune synthèse et ne remplace pas l’autorisation humaine.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/StudioVoicePool.tsx#button:a73595fbd99c7f16:1"
+    ],
+    "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts"
+    ],
+    "testAnchor": "the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real Studio vocal pool imports at most three sources and binds native choices to captured profile and photo IDs"
+      },
+      {
+        "file": "tests/ai-media-generation/studio-narration-voice-integration-runtime.test.mts",
+        "testAnchor": "the real narration preparation sends new words and the owned reference to the clone provider and retains measured audio"
+      },
+      {
+        "file": "tests/ai-media-generation/narration-voice-clone-runtime.test.mts",
+        "testAnchor": "real voice-off sends NEW exact words and owned reference audio, with no photo, no gender override and no permanent clone"
+      }
+    ]
+  },
+  {
+    "id": "basic.studio.voice-pool-consent",
+    "label": "Autoriser la synthèse de cette voix réelle",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioVoicePool.tsx",
+      "lib/inrAssistantLocalInterface.ts"
+    ],
+    "sourceAnchor": "<input type=\"checkbox\" checked={narrationConsent} disabled={disabled} onChange={event => onNarrationConsentChange(event.target.checked)} />",
+    "capabilityId": "studio.generate",
+    "toolNames": [
+      "generateMedia"
+    ],
+    "mode": "handoff",
+    "notes": "Le professionnel confirme personnellement les droits et l’autorisation de faire lire de nouvelles paroles avec le vocal narrateur actif. L’assistant peut ouvrir les Réglages et expliquer le choix ; aucune opération native ne coche ce consentement. Le changement de source ou d’affectation le révoque. Sans autorisation, sans vocal valide ou en Exact vide, devis et génération restent bloqués.",
+    "coverageStatus": "human_required",
+    "controlIds": [
+      "app/dashboard/_components/StudioVoicePool.tsx#input:4d6faf349362a738:1"
+    ],
+    "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
+    ],
+    "testAnchor": "the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real Studio vocal pool imports at most three sources and binds native choices to captured profile and photo IDs"
+      },
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "real Studio voice Settings opens the three-source pool and preserves new speech and the visible subtitle checkbox without a photo"
+      }
+    ],
+    "handoffReason": "Autorisation personnelle d’utilisation et de synthèse de la voix, non délégable à l’assistant."
   }
 ]

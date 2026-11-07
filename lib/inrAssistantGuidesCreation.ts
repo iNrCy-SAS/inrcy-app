@@ -40,19 +40,29 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
   {
     id: "studio-create",
     title: "iNrStudio : générer une image ou une vidéo",
-    keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits"],
-    content: `${productNavigationSummary("studio", false)} Onglet Générer, puis Image ou Vidéo ; menu mobile. Panneau unique : prompt toujours visible, Format et moteur ; Durée en vidéo.
-Vidéo : « Consignes visuelles » décrit scène, ambiance et texte à afficher ; 500 caractères maximum, 200 à 300 conseillés, une idée. Paroles dans « Paroles à prononcer » ; un slogan à afficher reste visuel. Image : 4 000 caractères maximum.
-« Utiliser mon ADN » ajoute faits professionnels, logo/couleurs par défaut et coordonnées sur demande. Décoché : pas d’autre ADN. Consignes ET Interdictions de Personnalisation → Ma communication restent transmises dans Studio et iNrAgent ; les interdictions priment. Règles jamais coupées : erreur explicite si budget insuffisant ou montage brut incapable de les appliquer. Une image générée avec les règles peut être animée.
-Choisir Inspiration, Personnage, Décor ou Produit fixe le rôle. Ajouter par Importer/Médiathèque ; la fenêtre se ferme après succès. Inspiration est facultative, les autres rôles Obligatoires ; le bouton Inspiration règle l’usage visible sur la miniature. Images uniquement ; autorisations d’animation/transmission et limites du moteur à respecter.
-Vidéo : choisir Voix off/Personnages/Sans parole dans Son et paroles ; Son règle les voix, la musique et les sous-titres. Paroles automatiques : l’IA rédige, sans champ. Paroles exactes affiche le champ et son compteur selon durée, plans, moteur et langue. Réduire les paroles trop longues ou choisir une durée compatible ; aucun texte exact n’est coupé. Un ancien brouillon trop long reste visible et modifiable. Sans parole masque le champ.
-Vérifier coût/solde, puis « Générer une image » ou « Générer une vidéo ». Conserver via « Enregistrer dans la Médiathèque » ou « Utiliser ce média ». « Réajuster » reprend les critères ; régénérer peut consommer des crédits. Dans Générer et Modifier, « Vérifier mon média » lit la même tentative, sans relance ni garantie de résultat. Pause de vérification ou fermeture conserve son identifiant ; critères restent modifiables. Une nouvelle génération attend sa résolution. « Annuler la génération » ouvre une confirmation distincte ; un arrêt ne prouve pas l’absence de débit.
-Basique, Standard (essai inclus), Premium : crédits et moteurs du compte. Basique sans crédits mensuels ; les recharges permettent de générer sans changer d’offre. Depuis Booster/campagne, type ou format peut être fixé ; réinsertion dans l’outil d’origine.`,
+    keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits", "voix", "vocal", "musiques", "narration", "sous-titres"],
+    content: `${productNavigationSummary("studio", false)} Générer → Image ou Vidéo. Panneau unique ; Format et moteur, Durée en vidéo.
+Vidéo : Consignes visuelles pour scène, décor et texte à afficher ; 500 caractères maximum, 200 à 300 conseillés. Image : 4 000 caractères. Paroles séparées du visuel.
+« Utiliser mon ADN » ajoute faits, logo/couleurs et coordonnées sur demande. Décoché : pas d’autre ADN. Consignes ET Interdictions de Personnalisation → Ma communication restent transmises ; les interdictions priment. Règles jamais coupées ; budget insuffisant ou montage incompatible : blocage explicite.
+Inspiration, Personnage, Décor ou Produit fixe le rôle avant Importer/Médiathèque. Images uniquement ; fenêtre fermée après succès. Inspiration facultative, autres rôles Obligatoires ; usage réglable sur la miniature. Respecter limites et autorisations.
+Musiques ouvre le catalogue iNrCy : Automatique, Sans musique ou piste avec préécoute. Le choix est utilisé au montage, distinct des vocaux.
+Dernier bloc : Personnages (Voix off/Personnages/Sans parole), Paroles, Voix. Paroles automatiques : l’IA rédige, sans champ. Paroles exactes : champ/compteur selon durée, moteur, plans, langue. Ne jamais couper texte exact ou ancien brouillon : réduire ou choisir une durée compatible. Exact vide = sans paroles.
+Voix IA ou Voix réelle. « Réglages » sous Voix gère jusqu’à 3 vocaux : Importer, Enregistrer/Médiathèque. Affecter chaque vocal à la voix off (sans photo ; vocal de 5 à 10 s) ou au Personnage joint, ou le laisser non affecté ; un narrateur actif, jamais une voix imposée à tous. Les nouvelles paroles sont synthétisées avec la voix choisie ; droits à confirmer. Genre réglable ; le vocal conserve son timbre. Case Sous-titres : activer/désactiver. Aucun repli vers une autre voix.
+Vérifier coût/solde puis Générer ; conserver avec Enregistrer dans la Médiathèque ou Utiliser ce média. Réajuster reprend les critères ; régénérer peut débiter.
+« Vérifier mon média » lit la même tentative, sans relance. Pause/fermeture conserve l’identifiant ; critères restent modifiables. Une nouvelle génération attend sa résolution. « Annuler la génération » demande une confirmation distincte ; un arrêt ne prouve pas l’absence de débit.
+Basique, Standard, Premium : moteurs/crédits du compte. Basique sans crédits mensuels ; les recharges permettent de générer sans changer d’offre. Type/format fixé depuis Booster ; retour dans l’outil d’origine.`,
     sourceFiles: ["lib/inrAssistantMediaTools.ts", "lib/productNavigation.ts",
       "app/dashboard/generer-media/page.tsx",
       "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx",
       "app/dashboard/_components/MediaGeneratorModal.tsx",
       "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "app/dashboard/_components/StudioMusicLibrary.tsx",
+      "app/dashboard/_components/StudioVoicePool.tsx",
+      "app/dashboard/_components/MediaCharacterVoiceInput.tsx",
+      "lib/aiMediaGenerationSoundtracks.ts",
+      "lib/aiMediaSoundtrackDefinitions.ts",
+      "lib/aiMediaNarrationVoiceClone.ts",
+      "lib/aiMediaNarrationVoicePreflight.ts",
       "lib/studioInspirationImagePolicy.ts",
       "lib/aiMediaGenerationContracts.ts",
       "lib/aiMediaVideoSpeechBudget.ts",

@@ -638,5 +638,21 @@
         "gateAnchor": "export function SummaryBar({"
       }
     }
+  },
+  "app/dashboard/_components/StudioMusicLibrary.tsx": {
+    "disposition": "basic",
+    "reason": "Catalogue musical natif du panneau vidéo Libre, monté par le Studio Basique ; pistes livrées avec iNrCy et préécoute locale. Compte, disponibilité et verrous natifs applicables, aucune génération automatique.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+  },
+  "app/dashboard/_components/StudioVoicePool.tsx": {
+    "disposition": "basic",
+    "reason": "Pool natif de trois vocaux du panneau vidéo Libre du Studio Basique. Voix off indépendante des photos et affectations Personnages explicites ; fichiers, enregistrement et consentement restent humains, sélections finies gardées par compte et IDs stables.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
   }
 }

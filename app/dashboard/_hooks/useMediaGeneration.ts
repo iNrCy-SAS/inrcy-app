@@ -1104,6 +1104,7 @@ export default function useMediaGeneration() {
       return runAttempt(async () => {
         let publicResponse: Awaited<ReturnType<typeof readAiMediaGenerationResponse>>;
         try {
+        const providedNarrator = request.kind === "video" && request.withNarration && request.teamVideoSpeechMode !== "characters" && request.narrationVoiceMode === "provided";
         const response = await fetch("/api/media-generation/generate", {
           method: "POST",
           credentials: "include",
@@ -1163,6 +1164,7 @@ export default function useMediaGeneration() {
             textKeywords: textMode === "ai" ? request.textKeywords : [],
             withMusic:
               request.kind === "video" ? Boolean(request.withMusic) : undefined,
+            soundtrackId: request.kind === "video" && request.withMusic ? request.soundtrackId || undefined : undefined,
             withNarration:
               request.kind === "video"
                 ? Boolean(request.withNarration)
@@ -1175,6 +1177,10 @@ export default function useMediaGeneration() {
               request.kind === "video" && request.withNarration
                 ? request.narrationVoiceVariant
                 : undefined,
+            narrationVoiceMode: providedNarrator ? "provided" : undefined,
+            narrationVoiceSample: providedNarrator ? request.narrationVoiceSample : undefined,
+            narrationVoiceConsent: providedNarrator ? request.narrationVoiceConsent === true : undefined,
+            narrationVoiceGender: providedNarrator ? request.narrationVoiceGender || "auto" : undefined,
             format: request.format,
             typology: request.typology || "service",
             visualStyle: request.visualStyle || "brand",
