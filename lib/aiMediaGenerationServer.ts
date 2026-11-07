@@ -318,7 +318,7 @@ export async function generateAndSaveAiMedia(args: {
   signal?: AbortSignal;
   /** Locks cancellation before the first potentially billable provider phase. */
   onBillableWorkStarted?: () => void | Promise<void>;
-  /** Durable recovery may store these already generated assets; never the brief or script. */
+  /** Durable recovery stores generated assets and explicitly requested caption copy, never the brief. */
   onCompositionReady?: (checkpoint: {
     input: Omit<Parameters<typeof composeOriginalAiVideo>[0], "signal">;
     metadata: Record<string, unknown>;
@@ -1015,6 +1015,7 @@ export async function generateAndSaveAiMedia(args: {
       ? splitAiMediaFreeNarrationByScene(nativeVoiceoverNarration.script, creativePlan.scenes.length, segmentDurations)
       : undefined;
     let subtitleLines: string[] | undefined;
+    let narrationSubtitleScript: string | undefined;
     const speechLanguage = isFreeCreation
       ? nativeVoiceoverNarration?.language || resolveAiMediaFreeSpeechLanguage(providerRequest.freePrompt || "", creativePlan.scenes.map((scene) => scene.spokenLine || "").join(" "), profile.preferences.language)
       : profile.preferences.language;
@@ -1093,7 +1094,9 @@ export async function generateAndSaveAiMedia(args: {
       overrides: Partial<VideoProviderOverrides> = {}
     ): Promise<AiVideoProviderResult> => {
       const modelRequest = usesSeparateAiMediaFreeVoiceover(request)
-        ? { ...request, withNarration: false }
+        // Exact narration captions are burned in locally with the measured
+        // voice. Asking the silent video model too would risk duplicates.
+        ? { ...request, withNarration: false, withSubtitles: false }
         : request;
       // Le mode ADN autorise volontairement une consigne vide dans l'UI.
       // Le contrat fournisseur doit néanmoins recevoir un sujet concret :
@@ -1521,6 +1524,7 @@ export async function generateAndSaveAiMedia(args: {
         }
         if (isFreeCreation && providerRequest.withSubtitles) {
           subtitleLines = splitAiMediaSpokenScript(preparedNarration.narration.script, segmentDurations);
+          narrationSubtitleScript = preparedNarration.narration.script;
         }
       } catch (error) {
         narrationController.abort(error);
@@ -1816,6 +1820,7 @@ export async function generateAndSaveAiMedia(args: {
       clips, overlays, width: format.width, height: format.height, durationSeconds,
       preserveComposition: args.preserveOutputComposition,
       soundtrack, narration: narrationAudio,
+      ...(narrationSubtitleScript && narrationAudio ? { subtitles: { script: narrationSubtitleScript } } : {}),
       // "Sans parole" must also remove unexpected provider speech; lowering
       // the native track to ambience would still leave audible voices.
       nativeAudioMode: nativeCharacterDialoguePreserved || nativeVoiceoverPreserved

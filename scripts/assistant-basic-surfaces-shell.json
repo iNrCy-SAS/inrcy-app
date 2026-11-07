@@ -1184,7 +1184,8 @@
     "label": "Ouvrir l’aide de l’application",
     "domain": "navigation",
     "sourceFiles": [
-      "app/dashboard/_components/DashboardTopbar.tsx"
+      "app/dashboard/_components/DashboardTopbar.tsx",
+      "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts"
     ],
     "sourceAnchor": "<button\n        type=\"button\"\n        className={`${styles.ghostBtn} ${styles.gpsTopbarBtn} ${dockStyles.iconButton}`}\n        onClick={onOpenHelp}\n        aria-label={helpT(\"aria\")}\n        title={helpT(\"title\")}\n      ",
     "capabilityId": "navigation.screen",
@@ -1207,14 +1208,21 @@
       "browser": "see_named_test",
       "provider": "not_certified"
     },
-    "coverageStatus": "implemented"
+    "coverageStatus": "implemented",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/dashboard-header-tool-overlay-browser.test.mts",
+        "testAnchor": "the real overlay hook keeps the dashboard suppressed until the final visible workspace closes, and ignores compact or hidden workspaces"
+      }
+    ]
   },
   {
     "id": "shell-8e9b7329b06a27e6",
     "label": "Ouvrir la boutique",
     "domain": "navigation",
     "sourceFiles": [
-      "app/dashboard/_components/DashboardTopbar.tsx"
+      "app/dashboard/_components/DashboardTopbar.tsx",
+      "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts"
     ],
     "sourceAnchor": "<button type=\"button\" className={`${styles.ghostBtn} ${dockStyles.iconButton}`}\n        aria-label={t.userMenu.shop} title={t.userMenu.shop} data-dashboard-panel=\"boutique\"\n        onClick={() => { setUserMenuOpen(false)",
     "capabilityId": "navigation.screen",
@@ -1237,14 +1245,21 @@
       "browser": "see_named_test",
       "provider": "not_certified"
     },
-    "coverageStatus": "implemented"
+    "coverageStatus": "implemented",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/dashboard-header-tool-overlay-browser.test.mts",
+        "testAnchor": "the real overlay hook keeps the dashboard suppressed until the final visible workspace closes, and ignores compact or hidden workspaces"
+      }
+    ]
   },
   {
     "id": "shell-51705ce5a6d7c27c",
     "label": "Ouvrir le contact de l’équipe",
     "domain": "navigation",
     "sourceFiles": [
-      "app/dashboard/_components/DashboardTopbar.tsx"
+      "app/dashboard/_components/DashboardTopbar.tsx",
+      "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts"
     ],
     "sourceAnchor": "<button\n        type=\"button\"\n        className={`${styles.ghostBtn} ${styles.contactTopbarBtn} ${dockStyles.iconButton}`}\n        onClick={() => openPanel(\"contact\")}\n        aria-label={t.topbar.contact}\n        title=",
     "capabilityId": "navigation.screen",
@@ -1267,14 +1282,21 @@
       "browser": "see_named_test",
       "provider": "not_certified"
     },
-    "coverageStatus": "implemented"
+    "coverageStatus": "implemented",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/dashboard-header-tool-overlay-browser.test.mts",
+        "testAnchor": "the real overlay hook keeps the dashboard suppressed until the final visible workspace closes, and ignores compact or hidden workspaces"
+      }
+    ]
   },
   {
     "id": "shell-ca0e84e7cee64114",
     "label": "Ouvrir Mon compte",
     "domain": "navigation",
     "sourceFiles": [
-      "app/dashboard/_components/DashboardTopbar.tsx"
+      "app/dashboard/_components/DashboardTopbar.tsx",
+      "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts"
     ],
     "sourceAnchor": "<button type=\"button\" className={`${styles.ghostBtn} ${dockStyles.headerButton}`}\n            aria-label={topbarT(\"myAccount\")} title={topbarT(\"myAccount\")} data-dashboard-action=\"account\"\n            onClick={() => { se",
     "capabilityId": "navigation.screen",
@@ -1297,14 +1319,21 @@
       "browser": "see_named_test",
       "provider": "not_certified"
     },
-    "coverageStatus": "implemented"
+    "coverageStatus": "implemented",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/dashboard-header-tool-overlay-browser.test.mts",
+        "testAnchor": "the real overlay hook keeps the dashboard suppressed until the final visible workspace closes, and ignores compact or hidden workspaces"
+      }
+    ]
   },
   {
     "id": "shell-b4532f89ec72f5b3",
     "label": "Se déconnecter du compte authentifié",
     "domain": "account",
     "sourceFiles": [
-      "app/dashboard/_components/DashboardTopbar.tsx"
+      "app/dashboard/_components/DashboardTopbar.tsx",
+      "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts"
     ],
     "sourceAnchor": "<button type=\"button\" className={`${styles.ghostBtn} ${dockStyles.headerButton}`}\n            aria-label={t.userMenu.logout} title={t.userMenu.logout} data-dashboard-action=\"logout\"\n            onClick={() => { setUserMe",
     "capabilityId": "account.team",
@@ -1328,14 +1357,21 @@
       "provider": "not_certified"
     },
     "coverageStatus": "human_required",
-    "handoffReason": "La fermeture de la session authentifiée et la prochaine identité à utiliser restent un choix personnel de l’utilisateur."
+    "handoffReason": "La fermeture de la session authentifiée et la prochaine identité à utiliser restent un choix personnel de l’utilisateur.",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/dashboard-header-tool-overlay-browser.test.mts",
+        "testAnchor": "the real overlay hook keeps the dashboard suppressed until the final visible workspace closes, and ignores compact or hidden workspaces"
+      }
+    ]
   },
   {
     "id": "shell-a3d4cc68952fc885",
     "label": "Ouvrir l’aide de l’application",
     "domain": "navigation",
     "sourceFiles": [
-      "app/dashboard/_components/DashboardTopbar.tsx"
+      "app/dashboard/_components/DashboardTopbar.tsx",
+      "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts"
     ],
     "sourceAnchor": "<button\n          type=\"button\"\n          className={`${styles.mobileHeaderIconBtn} ${styles.mobileHeaderGpsBtn}`}\n          aria-label={helpT(\"aria\")}\n          title={helpT(\"title\")}\n          aria-haspopup=\"dialog\"\n  ",
     "capabilityId": "navigation.screen",
@@ -1358,7 +1394,13 @@
       "browser": "see_named_test",
       "provider": "not_certified"
     },
-    "coverageStatus": "implemented"
+    "coverageStatus": "implemented",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/dashboard-header-tool-overlay-browser.test.mts",
+        "testAnchor": "the real overlay hook keeps the dashboard suppressed until the final visible workspace closes, and ignores compact or hidden workspaces"
+      }
+    ]
   },
   {
     "id": "shell-739110d1fc94c5e8",

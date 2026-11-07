@@ -108,6 +108,9 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
     ["@/lib/aiMediaNarrationAudio", { generateAiMediaNarrationAudio: async (args: Row) => {
       events.push("tts"); ttsCalls.push(args); if (failure === "tts") throw new Error("synthetic-tts-unavailable"); return audio;
     } }],
+    ["./aiMediaNarrationVoiceClone.ts", { generateAiMediaClonedNarrationAudio: async (args: Row) => {
+      events.push("clone"); ttsCalls.push(args); return { ...audio, voice: "provided" };
+    } }],
     ["@/lib/aiMediaNativeDialogueQaGoogle", { auditAiMediaNativeDialogueWithGoogle: async () => {
       events.push("native-qa");
       if (options.nativeQaError) throw options.nativeQaError;
@@ -293,6 +296,28 @@ test("separate voiceover uses the script language and local QA remains advisory 
   const gateway = metadata.gateway as Row;
   assert.ok((gateway.warnings as string[]).includes("video_local_qa_mostly_frozen"));
   assert.equal(((gateway.quality_assurance as Row).final_video as Row).blocking, false);
+});
+
+test("voiceover subtitles reach local composition with Exact words while the silent provider cannot draw duplicates", async () => {
+  for (const mode of ["ai", "provided"] as const) for (const withSubtitles of [false, true]) {
+    const env = harness();
+    const now = Date.now();
+    const sample = { path: `_studio-voice-references/${new Date(now).toISOString().slice(0, 10)}/test-account__${now}__11111111-1111-4111-8111-111111111111.wav`,
+      durationSeconds: 6, sizeBytes: 192_044, name: "voice.wav", mimeType: "audio/wav" };
+    const original = request("minimax-h3", { durationSeconds: 10, videoResolution: "768p", withSubtitles, spokenScript: script,
+      narrationVoiceMode: mode, ...(mode === "provided" ? { narrationVoiceSample: sample, narrationVoiceConsent: true } : {}) });
+    await env.generate(original, mode === "provided" ? { preparedNarrationVoice: { accountId: "test-account", path: sample.path, buffer: Buffer.from("owned-reference"), durationSeconds: 6 } } : {});
+    assert.equal((env.videoCalls[0].request as Row).withSubtitles, false, "the external voiceover has only one caption renderer");
+    assert.equal((env.videoCalls[0].request as Row).withNarration, false);
+    assert.deepEqual(env.composeCalls[0].subtitles, withSubtitles ? { script } : undefined);
+    assert.equal((env.composeCalls[0].narration as Row).voice, mode === "provided" ? "provided" : audio.voice);
+    assert.ok(env.events.indexOf("audio-preflight") < env.events.indexOf("video"));
+    assert.equal(original.withSubtitles, withSubtitles, "the selected checkbox remains authoritative in the original request");
+  }
+  const native = harness();
+  await native.generate(request("wan3", { teamVideoSpeechMode: "characters", withNarration: false, withSubtitles: true }));
+  assert.equal((native.videoCalls[0].request as Row).withSubtitles, true, "native dialogue retains its existing provider caption path");
+  assert.equal(native.composeCalls[0].subtitles, undefined);
 });
 
 test("composition recovery callback receives reusable assets before composition and no prompt or script", async () => {

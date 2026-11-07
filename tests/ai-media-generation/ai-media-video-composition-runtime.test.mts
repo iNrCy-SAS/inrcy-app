@@ -18,6 +18,7 @@ import {
 import * as videoLayout from "../../lib/aiMediaVideoLayout.ts";
 import * as textIntegrity from "../../lib/aiMediaTextIntegrity.ts";
 import * as fullFrame from "../../lib/aiMediaFullFrame.ts";
+import * as narrationSubtitles from "../../lib/aiMediaNarrationSubtitles.ts";
 
 const execFileAsync = promisify(execFile);
 const requireFromTest = createRequire(import.meta.url);
@@ -35,6 +36,7 @@ type ComposerModule = {
     durationSeconds: number;
     nativeAudioMode?: "ambience" | "dialogue" | "mute";
     preserveComposition?: boolean;
+    subtitles?: { script: string } | null;
     narration?: {
       buffer: Buffer;
       mimeType: string;
@@ -215,6 +217,7 @@ function transpileRuntimeModule<T>(relativePath: string): T {
   const localRequire = (specifier: string) => {
     if (specifier === "server-only") return {};
     if (specifier === "./aiMediaFullFrame.ts") return fullFrame;
+    if (specifier === "./aiMediaNarrationSubtitles.ts") return narrationSubtitles;
     if (specifier === "@/lib/mediaVideoNormalizer") {
       return { probeVideoSource, resolveVideoNormalizationFfmpegPath };
     }
@@ -335,6 +338,38 @@ test("une voix off séparée exclut réellement tout l’audio natif même deman
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test("local narration subtitles render accented progressive captions while leaving audio unchanged", async () => {
+  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
+  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-narration-subtitles-test-"));
+  const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
+  const sourcePath = path.join(directory, "source.mp4");
+  const narrationPath = path.join(directory, "voice.wav");
+  const { decodeAudio } = createAudioProbe(ffmpegPath, directory);
+  try {
+    await execFileAsync(ffmpegPath, ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "color=c=0x183048:s=320x320:r=30:d=4", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", sourcePath], { windowsHide: true, timeout: 30_000 });
+    await execFileAsync(ffmpegPath, ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000:duration=2.5", "-c:a", "pcm_s16le", narrationPath], { windowsHide: true, timeout: 30_000 });
+    const overlay = await sharp({ create: { width: 320, height: 320, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    const input = { clips: [{ buffer: await readFile(sourcePath), durationSeconds: 4 }], overlays: [overlay], width: 320, height: 320, durationSeconds: 4,
+      narration: { buffer: await readFile(narrationPath), mimeType: "audio/wav", extension: "wav" as const, model: "local-clone-fixture", voice: "provided" } };
+    const without = await runtime.composeOriginalAiVideo(input);
+    const withCaptions = await runtime.composeOriginalAiVideo({ ...input, subtitles: { script: "L’été d’Inès révèle l’élégance du jardin. Découvrez l’allée éclairée d’un accueil chaleureux." } });
+    const offPath = path.join(directory, "off.mp4"), onPath = path.join(directory, "on.mp4");
+    await writeFile(offPath, without.buffer); await writeFile(onPath, withCaptions.buffer);
+    assert.deepEqual(await decodeAudio(onPath, "on"), await decodeAudio(offPath, "off"), "captions must not alter, resynthesize or duplicate narration audio");
+    const frame = async (file: string, seconds: number) => {
+      const result = await execFileAsync(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-ss", String(seconds), "-i", file, "-frames:v", "1", "-vf", "crop=320:120:0:190", "-pix_fmt", "rgb24", "-f", "rawvideo", "pipe:1"], { encoding: "buffer", windowsHide: true, timeout: 30_000, maxBuffer: 320 * 120 * 4 });
+      return result.stdout;
+    };
+    const whitePixels = (buffer: Buffer) => { let count = 0; for (let i = 0; i < buffer.length; i += 3) if (buffer[i] > 210 && buffer[i + 1] > 210 && buffer[i + 2] > 210) count++; return count; };
+    const first = await frame(onPath, 0.3), second = await frame(onPath, 1.7);
+    assert.ok(whitePixels(first) > 100, "the first exact caption is actually burned into video pixels");
+    assert.ok(whitePixels(second) > 100, "a later exact caption remains visible");
+    assert.notDeepEqual(first, second, "captions progress instead of displaying the whole script throughout");
+    assert.equal(whitePixels(await frame(offPath, 0.3)), 0, "unchecked subtitles leave video pixels free of captions");
+    assert.equal(whitePixels(await frame(onPath, 3.4)), 0, "captions end with the measured voice rather than persisting across the final silence");
+  } finally { await rm(directory, { recursive: true, force: true }); }
 });
 
 test("le mode sans parole supprime l’audio natif et conserve uniquement la musique lorsqu’elle est demandée", async (context) => {

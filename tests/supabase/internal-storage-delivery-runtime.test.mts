@@ -11,6 +11,7 @@ import * as payloads from "../../lib/inrAgentScheduledPayload.ts";
 import * as metaImageMotionTiming from "../../lib/metaImageMotionTiming.ts";
 import * as agentSoundtrack from "../../lib/inrAgentPublicationSoundtrack.ts";
 import * as standardAgentPolicy from "../../lib/standardAgentPolicy.ts";
+import * as soundtrackDefinitions from "../../lib/aiMediaSoundtrackDefinitions.ts";
 
 const account = "11111111-1111-4111-8111-111111111111";
 const other = "22222222-2222-4222-8222-222222222222";
@@ -110,7 +111,7 @@ test("attachment download scopes the actual permitted buckets to the active acco
 
 function scheduledRoute(file: string) {
   const actionPreview = load("lib/inrAssistantActionPreview.ts", { "node:crypto": nativeRequire("node:crypto"), "./inrAssistantRequestClauses.ts": requestClauses });
-  const soundtrackCatalog = load("lib/aiMediaSoundtrackCatalog.ts", { "node:crypto": nativeRequire("node:crypto"), "./inrAssistantRequestClauses.ts": requestClauses });
+  const soundtrackCatalog = load("lib/aiMediaSoundtrackCatalog.ts", { "node:crypto": nativeRequire("node:crypto"), "./inrAssistantRequestClauses.ts": requestClauses, "./aiMediaSoundtrackDefinitions.ts": soundtrackDefinitions });
   const soundtrackSelection = load("lib/boosterSoundtracks.ts", { "@/lib/aiMediaSoundtrackCatalog": soundtrackCatalog });
   const writes: AnyRecord[] = []; const minted: string[] = [];
   const filters: Array<[string, unknown]> = []; let row: AnyRecord = {};

@@ -3,6 +3,14 @@
   display: none;
 }
 
+/* Keep dashboard layout/state intact, but remove its header and portals from
+   sight, hit testing and accessibility while a full tool workspace is open. */
+.workspaceAwareHeader[data-dashboard-header-suppressed],
+.centralGroup[data-dashboard-header-suppressed] {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .assistPreview { position: relative; cursor: pointer; }
 .assistUnread { position: absolute; top: 2px; right: 2px; width: 10px; height: 10px; border: 2px solid #0d1429; border-radius: 50%; background: #ff78d5; box-shadow: 0 0 9px #ff78d588; }
 .assistPreview img { display: block; object-fit: contain; width: 38px; height: 38px; filter: drop-shadow(0 0 6px #ff75d477); }
@@ -40,7 +48,7 @@
 
   .topbar .establishmentSlot {
     position: relative;
-    z-index: 85;
+    z-index: 70;
     display: flex;
     align-items: center;
     gap: 9px;
@@ -53,7 +61,7 @@
 
   .topbar .headerRightSlot {
     position: relative;
-    z-index: 85;
+    z-index: 70;
     grid-column: 3;
     grid-row: 1;
     justify-self: end;

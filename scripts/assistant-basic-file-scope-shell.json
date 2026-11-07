@@ -272,9 +272,10 @@
   },
   "app/dashboard/_components/DashboardTopbar.tsx": {
     "disposition": "basic",
-    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites. Les ateliers plein écran visibles masquent le header et ses groupes portalisés (inert/aria-hidden) ; fermeture du dernier atelier restaure le dashboard sans changer ses droits ni ses callbacks.",
     "gateFiles": [
-      "app/dashboard/_components/DashboardTopbar.tsx"
+      "app/dashboard/_components/DashboardTopbar.tsx",
+      "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts"
     ],
     "gateAnchor": "\"use client\";\nimport Image from \"next/image\";\n\nimport type { DashboardPanelName ",
     "exclusions": {

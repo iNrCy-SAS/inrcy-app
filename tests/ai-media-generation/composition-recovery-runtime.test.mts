@@ -122,6 +122,17 @@ test("advisory upload failure abandons only partial checkpoint without expiring 
   assert.match(diagnostic,/415/);
   assert.doesNotMatch(diagnostic,/SECRET|https|private.invalid|token/);
 });
+test("requested narration captions survive a private checkpoint roundtrip without entering diagnostics", async () => {
+  const h = harness();
+  const subtitles = { script: "L’été d’Inès révèle l’élégance du jardin." };
+  await h.runtime.persistAiMediaCompositionCheckpoint({ accountId, jobId, authUserId, input: { ...input, subtitles }, metadata: { prompt: "PRIVATE BRIEF", subtitles } });
+  const manifest = JSON.parse([...h.objects.entries()].find(([key]) => key.endsWith("manifest.json"))![1].toString());
+  assert.deepEqual(manifest.subtitles, subtitles);
+  assert.ok(!JSON.stringify(manifest.metadata).includes(subtitles.script));
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status, "completed");
+  assert.equal(h.composed!.subtitles!.script, subtitles.script);
+  assert.deepEqual(h.composed!.narration!.buffer, input.narration!.buffer);
+});
 for (const failure of ["corruptAsset", "leaseLost"] as const) test(`${failure} stops before saving or charging and leaves a bounded retry`, async () => {
   const h = harness({ [failure]: true });
   await h.runtime.persistAiMediaCompositionCheckpoint({ accountId, jobId, authUserId, input, metadata: {} });

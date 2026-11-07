@@ -47,7 +47,7 @@ Vidéo : Consignes visuelles pour scène, décor et texte à afficher ; 500 cara
 Inspiration, Personnage, Décor ou Produit fixe le rôle avant Importer/Médiathèque. Images uniquement ; fenêtre fermée après succès. Inspiration facultative, autres rôles Obligatoires ; usage réglable sur la miniature. Respecter limites et autorisations.
 Musiques ouvre le catalogue iNrCy : Automatique, Sans musique ou piste avec préécoute. Le choix est utilisé au montage, distinct des vocaux.
 Dernier bloc : Personnages (Voix off/Personnages/Sans parole), Paroles, Voix. Paroles automatiques : l’IA rédige, sans champ. Paroles exactes : champ/compteur selon durée, moteur, plans, langue. Ne jamais couper texte exact ou ancien brouillon : réduire ou choisir une durée compatible. Exact vide = sans paroles.
-Voix IA ou Voix réelle. « Réglages » sous Voix gère jusqu’à 3 vocaux : Importer, Enregistrer/Médiathèque. Affecter chaque vocal à la voix off (sans photo ; vocal de 5 à 10 s) ou au Personnage joint, ou le laisser non affecté ; un narrateur actif, jamais une voix imposée à tous. Les nouvelles paroles sont synthétisées avec la voix choisie ; droits à confirmer. Genre réglable ; le vocal conserve son timbre. Case Sous-titres : activer/désactiver. Aucun repli vers une autre voix.
+Voix IA ou Voix réelle. « Réglages » sous Voix gère jusqu’à 3 vocaux : Importer, Enregistrer/Médiathèque. Affectation : voix off sans photo (vocal de 5 à 10 s), Personnage joint ou non affecté ; un seul narrateur actif, sans voix imposée à tous. Nouvelles paroles synthétisées avec la voix choisie ; droits à confirmer. Genre réglable ; timbre conservé. Case Sous-titres : en voix off, incrustation locale au montage selon la durée mesurée de la voix. Aucun repli vers une autre voix.
 Vérifier coût/solde puis Générer ; conserver avec Enregistrer dans la Médiathèque ou Utiliser ce média. Réajuster reprend les critères ; régénérer peut débiter.
 « Vérifier mon média » lit la même tentative, sans relance. Pause/fermeture conserve l’identifiant ; critères restent modifiables. Une nouvelle génération attend sa résolution. « Annuler la génération » demande une confirmation distincte ; un arrêt ne prouve pas l’absence de débit.
 Basique, Standard, Premium : moteurs/crédits du compte. Basique sans crédits mensuels ; les recharges permettent de générer sans changer d’offre. Type/format fixé depuis Booster ; retour dans l’outil d’origine.`,
@@ -63,6 +63,8 @@ Basique, Standard, Premium : moteurs/crédits du compte. Basique sans crédits m
       "lib/aiMediaSoundtrackDefinitions.ts",
       "lib/aiMediaNarrationVoiceClone.ts",
       "lib/aiMediaNarrationVoicePreflight.ts",
+      "lib/aiMediaNarrationSubtitles.ts",
+      "lib/aiMediaGeneratedVideo.ts",
       "lib/studioInspirationImagePolicy.ts",
       "lib/aiMediaGenerationContracts.ts",
       "lib/aiMediaVideoSpeechBudget.ts",

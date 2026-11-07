@@ -1,7 +1,7 @@
 import "server-only";
 
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -20,6 +20,7 @@ import {
   probeVideoSource,
   resolveVideoNormalizationFfmpegPath,
 } from "@/lib/mediaVideoNormalizer";
+import { buildAiMediaNarrationSubtitlesAss } from "./aiMediaNarrationSubtitles.ts";
 
 const execFileAsync = promisify(execFile);
 const MAX_GOOGLE_BUSINESS_VIDEO_BYTES = 74 * 1024 * 1024;
@@ -353,6 +354,7 @@ function buildFilter(args: {
   narrationDurationSeconds: number | null;
   nativeAudioMode: AiMediaNativeAudioMode;
   preserveComposition?: boolean;
+  withNarrationSubtitles?: boolean;
 }) {
   const filters: string[] = [];
   // Un ancien rendu carré pouvait encore recevoir une source 9:16. On garde
@@ -394,8 +396,13 @@ function buildFilter(args: {
       (_, index) => `[v${index}]`
     ).join("")}concat=n=${args.clipDurations.length}:v=1:a=0,trim=duration=${
       args.durationSeconds
-    },setpts=PTS-STARTPTS[video]`
+    },setpts=PTS-STARTPTS[${args.withNarrationSubtitles ? "uncaptioned" : "video"}]`
   );
+  if (args.withNarrationSubtitles) {
+    // The process runs in its private temp directory: no user text or Windows
+    // drive/colon is interpolated into FFmpeg's filter language.
+    filters.push("[uncaptioned]subtitles=filename=captions.ass:fontsdir=fonts[video]");
+  }
 
   if (args.hasNativeAudio) {
     const nativeVolume =
@@ -489,6 +496,8 @@ export async function composeOriginalAiVideo(args: {
   durationSeconds: AiMediaVideoDuration;
   soundtrack?: LoadedAiMediaSoundtrack | null;
   narration?: GeneratedAiNarrationAudio | null;
+  /** Only separately prepared narration has known complete, exact words. */
+  subtitles?: { script: string } | null;
   /** Préserve les dialogues/lip-sync natifs à leur niveau de parole. */
   nativeAudioMode?: AiMediaNativeAudioMode;
   /** Agent clips must already match their destination; no picture may be cut. */
@@ -500,6 +509,7 @@ export async function composeOriginalAiVideo(args: {
   if (requestedNativeAudioMode === "dialogue" && args.narration) {
     throw new Error("ai_original_video_dialogue_narration_conflict");
   }
+  if (args.subtitles && !args.narration) throw new Error("ai_media_narration_subtitles_audio_missing");
   const clipDurationTotal = args.clips.reduce(
     (total, clip) => total + clip.durationSeconds,
     0
@@ -618,6 +628,15 @@ export async function composeOriginalAiVideo(args: {
       });
       command.push("-i", narrationPath);
     }
+    if (args.subtitles && narrationDurationSeconds !== null) {
+      const { targetVoiceSeconds } = narrationTiming(args.durationSeconds);
+      const tempo = Math.max(1, requiredNarrationTempo({ narrationDurationSeconds, targetVoiceSeconds }));
+      const captions = buildAiMediaNarrationSubtitlesAss({ script: args.subtitles.script,
+        durationSeconds: narrationDurationSeconds / tempo, width: args.width, height: args.height });
+      await mkdir(path.join(temporaryDirectory, "fonts"));
+      await copyFile(path.join(process.cwd(), "node_modules", "next", "dist", "compiled", "@vercel", "og", "Geist-Regular.ttf"), path.join(temporaryDirectory, "fonts", "Geist-Regular.ttf"));
+      await writeFile(path.join(temporaryDirectory, "captions.ass"), captions, "utf8");
+    }
 
     command.push(
       "-filter_complex",
@@ -636,6 +655,7 @@ export async function composeOriginalAiVideo(args: {
         narrationDurationSeconds,
         nativeAudioMode,
         preserveComposition: args.preserveComposition,
+        withNarrationSubtitles: Boolean(args.subtitles),
       }),
       "-map",
       "[video]"
@@ -684,6 +704,7 @@ export async function composeOriginalAiVideo(args: {
 
     try {
       await execFileAsync(ffmpegPath, command, {
+        cwd: temporaryDirectory,
         timeout: 300_000,
         maxBuffer: 12 * 1024 * 1024,
         windowsHide: true,

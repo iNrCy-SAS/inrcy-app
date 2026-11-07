@@ -5,6 +5,7 @@ import test from "node:test";
 
 import ts from "typescript";
 import * as fullFrame from "../../lib/aiMediaFullFrame.ts";
+import * as narrationSubtitles from "../../lib/aiMediaNarrationSubtitles.ts";
 
 import { resolveAiMediaDialogueSequence } from "../../lib/aiMediaDialogue.ts";
 import {
@@ -51,6 +52,7 @@ function transpilePreflightModule() {
   const localRequire = (specifier: string) => {
     if (specifier === "server-only") return {};
     if (specifier === "./aiMediaFullFrame.ts") return fullFrame;
+    if (specifier === "./aiMediaNarrationSubtitles.ts") return narrationSubtitles;
     if (specifier === "@/lib/mediaVideoNormalizer") {
       return { probeVideoSource, resolveVideoNormalizationFfmpegPath };
     }

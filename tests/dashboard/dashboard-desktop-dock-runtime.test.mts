@@ -75,6 +75,7 @@ function harness(edition: editionPolicy.DashboardEdition = "premium") {
     if (specifier === "next/navigation") return { useRouter: () => ({ prefetch: (route: string) => { calls.warmups.push(route); } }) };
     if (specifier.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
     if (specifier === "../_hooks/useDashboardI18n") return { useDashboardI18n: () => ({ ...dashboard, locale: "fr-FR" }) };
+    if (specifier === "../_hooks/useDashboardToolOverlayOpen") return { __esModule: true, default: () => false };
     if (specifier === "../_hooks/useInrAgentPendingCount") return { useInrAgentPendingCount: (enabled: boolean) => { calls.enabled.push(enabled); return enabled ? 2 : 0; } };
     if (specifier === "@/lib/dashboardEdition") return editionPolicy;
     if (specifier === "./DashboardEditionProvider") return { useDashboardEdition: () => edition };

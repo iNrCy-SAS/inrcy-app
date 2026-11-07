@@ -1839,7 +1839,10 @@
     "label": "Sous-titres",
     "domain": "studio",
     "sourceFiles": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx"
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/aiMediaGenerationServer.ts",
+      "lib/aiMediaGeneratedVideo.ts",
+      "lib/aiMediaNarrationSubtitles.ts"
     ],
     "sourceAnchor": "<input type=\"checkbox\" checked={effectiveWithSubtitles} disabled={locked || speechMode === \"silent\" || explicitlyEmptySpokenScript}\n                    data-media-subtitles onChange={event => setWithSubtitles(event.target.checked)} />",
     "capabilityId": "studio.form",
@@ -1847,7 +1850,7 @@
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Checkbox unique sous les trois menus du panneau vidéo. studio_free_form.select(withSubtitles) applique le choix explicite et confirme le même état après rendu ; aucune autorisation de voix accordée. Sous-titres inactifs en Sans parole ou Paroles exactes vides, choix conservé lors des changements temporaires puis omis pour une image ; changement de compte réinitialisé. Aucun lancement ni devis payé.",
+    "notes": "Checkbox unique sous les trois menus du panneau vidéo. studio_free_form.select(withSubtitles) applique le choix explicite et confirme le même état après rendu ; aucune autorisation de voix accordée. Sous-titres inactifs en Sans parole ou Paroles exactes vides, choix conservé lors des changements temporaires puis omis pour une image ; changement de compte réinitialisé. Aucun lancement ni devis payé. En voix off séparée, le montage local incruste les paroles pendant la durée mesurée de la voix ; le découpage est proportionnel, sans garantie de synchronisation mot à mot.",
     "testFiles": [
       "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
       "tests/ai-assistant/studio-native-form-controls.test.mts"
@@ -1865,6 +1868,18 @@
       {
         "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
         "testAnchor": "the native subtitle checkbox requires the requested checked state without granting any voice consent"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-grok-voiceover-runtime.test.mts",
+        "testAnchor": "voiceover subtitles reach local composition with Exact words while the silent provider cannot draw duplicates"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-video-composition-runtime.test.mts",
+        "testAnchor": "local narration subtitles render accented progressive captions while leaving audio unchanged"
+      },
+      {
+        "file": "tests/ai-media-generation/narration-subtitles-runtime.test.mts",
+        "testAnchor": "local narration captions retain exact accented words and advance over the measured voice only"
       }
     ]
   },

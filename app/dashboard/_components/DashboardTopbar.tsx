@@ -21,6 +21,7 @@ import { hasAccountingDashboardAccess } from "@/lib/dashboardEdition";
 import { useDashboardEdition } from "./DashboardEditionProvider";
 import { useDashboardAssistant } from "./DashboardAssistantProvider";
 import { DashboardAssistantBadge } from "./DashboardAssistantTrigger";
+import useDashboardToolOverlayOpen from "../_hooks/useDashboardToolOverlayOpen";
 
 const INR_AGENT_ROUTE = "/dashboard/agent";
 const INR_AGENT_PRELOAD_ASSETS = [
@@ -117,6 +118,12 @@ export default function DashboardTopbar({
   const accountingEnabled = hasAccountingDashboardAccess(dashboardEdition);
   const router = useRouter();
   const t = useDashboardI18n();
+  const toolOverlayOpen = useDashboardToolOverlayOpen();
+  const backgroundHeaderProps = {
+    "data-dashboard-header-suppressed": toolOverlayOpen || undefined,
+    "aria-hidden": toolOverlayOpen || undefined,
+    inert: toolOverlayOpen || undefined,
+  };
   const pendingInrAgentCount = useInrAgentPendingCount(showInrAgent && inrAgentEnabled);
   const pendingInrAgentLabel = pendingInrAgentCount > 99 ? "99+" : String(pendingInrAgentCount);
   const agentTitle = inrAgentEnabled
@@ -142,7 +149,7 @@ export default function DashboardTopbar({
   // Portals move the existing desktop controls while preserving their state,
   // refs and callbacks. Before the hosts mount, they stay in the header.
   const desktopLeftActions = (
-    <div className={dockStyles.centralGroup} data-dashboard-desktop-dock="left">
+    <div className={dockStyles.centralGroup} data-dashboard-desktop-dock="left" {...backgroundHeaderProps}>
       {showInrAgent ? (
         <button
           type="button"
@@ -203,7 +210,7 @@ export default function DashboardTopbar({
     </div>
   );
   const desktopRightActions = (
-    <div className={dockStyles.centralGroup} data-dashboard-desktop-dock="right">
+    <div className={dockStyles.centralGroup} data-dashboard-desktop-dock="right" {...backgroundHeaderProps}>
       <div
         className={`${styles.notificationWrap} ${dockStyles.menuAnchor}`}
         ref={desktopNotificationMenuRef}
@@ -253,7 +260,7 @@ export default function DashboardTopbar({
     </div>
   );
   return (
-    <header className={`${styles.topbar} ${desktopLeftHost && desktopRightHost ? dockStyles.topbar : ""}`}>
+    <header data-dashboard-topbar className={`${styles.topbar} ${dockStyles.workspaceAwareHeader} ${desktopLeftHost && desktopRightHost ? dockStyles.topbar : ""}`} {...backgroundHeaderProps}>
       <div className={`${styles.brand} ${dockStyles.brand}`}>
         <img
           className={styles.logoImg}

@@ -40,6 +40,8 @@ type Manifest = {
   version: 1; accountId: string; jobId: string; width: number; height: number; durationSeconds: number;
   nativeAudioMode: "ambience" | "dialogue" | "mute";
   preserveComposition?: boolean;
+  /** Explicit render copy only; never the visual brief or generation prompt. */
+  subtitles?: { script: string } | null;
   clips: Array<Asset & { durationSeconds: number; sourceStartSeconds?: number }>;
   overlays: Asset[];
   narration: (Asset & { extension: "wav" | "mp3" | "ogg" | "aac"; mimeType: string; model: string; voice: string }) | null;
@@ -47,7 +49,7 @@ type Manifest = {
   metadata: Record<string, unknown>;
 };
 
-/** Persist diagnostics only: the brief, prompt and dialogue text never enter a checkpoint. */
+/** Persist diagnostics only: brief/prompt and unrelated dialogue never enter metadata. */
 function safeMetadata(input: Record<string, unknown>) {
   const output: Record<string, unknown> = {};
   for (const key of ["provider", "model", "prompt_version", "prompt_sha256", "casting_variant_key", "soundtrack_id", "video_engine_result", "format", "video_engine", "video_resolution", "creation_mode"]) {
@@ -81,6 +83,12 @@ function validateLayout(input: Pick<Manifest, "width" | "height" | "durationSeco
     input.clips.reduce((total, c) => total + c.durationSeconds, 0) !== input.durationSeconds) throw new Error("ai_media_composition_manifest_invalid");
 }
 
+function validateSubtitles(value: Manifest["subtitles"]) {
+  if (value != null && (typeof value !== "object" || typeof value.script !== "string" || !value.script.trim() || value.script.length > 4_000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(value.script))) {
+    throw new Error("ai_media_composition_subtitles_invalid");
+  }
+}
+
 export async function persistAiMediaCompositionCheckpoint(args: {
   accountId: string; jobId: string; authUserId: string; input: AiMediaCompositionInput; metadata: Record<string, unknown>;
   checkpoint?: AiMediaCompositionCheckpoint;
@@ -89,6 +97,7 @@ export async function persistAiMediaCompositionCheckpoint(args: {
   if (args.checkpoint && (args.checkpoint.accountId !== checkpoint.accountId || args.checkpoint.jobId !== checkpoint.jobId)) throw new Error("ai_media_composition_scope_invalid");
   const layout = { ...args.input, nativeAudioMode: args.input.nativeAudioMode || "ambience" as const };
   validateLayout(layout as unknown as Manifest);
+  validateSubtitles(args.input.subtitles);
   const folder = `${prefix(checkpoint.accountId, checkpoint.jobId)}${randomUUID()}/`;
   let stage = "bucket";
   let checkpointStarted = false;
@@ -135,6 +144,7 @@ export async function persistAiMediaCompositionCheckpoint(args: {
     const manifest: Manifest = { version: 1, accountId: checkpoint.accountId, jobId: checkpoint.jobId,
       width: args.input.width, height: args.input.height, durationSeconds: args.input.durationSeconds, nativeAudioMode: layout.nativeAudioMode,
       preserveComposition: args.input.preserveComposition === true,
+      ...(args.input.subtitles ? { subtitles: { script: args.input.subtitles.script } } : {}),
       clips, overlays, narration, soundtrack, metadata: safeMetadata(args.metadata) };
     stage = "manifest";
     await upload("manifest.json", Buffer.from(JSON.stringify(manifest)), "application/json", 32_768);
@@ -201,6 +211,7 @@ export async function recoverNextAiMediaCompositionCheckpoint(): Promise<AiMedia
     const manifest = JSON.parse((await download(manifestPath, 32_768)).toString("utf8")) as Manifest;
     if (manifest.version !== 1 || manifest.accountId !== checkpoint.accountId || manifest.jobId !== checkpoint.jobId) throw new Error("ai_media_composition_scope_invalid");
     validateLayout(manifest);
+    validateSubtitles(manifest.subtitles);
     const readAsset = async (asset: Asset, expectedFile: string, maximum = MAX_AUX_BYTES) => {
       if (asset.file !== expectedFile || !Number.isInteger(asset.bytes) || asset.bytes <= 0 || asset.bytes > maximum || !/^[0-9a-f]{64}$/.test(asset.sha256)) throw new Error("ai_media_composition_asset_invalid");
       const buffer = await download(folder + asset.file, maximum);
@@ -230,7 +241,8 @@ export async function recoverNextAiMediaCompositionCheckpoint(): Promise<AiMedia
     await rpc("assert_ai_media_composition_lease", parameters(checkpoint));
     stage = "compose";
     const media = await composeOriginalAiVideo({ clips, overlays, width: manifest.width, height: manifest.height,
-      durationSeconds: manifest.durationSeconds, nativeAudioMode: manifest.nativeAudioMode, soundtrack, narration, preserveComposition: manifest.preserveComposition === true });
+      durationSeconds: manifest.durationSeconds, nativeAudioMode: manifest.nativeAudioMode, soundtrack, narration,
+      ...(manifest.subtitles ? { subtitles: { script: manifest.subtitles.script } } : {}), preserveComposition: manifest.preserveComposition === true });
     const qa = await inspectAiMediaVideoBufferLocally({ buffer: media.buffer, expectedDurationSeconds: manifest.durationSeconds,
       audioExpectation: manifest.nativeAudioMode === "dialogue" || narration ? "required" : "optional", timeoutMs: 4_000 });
     await rpc("assert_ai_media_composition_lease", parameters(checkpoint));
