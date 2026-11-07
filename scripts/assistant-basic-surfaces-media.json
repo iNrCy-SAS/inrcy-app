@@ -1955,7 +1955,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<select\n                  id={`${instanceId}-spoken-script-mode`}\n                  className={styles.spokenScriptModeSelect}\n                  value={spokenScriptOpen ? \"exact\" : \"automatic\"}\n                  disabled={locked}\n                  aria-label={`${t(\"ai_generator_video_speech_automatic\")} / ${t(\"ai_generator_video_speech_exact\")}`}\n                  aria-controls={`${instanceId}-spoken-script-panel`}\n                  aria-describedby={`${instanceId}-spoken-script-help`}\n                  onChange={(event) => {\n                    if (event.target.value === \"exact\") {\n                      setSpokenScriptOpen(true);\n                      window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus());\n                    } else {\n                      setSpokenScript(\"\");\n                      setSpokenScriptOpen(false);\n                    }\n                  }}\n                >\n                  <option value=\"automatic\">{t(\"ai_generator_video_speech_automatic\")}</option>\n                  <option value=\"exact\">{t(\"ai_generator_video_speech_exact\")}</option>\n                </select>",
+    "sourceAnchor": "<select\n                  id={`${instanceId}-spoken-script-mode`}\n                  className={styles.spokenScriptModeSelect}\n                  value={spokenScriptOpen ? \"exact\" : \"automatic\"}\n                  disabled={locked}\n                  aria-label={`${t(\"ai_generator_video_speech_automatic\")} / ${t(\"ai_generator_video_speech_exact\")}`}\n                  aria-controls={`${instanceId}-spoken-script-panel`}\n                  aria-describedby={`${instanceId}-spoken-script-help`}\n                  onChange={(event) => {\n                    if (event.target.value === \"exact\") {\n                      setSpokenScriptOpen(true);\n                      window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus({ preventScroll: true }));\n                    } else {\n                      setSpokenScript(\"\");\n                      setSpokenScriptOpen(false);\n                    }\n                  }}\n                >\n                  <option value=\"automatic\">{t(\"ai_generator_video_speech_automatic\")}</option>\n                  <option value=\"exact\">{t(\"ai_generator_video_speech_exact\")}</option>\n                </select>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -1969,7 +1969,7 @@
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:5690accafb1f3f39:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:1974bca032f3fdc6:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:9f944cd37c813c70:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:e876ef7049b0c400:1"
     ],
@@ -1981,6 +1981,10 @@
       {
         "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
         "testAnchor": "short windows keep both video frames separate and the speech header on two rows in every locale"
+      },
+      {
+        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+        "testAnchor": "real fixed geometry survives 0, 500, 501 and whitespace-heavy visual drafts through Auto→Exact→Auto"
       }
     ]
   },

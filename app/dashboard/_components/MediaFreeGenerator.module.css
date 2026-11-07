@@ -1261,8 +1261,17 @@
 .videoFrameHeading { margin-bottom: 10px; }
 .videoFrameHeading label { color: #f2f6ff; font-size: 16px; font-weight: 750; }
 .videoFrameHeading p { margin: 5px 0 0; color: #bdcbe4; font-size: 12px; line-height: 1.55; }
-.workspace[data-view="editor"] .videoBriefFrame .promptContainer { min-height: 130px; }
-.workspace[data-view="editor"] .videoBriefFrame .promptContainer textarea { min-height: 90px; resize: vertical; }
+.workspace[data-media-kind="video"][data-view="editor"] .videoBriefFrame .promptContainer { flex: 0 0 auto; min-height: 0; }
+.workspace[data-media-kind="video"][data-view="editor"] .videoBriefFrame .promptContainer textarea {
+  box-sizing: border-box; flex: 0 0 auto; height: clamp(180px, 21vh, 220px);
+  min-height: clamp(180px, 21vh, 220px); max-height: clamp(180px, 21vh, 220px);
+  resize: none; overflow-y: auto;
+}
+.videoBriefFeedback { display: grid; flex: 0 0 auto; min-width: 0; font-size: 12px; line-height: 1.35; }
+.videoBriefFeedback > * { grid-area: 1 / 1; min-width: 0; margin: 0; font-size: inherit; line-height: inherit; }
+.videoBriefFeedback > .videoFrameError,
+.videoBriefFeedback > .promptHelp { margin: 0; font-size: inherit; line-height: inherit; }
+.videoBriefFeedbackSizer { visibility: hidden; }
 .videoBriefFrame .promptContainer[data-invalid="true"],
 .spokenScriptPanel[data-invalid="true"] .spokenScriptInput { border-color: #f3a2b0; }
 .videoFrameError { margin: 8px 0 0; color: #ffb4c0; font-size: 12px; line-height: 1.55; }
@@ -1274,18 +1283,11 @@
   .videoBriefFrame, .promptPanel .spokenScriptSection { padding: 12px; }
   .workspace[data-media-kind="video"] .videoSettingsPane { max-height: none; min-height: 0; }
   .videoFrameHeading label { font-size: 16px; }
-  .workspace[data-view="editor"] .videoBriefFrame .promptContainer textarea { min-height: 100px; font-size: 16px; }
+  .workspace[data-media-kind="video"][data-view="editor"] .videoBriefFrame .promptContainer textarea { font-size: 16px; line-height: 1.4; padding: 10px 12px; }
 }
 
 .audioSection .subtitlesOption { grid-column: 1 / -1; grid-row: 4; }
 
-.workspace[data-view="editor"] .promptPanel[data-spoken-script-open="true"] .promptContainer {
-  min-height: 130px;
-}
-.workspace[data-view="editor"] .promptPanel[data-spoken-script-open="true"] .promptContainer textarea {
-  min-height: 80px;
-  resize: none;
-}
 .spokenScriptSection { flex: 0 0 auto; min-width: 0; }
 .spokenScriptHeading button:focus-visible { outline: 2px solid #9adcf5; outline-offset: 3px; }
 .spokenScriptPanel { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
@@ -1308,66 +1310,42 @@
 .spokenScriptPanel .promptHelp { font-size: 11px; line-height: 1.5; }
 .soundChoice[data-disabled="true"] { opacity: .55; cursor: default; }
 @media (max-width: 760px) {
-  .workspace[data-view="editor"] .promptPanel[data-spoken-script-open="true"] .promptContainer { min-height: 160px; }
-  .workspace[data-view="editor"] .promptPanel[data-spoken-script-open="true"] .promptContainer textarea { min-height: 100px; font-size: 16px; }
   .spokenScriptInput textarea { font-size: 16px; min-height: 110px; }
   .spokenScriptHeading button { min-height: 36px; }
   .spokenScriptModeSelect { min-height:36px; }
 }
 @media (max-width:380px) { .spokenScriptHeading[data-silent="true"] .speechModeBadge { display:none; } }
 
-/* Keep both video fields and their counters in the available desktop stage.
-   Long drafts scroll inside their textareas; validation remains in the flow. */
+/* Fixed visual-editor height keeps the speech heading in the same position.
+   Exact speech expands below it; short windows scroll the existing settings pane. */
 @media (min-width: 761px) {
   .workspace .finalAction:has(.recoveryActions) { flex:0 1 360px;width:360px;min-width:330px; }
   .workspace .recoveryActions { flex:none;width:100%;gap:8px; }
   .workspace .recoveryActions > .primaryButton { flex:1 1 0;min-width:150px;white-space:normal; }
   .workspace .recoveryStop { flex:1 1 0;min-width:140px;padding:8px; }
   .workspace[data-media-kind="video"][data-view="editor"] .promptPanel {
-    min-height: 100%; height: 100%; padding: 10px; gap: 6px;
+    min-height: 100%; height: auto; padding: 10px; gap: 6px;
   }
   .workspace[data-media-kind="video"] .businessDnaRow { flex: 0 0 auto; min-height: 32px; }
   .workspace[data-media-kind="video"] .businessDnaRow > :last-child { margin-inline-start: auto; }
   .workspace[data-media-kind="video"] .videoBriefFrame,
   .workspace[data-media-kind="video"] .promptPanel .spokenScriptSection {
-    display: flex; flex: 1 1 0; flex-direction: column; min-height: 0; padding: 8px; gap: 5px;
+    display: flex; flex: 0 0 auto; flex-direction: column; min-height: auto; padding: 8px; gap: 5px;
   }
-  .workspace[data-media-kind="video"] .promptPanel .spokenScriptSection { flex-grow: 1.18; }
-  .workspace[data-media-kind="video"] .promptPanel .spokenScriptSection[data-exact="false"] { flex: 0 0 auto; min-height: auto; }
   .workspace[data-media-kind="video"] .videoFrameHeading { flex: 0 0 auto; margin: 0; }
   .workspace[data-media-kind="video"] .videoFrameHeading label { font-size: 14px; }
   .workspace[data-media-kind="video"] .videoFrameHeading p { margin-top: 3px; line-height: 1.35; }
-  .workspace[data-media-kind="video"][data-view="editor"] .videoBriefFrame .promptContainer {
-    flex: 1 1 auto; min-height: 96px;
-  }
   .workspace[data-media-kind="video"][data-view="editor"] .videoBriefFrame .promptContainer textarea {
-    min-height: 64px; height: 64px; padding: 9px 11px; resize: none; line-height: 1.5;
+    padding: 9px 11px; line-height: 1.5;
   }
   .workspace[data-media-kind="video"] .promptToolbar { flex: 0 0 auto; min-height: 26px; padding: 3px 11px 6px; }
-  .workspace[data-media-kind="video"] .spokenScriptPanel { flex: 1 1 auto; min-height: 0; gap: 3px; }
-  .workspace[data-media-kind="video"] .spokenScriptContent { flex: 1 1 auto; min-height: 0; gap: 3px; }
-  .workspace[data-media-kind="video"] .spokenScriptSection[data-exact="false"] .spokenScriptPanel,
-  .workspace[data-media-kind="video"] .spokenScriptSection[data-exact="false"] .spokenScriptContent { flex: 0 0 auto; min-height: auto; }
+  .workspace[data-media-kind="video"] .spokenScriptPanel { flex: 0 0 auto; min-height: auto; gap: 3px; }
+  .workspace[data-media-kind="video"] .spokenScriptContent { flex: 0 0 auto; min-height: auto; gap: 3px; }
   .workspace[data-media-kind="video"] .spokenScriptHeading { flex: 0 0 auto; min-height: 24px; gap: 3px 8px; }
   .workspace[data-media-kind="video"] .spokenScriptHeading button { min-height: 24px; padding: 3px 0; }
-  .workspace[data-media-kind="video"] .spokenScriptInput { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 90px; }
-  .workspace[data-media-kind="video"] .spokenScriptInput textarea { flex: 1 1 auto; height: 64px; min-height: 64px; max-height: none; padding: 8px 11px; resize: none; line-height: 1.5; }
+  .workspace[data-media-kind="video"] .spokenScriptInput { display: flex; flex: 0 0 auto; flex-direction: column; min-height: 90px; }
+  .workspace[data-media-kind="video"] .spokenScriptInput textarea { flex: 0 0 auto; height: 64px; min-height: 64px; max-height: none; padding: 8px 11px; resize: none; line-height: 1.5; }
   .workspace[data-media-kind="video"] .spokenScriptCounter { flex: 0 0 auto; padding: 2px 11px 6px; line-height: 1.35; }
   .workspace[data-media-kind="video"] .spokenScriptContent > .promptHelp { flex: 0 0 auto; }
   .workspace[data-media-kind="video"] .videoFrameError { flex: 0 0 auto; margin-top: 0; line-height: 1.35; }
-}
-
-/* A short browser window cannot fit two usable editors in a fixed stage.
-   Let the existing settings pane scroll instead of shrinking framed content. */
-@media (min-width:761px) and (max-height:700px) {
-  .workspace[data-media-kind="video"][data-view="editor"] .promptPanel { height:auto;min-height:100%; }
-  .workspace[data-media-kind="video"] .videoBriefFrame,
-  .workspace[data-media-kind="video"] .promptPanel .spokenScriptSection { flex:0 0 auto;min-height:auto; }
-  .workspace[data-media-kind="video"][data-view="editor"] .videoBriefFrame .promptContainer { flex:0 0 auto;min-height:112px; }
-  .workspace[data-media-kind="video"][data-view="editor"] .promptPanel[data-spoken-script-open="false"] .videoBriefFrame,
-  .workspace[data-media-kind="video"][data-view="editor"] .promptPanel[data-spoken-script-open="false"] .videoBriefFrame .promptContainer { flex:1 0 auto; }
-  .workspace[data-media-kind="video"] .spokenScriptPanel { flex:0 0 auto;min-height:auto; }
-  .workspace[data-media-kind="video"] .spokenScriptContent { flex:0 0 auto;min-height:auto; }
-  .workspace[data-media-kind="video"] .spokenScriptInput { flex:0 0 auto;min-height:110px; }
-  .workspace[data-media-kind="video"] .spokenScriptInput textarea { flex:none;height:82px;min-height:82px; }
 }

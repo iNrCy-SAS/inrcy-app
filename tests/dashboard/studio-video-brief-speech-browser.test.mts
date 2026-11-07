@@ -96,7 +96,7 @@ async function mount(page: Page) {
   return errors;
 }
 
-async function assertBothFramesFit(page: Page, context: string) {
+async function assertFramesRemainUsable(page: Page, context: string) {
   const layout = await page.evaluate(() => {
     const panels = document.querySelector<HTMLElement>(".free-videoSettingsPane .editor-settingsPanels")!;
     const bounds = panels.getBoundingClientRect();
@@ -108,17 +108,51 @@ async function assertBothFramesFit(page: Page, context: string) {
     const fields = targets.map(({ selector, element }) => {
       const rect = element.getBoundingClientRect();
       const frameBounds = element.closest("[data-video-brief-frame], .free-spokenScriptSection")?.getBoundingClientRect();
-      return { selector, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height, frameBottom: frameBounds?.bottom };
+      return { selector, top: rect.top, bottom: rect.bottom, width: rect.width, height: rect.height, frameTop: frameBounds?.top, frameBottom: frameBounds?.bottom };
     });
-    return { scrollHeight: panels.scrollHeight, clientHeight: panels.clientHeight, scrollTop: panels.scrollTop, top: bounds.top, bottom: bounds.bottom, viewportHeight: innerHeight, fields };
+    const ancestors: HTMLElement[] = [];
+    for (let element: HTMLElement | null = panels; element; element = element.parentElement) ancestors.push(element);
+    const canScroll = ancestors.some(element => /auto|scroll/.test(getComputedStyle(element).overflowY) && element.scrollHeight > element.clientHeight);
+    return { scrollHeight: panels.scrollHeight, clientHeight: panels.clientHeight, canScroll, top: bounds.top, bottom: bounds.bottom, viewportHeight: innerHeight, fields, horizontalOverflow: document.documentElement.scrollWidth > innerWidth };
   });
-  assert.ok(layout.scrollHeight <= layout.clientHeight + 1, `${context}: left panel scrolls ${JSON.stringify(layout)}`);
-  assert.equal(layout.scrollTop, 0, `${context}: left panel starts without scrolling`);
+  assert.ok(layout.clientHeight > 0, `${context}: the real editor has usable height`);
+  if (layout.scrollHeight > layout.clientHeight + 1 || layout.fields.some(field => field.bottom > layout.viewportHeight)) {
+    assert.equal(layout.canScroll, true, `${context}: content below a short window remains reachable through a real scroll container`);
+  }
+  assert.equal(layout.horizontalOverflow, false, `${context}: no horizontal overflow`);
   for (const field of layout.fields) {
     assert.ok(field.width > (field.selector.includes("-count") ? 20 : 100) && field.height >= (field.selector.startsWith("textarea") ? 60 : 1), `${context}: usable ${field.selector}`);
-    assert.ok(field.top >= layout.top - 1 && field.bottom <= layout.bottom + 1 && field.bottom <= layout.viewportHeight, `${context}: both frames, editors and counters fit ${JSON.stringify(field)}`);
-    if (field.frameBottom) assert.ok(field.bottom <= field.frameBottom + 1, `${context}: content stays within its frame ${JSON.stringify(field)}`);
+    if (field.frameTop !== undefined && field.frameBottom !== undefined) assert.ok(field.top >= field.frameTop - 1 && field.bottom <= field.frameBottom + 1, `${context}: content stays within its frame ${JSON.stringify(field)}`);
   }
+}
+
+async function videoGeometry(page: Page) {
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  return page.evaluate(() => {
+    const panels = document.querySelector<HTMLElement>(".free-videoSettingsPane .editor-settingsPanels")!;
+    const prompt = document.querySelector<HTMLTextAreaElement>('textarea[id$="-prompt"]')!;
+    const section = document.querySelector<HTMLElement>(".free-spokenScriptSection")!;
+    const heading = section.querySelector<HTMLElement>(".free-spokenScriptHeading")!;
+    const paneBounds = panels.getBoundingClientRect(), promptBounds = prompt.getBoundingClientRect();
+    const sectionBounds = section.getBoundingClientRect(), headingBounds = heading.getBoundingClientRect();
+    const style = getComputedStyle(prompt);
+    return {
+      promptHeight: promptBounds.height,
+      usableLines: (promptBounds.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)) / parseFloat(style.lineHeight),
+      bannerTop: sectionBounds.top - paneBounds.top + panels.scrollTop,
+      controlTop: headingBounds.top - paneBounds.top + panels.scrollTop,
+      viewportBannerTop: sectionBounds.top,
+      scrollTop: panels.scrollTop,
+    };
+  });
+}
+
+function assertSameVideoGeometry(before: Awaited<ReturnType<typeof videoGeometry>>, after: Awaited<ReturnType<typeof videoGeometry>>, context: string, viewportStable = false) {
+  assert.ok(before.usableLines >= 6 && before.usableLines <= 10, `${context}: the real prompt provides roughly eight readable lines (${before.usableLines})`);
+  for (const key of ["promptHeight", "bannerTop", "controlTop"] as const) {
+    assert.ok(Math.abs(after[key] - before[key]) <= 1, `${context}: ${key} stays constant, ${JSON.stringify({ before, after })}`);
+  }
+  if (viewportStable) assert.ok(Math.abs(after.viewportBannerTop - before.viewportBannerTop) <= 1, `${context}: switching modes does not move the visible speech banner`);
 }
 
 async function assertSpeechHeaderCompact(page: Page, context: string) {
@@ -167,13 +201,14 @@ async function selectSettingsTab(page: Page, value: string) {
   else await page.locator(`[id$="-tab-${value}"]`).click();
 }
 
-test("both real video frames and counters fit reduced desktop viewports without a scrolling left panel", async () => {
+test("fixed visual prompts retain the speech banner position across Auto and Exact while both frames remain usable", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
     for (const viewport of [{ width: 1707, height: 842 }, { width: 1440, height: 900 }, { width: 1366, height: 768 }]) {
       const page = await browser.newPage({ viewport });
       const errors = await mount(page);
-      await assertBothFramesFit(page, `${viewport.width}x${viewport.height} automatic`);
+      await assertFramesRemainUsable(page, `${viewport.width}x${viewport.height} automatic`);
+      const automaticGeometry = await videoGeometry(page);
       await assertSpeechHeaderCompact(page, `${viewport.width}x${viewport.height} automatic`);
       const visual = page.getByLabel("Consignes visuelles", { exact: true });
       const speech = page.locator('textarea[id$="-spoken-script"]');
@@ -182,7 +217,8 @@ test("both real video frames and counters fit reduced desktop viewports without 
       await page.screenshot({ path: path.join(taskRoot, `outputs/studio-paroles-auto-${viewport.width}x${viewport.height}.png`) });
       await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
       await speech.fill("Bonjour, nous prenons soin de votre jardin.");
-      await assertBothFramesFit(page, `${viewport.width}x${viewport.height} exact speech`);
+      await assertFramesRemainUsable(page, `${viewport.width}x${viewport.height} exact speech`);
+      assertSameVideoGeometry(automaticGeometry, await videoGeometry(page), `${viewport.width}x${viewport.height} Auto→Exact`, viewport.width === 1707);
       await assertSpeechHeaderCompact(page, `${viewport.width}x${viewport.height} exact speech`);
       await page.screenshot({ path: path.join(taskRoot, `outputs/studio-video-compact-${viewport.width}x${viewport.height}.png`) });
       // Historical and over-budget drafts stay fully editable; counters and
@@ -192,7 +228,8 @@ test("both real video frames and counters fit reduced desktop viewports without 
       assert.equal(await visual.inputValue(), "x".repeat(501));
       assert.equal(await speech.inputValue(), "mot ".repeat(1000));
       assert.equal(await page.locator("[data-media-primary-action]").isDisabled(), true);
-      await assertBothFramesFit(page, `${viewport.width}x${viewport.height} long draft errors`);
+      await assertFramesRemainUsable(page, `${viewport.width}x${viewport.height} long draft errors`);
+      assertSameVideoGeometry(automaticGeometry, await videoGeometry(page), `${viewport.width}x${viewport.height} long draft feedback`);
       await page.locator("[data-media-prompt-help]").click();
       await page.getByRole("dialog").waitFor();
       await page.getByText(messages.ai_generator_video_visual_brief_hint, { exact: true }).waitFor();
@@ -214,12 +251,12 @@ test("compact video instructions fit all nine locales while image guidance remai
     for (const locale of Object.keys(catalogs)) {
       await page.evaluate(locale => { (window as unknown as FixtureWindow).fixtureLocale = locale; (window as unknown as FixtureWindow).renderStudio(); }, locale);
       await page.getByLabel(catalogs[locale].ai_generator_video_visual_brief_title, { exact: true }).waitFor();
-      await assertBothFramesFit(page, locale);
+      await assertFramesRemainUsable(page, locale);
       await assertSpeechHeaderCompact(page, locale);
       assert.equal(await page.locator('[id$="-prompt-count"]').getAttribute("aria-live"), "polite");
       assert.equal(await page.locator('textarea[id$="-spoken-script"]').count(), 0);
       await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
-      await assertBothFramesFit(page, `${locale} exact`);
+      await assertFramesRemainUsable(page, `${locale} exact`);
       assert.equal(await page.locator('[id$="-spoken-script-count"]').getAttribute("aria-live"), "polite");
     }
     await page.evaluate(() => { (window as unknown as FixtureWindow).fixtureLocale = "fr-FR"; (window as unknown as FixtureWindow).renderStudio("x".repeat(3900), "image"); });
@@ -231,6 +268,54 @@ test("compact video instructions fit all nine locales while image guidance remai
     assert.equal(await page.locator("[data-video-brief-frame]").count(), 0);
     assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
     assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test("real fixed geometry survives 0, 500, 501 and whitespace-heavy visual drafts through Auto→Exact→Auto", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const viewport of [{ width: 1707, height: 842 }, { width: 1068, height: 570 }, { width: 390, height: 844 }]) {
+      const page = await browser.newPage({ viewport });
+      const errors = await mount(page);
+      const visual = page.getByLabel("Consignes visuelles", { exact: true });
+      const mode = page.locator('select[id$="-spoken-script-mode"]');
+      const speech = page.locator('textarea[id$="-spoken-script"]');
+      const generate = page.locator("[data-media-primary-action]");
+      await visual.fill("");
+      const emptyGeometry = await videoGeometry(page);
+      for (const [name, value, valid] of [
+        ["empty", "", false],
+        ["500 characters", "x".repeat(500), true],
+        ["501 characters", "x".repeat(501), false],
+        ["500 plus 50 trailing spaces", `${"x".repeat(500)}${" ".repeat(50)}`, false],
+        ["500 whitespace characters", " ".repeat(500), false],
+        ["500 with outer whitespace", ` ${"x".repeat(498)} `, true],
+      ] as const) {
+        const context = `${viewport.width}x${viewport.height} ${name}`;
+        await visual.fill(value);
+        assert.equal(await visual.inputValue(), value, `${context}: visual draft stays intact`);
+        assert.match(await page.locator('[id$="-prompt-count"]').innerText(), new RegExp(`^${value.length}\\s*/\\s*500$`));
+        assert.equal(await generate.isDisabled(), !valid, `${context}: raw visual limit still gates generation`);
+        if (value.length > 500) assert.equal(await page.locator('[id$="-visual-brief-error"][role="alert"]').isVisible(), true, `${context}: the actual active error is visible`);
+        assertSameVideoGeometry(emptyGeometry, await videoGeometry(page), `${context} automatic`);
+        assert.equal(await speech.count(), 0);
+        await mode.selectOption("exact");
+        await speech.fill("Bonjour, nous prenons soin de votre jardin.");
+        assert.equal(await speech.inputValue(), "Bonjour, nous prenons soin de votre jardin.");
+        assert.equal(await generate.isDisabled(), !valid, `${context}: opening speech never bypasses the visual limit`);
+        assertSameVideoGeometry(emptyGeometry, await videoGeometry(page), `${context} exact`);
+        await assertFramesRemainUsable(page, `${context} exact`);
+        await assertFramesNeverOverlap(page, `${context} exact`);
+        await mode.selectOption("automatic");
+        assert.equal(await speech.count(), 0);
+        assert.equal(await visual.inputValue(), value, `${context}: changing speech mode never clears the visual draft`);
+        assertSameVideoGeometry(emptyGeometry, await videoGeometry(page), `${context} automatic again`);
+      }
+      assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).studioRequests.length), 0);
+      assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
   } finally { await browser.close(); }
 });
 
@@ -246,8 +331,20 @@ test("short windows keep both video frames separate and the speech header on two
         await page.evaluate(locale => { const fixture = window as unknown as FixtureWindow; fixture.fixtureLocale = locale; fixture.renderStudio(); }, locale);
         await page.locator('select[id$="-spoken-script-mode"]').waitFor();
         const context = `${viewport.width}x${viewport.height} ${locale}`;
+        const automaticGeometry = await videoGeometry(page);
         await assertFramesNeverOverlap(page, context);
         await assertSpeechHeaderCompact(page, context);
+        const visual = page.locator('textarea[id$="-prompt"]');
+        const originalVisual = await visual.inputValue();
+        for (const length of [0, 500, 501]) {
+          const value = "x".repeat(length);
+          await visual.fill(value);
+          assert.equal(await visual.inputValue(), value);
+          if (length > 500) assert.equal(await page.locator('[id$="-visual-brief-error"][role="alert"]').isVisible(), true);
+          assertSameVideoGeometry(automaticGeometry, await videoGeometry(page), `${context} ${length} characters`);
+          await assertFramesNeverOverlap(page, `${context} ${length} characters`);
+        }
+        await visual.fill(originalVisual);
         const speech = page.locator('textarea[id$="-spoken-script"]');
         assert.equal(await speech.count(), 0, `${context}: automatic mode has no editor`);
         await page.getByText(catalogs[locale].ai_generator_video_speech_automatic_hint, { exact: true }).waitFor();
@@ -255,8 +352,10 @@ test("short windows keep both video frames separate and the speech header on two
         await speech.fill("Bonjour, nous prenons soin de votre jardin.");
         await assertFramesNeverOverlap(page, `${context} exact`);
         await assertSpeechHeaderCompact(page, `${context} exact`);
+        assertSameVideoGeometry(automaticGeometry, await videoGeometry(page), `${context} Auto→Exact`);
         await page.locator('select[id$="-spoken-script-mode"]').selectOption("automatic");
         assert.equal(await speech.count(), 0);
+        assertSameVideoGeometry(automaticGeometry, await videoGeometry(page), `${context} Exact→Auto`);
         await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
         assert.equal(await speech.inputValue(), "", "returning to exact starts with the explicitly cleared script");
         await page.locator('select[id$="-spoken-script-mode"]').selectOption("automatic");

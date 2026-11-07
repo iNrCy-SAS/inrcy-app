@@ -1305,10 +1305,15 @@ export default function MediaFreeGenerator({
               />
             </div>
           </div>
-          {kind === "video" && prompt.length > maxUserPromptLength ? <p id={`${instanceId}-visual-brief-error`} className={styles.videoFrameError} role="alert">
-            {t("ai_generator_video_brief_too_long", { max: maxUserPromptLength })}
-          </p> : misplacedSpeechBlocking ? <p id={`${instanceId}-visual-brief-error`} className={styles.videoFrameError} role="alert">{t("ai_generator_video_speech_move")}</p> : null}
-          {misplacedSpeech && spokenScriptOpen ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_override_notice")}</p> : null}
+          {kind === "video" ? <div className={styles.videoBriefFeedback}>
+            <span className={styles.videoBriefFeedbackSizer} aria-hidden="true">{t("ai_generator_video_brief_too_long", { max: maxUserPromptLength })}</span>
+            <span className={styles.videoBriefFeedbackSizer} aria-hidden="true">{t("ai_generator_video_speech_move")}</span>
+            <span className={styles.videoBriefFeedbackSizer} aria-hidden="true">{t("ai_generator_video_speech_override_notice")}</span>
+            {prompt.length > maxUserPromptLength ? <p id={`${instanceId}-visual-brief-error`} className={styles.videoFrameError} role="alert">
+              {t("ai_generator_video_brief_too_long", { max: maxUserPromptLength })}
+            </p> : misplacedSpeechBlocking ? <p id={`${instanceId}-visual-brief-error`} className={styles.videoFrameError} role="alert">{t("ai_generator_video_speech_move")}</p>
+              : misplacedSpeech && spokenScriptOpen ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_override_notice")}</p> : null}
+          </div> : null}
           </div>
           {kind === "video" ? <div className={styles.spokenScriptSection} data-exact={exactSpeechEditorVisible}>
             <div className={styles.videoFrameHeading}>
@@ -1334,7 +1339,7 @@ export default function MediaFreeGenerator({
                   onChange={(event) => {
                     if (event.target.value === "exact") {
                       setSpokenScriptOpen(true);
-                      window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus());
+                      window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus({ preventScroll: true }));
                     } else {
                       setSpokenScript("");
                       setSpokenScriptOpen(false);

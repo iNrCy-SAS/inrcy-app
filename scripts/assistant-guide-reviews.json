@@ -286,7 +286,7 @@
     "basic-studio-create": {
       "guideDigest": "522003fc2e66fb3d7f8a649ed7cae6ae79d046166783caf2ca120f0b547dccf8",
       "sources": {
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "3e6bfef20b1aa5f1b1b769c89729760af2ada9de02eee1a300f6195d82b854f1",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "dedf6bd941ee8893b8d1de4b8468c45b84148f858c1a05cfe23931ad052014d0",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "c972cb26397fa81a3696747a65fc0b28673c2e2a86f2501eb838822d7cddeb74",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
         "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx": "5ecaf5325711c7b8093154067cf905e279f6fdf3b13dc083fb9a30f3175f06e8",
@@ -760,7 +760,7 @@
     "studio-create": {
       "guideDigest": "f85a1e423e0e8cfa5d0a28e9284ffbc6be7debfe910f59a542998a76475b956f",
       "sources": {
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "3e6bfef20b1aa5f1b1b769c89729760af2ada9de02eee1a300f6195d82b854f1",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "dedf6bd941ee8893b8d1de4b8468c45b84148f858c1a05cfe23931ad052014d0",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "c972cb26397fa81a3696747a65fc0b28673c2e2a86f2501eb838822d7cddeb74",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
         "app/dashboard/_components/MediaModifier.tsx": "7dbadb9759f0f7da103cdc44cf47bad1b16b91c6f95eb8ab081916864ab2f508",
