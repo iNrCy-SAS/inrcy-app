@@ -5,6 +5,7 @@ import { AI_MEDIA_FORMAT_SPECS, AiMediaRequestValidationError, type AiMediaGener
 import { buildAiMediaBusinessDnaPayload } from "./aiMediaBusinessDna.ts";
 import { buildAiMediaGlobalConstraints } from "./aiMediaGlobalConstraints.ts";
 import type { AiMediaPromptBuilderArgs } from "./aiMediaPromptShared.ts";
+import type { AiMediaCreativePlan } from "./aiMediaCreativePlan.ts";
 import type { AiVideoProviderGenerationArgs } from "./aiVideoProviderTypes.ts";
 import { usesSeparateAiMediaFreeVoiceover } from "./aiMediaFreeVoiceoverPolicy.ts";
 import { AI_MEDIA_FREE_DNA_MAX_CHARS } from "./aiMediaFreeDnaContext.ts";
@@ -15,7 +16,7 @@ import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
 import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
 import { buildAiMediaVideoProviderContract } from "./aiMediaVideoProviderContract.ts";
 
-export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v15-distinct-reference-cast";
+export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v16-first-shot-master-frame";
 
 /** Verified final provider ceilings, including appended reference bindings.
  * https://vercel.com/ai-gateway/models/wan-v2.7-r2v
@@ -418,8 +419,11 @@ export function buildAiMediaFreeVideoPrompt(args: AiMediaPromptBuilderArgs) {
   ].filter(Boolean).join("\n\n");
 }
 
-/** Independent reference preparation: the desired first frame, not a guided ad scene. */
-export function buildAiMediaFreeSceneFramePrompt(args: AiMediaPromptBuilderArgs) {
+/** The prepared first shot supplies the current instant. The complete brief
+ * remains context for facts, style and constraints, never a simultaneous storyboard. */
+export function buildAiMediaFreeSceneFramePrompt(args: AiMediaPromptBuilderArgs, firstShot?: Pick<AiMediaCreativePlan["scenes"][number], "visualBrief">) {
+  const initialShot = firstShot?.visualBrief.trim();
+  const visualContext = splitAiMediaFreeQuotedSpeech(args.request.freePrompt || "").visualPrompt;
   return [
     buildAiMediaGlobalConstraints(args.profile),
     "MODE LIBRE — préparer la première image d'un film demandé par le professionnel.",
@@ -428,9 +432,20 @@ export function buildAiMediaFreeSceneFramePrompt(args: AiMediaPromptBuilderArgs)
     buildAiMediaFreeVideoCastContract(args.request),
     buildAiMediaFreeVideoPresentationContract({ withSubtitles: false }),
     "Cette image montre uniquement l'instant initial dans ce cadre : ne pas y résumer les étapes suivantes, dessiner une planche de storyboard ni juxtaposer les futurs plans. Une composition à plusieurs vues reste possible uniquement si elle est explicitement demandée à cet instant.",
+    ...(initialShot ? [
+      "PLAN COURANT — IMAGE INITIALE À RENDRE : le premier plan préparé ci-dessous est la seule source de l’action et du cadrage à cet instant. En montrer le début, pas ses étapes successives réunies dans une image.",
+      initialShot,
+      "FIN DU PLAN COURANT. Le nombre de plans, les positions successives et les changements de cadrage ne multiplient pas les personnes. Conserver les personnes distinctes d’un groupe et les duplications explicitement demandées pour ce plan ; une duplication ou action annoncée pour un plan ultérieur n’apparaît pas encore ici.",
+    ] : []),
     "Composer le premier instant du film selon le brief : sujets, décor, style et rôle des références. Réserver de l'espace pour l'action à venir. Utiliser le style demandé, sans ajouter d'esthétique ni d'habillage commercial à la demande.",
     "Ne dessiner que les textes et logos explicitement demandés à ce premier instant. Sans demande de texte visible, garder également le décor sans lettres ni mots inventés. Les paroles de voix off et des personnages sont du son, pas des lettres à dessiner.",
-    freeBrief(args, splitAiMediaFreeQuotedSpeech(args.request.freePrompt || "").visualPrompt),
+    ...(initialShot ? [
+      "CONTEXTE DU FILM COMPLET — CHRONOLOGIQUE, PAS SIMULTANÉ : conserver les faits, contraintes, exclusions, style et valeurs/textes exacts qui s’appliquent au plan courant. Les autres plans et actions futures sont du contexte, pas des éléments à ajouter à cette première image. Les références et les règles ADN applicables restent autoritaires.",
+      visualContext,
+      "FIN DU CONTEXTE DU FILM COMPLET.",
+      buildAiMediaFreeReferenceInstructions(args.request),
+      businessContext(args),
+    ] : [freeBrief(args, visualContext)]),
   ].filter(Boolean).join("\n\n");
 }
 

@@ -703,7 +703,7 @@ export async function generateAndSaveAiMedia(args: {
       : "";
   const essentialScenePrecompositionPrompt =
     isFreeCreation && providerRequest.kind === "video" && (providerRequest.inspirationImages.length || (officialLogo && !localDnaLogo) || needsControlledAiMediaFreeFirstFrame(providerRequest))
-      ? buildAiMediaFreeSceneFramePrompt({ request: providerRequest, profile, brandColors: useFreeDna ? promptBrandColors : effectiveColors, hasLogo: Boolean(officialLogo) && !localDnaLogo, businessDnaContext, logoComposedLocally: localDnaLogo })
+      ? buildAiMediaFreeSceneFramePrompt({ request: providerRequest, profile, brandColors: useFreeDna ? promptBrandColors : effectiveColors, hasLogo: Boolean(officialLogo) && !localDnaLogo, businessDnaContext, logoComposedLocally: localDnaLogo }, creativePlan.scenes[0])
       : providerRequest.inputMode === "essential" &&
     providerRequest.kind === "video" &&
     providerRequest.inspirationImages.length

@@ -59,7 +59,7 @@ const executeGateway = ts.transpileModule(`(() => {
 }).outputText;
 
 const profile = {
-  business: { companyName: "Atelier Test", professionLabel: "Artisan", services: [] },
+  business: { companyName: "Atelier Test", professionLabel: "Artisan", services: [], customerTypologies: [], strengths: [], interventionZones: [] },
   memory: { targetAudiences: [], differentiators: [], recentNewsItems: [] },
   preferences: { language: "fr", customInstructions: "" },
 } as unknown as NormalizedAiGenerationProfile;
@@ -81,7 +81,7 @@ function sourceRequest(role: AiMediaInspirationImage["role"], brief: string, pho
   return { ...normalized, inputMode: "essential", identityMode: "auto" } as AiMediaGenerationRequest;
 }
 
-async function runEssentialGateway(request: AiMediaGenerationRequest, photo: Buffer) {
+async function runEssentialGateway(request: AiMediaGenerationRequest, photo: Buffer, shots = ["Les personnes observent le jardin.", "Elles poursuivent la visite."]) {
   const imageCalls: Array<{ prompt: string; identityReferences: Buffer[] }> = [];
   const videoCalls: AiMediaGenerationRequest[] = [];
   const scenePrompts: string[] = [];
@@ -92,12 +92,12 @@ async function runEssentialGateway(request: AiMediaGenerationRequest, photo: Buf
   const videoResult = { clips: [{ url: "https://offline.invalid/one-clip" }] };
   const plan = {
     companyName: "", headline: "", subline: request.freePrompt, cta: "",
-    scenes: ["Les personnes observent le jardin.", "Elles poursuivent la visite."].map(visualBrief => ({
+    scenes: shots.map(visualBrief => ({
       eyebrow: "", title: "", body: "", spokenReply: "", visualBrief, layout: "hero" as const,
     })),
   };
   const context = {
-    providerRequest: request, profile, isFreeCreation: true,
+    providerRequest: request, profile, creativePlan: plan, isFreeCreation: true,
     officialLogo: null, localDnaLogo: false, useFreeDna: false,
     promptBrandColors: [], effectiveColors: [], businessDnaContext: undefined,
     preparedIdentityReferences: { buffers: [photo] },
@@ -137,8 +137,67 @@ async function runEssentialGateway(request: AiMediaGenerationRequest, photo: Buf
   assert.equal(videoCalls[0].inspirationImages.length, 1);
   assert.equal(videoCalls[0].inspirationImages[0].data, masterImage.data);
   assert.equal(videoCalls[0].inspirationImages[0].usage, "required");
-  return { imageCalls, videoCalls, scenePrompts };
+  return { imageCalls, videoCalls, scenePrompts, plan };
 }
+
+test("the real Server sends only its prepared first shot as the current master-frame action and keeps the entire film as chronological context", async () => {
+  const photo = Buffer.from("opaque-single-person-photo".repeat(5));
+  const brief = "Une seule personne dans un jardin. Plan1 : OBSERVER_LES_LAVANDES. Plan2 : MARCHER_VERS_LA_TERRASSE. Le panneau demandé porte exactement « Jardin 39,90 € ».";
+  const request = sourceRequest("character", brief, photo);
+  const shots = ["INITIAL_SHOT_PERSONNE_SEULE observe les lavandes près du panneau « Jardin 39,90 € ».", "FUTURE_SHOT_TERRASSE la même personne marche vers la terrasse."];
+  const runtime = await runEssentialGateway(request, photo, shots);
+  const prompt = runtime.imageCalls[0].prompt;
+  const [current, context] = prompt.split("CONTEXTE DU FILM COMPLET — CHRONOLOGIQUE, PAS SIMULTANÉ");
+  assert.ok(current.includes(shots[0])); assert.ok(!current.includes(shots[1]));
+  assert.ok(context.includes(brief), "The complete exact brief remains available without regex-stripping future actions or exact text.");
+  assert.match(current, /une duplication ou action annoncée pour un plan ultérieur n’apparaît pas encore ici/);
+  assert.ok(runtime.scenePrompts[1].includes(shots[1]), "Shot two remains distinct and keeps its own action.");
+  assert.equal(runtime.videoCalls[0].sceneMode, "multi");
+  assert.equal(runtime.videoCalls[0].durationSeconds, request.durationSeconds);
+});
+
+test("two adults in one reference stay distinct while a later explicitly requested clone remains future film context", async () => {
+  const photo = Buffer.from("opaque-group-photo-two-adults".repeat(5));
+  const brief = "Deux adultes distincts de la photo visitent le jardin. Plan1 : ils observent les fleurs ensemble. Plan2 : duplication fantastique explicite du premier adulte à côté de la terrasse.";
+  const request = sourceRequest("character", brief, photo);
+  const shots = ["Deux adultes distincts observent les fleurs ensemble au début de la visite.", "Le premier adulte et son clone explicitement demandé apparaissent à la terrasse ; le second adulte reste distinct."];
+  const runtime = await runEssentialGateway(request, photo, shots);
+  const prompt = runtime.imageCalls[0].prompt;
+  const [current, context] = prompt.split("CONTEXTE DU FILM COMPLET — CHRONOLOGIQUE, PAS SIMULTANÉ");
+  assert.ok(current.includes(shots[0])); assert.ok(!current.includes(shots[1]));
+  assert.match(current, /preserve distinct people in group photos/);
+  assert.match(current, /duplications explicitement demandées pour ce plan/);
+  assert.ok(context.includes(brief));
+  assert.ok(runtime.scenePrompts[1].includes(shots[1]), "Explicit future duplication is preserved rather than globally banned.");
+  assert.equal(runtime.imageCalls[0].identityReferences[0], photo);
+});
+
+test("a changed first director shot changes the real master prompt without importing the future shot into its current action", async () => {
+  const photo = Buffer.from("opaque-one-person-photo".repeat(5));
+  const request = sourceRequest("character", "Une seule personne visite un jardin en deux plans, puis rejoint la terrasse.", photo);
+  const first = await runEssentialGateway(request, photo, ["FIRST_A personne près des lavandes.", "LATER_A personne à la terrasse."]);
+  const second = await runEssentialGateway(request, photo, ["FIRST_B personne près des rosiers.", "LATER_B personne à la terrasse."]);
+  assert.notEqual(first.imageCalls[0].prompt, second.imageCalls[0].prompt);
+  assert.ok(first.imageCalls[0].prompt.includes("FIRST_A"));
+  assert.ok(second.imageCalls[0].prompt.includes("FIRST_B"));
+  assert.ok(!first.imageCalls[0].prompt.includes("LATER_A"));
+  assert.ok(!second.imageCalls[0].prompt.includes("LATER_B"));
+});
+
+test("initial-shot structure preserves exact visual text, requested ADN facts, account constraints and explicit duplication in that current shot", () => {
+  const photo = Buffer.from("opaque-synthetic-reference".repeat(5));
+  const request = { ...sourceRequest("character", "Plan1 : deux copies fantastiques explicitement voulues du même adulte près du panneau « Jardin 39,90 € ». Plan2 : les copies rejoignent la terrasse. Utiliser notre ADN et notre téléphone demandé.", photo), useBusinessDna: true };
+  const current = "Deux copies de l’adulte, explicitement demandées ensemble dès le premier plan, près du panneau « Jardin 39,90 € ».";
+  const prompt = buildAiMediaFreeSceneFramePrompt({ request,
+    profile: { ...profile, preferences: { ...profile.preferences, customInstructions: "CONTRAINTE_COMPTE_INTACTE" } },
+    businessDnaContext: { coordonnees: { telephone: "04 12 34 56 78" }, liens: { site: "https://example.com/jardin" }, informations_demandees: ["Terrasse en bois local, prix 39,90 €."] },
+  }, { visualBrief: current });
+  assert.ok(prompt.includes(current)); assert.ok(prompt.includes(request.freePrompt!));
+  for (const exact of ["CONTRAINTE_COMPTE_INTACTE", "04 12 34 56 78", "https://example.com/jardin", "Terrasse en bois local, prix 39,90 €."]) assert.ok(prompt.includes(exact), exact);
+  assert.match(prompt, /Image 1 — rôle character, usage obligatoire/);
+  assert.match(prompt, /unless explicitly duplicated in the user's brief/);
+  assert.match(prompt, /duplications explicitement demandées pour ce plan/);
+});
 
 test("essential Free auto identity retains a required character master frame and the real cast rule in both Wan3 shots", async () => {
   const photo = Buffer.from("opaque-original-portrait-reference-contents".repeat(3));
