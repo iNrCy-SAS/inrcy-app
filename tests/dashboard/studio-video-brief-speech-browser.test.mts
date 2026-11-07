@@ -651,11 +651,16 @@ test("real recovery card keeps check and pause visible on desktop and mobile whi
       const visual = page.getByLabel("Consignes visuelles", { exact: true });
       await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
       const speech = page.locator('textarea[id$="-spoken-script"]');
+      // Exact intentionally focuses speech on the next frame. Let that native
+      // focus finish before Playwright fills a different field in two steps.
+      await page.waitForFunction(() => document.activeElement === document.querySelector('textarea[id$="-spoken-script"]'));
       assert.equal(await visual.isEditable(), true);
       assert.equal(await speech.isEditable(), true);
       await visual.fill("Un nouveau jardin, en lumière naturelle.");
+      assert.equal(await visual.inputValue(), "Un nouveau jardin, en lumière naturelle.");
       await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_free_form.snapshot as { prompt?: string }).prompt === "Un nouveau jardin, en lumière naturelle.");
       await speech.fill("Bonjour, nous prenons soin de votre jardin.");
+      assert.equal(await speech.inputValue(), "Bonjour, nous prenons soin de votre jardin.");
       await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_free_form.snapshot as { spokenScript?: string }).spokenScript === "Bonjour, nous prenons soin de votre jardin.");
       const engines = page.locator("[data-media-engine-controls]");
       assert.equal(await engines.locator('select[id$="-engine"]').isEnabled(), true);
