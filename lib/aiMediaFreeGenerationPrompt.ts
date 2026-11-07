@@ -15,7 +15,7 @@ import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
 import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
 import { buildAiMediaVideoProviderContract } from "./aiMediaVideoProviderContract.ts";
 
-export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v14-provider-budget-repair";
+export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v15-distinct-reference-cast";
 
 /** Verified final provider ceilings, including appended reference bindings.
  * https://vercel.com/ai-gateway/models/wan-v2.7-r2v
@@ -65,6 +65,13 @@ export function buildAiMediaVideoFinalFrameDirection(request: AiMediaGenerationR
 
 /** Shared by the video planner, first frame and provider shots; references alone never select animation. */
 export const AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT = "RENDER: Photoreal humans/scenes; non-photo style only on explicit brief request, never from refs alone.";
+
+/** A reference file may contain a group, or repeat an identity in another file.
+ * Preserve that cast without turning successive shots into simultaneous copies. */
+export function buildAiMediaFreeVideoCastContract(request: AiMediaGenerationRequest) {
+  if (request.kind !== "video" || !request.inspirationImages.some(image => image.role === "character" && image.usage === "required")) return "";
+  return "CAST: Each distinct identity at most once per frame unless explicitly duplicated in the user's brief. Dedupe the same person across files; preserve distinct people in group photos. File/shot count is not cast size. Same identities across shots, never simultaneous doubles.";
+}
 
 /** Video-only defaults; explicit requests for typography or multiple views stay authoritative. */
 export const AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT = [
@@ -389,6 +396,7 @@ export function buildAiMediaFreeVideoPrompt(args: AiMediaPromptBuilderArgs) {
     "MODE LIBRE — réaliser un film original selon la demande, sans gabarit ni habillage commercial imposé.",
     `Format autoritaire ${spec.aspectRatio}, durée totale ${args.request.durationSeconds || 8} secondes.`,
     AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
+    buildAiMediaFreeVideoCastContract(args.request),
     `Scènes : ${args.request.sceneMode !== "multi" ? "une action continue dans un même décor, sans coupe ni changement de lieu entre les segments" : "exactement deux plans distincts et cohérents"}. Les personnages, décors, style, mouvements, transitions et textes proviennent du brief.`,
     args.request.teamVideoSpeechMode === "characters"
       ? args.request.inspirationImages.some((image) => image.voiceMode === "provided" && image.voiceSample)
@@ -417,6 +425,7 @@ export function buildAiMediaFreeSceneFramePrompt(args: AiMediaPromptBuilderArgs)
     "MODE LIBRE — préparer la première image d'un film demandé par le professionnel.",
     `Cadre ${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio}.`,
     AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
+    buildAiMediaFreeVideoCastContract(args.request),
     buildAiMediaFreeVideoPresentationContract({ withSubtitles: false }),
     "Cette image montre uniquement l'instant initial dans ce cadre : ne pas y résumer les étapes suivantes, dessiner une planche de storyboard ni juxtaposer les futurs plans. Une composition à plusieurs vues reste possible uniquement si elle est explicitement demandée à cet instant.",
     "Composer le premier instant du film selon le brief : sujets, décor, style et rôle des références. Réserver de l'espace pour l'action à venir. Utiliser le style demandé, sans ajouter d'esthétique ni d'habillage commercial à la demande.",
@@ -477,6 +486,7 @@ function renderAiMediaFreeVideoScenePrompt(
     args.providerContract.globalMediaConstraints || "",
     compactEnvelope ? `SHOT ${index + 1}/${args.plan.scenes.length}; ${durationSeconds}s; ${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio}; action.${options.continuation ? " [# Sources <PREVIOUS_VIDEO>@Video1] Continue prior action; same cast/style/place; no restart." : options.continuationFrame ? ` ${options.firstFrameTag ? "[# Sources <FIRST_FRAME>@Image1] " : ""}Continue supplied prior final frame; same cast/style/place; no restart.` : ""}` : opening,
     compactEnvelope ? "RENDER: Photoreal by default; non-photo only if explicitly requested, never from refs alone." : AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
+    buildAiMediaFreeVideoCastContract(args.request),
     ...(!nativeDialogue ? [compactEnvelope
       ? "VISUAL SPEECH: No speaking/articulation/mimed speech/lip-sync; natural gestures/gaze/smiles; overrides speaking below."
       : AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT] : []),
@@ -546,6 +556,7 @@ function renderAiMediaFreeWanFlashPrompt(args: FreeVideoScenePromptArgs, index: 
     args.providerContract.globalMediaConstraints || "",
     `SHOT ${index + 1}/${args.plan.scenes.length};${duration}s;${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio}. Full frame; no bars.${continuation ? " Continue final frame; same cast/place; no restart." : " Move from frame 1."}`,
     AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
+    buildAiMediaFreeVideoCastContract(args.request),
     separateVoiceover ? "VISUAL SPEECH: No speaking/articulation/mimed speech/lip-sync; No native voices or dialogue. Natural gestures/gaze/smiles; overrides speaking below." : "",
     subject && subject !== user && !user.includes(subject) ? `SUBJECT: ${subject}` : "",
     `USER: ${user}`,

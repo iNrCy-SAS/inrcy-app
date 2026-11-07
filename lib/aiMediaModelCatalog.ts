@@ -41,6 +41,7 @@ export type AiMediaVideoModel = Readonly<{
   costTier: "economy" | "balanced" | "premium";
   creditsPerSecond: number;
   creditsByResolution: Readonly<Partial<Record<AiMediaVideoResolution, number>>>;
+  silentCreditsByResolution?: Readonly<Partial<Record<AiMediaVideoResolution, number>>>;
   durationsSeconds: readonly number[];
   maxDurationSeconds: number;
   resolutions: readonly AiMediaVideoResolution[];
@@ -51,6 +52,7 @@ export type AiMediaVideoModel = Readonly<{
   supportsImageToVideo: boolean;
   maxReferenceImages: number;
   pricingUsdPerSecond: Readonly<Partial<Record<AiMediaVideoResolution, number>>>;
+  silentPricingUsdPerSecond?: Readonly<Partial<Record<AiMediaVideoResolution, number>>>;
   supplierReferenceCostMicroUsd: number;
   referenceInputCredits: number;
 }>;
@@ -70,23 +72,25 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
   },
   {
     id: "veo", label: "Veo 3.1 Fast", family: "Google", provider: "google", providerLabel: "Google",
-    transport: "google-direct", modelId: "veo-3.1-fast-generate-001",
+    transport: "gateway", modelId: "google/veo-3.1-fast-generate-001",
     description: "Plans cinématiques et dialogues natifs.", costTier: "premium",
-    creditsPerSecond: 10, creditsByResolution: { "720p": 10, "1080p": 12 },
+    creditsPerSecond: 15, creditsByResolution: { "720p": 15, "1080p": 15 },
+    silentCreditsByResolution: { "720p": 10, "1080p": 10 },
     durationsSeconds: [4, 6, 8], maxDurationSeconds: 16, resolutions: ["720p", "1080p"], defaultResolution: "720p",
     nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: true, supportsImageToVideo: true,
-    maxReferenceImages: 3, pricingUsdPerSecond: { "720p": 0.1, "1080p": 0.12 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
+    maxReferenceImages: 3, pricingUsdPerSecond: { "720p": 0.15, "1080p": 0.15 }, silentPricingUsdPerSecond: { "720p": 0.1, "1080p": 0.1 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
   },
   {
     id: "veo-lite", label: "Veo 3.1 Lite", family: "Google", provider: "google", providerLabel: "Google",
     transport: "gateway", modelId: "google/veo-3.1-lite-generate-001",
     description: "Alternative Google économique avec audio.", costTier: "economy",
     creditsPerSecond: 5, creditsByResolution: { "720p": 5, "1080p": 8 },
+    silentCreditsByResolution: { "720p": 3, "1080p": 5 },
     durationsSeconds: [4, 6, 8], maxDurationSeconds: 16, resolutions: ["720p", "1080p"], defaultResolution: "720p",
     nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: true,
     // Google's spec supports one starting image; multiple style references are unavailable.
     supportsImageToVideo: true, maxReferenceImages: 1,
-    pricingUsdPerSecond: { "720p": 0.05, "1080p": 0.08 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
+    pricingUsdPerSecond: { "720p": 0.05, "1080p": 0.08 }, silentPricingUsdPerSecond: { "720p": 0.03, "1080p": 0.05 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
   },
   {
     id: "minimax-h3", label: "MiniMax H3", family: "MiniMax", provider: "minimax", providerLabel: "MiniMax",
@@ -288,6 +292,38 @@ export function getAiMediaVideoResolution(engine: unknown, resolution?: unknown)
   if (!value) return model.defaultResolution;
   if (!model.resolutions.includes(value as AiMediaVideoResolution)) throw new Error("ai_media_video_resolution_invalid");
   return value as AiMediaVideoResolution;
+}
+
+export type AiMediaVideoAudioChoice = {
+  teamVideoSpeechMode?: unknown;
+  voiceMode?: unknown;
+  withNarration?: unknown;
+  spokenScript?: unknown;
+  hasProvidedCharacterVoice?: boolean;
+};
+
+/** Studio owns voice-over through TTS. Only talking characters need Veo audio.
+ * An incomplete legacy quote retains the conservative audio-inclusive rate. */
+export function getAiMediaVideoNativeAudio(engine: unknown, input: AiMediaVideoAudioChoice): boolean {
+  const model = getAiMediaVideoModel(engine);
+  if (!model.nativeAudio || !["veo", "veo-lite"].includes(model.id)) return model.nativeAudio;
+  if (input.teamVideoSpeechMode === undefined && input.voiceMode === undefined && input.withNarration === undefined && input.spokenScript === undefined) return true;
+  if (typeof input.spokenScript === "string" && !input.spokenScript.trim()) return false;
+  return input.teamVideoSpeechMode === "characters" || input.voiceMode === "characters";
+}
+
+export function getAiMediaVideoCreditRate(engine: unknown, resolution: AiMediaVideoResolution, input: AiMediaVideoAudioChoice): number {
+  const model = getAiMediaVideoModelForCharacterVoice(engine, input.hasProvidedCharacterVoice === true);
+  return (!getAiMediaVideoNativeAudio(engine, input) ? model.silentCreditsByResolution?.[resolution] : undefined)
+    ?? model.creditsByResolution[resolution] ?? model.creditsPerSecond;
+}
+
+export function getAiMediaVideoSupplierRate(engine: unknown, resolution: AiMediaVideoResolution, input: AiMediaVideoAudioChoice): number {
+  const model = getAiMediaVideoModelForCharacterVoice(engine, input.hasProvidedCharacterVoice === true);
+  const rate = (!getAiMediaVideoNativeAudio(engine, input) ? model.silentPricingUsdPerSecond?.[resolution] : undefined)
+    ?? model.pricingUsdPerSecond[resolution];
+  if (rate === undefined) throw new Error("ai_media_video_supplier_rate_missing");
+  return rate;
 }
 
 export function getAiMediaVideoNativeDurations(engine: unknown, resolution?: unknown): readonly number[] {

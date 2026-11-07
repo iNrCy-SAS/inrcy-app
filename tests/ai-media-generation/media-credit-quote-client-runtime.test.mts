@@ -174,7 +174,7 @@ test("changing HeyGen from AI to supplied voices invalidates its base-route auth
   h.runTimers(); assert.equal(h.requests[1].input.hasProvidedCharacterVoice, true);
   h.respond(1, "account-a"); await h.flush();
   assert.equal(h.status().ready, true); assert.equal(h.status().quote?.totalCredits, 159);
-  assert.equal(h.status().authorization.creditTariffVersion, "inrstudio-media-credits-2026-10-v4");
+  assert.equal(h.status().authorization.creditTariffVersion, pricing.AI_MEDIA_CREDIT_TARIFF_VERSION);
   h.update(base); assert.equal(h.status().ready, false); assert.deepEqual(h.status().authorization, {});
   h.dispose();
 });

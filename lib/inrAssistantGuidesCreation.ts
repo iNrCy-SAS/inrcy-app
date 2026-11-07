@@ -44,8 +44,8 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
     content: `${productNavigationSummary("studio", false)} Générer → Image ou Vidéo. Panneau unique ; Format et moteur, Durée en vidéo.
 Vidéo : Consignes visuelles pour scène, décor et texte à afficher ; 500 caractères maximum, 200 à 300 conseillés. Image : 4 000 caractères. Paroles séparées du visuel.
 « Utiliser mon ADN » ajoute faits, logo/couleurs et coordonnées sur demande. Décoché : pas d’autre ADN. Consignes ET Interdictions de Personnalisation → Ma communication restent transmises ; les interdictions priment. Règles jamais coupées ; budget insuffisant ou montage incompatible : blocage explicite.
-Inspiration, Personnage, Décor ou Produit fixe le rôle avant Importer/Médiathèque. Images uniquement ; fenêtre fermée après succès. Inspiration facultative, autres rôles Obligatoires ; usage réglable sur la miniature. Respecter limites et autorisations.
-Musiques ouvre le catalogue iNrCy : Automatique, Sans musique ou piste avec préécoute. Le choix est utilisé au montage, distinct des vocaux.
+Inspiration, Personnage, Décor ou Produit fixe le rôle avant Importer/Médiathèque. Images uniquement ; fenêtre fermée après succès. Inspiration facultative, autres rôles Obligatoires ; usage réglable sur la miniature. Sauf demande contraire, pas de doubles ; contrôler les identités.
+Musiques : catalogue iNrCy, Automatique/Sans musique/piste avec préécoute ; utilisé au montage, distinct des vocaux.
 Dernier bloc : Personnages (Voix off/Personnages/Sans parole), Paroles, Voix. Paroles automatiques : l’IA rédige, sans champ. Paroles exactes : champ/compteur selon durée, moteur, plans, langue. Ne jamais couper texte exact ou ancien brouillon : réduire ou choisir une durée compatible. Exact vide = sans paroles.
 Voix IA ou Voix réelle. « Réglages » sous Voix gère jusqu’à 3 vocaux : Importer, Enregistrer/Médiathèque. Affectation : voix off sans photo (vocal de 5 à 10 s), Personnage joint ou non affecté ; un seul narrateur actif, sans voix imposée à tous. Nouvelles paroles synthétisées avec la voix choisie ; droits à confirmer. Genre réglable ; timbre conservé. Case Sous-titres : en voix off, incrustation locale au montage selon la durée mesurée de la voix. Aucun repli vers une autre voix.
 Vérifier coût/solde puis Générer ; conserver avec Enregistrer dans la Médiathèque ou Utiliser ce média. Réajuster reprend les critères ; régénérer peut débiter.
@@ -75,6 +75,12 @@ Basique, Standard, Premium : moteurs/crédits du compte. Basique sans crédits m
       "app/dashboard/_components/MediaModifier.tsx",
       "lib/aiMediaGlobalConstraints.ts",
       "lib/aiMediaGenerationServer.ts",
+      "lib/aiMediaFreeGenerationPrompt.ts",
+      "lib/aiMediaFreeGenerationPlan.ts",
+      "lib/aiMediaModelCatalog.ts",
+      "lib/aiMediaCreditsPricing.ts",
+      "lib/aiVideoProvider.ts",
+      "lib/aiVideoProviderGateway.ts",
       "lib/inrStudioModalPolicy.ts",
       "messages/fr-FR/media.json",
       "lib/dashboardEdition.ts",

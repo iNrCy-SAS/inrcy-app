@@ -37,7 +37,7 @@ function request(engine: contracts.AiMediaVideoEngine, overrides: Row = {}) {
     withMusic: false, freePrompt: `Une céramiste façonne un vase. Voix off exacte : « ${script} »`, ...overrides });
 }
 
-function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string; videoError?: Error; nativeQaStatus?: "passed" | "rejected" | "unavailable" | "inconclusive"; nativeQaError?: Error; nativeVoiceover?: boolean } = {}) {
+function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string; videoError?: Error; primaryVideoFailureOnly?: boolean; nativeQaStatus?: "passed" | "rejected" | "unavailable" | "inconclusive"; nativeQaError?: Error; nativeVoiceover?: boolean } = {}) {
   const events: string[] = [], videoCalls: Row[] = [], ttsCalls: Row[] = [], narrationCalls: Row[] = [], soundtrackCalls: Row[] = [], composeCalls: Row[] = [], saved: Row[] = [], contractCalls: Row[] = [], seedCalls: Row[] = [], googleFallbackCalls: Row[] = [];
   const voicePreflightCalls: Row[] = [], localFallbackCalls: Row[] = [];
   const forbiddenLocalFallback = async (args: Row) => { localFallbackCalls.push(args); throw new Error("unexpected_local_fallback"); };
@@ -127,7 +127,7 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
     ["@/lib/aiMediaSensitiveText", sensitive], ["@/lib/aiMediaVisibleContact", { isAiMediaProfilePhoneDisplayRequested: () => false, cleanAiMediaProfilePhone: () => "" }],
     ["@/lib/aiVideoProvider", { generateOriginalAiVideoClips: async (args: Row) => {
       events.push("video"); videoCalls.push(args);
-      if (failure === "video") throw options.videoError || new Error(videoCalls.length === 1 ? "selected_video_unavailable" : "fallback_video_unavailable");
+      if (failure === "video" && (!options.primaryVideoFailureOnly || videoCalls.length === 1)) throw options.videoError || new Error(videoCalls.length === 1 ? "selected_video_unavailable" : "fallback_video_unavailable");
       return { provider: "vercel-ai-gateway", model: "test-grok", warnings: [], estimatedCostMicroUsd: 0,
         clips: [{ buffer: Buffer.from("synthetic-native-video"), mediaType: "video/mp4", requestId: "test-provider-request", durationSeconds: 15, sourceStartSeconds: 0 }] };
     } }],
@@ -284,6 +284,25 @@ test("supplier billing failures stop the real Free server before fallback, audio
     assert.equal(env.localFallbackCalls.length, 0);
     assert.equal(publicErrors.getAiMediaGenerationPublicError(billing).code, "AI_MEDIA_PROVIDER_BALANCE_INSUFFICIENT");
   }
+});
+
+test("Veo fallback retains silent video delivery and locally rendered narration captions", async () => {
+  const env = harness("video", false, { primaryVideoFailureOnly: true });
+  const original = request("veo", { durationSeconds: 8, withSubtitles: true, spokenScript: script });
+  await env.generate(original);
+  assert.deepEqual(env.videoCalls.map(call => (call.request as Row).videoEngine), ["veo", "omni"]);
+  for (const call of env.videoCalls) {
+    assert.equal((call.request as Row).withNarration, false);
+    assert.equal((call.request as Row).withSubtitles, false);
+    assert.equal((call.request as Row).spokenScript, script, "exact words remain intact for final composition");
+    assert.equal(call.providerContract, env.videoCalls[0].providerContract, "fallback keeps the validated primary contract");
+  }
+  assert.equal(env.ttsCalls.length, 1, "already prepared narration is reused");
+  assert.equal(env.composeCalls.length, 1);
+  assert.deepEqual(env.composeCalls[0].subtitles, { script });
+  assert.equal(env.saved.length, 1);
+  assert.equal(original.withSubtitles, true);
+  assert.equal(original.withNarration, true);
 });
 
 test("separate voiceover uses the script language and local QA remains advisory without regeneration", async () => {

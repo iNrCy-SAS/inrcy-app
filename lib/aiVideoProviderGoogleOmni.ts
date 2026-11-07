@@ -21,7 +21,6 @@ import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 import {
   buildGoogleVideoSafetyFallbackPrompt,
   buildGoogleVideoScenePrompt,
-  googleVeoVideoProvider,
   resolveGoogleVideoAspectRatio,
 } from "@/lib/aiVideoProviderGoogleVeo";
 import { classifyVeoFailure, isAmbiguousVideoCreationFailure } from "@/lib/aiVideoReliability";
@@ -686,6 +685,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
     let actualCostMicroUsd = 0;
     let fallbackCostMicroUsd = 0;
     const fallbackModels = new Set<string>();
+    const fallbackProviders = new Set<string>();
     const providerWarnings: string[] = [];
 
     try {
@@ -821,7 +821,8 @@ export const googleOmniVideoProvider: AiVideoProvider = {
               mayUseVeoFallback(effectiveError, args.signal)
             ) {
               try {
-                const fallback = await googleVeoVideoProvider.generate({
+                const { createGatewayAiVideoProvider } = await import("./aiVideoProviderGateway.ts");
+                const fallback = await createGatewayAiVideoProvider("veo").generate({
                   ...args,
                   request: {
                     ...args.request,
@@ -844,6 +845,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
                 clips[index] = fallbackClip;
                 fallbackCostMicroUsd += fallback.estimatedCostMicroUsd;
                 fallbackModels.add(fallback.model);
+                fallbackProviders.add(fallback.provider);
                 providerWarnings.push(
                   `omni_scene_failure:${index + 1}:${omniFailure.kind}`,
                   `omni_scene_fallback_to_veo:${index + 1}`,
@@ -944,7 +946,7 @@ export const googleOmniVideoProvider: AiVideoProvider = {
       const usedFallbackModels = Array.from(fallbackModels);
       return {
         provider: usedFallbackModels.length
-          ? `${PROVIDER_ID}+${googleVeoVideoProvider.id}`
+          ? [PROVIDER_ID, ...fallbackProviders].join("+")
           : PROVIDER_ID,
         model: [model, ...usedFallbackModels].join("+"),
         clips: completedClips,

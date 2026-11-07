@@ -327,6 +327,55 @@ test("le réalisateur Libre distingue une scène continue de plusieurs plans", a
   }
 });
 
+test("one required portrait keeps one distinct identity per frame through the real planner first frame and both Wan3 shots", async () => {
+  const input = request({
+    kind: "video", videoEngine: "wan3", videoResolution: "720p", durationSeconds: 20, sceneMode: "multi",
+    identityConsent: true, teamVideoProviderConsent: "wan3",
+    freePrompt: "La personne de la photo découvre un jardin. Premier plan : elle observe les fleurs. Deuxième plan : elle marche sur une allée, toujours seule.",
+    withNarration: true,
+    inspirationImages: [{ data: "A".repeat(64), mimeType: "image/png", role: "character", usage: "required", characterIndex: 1 }],
+  });
+  const original = JSON.stringify(input);
+  const runtime = loadPlan({ direction: "Une personne visite le jardin en deux plans.", scenes: ["Elle observe les fleurs.", "Elle marche seule dans l’allée."] });
+  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-cast-test", request: input, profile });
+  const cast = freePrompts.buildAiMediaFreeVideoCastContract(input);
+  assert.match(cast, /Each distinct identity at most once per frame/);
+  assert.match(cast, /shot count is not cast size/);
+  assert.equal(runtime.calls.length, 1, "The cast contract adds no model call or retry.");
+  assert.ok(runtime.calls[0].system.includes(cast));
+  assert.equal(JSON.parse(runtime.calls[0].input).brief, input.freePrompt);
+  assert.equal(plan.scenes.length, 2);
+  const providerContract = buildAiMediaVideoProviderContract({ request: input, durationSeconds: 10, brandColors: [] });
+  const provider = { request: input, plan, providerContract, contentLanguage: "fr" } as AiVideoProviderGenerationArgs;
+  for (const prompt of [
+    freePrompts.buildAiMediaFreeVideoPrompt({ request: input, profile }),
+    freePrompts.buildAiMediaFreeSceneFramePrompt({ request: input, profile }),
+    ...[0, 1].map(index => freePrompts.buildAiMediaFreeVideoScenePrompt(provider, index, 10)),
+  ]) {
+    assert.ok(prompt.includes(cast), "The same cast rule reaches every real generation boundary.");
+    assert.ok(prompt.length < 20_000);
+  }
+  assert.equal(JSON.stringify(input), original, "No photo, brief, speech or scene choice is rewritten.");
+});
+
+test("the video cast rule preserves group photos and repeated reference identities without overriding explicit creative copies", () => {
+  for (const referenceCount of [1, 2]) {
+    const input = request({ kind: "video", videoEngine: "wan3", durationSeconds: 8, identityConsent: true, teamVideoProviderConsent: "wan3",
+      freePrompt: "La photo de groupe montre des collègues. Garder chacun distinct, sans créer un double de la même personne.",
+      inspirationImages: Array.from({ length: referenceCount }, (_, index) => ({ data: "A".repeat(64), mimeType: "image/png", role: "character", usage: "required", characterIndex: index + 1 })),
+    });
+    const cast = freePrompts.buildAiMediaFreeVideoCastContract(input);
+    assert.match(cast, /Dedupe the same person across files; preserve distinct people in group photos/);
+    assert.match(cast, /File\/shot count is not cast size/);
+    assert.match(cast, /unless explicitly duplicated in the user's brief/);
+    assert.doesNotMatch(cast, /exactly (?:one|1) person|two people|2 people/i);
+  }
+  for (const role of ["inspiration", "environment", "product"]) {
+    assert.equal(freePrompts.buildAiMediaFreeVideoCastContract(request({ kind: "video", inspirationImages: [{ data: "A".repeat(64), mimeType: "image/png", role, usage: "required" }] })), "");
+  }
+  assert.equal(freePrompts.buildAiMediaFreeVideoCastContract(request({ identityConsent: true, inspirationImages: [{ data: "A".repeat(64), mimeType: "image/png", role: "character", usage: "required", characterIndex: 1 }] })), "", "Image creation retains its existing composition rules.");
+});
+
 test("le contrat vidéo libre garde les 500 caractères sans style guidé ni perte des références", () => {
   const input = request({ kind: "video", durationSeconds: 16, freePrompt: "x".repeat(500), withNarration: true });
   const contract = buildAiMediaVideoProviderContract({ request: input, durationSeconds: 8, brandColors: ["#abcdef"] });

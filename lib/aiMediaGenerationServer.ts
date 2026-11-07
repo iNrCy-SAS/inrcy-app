@@ -1185,7 +1185,10 @@ export async function generateAndSaveAiMedia(args: {
         try {
           return await generateOriginalAiVideoClips({
             ...providerArgs,
-            request: { ...request, videoEngine: "omni" },
+            // Keep the same silent provider request as the primary attempt.
+            // Narration and its captions still belong to the local compositor;
+            // restoring the original flags breaks that integrity contract.
+            request: { ...modelRequest, videoEngine: "omni" },
           });
         } catch (fallbackError) {
           args.signal?.throwIfAborted();
@@ -1287,9 +1290,9 @@ export async function generateAndSaveAiMedia(args: {
               {
                 ...sceneImage,
                 role:
-                  providerRequest.identityMode === "auto"
-                    ? "inspiration"
-                    : "character",
+                  providerRequest.identityMode !== "auto" || providerRequest.inspirationImages.some(
+                    image => image.role === "character" && image.usage === "required",
+                  ) ? "character" : "inspiration",
                 usage: "required",
               },
             ],

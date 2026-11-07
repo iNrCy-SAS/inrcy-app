@@ -35,7 +35,7 @@ function configuredProvider(): AiVideoProvider | null {
       configured,
     )
   ) {
-    return googleVeoVideoProvider;
+    return createGatewayAiVideoProvider("veo");
   }
   throw new Error("ai_video_provider_invalid");
 }

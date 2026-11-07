@@ -7,6 +7,8 @@ import {
   isAmbiguousVideoCreationFailure,
   nextVeoInspirationMode,
   resolveVeoModelCandidates,
+  resolveVeoApiBackend,
+  isValidVeoModelId,
   selectVeoInspirationMode,
   supportsVeoReferenceImages,
 } from "../../lib/aiVideoReliability.ts";
@@ -46,10 +48,9 @@ test("a per-minute provider quota remains a retryable throughput limit", () => {
   }
 });
 
-test("la chaîne Veo n'utilise que des modèles 3.1 actifs et dédupliqués", () => {
+test("Veo direct tooling uses one versioned Vertex model and refuses the retired Gemini service", () => {
   assert.deepEqual(resolveVeoModelCandidates({}), [
     DEFAULT_VEO_MODEL,
-    "veo-3.1-lite-generate-preview",
   ]);
   assert.deepEqual(
     resolveVeoModelCandidates({
@@ -57,15 +58,20 @@ test("la chaîne Veo n'utilise que des modèles 3.1 actifs et dédupliqués", ()
       fallbacks:
         "veo-3.0-fast-generate-preview, veo-3.1-lite-generate-preview, veo-3.1-lite-generate-preview",
     }),
-    ["veo-3.1-generate-preview", "veo-3.1-lite-generate-preview"],
+    ["veo-3.1-generate-001"],
   );
   assert.deepEqual(
     resolveVeoModelCandidates({
       primary: "veo-3.1-fast-generate-preview",
       fallbacks: "",
     }),
-    ["veo-3.1-fast-generate-preview"],
+    ["veo-3.1-fast-generate-001"],
   );
+  assert.equal(resolveVeoApiBackend(undefined), "vertex");
+  assert.throws(() => resolveVeoApiBackend("gemini"), /legacy_backend_retired/);
+  assert.throws(() => resolveVeoModelCandidates({ backend: "gemini" }), /legacy_backend_retired/);
+  for (const name of ["veo-3.1-fast-generate-preview", "veo-3.1-lite-generate-preview"]) assert.equal(isValidVeoModelId(name), false);
+  assert.deepEqual(resolveVeoModelCandidates({ primary: "veo-3.1-fast-generate-001", fallbacks: "veo-3.1-lite-generate-001,veo-3.1-generate-001" }), ["veo-3.1-fast-generate-001"], "an explicit fallback list cannot silently change the chosen Fast tier");
   assert.deepEqual(
     resolveVeoModelCandidates({
       primary: "veo-3.0-fast-generate-preview",

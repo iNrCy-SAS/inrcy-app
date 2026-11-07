@@ -301,7 +301,7 @@ function createHarness(engine: Engine, options: {
           ...(options.vertex ? {
             AI_MEDIA_VEO_BACKEND: "vertex",
             AI_MEDIA_VEO_VERTEX_PROJECT: "fixture-vertex-project",
-          } : {}),
+          } : engine === "veo" ? { AI_MEDIA_VEO_VERTEX_PROJECT: "fixture-vertex-project" } : {}),
           ...(options.holdPoll ? { AI_MEDIA_VEO_POLL_MS: "1" } : {}),
           ...(options.submitAttempts ? { AI_MEDIA_VEO_SUBMIT_ATTEMPTS: String(options.submitAttempts) } : {}),
           ...(options.disableVeoFallback ? { AI_MEDIA_VEO_FALLBACK_MODELS: "" } : {}),
@@ -367,7 +367,7 @@ for (const [engine, durations] of [["omni", [4, 5, 10]], ["veo", [4, 6, 8]]] as 
 }
 
 for (const vertex of [false, true]) for (const duration of [8, 16]) {
-  test(`Veo Fast ${vertex ? "Vertex" : "Gemini"}: ${duration}s en1080p réserve et comptabilise 0,12USD par seconde`, async () => {
+  test(`Veo direct tooling ${vertex ? "explicit Vertex" : "default Vertex"}: ${duration}s en1080p réserve et comptabilise 0,12USD par seconde`, async () => {
     const harness = createHarness("veo", { vertex });
     const args = generationArgs("veo", duration);
     args.request.videoResolution = "1080p";
@@ -1047,8 +1047,8 @@ for (const engine of ["veo", "omni"] as const) {
     assert.equal(harness.fallbackCalls, 0);
     if (engine === "veo") {
       const submission = harness.submissions[0] as unknown as VeoSubmission;
-      assert.equal(submission.config.numberOfVideos, undefined);
-      assert.equal(submission.config.generateAudio, undefined);
+      assert.equal(submission.config.numberOfVideos, 1);
+      assert.equal(submission.config.generateAudio, true);
       assert.equal(submission.config.resolution, "720p");
     }
   });

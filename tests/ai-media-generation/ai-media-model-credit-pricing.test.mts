@@ -78,10 +78,10 @@ test("one wallet prices different models at the same duration without equating c
   const quotes = ["omni", "veo-lite", "minimax-h3", "wan3", "grok-lite", "grok"].map((videoEngine) =>
     quoteAiMediaCredits({ kind: "video", videoEngine, durationSeconds: 8 }));
   assert.deepEqual(quotes.map((quote) => quote.totalCredits), [80, 40, 64, 80, 24, 112]);
-  assert.equal(quoteAiMediaCredits({ kind: "video", videoEngine: "veo", durationSeconds: 8 }).totalCredits, 80);
-  assert.equal(estimateAiMediaVideoSupplierCostMicroUsd({ kind: "video", videoEngine: "veo", durationSeconds: 8 }), 800_000);
-  assert.equal(quoteAiMediaCredits({ kind: "video", videoEngine: "veo", durationSeconds: 8, videoResolution: "1080p" }).totalCredits, 96);
-  assert.equal(estimateAiMediaVideoSupplierCostMicroUsd({ kind: "video", videoEngine: "veo", durationSeconds: 8, videoResolution: "1080p" }), 960_000);
+  assert.equal(quoteAiMediaCredits({ kind: "video", videoEngine: "veo", durationSeconds: 8 }).totalCredits, 120);
+  assert.equal(estimateAiMediaVideoSupplierCostMicroUsd({ kind: "video", videoEngine: "veo", durationSeconds: 8 }), 1_200_000);
+  assert.equal(quoteAiMediaCredits({ kind: "video", videoEngine: "veo", durationSeconds: 8, videoResolution: "1080p" }).totalCredits, 120);
+  assert.equal(estimateAiMediaVideoSupplierCostMicroUsd({ kind: "video", videoEngine: "veo", durationSeconds: 8, videoResolution: "1080p" }), 1_200_000);
 });
 
 test("higher resolution costs and fractional supplier tariffs round the final video item up", () => {

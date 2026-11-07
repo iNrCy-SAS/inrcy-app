@@ -2,15 +2,12 @@ import type { GoogleGenAIOptions } from "@google/genai";
 import type { gaxios as GoogleAuthGaxios, IdentityPoolClientOptions } from "google-auth-library";
 import { isAiMediaProviderBillingFailure, isAiMediaSpeechVerificationUnavailable } from "./aiMediaGenerationPublicErrors.ts";
 
-// Legacy Gemini route stays available during the staged migration only.
-export const DEFAULT_VEO_MODEL = "veo-3.1-fast-generate-preview";
-export const DEFAULT_VEO_FALLBACK_MODELS = Object.freeze([
-  "veo-3.1-lite-generate-preview",
-]);
+// Gemini's Veo previews shut down on 2026-10-22. Retain versioned Vertex
+// identifiers for explicitly configured direct tooling; Studio uses Gateway.
+export const DEFAULT_VEO_MODEL = "veo-3.1-fast-generate-001";
+export const DEFAULT_VEO_FALLBACK_MODELS: readonly string[] = Object.freeze([]);
 export const DEFAULT_VEO_VERTEX_MODEL = "veo-3.1-fast-generate-001";
-export const DEFAULT_VEO_VERTEX_FALLBACK_MODELS = Object.freeze([
-  "veo-3.1-lite-generate-001",
-]);
+export const DEFAULT_VEO_VERTEX_FALLBACK_MODELS: readonly string[] = Object.freeze([]);
 export type VeoApiBackend = "gemini" | "vertex";
 
 export type VeoInspirationMode = "references" | "source" | "none";
@@ -38,7 +35,7 @@ export type VeoFailureClassification = {
   modelFallbackEligible: boolean;
 };
 
-const ACTIVE_VEO_MODELS = new Set([
+const LEGACY_VEO_MODELS = new Set([
   "veo-3.1-generate-preview",
   "veo-3.1-fast-generate-preview",
   "veo-3.1-lite-generate-preview",
@@ -46,6 +43,7 @@ const ACTIVE_VEO_MODELS = new Set([
 const VERTEX_VEO_MODELS = new Set([
   "veo-3.1-generate-001",
   DEFAULT_VEO_VERTEX_MODEL,
+  "veo-3.1-lite-generate-001",
   ...DEFAULT_VEO_VERTEX_FALLBACK_MODELS,
 ]);
 const RETIRED_MODEL_PATTERN = /^veo-(?:2(?:\.0)?|3\.0)-/i;
@@ -109,8 +107,8 @@ function statusFromDetails(details: string) {
 
 export function resolveVeoApiBackend(value: unknown): VeoApiBackend {
   const backend = compact(value, 40).toLowerCase();
-  if (!backend || backend === "gemini") return "gemini";
-  if (backend === "vertex") return "vertex";
+  if (!backend || backend === "vertex") return "vertex";
+  if (backend === "gemini") throw new Error("ai_video_veo_legacy_backend_retired");
   throw new Error("ai_video_veo_backend_invalid");
 }
 
@@ -234,29 +232,27 @@ export async function createVeoVertexClientOptions(
 function veoModelForBackend(value: unknown, backend: VeoApiBackend) {
   const model = compact(value, 120).toLowerCase();
   // Preserve Fast/Lite/Standard overrides when switching the service explicitly.
-  return backend === "vertex" && ACTIVE_VEO_MODELS.has(model)
+  return backend === "vertex" && LEGACY_VEO_MODELS.has(model)
     ? model.replace(/-preview$/, "-001")
     : model;
 }
 
-export function isValidVeoModelId(value: unknown, backend: VeoApiBackend = "gemini") {
+export function isValidVeoModelId(value: unknown, backend: VeoApiBackend = "vertex") {
   const model = compact(value, 120).toLocaleLowerCase();
-  const allowed = backend === "vertex" ? VERTEX_VEO_MODELS : ACTIVE_VEO_MODELS;
-  return allowed.has(model) && !RETIRED_MODEL_PATTERN.test(model);
+  return backend === "vertex" && VERTEX_VEO_MODELS.has(model) && !RETIRED_MODEL_PATTERN.test(model);
 }
 
 /**
- * Resolve a deterministic model chain. A stale/unknown primary override is
- * replaced by the active default instead of taking the whole video service
- * down. An explicitly empty fallback setting disables model fallback; an
- * absent setting keeps the safe versioned default.
+ * Resolve one versioned Vertex model. Retired aliases may migrate within the
+ * explicitly selected tier, but a fallback list never changes that tier.
  */
 export function resolveVeoModelCandidates(args: {
   primary?: unknown;
   fallbacks?: unknown;
   backend?: VeoApiBackend;
 }) {
-  const backend = args.backend || "gemini";
+  const backend = args.backend || "vertex";
+  if (backend === "gemini") throw new Error("ai_video_veo_legacy_backend_retired");
   const configuredPrimary = veoModelForBackend(args.primary, backend);
   const defaultModel = backend === "vertex"
     ? DEFAULT_VEO_VERTEX_MODEL
@@ -277,7 +273,7 @@ export function resolveVeoModelCandidates(args: {
     ...rawFallbacks
       .split(",")
       .map((value) => veoModelForBackend(value, backend))
-      .filter((value) => isValidVeoModelId(value, backend)),
+      .filter((value) => value === primary && isValidVeoModelId(value, backend)),
   ];
   return Array.from(new Set(candidates));
 }

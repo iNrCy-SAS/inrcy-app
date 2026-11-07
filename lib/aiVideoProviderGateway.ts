@@ -14,6 +14,8 @@ import {
   getAiMediaVideoModel,
   getAiMediaVideoModelForCharacterVoice,
   getAiMediaVideoResolution,
+  getAiMediaVideoNativeAudio,
+  getAiMediaVideoSupplierRate,
   type AiMediaVideoEngine,
 } from "./aiMediaModelCatalog.ts";
 import { hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine } from "./aiMediaCharacterVoices.ts";
@@ -80,6 +82,7 @@ export function buildGatewayAiVideoRequest(
   const references = nativeSubjectReferences ? args.request.inspirationImages : continuityFrame ? [continuityFrame] : args.request.inspirationImages;
   if (!references.length && !model.supportsTextToVideo) throw new Error("ai_media_video_reference_required");
   if (references.length && (!model.supportsImageToVideo || references.length > model.maxReferenceImages)) throw new Error("ai_media_video_references_unsupported");
+  if (model.id === "veo" && references.length > 1 && duration !== 8) throw new Error("ai_media_video_references_require_eight_seconds");
   if (model.id === "heygen" && !signedImageUrls && references.some((image) => Buffer.byteLength(image.data, "base64") > 5_000_000)) {
     throw new AiMediaRequestValidationError("L’image transmise à HeyGen dépasse 5 Mo. Réduisez sa taille avant de générer.");
   }
@@ -168,6 +171,8 @@ export function buildGatewayAiVideoRequest(
     // Preserve the already-reviewed prompt, including exact dialogue.
     promptEnhancement: "disabled",
   } };
+  // The reviewed Google route must not silently send references to another supplier.
+  if (model.provider === "google") providerOptions = { ...providerOptions, gateway: { only: ["vertex"] } };
   return {
     model: model.modelId,
     prompt: !nativeSubjectReferences && imageInputs.length === 1 ? { image: imageInputs[0].data, text } : text,
@@ -177,7 +182,7 @@ export function buildGatewayAiVideoRequest(
     // xAI/HeyGen accept explicit tiers. HeyGen's actual frame dimensions differ
     // from a mathematical 16:9 canvas, so do not infer width/height for its API.
     ...(providerOptions ? { providerOptions } : {}),
-    ...(!providerOptions || (nativeSubjectReferences && model.provider === "alibaba")
+    ...(!providerOptions || model.provider === "google" || (nativeSubjectReferences && model.provider === "alibaba")
       ? { resolution: model.provider === "google" || nativeSubjectReferences
         ? (resolution === "1080p" ? "1920x1080" : "1280x720")
         : `${width}x${height}` as `${number}x${number}` } : {}),
@@ -185,7 +190,7 @@ export function buildGatewayAiVideoRequest(
     // with a provider warning, so do not send a contradictory shape.
     ...((model.id === "heygen" && nativeSubjectReferences) || (model.id !== "wan-flash" && !nativeSubjectReferences && !(model.id === "heygen" && imageInputs.length))
       ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
-    ...(model.id !== "minimax-h3" ? { generateAudio: model.nativeAudio } : {}),
+    ...(model.id !== "minimax-h3" ? { generateAudio: getAiMediaVideoNativeAudio(model.id, args.request) } : {}),
     n: 1,
     // An uncertain timeout must never cause a second paid submission.
     maxRetries: 0,
@@ -249,8 +254,7 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
           const input = continuityFrame || imageUrls ? buildGatewayAiVideoRequest(args, index, continuityFrame, imageUrls, originalVoiceUrls, continuityUrls?.[0]) : preflight[index];
           controller.signal.throwIfAborted();
           const resolution = getAiMediaVideoResolution(engine, args.request.videoResolution);
-          const rate = inputModel.pricingUsdPerSecond[resolution];
-          if (rate === undefined) throw new Error("ai_media_video_supplier_rate_missing");
+          const rate = getAiMediaVideoSupplierRate(inputModel.id, resolution, { ...args.request, hasProvidedCharacterVoice: hasProvidedVoice });
           const referenceCount = nativeSubjectReferences
             ? args.request.inspirationImages.length + (continuityFrame ? 1 : 0)
             : continuityFrame ? 1 : args.request.inspirationImages.length;

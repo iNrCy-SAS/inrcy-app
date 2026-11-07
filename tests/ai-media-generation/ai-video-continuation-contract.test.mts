@@ -132,7 +132,7 @@ function loadVeoPromptRuntime() {
   };
 }
 
-function loadVideoProviderRouter() {
+function loadVideoProviderRouter(configuredProvider = "auto") {
   const source = read("lib/aiVideoProvider.ts");
   const transpiled = ts.transpileModule(source, {
     compilerOptions: {
@@ -144,11 +144,11 @@ function loadVideoProviderRouter() {
   }).outputText;
   const calls: Array<{
     durationSeconds: number;
-    provider: "google-gemini-omni" | "google-veo-fast";
-    videoEngine: "omni" | "veo";
+    provider: string;
+    videoEngine: "omni" | "veo" | "veo-lite";
   }> = [];
   const provider = (
-    id: "google-gemini-omni" | "google-veo-fast",
+    id: string,
     model: string,
   ) => ({
     id,
@@ -156,7 +156,7 @@ function loadVideoProviderRouter() {
     generate: async (args: {
       request: {
         durationSeconds: number;
-        videoEngine: "omni" | "veo";
+        videoEngine: "omni" | "veo" | "veo-lite";
       };
     }) => {
       calls.push({
@@ -175,11 +175,15 @@ function loadVideoProviderRouter() {
     ],
     [
       "@/lib/aiVideoProviderGoogleVeo",
-      { googleVeoVideoProvider: provider("google-veo-fast", "veo-test") },
+      { googleVeoVideoProvider: { id: "legacy-google-veo", model: "preview-must-not-be-used", generate: () => assert.fail("Studio must not invoke the legacy Gemini Veo transport") } },
     ],
     ["@/lib/aiVideoProviderTypes", {}],
     ["./aiMediaModelCatalog.ts", mediaModelCatalog],
-    ["./aiVideoProviderGateway.ts", { createGatewayAiVideoProvider: () => { throw new Error("unexpected_gateway_provider"); } }],
+    ["./aiVideoProviderGateway.ts", { createGatewayAiVideoProvider: (engine: mediaModelCatalog.AiMediaVideoEngine) => {
+      const model = mediaModelCatalog.getAiMediaVideoModel(engine);
+      assert.equal(model.transport, "gateway");
+      return provider(`vercel-ai-gateway:${model.provider}`, model.modelId);
+    } }],
   ]);
   const localRequire = (specifier: string) => {
     if (stubs.has(specifier)) return stubs.get(specifier);
@@ -187,7 +191,7 @@ function loadVideoProviderRouter() {
   };
   const routerCommonJsModule = { exports: {} as Record<string, unknown> };
   const factory = vm.runInThisContext(
-    `(function (exports, require, module, __filename, __dirname) {${transpiled}\n})`,
+    `(function (exports, require, module, __filename, __dirname, process) {${transpiled}\n})`,
     { filename: "aiVideoProvider.runtime.cjs" },
   ) as (
     exports: Record<string, unknown>,
@@ -195,6 +199,7 @@ function loadVideoProviderRouter() {
     commonJsModule: { exports: Record<string, unknown> },
     filename: string,
     dirname: string,
+    process: { env: { AI_MEDIA_VIDEO_PROVIDER: string } },
   ) => void;
   factory(
     routerCommonJsModule.exports,
@@ -202,40 +207,36 @@ function loadVideoProviderRouter() {
     routerCommonJsModule,
     path.join(ROOT, "lib/aiVideoProvider.ts"),
     path.join(ROOT, "lib"),
+    { env: { AI_MEDIA_VIDEO_PROVIDER: configuredProvider } },
   );
   return {
     calls,
     generate: routerCommonJsModule.exports.generateOriginalAiVideoClips as (
       args: Record<string, unknown>,
     ) => Promise<Record<string, unknown>>,
+    identity: routerCommonJsModule.exports.getAiVideoProviderIdentity as (engine?: mediaModelCatalog.AiMediaVideoEngine) => { provider: string; model: string },
   };
 }
 
 test("le routeur respecte Veo ou Omni pour les vidéos de 8 et 16 secondes", async () => {
-  const { calls, generate } = loadVideoProviderRouter();
-  const configuredProvider = process.env.AI_MEDIA_VIDEO_PROVIDER;
-  delete process.env.AI_MEDIA_VIDEO_PROVIDER;
-
-  try {
+  for (const configuredProvider of ["auto", "google-veo-fast", "google-veo", "veo", "veo-fast", "gemini"]) {
+    const { calls, generate, identity } = loadVideoProviderRouter(configuredProvider);
     for (const durationSeconds of [8, 16]) {
-      for (const videoEngine of ["veo", "omni"] as const) {
+      for (const videoEngine of ["veo", "veo-lite", "omni"] as const) {
         await generate({ request: { durationSeconds, videoEngine } });
       }
     }
-  } finally {
-    if (configuredProvider === undefined) {
-      delete process.env.AI_MEDIA_VIDEO_PROVIDER;
-    } else {
-      process.env.AI_MEDIA_VIDEO_PROVIDER = configuredProvider;
+    assert.deepEqual(calls, [8, 16].flatMap(durationSeconds => [
+      { durationSeconds, provider: "vercel-ai-gateway:google", videoEngine: "veo" },
+      { durationSeconds, provider: "vercel-ai-gateway:google", videoEngine: "veo-lite" },
+      { durationSeconds, provider: "google-gemini-omni", videoEngine: "omni" },
+    ]));
+    assert.deepEqual(identity("veo"), { provider: "vercel-ai-gateway:google", model: "google/veo-3.1-fast-generate-001" });
+    assert.deepEqual(identity("veo-lite"), { provider: "vercel-ai-gateway:google", model: "google/veo-3.1-lite-generate-001" });
+    if (configuredProvider !== "auto") {
+      assert.deepEqual(identity(), identity("veo"), "Legacy environment aliases use the same active Fast Gateway transport.");
     }
   }
-
-  assert.deepEqual(calls, [
-    { durationSeconds: 8, provider: "google-veo-fast", videoEngine: "veo" },
-    { durationSeconds: 8, provider: "google-gemini-omni", videoEngine: "omni" },
-    { durationSeconds: 16, provider: "google-veo-fast", videoEngine: "veo" },
-    { durationSeconds: 16, provider: "google-gemini-omni", videoEngine: "omni" },
-  ]);
   assert.deepEqual(getAiMediaVideoSegmentDurations(16), [8, 8]);
   assert.throws(() => getAiMediaVideoSegmentDurations(24), /duration_unsupported/);
 });
@@ -352,13 +353,14 @@ test("l’opt-in Omni enchaîne res1 vers res2 et n’envoie les images qu’au 
   );
   assert.match(
     omni,
-    /if \(\s*durations\.length === 1 &&\s*!continuationMode &&\s*durationSeconds === 8[\s\S]*?googleVeoVideoProvider\.generate/,
+    /if \(\s*durations\.length === 1 &&\s*!continuationMode &&\s*durationSeconds === 8 &&\s*veoFallbackEnabled\(\) &&\s*mayUseVeoFallback\(effectiveError, args\.signal\)[\s\S]*?createGatewayAiVideoProvider\("veo"\)\.generate/,
   );
   assert.equal(
-    (omni.match(/googleVeoVideoProvider\.generate/g) || []).length,
+    (omni.match(/createGatewayAiVideoProvider\("veo"\)\.generate/g) || []).length,
     1,
     "le seul fallback Veo est gardé derrière !continuationMode",
   );
+  assert.doesNotMatch(omni, /googleVeoVideoProvider\.generate/, "No fallback can re-enter the retired Gemini preview transport.");
   assert.match(
     omni,
     /stopped = true;\s*firstError \|\|= effectiveError/,

@@ -48,6 +48,7 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-i
   let observed: Record<string, unknown> | undefined;
   const submissions: Record<string, unknown>[] = [];
   const costs: number[] = [];
+  const reservedCosts: number[] = [];
   let frames = 0;
   let storageCleanups = 0;
   let privateChecks = 0;
@@ -88,7 +89,7 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-i
       },
     }],
     ["@/lib/aiGatewayAccountGuard", {
-      reserveAiGatewayAccountAttempt: async () => { counters.reservations += 1; return {}; },
+      reserveAiGatewayAccountAttempt: async (_account: string, input: { estimatedCostMicroUsd: number }) => { counters.reservations += 1; reservedCosts.push(input.estimatedCostMicroUsd); return {}; },
       commitAiGatewayAccountAttempt: async (input: { actualCostMicroUsd: number }) => { counters.commits += 1; costs.push(input.actualCostMicroUsd); },
       rollbackAiGatewayAccountAttempt: async () => { counters.rollbacks += 1; },
       recordAiGatewayAccountFailure: async () => noOp(),
@@ -129,14 +130,14 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-i
     throw new Error(`unexpected_dependency:${specifier}`);
   };
   const commonJsModule = { exports: {} };
-  const factory = vm.runInThisContext(`(function(exports,require,module,setTimeout){${javascript}\n})`) as (
-    exports: object, require: typeof localRequire, module: typeof commonJsModule, schedule: typeof setTimeout,
+  const factory = vm.runInThisContext(`(function(exports,require,module,setTimeout,process){${javascript}\n})`) as (
+    exports: object, require: typeof localRequire, module: typeof commonJsModule, schedule: typeof setTimeout, isolatedProcess: { env: Record<string, string> },
   ) => void;
   const schedule = mode === "await-abort" ? ((callback: () => void, delay: number) => {
     expireTimeout = callback; timeoutDelay = delay; return 0;
   }) as unknown as typeof setTimeout : setTimeout;
-  factory(commonJsModule.exports, localRequire, commonJsModule, schedule);
-  return { runtime: commonJsModule.exports as Runtime, counters, submissions, costs, hostedImages,
+  factory(commonJsModule.exports, localRequire, commonJsModule, schedule, { env: { AI_GATEWAY_API_KEY: "fixture-no-real-credentials" } });
+  return { runtime: commonJsModule.exports as Runtime, counters, submissions, costs, reservedCosts, hostedImages,
     frames: () => frames, storageCleanups: () => storageCleanups, privateChecks: () => privateChecks, observed: () => observed,
     timeoutDelay: () => timeoutDelay, expireTimeout: () => { assert.ok(expireTimeout); expireTimeout(); } };
 }
@@ -319,7 +320,7 @@ test("the installed AI SDK serializes HeyGen native options and an inline first 
   assert.equal(calls, 1); assert.equal(result.videos.length, 1);
 });
 
-test("Veo Lite sends a real PNG first frame through the installed SDK after the real WebP precomposition", async () => {
+test("Veo Fast and Lite send a real PNG first frame and the pinned Google route through the installed SDK after WebP precomposition", async () => {
   const source = readFileSync(path.join(process.cwd(), "lib/aiMediaReferenceTeam.ts"), "utf8");
   const ast = ts.createSourceFile("aiMediaReferenceTeam.ts", source, ts.ScriptTarget.Latest, true);
   const declaration = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "prepareReferenceTeamCompositionForAnimation");
@@ -331,21 +332,22 @@ test("Veo Lite sends a real PNG first frame through the installed SDK after the 
   const composed = await exports.prepareReferenceTeamCompositionForAnimation(original);
   assert.equal((await sharp(Buffer.from(composed.data, "base64")).metadata()).format, "webp");
   await withMockCredentials(async () => {
-    const context = loadRuntime(), args = argsFor("veo-lite", 1, 8);
+    for (const engine of ["veo", "veo-lite"] as const) {
+    const context = loadRuntime(), args = argsFor(engine, 1, 8);
     args.request.videoResolution = "1080p"; args.request.withNarration = false; args.request.withMusic = false;
     args.request.inspirationImages = [{ ...composed, role: "environment", usage: "required" }];
-    await context.runtime.createGatewayAiVideoProvider("veo-lite").generate(args);
+    await context.runtime.createGatewayAiVideoProvider(engine).generate(args);
     const input = context.observed()!;
     const { createGateway, experimental_generateVideo } = await import("ai");
     let calls = 0;
-    const captured: { wire?: { image: { mediaType: string; data: string }; resolution: string; duration: number } } = {};
+    const captured: { wire?: { image: { mediaType: string; data: string }; resolution: string; duration: number; generateAudio: boolean; providerOptions: unknown } } = {};
     const gateway = createGateway({ apiKey: "unit-test-no-network", fetch: async (_url, init) => {
       calls++;
       captured.wire = JSON.parse(String(init?.body));
       const result = { type: "result", videos: [{ type: "base64", mediaType: "video/mp4", data: Buffer.from("local-video").toString("base64") }], warnings: [] };
       return new Response(`data: ${JSON.stringify(result)}\n\n`, { headers: { "content-type": "text/event-stream" } });
     } });
-    await experimental_generateVideo({ ...input, model: gateway.video("google/veo-3.1-lite-generate-001") } as Parameters<typeof experimental_generateVideo>[0]);
+    await experimental_generateVideo({ ...input, model: gateway.video(catalog.getAiMediaVideoModel(engine).modelId) } as Parameters<typeof experimental_generateVideo>[0]);
     const wire = captured.wire;
     assert.ok(wire);
     assert.equal(wire.image.mediaType, "image/png");
@@ -353,9 +355,12 @@ test("Veo Lite sends a real PNG first frame through the installed SDK after the 
     assert.equal(bytes.subarray(0, 8).toString("hex"), "89504e470d0a1a0a");
     assert.equal((await sharp(bytes).metadata()).format, "png");
     assert.equal(wire.resolution, "1920x1080"); assert.equal(wire.duration, 8);
+    assert.equal(wire.generateAudio, false);
+    assert.deepEqual(wire.providerOptions, { gateway: { only: ["vertex"] } });
     assert.equal(calls, 1); assert.equal(context.counters.requests, 1);
     assert.equal(context.hostedImages.length, 0); assert.equal(context.privateChecks(), 0);
     assert.equal(args.request.inspirationImages[0].mimeType, "image/webp", "The original reference remains untouched");
+    }
   });
 });
 
@@ -568,13 +573,7 @@ for (const engine of ["minimax-h3", "wan-flash"] as const) {
 }
 
 async function withMockCredentials(run: () => Promise<void>) {
-  const original = process.env.AI_GATEWAY_API_KEY;
-  process.env.AI_GATEWAY_API_KEY = "unit-test-mock-credential";
-  try { await run(); }
-  finally {
-    if (original === undefined) delete process.env.AI_GATEWAY_API_KEY;
-    else process.env.AI_GATEWAY_API_KEY = original;
-  }
+  await run();
 }
 
 test("Gateway submits one exact reviewed model with native short duration and no automatic retries", async () => {
@@ -780,3 +779,71 @@ for (const mode of ["second-rejected", "frame-failed"] as const) {
     });
   });
 }
+
+
+test("Veo quotes and the actual Gateway reserve charge the same audio variant while preserving the exact chosen model", async () => {
+  for (const engine of ["veo", "veo-lite"] as const) for (const resolution of ["720p", "1080p"] as const) for (const mode of ["characters", "voiceover", "silent"] as const) {
+    const context = loadRuntime(); const args = argsFor(engine, 0, 8);
+    Object.assign(args.request, { creationMode: "free", videoResolution: resolution, withNarration: mode === "voiceover", teamVideoSpeechMode: mode === "characters" ? "characters" : "voiceover", spokenScript: mode === "silent" ? "" : "Bienvenue dans notre atelier." });
+    const original = JSON.stringify(args.request);
+    const quoteInput = { ...args.request, inspirationImagesCount: 0 };
+    const quote = pricing.quoteAiMediaCredits(quoteInput);
+    const expectedRate = engine === "veo" ? mode === "characters" ? 0.15 : 0.10 : mode === "characters" ? resolution === "720p" ? 0.05 : 0.08 : resolution === "720p" ? 0.03 : 0.05;
+    const expectedCost = Math.round(expectedRate * 8 * 1_000_000);
+    const result = await context.runtime.createGatewayAiVideoProvider(engine).generate(args);
+    assert.equal(quote.totalCredits, Math.round(expectedRate * 8 * 100) + 7);
+    assert.equal(pricing.estimateAiMediaVideoSupplierCostMicroUsd(quoteInput), expectedCost);
+    assert.deepEqual(context.reservedCosts, [expectedCost]); assert.deepEqual(context.costs, [expectedCost]); assert.equal(result.estimatedCostMicroUsd, expectedCost);
+    const input = context.observed()!; assert.equal(input.model, engine === "veo" ? "google/veo-3.1-fast-generate-001" : "google/veo-3.1-lite-generate-001");
+    assert.equal(input.generateAudio, mode === "characters"); assert.equal(input.duration, 8); assert.equal(input.resolution, resolution === "720p" ? "1280x720" : "1920x1080");
+    assert.deepEqual(input.providerOptions, { gateway: { only: ["vertex"] } }); assert.equal(input.maxRetries, 0);
+    assert.match(String(input.prompt), /THIS SHOT: Avancée lente\./);
+    if (mode === "characters") assert.ok(String(input.prompt).includes("says exactly once: “Bienvenue dans notre atelier.”"));
+    else assert.match(String(input.prompt), /No native voices or dialogue/);
+    assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 1, rollbacks: 0 }); assert.equal(JSON.stringify(args.request), original, "transport and quotes never rewrite the original narration/script choice");
+  }
+});
+
+test("Veo native character speech and explicit silence keep distinct server quote identities and reject the old tariff", () => {
+  const source = readFileSync(path.join(process.cwd(), "lib/aiMediaCreditQuoteServer.ts"), "utf8");
+  const javascript = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const record = { exports: {} };
+  const nativeRequire = createRequire(import.meta.url);
+  const dependencies: Record<string, unknown> = {
+    "server-only": {}, "./aiMediaCreditsPricing.ts": pricing,
+    "./aiMediaModelCatalog.ts": catalog, "./aiMediaCharacterVoices.ts": characterVoices,
+  };
+  new Function("exports", "require", "module", javascript)(record.exports, (specifier: string) => {
+    if (specifier in dependencies) return dependencies[specifier];
+    if (specifier.startsWith("node:")) return nativeRequire(specifier);
+    throw new Error(`unexpected_quote_dependency:${specifier}`);
+  }, record);
+  const server = record.exports as typeof import("../../lib/aiMediaCreditQuoteServer.ts");
+  const request = argsFor("veo", 0, 8).request;
+  Object.assign(request, { creationMode: "free", withNarration: false, teamVideoSpeechMode: "characters", spokenScript: "Bienvenue." });
+  const speech = server.quoteAiMediaRequest("account-test", request);
+  const silence = server.quoteAiMediaRequest("account-test", { ...request, spokenScript: "" });
+  assert.equal(speech.totalCredits, 127); assert.equal(silence.totalCredits, 87);
+  assert.notEqual(speech.quoteId, silence.quoteId);
+  const reviewed = { ...request, expectedCredits: speech.totalCredits, creditTariffVersion: speech.tariffVersion, creditQuoteId: speech.quoteId };
+  assert.equal(server.assertAiMediaCreditQuote(reviewed, speech), true);
+  assert.equal(server.assertAiMediaCreditQuote({ ...reviewed, creditTariffVersion: "inrstudio-media-credits-2026-10-v4" }, speech), false);
+  assert.equal(server.assertAiMediaCreditQuote({ ...reviewed, expectedCredits: silence.totalCredits, creditQuoteId: silence.quoteId }, speech), false);
+  assert.notEqual(server.quoteAiMediaRequest("another-account", request).quoteId, speech.quoteId);
+});
+
+test("Veo rejects a malformed multi-reference short clip before reservation and keeps an incomplete paid film on its exact Fast model", async () => {
+  const rejected = loadRuntime(); const args = argsFor("veo", 2, 4);
+  const image = await sharp({ create: { width: 2, height: 2, channels: 3, background: "#357a6b" } }).png().toBuffer();
+  args.request.inspirationImages = args.request.inspirationImages.map(reference => ({ ...reference, data: image.toString("base64") }));
+  await assert.rejects(rejected.runtime.createGatewayAiVideoProvider("veo").generate(args), /references_require_eight_seconds/);
+  assert.deepEqual(rejected.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
+  const partial = loadRuntime("second-rejected"); const twoClips = argsFor("veo", 0, 16, "multi");
+  Object.assign(twoClips.request, { withNarration: false, teamVideoSpeechMode: "characters", spokenScript: "Bienvenue." });
+  await assert.rejects(partial.runtime.createGatewayAiVideoProvider("veo").generate(twoClips), providerTypes.isAiVideoProviderBillableFailure);
+  assert.deepEqual(partial.counters, { requests: 2, reservations: 2, commits: 1, rollbacks: 1 });
+  assert.deepEqual(partial.reservedCosts, [1_200_000, 1_200_000]); assert.deepEqual(partial.costs, [1_200_000]);
+  assert.ok(partial.submissions.every(input => input.model === "google/veo-3.1-fast-generate-001" && input.maxRetries === 0));
+});
