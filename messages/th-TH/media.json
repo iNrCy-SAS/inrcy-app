@@ -885,6 +885,7 @@
   "ai_generator_video_quality": "ความละเอียดวิดีโอ",
   "ai_generator_native_audio_available": "รองรับเสียงและบทสนทนาของตัวละคร",
   "ai_generator_model_photo_required": "เพิ่มภาพถ่ายเพื่อสร้างภาพเคลื่อนไหวด้วยโมเดลนี้",
+  "ai_generator_reference_photo_needed": "{model} ต้องใช้รูปภาพเพื่อสร้างภาพเคลื่อนไหว เพิ่มรูปภาพ ตัวละคร ฉาก หรือสินค้า",
   "ai_generator_model_text_only": "โมเดลนี้สร้างวิดีโอจากข้อความ โปรดเลือกโมเดลอื่นหากต้องการใช้ภาพอ้างอิง",
   "ai_generator_model_reference_limit": "โมเดลนี้รองรับภาพอ้างอิงได้สูงสุด {count} ภาพ",
   "ai_generator_image_model_hint": "ค่าใช้จ่ายสุดท้ายรวมภาพอ้างอิงของคุณแล้ว",

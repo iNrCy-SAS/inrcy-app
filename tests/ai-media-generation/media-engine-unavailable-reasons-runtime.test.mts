@@ -152,17 +152,36 @@ function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMedia
 const reference = (id: number, role?: "product" | "character", usage?: "required" | "inspiration"): Reference => ({ id: `ref-${id}`, mimeType: "image/png", data: "A".repeat(64), fromVideo: false, role, usage });
 const imagesLauncher = (tree: unknown) => find(tree, node => node.props["data-media-role-add"] === "inspiration");
 const imagesWarning = (tree: unknown) => {
-  const launcher = imagesLauncher(tree);
-  if (!launcher.props["data-invalid"]) return "";
-  const ids = String(launcher.props["aria-describedby"] || "").split(/\s+/);
-  return ids.map(id => text(find(tree, node => node.props.id === id))).join(" ");
+  const warning = elements(tree).find(node => node.props["data-reference-warning"] !== undefined);
+  if (!warning) return "";
+  assert.equal(warning.type, "p", "The explanation is visible text rather than a screen-reader-only span");
+  assert.notEqual(warning.props.className, "srOnly");
+  return text(warning.props.children).replace(/^!/, "");
 };
 const promptError = (tree: unknown) => text(elements(tree).find(node => node.props.role === "alert" && String(node.props.id).endsWith("-visual-brief-error")));
 
+test("a single visible reference explanation names the photo-based engine without four identical role alerts", () => {
+  for (const engine of ["wan-flash", "wan27"] as const) {
+    const tree = freeEditor({ engine }).render();
+    const message = t("ai_generator_reference_photo_needed", { model: models.getAiMediaVideoModel(engine).label });
+    assert.equal(imagesWarning(tree), message);
+    const warnings = elements(tree).filter(node => node.props["data-reference-warning"] !== undefined);
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].props.role, "status");
+    const launchers = elements(tree).filter(node => node.props["data-media-role-add"] !== undefined);
+    assert.equal(launchers.length, 4);
+    for (const launcher of launchers) {
+      assert.equal(launcher.props["data-invalid"], undefined);
+      assert.equal(elements(launcher).some(node => node.props.className === "referenceIconWarning"), false);
+      assert.equal(launcher.props["aria-describedby"], warnings[0].props.id);
+      assert.ok(String(launcher.props["data-inrcy-tooltip-title"]).includes(message), "The tooltip explains the actual requirement too");
+    }
+    assert.equal(promptError(tree), "");
+  }
+});
+
 test("les lanceurs Images expliquent la photo obligatoire sous Wan et le détail natif ne la présente pas comme facultative", () => {
-  const runtime = freeEditor({ engine: "wan-flash" }); const tree = runtime.render();
-  assert.equal(imagesWarning(tree), t("ai_generator_model_photo_required"));
-  assert.equal(promptError(tree), "");
+  const runtime = freeEditor({ engine: "wan-flash" });
   const dialog = find(runtime.openImages(), node => typeof node.type === "function" && node.type.name === "MediaSettingsDialog");
   assert.equal(dialog.props.addRole, "inspiration");
   assert.ok(!text(dialog).includes(t("ai_generator_free_optional")));
@@ -177,6 +196,13 @@ test("les erreurs de références restent dans Images et l’autorisation finale
   assert.equal(imagesWarning(incomplete), t("ai_generator_free_reference_criteria_required"));
   const exceeded = freeEditor({ references: [1, 2, 3, 4].map((id) => reference(id, "character", "required")) }).render();
   assert.equal(imagesWarning(exceeded), t("ai_generator_free_role_limit"));
+  const flaggedRoles = elements(exceeded).filter(node => node.props["data-media-role-add"] !== undefined && node.props["data-invalid"]);
+  assert.deepEqual(flaggedRoles.map(node => node.props["data-media-role-add"]), ["character"], "The person limit marks only the relevant role");
+  const invalidThumbnail = find(incomplete, node => node.props.className === "mediaReferenceThumb");
+  assert.equal(invalidThumbnail.props["data-invalid"], true, "An incomplete existing reference remains visibly marked");
+  const thumbnailButton = find(invalidThumbnail, node => node.props["data-media-reference-open"] !== undefined);
+  assert.ok(thumbnailButton.props["aria-describedby"]);
+  assert.ok(String(thumbnailButton.props.title).includes(t("ai_generator_free_reference_criteria_required")));
   const runtime = freeEditor({ references: [reference(1, "character", "required"), reference(2, "character", "required")] });
   let tree = runtime.render(); assert.equal(imagesWarning(tree), "", "L’autorisation manquante ne doit pas renvoyer vers Images");
   const footer = find(tree, (node) => node.props["data-media-footer"] !== undefined);

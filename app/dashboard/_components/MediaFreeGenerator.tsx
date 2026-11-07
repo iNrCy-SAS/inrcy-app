@@ -387,11 +387,14 @@ export default function MediaFreeGenerator({
     : characterVoiceSelection.missingSample ? t("ai_generator_character_voice_sample_missing")
     : characterVoiceSpeechConflict ? t("ai_generator_character_voice_speech_required")
     : characterVoiceDurationExceeded ? t("ai_generator_character_voice_wan3_duration_limit") : "";
-  const photoRequiredHint = kind === "video" && !videoModel.supportsTextToVideo
+  const referencePhotoMissing = kind === "video" && references.length === 0 && !videoModel.supportsTextToVideo;
+  const photoRequiredHint = referencePhotoMissing
     ? t("ai_generator_model_photo_required") : "";
   const referenceSettingsWarning = kind === "image" ? criteriaWarning : !referenceCompatible
     ? referenceCompatibilityReason : referenceCriteriaIncomplete ? t("ai_generator_free_reference_criteria_required")
     : roleLimitExceeded ? t("ai_generator_free_role_limit") : "";
+  const visibleReferenceWarning = operationLocked ? "" : referencePhotoMissing
+    ? t("ai_generator_reference_photo_needed", { model: videoModel.label }) : referenceSettingsWarning;
   const audioSettingsWarning = characterVoiceSelection.missingSample ? t("ai_generator_character_voice_sample_missing")
     : characterVoiceSpeechConflict ? t("ai_generator_character_voice_speech_required")
     : characterVoiceDurationExceeded ? t("ai_generator_character_voice_wan3_duration_limit")
@@ -1339,16 +1342,18 @@ export default function MediaFreeGenerator({
               <div className={styles.referenceRoleToolbar} role="group" aria-labelledby={`${instanceId}-add-media-title`}>
               {(["inspiration", "character", "environment", "product"] as const).map(role => {
                 const label = t(role === "inspiration" ? "ai_generator_reference_inspiration" : role === "character" ? "ai_generator_add_reference_character" : `ai_generator_free_role_${role}`);
+                const roleWarning = !operationLocked && roleLimitExceeded && role === "character" ? referenceSettingsWarning : "";
+                const tooltip = visibleReferenceWarning ? `${label} — ${visibleReferenceWarning}` : label;
                 return <button key={role} type="button" className={styles.referenceRoleButton} data-media-role-add={role}
-                  data-invalid={!operationLocked && Boolean(referenceSettingsWarning) || undefined}
+                  data-invalid={Boolean(roleWarning) || undefined}
                   disabled={locked || !referencePickerVisible || references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT}
-                  aria-label={label} title={label} data-inrcy-tooltip-title={label} aria-haspopup="dialog" aria-expanded={mediaSettingsDialog === "images" && pendingReferenceRole === role}
+                  aria-label={label} title={tooltip} data-inrcy-tooltip-title={tooltip} aria-haspopup="dialog" aria-expanded={mediaSettingsDialog === "images" && pendingReferenceRole === role}
                   aria-controls={mediaSettingsDialog === "images" ? `${instanceId}-media-images-dialog` : undefined}
-                  aria-describedby={!operationLocked && referenceSettingsWarning ? `${instanceId}-media-images-warning` : undefined}
+                  aria-describedby={visibleReferenceWarning ? `${instanceId}-media-images-warning` : undefined}
                   onClick={() => { setPendingReferenceRole(role); setSelectedReferenceId(null); setActionError(""); setMediaSettingsDialog("images"); }}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={REFERENCE_ROLE_PATHS[role]} /></svg>
                   <span className={styles.referenceRoleLabel}>{label}</span>
-                  {!operationLocked && referenceSettingsWarning ? <span className={styles.referenceIconWarning} aria-hidden="true">!</span> : null}
+                  {roleWarning ? <span className={styles.referenceIconWarning} aria-hidden="true">!</span> : null}
                 </button>;
               })}
               {kind === "video" ? <button type="button" className={styles.referenceRoleButton} data-video-audio-button disabled={locked || !editorAvailable || stopConfirmOpen}
@@ -1363,14 +1368,19 @@ export default function MediaFreeGenerator({
               </button> : null}
               </div>
             </div>
-            {!operationLocked && referenceSettingsWarning ? <span id={`${instanceId}-media-images-warning`} className={styles.srOnly}>{referenceSettingsWarning}</span> : null}
+            {visibleReferenceWarning ? <p id={`${instanceId}-media-images-warning`} className={styles.referenceWarning} data-reference-warning role={referencePhotoMissing ? "status" : "alert"}>
+              <span className={styles.referenceWarningIcon} aria-hidden="true">!</span><span>{visibleReferenceWarning}</span>
+            </p> : null}
             {!operationLocked && audioSettingsWarning ? <span id={`${instanceId}-video-audio-warning`} className={styles.srOnly}>{audioSettingsWarning}</span> : null}
           </div>
           {references.length ? <div className={styles.mediaReferenceThumbs} data-media-reference-thumbnails role="list" aria-label={t("ai_generator_free_references_title")}>
-            {references.map((reference, index) => <div key={reference.id} className={styles.mediaReferenceThumb} data-usage={reference.usage} role="listitem">
+            {references.map((reference, index) => <div key={reference.id} className={styles.mediaReferenceThumb} data-usage={reference.usage}
+              data-invalid={!operationLocked && (!reference.role || !reference.usage || roleLimitExceeded && reference.role === "character") || undefined} role="listitem">
               <button type="button" className={styles.mediaReferenceOpen} data-media-reference-open={index} disabled={locked}
                 aria-label={`${t("ai_generator_free_reference", { index: index + 1 })} · ${reference.name} · ${t(reference.usage === "inspiration" ? "ai_generator_free_usage_inspiration" : reference.usage === "required" ? "ai_generator_free_usage_required" : "ai_generator_free_reference_criteria_required")}`}
-                title={reference.name} aria-haspopup="dialog" onClick={() => { setSelectedReferenceId(reference.id); setPendingReferenceRole(reference.role ?? null); setMediaSettingsDialog("images"); }}>
+                title={!operationLocked && (!reference.role || !reference.usage || roleLimitExceeded && reference.role === "character") ? `${reference.name} — ${visibleReferenceWarning}` : reference.name}
+                aria-describedby={!operationLocked && (!reference.role || !reference.usage || roleLimitExceeded && reference.role === "character") ? `${instanceId}-media-images-warning` : undefined}
+                aria-haspopup="dialog" onClick={() => { setSelectedReferenceId(reference.id); setPendingReferenceRole(reference.role ?? null); setMediaSettingsDialog("images"); }}>
                 <img src={`data:${reference.mimeType};base64,${reference.data}`} alt="" />
               </button>
               <button type="button" className={styles.mediaReferenceOptional} data-reference-inspiration-toggle={reference.id} disabled={locked}

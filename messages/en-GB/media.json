@@ -885,6 +885,7 @@
   "ai_generator_video_quality": "Video resolution",
   "ai_generator_native_audio_available": "Audio and character dialogue available",
   "ai_generator_model_photo_required": "Add a photo to animate it with this engine.",
+  "ai_generator_reference_photo_needed": "{model} needs a photo to animate. Add an image, a character, a setting or a product.",
   "ai_generator_model_text_only": "This engine works from text. Choose another engine to use reference images.",
   "ai_generator_model_reference_limit": "This engine accepts up to {count} reference images.",
   "ai_generator_image_model_hint": "The final credit cost includes your reference images.",

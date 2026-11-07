@@ -885,6 +885,7 @@
   "ai_generator_video_quality": "视频分辨率",
   "ai_generator_native_audio_available": "支持音频和角色对白",
   "ai_generator_model_photo_required": "请添加照片，使用此模型将其制作成动态视频。",
+  "ai_generator_reference_photo_needed": "{model} 需要一张照片来制作动画。请添加图片、角色、场景或产品。",
   "ai_generator_model_text_only": "此模型根据文字生成视频。如需使用参考图片，请选择其他模型。",
   "ai_generator_model_reference_limit": "此模型最多支持 {count} 张参考图片。",
   "ai_generator_image_model_hint": "最终积分费用包含您的参考图片。",

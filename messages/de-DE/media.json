@@ -885,6 +885,7 @@
   "ai_generator_video_quality": "Videoauflösung",
   "ai_generator_native_audio_available": "Audio und Dialoge der Figuren verfügbar",
   "ai_generator_model_photo_required": "Fügen Sie ein Foto hinzu, um es mit diesem Generator zu animieren.",
+  "ai_generator_reference_photo_needed": "{model} benötigt ein Foto zum Animieren. Fügen Sie ein Bild, eine Figur, eine Umgebung oder ein Produkt hinzu.",
   "ai_generator_model_text_only": "Dieser Generator arbeitet mit Text. Wählen Sie einen anderen Generator, um Referenzbilder zu verwenden.",
   "ai_generator_model_reference_limit": "Dieser Generator unterstützt bis zu {count} Referenzbilder.",
   "ai_generator_image_model_hint": "Die endgültigen Credit-Kosten enthalten Ihre Referenzbilder.",

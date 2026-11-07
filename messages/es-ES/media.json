@@ -885,6 +885,7 @@
   "ai_generator_video_quality": "Resolución de vídeo",
   "ai_generator_native_audio_available": "Audio y diálogos de los personajes disponibles",
   "ai_generator_model_photo_required": "Añade una foto para animarla con este motor.",
+  "ai_generator_reference_photo_needed": "{model} necesita una foto para animar. Añade una imagen, un personaje, un entorno o un producto.",
   "ai_generator_model_text_only": "Este motor funciona a partir de texto. Elige otro motor para utilizar imágenes de referencia.",
   "ai_generator_model_reference_limit": "Este motor admite hasta {count} imágenes de referencia.",
   "ai_generator_image_model_hint": "El coste final incluye tus imágenes de referencia.",

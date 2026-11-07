@@ -202,30 +202,45 @@ test("Studio criteria keep natural heights and optional DNA help works without P
         await info.click();
         await dialog.getByRole('button', { name: 'Fermer les informations sur l’ADN' }).click();
         await dialog.waitFor({ state: 'detached' });
-        if (viewport.width > 1100) await page.getByRole('tab', { name: 'Critères', exact: true }).click();
-        else {
-          await page.locator('.editor-mobileSettingsNavigation select').selectOption('criteria');
-        }
+        assert.equal(await page.getByRole('tab', { name: 'Critères', exact: true }).count(), 0, "The native free editor uses one panel");
+        assert.equal(await page.locator('.editor-mobileSettingsNavigation').count(), 0);
         await page.evaluate(() => new Promise<void>((resolve, reject) => {
           let frames = 0;
           const inspect = () => {
-            const formats = [...document.querySelectorAll('.free-formatOption')].map(element => element.getBoundingClientRect());
-            const references = document.querySelector('.free-referencesSection')?.getBoundingClientRect();
-            if (formats.some(format => format.height > 150) || !references || references.top < Math.max(...formats.map(format => format.bottom))) { reject(Error('Criteria stretched or overlapped during their first frames')); return; }
+            const format = document.querySelector('select[id$="-media-format"]')?.getBoundingClientRect();
+            const formatRow = document.querySelector('.free-mediaFormatRow')?.getBoundingClientRect();
+            const references = document.querySelector('.free-referenceAddControl')?.getBoundingClientRect();
+            const launchers = [...document.querySelectorAll('[data-media-role-add]')].map(element => element.getBoundingClientRect());
+            if (!format || format.height > 100 || !formatRow || !references || launchers.length !== 4 || launchers.some(launcher => launcher.height > 150) || references.top < formatRow.bottom) { reject(Error('Criteria stretched or overlapped during their first frames')); return; }
             if (++frames === 8) resolve(); else requestAnimationFrame(inspect);
           };
           requestAnimationFrame(inspect);
         }));
-        const formats = await page.locator('.free-formatOption').evaluateAll(elements => elements.map(element => {
+        const format = page.locator('select[id$="-media-format"]');
+        assert.deepEqual(await format.locator('option').evaluateAll(elements => elements.map(element => (element as HTMLOptionElement).value)), ["square", "portrait", "story", "landscape"]);
+        const formatBounds = await format.boundingBox(); assert.ok(formatBounds);
+        assert.ok(formatBounds.height >= 30 && formatBounds.height < 100, "The native format selector keeps its natural height");
+        const launchers = await page.locator('[data-media-role-add]').evaluateAll(elements => elements.map(element => {
           const bounds=element.getBoundingClientRect();return { top:bounds.top,bottom:bounds.bottom,height:bounds.height };
         }));
-        assert.equal(formats.length, 4);
-        assert.ok(formats.every(format => format.height > 35 && format.height < 150), "Format cards cannot stretch over the settings pane");
-        const references = await page.locator('.free-referencesSection').boundingBox();assert.ok(references);
-        assert.ok(references.y >= Math.max(...formats.map(format => format.bottom)), "References must follow the format cards without overlap");
+        assert.equal(launchers.length, 4);
+        assert.ok(launchers.every(launcher => launcher.height > 35 && launcher.height < 150), "Role buttons cannot stretch over the settings pane");
+        const formatRow = await page.locator('.free-mediaFormatRow').boundingBox(); assert.ok(formatRow);
+        const references = await page.locator('.free-referenceAddControl').boundingBox(); assert.ok(references);
+        assert.ok(references.y >= formatRow.y + formatRow.height, "Reference controls follow the Format/ADN row without overlap");
+        await format.selectOption("landscape");
+        assert.equal(await format.inputValue(), "landscape");
+        assert.equal(await prompt.inputValue(), "Mon prompt professionnel doit rester intact.");
+        assert.equal(await dna.isChecked(), true);
+        await page.evaluate(() => (window as unknown as FixtureWindow).studioFixture.start());
+        await page.locator('[data-media-creation-stage="progress"]').waitFor();
+        assert.equal(await prompt.isDisabled(), true);
+        assert.equal(await format.isDisabled(), true);
+        assert.equal(await dna.isDisabled(), true);
+        assert.equal(await page.locator('[data-media-role-add]:disabled').count(), 4, "A real in-flight operation locks every reference launcher");
         assert.equal(await page.evaluate(() => (window as unknown as { networkCalls:number }).networkCalls), 0);
         assert.deepEqual(errors, []);
-        t.diagnostic(JSON.stringify({ engine:engine.name(), viewport, formats }));
+        t.diagnostic(JSON.stringify({ engine:engine.name(), viewport, format: formatBounds, launchers }));
         await page.close();
       }
     } finally { await browser.close(); }

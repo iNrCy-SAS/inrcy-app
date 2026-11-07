@@ -161,6 +161,9 @@ function pathMatches(pathname: string, candidate: string): boolean {
 }
 
 function isApiBlockBypassPath(pathname: string): boolean {
+  // Payment recovery must remain reachable while the application is blocked.
+  // The route still authenticates the payer and resolves only their Stripe identity.
+  if (pathname === "/api/billing/portal") return true;
   return API_BLOCK_BYPASS_PREFIXES.some((candidate) => pathMatches(pathname, candidate));
 }
 

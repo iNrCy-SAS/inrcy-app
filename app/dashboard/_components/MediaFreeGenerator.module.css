@@ -1312,6 +1312,9 @@
 .referenceRoleButton:disabled { opacity: .5; cursor: default; }
 .referenceRoleButton:focus-visible, .mediaReferenceOpen:focus-visible, .mediaReferenceOptional:focus-visible, .referenceInspirationToggle:focus-visible { outline: 2px solid #9adcf5; outline-offset: 2px; }
 .referenceIconWarning { position: absolute; top: -4px; right: -3px; display: grid; place-items: center; width: 12px; height: 12px; border-radius: 50%; background: #ffce81; color: #17233b; font-size: 9px; font-weight: 800; }
+.referenceWarning { display: flex; align-items: flex-start; gap: 7px; min-width: 0; margin: 0; color: #e8ce9b; font-size: 11px; line-height: 1.4; }
+.referenceWarning > :last-child { min-width: 0; overflow-wrap: anywhere; }
+.referenceWarningIcon { display: grid; place-items: center; flex: 0 0 15px; width: 15px; height: 15px; margin-top: 1px; border: 1px solid #d5ae68; border-radius: 50%; color: #f2d39e; font-size: 10px; font-weight: 750; }
 .mediaReferenceThumbs { display: flex; flex: 0 0 auto; flex-wrap: nowrap; gap: 4px; min-width: 0; }
 .mediaReferenceThumb { position: relative; flex: 0 0 52px; width: 52px; height: 36px; }
 .mediaReferenceOpen { display: block; width: 36px; height: 36px; padding: 0; border: 1px solid #72b4c6; border-radius: 7px; background: #122c45; cursor: pointer; overflow: hidden; }
@@ -1319,6 +1322,7 @@
 .mediaReferenceOptional { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid #7388ad; border-radius: 7px; color: #acc2dc; background: #172b47; font: inherit; font-size: 18px; cursor: pointer; }
 .mediaReferenceOptional[aria-pressed="true"] { color: #201c36; border-color: #efc881; background: #efc881; }
 .mediaReferenceThumb[data-usage="inspiration"] .mediaReferenceOpen { border-color: #efc881; }
+.mediaReferenceThumb[data-invalid="true"] .mediaReferenceOpen { border-color: #d9a957; }
 .mediaReferenceOpen:disabled, .mediaReferenceOptional:disabled { opacity: .55; cursor: default; }
 .referenceAddRole { display: flex; align-items: center; gap: 10px; margin-top: 12px; color: #c4d5ed; font-size: 12px; }
 .referenceAddRole > span { flex: 0 0 auto; }

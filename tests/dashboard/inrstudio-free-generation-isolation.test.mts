@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
-import { normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
+import { AI_MEDIA_INSPIRATION_MAX_COUNT, normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
+import { assertStudioInspirationImageMetadata, StudioInspirationImageOnlyError } from "../../lib/studioInspirationImagePolicy.ts";
 
 const read = (path: string) =>
   readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -287,18 +288,36 @@ test("Libre peut enregistrer un média sans le renvoyer vers le flux d’inserti
   assert.equal(context.operationInFlight.current, false);
 });
 
-test("Libre exige les deux critères choisis sans imposer un personnage", () => {
+test("Libre reprend le rôle du lancement et son usage sans imposer un personnage ni migrer les références", async () => {
   assert.match(source, /const ROLES = \["character", "environment", "product", "inspiration"\] as const/);
-  assert.match(source, /role: undefined,\s*usage: undefined/);
-  assert.doesNotMatch(source, /role: "character",\s*usage: "required"/);
+  for (const role of ["inspiration", "character", "environment", "product"] as const) {
+    const existing = { id: "existing-image", role: "inspiration", usage: "required", mimeType: "image/png", data: "A".repeat(64) };
+    let references: Array<Record<string, unknown>> = [existing];
+    let closes = 0, resets = 0;
+    const run = evaluate(initializer("addFiles"), {
+      locked: false, operationInFlight: { current: false }, recoveryPending: false,
+      pendingReferenceRole: role, sequence: { current: 0 }, references,
+      AI_MEDIA_INSPIRATION_MAX_COUNT, assertStudioInspirationImageMetadata, StudioInspirationImageOnlyError,
+      prepareMediaGenerationImageReference: async (file: { name: string }) => ({ name: file.name, mimeType: "image/png", data: "A".repeat(64) }),
+      setReferences: (update: (current: typeof references) => typeof references) => { references = update(references); },
+      setReferencesBusy() {}, setActionError(message: string) { assert.equal(message, ""); },
+      resetConsent: () => { resets++; },
+      setMediaSettingsDialog: (dialog: null) => { assert.equal(dialog, null); closes++; },
+      t: (key: string) => key,
+    }) as (files: Array<{ name: string; type: string }>) => Promise<boolean>;
+    assert.equal(await run([{ name: "local-reference.png", type: "image/png" }]), true);
+    assert.equal(references.length, 2);
+    assert.equal(references[0], existing, "Importing a new role never migrates an existing generic required Image.");
+    assert.equal(references[1].role, role);
+    assert.equal(references[1].usage, role === "inspiration" ? "inspiration" : "required");
+    assert.equal(closes, 1, "Successful preparation closes the add dialog.");
+    assert.equal(resets, 1, "Every new reference invalidates earlier consent.");
+  }
   assert.match(source, /const referenceCriteriaIncomplete = references\.some\(/);
   assert.match(source, /!referenceCriteriaIncomplete/);
-  const usageMenu = source.slice(source.indexOf('aria-label={t("ai_generator_free_reference_usage"'), source.indexOf("{roleLimitExceeded"));
   assert.match(source, /ai_generator_free_reference_role_placeholder/);
-  assert.match(usageMenu, /ai_generator_free_reference_usage_placeholder/);
-  assert.match(usageMenu, /value=\{reference\.usage \?\? ""\}\s*disabled=\{locked\}/);
-  assert.match(usageMenu, /<option value="required">/);
-  assert.match(usageMenu, /<option value="inspiration">/);
+  assert.match(source, /data-reference-inspiration-toggle=\{reference\.id\}/);
+  assert.match(source, /aria-pressed=\{reference\.usage === "inspiration"\}/);
   assert.match(source, /reference\.role === "character" && reference\.usage === "required"/);
   assert.match(source, /\(!identityRequired \|\| identityConsent\)/);
   assert.match(source, /\(!teamConsentRequired \|\| teamConsent\)/);
@@ -358,21 +377,26 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
     assert.ok(item?.initializer && ts.isJsxExpression(item.initializer) && item.initializer.expression, `Missing expression attribute: ${name}`);
     return item.initializer.expression;
   };
-  const radio = nodes.filter(ts.isJsxSelfClosingElement).find((node) =>
-    node.tagName.getText(parsed) === "input" && node.getText(parsed).includes("-speech-mode"));
-  assert.ok(radio);
-  assert.match(radio.getText(parsed), /type="radio"/);
-  const ancestors: ts.Node[] = [];
-  for (let node = radio.parent; node; node = node.parent) ancestors.push(node);
-  const map = ancestors.find((node): node is ts.CallExpression =>
-    ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression) && node.expression.name.text === "map");
-  assert.ok(map && ts.isPropertyAccessExpression(map.expression));
+  const select = nodes.find((node): node is ts.JsxElement =>
+    ts.isJsxElement(node) && node.openingElement.tagName.getText(parsed) === "select" &&
+      node.openingElement.getText(parsed).includes("-video-speech-mode"));
+  assert.ok(select, "The single controlled speech selector is present.");
+  const options = select.children.find((node): node is ts.JsxExpression =>
+    ts.isJsxExpression(node) && !!node.expression && ts.isCallExpression(node.expression) &&
+      ts.isPropertyAccessExpression(node.expression.expression) && node.expression.expression.name.text === "map");
+  assert.ok(options?.expression && ts.isCallExpression(options.expression));
+  const map = options.expression;
+  assert.ok(ts.isPropertyAccessExpression(map.expression));
   const modes = evaluate(map.expression.expression, {}) as string[];
   assert.deepEqual(modes, ["voiceover", "characters", "silent"]);
-  const fieldset = ancestors.find((node): node is ts.JsxElement =>
-    ts.isJsxElement(node) && node.openingElement.tagName.getText(parsed) === "fieldset");
-  assert.ok(fieldset);
-  for (const locked of [false, true]) assert.equal(evaluate(attribute(fieldset.openingElement, "disabled"), { locked }), locked);
+  const optionCallback = map.arguments[0];
+  assert.ok(ts.isArrowFunction(optionCallback) && ts.isJsxElement(optionCallback.body));
+  const option = optionCallback.body.openingElement;
+  for (const mode of modes) {
+    assert.equal(evaluate(attribute(option, "value"), { mode }), mode);
+    for (const hasSpokenScript of [false, true]) assert.equal(evaluate(attribute(option, "disabled"), { mode, hasSpokenScript }), mode === "silent" && hasSpokenScript);
+  }
+  for (const locked of [false, true]) assert.equal(evaluate(attribute(select.openingElement, "disabled"), { locked }), locked);
   const voiceOptions = nodes.find((node): node is ts.ConditionalExpression =>
     ts.isConditionalExpression(node) && node.condition.getText(parsed) === "effectiveWithNarration" &&
       node.whenTrue.getText(parsed).includes("styles.voiceOptions"));
@@ -390,23 +414,28 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
     referenceSetId,
   }) as () => void;
   for (const next of ["characters", "silent", "voiceover", "silent", "characters", "voiceover"] as const) {
-    const onChange = evaluate(attribute(radio, "onChange"), {
-      mode: next,
+    const onChange = evaluate(attribute(select.openingElement, "onChange"), {
       hasSpokenScript: false,
       setSpeechMode: (value: typeof speechMode) => { speechMode = value; },
       resetConsent,
-    }) as () => void;
-    onChange();
+    }) as (event: { target: { value: string } }) => void;
+    onChange({ target: { value: next } });
     assert.equal(speechMode, next);
-    assert.deepEqual(modes.filter((mode) => evaluate(attribute(radio, "checked"), { speechMode, mode })), [next]);
-    assert.equal(new Set(modes.map((mode) => evaluate(attribute(radio, "name"), { instanceId: "audio-test", mode }))).size, 1);
+    assert.equal(evaluate(attribute(select.openingElement, "value"), { speechMode }), next);
     const derived = audioControls("video", speechMode);
     assert.equal(evaluate(voiceOptions.condition, derived), next === "voiceover");
-    assert.equal(withMusic, true, "Changing the speech radio must not change music.");
+    assert.equal(withMusic, true, "Changing the speech selector must not change music.");
   }
   assert.deepEqual(consentChanges, [false, false, false, false, false, false]);
   assert.equal(identityConsent, false);
   assert.notEqual(referenceSetId.current, "previous-reference-set");
+  const blockSilent = evaluate(attribute(select.openingElement, "onChange"), {
+    hasSpokenScript: true,
+    setSpeechMode: () => assert.fail("Exact speech must not silently switch to silence."),
+    resetConsent: () => assert.fail("A refused mode change preserves the current consent."),
+  }) as (event: { target: { value: string } }) => void;
+  blockSilent({ target: { value: "silent" } });
+  assert.equal(speechMode, "voiceover");
 
   const music = nodes.filter(ts.isJsxSelfClosingElement).find((node) =>
     node.tagName.getText(parsed) === "input" && node.getText(parsed).includes("checked={withMusic}"));
@@ -419,7 +448,7 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
   for (const checked of [false, true]) {
     changeMusic({ target: { checked } });
     assert.equal(evaluate(attribute(music, "checked"), { withMusic }), checked);
-    assert.equal(speechMode, "voiceover", "Changing music must not change the speech radio.");
+    assert.equal(speechMode, "voiceover", "Changing music must not change the speech selector.");
   }
   for (const mode of ["voiceover", "characters", "silent"] as const) assert.equal(audioControls("image", mode).effectiveWithNarration, false);
 });

@@ -126,7 +126,9 @@ test("les contrôles vidéo explicites restent prioritaires, moteur compris", ()
 });
 
 test("les menus rôle et usage des références sont préservés en Libre", () => {
-  const images = [reference("product", "required"), reference("product", "required"), reference("environment", "inspiration"), reference("inspiration", "inspiration")];
+  // The explicit usage of an existing generic Image must survive the new
+  // Inspiration launcher; selecting a new launcher does not migrate it.
+  const images = [reference("product", "required"), reference("product", "required"), reference("environment", "inspiration"), reference("inspiration", "inspiration"), reference("inspiration", "required")];
   for (const kind of ["image", "video"]) {
     const request = normalizeAiMediaGenerationRequest(freeInput({
       kind, inspirationImages: images, identityReferenceSetId: "identity-free-runtime-reference",
@@ -177,14 +179,18 @@ test("les validations de référence et de voix s'appliquent aussi au mode Libre
   for (const overrides of [
     { inspirationImages: [reference("unknown", "inspiration")] },
     { inspirationImages: [reference("", "required")] },
+    { inspirationImages: [reference("product", "required", { role: undefined })] },
     { inspirationImages: [reference("product", "unknown")] },
     { inspirationImages: [reference("product", "")] },
-    { inspirationImages: [reference("inspiration", "required")] },
+    { inspirationImages: [reference("product", "required", { usage: undefined })] },
+    { inspirationImages: [reference("character", "required")] },
+    { inspirationImages: [reference("product", "required", { voiceMode: "provided" })] },
+    { inspirationImages: [reference("character", "required", { characterIndex: 1, voiceMode: "unknown" })] },
     { inspirationImages: [reference("character", "required", { characterIndex: 1 })], identityConsent: false },
     { kind: "video", durationSeconds: 21 },
     { kind: "video", withNarration: true, narrationVoice: "male", narrationVoiceVariant: "Kore" },
   ]) {
-    assert.throws(() => normalizeAiMediaGenerationRequest(freeInput(overrides)), AiMediaRequestValidationError);
+    assert.throws(() => normalizeAiMediaGenerationRequest(freeInput(overrides)), AiMediaRequestValidationError, JSON.stringify(overrides));
   }
 });
 

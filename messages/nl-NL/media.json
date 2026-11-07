@@ -885,6 +885,7 @@
   "ai_generator_video_quality": "Videoresolutie",
   "ai_generator_native_audio_available": "Audio en dialogen van personages beschikbaar",
   "ai_generator_model_photo_required": "Voeg een foto toe om die met deze generator te animeren.",
+  "ai_generator_reference_photo_needed": "{model} heeft een foto nodig om te animeren. Voeg een afbeelding, een personage, een omgeving of een product toe.",
   "ai_generator_model_text_only": "Deze generator werkt op basis van tekst. Kies een andere generator om referentieafbeeldingen te gebruiken.",
   "ai_generator_model_reference_limit": "Deze generator ondersteunt maximaal {count} referentieafbeeldingen.",
   "ai_generator_image_model_hint": "De uiteindelijke kosten omvatten je referentieafbeeldingen.",

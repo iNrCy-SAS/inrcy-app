@@ -24,11 +24,14 @@ type Props = {
 };
 
 async function apiError(response: Response, fallback: string): Promise<string> {
-  const body = (await response.json().catch(() => null)) as { error?: string } | null;
+  const body = (await response.json().catch(() => null)) as { error?: string; message?: string; code?: string } | null;
+  if (body?.code === "ACCOUNT_BLOCKED" || body?.error === "ACCOUNT_BLOCKED") {
+    return "Votre accès est suspendu. Réessayez la régularisation de votre paiement ou contactez iNrCy.";
+  }
   return body?.error || fallback;
 }
 
-export default function BlockedBillingActions({ status, edition, hasStripeCustomer, contactHref, checkoutPending = false }: Props) {
+export default function BlockedBillingActions({ status, edition, contactHref, checkoutPending = false }: Props) {
   const i18nT = useTranslations("public");
   const settingsT = useTranslations("settings");
   const locale = useLocale();
@@ -37,12 +40,13 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
   const [nativeBilling, setNativeBilling] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [subscriptionNotFound, setSubscriptionNotFound] = useState(false);
   const normalizedStatus = status.trim().toLowerCase();
   const canSubscribe =
     (edition === "basic" || edition === "standard" || edition === "premium") &&
-    ["trial_expired", "trial-expired", "canceled", "cancelled", "incomplete_expired"].includes(normalizedStatus);
+    (subscriptionNotFound || ["trial_expired", "trial-expired", "canceled", "cancelled", "incomplete_expired"].includes(normalizedStatus));
   const canOpenPortal =
-    hasStripeCustomer && ["past_due", "unpaid", "incomplete"].includes(normalizedStatus);
+    !canSubscribe && ["past_due", "unpaid", "incomplete", "paused"].includes(normalizedStatus);
   const formatEur = (value: number) => new Intl.NumberFormat(locale, {
     minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
     maximumFractionDigits: 2,
@@ -67,11 +71,17 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
     setBusy(true);
     setError("");
     try {
-      await startSubscriptionCheckout({
+      const result = await startSubscriptionCheckout({
         plan,
         billingCycle: cycles[plan],
         fallbackError: i18nT("l_operation_n_a_pas_pu_2eda8de6"),
       });
+      if (result.platform !== "web" || result.recoveredSubscription) {
+        router.refresh();
+        setBusy(false);
+      } else if (result.checkoutCancelled) {
+        setBusy(false);
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Le paiement est indisponible.");
       setBusy(false);
@@ -83,7 +93,15 @@ export default function BlockedBillingActions({ status, edition, hasStripeCustom
     setError("");
     try {
       const response = await fetch("/api/billing/portal", { method: "POST" });
-      if (!response.ok) throw new Error(await apiError(response, i18nT("l_operation_n_a_pas_pu_2eda8de6")));
+      if (!response.ok) {
+        const failure = await response.clone().json().catch(() => null) as { code?: string } | null;
+        if (failure?.code === "BILLING_SUBSCRIPTION_NOT_FOUND") {
+          setSubscriptionNotFound(true);
+          setBusy(false);
+          return;
+        }
+        throw new Error(await apiError(response, i18nT("l_operation_n_a_pas_pu_2eda8de6")));
+      }
       const body = (await response.json()) as { url?: string };
       if (!body.url) throw new Error("Le portail de facturation n’a pas pu être ouvert.");
       window.location.assign(body.url);

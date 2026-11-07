@@ -62,10 +62,11 @@ export type StripeCheckoutPreflightResult = {
   existingSubscription: { id: string; customerId: string; status: string; priceId: string | null } | null;
 };
 
-/** Read-only recovery for an active complimentary account with no subscription ID. */
+/** Read-only, owner-checked recovery before opening billing or creating a checkout. */
 export async function inspectComplimentaryCheckout(input: {
   userId: string;
   customerId: string | null;
+  subscriptionId?: string | null;
   emails: Array<string | null | undefined>;
   get: (path: string) => Promise<unknown>;
   hasOtherOwner: (customerIds: string[], subscriptionIds: string[]) => Promise<boolean>;
@@ -77,14 +78,27 @@ export async function inspectComplimentaryCheckout(input: {
     return input.get(path);
   };
   const customers = new Map<string, StripeObject>();
+  let linkedCustomerId = input.customerId;
+  const linkedSubscriptionIds: string[] = [];
+  if (input.subscriptionId) {
+    const subscriptionId = id(input.subscriptionId, "sub_");
+    const subscription = object(await get(`/subscriptions/${encodeURIComponent(subscriptionId)}`));
+    if (id(subscription.id, "sub_") !== subscriptionId || (owner(subscription) && owner(subscription) !== input.userId)) {
+      throw new Error("stripe_checkout_identity_ambiguous");
+    }
+    const subscriptionCustomerId = id(subscription.customer, "cus_");
+    if (linkedCustomerId && linkedCustomerId !== subscriptionCustomerId) throw new Error("stripe_checkout_identity_ambiguous");
+    linkedCustomerId = subscriptionCustomerId;
+    linkedSubscriptionIds.push(subscriptionId);
+  }
   const addCustomer = (raw: StripeObject) => {
     const customerId = id(raw.id, "cus_");
     if (raw.deleted) throw new Error("stripe_checkout_preflight_invalid");
     customers.set(customerId, raw);
   };
-  if (input.customerId) {
-    const customer = object(await get(`/customers/${encodeURIComponent(id(input.customerId, "cus_"))}`));
-    if (id(customer.id, "cus_") !== input.customerId) throw new Error("stripe_checkout_preflight_invalid");
+  if (linkedCustomerId) {
+    const customer = object(await get(`/customers/${encodeURIComponent(id(linkedCustomerId, "cus_"))}`));
+    if (id(customer.id, "cus_") !== linkedCustomerId) throw new Error("stripe_checkout_preflight_invalid");
     addCustomer(customer);
   } else {
     // Exact email lists are live reads. Search additionally recovers old customer
@@ -114,7 +128,7 @@ export async function inspectComplimentaryCheckout(input: {
   const live: NonNullable<StripeCheckoutPreflightResult["existingSubscription"]>[] = [];
   for (const [customerId, customer] of customers) {
     const customerOwner = owner(customer);
-    const trusted = customerId === input.customerId || customerOwner === input.userId;
+    const trusted = customerId === linkedCustomerId || customerOwner === input.userId;
     const subscriptions = await findLiveStripeSubscriptions(customerId, get);
     if (customerOwner && customerOwner !== input.userId) {
       if (trusted || subscriptions.length) throw new Error("stripe_checkout_identity_ambiguous");
@@ -134,10 +148,10 @@ export async function inspectComplimentaryCheckout(input: {
   }
   if (live.length > 1) throw new Error("stripe_checkout_identity_ambiguous");
   const existingSubscription = live[0] ?? null;
-  const customerId = existingSubscription?.customerId ?? input.customerId ??
+  const customerId = existingSubscription?.customerId ?? linkedCustomerId ??
     (trustedCustomerIds.length === 1 ? trustedCustomerIds[0] : null);
   const relevantCustomers = [...new Set([...trustedCustomerIds, ...(customerId ? [customerId] : [])])];
-  if (relevantCustomers.length && await input.hasOtherOwner(relevantCustomers, live.map((subscription) => subscription.id))) {
+  if (relevantCustomers.length && await input.hasOtherOwner(relevantCustomers, [...new Set([...linkedSubscriptionIds, ...live.map((subscription) => subscription.id)])])) {
     throw new Error("stripe_checkout_identity_ambiguous");
   }
   return { customerId, existingSubscription };

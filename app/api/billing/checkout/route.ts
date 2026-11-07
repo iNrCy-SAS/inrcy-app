@@ -55,6 +55,14 @@ function normalizeBillingCycle(value: unknown): BillingCycle {
   return String(value ?? "").trim().toLowerCase() === "yearly" ? "yearly" : "monthly";
 }
 
+function trialHasExpired(row: SubscriptionRow): boolean {
+  if (normalizeStatus(row.status) !== "trialing") return false;
+  const explicitEnd = row.trial_end_at ? Date.parse(row.trial_end_at) : NaN;
+  if (Number.isFinite(explicitEnd)) return explicitEnd <= Date.now();
+  if (!row.start_date || !Number.isFinite(Date.parse(row.start_date))) return false;
+  return Date.parse(computeTrialDatesFromStartDate(row.start_date, getTrialDays()).trialEndAt) <= Date.now();
+}
+
 function requestedCommercialPlan(value: unknown): "Basic" | "Standard" | "Premium" | null {
   const normalized = String(value ?? "Standard").trim().toLowerCase();
   if (["basic", "basique", "inrcy basique", "inrcy basic"].includes(normalized)) return "Basic";
@@ -181,7 +189,9 @@ export async function POST(req: Request) {
 
       const localSubscriptionIsLive =
         STRIPE_LIVE_SUBSCRIPTION_STATUSES.has(currentStatus) &&
-        !canStartSubscriptionCheckout(row, requestedPlan);
+        !canStartSubscriptionCheckout(row, requestedPlan) &&
+        !trialHasExpired(row) &&
+        !["past_due", "unpaid", "paused", "incomplete"].includes(currentStatus);
       if (localSubscriptionIsLive) {
         return NextResponse.json(
           {
@@ -204,12 +214,13 @@ export async function POST(req: Request) {
 
       let customerId = row.stripe_customer_id?.trim() || null;
       const complimentaryCheckout = currentStatus === "active" && canStartSubscriptionCheckout(row, requestedPlan);
-      if (complimentaryCheckout) {
+      {
         let preflight;
         try {
           preflight = await inspectComplimentaryCheckout({
             userId,
             customerId,
+            subscriptionId: row.stripe_subscription_id?.trim() || null,
             emails: [user.email, profile?.admin_email, profile?.contact_email, row.contact_email],
             get: stripeGet,
             hasOtherOwner: async (customerIds, subscriptionIds) => {
@@ -231,6 +242,15 @@ export async function POST(req: Request) {
         customerId = preflight.customerId;
         const recovered = preflight.existingSubscription;
         if (recovered) {
+          if (!complimentaryCheckout && recovered.status !== "active") {
+            // Collect an existing debt or manage the existing trial. Never create
+            // a second subscription, extend access, or change its plan here.
+            await guard.assertOwned();
+            const params = new URLSearchParams({ customer: recovered.customerId, return_url: `${getAppUrl(req)}/compte-bloque` });
+            const portal = await stripePost("/billing_portal/sessions", params);
+            if (!portal?.url) throw new Error("Le portail de facturation n’a pas pu être ouvert.");
+            return NextResponse.json({ url: portal.url }, { headers: { "Cache-Control": "no-store" } });
+          }
           // Only restore the missing billing link. Entitlements still belong to
           // Stripe webhooks, and a paid upgrade still requires its proration quote.
           await guard.assertOwned();
@@ -262,24 +282,6 @@ export async function POST(req: Request) {
         }
         if (customerId && customerId !== row.stripe_customer_id) {
           await updateSubscriptionOrThrow(userId, { stripe_customer_id: customerId, billing_provider: "stripe", updated_at: new Date().toISOString() }, guard.assertOwned);
-        }
-      } else if (customerId) {
-        const existingStripeSubscription = await findLiveStripeSubscription(customerId);
-        if (existingStripeSubscription?.id) {
-          await updateSubscriptionOrThrow(userId, {
-            stripe_subscription_id: existingStripeSubscription.id,
-            billing_provider: "stripe",
-            status: normalizeStatus(existingStripeSubscription.status),
-            updated_at: new Date().toISOString(),
-          }, guard.assertOwned);
-
-          return NextResponse.json(
-            {
-              error: "Un abonnement Stripe existe déjà. Ouvrez la facturation pour le gérer.",
-              code: "STRIPE_SUBSCRIPTION_ALREADY_EXISTS",
-            },
-            { status: 409 },
-          );
         }
       }
 
