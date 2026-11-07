@@ -65,7 +65,7 @@ export function parseInrAssistantStudioFormSelection(value: string | null, state
   if (["narrationVoice", "narrationVoiceVariant"].includes(field) && state.speechMode !== "voiceover") return null;
   if (field === "narrationVoiceVariant" && !isAiMediaNarrationVoiceVariantForGender(next, state.narrationVoice || "female")) return null;
   if (field === "spokenScript" && (!state.spokenScriptOpen || state.speechMode === "silent") || field === "spokenScriptOpen" && next === true && state.speechMode === "silent") return null;
-  if (field === "withSubtitles" && (state.speechMode === "silent" || state.spokenScriptOpen && !state.spokenScript?.trim())) return null;
+  if (field === "withSubtitles" && state.speechMode === "silent") return null;
   if (choices[field] && !choices[field]!.includes(next)) return null;
   if (["useBrandColors", "useBusinessDna", "withMusic", "withSubtitles", "spokenScriptOpen"].includes(field) && typeof next !== "boolean") return null;
   const textLimits: Partial<Record<keyof Values, number>> = { creativeBrief: getAiMediaVisualBriefMaxChars(state.kind, "guided"), exactText: 600, textKeywordDraft: 160, prompt: Math.min(getAiMediaVisualBriefMaxChars(state.kind, "free"), state.maxPromptLength ?? AI_MEDIA_FREE_PROMPT_MAX_CHARS), spokenScript: AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS };

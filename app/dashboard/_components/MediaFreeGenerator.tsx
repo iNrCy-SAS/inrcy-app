@@ -970,7 +970,7 @@ export default function MediaFreeGenerator({
     fixedFormat, maxPromptLength: maxUserPromptLength, activeTab: activeSettingsTab, prompt, useBusinessDna, format,
     videoEngine: selectedVideoEngine, videoResolution, language: locale,
     durationScene: { seconds: duration, sceneMode }, speechMode, spokenScript, spokenScriptOpen,
-    narrationVoice: voice, narrationVoiceVariant: voiceVariant, withMusic, withSubtitles: effectiveWithSubtitles,
+    narrationVoice: voice, narrationVoiceVariant: voiceVariant, withMusic, withSubtitles,
     voiceMode: selectedVoiceMode, voiceReferenceId: selectedVoiceReference?.id,
     voiceReferences: speechMode === "characters" ? voiceReferences.map(reference => ({ id: reference.id, name: reference.name, voiceMode: reference.voiceMode ?? "ai", referenceIndex: references.findIndex(item => item.id === reference.id) })) : [],
   };
@@ -1557,7 +1557,7 @@ export default function MediaFreeGenerator({
                     releaseSample={releaseUnusedVoiceSample} />
                 </div>
                 <label className={styles.inlineSubtitles}>
-                  <input type="checkbox" checked={effectiveWithSubtitles} disabled={locked || speechMode === "silent" || explicitlyEmptySpokenScript}
+                  <input type="checkbox" checked={withSubtitles} disabled={locked || speechMode === "silent"}
                     data-media-subtitles onChange={event => setWithSubtitles(event.target.checked)} />
                   <span>{t("ai_generator_free_subtitles")}</span>
                 </label>

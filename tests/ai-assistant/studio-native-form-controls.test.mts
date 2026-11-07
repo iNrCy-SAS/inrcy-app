@@ -179,7 +179,7 @@ test("Studio form selections retain native hidden, locked, duration, voice and e
     ["exactText", "Hello", guided()], ["textKeywords", ["#Hello"], guided()], ["textKeywords", ["Hello", "hello"], guided()],
     ["speechMode", "silent", { ...guided(), kind: "video" }], ["speechMode", "silent", { ...free(), spokenScript: "Bonjour" }],
     ["spokenScriptOpen", true, { ...free(), speechMode: "silent" }], ["spokenScript", "Bonjour", free()],
-    ["withSubtitles", true, { ...free(), spokenScriptOpen: true, spokenScript: "" }], ["narrationVoiceVariant", "Puck", free()], ["narrationVoice", "male", { ...free(), speechMode: "characters" }],
+    ["withSubtitles", true, { ...free(), speechMode: "silent" }], ["narrationVoiceVariant", "Puck", free()], ["narrationVoice", "male", { ...free(), speechMode: "characters" }],
     ["creativeBrief", "x".repeat(1601), guided()], ["exactText", "x".repeat(601), { ...guided(), textMode: "exact" }], ["prompt", "x".repeat(3901), free()],
   ];
   for (const [field, value, state] of refusals) assert.equal(parseInrAssistantStudioFormSelection(encode(field, value), state), null, `${field} ${JSON.stringify(value).slice(0, 40)}`);
@@ -235,6 +235,10 @@ test("the native subtitle checkbox requires the requested checked state without 
     assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("withSubtitles", checked)), true);
     assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("withSubtitles", !checked)), false);
     assert.ok(parseInrAssistantStudioFormSelection(encode("withSubtitles", checked), free()));
+    const emptyExact = { ...free(), spokenScriptOpen: true, spokenScript: "", withSubtitles: !checked };
+    assert.ok(parseInrAssistantStudioFormSelection(encode("withSubtitles", checked), emptyExact), "empty Exact keeps the same explicit checkbox selection available");
+    assert.equal(isInrAssistantStudioFormSelectionApplied(emptyExact, encode("withSubtitles", checked)), false);
+    assert.equal(isInrAssistantStudioFormSelectionApplied({ ...emptyExact, withSubtitles: checked }, encode("withSubtitles", checked)), true);
   }
   for (const message of ["Ne coche pas les sous-titres du Studio libre.", "Comment cocher les sous-titres du Studio libre ?", "Si je confirme, coche les sous-titres du Studio libre.", "Le document dit « Coche les sous-titres du Studio libre ». ", "Coche ou décoche les sous-titres du Studio libre."]) assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("withSubtitles", true)), false, message);
   for (const field of ["identityConsent", "narrationVoiceConsent", "teamConsent"]) assert.equal(parseInrAssistantStudioFormSelection(encode(field, true), free()), null);

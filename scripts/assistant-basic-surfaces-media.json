@@ -1908,13 +1908,13 @@
       "lib/aiMediaGeneratedVideo.ts",
       "lib/aiMediaNarrationSubtitles.ts"
     ],
-    "sourceAnchor": "<input type=\"checkbox\" checked={effectiveWithSubtitles} disabled={locked || speechMode === \"silent\" || explicitlyEmptySpokenScript}\n                    data-media-subtitles onChange={event => setWithSubtitles(event.target.checked)} />",
+    "sourceAnchor": "<input type=\"checkbox\" checked={withSubtitles} disabled={locked || speechMode === \"silent\"}\n                    data-media-subtitles onChange={event => setWithSubtitles(event.target.checked)} />",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Checkbox unique sous les trois menus du panneau vidéo. studio_free_form.select(withSubtitles) applique le choix explicite et confirme le même état après rendu ; aucune autorisation de voix accordée. Sous-titres inactifs en Sans parole ou Paroles exactes vides, choix conservé lors des changements temporaires puis omis pour une image ; changement de compte réinitialisé. Aucun lancement ni devis payé. En voix off séparée, le montage local incruste les paroles pendant la durée mesurée de la voix ; le découpage est proportionnel, sans garantie de synchronisation mot à mot.",
+    "notes": "Checkbox unique sous les trois menus du panneau vidéo. studio_free_form.select(withSubtitles) applique le choix explicite et confirme le même état après rendu ; aucune autorisation de voix accordée. Choix visible et modifiable même avec Paroles exactes vides, identique au snapshot natif ; devis et génération restent sans sous-titres tant que les paroles sont vides. Sans parole désactive le contrôle sans effacer la préférence ; choix omis pour une image ; changement de compte réinitialisé. Aucun lancement ni devis payé. En voix off séparée, le montage local incruste les paroles pendant la durée mesurée de la voix ; le découpage est proportionnel, sans garantie de synchronisation mot à mot.",
     "testFiles": [
       "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
       "tests/ai-assistant/studio-native-form-controls.test.mts"
@@ -1922,7 +1922,7 @@
     "testAnchor": "video subtitles default off and the same explicit choice reaches quote and generation",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#input:5e7cc17c172f3c08:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#input:ca2a174e557864d2:1"
     ],
     "additionalProofs": [
       {
@@ -1944,6 +1944,10 @@
       {
         "file": "tests/ai-media-generation/narration-subtitles-runtime.test.mts",
         "testAnchor": "local narration captions retain exact accented words and advance over the measured voice only"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real subtitle checkbox keeps its explicit preference visible and editable while Exact is empty without enabling empty captions"
       }
     ]
   },

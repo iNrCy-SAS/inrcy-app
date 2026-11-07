@@ -251,6 +251,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     storedEnginePreference: () => JSON.parse(localStorage.getItem(preferenceKey) || "null") as Props,
     renderVoice, poolTree: () => poolTree, voiceTree: () => voiceTree, closePool,
     poolNative: () => nativeEntries.get("studio_voice_pool")!,
+    formNative: () => nativeEntries.get("studio_free_form")!,
     audioNative: () => nativeEntries.get("studio_video_audio")!,
     setVoiceUploadError(value: boolean) { voiceUploadError = value; },
     beginVocalImport() { chooseMainVoice("provided"); const button = find(poolTree, node => node.props["data-voice-pool-settings"] !== undefined); assert.equal(button.props.disabled, false); (button.props.onClick as () => void)(); render(); if (nativeEntries.get("studio_voice_pool")!.snapshot.editingId) { const add = find(poolTree, node => node.props["data-voice-pool-add"] !== undefined); (add.props.onClick as () => void)(); render(); } },
@@ -699,6 +700,41 @@ test("empty speech temporarily silences the request while retaining the professi
   assert.equal(h.quoteInputs.at(-1)!.withSubtitles, true);
   assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode, "characters");
   h.dispose();
+});
+
+test("the real subtitle checkbox keeps its explicit preference visible and editable while Exact is empty without enabling empty captions", async () => {
+  for (const selected of [true, false]) {
+    const h = harness();
+    try {
+      h.setSound("characters"); h.setSubtitles(true); h.addSpeech();
+      const control = () => find(h.tree(), node => node.props["data-media-subtitles"] !== undefined);
+      assert.equal(control().props.checked, true, "temporarily empty Exact cannot disguise the stored subtitle preference");
+      assert.equal(control().props.disabled, false, "the professional can turn subtitles off before writing speech");
+      h.setSubtitles(selected);
+      assert.equal(control().props.checked, selected);
+      for (const value of [!selected, selected]) {
+        const entry = h.formNative(); const action = entry.handlers.select;
+        const encoded = JSON.stringify({ field: "withSubtitles", value });
+        action.invoke(encoded); h.render();
+        assert.equal(control().props.checked, value);
+        assert.equal(h.formNative().snapshot.withSubtitles, value, "the assistant reads the same stored preference as the visible checkbox");
+        assert.equal(action.matches(h.formNative().snapshot, encoded), true, "the actual native handler acknowledges the preference while Exact is empty");
+        assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
+      }
+      assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
+      await h.generate();
+      assert.equal(h.requests.length, 1); assert.equal(h.requests[0].spokenScript, "");
+      assert.equal(h.requests[0].withSubtitles, false, "no captions are submitted without speech even when the preference is on");
+      h.enterSpeech("Bienvenue chez nous.");
+      assert.equal(control().props.checked, selected);
+      assert.equal(h.quoteInputs.at(-1)!.withSubtitles, selected);
+      await h.generate();
+      assert.equal(h.requests.length, 2); assert.equal(h.requests[1].withSubtitles, selected);
+      assert.equal(h.requests[1].spokenScript, "Bienvenue chez nous.");
+      h.setLocked(true); assert.equal(control().props.disabled, true);
+      h.setSubtitles(!selected); assert.equal(control().props.checked, selected, "the existing operation lock still protects the preference");
+    } finally { h.dispose(); }
+  }
 });
 
 test("removing speech clears the optional payload and permits no-speech mode without hidden text", async () => {

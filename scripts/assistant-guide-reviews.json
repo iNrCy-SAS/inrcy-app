@@ -286,7 +286,7 @@
     "basic-studio-create": {
       "guideDigest": "eca7657fc21ba2dd9e4c273212ddb49164f09728db77cbad420d5f74d53863c6",
       "sources": {
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "698735d928170cd41abc08ce51f11749f2d9e583e73dd0fff407a4ebbe78a94a",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "984617fa6e61b26fdbea734c5d61bb8e44f45d88c45a2cf0adac8363a028bdaf",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "c972cb26397fa81a3696747a65fc0b28673c2e2a86f2501eb838822d7cddeb74",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
         "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx": "5ecaf5325711c7b8093154067cf905e279f6fdf3b13dc083fb9a30f3175f06e8",
@@ -306,7 +306,7 @@
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
         "lib/inrAssistantLocalInterfaceTools.ts": "069c6d19ba87625fe5910f6637624acb7a9fe09e7900cc26eb4cf045acc72a5e",
         "lib/inrAssistantMediaTools.ts": "263e5839d1323feb88bfc10129bcfa631237a62a10f8cd907e8de809048e0e1d",
-        "lib/inrAssistantStudioFormSelection.ts": "7d4574d9b6bae47549149098ec9afe445385797e99e44f7938b766f4a6687a65",
+        "lib/inrAssistantStudioFormSelection.ts": "64e638373bb49baa97199d5e3603de3a46b990a6cb3424a799610a3782a25729",
         "lib/inrAssistantStudioPreferenceTools.ts": "41f89f164a9b51d4400e4e4c3ebaaedea9e722a1054e145bf3433b86265d0a5d",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "f2c89d626767abce4232633df8d58a4cc568cfaf3ceb45af5dc7709f431ce468",
@@ -772,7 +772,7 @@
       "guideDigest": "59919043f982fd97a4b2eb76cd42b8d88e901c5e9a6e0a7f637fc2ada20c9528",
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e7160cc23a5837f21d3c341501e6b213bf2cd63cd2c315aa7a1c5f85b0284d98",
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "698735d928170cd41abc08ce51f11749f2d9e583e73dd0fff407a4ebbe78a94a",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "984617fa6e61b26fdbea734c5d61bb8e44f45d88c45a2cf0adac8363a028bdaf",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "c972cb26397fa81a3696747a65fc0b28673c2e2a86f2501eb838822d7cddeb74",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
         "app/dashboard/_components/MediaModifier.tsx": "7dbadb9759f0f7da103cdc44cf47bad1b16b91c6f95eb8ab081916864ab2f508",
