@@ -177,7 +177,9 @@ export async function probeVideoSource(params: {
   fallbackDurationSeconds?: number | null;
   timeoutMs?: number;
   inputOptions?: readonly string[];
+  signal?: AbortSignal;
 }): Promise<VideoSourceProbe> {
+  params.signal?.throwIfAborted();
   let stderr = "";
   try {
     const result = await execFileAsync(
@@ -202,10 +204,14 @@ export async function probeVideoSource(params: {
           Number(params.timeoutMs || FFMPEG_PROBE_TIMEOUT_MS),
         ),
         maxBuffer: 4 * 1024 * 1024,
+        signal: params.signal,
       },
     );
     stderr = String(result.stderr || "");
   } catch (error) {
+    // Partial FFmpeg metadata can be useful after an ordinary probe exit,
+    // but must never turn a cancelled/deadline-expired process into success.
+    params.signal?.throwIfAborted();
     const record = error as { stderr?: unknown };
     stderr = String(record?.stderr || "");
     if (!/Stream .*Video:/i.test(stderr)) {

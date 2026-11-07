@@ -154,7 +154,8 @@ test("une génération peut être arrêtée avec confirmation et propagation ser
   assert.match(route, /classifyAiMediaGenerationError/);
   assert.match(read("lib/aiMediaGenerationPublicErrors.ts"), /AI_MEDIA_GENERATION_CANCELLED/);
   assert.match(route, /createAiMediaBillingGate\(request\.signal/);
-  assert.match(route, /signal: gate\.signal, onBillingStarted: \(\) => gate\.lock\(\)/);
+  assert.equal((route.match(/signal: gate\.signal, deadlineAt, onBillingStarted: \(\) => gate\.lock\(\)/g) || []).length, 2,
+    "JSON and streaming both retain the caller billing gate and the original deadline");
   assert.match(route, /gate\.disconnect\(\)/);
   assert.match(provider, /args\.signal\?\.addEventListener\("abort"/);
   assert.match(

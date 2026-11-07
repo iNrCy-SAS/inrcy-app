@@ -316,6 +316,8 @@ export async function generateAndSaveAiMedia(args: {
   /** Trusted Agent orchestration only; never accepted from the Studio request. */
   agentVideoFallback?: boolean;
   signal?: AbortSignal;
+  /** Trusted route deadline; never read from the user generation request. */
+  deadlineAt?: number;
   /** Locks cancellation before the first potentially billable provider phase. */
   onBillableWorkStarted?: () => void | Promise<void>;
   /** Durable recovery stores generated assets and explicitly requested caption copy, never the brief. */
@@ -1145,6 +1147,7 @@ export async function generateAndSaveAiMedia(args: {
         ...overrides,
         identityTeamProviderEgressConsent: request.teamVideoProviderConsent,
         signal: args.signal,
+        ...(args.deadlineAt === undefined ? {} : { deadlineAt: args.deadlineAt - 45_000 }),
       };
       try {
         return args.agentVideoFallback

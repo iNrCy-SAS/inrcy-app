@@ -289,9 +289,11 @@ test("supplier billing failures stop the real Free server before fallback, audio
 test("Veo fallback retains silent video delivery and locally rendered narration captions", async () => {
   const env = harness("video", false, { primaryVideoFailureOnly: true });
   const original = request("veo", { durationSeconds: 8, withSubtitles: true, spokenScript: script });
-  await env.generate(original);
+  const workDeadline = Date.now() + 760_000;
+  await env.generate(original, { deadlineAt: workDeadline });
   assert.deepEqual(env.videoCalls.map(call => (call.request as Row).videoEngine), ["veo", "omni"]);
   for (const call of env.videoCalls) {
+    assert.equal(call.deadlineAt, workDeadline - 45_000, "primary and fallback reserve the same 45s for final composition without extending the original deadline");
     assert.equal((call.request as Row).withNarration, false);
     assert.equal((call.request as Row).withSubtitles, false);
     assert.equal((call.request as Row).spokenScript, script, "exact words remain intact for final composition");
@@ -303,6 +305,16 @@ test("Veo fallback retains silent video delivery and locally rendered narration 
   assert.equal(env.saved.length, 1);
   assert.equal(original.withSubtitles, true);
   assert.equal(original.withNarration, true);
+});
+
+test("Wan3 forwards the remaining absolute deadline while preserving two clips and final composition", async () => {
+  const env = harness(), workDeadline = Date.now() + 760_000;
+  await env.generate(request("wan3", { durationSeconds: 30, videoResolution: "1080p", sceneMode: "multi", withNarration: false }), { deadlineAt: workDeadline });
+  assert.equal(env.videoCalls.length, 1);
+  assert.equal(env.videoCalls[0].deadlineAt, workDeadline - 45_000);
+  const sent = env.videoCalls[0].request as contracts.AiMediaGenerationRequest;
+  assert.equal(sent.durationSeconds, 30); assert.equal(sent.sceneMode, "multi"); assert.equal(sent.videoResolution, "1080p");
+  assert.equal(env.composeCalls.length, 1); assert.equal(env.saved.length, 1);
 });
 
 test("separate voiceover uses the script language and local QA remains advisory without regeneration", async () => {

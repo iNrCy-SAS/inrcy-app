@@ -45,6 +45,7 @@ type ComposerModule = {
       voice: string;
     } | null;
     soundtrack?: { absolutePath: string } | null;
+    signal?: AbortSignal;
   }) => Promise<{ buffer: Buffer }>;
 };
 
@@ -204,7 +205,7 @@ test("le rendu image et vidéo conserve La Celle Dunoise sans supprimer le derni
   assert.equal(runtime.wrapAiMediaOverlayText(headline, 29, 3).join(" "), headline);
 });
 
-function transpileRuntimeModule<T>(relativePath: string): T {
+function transpileRuntimeModule<T>(relativePath: string, observeProbe?: (options: Parameters<typeof probeVideoSource>[0]) => void): T {
   const source = readFileSync(new URL(relativePath, import.meta.url), "utf8");
   const output = ts.transpileModule(source, {
     compilerOptions: {
@@ -219,7 +220,7 @@ function transpileRuntimeModule<T>(relativePath: string): T {
     if (specifier === "./aiMediaFullFrame.ts") return fullFrame;
     if (specifier === "./aiMediaNarrationSubtitles.ts") return narrationSubtitles;
     if (specifier === "@/lib/mediaVideoNormalizer") {
-      return { probeVideoSource, resolveVideoNormalizationFfmpegPath };
+      return { probeVideoSource: (options: Parameters<typeof probeVideoSource>[0]) => { observeProbe?.(options); return probeVideoSource(options); }, resolveVideoNormalizationFfmpegPath };
     }
     if (specifier === "@/lib/aiMediaVideoLayout") return videoLayout;
     if (specifier === "@/lib/aiMediaTextIntegrity") return textIntegrity;
@@ -231,7 +232,10 @@ function transpileRuntimeModule<T>(relativePath: string): T {
 }
 
 test("le compositeur conserve les durées natives de 4, 5, 15 et 30 secondes, avec audio", async () => {
-  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
+  const controller = new AbortController(); let probes = 0;
+  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts", options => {
+    probes += 1; assert.equal(options.signal, controller.signal, "input and output probes share the real composition deadline signal");
+  });
   const directory = await mkdtemp(path.join(tmpdir(), "inrcy-native-duration-test-"));
   const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
   const overlay = await sharp({ create: { width: 320, height: 320, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
@@ -239,7 +243,7 @@ test("le compositeur conserve les durées natives de 4, 5, 15 et 30 secondes, av
     for (const durationSeconds of [4, 5, 15, 30]) {
       const source = path.join(directory, `source-${durationSeconds}.mp4`);
       await execFileAsync(ffmpegPath, ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", `testsrc2=s=320x320:r=30:d=${durationSeconds}`, "-f", "lavfi", "-i", `sine=frequency=440:duration=${durationSeconds}`, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", source], { windowsHide: true, timeout: 45_000 });
-      const output = await runtime.composeOriginalAiVideo({ clips: [{ buffer: await readFile(source), durationSeconds }], overlays: [overlay], width: 320, height: 320, durationSeconds, nativeAudioMode: "dialogue" });
+      const output = await runtime.composeOriginalAiVideo({ clips: [{ buffer: await readFile(source), durationSeconds }], overlays: [overlay], width: 320, height: 320, durationSeconds, nativeAudioMode: "dialogue", signal: controller.signal });
       const file = path.join(directory, `result-${durationSeconds}.mp4`);
       await writeFile(file, output.buffer);
       const probe = await probeVideoSource({ ffmpegPath, inputPath: file, timeoutMs: 30_000 });
@@ -251,12 +255,14 @@ test("le compositeur conserve les durées natives de 4, 5, 15 et 30 secondes, av
     const joined = await runtime.composeOriginalAiVideo({
       clips: [{ buffer: half, durationSeconds: 15 }, { buffer: half, durationSeconds: 15 }],
       overlays: [overlay, overlay], width: 320, height: 320, durationSeconds: 30, nativeAudioMode: "dialogue",
+      signal: controller.signal,
     });
     const joinedPath = path.join(directory, "result-two-clips-30.mp4");
     await writeFile(joinedPath, joined.buffer);
     const joinedProbe = await probeVideoSource({ ffmpegPath, inputPath: joinedPath, timeoutMs: 30_000 });
     assert.ok(Math.abs(joinedProbe.durationSeconds - 30) < 0.35);
     assert.equal(joinedProbe.hasAudio, true, "l'audio natif survit à l'assemblage des deux clips");
+    assert.equal(probes, 11, "all four native durations and both joined inputs are probed with the composition signal");
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 

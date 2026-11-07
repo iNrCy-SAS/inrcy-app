@@ -3,6 +3,7 @@ import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts"
 import type { AiMediaVideoProviderContract } from "@/lib/aiMediaVideoProviderContract";
 import { hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine } from "./aiMediaCharacterVoices.ts";
 import { isAiMediaProviderBillingFailure } from "./aiMediaGenerationPublicErrors.ts";
+import { safeAiVideoProviderFailureDiagnostics, type AiVideoProviderFailureDiagnostics } from "./aiMediaSensitiveText.ts";
 
 export type AiVideoProviderClip = {
   buffer: Buffer;
@@ -42,6 +43,7 @@ export class AiVideoProviderBillableFailure extends Error {
   readonly provider: string;
   readonly model: string;
   readonly stage: string;
+  readonly diagnostics?: AiVideoProviderFailureDiagnostics;
 
   constructor(args: {
     provider: string;
@@ -49,6 +51,7 @@ export class AiVideoProviderBillableFailure extends Error {
     stage: string;
     details?: string;
     cause?: unknown;
+    diagnostics?: AiVideoProviderFailureDiagnostics;
   }) {
     const details = String(args.details || "output_processing_failed")
       .replace(/\u0000/g, "")
@@ -65,6 +68,7 @@ export class AiVideoProviderBillableFailure extends Error {
     this.provider = args.provider;
     this.model = args.model;
     this.stage = args.stage;
+    this.diagnostics = safeAiVideoProviderFailureDiagnostics(args.diagnostics);
   }
 }
 
@@ -151,6 +155,8 @@ export type AiVideoProviderGenerationArgs = {
    * signal still stops submission, polling and download as early as possible.
    */
   signal?: AbortSignal;
+  /** Trusted absolute finish deadline, leaving local composition time to the caller. */
+  deadlineAt?: number;
 };
 
 /**

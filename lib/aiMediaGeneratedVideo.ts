@@ -561,7 +561,7 @@ export async function composeOriginalAiVideo(args: {
     const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
     const probes = await Promise.all(
       clipPaths.map((inputPath) =>
-        probeVideoSource({ ffmpegPath, inputPath, timeoutMs: 60_000 })
+        probeVideoSource({ ffmpegPath, inputPath, timeoutMs: 60_000, signal: args.signal })
       )
     );
     args.signal?.throwIfAborted();
@@ -719,6 +719,7 @@ export async function composeOriginalAiVideo(args: {
         ffmpegPath,
         inputPath: outputPath,
         timeoutMs: 60_000,
+        signal: args.signal,
       }),
       stat(outputPath),
     ]);

@@ -22,7 +22,8 @@ import { hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine } from 
 import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
 import { extractAiMediaVideoContinuityFrame, type AiMediaVideoContinuityFrame } from "./aiMediaVideoContinuity.ts";
 import { createAiMediaVideoTemporaryImageStore } from "./aiMediaVideoTemporaryImages.ts";
-import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
+import { redactAiMediaSensitiveText, safeAiVideoProviderErrorMetadata, safeAiVideoProviderFailureDiagnostics,
+  type AiVideoProviderFailurePhase } from "@/lib/aiMediaSensitiveText";
 import { assertAiMediaVideoProviderBoundary } from "./aiMediaVideoProviderContract.ts";
 import { buildGoogleVideoScenePrompt, buildGoogleVideoTeamSpeechDirection } from "@/lib/aiVideoProviderGoogleVeo";
 import {
@@ -226,6 +227,13 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
         connectScenes && canAttachContinuityFrame && index > 0 ? { data: "", mimeType: "image/jpeg" } : undefined,
         undefined, voicePlaceholders, nativeSubjectReferences ? "https://provider-input.invalid/continuity.jpg" : undefined));
       if (!String(process.env.AI_GATEWAY_API_KEY || process.env.VERCEL_OIDC_TOKEN || "").trim()) throw new Error("ai_gateway_credentials_missing");
+      const startedAt = Date.now();
+      if (args.deadlineAt !== undefined && (!Number.isSafeInteger(args.deadlineAt) || args.deadlineAt <= startedAt)) throw new Error("ai_video_gateway_timeout");
+      // Studio supplies the remaining route budget after reserving composition
+      // time. Legacy callers keep their existing 600s film cap. No film gets
+      // an unbounded two-times-600s window.
+      const overallBudgetMs = args.deadlineAt === undefined ? 600_000
+        : Math.min(715_000, durations.length * 600_000, args.deadlineAt - startedAt);
       const controller = new AbortController();
       // These exact upstream models accept hosted image sources only (public catalogue).
       const temporaryImages = model.id === "minimax-h3" || model.id === "wan-flash" || nativeSubjectReferences
@@ -233,11 +241,31 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
       const cancel = () => controller.abort(args.signal?.reason ?? new Error("ai_media_generation_cancelled"));
       args.signal?.addEventListener("abort", cancel, { once: true });
       if (args.signal?.aborted) cancel();
-      const timeout = setTimeout(() => controller.abort(new Error("ai_video_gateway_timeout")), 600_000);
+      const timeout = setTimeout(() => controller.abort(new Error("ai_video_gateway_timeout")), overallBudgetMs);
       const clips: AiVideoProviderClip[] = [];
       const warnings: string[] = [];
       let filmBillable = false;
       let estimatedCostMicroUsd = 0;
+      let committedCostMicroUsd = 0;
+      let clipStartedAt = startedAt;
+      let clipIndex = 0;
+      let clipDurationSeconds = 0;
+      let currentClipAssetObserved = false;
+      let phase: AiVideoProviderFailurePhase = "input_storage";
+      let activeClipController: AbortController | undefined;
+      const failureContext = () => {
+        const failedAt = Date.now();
+        const filmDeadline = controller.signal.aborted && controller.signal.reason instanceof Error && controller.signal.reason.message === "ai_video_gateway_timeout";
+        const clipDeadline = activeClipController?.signal.aborted === true && activeClipController.signal.reason instanceof Error && activeClipController.signal.reason.message === "ai_video_gateway_timeout";
+        return {
+          phase, elapsedMs: Math.max(0, failedAt - startedAt), clipElapsedMs: Math.max(0, failedAt - clipStartedAt),
+          currentClipAssetObserved, callerAborted: args.signal?.aborted === true,
+          providerAborted: controller.signal.aborted || activeClipController?.signal.aborted === true,
+          deadlineExceeded: filmDeadline || clipDeadline,
+          ...(filmDeadline ? { deadlineKind: "film" as const } : clipDeadline ? { deadlineKind: "clip" as const } : {}),
+        };
+      };
+      let observedFailure: ReturnType<typeof failureContext> | undefined;
       try {
         if (connectScenes) await temporaryImages?.assertPrivateBucket();
         const originalVoiceUrls = nativeSubjectReferences
@@ -246,6 +274,11 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
         const originalImageUrls = temporaryImages ? await temporaryImages.uploadImages(args.request.inspirationImages) : undefined;
         // SDK 6 uses one SSE request per native clip. No uncertain submission is retried.
         for (let index = 0; index < durations.length; index += 1) {
+          clipIndex = index + 1;
+          clipDurationSeconds = durations[index];
+          clipStartedAt = Date.now();
+          currentClipAssetObserved = false;
+          phase = "continuity";
           controller.signal.throwIfAborted();
           const continuityFrame = connectScenes && canAttachContinuityFrame && index > 0
             ? await extractAiMediaVideoContinuityFrame({ ...clips[index - 1], signal: controller.signal }) : undefined;
@@ -259,6 +292,7 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
             ? args.request.inspirationImages.length + (continuityFrame ? 1 : 0)
             : continuityFrame ? 1 : args.request.inspirationImages.length;
           const clipCost = Math.ceil(input.duration * rate * 1_000_000) + referenceCount * inputModel.supplierReferenceCostMicroUsd;
+          phase = "cost_reservation";
           const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
             feature: "media.video", estimatedInputTokens: 0, reservedOutputTokens: 0, estimatedCostMicroUsd: clipCost,
           });
@@ -271,18 +305,33 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
               usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, actualCostMicroUsd: clipCost,
             });
             committed = true;
+            committedCostMicroUsd += clipCost;
           };
+          const clipController = new AbortController();
+          activeClipController = clipController;
+          const clipSignal = AbortSignal.any([controller.signal, clipController.signal]);
+          const clipTimeout = setTimeout(() => clipController.abort(new Error("ai_video_gateway_timeout")), 600_000);
           try {
+            phase = "provider_submission";
             const result = await generateVideo({
-              ...input, abortSignal: controller.signal,
-              download: async (options) => { billable = true; filmBillable = true; return downloadClip(options); },
+              ...input, abortSignal: clipSignal,
+              download: async (options) => {
+                phase = "asset_download";
+                currentClipAssetObserved = true;
+                billable = true; filmBillable = true;
+                return downloadClip(options);
+              },
             });
             billable ||= result.videos.length > 0;
             filmBillable ||= billable;
+            currentClipAssetObserved ||= billable;
+            phase = "output_validation";
             if (result.videos.length !== 1) throw new Error("ai_video_gateway_output_count_invalid");
             const buffer = bufferFromUint8ArrayView(result.videos[0].uint8Array);
             if (!buffer.byteLength || buffer.byteLength > MAX_CLIP_BYTES || buffer.subarray(4, 8).toString("ascii") !== "ftyp") throw new Error("ai_video_gateway_mp4_invalid");
+            phase = "cost_commit";
             await commit();
+            phase = "output_validation";
             estimatedCostMicroUsd += clipCost;
             const clipWarnings = result.warnings.map((warning) => `gateway:${diagnostic(warning)}`).slice(0, 30);
             if (model.id === "heygen" && (!referenceCount || nativeSubjectReferences) && resolution === "1080p" &&
@@ -296,21 +345,30 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
             clips.push({ buffer, mediaType: "video/mp4", durationSeconds: input.duration,
               requestId: args.request.requestId, model: model.modelId, warnings: clipWarnings });
           } catch (error) {
+            observedFailure = failureContext();
             if (billable) await commit().catch(() => undefined);
             else await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined);
             throw error;
+          } finally {
+            clearTimeout(clipTimeout);
           }
         }
         return { provider: providerId, model: model.modelId, estimatedCostMicroUsd, warnings, clips };
       } catch (error) {
+        const diagnostics = safeAiVideoProviderFailureDiagnostics({
+          ...safeAiVideoProviderErrorMetadata(error), ...(observedFailure || failureContext()), clipIndex, clipCount: durations.length,
+          clipDurationSeconds, completedClips: clips.length, committedCostMicroUsd,
+          overallBudgetMs, clipBudgetMs: 600_000,
+        });
         await recordAiGatewayAccountFailure({ accountId: args.accountId, feature: "media.video", model: model.modelId }).catch(() => undefined);
         if (filmBillable) throw new AiVideoProviderBillableFailure({
-          provider: providerId, model: model.modelId, stage: "gateway_output_processing",
+          provider: providerId, model: model.modelId, stage: `gateway_${phase}`,
           details: diagnostic(error), cause: new Error(diagnostic(error)),
+          diagnostics,
         });
         // Retain only safe retry evidence. SDK errors may contain prompts,
         // private reference URLs and credentials in their request bodies.
-        throw Object.assign(new Error(diagnostic(error)), { statusCode: getAiVideoProviderRecoverableStatus(error) });
+        throw Object.assign(new Error(diagnostic(error)), { statusCode: getAiVideoProviderRecoverableStatus(error), diagnostics });
       } finally {
         clearTimeout(timeout);
         args.signal?.removeEventListener("abort", cancel);

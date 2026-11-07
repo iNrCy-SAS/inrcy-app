@@ -287,11 +287,18 @@ function assertDraftContractVersion(value: unknown): Record<string, unknown> {
 type GenerationExecutionOptions = {
   current: NonNullable<Awaited<ReturnType<typeof getCurrentInrcyAccountScope>>>;
   signal: AbortSignal;
+  deadlineAt: number;
   onBillingStarted: () => void | Promise<void>;
 };
 
 async function executeGenerate(request: Request, options: GenerationExecutionOptions) {
   const routeStartedAt = performance.now();
+  // Anchor to POST entry, so authentication and private-reference preflight
+  // cannot silently extend the platform's 800s invocation window.
+  const remainingMs = options.deadlineAt - Date.now();
+  const executionSignal = remainingMs > 0
+    ? AbortSignal.any([options.signal, AbortSignal.timeout(remainingMs)])
+    : AbortSignal.abort(new Error("ai_media_generation_deadline"));
   const context: RouteContext = {
     accountId: "",
     authUserId: "",
@@ -315,7 +322,7 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
     const current = options.current;
     context.accountId = current.scope.activeUserId;
     context.authUserId = current.scope.authUserId;
-    options.signal.throwIfAborted();
+    executionSignal.throwIfAborted();
     // Ces trois lectures sont indépendantes. Les lancer ensemble supprime deux
     // allers-retours séquentiels avant même l'appel au moteur image ou vidéo.
     const [resolvedAdminUnlimited, rateLimited, edition] = await Promise.all([
@@ -357,7 +364,7 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
       if (!supportsAiMediaClonedNarrationLanguage(language)) throw new AiMediaRequestValidationError("La synthèse avec votre voix n’est pas disponible dans cette langue. Choisissez une autre langue de narration.");
       preparedNarrationVoice = await preflightAiMediaNarrationVoice({
         accountId: context.accountId, sample: normalizedRequest.narrationVoiceSample,
-        consent: normalizedRequest.narrationVoiceConsent, signal: options.signal, language,
+        consent: normalizedRequest.narrationVoiceConsent, signal: executionSignal, language,
       });
     }
 
@@ -412,7 +419,7 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
     if (!wallet.creditsReady) {
       return jsonError({ status: 503, code: "AI_MEDIA_CREDITS_NOT_READY", message: "Le portefeuille de crédits média doit être activé avant la génération." });
     }
-    options.signal.throwIfAborted();
+    executionSignal.throwIfAborted();
     const reservation = await reserveAiMediaGeneration({
       accountId: context.accountId,
       actorAuthUserId: context.authUserId,
@@ -615,8 +622,10 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
       request: normalizedRequest,
       preparedNarrationVoice,
       videoMaxDurationSeconds,
-      // Leave time for persistence/finalization before the platform's 800s limit.
-      signal: AbortSignal.any([options.signal, AbortSignal.timeout(720_000)]),
+      // The Server leaves 45s for local composition inside this work budget;
+      // 40s remain outside it for quota/finalization before Vercel's 800s cap.
+      signal: executionSignal,
+      deadlineAt: options.deadlineAt,
       onBillableWorkStarted: options.onBillingStarted,
       onCompositionReady: async ({ input, metadata }) => {
         compositionCheckpointAttempted = true;
@@ -850,6 +859,7 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
 }
 
 export async function POST(request: Request) {
+  const deadlineAt = Date.now() + 760_000;
   // Authentication is resolved once, before any stream headers. Unauthorized
   // callers keep the same 401 JSON contract, regardless of their Accept header.
   let current: Awaited<ReturnType<typeof getCurrentInrcyAccountScope>>;
@@ -858,7 +868,7 @@ export async function POST(request: Request) {
   if (!current) return jsonError({ status: 401, code: "UNAUTHORIZED", message: "Non authentifié." });
   if (!acceptsAiMediaGenerationStream(request.headers.get("accept"))) {
     const gate = createAiMediaBillingGate(request.signal);
-    const execution = executeGenerate(request, { current, signal: gate.signal, onBillingStarted: () => gate.lock() });
+    const execution = executeGenerate(request, { current, signal: gate.signal, deadlineAt, onBillingStarted: () => gate.lock() });
     // The same paid job is allowed to finalize after a client disconnect.
     after(execution.then(() => undefined));
     try { return await execution; }
@@ -878,7 +888,7 @@ export async function POST(request: Request) {
     start(controller) { streamController = controller; },
     cancel() { connected = false; gate.disconnect(); },
   });
-  const execution = executeGenerate(request, { current, signal: gate.signal, onBillingStarted: () => gate.lock() })
+  const execution = executeGenerate(request, { current, signal: gate.signal, deadlineAt, onBillingStarted: () => gate.lock() })
     .then(async (response) => {
       const payload: unknown = await response.json();
       emit({ type: "result", status: response.status, payload });

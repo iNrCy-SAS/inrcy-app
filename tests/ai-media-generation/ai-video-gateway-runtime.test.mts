@@ -43,7 +43,26 @@ function argsFor(engine: catalog.AiMediaVideoEngine, references = 0, duration = 
   } as unknown as providerTypes.AiVideoProviderGenerationArgs;
 }
 
-function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-insufficient" | "bad-asset" | "download-failed" | "second-rejected" | "frame-failed" | "storage-failed" | "warnings-with-url" | "await-abort" = "success") {
+function virtualClock(latencies: number[]) {
+  let now = 1_800_000_000_000, nextId = 0;
+  const timers = new Map<number, { at: number; callback: () => void }>();
+  return {
+    latencies, now: () => now, pending: () => timers.size,
+    schedule(callback: () => void, delay: number) { const id = ++nextId; timers.set(id, { at: now + delay, callback }); return id; },
+    clear(id: number) { timers.delete(id); },
+    advance(delay: number) {
+      const until = now + delay;
+      for (;;) {
+        const next = [...timers].filter(([, timer]) => timer.at <= until).sort((a, b) => a[1].at - b[1].at || a[0] - b[0])[0];
+        if (!next) break;
+        now = next[1].at; timers.delete(next[0]); next[1].callback();
+      }
+      now = until;
+    },
+  };
+}
+
+function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-insufficient" | "bad-asset" | "download-failed" | "second-rejected" | "frame-failed" | "storage-failed" | "warnings-with-url" | "await-abort" = "success", failure?: { error: unknown; call: number }, clock?: ReturnType<typeof virtualClock>) {
   const counters = { requests: 0, reservations: 0, commits: 0, rollbacks: 0 };
   let observed: Record<string, unknown> | undefined;
   const submissions: Record<string, unknown>[] = [];
@@ -66,6 +85,14 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-i
       createDownload: () => async () => { throw new Error("download unavailable"); },
       experimental_generateVideo: async (input: Record<string, unknown>) => {
         counters.requests += 1; observed = input; submissions.push(input);
+        if (failure && counters.requests === failure.call) throw failure.error;
+        if (clock) await new Promise<void>((resolve, reject) => {
+          const signal = input.abortSignal as AbortSignal;
+          const abort = () => { clock.clear(timer); reject(signal.reason); };
+          const timer = clock.schedule(() => { signal.removeEventListener("abort", abort); resolve(); }, clock.latencies[counters.requests - 1]);
+          if (signal.aborted) abort();
+          else signal.addEventListener("abort", abort, { once: true });
+        });
         if (mode === "await-abort") {
           const signal = input.abortSignal as AbortSignal;
           await new Promise<never>((_resolve, reject) => {
@@ -130,13 +157,17 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-i
     throw new Error(`unexpected_dependency:${specifier}`);
   };
   const commonJsModule = { exports: {} };
-  const factory = vm.runInThisContext(`(function(exports,require,module,setTimeout,process){${javascript}\n})`) as (
-    exports: object, require: typeof localRequire, module: typeof commonJsModule, schedule: typeof setTimeout, isolatedProcess: { env: Record<string, string> },
+  const factory = vm.runInThisContext(`(function(exports,require,module,setTimeout,clearTimeout,Date,process){${javascript}\n})`) as (
+    exports: object, require: typeof localRequire, module: typeof commonJsModule, schedule: typeof setTimeout, clear: typeof clearTimeout, date: Pick<DateConstructor, "now">, isolatedProcess: { env: Record<string, string> },
   ) => void;
   const schedule = mode === "await-abort" ? ((callback: () => void, delay: number) => {
     expireTimeout = callback; timeoutDelay = delay; return 0;
   }) as unknown as typeof setTimeout : setTimeout;
-  factory(commonJsModule.exports, localRequire, commonJsModule, schedule, { env: { AI_GATEWAY_API_KEY: "fixture-no-real-credentials" } });
+  const clockDate = clock ? class extends Date { static now() { return clock.now(); } } : Date;
+  factory(commonJsModule.exports, localRequire, commonJsModule,
+    clock ? clock.schedule.bind(clock) as unknown as typeof setTimeout : schedule,
+    clock ? clock.clear.bind(clock) as unknown as typeof clearTimeout : clearTimeout, clockDate,
+    { env: { AI_GATEWAY_API_KEY: "fixture-no-real-credentials" } });
   return { runtime: commonJsModule.exports as Runtime, counters, submissions, costs, reservedCosts, hostedImages,
     frames: () => frames, storageCleanups: () => storageCleanups, privateChecks: () => privateChecks, observed: () => observed,
     timeoutDelay: () => timeoutDelay, expireTimeout: () => { assert.ok(expireTimeout); expireTimeout(); } };
@@ -846,4 +877,148 @@ test("Veo rejects a malformed multi-reference short clip before reservation and 
   assert.deepEqual(partial.counters, { requests: 2, reservations: 2, commits: 1, rollbacks: 1 });
   assert.deepEqual(partial.reservedCosts, [1_200_000, 1_200_000]); assert.deepEqual(partial.costs, [1_200_000]);
   assert.ok(partial.submissions.every(input => input.model === "google/veo-3.1-fast-generate-001" && input.maxRetries === 0));
+});
+
+async function malformedSdkError(status: number): Promise<unknown> {
+  const { createGateway, experimental_generateVideo } = await import("ai");
+  let intercepted = 0;
+  const gateway = createGateway({ apiKey: "local-no-real-credentials", fetch: async () => {
+    intercepted += 1;
+    return new Response("private-response-sentinel", { status, headers: { "content-type": "text/plain" } });
+  } });
+  try {
+    await experimental_generateVideo({ model: gateway.video("alibaba/wan-v3.0-video"), prompt: "private-brief-sentinel", duration: 15, maxRetries: 0 });
+    assert.fail("the local synthetic response must fail");
+  } catch (error) {
+    assert.equal(intercepted, 1, "the SDK never retries or contacts an external supplier");
+    assert.equal((error as Error).message, "Invalid error response format: Gateway request failed");
+    return error;
+  }
+}
+
+for (const status of [400, 500, 504]) test(
+  "identical malformed SDK errors retain safe HTTP " + status + " without the private SDK payload",
+  async () => {
+    const error = await malformedSdkError(status);
+    const context = loadRuntime("success", { error, call: 1 });
+    await assert.rejects(context.runtime.createGatewayAiVideoProvider("wan3").generate(argsFor("wan3", 0, 15)), failure => {
+      const details = sensitiveText.safeAiMediaErrorDetails(failure);
+      assert.equal(details[0].diagnostics?.providerHttpStatus, status);
+      assert.equal(details[0].diagnostics?.providerErrorName, "GatewayResponseError");
+      assert.equal(details[0].diagnostics?.phase, "provider_submission");
+      assert.equal(details[0].diagnostics?.clipIndex, 1);
+      assert.equal(details[0].diagnostics?.completedClips, 0);
+      assert.equal(details[0].diagnostics?.deadlineExceeded, false);
+      assert.equal((failure as Error).cause, undefined);
+      assert.doesNotMatch(JSON.stringify(failure) + JSON.stringify(details), /private-brief-sentinel|private-response-sentinel|requestBodyValues|responseBody|https?:/);
+      return true;
+    });
+    assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 0, rollbacks: 1 });
+    assert.ok(context.submissions.every(input => input.maxRetries === 0));
+  },
+);
+
+test("a paid Wan3 clip and its committed cost survive a malformed second response with precise phase and no retry", async () => {
+  const error = await malformedSdkError(504);
+  const context = loadRuntime("success", { error, call: 2 });
+  const args = argsFor("wan3", 0, 30, "multi"); args.request.videoResolution = "1080p";
+  await assert.rejects(context.runtime.createGatewayAiVideoProvider("wan3").generate(args), failure => {
+    assert.ok(providerTypes.isAiVideoProviderBillableFailure(failure));
+    assert.equal(providerTypes.getAiVideoProviderRecoverableStatus(failure), 0);
+    assert.equal(failure.stage, "gateway_provider_submission");
+    const diagnostics = sensitiveText.safeAiMediaErrorDetails(failure)[0].diagnostics;
+    assert.equal(diagnostics?.providerHttpStatus, 504);
+    assert.equal(diagnostics?.phase, "provider_submission");
+    assert.equal(diagnostics?.clipIndex, 2); assert.equal(diagnostics?.clipCount, 2);
+    assert.equal(diagnostics?.clipDurationSeconds, 15); assert.equal(diagnostics?.completedClips, 1);
+    assert.equal(diagnostics?.committedCostMicroUsd, 3_000_000);
+    assert.equal(diagnostics?.currentClipAssetObserved, false);
+    assert.equal(diagnostics?.callerAborted, false); assert.equal(diagnostics?.providerAborted, false);
+    assert.equal(diagnostics?.deadlineExceeded, false, "upstream504 does not prove our own deadline fired");
+    assert.ok(Number.isSafeInteger(diagnostics?.elapsedMs)); assert.ok(Number.isSafeInteger(diagnostics?.clipElapsedMs));
+    assert.notEqual(failure.cause, error);
+    assert.doesNotMatch(JSON.stringify(failure) + JSON.stringify(sensitiveText.safeAiMediaErrorDetails(failure)), /private-brief-sentinel|private-response-sentinel|requestBodyValues|responseBody|https?:/);
+    return true;
+  });
+  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 1, rollbacks: 1 });
+  assert.deepEqual(context.reservedCosts, [3_000_000, 3_000_000]);
+  assert.deepEqual(context.costs, [3_000_000]);
+  assert.ok(context.submissions.every(input => input.model === "alibaba/wan-v3.0-video" && input.duration === 15 && input.maxRetries === 0));
+});
+
+test("an offered asset download failure keeps its own phase even when the billable cost is committed during cleanup", async () => {
+  const context = loadRuntime("download-failed");
+  await assert.rejects(context.runtime.createGatewayAiVideoProvider("grok-lite").generate(argsFor("grok-lite", 0, 8)), failure => {
+    assert.ok(providerTypes.isAiVideoProviderBillableFailure(failure));
+    assert.equal(failure.stage, "gateway_asset_download");
+    assert.equal(failure.diagnostics?.phase, "asset_download");
+    assert.equal(failure.diagnostics?.currentClipAssetObserved, true);
+    assert.equal(failure.diagnostics?.committedCostMicroUsd, 240_000);
+    assert.equal(failure.diagnostics?.completedClips, 0);
+    return true;
+  });
+  assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 1, rollbacks: 0 });
+});
+
+async function waitForSubmission(context: ReturnType<typeof loadRuntime>, count: number) {
+  for (let turn = 0; turn < 20 && context.counters.requests < count; turn += 1) await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(context.counters.requests, count);
+}
+
+test("two paid Wan3 clips taking 615740ms finish inside the remaining absolute budget without retry or a new 600s film cutoff", async () => {
+  const clock = virtualClock([318_070, 297_670]); const context = loadRuntime("success", undefined, clock);
+  const args = argsFor("wan3", 0, 30, "multi"); args.request.videoResolution = "1080p";
+  args.deadlineAt = clock.now() + 635_000;
+  const pending = context.runtime.createGatewayAiVideoProvider("wan3").generate(args);
+  await waitForSubmission(context, 1); clock.advance(318_070);
+  await waitForSubmission(context, 2); clock.advance(297_670);
+  const result = await pending;
+  assert.equal(result.clips.length, 2); assert.equal(result.estimatedCostMicroUsd, 6_000_000);
+  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 2, rollbacks: 0 });
+  assert.deepEqual(context.costs, [3_000_000, 3_000_000]);
+  assert.ok(context.submissions.every(input => input.model === "alibaba/wan-v3.0-video" && input.duration === 15 && input.maxRetries === 0));
+  assert.equal(clock.pending(), 0, "all clip and film timers are released");
+});
+
+test("the absolute film deadline stops clip two and preserves the first paid clip cost without another submission", async () => {
+  const clock = virtualClock([318_070, 350_000]); const context = loadRuntime("success", undefined, clock);
+  const args = argsFor("wan3", 0, 30, "multi"); args.request.videoResolution = "1080p";
+  args.deadlineAt = clock.now() + 635_000;
+  const pending = context.runtime.createGatewayAiVideoProvider("wan3").generate(args); void pending.catch(() => undefined);
+  await waitForSubmission(context, 1); clock.advance(318_070);
+  await waitForSubmission(context, 2); clock.advance(316_930);
+  await assert.rejects(pending, error => {
+    assert.ok(providerTypes.isAiVideoProviderBillableFailure(error));
+    assert.equal(error.diagnostics?.deadlineKind, "film"); assert.equal(error.diagnostics?.deadlineExceeded, true);
+    assert.equal(error.diagnostics?.elapsedMs, 635_000); assert.equal(error.diagnostics?.clipElapsedMs, 316_930);
+    assert.equal(error.diagnostics?.completedClips, 1); assert.equal(error.diagnostics?.committedCostMicroUsd, 3_000_000);
+    assert.equal(error.diagnostics?.callerAborted, false); assert.equal(error.diagnostics?.overallBudgetMs, 635_000);
+    return true;
+  });
+  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 1, rollbacks: 1 });
+  assert.deepEqual(context.costs, [3_000_000]); assert.equal(clock.pending(), 0);
+});
+
+test("a single stalled Wan3 clip keeps its 600s cap even when the two-clip film has 715s available", async () => {
+  const clock = virtualClock([610_000]); const context = loadRuntime("success", undefined, clock);
+  const args = argsFor("wan3", 0, 30, "multi"); args.deadlineAt = clock.now() + 715_000;
+  const pending = context.runtime.createGatewayAiVideoProvider("wan3").generate(args); void pending.catch(() => undefined);
+  await waitForSubmission(context, 1); clock.advance(600_000);
+  await assert.rejects(pending, error => {
+    const diagnostics = sensitiveText.safeAiMediaErrorDetails(error)[0].diagnostics;
+    assert.equal(diagnostics?.deadlineKind, "clip"); assert.equal(diagnostics?.elapsedMs, 600_000);
+    assert.equal(diagnostics?.completedClips, 0); assert.equal(diagnostics?.clipIndex, 1);
+    assert.equal(diagnostics?.overallBudgetMs, 715_000); assert.equal(diagnostics?.clipBudgetMs, 600_000);
+    return true;
+  });
+  assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 0, rollbacks: 1 });
+  assert.equal(clock.pending(), 0);
+});
+
+test("an expired absolute provider deadline cannot upload references, reserve credits or submit a clip", async () => {
+  const clock = virtualClock([]); const context = loadRuntime("success", undefined, clock);
+  const args = argsFor("wan3", 1, 15); args.deadlineAt = clock.now();
+  await assert.rejects(context.runtime.createGatewayAiVideoProvider("wan3").generate(args), /ai_video_gateway_timeout/);
+  assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
+  assert.equal(context.hostedImages.length, 0); assert.equal(clock.pending(), 0);
 });

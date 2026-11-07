@@ -40,10 +40,10 @@ type ReservationCall = {
   metadata?: Record<string, unknown>;
 };
 
-function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; cancelledKey?: string; cancellationConflictKey?: string; providerFails?: boolean; providerError?: Error; preparationError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void>; checkpoint?: "saved" | "lost_ack" | "unavailable"; compositionFails?: boolean; cleanupFails?: boolean;
+function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; clock?: { now: number }; cancelledKey?: string; cancellationConflictKey?: string; providerFails?: boolean; providerError?: Error; preparationError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void>; checkpoint?: "saved" | "lost_ack" | "unavailable"; compositionFails?: boolean; cleanupFails?: boolean;
   narrator?: { configured?: boolean; language?: string; profileFails?: boolean; error?: Error; reference?: PreparedAiMediaNarrationVoice } } = {}) {
   const reservationCalls: ReservationCall[] = [];
-  const generationCalls: Array<{ request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal; preparedNarrationVoice?: PreparedAiMediaNarrationVoice | null }> = [];
+  const generationCalls: Array<{ request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal; deadlineAt?: number; preparedNarrationVoice?: PreparedAiMediaNarrationVoice | null }> = [];
   const narratorPreflights: Array<{ accountId: string; sample: contracts.AiMediaGenerationRequest["narrationVoiceSample"]; consent: boolean; language: string }> = [];
   const narratorEvents: string[] = [];
   const lifetimes: Promise<unknown>[] = [];
@@ -169,10 +169,11 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
     compilerOptions: { esModuleInterop: true, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const record = { exports: {} as { POST: (request: Request) => Promise<Response> } };
-  new Function("module", "exports", "require", "console", output)(record, record.exports, (specifier: string) => {
+  const routeDate = options.clock ? class extends Date { static now() { return options.clock!.now; } } : Date;
+  new Function("module", "exports", "require", "console", "Date", output)(record, record.exports, (specifier: string) => {
     assert.ok(modules.has(specifier), `Dépendance non isolée dans le test de route : ${specifier}`);
     return modules.get(specifier);
-  }, { info() {}, warn() {}, error() {} });
+  }, { info() {}, warn() {}, error() {} }, routeDate);
   return {
     reservationCalls, generationCalls, completionCalls, failureCalls, lifetimes, releasedCheckpoints, narratorPreflights, narratorEvents,
     paidCalls: () => paidCalls, authenticationCalls: () => authenticationCalls,
@@ -203,6 +204,23 @@ function narratorRequest() {
     narrationVoiceMode: "provided", narrationVoiceSample: { path, mimeType: "audio/wav", name: "ma-voix.wav", durationSeconds: 6, sizeBytes: 192_044 }, narrationVoiceConsent: true, narrationVoiceGender: "auto" };
   return { reference, request };
 }
+
+test("JSON and streamed generation keep the original 760s POST deadline after authentication instead of restarting the work budget", async () => {
+  for (const streamed of [false, true]) {
+    const clock = { now: 1_800_000_000_000 }, startedAt = clock.now;
+    let authenticated!: () => void;
+    const authentication = new Promise<void>(resolve => { authenticated = resolve; });
+    const route = loadRoute({ clock, authentication });
+    const pending = route.post(body(), streamed ? { headers: { "Content-Type": "application/json", Accept: "application/x-ndjson" } } : {});
+    assert.equal(route.authenticationCalls(), 1);
+    clock.now += 25_000; authenticated();
+    const response = await pending; assert.equal(response.status, 200); await response.text();
+    await Promise.all(route.lifetimes);
+    assert.equal(route.generationCalls.length, 1);
+    assert.equal(route.generationCalls[0].deadlineAt, startedAt + 760_000);
+    assert.equal(route.generationCalls[0].signal?.aborted, false);
+  }
+});
 
 test("the real generation route preloads the owned narrator before credits and forwards those exact bytes without a photo", async () => {
   const { reference, request } = narratorRequest(), route = loadRoute({ narrator: { reference } });
