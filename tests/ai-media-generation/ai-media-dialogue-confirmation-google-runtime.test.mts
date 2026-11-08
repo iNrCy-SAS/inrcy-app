@@ -11,6 +11,14 @@ const cut = line.replace(" personnalisés.", "");
 
 /** Execute the production adapter with virtual files, FFmpeg and Google; no network. */
 function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete = false, overrides: {
+  checkFinalFrameLayout?: boolean;
+  finalFrameLayout?: string;
+  finalFrameIssue?: string;
+  missingFinalFrame?: boolean;
+  firstReadDeadline?: boolean;
+  firstReadThrows?: boolean;
+  extractionFailure?: "audio" | "image" | "reference" | "final" | "deadline";
+  sourceStartSeconds?: number;
   expectedLine?: string;
   firstTranscript?: string;
   secondTranscript?: string;
@@ -23,7 +31,8 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
   const firstTranscript = overrides.firstTranscript ?? cut;
   const files = new Map<string, Buffer>();
   const calls: Array<{ body: Record<string, unknown>; options: { timeout: number; maxRetries: number } }> = [];
-  const reservations: Array<{ reservedOutputTokens: number }> = [];
+  const reservations: Array<{ reservedOutputTokens: number; estimatedInputTokens: number; estimatedCostMicroUsd: number }> = [];
+  const extractionArgs: string[][] = []; const costs: number[] = [];
   const qaDeadline = new AbortController(); let cleaned = 0; let extractions = 0;
   const modules = new Map<string, unknown>([
     ["server-only", {}],
@@ -33,14 +42,24 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
       readFile: async (name: string) => { assert.ok(files.has(name)); return files.get(name); },
       rm: async () => { cleaned++; files.clear(); },
     }],
-    ["node:child_process", { execFile(_file: string, args: string[], _options: unknown, done: (error: null, stdout: string, stderr: string) => void) {
-      extractions++; files.set(args.at(-1)!, Buffer.alloc(800)); done(null, "", "");
+    ["node:child_process", { execFile(_file: string, args: string[], _options: unknown, done: (error: Error | null, stdout: string, stderr: string) => void) {
+      extractions++; extractionArgs.push(args);
+      const image = args.includes("0:v:0");
+      const position = args.at(-1)!.includes("reference-") ? "reference" : "final";
+      if (overrides.extractionFailure === "deadline" || overrides.extractionFailure === (image ? "image" : "audio") || image && overrides.extractionFailure === position) {
+        if (overrides.extractionFailure === "deadline") qaDeadline.abort();
+        done(new Error("PRIVATE_EXTRACTION_FAILURE"), "", ""); return;
+      }
+      files.set(args.at(-1)!, image && !overrides.missingFinalFrame ? Buffer.concat([Buffer.from([255,216,255]), Buffer.alloc(797, position === "reference" ? 17 : 34)]) : Buffer.alloc(800));
+      done(null, "", "");
     } }],
     ["@google/genai", { GoogleGenAI: class {
       interactions = { create: async (body: Record<string, unknown>, options: { timeout: number; maxRetries: number }) => {
         calls.push({ body, options });
+        if (overrides.firstReadDeadline && calls.length === 1) { qaDeadline.abort(); throw new DOMException("QA deadline", "AbortError"); }
+        if (overrides.firstReadThrows && calls.length === 1) throw new TypeError("PRIVATE_TRANSPORT_ERROR");
         assert.ok(calls.length <= 3, "At most three bounded audio checks are allowed.");
-        const prompt = (body.input as Array<{ type: string; text?: string }>).find((part) => part.type === "text")!.text!;
+        const prompt = (body.input as Array<{ type: string; text?: string }>).filter((part) => part.type === "text").map(part => part.text).join("\n");
         const schema = (body.response_format as { schema: { properties: Record<string, unknown> } }).schema;
         if (schema.properties.status) {
           assert.equal(calls.length, 3, "Name verification follows two blind transcripts.");
@@ -59,14 +78,14 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
         const transcript = calls.length === 3 ? overrides.thirdTranscript ?? firstTranscript : firstComplete ? expectedLine : calls.length === 2
           ? overrides.secondTranscript ?? (outcome === "complete" ? expectedLine : firstTranscript)
           : firstTranscript;
-        return { output_text: JSON.stringify({ transcript }), usage: { total_input_tokens: 10, total_output_tokens: 20, total_tokens: 30 } };
+        return { output_text: JSON.stringify({ transcript, ...(schema.properties.final_frame_layout ? { final_frame_layout: overrides.finalFrameLayout ?? "passed", final_frame_issue: overrides.finalFrameIssue ?? (overrides.finalFrameLayout === "rejected" ? "unexpected_partial_transition" : overrides.finalFrameLayout && overrides.finalFrameLayout !== "passed" ? "unavailable" : "none") } : {}) }), usage: { total_input_tokens: 10, total_output_tokens: 20, total_tokens: 30 } };
       } };
     } }],
     ["@/lib/aiMediaNativeDialogueQa", dialogue],
     ["@/lib/mediaVideoNormalizer", { resolveVideoNormalizationFfmpegPath: async () => "virtual-ffmpeg" }],
     ["@/lib/aiGatewayAccountGuard", {
-      reserveAiGatewayAccountAttempt: async (_account: string, args: { reservedOutputTokens: number }) => { reservations.push(args); return {}; },
-      commitAiGatewayAccountAttempt: async () => {}, rollbackAiGatewayAccountAttempt: async () => {}, recordAiGatewayAccountFailure: async () => {},
+      reserveAiGatewayAccountAttempt: async (_account: string, args: { reservedOutputTokens: number; estimatedInputTokens: number; estimatedCostMicroUsd: number }) => { reservations.push(args); return {}; },
+      commitAiGatewayAccountAttempt: async (args: { actualCostMicroUsd: number }) => { costs.push(args.actualCostMicroUsd); }, rollbackAiGatewayAccountAttempt: async () => {}, recordAiGatewayAccountFailure: async () => {},
     }],
   ]);
   const output = ts.transpileModule(readFileSync(new URL("../../lib/aiMediaNativeDialogueQaGoogle.ts", import.meta.url), "utf8"), {
@@ -78,8 +97,8 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
     if (modules.has(id)) return modules.get(id);
     assert.ok(id.startsWith("node:"), `Unexpected production dependency: ${id}`); return native(id);
   }, { env: { GEMINI_API_KEY: "offline-test-only" } }, { timeout: () => qaDeadline.signal, any: AbortSignal.any });
-  return { calls, reservations, cleaned: () => cleaned, extractions: () => extractions,
-    audit: (durationSeconds = 8) => record.exports.auditAiMediaNativeDialogueWithGoogle({ accountId: "test-account", language: "fr", pronunciationAliases: overrides.pronunciationAliases, clips: [{ sceneIndex: 0, buffer: Buffer.from("synthetic-video"), mediaType: "video/mp4", durationSeconds, expectedLine, expectedContinuation: overrides.expectedContinuation }] }),
+  return { calls, reservations, extractionArgs, costs, cleaned: () => cleaned, extractions: () => extractions,
+    audit: (durationSeconds = 8) => record.exports.auditAiMediaNativeDialogueWithGoogle({ accountId: "test-account", language: "fr", pronunciationAliases: overrides.pronunciationAliases, clips: [{ sceneIndex: 0, buffer: Buffer.from("synthetic-video"), mediaType: "video/mp4", durationSeconds, expectedLine, expectedContinuation: overrides.expectedContinuation, checkFinalFrameLayout: overrides.checkFinalFrameLayout, sourceStartSeconds: overrides.sourceStartSeconds }] }),
   };
 }
 
@@ -203,4 +222,120 @@ test("a contradictory critical value requires two conforming blind reads and nev
     assert.equal(h.calls.length, 3); assert.equal(h.extractions(), 1); assert.equal(h.cleaned(), 1);
     assert.ok(h.calls.every((call) => ((call.body.response_format as { schema: { properties: Record<string, unknown> } }).schema.properties.transcript)));
   }
+});
+
+
+test("the first existing Google call includes two ordered bounded JPEGs and raises configured reservations only for that image", async () => {
+  const h = adapter("complete", true, { checkFinalFrameLayout: true });
+  const result = await h.audit();
+  assert.equal(result.status, "passed"); assert.equal(result.clips[0].finalFrameLayout, "passed");
+  assert.equal(h.calls.length, 1); assert.equal(h.extractions(), 3);
+  const input = h.calls[0].body.input as Array<{ type: string; mime_type?: string; text?: string; data?: string }>;
+  assert.deepEqual(input.map(part => part.type), ["audio", "text", "image", "text", "image", "text"]);
+  assert.equal(input[2].mime_type, "image/jpeg"); assert.equal(input[4].mime_type, "image/jpeg");
+  assert.match((input[1] as { text: string }).text, /IMAGE 1.*RÉFÉRENCE/);
+  assert.match((input[3] as { text: string }).text, /IMAGE 2.*FIN/);
+  assert.equal(Buffer.from((input[2] as { data: string }).data, "base64")[3], 17);
+  assert.equal(Buffer.from((input[4] as { data: string }).data, "base64")[3], 34);
+  assert.equal(h.reservations[0].estimatedInputTokens, 2688);
+  assert.equal(h.reservations[0].estimatedCostMicroUsd, 3000);
+  assert.equal(h.reservations[0].reservedOutputTokens, 208);
+  assert.deepEqual(h.costs, [3000]);
+  assert.equal(h.calls[0].options.maxRetries, 0); assert.ok(h.calls[0].options.timeout <= 8000);
+  assert.equal(h.cleaned(), 1);
+});
+
+test("tail extraction respects a cumulative logical clip and retains the last frame rather than the first", async () => {
+  const h = adapter("complete", true, { checkFinalFrameLayout: true, sourceStartSeconds: 8 }); await h.audit(8);
+  const reference = h.extractionArgs[1];
+  assert.equal(reference[reference.indexOf("-ss") + 1], "15.5");
+  assert.equal(reference[reference.indexOf("-frames:v") + 1], "1");
+  const args = h.extractionArgs[2];
+  assert.equal(args[args.indexOf("-ss") + 1], "15.75");
+  assert.equal(args[args.indexOf("-t") + 1], "0.25");
+  assert.equal(args[args.indexOf("-update") + 1], "1");
+  assert.equal(args.includes("-frames:v"), false);
+  assert.match(args[args.indexOf("-vf") + 1], /scale=768:768/);
+});
+
+test("a tail refusal or uncertainty uses no confirmation request or automatic SDK retry", async () => {
+  for (const finalFrameLayout of ["rejected", "unavailable", "malformed"]) {
+    const h = adapter("complete", false, { checkFinalFrameLayout: true, finalFrameLayout });
+    const result = await h.audit();
+    assert.equal(result.status, finalFrameLayout === "rejected" ? "rejected" : "unavailable");
+    assert.equal(h.calls.length, 1); assert.equal(h.reservations.length, 1);
+    assert.equal(h.calls[0].options.maxRetries, 0); assert.equal(h.cleaned(), 1);
+  }
+});
+
+test("a missing local final frame does not buy a replacement visual or audio request", async () => {
+  const h = adapter("complete", true, { checkFinalFrameLayout: true, missingFinalFrame: true });
+  assert.equal((await h.audit()).status, "unavailable");
+  assert.equal(h.calls.length, 0); assert.equal(h.reservations.length, 0); assert.equal(h.cleaned(), 1);
+});
+
+test("a blind audio confirmation reuses sound only and cannot replace the first visual verdict", async () => {
+  const h = adapter("complete", false, { checkFinalFrameLayout: true });
+  const result = await h.audit();
+  assert.equal(result.status, "passed"); assert.equal(result.clips[0].finalFrameLayout, "passed");
+  assert.equal(h.calls.length, 2); assert.equal(h.extractions(), 3);
+  assert.deepEqual((h.calls[1].body.input as Array<{ type: string }>).map(part => part.type), ["audio", "text"]);
+  assert.equal(h.reservations[1].estimatedInputTokens, 640); assert.equal(h.costs[1], 1000);
+  assert.ok(h.calls[1].options.timeout <= h.calls[0].options.timeout);
+});
+
+test("a first-call deadline keeps the requested image unverified without another request or extended budget", async () => {
+  const h = adapter("complete", true, { checkFinalFrameLayout: true, firstReadDeadline: true });
+  const result = await h.audit();
+  assert.equal(result.status, "unavailable"); assert.equal(result.clips[0].finalFrameLayout, "unavailable");
+  assert.equal(h.calls.length, 1); assert.equal(h.calls[0].options.maxRetries, 0);
+  assert.ok(h.calls[0].options.timeout <= 8000); assert.equal(h.cleaned(), 1);
+});
+
+test("audio extraction, image extraction and extraction deadline preserve explicit unavailable layout without paying for QA", async () => {
+  for (const extractionFailure of ["audio", "image", "deadline"] as const) {
+    const h = adapter("complete", true, { checkFinalFrameLayout: true, extractionFailure });
+    const result = await h.audit();
+    assert.equal(result.status, "unavailable"); assert.equal(result.clips[0].finalFrameLayout, "unavailable");
+    assert.equal(h.calls.length, 0); assert.equal(h.reservations.length, 0); assert.equal(h.cleaned(), 1);
+    assert.doesNotMatch(JSON.stringify(result), /PRIVATE/);
+  }
+});
+
+test("a thrown first Google request keeps image unavailable and never buys a replacement request", async () => {
+  const h = adapter("complete", true, { checkFinalFrameLayout: true, firstReadThrows: true });
+  const result = await h.audit();
+  assert.equal(result.status, "unavailable"); assert.equal(result.clips[0].finalFrameLayout, "unavailable");
+  assert.equal(h.calls.length, 1); assert.equal(h.calls[0].options.maxRetries, 0); assert.equal(h.cleaned(), 1);
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE/);
+});
+
+
+test("a missing reference OR final image stops before a paid comparison", async () => {
+  for (const extractionFailure of ["reference", "final"] as const) {
+    const h = adapter("complete", true, { checkFinalFrameLayout: true, extractionFailure });
+    assert.equal((await h.audit()).status, "unavailable"); assert.equal(h.calls.length, 0);
+    assert.equal(h.extractions(), 3); assert.equal(h.cleaned(), 1);
+  }
+});
+
+test("comparison names only an unexpected partial transition and permits full-frame cuts or natural groups", async () => {
+  const h = adapter("complete", true, { checkFinalFrameLayout: true }); const result = await h.audit();
+  assert.equal(result.status, "passed"); assert.equal(result.clips[0].finalFrameIssue, "none");
+  const input = h.calls[0].body.input as Array<{ type: string; text?: string }>;
+  const prompt = input.filter(part => part.type === "text").map(part => part.text).join(" ");
+  assert.match(prompt, /TRANSITION PARTIELLE INATTENDUE/);
+  assert.match(prompt, /remplace TOUT le cadre est autorisé/);
+  assert.match(prompt, /Plusieurs personnes naturellement présentes/);
+  assert.equal(h.calls.length, 1);
+});
+
+test("two-image issue and verdict must agree, without audio-only confirmation clearing the issue", async () => {
+  for (const [finalFrameLayout, finalFrameIssue] of [["passed", "unexpected_partial_transition"], ["rejected", "none"], ["passed", "malformed"]]) {
+    const h = adapter("complete", true, { checkFinalFrameLayout: true, finalFrameLayout, finalFrameIssue });
+    const result = await h.audit(); assert.equal(result.status, "unavailable"); assert.equal(h.calls.length, 1);
+  }
+  const rejected = adapter("complete", false, { checkFinalFrameLayout: true, finalFrameLayout: "rejected", finalFrameIssue: "unexpected_partial_transition" });
+  const result = await rejected.audit(); assert.equal(result.status, "rejected");
+  assert.equal(result.clips[0].finalFrameIssue, "unexpected_partial_transition"); assert.equal(rejected.calls.length, 1);
 });

@@ -322,15 +322,11 @@ export default function MediaGenerationCreationWorkspace({
           <p className={styles.creationEyebrow}>
             {t("ai_generator_creation_eyebrow")}
           </p>
-          <h3>{cancellationPending ? t("ai_generator_editor_stop_pending") : progressLabel}</h3>
+          <h3>{cancellationPending ? t("ai_generator_editor_stop_pending") : kind === "video" ? t("ai_generator_generating") : progressLabel}</h3>
           <p>
             {t(
-              creationMode === "free"
+              kind === "video" || creationMode === "free"
                 ? "ai_generator_free_progress_hint"
-                : kind === "video"
-                ? identityTeam
-                  ? "ai_generator_video_creation_detail_team_cinematic"
-                  : "ai_generator_video_creation_detail"
                 : "ai_generator_image_creation_detail",
               { duration: durationSeconds }
             )}
@@ -338,7 +334,7 @@ export default function MediaGenerationCreationWorkspace({
           <div className={styles.largeProgressTrack} aria-hidden="true">
             <span style={{ width: `${Math.max(4, progress)}%` }} />
           </div>
-          <strong>{progress} %</strong>
+          <strong>{kind === "video" ? "≈ " : ""}{progress} %</strong>
           <small>{t("ai_generator_keep_open")}</small>
           <div className={styles.stopGenerationSlot}>
             {generationCancellable && !embedded ? (

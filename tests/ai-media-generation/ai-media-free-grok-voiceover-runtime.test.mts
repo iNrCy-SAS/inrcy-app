@@ -1,3 +1,6 @@
+import * as nativeQa from "../../lib/aiMediaNativeDialogueQa.ts";
+import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
+import { AiVideoProviderBillableFailure, isAiVideoProviderBillableFailure } from "../../lib/aiVideoProviderTypes.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import { loadNarrationPreparationRuntime } from "./narration-preparation-runtime.mjs";
 import assert from "node:assert/strict";
@@ -16,12 +19,22 @@ import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
 import * as spokenScript from "../../lib/aiMediaSpokenScript.ts";
 import * as pronunciation from "../../lib/aiMediaPronunciation.ts";
 import { classifyVeoFailure } from "../../lib/aiVideoReliability.ts";
+import { getAiVideoProviderRecoverableStatus } from "../../lib/aiVideoProviderTypes.ts";
 import { buildAiMediaFreeVideoBusinessDnaDirection, getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, resolveAiMediaFreeSpeechLanguage, usesAiMediaAutomaticImageLogo } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as localLogoComposition from "../../lib/aiMediaLocalLogoCompositionPrompt.ts";
 import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 
 type Row = Record<string, unknown>;
+
+const comparisonFlag = "AI_MEDIA_NATIVE_FINAL_FRAME_COMPARISON_ENABLED";
+function enabledComparisonTest(name: string, action: () => Promise<void> | void) {
+  test(name, async () => {
+    const previous = process.env[comparisonFlag]; process.env[comparisonFlag] = "1";
+    try { await action(); } finally { if (previous === undefined) delete process.env[comparisonFlag]; else process.env[comparisonFlag] = previous; }
+  });
+}
+
 const script = "Dans cet atelier, chaque vase prend doucement forme entre les mains de la céramiste.";
 const canonicalPrompt = "Canonical professional request with its original narration choice.";
 const narration = { script, language: "fr", wordCount: script.split(/\s+/u).length, source: "ai",
@@ -37,9 +50,9 @@ function request(engine: contracts.AiMediaVideoEngine, overrides: Row = {}) {
     withMusic: false, freePrompt: `Une céramiste façonne un vase. Voix off exacte : « ${script} »`, ...overrides });
 }
 
-function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string; videoError?: Error; primaryVideoFailureOnly?: boolean; nativeQaStatus?: "passed" | "rejected" | "unavailable" | "inconclusive"; nativeQaError?: Error; nativeVoiceover?: boolean } = {}) {
+function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string; videoError?: Error; fallbackVideoError?: Error; primaryVideoFailureOnly?: boolean; nativeQaStatus?: "passed" | "rejected" | "unavailable" | "inconclusive"; nativeQaError?: Error; nativeVoiceover?: boolean; nativeVideoProvider?: string; finalFrameLayout?: "passed" | "rejected" | "unavailable" } = {}) {
   const events: string[] = [], videoCalls: Row[] = [], ttsCalls: Row[] = [], narrationCalls: Row[] = [], soundtrackCalls: Row[] = [], composeCalls: Row[] = [], saved: Row[] = [], contractCalls: Row[] = [], seedCalls: Row[] = [], googleFallbackCalls: Row[] = [];
-  const voicePreflightCalls: Row[] = [], localFallbackCalls: Row[] = [];
+  const voicePreflightCalls: Row[] = [], localFallbackCalls: Row[] = [], nativeQaCalls: Row[] = [];
   const forbiddenLocalFallback = async (args: Row) => { localFallbackCalls.push(args); throw new Error("unexpected_local_fallback"); };
   const profile = { business: { companyName: "Atelier", professionLabel: "Céramiste", sectorLabel: "Artisanat", phone: "" }, preferences: { language: "fr" } };
   const plan = { companyName: "Atelier", headline: "", cta: "", subline: "Une céramiste façonne un vase.",
@@ -54,6 +67,8 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
   for (const name of ["aiMediaImageContactComposer", "aiMediaCopywriter", "aiMediaGateway", "aiMediaImageProviderRequest", "aiMediaReferenceTeam",
     "aiMediaGenerationSoundtracks", "aiMediaNormalizer", "aiVideoReliability"]) modules.set(`@/lib/${name}`, {});
   const entries: Array<[string, unknown]> = [
+    ["@/lib/aiMediaNativeDialogueQa", nativeQa],
+    ["./aiMediaVideoSpeechBudget.ts", speechBudget],
     ["./aiMediaGlobalConstraints.ts", globalConstraints],
     ["./aiMediaSpokenScript.ts", spokenScript],
     ["./aiMediaPronunciation.ts", pronunciation],
@@ -108,14 +123,15 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
     ["@/lib/aiMediaNarrationAudio", { generateAiMediaNarrationAudio: async (args: Row) => {
       events.push("tts"); ttsCalls.push(args); if (failure === "tts") throw new Error("synthetic-tts-unavailable"); return audio;
     } }],
-    ["./aiMediaNarrationVoiceClone.ts", { generateAiMediaClonedNarrationAudio: async (args: Row) => {
+    ["./aiMediaNarrationVoiceClone.ts", { AI_MEDIA_CLONED_NARRATION_TIMEOUT_MS: 240_000, generateAiMediaClonedNarrationAudio: async (args: Row) => {
       events.push("clone"); ttsCalls.push(args); return { ...audio, voice: "provided" };
     } }],
-    ["@/lib/aiMediaNativeDialogueQaGoogle", { auditAiMediaNativeDialogueWithGoogle: async () => {
+    ["@/lib/aiMediaNativeDialogueQaGoogle", { auditAiMediaNativeDialogueWithGoogle: async (args: Row) => {
+      nativeQaCalls.push(args);
       events.push("native-qa");
       if (options.nativeQaError) throw options.nativeQaError;
       const status = options.nativeQaStatus || "passed";
-      return { version: 1, status, clips: status === "passed" ? [] : [{ sceneIndex: 0, status,
+      return { version: 1, status, clips: options.finalFrameLayout ? [{ sceneIndex: 0, status: "passed", finalFrameLayout: options.finalFrameLayout, issues: [] }] : status === "passed" ? [] : [{ sceneIndex: 0, status,
         issues: status === "rejected" ? ["spoken_critical_value_mismatch"] : ["qa_unavailable"],
         transcript: "PRIVATE_TRANSCRIPT", reason: "PRIVATE_DIAGNOSTIC https://private.invalid/?token=secret" }] };
     } }],
@@ -127,11 +143,11 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
     ["@/lib/aiMediaSensitiveText", sensitive], ["@/lib/aiMediaVisibleContact", { isAiMediaProfilePhoneDisplayRequested: () => false, cleanAiMediaProfilePhone: () => "" }],
     ["@/lib/aiVideoProvider", { generateOriginalAiVideoClips: async (args: Row) => {
       events.push("video"); videoCalls.push(args);
-      if (failure === "video" && (!options.primaryVideoFailureOnly || videoCalls.length === 1)) throw options.videoError || new Error(videoCalls.length === 1 ? "selected_video_unavailable" : "fallback_video_unavailable");
-      return { provider: "vercel-ai-gateway", model: "test-grok", warnings: [], estimatedCostMicroUsd: 0,
+      if (failure === "video" && (!options.primaryVideoFailureOnly || videoCalls.length === 1)) throw (videoCalls.length === 1 ? options.videoError : options.fallbackVideoError) || new Error(videoCalls.length === 1 ? "selected_video_unavailable" : "fallback_video_unavailable");
+      return { provider: options.nativeVideoProvider || "vercel-ai-gateway", model: "test-grok", warnings: [], estimatedCostMicroUsd: 0,
         clips: [{ buffer: Buffer.from("synthetic-native-video"), mediaType: "video/mp4", requestId: "test-provider-request", durationSeconds: 15, sourceStartSeconds: 0 }] };
     } }],
-    ["@/lib/aiVideoProviderTypes", { isAiVideoProviderBillableFailure: () => false }],
+    ["@/lib/aiVideoProviderTypes", { AiVideoProviderBillableFailure, isAiVideoProviderBillableFailure: () => false, getAiVideoProviderRecoverableStatus }],
     ["@/lib/aiVideoReliability", { classifyVeoFailure }],
     ["@/lib/aiMediaGenerationQuotaPolicy", { getAiMediaVideoMaxDuration: () => 30 }],
     ["@/lib/aiMediaCreditQuoteServer", { quoteAiMediaRequest: (_id: string, original: contracts.AiMediaGenerationRequest) => ({ withNarration: original.withNarration }) }],
@@ -149,7 +165,7 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
     if (name.startsWith("node:")) return nativeRequire(name);
     throw new Error(`unexpected_test_dependency:${name}`);
   }, { info() {}, warn() {}, error() {} });
-  return { events, videoCalls, ttsCalls, narrationCalls, soundtrackCalls, composeCalls, saved, contractCalls, seedCalls, googleFallbackCalls, voicePreflightCalls, localFallbackCalls,
+  return { nativeQaCalls, events, videoCalls, ttsCalls, narrationCalls, soundtrackCalls, composeCalls, saved, contractCalls, seedCalls, googleFallbackCalls, voicePreflightCalls, localFallbackCalls,
     generate: (original: contracts.AiMediaGenerationRequest, execution: Row = {}) => moduleRecord.exports.generateAndSaveAiMedia({ request: original, accountId: "test-account", authUserId: "test-actor", jobId: "test-job", supabase: {}, ...execution }) };
 }
 
@@ -264,10 +280,26 @@ for (const engine of ["wan27", "wan3", "heygen"] as const) {
 
 test("Veo fallback keeps resolution and the original failure instead of calling incompatible Omni", async () => {
   for (const videoResolution of ["1080p", "720p"] as const) {
-    const env = harness("video");
-    await assert.rejects(env.generate(request("veo", { durationSeconds: 8, withNarration: false, videoResolution })), /selected_video_unavailable/);
+    const primary = Object.assign(new Error("selected_video_unavailable"), { statusCode: 503 });
+    const fallback = new Error("fallback_video_unavailable");
+    const env = harness("video", false, { videoError: primary, fallbackVideoError: fallback });
+    await assert.rejects(env.generate(request("veo", { durationSeconds: 8, withNarration: false, videoResolution })), error => error === primary);
     assert.equal(env.videoCalls.length, videoResolution === "1080p" ? 1 : 2);
     assert.ok(env.videoCalls.every((call) => (call.request as Row).videoResolution === videoResolution));
+  }
+});
+
+test("uncertain Veo submissions retain the exact error and never start an alternate paid film", async () => {
+  for (const error of [
+    Object.assign(new Error("ai_video_gateway_timeout"), { statusCode: 0 }),
+    Object.assign(new Error("fetch failed after submission"), { statusCode: 503 }),
+    Object.assign(new Error("AbortError"), { statusCode: 503 }),
+    new Error("selected_video_unavailable"),
+  ]) {
+    const env = harness("video", false, { videoError: error });
+    await assert.rejects(env.generate(request("veo", { durationSeconds: 8, withNarration: false })), caught => caught === error);
+    assert.equal(env.videoCalls.length, 1);
+    assert.equal(env.composeCalls.length, 0); assert.equal(env.saved.length, 0);
   }
 });
 
@@ -287,7 +319,7 @@ test("supplier billing failures stop the real Free server before fallback, audio
 });
 
 test("Veo fallback retains silent video delivery and locally rendered narration captions", async () => {
-  const env = harness("video", false, { primaryVideoFailureOnly: true });
+  const env = harness("video", false, { primaryVideoFailureOnly: true, videoError: Object.assign(new Error("definite upstream rejection"), { statusCode: 503 }) });
   const original = request("veo", { durationSeconds: 8, withSubtitles: true, spokenScript: script });
   const workDeadline = Date.now() + 760_000;
   await env.generate(original, { deadlineAt: workDeadline });
@@ -554,4 +586,79 @@ test("other free engines retain their existing reference-frame Google fallback",
     inspirationImages: [{ mimeType: "image/png", data: "A".repeat(88), role: "product", usage: "required" }] })), /synthetic-seed-fallback-unavailable/u);
   assert.equal(env.seedCalls.length, 1); assert.equal(env.googleFallbackCalls.length, 1);
   assert.equal(env.videoCalls.length, 0); assert.equal(env.saved.length, 0);
+});
+
+
+enabledComparisonTest("Google final-image refusal stays billable and cannot trigger video, local, TTS or composition recovery", async () => {
+  for (const finalFrameLayout of ["rejected", "unavailable"] as const) {
+    const env = harness(undefined, false, { nativeVideoProvider: "vercel-ai-gateway:google", finalFrameLayout });
+    const original = request("veo", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false,
+      freePrompt: "Une femme présente un jardin face caméra." });
+    const checkpoints: Row[] = []; let billingStarts = 0;
+    await assert.rejects(env.generate(original, { onBillableWorkStarted: async () => { billingStarts++; }, onCompositionReady: async (value: Row) => { checkpoints.push(value); } }), (error: unknown) => {
+      assert.equal(isAiVideoProviderBillableFailure(error), true);
+      assert.equal(getAiVideoProviderRecoverableStatus(error), 0);
+      const explanation = publicErrors.getAiMediaGenerationPublicError(error);
+      assert.equal(explanation.code, finalFrameLayout === "rejected" ? "AI_MEDIA_VIDEO_VISUAL_LAYOUT_INVALID" : "AI_MEDIA_VIDEO_VISUAL_VERIFICATION_UNAVAILABLE");
+      assert.equal(classifyVeoFailure(error).modelFallbackEligible, false);
+      return true;
+    });
+    assert.equal(billingStarts, 1); assert.equal(env.videoCalls.length, 1); assert.equal(env.ttsCalls.length, 0);
+    assert.equal(env.googleFallbackCalls.length, 0); assert.equal(env.localFallbackCalls.length, 0);
+    assert.equal(env.composeCalls.length, 0); assert.equal(env.saved.length, 0); assert.equal(checkpoints.length, 0);
+    assert.equal((env.nativeQaCalls[0].clips as Row[])[0].checkFinalFrameLayout, true);
+  }
+});
+
+enabledComparisonTest("native Google success and requested fragmentation retain the normal one-generation path", async () => {
+  for (const freePrompt of ["Une femme présente un jardin.", "Écran partagé : une femme et un jardin."]) {
+    const env = harness(undefined, false, { nativeVideoProvider: "vercel-ai-gateway:google", finalFrameLayout: "passed" });
+    await env.generate(request("veo", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false, freePrompt }));
+    assert.equal((env.nativeQaCalls[0].clips as Row[])[0].checkFinalFrameLayout, !freePrompt.startsWith("Écran"));
+    assert.equal(env.videoCalls.length, 1); assert.equal(env.saved.length, 1); assert.equal(env.ttsCalls.length, 0);
+  }
+});
+
+enabledComparisonTest("a gated adapter exception is billable and nonrecoverable before all audio and video fallback paths", async () => {
+  const env = harness(undefined, false, { nativeVideoProvider: "vercel-ai-gateway:google", nativeQaError: new Error("PRIVATE_UNKNOWN_FAILURE") });
+  await assert.rejects(env.generate(request("veo", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false,
+    freePrompt: "Une femme présente un jardin. Aucun écran partagé, sans transition." })), (error: unknown) => {
+    assert.equal(isAiVideoProviderBillableFailure(error), true); assert.equal(getAiVideoProviderRecoverableStatus(error), 0);
+    assert.equal(publicErrors.getAiMediaGenerationPublicError(error).code, "AI_MEDIA_VIDEO_VISUAL_VERIFICATION_UNAVAILABLE");
+    assert.equal(classifyVeoFailure(error).modelFallbackEligible, false); return true;
+  });
+  assert.equal((env.nativeQaCalls[0].clips as Row[])[0].checkFinalFrameLayout, true);
+  assert.equal(env.videoCalls.length, 1); assert.equal(env.ttsCalls.length, 0);
+  assert.equal(env.googleFallbackCalls.length, 0); assert.equal(env.localFallbackCalls.length, 0);
+  assert.equal(env.composeCalls.length, 0); assert.equal(env.saved.length, 0);
+});
+
+
+test("default-off comparison adds no image request policy to a normal native Google film", async () => {
+  const previous = process.env[comparisonFlag]; delete process.env[comparisonFlag];
+  try {
+    const env = harness(undefined, false, { nativeVideoProvider: "vercel-ai-gateway:google" });
+    await env.generate(request("veo", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false,
+      freePrompt: "Une femme présente un jardin." }));
+    assert.equal((env.nativeQaCalls[0].clips as Row[])[0].checkFinalFrameLayout, false);
+    assert.equal(env.videoCalls.length, 1); assert.equal(env.saved.length, 1); assert.equal(env.ttsCalls.length, 0);
+  } finally { if (previous === undefined) delete process.env[comparisonFlag]; else process.env[comparisonFlag] = previous; }
+});
+
+
+enabledComparisonTest("audio-only native voiceover exception keeps its audio error while comparison flag is enabled", async () => {
+  const env = harness(undefined, false, { nativeVoiceover: true, nativeVideoProvider: "vercel-ai-gateway:google",
+    nativeQaError: new Error("PRIVATE_VOICEOVER_FAILURE") });
+  await assert.rejects(env.generate(request("veo", { durationSeconds: 8, teamVideoSpeechMode: "voiceover", withNarration: true,
+    freePrompt: "Un jardin filmé en plein cadre." })), (error: Error) => {
+    assert.equal(publicErrors.getAiMediaGenerationPublicError(error).code, "AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE");
+    assert.equal(classifyVeoFailure(error).modelFallbackEligible, false);
+    assert.doesNotMatch(error.message, /visual|PRIVATE/);
+    return true;
+  });
+  assert.equal(env.nativeQaCalls.length, 1);
+  assert.equal((env.nativeQaCalls[0].clips as Row[])[0].checkFinalFrameLayout, undefined);
+  assert.equal(env.videoCalls.length, 1); assert.equal(env.ttsCalls.length, 0);
+  assert.equal(env.googleFallbackCalls.length, 0); assert.equal(env.localFallbackCalls.length, 0);
+  assert.equal(env.composeCalls.length, 0); assert.equal(env.saved.length, 0);
 });

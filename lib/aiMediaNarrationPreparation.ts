@@ -2,11 +2,12 @@ import "server-only";
 
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import { writeAiMediaFreeNarration } from "@/lib/aiMediaFreeGenerationPlan";
-import { writeAiMediaNarration } from "@/lib/aiMediaNarration";
+import { writeAiMediaNarration, type AiMediaNarration } from "@/lib/aiMediaNarration";
 import { generateAiMediaNarrationAudio } from "@/lib/aiMediaNarrationAudio";
 import { AiMediaNarrationTooLongError, prepareAiMediaNarrationAudioForVideo } from "@/lib/aiMediaGeneratedVideo";
 import { safeAiMediaErrorMessage } from "@/lib/aiMediaSensitiveText";
 import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
+import { getAiMediaFreeSpeechBudget } from "./aiMediaVideoSpeechBudget.ts";
 import type { PreparedAiMediaNarrationVoice } from "./aiMediaNarrationVoicePreflight.ts";
 
 type NarrationInput = Parameters<typeof writeAiMediaNarration>[0];
@@ -31,9 +32,13 @@ export async function prepareAiMediaNarration(args: {
     businessDnaContext, recentPublications, durationSeconds, narrationSignal, measure } = args;
   try {
     let maximumSpeechUnits: number | undefined;
+    const exactProvidedStudioClone = isFreeCreation && narrationRequest.source === "studio" &&
+      narrationRequest.narrationVoiceMode === "provided" && Boolean(narrationRequest.spokenScript?.trim());
+    let cloneQualityRetryNarration: AiMediaNarration | null = null;
+    let cloneQualitySignal: AbortSignal | undefined;
     for (let preflightAttempt = 0; preflightAttempt < 3; preflightAttempt += 1) {
-      const stageSuffix = preflightAttempt ? `_rewrite_${preflightAttempt}` : "";
-      const narration = preparedNativeNarration && preflightAttempt === 0
+      const stageSuffix: string = cloneQualityRetryNarration ? "_quality_retry_1" : preflightAttempt ? `_rewrite_${preflightAttempt}` : "";
+      const narration: AiMediaNarration | null = cloneQualityRetryNarration || (preparedNativeNarration && preflightAttempt === 0
         ? preparedNativeNarration
         : await measure(`narration_copy${stageSuffix}`, () =>
         isFreeCreation ? writeAiMediaFreeNarration({ accountId: context.accountId, request: narrationRequest, profile, plan: creativePlan, maximumSpeechUnits, businessDnaContext }) : writeAiMediaNarration({
@@ -44,19 +49,26 @@ export async function prepareAiMediaNarration(args: {
           recentPublications: recentPublications,
           maximumSpeechUnits,
         })
-      );
+      ));
       context.signal?.throwIfAborted();
+      cloneQualitySignal?.throwIfAborted();
       if (!narration) {
         throw new Error("ai_media_narration_copy_unavailable");
       }
       const audio = await measure(`narration_audio${stageSuffix}`, () =>
         narrationRequest.narrationVoiceMode === "provided" ? (async () => {
           if (!args.providedVoice || narrationRequest.narrationVoiceConsent !== true) throw new Error("ai_media_voice_clone_reference_missing");
-          const { generateAiMediaClonedNarrationAudio } = await import("./aiMediaNarrationVoiceClone.ts");
+          const { generateAiMediaClonedNarrationAudio, AI_MEDIA_CLONED_NARRATION_TIMEOUT_MS } = await import("./aiMediaNarrationVoiceClone.ts");
+          if (exactProvidedStudioClone) {
+            // A completed but overlong clone may be synthesized once more.
+            // Both attempts and their duration checks share the original cap.
+            cloneQualitySignal ||= AbortSignal.any([narrationSignal, AbortSignal.timeout(AI_MEDIA_CLONED_NARRATION_TIMEOUT_MS)]);
+          }
+          cloneQualitySignal?.throwIfAborted();
           return generateAiMediaClonedNarrationAudio({
             accountId: context.accountId, narration, reference: args.providedVoice,
             narrationVoiceConsent: true, narrationVoiceGender: narrationRequest.narrationVoiceGender || "auto",
-            durationSeconds, signal: narrationSignal,
+            durationSeconds, signal: cloneQualitySignal || narrationSignal,
           });
         })() :
         generateAiMediaNarrationAudio({
@@ -76,7 +88,7 @@ export async function prepareAiMediaNarration(args: {
             prepareAiMediaNarrationAudioForVideo({
               audio,
               durationSeconds,
-              signal: narrationSignal,
+              signal: cloneQualitySignal || narrationSignal,
             })
         );
         return {
@@ -88,6 +100,19 @@ export async function prepareAiMediaNarration(args: {
         };
       } catch (error) {
         context.signal?.throwIfAborted();
+        // Only an entirely received, duration-rejected clone permits another
+        // synthesis. Transport errors never enter this quality-only branch.
+        if (error instanceof AiMediaNarrationTooLongError && exactProvidedStudioClone) {
+          cloneQualitySignal?.throwIfAborted();
+          const budget = getAiMediaFreeSpeechBudget(durationSeconds, narration.language, narration.script);
+          if (budget.units <= budget.maxUnits && narration.script.length <= budget.maxCharacters) {
+            if (!cloneQualityRetryNarration) {
+              cloneQualityRetryNarration = narration;
+              continue;
+            }
+            throw new Error("ai_media_voice_clone_duration_invalid", { cause: error });
+          }
+        }
         if (
           error instanceof AiMediaNarrationTooLongError &&
           !(narrationRequest.narrationVoiceMode === "provided" && narrationRequest.spokenScript?.trim()) &&

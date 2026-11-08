@@ -1,3 +1,4 @@
+import { getAutomaticMediaVideoDurationOptions } from "../../lib/aiMediaVideoClientOptions.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -20,8 +21,14 @@ test("le type reste dans le header et les combinaisons durée/scènes dans le ba
   assert.doesNotMatch(source.slice(directionCard), /<MediaVideoDurationSelect|styles\.sceneModeChoices/);
   assert.match(source, /onDurationSceneChange=\{\(seconds, mode\) => \{ setDurationSeconds\(seconds\); setVideoSceneMode\(mode\); \}\}/);
   assert.match(source, /<MediaGenerationActions>[\s\S]*?\{engineControls\}/);
-  assert.match(controls, /getAiMediaVideoDurationSceneOptions\(props\.videoEngine, selectedResolution\)/);
-  assert.match(controls, /value=\{`\$\{duration\}:\$\{sceneMode\}`\}/);
+  assert.match(controls, /availableDurationOptions\(props\.videoEngine, selectedResolution, maximumDuration, props\.automaticSceneMode\)/);
+  assert.match(controls, /value=\{`\$\{duration\}:\$\{displayedSceneMode\}`\}/);
+  const automatic = getAutomaticMediaVideoDurationOptions("wan3", "720p");
+  assert.equal(new Set(automatic.map(option => option.durationSeconds)).size, automatic.length);
+  assert.deepEqual(automatic.filter(option => option.durationSeconds === 30), [{ durationSeconds: 30, sceneMode: "single", sceneCount: 1 }]);
+  const free = readFileSync("app/dashboard/_components/MediaFreeGenerator.tsx", "utf8");
+  assert.match(free, /automaticSceneMode=\{source === "studio"\}/);
+  assert.doesNotMatch(source, /automaticSceneMode=/, "Guided keeps its existing duration/scene contract");
   const omni = getAiMediaVideoDurationSceneOptions("omni", "720p");
   assert.deepEqual(omni.filter((option) => option.durationSeconds === 15), [{ durationSeconds: 15, sceneMode: "multi", sceneCount: 2 }]);
   assert.deepEqual(getAiMediaVideoDurationSceneOptions("veo", "1080p"), [

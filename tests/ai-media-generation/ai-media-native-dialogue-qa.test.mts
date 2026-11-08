@@ -7,12 +7,23 @@ import { splitAiMediaSpokenScript } from "../../lib/aiMediaSpokenScript.ts";
 
 import {
   auditAiMediaNativeDialogueClips,
+  shouldAuditAiMediaNativeFinalFrame,
+  assertAiMediaNativeFinalFrameLayout,
   evaluateAiMediaNativeDialogue,
   tokenizeAiMediaNativeDialogue,
   type AiMediaNativeDialogueQaClip,
 } from "../../lib/aiMediaNativeDialogueQa.ts";
 
 const ROOT = process.cwd();
+
+const comparisonFlag = "AI_MEDIA_NATIVE_FINAL_FRAME_COMPARISON_ENABLED";
+function enabledComparisonTest(name: string, action: () => Promise<void> | void) {
+  test(name, async () => {
+    const previous = process.env[comparisonFlag]; process.env[comparisonFlag] = "1";
+    try { await action(); } finally { if (previous === undefined) delete process.env[comparisonFlag]; else process.env[comparisonFlag] = previous; }
+  });
+}
+
 
 test("an exact explicit script split across clips is not rejected for a planned internal fragment", async () => {
   const script = "Notre outil facilite la création de contenus pour communiquer avec vos clients.";
@@ -1056,4 +1067,86 @@ test("un acte sans voix off prévue refuse une parole improvisée ou répétée"
     transcribe: async (clip) => ({ text: clip.sceneIndex === 0 ? clip.expectedLine : "" }),
   });
   assert.equal(result.status, "passed");
+});
+
+enabledComparisonTest("tail layout gate stays with the chosen Google provider and conservatively allows requested panels", () => {
+  const request = { source: "studio", creationMode: "free", kind: "video", videoEngine: "veo", freePrompt: "Une femme présente un jardin dans deux plans successifs." };
+  assert.equal(shouldAuditAiMediaNativeFinalFrame(request, "vercel-ai-gateway:google"), true);
+  for (const engine of ["veo", "veo-lite", "omni"]) assert.equal(shouldAuditAiMediaNativeFinalFrame({ ...request, videoEngine: engine }, "google-gemini"), true);
+  for (const engine of ["grok", "grok-lite", "wan3", "wan27", "wan-flash", "minimax-h3", "heygen", "unknown"])
+    assert.equal(shouldAuditAiMediaNativeFinalFrame({ ...request, videoEngine: engine }, "vercel-ai-gateway:google"), false);
+  for (const provider of ["vercel-ai-gateway:spacexai", "vercel-ai-gateway:alibaba", "vercel-ai-gateway:minimax", "inrcy-local", "google-gemini+other"])
+    assert.equal(shouldAuditAiMediaNativeFinalFrame(request, provider), false);
+  for (const patch of [{ source: "booster" }, { creationMode: "guided" }, { kind: "image" }])
+    assert.equal(shouldAuditAiMediaNativeFinalFrame({ ...request, ...patch }, "google-gemini"), false);
+  for (const freePrompt of ["Écran partagé", "Un diptyque", "Deux vues côte à côte", "Picture-in-picture", "Double exposition", "Une transition par volet", "Écran scindé", "Mosaïque de scènes", "Une incrustation", "Pas de split-screen mais un collage de scènes", "Le mot transition est mentionné sans intention précise"])
+    assert.equal(shouldAuditAiMediaNativeFinalFrame({ ...request, freePrompt }, "google-gemini"), false, freePrompt);
+  for (const freePrompt of ["Pas de split-screen", "Aucun écran partagé", "Sans transition", "Pas d’écran partagé", "No split screen", "Without panels", "Pas de split-screen et aucun écran partagé, sans transition"])
+    assert.equal(shouldAuditAiMediaNativeFinalFrame({ ...request, freePrompt }, "google-gemini"), true, freePrompt);
+});
+
+test("a first visual rejection stops without an ASR confirmation and has a separate private-safe result", async () => {
+  let reads = 0;
+  const clip = fakeClip({ checkFinalFrameLayout: true });
+  const result = await auditAiMediaNativeDialogueClips({ clips: [clip],
+    transcribe: async () => { reads++; return { text: "PRIVATE_WRONG_WORDS", finalFrameLayout: "rejected", finalFrameIssue: "unexpected_partial_transition" }; },
+    confirm: async () => assert.fail("A visual refusal must not buy a second audio read"),
+  });
+  assert.equal(reads, 1); assert.equal(result.status, "rejected");
+  assert.deepEqual(result.clips[0].issues, ["unexpected_visual_fragmentation"]);
+  assert.throws(() => assertAiMediaNativeFinalFrameLayout(result), /ai_media_native_visual_layout_invalid/);
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE|WRONG|WORDS/);
+});
+
+test("unavailable or omitted final-image proof is never a visual pass or a reason to retry", async () => {
+  for (const finalFrameLayout of [undefined, "unavailable"] as const) {
+    const clip = fakeClip({ checkFinalFrameLayout: true });
+    const result = await auditAiMediaNativeDialogueClips({ clips: [clip], transcribe: async () => ({ text: clip.expectedLine, finalFrameLayout }),
+      confirm: async () => assert.fail("No further request for uncertain visual QA") });
+    assert.equal(result.status, "unavailable");
+    assert.throws(() => assertAiMediaNativeFinalFrameLayout(result), /ai_media_native_visual_verification_unavailable/);
+  }
+});
+
+test("audio-only confirmations retain the independent first-image pass", async () => {
+  const clip = fakeClip({ checkFinalFrameLayout: true });
+  const result = await auditAiMediaNativeDialogueClips({ clips: [clip],
+    transcribe: async () => ({ text: "Une phrase complètement différente.", finalFrameLayout: "passed", finalFrameIssue: "none" }),
+    confirm: async () => ({ text: clip.expectedLine }),
+  });
+  assert.equal(result.status, "passed"); assert.equal(result.clips[0].finalFrameLayout, "passed");
+  assert.equal(result.clips[0].confirmation, "passed");
+  assert.doesNotThrow(() => assertAiMediaNativeFinalFrameLayout(result));
+});
+
+test("a thrown transcriber preserves unavailable image proof instead of silently dropping the gate", async () => {
+  const result = await auditAiMediaNativeDialogueClips({ clips: [fakeClip({ checkFinalFrameLayout: true })],
+    transcribe: async () => { throw new Error("PRIVATE_TRANSPORT_FAILURE"); },
+    confirm: async () => assert.fail("No retry after failed first read") });
+  assert.equal(result.status, "unavailable"); assert.equal(result.clips[0].finalFrameLayout, "unavailable");
+  assert.throws(() => assertAiMediaNativeFinalFrameLayout(result), /ai_media_native_visual_verification_unavailable/);
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE/);
+});
+
+
+test("server comparison feature is disabled unless its explicit flag is one", () => {
+  const previous = process.env[comparisonFlag];
+  const input = { source: "studio", kind: "video", creationMode: "free", videoEngine: "veo", freePrompt: "Une femme dans un jardin." };
+  try {
+    for (const value of [undefined, "0", "false"]) {
+      if (value === undefined) delete process.env[comparisonFlag]; else process.env[comparisonFlag] = value;
+      assert.equal(shouldAuditAiMediaNativeFinalFrame(input, "vercel-ai-gateway:google"), false);
+    }
+    process.env[comparisonFlag] = "1";
+    assert.equal(shouldAuditAiMediaNativeFinalFrame(input, "vercel-ai-gateway:google"), true);
+  } finally { if (previous === undefined) delete process.env[comparisonFlag]; else process.env[comparisonFlag] = previous; }
+});
+
+test("contradictory or legacy one-image verdicts cannot certify the two-image comparison", async () => {
+  for (const [layout, issue] of [["passed", "unexpected_partial_transition"], ["rejected", "none"], ["passed", undefined]] as const) {
+    const clip = fakeClip({ checkFinalFrameLayout: true });
+    const result = await auditAiMediaNativeDialogueClips({ clips: [clip], transcribe: async () => ({ text: clip.expectedLine,
+      finalFrameLayout: layout, finalFrameIssue: issue }), confirm: async () => assert.fail("No retry for an incoherent visual verdict") });
+    assert.equal(result.status, "unavailable");
+  }
 });

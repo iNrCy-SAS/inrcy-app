@@ -1,3 +1,4 @@
+import { getAiMediaVideoModel } from "./aiMediaModelCatalog.ts";
 import {
   hasCompleteAiMediaSpeechEnding,
 } from "./aiMediaDialogue.ts";
@@ -8,6 +9,8 @@ export type AiMediaNativeDialogueQaStatus =
   | "rejected"
   | "unavailable";
 
+export type AiMediaNativeFinalFrameIssue = "none" | "unexpected_partial_transition" | "unavailable";
+
 export type AiMediaNativeDialogueQaIssue =
   | "expected_dialogue_missing"
   | "transcription_unavailable"
@@ -16,7 +19,9 @@ export type AiMediaNativeDialogueQaIssue =
   | "spoken_dialogue_incomplete"
   | "spoken_dialogue_mismatch"
   | "spoken_critical_value_mismatch"
-  | "spoken_dialogue_repeated";
+  | "spoken_dialogue_repeated"
+  | "unexpected_visual_fragmentation"
+  | "final_frame_unverified";
 
 export type AiMediaNativeDialogueQaClip = {
   /** Position narrative du plan, indépendamment de l'ordre du tableau. */
@@ -31,6 +36,8 @@ export type AiMediaNativeDialogueQaClip = {
   expectedContinuation?: boolean;
   /** A silent act is valid only when transcription confirms no speech. */
   expectSilence?: boolean;
+  /** Server-derived, only for an already selected Google video provider. */
+  checkFinalFrameLayout?: boolean;
 };
 
 export type AiMediaNativeDialogueQaMetrics = {
@@ -47,6 +54,9 @@ export type AiMediaNativeDialogueQaClipResult = {
   status: AiMediaNativeDialogueQaStatus;
   issues: AiMediaNativeDialogueQaIssue[];
   metrics: AiMediaNativeDialogueQaMetrics;
+  /** First-call image verdict; later audio-only reads cannot replace it. */
+  finalFrameLayout?: AiMediaNativeDialogueQaStatus;
+  finalFrameIssue?: AiMediaNativeFinalFrameIssue;
   confirmation?: "passed" | "rejected" | "unavailable";
   /** Verdict only; private candidate names and audio never leave the callback. */
   pronunciationVerification?: "verified" | "rejected" | "unavailable";
@@ -62,6 +72,8 @@ export type AiMediaNativeDialogueQaResult = {
 
 export type AiMediaNativeDialogueTranscript = {
   text: string;
+  finalFrameLayout?: AiMediaNativeDialogueQaStatus;
+  finalFrameIssue?: AiMediaNativeFinalFrameIssue;
   model?: string;
 };
 
@@ -83,6 +95,33 @@ export type AiMediaNativeDialoguePronunciationVerifier = (
     signal?: AbortSignal;
   },
 ) => Promise<{ status: "verified" | "rejected" | "unavailable"; model?: string }>;
+
+
+/** Explicit prohibitions retain the gate; affirmative or ambiguous panels opt out. */
+export function shouldAuditAiMediaNativeFinalFrame(request: {
+  source?: string; creationMode?: string; kind?: string; videoEngine?: unknown; freePrompt?: string;
+}, actualProvider: string) {
+  // Off until independently calibrated; only an explicit server environment flag opts in.
+  if (process.env.AI_MEDIA_NATIVE_FINAL_FRAME_COMPARISON_ENABLED !== "1") return false;
+  if (request.source !== "studio" || request.creationMode !== "free" || request.kind !== "video") return false;
+  let model: ReturnType<typeof getAiMediaVideoModel>;
+  try { model = getAiMediaVideoModel(request.videoEngine); } catch { return false; }
+  if (model.id !== request.videoEngine || model.provider !== "google" ||
+      !["google-gemini", "google-gemini-omni", "vercel-ai-gateway:google"].includes(actualProvider)) return false;
+  const brief = (request.freePrompt || "").normalize("NFD").replace(/[\u0300-\u036f]/gu, "").toLowerCase();
+  const layouts = /split[ -]*screen|ecran[s]? (?:partage|divise|scinde)|multi[ -]?(?:panel|vue|view)|plusieurs vues|multiple views|diptyque|triptyque|diptych|triptych|mosaique|mosaic|collage|panneaux|panels|juxtaposition|cote a cote|side[ -]by[ -]side|picture[ -]in[ -]picture|\bpip\b|incrustation|double exposition|surimpression|wipe|volet|balayage|transition/giu;
+  for (const layout of brief.matchAll(layouts)) {
+    const prefix = brief.slice(0, layout.index);
+    if (!/\b(?:pas\s+(?:de\s+|d['’])|aucun(?:e)?s?\s+|sans\s+|no\s+|without\s+|ni\s+)$/u.test(prefix)) return false;
+  }
+  return true;
+}
+
+/** A visual refusal must stop before composition or an audio fallback. */
+export function assertAiMediaNativeFinalFrameLayout(result: AiMediaNativeDialogueQaResult | null) {
+  if (result?.clips.some(clip => clip.finalFrameLayout === "rejected")) throw new Error("ai_media_native_visual_layout_invalid");
+  if (result?.clips.some(clip => clip.finalFrameLayout === "unavailable")) throw new Error("ai_media_native_visual_verification_unavailable");
+}
 
 const PRONUNCIATION_GRAMMATICAL_WORD = /^(?:a|au|aux|de|des|du|et|en|la|le|les|ne|ou|un|une|the|an|and|of|or|to|in|on|one)$/;
 
@@ -520,6 +559,7 @@ function unavailableClipResult(
   return {
     sceneIndex: clip.sceneIndex,
     status: "unavailable",
+    ...(clip.checkFinalFrameLayout ? { finalFrameLayout: "unavailable" as const, finalFrameIssue: "unavailable" as const } : {}),
     issues: ["transcription_unavailable"],
     metrics: {
       expectedTokenCount: tokenizeAiMediaNativeDialogue(clip.expectedLine).length,
@@ -668,6 +708,15 @@ export async function auditAiMediaNativeDialogueClips(args: {
       });
       args.signal?.throwIfAborted();
       let result = evaluate(clip, transcription.text);
+      const finalFrameIssue = clip.checkFinalFrameLayout ? transcription.finalFrameIssue ?? "unavailable" : undefined;
+      const finalFrameLayout: AiMediaNativeDialogueQaStatus | undefined = !clip.checkFinalFrameLayout ? undefined
+        : transcription.finalFrameLayout === "passed" && finalFrameIssue === "none" ? "passed"
+        : transcription.finalFrameLayout === "rejected" && finalFrameIssue === "unexpected_partial_transition" ? "rejected" : "unavailable";
+      if (finalFrameLayout && finalFrameLayout !== "passed") {
+        return { result: { ...result, status: finalFrameLayout, finalFrameLayout, finalFrameIssue,
+          issues: [finalFrameLayout === "rejected" ? "unexpected_visual_fragmentation" : "final_frame_unverified"] } as AiMediaNativeDialogueQaClipResult,
+          model: transcription.model };
+      }
       const initialText = transcription.text;
       let pronunciationModel: string | undefined;
       if (result.status === "rejected" && args.confirm) {
@@ -745,7 +794,7 @@ export async function auditAiMediaNativeDialogueClips(args: {
         }
       }
       return {
-        result,
+        result: { ...result, ...(finalFrameLayout ? { finalFrameLayout, finalFrameIssue } : {}) },
         model: [transcription.model, pronunciationModel].filter(Boolean).join(",") || undefined,
       };
     } catch (error) {

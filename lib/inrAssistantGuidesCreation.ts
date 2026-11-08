@@ -41,17 +41,18 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
     id: "studio-create",
     title: "iNrStudio : générer une image ou une vidéo",
     keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits", "voix", "vocal", "musiques", "narration", "sous-titres"],
-    content: `${productNavigationSummary("studio", false)} Générer → Image ou Vidéo. Panneau unique ; Format et moteur, Durée en vidéo.
-Vidéo : Consignes visuelles pour scène, décor et texte à afficher ; 500 caractères maximum, 200 à 300 conseillés. Image : 4 000 caractères. Paroles séparées du visuel.
-« Utiliser mon ADN » ajoute faits, logo/couleurs et coordonnées sur demande. Décoché : pas d’autre ADN. Consignes ET Interdictions de Personnalisation → Ma communication restent transmises ; les interdictions priment. Règles jamais coupées ; budget insuffisant ou montage incompatible : blocage explicite.
-Inspiration, Personnage, Décor ou Produit fixe le rôle avant Importer/Médiathèque. Images uniquement ; fenêtre fermée après succès. Inspiration facultative, autres rôles Obligatoires ; usage réglable sur la miniature. Sauf demande contraire, pas de doubles ; contrôler les identités.
-Musiques : catalogue iNrCy, Automatique/Sans musique/piste avec préécoute ; utilisé au montage, distinct des vocaux.
-Dernier bloc : Personnages (Voix off/Personnages/Sans parole), Paroles, Voix. Paroles automatiques : l’IA rédige, sans champ. Paroles exactes : champ/compteur selon durée, moteur, plans, langue. Ne jamais couper texte exact ou ancien brouillon : réduire ou choisir une durée compatible. Exact vide = sans paroles.
-Voix IA ou Voix réelle. « Réglages » sous Voix gère jusqu’à 3 vocaux : Importer, Enregistrer/Médiathèque. Affectation : voix off sans photo (vocal de 5 à 10 s), Personnage joint ou non affecté ; un seul narrateur actif, sans voix imposée à tous. Nouvelles paroles synthétisées avec la voix choisie ; droits à confirmer. Genre réglable ; timbre conservé. Case Sous-titres : en voix off, incrustation locale au montage selon la durée mesurée de la voix. Aucun repli vers une autre voix.
-Vérifier coût/solde puis Générer ; conserver avec Enregistrer dans la Médiathèque ou Utiliser ce média. Réajuster reprend les critères ; régénérer peut débiter.
-« Vérifier mon média » lit la même tentative, sans relance. Pause/fermeture conserve l’identifiant ; critères restent modifiables. Une nouvelle génération attend sa résolution. « Annuler la génération » demande une confirmation distincte ; un arrêt ne prouve pas l’absence de débit.
-Basique, Standard, Premium : moteurs/crédits du compte. Basique sans crédits mensuels ; les recharges permettent de générer sans changer d’offre. Type/format fixé depuis Booster ; retour dans l’outil d’origine.`,
-    sourceFiles: ["lib/inrAssistantMediaTools.ts", "lib/productNavigation.ts",
+    content: `${productNavigationSummary("studio", false)} Générer → Image/Vidéo : format, moteur, durée en secondes ; plans automatiques en Studio Libre. Recommandation indicative, choix explicite conservé.
+Consignes visuelles : vidéo 500 caractères max, 200 à 300 conseillés ; image 4 000. Paroles séparées. Utiliser mon ADN ajoute faits/logo/couleurs/coordonnées sur demande ; décoché, pas d’autre ADN. Consignes et Interdictions de Ma communication restent transmises ; interdictions prioritaires, règles jamais coupées, blocage si incompatibles.
+Inspiration, Personnage, Décor, Produit fixent le rôle avant Importer/Médiathèque : images seules, fenêtre fermée après succès. Inspiration facultative, autres rôles Obligatoires ; usage réglable sur miniature. Éviter les doubles, vérifier les identités dans l’aperçu.
+Musiques : catalogue iNrCy, Automatique/Sans musique/piste avec préécoute ; distinct des vocaux.
+Personnages : Voix off/Personnages/Sans parole. Paroles automatiques : IA, sans champ ; exactes : champ/compteur selon durée/moteur/plans/langue. Ne jamais tronquer texte exact ou brouillon ; réduire avec accord ou choisir une durée compatible. Exact vide = sans parole.
+Voix off + Voix IA : Réglages → Voix (Femme/Homme), Style de voix. Voix réelle : Réglages → jusqu’à 3 vocaux, Importer/Enregistrer/Médiathèque. Affecter à voix off sans photo (vocal 5 à 10 s), Personnage joint ou non affecté ; un narrateur actif. Droits à confirmer ; genre réglable, vocal de référence au timbre. En libre avec paroles exactes compatibles, une piste réelle complète trop longue peut être resynthétisée une fois, mêmes paroles/vocal ; jamais après erreur réseau/soumission incertaine, ni substitution de voix.
+Sous-titres en voix off : montage selon durée mesurée et départ audio détecté, sans alignement mot à mot. Progression vidéo estimée.
+Vérifier coût/solde, Générer, puis Enregistrer dans la Médiathèque/Utiliser ce média. Réajuster reprend les critères ; régénérer peut débiter. Vérifier mon média relit la même tentative ; pause/fermeture garde son identifiant. Attendre sa résolution avant nouvelle génération. Annuler demande confirmation ; arrêt ≠ absence de débit.
+Basique/Standard/Premium selon crédits ; Basique sans allocation mensuelle, les recharges permettent de générer sans changer d’offre. Depuis Booster, type/format fixés, retour à l’origine.`,
+    sourceFiles: [
+      "lib/inrAssistantMediaTools.ts",
+      "lib/productNavigation.ts",
       "app/dashboard/generer-media/page.tsx",
       "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx",
       "app/dashboard/_components/MediaGeneratorModal.tsx",
@@ -84,6 +85,10 @@ Basique, Standard, Premium : moteurs/crédits du compte. Basique sans crédits m
       "lib/inrStudioModalPolicy.ts",
       "messages/fr-FR/media.json",
       "lib/dashboardEdition.ts",
+      "app/dashboard/_components/MediaEngineCreditControls.tsx",
+      "lib/aiMediaModelRecommendation.ts",
+      "lib/aiMediaVideoClientOptions.ts",
+      "lib/aiMediaNarrationPreparation.ts"
     ],
   },
   {

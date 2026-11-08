@@ -11,6 +11,8 @@ import {
 } from "./aiMediaCreditsPricing.ts";
 
 export type AiMediaModelRecommendationInput = {
+  /** Suggestion-only context; never a provider parameter or a model selection. */
+  recommendationContext?: "studio-free";
   kind: "image" | "video";
   operation?: "generate" | "modify";
   format?: unknown;
@@ -99,6 +101,14 @@ export function recommendAiMediaModel(input: AiMediaModelRecommendationInput): A
     } catch { return []; }
   });
   const find = (engine: AiMediaVideoEngine) => compatible.find((candidate) => candidate.model.id === engine);
+  // Studio synthesizes voice-over separately, so native French dialogue
+  // support does not improve this visual-only request. Prefer a compatible
+  // economical engine; this ranking does not guarantee latency.
+  if (input.recommendationContext === "studio-free" && input.operation !== "modify" &&
+      input.withNarration === true && input.teamVideoSpeechMode === "voiceover" &&
+      references === 0 && find("grok-lite")) {
+    return { engine: "grok-lite", reason: "economy" };
+  }
   if (wantsFrenchSpeech(input, brief) && find("minimax-h3")) {
     return { engine: "minimax-h3", reason: "french-speech" };
   }

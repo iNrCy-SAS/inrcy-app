@@ -104,11 +104,18 @@ test("the actual compact video dialog callbacks preserve native locks and wait f
     let open: string | null = null;
     let pendingRole: string | null = null;
     const pending: Array<() => void> = [];
-    const deps = { kind: "video", speechMode: "voiceover", selectedVoiceMode: "ai", voicePoolOpen: false, locked: false, referencePickerVisible: true, editorAvailable: true, stopConfirmOpen: false, libraryOpen: false, setActionError: (value: string) => assert.equal(value, ""), get pendingReferenceRole() { return pendingRole; }, get mediaSettingsDialog() { return open; }, setMediaSettingsDialog: (value: string | null) => pending.push(() => { open = value; }), setPendingReferenceRole: (value: string | null) => pending.push(() => { pendingRole = value; }), setSelectedReferenceId: (value: string | null) => { assert.equal(value, null); } };
+    const deps = { kind: "video", speechMode: "voiceover", selectedVoiceMode: "ai", voiceReferences: [] as unknown[], characterVoiceSpeechConflict: false, voicePoolOpen: false, locked: false, referencePickerVisible: true, editorAvailable: true, stopConfirmOpen: false, libraryOpen: false, setActionError: (value: string) => assert.equal(value, ""), get pendingReferenceRole() { return pendingRole; }, get mediaSettingsDialog() { return open; }, setMediaSettingsDialog: (value: string | null) => pending.push(() => { open = value; }), setPendingReferenceRole: (value: string | null) => pending.push(() => { pendingRole = value; }), setSelectedReferenceId: (value: string | null) => { assert.equal(value, null); } };
     const handlers = actualHandlers("app/dashboard/_components/MediaFreeGenerator.tsx", deps, dialog === "images" ? "studio_media_images" : "studio_video_audio");
     handlers.open.invoke(null); assert.equal(open, null); assert.equal(handlers.open.matches({ open: false }, null), false);
     pending.splice(0).forEach(commit => commit()); assert.equal(open, dialog); assert.equal(handlers.open.matches({ open: true }, null), true);
     if (dialog === "images") assert.equal(pendingRole, "inspiration", "generic opening offers a usable default without a second role selector");
+    if (dialog === "audio") {
+      deps.speechMode = "characters"; deps.voiceReferences = [{}];
+      assert.throws(() => handlers.open.invoke(null), /studio_audio_unavailable/, "single native character has no empty settings modal");
+      deps.voiceReferences = [{}, {}]; handlers.open.invoke(null); pending.splice(0).forEach(commit => commit());
+      assert.equal(open, "audio", "multiple explicit character voices retain useful settings");
+      deps.speechMode = "voiceover"; deps.voiceReferences = [];
+    }
     deps.locked = true; assert.throws(() => handlers.open.invoke(null)); assert.throws(() => handlers.close.invoke(null)); deps.locked = false;
     if (dialog === "audio") { deps.speechMode = "silent"; assert.throws(() => handlers.open.invoke(null)); deps.speechMode = "voiceover"; deps.voicePoolOpen = true; assert.throws(() => handlers.open.invoke(null)); deps.voicePoolOpen = false; deps.selectedVoiceMode = "provided"; assert.throws(() => handlers.open.invoke(null)); deps.selectedVoiceMode = "ai"; }
     if (dialog === "images") { deps.libraryOpen = true; assert.throws(() => handlers.close.invoke(null)); deps.libraryOpen = false; }
@@ -276,15 +283,17 @@ function actualHandlers(file: string, deps: Record<string, unknown>, interfaceId
   const helpers = new Map<string, ts.Expression>();
   const visit = (node: ts.Node) => {
     if (ts.isCallExpression(node) && node.expression.getText(ast) === "useInrAssistantLocalInterface" && (interfaceId ? node.arguments[0]?.getText(ast) === JSON.stringify(interfaceId) : node.arguments[0]?.getText(ast).includes("studio_"))) expression = node.arguments[2];
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && ["isVoiceSelectionApplied", "committedFormSelectionMatches"].includes(node.name.text)) helpers.set(node.name.text, node.initializer);
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer && ["isVoiceSelectionApplied", "committedFormSelectionMatches", "aiVoiceSettingsAvailable"].includes(node.name.text)) helpers.set(node.name.text, node.initializer);
     ts.forEachChild(node, visit);
   }; visit(ast); assert.ok(expression);
   if (helpers.size && !Object.hasOwn(deps, "voiceAction")) deps.voiceAction = { current: null };
-  for (const name of ["isVoiceSelectionApplied", "committedFormSelectionMatches"]) {
+  for (const name of ["isVoiceSelectionApplied", "committedFormSelectionMatches", "aiVoiceSettingsAvailable"]) {
     const helper = helpers.get(name);
     if (!helper) continue;
     const code = ts.transpileModule(`(${helper.getText(ast)})`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText.trim().replace(/;$/, "");
-    deps[name] = vm.runInNewContext(`(function(deps){with(deps){return ${code};}})`)(deps);
+    const evaluate = () => vm.runInNewContext(`(function(deps){with(deps){return ${code};}})`)(deps);
+    if (name === "aiVoiceSettingsAvailable") Object.defineProperty(deps, name, { configurable: true, get: evaluate });
+    else deps[name] = evaluate();
   }
   const compiled = ts.transpileModule(`(${expression.getText(ast)})`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText.trim().replace(/;$/, "");
   return vm.runInNewContext(`(function(deps){with(deps){return ${compiled};}})`)(deps) as Record<string, { invoke: (value: string | null) => void; matches: (snapshot: unknown, value: string | null) => boolean; allowUnmount?: boolean }>;

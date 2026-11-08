@@ -119,6 +119,37 @@ test("les références précomposées ne bloquent pas artificiellement la résol
   locked.effects.forEach((effect) => effect()); assert.deepEqual(locked.changes, [], "La génération en cours conserve son contrat.");
 });
 
+test("Studio offers one translated duration and upgrades old montage presets without changing their length", () => {
+  const runtime = controls({ videoEngine: "wan3", resolution: "1080p", automaticSceneMode: true, durationSeconds: 8, sceneMode: "multi" });
+  const select = find(runtime.tree, (node) => node.type === "select" && String(node.props.id).endsWith("-duration"));
+  const options = elements(select).filter((node) => node.type === "option");
+  assert.equal(select.props.value, "8:single", "a legacy selection still displays its own duration during normalization");
+  assert.equal(new Set(options.map((option) => String(option.props.value).split(":")[0])).size, options.length);
+  assert.ok(options.every((option) => text(option) === t("ai_generator_duration_seconds", { seconds: Number(String(option.props.value).split(":")[0]) })));
+  runtime.effects.forEach((effect) => effect());
+  assert.deepEqual(runtime.changes, [["duration", 8, "single"]], "native length no longer starts two unnecessary paid clips");
+  (select.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "30:single" } });
+  assert.deepEqual(runtime.changes.at(-1), ["duration", 30, "single"], "Wan 3 uses its native 30-second clip");
+  const legacyLong = controls({ videoEngine: "minimax-h3", resolution: "768p", automaticSceneMode: true, durationSeconds: 30, sceneMode: "single" });
+  legacyLong.effects.forEach((effect) => effect());
+  assert.deepEqual(legacyLong.changes, [["duration", 30, "multi"]], "old continuous presets become the same supported duration");
+});
+
+test("automatic duration respects account limits, locked jobs and callers retaining explicit scene choices", () => {
+  const limited = controls({ videoEngine: "wan3", resolution: "1080p", automaticSceneMode: true, videoMaxDurationSeconds: 15 });
+  const select = find(limited.tree, (node) => node.type === "select" && String(node.props.id).endsWith("-duration"));
+  assert.ok(elements(select).filter((node) => node.type === "option").every((node) => Number(String(node.props.value).split(":")[0]) <= 15));
+  const locked = controls({ videoEngine: "wan3", resolution: "1080p", automaticSceneMode: true, durationSeconds: 8, sceneMode: "multi", disabled: true });
+  locked.effects.forEach((effect) => effect());
+  assert.deepEqual(locked.changes, [], "an in-flight request is never edited by presentation cleanup");
+  const guided = controls({ videoEngine: "wan3", resolution: "1080p", durationSeconds: 8, sceneMode: "multi" });
+  const guidedSelect = find(guided.tree, (node) => node.type === "select" && String(node.props.id).endsWith("-duration"));
+  assert.equal(guidedSelect.props.value, "8:multi");
+  for (const value of ["8:single", "8:multi"]) assert.ok(elements(guidedSelect).some((node) => node.type === "option" && node.props.value === value));
+  guided.effects.forEach((effect) => effect());
+  assert.deepEqual(guided.changes, []);
+});
+
 function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMediaVideoEngine; imageEngine?: models.AiMediaImageEngine; references?: Reference[]; prompt?: string; busy?: boolean; remaining?: number; quoteReady?: boolean } = {}) {
   const slots: unknown[] = []; let cursor = 0;
   const modules = new Map(commonModules);

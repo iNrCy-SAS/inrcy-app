@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { AI_MEDIA_IMAGE_MODELS, AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaImageBaseCredits, getAiMediaImageModel, getAiMediaVideoDurations, getAiMediaVideoModel, getAiMediaVideoModelForCharacterVoice, isAiMediaImageModelCompatible, normalizeAiMediaImageEngine, type AiMediaImageEngine, type AiMediaVideoEngine, type AiMediaVideoResolution, type AiMediaVideoSceneMode } from "@/lib/aiMediaModelCatalog";
 import { getAiMediaVideoDurationSceneOptions, type AiMediaVideoDurationSceneOption } from "@/lib/aiMediaVideoTimeline";
-import { getMediaVideoEngineQualityChoices, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
+import { getAutomaticMediaVideoDurationOptions, getMediaVideoEngineQualityChoices, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
 import type { AiMediaModelRecommendation } from "@/lib/aiMediaModelRecommendation";
 import type { MediaGenerationFormat, MediaGenerationQuota } from "../_hooks/useMediaGeneration";
 import type useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
@@ -20,6 +20,7 @@ type Props = {
   referenceCount: number;
   durationSeconds?: number;
   sceneMode?: AiMediaVideoSceneMode;
+  automaticSceneMode?: boolean;
   videoMaxDurationSeconds?: number;
   onDurationSceneChange?: (seconds: number, mode: AiMediaVideoSceneMode) => void;
   recommendation?: AiMediaModelRecommendation | null;
@@ -40,6 +41,11 @@ function closestDurationSceneOption(options: readonly AiMediaVideoDurationSceneO
   return [...options].sort((first, second) => Math.abs(first.durationSeconds - duration) - Math.abs(second.durationSeconds - duration)
     || Number(first.sceneMode !== mode) - Number(second.sceneMode !== mode)
     || first.durationSeconds - second.durationSeconds || first.sceneCount - second.sceneCount)[0];
+}
+
+function availableDurationOptions(engine: AiMediaVideoEngine, resolution: AiMediaVideoResolution, maximumDuration: number, automatic = false) {
+  return (automatic ? getAutomaticMediaVideoDurationOptions(engine, resolution) : getAiMediaVideoDurationSceneOptions(engine, resolution))
+    .filter((option) => option.durationSeconds <= maximumDuration);
 }
 
 export function isMediaVideoReferenceCompatible(engine: AiMediaVideoEngine, referenceCount: number, hasProvidedCharacterVoice = false) {
@@ -196,15 +202,18 @@ export default function MediaEngineCreditControls(props: Props) {
   const duration = props.durationSeconds ?? 8;
   const sceneMode = props.sceneMode ?? "single";
   const maximumDuration = props.videoMaxDurationSeconds ?? 30;
-  const durationSceneOptions = getAiMediaVideoDurationSceneOptions(props.videoEngine, selectedResolution).filter((option) => option.durationSeconds <= maximumDuration);
+  const durationSceneOptions = availableDurationOptions(props.videoEngine, selectedResolution, maximumDuration, props.automaticSceneMode);
+  const displayedSceneMode = props.automaticSceneMode
+    ? durationSceneOptions.find((option) => option.durationSeconds === duration)?.sceneMode ?? sceneMode
+    : sceneMode;
   const changeDurationScene = props.onDurationSceneChange;
   useEffect(() => {
-    if (props.kind !== "video" || !changeDurationScene) return;
-    const options = getAiMediaVideoDurationSceneOptions(props.videoEngine, selectedResolution).filter((option) => option.durationSeconds <= maximumDuration);
+    if (props.kind !== "video" || !changeDurationScene || props.disabled) return;
+    const options = availableDurationOptions(props.videoEngine, selectedResolution, maximumDuration, props.automaticSceneMode);
     if (options.some((option) => option.durationSeconds === duration && option.sceneMode === sceneMode)) return;
     const next = closestDurationSceneOption(options, duration, sceneMode);
     if (next) changeDurationScene(next.durationSeconds, next.sceneMode);
-  }, [props.kind, props.videoEngine, selectedResolution, maximumDuration, duration, sceneMode, changeDurationScene]);
+  }, [props.kind, props.videoEngine, selectedResolution, maximumDuration, duration, sceneMode, changeDurationScene, props.automaticSceneMode, props.disabled]);
   const choices = getMediaVideoEngineQualityChoices(props.hasProvidedCharacterVoice);
   const videoEngineAllowed = (engine: AiMediaVideoEngine) =>
     (!props.requiredVideoEngine || engine === props.requiredVideoEngine) &&
@@ -225,11 +234,13 @@ export default function MediaEngineCreditControls(props: Props) {
   ].filter(Boolean).join(" ");
   const selectVideoPair = (engine: AiMediaVideoEngine, resolution: AiMediaVideoResolution) => {
     if (!pairSelectable(engine, resolution)) return;
-    const options = getAiMediaVideoDurationSceneOptions(engine, resolution).filter((option) => option.durationSeconds <= maximumDuration);
+    const options = availableDurationOptions(engine, resolution, maximumDuration, props.automaticSceneMode);
     const next = closestDurationSceneOption(options, duration, sceneMode);
     if (next && (next.durationSeconds !== duration || next.sceneMode !== sceneMode)) {
       changeDurationScene?.(next.durationSeconds, next.sceneMode);
-      setDurationNotice(t("ai_generator_duration_adjusted", { model: getAiMediaVideoModel(engine).label, seconds: next.durationSeconds, scenes: t(`ai_generator_free_scene_${next.sceneMode}`) }));
+      setDurationNotice(props.automaticSceneMode
+        ? t("ai_generator_duration_seconds", { seconds: next.durationSeconds })
+        : t("ai_generator_duration_adjusted", { model: getAiMediaVideoModel(engine).label, seconds: next.durationSeconds, scenes: t(`ai_generator_free_scene_${next.sceneMode}`) }));
     } else setDurationNotice("");
     // The preference update is atomic; a second update based on stale state would restore the old engine.
     if (engine === props.videoEngine) props.onResolutionChange(resolution);
@@ -256,11 +267,11 @@ export default function MediaEngineCreditControls(props: Props) {
     </div>
     {props.kind === "video" ? <div className={styles.durationField}>
       <label htmlFor={`${id}-duration`}>{t("ai_generator_free_duration_label")}</label>
-      <select id={`${id}-duration`} value={`${duration}:${sceneMode}`} disabled={props.disabled} onChange={(event) => {
+      <select id={`${id}-duration`} value={`${duration}:${displayedSceneMode}`} disabled={props.disabled} onChange={(event) => {
         const option = durationSceneOptions.find((candidate) => `${candidate.durationSeconds}:${candidate.sceneMode}` === event.target.value);
         if (option) { changeDurationScene?.(option.durationSeconds, option.sceneMode); setDurationNotice(""); }
       }}>
-        {durationSceneOptions.map((option) => <option key={`${option.durationSeconds}:${option.sceneMode}`} value={`${option.durationSeconds}:${option.sceneMode}`}>{t(option.sceneMode === "single" ? "ai_generator_duration_scene_single" : "ai_generator_duration_scene_multi", { seconds: option.durationSeconds })}</option>)}
+        {durationSceneOptions.map((option) => <option key={`${option.durationSeconds}:${option.sceneMode}`} value={`${option.durationSeconds}:${option.sceneMode}`}>{t(props.automaticSceneMode ? "ai_generator_duration_seconds" : option.sceneMode === "single" ? "ai_generator_duration_scene_single" : "ai_generator_duration_scene_multi", { seconds: option.durationSeconds })}</option>)}
       </select>
       <span className={styles.visuallyHidden} role="status" aria-live="polite">{durationNotice}</span>
     </div> : null}

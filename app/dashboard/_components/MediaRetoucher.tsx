@@ -956,8 +956,8 @@ export default function MediaRetoucher({
           </strong>
           <span>
             {saved
-              ? "Vous pouvez rouvrir l’atelier pour poursuivre les ajustements."
-              : "Ouvrez l’atelier, utilisez les outils puis enregistrez le rendu."}
+              ? "Vous pouvez poursuivre les ajustements dans l’atelier."
+              : "Ajustez votre image dans l’atelier puis enregistrez le rendu."}
           </span>
         </div>
         <button

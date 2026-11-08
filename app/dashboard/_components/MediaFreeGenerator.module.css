@@ -1370,6 +1370,110 @@
 .mediaSettingsDialogHeader button:focus-visible { outline: 2px solid #9adcf5; outline-offset: 2px; }
 .mediaSettingsDialogBody { flex: 1 1 auto; min-height: 0; padding: 16px 18px; overflow: auto; overscroll-behavior: contain; }
 .mediaSettingsDialog .audioSection { padding: 0; border: 0; }
+.mediaSettingsDialog[data-media-settings-dialog="audio"] {
+  width: min(460px, calc(100vw - 32px));
+  height: fit-content;
+  max-height: calc(100dvh - 32px);
+  aspect-ratio: auto;
+  border-color: rgba(126, 175, 215, .4);
+  background: linear-gradient(135deg, #16324b, #181f38);
+}
+.mediaSettingsDialog[data-media-settings-dialog="audio"] .mediaSettingsDialogHeader {
+  padding: 18px 22px;
+  border-bottom-color: rgba(137, 175, 211, .14);
+}
+.mediaSettingsDialog[data-media-settings-dialog="audio"] h2 {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 17px;
+}
+.audioDialogIcon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(118, 204, 231, .2);
+  border-radius: 11px;
+  color: #9bdced;
+  background: rgba(88, 183, 219, .09);
+}
+.audioDialogIcon svg { width: 19px; height: 19px; }
+.mediaSettingsDialog[data-media-settings-dialog="audio"] .mediaSettingsDialogHeader button {
+  flex-basis: 32px;
+  width: 32px;
+  height: 32px;
+  border-color: rgba(142, 175, 208, .2);
+  border-radius: 10px;
+  background: rgba(129, 162, 201, .08);
+  font-size: 23px;
+}
+.mediaSettingsDialog[data-media-settings-dialog="audio"] .mediaSettingsDialogHeader button:hover:not(:disabled) {
+  border-color: rgba(155, 220, 237, .5);
+  background: rgba(129, 162, 201, .16);
+}
+.mediaSettingsDialog[data-media-settings-dialog="audio"] .mediaSettingsDialogBody { padding: 22px; }
+.mediaSettingsDialog[data-media-settings-dialog="audio"] .audioSection {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.mediaSettingsDialog[data-media-settings-dialog="audio"] .audioSection > .muted { margin: 0; }
+.mediaSettingsDialog[data-media-settings-dialog="audio"] .voiceOptions {
+  grid-area: auto;
+  align-self: stretch;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.mediaSettingsDialog[data-media-settings-dialog="audio"] .voiceOptions label {
+  min-width: 0;
+  gap: 9px;
+  color: #bbcee3;
+  font-size: 12px;
+  font-weight: 500;
+}
+.mediaSettingsDialog[data-media-settings-dialog="audio"] .voiceOptions select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid rgba(129, 171, 210, .3);
+  border-radius: 11px;
+  color: #eef5ff;
+  background: #12243e;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  color-scheme: dark;
+}
+.mediaSettingsDialog[data-media-settings-dialog="audio"] .voiceOptions select:hover:not(:disabled) { border-color: rgba(145, 202, 229, .65); }
+.mediaSettingsDialog[data-media-settings-dialog="audio"] .voiceOptions select:focus-visible {
+  outline: 2px solid #9adcf5;
+  outline-offset: 3px;
+}
+.mediaSettingsDialog[data-media-settings-dialog="audio"] .voiceOptions select:disabled { cursor: default; }
+@media (max-width: 380px) {
+  .mediaSettingsDialog[data-media-settings-dialog="audio"] .mediaSettingsDialogHeader { padding: 16px; }
+  .mediaSettingsDialog[data-media-settings-dialog="audio"] .mediaSettingsDialogBody { padding: 18px 16px; }
+  .mediaSettingsDialog[data-media-settings-dialog="audio"] .voiceOptions { grid-template-columns: minmax(0, 1fr); }
+}
+.mediaSettingsDialog[data-media-settings-dialog="music"],
+.mediaSettingsDialog[data-media-settings-dialog="voices"] {
+  height: fit-content;
+  max-height: calc(100dvh - 32px);
+  aspect-ratio: auto;
+  border-color: rgba(126, 175, 215, .4);
+  background: linear-gradient(135deg, #16324b, #181f38);
+}
+.mediaSettingsDialog[data-media-settings-dialog="music"] { width: min(560px, calc(100vw - 32px)); max-height: min(680px, calc(100dvh - 32px)); }
+.mediaSettingsDialog[data-media-settings-dialog="voices"] { width: min(520px, calc(100vw - 32px)); }
+.mediaSettingsDialog[data-media-settings-dialog="music"] .mediaSettingsDialogHeader,
+.mediaSettingsDialog[data-media-settings-dialog="voices"] .mediaSettingsDialogHeader {
+  border-bottom-color: rgba(137, 175, 211, .14);
+}
 .mediaSettingsDialog .referenceActions { margin-top: 12px; }
 .mediaSettingsDialog[data-add-mode="true"] { --media-settings-side: min(420px, calc(100vw - 32px), calc(100dvh - 32px)); --media-add-accent: 104, 179, 220; border-color: rgba(var(--media-add-accent), .55); }
 .mediaSettingsDialog[data-add-mode="true"][data-add-role="character"] { --media-add-accent: 150, 162, 232; }

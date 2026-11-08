@@ -728,13 +728,13 @@ export default function MediaModifier({
           )}
 
           {!result && !generationBusy && !canRecover ? <div className={styles.importActions}>
-            <button
+            {!sourceImage ? <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={operationLocked}
             >
               {t("ai_modifier_from_device")}
-            </button>
+            </button> : null}
             <button
               type="button"
               onClick={() => setLibraryOpen(true)}

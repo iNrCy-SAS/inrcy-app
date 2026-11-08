@@ -1,3 +1,5 @@
+import * as nativeQa from "../../lib/aiMediaNativeDialogueQa.ts";
+import * as videoProviderTypes from "../../lib/aiVideoProviderTypes.ts";
 import { loadNarrationPreparationRuntime } from "./narration-preparation-runtime.mjs";
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import assert from "node:assert/strict";
@@ -72,6 +74,8 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
       officialLogoIncluded: Boolean(args.officialLogo), warnings: [], usage: null };
   };
   const overrides: Array<[string, unknown]> = [
+    ["@/lib/aiMediaNativeDialogueQa", nativeQa],
+    ["@/lib/aiVideoProviderTypes", videoProviderTypes],
     ["./aiMediaGlobalConstraints.ts", globalConstraints],
     ["./aiMediaSpokenScript.ts", spokenScript],
     ["./aiMediaPronunciation.ts", pronunciation],

@@ -19,9 +19,11 @@ import {
   buildAiMediaFreeVideoCastContract,
   buildAiMediaFreeVideoScenePrompt,
 } from "../../lib/aiMediaFreeGenerationPrompt.ts";
-import { needsControlledAiMediaFreeFirstFrame } from "../../lib/aiMediaFreeVoiceoverPolicy.ts";
+import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover } from "../../lib/aiMediaFreeVoiceoverPolicy.ts";
 import { buildAiMediaVideoProviderContract } from "../../lib/aiMediaVideoProviderContract.ts";
-import type { AiVideoProviderGenerationArgs } from "../../lib/aiVideoProviderTypes.ts";
+import { AiVideoProviderBillableFailure, getAiVideoProviderRecoverableStatus, isAiVideoProviderBillableFailure, type AiVideoProviderGenerationArgs } from "../../lib/aiVideoProviderTypes.ts";
+import { classifyVeoFailure } from "../../lib/aiVideoReliability.ts";
+import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 
 const server = ts.createSourceFile(
   "aiMediaGenerationServer.ts",
@@ -63,6 +65,51 @@ const profile = {
   memory: { targetAudiences: [], differentiators: [], recentNewsItems: [] },
   preferences: { language: "fr", customInstructions: "" },
 } as unknown as NormalizedAiGenerationProfile;
+
+test("the real Server never starts a fallback film after an uncertain Gateway peer, while a definite rejection retains the compatible fallback", async () => {
+  const executeProvider = ts.transpileModule(`(() => {
+    const generateProviderVideo = ${initializer("generateProviderVideo")};
+    return generateProviderVideo(providerRequest);
+  })()`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
+  const cases = [
+    { error: Object.assign(new Error("ai_video_gateway_timeout"), { statusCode: 0 }), fallback: false },
+    { error: Object.assign(new Error("fetch failed after submission"), { statusCode: 503 }), fallback: false },
+    { error: Object.assign(new Error("AbortError"), { statusCode: 503 }), fallback: false },
+    { error: new AiVideoProviderBillableFailure({ provider: "gateway-test", model: "veo-test", stage: "film_incomplete" }), fallback: false },
+    { error: Object.assign(new Error("definite upstream rejection"), { statusCode: 503 }), fallback: true },
+  ];
+  for (const entry of cases) {
+    const request = normalizeAiMediaGenerationRequest({ requestId: "offline-fallback-safety", source: "studio", operation: "generate", creationMode: "free", kind: "video", inputMode: "essential", subjectSource: "custom",
+      videoEngine: "veo", videoResolution: "720p", format: "story", durationSeconds: 16, sceneMode: "multi", freePrompt: "Une personne visite le jardin en deux plans.",
+      teamVideoSpeechMode: "voiceover", withNarration: true, withSubtitles: true, withMusic: false });
+    const calls: AiVideoProviderGenerationArgs[] = [];
+    const fallbackResult = { provider: "offline-fallback", clips: [] };
+    const context = {
+      providerRequest: request, args: { accountId: "offline-fallback", signal: new AbortController().signal },
+      isFreeCreation: true, profile, usesSeparateAiMediaFreeVoiceover, buildAiMediaVideoProviderContract,
+      getAiMediaVideoSegmentDurations, getAiVideoProviderRecoverableStatus, isAiVideoProviderBillableFailure, classifyVeoFailure,
+      creativePlan: { companyName: "", headline: "", subline: "", cta: "", scenes: [{ visualBrief: "La personne observe les fleurs." }, { visualBrief: "Elle poursuit la visite." }] },
+      segmentDurations: [8, 8], globalMediaConstraints: "", effectiveColors: [], prompt: request.freePrompt, promptHash: "offline-hash",
+      speechLanguage: "fr", nativeNarrationLines: undefined, subtitleLines: undefined, useFreeDna: false, pipelineWarnings: [], recordVideoEngineFailure() {},
+      generateOriginalAiVideoClips: async (input: AiVideoProviderGenerationArgs) => {
+        calls.push(input);
+        if (calls.length === 1) throw entry.error;
+        return fallbackResult;
+      },
+    };
+    const execution = vm.runInNewContext(executeProvider, context, { timeout: 1_000 }) as Promise<unknown>;
+    if (entry.fallback) {
+      assert.equal(await execution, fallbackResult);
+      assert.deepEqual(calls.map((call) => call.request.videoEngine), ["veo", "omni"]);
+      assert.equal(calls[1].request.durationSeconds, 16); assert.equal(calls[1].request.sceneMode, "multi");
+      assert.equal(calls[1].request.withNarration, false); assert.equal(calls[1].request.withSubtitles, false);
+      assert.equal(calls[1].request.freePrompt, request.freePrompt, "the legitimate fallback keeps the same brief");
+    } else {
+      await assert.rejects(execution, (error: unknown) => error === entry.error);
+      assert.equal(calls.length, 1, "uncertainty or an existing paid asset cannot submit another film");
+    }
+  }
+});
 
 function sourceRequest(role: AiMediaInspirationImage["role"], brief: string, photo: Buffer) {
   const normalized = normalizeAiMediaGenerationRequest({

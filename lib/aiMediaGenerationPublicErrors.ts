@@ -9,6 +9,16 @@ type Explanation = {
 };
 
 export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
+  AI_MEDIA_VIDEO_VISUAL_LAYOUT_INVALID: {
+    status: 502,
+    reason: "La fin de la vidéo contient une transition partielle inattendue entre deux scènes.",
+    action: "La création a été arrêtée. Vos réglages sont conservés.",
+  },
+  AI_MEDIA_VIDEO_VISUAL_VERIFICATION_UNAVAILABLE: {
+    status: 503,
+    reason: "Le contrôle de la dernière image n’a pas pu confirmer la composition de la vidéo.",
+    action: "La création a été interrompue. Vos réglages sont conservés.",
+  },
   AI_MEDIA_PROFILE_LOGO_UNAVAILABLE: {
     status: 400,
     reason: "Le logo enregistré dans votre Profil est absent ou illisible.",
@@ -48,6 +58,11 @@ export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
     status: 502,
     reason: "Le service n’a pas produit une piste exploitable avec votre voix.",
     action: "Réessayez dans quelques instants. Votre vocal et vos paroles restent conservés.",
+  },
+  AI_MEDIA_VOICE_CLONE_DURATION_INVALID: {
+    status: 502,
+    reason: "Le service de voix réelle a produit une piste trop longue pour cette vidéo.",
+    action: "Vos paroles et votre vocal sont conservés.",
   },
   AI_MEDIA_VOICE_CLONE_UNAVAILABLE: {
     status: 503,
@@ -415,11 +430,14 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
   const plain = text.replace(/[_-]+/g, " ");
   const match = (pattern: RegExp) => pattern.test(text);
   const result = (code: AiMediaPublicErrorCode) => explanation(code);
+  if (match(/\bai_media_native_visual_layout_invalid\b/)) return result("AI_MEDIA_VIDEO_VISUAL_LAYOUT_INVALID");
+  if (match(/\bai_media_native_visual_verification_unavailable\b/)) return result("AI_MEDIA_VIDEO_VISUAL_VERIFICATION_UNAVAILABLE");
   if (match(/\bai_media_voice_clone_consent_required\b/)) return result("AI_MEDIA_NARRATION_VOICE_CONSENT_REQUIRED");
   if (match(/\bai_media_voice_clone_(?:reference_(?:invalid|duration_invalid|missing)|video_duration_invalid)\b/)) return result("AI_MEDIA_NARRATION_VOICE_INVALID");
   if (match(/\bai_media_voice_clone_language_unsupported\b/)) return result("AI_MEDIA_NARRATION_VOICE_LANGUAGE_UNSUPPORTED");
   if (match(/\bai_media_voice_clone_script_invalid\b/)) return result("AI_MEDIA_VOICE_CLONE_SCRIPT_INVALID");
   if (match(/\bai_media_voice_clone_(?:output_invalid|audio_[a-z0-9_]+|response_[a-z0-9_]+)\b/)) return result("AI_MEDIA_VOICE_CLONE_OUTPUT_INVALID");
+  if (match(/\bai_media_voice_clone_duration_invalid\b/)) return result("AI_MEDIA_VOICE_CLONE_DURATION_INVALID");
   if (match(/\bai_media_voice_clone_[a-z0-9_]+\b/)) return result("AI_MEDIA_VOICE_CLONE_UNAVAILABLE");
   if (match(/\bai_media_profile_logo_unavailable\b|logo enregistre dans votre profil est absent ou illisible/)) return result("AI_MEDIA_PROFILE_LOGO_UNAVAILABLE");
   if (match(/\bvoice_(?:reference_(?:invalid_or_expired|missing)|audio_\w+|account_invalid)\b|ai_video_reference_voice_(?:url_missing|assignment_invalid)/)) return result("AI_MEDIA_CHARACTER_VOICE_INVALID");

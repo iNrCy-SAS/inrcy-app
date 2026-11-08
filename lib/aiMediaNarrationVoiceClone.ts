@@ -1,4 +1,5 @@
 import "server-only";
+import { setTimeout as delay } from "node:timers/promises";
 
 import {
   commitAiGatewayAccountAttempt,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/aiGatewayAccountGuard";
 import { inspectAiMediaCharacterVoiceWav } from "@/lib/aiMediaCharacterVoiceAudio";
 import { isOwnedAiMediaCharacterVoicePath } from "./aiMediaCharacterVoices.ts";
+import { safeAiVideoProviderErrorMetadata, safeAiVideoProviderFailureDiagnostics, type AiVideoProviderFailurePhase } from "./aiMediaSensitiveText.ts";
 import type { AiMediaNarration } from "@/lib/aiMediaNarration";
 import type { GeneratedAiNarrationAudio } from "@/lib/aiMediaNarrationAudio";
 import type { PreparedAiMediaNarrationVoice } from "@/lib/aiMediaNarrationVoicePreflight";
@@ -15,14 +17,18 @@ import type { PreparedAiMediaNarrationVoice } from "@/lib/aiMediaNarrationVoiceP
 // Official schema: text <= 300 characters, custom audio + its spoken language.
 // https://fal.ai/models/fal-ai/chatterbox/text-to-speech/multilingual/api
 const MODEL = "fal-ai/chatterbox/text-to-speech/multilingual";
-const ENDPOINT = `https://fal.run/${MODEL}`;
+const QUEUE_ORIGIN = "https://queue.fal.run";
+const ENDPOINT = `${QUEUE_ORIGIN}/${MODEL}`;
+const QUEUE_REQUEST_PATH = "/fal-ai/chatterbox/requests/";
 const MAX_TEXT_CHARACTERS = 300;
 const MAX_SCRIPT_CHARACTERS = 1_200;
 const MAX_AUDIO_SEGMENTS = 10;
 const MAX_AUDIO_BYTES = 16 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 64 * 1024;
-const REQUEST_TIMEOUT_MS = 90_000;
-const TOTAL_TIMEOUT_MS = 240_000;
+const SUBMIT_TIMEOUT_MS = 30_000;
+const QUEUE_READ_TIMEOUT_MS = 15_000;
+const POLL_INTERVAL_MS = 1_000;
+export const AI_MEDIA_CLONED_NARRATION_TIMEOUT_MS = 240_000;
 // Official price: $0.025 / 1,000 characters = 25 micro USD / character.
 const COST_MICRO_USD_PER_CHARACTER = 25;
 const LANGUAGES: Readonly<Record<string, string>> = Object.freeze({
@@ -108,6 +114,32 @@ function outputAudioUrl(value: unknown) {
   return url.href;
 }
 
+function queueRequestUrls(value: unknown) {
+  if (!value || typeof value !== "object") throw new Error("ai_media_voice_clone_queue_invalid");
+  const request = value as Record<string, unknown>;
+  const id = request.request_id;
+  if (typeof id !== "string" || !/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iu.test(id)) {
+    throw new Error("ai_media_voice_clone_queue_invalid");
+  }
+  const validate = (value: unknown, suffix: string) => {
+    if (typeof value !== "string" || value.length > 2_048) throw new Error("ai_media_voice_clone_queue_invalid");
+    let url: URL;
+    try { url = new URL(value); } catch { throw new Error("ai_media_voice_clone_queue_invalid"); }
+    // Returned URLs carry our API key, unlike the audio CDN download below.
+    // Require the same provider, model app and acknowledged request ID.
+    if (url.origin !== QUEUE_ORIGIN || url.username || url.password || url.search || url.hash ||
+        url.pathname !== `${QUEUE_REQUEST_PATH}${id}${suffix}`) throw new Error("ai_media_voice_clone_queue_invalid");
+    return url.href;
+  };
+  return { id, status: validate(request.status_url, "/status"), result: validate(request.response_url, "") };
+}
+
+async function readJsonResponse(response: Response) {
+  const bytes = await readBoundedResponse(response, MAX_RESPONSE_BYTES);
+  try { return JSON.parse(bytes.toString("utf8")) as unknown; }
+  catch { throw new Error("ai_media_voice_clone_output_invalid"); }
+}
+
 type WavParts = { format: Buffer; data: Buffer; byteRate: number };
 
 function readWav(buffer: Buffer): WavParts {
@@ -190,7 +222,7 @@ export async function generateAiMediaClonedNarrationAudio(args: {
   const texts = splitAiMediaClonedNarrationScript(args.narration.script);
   const key = String(process.env.FAL_KEY || "").trim();
   if (!key) throw new Error("ai_media_voice_clone_credentials_missing");
-  const signal = AbortSignal.any([...(args.signal ? [args.signal] : []), AbortSignal.timeout(TOTAL_TIMEOUT_MS)]);
+  const signal = AbortSignal.any([...(args.signal ? [args.signal] : []), AbortSignal.timeout(AI_MEDIA_CLONED_NARRATION_TIMEOUT_MS)]);
   const voice = `data:audio/wav;base64,${args.reference.buffer.toString("base64")}`;
   const output: Buffer[] = [];
   for (const text of texts) {
@@ -203,21 +235,27 @@ export async function generateAiMediaClonedNarrationAudio(args: {
     let definitelyRejected = false;
     let accounted = false;
     let status = 0;
+    const startedAt = Date.now();
+    let phase: AiVideoProviderFailurePhase = "provider_submission";
+    let requestSignal: AbortSignal | undefined;
+    let downloadSignal: AbortSignal | undefined;
     try {
       signal.throwIfAborted();
       attempted = true;
       // One POST only: retrying after a connection timeout could bill twice.
       // No provider voice profile is created. The original stays in our private store.
+      requestSignal = AbortSignal.any([signal, AbortSignal.timeout(SUBMIT_TIMEOUT_MS)]);
       const response = await fetch(ENDPOINT, {
         method: "POST", cache: "no-store", credentials: "omit", redirect: "error",
-        signal: AbortSignal.any([signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]),
+        signal: requestSignal,
         headers: {
           Authorization: `Key ${key}`, "Content-Type": "application/json",
           "X-Fal-Store-IO": "0", "X-Fal-No-Retry": "1",
           "X-Fal-Object-Lifecycle-Preference": JSON.stringify({ expiration_duration_seconds: 3_600 }),
           "x-app-fal-disable-fallback": "true",
         },
-        body: JSON.stringify({ text, voice, custom_audio_language: language, enable_safety_checker: true }),
+        body: JSON.stringify({ text, voice, custom_audio_language: language, enable_safety_checker: true,
+          exaggeration: 0.5, cfg_scale: 0.5, temperature: 0.5 }),
       });
       status = response.status;
       definitelyRejected = status >= 400 && status < 500;
@@ -225,20 +263,71 @@ export async function generateAiMediaClonedNarrationAudio(args: {
         await response.body?.cancel();
         throw new Error(`ai_media_voice_clone_provider_http_${status}`);
       }
-      // A successful synthesis is billable even if its media later cannot be
-      // downloaded or decoded. Do not erase that cost or re-synthesize it.
+      const request = queueRequestUrls(await readJsonResponse(response));
+      // Queue acknowledgement is not a completed synthesis. GET failures after
+      // acknowledgement cannot prove rejection, so they never release its cost.
+      definitelyRejected = false;
+      const readQueue = async (url: string) => {
+        for (let attempt = 0; ; attempt += 1) {
+          signal.throwIfAborted();
+          requestSignal = AbortSignal.any([signal, AbortSignal.timeout(QUEUE_READ_TIMEOUT_MS)]);
+          try {
+            const response = await fetch(url, { method: "GET", cache: "no-store", credentials: "omit", redirect: "error",
+              signal: requestSignal, headers: { Authorization: `Key ${key}` } });
+            status = response.status;
+            if (!response.ok) {
+              await response.body?.cancel();
+              if (attempt < 2 && (status === 429 || status >= 500)) {
+                await delay(POLL_INTERVAL_MS, undefined, { signal });
+                continue;
+              }
+              throw new Error(`ai_media_voice_clone_provider_http_${status}`);
+            }
+            return await readJsonResponse(response);
+          } catch (error) {
+            signal.throwIfAborted();
+            // Retrying a GET only observes the existing request. Never repeat
+            // submission, including when its acceptance was not received.
+            if (attempt < 2 && (requestSignal.aborted || error instanceof TypeError)) {
+              await delay(POLL_INTERVAL_MS, undefined, { signal });
+              continue;
+            }
+            throw error;
+          }
+        }
+      };
+      let completedWithError = false;
+      for (;;) {
+        const state = await readQueue(request.status);
+        if (!state || typeof state !== "object") throw new Error("ai_media_voice_clone_queue_invalid");
+        const entry = state as Record<string, unknown>;
+        if (entry.request_id !== undefined && entry.request_id !== request.id) throw new Error("ai_media_voice_clone_queue_invalid");
+        if (entry.status === "COMPLETED") {
+          completedWithError = entry.error != null || entry.error_type != null;
+          break;
+        }
+        if (entry.status !== "IN_QUEUE" && entry.status !== "IN_PROGRESS") throw new Error("ai_media_voice_clone_queue_invalid");
+        await delay(POLL_INTERVAL_MS, undefined, { signal });
+      }
+      phase = "output_validation";
+      const result = await readQueue(request.result);
+      if (completedWithError) throw new Error("ai_media_voice_clone_provider_failed");
+      // A successful synthesis is billable even if validation or its download
+      // later fails. Do not erase that cost or re-synthesize it.
+      phase = "cost_commit";
       accounted = true;
       await commitAiGatewayAccountAttempt({ reservation, feature: "media.video", model: MODEL,
         usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, actualCostMicroUsd: estimatedCostMicroUsd });
-      const bytes = await readBoundedResponse(response, MAX_RESPONSE_BYTES);
-      let result: unknown;
-      try { result = JSON.parse(bytes.toString("utf8")); } catch { throw new Error("ai_media_voice_clone_output_invalid"); }
+      phase = "output_validation";
       const audio = result && typeof result === "object" && "audio" in result ? result.audio : null;
       const url = outputAudioUrl(audio && typeof audio === "object" && "url" in audio ? audio.url : null);
+      phase = "asset_download";
+      downloadSignal = AbortSignal.any([signal, AbortSignal.timeout(30_000)]);
       const download = await fetch(url, { method: "GET", cache: "no-store", credentials: "omit", redirect: "error",
-        signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]) });
+        signal: downloadSignal });
       if (!download.ok) { await download.body?.cancel(); throw new Error("ai_media_voice_clone_audio_download_failed"); }
       const buffer = await readBoundedResponse(download, MAX_AUDIO_BYTES);
+      phase = "output_validation";
       readWav(buffer);
       output.push(buffer);
     } catch (error) {
@@ -254,9 +343,18 @@ export async function generateAiMediaClonedNarrationAudio(args: {
       args.signal?.throwIfAborted();
       // Do not persist a fetch error/cause that could contain the key, vocal,
       // signed download URL or original HTTP body.
+      const activeSignal = phase === "asset_download" ? downloadSignal : requestSignal;
+      const timedOut = signal.aborted || activeSignal?.aborted === true;
       const safe = error instanceof Error && /^ai_media_voice_clone_[a-z0-9_]+$/u.test(error.message)
-        ? error.message : signal.aborted ? "ai_media_voice_clone_timeout" : "ai_media_voice_clone_unavailable";
-      throw new Error(safe);
+        ? error.message : timedOut ? "ai_media_voice_clone_timeout" : "ai_media_voice_clone_unavailable";
+      // Persist machine categories only. Never retain a private fetch exception.
+      throw Object.assign(new Error(safe), { diagnostics: safeAiVideoProviderFailureDiagnostics({
+        ...safeAiVideoProviderErrorMetadata(error), phase,
+        ...(status >= 400 && status <= 599 ? { providerHttpStatus: status } : {}),
+        elapsedMs: Math.max(0, Date.now() - startedAt),
+        callerAborted: args.signal?.aborted === true,
+        providerAborted: timedOut, deadlineExceeded: timedOut,
+      }) });
     }
   }
   return { buffer: joinAiMediaClonedNarrationWav(output), mimeType: "audio/wav", extension: "wav", model: MODEL, voice: "provided" };

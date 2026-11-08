@@ -844,7 +844,7 @@ export function ChannelImageAdapterModal({
               <div style={{ display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr)", alignContent: "start", gap: 9, padding: isMobile ? 12 : 14, borderRadius: 20, minWidth: 0, minHeight: 0, width: "100%", height: settingsGridColumns ? "100%" : undefined, boxSizing: "border-box", border: "1px solid rgba(192,132,252,0.22)", background: "rgba(192,132,252,0.06)", gridColumn: settingsGridColumns ? "2" : undefined, gridRow: settingsGridColumns ? "1 / 3" : undefined, overflow: isCompact ? "visible" : "hidden" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
                   <div style={{ fontSize: 12, opacity: 0.9, fontWeight: 850 }}>Textes et liens</div>
-                  <button type="button" className={buttonClassName} onClick={addOverlay} disabled={overlayItems.length >= MAX_IMAGE_OVERLAY_ITEMS} style={{ minHeight: 32, padding: "0 10px", fontSize: 11, opacity: overlayItems.length >= MAX_IMAGE_OVERLAY_ITEMS ? 0.5 : 1 }}>＋ Ajouter un texte</button>
+                  {overlayItems.length ? <button type="button" className={buttonClassName} onClick={addOverlay} disabled={overlayItems.length >= MAX_IMAGE_OVERLAY_ITEMS} style={{ minHeight: 32, padding: "0 10px", fontSize: 11, opacity: overlayItems.length >= MAX_IMAGE_OVERLAY_ITEMS ? 0.5 : 1 }}>＋ Ajouter un texte</button> : null}
                 </div>
                 {overlayItems.length ? (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>

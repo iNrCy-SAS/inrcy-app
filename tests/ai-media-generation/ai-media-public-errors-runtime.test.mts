@@ -164,3 +164,29 @@ test("content refusals stay distinct from spending fuses, temporary limits and a
   for (const error of ["AI_GATEWAY_ACCOUNT_LIMIT_REACHED", "La limite quotidienne de sécurité IA est atteinte", "AI safety limit", "Rate limit 429", "Request timed out", { message: "provider unavailable", metadata: { prompt: "safety filter" } }])
     assert.equal(isAiMediaContentPolicyRejection(error), false);
 });
+
+
+test("overlong cloned output is distinct from dense user text in live and persisted recovery errors", () => {
+  for (const error of [
+    new Error("ai_media_narration_unavailable", { cause: new Error("ai_media_voice_clone_duration_invalid", { cause: new Error("ai_narration_too_long_for_natural_pace:PRIVATE") }) }),
+    { code: "AI_MEDIA_NARRATION_TOO_LONG", error_details: [{ message: "ai_media_voice_clone_duration_invalid" }] },
+    { code: "AI_MEDIA_VOICE_CLONE_DURATION_INVALID" },
+  ]) {
+    const actual = explain(error);
+    assert.equal(actual.code, "AI_MEDIA_VOICE_CLONE_DURATION_INVALID"); assert.equal(actual.status, 502);
+    assert.equal(actual.message, "Le service de voix réelle a produit une piste trop longue pour cette vidéo. Vos paroles et votre vocal sont conservés.");
+    assert.doesNotMatch(actual.message, /PRIVATE|raccourci|plus longue|réessay|relanc/i);
+  }
+  assert.equal(explain(new Error("ai_media_exact_narration_too_long")).code, "AI_MEDIA_EXACT_NARRATION_TOO_LONG");
+  assert.equal(explain(new Error("ai_narration_too_long_for_natural_pace")).code, "AI_MEDIA_NARRATION_TOO_LONG");
+});
+
+
+test("native image QA exposes precise private-safe visual causes in live and recovered failures", () => {
+  for (const [machine, code] of [["ai_media_native_visual_layout_invalid", "AI_MEDIA_VIDEO_VISUAL_LAYOUT_INVALID"], ["ai_media_native_visual_verification_unavailable", "AI_MEDIA_VIDEO_VISUAL_VERIFICATION_UNAVAILABLE"]]) {
+    for (const failure of [new Error("ai_video_provider_billable_failure", { cause: new Error(machine) }), { code, error_details: [{ message: machine }] }]) {
+      const result = explain(failure); assert.equal(result.code, code);
+      assert.doesNotMatch(result.message, /réessay|relanc|raccourci|voix|paroles|crédit|rembours/i);
+    }
+  }
+});

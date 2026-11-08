@@ -444,9 +444,43 @@ test("the single video panel keeps the prompt visible while native Images/Audio 
         assert.equal(await dialog.evaluate(element => element.contains(document.activeElement)), true, "native dialog receives focus");
         const bounds = await dialog.boundingBox();
         assert.ok(bounds && bounds.width <= viewport.width && bounds.height <= viewport.height, "real dialog fits within the viewport");
-        const side = Math.min(kind === "images" ? 420 : 560, viewport.width - 32, viewport.height - 32);
         assert.equal(await dialog.getAttribute("data-add-mode"), kind === "images" ? "true" : null, "only reference addition uses the compact chooser");
-        assert.ok(Math.abs(bounds.width - side) <= 1 && Math.abs(bounds.height - side) <= 1, `${kind} ${viewport.width}x${viewport.height}: actual dialog is square and bounded by both viewport dimensions ${JSON.stringify(bounds)}`);
+        if (kind === "images") {
+          const side = Math.min(420, viewport.width - 32, viewport.height - 32);
+          assert.ok(Math.abs(bounds.width - side) <= 1 && Math.abs(bounds.height - side) <= 1, `images ${viewport.width}x${viewport.height}: the reference chooser stays square ${JSON.stringify(bounds)}`);
+        } else {
+          assert.ok(Math.abs(bounds.width - Math.min(460, viewport.width - 32)) <= 1, `audio width fits its two controls ${JSON.stringify(bounds)}`);
+          assert.ok(bounds.height < 320 && bounds.height <= viewport.height - 32, `audio height follows its content ${JSON.stringify(bounds)}`);
+          const layout = await dialog.evaluate(element => {
+            const body = element.querySelector<HTMLElement>('.free-mediaSettingsDialogBody')!;
+            const options = element.querySelector<HTMLElement>('.free-voiceOptions')!;
+            const bodyRect = body.getBoundingClientRect(), optionsRect = options.getBoundingClientRect(), bodyStyle = getComputedStyle(body);
+            return {
+              contentLeft: bodyRect.left + parseFloat(bodyStyle.paddingLeft), contentRight: bodyRect.right - parseFloat(bodyStyle.paddingRight),
+              left: optionsRect.left, right: optionsRect.right, width: optionsRect.width,
+              fields: Array.from(options.querySelectorAll('select')).map(select => {
+                const rect = select.getBoundingClientRect(), label = select.closest('label')!.getBoundingClientRect();
+                return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom, width: rect.width, labelWidth: label.width };
+              }),
+            };
+          });
+          assert.equal(layout.fields.length, 2);
+          assert.ok(Math.abs(layout.left - layout.contentLeft) <= 1 && Math.abs(layout.right - layout.contentRight) <= 1, "voice options use the full dialog content width");
+          for (const field of layout.fields) assert.ok(Math.abs(field.width - field.labelWidth) <= 1, "each selector fills its label");
+          const [genderField, styleField] = layout.fields;
+          if (viewport.width <= 380) {
+            assert.ok(styleField.top >= genderField.bottom && Math.abs(genderField.width - layout.width) <= 1 && Math.abs(styleField.width - layout.width) <= 1, "narrow phones stack two full-width selectors");
+          } else {
+            assert.ok(Math.abs(genderField.top - styleField.top) <= 1 && styleField.left > genderField.right, "voice selectors share a balanced row");
+            assert.ok(Math.abs(genderField.left - layout.left) <= 1 && Math.abs(styleField.right - layout.right) <= 1, "the row has no empty side column");
+          }
+          const gender = dialog.locator('.free-voiceOptions select').nth(0);
+          const style = dialog.locator('.free-voiceOptions select').nth(1);
+          await gender.selectOption("male");
+          assert.equal(await style.inputValue(), "Charon", "changing gender selects a compatible default voice");
+          await style.selectOption("Puck");
+          assert.equal(await style.inputValue(), "Puck", "the style selector remains interactive");
+        }
         assert.ok(Math.abs(bounds.x + bounds.width / 2 - viewport.width / 2) <= 1 && Math.abs(bounds.y + bounds.height / 2 - viewport.height / 2) <= 1, `${kind} ${viewport.width}x${viewport.height}: actual dialog is centered despite the production dialog margin reset ${JSON.stringify(bounds)}`);
         const scrollLayout = await dialog.evaluate(element => {
           const header = element.querySelector<HTMLElement>('.free-mediaSettingsDialogHeader')!;
@@ -475,7 +509,10 @@ test("the single video panel keeps the prompt visible while native Images/Audio 
       }
       await page.locator('[data-media-subtitles]').check();
       await page.locator('[data-video-audio-button]').click();
-      await page.locator('[data-media-settings-dialog="audio"]').waitFor();
+      const reopenedAudio = page.locator('[data-media-settings-dialog="audio"]');
+      await reopenedAudio.waitFor();
+      assert.equal(await reopenedAudio.locator('.free-voiceOptions select').nth(0).inputValue(), "male", "closing and reopening preserves gender");
+      assert.equal(await reopenedAudio.locator('.free-voiceOptions select').nth(1).inputValue(), "Puck", "closing and reopening preserves voice style");
       assert.equal(await page.locator('[data-media-subtitles]').isChecked(), true, "the visible main checkbox retains its state through voice settings");
       await page.keyboard.press("Escape");
       await page.keyboard.press("Escape");
@@ -506,6 +543,8 @@ test("the real Studio music dialog previews live catalogue choices and retains t
       const dialog = page.locator('[data-media-settings-dialog="music"]'); await dialog.waitFor({ state: "visible" });
       await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_video_music?.snapshot as { ready?: boolean })?.ready === true);
       assert.equal(await dialog.locator("[data-studio-music-track]").count(), 2, "the real parser exposes only the locally supplied catalogue");
+      const musicBounds = await dialog.boundingBox();
+      assert.ok(musicBounds && Math.abs(musicBounds.width - Math.min(560, viewport.width - 32)) <= 1 && musicBounds.height < 420 && musicBounds.height <= viewport.height - 32, "the music chooser fits its short catalogue without an empty square");
       assert.equal(await page.evaluate(() => Object.keys((window as unknown as FixtureWindow).fixtureStudioInterfaces).some(id => id.startsWith("publication_soundtrack_"))), false);
       const beforePreview = await page.evaluate(() => (window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_video_music.snapshot as { soundtrackId: string | null; withMusic: boolean });
       await dialog.locator('[data-studio-music-preview="guitare-solaire"]').click();
@@ -551,17 +590,20 @@ test("real Studio voice Settings opens the three-source pool and preserves new s
       assert.equal(await page.locator('[data-voice-pool-import]').count(), 0, "no file import or three vocal chips are shown in the main panel");
       const subtitles = page.locator('[data-media-subtitles]'); assert.equal(await subtitles.isVisible(), true); await subtitles.check();
       await settings.click(); const dialog = page.locator('[data-media-settings-dialog="voices"]'); await dialog.waitFor({ state: "visible" });
+      assert.equal(await dialog.locator('h2').innerText(), messages.ai_generator_voice_real, "the vocal editor has a contextual title");
+      assert.equal(await dialog.locator('[data-voice-pool-add]').count(), 0, "an open unsaved vocal already exposes its import sources without another Add button");
       assert.equal(await dialog.locator('input[type="file"]').count(), 1, "the actual reusable voice importer is mounted in Settings");
       assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).fixtureVoiceUploads), 0, "opening Settings never uploads or records a vocal");
       await dialog.locator('input[type="file"]').setInputFiles({ name: "voix.wav", mimeType: "audio/wav", buffer: Buffer.from("local-synthetic-audio") });
       await page.waitForFunction(() => (((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_voice_pool.snapshot as { profiles: unknown[] }).profiles.length === 1));
       assert.equal(await dialog.locator('[data-voice-profile]').count(), 1);
+      assert.equal(await dialog.locator('[data-voice-pool-add]').count(), 1, "a saved vocal exposes one action for adding another source");
       const portalLayout = await dialog.evaluate(element => {
         const chip = element.querySelector<HTMLElement>('[data-voice-profile]')!, row = chip.parentElement!, count = row.querySelector<HTMLElement>('.pool-count')!;
         const chipBounds = chip.getBoundingClientRect(), dialogBounds = element.getBoundingClientRect(), chipStyle = getComputedStyle(chip), rowStyle = getComputedStyle(row);
         return { side: dialogBounds.width, height: dialogBounds.height, centerX: dialogBounds.x + dialogBounds.width / 2, centerY: dialogBounds.y + dialogBounds.height / 2, chipHeight: chipBounds.height, chipFont: parseFloat(chipStyle.fontSize), paddingX: parseFloat(chipStyle.paddingLeft), paddingY: parseFloat(chipStyle.paddingTop), gap: parseFloat(rowStyle.gap), countFont: parseFloat(getComputedStyle(count).fontSize), selected: chip.getAttribute('aria-pressed') };
       });
-      assert.ok(Math.abs(portalLayout.side - portalLayout.height) <= 1 && Math.abs(portalLayout.centerX - viewport.width / 2) <= 1 && Math.abs(portalLayout.centerY - viewport.height / 2) <= 1, "the actual portaled pool stays square and centered");
+      assert.ok(Math.abs(portalLayout.side - Math.min(520, viewport.width - 32)) <= 1 && portalLayout.height <= viewport.height - 32 && Math.abs(portalLayout.centerX - viewport.width / 2) <= 1 && Math.abs(portalLayout.centerY - viewport.height / 2) <= 1, "the actual portaled pool fits its controls and stays centered");
       assert.ok(portalLayout.chipHeight >= 34 && portalLayout.chipFont >= 12 && portalLayout.paddingX >= 10 && portalLayout.paddingY >= 6 && portalLayout.gap >= 8 && portalLayout.countFont >= 12, `portaled vocal chips retain their real readable styles ${JSON.stringify(portalLayout)}`);
       assert.equal(portalLayout.selected, "true");
       const pool = await page.evaluate(() => (window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_voice_pool.snapshot as { profiles: Array<{ id: string; target: unknown }> });

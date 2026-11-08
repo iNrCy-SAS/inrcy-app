@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getMediaVideoDurationChoices, getCompatibleMediaVideoResolution, getMediaVideoEngineQualityChoices, isMediaVideoBriefCompatible } from "../../lib/aiMediaVideoClientOptions.ts";
-import { AI_MEDIA_VIDEO_MODELS, AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel, restoreAiMediaVideoPreference, isAiMediaVideoEngineAvailable } from "../../lib/aiMediaModelCatalog.ts";
+import { getAutomaticMediaVideoDurationOptions, getMediaVideoDurationChoices, getCompatibleMediaVideoResolution, getMediaVideoEngineQualityChoices, isMediaVideoBriefCompatible } from "../../lib/aiMediaVideoClientOptions.ts";
+import { AI_MEDIA_VIDEO_MODELS, AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel, getAiMediaVideoNativeDurations, restoreAiMediaVideoPreference, isAiMediaVideoEngineAvailable } from "../../lib/aiMediaModelCatalog.ts";
+import { getAiMediaVideoDurationSceneOptions, getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 
 test("the professional chooses the entire four-to-thirty-second range before choosing an engine", () => {
   assert.deepEqual(getMediaVideoDurationChoices(), Array.from({ length: 27 }, (_, index) => index + 4));
@@ -26,6 +27,23 @@ test("two-scene choices require two clips of at least four seconds", () => {
     assert.equal(getCompatibleMediaVideoResolution(engine, 7, "720p", "multi"), null);
     assert.ok(getCompatibleMediaVideoResolution(engine, 8, "720p", "multi"));
   }
+});
+
+test("automatic Studio duration keeps every supported length and prefers a single native clip", () => {
+  for (const model of AI_MEDIA_AVAILABLE_VIDEO_MODELS) for (const resolution of model.resolutions) {
+    const options = getAutomaticMediaVideoDurationOptions(model.id, resolution);
+    const native = getAiMediaVideoNativeDurations(model.id, resolution);
+    const supported = [...new Set(getAiMediaVideoDurationSceneOptions(model.id, resolution).map((option) => option.durationSeconds))];
+    assert.deepEqual(options.map((option) => option.durationSeconds), supported, `${model.id}/${resolution}: no duration disappears`);
+    for (const option of options) {
+      const segments = getAiMediaVideoSegmentDurations(option.durationSeconds, model.id, resolution, option.sceneMode);
+      assert.equal(option.sceneMode, native.includes(option.durationSeconds) ? "single" : "multi");
+      assert.equal(segments.length, native.includes(option.durationSeconds) ? 1 : 2);
+      assert.equal(segments.reduce((total, duration) => total + duration, 0), option.durationSeconds);
+    }
+  }
+  assert.deepEqual(getAutomaticMediaVideoDurationOptions("wan3", "1080p").find((option) => option.durationSeconds === 30), { durationSeconds: 30, sceneMode: "single", sceneCount: 1 });
+  assert.deepEqual(getAutomaticMediaVideoDurationOptions("minimax-h3", "768p").find((option) => option.durationSeconds === 30), { durationSeconds: 30, sceneMode: "multi", sceneCount: 2 });
 });
 
 test("the single dropdown contains only real engine/resolution pairs and their exact credit rates", () => {

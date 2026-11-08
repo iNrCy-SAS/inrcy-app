@@ -3171,6 +3171,24 @@
   transition: width 450ms ease;
 }
 
+.largeProgressTrack[data-indeterminate="true"] span {
+  width: 30%;
+  animation: videoWaitingSweep 1.8s ease-in-out infinite alternate;
+  transition: none;
+}
+
+@keyframes videoWaitingSweep {
+  from { transform: translateX(0); }
+  to { transform: translateX(233.3333%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .largeProgressTrack[data-indeterminate="true"] span {
+    animation: none;
+    transform: translateX(116.6667%);
+  }
+}
+
 .creationProgress > strong {
   margin-top: 10px;
   color: #fff;

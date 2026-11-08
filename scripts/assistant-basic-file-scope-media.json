@@ -55,7 +55,7 @@
   },
   "app/dashboard/_components/MediaEngineCreditControls.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Révision explicite : durée unique en Studio Libre, scènes calculées automatiquement, longueur native privilégiée et choix verrouillé pendant un job ; moteurs/résolutions et devis restent natifs, sans nouveau droit ni lancement.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -63,7 +63,7 @@
   },
   "app/dashboard/_components/MediaFreeGenerator.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Révision explicite : modales dimensionnées aux options utiles, réglages Voix IA disponibles seulement pour de vraies options ; références, voix off réelle, autorisations et verrous restent natifs. Durée unique et nombre de plans automatique dans le Studio Libre.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -71,7 +71,7 @@
   },
   "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Révision explicite : barre déterminée conservée, pourcentage vidéo marqué approximatif et libellé d’attente neutre ; arrêt, confirmation et récupération gardent leurs actions natives.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -109,7 +109,7 @@
   },
   "app/dashboard/_components/MediaModifier.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Révision explicite : après import, Remplacer conserve le choix appareil et la Médiathèque reste disponible ; le bouton appareil redondant est masqué. Import initial, verrous et brouillon inchangés.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -159,7 +159,7 @@
   },
   "app/dashboard/_components/MediaRetoucher.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Révision explicite : l’atelier déjà ouvert explique directement les ajustements et l’enregistrement ; aucune seconde ouverture n’est demandée. Actions et verrous natifs inchangés.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -183,7 +183,7 @@
   },
   "app/dashboard/_components/MediaVideoRetoucher.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Révision explicite : le choix appareil redondant interne à l’éditeur vidéo est retiré ; remplacement, suppression et import initial restent accessibles par les actions natives prévues.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -231,7 +231,7 @@
   },
   "app/dashboard/_components/channel-image-adapter/modal.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Révision explicite : sans texte, l’état vide fournit l’unique action Ajouter ; le bouton de barre apparaît après le premier élément. Limite d’éléments, édition et propagation restent natives.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -649,7 +649,7 @@
   },
   "app/dashboard/_components/StudioVoicePool.tsx": {
     "disposition": "basic",
-    "reason": "Pool natif de trois vocaux du panneau vidéo Libre du Studio Basique. Voix off indépendante des photos et affectations Personnages explicites ; fichiers, enregistrement et consentement restent humains, sélections finies gardées par compte et IDs stables.",
+    "reason": "Révision explicite : pool natif limité à trois vocaux, intitulé Voix réelle et ajout unique pendant un brouillon ; choix par ID et affectations narration/personnages conservés. Import, enregistrement et consentement restent humains.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],

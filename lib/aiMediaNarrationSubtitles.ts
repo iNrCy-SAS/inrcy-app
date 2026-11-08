@@ -1,10 +1,13 @@
 /** Local captions follow the measured voice duration; timings are proportional,
- * not a claim of word-level speech alignment. No words are rewritten. */
+ * not a claim of word-level speech alignment. No words are rewritten.
+ * Optional start offset must already be established by the caller, in rendered
+ * seconds. This module neither detects speech nor changes any audio. */
 export type AiMediaNarrationSubtitleCue = { startSeconds: number; endSeconds: number; text: string };
 
-export function buildAiMediaNarrationSubtitleCues(script: string, durationSeconds: number): AiMediaNarrationSubtitleCue[] {
+export function buildAiMediaNarrationSubtitleCues(script: string, durationSeconds: number, startOffsetSeconds = 0): AiMediaNarrationSubtitleCue[] {
   if (!script.trim() || script.length > 4_000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(script) ||
-      !Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 30) {
+      !Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 30 ||
+      !Number.isFinite(startOffsetSeconds) || startOffsetSeconds < 0 || startOffsetSeconds >= durationSeconds) {
     throw new Error("ai_media_narration_subtitles_invalid");
   }
   const tokens = Array.from(new Intl.Segmenter(undefined, { granularity: "word" }).segment(script));
@@ -26,11 +29,13 @@ export function buildAiMediaNarrationSubtitleCues(script: string, durationSecond
   }
   const weights = phrases.map(text => Math.max(1, Array.from(text.replace(/\s/gu, "")).length));
   const total = weights.reduce((sum, weight) => sum + weight, 0);
+  // The end stays fixed at the measured track end; the offset never extends captions.
+  const captionWindowSeconds = durationSeconds - startOffsetSeconds;
   let elapsed = 0;
   return phrases.map((text, index) => {
-    const startSeconds = elapsed / total * durationSeconds;
+    const startSeconds = startOffsetSeconds + elapsed / total * captionWindowSeconds;
     elapsed += weights[index];
-    return { startSeconds, endSeconds: elapsed / total * durationSeconds, text: text.trim() };
+    return { startSeconds, endSeconds: index === phrases.length - 1 ? durationSeconds : startOffsetSeconds + elapsed / total * captionWindowSeconds, text: text.trim() };
   });
 }
 
@@ -39,8 +44,8 @@ function timestamp(seconds: number) {
   return `${Math.floor(centiseconds / 360_000)}:${String(Math.floor(centiseconds / 6_000) % 60).padStart(2, "0")}:${String(Math.floor(centiseconds / 100) % 60).padStart(2, "0")}.${String(centiseconds % 100).padStart(2, "0")}`;
 }
 
-export function buildAiMediaNarrationSubtitlesAss(args: { script: string; durationSeconds: number; width: number; height: number }) {
-  const cues = buildAiMediaNarrationSubtitleCues(args.script, args.durationSeconds);
+export function buildAiMediaNarrationSubtitlesAss(args: { script: string; durationSeconds: number; width: number; height: number; startOffsetSeconds?: number }) {
+  const cues = buildAiMediaNarrationSubtitleCues(args.script, args.durationSeconds, args.startOffsetSeconds);
   const fontSize = Math.max(18, Math.round(Math.min(args.width, args.height) * 0.052));
   // User text never becomes an ASS override or an FFmpeg filter expression.
   const escapeText = (text: string) => text.replace(/\\/gu, "\\\\").replace(/\{/gu, "\\{").replace(/\}/gu, "\\}").replace(/\r?\n/gu, " ");
@@ -51,4 +56,37 @@ export function buildAiMediaNarrationSubtitlesAss(args: { script: string; durati
     "[Events]", "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text",
     ...cues.map(cue => `Dialogue: 0,${timestamp(cue.startSeconds)},${timestamp(cue.endSeconds)},Default,,0,0,0,,${escapeText(cue.text)}`), "",
   ].join("\n");
+}
+
+
+/** Conservative energy onset only, not speech recognition or word alignment.
+ * PCM is a bounded local mono16kHz signed16-bit analysis copy; audio is untouched.
+ * Ambiguous earlier activity, a weak/absent onset, or a late onset keeps zero. */
+export function estimateAiMediaNarrationSubtitleStartSeconds(pcm: Buffer): number {
+  const samplesPerWindow = 320; // 20ms at16kHz.
+  if (!Buffer.isBuffer(pcm) || pcm.length % 2 || pcm.length < 16_000 || pcm.length > 96_000) return 0;
+  const windows = Math.floor(pcm.length / (2 * samplesPerWindow));
+  const levels: number[] = [];
+  for (let window = 0; window < windows; window += 1) {
+    let sumSquares = 0;
+    for (let sample = 0; sample < samplesPerWindow; sample += 1) {
+      const value = pcm.readInt16LE((window * samplesPerWindow + sample) * 2) / 32_768;
+      sumSquares += value * value;
+    }
+    const rms = Math.sqrt(sumSquares / samplesPerWindow);
+    levels.push(rms > 0 ? 20 * Math.log10(rms) : -Infinity);
+  }
+  // Require at least100ms of clearly stronger energy across the next200ms.
+  // An isolated click never establishes an onset; earlier uncertain activity
+  // prevents us from moving captions past a possibly quiet spoken beginning.
+  for (let index = 0; index + 10 <= levels.length; index += 1) {
+    if (levels[index] < -35 || levels.slice(index, index + 10).filter(level => level >= -35).length < 5) continue;
+    const onsetSeconds = index * 0.02;
+    if (onsetSeconds < 0.4 || onsetSeconds > 2.5) return 0;
+    const quietPrefix = levels.slice(0, Math.max(0, index - 5));
+    if (quietPrefix.length < 15 || quietPrefix.some(level => level > -48)) return 0;
+    //100ms transition allowance above is fully protected by150ms padding.
+    return Math.max(0, onsetSeconds - 0.15);
+  }
+  return 0;
 }

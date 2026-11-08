@@ -220,15 +220,27 @@ for (const engine of ENGINES) {
   });
 }
 
-test("connected HeyGen voiced clips retain originals without adding an incompatible first-frame input", async () => {
-  const args = argsFor("heygen", true); args.request.sceneMode = "single";
+test("Studio free voiced HeyGen skips continuity while other flows retain original references and their existing connection warning", async () => {
   const previous = process.env.AI_GATEWAY_API_KEY; process.env.AI_GATEWAY_API_KEY = "local-test-only";
   try {
-    const context = loadRuntime();
-    const result = await context.runtime.createGatewayAiVideoProvider("heygen").generate(args);
-    assert.equal(context.submissions.length, 2); assert.equal(context.frames(), 0);
-    for (const input of context.submissions) assertReferences(input, "heygen");
-    assert.ok(result.warnings.includes("video_continuity_original_subject_references_preserved"));
+    for (const scope of [
+      { source: "studio", creationMode: "free", connected: false },
+      { source: "booster", creationMode: "free", connected: true },
+      { source: "studio", creationMode: "guided", connected: true },
+    ] as const) {
+      const args = argsFor("heygen", true); args.request.sceneMode = "single";
+      args.request.source = scope.source; args.request.creationMode = scope.creationMode;
+      const context = loadRuntime();
+      const result = await context.runtime.createGatewayAiVideoProvider("heygen").generate(args);
+      assert.equal(context.submissions.length, 2); assert.equal(context.reservations(), 2);
+      assert.equal(context.frames(), 0, "HeyGen voiced references cannot accept an extra first frame");
+      for (const input of context.submissions) assertReferences(input, "heygen");
+      assert.equal(result.warnings.includes("video_continuity_original_subject_references_preserved"), scope.connected,
+        scope.source + "/" + scope.creationMode);
+      assert.equal(result.warnings.includes("video_last_frame_continuity"), false);
+      assert.equal(context.cleanups(), 1); assert.equal(context.signing.length, 1);
+      assert.deepEqual(context.signing[0].images, args.request.inspirationImages);
+    }
   } finally {
     if (previous === undefined) delete process.env.AI_GATEWAY_API_KEY; else process.env.AI_GATEWAY_API_KEY = previous;
   }

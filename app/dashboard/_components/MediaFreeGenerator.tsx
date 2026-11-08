@@ -152,7 +152,9 @@ function MediaSettingsDialog({ id, kind, title, closeLabel, closeBlocked, initia
       const rect = event.currentTarget.getBoundingClientRect();
       if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
     } }}>
-    <header className={styles.mediaSettingsDialogHeader}><h2 id={titleId}>{title}</h2>
+    <header className={styles.mediaSettingsDialogHeader}><h2 id={titleId}>
+      {kind === "audio" ? <span className={styles.audioDialogIcon} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="12" rx="3" /><path d="M6 11v1a6 6 0 0 0 12 0v-1M12 18v3m-3 0h6" /></svg></span> : null}
+      {title}</h2>
       <button ref={closeRef} type="button" disabled={closeBlocked} aria-label={closeLabel} onClick={onClose}>×</button>
     </header>
     <div className={styles.mediaSettingsDialogBody}>{children}</div>
@@ -313,10 +315,6 @@ export default function MediaFreeGenerator({
     } },
     close: { invoke: () => { if (mediaSettingsDialog !== "images" || locked || libraryOpen) throw new Error("studio_images_busy"); setMediaSettingsDialog(null); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
   }, !voicePoolOpen && (referencePickerVisible || mediaSettingsDialog === "images"), locked);
-  useInrAssistantLocalInterface("studio_video_audio", { open: mediaSettingsDialog === "audio" }, {
-    open: { invoke: () => { if (kind !== "video" || selectedVoiceMode !== "ai" || speechMode === "silent" || voicePoolOpen || locked || libraryOpen || !editorAvailable || stopConfirmOpen) throw new Error("studio_audio_unavailable"); setMediaSettingsDialog("audio"); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
-    close: { invoke: () => { if (mediaSettingsDialog !== "audio" || locked) throw new Error("studio_audio_busy"); setMediaSettingsDialog(null); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
-  }, kind === "video" && ((!voicePoolOpen && selectedVoiceMode === "ai" && speechMode !== "silent" && editorAvailable && !stopConfirmOpen) || mediaSettingsDialog === "audio"), locked);
   const projectedReferences = references.map(reference => {
     const profile = voiceProfiles.find(profile => profile.target && profile.target !== "narration" && profile.target.characterId === reference.id);
     return reference.voiceMode === "provided" && profile ? { ...reference, voiceSample: profile.sample } : reference;
@@ -335,6 +333,12 @@ export default function MediaFreeGenerator({
   const videoResolution = videoModel.resolutions.includes(enginePreference.videoResolution)
     ? enginePreference.videoResolution : videoModel.defaultResolution;
   const characterVoiceSpeechConflict = characterVoiceSelection.hasProvidedVoice && speechMode !== "characters";
+  const aiVoiceSettingsAvailable = kind === "video" && selectedVoiceMode === "ai" && speechMode !== "silent" &&
+    (speechMode === "voiceover" || voiceReferences.length > 1 || characterVoiceSpeechConflict);
+  useInrAssistantLocalInterface("studio_video_audio", { open: mediaSettingsDialog === "audio" }, {
+    open: { invoke: () => { if (!aiVoiceSettingsAvailable || voicePoolOpen || locked || libraryOpen || !editorAvailable || stopConfirmOpen) throw new Error("studio_audio_unavailable"); setMediaSettingsDialog("audio"); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
+    close: { invoke: () => { if (mediaSettingsDialog !== "audio" || locked) throw new Error("studio_audio_busy"); setMediaSettingsDialog(null); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
+  }, kind === "video" && ((!voicePoolOpen && aiVoiceSettingsAvailable && editorAvailable && !stopConfirmOpen) || mediaSettingsDialog === "audio"), locked);
   const wan3VoiceDurationExceeded = kind === "video" && speechMode === "characters" && exceedsAiMediaCharacterVoiceEngineDuration("wan3", projectedReferences);
   const characterVoiceDurationExceeded = kind === "video" && speechMode === "characters" && exceedsAiMediaCharacterVoiceEngineDuration(selectedVideoEngine, projectedReferences);
   const counter = quota?.credits;
@@ -450,6 +454,7 @@ export default function MediaFreeGenerator({
   }, quota, !durationUnavailable && referenceCompatible && briefCompatible && !providedVoiceWithEmptyScript && !narrationVoiceMissing && !narrationVoiceTooShort && !narrationVoiceUnauthorized && (kind !== "video" || !speechInvalid && !misplacedSpeechBlocking && promptReady));
   const creditInsufficient = creditQuote.insufficient;
   const modelRecommendation = recommendAiMediaModel({ kind, format: fixedFormat || format, operation: "generate", brief: effectivePrompt,
+    ...(source === "studio" ? { recommendationContext: "studio-free" as const } : {}),
     durationSeconds: duration, sceneMode, withNarration: effectiveWithNarration,
     teamVideoSpeechMode: requestSpeechMode, language: locale, inspirationImagesCount: references.length,
     inputMode: "essential", identityMode });
@@ -626,7 +631,7 @@ export default function MediaFreeGenerator({
         [...current, ...prepared].slice(0, AI_MEDIA_INSPIRATION_MAX_COUNT)
       );
       resetConsent();
-      setMediaSettingsDialog(attachRequestedVoice ? "audio" : null);
+      setMediaSettingsDialog(null);
       return true;
     } catch (caught) {
       if (sequence.current === currentSequence)
@@ -1198,7 +1203,7 @@ export default function MediaFreeGenerator({
                   {t("ai_generator_essential_character_speech_notice")}
                 </p>
               ) : null}
-              {effectiveWithNarration && narrationVoiceMode === "ai" ? (
+              {speechMode === "voiceover" && narrationVoiceMode === "ai" ? (
                 <div className={styles.voiceOptions}>
                   <label>
                     <span>{t("ai_generator_narration_voice_label")}</span>
@@ -1268,7 +1273,7 @@ export default function MediaFreeGenerator({
   const engineControls = !editorAvailable ? null : (
     <MediaEngineCreditControls kind={kind} format={fixedFormat || format} videoEngine={selectedVideoEngine}
             imageEngine={enginePreference.imageEngine} resolution={videoResolution}
-            durationSeconds={duration} sceneMode={sceneMode} onDurationSceneChange={(seconds, mode) => { setDuration(seconds); setSceneMode(mode); }} videoMaxDurationSeconds={maxDuration}
+            durationSeconds={duration} sceneMode={sceneMode} automaticSceneMode={source === "studio"} onDurationSceneChange={(seconds, mode) => { setDuration(seconds); setSceneMode(mode); }} videoMaxDurationSeconds={maxDuration}
             recommendation={modelRecommendation}
             brief={effectivePrompt}
             referenceCount={references.length} disabled={locked}
@@ -1544,7 +1549,7 @@ export default function MediaFreeGenerator({
                     <option value="ai">{t("ai_generator_character_voice_ai")}</option>
                     <option value="provided">{t("ai_generator_voice_real")}</option>
                   </select>
-                  {selectedVoiceMode === "ai" ? <button type="button" className={styles.voiceSettingsMain} data-video-audio-button disabled={locked || speechMode === "silent"}
+                  {selectedVoiceMode === "ai" && (speechMode === "silent" || aiVoiceSettingsAvailable) ? <button type="button" className={styles.voiceSettingsMain} data-video-audio-button disabled={locked || speechMode === "silent"}
                     aria-haspopup="dialog" aria-expanded={mediaSettingsDialog === "audio"} aria-controls={mediaSettingsDialog === "audio" ? `${instanceId}-video-audio-dialog` : undefined}
                     onClick={() => setMediaSettingsDialog("audio")}>{t("ai_generator_voice_details")}</button> : null}
                   <StudioVoicePool scopeKey={quota?.accountId ?? ""} visible={speechMode !== "silent" && selectedVoiceMode === "provided"}

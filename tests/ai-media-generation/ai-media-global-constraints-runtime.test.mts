@@ -1,3 +1,5 @@
+import * as nativeQa from "../../lib/aiMediaNativeDialogueQa.ts";
+import * as sensitive from "../../lib/aiMediaSensitiveText.ts";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -89,6 +91,8 @@ function harness(activeProfile = profile(), failVideo = false, allowGeneratedFra
   const normalizedVideo = { ...normalizedImage, kind: "video", mimeType: "video/mp4", extension: "mp4", durationSeconds: 8 };
   const forbidFallback = async (args: Row) => { rawFallbackCalls.push(args); throw new Error("raw_fallback_must_not_run"); };
   const modules = new Map<string, Row>([
+    ["@/lib/aiMediaNativeDialogueQa", nativeQa],
+    ["@/lib/aiMediaSensitiveText", sensitive],
     ["server-only", {}], ["sharp", (() => ({ png() { return this; }, toBuffer: async () => Buffer.from("overlay") })) as unknown as Row],
     ["./aiMediaGlobalConstraints.ts", globals],
     ["./aiMediaImageProviderGateway.ts", {}],

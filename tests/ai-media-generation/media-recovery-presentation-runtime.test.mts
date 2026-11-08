@@ -187,3 +187,38 @@ test("uncertain recovery is presented separately from a confirmed generation fai
   assert.doesNotMatch(text(saved), /ai_generator_creation_failed_title/);
   view.dispose();
 });
+
+test("video waiting retains its estimated percentage and matching loading bar without inventing a rendering phase", () => {
+  const deps = new Map(common);
+  deps.set("next/image", { __esModule: true, default: "image" });
+  deps.set("./MediaEngineCreditControls", { MediaGenerationActions: "actions" });
+  deps.set("./MediaResultViewer", { __esModule: true, default: () => null });
+  deps.set("@/app/dashboard/_hooks/useMediaResultReveal", { useMediaResultReveal: () => ({ reviewRef: { current: null }, headingRef: { current: null } }) });
+  const view = runtime("app/dashboard/_components/MediaGenerationCreationWorkspace.tsx", deps);
+  let stops = 0;
+  const props = { variant: "full", kind: "video", format: "story", durationSeconds: 30, operationLocked: true,
+    generationInProgress: true, finishing: false, generationResult: null, generationCancellable: true,
+    handleRequestGenerationStop: () => { stops++; }, disabled: false, acceptMode: "library" };
+  for (const creationMode of ["guided", "free"]) for (const progress of [4, 25, 75, 94, 100]) {
+    const tree = view.render({ ...props, creationMode, progress, identityTeam: true, referenceCinematicRequested: true });
+    const waiting = find(tree, node => node.props.className === "creationProgress");
+    assert.match(text(waiting), /ai_generator_generating/);
+    assert.match(text(waiting), /ai_generator_free_progress_hint/);
+    assert.doesNotMatch(text(waiting), /ai_generator_stage_/);
+    assert.equal(text(find(waiting, node => node.type === "strong")), `≈ ${progress} %`);
+    const track = find(waiting, node => node.props.className === "largeProgressTrack");
+    assert.equal(track.props["data-indeterminate"], undefined, "video keeps its determinate loading bar");
+    assert.equal(track.props["aria-hidden"], "true", "the decorative track does not duplicate the visible percentage announcement");
+    assert.equal((find(track, node => node.type === "span").props.style as Props).width, `${Math.max(4, progress)}%`, "the video bar follows the displayed estimated percentage");
+    const stop = find(waiting, node => node.type === "button");
+    (stop.props.onClick as () => void)();
+  }
+  assert.equal(stops, 10, "the existing stop action remains connected");
+  const stopping = view.render({ ...props, progress: 94, cancellationPending: true });
+  assert.match(text(find(stopping, node => node.props.className === "creationProgress")), /ai_generator_editor_stop_pending/);
+  const image = view.render({ ...props, kind: "image", progress: 94 });
+  const imageWaiting = find(image, node => node.props.className === "creationProgress");
+  assert.match(text(imageWaiting), /94\s*%/);
+  assert.equal(elements(imageWaiting).filter(node => node.props.className === "largeProgressTrack").length, 1, "image progress presentation stays unchanged");
+  view.dispose();
+});

@@ -71,6 +71,7 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-i
   let frames = 0;
   let storageCleanups = 0;
   let privateChecks = 0;
+  let activeRequests = 0, peakRequests = 0;
   const hostedImages: { data: string; mimeType: string }[][] = [];
   let expireTimeout: (() => void) | undefined;
   let timeoutDelay: number | undefined;
@@ -84,12 +85,14 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-i
     ["ai", {
       createDownload: () => async () => { throw new Error("download unavailable"); },
       experimental_generateVideo: async (input: Record<string, unknown>) => {
-        counters.requests += 1; observed = input; submissions.push(input);
-        if (failure && counters.requests === failure.call) throw failure.error;
+        const call = ++counters.requests; observed = input; submissions.push(input);
+        activeRequests += 1; peakRequests = Math.max(peakRequests, activeRequests);
+        try {
+        if (failure && call === failure.call) throw failure.error;
         if (clock) await new Promise<void>((resolve, reject) => {
           const signal = input.abortSignal as AbortSignal;
           const abort = () => { clock.clear(timer); reject(signal.reason); };
-          const timer = clock.schedule(() => { signal.removeEventListener("abort", abort); resolve(); }, clock.latencies[counters.requests - 1]);
+          const timer = clock.schedule(() => { signal.removeEventListener("abort", abort); resolve(); }, clock.latencies[call - 1]);
           if (signal.aborted) abort();
           else signal.addEventListener("abort", abort, { once: true });
         });
@@ -105,14 +108,16 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-i
           requestBodyValues: { prompt: "private-brief-sentinel" },
         });
         if (mode === "http-rejected") throw Object.assign(new Error("Provider unavailable"),{statusCode:503,requestBodyValues:{prompt:"private-brief-sentinel"}});
-        if (mode === "second-rejected" && counters.requests === 2) throw new Error("second provider rejected before output");
+        if (mode === "second-rejected" && call === 2) throw new Error("second provider rejected before output");
         if (mode === "download-failed") {
           const download = input.download as (options: { url: URL }) => Promise<unknown>;
           await download({ url: new URL("https://example.com/asset.mp4") });
         }
         const buffer = Buffer.alloc(24);
         if (mode !== "bad-asset") buffer.write("ftyp", 4, "ascii");
+        buffer.writeUInt32BE(call, 8);
         return { videos: [{ uint8Array: buffer }], warnings: mode === "warnings-with-url" ? [{ type: "other", message: "Source https://storage.example.com/private.jpg?token=secret" }] : [] };
+        } finally { activeRequests -= 1; }
       },
     }],
     ["@/lib/aiGatewayAccountGuard", {
@@ -123,6 +128,10 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-i
     }],
     ["./aiMediaBuffer.ts", { bufferFromUint8ArrayView }],
     ["./aiMediaIdentityReferences.ts", identityReferences],
+    ["@/lib/aiMediaCharacterVoiceStorage", {
+      getAiMediaCharacterVoiceSignedUrls: async ({ images }: { images: characterVoices.AiMediaCharacterVoiceReference[] }) =>
+        images.map((image, index) => image.voiceMode === "provided" ? `https://storage.example.com/signed/voice-${index + 1}.wav` : null),
+    }],
     ["./aiMediaFreeGenerationPrompt.ts", freePrompt],
     ["@/lib/aiMediaGenerationContracts", { AiMediaRequestValidationError }],
     ["./aiMediaModelCatalog.ts", catalog],
@@ -169,6 +178,7 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-i
     clock ? clock.clear.bind(clock) as unknown as typeof clearTimeout : clearTimeout, clockDate,
     { env: { AI_GATEWAY_API_KEY: "fixture-no-real-credentials" } });
   return { runtime: commonJsModule.exports as Runtime, counters, submissions, costs, reservedCosts, hostedImages,
+    peakRequests: () => peakRequests,
     frames: () => frames, storageCleanups: () => storageCleanups, privateChecks: () => privateChecks, observed: () => observed,
     timeoutDelay: () => timeoutDelay, expireTimeout: () => { assert.ok(expireTimeout); expireTimeout(); } };
 }
@@ -1021,4 +1031,145 @@ test("an expired absolute provider deadline cannot upload references, reserve cr
   await assert.rejects(context.runtime.createGatewayAiVideoProvider("wan3").generate(args), /ai_video_gateway_timeout/);
   assert.deepEqual(context.counters, { requests: 0, reservations: 0, commits: 0, rollbacks: 0 });
   assert.equal(context.hostedImages.length, 0); assert.equal(clock.pending(), 0);
+});
+
+function fastStudioArgs(engine: catalog.AiMediaVideoEngine, sceneMode: catalog.AiMediaVideoSceneMode = "multi") {
+  const args = argsFor(engine, 1, 30, sceneMode);
+  args.request.source = "studio";
+  args.request.creationMode = "free";
+  args.request.freePrompt = args.providerContract.instruction;
+  args.request.teamVideoSpeechMode = "voiceover";
+  args.request.withNarration = false;
+  args.plan.scenes.forEach((scene, index) => { scene.visualBrief = `Action propre au plan ${index + 1}.`; });
+  return args;
+}
+
+for (const engine of ["wan3", "grok", "grok-lite", "minimax-h3"] as const) {
+  test(`${engine}: Studio's two independent clips overlap, share original identity references and retain planned order`, async () => {
+    const clock = virtualClock([300_000, 200_000]);
+    const context = loadRuntime("success", undefined, clock);
+    const args = fastStudioArgs(engine);
+    const pending = context.runtime.createGatewayAiVideoProvider(engine).generate(args);
+    await waitForSubmission(context, 2);
+    assert.equal(context.peakRequests(), 2);
+    assert.equal(context.frames(), 0, "no last-frame extraction serializes fast Studio plans");
+    assert.equal(context.privateChecks(), 0, "only the ordinary original-reference upload is needed");
+    const prompts = context.submissions.map(input => input.prompt as { text: string; image: unknown });
+    assert.ok(prompts[0].text.includes(args.plan.scenes[0].visualBrief));
+    assert.ok(prompts[1].text.includes(args.plan.scenes[1].visualBrief));
+    assert.doesNotMatch(prompts[1].text, /supplied prior final frame|Continue final frame/);
+    assert.ok(prompts[0].image, "the identity image is present in the actual first-frame input");
+    assert.deepEqual(prompts[0].image, prompts[1].image, "both plans use the same original identity image");
+    assert.ok(context.submissions.every(input => input.maxRetries === 0 && input.n === 1 && input.duration === 15));
+    clock.advance(200_000);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(context.counters.commits, 1, "the second scene can finish first");
+    assert.equal(context.storageCleanups(), 0, "private references stay available to the unfinished peer");
+    clock.advance(100_000);
+    const result = await pending;
+    assert.deepEqual(result.clips.map(clip => clip.buffer.readUInt32BE(8)), [1, 2], "composition receives scene order rather than completion order");
+    assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 2, rollbacks: 0 });
+    assert.equal(clock.pending(), 0);
+    assert.equal(context.storageCleanups(), engine === "minimax-h3" ? 1 : 0);
+  });
+}
+
+test("fast Wan3 keeps every original character image and its supplied voice binding in both native-reference requests", async () => {
+  const clock = virtualClock([1000, 500]); const context = loadRuntime("success", undefined, clock);
+  const args = fastStudioArgs("wan3");
+  args.request.inspirationImages[0] = { ...args.request.inspirationImages[0], role: "character", voiceMode: "provided",
+    voiceSample: { path: "_studio-voice-references/local.wav", name: "Alice.wav", mimeType: "audio/wav", durationSeconds: 5, sizeBytes: 160044 } };
+  args.request.inspirationImages.push({ data: Buffer.from("second-identity").toString("base64"), mimeType: "image/png", role: "character", voiceMode: "ai" });
+  const pending = context.runtime.createGatewayAiVideoProvider("wan3").generate(args);
+  await waitForSubmission(context, 2);
+  const references = context.submissions.map(input => input.inputReferences as { data: string; mediaType: string }[]);
+  assert.deepEqual(references[0], references[1], "both clips receive exactly the same ordered original bindings");
+  assert.deepEqual(references[0].map(input => input.mediaType), ["image/png", "image/png", "audio/wav"]);
+  assert.match(references[0][2].data, /voice-1\.wav$/);
+  assert.equal(context.hostedImages.length, 1, "the original identity references are uploaded once for the whole film");
+  assert.equal(context.frames(), 0);
+  clock.advance(1000); await pending;
+  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 2, rollbacks: 0 });
+  assert.equal(context.storageCleanups(), 1); assert.equal(clock.pending(), 0);
+});
+
+test("a legacy Studio single-scene split also uses the fast independent references without extracting a previous frame", async () => {
+  const clock = virtualClock([1000, 500]); const context = loadRuntime("success", undefined, clock);
+  const pending = context.runtime.createGatewayAiVideoProvider("minimax-h3").generate(fastStudioArgs("minimax-h3", "single"));
+  await waitForSubmission(context, 2);
+  assert.equal(context.peakRequests(), 2); assert.equal(context.frames(), 0);
+  assert.equal(context.hostedImages.length, 1);
+  const prompts = context.submissions.map(input => input.prompt as { image: string; text: string });
+  assert.deepEqual(prompts[0].image, prompts[1].image);
+  assert.doesNotMatch(prompts[1].text, /supplied prior final frame|Continue final frame/);
+  clock.advance(1000); await pending;
+  assert.equal(context.storageCleanups(), 1); assert.equal(clock.pending(), 0);
+});
+
+test("Studio's native single clip remains one submission, while another surface retains sequential last-frame continuity", async () => {
+  const native = loadRuntime();
+  await native.runtime.createGatewayAiVideoProvider("wan3").generate(fastStudioArgs("wan3", "single"));
+  assert.equal(native.counters.requests, 1);
+  assert.equal(native.frames(), 0);
+  const clock = virtualClock([1000, 2000]);
+  const context = loadRuntime("success", undefined, clock);
+  const args = fastStudioArgs("minimax-h3", "single"); args.request.source = "booster";
+  const pending = context.runtime.createGatewayAiVideoProvider("minimax-h3").generate(args);
+  await waitForSubmission(context, 1);
+  assert.equal(context.peakRequests(), 1);
+  clock.advance(1000); await waitForSubmission(context, 2); clock.advance(2000);
+  await pending;
+  assert.equal(context.peakRequests(), 1);
+  assert.equal(context.frames(), 1, "the shared non-Studio flow retains its continuity frame");
+});
+
+test("a fast Studio peer rejection waits for the submitted paid peer before classifying costs and never resubmits", async () => {
+  const clock = virtualClock([1, 1000]);
+  const rejected = Object.assign(new Error("definite first-clip rejection"), { statusCode: 503 });
+  const context = loadRuntime("success", { error: rejected, call: 1 }, clock);
+  const pending = context.runtime.createGatewayAiVideoProvider("minimax-h3").generate(fastStudioArgs("minimax-h3"));
+  let settled = false; void pending.then(() => { settled = true; }, () => { settled = true; });
+  await waitForSubmission(context, 2);
+  assert.equal(settled, false);
+  assert.equal(context.storageCleanups(), 0);
+  clock.advance(1000);
+  await assert.rejects(pending, error => {
+    assert.ok(providerTypes.isAiVideoProviderBillableFailure(error));
+    assert.equal(providerTypes.getAiVideoProviderRecoverableStatus(error), 0);
+    assert.equal(error.diagnostics?.clipIndex, 1);
+    assert.equal(error.diagnostics?.completedClips, 1, "a scene-two success is counted despite the missing scene one");
+    assert.equal(error.diagnostics?.committedCostMicroUsd, 1_200_000);
+    return true;
+  });
+  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 1, rollbacks: 1 });
+  assert.equal(context.storageCleanups(), 1); assert.equal(clock.pending(), 0);
+});
+
+test("an uncertain fast peer timeout forbids fallback even when the other clip was definitely rejected", async () => {
+  const clock = virtualClock([1, 610_000]);
+  const rejected = Object.assign(new Error("definite first-clip rejection"), { statusCode: 503 });
+  const context = loadRuntime("success", { error: rejected, call: 1 }, clock);
+  const args = fastStudioArgs("wan3"); args.deadlineAt = clock.now() + 715_000;
+  const pending = context.runtime.createGatewayAiVideoProvider("wan3").generate(args); void pending.catch(() => undefined);
+  await waitForSubmission(context, 2); clock.advance(600_000);
+  await assert.rejects(pending, error => {
+    assert.equal(providerTypes.getAiVideoProviderRecoverableStatus(error), 0);
+    const diagnostics = sensitiveText.safeAiMediaErrorDetails(error)[0].diagnostics;
+    assert.equal(diagnostics?.clipIndex, 2); assert.equal(diagnostics?.deadlineKind, "clip");
+    return true;
+  });
+  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 0, rollbacks: 2 });
+  assert.equal(clock.pending(), 0);
+});
+
+test("cancelling fast Studio aborts both existing requests, releases their reservations and never starts a third", async () => {
+  const clock = virtualClock([300_000, 300_000]);
+  const context = loadRuntime("success", undefined, clock);
+  const args = fastStudioArgs("grok"); const controller = new AbortController(); args.signal = controller.signal;
+  const pending = context.runtime.createGatewayAiVideoProvider("grok").generate(args); void pending.catch(() => undefined);
+  await waitForSubmission(context, 2); controller.abort(new Error("local-cancelled"));
+  await assert.rejects(pending, /local-cancelled/);
+  assert.ok(context.submissions.every(input => (input.abortSignal as AbortSignal).aborted));
+  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 0, rollbacks: 2 });
+  assert.equal(clock.pending(), 0);
 });

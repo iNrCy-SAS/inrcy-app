@@ -1236,8 +1236,8 @@ test("les anciens films gardent leur raccord et les nouvelles durées suivent le
   assert.match(generatorSource, /<MediaGenerationActions>[\s\S]*?\{engineControls\}/);
   assert.doesNotMatch(generatorSource, /<MediaVideoDurationSelect|className=\{styles\.sceneModeChoices\}/);
   const controls = readFileSync(path.join(ROOT, "app/dashboard/_components/MediaEngineCreditControls.tsx"), "utf8");
-  assert.match(controls, /getAiMediaVideoDurationSceneOptions\(props\.videoEngine, selectedResolution\)/);
-  assert.match(controls, /value=\{`\$\{duration\}:\$\{sceneMode\}`\}/);
+  assert.match(controls, /availableDurationOptions\(props\.videoEngine, selectedResolution, maximumDuration, props\.automaticSceneMode\)/);
+  assert.match(controls, /value=\{`\$\{duration\}:\$\{displayedSceneMode\}`\}/);
   assert.deepEqual(getAiMediaVideoDurationSceneOptions("omni", "720p").filter((option) => option.durationSeconds === 20), [
     { durationSeconds: 20, sceneMode: "multi", sceneCount: 2 },
   ]);

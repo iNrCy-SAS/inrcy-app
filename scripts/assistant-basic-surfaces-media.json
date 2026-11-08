@@ -1313,41 +1313,51 @@
   },
   {
     "id": "basic.media.0055",
-    "label": "Choisir Change",
+    "label": "Choisir la durée de la vidéo",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaEngineCreditControls.tsx"
     ],
-    "sourceAnchor": "<select id={`${id}-duration`} value={`${duration}:${sceneMode}`} disabled={props.disabled} onChange={(event) => {\n        const option = durationSceneOptions.find((candidate) => `${candidate.durationSeconds}:${candidate.sceneMode}` === event.target.value);\n        if (option) { changeDurationScene?.(option.durationSeconds, option.sceneMode); setDurationNotice(\"\"); }\n      }}>\n        {durationSceneOptions.map((option) => <option key={`${option.durationSeconds}:${option.sceneMode}`} value={`${option.durationSeconds}:${option.sceneMode}`}>{t(option.sceneMode === \"single\" ? \"ai_generator_duration_scene_single\" : \"ai_generator_duration_scene_multi\", { seconds: option.durationSeconds })}</option>)}\n      </select>",
+    "sourceAnchor": "<select id={`${id}-duration`} value={`${duration}:${displayedSceneMode}`} disabled={props.disabled} onChange={(event) => {\n        const option = durationSceneOptions.find((candidate) => `${candidate.durationSeconds}:${candidate.sceneMode}` === event.target.value);\n        if (option) { changeDurationScene?.(option.durationSeconds, option.sceneMode); setDurationNotice(\"\"); }\n      }}>\n        {durationSceneOptions.map((option) => <option key={`${option.durationSeconds}:${option.sceneMode}`} value={`${option.durationSeconds}:${option.sceneMode}`}>{t(props.automaticSceneMode ? \"ai_generator_duration_seconds\" : option.sceneMode === \"single\" ? \"ai_generator_duration_scene_single\" : \"ai_generator_duration_scene_multi\", { seconds: option.durationSeconds })}</option>)}\n      </select>",
     "capabilityId": "studio.quote",
     "toolNames": [
       "quoteMediaGeneration"
     ],
     "mode": "form",
-    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : props.kind === \"video\".",
+    "notes": "Choix d’une durée native compatible puis devis des crédits, sans génération. Dans le Studio Libre, le nombre de plans est calculé automatiquement et une durée native unique est privilégiée ; les autres appelants gardent leur choix explicite. Les options respectent moteur, résolution, droits et verrou de génération. L’équivalent serveur de devis ne prouve pas une modification du formulaire monté.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
     "testAnchor": "a Studio cost question calls the native quote only and never accepts an existing draft",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/MediaEngineCreditControls.tsx#select:0048c6359ce03af0:1"
+      "app/dashboard/_components/MediaEngineCreditControls.tsx#select:0f7abe519086e9f9:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts",
+        "testAnchor": "Studio offers one translated duration and upgrades old montage presets without changing their length"
+      },
+      {
+        "file": "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts",
+        "testAnchor": "automatic duration respects account limits, locked jobs and callers retaining explicit scene choices"
+      }
     ]
   },
   {
     "id": "basic.media.0056",
-    "label": "Choisir `${option.durationSeconds",
+    "label": "Choisir une durée disponible",
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaEngineCreditControls.tsx"
     ],
-    "sourceAnchor": "<option key={`${option.durationSeconds}:${option.sceneMode}`} value={`${option.durationSeconds}:${option.sceneMode}`}>{t(option.sceneMode === \"single\" ? \"ai_generator_duration_scene_single\" : \"ai_generator_duration_scene_multi\", { seconds: option.durationSeconds })}</option>",
+    "sourceAnchor": "<option key={`${option.durationSeconds}:${option.sceneMode}`} value={`${option.durationSeconds}:${option.sceneMode}`}>{t(props.automaticSceneMode ? \"ai_generator_duration_seconds\" : option.sceneMode === \"single\" ? \"ai_generator_duration_scene_single\" : \"ai_generator_duration_scene_multi\", { seconds: option.durationSeconds })}</option>",
     "capabilityId": "studio.quote",
     "toolNames": [
       "quoteMediaGeneration"
     ],
     "mode": "form",
-    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : props.kind === \"video\".",
+    "notes": "Choix d’une durée native compatible puis devis des crédits, sans génération. Dans le Studio Libre, le nombre de plans est calculé automatiquement et une durée native unique est privilégiée ; les autres appelants gardent leur choix explicite. Les options respectent moteur, résolution, droits et verrou de génération. L’équivalent serveur de devis ne prouve pas une modification du formulaire monté.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -1355,6 +1365,16 @@
     "coverageStatus": "server_equivalent",
     "controlIds": [
       "app/dashboard/_components/MediaEngineCreditControls.tsx#option:4e4662d8c98d709e:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts",
+        "testAnchor": "Studio offers one translated duration and upgrades old montage presets without changing their length"
+      },
+      {
+        "file": "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts",
+        "testAnchor": "automatic duration respects account limits, locked jobs and callers retaining explicit scene choices"
+      }
     ]
   },
   {
@@ -15287,7 +15307,7 @@
     ],
     "mode": "form",
     "coverageStatus": "implemented",
-    "sourceAnchor": "<dialog id={id} ref={dialogRef} className={styles.mediaSettingsDialog} data-media-settings-dialog={kind} data-add-mode={addRole ? \"true\" : undefined} data-add-role={addRole}\n    aria-labelledby={titleId} aria-modal=\"true\"\n    onKeyDown={(event) => event.stopPropagation()}\n    onCancel={(event) => { event.preventDefault(); event.stopPropagation(); if (!closeBlocked) onClose(); }}\n    onClose={(event) => event.stopPropagation()}\n    onClick={(event) => { event.stopPropagation(); if (event.target === event.currentTarget && !closeBlocked) {\n      const rect = event.currentTarget.getBoundingClientRect();\n      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();\n    } }}>\n    <header className={styles.mediaSettingsDialogHeader}><h2 id={titleId}>{title}</h2>\n      <button ref={closeRef} type=\"button\" disabled={closeBlocked} aria-label={closeLabel} onClick={onClose}>×</button>\n    </header>\n    <div className={styles.mediaSettingsDialogBody}>{children}</div>\n  </dialog>",
+    "sourceAnchor": "<button ref={closeRef} type=\"button\" disabled={closeBlocked} aria-label={closeLabel} onClick={onClose}>×</button>",
     "controlIds": [
       "app/dashboard/_components/MediaFreeGenerator.tsx#dialog:66a3dc9f9a0799b3:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#button:707a09cd18884eb8:1"
@@ -15793,7 +15813,7 @@
       "app/dashboard/_components/StudioVoicePool.tsx",
       "lib/inrAssistantLocalInterface.ts"
     ],
-    "sourceAnchor": "<dialog ref={dialogRef} className={dialogStyles.mediaSettingsDialog} data-media-settings-dialog=\"voices\" aria-labelledby={`${id}-title`} aria-modal=\"true\"\n      onKeyDown={event => event.stopPropagation()} onCancel={event => { event.preventDefault(); event.stopPropagation(); if (!disabled) setOpen(false); }}\n      onClose={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); if (event.target !== event.currentTarget || disabled) return; const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) setOpen(false); }}>\n      <header className={dialogStyles.mediaSettingsDialogHeader}><h2 id={`${id}-title`}>{t(\"ai_generator_voice_details\")}</h2><button ref={closeRef} type=\"button\" disabled={disabled} aria-label={t(\"ai_generator_video_settings_close\")} onClick={() => setOpen(false)}>×</button></header>\n      <div className={`${dialogStyles.mediaSettingsDialogBody} ${styles.details}`}>\n        <div className={styles.inline}>\n          {profiles.map((profile, index) => <button key={profile.id} type=\"button\" className={styles.chip} data-voice-profile={profile.id} disabled={disabled}\n            aria-label={`${t(\"ai_generator_voice_profile\", { index: index + 1 })} · ${profile.sample.name}`} title={profile.sample.name}\n            aria-pressed={profile.id === editingId} onClick={() => edit(profile)}>{t(\"ai_generator_voice_profile\", { index: index + 1 })}</button>)}\n          <span className={styles.count}>{t(\"ai_generator_voice_pool_count\", { count: profiles.length })}</span>\n          {profiles.length < 3 ? <button type=\"button\" data-voice-pool-add disabled={disabled} onClick={() => begin()}>{t(\"ai_generator_character_voice_upload\")}</button> : null}\n        </div>\n        {edited ? <>\n          <label>{t(\"ai_generator_voice_pool_target\")}<select value={edited.target === null ? \"none\" : edited.target === \"narration\" ? \"narration\" : edited.target.characterId} disabled={disabled} onChange={event => changeTarget(event.target.value)}>\n            <option value=\"none\">{t(\"ai_generator_voice_pool_unassigned\")}</option>\n            <option value=\"narration\">{t(\"ai_generator_free_audio_voiceover\")}</option>\n            {characters.map(character => <option key={character.id} value={character.id} disabled={profiles.some(profile => profile.id !== edited.id && profile.target && profile.target !== \"narration\" && profile.target.characterId === character.id)}>{character.name}</option>)}\n          </select></label>\n          <label>{t(\"ai_generator_voice_pool_gender\")}<select value={edited.gender} disabled={disabled} onChange={event => changeGender(event.target.value as StudioVoiceProfile[\"gender\"])}>\n            <option value=\"auto\">{t(\"ai_generator_people_auto\")}</option><option value=\"female\">{t(\"ai_generator_narration_voice_female\")}</option><option value=\"male\">{t(\"ai_generator_narration_voice_male\")}</option>\n          </select></label>\n          <p>{t(\"ai_generator_voice_pool_gender_help\")}</p>\n        </> : null}\n        <MediaCharacterVoiceInput context={edited?.target && edited.target !== \"narration\" ? \"character\" : \"narration\"} active={open} hideModeControl mode=\"provided\" sample={current?.sample} disabled={disabled}\n          onModeChange={() => undefined} onSampleChange={changeSample} onBusyChange={onBusyChange} />\n        {current?.target === \"narration\" ? <>\n          <button type=\"button\" data-voice-narration-active disabled={disabled || activeNarrationVoiceId === current.id} onClick={() => onNarrationChange(current.id)}>{t(\"ai_generator_voice_pool_activate\")}</button>\n          {activeNarrationVoiceId === current.id ? <label className={styles.consent}><input type=\"checkbox\" checked={narrationConsent} disabled={disabled} onChange={event => onNarrationConsentChange(event.target.checked)} />{t(\"ai_generator_narration_voice_consent\")}</label> : null}\n        </> : null}\n      </div>\n    </dialog>",
+    "sourceAnchor": "<button ref={closeRef} type=\"button\" disabled={disabled} aria-label={t(\"ai_generator_video_settings_close\")} onClick={() => setOpen(false)}>×</button>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -15962,7 +15982,7 @@
       },
       {
         "file": "tests/ai-media-generation/narration-voice-clone-runtime.test.mts",
-        "testAnchor": "real voice-off sends NEW exact words and owned reference audio, with no photo, no gender override and no permanent clone"
+        "testAnchor": "one POST sends exact new French words and original vocal; two status GETs precede result and unauthenticated audio download"
       }
     ]
   },

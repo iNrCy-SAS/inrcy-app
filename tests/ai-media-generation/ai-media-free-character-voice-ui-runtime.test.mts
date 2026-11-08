@@ -286,7 +286,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     editRecovered() { (find(tree, (node) => node.type === "preview").props.handleEditCriteria as () => void)(); render(); },
     async abandonRecovery() { (find(tree, (node) => node.type === "preview").props.handleConfirmGenerationStop as () => void)(); await flush(); },
     removePhoto(index: number) { (find(cards()[index], (node) => node.type === "button").props.onClick as () => void)(); render(); },
-    setSound(value: string) { const audioWasOpen = currentVideoDialog()?.props.kind === "audio"; closeSettings(); const select = find(tree, node => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode")); (select.props.onChange as (event: unknown) => void)({ target: { value } }); render(); if (audioWasOpen && !find(tree, node => node.props["data-video-audio-button"] !== undefined).props.disabled) openSettings("audio"); },
+    setSound(value: string) { const audioWasOpen = currentVideoDialog()?.props.kind === "audio"; closeSettings(); const select = find(tree, node => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode")); (select.props.onChange as (event: unknown) => void)({ target: { value } }); render(); const settings = elements(tree).find(node => node.props["data-video-audio-button"] !== undefined); if (audioWasOpen && settings && !settings.props.disabled) openSettings("audio"); },
     enterPrompt(value: string) { const input = find(tree, (node) => node.type === "textarea" && String(node.props.id).endsWith("-prompt")); (input.props.onChange as (event: unknown) => void)({ target: { value } }); render(); },
     setDuration(seconds: number, mode: "single" | "multi" = "single") { const node = find(tree, (item) => item.type === controls.default); (node.props.onDurationSceneChange as (seconds: number, mode: string) => void)(seconds, mode); render(); },
     async invokeGenerateCallback() { await (find(tree, node => node.type === "preview").props.handleGenerate as () => Promise<void>)(); await flush(); },
@@ -468,6 +468,10 @@ test("the real three-menu voice flow binds supplied audio to the selected photo 
   try {
     await h.addPhoto("Alice.png", "character"); await h.addPhoto("Bob.png", "character");
     h.setSound("characters"); const [alice, bob] = h.voiceSnapshot().voiceReferences;
+    assert.equal(h.audioNative().enabled, true, "two AI characters retain the person selector");
+    h.openAudioSettings();
+    assert.equal(elements(h.tree()).some(node => node.type === "select" && String(node.props.id).endsWith("-voice-character")), true);
+    h.closeSettings();
     h.chooseMainVoice("provided");
     assert.deepEqual(h.voiceSnapshot().voiceReferences.map(reference => reference.voiceMode), ["ai", "ai"], "choosing Real alone cannot assign it to every person");
     h.selectVoicePerson(bob.id); assert.equal(h.voiceSnapshot().voiceReferences.find(reference => reference.id === bob.id)!.voiceMode, "ai", "selecting a person only selects the target"); h.chooseMainVoice("provided");
@@ -653,7 +657,9 @@ test("the optional speech editor keeps exact script separate from the brief in b
   const input = () => find(h.tree(), (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script"));
   assert.equal(input().props.maxLength, undefined, "pasting exact words never silently truncates them");
   assert.equal(h.quoteInputs.at(-1)!.spokenScript, script);
-  h.openAudioSettings(); h.setSound("characters"); h.closeSettings();
+  h.setSound("voiceover"); h.openAudioSettings(); h.setSound("characters"); h.closeSettings();
+  assert.equal(h.audioNative().enabled, false, "AI characters without a selectable person have no empty settings dialog");
+  assert.throws(() => h.audioNative().handlers.open.invoke(null));
   assert.equal(input().props.value, script, "criteria and speech-mode changes preserve the script");
   await h.generate();
   assert.equal(h.requests.length, 1);
@@ -673,6 +679,10 @@ test("a closed speech editor omits the field while an explicitly opened empty ed
     assert.equal(h.quoteInputs.at(-1)!.withNarration, false);
     assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode, "voiceover");
     assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
+    h.openAudioSettings();
+    const settings = elements(h.tree()).find(node => typeof node.type === "function" && node.type.name === "MediaSettingsDialog")!;
+    assert.equal(elements(settings).filter(node => node.type === "select").length, 2, "an empty exact script keeps both voice preferences editable");
+    h.closeSettings();
     await h.generate();
     assert.equal(Object.hasOwn(h.requests[0], "spokenScript"), true);
     assert.equal(h.requests[0].spokenScript, script);
@@ -789,7 +799,12 @@ test("video subtitles default off and the same explicit choice reaches quote and
   defaultVideo.dispose();
   for (const mode of ["voiceover", "characters"]) {
     const h = harness(); h.openAudioSettings(); h.setSound(mode); h.setSubtitles(true);
-    h.closeSettings(); h.openAudioSettings();
+    h.closeSettings();
+    if (mode === "voiceover") h.openAudioSettings();
+    else {
+      assert.equal(h.audioNative().enabled, false);
+      assert.equal(elements(h.tree()).some(node => node.props["data-video-audio-button"] !== undefined), false, "no AI character options means no redundant Settings entry");
+    }
     assert.equal(find(h.tree(), (node) => node.props["data-media-subtitles"] !== undefined).props.checked, true);
     assert.equal(h.quoteInputs.at(-1)!.withSubtitles, true);
     await h.generate();

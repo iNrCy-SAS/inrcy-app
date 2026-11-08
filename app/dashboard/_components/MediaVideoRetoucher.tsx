@@ -580,7 +580,6 @@ export default function MediaVideoRetoucher({
                 setSaved(false);
                 setAdaptationMode(nextMode);
               }}
-              onPickVideoClick={() => fileInputRef.current?.click()}
               onDeleteVideo={clearSource}
               showApplyAll={false}
               fillAvailableSpace={!isMobile}

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { loadNarrationPreparationRuntime } from "./narration-preparation-runtime.mjs";
 import { normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
+import { getAiMediaFreeSpeechBudget } from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as sensitive from "../../lib/aiMediaSensitiveText.ts";
 
 type Row = Record<string, unknown>;
@@ -27,6 +28,7 @@ function harness(options: { rewrites?: number; free?: boolean; copyFailure?: boo
       audioChecks.push(args); if (audioChecks.length <= (options.rewrites || 0)) throw new TooLong();
       return { audio: { buffer: Buffer.from("duration-checked-speech") }, silenceCompacted: true };
     } }],
+    ["./aiMediaVideoSpeechBudget.ts", { getAiMediaFreeSpeechBudget }],
     ["./aiMediaPronunciation.ts", { extractAiMediaPronunciationAliases: (value: string) => [{ text: value, pronunciation: "exact" }] }],
   ]);
   const service = loadNarrationPreparationRuntime(dependencies) as Preparation;

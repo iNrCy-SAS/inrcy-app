@@ -177,14 +177,14 @@ export default function StudioVoicePool({ visible, available = true, onOpenChang
     {portalReady ? createPortal(<dialog ref={dialogRef} className={dialogStyles.mediaSettingsDialog} data-media-settings-dialog="voices" aria-labelledby={`${id}-title`} aria-modal="true"
       onKeyDown={event => event.stopPropagation()} onCancel={event => { event.preventDefault(); event.stopPropagation(); if (!disabled) setOpen(false); }}
       onClose={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); if (event.target !== event.currentTarget || disabled) return; const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) setOpen(false); }}>
-      <header className={dialogStyles.mediaSettingsDialogHeader}><h2 id={`${id}-title`}>{t("ai_generator_voice_details")}</h2><button ref={closeRef} type="button" disabled={disabled} aria-label={t("ai_generator_video_settings_close")} onClick={() => setOpen(false)}>×</button></header>
+      <header className={dialogStyles.mediaSettingsDialogHeader}><h2 id={`${id}-title`}>{t("ai_generator_voice_real")}</h2><button ref={closeRef} type="button" disabled={disabled} aria-label={t("ai_generator_video_settings_close")} onClick={() => setOpen(false)}>×</button></header>
       <div className={`${dialogStyles.mediaSettingsDialogBody} ${styles.details}`}>
         <div className={styles.inline}>
           {profiles.map((profile, index) => <button key={profile.id} type="button" className={styles.chip} data-voice-profile={profile.id} disabled={disabled}
             aria-label={`${t("ai_generator_voice_profile", { index: index + 1 })} · ${profile.sample.name}`} title={profile.sample.name}
             aria-pressed={profile.id === editingId} onClick={() => edit(profile)}>{t("ai_generator_voice_profile", { index: index + 1 })}</button>)}
           <span className={styles.count}>{t("ai_generator_voice_pool_count", { count: profiles.length })}</span>
-          {profiles.length < 3 ? <button type="button" data-voice-pool-add disabled={disabled} onClick={() => begin()}>{t("ai_generator_character_voice_upload")}</button> : null}
+          {profiles.length < 3 && !draft ? <button type="button" data-voice-pool-add disabled={disabled} onClick={() => begin()}>{t("ai_generator_character_voice_upload")}</button> : null}
         </div>
         {edited ? <>
           <label>{t("ai_generator_voice_pool_target")}<select value={edited.target === null ? "none" : edited.target === "narration" ? "narration" : edited.target.characterId} disabled={disabled} onChange={event => changeTarget(event.target.value)}>

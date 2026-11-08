@@ -193,7 +193,7 @@ test("Libre et Guidé utilisent une seule présentation sans y déplacer leurs r
   assert.doesNotMatch(output, /useMediaGeneration|fetch\(|acceptDraft\(|discardDraft\(|cancelGeneration\(/);
 });
 
-test("la progression partagée affiche le vrai pourcentage et conserve la même structure dans les deux modes", () => {
+test("les images et vidéos conservent la barre et leur pourcentage dans les deux modes", () => {
   for (const kind of ["image", "video"] as const) {
     for (const progress of [0, 18, 42, 72, 99]) {
       const trees = ["free", "guided"].map((creationMode) => render({ creationMode, kind, progress, operationLocked: true }));
@@ -205,10 +205,20 @@ test("la progression partagée affiche le vrai pourcentage et conserve la même 
         assert.equal(tree.props["data-media-creation-stage"], "progress");
         assert.equal(byClass(tree, "creationProgress").props.role, "status");
         assert.equal(byClass(tree, "creationProgress").props["aria-live"], "polite");
-        assert.equal(text(find(tree, (node) => node.type === "strong")), `${progress} %`);
-        const fill = find(byClass(tree, "largeProgressTrack"), (node) => node.type === "span");
-        assert.equal((fill.props.style as Props).width, `${Math.max(4, progress)}%`);
-        if (progress === 99) assert.match(text(tree), /ai_generator_stage_patience/);
+        if (kind === "image") {
+          assert.equal(text(find(tree, (node) => node.type === "strong")), `${progress} %`);
+          const fill = find(byClass(tree, "largeProgressTrack"), (node) => node.type === "span");
+          assert.equal((fill.props.style as Props).width, `${Math.max(4, progress)}%`);
+          if (progress === 99) assert.match(text(tree), /ai_generator_stage_patience/);
+        } else {
+          assert.match(text(byClass(tree, "creationProgress")), /ai_generator_generating/);
+          assert.doesNotMatch(text(byClass(tree, "creationProgress")), /ai_generator_stage_/);
+          assert.equal(text(find(tree, node => node.type === "strong")), `≈ ${progress} %`);
+          const track = byClass(tree, "largeProgressTrack");
+          assert.equal(track.props["data-indeterminate"], undefined);
+          assert.equal(track.props["aria-hidden"], "true");
+          assert.equal((find(track, node => node.type === "span").props.style as Props).width, `${Math.max(4, progress)}%`);
+        }
         assert.equal(elements(tree).some((node) => node.type === "video" || node.type === "img"), false);
       }
     }

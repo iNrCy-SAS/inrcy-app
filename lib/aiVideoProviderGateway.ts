@@ -217,7 +217,8 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
       const durations = getAiMediaVideoSegmentDurations(args.request.durationSeconds ?? 8, engine, args.request.videoResolution, args.request.sceneMode);
       const hasProvidedVoice = hasProvidedAiMediaCharacterVoice(args.request.inspirationImages);
       const inputModel = getAiMediaVideoModelForCharacterVoice(engine, hasProvidedVoice);
-      const connectScenes = durations.length > 1 && args.request.sceneMode !== "multi";
+      const fastStudioFree = args.request.source === "studio" && args.request.creationMode === "free";
+      const connectScenes = !fastStudioFree && durations.length > 1 && args.request.sceneMode !== "multi";
       const nativeSubjectReferences = model.id === "wan27" || hasProvidedVoice;
       const canAttachContinuityFrame = !nativeSubjectReferences || (model.id === "wan27" && args.request.inspirationImages.length < model.maxReferenceImages);
       const voicePlaceholders = nativeSubjectReferences ? args.request.inspirationImages.map((image, imageIndex) =>
@@ -243,126 +244,154 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
       if (args.signal?.aborted) cancel();
       const timeout = setTimeout(() => controller.abort(new Error("ai_video_gateway_timeout")), overallBudgetMs);
       const clips: AiVideoProviderClip[] = [];
-      const warnings: string[] = [];
       let filmBillable = false;
       let estimatedCostMicroUsd = 0;
       let committedCostMicroUsd = 0;
-      let clipStartedAt = startedAt;
-      let clipIndex = 0;
-      let clipDurationSeconds = 0;
-      let currentClipAssetObserved = false;
-      let phase: AiVideoProviderFailurePhase = "input_storage";
-      let activeClipController: AbortController | undefined;
-      const failureContext = () => {
+      type ClipContext = {
+        clipIndex: number; clipDurationSeconds: number; clipStartedAt: number;
+        currentClipAssetObserved: boolean; phase: AiVideoProviderFailurePhase;
+        activeClipController?: AbortController;
+      };
+      const inputContext: ClipContext = { clipIndex: 0, clipDurationSeconds: 0, clipStartedAt: startedAt,
+        currentClipAssetObserved: false, phase: "input_storage" };
+      const failureContext = (context: ClipContext = inputContext) => {
         const failedAt = Date.now();
         const filmDeadline = controller.signal.aborted && controller.signal.reason instanceof Error && controller.signal.reason.message === "ai_video_gateway_timeout";
-        const clipDeadline = activeClipController?.signal.aborted === true && activeClipController.signal.reason instanceof Error && activeClipController.signal.reason.message === "ai_video_gateway_timeout";
+        const clipDeadline = context.activeClipController?.signal.aborted === true && context.activeClipController.signal.reason instanceof Error && context.activeClipController.signal.reason.message === "ai_video_gateway_timeout";
         return {
-          phase, elapsedMs: Math.max(0, failedAt - startedAt), clipElapsedMs: Math.max(0, failedAt - clipStartedAt),
-          currentClipAssetObserved, callerAborted: args.signal?.aborted === true,
-          providerAborted: controller.signal.aborted || activeClipController?.signal.aborted === true,
+          phase: context.phase, clipIndex: context.clipIndex, clipDurationSeconds: context.clipDurationSeconds,
+          elapsedMs: Math.max(0, failedAt - startedAt), clipElapsedMs: Math.max(0, failedAt - context.clipStartedAt),
+          currentClipAssetObserved: context.currentClipAssetObserved, callerAborted: args.signal?.aborted === true,
+          providerAborted: controller.signal.aborted || context.activeClipController?.signal.aborted === true,
           deadlineExceeded: filmDeadline || clipDeadline,
           ...(filmDeadline ? { deadlineKind: "film" as const } : clipDeadline ? { deadlineKind: "clip" as const } : {}),
         };
       };
       let observedFailure: ReturnType<typeof failureContext> | undefined;
+      const clipFailures = new Map<number, ReturnType<typeof failureContext>>();
       try {
         if (connectScenes) await temporaryImages?.assertPrivateBucket();
         const originalVoiceUrls = nativeSubjectReferences
           ? await (await import("@/lib/aiMediaCharacterVoiceStorage")).getAiMediaCharacterVoiceSignedUrls({ accountId: args.accountId, images: args.request.inspirationImages, videoEngine: engine, signal: controller.signal })
           : undefined;
         const originalImageUrls = temporaryImages ? await temporaryImages.uploadImages(args.request.inspirationImages) : undefined;
-        // SDK 6 uses one SSE request per native clip. No uncertain submission is retried.
-        for (let index = 0; index < durations.length; index += 1) {
-          clipIndex = index + 1;
-          clipDurationSeconds = durations[index];
-          clipStartedAt = Date.now();
-          currentClipAssetObserved = false;
-          phase = "continuity";
-          controller.signal.throwIfAborted();
-          const continuityFrame = connectScenes && canAttachContinuityFrame && index > 0
-            ? await extractAiMediaVideoContinuityFrame({ ...clips[index - 1], signal: controller.signal }) : undefined;
-          const continuityUrls = continuityFrame && temporaryImages ? await temporaryImages.uploadImages([continuityFrame]) : undefined;
-          const imageUrls = nativeSubjectReferences ? originalImageUrls : continuityUrls || originalImageUrls;
-          const input = continuityFrame || imageUrls ? buildGatewayAiVideoRequest(args, index, continuityFrame, imageUrls, originalVoiceUrls, continuityUrls?.[0]) : preflight[index];
-          controller.signal.throwIfAborted();
-          const resolution = getAiMediaVideoResolution(engine, args.request.videoResolution);
-          const rate = getAiMediaVideoSupplierRate(inputModel.id, resolution, { ...args.request, hasProvidedCharacterVoice: hasProvidedVoice });
-          const referenceCount = nativeSubjectReferences
-            ? args.request.inspirationImages.length + (continuityFrame ? 1 : 0)
-            : continuityFrame ? 1 : args.request.inspirationImages.length;
-          const clipCost = Math.ceil(input.duration * rate * 1_000_000) + referenceCount * inputModel.supplierReferenceCostMicroUsd;
-          phase = "cost_reservation";
-          const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
-            feature: "media.video", estimatedInputTokens: 0, reservedOutputTokens: 0, estimatedCostMicroUsd: clipCost,
-          });
-          let billable = false;
-          let committed = false;
-          const commit = async () => {
-            if (committed) return;
-            await commitAiGatewayAccountAttempt({
-              reservation, feature: "media.video", model: model.modelId,
-              usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, actualCostMicroUsd: clipCost,
-            });
-            committed = true;
-            committedCostMicroUsd += clipCost;
-          };
-          const clipController = new AbortController();
-          activeClipController = clipController;
-          const clipSignal = AbortSignal.any([controller.signal, clipController.signal]);
-          const clipTimeout = setTimeout(() => clipController.abort(new Error("ai_video_gateway_timeout")), 600_000);
+        // A clip owns its diagnostic phase, timeout and reservation even when its peer runs concurrently.
+        const generateClip = async (index: number) => {
+          const context: ClipContext = { clipIndex: index + 1, clipDurationSeconds: durations[index], clipStartedAt: Date.now(),
+            currentClipAssetObserved: false, phase: "continuity" };
+          let observedClipFailure: ReturnType<typeof failureContext> | undefined;
           try {
-            phase = "provider_submission";
-            const result = await generateVideo({
-              ...input, abortSignal: clipSignal,
-              download: async (options) => {
-                phase = "asset_download";
-                currentClipAssetObserved = true;
-                billable = true; filmBillable = true;
-                return downloadClip(options);
-              },
+            controller.signal.throwIfAborted();
+            const continuityFrame = connectScenes && canAttachContinuityFrame && index > 0
+              ? await extractAiMediaVideoContinuityFrame({ ...clips[index - 1], signal: controller.signal }) : undefined;
+            const continuityUrls = continuityFrame && temporaryImages ? await temporaryImages.uploadImages([continuityFrame]) : undefined;
+            const imageUrls = nativeSubjectReferences ? originalImageUrls : continuityUrls || originalImageUrls;
+            const input = continuityFrame || imageUrls ? buildGatewayAiVideoRequest(args, index, continuityFrame, imageUrls, originalVoiceUrls, continuityUrls?.[0]) : preflight[index];
+            controller.signal.throwIfAborted();
+            const resolution = getAiMediaVideoResolution(engine, args.request.videoResolution);
+            const rate = getAiMediaVideoSupplierRate(inputModel.id, resolution, { ...args.request, hasProvidedCharacterVoice: hasProvidedVoice });
+            const referenceCount = nativeSubjectReferences
+              ? args.request.inspirationImages.length + (continuityFrame ? 1 : 0)
+              : continuityFrame ? 1 : args.request.inspirationImages.length;
+            const clipCost = Math.ceil(input.duration * rate * 1_000_000) + referenceCount * inputModel.supplierReferenceCostMicroUsd;
+            context.phase = "cost_reservation";
+            const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
+              feature: "media.video", estimatedInputTokens: 0, reservedOutputTokens: 0, estimatedCostMicroUsd: clipCost,
             });
-            billable ||= result.videos.length > 0;
-            filmBillable ||= billable;
-            currentClipAssetObserved ||= billable;
-            phase = "output_validation";
-            if (result.videos.length !== 1) throw new Error("ai_video_gateway_output_count_invalid");
-            const buffer = bufferFromUint8ArrayView(result.videos[0].uint8Array);
-            if (!buffer.byteLength || buffer.byteLength > MAX_CLIP_BYTES || buffer.subarray(4, 8).toString("ascii") !== "ftyp") throw new Error("ai_video_gateway_mp4_invalid");
-            phase = "cost_commit";
-            await commit();
-            phase = "output_validation";
-            estimatedCostMicroUsd += clipCost;
-            const clipWarnings = result.warnings.map((warning) => `gateway:${diagnostic(warning)}`).slice(0, 30);
-            if (model.id === "heygen" && (!referenceCount || nativeSubjectReferences) && resolution === "1080p" &&
-              (args.request.format === "square" || args.request.format === "portrait")) {
-              clipWarnings.push(`video_provider_aspect_ratio_adapted:${args.request.format}:${input.aspectRatio}`);
+            let billable = false;
+            let committed = false;
+            const commit = async () => {
+              if (committed) return;
+              await commitAiGatewayAccountAttempt({
+                reservation, feature: "media.video", model: model.modelId,
+                usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, actualCostMicroUsd: clipCost,
+              });
+              committed = true;
+              committedCostMicroUsd += clipCost;
+            };
+            const clipController = new AbortController();
+            context.activeClipController = clipController;
+            const clipSignal = AbortSignal.any([controller.signal, clipController.signal]);
+            const clipTimeout = setTimeout(() => clipController.abort(new Error("ai_video_gateway_timeout")), 600_000);
+            try {
+              context.phase = "provider_submission";
+              const result = await generateVideo({
+                ...input, abortSignal: clipSignal,
+                download: async (options) => {
+                  context.phase = "asset_download";
+                  context.currentClipAssetObserved = true;
+                  billable = true; filmBillable = true;
+                  return downloadClip(options);
+                },
+              });
+              billable ||= result.videos.length > 0;
+              filmBillable ||= billable;
+              context.currentClipAssetObserved ||= billable;
+              context.phase = "output_validation";
+              if (result.videos.length !== 1) throw new Error("ai_video_gateway_output_count_invalid");
+              const buffer = bufferFromUint8ArrayView(result.videos[0].uint8Array);
+              if (!buffer.byteLength || buffer.byteLength > MAX_CLIP_BYTES || buffer.subarray(4, 8).toString("ascii") !== "ftyp") throw new Error("ai_video_gateway_mp4_invalid");
+              context.phase = "cost_commit";
+              await commit();
+              context.phase = "output_validation";
+              estimatedCostMicroUsd += clipCost;
+              const clipWarnings = result.warnings.map((warning) => `gateway:${diagnostic(warning)}`).slice(0, 30);
+              if (model.id === "heygen" && (!referenceCount || nativeSubjectReferences) && resolution === "1080p" &&
+                (args.request.format === "square" || args.request.format === "portrait")) {
+                clipWarnings.push(`video_provider_aspect_ratio_adapted:${args.request.format}:${input.aspectRatio}`);
+              }
+              if (continuityFrame) clipWarnings.push("video_last_frame_continuity");
+              if (nativeSubjectReferences && connectScenes && index > 0 && !canAttachContinuityFrame) clipWarnings.push(model.id === "wan27"
+                ? "video_continuity_original_subject_references_preserved_at_capacity" : "video_continuity_original_subject_references_preserved");
+              // Completion order must never change the film's planned scene order.
+              clips[index] = { buffer, mediaType: "video/mp4", durationSeconds: input.duration,
+                requestId: args.request.requestId, model: model.modelId, warnings: clipWarnings };
+            } catch (error) {
+              observedClipFailure = failureContext(context);
+              if (billable) await commit().catch(() => undefined);
+              else await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined);
+              throw error;
+            } finally {
+              clearTimeout(clipTimeout);
             }
-            if (continuityFrame) clipWarnings.push("video_last_frame_continuity");
-            if (nativeSubjectReferences && connectScenes && index > 0 && !canAttachContinuityFrame) clipWarnings.push(model.id === "wan27"
-              ? "video_continuity_original_subject_references_preserved_at_capacity" : "video_continuity_original_subject_references_preserved");
-            warnings.push(...clipWarnings);
-            clips.push({ buffer, mediaType: "video/mp4", durationSeconds: input.duration,
-              requestId: args.request.requestId, model: model.modelId, warnings: clipWarnings });
           } catch (error) {
-            observedFailure = failureContext();
-            if (billable) await commit().catch(() => undefined);
-            else await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined);
+            clipFailures.set(index, observedClipFailure || failureContext(context));
             throw error;
-          } finally {
-            clearTimeout(clipTimeout);
+          }
+        };
+        // SDK 6 uses one SSE request per clip with maxRetries:0. Studio's independent
+        // plans share the original identity references and run at most two at a time.
+        // Settle every submitted peer before cost classification or temporary-file cleanup.
+        if (fastStudioFree) {
+          for (let start = 0; start < durations.length; start += 2) {
+            const indexes = durations.slice(start, start + 2).map((_, offset) => start + offset);
+            const settled = await Promise.allSettled(indexes.map(generateClip));
+            const failures = settled.flatMap((outcome, offset) => outcome.status === "rejected"
+              ? [{ index: indexes[offset], error: outcome.reason }] : []);
+            // An uncertain peer forbids a fallback even when another peer was definitely rejected.
+            const failure = failures.find(item => getAiVideoProviderRecoverableStatus(item.error) === 0) || failures[0];
+            if (failure) {
+              observedFailure = clipFailures.get(failure.index);
+              throw failure.error;
+            }
+          }
+        } else {
+          for (let index = 0; index < durations.length; index += 1) {
+            try { await generateClip(index); }
+            catch (error) { observedFailure = clipFailures.get(index); throw error; }
           }
         }
-        return { provider: providerId, model: model.modelId, estimatedCostMicroUsd, warnings, clips };
+        return { provider: providerId, model: model.modelId, estimatedCostMicroUsd, warnings: clips.flatMap(clip => clip.warnings), clips };
       } catch (error) {
+        const failedContext = observedFailure || failureContext();
         const diagnostics = safeAiVideoProviderFailureDiagnostics({
-          ...safeAiVideoProviderErrorMetadata(error), ...(observedFailure || failureContext()), clipIndex, clipCount: durations.length,
-          clipDurationSeconds, completedClips: clips.length, committedCostMicroUsd,
+          ...safeAiVideoProviderErrorMetadata(error), ...failedContext, clipCount: durations.length,
+          completedClips: clips.filter(Boolean).length, committedCostMicroUsd,
           overallBudgetMs, clipBudgetMs: 600_000,
         });
         await recordAiGatewayAccountFailure({ accountId: args.accountId, feature: "media.video", model: model.modelId }).catch(() => undefined);
         if (filmBillable) throw new AiVideoProviderBillableFailure({
-          provider: providerId, model: model.modelId, stage: `gateway_${phase}`,
+          provider: providerId, model: model.modelId, stage: `gateway_${failedContext.phase}`,
           details: diagnostic(error), cause: new Error(diagnostic(error)),
           diagnostics,
         });

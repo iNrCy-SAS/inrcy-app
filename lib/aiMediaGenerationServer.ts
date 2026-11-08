@@ -73,6 +73,7 @@ import {
   createReferenceTeamFallbackVideo,
   createReferenceTeamMontage,
 } from "@/lib/aiMediaReferenceTeam";
+import { shouldAuditAiMediaNativeFinalFrame, assertAiMediaNativeFinalFrameLayout } from "@/lib/aiMediaNativeDialogueQa";
 import { auditAiMediaNativeDialogueWithGoogle } from "@/lib/aiMediaNativeDialogueQaGoogle";
 import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
 import {
@@ -99,6 +100,8 @@ import { generateOriginalAiVideoClips } from "@/lib/aiVideoProvider";
 import { generateInrAgentVideoWithFallback } from "./inrAgentVideoFallback.ts";
 import { classifyVeoFailure } from "@/lib/aiVideoReliability";
 import {
+  AiVideoProviderBillableFailure,
+  getAiVideoProviderRecoverableStatus,
   isAiVideoProviderBillableFailure,
   type AiVideoProviderGenerationArgs,
   type AiVideoProviderResult,
@@ -1176,6 +1179,9 @@ export async function generateAndSaveAiMedia(args: {
         // les mêmes références avant le mouvement local évite une fausse
         // "animation réelle" presque fixe.
         if (request.videoEngine !== "veo" || ![8, 16].includes(request.durationSeconds || 8)) throw primaryError;
+        // An uncertain timeout/abort may still become billable upstream.
+        // Only a definite rejection permits paying for a second provider.
+        if (getAiVideoProviderRecoverableStatus(primaryError) === 0) throw primaryError;
         // A fallback must retain both output quality and the prepared shot plan.
         // Omni currently has no 1080p tier; never silently downgrade to 720p.
         try {
@@ -1666,6 +1672,18 @@ export async function generateAndSaveAiMedia(args: {
     }
     args.signal?.throwIfAborted();
 
+    const nativeFinalFrameFailure = (error: unknown) => new AiVideoProviderBillableFailure({
+      provider: videoGateway.provider, model: videoGateway.model,
+      stage: "native_final_frame_qa", details: safeAiMediaErrorMessage(error, 160), cause: error,
+    });
+    const assertNativeFinalFrameQa = (qa: Parameters<typeof assertAiMediaNativeFinalFrameLayout>[0]) => {
+      try { assertAiMediaNativeFinalFrameLayout(qa); }
+      catch (error) {
+        // The existing clip has already been produced and accounted for.
+        // A QA refusal must never permit another video or audio fallback.
+        throw nativeFinalFrameFailure(error);
+      }
+    };
     const characterDialogueProviderFallback =
       characterDialogueRequested && videoGateway.provider.startsWith("inrcy-");
     const nativeDialogueQa =
@@ -1678,6 +1696,7 @@ export async function generateAndSaveAiMedia(args: {
               signal: args.signal,
               clips: videoGateway.clips.map((clip, index) => ({
                 sceneIndex: index,
+                checkFinalFrameLayout: shouldAuditAiMediaNativeFinalFrame(providerRequest, videoGateway.provider),
                 buffer: clip.buffer,
                 mediaType: clip.mediaType,
                 durationSeconds: clip.durationSeconds,
@@ -1690,9 +1709,13 @@ export async function generateAndSaveAiMedia(args: {
             })
           ).catch(() => {
             args.signal?.throwIfAborted();
+            if (shouldAuditAiMediaNativeFinalFrame(providerRequest, videoGateway.provider)) {
+              throw nativeFinalFrameFailure(new Error("ai_media_native_visual_verification_unavailable"));
+            }
             throw new Error("ai_media_native_speech_verification_unavailable");
           })
         : null;
+    assertNativeFinalFrameQa(nativeDialogueQa);
     // Une bouche qui bouge sans voix ou une réplique rejetée ne constitue pas
     // un média Libre valide. Ne jamais coller une voix TTS sur ces lèvres.
     args.signal?.throwIfAborted();
@@ -1750,6 +1773,7 @@ export async function generateAndSaveAiMedia(args: {
           })
       : null;
     args.signal?.throwIfAborted();
+    assertNativeFinalFrameQa(nativeVoiceoverQa);
     if (nativeVoiceoverRequested && (
       videoGateway.provider.startsWith("inrcy-") || nativeVoiceoverQa?.status === "rejected"
     )) {

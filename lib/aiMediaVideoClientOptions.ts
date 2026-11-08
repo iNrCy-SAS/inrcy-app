@@ -1,5 +1,5 @@
 import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel, getAiMediaVideoModelForCharacterVoice, type AiMediaVideoEngine, type AiMediaVideoResolution, type AiMediaVideoSceneMode } from "./aiMediaModelCatalog.ts";
-import { canGenerateAiMediaVideoDuration } from "./aiMediaVideoTimeline.ts";
+import { canGenerateAiMediaVideoDuration, getAiMediaVideoDurationSceneOptions } from "./aiMediaVideoTimeline.ts";
 
 /** Each visible choice is an actual model/resolution pair from the provider catalogue. */
 export function getMediaVideoEngineQualityChoices(hasProvidedVoice = false) {
@@ -21,6 +21,12 @@ export function isMediaVideoBriefCompatible(engine: AiMediaVideoEngine, brief: s
 export function getMediaVideoDurationChoices(maxDuration = 30): readonly number[] {
   const max = Math.min(30, Math.floor(maxDuration));
   return Array.from({ length: Math.max(0, max - 3) }, (_, index) => index + 4);
+}
+
+/** Studio selects the shortest execution path for a duration, without a montage choice. */
+export function getAutomaticMediaVideoDurationOptions(engine: AiMediaVideoEngine, resolution?: AiMediaVideoResolution | null) {
+  const choices = getAiMediaVideoDurationSceneOptions(engine, resolution);
+  return choices.filter((option, index) => choices.findIndex((candidate) => candidate.durationSeconds === option.durationSeconds) === index);
 }
 
 /** Preserve the requested duration; a different model may use its own native quality. */

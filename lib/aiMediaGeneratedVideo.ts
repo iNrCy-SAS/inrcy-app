@@ -20,7 +20,7 @@ import {
   probeVideoSource,
   resolveVideoNormalizationFfmpegPath,
 } from "@/lib/mediaVideoNormalizer";
-import { buildAiMediaNarrationSubtitlesAss } from "./aiMediaNarrationSubtitles.ts";
+import { buildAiMediaNarrationSubtitlesAss, estimateAiMediaNarrationSubtitleStartSeconds } from "./aiMediaNarrationSubtitles.ts";
 
 const execFileAsync = promisify(execFile);
 const MAX_GOOGLE_BUSINESS_VIDEO_BYTES = 74 * 1024 * 1024;
@@ -160,6 +160,26 @@ async function probeNarrationDurationSeconds(args: {
     throw new Error("ai_narration_duration_unavailable");
   }
   return durationSeconds;
+}
+
+/** Local caption-only analysis. No audio filters, words or provider calls change. */
+async function probeNarrationSubtitleStartSeconds(args: {
+  ffmpegPath: string; inputPath: string; durationSeconds: number; signal?: AbortSignal;
+}) {
+  args.signal?.throwIfAborted();
+  try {
+    const { stdout } = await execFileAsync(args.ffmpegPath, [
+      "-hide_banner", "-loglevel", "error", "-nostdin", "-i", args.inputPath,
+      "-t", String(Math.min(3, args.durationSeconds)), "-map", "0:a:0", "-vn",
+      "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", "-f", "s16le", "pipe:1",
+    ], { encoding: "buffer", timeout: 2_000, maxBuffer: 128 * 1024, windowsHide: true, signal: args.signal });
+    args.signal?.throwIfAborted();
+    return estimateAiMediaNarrationSubtitleStartSeconds(stdout);
+  } catch {
+    args.signal?.throwIfAborted();
+    // A missing/ambiguous measurement leaves the existing timeline intact.
+    return 0;
+  }
 }
 
 function narrationTempoFilters(args: {
@@ -615,8 +635,9 @@ export async function composeOriginalAiVideo(args: {
       ? clipPaths.length + overlayPaths.length + (args.soundtrack ? 1 : 0)
       : null;
     let narrationDurationSeconds: number | null = null;
+    let narrationPath: string | null = null;
     if (args.narration) {
-      const narrationPath = path.join(
+      narrationPath = path.join(
         temporaryDirectory,
         `narration.${args.narration.extension}`
       );
@@ -628,10 +649,14 @@ export async function composeOriginalAiVideo(args: {
       });
       command.push("-i", narrationPath);
     }
-    if (args.subtitles && narrationDurationSeconds !== null) {
+    if (args.subtitles && narrationDurationSeconds !== null && narrationPath !== null) {
       const { targetVoiceSeconds } = narrationTiming(args.durationSeconds);
       const tempo = Math.max(1, requiredNarrationTempo({ narrationDurationSeconds, targetVoiceSeconds }));
+      const startOffsetSeconds = await probeNarrationSubtitleStartSeconds({
+        ffmpegPath, inputPath: narrationPath, durationSeconds: narrationDurationSeconds, signal: args.signal,
+      });
       const captions = buildAiMediaNarrationSubtitlesAss({ script: args.subtitles.script,
+        startOffsetSeconds: startOffsetSeconds / tempo,
         durationSeconds: narrationDurationSeconds / tempo, width: args.width, height: args.height });
       await mkdir(path.join(temporaryDirectory, "fonts"));
       await copyFile(path.join(process.cwd(), "node_modules", "next", "dist", "compiled", "@vercel", "og", "Geist-Regular.ttf"), path.join(temporaryDirectory, "fonts", "Geist-Regular.ttf"));

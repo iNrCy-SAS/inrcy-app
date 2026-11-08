@@ -1,3 +1,4 @@
+import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
 
@@ -8,6 +9,7 @@ export function loadNarrationPreparationRuntime(dependencies) {
   }).outputText;
   const loaded = { exports: {} };
   new Function("module", "exports", "require", code)(loaded, loaded.exports, (id) => {
+    if (id === "./aiMediaVideoSpeechBudget.ts") return speechBudget;
     if (!dependencies.has(id)) throw new Error(`Unexpected narration dependency: ${id}`);
     return dependencies.get(id);
   });

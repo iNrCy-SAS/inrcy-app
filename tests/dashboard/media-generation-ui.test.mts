@@ -214,7 +214,8 @@ test("iNrStudio conserve ses quatre réglages en onglets avec l'aperçu sur la m
   assert.match(generator, /value=\{imagePurpose\}[\s\S]*?IMAGE_PURPOSES\.map/);
   assert.match(generator, /getMediaVideoDurationChoices\(videoMaxDurationSeconds\)/);
   assert.match(generator, /onDurationSceneChange=\{\(seconds, mode\) => \{ setDurationSeconds\(seconds\); setVideoSceneMode\(mode\); \}\}/);
-  assert.match(engineControls, /getAiMediaVideoDurationSceneOptions\(props\.videoEngine, selectedResolution\)\.filter\(\(option\) => option\.durationSeconds <= maximumDuration\)/);
+  assert.match(engineControls, /availableDurationOptions\(props\.videoEngine, selectedResolution, maximumDuration, props\.automaticSceneMode\)/);
+  assert.match(engineControls, /\.filter\(\(option\) => option\.durationSeconds <= maximumDuration\)/);
   assert.doesNotMatch(generator, /setDurationSeconds\(\(current\)/);
   assert.doesNotMatch(generator, /\(\["single", "multi"\] as const\)\.map/);
   assert.match(engineControls, /durationSceneOptions\.map/);
