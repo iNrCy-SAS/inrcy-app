@@ -252,7 +252,7 @@ test("automatic Grok duration picks native fifteen or independent thirty seconds
 });
 
 test("duration and resolution incompatibility fail without quote generation source load or callbacks", async () => {
-  for (const [videoEngine, videoResolution, durationSeconds] of [["veo", "1080p", 6], ["veo", "720p", 5], ["minimax-h3", "1080p", 10]] as const) for (const action of ["generateMedia", "quoteMediaGeneration"] as const) {
+  for (const [videoEngine, videoResolution, durationSeconds] of [["veo", "1080p", 6], ["veo", "720p", 5], ["omni", "1080p", 10]] as const) for (const action of ["generateMedia", "quoteMediaGeneration"] as const) {
     const h = harness(), result = await h.tools[action].execute({ mediaType: "video", prompt: "Un jardin paisible", durationSeconds, settings: [
       { field: "videoEngine", valueJson: JSON.stringify(videoEngine) }, { field: "videoResolution", valueJson: JSON.stringify(videoResolution) },
     ] });
@@ -273,11 +273,11 @@ test("manual montage settings are absent from both schemas and rejected before a
   }
 });
 
-test("automatic duration cannot revive a globally retired Wan3 payload", async () => {
-  for (const action of ["generateMedia", "quoteMediaGeneration"] as const) {
-    const h = harness(), input = { mediaType: "video", prompt: "Un jardin paisible", durationSeconds: 30, settings: [{ field: "videoEngine", valueJson: '"wan3"' }, { field: "videoResolution", valueJson: '"1080p"' }] };
+test("automatic duration cannot revive globally retired engines through either native action", async () => {
+  for (const [engine, durationSeconds, resolution, message] of [["wan3", 30, "1080p", /Wan 3\.0.*autre moteur/], ["minimax-h3", 15, "768p", /MiniMax H3.*autre moteur/]] as const) for (const action of ["generateMedia", "quoteMediaGeneration"] as const) {
+    const h = harness(), input = { mediaType: "video", prompt: "Un jardin paisible", durationSeconds, settings: [{ field: "videoEngine", valueJson: JSON.stringify(engine) }, { field: "videoResolution", valueJson: JSON.stringify(resolution) }] };
     assert.equal(h.tools[action].inputSchema.validate?.(input).success, false);
-    await assert.rejects(h.tools[action].execute(input), /Wan 3\.0.*autre moteur/); assert.deepEqual(h.calls, []);
+    await assert.rejects(h.tools[action].execute(input), message); assert.deepEqual(h.calls, []); assert.deepEqual(h.callbacks, []);
   }
 });
 
@@ -513,7 +513,13 @@ test("assistant chooses a compatible media engine without asking the pro for a p
     assert.equal(h.runtime.chooseInrAssistantMediaEngine({ mediaType: "image", prompt }).imageEngine, expected);
   }
   assert.equal(h.runtime.chooseInrAssistantMediaEngine({ mediaType: "video", prompt: "Un clip de mon activité" }).videoEngine, "grok-lite");
-  assert.equal(h.runtime.chooseInrAssistantMediaEngine({ mediaType: "video", prompt: "Un artisan parle en français" }).videoEngine, "minimax-h3");
+  for (const prompt of ["Un artisan parle en français", "Une voix off raconte le jardin", "Un paysage sans voix ni narration"]) {
+    const selected = h.runtime.chooseInrAssistantMediaEngine({ mediaType: "video", prompt }).videoEngine!;
+    assert.equal(selected, "grok-lite");
+    assert.equal(catalogue.isAiMediaVideoEngineAvailable(selected), true);
+  }
+  assert.equal(h.runtime.chooseInrAssistantMediaEngine({ mediaType: "video", prompt: "Un jardin", durationSeconds: 16, settings: [{ field: "videoResolution", valueJson: '"1080p"' }] }).videoEngine, "grok-lite");
+  assert.throws(() => h.runtime.chooseInrAssistantMediaEngine({ mediaType: "video", prompt: "Un jardin", durationSeconds: 15, settings: [{ field: "videoResolution", valueJson: '"768p"' }] }), /indisponible/);
 });
 
 test("a real failed generation is never reported as completed or accepted", async () => {

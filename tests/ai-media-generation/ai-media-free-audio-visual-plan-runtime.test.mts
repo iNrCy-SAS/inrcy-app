@@ -77,7 +77,7 @@ function providerArgs(input: contracts.AiMediaGenerationRequest, plan: AiMediaCr
 
 test("exact voiceover remains intact for separate narration and stays out of native video prompts", async () => {
   const line = "Notre équipe prépare votre projet avec soin.";
-  const input = request({ videoEngine: "minimax-h3", freePrompt: `Une femme marche dans une agence. Voix off exacte : « ${line} »` });
+  const input = request({ videoEngine: "grok-lite", videoResolution: "720p", freePrompt: `Une femme marche dans une agence. Voix off exacte : « ${line} »` });
   const runtime = loadPlanner(visualResponse);
   const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile });
   const sent = JSON.parse(runtime.calls[0].input);

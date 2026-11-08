@@ -125,11 +125,17 @@ test("maximum exact speech fits the quote envelope after JSON escaping and leave
   assert.equal(oversized.calls.length, 0);
 });
 
-test("retired Wan3 is rejected by the real catalogue before wallet edition entitlement or quote work",async()=>{
-  const f=fixture();
-  const response=await f.post({...fourSeconds,videoEngine:"wan3",durationSeconds:8});
-  const output=await response.json();
-  assert.equal(response.status,400);assert.equal(output.code,"AI_MEDIA_VIDEO_ENGINE_RETIRED");
-  assert.equal(output.quote,undefined);assert.deepEqual(f.calls,[]);
-  assert.equal(models.getAiMediaVideoModel("wan3").modelId,"alibaba/wan-v3.0-video","historical metadata remains readable");
+test("retired Wan3 and MiniMax H3 are rejected before wallet edition entitlement or quote work",async()=>{
+  for(const [videoEngine,modelId,label,videoResolution] of [["wan3","alibaba/wan-v3.0-video","Wan 3.0","1080p"],["minimax-h3","minimax/minimax-h3","MiniMax H3","768p"]] as const) {
+    for(const creationMode of ["free","guided"]) for(const hasProvidedCharacterVoice of [false,true]) {
+      const f=fixture();
+      const response=await f.post({...fourSeconds,videoEngine,videoResolution,durationSeconds:10,creationMode,hasProvidedCharacterVoice});
+      const output=await response.json();
+      assert.equal(response.status,400);assert.equal(output.code,"AI_MEDIA_VIDEO_ENGINE_RETIRED");
+      assert.equal(output.error,models.getAiMediaVideoEngineRetirementIssue(videoEngine)!.message);
+      assert.ok(output.error.startsWith(label));
+      assert.equal(output.quote,undefined);assert.deepEqual(f.calls,[]);
+    }
+    assert.equal(models.getAiMediaVideoModel(videoEngine).modelId,modelId,"historical metadata remains readable");
+  }
 });

@@ -373,7 +373,7 @@ test("voiceover subtitles reach local composition with Exact words while the sil
     const now = Date.now();
     const sample = { path: `_studio-voice-references/${new Date(now).toISOString().slice(0, 10)}/test-account__${now}__11111111-1111-4111-8111-111111111111.wav`,
       durationSeconds: 6, sizeBytes: 192_044, name: "voice.wav", mimeType: "audio/wav" };
-    const original = request("minimax-h3", { durationSeconds: 10, videoResolution: "768p", withSubtitles, spokenScript: script,
+    const original = request("grok-lite", { durationSeconds: 10, videoResolution: "720p", withSubtitles, spokenScript: script,
       narrationVoiceMode: mode, ...(mode === "provided" ? { narrationVoiceSample: sample, narrationVoiceConsent: true } : {}) });
     await env.generate(original, mode === "provided" ? { preparedNarrationVoice: { accountId: "test-account", path: sample.path, buffer: Buffer.from("owned-reference"), durationSeconds: 6 } } : {});
     assert.equal((env.videoCalls[0].request as Row).withSubtitles, false, "the external voiceover has only one caption renderer");

@@ -77,11 +77,12 @@ test.describe('iNrStudio creation controls without supplier billing', () => {
     await runtime.expectNoErrors();
   });
 
-  test('automatic durations have no montage duplicates and exclude the unqualified slow engine', async ({ page }) => {
+  test('automatic durations have no montage duplicates and exclude retired engines', async ({ page }) => {
     const runtime = attachRuntimeErrorTracking(page);
     const { studio, submissionCount } = await openStudio(page);
     const engine = studio.getByRole('combobox', { name: 'Moteur et qualité', exact: true });
     await expect(engine.locator('option[value^="wan3:"]')).toHaveCount(0);
+    await expect(engine.locator('option[value^="minimax-h3:"]')).toHaveCount(0);
     for (const retainedEngine of ['wan-flash', 'wan27']) {
       await expect(engine.locator(`option[value^="${retainedEngine}:"]`)).toHaveCount(2);
     }

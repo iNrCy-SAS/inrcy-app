@@ -43,16 +43,6 @@ export type AiMediaModelRecommendation = Readonly<{
 const normalizedText = (value: string) => value.normalize("NFD")
   .replace(/\p{M}/gu, "").toLowerCase();
 
-function wantsFrenchSpeech(input: AiMediaModelRecommendationInput, brief: string): boolean {
-  const explicitFrench = /\b(?:francais|french)\b/u.test(brief);
-  const otherSpokenLanguage = /\b(?:en anglais|in english|en espagnol|in spanish|en allemand|in german)\b/u.test(brief);
-  const french = explicitFrench || (!otherSpokenLanguage && /^(?:fr(?:$|[-_])|francais$|french$)/iu.test(input.language ?? "fr"));
-  const speechBrief = brief.replace(/\b(?:sans|aucune?|no|without)\s+(?:voix(?:\s+off)?|voice(?:\s+over)?|dialogues?|narration)(?:\s+(?:ni|and|or)\s+(?:voix(?:\s+off)?|voice(?:\s+over)?|dialogues?|narration))*\b/gu, "");
-  const speech = input.withNarration === true || input.teamVideoSpeechMode === "characters" ||
-    /\b(?:voix|voice(?:over)?|dialogues?|narration|parl(?:e(?:r|z|nt)?|ant)|dit|dire|says?|speaks?|spoken)\b/u.test(speechBrief);
-  return french && speech;
-}
-
 /** A deterministic suggestion only. The selected model and duration remain the user's choice. */
 export function recommendAiMediaModel(input: AiMediaModelRecommendationInput): AiMediaModelRecommendation | null {
   const references = input.inspirationImagesCount ?? 0;
@@ -109,9 +99,8 @@ export function recommendAiMediaModel(input: AiMediaModelRecommendationInput): A
       references === 0 && find("grok-lite")) {
     return { engine: "grok-lite", reason: "economy" };
   }
-  if (wantsFrenchSpeech(input, brief) && find("minimax-h3")) {
-    return { engine: "minimax-h3", reason: "french-speech" };
-  }
+  // Native French-speech quality is not inferred from a model description.
+  // Remaining suggestions use the available catalogue, compatibility and rates.
   const continuous = find("wan3");
   if (sceneMode === "single" && duration >= 16 && continuous &&
     getAiMediaVideoNativeDurations("wan3", continuous.model.defaultResolution).includes(duration)) {

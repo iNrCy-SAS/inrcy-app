@@ -56,7 +56,7 @@ test("the single dropdown contains only real engine/resolution pairs and their e
     assert.equal(choice.creditsPerSecond, model.creditsByResolution[choice.resolution]);
   }
   assert.deepEqual(choices.filter((choice) => choice.engine === "omni").map((choice) => choice.resolution), ["720p"]);
-  assert.deepEqual(choices.filter((choice) => choice.engine === "minimax-h3").map((choice) => choice.resolution), ["768p"]);
+  assert.deepEqual(choices.filter((choice) => choice.engine === "minimax-h3"), []);
   assert.deepEqual(choices.filter((choice) => choice.engine === "grok-lite").map((choice) => choice.creditsPerSecond), [3, 14]);
   assert.deepEqual(choices.filter((choice) => choice.engine === "wan27").map((choice) => ({
     resolution: choice.resolution, creditsPerSecond: choice.creditsPerSecond,

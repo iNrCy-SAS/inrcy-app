@@ -1290,7 +1290,7 @@
     "additionalProofs": [
       {
         "file": "tests/ai-media-generation/video-engine-retirement-runtime.test.mts",
-        "testAnchor": "all client choices and recommendation contexts exclude Wan3"
+        "testAnchor": "all client choices and recommendation contexts exclude retired generation engines"
       }
     ]
   },
@@ -1319,7 +1319,7 @@
     "additionalProofs": [
       {
         "file": "tests/ai-media-generation/video-engine-retirement-runtime.test.mts",
-        "testAnchor": "all client choices and recommendation contexts exclude Wan3"
+        "testAnchor": "all client choices and recommendation contexts exclude retired generation engines"
       }
     ]
   },

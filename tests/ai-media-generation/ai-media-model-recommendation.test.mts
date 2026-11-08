@@ -11,16 +11,28 @@ const nativeFetch = globalThis.fetch;
 test.before(() => { globalThis.fetch = async () => { throw new Error("Recommendations must not call a provider"); }; });
 test.after(() => { globalThis.fetch = nativeFetch; });
 
-test("French speech recommends the model declaring French dialogue support, preserving the requested duration", () => {
+test("French speech uses available compatible prices without promoting retired dialogue claims or changing duration", () => {
   for (const durationSeconds of [4, 15, 30]) {
     for (const speech of [{ withNarration: true }, { teamVideoSpeechMode: "characters" as const }, { brief: "Le personnage parle en français." }]) {
       const input = Object.freeze({ kind: "video" as const, durationSeconds, language: "fr-FR", ...speech });
-      assert.deepEqual(recommendAiMediaModel(input), { engine: "minimax-h3", reason: "french-speech" });
+      const result = recommendAiMediaModel(input);
+      assert.ok(result);
+      assert.equal(result.reason, "economy");
+      assert.ok(AI_MEDIA_AVAILABLE_VIDEO_MODELS.some(model => model.id === result.engine));
+      assert.notEqual(result.engine, "minimax-h3");
+      const selected = getAiMediaVideoModel(result.engine);
+      assert.doesNotThrow(() => quoteAiMediaCredits({ ...input, videoEngine: selected.id, videoResolution: selected.defaultResolution }));
+      const costs = AI_MEDIA_AVAILABLE_VIDEO_MODELS.flatMap(model => {
+        try { return [estimateAiMediaVideoSupplierCostMicroUsd({ ...input, videoEngine: model.id, videoResolution: model.defaultResolution })]; }
+        catch { return []; }
+      });
+      assert.equal(estimateAiMediaVideoSupplierCostMicroUsd({ ...input, videoEngine: selected.id, videoResolution: selected.defaultResolution }), Math.min(...costs));
       assert.equal(input.durationSeconds, durationSeconds);
-      assert.equal(getAiMediaVideoModel("minimax-h3").frenchDialogue, "supported");
     }
   }
-  assert.equal(recommendAiMediaModel({ kind: "video", durationSeconds: 8, withNarration: true, language: "FR" })?.engine, "minimax-h3");
+  assert.notEqual(recommendAiMediaModel({ kind: "video", durationSeconds: 8, withNarration: true, language: "FR" })?.engine, "minimax-h3");
+  assert.equal(getAiMediaVideoModel("minimax-h3").frenchDialogue, "supported", "historical metadata is preserved without implying present availability");
+  assert.equal(catalog.isAiMediaVideoEngineAvailable("minimax-h3"), false);
 });
 
 test("Studio free separate voice-over without references suggests compatible Grok Lite720 without changing selection or duration", () => {
@@ -41,10 +53,10 @@ test("Studio free separate voice-over without references suggests compatible Gro
   }
 });
 
-test("the quick Studio suggestion leaves legacy, other flows, characters and supplied photos on their existing policy", () => {
+test("the quick Studio voice-over suggestion does not override other flow and reference compatibility policies", () => {
   const legacy = { kind: "video" as const, durationSeconds: 10, withNarration: true,
     teamVideoSpeechMode: "voiceover" as const, language: "fr", inspirationImagesCount: 0 };
-  assert.deepEqual(recommendAiMediaModel(legacy), { engine: "minimax-h3", reason: "french-speech" });
+  assert.deepEqual(recommendAiMediaModel(legacy), { engine: "veo-lite", reason: "economy" });
   for (const patch of [{ teamVideoSpeechMode: "characters" as const }, { inspirationImagesCount: 1 }, { operation: "modify" as const }]) {
     assert.deepEqual(recommendAiMediaModel({ ...legacy, recommendationContext: "studio-free", ...patch }), recommendAiMediaModel({ ...legacy, ...patch }));
   }
@@ -58,7 +70,7 @@ test("an unavailable Grok Lite cannot become the Studio recommendation", () => {
   })<typeof import("../../lib/aiMediaModelRecommendation.ts")>("lib/aiMediaModelRecommendation.ts");
   assert.deepEqual(recommendWithoutGrokLite({ recommendationContext: "studio-free", kind: "video", durationSeconds: 10,
     withNarration: true, teamVideoSpeechMode: "voiceover", language: "fr", inspirationImagesCount: 0 }),
-  { engine: "minimax-h3", reason: "french-speech" });
+  { engine: "veo-lite", reason: "economy" });
 });
 
 test("a silent brief or another spoken language does not claim French dialogue suitability", () => {
@@ -93,7 +105,13 @@ test("photo animation requires a supplied compatible reference, with the same fi
   assert.deepEqual(recommendAiMediaModel({ kind: "video", durationSeconds: 8, inspirationImagesCount: 3, inputMode: "essential" }), { engine: "wan-flash", reason: "photo-animation" });
   assert.deepEqual(recommendAiMediaModel({ kind: "video", durationSeconds: 8, inspirationImagesCount: 3, identityMode: "reference_team" }), { engine: "wan-flash", reason: "photo-animation" });
   // Legacy references are sent separately; Wan/Grok Lite cannot accept three.
-  assert.deepEqual(recommendAiMediaModel({ kind: "video", durationSeconds: 8, inspirationImagesCount: 3, inputMode: "legacy" }), { engine: "minimax-h3", reason: "economy" });
+  const legacy = { kind: "video" as const, durationSeconds: 8, inspirationImagesCount: 3, inputMode: "legacy" as const };
+  const result = recommendAiMediaModel(legacy)!;
+  assert.equal(result.reason, "economy");
+  assert.ok(AI_MEDIA_AVAILABLE_VIDEO_MODELS.some(model => model.id === result.engine));
+  const selected = getAiMediaVideoModel(result.engine);
+  assert.doesNotThrow(() => quoteAiMediaCredits({ ...legacy, videoEngine: selected.id, videoResolution: selected.defaultResolution }));
+  assert.notEqual(result.engine, "minimax-h3");
 });
 
 test("economic suggestions use the current catalogue price among compatible models, not a fixed engine", () => {
@@ -124,7 +142,7 @@ test("every recommendation passes real quote and at most two exact native clips,
         const result = recommendAiMediaModel(input);
         if (!result) { assert.equal(sceneMode, "multi"); assert.ok(durationSeconds < 8); continue; }
         const model = getAiMediaVideoModel(result.engine);
-        assert.notEqual(result.engine, "heygen", "retired engines cannot return through automatic recommendations");
+        assert.ok(!["heygen", "wan3", "minimax-h3"].includes(result.engine), "retired engines cannot return through automatic recommendations");
         assert.doesNotThrow(() => quoteAiMediaCredits({ ...input, videoEngine: result.engine, videoResolution: model.defaultResolution }));
         const durations = getAiMediaVideoSegmentDurations(durationSeconds, model.id, model.defaultResolution, sceneMode);
         assert.ok(durations.length <= 2);

@@ -3,7 +3,7 @@ import "server-only";
 import { jsonSchema, tool } from "ai";
 import { normalizeAiMediaGenerationRequest, type AiMediaLibraryPickerItem, type AiMediaOutputFormat } from "./aiMediaGenerationContracts.ts";
 import { getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
-import { getAiMediaVideoEngineRetirementIssue, getAiMediaImageModel, getAiMediaVideoModel, getAiMediaVideoResolution, isAiMediaVideoEngineAvailable, type AiMediaImageEngine, type AiMediaVideoEngine, type AiMediaVideoResolution } from "./aiMediaModelCatalog.ts";
+import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoEngineRetirementIssue, getAiMediaImageModel, getAiMediaVideoModel, getAiMediaVideoResolution, isAiMediaVideoEngineAvailable, type AiMediaImageEngine, type AiMediaVideoEngine, type AiMediaVideoResolution } from "./aiMediaModelCatalog.ts";
 import { getAutomaticMediaVideoDurationOptions } from "./aiMediaVideoClientOptions.ts";
 import { permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
 import { inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
@@ -105,7 +105,7 @@ function parseInput(value: unknown): MediaInput {
     if (field === "references" ? false : ["useBusinessDna", "withMusic", "withNarration", "withSubtitles"].includes(field) ? typeof value !== "boolean"
       : field === "referenceMediaIds" ? !Array.isArray(value) || value.length > 5 || new Set(value).size !== value.length || value.some(id => typeof id !== "string" || !UUID_PATTERN.test(id))
         : field === "imageEngine" ? input.mediaType !== "image" || !["openai", "gemini", "flux", "grok", "recraft"].includes(String(value))
-          : field === "videoEngine" ? input.mediaType !== "video" || !["omni", "veo", "veo-lite", "minimax-h3", "wan-flash", "wan27", "wan3", "grok-lite", "grok"].includes(String(value)) || !isAiMediaVideoEngineAvailable(value as AiMediaVideoEngine)
+          : field === "videoEngine" ? input.mediaType !== "video" || !isAiMediaVideoEngineAvailable(value)
             : field === "narrationVoice" ? !["female", "male"].includes(String(value))
               : field === "teamVideoSpeechMode" ? !["voiceover", "characters"].includes(String(value))
                 : typeof value !== "string" || value.length > (field === "spokenScript" ? 4000 : field === "exactText" ? 1200 : 80)) throw new MediaToolError(`Réglage Studio incompatible : ${field}.`);
@@ -133,13 +133,25 @@ function parseModification(value: unknown): ModificationInput {
 export function chooseInrAssistantMediaEngine(input: MediaInput): { imageEngine?: AiMediaImageEngine; videoEngine?: AiMediaVideoEngine } {
   const brief = input.prompt.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   if (input.mediaType === "video") {
-    const dialogue = /\b(?:dialogue|parle|parler|dit|dire|voix|prononce|paroles|speech|speaking|narration)\b/.test(brief);
-    const preferred = dialogue ? "minimax-h3" : "grok-lite";
-    const engine = isAiMediaVideoEngineAvailable(preferred) ? preferred : "veo-lite";
-    if (!isAiMediaVideoEngineAvailable(engine) || !getAiMediaVideoModel(engine).supportsTextToVideo) {
+    // Speech is not a quality ranking. Use only active text-to-video models
+    // that support the requested numeric duration and optional resolution.
+    const settings = Object.fromEntries((input.settings ?? []).map(entry => [entry.field, JSON.parse(entry.valueJson) as unknown]));
+    const priority = ["grok-lite", "veo-lite"];
+    const candidates = [...AI_MEDIA_AVAILABLE_VIDEO_MODELS].sort((a, b) => {
+      const rank = (id: string) => priority.includes(id) ? priority.indexOf(id) : priority.length;
+      return rank(a.id) - rank(b.id);
+    });
+    const selected = candidates.find(model => {
+      if (!model.supportsTextToVideo || !isAiMediaVideoEngineAvailable(model.id)) return false;
+      try {
+        const resolution = getAiMediaVideoResolution(model.id, settings.videoResolution);
+        return getAutomaticMediaVideoDurationOptions(model.id, resolution).some(option => option.durationSeconds === (input.durationSeconds ?? 8));
+      } catch { return false; }
+    });
+    if (!selected) {
       throw new MediaToolError("La création vidéo est momentanément indisponible. Réessayez dans quelques instants.");
     }
-    return { videoEngine: engine };
+    return { videoEngine: selected.id };
   }
   const textBrief = brief.replace(/\b(?:(?:sans|without|no)\s+(?:aucun(?:e)?\s+)?|(?:pas\s+de|aucun(?:e)?)\s+)(?:texte|titre|slogan|text|headline|lettering)(?:\s*(?:ni|ou|and|or)\s*(?:texte|titre|slogan|text|headline|lettering))*\b/g, "");
   const visibleText = /\b(?:texte|titre|slogan|affiche|flyer|infographie|prix|tarif|text|headline|poster)\b|[«“"€$]/.test(textBrief);

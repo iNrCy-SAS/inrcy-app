@@ -140,8 +140,8 @@ test("both Studio guides retain recovery safeguards and the reviewed automatic-d
     for (const phrase of ["même tentative", "sans relance", "critères restent modifiables", "nouvelle génération attend sa résolution",
       "Annuler la génération", "confirmation distincte", "absence de débit", "Consignes ET Interdictions", "interdictions priment",
       "Basique sans crédits mensuels", "recharges permettent de générer sans changer d’offre", "plans automatiques en Studio Libre",
-      "choix explicite conservé", "moteurs disponibles", "Wan 3 retiré de tous les parcours de génération", "Femme/Homme", "Style de voix", "réglages IA si options utiles", "3 vocaux",
-      "voix off sans photo", "un narrateur actif", "droits à confirmer par le pro", "Import/enregistrement humains",
+      "choix explicite conservé", "moteurs disponibles", "Wan 3 et MiniMax H3 retirés de tous les parcours de génération", "Femme/Homme", "Style de voix", "réglages IA si options utiles", "3 vocaux",
+      "voix off sans photo", "Chatterbox hors moteur vidéo", "Personnage vocal : Wan 2.7 seul", "un narrateur actif", "droits à confirmer par le pro", "Import/enregistrement humains",
       "une resynthèse supplémentaire", "mêmes paroles/vocal", "jamais après erreur réseau/soumission incertaine", "ni substitution de voix",
       "durée mesurée", "départ estimé", "pas d’alignement mot à mot", "≈% vidéo estimés", "sans délai garanti"]) {
       assert.ok(guide.content.toLowerCase().includes(phrase.toLowerCase()), guide.id + ": " + phrase);
@@ -156,9 +156,11 @@ test("both Studio guides retain recovery safeguards and the reviewed automatic-d
 });
 
 test("Studio guide retirement agrees with the global catalogue without retiring Wan 2.6 or Wan 2.7 or erasing history", () => {
-  assert.equal(getAiMediaVideoEngineRetirementIssue("wan3")?.code, "AI_MEDIA_VIDEO_ENGINE_RETIRED");
-  assert.equal(isAiMediaVideoEngineAvailable("wan3"), false);
-  assert.equal(getAiMediaVideoModel("wan3").id, "wan3", "old results keep canonical metadata");
+  for (const engine of ["wan3", "minimax-h3"] as const) {
+    assert.equal(getAiMediaVideoEngineRetirementIssue(engine)?.code, "AI_MEDIA_VIDEO_ENGINE_RETIRED");
+    assert.equal(isAiMediaVideoEngineAvailable(engine), false);
+    assert.equal(getAiMediaVideoModel(engine).id, engine, "old results keep canonical metadata");
+  }
   for (const engine of ["wan-flash", "wan27"] as const) {
     assert.equal(getAiMediaVideoEngineRetirementIssue(engine), null);
     assert.equal(isAiMediaVideoEngineAvailable(engine), true);

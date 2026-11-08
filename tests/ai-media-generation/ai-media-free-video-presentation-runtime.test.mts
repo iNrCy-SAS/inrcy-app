@@ -197,7 +197,7 @@ test("une réplique exacte reste audible sans devenir un texte à incruster", as
 
 test("une narration séparée reste absente du moteur visuel quand la case Sous-titres est décochée", async () => {
   const line = "Notre équipe imagine ensemble sa prochaine campagne.";
-  const input = request({ videoEngine: "minimax-h3", withNarration: true, freePrompt: `${brief} Affiche les sous-titres de la voix off.` });
+  const input = request({ videoEngine: "grok-lite", videoResolution: "720p", withNarration: true, freePrompt: `${brief} Affiche les sous-titres de la voix off.` });
   const runtime = loadPlanner({ direction: "La femme marche vers la salle de réunion avec ses collègues ; les sous-titres demandés accompagnent la voix off.", scenes: ["Les collègues entrent dans la salle de réunion."] });
   const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile });
   const transport = prompts.buildAiMediaFreeVideoScenePrompt(provider(input, plan, [line]), 0, 15);
