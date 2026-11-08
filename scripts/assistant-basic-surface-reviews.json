@@ -2020,7 +2020,7 @@
     "tests/dashboard/google-business-profile-save-runtime.test.mts": "b11c8da2a39a1e4d40716a54cfc89812c55abd420a6d2311fad5260b374768cb",
     "tests/dashboard/native-public-channel-links-browser.test.mts": "0ff518e26bfaa2329f52d89e0ebe9c407addd15d981516632cc69cf2346bbe12",
     "tests/dashboard/settings-drawer-tab-navigation-runtime.test.mts": "e02aa30e186c730bfed7b1474a3d5bcca2c39e090c27ed9e7cccd81838b0d847",
-    "tests/dashboard/studio-video-brief-speech-browser.test.mts": "01ea207ca7fef29edea668655270e2d4e41b935e2b48f33798db15867ead97a8",
+    "tests/dashboard/studio-video-brief-speech-browser.test.mts": "7f73bf4de6abd0882fc698332c95302cadd489a3ab38c1dd8ab55b6c0767605e",
     "tests/inragent/agent-basic-planning-runtime.test.mts": "441c1a41a6c4375fe386121d0b3bc13c78c2562c866528228c03ad73d58a68af",
     "tests/inragent/runtime-module-loader.mts": "327a90b0230ad8f145206c508470561d785da2d2f4a5deb7f83d743c3eb03099",
     "tests/inrsend/inrsend-history-readonly-agent-navigation.test.mts": "f225f03df406f5286f4e6d70ef4e1f91c833b34ddc4e0bdb88fc19840f83123e",

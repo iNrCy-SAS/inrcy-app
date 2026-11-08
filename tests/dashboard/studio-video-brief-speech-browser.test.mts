@@ -67,7 +67,7 @@ function require(name){
    pauseRecovery:()=>{if(!state.checking||state.cancelling)return false;window.recoveryOperations.pauses++;state.checking=false;state.pending=true;window.refreshRecovery();if(window.rejectRecovery){const error=new Error('Recovery paused');error.name='MediaGenerationRecoveryPausedError';window.rejectRecovery(error);window.rejectRecovery=null}return true},
    cancelRecovery:async()=>{window.recoveryOperations.cancels++},cancelGeneration:()=>{window.recoveryOperations.cancels++;return false}};
  },MediaGenerationAccountChangedError:class extends Error{},MediaGenerationCancelledError:class extends Error{}};
- if(name.endsWith('useMediaEnginePreference'))return {__esModule:true,default:()=>{const[value,setValue]=React.useState({imageEngine:'openai',videoEngine:'wan3',videoResolution:'720p'});return {...value,update:patch=>setValue(current=>({...current,...patch}))}}};
+ if(name.endsWith('useMediaEnginePreference'))return {__esModule:true,default:()=>{const restore=require('lib/aiMediaModelCatalog.ts').restoreAiMediaVideoPreference;const[value,setValue]=React.useState(()=>({imageEngine:'openai',...restore('wan3','720p')}));return {...value,update:patch=>setValue(current=>{const candidate={...current,...patch};return {...candidate,...restore(candidate.videoEngine,candidate.videoResolution)}})}}};
  if(name.endsWith('useMediaCreditQuote'))return {__esModule:true,default:(input,quota,enabled)=>{window.studioQuotes.push({...input,enabled});return {ready:true,insufficient:false,authorization:{expectedCredits:88,creditQuoteId:'fixture-quote'},quote:{totalCredits:88}}}};
  if(name.endsWith('useInrAssistantLocalInterface'))return {useInrAssistantLocalInterface:(id,snapshot,handlers,enabled,locked)=>{React.useLayoutEffect(()=>{window.fixtureStudioInterfaces[id]={snapshot,handlers,enabled,locked}})}};
  if(name==='@/lib/mediaGenerationReferenceClient')return {async prepareMediaGenerationImageReference(file){if(!window.fixtureReferencePreparationEnabled)throw Error('No uploads allowed');window.referencePreparations++;return {name:file.name,data:window.fixtureReferencePng,mimeType:'image/png'}},prepareMediaGenerationLibraryReferenceFile(){throw Error('No uploads allowed')}};
@@ -644,6 +644,7 @@ test("real assistant callbacks focus the mounted video sections including same-v
   try {
     const page = await browser.newPage({ viewport: { width: 1366, height: 768 } });
     const errors = await mount(page);
+    assert.equal(await page.evaluate(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_free_form.snapshot as { videoEngine?: string }).videoEngine), "omni", "the real catalogue restore migrates the retired cached fixture before native assistant controls");
     for (const field of ["prompt", "criteria", "prompt"]) {
       await page.locator('select[id$="-media-format"]').focus();
       const before = await page.evaluate(value => {
