@@ -1032,7 +1032,7 @@
   "ai_generator_character_voice_file_error": "Choose an MP3 or WAV file up to 3 MB.",
   "ai_generator_character_voice_duration_error": "The voice sample must last between 1 and 10 seconds.",
   "ai_generator_character_voice_sample_missing": "Upload a voice sample for each character using a provided voice.",
-  "ai_generator_character_voice_engine_required": "For a supplied voice, choose Wan 2.7 or Wan 3.0.",
+  "ai_generator_character_voice_engine_required": "For a supplied voice, choose Wan 2.7.",
   "ai_generator_character_voice_speech_required": "Provided voices are used in Characters audio mode.",
   "ai_generator_character_voice_switch_characters": "Use Characters audio",
   "ai_generator_character_voice_preview": "Listen to this character’s voice sample",

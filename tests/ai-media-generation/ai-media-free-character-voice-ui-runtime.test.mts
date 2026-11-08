@@ -95,7 +95,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     ["react", react], ["react/jsx-runtime", { jsx, jsxs: jsx }],
     ["react-dom", { createPortal: (content: Element) => content }],
     ["next-intl", { useLocale: () => options.locale || "fr-FR", useTranslations: () => (key: string, values?: Record<string, string | number>) => {
-      if (key.startsWith("ai_generator_video_")) return (frenchMessages[key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
+      if (key.startsWith("ai_generator_video_") || key === "ai_generator_character_voice_engine_required") return (frenchMessages[key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
       if (key === "ai_generator_final_authorization_images_label" || key === "ai_generator_final_authorization_voices_label") return frenchMessages[key].replace("{provider}", String(values?.provider || ""));
       if (key === "ai_generator_final_authorization_short" || key === "ai_generator_final_authorization_details") return frenchMessages[key];
       return values?.credits ? `${key} ${values.credits}` : key;
@@ -846,6 +846,22 @@ test("the real Free voice import enables only supported engines and aligns quote
   const engines = h.renderEngines(); const engineMenu = find(engines, (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
   const options = elements(engineMenu).filter((node) => node.type === "option");
   for (const option of options) assert.equal(option.props.disabled, !voiceRules.isAiMediaCharacterVoiceEngine(String(option.props.value).split(":")[0]));
+  const activeVoiceEngines = voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(models.isAiMediaVideoEngineAvailable);
+  assert.deepEqual(activeVoiceEngines, ["wan27"], "recommend only current engines while historical capability metadata stays intact");
+  assert.deepEqual(voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, ["wan27", "wan3", "heygen"]);
+  const status = elements(engines).filter(node => node.props.role === "status").map(text).find(value => value.includes("Voix fournie"));
+  assert.ok(status, "the real restricted-engine menu keeps its useful visible status");
+  assert.match(status, /Wan 2\.7/);
+  assert.doesNotMatch(status, /Wan 3|HeyGen/i);
+  for (const option of options.filter(option => option.props.disabled)) {
+    assert.match(text(option), /Wan 2\.7/, "each disabled option points to the current supplied-voice engine");
+    assert.doesNotMatch(text(option), /Wan 3|HeyGen/i);
+  }
+  for (const locale of ["de-DE", "en-GB", "es-ES", "fr-FR", "it-IT", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
+    const hint = (JSON.parse(read(`messages/${locale}/media.json`)) as Record<string, string>).ai_generator_character_voice_engine_required;
+    assert.match(hint, /Wan 2\.7/, locale);
+    assert.doesNotMatch(hint, /Wan 3|HeyGen/i, locale);
+  }
   await h.generate(); assert.equal(h.requests.length, 0, "a selected supplied voice without a vocal cannot generate");
   await h.uploadVoice(0); assert.equal(h.uploads.length, 1); assert.equal(h.uploads[0].get("file") instanceof File, true);
   await h.generate(); assert.equal(h.requests.length, 0, "the real consent checkbox still gates generation");
