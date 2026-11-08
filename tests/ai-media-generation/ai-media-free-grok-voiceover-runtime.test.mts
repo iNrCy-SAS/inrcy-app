@@ -12,6 +12,7 @@ import test from "node:test";
 import ts from "typescript";
 
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
+import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel } from "../../lib/aiMediaModelCatalog.ts";
 import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover } from "../../lib/aiMediaFreeVoiceoverPolicy.ts";
 import * as sensitive from "../../lib/aiMediaSensitiveText.ts";
 import * as agentVideoFallback from "../../lib/inrAgentVideoFallback.ts";
@@ -26,6 +27,9 @@ import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 
 type Row = Record<string, unknown>;
+// Direct-server fixtures retain pre-existing HeyGen behavior. Its selection
+// availability is unchanged; new Wan3 requests alone are retired in this release.
+const EXECUTION_MODELS = [...AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel("heygen")];
 
 const comparisonFlag = "AI_MEDIA_NATIVE_FINAL_FRAME_COMPARISON_ENABLED";
 function enabledComparisonTest(name: string, action: () => Promise<void> | void) {
@@ -47,6 +51,8 @@ function request(engine: contracts.AiMediaVideoEngine, overrides: Row = {}) {
   return contracts.normalizeAiMediaGenerationRequest({ requestId: "separate-free-voiceover-test", source: "studio", operation: "generate",
     creationMode: "free", kind: "video", format: "story", videoEngine: engine, videoResolution: "720p", durationSeconds: 15,
     sceneMode: "single", teamVideoSpeechMode: "voiceover", withNarration: true, narrationVoice: "male", narrationVoiceVariant: "Puck",
+    inspirationImages: engine === "wan27"
+      ? [{ mimeType: "image/png", data: "A".repeat(88), role: "product", usage: "inspiration" }] : [],
     withMusic: false, freePrompt: `Une céramiste façonne un vase. Voix off exacte : « ${script} »`, ...overrides });
 }
 
@@ -221,7 +227,7 @@ for (const nativeMode of ["characters", "voiceover"] as const) {
   }
 }
 
-for (const engine of ["wan27", "wan3", "heygen"] as const) {
+for (const engine of ["wan27", "heygen"] as const) {
   for (const characterCount of [1, 2]) test(`${engine}: real Free server preserves ${characterCount} original character references and their own supplied voices without precomposition or fallback`, async () => {
     const now = Date.now();
     const voiceSample = { path: `_studio-voice-references/${new Date(now).toISOString().slice(0, 10)}/test-account__${now}__${randomUUID()}.wav`,
@@ -339,9 +345,9 @@ test("Veo fallback retains silent video delivery and locally rendered narration 
   assert.equal(original.withNarration, true);
 });
 
-test("Wan3 forwards the remaining absolute deadline while preserving two clips and final composition", async () => {
+test("Grok Lite forwards the remaining absolute deadline while preserving two clips and final composition", async () => {
   const env = harness(), workDeadline = Date.now() + 760_000;
-  await env.generate(request("wan3", { durationSeconds: 30, videoResolution: "1080p", sceneMode: "multi", withNarration: false }), { deadlineAt: workDeadline });
+  await env.generate(request("grok-lite", { durationSeconds: 30, videoResolution: "1080p", sceneMode: "multi", withNarration: false }), { deadlineAt: workDeadline });
   assert.equal(env.videoCalls.length, 1);
   assert.equal(env.videoCalls[0].deadlineAt, workDeadline - 45_000);
   const sent = env.videoCalls[0].request as contracts.AiMediaGenerationRequest;
@@ -378,7 +384,7 @@ test("voiceover subtitles reach local composition with Exact words while the sil
     assert.equal(original.withSubtitles, withSubtitles, "the selected checkbox remains authoritative in the original request");
   }
   const native = harness();
-  await native.generate(request("wan3", { teamVideoSpeechMode: "characters", withNarration: false, withSubtitles: true }));
+  await native.generate(request("grok-lite", { teamVideoSpeechMode: "characters", withNarration: false, withSubtitles: true }));
   assert.equal((native.videoCalls[0].request as Row).withSubtitles, true, "native dialogue retains its existing provider caption path");
   assert.equal(native.composeCalls[0].subtitles, undefined);
 });
@@ -410,7 +416,7 @@ test("a composition failure cannot silently remove requested narration in free o
 });
 
 test("checked ADN retains the same video path and adds only the official identity, without an extra paid frame", async () => {
-  for (const engine of ["omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash", "grok", "grok-lite"] as const) {
+  for (const { id: engine } of AI_MEDIA_AVAILABLE_VIDEO_MODELS) {
     const env = harness(undefined, true);
     const input = request(engine, { useBusinessDna: true, durationSeconds: 8, videoResolution: engine === "minimax-h3" ? "768p" : "720p", withNarration: false, freePrompt: "Une céramiste façonne un vase." });
     const before = structuredClone(input);
@@ -429,7 +435,7 @@ test("checked ADN retains the same video path and adds only the official identit
 });
 
 test("all free engines separate narration, never characters or transforms; only Grok needs a seed", () => {
-  for (const videoEngine of ["grok", "grok-lite", "omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash", "heygen"] as const) {
+  for (const { id: videoEngine } of EXECUTION_MODELS) {
     const base = { ...request("grok"), videoEngine };
     assert.equal(usesSeparateAiMediaFreeVoiceover(base), true, videoEngine);
     assert.equal(needsControlledAiMediaFreeFirstFrame(base), videoEngine === "grok" || videoEngine === "grok-lite", videoEngine);
@@ -491,8 +497,8 @@ for (const engine of ["grok", "grok-lite"] as const) {
   });
 }
 
-test("all nine free engines without speech mute native audio and preserve optional instrumental music without any narration call", async () => {
-  for (const engine of ["grok", "grok-lite", "omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash", "heygen"] as const) {
+test("available free engines and historical HeyGen without speech mute native audio and preserve optional instrumental music without any narration call", async () => {
+  for (const { id: engine } of EXECUTION_MODELS) {
     for (const withMusic of [false, true]) {
       const label = `${engine}, music=${withMusic}`;
       const env = harness();
@@ -528,7 +534,7 @@ test("all nine free engines without speech mute native audio and preserve option
 });
 
 test("all other free engines prepare one TTS before video and mute native audio; guided narration is unchanged", async () => {
-  for (const engine of ["omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash", "heygen"] as const) {
+  for (const { id: engine } of EXECUTION_MODELS.filter(model => !["grok", "grok-lite"].includes(model.id))) {
     const env = harness(), original = request(engine, { durationSeconds: 8, videoResolution: engine === "minimax-h3" || engine === "heygen" ? "768p" : "720p" });
     const before = structuredClone(original);
     await env.generate(original);

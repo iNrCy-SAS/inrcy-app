@@ -972,6 +972,7 @@ export default function MediaFreeGenerator({
   };
   const assistantFormSnapshot: InrAssistantStudioFormSnapshot = {
     mode: "free", kind, locked: operationLocked, editorVisible: editorAvailable && !stopConfirmOpen,
+    automaticSceneMode: source === "studio",
     fixedFormat, maxPromptLength: maxUserPromptLength, activeTab: activeSettingsTab, prompt, useBusinessDna, format,
     videoEngine: selectedVideoEngine, videoResolution, language: locale,
     durationScene: { seconds: duration, sceneMode }, speechMode, spokenScript, spokenScriptOpen,

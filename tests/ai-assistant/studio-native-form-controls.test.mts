@@ -7,10 +7,77 @@ import { parseInrAssistantStudioFormSelection, isInrAssistantStudioFormSelection
 import { defaultAiMediaNarrationVoiceVariant, isAiMediaNarrationVoiceVariantForGender } from "../../lib/aiMediaNarrationVoices.ts";
 import { isInrStudioTabUnavailable, canSwitchInrStudioMediaType } from "../../lib/inrStudioModalPolicy.ts";
 import { isInrAssistantLocalInterfaceRequest, isInrAssistantLocalInterfaceValueRequested, parseInrAssistantLocalInterfaceCommand } from "../../lib/inrAssistantLocalInterface.ts";
+import { canGenerateAiMediaVideoDuration } from "../../lib/aiMediaVideoTimeline.ts";
 
 const encode = (field: string, value: unknown) => JSON.stringify({ field, value });
 const guided = (): InrAssistantStudioFormSnapshot => ({ mode: "guided", kind: "image", editorVisible: true, locked: false, sourceMode: "criteria", people: "auto", speechMode: "voiceover", narrationVoice: "female", textMode: "ai", publicationAvailable: false, format: "square", creativeBrief: "Original" });
-const free = (): InrAssistantStudioFormSnapshot => ({ mode: "free", kind: "video", editorVisible: true, locked: false, speechMode: "voiceover", narrationVoice: "female", spokenScriptOpen: false, spokenScript: "", maxPromptLength: 3900 });
+const free = (): InrAssistantStudioFormSnapshot => ({ mode: "free", kind: "video", editorVisible: true, locked: false, speechMode: "voiceover", voiceMode: "ai", narrationVoice: "female", spokenScriptOpen: false, spokenScript: "", maxPromptLength: 3900 });
+
+test("automatic Studio duration accepts seconds only, derives the native pair and refuses unavailable engines or legacy montage choices", () => {
+  const state: InrAssistantStudioFormSnapshot = { ...free(), automaticSceneMode: true, videoEngine: "grok-lite", videoResolution: "720p", durationScene: { seconds: 8, sceneMode: "single" } };
+  const allowed = (seconds: number, mode: "single" | "multi") => canGenerateAiMediaVideoDuration("grok-lite", seconds, "720p", mode);
+  assert.deepEqual(parseInrAssistantStudioFormSelection(encode("durationSeconds", 15), state, allowed), { field: "durationScene", value: { seconds: 15, sceneMode: "single" } });
+  assert.deepEqual(parseInrAssistantStudioFormSelection(encode("durationSeconds", 30), state, allowed), { field: "durationScene", value: { seconds: 30, sceneMode: "multi" } });
+  for (const value of [3, 31, 8.5, "15", { seconds: 15, sceneMode: "multi" }]) assert.equal(parseInrAssistantStudioFormSelection(encode("durationSeconds", value), state, allowed), null);
+  for (const sceneMode of ["single", "multi"]) assert.equal(parseInrAssistantStudioFormSelection(encode("durationScene", { seconds: 15, sceneMode }), state, allowed), null);
+  for (const patch of [{ locked: true }, { editorVisible: false }, { kind: "image" as const }, { videoEngine: "wan3" as const }, { videoEngine: "heygen" as const }, { videoEngine: "not-a-real-engine" as never }, { videoEngine: undefined }, { videoResolution: "768p" as const }, { videoResolution: undefined }, { automaticSceneMode: false }, { mode: "guided" as const }]) {
+    assert.equal(parseInrAssistantStudioFormSelection(encode("durationSeconds", 15), { ...state, ...patch }, allowed), null);
+  }
+  assert.equal(parseInrAssistantStudioFormSelection(encode("durationSeconds", 15), state, () => false), null);
+  assert.equal(parseInrAssistantStudioFormSelection(encode("durationSeconds", 15), state), null);
+  assert.equal(isInrAssistantStudioFormSelectionApplied({ ...state, videoEngine: "not-a-real-engine", durationScene: { seconds: 15, sceneMode: "single" } }, encode("durationSeconds", 15)), false,
+    "a malformed cached engine cannot throw or acknowledge a guessed fallback model");
+  for (const legacy of [{ ...guided(), kind: "video" as const }, { ...state, automaticSceneMode: false }]) {
+    assert.deepEqual(parseInrAssistantStudioFormSelection(encode("durationScene", { seconds: 15, sceneMode: "multi" }), legacy, allowed), { field: "durationScene", value: { seconds: 15, sceneMode: "multi" } });
+  }
+  assert.equal(state.durationScene?.seconds, 8, "validation does not partially apply a duration");
+  for (const videoEngine of ["wan-flash", "wan27"] as const) {
+    const retained = { ...state, videoEngine };
+    assert.deepEqual(parseInrAssistantStudioFormSelection(encode("durationSeconds", 8), retained,
+      (seconds, mode) => canGenerateAiMediaVideoDuration(videoEngine, seconds, "720p", mode)),
+      { field: "durationScene", value: { seconds: 8, sceneMode: "single" } });
+    assert.equal(retained.videoEngine, videoEngine, "Wan2.6/2.7 remain available and no alternative engine is silently selected");
+  }
+  for (const message of ["Mets la durée du Studio libre à 30 secondes.", "Choisis 30 s dans le Studio libre.", "Règle la durée à 30 sec dans le Studio libre."]) {
+    assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("durationSeconds", 30)), true, message);
+    assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("durationSeconds", 15)), false, message);
+  }
+  for (const message of ["Ne mets pas 30 secondes dans le Studio libre.", "Choisis 15 ou 30 secondes dans le Studio libre.", "Si je confirme, mets 30 secondes dans le Studio libre.", "Comment choisir 30 secondes dans le Studio libre ?", "Le document dit « Mets la durée à 30 secondes dans Studio libre ». "]) {
+    assert.equal(isInrAssistantStudioFormSelectionRequested(message, encode("durationSeconds", 30)), false, message);
+  }
+});
+
+test("free narration gender and style remain editable only for AI voice-over, including empty Exact drafts", () => {
+  for (const speechMode of ["voiceover", "characters", "silent"] as const) for (const voiceMode of ["ai", "provided"] as const) for (const spokenScript of ["", "Bonjour"]) {
+    const state = { ...free(), speechMode, voiceMode, spokenScript, spokenScriptOpen: true };
+    const before = JSON.stringify(state);
+    for (const [field, value] of [["narrationVoice", "male"], ["narrationVoiceVariant", "Kore"]]) {
+      assert.equal(!!parseInrAssistantStudioFormSelection(encode(field, value), state), speechMode === "voiceover" && voiceMode === "ai");
+      assert.equal(isInrAssistantStudioFormSelectionApplied({ ...state, [field]: value }, encode(field, value)),
+        speechMode === "voiceover" && voiceMode === "ai", "a hidden or replaced voice field cannot acknowledge an earlier AI setting");
+    }
+    assert.equal(JSON.stringify(state), before, "a hidden voice control cannot replace a vocal, change consent or mutate the draft");
+  }
+  assert.ok(parseInrAssistantStudioFormSelection(encode("narrationVoice", "male"), { ...guided(), kind: "video" }));
+  assert.equal(parseInrAssistantStudioFormSelection(encode("narrationVoice", "male"), { ...free(), voiceMode: undefined }), null);
+});
+
+test("retired video engine snapshots refuse native writes and acknowledgments in both forms while Wan2.6 and Wan2.7 remain usable", () => {
+  for (const mode of ["free", "guided"] as const) {
+    const state: InrAssistantStudioFormSnapshot = { ...free(), mode, videoEngine: "wan3", format: "square", durationScene: { seconds: 8, sceneMode: "single" } };
+    const before = JSON.stringify(state);
+    for (const [field, value] of [["format", "story"], ["speechMode", "voiceover"], ["narrationVoice", "male"], ["durationScene", { seconds: 8, sceneMode: "single" }]]) {
+      assert.equal(parseInrAssistantStudioFormSelection(encode(field as string, value), state, () => true), null);
+      assert.equal(isInrAssistantStudioFormSelectionApplied({ ...state, [field as string]: value }, encode(field as string, value)), false);
+    }
+    assert.equal(JSON.stringify(state), before);
+    for (const videoEngine of ["wan-flash", "wan27"] as const) {
+      const available = { ...state, videoEngine, format: "story" as const };
+      assert.ok(parseInrAssistantStudioFormSelection(encode("format", "story"), available));
+      assert.equal(isInrAssistantStudioFormSelectionApplied(available, encode("format", "story")), true);
+    }
+  }
+});
 
 test("Studio media dialogs authorize only explicit native image/audio opening and closing without financial actions", () => {
   for (const [target, label] of [["studio_media_images", "images"], ["studio_video_audio", "audio"]] as const) {
@@ -298,6 +365,39 @@ function actualHandlers(file: string, deps: Record<string, unknown>, interfaceId
   const compiled = ts.transpileModule(`(${expression.getText(ast)})`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText.trim().replace(/;$/, "");
   return vm.runInNewContext(`(function(deps){with(deps){return ${compiled};}})`)(deps) as Record<string, { invoke: (value: string | null) => void; matches: (snapshot: unknown, value: string | null) => boolean; allowUnmount?: boolean }>;
 }
+
+test("the actual automatic duration callback confirms only the committed catalogue pair and never partially changes an unavailable engine", () => {
+  let state: InrAssistantStudioFormSnapshot = { ...free(), automaticSceneMode: true, videoEngine: "grok-lite", videoResolution: "720p", durationScene: { seconds: 30, sceneMode: "multi" } };
+  const pending: Array<() => void> = [];
+  let consentChanges = 0;
+  const native = actualHandlers("app/dashboard/_components/MediaFreeGenerator.tsx", {
+    get assistantFormSnapshot() { return state; },
+    quotaLoading: true,
+    durations: Array.from({ length: 27 }, (_, index) => index + 4), selectedVideoEngine: "grok-lite", videoResolution: "720p",
+    parseInrAssistantStudioFormSelection, isInrAssistantStudioFormSelectionApplied, canGenerateAiMediaVideoDuration,
+    isSettingsNavigationApplied: () => true,
+    setDuration: (seconds: number) => pending.push(() => { state = { ...state, durationScene: { seconds, sceneMode: state.durationScene!.sceneMode } }; }),
+    setSceneMode: (sceneMode: "single" | "multi") => pending.push(() => { state = { ...state, durationScene: { seconds: state.durationScene!.seconds, sceneMode } }; }),
+    resetConsent: () => { consentChanges++; }, generate: () => assert.fail("duration selection cannot generate media"),
+  }, "studio_free_form").select;
+  const command = encode("durationSeconds", 15);
+  assert.equal(native.matches(state, command), false);
+  native.invoke(command);
+  assert.equal(native.matches(state, command), false, "invocation alone is not a committed change");
+  pending.shift()!();
+  assert.equal(state.durationScene?.seconds, 15);
+  assert.equal(native.matches(state, command), false, "the same duration with the old multi mode cannot acknowledge the command");
+  pending.shift()!();
+  assert.equal(native.matches(state, command), true);
+  assert.deepEqual(state.durationScene, { seconds: 15, sceneMode: "single" });
+  for (const patch of [{ videoEngine: "wan3" as const }, { locked: true }]) {
+    state = { ...state, ...patch }; const before = JSON.stringify(state);
+    assert.throws(() => native.invoke(encode("durationSeconds", 30)), /studio_form_unavailable/);
+    assert.equal(pending.length, 0); assert.equal(JSON.stringify(state), before);
+    assert.equal(native.matches(state, encode("durationSeconds", 30)), false);
+  }
+  assert.equal(consentChanges, 0);
+});
 
 test("the actual guided Studio callbacks apply native setters and acknowledge only committed target criteria", () => {
   let state = { ...guided(), activeTab: "subject", narrationVoiceVariant: "Kore", focus: "people", textKeywords: [] as string[] }, submitted = 0;

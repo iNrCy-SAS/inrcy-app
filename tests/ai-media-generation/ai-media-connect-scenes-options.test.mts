@@ -126,7 +126,7 @@ test("une scène continue raccorde automatiquement deux clips, deux scènes rest
   for (const durationSeconds of [0, 1, 3, 4.5, 31]) assert.throws(() => normalize({ durationSeconds }), AiMediaRequestValidationError);
   assert.throws(() => normalize({ durationSeconds: 24 }), AiMediaRequestValidationError, "Omni ne produit pas un troisième clip");
   assert.throws(() => normalize({ durationSeconds: 7, sceneMode: "multi" }), AiMediaRequestValidationError);
-  assert.equal(normalize({ videoEngine: "wan3", durationSeconds: 30 }).connectScenes, false, "Wan 3 produit 30 s nativement");
+  assert.throws(() => normalize({ videoEngine: "wan3", durationSeconds: 30 }), /Wan 3\.0.*autre moteur/, "Wan 3 historical native duration does not authorize a new request");
   assert.equal(normalize({ videoEngine: "grok-lite", durationSeconds: 30 }).connectScenes, true);
 });
 
@@ -271,25 +271,29 @@ test("character voice preflight blocks missing samples, other engines and voiceo
   const voiceSample = { path: "opaque-owned-path.wav", name: "vocal.wav", mimeType: "audio/wav" as const, durationSeconds: 2, sizeBytes: 64_044 };
   const complete = { ...request, inspirationImages: [{ ...reference, voiceSample }] };
   await assert.rejects(hook.generate({ ...complete, teamVideoSpeechMode: "voiceover" }), /mode Personnages/);
-  await assert.rejects(hook.generate({ ...complete, videoEngine: "omni" }), /Wan 2\.7 ou Wan 3/);
+  await assert.rejects(hook.generate({ ...complete, videoEngine: "omni" }), /Wan 2\.7/);
   assert.equal(requests.length, 0);
 });
 
-test("each reviewed voice engine reaches request serialization while Wan 3 rejects aggregate audio overflow before network", async () => {
+test("available supplied voices reach serialization while retired Wan3 is blocked before network without discarding samples", async () => {
   const { runtime, requests } = hookRuntime(); const hook = runtime.default();
   const sample = { path: "opaque-owned-path.wav", name: "voice.wav", mimeType: "audio/wav" as const, durationSeconds: 5, sizeBytes: 160_044 };
   const reference = { mimeType: "image/jpeg" as const, data: Buffer.alloc(96, 1).toString("base64"), name: "portrait.jpg", role: "character" as const, usage: "inspiration" as const, characterIndex: 1 as const, voiceMode: "provided" as const, voiceSample: sample };
-  for (const videoEngine of ["wan27", "wan3"] as const) {
+  for (const videoEngine of ["wan27"] as const) {
     await assert.rejects(hook.generate(clientRequest({ videoEngine, inputMode: "essential", durationSeconds: 8, identityMode: "auto", identityConsent: true, teamVideoSpeechMode: "characters", inspirationImages: [reference] })), { message: "Fixture serialization validated" });
     assert.equal(requests.at(-1)?.videoEngine, videoEngine);
     assert.deepEqual((requests.at(-1)?.inspirationImages as Array<Record<string, unknown>>)[0].voiceSample, sample);
     assert.equal(requests.at(-1)?.identityConsent, true);
   }
   const references = [1, 2, 3].map((index) => ({ ...reference, characterIndex: index as 1 | 2 | 3 }));
-  const allowed = clientRequest({ videoEngine: "wan3", durationSeconds: 8, teamVideoSpeechMode: "characters", inspirationImages: references });
+  const allowed = clientRequest({ videoEngine: "wan27", durationSeconds: 8, teamVideoSpeechMode: "characters", inspirationImages: references });
   await assert.rejects(hook.generate(allowed), { message: "Fixture serialization validated" });
   const sent = requests.length;
   const excessive = references.map((image, index) => index === 2 ? { ...image, voiceSample: { ...image.voiceSample, durationSeconds: 5.1 } } : image);
-  await assert.rejects(hook.generate({ ...allowed, inspirationImages: excessive }), /Wan 3.*15 secondes.*Raccourcissez/);
+  for (const inspirationImages of [references, excessive]) {
+    const retired = { ...allowed, videoEngine: "wan3" as const, inspirationImages }, before = JSON.stringify(retired);
+    await assert.rejects(hook.generate(retired), /Wan 3\.0.*autre moteur/);
+    assert.equal(JSON.stringify(retired), before, "retirement never truncates or replaces the vocal associations");
+  }
   assert.equal(requests.length, sent);
 });

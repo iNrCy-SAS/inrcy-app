@@ -164,12 +164,21 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
 // Retired engines remain in the canonical catalogue for saved results and jobs.
 // New selections and quotes must use this availability list.
 export const AI_MEDIA_AVAILABLE_VIDEO_MODELS = Object.freeze(
-  AI_MEDIA_VIDEO_MODELS.filter((model) => model.id !== "heygen"),
+  AI_MEDIA_VIDEO_MODELS.filter((model) => model.id !== "heygen" && model.id !== "wan3"),
 );
 
 export function isAiMediaVideoEngineAvailable(engine: unknown): boolean {
   const id = normalizeAiMediaVideoEngine(engine);
   return AI_MEDIA_AVAILABLE_VIDEO_MODELS.some((model) => model.id === id);
+}
+
+/** New Wan 3 requests are retired globally; canonical metadata stays readable. */
+export function getAiMediaVideoEngineRetirementIssue(engine: unknown): {
+  code: "AI_MEDIA_VIDEO_ENGINE_RETIRED"; message: string;
+} | null {
+  return normalizeAiMediaVideoEngine(engine) === "wan3" && !isAiMediaVideoEngineAvailable(engine)
+    ? { code: "AI_MEDIA_VIDEO_ENGINE_RETIRED", message: "Wan 3.0 n’est plus proposé. Choisissez un autre moteur disponible ; vos autres réglages sont conservés." }
+    : null;
 }
 
 export function restoreAiMediaVideoPreference(engine: unknown, resolution: unknown): {

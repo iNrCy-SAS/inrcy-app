@@ -106,11 +106,36 @@ test("unknown/prototype fields, type confusion and guessed TikTok disclosures ar
   assert.equal((await h.tools.updateToolSettings.execute(change("tiktok", message, "defaults.aiContent", true))).status, "confirmation_required");
 });
 test("Studio modifies one saved block and preserves its other criteria", async () => {
-  const message = "Mets le format portrait dans iNrStudio pour mes images."; const h = harness({ message });
+  const message = "Enregistre le format portrait dans les préférences iNrStudio pour mes images."; const h = harness({ message });
   const result = await h.tools.updateToolSettings.execute(change("studio", message, "2.format", "portrait"));
   assert.equal(result.status, "saved"); const write = h.calls.find(call => call.method === "PATCH")!;
   assert.equal(write.body?.blockId, 2); assert.equal((write.body?.defaults as Row).typology, "service");
   assert.equal((write.body?.defaults as Row).format, "portrait");
+});
+test("Studio Libre changes cannot persist legacy montage preferences or acknowledge a different form", async () => {
+  const message = "Enregistre les réglages du Studio libre pour cette vidéo.";
+  for (const [field, value] of [["3.sceneMode", "multi"], ["6.connectScenes", true], ["6.durationSeconds", 30]]) {
+    const h = harness({ message });
+    const result = await h.tools.updateToolSettings.execute(change("studio", message, field as string, value));
+    assert.equal(result.ok, false); assert.equal(result.status, "native_form_required");
+    assert.equal(h.calls.length, 0, "no preference read/write or other native operation starts for Libre");
+  }
+  const direct = "Mets le format portrait dans iNrStudio pour mes images.";
+  const h = harness({ message: direct });
+  assert.equal((await h.tools.updateToolSettings.execute(change("studio", direct, "2.format", "portrait"))).status, "needs_instruction");
+  assert.equal(h.calls.length, 0, "an ordinary form change is not an instruction to persist defaults");
+});
+test("legacy Studio montage preferences remain explicit saved defaults with no claim to change the Libre form", async () => {
+  for (const [field, value] of [["3.sceneMode", "multi"], ["6.connectScenes", true]]) {
+    const message = "Enregistre mes réglages de montage dans les préférences du Studio guidé.";
+    const h = harness({ message });
+    const read = await h.tools.readToolSettings.execute({ tool: "studio" });
+    assert.equal(read.settingsScope, "guided_saved_preferences"); assert.equal(read.formChanged, false);
+    const result = await h.tools.updateToolSettings.execute(change("studio", message, field as string, value));
+    assert.equal(result.status, "saved"); assert.equal(result.settingsScope, "guided_saved_preferences"); assert.equal(result.formChanged, false);
+    assert.match(String(result.scopeMessage), /ne modifient pas le formulaire Libre/);
+    assert.equal(h.calls.filter(call => call.method === "PATCH").length, 1);
+  }
 });
 test("Badge preserves existing hidden toggles and documents use native partial settings", async () => {
   const quote = "Active mon téléphone sur iNrBadge."; const h = harness({ message: quote });

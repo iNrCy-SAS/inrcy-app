@@ -48,7 +48,7 @@ test("automatic Studio duration keeps every supported length and prefers a singl
 
 test("the single dropdown contains only real engine/resolution pairs and their exact credit rates", () => {
   const choices = getMediaVideoEngineQualityChoices();
-  assert.equal(choices.length, 16);
+  assert.equal(choices.length, AI_MEDIA_AVAILABLE_VIDEO_MODELS.reduce((total, model) => total + model.resolutions.length, 0));
   assert.equal(new Set(choices.map((choice) => choice.value)).size, choices.length);
   for (const choice of choices) {
     const model = getAiMediaVideoModel(choice.engine);
@@ -68,13 +68,16 @@ test("the single dropdown contains only real engine/resolution pairs and their e
   assert.deepEqual(getMediaVideoEngineQualityChoices(true).filter((choice) => choice.engine === "heygen"), []);
 });
 
-test("retired HeyGen remains in historical records but stored selections restore to an available model", () => {
+test("retired HeyGen and Wan3 remain in historical records but stored selections restore to an available model", () => {
   assert.ok(AI_MEDIA_VIDEO_MODELS.some((model) => model.id === "heygen"));
   assert.equal(getAiMediaVideoModel("heygen").modelId, "heygen/heygen-video-1");
   assert.equal(isAiMediaVideoEngineAvailable("heygen"), false);
   assert.ok(!AI_MEDIA_AVAILABLE_VIDEO_MODELS.some((model) => model.id === "heygen"));
   assert.deepEqual(restoreAiMediaVideoPreference("heygen", "768p"), { videoEngine: "omni", videoResolution: "720p" });
-  assert.deepEqual(restoreAiMediaVideoPreference("wan3", "1080p"), { videoEngine: "wan3", videoResolution: "1080p" });
+  assert.deepEqual(restoreAiMediaVideoPreference("wan3", "1080p"), { videoEngine: "omni", videoResolution: "720p" });
+  assert.equal(getAiMediaVideoModel("wan3").modelId, "alibaba/wan-v3.0-video");
+  assert.equal(isAiMediaVideoEngineAvailable("wan3"), false);
+  for (const provided of [false, true]) assert.equal(getMediaVideoEngineQualityChoices(provided).some(choice => choice.engine === "wan3"), false);
   for (const model of AI_MEDIA_AVAILABLE_VIDEO_MODELS) {
     assert.equal(isAiMediaVideoEngineAvailable(model.id), true);
     for (const resolution of model.resolutions) {

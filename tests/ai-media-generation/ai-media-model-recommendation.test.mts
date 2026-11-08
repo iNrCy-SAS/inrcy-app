@@ -77,10 +77,11 @@ test("a silent brief or another spoken language does not claim French dialogue s
   assert.equal(estimateAiMediaVideoSupplierCostMicroUsd({ ...input, videoEngine: result.engine, videoResolution: selected.defaultResolution }), Math.min(...compatibleCosts), "la suggestion suit le coût actuel, y compris Veo sans audio avec voix off séparée");
 });
 
-test("one continuous long scene prefers an exact native output instead of a joined pair", () => {
+test("retired native Wan3 metadata cannot become a new long-film recommendation", () => {
   for (const durationSeconds of [16, 20, 24, 30]) {
     const result = recommendAiMediaModel({ kind: "video", durationSeconds, sceneMode: "single" });
-    assert.deepEqual(result, { engine: "wan3", reason: "continuous-long" });
+    assert.deepEqual(result, { engine: "grok-lite", reason: "economy" });
+    assert.ok(AI_MEDIA_AVAILABLE_VIDEO_MODELS.some(model => model.id === result?.engine));
     assert.deepEqual(getAiMediaVideoSegmentDurations(durationSeconds, "wan3"), [durationSeconds]);
   }
   assert.deepEqual(recommendAiMediaModel({ kind: "video", durationSeconds: 30, sceneMode: "multi" }), { engine: "grok-lite", reason: "economy" });

@@ -20,6 +20,8 @@ type Runtime = {
   buildGatewayAiVideoRequest: (...args: unknown[]) => Input;
   createGatewayAiVideoProvider: (engine: catalog.AiMediaVideoEngine) => providerTypes.AiVideoProvider;
 };
+// Historical wire-format adapter tests use mocked SDK/storage only. New app
+// requests cannot reach these engines; the normalizer refusal is tested below.
 const ENGINES = ["wan3", "heygen"] as const;
 const IMAGE_URLS = [1, 2, 3].map((index) => `https://private.example.com/original-${index}.webp`);
 const VOICE_URL = "https://private.example.com/third-reference-own-voice.wav";
@@ -202,9 +204,14 @@ for (const engine of ENGINES) {
     }
   });
 
-  test(`the actual Free normalizer retains ${engine} and an inspiration character's supplied voice`, () => {
+  test(engine === "wan3" ? "the Free normalizer rejects retired Wan3 without changing its historical voice descriptor" : "historical HeyGen normalization retains the inspiration voice descriptor for adapter serialization", () => {
     const args = argsFor(engine); args.request.inspirationImages[2].usage = "inspiration";
     args.request.identityMode = "professional";
+    if (engine === "wan3") {
+      const before = JSON.stringify(args.request);
+      assert.throws(() => normalizeAiMediaGenerationRequest({ ...args.request, contractVersion: 4 }), /Wan 3\.0.*autre moteur/);
+      assert.equal(JSON.stringify(args.request), before); return;
+    }
     const normalized = normalizeAiMediaGenerationRequest({ ...args.request, contractVersion: 4,
       withNarration: true, identityReferenceSetId: randomUUID(), subjectSource: "custom" });
     assert.equal(normalized.videoEngine, engine); assert.equal(normalized.withNarration, false);

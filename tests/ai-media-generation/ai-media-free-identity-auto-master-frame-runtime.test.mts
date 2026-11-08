@@ -116,7 +116,7 @@ function sourceRequest(role: AiMediaInspirationImage["role"], brief: string, pho
     requestId: "free-auto-identity-master-frame-test",
     source: "studio", operation: "generate", creationMode: "free", kind: "video",
     inputMode: "essential", identityMode: "auto", identityConsent: true,
-    videoEngine: "wan3", videoResolution: "720p", format: "story",
+    videoEngine: "grok", videoResolution: "720p", format: "story",
     durationSeconds: 20, sceneMode: "multi", teamVideoMode: "cinematic",
     teamVideoSpeechMode: "voiceover", withNarration: false, withMusic: false,
     freePrompt: brief,
@@ -246,7 +246,7 @@ test("initial-shot structure preserves exact visual text, requested ADN facts, a
   assert.match(prompt, /duplications explicitement demandées pour ce plan/);
 });
 
-test("essential Free auto identity retains a required character master frame and the real cast rule in both Wan3 shots", async () => {
+test("essential Free auto identity retains a required character master frame and the real cast rule in both available-engine shots", async () => {
   const photo = Buffer.from("opaque-original-portrait-reference-contents".repeat(3));
   const request = sourceRequest("character", "La personne de la photo visite un jardin, toujours seule, en deux plans.", photo);
   const runtime = await runEssentialGateway(request, photo);

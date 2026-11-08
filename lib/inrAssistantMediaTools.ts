@@ -3,7 +3,8 @@ import "server-only";
 import { jsonSchema, tool } from "ai";
 import { normalizeAiMediaGenerationRequest, type AiMediaLibraryPickerItem, type AiMediaOutputFormat } from "./aiMediaGenerationContracts.ts";
 import { getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
-import { getAiMediaImageModel, getAiMediaVideoModel, isAiMediaVideoEngineAvailable, type AiMediaImageEngine, type AiMediaVideoEngine, type AiMediaVideoResolution } from "./aiMediaModelCatalog.ts";
+import { getAiMediaVideoEngineRetirementIssue, getAiMediaImageModel, getAiMediaVideoModel, getAiMediaVideoResolution, isAiMediaVideoEngineAvailable, type AiMediaImageEngine, type AiMediaVideoEngine, type AiMediaVideoResolution } from "./aiMediaModelCatalog.ts";
+import { getAutomaticMediaVideoDurationOptions } from "./aiMediaVideoClientOptions.ts";
 import { permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
 import { inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
 import { isInrAssistantMediaPreviewButtonRequest } from "./inrAssistantMediaPreview.ts";
@@ -47,7 +48,7 @@ export type InrAssistantMediaResult = {
 const FORMATS = ["square", "portrait", "story", "landscape"] as const;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const REQUEST_PATTERN = /^[a-z0-9][a-z0-9_-]{7,179}$/i;
-const SETTING_FIELDS = ["imageEngine", "videoEngine", "useBusinessDna", "referenceMediaIds", "references", "withMusic", "withNarration", "spokenScript", "withSubtitles", "narrationVoice", "narrationVoiceVariant", "videoResolution", "sceneMode", "connectScenes", "teamVideoSpeechMode"] as const;
+const SETTING_FIELDS = ["imageEngine", "videoEngine", "useBusinessDna", "referenceMediaIds", "references", "withMusic", "withNarration", "spokenScript", "withSubtitles", "narrationVoice", "narrationVoiceVariant", "videoResolution", "teamVideoSpeechMode"] as const;
 
 class MediaToolError extends Error {}
 
@@ -98,16 +99,17 @@ function parseInput(value: unknown): MediaInput {
     settings.add(entry.field);
     let value: unknown; try { value = JSON.parse(entry.valueJson); } catch { throw new MediaToolError("Valeur Studio invalide."); }
     const field = entry.field;
+    const retiredVideoEngine = input.mediaType === "video" && field === "videoEngine" ? getAiMediaVideoEngineRetirementIssue(value) : null;
+    if (retiredVideoEngine) throw new MediaToolError(retiredVideoEngine.message);
     if (field === "references") referencesInput(value);
-    if (field === "references" ? false : ["useBusinessDna", "withMusic", "withNarration", "withSubtitles", "connectScenes"].includes(field) ? typeof value !== "boolean"
+    if (field === "references" ? false : ["useBusinessDna", "withMusic", "withNarration", "withSubtitles"].includes(field) ? typeof value !== "boolean"
       : field === "referenceMediaIds" ? !Array.isArray(value) || value.length > 5 || new Set(value).size !== value.length || value.some(id => typeof id !== "string" || !UUID_PATTERN.test(id))
         : field === "imageEngine" ? input.mediaType !== "image" || !["openai", "gemini", "flux", "grok", "recraft"].includes(String(value))
           : field === "videoEngine" ? input.mediaType !== "video" || !["omni", "veo", "veo-lite", "minimax-h3", "wan-flash", "wan27", "wan3", "grok-lite", "grok"].includes(String(value)) || !isAiMediaVideoEngineAvailable(value as AiMediaVideoEngine)
             : field === "narrationVoice" ? !["female", "male"].includes(String(value))
-              : field === "sceneMode" ? !["single", "multi"].includes(String(value))
-                : field === "teamVideoSpeechMode" ? !["voiceover", "characters"].includes(String(value))
-                  : typeof value !== "string" || value.length > (field === "spokenScript" ? 4000 : field === "exactText" ? 1200 : 80)) throw new MediaToolError(`Réglage Studio incompatible : ${field}.`);
-    if (input.mediaType !== "video" && ["withMusic", "withNarration", "spokenScript", "withSubtitles", "narrationVoice", "narrationVoiceVariant", "videoResolution", "sceneMode", "connectScenes", "teamVideoSpeechMode"].includes(field)) throw new MediaToolError("Les réglages audio et vidéo exigent une vidéo.");
+              : field === "teamVideoSpeechMode" ? !["voiceover", "characters"].includes(String(value))
+                : typeof value !== "string" || value.length > (field === "spokenScript" ? 4000 : field === "exactText" ? 1200 : 80)) throw new MediaToolError(`Réglage Studio incompatible : ${field}.`);
+    if (input.mediaType !== "video" && ["withMusic", "withNarration", "spokenScript", "withSubtitles", "narrationVoice", "narrationVoiceVariant", "videoResolution", "teamVideoSpeechMode"].includes(field)) throw new MediaToolError("Les réglages audio et vidéo exigent une vidéo.");
   }
   if (settings.has("references") && settings.has("referenceMediaIds")) throw new MediaToolError("Utilisez references ou referenceMediaIds, sans mélanger les deux sélections.");
   return {
@@ -291,6 +293,8 @@ export function createInrAssistantMediaTools(options: {
       if (selectedReferences?.some(reference => reference.role === "character" && reference.usage === "required")) throw new MediaToolError("La fidélité à une personne identifiable exige sa photo et la confirmation personnelle d’autorisation dans iNr’Studio. Ouvrez le Studio pour ce consentement ; aucun crédit n’a été engagé par l’assistant.");
       const engine: { imageEngine?: AiMediaImageEngine; videoEngine?: AiMediaVideoEngine } = modification ? { imageEngine: "openai" } : settings.imageEngine ? { imageEngine: settings.imageEngine as AiMediaImageEngine } : settings.videoEngine ? { videoEngine: settings.videoEngine as AiMediaVideoEngine } : chooseInrAssistantMediaEngine(input);
       if (input.mediaType === "image" && !settings.imageEngine && (selectedReferences?.length || Array.isArray(settings.referenceMediaIds) && settings.referenceMediaIds.length)) engine.imageEngine = "openai";
+      const retiredVideoEngine = input.mediaType === "video" ? getAiMediaVideoEngineRetirementIssue(engine.videoEngine) : null;
+      if (retiredVideoEngine) throw new MediaToolError(retiredVideoEngine.message);
       const format = input.format ?? (input.mediaType === "video" ? "story" : "square");
       const { checkInrAssistantMediaGenerationAccess } = await import("./inrAssistantMediaAccess.ts");
       const access = await checkInrAssistantMediaGenerationAccess();
@@ -304,12 +308,21 @@ export function createInrAssistantMediaTools(options: {
         throw new MediaToolError(`La durée souhaitée dépasse le plafond de cet établissement${Number.isSafeInteger(maxDuration) ? ` (${maxDuration} secondes)` : ""}. Choisissez une durée autorisée.`);
       }
       const videoModel = engine.videoEngine ? getAiMediaVideoModel(engine.videoEngine) : null;
+      let videoResolution: AiMediaVideoResolution | undefined;
+      try {
+        if (videoModel) videoResolution = getAiMediaVideoResolution(videoModel.id, settings.videoResolution);
+      } catch { throw new MediaToolError("Résolution indisponible pour ce moteur."); }
+      // The same duration-only policy as the mounted Studio owns the clip pair.
+      // Resolve after the requested engine/resolution, never from prompt prose.
+      const videoDuration = videoModel ? getAutomaticMediaVideoDurationOptions(videoModel.id, videoResolution)
+        .find(option => option.durationSeconds === durationSeconds) : undefined;
+      if (videoModel && !videoDuration) throw new MediaToolError("Cette durée n’est pas disponible avec le moteur et la résolution choisis. Choisissez une durée compatible.");
       if (input.mediaType === "video") {
         const speech = getAiMediaVideoSpeechState({ kind: "video", creationMode: "free", freePrompt: input.prompt,
           spokenScript: settings.spokenScript as string | undefined, withNarration: settings.withNarration === true,
           teamVideoSpeechMode: settings.teamVideoSpeechMode === "characters" ? "characters" : "voiceover",
-          durationSeconds, videoEngine: engine.videoEngine, videoResolution: (settings.videoResolution || videoModel?.defaultResolution) as AiMediaVideoResolution | undefined,
-          sceneMode: settings.sceneMode === "multi" ? "multi" : "single" });
+          durationSeconds, videoEngine: engine.videoEngine, videoResolution,
+          sceneMode: videoDuration?.sceneMode });
         if (speech.issue) throw new MediaToolError(speech.issue.message);
       }
       const source = modification ? await (await import("./inrAssistantMediaSource.ts")).loadInrAssistantImageReference(modification.sourceMediaId) : null;
@@ -322,8 +335,8 @@ export function createInrAssistantMediaTools(options: {
         contractVersion: 4, requestId: mediaRequestId, source: "studio", operation: "generate",
         creationMode: "free", freePrompt: input.prompt, useBusinessDna: true, inputMode: "essential",
         kind: input.mediaType, format, ...engine,
-        ...(videoModel ? { durationSeconds, videoResolution: videoModel.defaultResolution, sceneMode: "single" } : {}),
         withMusic: false, withNarration: false, inspirationImages: references, ...settings, identityMode: "auto", identityConsent: false,
+        ...(videoDuration ? { durationSeconds: videoDuration.durationSeconds, videoResolution, sceneMode: videoDuration.sceneMode, connectScenes: false } : {}),
         ...(source ? { operation: "modify", creationMode: "guided", format: source.format, aiInstruction: modification!.instruction,
           inspirationImages: [source.reference], modificationSourceWidth: source.width, modificationSourceHeight: source.height,
           textMode: "none", logoMode: "none", useBrandColors: false, useBusinessDna: false } : {}),
@@ -411,7 +424,7 @@ export function createInrAssistantMediaTools(options: {
   return {
     acceptMediaGeneration: tool({ strict: true, description: "Enregistrer un aperçu Studio sur ordre explicite actuel ou poursuivre un enregistrement déjà autorisé et prouvé côté serveur. requestId et mediaId du même résultat ready_to_save. Job du compte relu, accept natif puis draft=false vérifié ; aucun crédit ni génération. Déjà enregistré : aucune seconde écriture.", inputSchema: draftDecisionSchema, execute: async raw => decideDraft(parseDraftDecision(raw), "accept"), toModelOutput: ({ output }) => modelOutput(output) }),
     discardMediaGeneration: tool({ strict: true, description: "Refuser uniquement un aperçu temporaire Studio sur ordre explicite actuel. requestId et mediaId liés par le job du compte ; DELETE natif puis absence relue. Ne supprime jamais un média déjà accepté, ne rembourse aucun crédit et ne régénère rien. Résultat incertain : ne pas répéter.", inputSchema: draftDecisionSchema, execute: async raw => decideDraft(parseDraftDecision(raw), "discard"), toModelOutput: ({ output }) => modelOutput(output) }),
-    quoteMediaGeneration: tool({ strict: true, description: "Obtenir le vrai devis Studio, moteur/durée/références/réglages identiques à generateMedia. Lecture seule : aucun débit, génération ou sauvegarde. settings[{field,valueJson}] encode les valeurs JSON ; referenceMediaIds contient uniquement des IDs d’images actives du compte. Aucun consentement identité n’est fourni implicitement.", inputSchema: jsonSchema<MediaInput>({ type: "object", properties: { mediaType: { type: "string", enum: ["image", "video"] }, resultMode: { type: ["string", "null"], enum: ["save", "preview", null] }, prompt: { type: "string", minLength: 3, maxLength: 4000, description: "Brief visuel : vidéo 500 caractères max, image 4000. Paroles exactes : réglage spokenScript, avec le mode de voix demandé." }, format: { type: ["string", "null"], enum: [...FORMATS, null] }, durationSeconds: { type: ["integer", "null"], minimum: 4, maximum: 30 }, settings: { type: ["array", "null"], maxItems: SETTING_FIELDS.length, items: { type: "object", properties: { field: { type: "string", enum: [...SETTING_FIELDS] }, valueJson: { type: "string", maxLength: 6000 } }, required: ["field", "valueJson"], additionalProperties: false } } }, required: ["mediaType", "prompt", "format", "durationSeconds", "settings", "resultMode"], additionalProperties: false }, { validate: value => { try { return { success: true, value: parseInput(value) }; } catch { return { success: false, error: new Error("Réglages Studio invalides") }; } } }), execute: async raw => generate(parseInput(raw), undefined, true), toModelOutput: ({ output }) => modelOutput(output) }),
+    quoteMediaGeneration: tool({ strict: true, description: "Obtenir le vrai devis Studio, moteur/durée numérique/références/réglages identiques à generateMedia, découpage automatique sans choix de montage. Lecture seule : aucun débit, génération ou sauvegarde. settings[{field,valueJson}] encode les valeurs JSON ; referenceMediaIds contient uniquement des IDs d’images actives du compte. Aucun consentement identité n’est fourni implicitement.", inputSchema: jsonSchema<MediaInput>({ type: "object", properties: { mediaType: { type: "string", enum: ["image", "video"] }, resultMode: { type: ["string", "null"], enum: ["save", "preview", null] }, prompt: { type: "string", minLength: 3, maxLength: 4000, description: "Brief visuel : vidéo 500 caractères max, image 4000. Paroles exactes : réglage spokenScript, avec le mode de voix demandé." }, format: { type: ["string", "null"], enum: [...FORMATS, null] }, durationSeconds: { type: ["integer", "null"], minimum: 4, maximum: 30 }, settings: { type: ["array", "null"], maxItems: SETTING_FIELDS.length, items: { type: "object", properties: { field: { type: "string", enum: [...SETTING_FIELDS] }, valueJson: { type: "string", maxLength: 6000 } }, required: ["field", "valueJson"], additionalProperties: false } } }, required: ["mediaType", "prompt", "format", "durationSeconds", "settings", "resultMode"], additionalProperties: false }, { validate: value => { try { return { success: true, value: parseInput(value) }; } catch { return { success: false, error: new Error("Réglages Studio invalides") }; } } }), execute: async raw => generate(parseInput(raw), undefined, true), toModelOutput: ({ output }) => modelOutput(output) }),
     cancelMediaGeneration: tool({
       strict: true,
       description: "Demander l’arrêt natif d’une tentative Studio identifiée par son requestId réel. L’arrêt n’est possible qu’avant réservation des crédits ; une génération déjà en traitement continue chez le fournisseur. Ne jamais promettre remboursement, annulation fournisseur ni suppression du média terminé. Une simple question ou vérification de statut n’autorise pas cette action.",
@@ -465,9 +478,9 @@ export function createInrAssistantMediaTools(options: {
           mediaType: { type: "string", enum: ["image", "video"] },
           prompt: { type: "string", minLength: 3, maxLength: 4_000, description: "Brief visuel : vidéo 500 caractères max, image 4000. Paroles exactes : réglage spokenScript, avec le mode de voix demandé." },
           format: { type: ["string", "null"], enum: [...FORMATS, null], description: "Format adapté au besoin du pro, ou null pour le format courant." },
-          durationSeconds: { type: ["integer", "null"], minimum: 4, maximum: 30, description: "Durée vidéo en secondes ou null ; toujours null pour une image." },
+          durationSeconds: { type: ["integer", "null"], minimum: 4, maximum: 30, description: "Durée vidéo numérique en secondes ou null ; découpage automatique selon moteur et résolution, sans choix de montage. Toujours null pour une image." },
           resultMode: { type: ["string", "null"], enum: ["save", "preview", null], description: "preview laisse un aperçu temporaire à accepter/refuser ; save/null enregistre le nouveau média (défaut)." },
-          settings: { type: ["array", "null"], description: "Valeurs JSON. sceneMode single/multi, teamVideoSpeechMode voiceover/characters. references=[{mediaId,role:character/environment/product/inspiration,usage:required/inspiration,characterIndex:1|2|3|null}], 5 images possédées ; exclusif referenceMediaIds. Identité fidèle et voix personnelle nécessitent consentement humain Studio.", maxItems: SETTING_FIELDS.length, items: { type: "object", properties: { field: { type: "string", enum: [...SETTING_FIELDS] }, valueJson: { type: "string", maxLength: 6000 } }, required: ["field", "valueJson"], additionalProperties: false } },
+          settings: { type: ["array", "null"], description: "Valeurs JSON. Durée via durationSeconds uniquement ; découpage automatique sans raccord imposé. teamVideoSpeechMode voiceover/characters. references=[{mediaId,role:character/environment/product/inspiration,usage:required/inspiration,characterIndex:1|2|3|null}], 5 images possédées ; exclusif referenceMediaIds. Identité fidèle et voix personnelle nécessitent consentement humain Studio.", maxItems: SETTING_FIELDS.length, items: { type: "object", properties: { field: { type: "string", enum: [...SETTING_FIELDS] }, valueJson: { type: "string", maxLength: 6000 } }, required: ["field", "valueJson"], additionalProperties: false } },
         }, required: ["mediaType", "prompt", "format", "durationSeconds", "settings", "resultMode"], additionalProperties: false,
       }, { validate: (value) => {
         try { return { success: true, value: parseInput(value) }; }

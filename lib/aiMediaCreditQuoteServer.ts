@@ -3,9 +3,11 @@ import { createHash } from "node:crypto";
 import { quoteAiMediaCredits, type AiMediaCreditsQuoteInput } from "./aiMediaCreditsPricing.ts";
 import type { AiMediaGenerationRequest } from "./aiMediaGenerationContracts.ts";
 import { hasProvidedAiMediaCharacterVoice } from "./aiMediaCharacterVoices.ts";
-import { isAiMediaVideoEngineAvailable } from "./aiMediaModelCatalog.ts";
+import { getAiMediaVideoEngineRetirementIssue, isAiMediaVideoEngineAvailable } from "./aiMediaModelCatalog.ts";
 
 export function createAiMediaServerQuote(accountId: string, input: AiMediaCreditsQuoteInput) {
+  const retiredVideoEngine = input.kind === "video" ? getAiMediaVideoEngineRetirementIssue(input.videoEngine) : null;
+  if (retiredVideoEngine) throw new Error(retiredVideoEngine.message);
   // Both quote and generation routes enter here before reserving any credits.
   if (input.kind === "video" && !isAiMediaVideoEngineAvailable(input.videoEngine || "omni")) {
     throw new Error("ai_media_video_engine_unavailable");

@@ -29,7 +29,7 @@ test("retired HeyGen tariffs remain absent from new engine choices with AI or su
   for (const provided of [false, true]) {
     const choices = getMediaVideoEngineQualityChoices(provided);
     assert.deepEqual(choices.filter((choice) => choice.engine === "wan27").map((choice) => choice.creditsPerSecond), [10, 15]);
-    assert.deepEqual(choices.filter((choice) => choice.engine === "wan3").map((choice) => choice.creditsPerSecond), [10, 20]);
+    assert.deepEqual(choices.filter((choice) => choice.engine === "wan3"), []);
   }
 });
 
@@ -60,21 +60,27 @@ test("HeyGen's independent and connected voice clips include each original image
   assert.throws(() => pricing.quoteAiMediaCredits({ ...voiceInput, videoEngine: "heygen", hasProvidedCharacterVoice: "true" as unknown as boolean }), /voice_option_invalid/);
 });
 
-test("the generation server derives the voice tariff from normalized references and rejects a stale base-route quote", () => {
-  const request = normalizeAiMediaGenerationRequest({ requestId: "wan3-provided-quote", source: "studio", creationMode: "free", kind: "video", freePrompt: 'La personne dit « Bonjour ! ».',
-    videoEngine: "wan3", videoResolution: "720p", format: "story", durationSeconds: 8, teamVideoSpeechMode: "characters", identityConsent: true,
+test("the generation server derives supplied voice from normalized references and rejects a stale quality quote", () => {
+  const request = normalizeAiMediaGenerationRequest({ requestId: "wan27-provided-quote", source: "studio", creationMode: "free", kind: "video", freePrompt: 'La personne dit « Bonjour ! ».',
+    videoEngine: "wan27", videoResolution: "720p", format: "story", durationSeconds: 8, teamVideoSpeechMode: "characters", identityConsent: true,
     inspirationImages: [{ mimeType: "image/webp", data: "A".repeat(64), role: "character", usage: "inspiration", characterIndex: 1, voiceMode: "provided", voiceSample: sample() }],
     hasProvidedCharacterVoice: false,
   });
-  const real = server.quoteAiMediaRequest("account-test", request);
+  const quoteInputs: pricing.AiMediaCreditsQuoteInput[] = [];
+  const checkedServer = load<typeof server>("lib/aiMediaCreditQuoteServer.ts", {
+    "./aiMediaCreditsPricing.ts": { ...pricing, quoteAiMediaCredits: (input: pricing.AiMediaCreditsQuoteInput) => { quoteInputs.push(input); return pricing.quoteAiMediaCredits(input); } },
+    "./aiMediaModelCatalog.ts": models,
+  });
+  const real = checkedServer.quoteAiMediaRequest("account-test", request);
+  assert.equal(quoteInputs[0].hasProvidedCharacterVoice, true, "the server derives this flag from the normalized audio descriptors");
   assert.equal(real.totalCredits, 87);
-  const stale = server.createAiMediaServerQuote("account-test", { ...request, inspirationImagesCount: 1, hasProvidedCharacterVoice: false });
-  assert.equal(stale.totalCredits, 89);
+  const stale = server.createAiMediaServerQuote("account-test", { ...request, videoResolution: "1080p", inspirationImagesCount: 1, hasProvidedCharacterVoice: false });
+  assert.equal(stale.totalCredits, 127);
   assert.notEqual(stale.quoteId, real.quoteId);
   assert.equal(server.assertAiMediaCreditQuote({ ...request, expectedCredits: stale.totalCredits, creditTariffVersion: stale.tariffVersion, creditQuoteId: stale.quoteId }, real), false);
   assert.equal(server.assertAiMediaCreditQuote({ ...request, expectedCredits: real.totalCredits, creditTariffVersion: real.tariffVersion, creditQuoteId: real.quoteId }, real), true);
   const ai = { ...request, inspirationImages: request.inspirationImages.map((image) => ({ ...image, voiceMode: "ai" as const, voiceSample: undefined })) };
-  assert.equal(server.quoteAiMediaRequest("account-test", ai).totalCredits, 89);
+  assert.equal(server.quoteAiMediaRequest("account-test", ai).totalCredits, 87);
 });
 
 test("the server refuses retired HeyGen quotes for both AI and supplied voices while retaining historical prices", () => {
@@ -91,4 +97,10 @@ test("the server refuses retired HeyGen quotes for both AI and supplied voices w
     };
     assert.throws(() => server.quoteAiMediaRequest("account-test", normalized), /ai_media_video_engine_unavailable/);
   }
+});
+
+test("historical Wan3 voice tariffs remain readable but cannot produce a new server quote", () => {
+  const input = { ...voiceInput, videoEngine: "wan3" };
+  assert.equal(pricing.quoteAiMediaCredits(input).totalCredits, 87);
+  assert.throws(() => server.createAiMediaServerQuote("account-test", input), /Wan 3\.0.*autre moteur/);
 });

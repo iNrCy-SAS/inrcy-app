@@ -20,9 +20,9 @@ import type { NormalizedAiGenerationProfile } from '../../lib/aiGenerationProfil
 
 const image = { mimeType: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZO3cAAAAASUVORK5CYII=', role: 'character', usage: 'required', voiceMode: 'ai' };
 const brief = 'Une équipe entretient un jardin ; conserver les trois personnes et la haie. '.repeat(6).slice(0, 400);
-function request(engine: 'wan27' | 'wan3', overrides: Record<string, unknown> = {}) {
+function request(engine: 'wan27' | 'grok', overrides: Record<string, unknown> = {}) {
   return contracts.normalizeAiMediaGenerationRequest({ requestId: `video-budget-${engine}`, source: 'studio', operation: 'generate',
-    creationMode: 'free', kind: 'video', format: 'story', videoEngine: engine, durationSeconds: engine === 'wan27' ? 15 : 30,
+    creationMode: 'free', kind: 'video', format: 'story', videoEngine: engine, durationSeconds: 15,
     freePrompt: brief, useBusinessDna: true, sceneMode: 'single', withNarration: false, withMusic: false,
     teamVideoSpeechMode: 'characters', identityConsent: true, teamVideoProviderConsent: engine,
     inspirationImages: [1, 2, 3].map(characterIndex => ({ ...image, characterIndex })), ...overrides });
@@ -88,8 +88,8 @@ function provider(input: contracts.AiMediaGenerationRequest, plan: types.AiVideo
   } as types.AiVideoProviderGenerationArgs;
 }
 
-for (const engine of ['wan27', 'wan3'] as const) test(`${engine}: a 400-character visual brief with three characters fits the actual final engine ceiling on every clip`, async () => {
-  const input = request(engine); const active = profile(800);
+for (const engine of ['wan27', 'grok'] as const) test(`${engine}: a 400-character visual brief with three characters fits the actual final engine ceiling on every clip`, async () => {
+  const input = request(engine); const active = profile(engine === 'wan27' ? 800 : 200);
   assert.equal(input.freePrompt!.length, 400);
   const originalImages = JSON.stringify(input.inspirationImages);
   const durations = timeline.getAiMediaVideoSegmentDurations(input.durationSeconds!, engine, input.videoResolution, input.sceneMode);
@@ -107,13 +107,13 @@ for (const engine of ['wan27', 'wan3'] as const) test(`${engine}: a 400-characte
     assert.equal(h.calls[0].deadline, h.calls[1].deadline);
   }
   const rules = globalRules.buildAiMediaGlobalConstraints(active);
-  // Wan3 without supplied voices keeps the existing precomposed group path;
+  // Current Grok uses the precomposed group path without supplied voices;
   // the three originals above remain intact in the saved Studio request.
-  const transportInput = engine === 'wan3' ? { ...input, inspirationImages: [input.inspirationImages[0]] } : input;
+  const transportInput = engine === 'grok' ? { ...input, inspirationImages: [input.inspirationImages[0]] } : input;
   const args = provider(transportInput, plan, rules); const transport = gateway();
-  if (engine === 'wan3') {
+  if (engine === 'grok') {
     args.identityTeamPrecomposed = true; args.identityTeamMemberCount = 3;
-    args.providerContract = boundary.buildAiMediaVideoProviderContract({ request: transportInput, durationSeconds: 30, brandColors: [], globalMediaConstraints: rules,
+    args.providerContract = boundary.buildAiMediaVideoProviderContract({ request: transportInput, durationSeconds: 15, brandColors: [], globalMediaConstraints: rules,
       identityTeamPrecomposed: true, identityTeamMemberCount: 3 });
   }
   for (const [index] of durations.entries()) {
@@ -154,13 +154,13 @@ test('the longest allowed account rules reduce generated scene and direction bud
 
 test('a generated 1,200-character direction plus exact visual copy no longer becomes a false duration failure', async () => {
   const visible = 'EXACT'.repeat(60);
-  const input = request('wan3', { teamVideoSpeechMode: 'voiceover', withNarration: false, useBusinessDna: false,
+  const input = request('wan27', { durationSeconds: 8, teamVideoSpeechMode: 'voiceover', withNarration: false, useBusinessDna: false,
     freePrompt: `Afficher exactement «${visible}». Montrer le jardin.` });
   const h = planner([{ direction: 'D'.repeat(1_200), scenes: ['Le jardin apparaît dans la lumière.'] }]);
   const plan = await h.runtime.prepareAiMediaFreeCreativePlan({ accountId: 'synthetic-only', request: input, profile: profile(20) });
   assert.ok(plan.subline.length > 1_400);
   assert.ok(plan.subline.includes(visible));
-  assert.doesNotThrow(() => prompts.buildAiMediaFreeVideoScenePrompt(provider(input, plan, globalRules.buildAiMediaGlobalConstraints(profile(20))), 0, 30));
+  assert.doesNotThrow(() => prompts.buildAiMediaFreeVideoScenePrompt(provider(input, plan, globalRules.buildAiMediaGlobalConstraints(profile(20))), 0, 8));
 });
 
 test('unavoidable mandatory overflow refuses the whole request before a provider reservation or video submission', async () => {
@@ -178,7 +178,7 @@ test('unavoidable mandatory overflow refuses the whole request before a provider
 
 test('every Gateway engine validates the final transported prompt, including Flash wrapper and character suffixes', () => {
   const h = gateway();
-  for (const model of catalog.AI_MEDIA_VIDEO_MODELS.filter(model => model.transport === 'gateway')) {
+  for (const model of [...catalog.AI_MEDIA_AVAILABLE_VIDEO_MODELS, catalog.getAiMediaVideoModel('heygen')].filter(model => model.transport === 'gateway')) {
     const duration = catalog.getAiMediaVideoNativeDurations(model.id, model.defaultResolution).find(value => value >= 4)!;
     const input = contracts.normalizeAiMediaGenerationRequest({ requestId: `final-cap-${model.id}`, source: 'studio', operation: 'generate', creationMode: 'free', kind: 'video',
       videoEngine: model.id, videoResolution: model.defaultResolution, durationSeconds: duration, sceneMode: 'single', format: 'story',

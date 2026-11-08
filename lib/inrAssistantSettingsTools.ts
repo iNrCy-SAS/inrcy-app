@@ -2,7 +2,7 @@ import "server-only";
 import { jsonSchema, tool } from "ai";
 import type { DashboardEdition } from "./dashboardEdition.ts";
 import { requireUser } from "./requireUser";
-import { requestsInrAssistantSettingsChange } from "./inrAssistantCommandRegistry.ts";
+import { requestsInrAssistantSettingsChange, unquotedInrAssistantIntent } from "./inrAssistantCommandRegistry.ts";
 import { GENERAL_PREFERENCE_VALUES, parseGeneralPreferencesPatch } from "./generalPreferences.ts";
 
 type Row = Record<string, unknown>;
@@ -27,6 +27,7 @@ const FIELDS: Record<Tool, string[]> = {
   studio: ["1.kind", "1.subjectSource", "2.typology", "2.format", "3.visualStyle", "3.creativity", "3.imagePurpose", "3.visualDirection", "3.sceneMode", "3.useBrandColors", "3.logoMode", "4.imageStyle", "4.shotType", "5.peopleMode", "5.sourceMode", "5.aiPeopleCriterion", "5.aiSettingCriterion", "5.aiFocusCriterion", "5.identityMode", "5.teamVideoMode", "5.teamVideoSpeechMode", "6.durationSeconds", "6.connectScenes", "6.withText", "6.withMusic", "6.withNarration", "6.narrationVoice", "6.narrationVoiceVariant"],
   tiktok: ["defaults.preferredMedia", "defaults.allowComments", "defaults.allowDuo", "defaults.allowStitch", "defaults.photoAutoMusic", "defaults.commercialContent", "defaults.aiContent"],
 };
+const STUDIO_PREFERENCES_SCOPE = "Ces préférences mémorisées concernent les parcours guidés ou ouverts depuis Booster. Elles ne modifient pas le formulaire Libre ouvert, dont le découpage est automatique.";
 const row = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
 const at = (value: unknown, path: string): unknown => path.split(".").reduce<unknown>((parent, key) => row(parent)[key], value);
 function put(target: Row, path: string, value: unknown) {
@@ -94,20 +95,31 @@ export function createInrAssistantSettingsTools(options: { request: Request; acc
     return { data, settings: publicSettings(target, data) };
   };
   return {
-    readToolSettings: tool({ strict: true, description: "Lire les réglages ACTUELS : general (langue client, fuseau, date, devise), iNr’Calendar, Notifications, Documents (droits comptables requis), iNr’Badge, iNr’Studio ou TikTok. Champs publics seulement. Utiliser les champs et valeurs autorisées retournés pour une correction précise. Une lecture ne change aucun réglage.",
+    readToolSettings: tool({ strict: true, description: "Lire les réglages ACTUELS : general (langue client, fuseau, date, devise), iNr’Calendar, Notifications, Documents (droits comptables requis), iNr’Badge, iNr’Studio ou TikTok. Champs publics seulement. Utiliser les champs et valeurs autorisées retournés pour une correction précise. Une lecture ne change aucun réglage. Pour Studio, seules les préférences mémorisées des parcours guidés ou ouverts depuis Booster sont lues ; elles ne changent pas le formulaire Libre ouvert.",
       inputSchema: jsonSchema<{ tool: Tool }>({ type: "object", properties: { tool: { type: "string", enum: [...TOOLS] } }, required: ["tool"], additionalProperties: false }),
       execute: async raw => {
         const target = parseTool(strict(raw, ["tool"]).tool);
-        try { const current = await read(target); return current ? { ok: true, status: "read", tool: target, settings: current.settings, ...(target === "general" ? { allowedValues: GENERAL_PREFERENCE_VALUES } : {}), ...(["general", "notifications"].includes(target) ? { source: current.data.source === "defaults" ? "defaults_not_saved" : "saved", message: current.data.source === "defaults" ? "Aucune préférence enregistrée : ces valeurs sont les valeurs par défaut, sans écriture." : "Préférences enregistrées lues sans modification." } : {}), editableFields: FIELDS[target], nextAction: LINKS[target] } : fail(target); } catch { return fail(target); }
+        try { const current = await read(target); return current ? { ok: true, status: "read", tool: target, settings: current.settings, ...(target === "general" ? { allowedValues: GENERAL_PREFERENCE_VALUES } : {}), ...(["general", "notifications"].includes(target) ? { source: current.data.source === "defaults" ? "defaults_not_saved" : "saved", message: current.data.source === "defaults" ? "Aucune préférence enregistrée : ces valeurs sont les valeurs par défaut, sans écriture." : "Préférences enregistrées lues sans modification." } : {}), ...(target === "studio" ? { settingsScope: "guided_saved_preferences", formChanged: false, scopeMessage: STUDIO_PREFERENCES_SCOPE } : {}), editableFields: FIELDS[target], nextAction: LINKS[target] } : fail(target); } catch { return fail(target); }
       },
     }),
-    updateToolSettings: tool({ strict: true, description: "Corriger des réglages précis sur ordre ACTUEL, après readToolSettings. tool=general|calendar|notifications|documents|badge|studio|tiktok ; changes utilise les noms EXACTS retournés. Valeurs scalaires ou liste numérique. Préserve les champs omis, vérifie les valeurs réellement enregistrées. Studio : un seul bloc par action. Pas de changement de déclaration légale TikTok, d’identité/secret, d’abonnement ou d’activation d’un agent. Pas de génération, envoi ou rendez-vous créé.",
+    updateToolSettings: tool({ strict: true, description: "Corriger des réglages précis sur ordre ACTUEL, après readToolSettings. tool=general|calendar|notifications|documents|badge|studio|tiktok ; changes utilise les noms EXACTS retournés. Valeurs scalaires ou liste numérique. Préserve les champs omis, vérifie les valeurs réellement enregistrées. Studio : un seul bloc par action, uniquement sur demande explicite de mémoriser des préférences pour les parcours guidés ou ouverts depuis Booster. Le formulaire Libre ouvert utilise ses contrôles natifs et un découpage automatique ; ses réglages ne sont pas modifiés par cet outil. Pas de changement de déclaration légale TikTok, d’identité/secret, d’abonnement ou d’activation d’un agent. Pas de génération, envoi ou rendez-vous créé.",
       inputSchema: jsonSchema<{ tool: Tool; instructionQuote: string; changes: { field: string; value: Value }[] }>({ type: "object", properties: {
         tool: { type: "string", enum: [...TOOLS] }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 }, changes: { type: "array", minItems: 1, maxItems: 10, items: { type: "object", properties: { field: { type: "string", maxLength: 80 }, value: { anyOf: [{ type: "string", maxLength: 1200 }, { type: "boolean" }, { type: "number" }, { type: "array", maxItems: 8, items: { type: "integer", minimum: 0, maximum: 2880 } }] } }, required: ["field", "value"], additionalProperties: false } },
       }, required: ["tool", "instructionQuote", "changes"], additionalProperties: false }),
       execute: async raw => {
         const input = strict(raw, ["tool", "instructionQuote", "changes"]); const target = parseTool(input.tool);
         if (typeof input.instructionQuote !== "string" || input.instructionQuote.length > 1200 || !authorized(options.currentUserMessage, input.instructionQuote, target)) return fail(target, "needs_instruction");
+        if (target === "studio") {
+          const intent = unquotedInrAssistantIntent(options.currentUserMessage);
+          if (/\b(?:inr.?studio|studio|mode|creation|parcours)\s+libre\b/.test(intent)) return {
+            ...fail(target, "native_form_required"),
+            message: "Le Studio Libre utilise ses réglages affichés. Aucun réglage mémorisé n’a changé ; utilisez le formulaire Libre pour choisir la durée, sans choix de montage.",
+          };
+          if (!/\bpreferences?\b|\bmemor\w*|\bpar defaut\b|\b(?:enregistr|sauvegard)\w*/.test(intent)) return {
+            ...fail(target, "needs_instruction"),
+            message: "Précisez que vous souhaitez enregistrer les préférences des parcours guidés ou ouverts depuis Booster. Le formulaire Libre ouvert ne sera pas modifié.",
+          };
+        }
         if (!Array.isArray(input.changes) || !input.changes.length || input.changes.length > 10) return fail(target, "invalid_settings");
         const key = JSON.stringify(input); if (pending.has(key)) return pending.get(key)!;
         const work = (async (): Promise<Row> => {
@@ -140,7 +152,7 @@ export function createInrAssistantSettingsTools(options: { request: Request; acc
           if (!response.ok) return fail(target);
           const saved = await read(target); if (!saved) return fail(target, "saved_unconfirmed");
           const changedFields = Object.keys(desired).filter(field => JSON.stringify(saved.settings[field]) === JSON.stringify(desired[field]));
-          return { ok: changedFields.length === Object.keys(desired).length, status: changedFields.length === Object.keys(desired).length ? "saved" : "partial", tool:target, changedFields, settings: saved.settings, nextAction: LINKS[target], message: changedFields.length === Object.keys(desired).length ? "Les réglages demandés ont été enregistrés et relus dans l’outil." : "Certains réglages ont été ajustés ou refusés par l’outil. Vérifiez les valeurs enregistrées avant de poursuivre." };
+          return { ok: changedFields.length === Object.keys(desired).length, status: changedFields.length === Object.keys(desired).length ? "saved" : "partial", tool:target, ...(target === "studio" ? { settingsScope: "guided_saved_preferences", formChanged: false, scopeMessage: STUDIO_PREFERENCES_SCOPE } : {}), changedFields, settings: saved.settings, nextAction: LINKS[target], message: changedFields.length === Object.keys(desired).length ? "Les réglages demandés ont été enregistrés et relus dans l’outil." : "Certains réglages ont été ajustés ou refusés par l’outil. Vérifiez les valeurs enregistrées avant de poursuivre." };
         })().catch(() => fail(target));
         pending.set(key, work); return work;
       },

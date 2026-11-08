@@ -1286,6 +1286,12 @@
     "coverageStatus": "server_equivalent",
     "controlIds": [
       "app/dashboard/_components/MediaEngineCreditControls.tsx#select:d36889af5bdb26ea:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/video-engine-retirement-runtime.test.mts",
+        "testAnchor": "all client choices and recommendation contexts exclude Wan3"
+      }
     ]
   },
   {
@@ -1309,6 +1315,12 @@
     "coverageStatus": "server_equivalent",
     "controlIds": [
       "app/dashboard/_components/MediaEngineCreditControls.tsx#option:655fc07f0ea54c4f:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/video-engine-retirement-runtime.test.mts",
+        "testAnchor": "all client choices and recommendation contexts exclude Wan3"
+      }
     ]
   },
   {
@@ -1319,17 +1331,17 @@
       "app/dashboard/_components/MediaEngineCreditControls.tsx"
     ],
     "sourceAnchor": "<select id={`${id}-duration`} value={`${duration}:${displayedSceneMode}`} disabled={props.disabled} onChange={(event) => {\n        const option = durationSceneOptions.find((candidate) => `${candidate.durationSeconds}:${candidate.sceneMode}` === event.target.value);\n        if (option) { changeDurationScene?.(option.durationSeconds, option.sceneMode); setDurationNotice(\"\"); }\n      }}>\n        {durationSceneOptions.map((option) => <option key={`${option.durationSeconds}:${option.sceneMode}`} value={`${option.durationSeconds}:${option.sceneMode}`}>{t(props.automaticSceneMode ? \"ai_generator_duration_seconds\" : option.sceneMode === \"single\" ? \"ai_generator_duration_scene_single\" : \"ai_generator_duration_scene_multi\", { seconds: option.durationSeconds })}</option>)}\n      </select>",
-    "capabilityId": "studio.quote",
+    "capabilityId": "studio.form",
     "toolNames": [
-      "quoteMediaGeneration"
+      "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Choix d’une durée native compatible puis devis des crédits, sans génération. Dans le Studio Libre, le nombre de plans est calculé automatiquement et une durée native unique est privilégiée ; les autres appelants gardent leur choix explicite. Les options respectent moteur, résolution, droits et verrou de génération. L’équivalent serveur de devis ne prouve pas une modification du formulaire monté.",
+    "notes": "Le formulaire monté accepte la durée demandée en secondes ; le même catalogue que le sélecteur calcule le couple durée/plans en Studio. Le vrai callback doit commettre les deux valeurs avant acquittement. Verrous, moteur disponible, résolution, budget de paroles et droits restent contrôlés ; aucune génération ni autorisation implicite. Les parcours guidés gardent leur choix natif de scènes.",
     "testFiles": [
-      "tests/ai-assistant/media-tools.test.mts"
+      "tests/ai-assistant/studio-native-form-controls.test.mts"
     ],
-    "testAnchor": "a Studio cost question calls the native quote only and never accepts an existing draft",
-    "coverageStatus": "server_equivalent",
+    "testAnchor": "the actual automatic duration callback confirms only the committed catalogue pair and never partially changes an unavailable engine",
+    "coverageStatus": "implemented",
     "controlIds": [
       "app/dashboard/_components/MediaEngineCreditControls.tsx#select:0f7abe519086e9f9:1"
     ],
@@ -1341,6 +1353,18 @@
       {
         "file": "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts",
         "testAnchor": "automatic duration respects account limits, locked jobs and callers retaining explicit scene choices"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "automatic Studio duration accepts seconds only, derives the native pair and refuses unavailable engines or legacy montage choices"
+      },
+      {
+        "file": "tests/ai-assistant/basic-local-interface.test.mts",
+        "testAnchor": "Studio duration-only server commands require the exact requested seconds and leave Guided scene choices unchanged"
+      },
+      {
+        "file": "tests/ai-assistant/media-tools.test.mts",
+        "testAnchor": "a Studio cost question calls the native quote only and never accepts an existing draft"
       }
     ]
   },
@@ -1352,17 +1376,17 @@
       "app/dashboard/_components/MediaEngineCreditControls.tsx"
     ],
     "sourceAnchor": "<option key={`${option.durationSeconds}:${option.sceneMode}`} value={`${option.durationSeconds}:${option.sceneMode}`}>{t(props.automaticSceneMode ? \"ai_generator_duration_seconds\" : option.sceneMode === \"single\" ? \"ai_generator_duration_scene_single\" : \"ai_generator_duration_scene_multi\", { seconds: option.durationSeconds })}</option>",
-    "capabilityId": "studio.quote",
+    "capabilityId": "studio.form",
     "toolNames": [
-      "quoteMediaGeneration"
+      "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Choix d’une durée native compatible puis devis des crédits, sans génération. Dans le Studio Libre, le nombre de plans est calculé automatiquement et une durée native unique est privilégiée ; les autres appelants gardent leur choix explicite. Les options respectent moteur, résolution, droits et verrou de génération. L’équivalent serveur de devis ne prouve pas une modification du formulaire monté.",
+    "notes": "Le formulaire monté accepte la durée demandée en secondes ; le même catalogue que le sélecteur calcule le couple durée/plans en Studio. Le vrai callback doit commettre les deux valeurs avant acquittement. Verrous, moteur disponible, résolution, budget de paroles et droits restent contrôlés ; aucune génération ni autorisation implicite. Les parcours guidés gardent leur choix natif de scènes.",
     "testFiles": [
-      "tests/ai-assistant/media-tools.test.mts"
+      "tests/ai-assistant/studio-native-form-controls.test.mts"
     ],
-    "testAnchor": "a Studio cost question calls the native quote only and never accepts an existing draft",
-    "coverageStatus": "server_equivalent",
+    "testAnchor": "the actual automatic duration callback confirms only the committed catalogue pair and never partially changes an unavailable engine",
+    "coverageStatus": "implemented",
     "controlIds": [
       "app/dashboard/_components/MediaEngineCreditControls.tsx#option:4e4662d8c98d709e:1"
     ],
@@ -1374,6 +1398,18 @@
       {
         "file": "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts",
         "testAnchor": "automatic duration respects account limits, locked jobs and callers retaining explicit scene choices"
+      },
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "automatic Studio duration accepts seconds only, derives the native pair and refuses unavailable engines or legacy montage choices"
+      },
+      {
+        "file": "tests/ai-assistant/basic-local-interface.test.mts",
+        "testAnchor": "Studio duration-only server commands require the exact requested seconds and leave Guided scene choices unchanged"
+      },
+      {
+        "file": "tests/ai-assistant/media-tools.test.mts",
+        "testAnchor": "a Studio cost question calls the native quote only and never accepts an existing draft"
       }
     ]
   },
@@ -1801,6 +1837,12 @@
     "coverageStatus": "implemented",
     "controlIds": [
       "app/dashboard/_components/MediaFreeGenerator.tsx#select:34dbdf03bd560209:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "free narration gender and style remain editable only for AI voice-over, including empty Exact drafts"
+      }
     ]
   },
   {
@@ -1824,6 +1866,12 @@
     "coverageStatus": "implemented",
     "controlIds": [
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:1042df8d1b7ecf00:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "free narration gender and style remain editable only for AI voice-over, including empty Exact drafts"
+      }
     ]
   },
   {
@@ -1847,6 +1895,12 @@
     "coverageStatus": "implemented",
     "controlIds": [
       "app/dashboard/_components/MediaFreeGenerator.tsx#select:41ac7983dd3fca38:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "free narration gender and style remain editable only for AI voice-over, including empty Exact drafts"
+      }
     ]
   },
   {
@@ -1870,6 +1924,12 @@
     "coverageStatus": "implemented",
     "controlIds": [
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:642b5f22a3d83233:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "free narration gender and style remain editable only for AI voice-over, including empty Exact drafts"
+      }
     ]
   },
   {
@@ -15377,7 +15437,7 @@
       },
       {
         "file": "tests/ai-media-generation/ai-media-free-identity-auto-master-frame-runtime.test.mts",
-        "testAnchor": "essential Free auto identity retains a required character master frame and the real cast rule in both Wan3 shots"
+        "testAnchor": "essential Free auto identity retains a required character master frame and the real cast rule in both available-engine shots"
       },
       {
         "file": "tests/ai-media-generation/ai-media-free-identity-auto-master-frame-runtime.test.mts",
@@ -15385,7 +15445,7 @@
       },
       {
         "file": "tests/ai-media-generation/ai-media-free-generation-prompt-runtime.test.mts",
-        "testAnchor": "one required portrait keeps one distinct identity per frame through the real planner first frame and both Wan3 shots"
+        "testAnchor": "one required portrait keeps one distinct identity per frame through the real planner first frame and both available-engine shots"
       }
     ]
   },

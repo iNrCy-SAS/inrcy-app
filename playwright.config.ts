@@ -12,7 +12,7 @@ const authStatePath = 'playwright/.auth/e2e-user.json';
 // deliberately stays in the public project so its three login scenarios still
 // exercise the real form and refresh behavior.
 const preauthenticatedSpecPattern =
-  /(?:account-export|billing-account|billing-checkout|booster-actions|booster-api|booster-fideliser-pages|calendar-api|calendar-events-write|crm-api|crm-contacts-write|dashboard-modules|dashboard-panels|devis-create|documents-new-pages|facture-create|fideliser-actions|fideliser-api|generator-kpis|integrations|mails-api|mails-mocked|notifications-api|onboarding-flow|settings-pages|stripe-checkout)\.spec\.ts/;
+  /(?:account-export|billing-account|billing-checkout|booster-actions|booster-api|booster-fideliser-pages|calendar-api|calendar-events-write|crm-api|crm-contacts-write|dashboard-modules|dashboard-panels|devis-create|documents-new-pages|facture-create|fideliser-actions|fideliser-api|generator-kpis|inrstudio|integrations|mails-api|mails-mocked|notifications-api|onboarding-flow|settings-pages|stripe-checkout)\.spec\.ts/;
 
 // Si E2E_BASE_URL est fourni, on vise un environnement déjà déployé.
 // Sinon, on démarre le serveur local.

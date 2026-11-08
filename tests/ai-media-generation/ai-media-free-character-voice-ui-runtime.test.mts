@@ -1007,9 +1007,9 @@ test("changing photos, voice samples, roles or the effective video/image engine 
   const h = harness("video", "wan27"); await h.addPhoto("premier.png"); await h.addPhoto("second.png");
   for (let index = 0; index < 2; index++) h.criteria(index, "character", "required");
   h.chooseVoice(0, "provided"); await h.uploadVoice(0); h.consent(); assert.equal(checked(h), true);
-  h.selectEngine("wan3"); assert.equal(checked(h), false);
   h.consent(); await h.uploadVoice(0); assert.equal(checked(h), false);
   h.consent(); h.chooseVoice(0, "ai"); assert.equal(checked(h), false);
+  h.consent(); h.selectEngine("veo"); assert.equal(checked(h), false, "an available engine change revokes authorization after the supplied voice is detached");
   h.consent(); h.criteria(1, "character", "inspiration"); assert.equal(checked(h), false);
   h.consent(); await h.addPhoto("decor.png"); assert.equal(checked(h), false);
   h.criteria(2, "environment", "inspiration"); h.consent(); h.removePhoto(2); assert.equal(checked(h), false);
@@ -1050,7 +1050,7 @@ test("a failed recovery keeps its explicit attempt authorization while completed
 });
 
 test("retired HeyGen is absent from regular and supplied-voice menus and their information guide", async () => {
-  const h = harness("video", "wan3"); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided");
+  const h = harness("video", "wan27"); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided");
   let menu = find(h.renderEngines(), (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
   assert.ok(!elements(menu).some((node) => node.type === "option" && String(node.props.value).startsWith("heygen:")));
   assert.doesNotMatch(text(h.renderEngineInfo()), /HeyGen/i);
@@ -1059,15 +1059,52 @@ test("retired HeyGen is absent from regular and supplied-voice menus and their i
   assert.doesNotMatch(text(h.renderEngineInfo()), /HeyGen/i); h.dispose();
 });
 
-test("Wan 3 blocks over fifteen seconds of samples without discarding them or changing the selected engine", async () => {
-  const h = harness("video", "wan3", 8); await h.addPhoto("premier.png"); await h.addPhoto("deuxieme.png");
-  for (let index = 0; index < 2; index++) { h.criteria(index, "character", "inspiration"); h.chooseVoice(index, "provided"); await h.uploadVoice(index); }
-  assert.equal(h.quoteInputs.at(-1)!.videoEngine, "wan3");
-  const menu = find(h.renderEngines(), (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
-  for (const quality of ["720p", "1080p"]) assert.equal(find(menu, (node) => node.type === "option" && node.props.value === `wan3:${quality}`).props.disabled, true);
-  assert.ok(text(h.tree()).includes("ai_generator_character_voice_wan3_duration_limit")); h.consent(); await h.generate(); assert.equal(h.requests.length, 0);
-  h.selectEngine("wan27"); h.consent(); await h.generate(); assert.equal(h.requests[0].videoEngine, "wan27");
-  assert.equal(h.requests[0].inspirationImages!.filter((image) => image.voiceSample).length, 2); h.dispose();
+test("Wan2.7 keeps two independent eight-second supplied voices without the retired Wan3 shared cap", async () => {
+  const h = harness("video", "wan27", 8);
+  try {
+    await h.addPhoto("premier.png"); await h.addPhoto("deuxieme.png");
+    for (let index = 0; index < 2; index++) { h.criteria(index, "character", "inspiration"); h.chooseVoice(index, "provided"); await h.uploadVoice(index); }
+    assert.equal(h.quoteInputs.at(-1)!.videoEngine, "wan27");
+    assert.equal(h.uploadedSamples.reduce((total, sample) => total + sample.durationSeconds, 0), 16);
+    const menu = find(h.renderEngines(), node => node.type === "select" && String(node.props.id).endsWith("-engine"));
+    for (const quality of ["720p", "1080p"]) assert.equal(find(menu, node => node.type === "option" && node.props.value === `wan27:${quality}`).props.disabled, false);
+    assert.equal(elements(menu).some(node => node.type === "option" && String(node.props.value).startsWith("wan3:")), false);
+    assert.equal(text(h.tree()).includes("ai_generator_character_voice_wan3_duration_limit"), false);
+    await h.generate(); assert.equal(h.requests.length, 0, "supplied voices still require explicit authorization");
+    h.consent(); await h.generate(); assert.equal(h.requests.length, 1); assert.equal(h.requests[0].videoEngine, "wan27");
+    assert.deepEqual(h.requests[0].inspirationImages!.map(image => image.voiceSample?.path), h.uploadedSamples.map(sample => sample.path));
+    assert.deepEqual(h.deleted, []);
+  } finally { h.dispose(); }
+});
+
+test("retired Wan3 selector and stale native payloads cannot partially alter people voices or consent", async () => {
+  const h = harness("video", "wan27", 8);
+  try {
+    await h.addPhoto("premier.png"); await h.addPhoto("deuxieme.png");
+    for (let index = 0; index < 2; index++) { h.criteria(index, "character", "required"); h.chooseVoice(index, "provided"); await h.uploadVoice(index); }
+    h.consent();
+    const authorizationChecked = () => find(find(h.tree(), node => node.props["data-media-final-authorization"] !== undefined), node => node.type === "input").props.checked;
+    const selected = JSON.stringify(h.formNative().snapshot);
+    h.selectEngine("wan3");
+    assert.equal(h.formNative().snapshot.videoEngine, "wan27");
+    assert.equal(JSON.stringify(h.formNative().snapshot), selected, "a forged old engine selector event cannot apply a partial change");
+    assert.equal(authorizationChecked(), true, "a rejected selector event does not revoke or grant consent");
+    h.changePreferredVideoEngine("wan3");
+    assert.equal(authorizationChecked(), false, "an external effective-engine change revokes earlier consent");
+    const stale = h.formNative(), before = JSON.stringify(stale.snapshot);
+    assert.equal(stale.snapshot.videoEngine, "wan3");
+    const person = (stale.snapshot.voiceReferences as Array<{ id: string }>)[0].id;
+    for (const selection of [{ field: "voiceReferenceId", value: person }, { field: "withSubtitles", value: false }]) {
+      const encoded = JSON.stringify(selection);
+      assert.throws(() => stale.handlers.select.invoke(encoded), /studio_form_unavailable/);
+      h.render(); assert.equal(JSON.stringify(h.formNative().snapshot), before);
+      assert.equal(stale.handlers.select.matches(h.formNative().snapshot, encoded), false);
+    }
+    assert.equal(h.requests.length, 0); assert.equal(h.uploads.length, 2); assert.deepEqual(h.deleted, []);
+    h.selectEngine("wan27"); h.consent(); await h.generate();
+    assert.equal(h.requests.length, 1); assert.equal(h.requests[0].videoEngine, "wan27");
+    assert.deepEqual(h.requests[0].inspirationImages!.map(image => image.voiceSample?.path), h.uploadedSamples.map(sample => sample.path));
+  } finally { h.dispose(); }
 });
 
 test("voice Inspiration retains permission and its reusable source while silent requests omit inactive character voices", async () => {

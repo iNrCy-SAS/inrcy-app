@@ -87,7 +87,7 @@ test("adjacent spoken presentation and displayed text remain in their own channe
   }
 });
 
-for (const engine of ["wan27", "wan3", "heygen"] as const) {
+for (const engine of ["wan27", "heygen"] as const) {
   test(`${engine}: exact presentation script reaches the provider and QA once despite duplicated planner visual quotes`, async () => {
     const input = request(engine); const plannerCalls: AiGenerateJsonOptions[] = [];
     const planner = load<typeof import("../../lib/aiMediaFreeGenerationPlan.ts")>("lib/aiMediaFreeGenerationPlan.ts", new Map([
@@ -149,4 +149,9 @@ test("an intentionally displayed copy of the spoken words remains visible", () =
   const prompt = prompts.buildAiMediaFreeVideoScenePrompt(args, 0, 8);
   assert.match(prompt, /Affiche aussi le titre/);
   assert.equal(prompt.split(LINE).length, 3, "one explicit visual title and one authoritative spoken line");
+});
+
+test("retired Wan3 presentation is rejected before planner or voice serialization without changing the exact words", () => {
+  assert.throws(() => request("wan3"), /Wan 3\.0.*autre moteur/);
+  assert.deepEqual(prompts.getAiMediaFreeRequestedDialogue(USER_PROMPT), [LINE]);
 });

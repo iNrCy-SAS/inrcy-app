@@ -401,9 +401,22 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
   }
   for (const locked of [false, true]) assert.equal(evaluate(attribute(select.openingElement, "disabled"), { locked }), locked);
   const voiceOptions = nodes.find((node): node is ts.ConditionalExpression =>
-    ts.isConditionalExpression(node) && node.condition.getText(parsed) === 'effectiveWithNarration && narrationVoiceMode === "ai"' &&
-      node.whenTrue.getText(parsed).includes("styles.voiceOptions"));
+    ts.isConditionalExpression(node) && node.whenTrue.getText(parsed).includes("styles.voiceOptions"));
   assert.ok(voiceOptions);
+  for (const speechMode of ["voiceover", "characters", "silent"] as const) {
+    for (const narrationVoiceMode of ["ai", "provided"] as const) {
+      for (const explicitlyEmptySpokenScript of [false, true]) {
+        const effectiveWithNarration = evaluate(initializer("effectiveWithNarration"), {
+          kind: "video", speechMode, explicitlyEmptySpokenScript,
+        });
+        assert.equal(evaluate(voiceOptions.condition, { speechMode, narrationVoiceMode, effectiveWithNarration }),
+          speechMode === "voiceover" && narrationVoiceMode === "ai",
+          "Voice-over AI settings remain editable even with an empty Exact draft; character and supplied-voice modes do not show them.");
+        if (explicitlyEmptySpokenScript) assert.equal(effectiveWithNarration, false,
+          "Keeping voice settings visible must never activate empty narration.");
+      }
+    }
+  }
   assert.doesNotMatch(source, /setWithNarration|checked=\{withNarration\}/);
 
   let speechMode: "voiceover" | "characters" | "silent" = "voiceover";

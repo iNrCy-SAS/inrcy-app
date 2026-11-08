@@ -7,7 +7,7 @@ import * as prompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
-import { AI_MEDIA_VIDEO_MODELS } from "../../lib/aiMediaModelCatalog.ts";
+import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel } from "../../lib/aiMediaModelCatalog.ts";
 import { buildAiMediaVideoProviderContract } from "../../lib/aiMediaVideoProviderContract.ts";
 import { assertAiJsonMatchesSchema } from "../../lib/aiJsonSchemaValidation.ts";
 import type { AiGenerateJsonOptions } from "../../lib/aiGatewayClient.ts";
@@ -232,7 +232,7 @@ test("le contrat compact respecte le plafond natif, sans tronquer les directions
   const runtime = loadPlanner({});
   assert.ok(prompts.buildAiMediaFreeVideoPresentationContract({ withSubtitles: false }).length <= 500);
   assert.ok(prompts.buildAiMediaFreeVideoPresentationContract({ withSubtitles: true }).length <= 500);
-  for (const model of AI_MEDIA_VIDEO_MODELS) {
+  for (const model of [...AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel("heygen")]) {
     const durationSeconds = timeline.getAiMediaVideoSegmentDurations(8, model.id, model.defaultResolution, "single")[0];
     for (const speech of ["silent", "voiceover", "characters"] as const) {
       const input = request({ videoEngine: model.id, durationSeconds, videoResolution: model.defaultResolution,

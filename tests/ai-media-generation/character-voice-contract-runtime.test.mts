@@ -30,9 +30,9 @@ test("normalization binds each supplied voice to its own character and keeps pro
   assert.equal(result.withNarration, false);
 });
 
-test("the reviewed voice engines preserve Free and guided requests without changing their voice assignments", () => {
+test("current Wan2.7 and historical HeyGen normalization preserve Free and guided voice assignments without changing their voice assignments", () => {
   assert.deepEqual(AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, ["wan27", "wan3", "heygen"]);
-  for (const videoEngine of AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES) {
+  for (const videoEngine of AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(engine => engine !== "wan3")) {
     assert.equal(isAiMediaCharacterVoiceEngine(videoEngine), true);
     for (const creationMode of ["free", "guided"]) {
       const result = normalizeAiMediaGenerationRequest(payload({ videoEngine, videoResolution: videoEngine === "heygen" ? "768p" : "720p", creationMode, inputMode: "essential", teamVideoMode: "cinematic", idea: "La personne présente son activité." }));
@@ -46,7 +46,7 @@ test("the reviewed voice engines preserve Free and guided requests without chang
     assert.equal(isAiMediaCharacterVoiceEngine(engine), false);
 });
 
-test("Wan 3 enforces its fifteen-second aggregate across distinct character samples without shortening them", () => {
+test("historical Wan3 aggregate remains measurable but new requests reject retirement without shortening samples", () => {
   const images = (seconds: number[]) => seconds.map((durationSeconds, index) => image({ usage: "inspiration", characterIndex: index + 1, voiceMode: "provided", voiceSample: {
     ...sample, durationSeconds, sizeBytes: 44 + durationSeconds * 32_000,
     path: sample.path.replace(/123456789abc\.wav$/, `${String(index + 1).padStart(12, "0")}.wav`),
@@ -54,12 +54,13 @@ test("Wan 3 enforces its fifteen-second aggregate across distinct character samp
   const allowed = images([5, 5, 5]);
   assert.equal(getAiMediaCharacterVoiceTotalDurationSeconds(allowed), 15);
   assert.equal(exceedsAiMediaCharacterVoiceEngineDuration("wan3", allowed), false);
-  assert.deepEqual(normalizeAiMediaGenerationRequest(payload({ videoEngine: "wan3", inspirationImages: allowed })).inspirationImages.map((image) => image.voiceSample?.durationSeconds), [5, 5, 5]);
+  assert.deepEqual(normalizeAiMediaGenerationRequest(payload({ videoEngine: "wan27", inspirationImages: allowed })).inspirationImages.map((image) => image.voiceSample?.durationSeconds), [5, 5, 5]);
+  assert.throws(() => normalizeAiMediaGenerationRequest(payload({ videoEngine: "wan3", inspirationImages: allowed })), /Wan 3\.0.*autre moteur/);
   const excessive = images([5, 5, 5.1]);
   assert.equal(exceedsAiMediaCharacterVoiceEngineDuration("wan3", excessive), true);
   assert.throws(() => normalizeAiMediaGenerationRequest(payload({ videoEngine: "wan3", inspirationImages: excessive })), (error: unknown) => {
     assert.ok(error instanceof Error);
-    assert.match(error.message, /Wan 3.*15 secondes.*Raccourcissez.*Wan 2\.7/);
+    assert.match(error.message, /Wan 3\.0.*autre moteur/);
     assert.doesNotMatch(error.message, /HeyGen/i);
     return true;
   });
@@ -82,7 +83,7 @@ test("supplied voice cannot bypass model, sound, kind or consent restrictions", 
   for (const overrides of [{ videoEngine: "grok-lite" }, { teamVideoSpeechMode: "voiceover" }, { kind: "image" }, { identityConsent: false }]) {
     assert.throws(() => normalizeAiMediaGenerationRequest(payload(overrides)), /voix|Wan 2.7|visages/i);
   }
-  for (const videoEngine of AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES) for (const overrides of [{ teamVideoSpeechMode: "voiceover" }, { kind: "image" }, { identityConsent: false }]) {
+  for (const videoEngine of AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(engine => engine !== "wan3")) for (const overrides of [{ teamVideoSpeechMode: "voiceover" }, { kind: "image" }, { identityConsent: false }]) {
     assert.throws(() => normalizeAiMediaGenerationRequest(payload({ videoEngine, videoResolution: videoEngine === "heygen" ? "768p" : "720p", ...overrides })), /voix|Wan 2.7|visages/i);
   }
 });

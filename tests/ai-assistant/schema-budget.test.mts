@@ -8,6 +8,7 @@ import vm from "node:vm";
 import ts from "typescript";
 import * as sdk from "ai";
 import * as aiMemoryModule from "../../lib/aiMemory.ts";
+import * as videoClientOptions from "../../lib/aiMediaVideoClientOptions.ts";
 import { fitPromptPayloadToJsonBudget } from "../../lib/aiPromptBudget.ts";
 import { getAssistantInternalDestination } from "../../lib/inrAssistantNavigation.ts";
 import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
@@ -57,6 +58,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
     "./executionIdempotency": { acquireExecutionIdempotencyLock: untouched, completeExecutionIdempotencyLockOrThrow: untouched },
     "./aiMemory.ts": aiMemoryModule, "./aiMemory": aiMemoryModule, "./aiPromptBudget.ts": { fitPromptPayloadToJsonBudget },
     "./aiMediaGenerationContracts.ts": { normalizeAiMediaGenerationRequest: untouched },
+    "./aiMediaVideoClientOptions.ts": videoClientOptions,
     "./aiMediaModelCatalog.ts": { getAiMediaImageModel: untouched, getAiMediaVideoModel: untouched, isAiMediaVideoEngineAvailable: untouched },
     "./standardAgentPolicy.ts": { isStandardAgentActionDescriptor: untouched },
     "./adsAccessPolicy.ts": { ADS_PUBLIC_CHANNELS: [] }, "./aiMediaGenerationPublicErrors.ts": { getAiMediaGenerationPublicError: untouched },

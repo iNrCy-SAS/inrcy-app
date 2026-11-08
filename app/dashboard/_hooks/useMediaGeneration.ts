@@ -10,7 +10,7 @@ import {
   normalizeAiMediaWithSubtitles,
 } from "@/lib/aiMediaGenerationContracts";
 import { getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "@/lib/aiMediaVideoSpeechBudget";
-import { normalizeAiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
+import { getAiMediaVideoEngineRetirementIssue, normalizeAiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
 import { AI_MEDIA_GENERATION_STREAM_TYPE, readAiMediaGenerationResponse } from "@/lib/aiMediaGenerationTransport";
 import { getCharacterVoiceSelectionState, isProvidedCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration } from "@/lib/aiMediaCharacterVoiceClient";
 import {
@@ -723,6 +723,8 @@ export default function useMediaGeneration() {
         };
       }
       if (request.kind === "video") {
+        const retiredVideoEngine = getAiMediaVideoEngineRetirementIssue(request.videoEngine);
+        if (retiredVideoEngine) throw new Error(retiredVideoEngine.message);
         if (request.creationMode === "free") {
           const speech = getAiMediaVideoSpeechState(request);
           if (speech.issue) throw new Error(speech.issue.message);
@@ -732,8 +734,8 @@ export default function useMediaGeneration() {
         const voiceSelection = getCharacterVoiceSelectionState(request.inspirationImages || []);
         if (voiceSelection.missingSample) throw new Error("Insérez un vocal pour chaque personnage en voix fournie.");
         if (voiceSelection.hasProvidedVoice && request.teamVideoSpeechMode !== "characters") throw new Error("Les voix fournies sont utilisées en mode Personnages.");
-        if (voiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(request.videoEngine)) throw new Error("Utilisez Wan 2.7 ou Wan 3 pour une vidéo avec une voix fournie.");
-        if (voiceSelection.hasProvidedVoice && exceedsAiMediaCharacterVoiceEngineDuration(request.videoEngine, request.inspirationImages || [])) throw new Error("Wan 3 accepte au maximum 15 secondes de vocaux au total. Raccourcissez vos échantillons ou choisissez Wan 2.7.");
+        if (voiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(request.videoEngine)) throw new Error("Utilisez Wan 2.7 pour une vidéo avec une voix fournie.");
+        if (voiceSelection.hasProvidedVoice && exceedsAiMediaCharacterVoiceEngineDuration(request.videoEngine, request.inspirationImages || [])) throw new Error("Les vocaux dépassent la durée acceptée par ce moteur. Raccourcissez vos échantillons ou choisissez Wan 2.7.");
       }
       const idea = String(request.idea || "").trim();
       const textMode = resolveMediaGenerationTextMode(request);

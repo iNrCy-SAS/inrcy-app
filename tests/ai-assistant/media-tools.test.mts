@@ -9,6 +9,7 @@ import * as mediaIntent from "../../lib/inrAssistantMediaIntent.ts";
 import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import * as mediaPreview from "../../lib/inrAssistantMediaPreview.ts";
 import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
+import * as videoClientOptions from "../../lib/aiMediaVideoClientOptions.ts";
 import type * as MediaTools from "../../lib/inrAssistantMediaTools.ts";
 
 const mediaId = "20000000-0000-4000-8000-000000000001";
@@ -32,6 +33,7 @@ function harness(options: HarnessOptions = {}) {
     "./aiMediaGenerationContracts.ts": { normalizeAiMediaGenerationRequest },
     "./aiMediaVideoSpeechBudget.ts": speechBudget,
     "./aiMediaModelCatalog.ts": catalogue,
+    "./aiMediaVideoClientOptions.ts": videoClientOptions,
     "./inrAssistantMediaIntent.ts": mediaIntent,
     "./inrAssistantRequestClauses.ts": requestClauses,
     "./inrAssistantMediaPreview.ts": mediaPreview,
@@ -218,16 +220,65 @@ test("preview generation remains a native temporary draft across fresh status-on
   const text = JSON.stringify(h.tools.generateMedia.toModelOutput({ output: preview })); assert.equal(text.includes("private.invalid"), false); assert.equal(text.includes('"draft":true'), true);
 });
 
-test("native scene/speech controls and required product/environment references reach quote and generation unchanged", async () => {
+test("automatic duration and native speech preserve required product/environment references in quote and generation", async () => {
   const h = harness();
   const input = { mediaType: "video", prompt: "Un film en deux scènes de notre produit dans notre atelier", format: "story", durationSeconds: 16, resultMode: "preview", settings: [
-    { field: "videoEngine", valueJson: '"grok-lite"' }, { field: "sceneMode", valueJson: '"multi"' }, { field: "teamVideoSpeechMode", valueJson: '"characters"' }, { field: "spokenScript", valueJson: '"Découvrez notre savoir-faire."' },
+    { field: "videoEngine", valueJson: '"grok-lite"' }, { field: "teamVideoSpeechMode", valueJson: '"characters"' }, { field: "spokenScript", valueJson: '"Découvrez notre savoir-faire."' },
     { field: "references", valueJson: JSON.stringify([{ mediaId: sourceMediaId, role: "product", usage: "required", characterIndex: null }, { mediaId, role: "environment", usage: "inspiration", characterIndex: null }]) },
   ] };
   const result = await h.tools.generateMedia.execute(input); assert.equal(result.status, "ready_to_save", JSON.stringify(result));
   const body = h.calls.find(call => call.stage === "generate")!.body!, quote = h.calls.find(call => call.stage === "quote")!.body!;
-  assert.equal(body.sceneMode, "multi"); assert.equal(body.teamVideoSpeechMode, "characters"); assert.equal(body.identityConsent, false); assert.equal(quote.inspirationImagesCount, 2);
+  assert.equal(body.sceneMode, "multi"); assert.equal(body.connectScenes, false); assert.equal(quote.sceneMode, body.sceneMode); assert.equal(quote.connectScenes, false); assert.equal(body.freePrompt, input.prompt); assert.equal(body.teamVideoSpeechMode, "characters"); assert.equal(body.identityConsent, false); assert.equal(quote.inspirationImagesCount, 2);
   const references = body.inspirationImages as Array<Record<string, unknown>>; assert.equal(references[0].role, "product"); assert.equal(references[0].usage, "required"); assert.equal(references[1].role, "environment"); assert.equal(references[1].usage, "inspiration"); assert.equal(h.calls.some(call => call.stage === "accept"), false);
+});
+
+test("automatic Grok duration picks native fifteen or independent thirty seconds identically in quote and generation", async () => {
+  for (const videoResolution of ["720p", "1080p"]) for (const [durationSeconds, sceneMode] of [[15, "single"], [30, "multi"]] as const) {
+    const input = { mediaType: "video", prompt: "Un film en deux scènes de notre jardin et de notre terrasse", format: "story", durationSeconds, resultMode: "preview", settings: [
+      { field: "videoEngine", valueJson: '"grok-lite"' }, { field: "videoResolution", valueJson: JSON.stringify(videoResolution) },
+    ] };
+    const h = harness(), result = await h.tools.generateMedia.execute(input);
+    assert.equal(result.status, "ready_to_save", JSON.stringify(result));
+    const quote = h.calls.find(call => call.stage === "quote")!.body!, generated = h.calls.find(call => call.stage === "generate")!.body!;
+    const canonical = { videoEngine: "grok-lite", videoResolution, durationSeconds, sceneMode, connectScenes: false };
+    for (const [field, value] of Object.entries(canonical)) { assert.equal(quote[field], value, field); assert.equal(generated[field], value, field); }
+    assert.equal(generated.freePrompt, input.prompt, "two scenes remains visual content and cannot impose a manual pair");
+    const readOnly = harness(), estimate = await readOnly.tools.quoteMediaGeneration.execute(input);
+    assert.equal(estimate.status, "quoted");
+    const estimateBody = readOnly.calls.find(call => call.stage === "quote")!.body!;
+    for (const [field, value] of Object.entries(canonical)) assert.equal(estimateBody[field], value, field);
+    assert.equal(readOnly.calls.some(call => call.stage === "generate" || call.stage === "accept"), false);
+  }
+});
+
+test("duration and resolution incompatibility fail without quote generation source load or callbacks", async () => {
+  for (const [videoEngine, videoResolution, durationSeconds] of [["veo", "1080p", 6], ["veo", "720p", 5], ["minimax-h3", "1080p", 10]] as const) for (const action of ["generateMedia", "quoteMediaGeneration"] as const) {
+    const h = harness(), result = await h.tools[action].execute({ mediaType: "video", prompt: "Un jardin paisible", durationSeconds, settings: [
+      { field: "videoEngine", valueJson: JSON.stringify(videoEngine) }, { field: "videoResolution", valueJson: JSON.stringify(videoResolution) },
+    ] });
+    assert.equal(result.status, "failed"); assert.match(result.message, /durée.*disponible|Résolution indisponible/);
+    assert.equal(h.calls.some(call => ["quote", "generate", "source", "accept"].includes(call.stage)), false); assert.deepEqual(h.callbacks, []);
+  }
+});
+
+test("manual montage settings are absent from both schemas and rejected before any native action", async () => {
+  for (const action of ["generateMedia", "quoteMediaGeneration"] as const) {
+    const schema = (harness().tools[action].inputSchema as unknown as { schema: { properties: { settings: { items: { properties: { field: { enum: string[] } } } } } } }).schema;
+    for (const field of ["sceneMode", "connectScenes"]) assert.equal(schema.properties.settings.items.properties.field.enum.includes(field), false);
+    for (const setting of [{ field: "sceneMode", valueJson: '"single"' }, { field: "sceneMode", valueJson: '"multi"' }, { field: "connectScenes", valueJson: "true" }, { field: "connectScenes", valueJson: "false" }]) {
+      const h = harness(), input = { mediaType: "video", prompt: "Un film en deux scènes", durationSeconds: 30, settings: [{ field: "videoEngine", valueJson: '"grok-lite"' }, setting] };
+      assert.equal(h.tools[action].inputSchema.validate?.(input).success, false);
+      await assert.rejects(h.tools[action].execute(input), /Réglages Studio invalides/); assert.deepEqual(h.calls, []); assert.deepEqual(h.callbacks, []);
+    }
+  }
+});
+
+test("automatic duration cannot revive a globally retired Wan3 payload", async () => {
+  for (const action of ["generateMedia", "quoteMediaGeneration"] as const) {
+    const h = harness(), input = { mediaType: "video", prompt: "Un jardin paisible", durationSeconds: 30, settings: [{ field: "videoEngine", valueJson: '"wan3"' }, { field: "videoResolution", valueJson: '"1080p"' }] };
+    assert.equal(h.tools[action].inputSchema.validate?.(input).success, false);
+    await assert.rejects(h.tools[action].execute(input), /Wan 3\.0.*autre moteur/); assert.deepEqual(h.calls, []);
+  }
 });
 
 test("non-identical character inspiration works but faithful identity, provided voice and malformed reference roles cannot acquire implicit consent", async () => {

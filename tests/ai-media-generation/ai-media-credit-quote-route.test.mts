@@ -29,6 +29,7 @@ function fixture(options:{authenticated?:boolean;creditsReady?:boolean;unlimited
   const api=load<{POST(request:Request):Promise<Response>}>("app/api/media-generation/quote/route.ts",{
     "next/server":{NextResponse:{json:(value:unknown,init?:ResponseInit)=>Response.json(value,init)}},
     "@/lib/aiMediaCreditQuoteServer":quotes,
+    "@/lib/aiMediaModelCatalog":models,
     "@/lib/aiMediaGenerationQuota":{AiMediaGenerationQuotaError:QuotaError,getAiMediaQuotaSnapshot:async(args:Row)=>{
       calls.push({type:"wallet",...args});return {creditsReady:options.creditsReady!==false,credits:{unit:"credit",limit:715,used:3,reserved:0,remaining:712}};
     }},
@@ -122,4 +123,13 @@ test("maximum exact speech fits the quote envelope after JSON escaping and leave
   const oversized = fixture();
   assert.equal((await oversized.post({ ...settings, spokenScript: '"'.repeat(8_200) })).status, 413);
   assert.equal(oversized.calls.length, 0);
+});
+
+test("retired Wan3 is rejected by the real catalogue before wallet edition entitlement or quote work",async()=>{
+  const f=fixture();
+  const response=await f.post({...fourSeconds,videoEngine:"wan3",durationSeconds:8});
+  const output=await response.json();
+  assert.equal(response.status,400);assert.equal(output.code,"AI_MEDIA_VIDEO_ENGINE_RETIRED");
+  assert.equal(output.quote,undefined);assert.deepEqual(f.calls,[]);
+  assert.equal(models.getAiMediaVideoModel("wan3").modelId,"alibaba/wan-v3.0-video","historical metadata remains readable");
 });

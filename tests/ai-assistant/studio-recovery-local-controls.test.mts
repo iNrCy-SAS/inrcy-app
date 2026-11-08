@@ -11,6 +11,8 @@ import {
   type InrAssistantLocalInterface,
 } from "../../lib/inrAssistantLocalInterface.ts";
 import { isInrAssistantStudioDraftReviewRequest } from "../../lib/inrAssistantStudioDraftReview.ts";
+import { INR_ASSISTANT_BASIC_GUIDES } from "../../lib/inrAssistantGuidesBasic.ts";
+import { getAiMediaVideoEngineRetirementIssue, isAiMediaVideoEngineAvailable, getAiMediaVideoModel } from "../../lib/aiMediaModelCatalog.ts";
 import { INR_ASSISTANT_CREATION_GUIDES } from "../../lib/inrAssistantGuidesCreation.ts";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 
@@ -127,4 +129,49 @@ test("the compact Studio guide distinguishes same-job verification, leaving the 
   assert.ok(guide.content.length <= 2500);
   for (const phrase of ["Vérifier mon média", "même tentative", "sans relance", "identifiant", "critères restent modifiables", "nouvelle génération attend sa résolution", "Annuler la génération", "confirmation distincte", "absence de débit", "Utiliser mon ADN", "Consignes ET Interdictions", "interdictions priment", "Basique sans crédits mensuels", "recharges permettent de générer sans changer d’offre"]) assert.ok(guide.content.toLowerCase().includes(phrase.toLowerCase()), phrase);
   assert.ok(guide.sourceFiles.includes("app/dashboard/_hooks/useMediaGeneration.ts"));
+});
+
+
+test("both Studio guides retain recovery safeguards and the reviewed automatic-duration voice and estimated-progress policies", () => {
+  const guides = [INR_ASSISTANT_CREATION_GUIDES.find(row => row.id === "studio-create")!,
+    INR_ASSISTANT_BASIC_GUIDES.find(row => row.id === "basic-studio-create")!];
+  for (const guide of guides) {
+    assert.ok(guide.content.length <= 2500, guide.id);
+    for (const phrase of ["même tentative", "sans relance", "critères restent modifiables", "nouvelle génération attend sa résolution",
+      "Annuler la génération", "confirmation distincte", "absence de débit", "Consignes ET Interdictions", "interdictions priment",
+      "Basique sans crédits mensuels", "recharges permettent de générer sans changer d’offre", "plans automatiques en Studio Libre",
+      "choix explicite conservé", "moteurs disponibles", "Wan 3 retiré de tous les parcours de génération", "Femme/Homme", "Style de voix", "réglages IA si options utiles", "3 vocaux",
+      "voix off sans photo", "un narrateur actif", "droits à confirmer par le pro", "Import/enregistrement humains",
+      "une resynthèse supplémentaire", "mêmes paroles/vocal", "jamais après erreur réseau/soumission incertaine", "ni substitution de voix",
+      "durée mesurée", "départ estimé", "pas d’alignement mot à mot", "≈% vidéo estimés", "sans délai garanti"]) {
+      assert.ok(guide.content.toLowerCase().includes(phrase.toLowerCase()), guide.id + ": " + phrase);
+    }
+    for (const file of ["app/dashboard/_hooks/useMediaGeneration.ts", "app/dashboard/_components/MediaEngineCreditControls.tsx",
+      "lib/aiMediaNarrationSubtitles.ts", "lib/aiMediaNarrationPreparation.ts", "lib/aiMediaModelCatalog.ts"]) assert.ok(guide.sourceFiles.includes(file), guide.id + ": " + file);
+    assert.ok(!guide.sourceFiles.includes("lib/aiMediaStudioFreeVideoPolicy.ts"));
+    assert.doesNotMatch(guide.content, /Wan 3 temporairement|Wan 3[^.]*indisponible en Studio Libre/);
+  }
+  assert.ok(guides[1].content.includes("Préparer devis/champs selon choix explicites ne lance ni génération, achat ni consentement"));
+  assert.match(guides[1].content, /oublier un bloc préserve les autres/);
+});
+
+test("Studio guide retirement agrees with the global catalogue without retiring Wan 2.6 or Wan 2.7 or erasing history", () => {
+  assert.equal(getAiMediaVideoEngineRetirementIssue("wan3")?.code, "AI_MEDIA_VIDEO_ENGINE_RETIRED");
+  assert.equal(isAiMediaVideoEngineAvailable("wan3"), false);
+  assert.equal(getAiMediaVideoModel("wan3").id, "wan3", "old results keep canonical metadata");
+  for (const engine of ["wan-flash", "wan27"] as const) {
+    assert.equal(getAiMediaVideoEngineRetirementIssue(engine), null);
+    assert.equal(isAiMediaVideoEngineAvailable(engine), true);
+  }
+});
+
+test("Studio edit and preview guides describe the open workshop and scope automatic plans to free Studio", () => {
+  const edit = INR_ASSISTANT_CREATION_GUIDES.find(row => row.id === "studio-edit")!;
+  const preview = INR_ASSISTANT_BASIC_GUIDES.find(row => row.id === "basic-studio-preview")!;
+  assert.ok(edit.content.includes("atelier déjà ouvert"));
+  assert.doesNotMatch(edit.content, /ouvrir l’atelier/);
+  assert.ok(preview.content.includes("En Studio Libre, les plans sont automatiques"));
+  assert.ok(preview.content.includes("les autres parcours gardent leurs choix natifs de scènes"));
+  assert.doesNotMatch(preview.content, /options natives de scènes.paroles/);
+  assert.ok(preview.sourceFiles.includes("app/dashboard/_components/MediaEngineCreditControls.tsx"));
 });

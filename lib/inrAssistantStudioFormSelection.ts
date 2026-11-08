@@ -1,9 +1,10 @@
 import type { AiMediaSubjectSource, AiMediaOutputFormat, AiMediaImageStyle, AiMediaImagePurpose, AiMediaVisualDirection, AiMediaLogoMode, AiMediaTextMode, AiMediaPeopleCriterion, AiMediaSettingCriterion, AiMediaFocusCriterion, AiMediaTeamVideoSpeechMode } from "./aiMediaGenerationContracts.ts";
 import { AI_MEDIA_FREE_PROMPT_MAX_CHARS, AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS } from "./aiMediaGenerationContracts.ts";
 import { getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
-import type { AiMediaVideoEngine, AiMediaVideoResolution } from "./aiMediaModelCatalog.ts";
+import { getAiMediaVideoEngineRetirementIssue, getAiMediaVideoModel, isAiMediaVideoEngineAvailable, type AiMediaVideoEngine, type AiMediaVideoResolution } from "./aiMediaModelCatalog.ts";
 import { isAiMediaNarrationVoiceVariantForGender, type AiMediaNarrationVoiceVariant } from "./aiMediaNarrationVoices.ts";
 import { inrAssistantRequestClauses, inrAssistantUnquotedRequest } from "./inrAssistantRequestClauses.ts";
+import { getAutomaticMediaVideoDurationOptions } from "./aiMediaVideoClientOptions.ts";
 
 type Values = {
   activeTab: string; subjectSource: AiMediaSubjectSource; creativeBrief: string; sourceMode: "ai" | "criteria" | "real";
@@ -12,7 +13,7 @@ type Values = {
   useBrandColors: boolean; logoMode: AiMediaLogoMode; textMode: AiMediaTextMode; exactText: string; textKeywords: string[]; textKeywordDraft: string;
   speechMode: AiMediaTeamVideoSpeechMode | "silent"; narrationVoice: "female" | "male"; narrationVoiceVariant: AiMediaNarrationVoiceVariant;
   voiceMode: "ai" | "provided"; voiceReferenceId: string | null;
-  withMusic: boolean; durationScene: { seconds: number; sceneMode: "single" | "multi" };
+  withMusic: boolean; durationScene: { seconds: number; sceneMode: "single" | "multi" }; durationSeconds: number;
   prompt: string; useBusinessDna: boolean; spokenScript: string; spokenScriptOpen: boolean; withSubtitles: boolean;
 };
 export type InrAssistantStudioFormSelection = { [K in keyof Values]: { field: K; value: Values[K] } }[keyof Values];
@@ -20,6 +21,8 @@ export type InrAssistantStudioFormSnapshot = Partial<Values> & {
   mode: "guided" | "free"; kind: "image" | "video"; locked: boolean; editorVisible: boolean;
   transformMode?: boolean; publicationAvailable?: boolean; fixedFormat?: string; maxPromptLength?: number;
   videoEngine?: AiMediaVideoEngine | null; videoResolution?: AiMediaVideoResolution | null; language?: string;
+  /** Browser-only: true for the Studio duration-only selector, never Guided or Booster. */
+  automaticSceneMode?: boolean;
   voiceReferences?: Array<{ id: string; name: string; voiceMode: "ai" | "provided"; referenceIndex?: number }>;
 };
 const choices: Partial<Record<keyof Values, readonly unknown[]>> = {
@@ -30,12 +33,25 @@ const choices: Partial<Record<keyof Values, readonly unknown[]>> = {
   logoMode: ["discreet", "visible", "none"], textMode: ["none", "ai", "exact"], narrationVoice: ["female", "male"], voiceMode: ["ai", "provided"],
 };
 const guided = ["activeTab", "subjectSource", "creativeBrief", "sourceMode", "people", "setting", "focus", "imagePurpose", "format", "imageStyle", "visualDirection", "useBrandColors", "logoMode", "textMode", "exactText", "textKeywords", "textKeywordDraft", "speechMode", "narrationVoice", "narrationVoiceVariant", "withMusic", "durationScene"];
-const free = ["activeTab", "prompt", "useBusinessDna", "format", "durationScene", "speechMode", "spokenScript", "spokenScriptOpen", "narrationVoice", "narrationVoiceVariant", "withMusic", "withSubtitles", "voiceMode", "voiceReferenceId"];
-const videoOnly = ["speechMode", "narrationVoice", "narrationVoiceVariant", "withMusic", "durationScene", "spokenScript", "spokenScriptOpen", "withSubtitles", "voiceMode", "voiceReferenceId"];
+const free = ["activeTab", "prompt", "useBusinessDna", "format", "durationScene", "durationSeconds", "speechMode", "spokenScript", "spokenScriptOpen", "narrationVoice", "narrationVoiceVariant", "withMusic", "withSubtitles", "voiceMode", "voiceReferenceId"];
+const videoOnly = ["speechMode", "narrationVoice", "narrationVoiceVariant", "withMusic", "durationScene", "durationSeconds", "spokenScript", "spokenScriptOpen", "withSubtitles", "voiceMode", "voiceReferenceId"];
+
+function automaticStudioDuration(state: InrAssistantStudioFormSnapshot, seconds: unknown): Values["durationScene"] | null {
+  if (state.mode !== "free" || state.kind !== "video" || state.automaticSceneMode !== true || !state.videoEngine ||
+      typeof seconds !== "number" || !Number.isInteger(seconds)) return null;
+  try {
+    if (!isAiMediaVideoEngineAvailable(state.videoEngine)) return null;
+    const model = getAiMediaVideoModel(state.videoEngine);
+    if (model.id !== state.videoEngine || !state.videoResolution || !model.resolutions.includes(state.videoResolution)) return null;
+    const option = getAutomaticMediaVideoDurationOptions(state.videoEngine, state.videoResolution).find(option => option.durationSeconds === seconds);
+    return option ? { seconds: option.durationSeconds, sceneMode: option.sceneMode } : null;
+  } catch { return null; }
+}
 /** One finite native field at a time. No submit, identity consent, source URL,
  * job mutation, preference write or executable payload enters this interface. */
 export function parseInrAssistantStudioFormSelection(value: string | null, state: InrAssistantStudioFormSnapshot, durationAllowed?: (seconds: number, mode: "single" | "multi") => boolean): InrAssistantStudioFormSelection | null {
   if (!value || value.length > 25000 || state.locked || !state.editorVisible) return null;
+  if (state.kind === "video" && getAiMediaVideoEngineRetirementIssue(state.videoEngine)) return null;
   let input: unknown; try { input = JSON.parse(value); } catch { return null; }
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const row = input as Record<string, unknown>, field = row.field as keyof Values, next = row.value;
@@ -62,7 +78,8 @@ export function parseInrAssistantStudioFormSelection(value: string | null, state
   if (field === "imagePurpose" && state.kind !== "image" || field === "format" && state.fixedFormat && next !== state.fixedFormat) return null;
   if (field === "exactText" && state.textMode !== "exact" || ["textKeywords", "textKeywordDraft"].includes(field) && state.textMode !== "ai") return null;
   if (field === "speechMode" && (state.mode === "guided" ? !["voiceover", "characters"].includes(String(next)) : !["voiceover", "characters", "silent"].includes(String(next)) || next === "silent" && !!state.spokenScript?.trim())) return null;
-  if (["narrationVoice", "narrationVoiceVariant"].includes(field) && state.speechMode !== "voiceover") return null;
+  if (["narrationVoice", "narrationVoiceVariant"].includes(field) &&
+      (state.speechMode !== "voiceover" || state.mode === "free" && state.voiceMode !== "ai")) return null;
   if (field === "narrationVoiceVariant" && !isAiMediaNarrationVoiceVariantForGender(next, state.narrationVoice || "female")) return null;
   if (field === "spokenScript" && (!state.spokenScriptOpen || state.speechMode === "silent") || field === "spokenScriptOpen" && next === true && state.speechMode === "silent") return null;
   if (field === "withSubtitles" && state.speechMode === "silent") return null;
@@ -71,13 +88,19 @@ export function parseInrAssistantStudioFormSelection(value: string | null, state
   const textLimits: Partial<Record<keyof Values, number>> = { creativeBrief: getAiMediaVisualBriefMaxChars(state.kind, "guided"), exactText: 600, textKeywordDraft: 160, prompt: Math.min(getAiMediaVisualBriefMaxChars(state.kind, "free"), state.maxPromptLength ?? AI_MEDIA_FREE_PROMPT_MAX_CHARS), spokenScript: AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS };
   if (textLimits[field] !== undefined && (typeof next !== "string" || next.length > textLimits[field]!)) return null;
   if (field === "textKeywords" && (!Array.isArray(next) || next.length > 6 || next.some(item => typeof item !== "string" || item.length < 2 || item.length > 48 || /[,;\n\r\t]|\s{2,}|^#|#$/.test(item) || item !== item.trim()) || new Set(next.map(item => item.toLocaleLowerCase())).size !== next.length)) return null;
+  let durationSelection: Values["durationScene"] | null = null;
+  if (field === "durationSeconds") {
+    durationSelection = automaticStudioDuration(state, next);
+    if (!durationSelection || !durationAllowed?.(durationSelection.seconds, durationSelection.sceneMode)) return null;
+  }
   if (field === "durationScene") {
+    if (state.mode === "free" && state.automaticSceneMode === true) return null;
     if (!next || typeof next !== "object" || Array.isArray(next)) return null;
     const pair = next as Record<string, unknown>;
     if (Object.keys(pair).length !== 2 || !Object.hasOwn(pair, "seconds") || !Object.hasOwn(pair, "sceneMode") || typeof pair.seconds !== "number" || !Number.isInteger(pair.seconds) || !["single", "multi"].includes(String(pair.sceneMode)) || !durationAllowed?.(pair.seconds, pair.sceneMode as "single" | "multi")) return null;
   }
-  if (state.kind === "video" && state.mode === "free" && ["spokenScript", "durationScene", "speechMode"].includes(field)) {
-    const durationScene = field === "durationScene" ? next as Values["durationScene"] : state.durationScene;
+  if (state.kind === "video" && state.mode === "free" && ["spokenScript", "durationScene", "durationSeconds", "speechMode"].includes(field)) {
+    const durationScene = durationSelection ?? (field === "durationScene" ? next as Values["durationScene"] : state.durationScene);
     const speechMode = field === "speechMode" ? next as Values["speechMode"] : state.speechMode;
     const speech = getAiMediaVideoSpeechState({ kind: "video", creationMode: "free", freePrompt: state.prompt,
       spokenScript: field === "spokenScript" ? next as string : state.spokenScriptOpen ? state.spokenScript : undefined,
@@ -86,7 +109,8 @@ export function parseInrAssistantStudioFormSelection(value: string | null, state
       videoResolution: state.videoResolution, language: state.language });
     if (speech.issue) return null;
   }
-  return row as InrAssistantStudioFormSelection;
+  // Reuse the existing native duration/scene setter with a browser-derived pair.
+  return durationSelection ? { field: "durationScene", value: durationSelection } : row as InrAssistantStudioFormSelection;
 }
 /** Match committed React state, never the invocation's intended value alone. */
 export function isInrAssistantStudioFormSelectionApplied(snapshot: unknown, encoded: string | null): boolean {
@@ -94,6 +118,14 @@ export function isInrAssistantStudioFormSelectionApplied(snapshot: unknown, enco
   let parsed: unknown; try { parsed = JSON.parse(encoded); } catch { return false; }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
   const row = parsed as Record<string, unknown>, state = snapshot as Record<string, unknown>;
+  if (state.kind === "video" && getAiMediaVideoEngineRetirementIssue(state.videoEngine)) return false;
+  if (["narrationVoice", "narrationVoiceVariant"].includes(String(row.field)) && state.mode === "free" &&
+      (state.speechMode !== "voiceover" || state.voiceMode !== "ai")) return false;
+  if (row.field === "durationSeconds") {
+    const expected = automaticStudioDuration(state as unknown as InrAssistantStudioFormSnapshot, row.value);
+    const committed = state.durationScene as Values["durationScene"] | undefined;
+    return !!expected && committed?.seconds === expected.seconds && committed.sceneMode === expected.sceneMode;
+  }
   if (row.field === "voiceReferenceId") {
     const references = state.voiceReferences;
     if (typeof row.value !== "string" || !Array.isArray(references) ||
@@ -104,7 +136,7 @@ export function isInrAssistantStudioFormSelectionApplied(snapshot: unknown, enco
 
 /** Server authorization vocabulary complements the mounted native validator.
  * A valid enum alone cannot substitute portrait for a requested square. */
-export function isInrAssistantStudioFormSelectionRequested(message: string, encoded: string | null): boolean {
+export function isInrAssistantStudioFormSelectionRequested(message: string, encoded: string | null, mode?: "guided" | "free"): boolean {
   if (!encoded || encoded.length > 25000) return false;
   if (inrAssistantRequestClauses(message).filter(clause => /\b(?:mets|mettez|choisis|selectionne\w*|modifi\w*|chang\w*|regl\w*|activ\w*|desactiv\w*|ajout\w*|coupe|ouvre\w*|affich\w*|appliqu\w*|enregistr\w*)\b/.test(clause)).length > 1) return false;
   let input: unknown; try { input = JSON.parse(encoded); } catch { return false; }
@@ -128,7 +160,7 @@ export function isInrAssistantStudioFormSelectionRequested(message: string, enco
     return ai !== provided && (value === "ai" ? ai : value === "provided" && provided);
   }
   const fields: Record<string, RegExp> = { activeTab: /onglet|section|etape/, subjectSource: /source.{0,15}sujet|sujet.{0,15}source/, creativeBrief: /consigne|sujet|brief|instruction|idee/, sourceMode: /source|references?|selection/, people: /personnes?|personnages?/, setting: /decor|lieu|environnement/, focus: /priorite|focus|accent|mise? en avant/, imagePurpose: /composition|usage|objectif|flyer|affiche|banniere|infographie|fiche produit/, format: /format|carre|portrait|paysage|horizontal|vertical|story|1\s*:\s*1|4\s*:\s*5|9\s*:\s*16|16\s*:\s*9/, imageStyle: /style|photo|illustration|3d|graphique/, visualDirection: /direction|ambiance|intention visuelle/, useBrandColors: /couleurs?.{0,20}(?:marque|entreprise|adn)|charte/, logoMode: /logo/, textMode: /mode.{0,20}texte|texte.{0,20}(?:mode|exact|fourni|aucun|automati)/, exactText: /texte.{0,20}(?:exact|fourni)|(?:exact|fourni).{0,20}texte/, textKeywords: /mots.?(?:cles|dieses)|tags?/, textKeywordDraft: /mot.?(?:cle|diese)|tag/, speechMode: /paroles?|mode.{0,15}(?:audio|voix)|voix off|narration|silenc/, narrationVoice: /voix|narration/, narrationVoiceVariant: /voix|variante/, withMusic: /musique|bande.son/, durationScene: /duree|secondes?|\bsec\b|scenes?/, prompt: /prompt|consigne|instruction|brief/, useBusinessDna: /adn|dna/, spokenScript: /script|paroles?.{0,20}(?:exact|fourni)/, spokenScriptOpen: /script|paroles?.{0,20}(?:exact|fourni)/, withSubtitles: /sous.titres?/ };
-  if (!field || !(field === "spokenScriptOpen" ? /script|paroles?.{0,20}(?:exact|fourni|automati)/ : fields[field])?.test(text)) return false;
+  if (!field || !(field === "spokenScriptOpen" ? /script|paroles?.{0,20}(?:exact|fourni|automati)/ : field === "durationSeconds" ? /duree|secondes?|\bsec\b|\b\d+\s*s\b/ : fields[field])?.test(text)) return false;
   if (field === "spokenScriptOpen") {
     const automatic = /(?:script|paroles?).{0,20}automati/.test(text);
     const exact = /(?:script|paroles?).{0,20}(?:exact|fourni)/.test(text);
@@ -144,6 +176,12 @@ export function isInrAssistantStudioFormSelectionRequested(message: string, enco
   if (["exactText", "spokenScript", "textKeywordDraft"].includes(field)) return typeof value === "string" && message.includes(value);
   if (field === "textKeywords") return Array.isArray(value) && value.every(item => typeof item === "string" && message.includes(item));
   if (field === "narrationVoiceVariant") return typeof value === "string" && message.toLowerCase().includes(value.toLowerCase());
+  if (field === "durationSeconds") {
+    if (mode === "guided" || typeof value !== "number" || !Number.isInteger(value) || value < 4 || value > 30 ||
+        /\b(?:pas|jamais|ne|non|si|comment|pourquoi|ou|soit)\b|\bn['’]|\?/.test(text)) return false;
+    const durations = [...text.matchAll(/\b(\d+)\s*(?:s\b|sec(?:onde)?s?\b)/g)].map(match => Number(match[1]));
+    return durations.length === 1 && durations[0] === value;
+  }
   if (field === "durationScene") { const pair = value as { seconds?: unknown; sceneMode?: unknown } | null; return !!pair && typeof pair.seconds === "number" && new RegExp(`\\b${pair.seconds}\\s*(?:s\\b|sec|second)`).test(text) && (pair.sceneMode === "multi" ? /multi|plusieurs scenes?/.test(text) : pair.sceneMode === "single" && /unique|une (?:seule )?scene|mono/.test(text)); }
   if (["useBrandColors", "useBusinessDna", "withMusic", "withSubtitles", "spokenScriptOpen"].includes(field)) return typeof value === "boolean" && (value ? /activ\w*|ajout\w*|utilis\w*|avec|mets|oui|ouvre\w*/.test(text) && !/desactiv|retir|sans|coupe|non\b/.test(text) : /desactiv|retir|sans|coupe|non\b|ferme\w*/.test(text));
   const values: Record<string, Record<string, RegExp>> = {

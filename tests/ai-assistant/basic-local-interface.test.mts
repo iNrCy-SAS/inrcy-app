@@ -101,3 +101,22 @@ test('Basic local interface server tools authenticate the exact actor and leave 
   assert.equal((await tool.execute!(input, {} as never) as { status: string }).status, 'ui_action_requested');
   actor = 'other'; assert.equal((await tool.execute!(input, {} as never) as { status: string }).status, 'blocked');
 });
+
+test('Studio duration-only server commands require the exact requested seconds and leave Guided scene choices unchanged', async () => {
+  const load = runtimeModules({ './requireUser': { requireUser: async () => ({ activeUserId: 'account', authUserId: 'actor' }) } });
+  const runtime = load<typeof import('../../lib/inrAssistantLocalInterfaceTools.ts')>('lib/inrAssistantLocalInterfaceTools.ts');
+  const run = async (id: 'studio_free_form' | 'studio_guided_form', message: string, value: string) => {
+    const tool = runtime.createInrAssistantLocalInterfaceTools({ accountId: 'account', actorUserId: 'actor', currentUserMessage: message,
+      clientContext: { source: 'untrusted_client', interfaces: [{ id, revision: 'duration_v1', operations: ['select'] }] } }).controlLocalInterface;
+    return await tool.execute!({ interface: id, revision: 'duration_v1', operation: 'select', value, instructionQuote: message }, {} as never) as { status: string; uiCommand?: unknown };
+  };
+  const seconds = JSON.stringify({ field: 'durationSeconds', value: 30 });
+  const requested = await run('studio_free_form', 'Mets la durée du Studio libre à 30 secondes.', seconds);
+  assert.equal(requested.status, 'ui_action_requested');
+  assert.ok(requested.uiCommand, 'server authorizes only the request; the native browser still must commit its catalogue pair');
+  assert.equal((await run('studio_free_form', 'Mets la durée du Studio libre à 15 secondes.', seconds)).status, 'needs_instruction');
+  assert.equal((await run('studio_free_form', 'Ne mets pas 30 secondes dans le Studio libre.', seconds)).status, 'needs_instruction');
+  assert.equal((await run('studio_guided_form', 'Mets la durée du Studio guidé à 30 secondes.', seconds)).status, 'needs_instruction');
+  assert.equal((await run('studio_guided_form', 'Mets la durée du Studio guidé à 30 secondes sur plusieurs scènes.',
+    JSON.stringify({ field: 'durationScene', value: { seconds: 30, sceneMode: 'multi' } }))).status, 'ui_action_requested');
+});

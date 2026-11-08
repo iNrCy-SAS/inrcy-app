@@ -8,7 +8,7 @@ import { AI_MEDIA_VIDEO_SPOKEN_SCRIPT_MAX_CHARS, getAiMediaVisualBriefMaxChars, 
 import { isStudioInspirationVideoReference, studioInspirationBase64IsVideo, STUDIO_INSPIRATION_IMAGES_ONLY_MESSAGE } from "./studioInspirationImagePolicy.ts";
 import { normalizeAiMediaCharacterVoiceSample, hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, type AiMediaCharacterVoiceSample } from "./aiMediaCharacterVoices.ts";
 import {
-  getAiMediaVideoDurations, getAiMediaVideoNativeDurations, getAiMediaVideoResolution,
+  getAiMediaVideoDurations, getAiMediaVideoNativeDurations, getAiMediaVideoResolution, getAiMediaVideoEngineRetirementIssue,
   normalizeAiMediaVideoEngine, normalizeAiMediaImageEngine, isAiMediaImageModelCompatible,
   type AiMediaVideoEngine, type AiMediaImageEngine, type AiMediaVideoResolution,
 } from "./aiMediaModelCatalog.ts";
@@ -876,6 +876,9 @@ export function normalizeAiMediaGenerationRequest(
   if (kind === "video" && !videoEngine) {
     throw new AiMediaRequestValidationError("Moteur vidéo invalide.");
   }
+  // Reject retired presets before narration preflight, job creation or billing.
+  const retiredVideoEngine = kind === "video" ? getAiMediaVideoEngineRetirementIssue(videoEngine) : null;
+  if (retiredVideoEngine) throw new AiMediaRequestValidationError(retiredVideoEngine.message);
   const imageEngine = normalizeAiMediaImageEngine(body.imageEngine || "openai");
   if (kind === "image" && !imageEngine) {
     throw new AiMediaRequestValidationError("Moteur image invalide.");
@@ -994,10 +997,10 @@ export function normalizeAiMediaGenerationRequest(
   );
   const providedCharacterVoice = hasProvidedAiMediaCharacterVoice(inspirationImages);
   if (providedCharacterVoice && (kind !== "video" || operation === "modify" || !isAiMediaCharacterVoiceEngine(videoEngine))) {
-    throw new AiMediaRequestValidationError("Utilisez Wan 2.7 ou Wan 3 pour une vidéo avec une voix fournie.");
+    throw new AiMediaRequestValidationError("Utilisez Wan 2.7 pour une vidéo avec une voix fournie.");
   }
   if (providedCharacterVoice && exceedsAiMediaCharacterVoiceEngineDuration(videoEngine, inspirationImages)) {
-    throw new AiMediaRequestValidationError("Wan 3 accepte au maximum 15 secondes de vocaux au total. Raccourcissez vos échantillons ou choisissez Wan 2.7.");
+    throw new AiMediaRequestValidationError("Les vocaux dépassent la durée acceptée par ce moteur. Raccourcissez vos échantillons ou choisissez Wan 2.7.");
   }
   if (kind === "video" && videoEngine === "wan27" && !inspirationImages.length) {
     throw new AiMediaRequestValidationError("Ajoutez au moins une photo de référence pour utiliser Wan 2.7.");

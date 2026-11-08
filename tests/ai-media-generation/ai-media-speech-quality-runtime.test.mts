@@ -55,7 +55,7 @@ function runtime(duration: 8 | 16 | 24, generated: readonly unknown[]) {
   const profile = load<typeof import("../../lib/aiGenerationProfile.ts")>("lib/aiGenerationProfile.ts")
     .buildNormalizedAiGenerationProfile({ business: { company_name: "Atelier Horizon", profession: "Jardinier" }, preferences: { language: "fr" } });
   const request = load<typeof import("../../lib/aiMediaGenerationContracts.ts")>("lib/aiMediaGenerationContracts.ts")
-    .normalizeAiMediaGenerationRequest({ requestId: `speech-${duration}`, source: "studio", kind: "video", durationSeconds: duration, videoEngine: "wan3", sceneMode: duration === 8 ? "single" : "multi",
+    .normalizeAiMediaGenerationRequest({ requestId: `speech-${duration}`, source: "studio", kind: "video", durationSeconds: duration, videoEngine: "grok", sceneMode: duration === 8 ? "single" : "multi",
       subjectSource: "custom", idea: "Un robot plante un rosier dans le jardin", withNarration: true, withText: false, textMode: "none" });
   const plan = load<typeof import("../../lib/aiMediaCreativePlan.ts")>("lib/aiMediaCreativePlan.ts")
     .buildAiMediaCreativePlan({ request, profile });

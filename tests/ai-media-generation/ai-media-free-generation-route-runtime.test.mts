@@ -596,14 +596,25 @@ test("une migration absente bloque avant le fournisseur, même avec un devis val
 });
 
 test("chaque fournisseur accepte une durée compatible avec deux clips maximum et débite le devis du serveur", async () => {
-  for (const [videoEngine, durationSeconds, expectedCredits] of [["grok-lite", 4, 19], ["grok", 30, 428], ["omni", 20, 207], ["veo", 16, 167], ["minimax-h3", 30, 247], ["wan3", 30, 307], ["veo-lite", 16, 55]] as const) {
+  for (const [videoEngine, durationSeconds, expectedCredits] of [["grok-lite", 4, 19], ["grok", 30, 428], ["omni", 20, 207], ["veo", 16, 167], ["minimax-h3", 30, 247], ["wan27", 20, 207], ["veo-lite", 16, 55]] as const) {
     const route = loadRoute({ maximumDuration: 30 });
-    const response = await route.post(body({ kind: "video", videoEngine, durationSeconds, withNarration: false, teamVideoSpeechMode: "voiceover" }));
+    const response = await route.post(body({ kind: "video", videoEngine, durationSeconds, withNarration: false, teamVideoSpeechMode: "voiceover",
+      ...(videoEngine === "wan27" ? { identityReferenceSetId: "11111111-1111-4111-8111-111111111111", inspirationImages: [{ mimeType: "image/png", data: "A".repeat(88), role: "product", usage: "inspiration" }] } : {}) }));
     assert.equal(response.status, 200, await response.text());
     assert.equal(route.reservationCalls[0]!.quotaAmount, expectedCredits);
     assert.equal(route.reservationCalls[0]!.quotaUnit, "credit");
     assert.equal(route.generationCalls[0]!.request.videoEngine, videoEngine);
     assert.equal(route.generationCalls[0]!.request.durationSeconds, durationSeconds);
+  }
+});
+
+test("retired Wan3 rejects new requests before reservation or generation at every creation mode", async () => {
+  for (const creationMode of ["free", "guided"]) {
+    const route = loadRoute({ maximumDuration: 30 });
+    const input = { contractVersion: 4, requestId: "retired-wan3-new-request", source: "studio", operation: "generate", creationMode, kind: "video", videoEngine: "wan3", durationSeconds: 30, videoResolution: "1080p", format: "story", freePrompt: "Un jardin paisible.", idea: "Un jardin paisible." };
+    const before = JSON.stringify(input), response = await route.post(input);
+    assert.equal(response.status, 400); assert.match((await response.json()).error, /Wan 3\.0.*autre moteur/);
+    assert.equal(route.reservationCalls.length, 0); assert.equal(route.generationCalls.length, 0); assert.equal(JSON.stringify(input), before);
   }
 });
 

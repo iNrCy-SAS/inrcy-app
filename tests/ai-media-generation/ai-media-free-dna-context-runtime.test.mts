@@ -1,3 +1,4 @@
+import { AI_MEDIA_AVAILABLE_VIDEO_MODELS } from "../../lib/aiMediaModelCatalog.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -109,8 +110,10 @@ test("le tarif est retrouvé dans les documents et les détails de prestation se
 });
 
 test("la même direction ADN atteint chaque moteur vidéo sans imposer de sous-titres", () => {
-  for (const videoEngine of ["omni", "veo", "veo-lite", "minimax-h3", "wan3", "wan-flash", "grok", "grok-lite"] as const) {
-    const input = request({ kind: "video", videoEngine, durationSeconds: 8, withNarration: false, freePrompt: "Un vase se forme lentement." });
+  for (const model of AI_MEDIA_AVAILABLE_VIDEO_MODELS) {
+    const input = request({ kind: "video", videoEngine: model.id, durationSeconds: 8, withNarration: false, freePrompt: "Un vase se forme lentement.",
+      ...(!model.supportsTextToVideo ? { inspirationImages: [{ mimeType: "image/png", data: "A".repeat(88), role: "inspiration", usage: "inspiration" }] } : {}),
+    });
     const args = { request: input, plan: { subline: "Un vase se forme lentement.", scenes: [{ visualBrief: "Une main façonne le vase." }] },
       providerContract: buildAiMediaVideoProviderContract({ request: input, durationSeconds: 8, brandColors: ["#123456"] }),
       businessDnaDirection: "Official palette #123456. Exact logo added locally; do not draw it. No contact text unless requested." } as unknown as AiVideoProviderGenerationArgs;

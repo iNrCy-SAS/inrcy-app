@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getAiMediaVideoEngineRetirementIssue } from "@/lib/aiMediaModelCatalog";
 import { createAiMediaServerQuote } from "@/lib/aiMediaCreditQuoteServer";
 import { getAiMediaQuotaSnapshot, AiMediaGenerationQuotaError } from "@/lib/aiMediaGenerationQuota";
 import { presentAiMediaQuotaCounter } from "@/lib/aiMediaQuotaPresentation";
@@ -23,6 +24,8 @@ export async function POST(request: Request) {
     const body: unknown = JSON.parse(raw);
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new TypeError("Devis invalide.");
     const input = body as AiMediaCreditsQuoteInput;
+    const retiredVideoEngine = input.kind === "video" ? getAiMediaVideoEngineRetirementIssue(input.videoEngine) : null;
+    if (retiredVideoEngine) return NextResponse.json({ ok: false, code: retiredVideoEngine.code, error: retiredVideoEngine.message }, { status: 400, headers });
     const { activeUserId, authUserId } = current.scope;
     const edition = await getDashboardEditionForAccountId(activeUserId);
     const [quota, unlimited] = await Promise.all([

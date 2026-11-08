@@ -327,10 +327,10 @@ test("le réalisateur Libre distingue une scène continue de plusieurs plans", a
   }
 });
 
-test("one required portrait keeps one distinct identity per frame through the real planner first frame and both Wan3 shots", async () => {
+test("one required portrait keeps one distinct identity per frame through the real planner first frame and both available-engine shots", async () => {
   const input = request({
-    kind: "video", videoEngine: "wan3", videoResolution: "720p", durationSeconds: 20, sceneMode: "multi",
-    identityConsent: true, teamVideoProviderConsent: "wan3",
+    kind: "video", videoEngine: "grok", videoResolution: "720p", durationSeconds: 20, sceneMode: "multi",
+    identityConsent: true, teamVideoProviderConsent: "grok",
     freePrompt: "La personne de la photo découvre un jardin. Premier plan : elle observe les fleurs. Deuxième plan : elle marche sur une allée, toujours seule.",
     withNarration: true,
     inspirationImages: [{ data: "A".repeat(64), mimeType: "image/png", role: "character", usage: "required", characterIndex: 1 }],
@@ -360,7 +360,7 @@ test("one required portrait keeps one distinct identity per frame through the re
 
 test("the video cast rule preserves group photos and repeated reference identities without overriding explicit creative copies", () => {
   for (const referenceCount of [1, 2]) {
-    const input = request({ kind: "video", videoEngine: "wan3", durationSeconds: 8, identityConsent: true, teamVideoProviderConsent: "wan3",
+    const input = request({ kind: "video", videoEngine: "grok", durationSeconds: 8, identityConsent: true, teamVideoProviderConsent: "grok",
       freePrompt: "La photo de groupe montre des collègues. Garder chacun distinct, sans créer un double de la même personne.",
       inspirationImages: Array.from({ length: referenceCount }, (_, index) => ({ data: "A".repeat(64), mimeType: "image/png", role: "character", usage: "required", characterIndex: index + 1 })),
     });
@@ -634,12 +634,13 @@ test("dialogue budgets follow actual duration and non-space languages without a 
   assert.doesNotThrow(() => freePrompts.validateAiMediaFreeDialogueLine("让".repeat(42), 8, "zh"));
   assert.throws(() => freePrompts.validateAiMediaFreeDialogueLine("让".repeat(43), 8, "zh"), contracts.AiMediaRequestValidationError);
   const runtime = loadPlan({ direction: "Le personnage visite son atelier.", scenes: [{ visualBrief: "Un artisan s'adresse à la caméra.", spokenLine }] });
-  const input = request({ kind: "video", videoEngine: "wan3", durationSeconds: 30, teamVideoSpeechMode: "characters", freePrompt: `L'artisan dit « ${spokenLine} ».` });
+  const input = request({ kind: "video", videoEngine: "grok", durationSeconds: 15, sceneMode: "single", teamVideoSpeechMode: "characters", freePrompt: `L'artisan dit « ${spokenLine} ».` });
   const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: input, profile });
   assert.equal(plan.scenes[0].spokenLine, spokenLine);
   const payload = JSON.parse(runtime.calls[0].input);
-  assert.equal(payload.dialogue_budgets[0].duration_seconds, 30);
-  assert.equal(payload.dialogue_budgets[0].maxUnits, 58);
+  assert.equal(payload.dialogue_budgets[0].duration_seconds, 15);
+  assert.equal(payload.dialogue_budgets[0].maxUnits, 28);
+  assert.equal(freePrompts.getAiMediaFreeSpeechBudget(30, "fr", spokenLine).maxUnits, 58, "the standalone thirty-second speech budget remains unchanged");
   assertAiJsonMatchesSchema({ direction: "Le personnage visite son atelier.", scenes: [{ visualBrief: "Un artisan s'adresse à la caméra.", spokenLine }] }, runtime.calls[0].responseSchema.schema);
 });
 

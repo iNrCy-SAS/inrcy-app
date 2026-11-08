@@ -55,7 +55,7 @@
   },
   "app/dashboard/_components/MediaEngineCreditControls.tsx": {
     "disposition": "basic",
-    "reason": "Révision explicite : durée unique en Studio Libre, scènes calculées automatiquement, longueur native privilégiée et choix verrouillé pendant un job ; moteurs/résolutions et devis restent natifs, sans nouveau droit ni lancement.",
+    "reason": "Révision explicite : durée unique en Studio, paire canonique dérivée du catalogue disponible et acquittée après les deux setters natifs. Wan 3 retiré du catalogue actif, Wan 2.6/2.7 conservés ; autres parcours avec scènes natives. Aucun débit ni consentement par ces choix.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -63,7 +63,7 @@
   },
   "app/dashboard/_components/MediaFreeGenerator.tsx": {
     "disposition": "basic",
-    "reason": "Révision explicite : modales dimensionnées aux options utiles, réglages Voix IA disponibles seulement pour de vraies options ; références, voix off réelle, autorisations et verrous restent natifs. Durée unique et nombre de plans automatique dans le Studio Libre.",
+    "reason": "Révision explicite : snapshot natif avec durée automatique, aucun nouveau contrôle. Genres/styles seulement en voix off IA même Exact vide ; champs masqués et anciens moteurs retirés refusés sans acquittement. Références, vocaux, consentements et verrous restent natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],

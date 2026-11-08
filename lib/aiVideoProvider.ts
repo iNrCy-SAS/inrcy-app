@@ -3,7 +3,7 @@ import "server-only";
 import { googleOmniVideoProvider } from "@/lib/aiVideoProviderGoogleOmni";
 import { googleVeoVideoProvider } from "@/lib/aiVideoProviderGoogleVeo";
 import { createGatewayAiVideoProvider } from "./aiVideoProviderGateway.ts";
-import { getAiMediaVideoModel, normalizeAiMediaVideoEngine, type AiMediaVideoEngine } from "./aiMediaModelCatalog.ts";
+import { getAiMediaVideoEngineRetirementIssue, getAiMediaVideoModel, normalizeAiMediaVideoEngine, type AiMediaVideoEngine } from "./aiMediaModelCatalog.ts";
 import type {
   AiVideoProvider,
   AiVideoProviderGenerationArgs,
@@ -57,6 +57,10 @@ function resolveProvider(args?: AiVideoProviderGenerationArgs): AiVideoProvider 
 export async function generateOriginalAiVideoClips(
   args: AiVideoProviderGenerationArgs,
 ): Promise<AiVideoProviderResult> {
+  // Final application boundary: even a typed stale preset cannot submit Wan 3.
+  // Identity lookups and recovery of existing clips remain available.
+  const retiredVideoEngine = getAiMediaVideoEngineRetirementIssue(args.request.videoEngine);
+  if (retiredVideoEngine) throw new Error(retiredVideoEngine.message);
   return await resolveProvider(args).generate(args);
 }
 

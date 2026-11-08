@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
-import { AI_MEDIA_VIDEO_MODELS, type AiMediaVideoEngine } from "../../lib/aiMediaModelCatalog.ts";
+import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel, type AiMediaVideoEngine } from "../../lib/aiMediaModelCatalog.ts";
 import { buildAiMediaFreeVideoScenePrompt, AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT, getAiMediaFreeVideoPromptMaxCharacters } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import { buildAiMediaVideoProviderContract } from "../../lib/aiMediaVideoProviderContract.ts";
 import type { AiVideoProviderGenerationArgs } from "../../lib/aiVideoProviderTypes.ts";
@@ -11,7 +11,7 @@ const direction = "La femme présente son agence en parlant à la caméra.";
 const action = "La femme parle face caméra et articule chaque mot, puis sourit en prenant son café.";
 
 function provider(engine: AiMediaVideoEngine, speech: "silent" | "voiceover" | "characters") {
-  const model = AI_MEDIA_VIDEO_MODELS.find((item) => item.id === engine)!;
+  const model = getAiMediaVideoModel(engine);
   const request = normalizeAiMediaGenerationRequest({
     requestId: "visual-speech-contract-test", source: "studio", operation: "generate", creationMode: "free",
     kind: "video", videoEngine: engine, videoResolution: model.defaultResolution, format: "story",
@@ -28,7 +28,7 @@ function provider(engine: AiMediaVideoEngine, speech: "silent" | "voiceover" | "
   } as unknown as AiVideoProviderGenerationArgs;
 }
 
-for (const model of AI_MEDIA_VIDEO_MODELS) {
+for (const model of [...AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel("heygen")]) {
   test(`${model.id}: silence and separate voiceover prohibit visual speech before contradictory directions without deleting creative actions`, () => {
     for (const speech of ["silent", "voiceover"] as const) {
       const args = provider(model.id, speech);
@@ -83,7 +83,7 @@ test("native character speech carries the resolved language and original voice d
 });
 
 test("the visual speech contract stays inside the transport budget without truncating direction or action", () => {
-  for (const model of AI_MEDIA_VIDEO_MODELS) for (const speech of ["silent", "voiceover", "characters"] as const) {
+  for (const model of [...AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel("heygen")]) for (const speech of ["silent", "voiceover", "characters"] as const) {
     const args = provider(model.id, speech);
     args.plan.subline = "D".repeat(1_400);
     args.plan.scenes[0].visualBrief = "V".repeat(300);

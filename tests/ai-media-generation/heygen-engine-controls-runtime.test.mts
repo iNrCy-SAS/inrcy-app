@@ -75,7 +75,8 @@ test("available engine and quality choices continue to reach the selection callb
   const runtime = controls({ videoEngine: "omni", resolution: "720p" });
   const tree = runtime.render();
   const select = find(tree, (element) => element.type === "select" && String(element.props.id).endsWith("-engine"));
-  assert.equal(elements(select).filter((element) => element.type === "option").length, 16);
+  assert.equal(elements(select).filter((element) => element.type === "option").length, videoOptions.getMediaVideoEngineQualityChoices().length);
+  assert.equal(elements(select).some(element => element.type === "option" && String(element.props.value).startsWith("wan3:")), false);
   const option = find(select, (element) => element.type === "option" && element.props.value === "grok-lite:1080p");
   assert.equal(option.props.disabled, false);
   (select.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "grok-lite:1080p" } });

@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
-import { normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
+import { AiMediaRequestValidationError, normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
+import { getAiMediaVideoEngineRetirementIssue } from "../../lib/aiMediaModelCatalog.ts";
+
+const retiredWan3 = (error: unknown) => error instanceof AiMediaRequestValidationError &&
+  error.message === getAiMediaVideoEngineRetirementIssue("wan3")?.message;
 
 function references(count: number, supplied = false, usage = "required") {
   const now = Date.now();
@@ -24,7 +28,7 @@ function payload(engine: "wan27" | "wan3" | "heygen" | "veo", count = 2, supplie
   };
 }
 
-for (const engine of ["wan27", "wan3", "heygen"] as const) {
+for (const engine of ["wan27", "heygen"] as const) {
   test(`${engine}: the single footer approval supplies both existing permissions for two or three distinct people`, () => {
     for (const count of [2, 3]) {
       const input = payload(engine, count);
@@ -65,8 +69,29 @@ test("the same footer mapping preserves the existing Google team permission prot
 });
 
 test("unneeded approvals on ordinary product references do not carry into identity or team permissions", () => {
-  const input = { ...payload("wan3", 1, false), inspirationImages: [{ mimeType: "image/png", data: "A".repeat(88), role: "product", usage: "required" }] };
-  const normalized = normalizeAiMediaGenerationRequest({ ...input, identityConsent: true, teamVideoProviderConsent: "wan3", teamVideoVeoConsent: true });
+  const input = { ...payload("wan27", 1, false), inspirationImages: [{ mimeType: "image/png", data: "A".repeat(88), role: "product", usage: "required" }] };
+  const normalized = normalizeAiMediaGenerationRequest({ ...input, identityConsent: true, teamVideoProviderConsent: "wan27", teamVideoVeoConsent: true });
   assert.equal(normalized.identityMode, "auto"); assert.equal(normalized.identityConsent, false);
   assert.equal(normalized.teamVideoProviderConsent, null); assert.equal(normalized.teamVideoVeoConsent, false);
+});
+
+test("retired Wan3 cannot use footer approvals to create a new film for two or three people", () => {
+  for (const count of [2, 3]) for (const identityConsent of [false, true]) {
+    const input = { ...payload("wan3", count), identityConsent, teamVideoProviderConsent: "wan3" };
+    const before = JSON.stringify(input);
+    assert.throws(() => normalizeAiMediaGenerationRequest(input), retiredWan3);
+    assert.equal(JSON.stringify(input), before, "retirement cannot mutate references or permissions");
+  }
+});
+test("retired Wan3 stays refused with stale provider or Google approval", () => {
+  for (const permissions of [{ identityConsent: true, teamVideoProviderConsent: "wan27" },
+    { identityConsent: true, teamVideoVeoConsent: true }, { identityConsent: false, teamVideoProviderConsent: "wan3" }]) {
+    assert.throws(() => normalizeAiMediaGenerationRequest({ ...payload("wan3"), ...permissions }),
+      retiredWan3);
+  }
+});
+test("a supplied inspiration vocal cannot bypass Wan3 retirement even with rights approval", () => {
+  const input = { ...payload("wan3", 1), inspirationImages: references(1, true, "inspiration") };
+  for (const identityConsent of [false, true]) assert.throws(() => normalizeAiMediaGenerationRequest({ ...input, identityConsent }),
+    retiredWan3);
 });
