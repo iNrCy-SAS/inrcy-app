@@ -148,13 +148,15 @@ export function writeBoosterConnectionSnapshot<K extends string>(
   keys: readonly K[],
   channels: Record<K, boolean>,
   channelDetails: Record<K, ChannelConnectionDetail>,
+  observedAt = Date.now(),
 ): void {
   const cacheScope = scope(actorUserId, accountId);
   if (!cacheScope || !accountId || getActiveBrowserUserId() !== accountId) return;
+  if (!Number.isFinite(observedAt) || observedAt <= 0 || observedAt > Date.now()) return;
   const snapshot = normalizeSnapshot(keys, channels, channelDetails);
   if (!snapshot) return;
   writeAccountCacheValue(DASHBOARD_CACHE_KEYS.boosterConnections, JSON.stringify({
-    version: 1, actorUserId, accountId, cachedAt: Date.now(), ...snapshot,
+    version: 1, actorUserId, accountId, cachedAt: observedAt, ...snapshot,
   }), cacheScope);
 }
 
@@ -167,13 +169,17 @@ export async function warmBoosterConnectionSnapshot(
   const cacheScope = scope(actorUserId, accountId);
   if (!cacheScope || !accountId || !isCurrent() || getActiveBrowserUserId() !== accountId) return;
   const before = readAccountCacheValue(DASHBOARD_CACHE_KEYS.boosterConnections, cacheScope);
+  const requestedAt = Date.now();
   try {
     const response = await fetch("/api/booster/connected-channels", {
       cache: "no-store", credentials: "include", signal: AbortSignal.timeout(10_000),
     });
     if (!response.ok) return;
     const result = await response.json();
-    if (!isCurrent() || getActiveBrowserUserId() !== accountId || result?.ok !== true) return;
+    // The canonical success response is { channels, channelDetails }; only
+    // errors have an `ok` flag. Do not discard every real warmup response.
+    if (!isCurrent() || getActiveBrowserUserId() !== accountId ||
+      (result?.ok !== undefined && result.ok !== true)) return;
     // A foreground revalidation that finished in the meantime is newer.
     if (readAccountCacheValue(DASHBOARD_CACHE_KEYS.boosterConnections, cacheScope) !== before) return;
     const states = record(result.channels);
@@ -181,9 +187,11 @@ export async function warmBoosterConnectionSnapshot(
     const keys = Object.keys(states);
     const snapshot = normalizeSnapshot(keys, states, result.channelDetails);
     if (!snapshot) return;
+    // A confirmed disconnect during this request must beat its older response.
+    if (contradictsNewerDashboard(accountId, requestedAt, snapshot.channels)) return;
     const known = readBoosterConnectionSnapshot(actorUserId, accountId, keys);
     writeBoosterConnectionSnapshot(actorUserId, accountId, keys, snapshot.channels,
-      mergeBoosterChannelDetails(keys, snapshot.channelDetails, known?.channelDetails ?? {}, snapshot.channels));
+      mergeBoosterChannelDetails(keys, snapshot.channelDetails, known?.channelDetails ?? {}, snapshot.channels), requestedAt);
   } catch {
     // A failed prefetch must neither block navigation nor invalidate a good snapshot.
   }

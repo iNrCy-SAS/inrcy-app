@@ -28,6 +28,8 @@
   accent-color: #a28bff;
   cursor: inherit;
 }
+.channelActions { position: relative; display: flex; align-items: center; justify-content: flex-end; min-height: 34px; width: 100%; }
+.pendingBulkControl { visibility: hidden; }
 
 .channelGrid {
   justify-content: center;
@@ -37,6 +39,7 @@
 
 .channelCard {
   flex: 0 0 calc((100% - 80px) / 6);
+  min-width: 0;
   box-sizing: border-box;
   min-height: 112px !important;
   border: 1px solid #b6c9ef1c !important;
@@ -62,7 +65,7 @@
 .channelCard[aria-pressed="false"] .channelName, .channelCard[aria-pressed="false"] .mobileName { color: #b8c5d9 !important; }
 .channelLogo { width: 43px !important; height: 43px !important; border-radius: 50%; object-fit: cover; box-shadow: 0 4px 16px #00000026 !important; }
 .channelName { color: #eef5ff; font-size: 14px !important; font-weight: 750 !important; letter-spacing: -.02em; line-height: 1.25; }
-.channelCopy { display: flex; flex-direction: column; justify-content: center; flex: 1 1 0; gap: 3px; min-width: 0; max-width: 100%; }
+.channelCopy { display: flex; flex-direction: column; justify-content: center; flex: 1 1 0; gap: 3px; min-width: 0; min-height: 36px; max-width: 100%; }
 .desktopCopy { align-items: center; width: 100%; padding-inline: 4px; box-sizing: border-box; text-align: center; }
 .accountName { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #aebdd3; font-size: 11px; font-weight: 450; line-height: 1.25; letter-spacing: 0; }
 .desktopConnection { position: absolute; top: 7px; right: 7px; display: grid; place-items: center; width: 19px; height: 19px; color: #98a7bc; }
@@ -71,7 +74,7 @@
 .mobileIdentity { display: inline-flex; align-items: center; flex: 0 0 24px; width: 24px; height: 28px; }
 .mobileCard[data-reconnect="false"] .connectionButton[data-connected="true"] { border-color: #78dba24d !important; background: #19553b40 !important; color: #84e5b0 !important; }
 
-@media (max-width: 1000px) and (min-width: 701px) {
+@media (max-width: 1000px) and (min-width: 769px) {
   .selector { max-width: 800px !important; }
   .channelCard { flex-basis: calc((100% - 42px) / 4); min-height: 104px !important; }
   .channelGrid { gap: 14px !important; }
@@ -81,7 +84,7 @@
   .channelCard { min-height: 112px !important; }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 768px) {
   .channelGrid { gap: 9px !important; }
   .bulkControl { font-size: 11px; }
   .mobileCard { flex-basis: auto; min-height: 58px !important; padding: 9px 8px !important; border-radius: 13px !important; gap: 6px !important; }
@@ -102,9 +105,10 @@
 @media (prefers-reduced-motion: reduce) { .channelCard { transition: none; } }
 
 /* Unknown availability is a neutral placeholder, never a disconnected card. */
-.connectionLoading { margin: 0 0 12px; color: #b8cee8; font-size: 13px; text-align: center; }
-.pendingCard { display: flex; flex-direction: column; align-items: center; justify-content: center; border-style: dashed !important; background: linear-gradient(135deg, #19374f66, #25213f66) !important; }
-.pendingCard .channelCopy { align-items: center; gap: 6px; text-align: center; }
-.accountPlaceholder { width: 62%; min-width: 44px; height: 7px; border-radius: 99px; background: #adc7e330; }
+.connectionLoading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; margin: 0; color: #b8cee8; font-size: 13px; text-align: center; }
+.pendingCard { position: relative; display: grid; place-items: center; border-style: dashed !important; background: linear-gradient(135deg, #19374f66, #25213f66) !important; }
+.accountPlaceholder { width: 62%; min-width: 0; height: 14px; border-radius: 99px; background: #adc7e330; }
+.pendingMarker { visibility: hidden; flex-shrink: 0; }
+.pendingCard > .connectionButton { width: 28px; height: 28px; }
 @media (max-width: 768px) { .channelLogo { width: 24px !important; height: 24px !important; object-fit: contain !important; } }
-@media (max-width: 700px) { .pendingCard { flex-direction: row; } .pendingCard .channelName { font-size: 11px !important; } }
+@media (max-width: 768px) { .pendingCard.mobileCard { display: flex; align-items: center; justify-content: space-between; gap: 7px; } .pendingCard.mobileCard .accountPlaceholder { height: 12.5px; } }

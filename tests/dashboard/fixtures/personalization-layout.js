@@ -81,6 +81,7 @@ function load(name,from=''){
  const fixtureModule=loaded[name]={exports:{}};new Function('require','module','exports',window.sources[name])(dependency=>load(dependency,name),fixtureModule,fixtureModule.exports);return fixtureModule.exports;
 }
 const serverMemory=structuredClone(memory),serverBusiness={description:business.activity_description,services:business.services,strengths:business.strengths,interventionZones:business.intervention_zones,customerTypes:business.customer_typologies};
+if(window.fixtureOpenWeeklySchedule)serverBusiness.weeklySchedule={version:1,notes:'Sur rendez-vous uniquement',days:Object.fromEntries(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].map(key=>[key,{open:true,allDay:false,slots:[{start:'09:00',end:'12:00'},{start:'14:00',end:'18:00'}]}]))};
 window.fetch=async(url,options={})=>{
  const ok=value=>Promise.resolve({ok:true,json:async()=>value});
  if(options.method&&options.method!=='GET'){

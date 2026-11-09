@@ -905,3 +905,15 @@
   .basicStatsGrid .statsOverview { gap: 8px; }
   .basicStatsGrid .statsOverview > div { padding: 10px; }
 }
+
+/* Each mail action keeps its own column; the illustrations sit above the buttons. */
+@media (max-width: 1100px) {
+  .premiumGrid .campaignCard .cardActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 12px; }
+  .premiumGrid .campaignCard .manualToolActions { display: flex; flex-direction: column; align-self: stretch; align-items: flex-start; justify-content: space-between; width: 100%; gap: 8px; }
+  .premiumGrid .campaignCard .manualToolActions .pilotArtwork { flex: 0 0 52px; align-self: flex-start; width: 92px; min-width: 0; max-width: 100%; height: 52px; transform: none; }
+  .premiumGrid .campaignCard .compactCampaignAgent { width: 100%; }
+  .premiumGrid .campaignCard .compactCampaignAgent > div { flex-direction: column; align-items: flex-start; width: 100%; gap: 4px; }
+  .premiumGrid .campaignCard .compactCampaignAgent > div > img { width: 40px; height: 40px; }
+  .premiumGrid .campaignCard .compactCampaignAgent > div > div { align-items: stretch; width: 100%; }
+  .premiumGrid .campaignCard .cardActions .toolButton { width: 100%; min-width: 0; min-height: 44px; padding: 9px 10px; white-space: normal; overflow-wrap: anywhere; }
+}

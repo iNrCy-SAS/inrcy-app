@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { chromium, type Page } from "@playwright/test";
+import { chromium, webkit, type Page } from "@playwright/test";
 import postcss from "postcss";
 import ts from "typescript";
 
@@ -11,6 +11,7 @@ const require = createRequire(import.meta.url);
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
 const compile = (file: string) => ts.transpileModule(read(file), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
 const packageSource = (name: string, file: string) => readFileSync(join(dirname(require.resolve(`${name}/package.json`)), "cjs", file), "utf8");
+const browserType = process.env.INRCY_DASHBOARD_LAYOUT_BROWSER === "webkit" ? webkit : chromium;
 function cssModule(file: string, prefix: string) {
   const classes: Record<string, string> = {}, css = postcss.parse(read(file));
   css.walkRules(rule => { rule.selector = rule.selector.replace(/:global\(([^)]+)\)/g, "$1").replace(/\.([A-Za-z_][\w-]*)/g, (_all, name: string) => { classes[name] = `${prefix}_${name}`; return `.${classes[name]}`; }); });
@@ -36,7 +37,7 @@ async function mount(page: Page) {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/*", route => route.abort());
-  await page.setContent('<!doctype html><html><body><div id="root"></div><div id="left-host"></div><div id="right-host"></div></body></html>');
+  await page.setContent('<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body><div id="root"></div><div id="left-host"></div><div id="right-host"></div></body></html>');
   await page.addStyleTag({ content: `*{box-sizing:border-box}:root{--inrcy-safe-area-top:0px;--inrcy-safe-area-right:0px;--inrcy-safe-area-bottom:0px;--inrcy-safe-area-left:0px}body{margin:0;font-family:Arial;background:#07112a}#left-host,#right-host{position:relative;z-index:6}button{font:inherit}${globals.toString()}${dashboard.css}${dock.css}${agent.css}` });
   await page.addScriptTag({ content: `
     const sources=${JSON.stringify(sources)}, cssModules=${JSON.stringify(cssModules)}, messages=${JSON.stringify(messages)};
@@ -86,11 +87,16 @@ async function mount(page: Page) {
   return { errors, title: messages.agent.actions_programmees_77ae2684 };
 }
 
-for (const width of [1366, 1707, 390]) {
-  test(`the real dashboard header leaves the planning screen, accessibility tree and tab order at ${width}px and returns on close`, async () => {
-    const browser = await chromium.launch({ headless: true });
+for (const viewport of [
+  { width: 1366, height: 842 }, { width: 1707, height: 842 }, { width: 390, height: 842 },
+  { width: 768, height: 1024 }, { width: 820, height: 1180 }, { width: 834, height: 1194 },
+  { width: 1024, height: 768 },
+]) {
+  const { width } = viewport;
+  test(`the real dashboard header leaves the planning screen, accessibility tree and tab order at ${width}x${viewport.height} and returns on close`, async () => {
+    const browser = await browserType.launch({ headless: true });
     try {
-      const page = await browser.newPage({ viewport: { width, height: 842 } });
+      const page = await browser.newPage({ viewport, hasTouch: width <= 1100, isMobile: width <= 1100 });
       const { errors, title } = await mount(page);
       const header = page.locator("[data-dashboard-topbar]"), account = page.locator('[data-dashboard-action="account"]');
       const initiallyVisible = await header.isVisible();
@@ -105,6 +111,10 @@ for (const width of [1366, 1707, 390]) {
       await page.locator("[data-open-planning]").click();
       const planning = page.getByRole("dialog", { name: title, exact: true });
       await planning.waitFor();
+      const planningBounds = await planning.boundingBox();
+      assert.ok(planningBounds);
+      assert.ok(planningBounds.x >= -1 && planningBounds.x + planningBounds.width <= viewport.width + 1, "the planning stays within the viewport width");
+      assert.ok(planningBounds.y >= -1 && planningBounds.y < viewport.height, "the planning header stays reachable");
       await page.waitForFunction(() => document.querySelector("[data-dashboard-topbar]")?.hasAttribute("inert"));
       assert.equal(await header.isVisible(), false);
       assert.equal(await header.getAttribute("aria-hidden"), "true");
@@ -139,7 +149,7 @@ for (const width of [1366, 1707, 390]) {
 }
 
 test("the real overlay hook keeps the dashboard suppressed until the final visible workspace closes, and ignores compact or hidden workspaces", async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await browserType.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1366, height: 842 } });
     const { errors } = await mount(page);

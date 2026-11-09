@@ -59,27 +59,12 @@ type PublishChannelSelectorProps = {
   getChannelDetailInfo: (key: ChannelKey) => ChannelDetailInfo | null;
 };
 
-const CHANNEL_ICON_SRC: Record<ChannelKey, string> = {
-
-  site_web: "/icons/site-web.jpg",
-  inr_search: "/icons/inr-search-bubble-128.png",
-  gmb: "/icons/google.jpg",
-  facebook: "/icons/facebook.png",
-  instagram: "/icons/instagram.jpg",
-  threads: "/icons/threads.svg",
-  linkedin: "/icons/linkedin.png",
-  x: "/icons/x.svg",
-  tiktok: "/icons/tiktok.png",
-  youtube_shorts: "/icons/youtube-shorts.png",
-  pinterest: "/icons/pinterest-logo-128.png",
-};
-
 function ChannelLogo({ channel, mobile = false, style }: { channel: ChannelKey; mobile?: boolean; style?: CSSProperties }) {
   const size = mobile ? 24 : 43;
   return (
     <img
       className={mobile ? css.mobileLogo : css.channelLogo}
-      src={CHANNEL_ICON_SRC[channel]}
+      src={PUBLISH_CHANNEL_IDENTITY[channel].icon}
       alt=""
       aria-hidden="true"
       width={size}
@@ -168,31 +153,49 @@ export default function PublishChannelSelector({
   }, []);
 
   const bulkControl = (
-    <label className={css.bulkControl} title={bulkLabel}>
+    <label className={`${css.bulkControl} ${connectionsPending ? css.pendingBulkControl : ""}`} title={bulkLabel} aria-hidden={connectionsPending || undefined}>
       <input type="checkbox" checked={allConnectedSelected}
         ref={(input) => { if (input) input.indeterminate = selectedConnectedCount > 0 && !allConnectedSelected; }}
-        disabled={!hasConnectedChannels} aria-label={bulkLabel}
+        disabled={connectionsPending || !hasConnectedChannels} aria-label={bulkLabel}
         onChange={(event) => setAllChannelsSelected(event.target.checked)} />
       <span>{bulkLabel}</span>
     </label>
   );
+  const channelActions = (
+    <div className={css.channelActions}>
+      {connectionsPending ? <p className={css.connectionLoading} role="status">{i18nT("connections_loading")}</p> : null}
+      {bulkControl}
+    </div>
+  );
+  const channelGridStyle: CSSProperties = {
+    display: isMobile ? "grid" : "flex",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: isMobile ? 8 : 14,
+    alignItems: "stretch",
+    flexWrap: "wrap",
+    justifyContent: "center",
+  };
 
   if (connectionsPending) {
     return (
       <div className={css.selector} aria-busy="true">
-        <p className={css.connectionLoading} role="status">{i18nT("connections_loading")}</p>
-        <div className={css.channelGrid} style={{ display: isMobile ? "grid" : "flex", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", flexWrap: "wrap" }}>
-          {channelKeys.filter(key => key !== "threads" || metaPilotEnabled).map(key => (
-            <div key={key} className={`${css.channelCard} ${css.pendingCard} ${isMobile ? css.mobileCard : ""}`} aria-hidden="true">
+        {actionsContainer ? createPortal(channelActions, actionsContainer) : channelActions}
+        <div className={css.channelGrid} style={channelGridStyle}>
+          {channelKeys.filter(key => key !== "threads" || metaPilotEnabled).map((key, index, keys) => {
+            const channelLabel = getLocalizedChannelLabel(key, messageKey => i18nT(messageKey as never));
+            const accountName = getChannelAccountName(getChannelDetailInfo(key), connected[key], channelLabel, key === "inr_search" ? companyName : undefined);
+            const isLastOddMobileItem = isMobile && index === keys.length - 1 && keys.length % 2 === 1;
+            return <div key={key} className={`${css.channelCard} ${css.pendingCard} ${isMobile ? css.mobileCard : ""}`} aria-hidden="true" style={isLastOddMobileItem ? { gridColumn: "1 / -1", width: "calc(50% - 4px)", justifySelf: "center" } : undefined}>
               {isMobile ? (
                 <span key="logo" className={css.mobileIdentity} aria-hidden="true"><ChannelLogo channel={key} mobile /></span>
               ) : <ChannelLogo key="logo" channel={key} />}
-              <span className={css.channelCopy}>
-                <span className={css.channelName}>{getLocalizedChannelLabel(key, messageKey => i18nT(messageKey as never))}</span>
-                <span className={css.accountPlaceholder} />
+              <span className={`${css.channelCopy} ${isMobile ? "" : css.desktopCopy}`}>
+                <span className={isMobile ? css.mobileName : css.channelName}>{channelLabel}</span>
+                {accountName ? <span className={css.accountName} title={accountName}>{accountName}</span> : <span className={css.accountPlaceholder} />}
               </span>
-            </div>
-          ))}
+              {isMobile ? <><span className={`${css.connectionButton} ${css.pendingMarker}`} /><span className={`${css.selectionMark} ${css.pendingMarker}`} /></> : null}
+            </div>;
+          })}
         </div>
       </div>
     );
@@ -208,19 +211,10 @@ export default function PublishChannelSelector({
         overflow: "visible",
       }}
     >
-      {actionsContainer ? createPortal(bulkControl, actionsContainer) : bulkControl}
+      {actionsContainer ? createPortal(channelActions, actionsContainer) : channelActions}
       <div
         className={css.channelGrid}
-        style={{
-          display: isMobile ? "grid" : "flex",
-          gridTemplateColumns: isMobile
-            ? "repeat(2, minmax(0, 1fr))"
-            : "repeat(auto-fit, minmax(160px, 1fr))",
-          gap: isMobile ? 8 : 14,
-          alignItems: "stretch",
-          flexWrap: "wrap",
-          justifyContent: "center",
-        }}
+        style={channelGridStyle}
       >
         {visibleChannelKeys.map((key, index) => {
           const identity = PUBLISH_CHANNEL_IDENTITY[key];

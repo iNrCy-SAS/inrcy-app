@@ -323,14 +323,17 @@ test("populated tag groups and long strategy text remain contained and reachable
         for (let index = 0; index < expectedTagCounts.length; index++) {
           const group = groups.nth(index);
           const list = group.locator("[data-editable-tags-list]");
-          assert.equal(await list.count(), 1, `${name}: the tag list has its own bounded scrolling region`);
+          assert.equal(await list.count(), 1, `${name}: the tag list remains available`);
           const tags = list.locator("[data-editable-tag]");
           assert.equal(await tags.count(), expectedTagCounts[index], `${name}: every saved tag is preserved`);
           const dimensions = await list.evaluate(node => {
             const list = node as HTMLElement, box = list.getBoundingClientRect(), group = list.parentElement!.getBoundingClientRect();
             return { height: list.clientHeight, content: list.scrollHeight, left: box.left, right: box.right, top: box.top, bottom: box.bottom, groupBottom: group.bottom, overflow: getComputedStyle(list).overflowY };
           });
-          if (dimensions.height <= 0 || dimensions.height > 320) violations.push(`${viewport.width}/${name}/${index}: tag-list height ${dimensions.height}`);
+          const pageOwnsServiceAreas = name === "local" && (viewport.width < 1000 || viewport.width <= 1100 && viewport.height >= viewport.width);
+          if (pageOwnsServiceAreas) {
+            if (dimensions.height <= 0 || dimensions.height < dimensions.content - 1 || dimensions.overflow !== "visible") violations.push(`${viewport.width}/${name}/${index}: geographic areas must expand in the page flow`);
+          } else if (dimensions.height <= 0 || dimensions.height > 320) violations.push(`${viewport.width}/${name}/${index}: tag-list height ${dimensions.height}`);
           if (dimensions.bottom > dimensions.groupBottom + 1) violations.push(`${viewport.width}/${name}/${index}: tags escape their editor`);
           if (dimensions.left < -1 || dimensions.right > viewport.width + 1) violations.push(`${viewport.width}/${name}/${index}: tags overflow horizontally`);
           if (dimensions.content > dimensions.height + 1 && !["auto", "scroll"].includes(dimensions.overflow)) violations.push(`${viewport.width}/${name}/${index}: overflowing tags cannot scroll`);

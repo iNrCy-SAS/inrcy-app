@@ -256,6 +256,53 @@ test("Booster: dashboard warmup prepares the complete first-opening snapshot wit
   assert.doesNotMatch([...h.localStorage.values.values()].join(""), /private|access_token/);
 });
 
+test("Booster: dashboard warmup accepts the actual canonical response without a synthetic ok flag", async () => {
+  const h = harness(async () => Response.json({ channels, channelDetails: details }));
+  assert.equal(h.read(), null);
+  await h.api.warmBoosterConnectionSnapshot("actor-one", "account-a");
+  assert.deepEqual(h.read()?.channels, channels);
+  assert.equal(h.read()?.channelDetails.gmb.label, "iNrCy");
+  assert.equal(h.read()?.channelDetails.pinterest.label, "iNrCy Pinterest");
+});
+
+test("Booster: an explicit failure or malformed status cannot prime the opening cache", async () => {
+  for (const ok of [false, "true", null]) {
+    const h = harness(async () => Response.json({ ok, channels, channelDetails: details }));
+    await h.api.warmBoosterConnectionSnapshot("actor-one", "account-a");
+    assert.equal(h.read(), null);
+  }
+});
+
+test("Booster: a disconnect confirmed during warmup cannot be resurrected by the older response", async () => {
+  for (const cached of [false, true]) for (const state of [
+    { facebookPageConnected: false }, { gmbConnectionStatus: "needs_update" }, { siteWebSavedUrl: "" },
+  ]) {
+    let release!: (response: Response) => void;
+    const h = harness(() => new Promise<Response>(done => { release = done; }));
+    if (cached) h.write();
+    const pending = h.api.warmBoosterConnectionSnapshot("actor-one", "account-a");
+    h.time(100); h.dashboard(state); h.time(100);
+    release(Response.json({ channels, channelDetails: details }));
+    await pending;
+    assert.equal(h.read(), null, JSON.stringify({ cached, state }));
+  }
+});
+
+test("Booster: harmless dashboard refreshes preserve warmup while its request timestamp protects later revocations", async () => {
+  let release!: (response: Response) => void;
+  const h = harness(() => new Promise<Response>(done => { release = done; }));
+  h.dashboard({ facebookPageConnected: true }, -1);
+  const pending = h.api.warmBoosterConnectionSnapshot("actor-one", "account-a");
+  h.time(100); h.dashboard({ facebookPageConnected: true }); h.time(100);
+  release(Response.json({ channels, channelDetails: details }));
+  await pending;
+  assert.equal(h.read()?.channels.facebook, true, "a timestamp-only dashboard refresh must not discard the warmup");
+  const cached = JSON.parse(h.localStorage.getItem(h.snapshotKey())!);
+  assert.equal(cached.cachedAt, 1_800_000_000_000, "the cache describes the state observed when the request began");
+  h.dashboard({ facebookPageConnected: false }, -100);
+  assert.equal(h.read(), null, "a delayed cross-tab revocation newer than the request remains authoritative");
+});
+
 test("Booster: a late warmup cannot overwrite a foreground refresh or write after account change/unmount", async () => {
   for (const scenario of ["foreground", "account", "unmount"] as const) {
     let resolve!: (response: Response) => void;

@@ -14,7 +14,8 @@ jobs:
   build:
     # Keep the runner compatible with the pinned Playwright browser dependencies.
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    # The contract suite also verifies iPad layouts with WebKit.
+    timeout-minutes: 40
 
     env:
       # Supabase
@@ -123,12 +124,18 @@ jobs:
           APT
           apt-config shell CI_APT_RETRIES Acquire::Retries CI_APT_HTTP_TIMEOUT Acquire::http::Timeout CI_APT_HTTPS_TIMEOUT Acquire::https::Timeout
 
-      - name: Install Chromium for layout contract tests
+      - name: Install Chromium and WebKit for layout contract tests
         timeout-minutes: 10
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium webkit
 
       - name: Contract tests
         run: npm run test:contracts
+
+      - name: WebKit iPad layout contracts
+        run: node --test --test-isolation=none --experimental-strip-types tests/dashboard/personalization-tablet-zones-browser.test.mts tests/dashboard/dashboard-header-tool-overlay-browser.test.mts
+        env:
+          INRCY_PERSONALIZATION_BROWSER: webkit
+          INRCY_DASHBOARD_LAYOUT_BROWSER: webkit
 
       - name: Build
         run: npm run build
