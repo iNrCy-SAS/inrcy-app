@@ -39,7 +39,7 @@ test("a vague first question receives canonical tool destinations and onboarding
     assert.ok(text.includes(route), route);
   }
   assert.match(text, /Connecter mes canaux/);
-  assert.match(text, /Personnaliser mon application/);
+  assert.match(text, /Personnaliser/);
   assert.match(text, /Premium/);
   assert.doesNotMatch(text, /startup_step_|_[a-f0-9]{8}\b/);
 });

@@ -55,8 +55,8 @@
     "setupTitle": "Commencez par votre cockpit",
     "channelsTitle": "Connectez vos canaux",
     "channelsBody": "Reliez vos comptes et vérifiez leur état. Revenez ici si un canal demande une reconnexion.",
-    "dnaTitle": "Personnaliser mon application",
-    "dnaBody": "Mon entreprise réunit Coordonnées & logo ; Activité (métier, présentation, prestations et spécialités) ; Clients ; Zones (code postal, ville, zones et horaires) ; Identité (mission, forces, valeurs et engagements). Relisez les informations trouvées et complétez celles qui manquent.",
+    "dnaTitle": "Personnaliser",
+    "dnaBody": "Mon entreprise réunit Coordonnées & logo ; Activité (métier, présentation, prestations et spécialités) ; Clients ; Zones & Horaires (code postal, ville, zones et horaires) ; Identité (mission, forces, valeurs et engagements). Relisez les informations trouvées et complétez celles qui manquent.",
     "aiTitle": "Ma communication",
     "aiBody": "Dans Ma communication : Style et préférences règle la rédaction ; Consignes et exemples regroupe consignes, interdictions, vocabulaire et exemples ; CTA par canal choisit les actions et destinations des futurs contenus ; Objectifs et stratégie et Actualités précisent les sujets à mettre en avant. Vérifiez les possibilités indiquées pour chaque canal.",
     "routineTitle": "Votre routine au quotidien",
@@ -264,7 +264,7 @@
     "last7": "7 derniers jours",
     "last30": "30 derniers jours",
     "connectChannelsLabel": "Connecter mes canaux",
-    "personalizeApplicationLabel": "Personnaliser mon application",
+    "personalizeApplicationLabel": "Personnaliser",
     "personalizationInfoAria": "Comprendre la progression de la personnalisation",
     "personalizationInfoHint": "Cette progression réunit les informations de votre entreprise et vos réglages de communication."
   },
@@ -553,7 +553,7 @@
     "tabAnalysis": "Analyse",
     "tabActivity": "Activité",
     "tabAudience": "Clients",
-    "tabLocal": "Zones",
+    "tabLocal": "Zones & Horaires",
     "tabVoice": "Voix & vocabulaire",
     "tabIdentity": "Identité",
     "tabNews": "Actualités",
@@ -689,7 +689,7 @@
     "customerNeedsLabel": "Besoins, attentes ou problèmes fréquents",
     "customerNeedsAdd": "Ajouter un besoin",
     "customerNeedsPlaceholder": "Ex. être rassuré sur les délais",
-    "localPresenceTitle": "Zones, disponibilité et horaires",
+    "localPresenceTitle": "Zones & Horaires",
     "localPresenceDescription": "Indiquez où vous intervenez et quand vos clients peuvent vous contacter.",
     "locationTitle": "Lieu d’implantation",
     "locationHint": "La ville où votre entreprise est installée, utilisée pour vos fiches publiques.",
@@ -1015,7 +1015,7 @@
     "agent": "Votre agent IA peut vous accompagner.",
     "landmarksTitle": "Comprendre mon cockpit",
     "landmarksBody": "Jauges, point central et Unités d’Inertie",
-    "powerBody": "Le cockpit se prépare en deux étapes : Connecter mes canaux, puis Personnaliser mon application. Le titre de chaque ligne ouvre son outil.",
+    "powerBody": "Le cockpit se prépare en deux étapes : Connecter mes canaux, puis Personnaliser. Le titre de chaque ligne ouvre son outil.",
     "generatorTitle": "Le point central",
     "generatorBody": "Vert : actif. Rouge : en attente. Vérifiez aussi l’état de chaque canal dans le cockpit.",
     "inertiaTitle": "Vos Unités d’Inertie",
@@ -1030,13 +1030,13 @@
     },
     "dna": {
       "title": "Mon entreprise",
-      "body": "Mon entreprise réunit Coordonnées & logo ; Activité (métier, présentation, prestations et spécialités) ; Clients ; Zones (code postal, ville, zones et horaires) ; Identité (mission, forces, valeurs et engagements). Relisez les informations trouvées et complétez celles qui manquent.",
-      "action": "Personnaliser mon application"
+      "body": "Mon entreprise réunit Coordonnées & logo ; Activité (métier, présentation, prestations et spécialités) ; Clients ; Zones & Horaires (code postal, ville, zones et horaires) ; Identité (mission, forces, valeurs et engagements). Relisez les informations trouvées et complétez celles qui manquent.",
+      "action": "Personnaliser"
     },
     "ai": {
       "title": "Ma communication",
       "body": "Dans Ma communication : Style et préférences règle la rédaction ; Consignes et exemples regroupe consignes, interdictions, vocabulaire et exemples ; CTA par canal choisit les actions et destinations des futurs contenus ; Objectifs et stratégie et Actualités précisent les sujets à mettre en avant. Vérifiez les possibilités indiquées pour chaque canal.",
-      "action": "Personnaliser mon application"
+      "action": "Personnaliser"
     },
     "goals": {
       "publish": {
@@ -1113,14 +1113,14 @@
     },
     "assistPreview": "iNr’Assist — bientôt disponible",
     "personalization": {
-      "title": "Personnaliser mon application",
+      "title": "Personnaliser",
       "body": "Votre entreprise et votre communication, au même endroit.",
       "action": "Ouvrir la personnalisation",
-      "intro": "Depuis le cockpit, ouvrez Personnaliser mon application : vos informations et vos règles de communication sont réunies dans trois onglets.",
+      "intro": "Depuis le cockpit, ouvrez Personnaliser : vos informations et vos règles de communication sont réunies dans trois onglets.",
       "tip": "Analyse rassemble les canaux et documents. Vérifiez ensuite Mon entreprise et Ma communication.",
       "analysis": "Dans Analyse, sélectionnez les canaux utiles. Le trombone du bloc Documents ajoute vos fichiers ; confirmez l’autorisation avant leur envoi. Vérifiez le quota affiché, lancez l’analyse, puis consultez son compte rendu. Programmer l’analyse permet de choisir une récurrence.",
       "analysisLimits": "L’analyse enrichit les informations fiables retrouvées en conservant les saisies manuelles. Les préférences rédactionnelles et les CTA restent à régler dans Ma communication. Gardez l’outil ouvert pour une sélection personnalisée de canaux.",
-      "company": "Mon entreprise réunit Coordonnées & logo ; Activité (métier, présentation, prestations et spécialités) ; Clients ; Zones (code postal, ville, zones et horaires) ; Identité (mission, forces, valeurs et engagements). Relisez les informations trouvées et complétez celles qui manquent.",
+      "company": "Mon entreprise réunit Coordonnées & logo ; Activité (métier, présentation, prestations et spécialités) ; Clients ; Zones & Horaires (code postal, ville, zones et horaires) ; Identité (mission, forces, valeurs et engagements). Relisez les informations trouvées et complétez celles qui manquent.",
       "communication": "Dans Ma communication : Style et préférences règle la rédaction ; Consignes et exemples regroupe consignes, interdictions, vocabulaire et exemples ; CTA par canal choisit les actions et destinations des futurs contenus ; Objectifs et stratégie et Actualités précisent les sujets à mettre en avant. Vérifiez les possibilités indiquées pour chaque canal.",
       "autosave": "Les modifications sont enregistrées automatiquement. Attendez la fin de l’enregistrement ; une erreur reste affichée et la sortie vérifie les changements en attente. Relisez toujours le contenu généré avant de publier.",
       "reset": "Réinitialiser est une action distincte qui demande confirmation. La réinitialisation globale efface aussi les documents : utilisez-la uniquement si vous souhaitez supprimer ces informations."
@@ -1245,7 +1245,7 @@
     }
   },
   "personalization": {
-    "title": "Personnaliser mon application",
+    "title": "Personnaliser",
     "mobileTitle": "Personnalisation",
     "subtitle": "Votre entreprise, votre identité et votre communication, réunies au même endroit.",
     "close": "Fermer",

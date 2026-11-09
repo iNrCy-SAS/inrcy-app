@@ -136,7 +136,7 @@ export function getInrAssistantAppKnowledge(query: string, maxChars = 4_800): st
     return lines.join("\n").slice(0, limit);
   }
   if (/\blangue\b/.test(searchQuery(query))) {
-    append("Langue : distinguer la langue de l’interface (sélecteur de langue du cockpit, ou Menu → Langue sur mobile) de la langue de rédaction (Personnaliser mon application → Ma communication → Style et préférences). Si la demande est ambiguë, demander laquelle avant de guider.");
+    append("Langue : distinguer la langue de l’interface (sélecteur de langue du cockpit, ou Menu → Langue sur mobile) de la langue de rédaction (Personnaliser → Ma communication → Style et préférences). Si la demande est ambiguë, demander laquelle avant de guider.");
   }
   // Preserve access rules before long screen guides when comparing offers.
   if (/\b(?:basique|standard|premium|offre|forfait)\b/.test(searchQuery(query))) {
