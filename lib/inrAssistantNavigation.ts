@@ -2,7 +2,7 @@
 export const INR_ASSISTANT_APP_ORIGIN = "https://app.inrcy.com";
 
 const TOOL_ROUTES: Readonly<Record<string, string>> = {
-  "/dashboard/personnalisation": "Personnaliser mon application",
+  "/dashboard/personnalisation": "Personnaliser",
   "/dashboard/adn-entreprise": "ADN de l’entreprise",
   "/dashboard/mon-profil": "ADN de l’entreprise",
   "/dashboard/configuration-ia": "Configuration IA",

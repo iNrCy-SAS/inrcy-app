@@ -12070,14 +12070,14 @@
   },
   {
     "id": "account-96ee8e4457ef2921",
-    "label": "BusinessScheduleEditor — MediaSubjectVoiceButton (ligne 214)",
+    "label": "BusinessScheduleEditor — MediaSubjectVoiceButton (ligne 223)",
     "domain": "business",
     "sourceFiles": [
       "app/dashboard/settings/_components/BusinessScheduleEditor.tsx"
     ],
-    "sourceAnchor": "onChange={(notes) => emit({ ...cloneSchedule(schedule), notes })}",
+    "sourceAnchor": "onChange={updateNotes}",
     "controlIds": [
-      "app/dashboard/settings/_components/BusinessScheduleEditor.tsx#MediaSubjectVoiceButton:7908d68c9a775c8a:1"
+      "app/dashboard/settings/_components/BusinessScheduleEditor.tsx#MediaSubjectVoiceButton:800bac789cf61d48:1"
     ],
     "capabilityId": "navigation.screen",
     "toolNames": [
@@ -12101,14 +12101,14 @@
   },
   {
     "id": "account-1354c8884e19b6de",
-    "label": "BusinessScheduleEditor — textarea (ligne 229)",
+    "label": "BusinessScheduleEditor — textarea (ligne 239)",
     "domain": "business",
     "sourceFiles": [
       "app/dashboard/settings/_components/BusinessScheduleEditor.tsx"
     ],
-    "sourceAnchor": "onChange={(event) => emit({ ...cloneSchedule(schedule), notes: event.target.value })}",
+    "sourceAnchor": "onChange={(event) => updateNotes(event.target.value)}",
     "controlIds": [
-      "app/dashboard/settings/_components/BusinessScheduleEditor.tsx#textarea:ec8d90ebb6c254f8:1"
+      "app/dashboard/settings/_components/BusinessScheduleEditor.tsx#textarea:84330d9d04bc521e:1"
     ],
     "capabilityId": "business.write",
     "toolNames": [

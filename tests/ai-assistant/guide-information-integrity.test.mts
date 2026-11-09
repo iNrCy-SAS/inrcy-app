@@ -57,7 +57,7 @@ test("review knowledge follows the real Google bubble and identifies the actual 
 
 test("onboarding separates business personalization from the account panel", () => {
   const start = INR_ASSISTANT_RECOVERY_GUIDES.find(item => item.id === "getting-started-autonomously")!;
-  assert.match(start.content, /Personnaliser mon application \(\/dashboard\/personnalisation\)/);
+  assert.match(start.content, /Personnaliser \(\/dashboard\/personnalisation\)/);
   assert.match(start.content, /Mon entreprise.*Ma communication/);
   assert.match(start.content, /Mon compte gère la connexion, l’abonnement et les préférences, pas le profil/);
 });

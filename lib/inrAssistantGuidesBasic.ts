@@ -356,7 +356,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "jour",
       "heure"
     ],
-    "content": "Personnaliser mon application → Analyse propose la programmation mensuelle native de l’analyse ADN. Elle est accessible en Basique, distincte des agents iNrAgent. iNr’Assistant peut lire la programmation puis modifier les seules valeurs explicitement demandées : activation, jour du mois de 1 à 28 et heure. Le fuseau de l’établissement est conservé et le serveur fournit la prochaine échéance. Le réglage est relu après sauvegarde ; il ne lance pas une analyse immédiate. Une publication programmée à partir de l’ADN ne constitue pas une demande de changer cette programmation.",
+    "content": "Personnaliser → Analyse propose la programmation mensuelle native de l’analyse ADN. Elle est accessible en Basique, distincte des agents iNrAgent. iNr’Assistant peut lire la programmation puis modifier les seules valeurs explicitement demandées : activation, jour du mois de 1 à 28 et heure. Le fuseau de l’établissement est conservé et le serveur fournit la prochaine échéance. Le réglage est relu après sauvegarde ; il ne lance pas une analyse immédiate. Une publication programmée à partir de l’ADN ne constitue pas une demande de changer cette programmation.",
     "sourceFiles": [
       "lib/inrAssistantDnaScheduleTools.ts",
       "app/api/ai-memory/analysis-schedule/route.ts",

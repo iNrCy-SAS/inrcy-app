@@ -26,7 +26,7 @@ const DEFAULT_SLOTS: BusinessScheduleSlot[] = [
 ];
 
 function cloneSchedule(value: BusinessWeeklySchedule) {
-  return normalizeBusinessWeeklySchedule(JSON.parse(JSON.stringify(value)));
+  return normalizeBusinessWeeklySchedule(value);
 }
 
 function capitalize(value: string) {
@@ -42,8 +42,12 @@ export default function BusinessScheduleEditor({
   const locale = useLocale();
   const t = useTranslations("dashboard.aiMemory");
   const [voiceBusy, setVoiceBusy] = useState(false);
+  const [notesDraft, setNotesDraft] = useState<{ source: string; text: string } | null>(null);
   const controlsLocked = disabled || voiceBusy;
-  const schedule = normalizeBusinessWeeklySchedule(value);
+  const schedule = cloneSchedule(value);
+  // The persisted model trims notes. Keep word separators in the local draft,
+  // including when an autosave echoes the same canonical notes back to us.
+  const notes = notesDraft?.source === schedule.notes ? notesDraft.text : schedule.notes;
   const days = BUSINESS_WEEK_DAY_KEYS.map((key, index) => ({
     key,
     label: capitalize(new Intl.DateTimeFormat(locale, { weekday: "long", timeZone: "UTC" }).format(new Date(Date.UTC(2024, 0, 1 + index)))),
@@ -51,7 +55,12 @@ export default function BusinessScheduleEditor({
   const everyDay = BUSINESS_WEEK_DAY_KEYS.every((key) => schedule.days[key].open);
   const aroundTheClock = everyDay && BUSINESS_WEEK_DAY_KEYS.every((key) => schedule.days[key].allDay);
 
-  const emit = (next: BusinessWeeklySchedule) => onChange(normalizeBusinessWeeklySchedule(next));
+  const emit = (next: BusinessWeeklySchedule) => onChange(cloneSchedule(next));
+  const updateNotes = (text: string) => {
+    const next = cloneSchedule({ ...schedule, notes: text });
+    setNotesDraft({ source: next.notes, text });
+    onChange(next);
+  };
   const updateDay = (key: BusinessWeekDayKey, updater: (day: BusinessScheduleDay) => BusinessScheduleDay) => {
     if (controlsLocked) return;
     const next = cloneSchedule(schedule);
@@ -213,9 +222,9 @@ export default function BusinessScheduleEditor({
           <label htmlFor="business-dna-schedule-notes" style={notesTitleStyle}>{t("scheduleNotes")}</label>
           <MediaSubjectVoiceButton
             disabled={disabled}
-            value={schedule.notes}
+            value={notes}
             contextLabel={t("scheduleNotes")}
-            onChange={(notes) => emit({ ...cloneSchedule(schedule), notes })}
+            onChange={updateNotes}
             onBusyChange={(busy) => {
               setVoiceBusy(busy);
               onVoiceBusyChange?.(busy);
@@ -228,11 +237,12 @@ export default function BusinessScheduleEditor({
         </span>
         <textarea
           id="business-dna-schedule-notes"
-          value={schedule.notes}
+          value={notes}
           maxLength={500}
           readOnly={controlsLocked}
           aria-busy={voiceBusy}
-          onChange={(event) => emit({ ...cloneSchedule(schedule), notes: event.target.value })}
+          onChange={(event) => updateNotes(event.target.value)}
+          onBlur={() => setNotesDraft(null)}
           placeholder={t("scheduleNotesPlaceholder")}
           style={notesInputStyle}
         />

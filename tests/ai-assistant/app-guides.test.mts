@@ -115,7 +115,7 @@ test("historical questions bypass static navigation so the assistant can recall 
 test("a first vague question receives current cockpit destinations", () => {
   const text = runtime.getInrAssistantAppKnowledge("Je dois faire quoi ?");
   assert.match(text, /Connecter mes canaux/);
-  assert.match(text, /Personnaliser mon application/);
+  assert.match(text, /Personnaliser/);
   assert.match(text, /\/dashboard\/personnalisation/);
   assert.match(text, /\/dashboard\?action=publish/);
 });
