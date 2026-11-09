@@ -3,6 +3,14 @@ import {
   hasCompleteAiMediaSpeechEnding,
 } from "./aiMediaDialogue.ts";
 import type { AiMediaPronunciationAlias } from "./aiMediaPronunciation.ts";
+import { getAiMediaVideoSpeechState, type AiMediaVideoSpeechBudgetInput } from "./aiMediaVideoSpeechBudget.ts";
+
+/** Only the server can select creative dialogue; user scripts/quotes stay exact. */
+export function getAiMediaAutomaticDialogueContext(request: AiMediaVideoSpeechBudgetInput): string | undefined {
+  if (request.kind !== "video" || request.creationMode !== "free" || request.teamVideoSpeechMode !== "characters" ||
+    typeof request.spokenScript === "string" || getAiMediaVideoSpeechState(request).script.trim()) return undefined;
+  return request.freePrompt || "";
+}
 
 export type AiMediaNativeDialogueQaStatus =
   | "passed"
@@ -38,6 +46,8 @@ export type AiMediaNativeDialogueQaClip = {
   expectSilence?: boolean;
   /** Server-derived, only for an already selected Google video provider. */
   checkFinalFrameLayout?: boolean;
+  /** Server-derived brief only when the user delegated all spoken wording. */
+  automaticDialogueContext?: string;
 };
 
 export type AiMediaNativeDialogueQaMetrics = {
@@ -60,6 +70,7 @@ export type AiMediaNativeDialogueQaClipResult = {
   confirmation?: "passed" | "rejected" | "unavailable";
   /** Verdict only; private candidate names and audio never leave the callback. */
   pronunciationVerification?: "verified" | "rejected" | "unavailable";
+  automaticDialogueVerification?: "passed" | "rejected" | "unavailable";
 };
 
 export type AiMediaNativeDialogueQaResult = {
@@ -695,6 +706,10 @@ export async function auditAiMediaNativeDialogueClips(args: {
   confirm?: AiMediaNativeDialogueTranscriber;
   /** Optional audio proof for one isolated, undeclared camel-case brand only. */
   verifyPronunciation?: AiMediaNativeDialoguePronunciationVerifier;
+  /** Text-only coherence check after a blind transcript; never rewrites audio. */
+  verifyAutomaticDialogue?: (clip: AiMediaNativeDialogueQaClip, options: {
+    transcript: string; language: string; signal?: AbortSignal;
+  }) => Promise<{ status: "passed" | "rejected" | "unavailable"; model?: string }>;
   signal?: AbortSignal;
 }): Promise<AiMediaNativeDialogueQaResult> {
   const startedAt = Date.now();
@@ -709,7 +724,7 @@ export async function auditAiMediaNativeDialogueClips(args: {
     const tokens = pronunciationTokens(tokenizeAiMediaNativeDialogue(clip.expectedLine), args.pronunciationAliases, language);
     if (tokens.length) previousDialogues.push(tokens);
   }
-  const evaluate = (clip: AiMediaNativeDialogueQaClip, text: string) => {
+  const evaluate = async (clip: AiMediaNativeDialogueQaClip, text: string) => {
     const result = evaluateAiMediaNativeDialogue({
       sceneIndex: clip.sceneIndex,
       expectedLine: clip.expectedLine,
@@ -729,6 +744,23 @@ export async function auditAiMediaNativeDialogueClips(args: {
       if (!result.issues.includes("spoken_dialogue_repeated")) result.issues.push("spoken_dialogue_repeated");
       result.metrics.repeatCount = Math.max(result.metrics.repeatCount, repeatCount);
     }
+    // In automatic mode, a coherent second reply may exceed the planner's
+    // provisional wording. Amounts, names, negations, cut endings, loops and
+    // silence are decided locally first and cannot be waived by this check.
+    if (typeof clip.automaticDialogueContext === "string" && clip.expectedLine.trim() && !clip.expectSilence &&
+      result.issues.length === 1 && result.issues[0] === "spoken_dialogue_mismatch") {
+      try {
+        const verdict = await args.verifyAutomaticDialogue?.(clip, { transcript: text, language, signal: args.signal });
+        args.signal?.throwIfAborted();
+        const status = verdict?.status ?? "unavailable";
+        result.automaticDialogueVerification = status;
+        if (status === "passed") { result.status = "passed"; result.issues = []; }
+        else if (status === "unavailable") { result.status = "unavailable"; result.issues = ["transcription_inconclusive"]; }
+      } catch (error) {
+        if (args.signal?.aborted) throw error;
+        result.status = "unavailable"; result.issues = ["transcription_inconclusive"]; result.automaticDialogueVerification = "unavailable";
+      }
+    }
     return result;
   };
   const results = await Promise.all(args.clips.map(async (clip) => {
@@ -739,7 +771,7 @@ export async function auditAiMediaNativeDialogueClips(args: {
         signal: args.signal,
       });
       args.signal?.throwIfAborted();
-      let result = evaluate(clip, transcription.text);
+      let result = await evaluate(clip, transcription.text);
       const finalFrameIssue = clip.checkFinalFrameLayout ? transcription.finalFrameIssue ?? "unavailable" : undefined;
       const finalFrameLayout: AiMediaNativeDialogueQaStatus | undefined = !clip.checkFinalFrameLayout ? undefined
         : transcription.finalFrameLayout === "passed" && finalFrameIssue === "none" ? "passed"
@@ -757,7 +789,7 @@ export async function auditAiMediaNativeDialogueClips(args: {
         try {
           const confirmed = await args.confirm(clip, { language, signal: args.signal });
           args.signal?.throwIfAborted();
-          const checked = evaluate(clip, confirmed.text);
+          const checked = await evaluate(clip, confirmed.text);
           if (checked.status === "passed") {
             if (result.issues.includes("spoken_critical_value_mismatch")) {
               // A changed amount, negation or name cannot be cleared by choosing
@@ -766,7 +798,7 @@ export async function auditAiMediaNativeDialogueClips(args: {
               // proof afterwards: at most three audio reads are made per clip.
               const adjudicated = await args.confirm(clip, { language, signal: args.signal });
               args.signal?.throwIfAborted();
-              const adjudicatedResult = evaluate(clip, adjudicated.text);
+              const adjudicatedResult = await evaluate(clip, adjudicated.text);
               if (adjudicatedResult.status === "passed") {
                 result = { ...adjudicatedResult, confirmation: "passed" };
                 transcription = adjudicated;

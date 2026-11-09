@@ -12,6 +12,7 @@ import {
   evaluateAiMediaNativeDialogue,
   tokenizeAiMediaNativeDialogue,
   recoverAiMediaNativeDialogueVerification,
+  getAiMediaAutomaticDialogueContext,
   type AiMediaNativeDialogueQaClip,
 } from "../../lib/aiMediaNativeDialogueQa.ts";
 
@@ -567,6 +568,69 @@ function fakeClip(overrides: Partial<AiMediaNativeDialogueQaClip> = {}): AiMedia
     ...overrides,
   };
 }
+
+test("automatic dialogue accepts a coherent second reply while the same words remain rejected in exact mode", async () => {
+  const expectedLine = "Nous présentons notre métier avec passion et beaucoup de soin.";
+  const transcript = expectedLine + " Nous accompagnons chaque client du début à la fin.";
+  assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript }).status, "rejected");
+  for (const automatic of [true, false]) {
+    let checks = 0, reads = 0;
+    const result = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine, ...(automatic ? { automaticDialogueContext: "Un couple présente son activité, chacun parle à son tour." } : {}) })],
+      transcribe: async () => { reads++; return { text: transcript }; },
+      confirm: async () => { reads++; return { text: transcript }; },
+      verifyAutomaticDialogue: async (clip, options) => {
+        checks++; assert.ok(clip.automaticDialogueContext); assert.equal(options.transcript, transcript); return { status: "passed" };
+      },
+    });
+    assert.equal(result.status, automatic ? "passed" : "rejected");
+    assert.equal(checks, automatic ? 1 : 0);
+    assert.equal(reads, automatic ? 1 : 2);
+    assert.equal(result.clips[0].metrics.extraTokenCount, 9);
+    assert.equal(JSON.stringify(result).includes(transcript), false);
+  }
+});
+
+test("automatic wording cannot waive changed facts, negations, silence, cut speech or repetition", async () => {
+  const expectedLine = "Nous présentons notre métier avec passion et beaucoup de soin.";
+  for (const transcript of [expectedLine + " Cela coûte 500 euros.", expectedLine.replace("présentons", "ne présentons pas"),
+    expectedLine + " " + expectedLine, expectedLine + " Nous travaillons avec", ""]) {
+    let checks = 0;
+    const result = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine, automaticDialogueContext: "Un couple présente son activité." })],
+      transcribe: async () => ({ text: transcript }), confirm: async () => ({ text: transcript }),
+      verifyAutomaticDialogue: async () => { checks++; return { status: "passed" }; },
+    });
+    assert.equal(result.status, "rejected", transcript);
+    assert.equal(checks, 0, "creative verification never overrides a substantive local failure");
+  }
+});
+
+test("automatic additions need an affirmative coherence verdict and cannot pass when that check fails", async () => {
+  const expectedLine = "Nous présentons notre métier avec passion et beaucoup de soin.";
+  const transcript = expectedLine + " Nous accompagnons chaque client du début à la fin.";
+  for (const verdict of ["rejected", "unavailable", "throws", "missing"] as const) {
+    const result = await auditAiMediaNativeDialogueClips({
+      clips: [fakeClip({ expectedLine, automaticDialogueContext: "Un couple présente son activité." })],
+      transcribe: async () => ({ text: transcript }), confirm: async () => ({ text: transcript }),
+      ...(verdict === "missing" ? {} : { verifyAutomaticDialogue: async () => {
+        if (verdict === "throws") throw new Error("offline-check-failure");
+        return { status: verdict };
+      } }),
+    });
+    assert.equal(result.status, verdict === "rejected" ? "rejected" : "unavailable");
+  }
+});
+
+test("only delegated Studio character wording selects automatic coherence; written and legacy quoted scripts remain exact", () => {
+  const base = { kind: "video" as const, creationMode: "free" as const, teamVideoSpeechMode: "characters" as const,
+    videoEngine: "kling" as const, durationSeconds: 8, freePrompt: "Un couple présente son métier." };
+  assert.equal(getAiMediaAutomaticDialogueContext(base), base.freePrompt);
+  for (const request of [{ ...base, spokenScript: "Notre métier nous passionne." },
+    { ...base, freePrompt: "Le personnage dit : « Notre métier nous passionne. »" },
+    { ...base, creationMode: "guided" as const }, { ...base, spokenScript: "" },
+    { ...base, teamVideoSpeechMode: "voiceover" as const }]) assert.equal(getAiMediaAutomaticDialogueContext(request), undefined);
+});
 
 test("a near-complete transcript is independently confirmed without relaxing dialogue validation", async () => {
   const expectedLine = "Nous accompagnons votre projet avec une écoute attentive et des conseils personnalisés.";

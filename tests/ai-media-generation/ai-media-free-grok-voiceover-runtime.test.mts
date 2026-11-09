@@ -255,6 +255,7 @@ for (const automaticSpeech of [true, false]) test(`Wan image + supplied voice re
     const clips = call.clips as Row[];
     assert.equal(clips[0].buffer, firstClips[0].buffer);
     assert.equal(clips[0].expectedLine, firstClips[0].expectedLine);
+    assert.equal(clips[0].automaticDialogueContext, automaticSpeech ? original.freePrompt : undefined);
   }
   assert.equal(env.ttsCalls.length, 0);
   assert.equal(env.localFallbackCalls.length, 0);

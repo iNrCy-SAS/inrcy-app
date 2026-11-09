@@ -73,7 +73,7 @@ import {
   createReferenceTeamFallbackVideo,
   createReferenceTeamMontage,
 } from "@/lib/aiMediaReferenceTeam";
-import { shouldAuditAiMediaNativeFinalFrame, assertAiMediaNativeFinalFrameLayout, recoverAiMediaNativeDialogueVerification } from "@/lib/aiMediaNativeDialogueQa";
+import { shouldAuditAiMediaNativeFinalFrame, assertAiMediaNativeFinalFrameLayout, recoverAiMediaNativeDialogueVerification, getAiMediaAutomaticDialogueContext } from "@/lib/aiMediaNativeDialogueQa";
 import { auditAiMediaNativeDialogueWithGoogle } from "@/lib/aiMediaNativeDialogueQaGoogle";
 import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
 import {
@@ -1705,6 +1705,7 @@ export async function generateAndSaveAiMedia(args: {
                 durationSeconds: clip.durationSeconds,
                 sourceStartSeconds: clip.sourceStartSeconds,
                 expectedLine: expectedDialogueLines[index] || "",
+                automaticDialogueContext: getAiMediaAutomaticDialogueContext(providerRequest),
                 expectSilence: isFreeCreation && !expectedDialogueLines[index],
                 expectedContinuation: isFreeCreation && typeof providerRequest.spokenScript === "string" &&
                   expectedDialogueLines.slice(index + 1).some((line) => Boolean(line.trim())),
