@@ -1664,3 +1664,38 @@
   .workspace[data-media-kind="video"] .spokenScriptInput { min-height: 86px; }
   .workspace[data-media-kind="video"] .spokenScriptCounter { padding-bottom: 2px; }
 }
+
+@media (max-width: 1100px) {
+  .workspace[data-view="editor"] { height: auto; }
+  .workspace[data-view="editor"] .promptPanel { height: auto; min-height: 0; gap: 14px; }
+  .workspace[data-view="editor"] .promptPanel > * { flex-shrink: 0; }
+  .workspace[data-view="editor"] .promptContainer { flex: none; min-height: 0; }
+  .workspace[data-view="editor"] .promptContainer textarea,
+  .workspace[data-view="editor"] .videoBriefFrame .promptContainer textarea,
+  .workspace[data-media-kind="video"] .spokenScriptInput textarea { height: auto; min-height: 140px; max-height: none; overflow: hidden; resize: none; }
+  .workspace[data-media-kind="video"] .spokenScriptInput { min-height: 0; }
+  .workspace .referenceRoleToolbar { grid-auto-flow: row; grid-auto-columns: auto; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .referenceRoleButton { min-height: 58px; padding: 8px; }
+  .referenceRoleLabel { white-space: normal; overflow-wrap: normal; word-break: normal; line-height: 1.35; }
+  .mediaReferenceThumbs { flex-wrap: wrap; gap: 8px; }
+  .mediaReferenceThumb { flex-basis: 72px; width: 72px; height: 60px; }
+  .mediaReferenceOpen { width: 60px; height: 60px; }
+  .workspace[data-media-kind="video"] .spokenScriptHeading.videoSpeechModeRow { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .voiceSourceField { grid-column: auto; grid-row: auto; }
+  .inlineSubtitles { grid-column: auto; grid-row: auto; }
+  .spokenScriptModeSelect { min-height: 42px; font-size: 14px; }
+  .workspace[data-media-kind="video"] .spokenScriptCounter { width: 100%; max-width: none; }
+  .workspace[data-media-kind="video"] .spokenScriptContent > .promptHelp[id$="-spoken-script-budget"] { position: static; max-width: none; }
+  .footer,
+  .workspace .finalAction { flex: none; }
+  .workspace .finalAction { flex-direction: column; width: 100%; }
+  .finalAction > .primaryButton,
+  .workspace .recoveryActions > .primaryButton,
+  .workspace .consent span { white-space: normal; }
+  .finalAction > .primaryButton > span { line-height: 1.35; }
+  .footerAuthorization { position: static; height: auto; margin-bottom: 8px; }
+  .consent { height: auto; line-height: 1.4; }
+  .mediaSettingsDialog { height: fit-content; max-height: calc(100dvh - 24px); aspect-ratio: auto; overflow: auto; }
+  .mediaSettingsDialog[open] { display: block; }
+  .mediaSettingsDialog .mediaSettingsDialogBody { overflow: visible; }
+}

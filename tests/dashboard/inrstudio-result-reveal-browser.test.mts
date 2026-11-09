@@ -63,7 +63,7 @@ function Fixture(){
   React.createElement('header',{className:'modal-header'},React.createElement('div',null,React.createElement('h1',null,'iNrStudio'),React.createElement('small',null,'Test automatisé · résultat simulé'))),
   React.createElement('div',{className:'modal-body'},
   React.createElement('div',{style:{height:600}},'Paramètres du média'),
-  React.createElement('div',{className:'editor-previewPane',style:{height:500}},React.createElement(Workspace,state)),
+  React.createElement('div',{className:'editor-previewPane'},React.createElement(Workspace,state)),
   React.createElement('div',{style:{height:650}},'Consignes et options'),
   React.createElement('button',{id:'bottom',onClick:()=>window.studioFixture.start()},'Générer'),
   React.createElement('div',{style:{height:50}}))));
@@ -255,7 +255,7 @@ test("native Studio image/video/Modifier remain touch scrollable after completio
       const errors = await mountNative(page, kind);
       await page.evaluate(() => (window as unknown as FixtureWindow).studioFixture.start());
       await page.locator('[data-media-creation-stage="progress"]').waitFor();
-      const scroller = page.locator('.modal-body');
+      const scroller = page.locator('.modal-dialog');
       await scroller.evaluate(element => element.scrollTop = element.scrollHeight);
       const bottomBefore = await scroller.evaluate(element => element.scrollTop);
       assert.ok(bottomBefore > 100, "The native responsive form must have a real scroll range");
@@ -285,13 +285,19 @@ test("native Studio image/video/Modifier remain touch scrollable after completio
       const touchY = Math.max(200, Math.min(650, rect.y + rect.height / 2));
       await swipe(page, touchY, touchY + 150);
       const afterUp = await scroller.evaluate(element => element.scrollTop);
+      if (afterUp >= before - 30) t.diagnostic(JSON.stringify(await page.evaluate(y => {
+        const chain = []; let target = document.elementFromPoint(innerWidth / 2, y);
+        while (target) { const style = getComputedStyle(target); chain.push({ tag: target.tagName, className: target.className, overflow: style.overflowY, overscroll: style.overscrollBehaviorY, touch: style.touchAction, range: target.scrollHeight - target.clientHeight }); target = target.parentElement; }
+        return { y, chain };
+      }, touchY)));
       assert.ok(afterUp < before - 30, `${kind}: touching the result must scroll toward the top (${before} -> ${afterUp})`);
       await swipe(page, 650, 250);
       const afterDown = await scroller.evaluate(element => element.scrollTop);
       assert.ok(afterDown > afterUp + 30, `${kind}: the pro can scroll back down (${afterUp} -> ${afterDown})`);
+      const heightBeforeSave = await scroller.evaluate(element => element.scrollHeight);
       await page.evaluate(() => { (window as unknown as FixtureWindow).studioFixture.save(); (window as unknown as FixtureWindow).studioFixture.progress(); });
       await page.waitForTimeout(80);
-      assert.equal(await scroller.evaluate(element => element.scrollTop), afterDown, "A save/rerender cannot pin or recenter the pro");
+      assert.ok(await scroller.evaluate((element, before) => Math.abs(element.scrollTop - before.top) <= Math.abs(element.scrollHeight - before.height) + 1, { top: afterDown, height: heightBeforeSave }), "a save preserves the scroll anchor within the natural change in content height");
       const eye = page.getByRole('button', { name: 'Agrandir le média' }); await eye.click();
       const enlarged = page.locator('dialog[open]'); await enlarged.waitFor();
       assert.deepEqual(await enlarged.boundingBox(), { x: 0, y: 0, width: 390, height: 844 });
@@ -358,7 +364,7 @@ async function mount(page: Page) {
 }
 async function atBottom(page: Page) {
   await page.locator("#bottom").evaluate(element => { element.scrollIntoView({ block: "end", behavior: "instant" }); (element as HTMLButtonElement).focus({ preventScroll: true }); });
-  return page.locator(".modal-body").evaluate(element => element.scrollTop);
+  return page.locator(".modal-dialog").evaluate(element => element.scrollTop);
 }
 async function readyInView(page: Page) {
   await page.waitForFunction(() => {
@@ -368,7 +374,7 @@ async function readyInView(page: Page) {
     const bounds = heading.getBoundingClientRect(), top = header.getBoundingClientRect().bottom;
     return bounds.top >= top && bounds.bottom < innerHeight && document.activeElement === heading;
   }, undefined, { timeout: 3000 });
-  await page.locator(".modal-body").evaluate(async element => {
+  await page.locator(".modal-dialog").evaluate(async element => {
     let previous = element.scrollTop, stable = 0;
     for (let frame = 0; frame < 120 && stable < 4; frame++) {
       await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
@@ -393,17 +399,17 @@ test("mobile image, video and modification completion reveals the actual preview
         await page.screenshot({ path: path.join(evidenceDirectory, "inrstudio-workspace-avant-resultat-2026-10-28.png") });
       }
       await page.evaluate(() => (window as unknown as FixtureWindow).studioFixture.progress());
-      assert.equal(await page.locator(".modal-body").evaluate(element => element.scrollTop), before, "progress must not move the pro");
+      assert.equal(await page.locator(".modal-dialog").evaluate(element => element.scrollTop), before, "progress must not move the pro");
       await page.evaluate(kind => (window as unknown as FixtureWindow).studioFixture.complete(kind), kind);
       await readyInView(page);
       if (kind === "image" && evidenceDirectory) await page.screenshot({ path: path.join(evidenceDirectory, "inrstudio-workspace-resultat-2026-10-28.png") });
-      t.diagnostic(JSON.stringify({ kind, before, after: await page.locator(".modal-body").evaluate(element => element.scrollTop), heading: await page.locator("[data-media-review-heading] h3").boundingBox(), preview: await page.locator("[data-media-preview]").boundingBox(), viewport: page.viewportSize() }));
+      t.diagnostic(JSON.stringify({ kind, before, after: await page.locator(".modal-dialog").evaluate(element => element.scrollTop), heading: await page.locator("[data-media-review-heading] h3").boundingBox(), preview: await page.locator("[data-media-preview]").boundingBox(), viewport: page.viewportSize() }));
       assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).revealCalls.length), 1);
       assert.ok(await page.locator("[data-media-preview]").evaluate(element => { const rect = element.getBoundingClientRect(); return rect.top < innerHeight && rect.bottom > 0; }));
       const bottom = await atBottom(page);
       await page.evaluate(() => { (window as unknown as FixtureWindow).studioFixture.save(); (window as unknown as FixtureWindow).studioFixture.progress(); });
       await page.waitForTimeout(80);
-      assert.equal(await page.locator(".modal-body").evaluate(element => element.scrollTop), bottom, "saving or refreshing a completed result must not reveal it again");
+      assert.equal(await page.locator(".modal-dialog").evaluate(element => element.scrollTop), bottom, "saving or refreshing a completed result must not reveal it again");
       assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).revealCalls.length), 1);
       assert.deepEqual(errors, []); await page.close();
     }
@@ -428,10 +434,12 @@ test("reduced motion is respected and an existing result or another account cann
     await page.locator('[data-media-creation-stage="progress"]').waitFor(); await atBottom(page);
     await page.evaluate(() => (window as unknown as FixtureWindow).studioFixture.switchAccount("account-b"));
     const previous = await atBottom(page);
+    const previousHeight = await page.locator('.modal-dialog').evaluate(element => element.scrollHeight);
     await page.evaluate(() => (window as unknown as FixtureWindow).studioFixture.complete("image", "stale-result", "account-a"));
     await page.waitForTimeout(100);
     assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).revealCalls.length), 1);
-    assert.equal(await page.locator(".modal-body").evaluate(element => element.scrollTop), previous);
+    assert.ok(await page.locator('.modal-dialog').evaluate((element, before) => Math.abs(element.scrollTop - before.top) <= Math.abs(element.scrollHeight - before.height) + 1, { top: previous, height: previousHeight }), "an account change only adjusts the scroll within the natural change in content height");
+    assert.equal(await page.locator('#bottom').evaluate(element => element === document.activeElement), true);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
@@ -449,7 +457,7 @@ test("desktop and a blocking dialog keep their current scroll and focus when the
       await page.evaluate(() => (window as unknown as FixtureWindow).studioFixture.complete());
       await page.waitForTimeout(100);
       assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).revealCalls.length), 0);
-      assert.equal(await page.locator(".modal-body").evaluate(element => element.scrollTop), previous);
+      assert.equal(await page.locator(".modal-dialog").evaluate(element => element.scrollTop), previous);
       if (!desktop) assert.equal(await page.locator("#other input").evaluate(element => element === document.activeElement), true);
       assert.deepEqual(errors, []); await page.close();
     }
@@ -482,7 +490,7 @@ test("a browser account switch before the scheduled frame prevents a late result
     await page.waitForTimeout(80);
     assert.ok(await page.evaluate(() => (window as unknown as FixtureWindow & { flushResultFrame: () => number }).flushResultFrame()) > 0, "the result reveal must have reached its deferred frame");
     assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).revealCalls.length), 0);
-    assert.equal(await page.locator(".modal-body").evaluate(element => element.scrollTop), before);
+    assert.equal(await page.locator(".modal-dialog").evaluate(element => element.scrollTop), before);
     assert.equal(await page.locator("#bottom").evaluate(element => element === document.activeElement), true);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }

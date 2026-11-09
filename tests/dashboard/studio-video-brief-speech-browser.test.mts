@@ -41,6 +41,7 @@ add("app/dashboard/_components/MediaGenerationCreationWorkspace.tsx");
 add("app/dashboard/_components/MediaSubjectVoiceButton.tsx");
 add("app/dashboard/_components/MediaQuotaSummary.tsx");
 add("app/dashboard/_components/MediaBusinessDnaHelp.tsx");
+add("app/dashboard/_components/MediaLibraryPickerModal.tsx");
 const messages = JSON.parse(read("messages/fr-FR/media.json"));
 const catalogs = Object.fromEntries(["fr-FR", "en-GB", "de-DE", "es-ES", "it-IT", "nl-NL", "pt-PT", "th-TH", "zh-CN"].map(locale => [locale, JSON.parse(read(`messages/${locale}/media.json`))]));
 const boosterCatalogs = Object.fromEntries(Object.keys(catalogs).map(locale => [locale, JSON.parse(read(`messages/${locale}/booster.json`))]));
@@ -90,6 +91,11 @@ const React=require('react'),Free=require('app/dashboard/_components/MediaFreeGe
 window.fixtureRoot=require('react-dom/client').createRoot(document.getElementById('root'));
 window.renderStudio=(prompt='Un jardinier taille une haie. Lumière naturelle, plan rapproché.',kind='video')=>window.fixtureRoot.render(React.createElement(Free,{key:kind+'-'+window.fixtureLocale,source:'studio',acceptMode:'library',mediaType:kind,initialPrompt:prompt,onAccepted:noOp}));
 window.renderStudio();
+window.renderLibrary=()=>{
+ const fetchStudio=window.fetch;
+ window.fetch=(url,init)=>String(url).startsWith('/api/media-library/items?')?Promise.resolve(Response.json({ok:true,items:window.fixtureLibraryItems})):fetchStudio(url,init);
+ window.fixtureRoot.render(React.createElement(require('app/dashboard/_components/MediaLibraryPickerModal.tsx').default,{open:true,accept:'audio',confirmLabel:'Utiliser ce vocal',onClose:noOp,onConfirm:items=>{window.fixtureLibrarySelection=items.map(item=>item.id)}}));
+};
 `;
 const prefix = (css: string, name: string) => css.replace(/\.([a-zA-Z_][\w-]*)/g, `.${name}-$1`);
 const css = prefix(read("app/dashboard/_components/MediaFreeGenerator.module.css"), "free") + prefix(read("app/dashboard/_components/MediaGenerationCreationWorkspace.module.css"), "editor") + prefix(read("app/dashboard/_components/MediaEngineCreditControls.module.css"), "engine") + prefix(read("app/dashboard/_components/MediaGeneratorModal.module.css"), "modal") + prefix(read("app/dashboard/_components/MediaPromptHelp.module.css"), "help") + prefix(read("app/dashboard/_components/MediaGenerator.module.css"), "gen") + prefix(read("app/dashboard/_components/MediaQuotaSummary.module.css"), "quota") + prefix(read("app/dashboard/_components/StudioMusicLibrary.module.css"), "music") + prefix(read("app/dashboard/_components/StudioVoicePool.module.css"), "pool") + prefix(read("app/dashboard/_components/MediaCharacterVoiceInput.module.css"), "voice");
@@ -153,6 +159,9 @@ async function videoGeometry(page: Page) {
     const sectionBounds = section.getBoundingClientRect(), headingBounds = heading.getBoundingClientRect();
     const style = getComputedStyle(prompt);
     return {
+      responsive: innerWidth <= 1100,
+      promptFits: prompt.scrollHeight <= prompt.clientHeight + 1,
+      speechFollowsPrompt: sectionBounds.top >= promptBounds.bottom,
       compactDesktop: innerWidth > 760 && innerHeight <= 819,
       promptHeight: promptBounds.height,
       usableLines: (promptBounds.height - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)) / parseFloat(style.lineHeight),
@@ -165,6 +174,11 @@ async function videoGeometry(page: Page) {
 }
 
 function assertSameVideoGeometry(before: Awaited<ReturnType<typeof videoGeometry>>, after: Awaited<ReturnType<typeof videoGeometry>>, context: string, viewportStable = false) {
+  if (after.responsive) {
+    assert.ok(after.promptHeight >= 140 && after.promptFits, `${context}: the mobile prompt grows to show all its content`);
+    assert.ok(after.speechFollowsPrompt, `${context}: the speech controls follow the complete prompt`);
+    return;
+  }
   assert.ok(before.usableLines >= (before.compactDesktop ? 5 : 6) && before.usableLines <= 10, `${context}: the prompt retains its authorized readable allowance for this viewport (${before.usableLines})`);
   for (const key of ["promptHeight", "bannerTop", "controlTop"] as const) {
     assert.ok(Math.abs(after[key] - before[key]) <= 1, `${context}: ${key} stays constant, ${JSON.stringify({ before, after })}`);
@@ -182,13 +196,14 @@ async function assertSpeechHeaderCompact(page: Page, context: string) {
       height: element.getBoundingClientRect().height,
       fits: element.scrollWidth <= element.clientWidth + 1,
     }));
-    return { titleLines, titleCount: labels.length, detailsCount: row.querySelectorAll("[data-video-audio-button]").length, rowHeight: rowBounds.height, controls };
+    return { responsive: innerWidth <= 1100, stacked: [...row.querySelectorAll<HTMLSelectElement>('select')].every(select => select.getBoundingClientRect().width >= rowBounds.width - 2), titleLines, titleCount: labels.length, detailsCount: row.querySelectorAll("[data-video-audio-button]").length, rowHeight: rowBounds.height, controls };
   });
   assert.ok(layout.titleLines >= 1 && layout.titleLines <= 2, `${context}: the sound and speech title remains compact`);
   assert.equal(layout.controls.length, 3, `${context}: the compact row retains the three Personnages, Paroles and Voix menus`);
   assert.equal(layout.titleCount, 3, `${context}: each menu keeps its own visible label`);
   assert.equal(layout.detailsCount, 1, `${context}: the voice settings button remains present`);
-  assert.ok(layout.rowHeight <= 3 * Math.max(...layout.controls.map(control => control.height)) + 24, `${context}: menus, their labels and the visible Settings/subtitle row remain compact`);
+  if (layout.responsive) assert.ok(layout.stacked, `${context}: each mobile speech menu occupies its own complete line`);
+  else assert.ok(layout.rowHeight <= 3 * Math.max(...layout.controls.map(control => control.height)) + 24, `${context}: menus, their labels and the visible Settings/subtitle row remain compact`);
   assert.equal(layout.controls.every(control => control.fits), true, `${context}: speech controls are not clipped`);
 }
 
@@ -406,8 +421,10 @@ test("the compact Image panel retains 4000 characters, four role launchers and r
         await page.keyboard.press("Escape"); await dialog.waitFor({ state: "detached" });
         assert.equal(await prompt.inputValue(), "x".repeat(3900)); assert.equal(await format.inputValue(), "landscape");
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, `${locale}: no horizontal overflow`);
-        const imageBounds = await prompt.boundingBox(); assert.ok(imageBounds && imageBounds.height >= 180 && imageBounds.height <= 220, `${locale}: image prompt keeps the fixed compact height`);
-        if (viewport.width > 760) {
+        const imageBounds = await prompt.boundingBox();
+        if (viewport.width <= 1100) assert.ok(imageBounds && imageBounds.height >= 140 && await prompt.evaluate(element => element.scrollHeight <= element.clientHeight + 1), `${locale}: the image prompt expands to show the full 3900-character draft`);
+        else assert.ok(imageBounds && imageBounds.height >= 180 && imageBounds.height <= 220, `${locale}: image prompt keeps the fixed compact desktop height`);
+        if (viewport.width > 1100) {
           const bounds = await page.locator('[data-media-tools]').evaluate(element => element.getBoundingClientRect().bottom);
           assert.ok(bounds <= viewport.height, "usual desktop sizes show image tools without scrolling");
         }
@@ -447,7 +464,7 @@ test("the single video panel keeps the prompt visible while native Images/Audio 
         assert.equal(await dialog.getAttribute("data-add-mode"), kind === "images" ? "true" : null, "only reference addition uses the compact chooser");
         if (kind === "images") {
           const side = Math.min(420, viewport.width - 32, viewport.height - 32);
-          assert.ok(Math.abs(bounds.width - side) <= 1 && Math.abs(bounds.height - side) <= 1, `images ${viewport.width}x${viewport.height}: the reference chooser stays square ${JSON.stringify(bounds)}`);
+          assert.ok(Math.abs(bounds.width - side) <= 1 && (viewport.width <= 1100 || Math.abs(bounds.height - side) <= 1), `images ${viewport.width}x${viewport.height}: the reference chooser fits its content and viewport ${JSON.stringify(bounds)}`);
         } else {
           assert.ok(Math.abs(bounds.width - Math.min(460, viewport.width - 32)) <= 1, `audio width fits its two controls ${JSON.stringify(bounds)}`);
           assert.ok(bounds.height < 320 && bounds.height <= viewport.height - 32, `audio height follows its content ${JSON.stringify(bounds)}`);
@@ -490,7 +507,7 @@ test("the single video panel keeps the prompt visible while native Images/Audio 
           return { before, after: header.getBoundingClientRect().top, overflow: getComputedStyle(body).overflowY, bodyHeight: body.clientHeight };
         });
         assert.equal(scrollLayout.before, scrollLayout.after, "scrolling content preserves the close header position");
-        assert.equal(scrollLayout.overflow, "auto"); assert.ok(scrollLayout.bodyHeight > 0);
+        assert.equal(scrollLayout.overflow, viewport.width <= 1100 ? "visible" : "auto"); assert.ok(scrollLayout.bodyHeight > 0);
         if (kind === "images") {
           assert.equal(await dialog.locator('select,[data-reference-add-role]').count(), 0, "the clicked icon owns the add role");
           await dialog.locator('input[type="file"]').setInputFiles([]);
@@ -903,6 +920,82 @@ test("real Studio video frames render on desktop and mobile and block oversized 
       assert.equal(requests[0].freePrompt, "Un jardinier taille une haie. Lumière naturelle, plan rapproché.");
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "mobile frames never overflow horizontally");
       assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test("responsive Studio stacks complete media controls and references in one global scroll", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const viewport of [{ width: 320, height: 640 }, { width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1024, height: 768 }]) {
+      const page = await browser.newPage({ viewport });
+      const errors = await mount(page);
+      await page.evaluate(() => { const fixture = window as unknown as FixtureWindow; fixture.fixtureReferencePreparationEnabled = true; fixture.fixtureUseRealWorkspace = true; fixture.refreshRecovery(); });
+      for (let index = 1; index <= 3; index++) {
+        await page.getByRole("button", { name: "Personnage", exact: true }).click();
+        const dialog = page.getByRole("dialog", { name: "Ajouter un personnage", exact: true });
+        const png = await page.evaluate(() => (window as unknown as FixtureWindow).fixtureReferencePng);
+        await dialog.locator('input[type="file"]').setInputFiles({ name: `person-${index}.png`, mimeType: "image/png", buffer: Buffer.from(png, "base64") });
+        await dialog.waitFor({ state: "detached" });
+        await page.waitForFunction(count => document.querySelectorAll('[data-media-reference-open]').length === count, index);
+      }
+      await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
+      await fillCommittedStudioText(page, "spokenScript", "Bonjour à tous. ".repeat(45));
+      const geometry = await page.evaluate(() => {
+        const rect = (selector: string) => document.querySelector(selector)!.getBoundingClientRect().toJSON();
+        const shell = document.querySelector<HTMLElement>('[data-inrcy-tool-dialog]')!;
+        const nestedScrolls = [...shell.querySelectorAll<HTMLElement>("*")].filter(element => {
+          const style = getComputedStyle(element);
+          return element.clientHeight > 0 && /auto|scroll/.test(style.overflowY) && element.scrollHeight > element.clientHeight + 1;
+        }).map(element => element.className || element.tagName);
+        return { settings: rect('.editor-settingsPane'), preview: rect('.editor-previewPane'), footer: rect('[data-media-footer]'), thumbs: rect('[data-media-reference-thumbnails]'), nestedScrolls, shellCanScroll: shell.scrollHeight > shell.clientHeight, labelsFit: [...document.querySelectorAll<HTMLElement>('.free-referenceRoleLabel')].every(element => element.scrollHeight <= element.clientHeight + 1 && element.scrollWidth <= element.clientWidth + 1), horizontalOverflow: shell.scrollWidth > shell.clientWidth + 1 };
+      });
+      if (viewport.width === 390) {
+        await page.locator('[data-media-reference-thumbnails]').scrollIntoViewIfNeeded();
+        await page.screenshot({ path: path.join(taskRoot, 'outputs/studio-mobile-scroll.png') });
+      }
+      assert.deepEqual(geometry.nestedScrolls, [], `${viewport.width}px: only the global Studio window scrolls`);
+      assert.ok(geometry.shellCanScroll, "all content remains reachable by the global scroll");
+      assert.ok(geometry.thumbs.bottom <= geometry.settings.bottom + 1, "all thumbnails stay inside the settings card");
+      assert.ok(geometry.preview.top >= geometry.settings.bottom - 1, "the preview follows the full settings card");
+      assert.ok(geometry.footer.top >= geometry.preview.bottom - 1, "the actions follow the preview");
+      assert.ok(geometry.labelsFit, "media button labels remain complete");
+      assert.equal(geometry.horizontalOverflow, false);
+      await page.locator('[data-media-final-action]').scrollIntoViewIfNeeded();
+      assert.deepEqual(errors, []);
+      assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test("responsive audio library gives every player its own complete row and uses one global scroll", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const viewport of [{ width: 320, height: 640 }, { width: 390, height: 844 }, { width: 768, height: 1024 }]) {
+      const page = await browser.newPage({ viewport });
+      const errors = await mount(page);
+      await page.evaluate(() => {
+        const state = window as unknown as { fixtureLibraryItems: unknown[]; renderLibrary(): void };
+        state.fixtureLibraryItems = Array.from({ length: 6 }, (_, index) => ({ id: `audio-${index}`, media_type: 'audio', title: 'Vocal de démonstration avec un titre complet', tags: ['Voix'], mime_type: 'audio/wav', size_bytes: 256044, duration_seconds: 8, signed_url: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=', storage_path: `audio-${index}.wav` }));
+        state.renderLibrary();
+      });
+      await page.locator('[data-media-library-item]').first().waitFor();
+      const geometry = await page.evaluate(() => {
+        const shell = document.querySelector<HTMLElement>('[data-media-library-picker] > div')!;
+        const rows = [...document.querySelectorAll<HTMLElement>('[data-media-library-item]')];
+        return { shellScrolls: shell.scrollHeight > shell.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(shell).overflowY), nestedScrolls: [...shell.querySelectorAll<HTMLElement>('*')].filter(element => element.clientHeight > 0 && /auto|scroll/.test(getComputedStyle(element).overflowY) && element.scrollHeight > element.clientHeight + 1).map(element => element.tagName), playersFit: rows.every((row, index) => { const bounds = row.getBoundingClientRect(); const player = row.querySelector('audio')!.getBoundingClientRect(); const next = rows[index + 1]?.getBoundingClientRect(); return player.width >= bounds.width - 25 && player.top >= bounds.top && player.bottom <= bounds.bottom && (!next || player.bottom <= next.top); }), horizontalOverflow: shell.scrollWidth > shell.clientWidth + 1 };
+      });
+      if (viewport.width === 390) await page.screenshot({ path: path.join(taskRoot, 'outputs/studio-mobile-audio-library.png') });
+      assert.ok(geometry.shellScrolls, "the entire library scrolls, including its actions");
+      assert.deepEqual(geometry.nestedScrolls, [], "the audio list has no nested scroll");
+      assert.ok(geometry.playersFit, "every audio player fills a complete row without overlapping the next media");
+      assert.equal(geometry.horizontalOverflow, false);
+      await page.locator('[data-media-library-item]').last().click();
+      await page.getByRole('button', { name: /Utiliser/ }).click();
+      assert.deepEqual(await page.evaluate(() => (window as unknown as { fixtureLibrarySelection: string[] }).fixtureLibrarySelection), ['audio-5']);
       assert.deepEqual(errors, []);
       await page.close();
     }

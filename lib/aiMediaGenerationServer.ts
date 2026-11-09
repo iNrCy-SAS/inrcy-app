@@ -1746,6 +1746,13 @@ export async function generateAndSaveAiMedia(args: {
     // provider mistake. Stop before composition/persistence; never regenerate
     // a paid clip or replace its native voice just to retry verification.
     if (characterDialogueRequested && nativeDialogueQa?.status !== "passed") {
+      console.warn("[ai-media] native character speech verification unavailable", JSON.stringify({
+        jobId: args.jobId, provider: videoGateway.provider, elapsedMs: nativeDialogueQa?.elapsedMs,
+        clips: nativeDialogueQa?.clips.map(clip => ({
+          sceneIndex: clip.sceneIndex, status: clip.status, issues: clip.issues,
+          confirmation: clip.confirmation, pronunciationVerification: clip.pronunciationVerification,
+        })) || [],
+      }));
       throw new Error("ai_media_native_speech_verification_unavailable");
     }
     const nativeVoiceoverQa = nativeVoiceoverRequested &&
@@ -1781,6 +1788,13 @@ export async function generateAndSaveAiMedia(args: {
       throw new Error(`ai_media_free_native_character_speech_unusable:${issues.join(",") || "provider_fallback"}`);
     }
     if (nativeVoiceoverRequested && nativeVoiceoverQa?.status !== "passed") {
+      console.warn("[ai-media] native voiceover verification unavailable", JSON.stringify({
+        jobId: args.jobId, provider: videoGateway.provider, elapsedMs: nativeVoiceoverQa?.elapsedMs,
+        clips: nativeVoiceoverQa?.clips.map(clip => ({
+          sceneIndex: clip.sceneIndex, status: clip.status, issues: clip.issues,
+          confirmation: clip.confirmation, pronunciationVerification: clip.pronunciationVerification,
+        })) || [],
+      }));
       throw new Error("ai_media_native_speech_verification_unavailable");
     }
     // Only verified native speech reaches composition, with its original voice.

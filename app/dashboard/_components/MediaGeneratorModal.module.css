@@ -1072,3 +1072,16 @@
     display: grid;
   }
 }
+
+@media (max-width: 1100px) {
+  .dialog:has([data-media-creation-stage]) { display: block; overflow-x: hidden; overflow-y: auto; touch-action: pan-y pinch-zoom; }
+  .dialog .header { position: static; grid-template-columns: minmax(0, 1fr) auto; }
+  .dialog .heading { grid-column: 1 / -1; grid-row: 2; grid-template-columns: minmax(0, 1fr); max-width: none; gap: 8px; }
+  .dialog .body,
+  .dialog:has([data-media-creation-stage]) .body { height: auto; min-height: 0; overflow: visible; }
+  .generationWorkspace,
+  .retouchWorkspace { height: auto; overflow: visible; }
+  .studioTab,
+  .mediaTypeTabs button,
+  .creationModeTabs button { white-space: normal; line-height: 1.35; }
+}

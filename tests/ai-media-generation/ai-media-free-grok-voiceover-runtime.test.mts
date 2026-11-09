@@ -59,6 +59,7 @@ function request(engine: contracts.AiMediaVideoEngine, overrides: Row = {}) {
 function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string; videoError?: Error; fallbackVideoError?: Error; primaryVideoFailureOnly?: boolean; nativeQaStatus?: "passed" | "rejected" | "unavailable" | "inconclusive"; nativeQaError?: Error; nativeVoiceover?: boolean; nativeVideoProvider?: string; finalFrameLayout?: "passed" | "rejected" | "unavailable" } = {}) {
   const events: string[] = [], videoCalls: Row[] = [], ttsCalls: Row[] = [], narrationCalls: Row[] = [], soundtrackCalls: Row[] = [], composeCalls: Row[] = [], saved: Row[] = [], contractCalls: Row[] = [], seedCalls: Row[] = [], googleFallbackCalls: Row[] = [];
   const voicePreflightCalls: Row[] = [], localFallbackCalls: Row[] = [], nativeQaCalls: Row[] = [];
+  const warnings: unknown[][] = [];
   const forbiddenLocalFallback = async (args: Row) => { localFallbackCalls.push(args); throw new Error("unexpected_local_fallback"); };
   const profile = { business: { companyName: "Atelier", professionLabel: "Céramiste", sectorLabel: "Artisanat", phone: "" }, preferences: { language: "fr" } };
   const plan = { companyName: "Atelier", headline: "", cta: "", subline: "Une céramiste façonne un vase.",
@@ -170,8 +171,8 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
     if (modules.has(name)) return modules.get(name);
     if (name.startsWith("node:")) return nativeRequire(name);
     throw new Error(`unexpected_test_dependency:${name}`);
-  }, { info() {}, warn() {}, error() {} });
-  return { nativeQaCalls, events, videoCalls, ttsCalls, narrationCalls, soundtrackCalls, composeCalls, saved, contractCalls, seedCalls, googleFallbackCalls, voicePreflightCalls, localFallbackCalls,
+  }, { info() {}, warn(...values: unknown[]) { warnings.push(values); }, error() {} });
+  return { warnings, nativeQaCalls, events, videoCalls, ttsCalls, narrationCalls, soundtrackCalls, composeCalls, saved, contractCalls, seedCalls, googleFallbackCalls, voicePreflightCalls, localFallbackCalls,
     generate: (original: contracts.AiMediaGenerationRequest, execution: Row = {}) => moduleRecord.exports.generateAndSaveAiMedia({ request: original, accountId: "test-account", authUserId: "test-actor", jobId: "test-job", supabase: {}, ...execution }) };
 }
 
@@ -217,6 +218,12 @@ for (const nativeMode of ["characters", "voiceover"] as const) {
         assert.equal(env.saved.length, 0);
         assert.equal(env.composeCalls.length, 0);
         assert.equal(checkpoints.length, 0, "unverified paid assets cannot enter composition recovery");
+        if (status === "unavailable" || status === "inconclusive") {
+          const diagnostic = env.warnings.find(values => String(values[0]).includes("verification unavailable"));
+          assert.ok(diagnostic, "an inconclusive audit leaves an actionable diagnostic");
+          assert.match(JSON.stringify(diagnostic), /qa_unavailable/);
+          assert.doesNotMatch(JSON.stringify(diagnostic), /PRIVATE|https:|secret|transcript|token/);
+        }
       }
       assert.equal(billingStarts, 1);
       assert.equal(env.videoCalls.length, 1, "QA cannot submit a paid regeneration or engine fallback");
