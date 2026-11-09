@@ -55,16 +55,17 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
   modules.set("@/lib/multicompte/constants", { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" });
   const output = ts.transpileModule(read(file), { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const record = { exports: {} as Props };
-  new Function("module", "exports", "require", "window", "document", "HTMLElement", output)(record, record.exports, (name: string) => {
+  new Function("module", "exports", "require", "window", "document", "HTMLElement", "ResizeObserver", output)(record, record.exports, (name: string) => {
     if (name.endsWith(".module.css")) return styles;
     if (name === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy;
     if (name === "@/lib/aiMediaVideoSpeechBudget") return speechBudget;
     assert.ok(modules.has(name), `Unexpected UI dependency: ${name}`); return modules.get(name);
   }, {
+    matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
     addEventListener(name: string, listener: () => void) { const list = listeners.get(name) || new Set(); list.add(listener); listeners.set(name, list); },
     removeEventListener(name: string, listener: () => void) { listeners.get(name)?.delete(listener); },
     requestAnimationFrame: () => 1, cancelAnimationFrame() {},
-  }, { activeElement: null, body: { style: {}, children: [] }, documentElement: { style: {} } }, class {});
+  }, { activeElement: null, body: { style: {}, children: [] }, documentElement: { style: {} } }, class {}, class { observe() {} disconnect() {} });
   return {
     render(props: Props) { let tree: unknown; let count = 0; do { assert.ok(++count < 20, "UI effects settle"); dirty = false; cursor = 0; tree = (record.exports.default as (props: Props) => unknown)(props); for (const effect of effects.splice(0)) effect(); } while (dirty); return tree; },
     emit(name: string) { for (const listener of [...listeners.get(name) || []]) listener(); },
