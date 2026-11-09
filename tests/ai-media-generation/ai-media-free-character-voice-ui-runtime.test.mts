@@ -964,6 +964,32 @@ test("Free recovery hydration and ordinary AI changes preserve the independent v
   }
 });
 
+test("assigned pool voices enable two-character generation without an active character editing cursor", async () => {
+  for (const engine of ["wan27", "kling"] as const) {
+    const h = harness("video", engine, 8);
+    try {
+      h.beginReferenceAddition("character");
+      await h.selectReferenceFiles([new File(["photo"], "Alice.png", { type: "image/png" }), new File(["photo"], "Bob.png", { type: "image/png" })]);
+      h.setSound("characters"); h.chooseMainVoice("provided");
+      assert.equal(h.voiceSnapshot().voiceReferenceId, undefined);
+      await h.importNarrator(); await h.importNarrator();
+      for (let index = 0; index < 2; index++) {
+        h.poolNative().handlers.open.invoke(`voice:${index}`); h.render();
+        h.poolNative().handlers.select.invoke(`target:${index}:reference:${index}`); h.render();
+      }
+      h.closePool();
+      assert.equal(h.voiceSnapshot().voiceReferenceId, undefined, "pool assignments do not choose a character editing cursor");
+      assert.deepEqual(h.voiceSnapshot().voiceReferences.map(reference => reference.voiceMode), ["provided", "provided"]);
+      await h.generate(); assert.equal(h.requests.length, 0, "assignments never grant provider consent");
+      h.consent(); await h.generate();
+      assert.equal(h.requests.length, 1, "both assigned voices are sufficient even when no character editor is selected");
+      assert.deepEqual(h.requests[0].inspirationImages!.map(reference => reference.voiceSample?.path), h.uploadedSamples.map(sample => sample.path));
+      assert.equal(h.requests[0].videoEngine, engine);
+      assert.equal(h.requests[0].spokenScript, undefined, "automatic words remain automatic");
+    } finally { h.dispose(); }
+  }
+});
+
 test("one explicit footer authorization covers two required people and their distinct voices on every supported engine", async () => {
   for (const engine of voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(models.isAiMediaVideoEngineAvailable)) {
     const h = harness("video", engine, engine === "kling" ? 5 : 2);

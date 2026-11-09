@@ -352,7 +352,9 @@ export default function MediaFreeGenerator({
     (reference) =>
       reference.role === "character" && reference.usage === "required"
   );
-  const realVoiceNeedsPerson = kind === "video" && speechMode === "characters" && voiceSourcePreference === "provided" && !selectedVoiceReference;
+  // Pool assignments already identify their character; an editor selection is
+  // needed only while choosing a supplied voice with no existing assignment.
+  const realVoiceNeedsPerson = kind === "video" && speechMode === "characters" && voiceSourcePreference === "provided" && !selectedVoiceReference && !characterVoiceSelection.hasProvidedVoice;
   const identityRequired = personReferences.length > 0 || characterVoiceSelection.hasProvidedVoice;
   const identityMode = personReferences.length > 1 ? "reference_team" : personReferences.length === 1 ? "professional" : "auto";
   const teamConsentRequired = kind === "video" && personReferences.length > 1;

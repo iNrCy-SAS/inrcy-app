@@ -288,7 +288,7 @@
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e7160cc23a5837f21d3c341501e6b213bf2cd63cd2c315aa7a1c5f85b0284d98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "7c25f8414a8878fa2e2b80de2faa1ee61b780fcd180d299f2f449e834bfa3c68",
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "15d3a04d62651cb9c3612610074cb1d51207b124bd887c474ecdb3ffdf278e39",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "11e67e39e6c13fb0dc8d6c508b19855f176f4a046119933e17f206a02d4a4c06",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "cda2ef09f327ef8546636c6dfcd654d2521e88b46639c2fa09b58e6e88271648",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
         "app/dashboard/_components/StudioVoicePool.tsx": "9a7b0c99c48dcc9cd8ee6e9eaee2e2bf5e478f1bc5795d97f5c8168c51110cb3",
@@ -783,7 +783,7 @@
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e7160cc23a5837f21d3c341501e6b213bf2cd63cd2c315aa7a1c5f85b0284d98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "7c25f8414a8878fa2e2b80de2faa1ee61b780fcd180d299f2f449e834bfa3c68",
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "15d3a04d62651cb9c3612610074cb1d51207b124bd887c474ecdb3ffdf278e39",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "11e67e39e6c13fb0dc8d6c508b19855f176f4a046119933e17f206a02d4a4c06",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "cda2ef09f327ef8546636c6dfcd654d2521e88b46639c2fa09b58e6e88271648",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
         "app/dashboard/_components/MediaModifier.tsx": "4a5fdbca9e0133b57684e29f0f7e532c8714a82f01ab143288a3d00f5d42dee2",
