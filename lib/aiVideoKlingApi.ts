@@ -5,6 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 // https://kling.ai/document-api/api/get-started/authentication
 const ORIGIN = "https://api-singapore.klingai.com";
 export const KLING_TEMPORARY_VOICE_PREFIX = "inrcy-k4-";
+export type KlingVideoModel = "kling-4.0" | "kling-4.0-flash";
 type JsonObject = Record<string, unknown>;
 export type KlingVideoRequest = {
   contents: ({ type: "prompt"; text: string } | { type: "refer_image"; url: string; id: string } |
@@ -41,8 +42,12 @@ function safeUrl(value: unknown): string {
 
 export function createKlingApiClient(options: {
   apiKey: string; fetch?: typeof fetch; sleep?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
+  videoModel?: KlingVideoModel;
 }) {
   if (!options.apiKey.trim() || /[\r\n]/.test(options.apiKey)) throw new Error("ai_video_kling_credentials_missing");
+  const videoModel = options.videoModel ?? "kling-4.0";
+  if (videoModel !== "kling-4.0" && videoModel !== "kling-4.0-flash") throw new Error("ai_video_kling_model_invalid");
+  const videoPath = videoModel === "kling-4.0-flash" ? "/omni-video/kling-4.0-flash" : "/omni-video/kling-4.0";
   const fetcher = options.fetch ?? fetch;
   const sleep = options.sleep ?? (async (ms, signal) => { await delay(ms, undefined, { signal }); });
   async function request(method: "GET" | "POST", path: string, body?: JsonObject, signal?: AbortSignal): Promise<JsonObject> {
@@ -147,8 +152,14 @@ export function createKlingApiClient(options: {
       }
     },
     async submitVideo(body: KlingVideoRequest, signal?: AbortSignal): Promise<KlingVideoTask> {
+      // Flash does not document direct voice inputs. Never spend on an unproven route.
+      if (videoModel === "kling-4.0-flash") {
+        if (body.contents.some(content => content.type === "voice")) throw new KlingApiError("flash_provided_voice_unsupported");
+        if (body.settings.resolution !== "720p" || !Number.isInteger(body.settings.duration) ||
+          body.settings.duration < 3 || body.settings.duration > 20) throw new KlingApiError("flash_parameters_invalid");
+      }
       try {
-        const payload = await request("POST", "/omni-video/kling-4.0", body, signal);
+        const payload = await request("POST", videoPath, body, signal);
         return videoTask(payload.data);
       } catch (error) {
         if (!(error instanceof KlingApiError) || !error.uncertain) throw error;

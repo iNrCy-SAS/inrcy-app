@@ -458,7 +458,7 @@ export async function generateAndSaveAiMedia(args: {
   }
   if (providerRequest.kind === "video") {
     await measure("video_transport_preflight", async () => {
-      if (providerRequest.videoEngine === "kling") await preflightKlingAiVideoAccess({ accountId: args.accountId, request: providerRequest, signal: args.signal });
+      if (providerRequest.videoEngine === "kling" || providerRequest.videoEngine === "kling-flash") await preflightKlingAiVideoAccess({ accountId: args.accountId, request: providerRequest, signal: args.signal });
       await preflightAiMediaVideoTemporaryImages({ accountId: args.accountId, request: providerRequest, signal: args.signal });
     });
     if (providerRequest.inspirationImages.some((image) => image.voiceMode === "provided")) {
@@ -1220,7 +1220,7 @@ export async function generateAndSaveAiMedia(args: {
     const generateVideoGateway = () => measure("video_generation", async () => {
       // R2V composes the scene itself. Original images must remain separate:
       // each character's voice reference belongs to that exact image.
-      if (providerRequest.videoEngine === "wan27" || providerRequest.videoEngine === "kling" || (hasProvidedAiMediaCharacterVoice(providerRequest.inspirationImages) && isAiMediaCharacterVoiceEngine(providerRequest.videoEngine))) {
+      if (providerRequest.videoEngine === "wan27" || providerRequest.videoEngine === "kling" || providerRequest.videoEngine === "kling-flash" || (hasProvidedAiMediaCharacterVoice(providerRequest.inspirationImages) && isAiMediaCharacterVoiceEngine(providerRequest.videoEngine))) {
         return await generateProviderVideo(providerRequest, providerRequest.identityMode === "reference_team"
           ? { identityTeamMemberCount: preparedCharacterBuffers.length as 2 | 3 }
           : {});
@@ -1711,7 +1711,7 @@ export async function generateAndSaveAiMedia(args: {
                   expectedDialogueLines.slice(index + 1).some((line) => Boolean(line.trim())),
               })),
             });
-            return providerRequest.videoEngine === "wan27" || providerRequest.videoEngine === "kling"
+            return providerRequest.videoEngine === "wan27" || providerRequest.videoEngine === "kling" || providerRequest.videoEngine === "kling-flash"
               ? recoverAiMediaNativeDialogueVerification({ audit, signal: args.signal })
               : audit();
           }).catch(() => {

@@ -3,7 +3,7 @@
  */
 export type AiMediaVideoEngine =
   | "omni" | "veo" | "veo-lite" | "minimax-h3"
-  | "wan-flash" | "wan27" | "wan3" | "grok-lite" | "grok" | "heygen" | "kling";
+  | "wan-flash" | "wan27" | "wan3" | "grok-lite" | "grok" | "heygen" | "kling" | "kling-flash";
 export type AiMediaImageEngine = "openai" | "gemini" | "flux" | "grok" | "recraft";
 export type AiMediaImageFormat = "square" | "portrait" | "story" | "landscape";
 export type AiMediaImageDimensions = Readonly<{ width: number; height: number }>;
@@ -61,6 +61,18 @@ const range = (from: number, to: number) =>
   Object.freeze(Array.from({ length: to - from + 1 }, (_, index) => from + index));
 
 export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze([
+  {
+    id: "kling-flash", label: "Kling 4.0 Flash", family: "Kling", provider: "kling", providerLabel: "Kling",
+    transport: "kling-direct", modelId: "kling-4.0-flash",
+    description: "Personnages de référence et dialogues avec voix IA natives.", costTier: "balanced",
+    creditsPerSecond: 10, creditsByResolution: { "720p": 10 },
+    durationsSeconds: range(4, 20), maxDurationSeconds: 20, resolutions: ["720p"], defaultResolution: "720p",
+    nativeAudio: true, frenchDialogue: "to-verify", supportsTextToVideo: true, supportsImageToVideo: true,
+    // Official 0.6 unit/s = $0.0942/s list price; conservative guard rounds up.
+    // https://kling.ai/document-api/pricing/base/video
+    maxReferenceImages: 5, pricingUsdPerSecond: { "720p": 0.10 },
+    supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
+  },
   {
     id: "kling", label: "Kling 4.0 Omni", family: "Kling", provider: "kling", providerLabel: "Kling",
     transport: "kling-direct", modelId: "kling-4.0-omni",

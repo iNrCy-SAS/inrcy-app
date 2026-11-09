@@ -592,7 +592,7 @@ test("all other free engines prepare one TTS before video and mute native audio;
     assert.equal(env.ttsCalls.length, 1, engine); assert.equal((env.videoCalls[0].request as contracts.AiMediaGenerationRequest).withNarration, false, engine);
     assert.equal(env.seedCalls.length, 0, engine);
     assert.equal(env.videoCalls[0].nativeNarrationLines, undefined);
-    assert.deepEqual(env.events, [...(engine === "kling" ? ["kling-preflight"] : []), "copy", "tts", "audio-preflight", "video", "compose", "save"]);
+    assert.deepEqual(env.events, [...(["kling", "kling-flash"].includes(engine) ? ["kling-preflight"] : []), "copy", "tts", "audio-preflight", "video", "compose", "save"]);
     assert.equal(env.composeCalls[0].narration, audio);
     assert.equal(env.composeCalls[0].nativeAudioMode, "mute");
     assert.equal((env.contractCalls[0].request as contracts.AiMediaGenerationRequest).withNarration, false);

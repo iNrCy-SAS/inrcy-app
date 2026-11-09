@@ -1032,7 +1032,7 @@
   "ai_generator_character_voice_file_error": "Choose an MP3 or WAV file up to 3 MB.",
   "ai_generator_character_voice_duration_error": "The voice sample must last between 1 and 10 seconds.",
   "ai_generator_character_voice_sample_missing": "Upload a voice sample for each character using a provided voice.",
-  "ai_generator_character_voice_engine_required": "For a supplied voice, choose Wan 2.7 or Kling.",
+  "ai_generator_character_voice_engine_required": "For a supplied voice, choose Wan 2.7 or Kling 4.0 Omni.",
   "ai_generator_character_voice_speech_required": "Provided voices are used in Characters audio mode.",
   "ai_generator_character_voice_switch_characters": "Use Characters audio",
   "ai_generator_character_voice_preview": "Listen to this character’s voice sample",
@@ -1119,5 +1119,8 @@
   "ai_generator_model_description_kling": "Reference characters and voices, French dialogue and complex scenes.",
   "ai_generator_engine_info_video_use_kling": "Create staged scenes with characters speaking in their reference voices.",
   "ai_generator_engine_info_video_limits_kling": "Up to 30 s, 5 images and 3 voices in Studio. Clean voice samples of 5–10 s. Voice samples guide newly generated speech.",
-  "ai_generator_character_voice_kling_reference_limits": "For Kling, use a clean voice sample of 5–10 seconds for each character."
+  "ai_generator_character_voice_kling_reference_limits": "For Kling, use a clean voice sample of 5–10 seconds for each character.",
+  "ai_generator_model_description_kling-flash": "Reference images and native dialogue with AI voices.",
+  "ai_generator_engine_info_video_use_kling-flash": "Create scenes with several characters from reference images and AI voices.",
+  "ai_generator_engine_info_video_limits_kling-flash": "4–20 s, 720p, up to 5 images. AI voices only; choose Kling 4.0 Omni for supplied voice samples."
 }

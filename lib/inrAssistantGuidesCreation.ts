@@ -41,7 +41,7 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
     id: "studio-create",
     title: "iNrStudio : générer une image ou une vidéo",
     keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits", "voix", "vocal", "musiques", "narration", "sous-titres"],
-    content: `${productNavigationSummary("studio", false)} Image/Vidéo : format, moteur, durée (s) ; plans automatiques en Studio Libre. Conseil indicatif, choix explicite conservé. Wan 3 et MiniMax H3 retirés de tous les parcours de génération.
+    content: `${productNavigationSummary("studio", false)} Image/Vidéo : format, moteur, durée (s) ; plans automatiques en Studio Libre. Conseil, choix explicite conservé. Moteurs disponibles ; Wan 3 et MiniMax H3 retirés de tous les parcours de génération.
 Visuel : vidéo 500 caractères max, image 4 000 ; paroles séparées. Utiliser mon ADN ajoute faits/logo/couleurs/coordonnées sur demande. Décoché : pas d’autre ADN. Consignes ET Interdictions de Ma communication restent transmises ; les interdictions priment. Règles jamais coupées ; incompatibilité bloquée.
 Inspiration/Personnage/Décor/Produit : rôle avant Importer/Médiathèque (images seules), fermeture après ajout. Inspiration facultative, autres Obligatoires ; usage sur miniature. Vérifier identités/doublons.
 Musiques : catalogue iNrCy, Automatique/Sans musique/piste et préécoute ; distinct des vocaux.

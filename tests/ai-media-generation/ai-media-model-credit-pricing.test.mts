@@ -17,10 +17,13 @@ import { quoteAiMediaCredits, estimateAiMediaVideoSupplierCostMicroUsd, estimate
 import { getAiMediaVideoSegmentDurations, canGenerateAiMediaVideoDuration, getAiMediaVideoDurationSceneOptions } from "../../lib/aiMediaVideoTimeline.ts";
 
 test("Studio retains historical choices and adds direct Kling with distinct capabilities", () => {
-  assert.equal(AI_MEDIA_VIDEO_MODELS.length, 11);
+  assert.equal(AI_MEDIA_VIDEO_MODELS.length, 12);
   assert.equal(new Set(AI_MEDIA_VIDEO_MODELS.map((model) => model.provider)).size, 6);
   assert.equal(getAiMediaVideoModel("kling").transport, "kling-direct");
   assert.equal(getAiMediaVideoModel("kling").maxDurationSeconds, 30);
+  assert.equal(getAiMediaVideoModel("kling-flash").transport, "kling-direct");
+  assert.deepEqual(getAiMediaVideoModel("kling-flash").resolutions, ["720p"]);
+  assert.equal(getAiMediaVideoModel("kling-flash").maxDurationSeconds, 20);
   assert.equal(getAiMediaVideoModel("veo-lite").maxReferenceImages, 1);
   assert.equal(getAiMediaVideoModel("minimax-h3").defaultResolution, "768p");
   assert.equal(getAiMediaVideoModel("wan-flash").supportsTextToVideo, false);

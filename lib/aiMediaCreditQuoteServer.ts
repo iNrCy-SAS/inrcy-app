@@ -12,7 +12,7 @@ export function createAiMediaServerQuote(accountId: string, input: AiMediaCredit
   if (input.kind === "video" && !isAiMediaVideoEngineAvailable(input.videoEngine || "omni")) {
     throw new Error("ai_media_video_engine_unavailable");
   }
-  if (input.kind === "video" && normalizeAiMediaVideoEngine(input.videoEngine) === "kling" && !String(process.env.KLING_API_KEY || "").trim()) {
+  if (input.kind === "video" && ["kling", "kling-flash"].includes(normalizeAiMediaVideoEngine(input.videoEngine) || "") && !String(process.env.KLING_API_KEY || "").trim()) {
     throw new Error("ai_video_kling_credentials_missing");
   }
   const quote = quoteAiMediaCredits(input);

@@ -13,9 +13,19 @@ import { assertAiMediaVideoProviderBoundary } from "./aiMediaVideoProviderContra
 import { buildAiMediaFreeVideoScenePrompt, buildAiMediaVideoCharacterReferenceDirection } from "./aiMediaFreeGenerationPrompt.ts";
 import { buildGoogleVideoScenePrompt } from "./aiVideoProviderGoogleVeo.ts";
 import { AiVideoProviderBillableFailure, assertAiVideoReferenceTeamProviderEgress, type AiVideoProvider, type AiVideoProviderGenerationArgs, type AiVideoProviderClip } from "./aiVideoProviderTypes.ts";
-import { createKlingApiClient, getExpiredKlingTemporaryVoiceIds, KlingApiError, KLING_TEMPORARY_VOICE_PREFIX, type KlingVideoRequest } from "./aiVideoKlingApi.ts";
+import { createKlingApiClient, getExpiredKlingTemporaryVoiceIds, KlingApiError, KLING_TEMPORARY_VOICE_PREFIX, type KlingVideoModel, type KlingVideoRequest } from "./aiVideoKlingApi.ts";
 
-const MODEL = "kling-4.0-omni";
+type KlingVideoEngine = "kling" | "kling-flash";
+function klingVideoEngine(engine: unknown): KlingVideoEngine {
+  if (engine !== "kling" && engine !== "kling-flash") throw new Error("ai_video_kling_engine_mismatch");
+  return engine;
+}
+const klingApiModel = (engine: KlingVideoEngine): KlingVideoModel => engine === "kling-flash" ? "kling-4.0-flash" : "kling-4.0";
+function assertKlingFlashVoices(args: Pick<AiVideoProviderGenerationArgs, "request">) {
+  if (args.request.videoEngine === "kling-flash" && args.request.inspirationImages.some(image => image.voiceMode === "provided")) {
+    throw new Error("ai_video_kling_flash_provided_voice_unsupported");
+  }
+}
 const PROVIDER = "kling-direct";
 const downloadClip = createDownload({ maxBytes: 128 * 1024 * 1024 });
 const VOICE_COST_MICRO_USD = 10_000; // Conservative bound above the official $0.007/profile.
@@ -24,30 +34,37 @@ const failureCode = (error: unknown) => error instanceof KlingApiError ? error.m
 
 export function klingVideoExternalId(args: Pick<AiVideoProviderGenerationArgs, "accountId" | "request">) {
   // Leave room for the voice/attempt suffix while staying below 64 characters.
-  return KLING_TEMPORARY_VOICE_PREFIX + createHash("sha256").update(`${args.accountId}:${args.request.requestId}:kling-4.0`).digest("hex").slice(0, 32);
+  // Keep existing Omni hashes; an explicit Flash choice gets its own recovery scope.
+  const model = klingApiModel(klingVideoEngine(args.request.videoEngine));
+  return KLING_TEMPORARY_VOICE_PREFIX + createHash("sha256").update(`${args.accountId}:${args.request.requestId}:${model}`).digest("hex").slice(0, 32);
 }
 
 /** Read-only credential/capability check before creative planning can spend anything. */
 export async function preflightKlingAiVideoAccess(args: Pick<AiVideoProviderGenerationArgs, "accountId" | "request" | "signal">) {
-  if (args.request.videoEngine !== "kling") return;
+  if (args.request.videoEngine !== "kling" && args.request.videoEngine !== "kling-flash") return;
+  const engine = klingVideoEngine(args.request.videoEngine);
+  assertKlingFlashVoices(args);
   const apiKey = String(process.env.KLING_API_KEY || "").trim();
   if (!apiKey) throw new Error("ai_video_kling_credentials_missing");
-  await createKlingApiClient({ apiKey }).findVideo(`${klingVideoExternalId(args)}-1`, args.signal);
+  await createKlingApiClient({ apiKey, videoModel: klingApiModel(engine) }).findVideo(`${klingVideoExternalId(args)}-1`, args.signal);
 }
 
 /** The same image index identifies the photo, its voice and its prompt binding. */
 export function buildKlingAiVideoRequest(args: AiVideoProviderGenerationArgs, index: number,
   imageUrls: readonly string[], voiceIds: readonly (string | null)[]): KlingVideoRequest {
   assertAiMediaVideoProviderBoundary(args);
-  if (args.request.videoEngine !== "kling") throw new Error("ai_video_kling_engine_mismatch");
+  const engine = klingVideoEngine(args.request.videoEngine);
+  assertKlingFlashVoices(args);
   assertAiVideoReferenceTeamProviderEgress(args, "kling");
   const images = args.request.inspirationImages;
-  const durations = getAiMediaVideoSegmentDurations(args.request.durationSeconds ?? 8, "kling", args.request.videoResolution, args.request.sceneMode);
+  const durations = getAiMediaVideoSegmentDurations(args.request.durationSeconds ?? 8, engine, args.request.videoResolution, args.request.sceneMode);
+  if (engine === "kling-flash" && (durations.some(duration => !Number.isInteger(duration) || duration < 4 || duration > 20) ||
+    (args.request.videoResolution && args.request.videoResolution !== "720p"))) throw new Error("ai_video_kling_flash_parameters_invalid");
   if (index < 0 || index >= durations.length || args.plan.scenes.length !== durations.length) throw new Error("ai_video_kling_scene_count_invalid");
   if (images.length > 5 || imageUrls.length !== images.length || voiceIds.length !== images.length) throw new Error("ai_video_kling_reference_count_invalid");
   if (images.filter(image => image.voiceMode === "provided").length > 3) throw new Error("ai_media_character_voice_count_invalid");
-  if (hasTooShortAiMediaCharacterVoice("kling", images)) throw new Error("ai_media_character_voice_kling_duration_invalid");
-  const resolution = getAiMediaVideoResolution("kling", args.request.videoResolution);
+  if (hasTooShortAiMediaCharacterVoice(engine, images)) throw new Error("ai_media_character_voice_kling_duration_invalid");
+  const resolution = getAiMediaVideoResolution(engine, args.request.videoResolution);
   if (resolution !== "720p" && resolution !== "1080p") throw new Error("ai_media_video_resolution_invalid");
   const aspectRatio = args.request.format === "story" ? "9:16" : args.request.format === "landscape" ? "16:9" : "1:1";
   const scenePrompt = args.request.creationMode === "free"
@@ -75,12 +92,16 @@ export function buildKlingAiVideoRequest(args: AiVideoProviderGenerationArgs, in
     options: { external_task_id: `${klingVideoExternalId(args)}-${index + 1}` } };
 }
 
-export const klingAiVideoProvider: AiVideoProvider = {
-  id: PROVIDER, model: MODEL,
+function createKlingAiVideoProvider(engine: KlingVideoEngine): AiVideoProvider {
+  const model = engine === "kling-flash" ? "kling-4.0-flash" : "kling-4.0-omni";
+  return {
+  id: PROVIDER, model,
   async generate(args) {
     args.signal?.throwIfAborted();
+    if (args.request.videoEngine !== engine) throw new Error("ai_video_kling_engine_mismatch");
+    assertKlingFlashVoices(args);
     const images = args.request.inspirationImages;
-    const durations = getAiMediaVideoSegmentDurations(args.request.durationSeconds ?? 8, "kling", args.request.videoResolution, args.request.sceneMode);
+    const durations = getAiMediaVideoSegmentDurations(args.request.durationSeconds ?? 8, engine, args.request.videoResolution, args.request.sceneMode);
     // Validate the entire plan, consent and association before any paid request.
     const placeholderImages = images.map((_, i) => `https://provider-input.invalid/image-${i + 1}.png`);
     const placeholderVoices = images.map((image, i) => image.voiceMode === "provided" ? `voice-${i + 1}` : null);
@@ -90,7 +111,7 @@ export const klingAiVideoProvider: AiVideoProvider = {
     const budgetMs = Math.min(715_000, (args.deadlineAt ?? Date.now() + 600_000) - Date.now());
     if (!Number.isFinite(budgetMs) || budgetMs <= 0) throw new Error("ai_video_kling_timeout");
     const signal = AbortSignal.any([...(args.signal ? [args.signal] : []), AbortSignal.timeout(budgetMs)]);
-    const client = createKlingApiClient({ apiKey });
+    const client = createKlingApiClient({ apiKey, videoModel: klingApiModel(engine) });
     const store = createAiMediaVideoTemporaryImageStore({ accountId: args.accountId, signal });
     const voiceIds: (string | null)[] = images.map(() => null);
     const voiceAttempt = randomUUID().replace(/-/g, "").slice(0, 12);
@@ -108,7 +129,7 @@ export const klingAiVideoProvider: AiVideoProvider = {
       let attempted = false;
       const commit = async () => {
         if (committed) return;
-        await commitAiGatewayAccountAttempt({ reservation, feature: "media.video", model: video ? MODEL : "kling-custom-voice",
+        await commitAiGatewayAccountAttempt({ reservation, feature: "media.video", model: video ? model : "kling-custom-voice",
           usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, actualCostMicroUsd: cost });
         committed = true;
       };
@@ -140,18 +161,25 @@ export const klingAiVideoProvider: AiVideoProvider = {
         if (!metadata.width || !metadata.height || metadata.width < 300 || metadata.height < 300 ||
           metadata.width / metadata.height < 0.4 || metadata.width / metadata.height > 2.5) throw new Error("ai_media_kling_reference_dimensions_invalid");
       }
-      const voiceUrls = await getAiMediaCharacterVoiceSignedUrls({ accountId: args.accountId, images, videoEngine: "kling", signal });
+      const voiceUrls = engine === "kling-flash" ? images.map(() => null)
+        : await getAiMediaCharacterVoiceSignedUrls({ accountId: args.accountId, images, videoEngine: engine, signal });
       // Recover by a deterministic account/request ID before provisioning anything.
       const existingTasks = await Promise.all(durations.map((_, i) => client.findVideo(`${klingVideoExternalId(args)}-${i + 1}`, signal)));
       const needsNewVideo = existingTasks.some(task => !task);
       const imageUrls = needsNewVideo ? await store.uploadImages(prepared.providerImages) : [];
       if (needsNewVideo) {
         stage = "voice_setup";
-        for (let i = 0; i < images.length; i++) {
-          if (!voiceUrls[i]) continue;
-          voiceIds[i] = await paid(VOICE_COST_MICRO_USD, () => client.createVoice({ url: voiceUrls[i]!,
-            externalTaskId: `${klingVideoExternalId(args)}-voice-${i + 1}-${voiceAttempt}`, signal }), false);
-        }
+        // Independent profiles can be prepared together. Settle every creation
+        // before cleanup so a slower success cannot leave a profile orphaned.
+        const voiceResults = await Promise.allSettled(voiceUrls.map(async (url, i) => {
+          if (!url) return;
+          await paid(VOICE_COST_MICRO_USD, async () => {
+            voiceIds[i] = await client.createVoice({ url,
+              externalTaskId: `${klingVideoExternalId(args)}-voice-${i + 1}-${voiceAttempt}`, signal });
+          }, false);
+        }));
+        const failedVoice = voiceResults.find(result => result.status === "rejected");
+        if (failedVoice?.status === "rejected") throw failedVoice.reason;
       }
       for (let index = 0; index < durations.length; index++) {
         signal.throwIfAborted();
@@ -170,18 +198,18 @@ export const klingAiVideoProvider: AiVideoProvider = {
           stage = "output_validation";
           if (!buffer.length || buffer.subarray(4, 8).toString("ascii") !== "ftyp" ||
             Math.abs(completed.outputs[0].duration - durations[index]) > 1) throw new Error("ai_video_kling_output_invalid");
-          return { buffer, mediaType: "video/mp4", durationSeconds: durations[index], requestId: completed.id, model: MODEL,
+          return { buffer, mediaType: "video/mp4", durationSeconds: durations[index], requestId: completed.id, model,
             warnings: args.request.format === "portrait" ? ["video_provider_aspect_ratio_adapted:portrait:1:1"] : [] };
         };
-        const cost = Math.ceil(durations[index] * getAiMediaVideoSupplierRate("kling", getAiMediaVideoResolution("kling", args.request.videoResolution), args.request) * 1_000_000);
+        const cost = Math.ceil(durations[index] * getAiMediaVideoSupplierRate(engine, getAiMediaVideoResolution(engine, args.request.videoResolution), args.request) * 1_000_000);
         if (existingTasks[index]) { clips.push(await generate()); estimatedCostMicroUsd += cost; }
         else clips.push(await paid(cost, generate, true));
       }
-      return { provider: PROVIDER, model: MODEL, clips, estimatedCostMicroUsd, warnings: clips.flatMap(clip => clip.warnings) };
+      return { provider: PROVIDER, model, clips, estimatedCostMicroUsd, warnings: clips.flatMap(clip => clip.warnings) };
     } catch (error) {
-      await recordAiGatewayAccountFailure({ accountId: args.accountId, feature: "media.video", model: MODEL }).catch(() => undefined);
+      await recordAiGatewayAccountFailure({ accountId: args.accountId, feature: "media.video", model }).catch(() => undefined);
       const details = signal.aborted ? "ai_video_kling_timeout_or_cancelled" : failureCode(error);
-      if (billableVideo || pendingVideo) throw new AiVideoProviderBillableFailure({ provider: PROVIDER, model: MODEL, stage, details });
+      if (billableVideo || pendingVideo) throw new AiVideoProviderBillableFailure({ provider: PROVIDER, model, stage, details });
       throw new Error(details);
     } finally {
       // Pending tasks retain their profiles; the bounded daily cleanup expires them.
@@ -193,7 +221,10 @@ export const klingAiVideoProvider: AiVideoProvider = {
       if (!pendingVideo) await store.cleanup();
     }
   },
-};
+  };
+}
+export const klingAiVideoProvider = createKlingAiVideoProvider("kling");
+export const klingFlashAiVideoProvider = createKlingAiVideoProvider("kling-flash");
 
 export async function purgeExpiredKlingCustomVoices(): Promise<{ removed: number; errors: string[] }> {
   const apiKey = String(process.env.KLING_API_KEY || "").trim();
