@@ -46,7 +46,7 @@ Visuel : vidéo 500 caractères max, image 4 000 ; paroles séparées. Utiliser 
 Inspiration/Personnage/Décor/Produit : rôle avant Importer/Médiathèque (images seules), fermeture après ajout. Inspiration facultative, autres Obligatoires ; usage sur miniature. Vérifier les identités et doublons.
 Musiques : catalogue iNrCy, Automatique/Sans musique/piste et préécoute ; distinct des vocaux.
 Voix off/Personnages/Sans parole. Automatiques : IA sans champ ; Paroles exactes : champ/compteur selon durée/moteur/plans/langue. Ne jamais tronquer texte exact ou brouillon ; réduire avec accord ou durée compatible. Exact vide = sans parole.
-Voix off IA : Réglages → Femme/Homme, Style de voix ; réglages IA si options utiles. Voix réelle : Réglages → 3 vocaux max, Importer/Enregistrer/Médiathèque. Voix off sans photo : Chatterbox hors moteur vidéo (vocal 5 à 10 s) ; un narrateur actif. Personnage vocal : Wan 2.7 seul ou non affecté. Genre réglable, vocal pour le timbre ; droits à confirmer par le pro. Import/enregistrement humains.
+Voix off IA : Réglages → Femme/Homme, Style de voix. Voix réelle : Réglages → 3 vocaux max, Importer/Enregistrer/Médiathèque. Voix off sans photo : Chatterbox hors moteur vidéo (vocal 5 à 10 s) ; un narrateur actif. Personnage vocal : Wan 2.7 ou Kling ; un vocal distinct par personne. Kling : vocal de 5 à 10 s avec un seul locuteur. Genre réglable, vocal pour le timbre ; droits à confirmer par le pro. Import/enregistrement humains.
 En Libre, paroles exactes compatibles, piste réelle complète trop longue : une resynthèse supplémentaire, mêmes paroles/vocal ; jamais après erreur réseau/soumission incertaine, ni substitution de voix.
 Sous-titres voix off : durée mesurée, départ estimé, pas d’alignement mot à mot. Barre et ≈% vidéo estimés, sans délai garanti.
 Vérifier coût/solde puis Générer ; Enregistrer dans la Médiathèque/Utiliser ce média conserve le résultat. Réajuster reprend les critères ; régénérer peut débiter.
@@ -84,6 +84,8 @@ Basique sans crédits mensuels ; les recharges permettent de générer sans chan
       "lib/aiMediaCreditsPricing.ts",
       "lib/aiVideoProvider.ts",
       "lib/aiVideoProviderGateway.ts",
+      "lib/aiVideoProviderKling.ts",
+      "lib/aiVideoKlingApi.ts",
       "lib/inrStudioModalPolicy.ts",
       "messages/fr-FR/media.json",
       "lib/dashboardEdition.ts",

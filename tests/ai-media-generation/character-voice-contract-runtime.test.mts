@@ -31,8 +31,8 @@ test("normalization binds each supplied voice to its own character and keeps pro
 });
 
 test("current Wan2.7 and historical HeyGen normalization preserve Free and guided voice assignments without changing their voice assignments", () => {
-  assert.deepEqual(AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, ["wan27", "wan3", "heygen"]);
-  for (const videoEngine of AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(engine => engine !== "wan3")) {
+  assert.deepEqual(AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, ["wan27", "wan3", "heygen", "kling"]);
+  for (const videoEngine of AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(engine => engine !== "wan3" && engine !== "kling")) {
     assert.equal(isAiMediaCharacterVoiceEngine(videoEngine), true);
     for (const creationMode of ["free", "guided"]) {
       const result = normalizeAiMediaGenerationRequest(payload({ videoEngine, videoResolution: videoEngine === "heygen" ? "768p" : "720p", creationMode, inputMode: "essential", teamVideoMode: "cinematic", idea: "La personne présente son activité." }));
@@ -44,6 +44,21 @@ test("current Wan2.7 and historical HeyGen normalization preserve Free and guide
   }
   for (const engine of ["omni", "veo", "veo-lite", "minimax-h3", "wan-flash", "grok", "grok-lite", null, "unreviewed"])
     assert.equal(isAiMediaCharacterVoiceEngine(engine), false);
+});
+
+test("Kling preserves two photo/voice assignments in automatic and exact dialogue and requires five-second samples", () => {
+  const images = [1, 2].map(characterIndex => image({ characterIndex, voiceMode: "provided", voiceSample: {
+    ...sample, durationSeconds: 5, sizeBytes: 160044,
+  } }));
+  for (const exact of [false, true]) {
+    const result = normalizeAiMediaGenerationRequest(payload({ videoEngine: "kling", inspirationImages: images,
+      freePrompt: "Deux adultes présentent leur atelier en français.", teamVideoConsent: true,
+      teamVideoMode: "cinematic", teamVideoProviderConsent: "kling", ...(exact ? { spokenScript: "Bonjour à tous. Bienvenue dans notre atelier." } : {}),
+    }));
+    assert.equal(result.videoEngine, "kling"); assert.equal(result.teamVideoProviderConsent, "kling");
+    assert.deepEqual(result.inspirationImages.map(image => [image.characterIndex, image.voiceMode, image.voiceSample?.durationSeconds]), [[1, "provided", 5], [2, "provided", 5]]);
+  }
+  assert.throws(() => normalizeAiMediaGenerationRequest(payload({ videoEngine: "kling" })), /Kling.*5.*10 secondes/);
 });
 
 test("historical Wan3 aggregate remains measurable but new requests reject retirement without shortening samples", () => {
@@ -84,7 +99,8 @@ test("supplied voice cannot bypass model, sound, kind or consent restrictions", 
     assert.throws(() => normalizeAiMediaGenerationRequest(payload(overrides)), /voix|Wan 2.7|visages/i);
   }
   for (const videoEngine of AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(engine => engine !== "wan3")) for (const overrides of [{ teamVideoSpeechMode: "voiceover" }, { kind: "image" }, { identityConsent: false }]) {
-    assert.throws(() => normalizeAiMediaGenerationRequest(payload({ videoEngine, videoResolution: videoEngine === "heygen" ? "768p" : "720p", ...overrides })), /voix|Wan 2.7|visages/i);
+    const inspirationImages = [image({ voiceMode: "provided", voiceSample: { ...sample, durationSeconds: 5, sizeBytes: 160044 } })];
+    assert.throws(() => normalizeAiMediaGenerationRequest(payload({ videoEngine, inspirationImages, videoResolution: videoEngine === "heygen" ? "768p" : "720p", ...overrides })), /voix|Wan 2.7|visages/i);
   }
 });
 

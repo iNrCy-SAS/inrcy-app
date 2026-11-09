@@ -1032,7 +1032,7 @@
   "ai_generator_character_voice_file_error": "Elige un archivo MP3 o WAV de hasta 3 MB.",
   "ai_generator_character_voice_duration_error": "La muestra de voz debe durar entre 1 y 10 segundos.",
   "ai_generator_character_voice_sample_missing": "Sube una muestra para cada personaje con voz proporcionada.",
-  "ai_generator_character_voice_engine_required": "Para usar una voz proporcionada, elige Wan 2.7.",
+  "ai_generator_character_voice_engine_required": "Para usar una voz proporcionada, elige Wan 2.7 o Kling.",
   "ai_generator_character_voice_speech_required": "Las voces proporcionadas se utilizan en el modo de audio Personajes.",
   "ai_generator_character_voice_switch_characters": "Usar el audio Personajes",
   "ai_generator_character_voice_preview": "Escuchar la muestra de voz de este personaje",
@@ -1115,5 +1115,9 @@
   "ai_generator_voice_pool_select_narration": "Importa un vocal y selecciónalo para la voz en off.",
   "ai_generator_narration_voice_reference_limits": "Voz en off real: usa una grabación de referencia de 5 a 10 segundos.",
   "ai_generator_narration_voice_consent_required": "Confirma el permiso para recrear esta voz en los ajustes del vocal.",
-  "ai_generator_voice_pool_unassigned": "Sin asignar"
+  "ai_generator_voice_pool_unassigned": "Sin asignar",
+  "ai_generator_model_description_kling": "Personajes y voces de referencia, diálogos en francés y escenas complejas.",
+  "ai_generator_engine_info_video_use_kling": "Crear escenas con personajes que hablan con sus voces de referencia.",
+  "ai_generator_engine_info_video_limits_kling": "Hasta 30 s, 5 imágenes y 3 voces en Studio. Muestras claras de 5–10 s. Las muestras sirven de referencia para generar nuevas palabras.",
+  "ai_generator_character_voice_kling_reference_limits": "Para Kling, usa una muestra de voz clara de 5–10 segundos por personaje."
 }

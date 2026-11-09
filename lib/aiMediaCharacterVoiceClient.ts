@@ -2,7 +2,7 @@ import {
   AI_MEDIA_CHARACTER_VOICE_MAX_UPLOAD_BYTES,
   type AiMediaCharacterVoiceSample,
 } from "./aiMediaCharacterVoices.ts";
-export { isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration } from "./aiMediaCharacterVoices.ts";
+export { isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration, hasTooShortAiMediaCharacterVoice } from "./aiMediaCharacterVoices.ts";
 
 type CharacterVoiceReference = {
   role?: string;

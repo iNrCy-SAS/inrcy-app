@@ -3,7 +3,7 @@
  */
 export type AiMediaVideoEngine =
   | "omni" | "veo" | "veo-lite" | "minimax-h3"
-  | "wan-flash" | "wan27" | "wan3" | "grok-lite" | "grok" | "heygen";
+  | "wan-flash" | "wan27" | "wan3" | "grok-lite" | "grok" | "heygen" | "kling";
 export type AiMediaImageEngine = "openai" | "gemini" | "flux" | "grok" | "recraft";
 export type AiMediaImageFormat = "square" | "portrait" | "story" | "landscape";
 export type AiMediaImageDimensions = Readonly<{ width: number; height: number }>;
@@ -32,10 +32,10 @@ export type AiMediaVideoSceneMode = "single" | "multi";
 export type AiMediaVideoModel = Readonly<{
   id: AiMediaVideoEngine;
   label: string;
-  family: "Google" | "MiniMax" | "Alibaba" | "Grok" | "HeyGen";
-  provider: "google" | "minimax" | "alibaba" | "spacexai" | "heygen";
+  family: "Google" | "MiniMax" | "Alibaba" | "Grok" | "HeyGen" | "Kling";
+  provider: "google" | "minimax" | "alibaba" | "spacexai" | "heygen" | "kling";
   providerLabel: string;
-  transport: "google-direct" | "gateway";
+  transport: "google-direct" | "gateway" | "kling-direct";
   modelId: string;
   description: string;
   costTier: "economy" | "balanced" | "premium";
@@ -61,6 +61,19 @@ const range = (from: number, to: number) =>
   Object.freeze(Array.from({ length: to - from + 1 }, (_, index) => from + index));
 
 export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze([
+  {
+    id: "kling", label: "Kling 4.0 Omni", family: "Kling", provider: "kling", providerLabel: "Kling",
+    transport: "kling-direct", modelId: "kling-4.0-omni",
+    description: "Personnages et voix de référence, dialogues et mise en scène en français.", costTier: "premium",
+    creditsPerSecond: 16, creditsByResolution: { "720p": 16, "1080p": 24 },
+    durationsSeconds: range(4, 30), maxDurationSeconds: 30, resolutions: ["720p", "1080p"], defaultResolution: "720p",
+    nativeAudio: true, frenchDialogue: "supported", supportsTextToVideo: true, supportsImageToVideo: true,
+    // Studio retains its five-image and three-person limits. API inputs are PNG/JPEG.
+    // Official API list prices $0.157/s and $0.235/s (2026-11-09), rounded up for the guard.
+    // https://kling.ai/document-api/pricing/base/video.md
+    maxReferenceImages: 5, pricingUsdPerSecond: { "720p": 0.16, "1080p": 0.24 },
+    supplierReferenceCostMicroUsd: 10_000, referenceInputCredits: 1,
+  },
   {
     id: "omni", label: "Gemini Omni", family: "Google", provider: "google", providerLabel: "Google",
     transport: "google-direct", modelId: "gemini-omni-1.1-flash",

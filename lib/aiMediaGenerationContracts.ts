@@ -6,7 +6,7 @@ import { INR_MEDIA_IMAGE_MAX_BYTES } from "./mediaRules.ts";
 import { findAiMediaSoundtrack } from "./aiMediaSoundtrackDefinitions.ts";
 import { AI_MEDIA_VIDEO_SPOKEN_SCRIPT_MAX_CHARS, getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
 import { isStudioInspirationVideoReference, studioInspirationBase64IsVideo, STUDIO_INSPIRATION_IMAGES_ONLY_MESSAGE } from "./studioInspirationImagePolicy.ts";
-import { normalizeAiMediaCharacterVoiceSample, hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, type AiMediaCharacterVoiceSample } from "./aiMediaCharacterVoices.ts";
+import { normalizeAiMediaCharacterVoiceSample, hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration, hasTooShortAiMediaCharacterVoice, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, type AiMediaCharacterVoiceSample } from "./aiMediaCharacterVoices.ts";
 import {
   getAiMediaVideoDurations, getAiMediaVideoNativeDurations, getAiMediaVideoResolution, getAiMediaVideoEngineRetirementIssue,
   normalizeAiMediaVideoEngine, normalizeAiMediaImageEngine, isAiMediaImageModelCompatible,
@@ -997,7 +997,10 @@ export function normalizeAiMediaGenerationRequest(
   );
   const providedCharacterVoice = hasProvidedAiMediaCharacterVoice(inspirationImages);
   if (providedCharacterVoice && (kind !== "video" || operation === "modify" || !isAiMediaCharacterVoiceEngine(videoEngine))) {
-    throw new AiMediaRequestValidationError("Utilisez Wan 2.7 pour une vidéo avec une voix fournie.");
+    throw new AiMediaRequestValidationError("Choisissez Wan 2.7 ou Kling pour une vidéo avec une voix fournie.");
+  }
+  if (providedCharacterVoice && hasTooShortAiMediaCharacterVoice(videoEngine, inspirationImages)) {
+    throw new AiMediaRequestValidationError("Kling nécessite un vocal de 5 à 10 secondes pour chaque personnage.");
   }
   if (providedCharacterVoice && exceedsAiMediaCharacterVoiceEngineDuration(videoEngine, inspirationImages)) {
     throw new AiMediaRequestValidationError("Les vocaux dépassent la durée acceptée par ce moteur. Raccourcissez vos échantillons ou choisissez Wan 2.7.");

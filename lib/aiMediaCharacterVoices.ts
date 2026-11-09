@@ -8,7 +8,7 @@ export const AI_MEDIA_CHARACTER_VOICE_SAMPLE_RATE = 16_000;
 export const AI_MEDIA_CHARACTER_VOICE_MAX_NORMALIZED_BYTES = 320_044;
 export const AI_MEDIA_CHARACTER_VOICE_RETENTION_MS = 24 * 60 * 60 * 1000;
 export const AI_MEDIA_CHARACTER_VOICE_STORAGE_ROOT = "_studio-voice-references";
-export const AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES = Object.freeze(["wan27", "wan3", "heygen"] as const);
+export const AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES = Object.freeze(["wan27", "wan3", "heygen", "kling"] as const);
 export type AiMediaCharacterVoiceVideoEngine = typeof AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES[number];
 export const AI_MEDIA_CHARACTER_VOICE_WAN3_MAX_TOTAL_SECONDS = 15;
 
@@ -39,6 +39,12 @@ export function getAiMediaCharacterVoiceTotalDurationSeconds(images: readonly Ai
 
 export function exceedsAiMediaCharacterVoiceEngineDuration(engine: unknown, images: readonly AiMediaCharacterVoiceReference[]): boolean {
   return engine === "wan3" && getAiMediaCharacterVoiceTotalDurationSeconds(images) > AI_MEDIA_CHARACTER_VOICE_WAN3_MAX_TOTAL_SECONDS;
+}
+
+/** Kling builds a voice profile from at least five seconds of actual speech. */
+export function hasTooShortAiMediaCharacterVoice(engine: unknown, images: readonly AiMediaCharacterVoiceReference[]): boolean {
+  return engine === "kling" && images.some(image => image.role === "character" && image.voiceMode === "provided" &&
+    image.voiceSample && image.voiceSample.durationSeconds < AI_MEDIA_NARRATION_VOICE_MIN_SECONDS);
 }
 
 const VOICE_PATH = /^_studio-voice-references\/(\d{4}-\d{2}-\d{2})\/([a-zA-Z0-9_-]{1,128})__(\d{13})__([0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.wav$/;

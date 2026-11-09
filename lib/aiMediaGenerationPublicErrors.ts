@@ -27,7 +27,17 @@ export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
   AI_MEDIA_CHARACTER_VOICE_INVALID: {
     status: 400,
     reason: "Un vocal de personnage est manquant, invalide ou expiré.",
-    action: "Ajoutez à nouveau le vocal concerné et utilisez Wan 2.7 en mode Personnages.",
+    action: "Ajoutez à nouveau le vocal concerné et choisissez Wan 2.7 ou Kling en mode Personnages.",
+  },
+  AI_MEDIA_KLING_VOICE_TOO_SHORT: {
+    status: 400,
+    reason: "Kling a besoin d’un vocal plus long pour reconnaître la voix de chaque personnage.",
+    action: "Utilisez un vocal propre de 5 à 10 secondes pour chaque personne.",
+  },
+  AI_MEDIA_KLING_REFERENCE_INVALID: {
+    status: 400,
+    reason: "Une photo ne respecte pas les dimensions acceptées par Kling.",
+    action: "Ajoutez une photo d’au moins 300 pixels de largeur et de hauteur, sans format très étiré.",
   },
   AI_MEDIA_CHARACTER_VOICE_UNAVAILABLE: {
     status: 503,
@@ -440,6 +450,9 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
   if (match(/\bai_media_voice_clone_duration_invalid\b/)) return result("AI_MEDIA_VOICE_CLONE_DURATION_INVALID");
   if (match(/\bai_media_voice_clone_[a-z0-9_]+\b/)) return result("AI_MEDIA_VOICE_CLONE_UNAVAILABLE");
   if (match(/\bai_media_profile_logo_unavailable\b|logo enregistre dans votre profil est absent ou illisible/)) return result("AI_MEDIA_PROFILE_LOGO_UNAVAILABLE");
+  if (match(/\bai_media_character_voice_kling_duration_invalid\b/)) return result("AI_MEDIA_KLING_VOICE_TOO_SHORT");
+  if (match(/\bai_media_kling_reference_dimensions_invalid\b/)) return result("AI_MEDIA_KLING_REFERENCE_INVALID");
+  if (match(/\bai_video_kling_(?:voice_failed|reference_voice_missing)\b/)) return result("AI_MEDIA_CHARACTER_VOICE_INVALID");
   if (match(/\bvoice_(?:reference_(?:invalid_or_expired|missing)|audio_\w+|account_invalid)\b|ai_video_reference_voice_(?:url_missing|assignment_invalid)/)) return result("AI_MEDIA_CHARACTER_VOICE_INVALID");
   if (match(/\bvoice_(?:storage_unavailable|reference_unavailable)\b/)) return result("AI_MEDIA_CHARACTER_VOICE_UNAVAILABLE");
   // These are iNrCy wallet/session failures, never supplier billing failures.

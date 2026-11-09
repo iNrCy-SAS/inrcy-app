@@ -24,22 +24,25 @@ export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v16-first-shot-master
  * The existing 3,200-character ceiling remains for other transports.
  */
 export function getAiMediaFreeVideoPromptMaxCharacters(engine: AiMediaGenerationRequest["videoEngine"]) {
-  return engine === "wan-flash" ? 1_500 : engine === "wan27" ? 5_000 : engine === "wan3" ? 20_000 : 3_200;
+  return engine === "wan-flash" ? 1_500 : engine === "wan27" ? 5_000 : engine === "wan3" ? 20_000 : engine === "kling" ? 10_000 : 3_200;
 }
 
 /** The Gateway appends these exact bindings after the scene prompt. Reserve
  * them before fitting any generated direction, including a continuity clip. */
 export function buildAiMediaVideoCharacterReferenceDirection(request: AiMediaGenerationRequest) {
   const hasProvidedVoice = request.inspirationImages.some(image => image.voiceMode === "provided" && image.voiceSample);
-  if (request.videoEngine !== "wan27" && !hasProvidedVoice) return "";
+  if (request.videoEngine !== "wan27" && request.videoEngine !== "kling" && !hasProvidedVoice) return "";
   let audioIndex = 0;
   const characters = request.inspirationImages.flatMap((image, index) => {
     if (image.role !== "character") return [];
-    const imageToken = request.videoEngine === "heygen" ? `<Picture ${index + 1}>` : `Image ${index + 1}`;
+    const imageToken = request.videoEngine === "kling" ? `@image_${index + 1}`
+      : request.videoEngine === "heygen" ? `<Picture ${index + 1}>` : `Image ${index + 1}`;
     let voiceDirection = "use a stable AI voice";
     if (image.voiceMode === "provided") {
       audioIndex += 1;
-      voiceDirection = request.videoEngine === "wan27" ? "use only its attached referenceVoice"
+      voiceDirection = request.videoEngine === "kling"
+        ? `speak the new dialogue using only @voice_${index + 1}; this voice belongs exclusively to ${imageToken}; ignore the recording's original words`
+        : request.videoEngine === "wan27" ? "use only its attached referenceVoice"
         : `speak the new dialogue using only the voice characteristics of ${request.videoEngine === "heygen" ? `<Audio ${audioIndex}>` : `Audio ${audioIndex}`}; ignore the words spoken in that recording`;
     }
     return [`${imageToken} = character${index + 1}${image.characterIndex ? ` = Studio character ${image.characterIndex}` : ""}; ${voiceDirection}`];

@@ -96,7 +96,7 @@ import {
   cleanAiMediaProfilePhone,
   isAiMediaProfilePhoneDisplayRequested,
 } from "@/lib/aiMediaVisibleContact";
-import { generateOriginalAiVideoClips } from "@/lib/aiVideoProvider";
+import { generateOriginalAiVideoClips, preflightKlingAiVideoAccess } from "@/lib/aiVideoProvider";
 import { generateInrAgentVideoWithFallback } from "./inrAgentVideoFallback.ts";
 import { classifyVeoFailure } from "@/lib/aiVideoReliability";
 import {
@@ -457,7 +457,10 @@ export async function generateAndSaveAiMedia(args: {
     }
   }
   if (providerRequest.kind === "video") {
-    await measure("video_transport_preflight", () => preflightAiMediaVideoTemporaryImages({ accountId: args.accountId, request: providerRequest, signal: args.signal }));
+    await measure("video_transport_preflight", async () => {
+      if (providerRequest.videoEngine === "kling") await preflightKlingAiVideoAccess({ accountId: args.accountId, request: providerRequest, signal: args.signal });
+      await preflightAiMediaVideoTemporaryImages({ accountId: args.accountId, request: providerRequest, signal: args.signal });
+    });
     if (providerRequest.inspirationImages.some((image) => image.voiceMode === "provided")) {
       const { preflightAiMediaCharacterVoices } = await import("@/lib/aiMediaCharacterVoiceStorage");
       await measure("character_voice_preflight", () => preflightAiMediaCharacterVoices({ accountId: args.accountId, images: providerRequest.inspirationImages, videoEngine: providerRequest.videoEngine, signal: args.signal }));
@@ -1217,7 +1220,7 @@ export async function generateAndSaveAiMedia(args: {
     const generateVideoGateway = () => measure("video_generation", async () => {
       // R2V composes the scene itself. Original images must remain separate:
       // each character's voice reference belongs to that exact image.
-      if (providerRequest.videoEngine === "wan27" || (hasProvidedAiMediaCharacterVoice(providerRequest.inspirationImages) && isAiMediaCharacterVoiceEngine(providerRequest.videoEngine))) {
+      if (providerRequest.videoEngine === "wan27" || providerRequest.videoEngine === "kling" || (hasProvidedAiMediaCharacterVoice(providerRequest.inspirationImages) && isAiMediaCharacterVoiceEngine(providerRequest.videoEngine))) {
         return await generateProviderVideo(providerRequest, providerRequest.identityMode === "reference_team"
           ? { identityTeamMemberCount: preparedCharacterBuffers.length as 2 | 3 }
           : {});
@@ -1707,7 +1710,7 @@ export async function generateAndSaveAiMedia(args: {
                   expectedDialogueLines.slice(index + 1).some((line) => Boolean(line.trim())),
               })),
             });
-            return providerRequest.videoEngine === "wan27"
+            return providerRequest.videoEngine === "wan27" || providerRequest.videoEngine === "kling"
               ? recoverAiMediaNativeDialogueVerification({ audit, signal: args.signal })
               : audit();
           }).catch(() => {

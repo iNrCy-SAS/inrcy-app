@@ -55,7 +55,7 @@ test("Wan3 and MiniMax H3 are retired globally while historical metadata and Hey
   }
   assert.equal(catalog.isAiMediaVideoEngineAvailable("heygen"), false);
   assert.equal(catalog.getAiMediaVideoEngineRetirementIssue("heygen"), null, "do not widen the existing HeyGen policy");
-  const activeEngines = ["omni", "veo", "veo-lite", "wan-flash", "wan27", "grok-lite", "grok"];
+  const activeEngines = ["kling", "omni", "veo", "veo-lite", "wan-flash", "wan27", "grok-lite", "grok"];
   assert.deepEqual(catalog.AI_MEDIA_AVAILABLE_VIDEO_MODELS.map(model => model.id), activeEngines);
   for (const engine of activeEngines) {
     assert.equal(catalog.getAiMediaVideoEngineRetirementIssue(engine), null);
@@ -69,7 +69,7 @@ test("all client choices and recommendation contexts exclude retired generation 
   const options = load<typeof import("../../lib/aiMediaVideoClientOptions.ts")>("lib/aiMediaVideoClientOptions.ts");
   const choices = options.getMediaVideoEngineQualityChoices();
   assert.equal(choices.some(choice => choice.engine === "wan3" || choice.engine === "minimax-h3" || choice.engine === "heygen"), false);
-  assert.equal(choices.length, 13, "seven available engines retain thirteen native resolution choices");
+  assert.equal(choices.length, 15, "eight available engines retain fifteen native resolution choices");
   assert.deepEqual(new Set(choices.map(choice => choice.engine)), new Set(catalog.AI_MEDIA_AVAILABLE_VIDEO_MODELS.map(model => model.id)));
   const recommendation = load<typeof import("../../lib/aiMediaModelRecommendation.ts")>("lib/aiMediaModelRecommendation.ts");
   for (const recommendationContext of [undefined, "studio-free"] as const) for (const durationSeconds of [8, 20, 30]) {

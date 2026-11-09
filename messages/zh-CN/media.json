@@ -1032,7 +1032,7 @@
   "ai_generator_character_voice_file_error": "请选择不超过 3 MB 的 MP3 或 WAV 文件。",
   "ai_generator_character_voice_duration_error": "声音样本时长必须为 1 至 10 秒。",
   "ai_generator_character_voice_sample_missing": "请为每个使用提供声音的角色上传声音样本。",
-  "ai_generator_character_voice_engine_required": "使用提供的声音时，请选择 Wan 2.7。",
+  "ai_generator_character_voice_engine_required": "使用提供的声音时，请选择 Wan 2.7 或 Kling。",
   "ai_generator_character_voice_speech_required": "提供的声音用于角色音频模式。",
   "ai_generator_character_voice_switch_characters": "使用角色音频",
   "ai_generator_character_voice_preview": "收听此角色的声音样本",
@@ -1115,5 +1115,9 @@
   "ai_generator_voice_pool_select_narration": "请导入一段录音并将其选作旁白声音。",
   "ai_generator_narration_voice_reference_limits": "真实声音旁白：请使用5至10秒的参考录音。",
   "ai_generator_narration_voice_consent_required": "请在录音设置中确认您有权克隆此声音。",
-  "ai_generator_voice_pool_unassigned": "未分配"
+  "ai_generator_voice_pool_unassigned": "未分配",
+  "ai_generator_model_description_kling": "参考人物与声音、法语对话及复杂场景。",
+  "ai_generator_engine_info_video_use_kling": "创作由人物使用各自参考声音进行对话的场景。",
+  "ai_generator_engine_info_video_limits_kling": "Studio 最多支持 30 秒、5 张图片和 3 种声音。请提供 5–10 秒的清晰单人语音，作为生成新台词的声音参考。",
+  "ai_generator_character_voice_kling_reference_limits": "使用 Kling 时，请为每个人物提供 5–10 秒的清晰单人语音。"
 }

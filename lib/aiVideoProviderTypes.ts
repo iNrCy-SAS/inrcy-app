@@ -187,7 +187,7 @@ export function assertAiVideoReferenceTeamGoogleEgress(
 
 export function assertAiVideoReferenceTeamProviderEgress(
   args: Pick<AiVideoProviderGenerationArgs, "request" | "identityTeamPrecomposed" | "identityTeamProviderEgressConsent" | "identityTeamGoogleEgressConsent">,
-  provider: "google" | "minimax" | "alibaba" | "spacexai" | "heygen",
+  provider: "google" | "minimax" | "alibaba" | "spacexai" | "heygen" | "kling",
 ) {
   if (args.request.identityMode !== "reference_team") return;
   if (provider === "google") return assertAiVideoReferenceTeamGoogleEgress(args);
@@ -195,7 +195,8 @@ export function assertAiVideoReferenceTeamProviderEgress(
   // A composed team frame would destroy that association. Keep the existing
   // one-attempt provider consent, without pretending these were precomposed.
   const referenceProvider = args.request.videoEngine === "heygen" ? "heygen" : "alibaba";
-  if ((provider === "alibaba" && args.request.videoEngine === "wan27") ||
+  if ((provider === "kling" && args.request.videoEngine === "kling") ||
+      (provider === "alibaba" && args.request.videoEngine === "wan27") ||
       (hasProvidedAiMediaCharacterVoice(args.request.inspirationImages) && isAiMediaCharacterVoiceEngine(args.request.videoEngine) && provider === referenceProvider)) {
     if (args.identityTeamProviderEgressConsent !== args.request.videoEngine) {
       throw new Error("ai_video_reference_team_provider_consent_required");

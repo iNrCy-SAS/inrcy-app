@@ -12,7 +12,7 @@ import {
 import { getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "@/lib/aiMediaVideoSpeechBudget";
 import { getAiMediaVideoEngineRetirementIssue, normalizeAiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
 import { AI_MEDIA_GENERATION_STREAM_TYPE, readAiMediaGenerationResponse } from "@/lib/aiMediaGenerationTransport";
-import { getCharacterVoiceSelectionState, isProvidedCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration } from "@/lib/aiMediaCharacterVoiceClient";
+import { getCharacterVoiceSelectionState, isProvidedCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration, hasTooShortAiMediaCharacterVoice } from "@/lib/aiMediaCharacterVoiceClient";
 import {
   createAiMediaRecoveryStorage, clearAiMediaGenerationRecovery, clearAiMediaGenerationRecoveryForMedia, readAiMediaGenerationRecovery, writeAiMediaGenerationRecovery,
   type AiMediaGenerationRecoveryPointer,
@@ -734,7 +734,8 @@ export default function useMediaGeneration() {
         const voiceSelection = getCharacterVoiceSelectionState(request.inspirationImages || []);
         if (voiceSelection.missingSample) throw new Error("Insérez un vocal pour chaque personnage en voix fournie.");
         if (voiceSelection.hasProvidedVoice && request.teamVideoSpeechMode !== "characters") throw new Error("Les voix fournies sont utilisées en mode Personnages.");
-        if (voiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(request.videoEngine)) throw new Error("Utilisez Wan 2.7 pour une vidéo avec une voix fournie.");
+        if (voiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(request.videoEngine)) throw new Error("Choisissez Wan 2.7 ou Kling pour une vidéo avec une voix fournie.");
+        if (voiceSelection.hasProvidedVoice && hasTooShortAiMediaCharacterVoice(request.videoEngine, request.inspirationImages || [])) throw new Error("Kling nécessite un vocal de 5 à 10 secondes pour chaque personnage.");
         if (voiceSelection.hasProvidedVoice && exceedsAiMediaCharacterVoiceEngineDuration(request.videoEngine, request.inspirationImages || [])) throw new Error("Les vocaux dépassent la durée acceptée par ce moteur. Raccourcissez vos échantillons ou choisissez Wan 2.7.");
       }
       const idea = String(request.idea || "").trim();

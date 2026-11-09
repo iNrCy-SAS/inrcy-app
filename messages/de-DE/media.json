@@ -1032,7 +1032,7 @@
   "ai_generator_character_voice_file_error": "Wählen Sie eine MP3- oder WAV-Datei mit höchstens 3 MB.",
   "ai_generator_character_voice_duration_error": "Die Sprachaufnahme muss zwischen 1 und 10 Sekunden lang sein.",
   "ai_generator_character_voice_sample_missing": "Laden Sie für jede Figur mit eigener Stimme eine Sprachaufnahme hoch.",
-  "ai_generator_character_voice_engine_required": "Wählen Sie für eine eigene Sprachaufnahme Wan 2.7.",
+  "ai_generator_character_voice_engine_required": "Wählen Sie für eine eigene Sprachaufnahme Wan 2.7 oder Kling.",
   "ai_generator_character_voice_speech_required": "Eigene Stimmen werden im Audiomodus Figuren verwendet.",
   "ai_generator_character_voice_switch_characters": "Figuren-Audio verwenden",
   "ai_generator_character_voice_preview": "Sprachaufnahme dieser Figur anhören",
@@ -1115,5 +1115,9 @@
   "ai_generator_voice_pool_select_narration": "Importieren Sie eine Sprachaufnahme und wählen Sie sie für das Voiceover aus.",
   "ai_generator_narration_voice_reference_limits": "Echtes Voiceover: Verwenden Sie eine Referenzaufnahme von 5 bis 10 Sekunden.",
   "ai_generator_narration_voice_consent_required": "Bestätigen Sie in den Aufnahmeeinstellungen die Erlaubnis, diese Stimme nachzubilden.",
-  "ai_generator_voice_pool_unassigned": "Nicht zugeordnet"
+  "ai_generator_voice_pool_unassigned": "Nicht zugeordnet",
+  "ai_generator_model_description_kling": "Referenzfiguren und -stimmen, französische Dialoge und komplexe Szenen.",
+  "ai_generator_engine_info_video_use_kling": "Inszenierte Szenen mit Figuren erstellen, die mit ihren Referenzstimmen sprechen.",
+  "ai_generator_engine_info_video_limits_kling": "Bis zu 30 s, 5 Bilder und 3 Stimmen im Studio. Klare Sprachproben von 5–10 s. Die Proben dienen als Stimmreferenz für neue Dialoge.",
+  "ai_generator_character_voice_kling_reference_limits": "Verwenden Sie für Kling eine klare Sprachprobe von 5–10 Sekunden pro Figur."
 }

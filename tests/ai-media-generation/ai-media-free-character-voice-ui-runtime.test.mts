@@ -95,7 +95,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     ["react", react], ["react/jsx-runtime", { jsx, jsxs: jsx }],
     ["react-dom", { createPortal: (content: Element) => content }],
     ["next-intl", { useLocale: () => options.locale || "fr-FR", useTranslations: () => (key: string, values?: Record<string, string | number>) => {
-      if (key.startsWith("ai_generator_video_") || key === "ai_generator_character_voice_engine_required") return (frenchMessages[key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
+      if (key.startsWith("ai_generator_video_") || key === "ai_generator_character_voice_engine_required" || key === "ai_generator_character_voice_kling_reference_limits") return (frenchMessages[key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
       if (key === "ai_generator_final_authorization_images_label" || key === "ai_generator_final_authorization_voices_label") return frenchMessages[key].replace("{provider}", String(values?.provider || ""));
       if (key === "ai_generator_final_authorization_short" || key === "ai_generator_final_authorization_details") return frenchMessages[key];
       return values?.credits ? `${key} ${values.credits}` : key;
@@ -847,11 +847,12 @@ test("the real Free voice import enables only supported engines and aligns quote
   const options = elements(engineMenu).filter((node) => node.type === "option");
   for (const option of options) assert.equal(option.props.disabled, !voiceRules.isAiMediaCharacterVoiceEngine(String(option.props.value).split(":")[0]));
   const activeVoiceEngines = voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(models.isAiMediaVideoEngineAvailable);
-  assert.deepEqual(activeVoiceEngines, ["wan27"], "recommend only current engines while historical capability metadata stays intact");
-  assert.deepEqual(voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, ["wan27", "wan3", "heygen"]);
+  assert.deepEqual(activeVoiceEngines, ["wan27", "kling"], "recommend only current engines while historical capability metadata stays intact");
+  assert.deepEqual(voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, ["wan27", "wan3", "heygen", "kling"]);
   const status = elements(engines).filter(node => node.props.role === "status").map(text).find(value => value.includes("Voix fournie"));
   assert.ok(status, "the real restricted-engine menu keeps its useful visible status");
   assert.match(status, /Wan 2\.7/);
+  assert.match(status, /Kling/);
   assert.doesNotMatch(status, /Wan 3|HeyGen/i);
   for (const option of options.filter(option => option.props.disabled)) {
     assert.match(text(option), /Wan 2\.7/, "each disabled option points to the current supplied-voice engine");
@@ -860,6 +861,7 @@ test("the real Free voice import enables only supported engines and aligns quote
   for (const locale of ["de-DE", "en-GB", "es-ES", "fr-FR", "it-IT", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
     const hint = (JSON.parse(read(`messages/${locale}/media.json`)) as Record<string, string>).ai_generator_character_voice_engine_required;
     assert.match(hint, /Wan 2\.7/, locale);
+    assert.match(hint, /Kling/, locale);
     assert.doesNotMatch(hint, /Wan 3|HeyGen/i, locale);
   }
   await h.generate(); assert.equal(h.requests.length, 0, "a selected supplied voice without a vocal cannot generate");
@@ -873,11 +875,20 @@ test("the real Free voice import enables only supported engines and aligns quote
   assert.equal("id" in request.inspirationImages![0], false); h.dispose();
 });
 
+test("Free Studio blocks a short Kling voice with an actionable hint while retaining Wan's shorter-sample support", async () => {
+  const h = harness("video", "kling", 3); await h.addPhoto(); h.criteria(0, "character", "required");
+  h.chooseVoice(0, "provided"); await h.uploadVoice(0); h.consent();
+  await h.generate(); assert.equal(h.requests.length, 0);
+  assert.match(text(h.tree()), /Pour Kling.*5.*10 secondes/);
+  h.selectEngine("wan27"); h.consent(); await h.generate();
+  assert.equal(h.requests.length, 1); assert.equal(h.requests[0].videoEngine, "wan27"); h.dispose();
+});
+
 test("available supplied-voice engines remain selected or can be selected with the corresponding quote and request", async () => {
   for (const engine of voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(models.isAiMediaVideoEngineAvailable)) {
     const preserved = harness("video", engine); await preserved.addPhoto(); preserved.criteria(0, "character", "inspiration"); preserved.chooseVoice(0, "provided");
     assert.equal(preserved.quoteInputs.at(-1)!.videoEngine, engine, "an already supported preferred engine must be preserved"); preserved.dispose();
-    const h = harness(); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
+    const h = harness("video", "omni", engine === "kling" ? 5 : 2); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
     h.selectEngine(engine); assert.equal(h.quoteInputs.at(-1)!.videoEngine, engine); assert.equal(h.quoteInputs.at(-1)!.hasProvidedCharacterVoice, true);
     assert.equal(h.quoteInputs.at(-1)!.videoResolution, models.getAiMediaVideoModelForCharacterVoice(engine, true).defaultResolution);
     const menu = find(h.renderEngines(), (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
@@ -955,7 +966,7 @@ test("Free recovery hydration and ordinary AI changes preserve the independent v
 
 test("one explicit footer authorization covers two required people and their distinct voices on every supported engine", async () => {
   for (const engine of voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(models.isAiMediaVideoEngineAvailable)) {
-    const h = harness("video", engine);
+    const h = harness("video", engine, engine === "kling" ? 5 : 2);
     await h.addPhoto("moi.png"); await h.addPhoto("mon-epouse.png");
     for (let index = 0; index < 2; index++) {
       h.criteria(index, "character", "required"); h.chooseVoice(index, "provided"); await h.uploadVoice(index);

@@ -97,6 +97,17 @@ test("Wan 3 measures the stored WAVs and rejects forged short metadata before si
   assert.equal(preflight.calls.filter((call) => call.operation === "createSignedUrl").length, 0);
 });
 
+test("Kling measures the actual WAV and refuses less than five seconds before signing despite forged metadata", async () => {
+  const images = [{ role: "character", voiceMode: "provided" as const, voiceSample: { ...sample(), durationSeconds: 5, sizeBytes: 160044 } }];
+  const short = fakeStorage({ body: wav(4) });
+  await assert.rejects(storage.getAiMediaCharacterVoiceSignedUrls({ accountId: ACCOUNT, now: NOW,
+    storage: short.storage, images, videoEngine: "kling" }), safeError("ai_media_character_voice_kling_duration_invalid"));
+  assert.equal(short.calls.filter(call => call.operation === "createSignedUrl").length, 0);
+  const valid = fakeStorage({ body: wav(5) });
+  assert.equal((await storage.getAiMediaCharacterVoiceSignedUrls({ accountId: ACCOUNT, now: NOW,
+    storage: valid.storage, images, videoEngine: "kling" })).filter(Boolean).length, 1);
+});
+
 test("Wan 3 accepts exactly fifteen real audio seconds while the other voice engines retain their own allowance", async () => {
   const images = [1, 2, 3].map((index) => ({ role: "character", voiceMode: "provided" as const,
     voiceSample: sample(voicePath(ACCOUNT, NOW, String(index).padStart(12, "0"))) }));

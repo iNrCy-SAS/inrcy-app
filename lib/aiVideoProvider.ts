@@ -10,7 +10,16 @@ import type {
   AiVideoProviderResult,
 } from "@/lib/aiVideoProviderTypes";
 
-export type AiVideoProviderId = "google-gemini-omni" | "google-veo-fast" | `vercel-ai-gateway:${string}`;
+// Other engines do not load Kling's storage/voice implementation or credentials.
+const klingAiVideoProvider: AiVideoProvider = {
+  id: "kling-direct", model: "kling-4.0-omni",
+  generate: async args => (await import("./aiVideoProviderKling.ts")).klingAiVideoProvider.generate(args),
+};
+export async function preflightKlingAiVideoAccess(args: Pick<AiVideoProviderGenerationArgs, "accountId" | "request" | "signal">) {
+  if (args.request.videoEngine === "kling") await (await import("./aiVideoProviderKling.ts")).preflightKlingAiVideoAccess(args);
+}
+
+export type AiVideoProviderId = "google-gemini-omni" | "google-veo-fast" | "kling-direct" | `vercel-ai-gateway:${string}`;
 
 function compact(value: unknown, max = 240) {
   return String(value ?? "")
@@ -23,6 +32,7 @@ function compact(value: unknown, max = 240) {
 function configuredProvider(): AiVideoProvider | null {
   const configured = compact(process.env.AI_MEDIA_VIDEO_PROVIDER, 80).toLowerCase();
   if (!configured || configured === "auto") return null;
+  if (["kling", "kling-direct", "kling-4.0-omni"].includes(configured)) return klingAiVideoProvider;
   if (
     ["google-gemini-omni", "gemini-omni", "omni", "omni-flash"].includes(
       configured,
@@ -48,6 +58,7 @@ function resolveProvider(args?: AiVideoProviderGenerationArgs): AiVideoProvider 
   // remains a default only for callers that have no explicit Studio request.
   const forced = args ? null : configuredProvider();
   if (forced) return forced;
+  if (selectedModel.transport === "kling-direct") return klingAiVideoProvider;
   if (selectedModel.transport === "gateway") return createGatewayAiVideoProvider(requestedEngine);
   return requestedEngine === "veo"
     ? googleVeoVideoProvider
@@ -66,7 +77,9 @@ export async function generateOriginalAiVideoClips(
 
 export function getAiVideoProviderIdentity(engine?: AiMediaVideoEngine) {
   const provider = engine
-    ? getAiMediaVideoModel(engine).transport === "gateway"
+    ? getAiMediaVideoModel(engine).transport === "kling-direct"
+      ? klingAiVideoProvider
+      : getAiMediaVideoModel(engine).transport === "gateway"
       ? createGatewayAiVideoProvider(engine)
       : engine === "veo" ? googleVeoVideoProvider : googleOmniVideoProvider
     : resolveProvider();
