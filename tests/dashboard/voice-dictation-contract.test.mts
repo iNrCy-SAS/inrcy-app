@@ -382,9 +382,14 @@ test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", ()
     "MediaSubjectVoiceButton",
   );
   assert.equal(scheduleVoiceButtons.length, 1);
+  assert.match(
+    businessScheduleEditor,
+    /const notes = notesDraft\?\.source === schedule\.notes \? notesDraft\.text : schedule\.notes/,
+    "la dictée et le champ utilisent le brouillon lié aux mêmes notes canoniques",
+  );
   const scheduleNotesButton = elementWithValue(
     scheduleVoiceButtons,
-    "schedule.notes",
+    "notes",
   );
   assert.match(scheduleNotesButton, /disabled=\{disabled\}/);
   assert.match(scheduleNotesButton, /contextLabel=\{t\("scheduleNotes"\)\}/);
@@ -394,7 +399,7 @@ test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", ()
   assert.match(scheduleNotesButton, /maxLength=\{500\}/);
   assert.match(
     scheduleNotesButton,
-    /onChange=\{\(notes\) => emit\(\{ \.\.\.cloneSchedule\(schedule\), notes \}\)\}/,
+    /onChange=\{updateNotes\}/,
   );
   assert.match(
     scheduleNotesButton,
@@ -402,10 +407,16 @@ test("iNrADN équipe tous ses champs libres avec le micro corrigé partagé", ()
   );
   const scheduleNotesTextarea = elementWithValue(
     jsxElements(businessScheduleEditor, "textarea"),
-    "schedule.notes",
+    "notes",
   );
   assert.match(scheduleNotesTextarea, /maxLength=\{500\}/);
   assert.match(scheduleNotesTextarea, /readOnly=\{controlsLocked\}/);
+  assert.match(scheduleNotesTextarea, /onChange=\{\(event\) => updateNotes\(event\.target\.value\)\}/);
+  assert.match(
+    businessScheduleEditor,
+    /const updateNotes = \(text: string\) => \{\s*const next = cloneSchedule\(\{ \.\.\.schedule, notes: text \}\);\s*setNotesDraft\(\{ source: next\.notes, text \}\);\s*onChange\(next\)/,
+    "le texte brut reste éditable tandis que les notes canoniques sont propagées au parent",
+  );
 });
 
 test("iNrADN verrouille la page pendant la dictée et délègue toute capture au composant partagé", () => {

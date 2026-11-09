@@ -28,6 +28,48 @@ async function assertActivityCardsFitTheirLists(page: Page) {
   for (const card of cards) assert.ok(card.gap <= card.padding + 2, "Activity cards end at their tag editor without an empty stretched area");
 }
 
+test("schedule notes preserve typed word spaces through autosave on mobile and desktop", { timeout: 45_000 }, async () => {
+  const browser = await browserType.launch({ headless: true });
+  try {
+    for (const viewport of [{ width: 390, height: 844 }, { width: 1366, height: 768 }]) {
+      const page = await browser.newPage({ viewport });
+      await page.route("**/*", route => {
+        if (route.request().resourceType() === "document") return route.fulfill({ contentType: "text/html", body: html });
+        const asset = path.resolve(ROOT, "public", `.${new URL(route.request().url()).pathname}`);
+        if (asset.startsWith(path.resolve(ROOT, "public") + path.sep) && existsSync(asset)) return route.fulfill({ contentType: asset.endsWith(".svg") ? "image/svg+xml" : "image/png", body: readFileSync(asset) });
+        return route.abort();
+      });
+      await page.goto("https://personalization.fixture.invalid/dashboard/personnalisation");
+      await page.addScriptTag({ content: fixture });
+      await page.locator("[data-business-dna-channel-analysis]").waitFor();
+      await page.evaluate(() => { (window as unknown as { allowWrites: boolean }).allowWrites = true; });
+      await page.locator("[data-dashboard-workspace-navigation]").getByRole("button", { name: "Mon entreprise", exact: true }).click();
+      await page.getByRole("navigation", { name: "Mon entreprise", exact: true }).getByRole("button", { name: "Zones & Horaires", exact: true }).click();
+      const notes = page.getByLabel("Précisions utiles", { exact: true });
+      await notes.fill("");
+      let expected = "";
+      const type = async (text: string) => {
+        for (const character of text) {
+          expected += character;
+          await notes.pressSequentially(character);
+          assert.equal(await notes.inputValue(), expected, `${viewport.width}px: preserve the typed ${JSON.stringify(character)}`);
+        }
+      };
+      const saved = async (text: string) => page.waitForFunction(expected => (window as unknown as {
+        fixtureWrites: Array<{ kind: string; resolved: boolean; payload: { businessKnowledge?: { weeklySchedule?: { notes?: string } } } }>;
+      }).fixtureWrites.some(write => write.kind === "ai-memory" && write.resolved && write.payload.businessKnowledge?.weeklySchedule?.notes === expected), text);
+      await type("Sur ");
+      await saved("Sur");
+      await page.waitForFunction(() => !(document.querySelector("#business-dna-schedule-notes") as HTMLTextAreaElement).readOnly);
+      assert.equal(await notes.inputValue(), "Sur ", "the canonical autosave echo preserves the pending separator");
+      await type("rendez-vous uniquement");
+      await saved("Sur rendez-vous uniquement");
+      assert.equal(await notes.inputValue(), "Sur rendez-vous uniquement");
+      await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
 test("all personalization tabs keep fields accessible and fit the desktop workspace without horizontal overflow", { timeout: 90_000 }, async t => {
   const browser = await browserType.launch({ headless: true });
   try {
@@ -83,7 +125,7 @@ test("all personalization tabs keep fields accessible and fit the desktop worksp
         ["profile", "Coordonnées & logo", "[data-profile-form-grid] input"],
         ["activity", "Activité", "[data-activity-section=identity] input"],
         ["audience", "Clients", "[data-ai-memory-tab=audience]"],
-        ["local", "Zones", "[data-business-location] input"],
+        ["local", "Zones & Horaires", "[data-business-location] input"],
         ["identity", "Identité", "#business-dna-mission"],
       ]) {
         await subnav.getByRole("button", { name: label, exact: true }).click();
@@ -312,7 +354,7 @@ test("populated tag groups and long strategy text remain contained and reachable
       for (const [name, label, selector, counts] of [
         ["activity", "Activité", '[data-ai-memory-active-tab="activity"]', [20, 16]],
         ["audience", "Clients", '[data-ai-memory-tab="audience"]', [16, 16]],
-        ["local", "Zones", '[data-ai-memory-tab="local"]', [30]],
+        ["local", "Zones & Horaires", '[data-ai-memory-tab="local"]', [30]],
         ["identity", "Identité", '[data-ai-memory-tab="identity"]', [16, 16, 12, 12]],
       ] as const) {
         await company.getByRole("button", { name: label, exact: true }).click();
