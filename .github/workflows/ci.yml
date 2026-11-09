@@ -132,7 +132,7 @@ jobs:
         run: npm run test:contracts
 
       - name: WebKit iPad layout contracts
-        run: node --test --test-isolation=none --experimental-strip-types tests/dashboard/personalization-tablet-zones-browser.test.mts tests/dashboard/dashboard-header-tool-overlay-browser.test.mts
+        run: node --test --experimental-strip-types tests/dashboard/personalization-tablet-zones-browser.test.mts tests/dashboard/dashboard-header-tool-overlay-browser.test.mts
         env:
           INRCY_PERSONALIZATION_BROWSER: webkit
           INRCY_DASHBOARD_LAYOUT_BROWSER: webkit
