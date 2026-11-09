@@ -11,10 +11,36 @@ import {
   assertAiMediaNativeFinalFrameLayout,
   evaluateAiMediaNativeDialogue,
   tokenizeAiMediaNativeDialogue,
+  recoverAiMediaNativeDialogueVerification,
   type AiMediaNativeDialogueQaClip,
 } from "../../lib/aiMediaNativeDialogueQa.ts";
 
 const ROOT = process.cwd();
+
+test("verification recovery never retries a confirmed rejection or a visual gate", async () => {
+  for (const status of ["passed", "rejected", "unavailable"] as const) {
+    let calls = 0;
+    const result = await recoverAiMediaNativeDialogueVerification({ audit: async () => {
+      calls++;
+      return { version: 1, status, elapsedMs: 1, clips: status === "unavailable" ? [{
+        sceneIndex: 0, status, finalFrameLayout: "unavailable", finalFrameIssue: "unavailable", issues: ["final_frame_unverified"],
+        metrics: { expectedTokenCount: 0, detectedTokenCount: 0, expectedCoverage: 0, bestWindowSimilarity: 0, extraTokenCount: 0, repeatCount: 0 },
+      }] : [] };
+    } });
+    assert.equal(calls, 1);
+    assert.equal(result.status, status);
+  }
+});
+
+test("verification recovery honors cancellation before another supplier check", async () => {
+  const controller = new AbortController(); let calls = 0;
+  await assert.rejects(recoverAiMediaNativeDialogueVerification({ signal: controller.signal, audit: async signal => {
+    assert.equal(signal.aborted, false); calls++;
+    controller.abort(new Error("cancelled-by-user"));
+    return { version: 1, status: "unavailable", elapsedMs: 1, clips: [] };
+  } }), /cancelled-by-user/);
+  assert.equal(calls, 1);
+});
 
 const comparisonFlag = "AI_MEDIA_NATIVE_FINAL_FRAME_COMPARISON_ENABLED";
 function enabledComparisonTest(name: string, action: () => Promise<void> | void) {

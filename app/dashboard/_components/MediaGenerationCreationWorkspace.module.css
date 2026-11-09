@@ -50,3 +50,14 @@
   .editorBody[data-recovery-pending="true"] > .previewPane { order:-1;height:auto;min-height:0;flex:none; }
   .editorBody[data-recovery-pending="true"] .embedded[data-media-creation-stage="recovery"] { height:auto;min-height:300px; }
 }
+
+/* On narrow screens the Studio dialog owns the scroll, including results. */
+@media (max-width: 1100px) {
+  .editorBody { display: flex; flex-direction: column; flex: none; min-height: 0; }
+  .settingsPane { flex: none; min-height: 0; max-height: none; overflow: visible; }
+  .settingsPanels { flex: none; min-height: 0; overflow: visible; }
+  .previewPane { flex: none; height: auto; min-height: 350px; overflow: visible; }
+  .embedded { height: auto; min-height: 350px; overflow: visible; }
+  .embedded [data-media-review] { height: auto; grid-template-rows: auto minmax(240px, 60dvh) auto auto; overflow: visible; }
+  .recoveryPanel { max-height: none; overflow: visible; }
+}

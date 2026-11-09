@@ -265,6 +265,8 @@ export default function MediaFreeGenerator({
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false);
   const [actionError, setActionError] = useState("");
   const sequence = useRef(0);
+  const promptInputRef = useRef<HTMLTextAreaElement>(null);
+  const speechInputRef = useRef<HTMLTextAreaElement>(null);
   const operationInFlight = useRef(false);
   const referenceSetId = useRef("");
   const submittedVoicePaths = useRef(new Set<string>());
@@ -508,6 +510,30 @@ export default function MediaFreeGenerator({
   }, [onBusyChange, operationLocked]);
 
   useEffect(() => { setMediaSettingsDialog(null); }, [kind]);
+
+  useLayoutEffect(() => {
+    const narrow = window.matchMedia("(max-width: 1100px)");
+    const inputs = [promptInputRef.current, speechInputRef.current].filter((input): input is HTMLTextAreaElement => Boolean(input));
+    const resize = () => {
+      for (const input of inputs) {
+        if (!narrow.matches) { input.style.removeProperty("height"); continue; }
+        input.style.height = "0px";
+        input.style.height = `${Math.max(140, input.scrollHeight)}px`;
+      }
+    };
+    const widths = new WeakMap<Element, number>();
+    const observer = new ResizeObserver(entries => {
+      if (entries.some(entry => {
+        const previous = widths.get(entry.target);
+        widths.set(entry.target, entry.contentRect.width);
+        return previous !== entry.contentRect.width;
+      })) resize();
+    });
+    for (const input of inputs) observer.observe(input);
+    narrow.addEventListener("change", resize);
+    resize();
+    return () => { observer.disconnect(); narrow.removeEventListener("change", resize); };
+  }, [prompt, spokenScript, kind, exactSpeechEditorVisible]);
 
   useEffect(() => {
     // The hook's earlier effect hydrates the scoped recovery pointer once quota
@@ -1384,6 +1410,7 @@ export default function MediaFreeGenerator({
           </div>
           <div className={styles.promptContainer} data-invalid={kind === "video" && (prompt.length > maxUserPromptLength || misplacedSpeechBlocking) ? true : undefined}>
             <textarea
+              ref={promptInputRef}
               id={`${instanceId}-prompt`}
               value={prompt}
               maxLength={kind === "video" ? undefined : maxUserPromptLength}
@@ -1574,7 +1601,7 @@ export default function MediaFreeGenerator({
               <div id={`${instanceId}-spoken-script-panel`} className={styles.spokenScriptContent}>
               {exactSpeechEditorVisible ? <>
               <div className={styles.spokenScriptInput}>
-                <textarea id={`${instanceId}-spoken-script`} value={spokenScript}
+                <textarea ref={speechInputRef} id={`${instanceId}-spoken-script`} value={spokenScript}
                   disabled={locked}
                   aria-invalid={speechInvalid ? true : undefined}
                   aria-describedby={`${instanceId}-spoken-script-help ${instanceId}-spoken-script-count ${instanceId}-spoken-script-budget${speechInvalid ? ` ${instanceId}-spoken-script-error` : ""}`}

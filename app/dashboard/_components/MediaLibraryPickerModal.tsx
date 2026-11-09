@@ -213,7 +213,7 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
 
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
-    const updateCompact = () => setCompact(window.innerWidth <= 760);
+    const updateCompact = () => setCompact(window.innerWidth <= 1100);
     updateCompact();
     window.addEventListener("resize", updateCompact);
     return () => window.removeEventListener("resize", updateCompact);
@@ -382,7 +382,10 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
         padding: 10,
         borderRadius: 22,
         gap: 7,
-        gridTemplateRows: modalGridTemplateRows,
+        display: "flex",
+        flexDirection: "column",
+        overflowY: "auto",
+        overflowX: "hidden",
       }
     : {
         ...modalStyle,
@@ -394,6 +397,7 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
         gridTemplateColumns: "44px minmax(0, 1fr) 40px",
         gap: 10,
         alignItems: "center",
+        flexShrink: 0,
       }
     : headerStyle;
   const headerIconComputedStyle: React.CSSProperties = compact
@@ -410,9 +414,8 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
         ...titleStyle,
         margin: 0,
         fontSize: 21,
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
+        whiteSpace: "normal",
+        overflowWrap: "anywhere",
       }
     : titleStyle;
   const subtitleComputedStyle: React.CSSProperties = compact
@@ -425,6 +428,7 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
         gap: 7,
         padding: 10,
         borderRadius: 16,
+        flexShrink: 0,
       }
     : filtersStyle;
   const listComputedStyle: React.CSSProperties = compact
@@ -434,7 +438,8 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
         gap: 6,
         paddingRight: 1,
         paddingBottom: 2,
-        overscrollBehavior: "contain",
+        overflow: "visible",
+        flexShrink: 0,
       }
     : listStyle;
   const rowComputedStyle: React.CSSProperties = compact
@@ -459,6 +464,7 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
         flexDirection: "column",
         gap: 6,
         borderTop: "1px solid rgba(255,255,255,.08)",
+        flexShrink: 0,
       }
     : {
         ...footerStyle,
@@ -486,7 +492,8 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
         padding: "9px 10px",
         borderRadius: 18,
         fontSize: 13,
-        lineHeight: 1.05,
+        lineHeight: 1.35,
+        whiteSpace: "normal",
       }
     : cancelButtonStyle;
   const primaryButtonComputedStyle: React.CSSProperties = compact
@@ -497,7 +504,8 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
         padding: "9px 10px",
         borderRadius: 18,
         fontSize: 13,
-        lineHeight: 1.05,
+        lineHeight: 1.35,
+        whiteSpace: "normal",
       }
     : primaryButtonStyle;
   const confirmButtonLabel = compact
@@ -676,7 +684,7 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
           </div>
         ) : null}
 
-        <div style={listComputedStyle}>
+        <div style={listComputedStyle} data-media-library-list>
           {loading ? (
             <div style={emptyStyle}>{i18nT("chargement_de_votre_mediatheque_6ad3bb8b")}</div>
           ) : items.length === 0 ? (
@@ -755,16 +763,10 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
                     )}
                   </span>
                   <span style={nameBlockStyle}>
-                    <strong style={nameStyle}>{displayName(item)}</strong>
-                    <small style={tagStyle}>{tags}</small>
+                    <strong style={compact ? { ...nameStyle, whiteSpace: "normal", overflowWrap: "anywhere" } : nameStyle}>{displayName(item)}</strong>
+                    <small style={compact ? { ...tagStyle, whiteSpace: "normal", overflowWrap: "anywhere" } : tagStyle}>{tags}</small>
                     {item.media_type === "audio" ? <>
                       <small style={tagStyle}>{formatDuration(item.duration_seconds)} · {formatBytes(item.size_bytes, locale, unitKilobytes, unitMegabytes)}</small>
-                      {item.signed_url ? <span onClick={(event) => event.stopPropagation()} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") event.stopPropagation(); }}>
-                        <audio controls preload="metadata" src={item.signed_url} style={{ width: "100%", minWidth: 0, height: 34, display: "block", colorScheme: "dark" }}
-                          aria-label={i18nT("library_audio_preview", { name: displayName(item) })}
-                          onError={() => setPreviewErrors((previous) => ({ ...previous, [item.id]: true }))} />
-                      </span> : null}
-                      {previewErrors[item.id] || !item.signed_url ? <small role="alert">{i18nT("apercu_indisponible_d0ce704a")}</small> : null}
                     </> : null}
                     {disabledReason ? <small id={`${titleId}-${item.id}-reason`} style={{ color: "#ffd7a3", whiteSpace: "normal", lineHeight: 1.4 }}>{disabledReason}</small> : null}
                   </span>
@@ -815,6 +817,13 @@ export default function MediaLibraryPickerModal(props: MediaLibraryPickerModalPr
                     </>
                   )}
                   <span style={checkStyle}>{selected ? "✓" : ""}</span>
+                  {item.media_type === "audio" ? <span data-media-library-audio style={{ gridColumn: "1 / -1", display: "grid", gap: 4, minWidth: 0 }}
+                    onClick={event => event.stopPropagation()} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") event.stopPropagation(); }}>
+                    {item.signed_url ? <audio controls preload="metadata" src={item.signed_url} style={{ width: "100%", minWidth: 0, height: 40, display: "block", colorScheme: "dark" }}
+                      aria-label={i18nT("library_audio_preview", { name: displayName(item) })}
+                      onError={() => setPreviewErrors(previous => ({ ...previous, [item.id]: true }))} /> : null}
+                    {previewErrors[item.id] || !item.signed_url ? <small role="alert">{i18nT("apercu_indisponible_d0ce704a")}</small> : null}
+                  </span> : null}
                 </div>
               );
             })
@@ -1071,6 +1080,7 @@ const listStyle: React.CSSProperties = {
   overflowX: "hidden",
   display: "grid",
   alignContent: "start",
+  gridAutoRows: "max-content",
   gap: 8,
   paddingRight: 3,
   boxSizing: "border-box",

@@ -46,7 +46,9 @@ export function useMediaResultReveal({
 
       const studio = review.closest("[data-inrcy-tool-dialog]");
       const header = studio?.querySelector<HTMLElement>(":scope > header");
-      review.style.scrollMarginBlockStart = `${(header?.getBoundingClientRect().height || 0) + 12}px`;
+      const headerOffset = header && ["sticky", "fixed"].includes(getComputedStyle(header).position)
+        ? header.getBoundingClientRect().height : 0;
+      review.style.scrollMarginBlockStart = `${headerOffset + 12}px`;
       heading.focus({ preventScroll: true });
       review.scrollIntoView({
         block: "start",
