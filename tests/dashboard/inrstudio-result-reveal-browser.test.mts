@@ -452,13 +452,28 @@ test("desktop and a blocking dialog keep their current scroll and focus when the
       const errors = await mount(page);
       await page.evaluate(() => (window as unknown as FixtureWindow).studioFixture.start());
       await page.locator('[data-media-creation-stage="progress"]').waitFor();
-      const previous = await atBottom(page);
+      await atBottom(page);
       if (!desktop) await page.evaluate(() => document.querySelector<HTMLDialogElement>("#other")!.showModal());
+      // Opening a native modal may finish a pending scroll-anchor adjustment.
+      // Measure the settled position before completing the background preview.
+      const previous = await page.locator('.modal-dialog').evaluate(async element => {
+        let previous = element.scrollTop, stable = 0;
+        for (let frame = 0; frame < 120; frame++) {
+          await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+          const current = element.scrollTop;
+          stable = Math.abs(current - previous) < 0.1 ? stable + 1 : 0;
+          previous = current;
+          if (stable >= 4) return current;
+        }
+        throw new Error("Studio scroll did not settle before preview completion");
+      });
       await page.evaluate(() => (window as unknown as FixtureWindow).studioFixture.complete());
+      await page.locator('[data-media-review]').waitFor();
       await page.waitForTimeout(100);
       assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).revealCalls.length), 0);
       assert.equal(await page.locator(".modal-dialog").evaluate(element => element.scrollTop), previous);
       if (!desktop) assert.equal(await page.locator("#other input").evaluate(element => element === document.activeElement), true);
+      else assert.equal(await page.locator("#bottom").evaluate(element => element === document.activeElement), true);
       assert.deepEqual(errors, []); await page.close();
     }
   } finally { await browser.close(); }
