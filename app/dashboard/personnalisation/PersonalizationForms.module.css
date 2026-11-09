@@ -106,6 +106,9 @@
 .workspace :global([data-business-location]) > div:nth-child(2) { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 .workspace :global([data-local-zones]) { border-color: #bb9fe659 !important; background: linear-gradient(130deg, #41346780, #20234399) !important; padding: 16px !important; }
 .workspace :global([data-local-schedule]) { border-color: #d7a7e052 !important; background: linear-gradient(130deg, #3a2b5e8c, #17233db3) !important; padding: 16px !important; }
+.workspace :global([data-business-location]),
+.workspace :global([data-local-zones]),
+.workspace :global([data-local-schedule]) { min-width: 0; }
 .workspace :global([data-schedule-day]) { min-height: 35px !important; padding: 5px 8px !important; gap: 8px !important; }
 .workspace :global([data-business-schedule-editor]) textarea { min-height: 50px !important; }
 
@@ -153,4 +156,33 @@
   .workspace :global([data-identity-tag-grid]) { grid-template-columns: minmax(0, 1fr) !important; }
   .workspace :global([data-profile-logo]) > div { flex-direction: row; }
   .workspace :global([data-ai-memory-active-tab]) > section:not([hidden]) { padding: 12px !important; }
+}
+
+/* Tablet portrait needs the same natural reading order as a phone: a narrow
+   service-area column cannot sit beside two opening-hour slots. Keep the list
+   in the page flow instead of hiding most areas inside a short touch scroller. */
+@media (max-width: 999px), (max-width: 1100px) and (orientation: portrait) {
+  .workspace :global([data-ai-memory-tab="local"]:not([hidden])) {
+    display: grid !important;
+    min-height: 0 !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto !important;
+  }
+  .workspace :global([data-local-presence-grid]) {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: start !important;
+  }
+  .workspace :global([data-business-location]),
+  .workspace :global([data-local-zones]),
+  .workspace :global([data-local-schedule]) {
+    grid-column: auto !important;
+    grid-row: auto !important;
+  }
+  .workspace :global([data-local-zones]) :global([data-editable-tags-list]) {
+    max-height: none;
+    overflow: visible;
+    overscroll-behavior: auto;
+    scrollbar-gutter: auto;
+  }
 }

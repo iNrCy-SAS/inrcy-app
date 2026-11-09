@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { createRequire } from "node:module";
 import path from "node:path";
 import test, { after, before } from "node:test";
-import { chromium, type Browser } from "@playwright/test";
+import { chromium, webkit, type Browser } from "@playwright/test";
 import ts from "typescript";
 
 const root = path.resolve(import.meta.dirname, "../..");
@@ -12,7 +12,7 @@ const nativeRequire = createRequire(import.meta.url);
 type FixtureWindow = Window & {
   fixtureScope: { actor: string; account: string };
   saved: Record<string, { choice: string; url: string }>;
-  ready: boolean; mobile: boolean; visible: boolean; draw: () => void;
+  ready: boolean; namesKnown: boolean; mobile: boolean; visible: boolean; draw: () => void;
   imagesBefore: Element[];
 };
 const read = (file: string) => readFileSync(path.join(root, file), "utf8");
@@ -21,6 +21,16 @@ const panel = "app/dashboard/settings/_components/AiChannelCtaPanel.tsx";
 const identity = "app/dashboard/booster/publier/components/publishChannelIdentity.ts";
 const shared = read("app/dashboard/booster/publier/publishModal.shared.tsx");
 const order = JSON.parse(`[${shared.match(/export const BOOSTER_CHANNEL_ORDER[^=]*=\s*\[([\s\S]*?)\];/)![1]}]`.replace(/,\s*\]/, "]"));
+const sharedAst = ts.createSourceFile("publishModal.shared.tsx", shared, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const channelLabels: Record<string, string> = {};
+function collectChannelLabels(node: ts.Node) {
+  if (ts.isVariableDeclaration(node) && node.name.getText(sharedAst) === "CHANNEL_LABELS" && node.initializer && ts.isObjectLiteralExpression(node.initializer)) {
+    for (const property of node.initializer.properties) if (ts.isPropertyAssignment(property) && ts.isStringLiteral(property.initializer)) channelLabels[property.name.getText(sharedAst)] = property.initializer.text;
+  }
+  ts.forEachChild(node, collectChannelLabels);
+}
+collectChannelLabels(sharedAst);
+assert.equal(Object.keys(channelLabels).length, order.length);
 const sources: Record<string, string> = {};
 const dependencies: Record<string, Record<string, string>> = {};
 const cssFiles = new Set<string>();
@@ -56,7 +66,7 @@ register(selector); register(panel); register(identity);
 const css = [...cssFiles].map(read).join("\n");
 const fixture = `
 const sources=${JSON.stringify(sources)},dependencies=${JSON.stringify(dependencies)},cache={},process={env:{NODE_ENV:'production'}};
-window.fixtureScope={actor:'actor-a',account:'account-a'};window.saved={};window.ready=false;window.mobile=false;window.visible=true;
+window.fixtureScope={actor:'actor-a',account:'account-a'};window.saved={};window.ready=false;window.namesKnown=false;window.mobile=false;window.visible=true;
 function load(name,from){
  if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:()=>key=>key};
  if(name==='next/navigation')return {usePathname:()=>location.pathname};
@@ -65,7 +75,7 @@ function load(name,from){
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
  const key=dependencies[from]?.[name]||name;
  if(key==='fixture-css')return {__esModule:true,default:new Proxy({},{get:(_,key)=>String(key)})};
- if(key==='fixture-shared')return {BOOSTER_CHANNEL_ORDER:${JSON.stringify(order)},getLocalizedChannelLabel:key=>key};
+ if(key==='fixture-shared')return {BOOSTER_CHANNEL_ORDER:${JSON.stringify(order)},getLocalizedChannelLabel:key=>(${JSON.stringify(channelLabels)})[key]};
  if(cache[key])return cache[key].exports;
  if(!sources[key])throw Error('Unknown browser module '+key+' from '+from);
  const m=cache[key]={exports:{}};new Function('require','module','exports','process',sources[key])(name=>load(name,key),m,m.exports,process);return m.exports;
@@ -73,7 +83,7 @@ function load(name,from){
 const React=load('react'),dom=load('react-dom'),root=load('react-dom/client').createRoot(document.getElementById('root'));
 const Selector=load(${JSON.stringify(selector)}).default,Panel=load(${JSON.stringify(panel)}).default;
 const all=Object.fromEntries(${JSON.stringify(order)}.map(key=>[key,true]));
-function render(){dom.flushSync(()=>root.render(!window.visible?null:location.pathname==='/logo'?React.createElement(Selector,{styles:{},isMobile:window.mobile,connectionsPending:!window.ready,connected:all,channels:all,channelInfoOpen:null,setChannelInfoOpen(){},toggle(){},setAllChannelsSelected(){},getChannelDetailInfo:()=>({href:null,desktopLabel:'',mobileLabel:'',fullLabel:'Compte de démonstration'})}):React.createElement(Panel,{value:window.saved,onChange:value=>{window.saved=value;render()}})));}
+function render(){dom.flushSync(()=>root.render(!window.visible?null:location.pathname==='/logo'?React.createElement(Selector,{styles:{},isMobile:window.mobile,connectionsPending:!window.ready,connected:all,channels:all,channelInfoOpen:null,setChannelInfoOpen(){},toggle(){},setAllChannelsSelected(){},getChannelDetailInfo:()=>({href:null,desktopLabel:'',mobileLabel:'',fullLabel:window.ready||window.namesKnown?'Compte de démonstration':''})}):React.createElement(Panel,{value:window.saved,onChange:value=>{window.saved=value;render()}})));}
 window.draw=render;window.warm=()=>load(${JSON.stringify(identity)}).prewarmPublishChannelIcons();window.document.documentElement.dataset.fixture='ready';render();
 `;
 let server: Server, browser: Browser, origin: string;
@@ -102,34 +112,62 @@ before(async () => {
 });
 after(async () => { await browser?.close(); if (server) await new Promise<void>(resolve => server.close(() => resolve())); });
 
-test("real Booster logos keep their circular geometry before decode, after account loading and at every reopening", { timeout: 60000 }, async () => {
-  for (const mobile of [false, true]) {
-    const context = await browser.newContext({ viewport: { width: mobile ? 390 : 1280, height: 1000 } });
+test("real Booster logos keep their circular geometry before decode, after account loading and at every reopening", { timeout: 60000 }, async t => {
+  for (const engine of [chromium, webkit]) {
+    const logosBrowser = engine === chromium ? browser : await engine.launch({ headless: true });
+    try {
+  for (const width of [390, 700, 701, 768, 820, 1024, 1280]) {
+    const mobile = width <= 768;
+    const context = await logosBrowser.newContext({ viewport: { width, height: 1000 } });
     const page = await context.newPage(); const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.goto(`${origin}/logo`, { waitUntil: "domcontentloaded" });
+    assert.deepEqual(errors, [], "Logo browser module must mount without runtime errors");
     await page.waitForSelector("img");
     // Exercise the parent modal's initial desktop state on a mobile viewport, too.
     const geometry = async () => page.locator("#root img").evaluateAll(images => images.map(image => {
       const img = image as HTMLImageElement, style = getComputedStyle(img);
       return { radius: parseFloat(style.borderRadius), width: parseFloat(style.width), height: parseFloat(style.height), fit: style.objectFit, loading: img.loading, decoding: img.decoding };
     }));
+    const boxes = async () => page.locator('.channelCard').evaluateAll(cards => cards.map(card => {
+      const image = card.querySelector('img')!.getBoundingClientRect(), bounds = card.getBoundingClientRect();
+      return [bounds.x, bounds.y, bounds.width, bounds.height, image.x, image.y, image.width, image.height];
+    }));
+    const assertStable = (before: number[][], after: number[][]) => {
+      assert.equal(after.length, before.length);
+      for (let card = 0; card < before.length; card++) for (let field = 0; field < before[card].length; field++) {
+        assert.ok(Math.abs(before[card][field] - after[card][field]) <= 1, `Channel ${card}, geometry ${field} moved: ${before[card][field]} → ${after[card][field]}`);
+      }
+    };
     for (const value of await geometry()) {
       assert(value.radius >= value.width / 2); assert.equal(value.width, mobile ? 24 : 43); assert.equal(value.height, value.width);
       assert.equal(value.loading, "eager"); assert.equal(value.decoding, "sync");
     }
     await page.locator("#root img").evaluateAll(images => Promise.all(images.map(img => (img as HTMLImageElement).decode())));
     const initialCount = await page.locator("#root img").count(); assert.equal(initialCount, order.length);
-    await page.evaluate(() => { const w = window as unknown as FixtureWindow; w.imagesBefore = [...document.querySelectorAll('#root img')]; w.ready = true; w.draw(); });
+    const pendingBoxes = await boxes();
+    assert.equal(await page.locator('.bulkControl input').isDisabled(), true);
+    assert.equal(await page.locator('.channelCard[role="button"]').count(), 0, "Unknown connection cards cannot be activated");
+    assert.equal(await page.locator('.desktopConnection[data-connected="true"]').count(), 0, "Pending display must not invent a confirmed connection");
+    await page.evaluate(() => { const w = window as unknown as FixtureWindow; w.imagesBefore = [...document.querySelectorAll('#root img')]; w.ready = true; w.namesKnown=true; w.draw(); });
     const sameImages = await page.evaluate(() => { const w = window as unknown as FixtureWindow; return [...document.querySelectorAll('#root img')].every((image, index) => image === w.imagesBefore[index]); });
     assert.equal(sameImages, true, "Decoded logos must survive pending → ready without DOM replacement");
+    assertStable(pendingBoxes, await boxes());
     for (let opening = 0; opening < 3; opening++) {
-      await page.evaluate((isMobile) => { const w = window as unknown as FixtureWindow; w.visible=false;w.draw();w.mobile=isMobile;w.ready=false;w.visible=true;w.draw();w.ready=true;w.draw(); }, mobile);
+      await page.evaluate((isMobile) => { const w = window as unknown as FixtureWindow; w.visible=false;w.draw();w.mobile=isMobile;w.ready=false;w.visible=true;w.draw(); }, mobile);
+      const reopeningBoxes = await boxes();
+      assert.equal(await page.locator('.bulkControl input').isDisabled(), true);
+      await page.evaluate(() => { const w=window as unknown as FixtureWindow;w.ready=true;w.draw(); });
       await page.locator("#root img").evaluateAll(images => Promise.all(images.map(img => (img as HTMLImageElement).decode())));
       for (const value of await geometry()) { assert(value.radius >= value.width / 2); assert.equal(value.width, mobile ? 24 : 43); }
+      assertStable(reopeningBoxes, await boxes());
+      assert.equal(await page.locator('.bulkControl input').isEnabled(), true);
     }
     assert.equal(await page.locator("#root img").evaluateAll(images => images.every(img => (img as HTMLImageElement).naturalWidth > 0)), true);
     assert.deepEqual(errors, []); await context.close();
+  }
+      t.diagnostic(`${engine.name()}: cold opening and three reopenings verified at 390, 700, 701, 768, 820, 1024 and 1280 px`);
+    } finally { if (logosBrowser !== browser) await logosBrowser.close(); }
   }
 });
 

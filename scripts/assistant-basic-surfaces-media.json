@@ -8821,21 +8821,21 @@
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishChannelSelector.tsx"
     ],
-    "sourceAnchor": "<input type=\"checkbox\" checked={allConnectedSelected}\n        ref={(input) => { if (input) input.indeterminate = selectedConnectedCount > 0 && !allConnectedSelected; }}\n        disabled={!hasConnectedChannels} aria-label={bulkLabel}\n        onChange={(event) => setAllChannelsSelected(event.target.checked)} />",
+    "sourceAnchor": "<input type=\"checkbox\" checked={allConnectedSelected}\n        ref={(input) => { if (input) input.indeterminate = selectedConnectedCount > 0 && !allConnectedSelected; }}\n        disabled={connectionsPending || !hasConnectedChannels} aria-label={bulkLabel}\n        onChange={(event) => setAllChannelsSelected(event.target.checked)} />",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
       "editPublication"
     ],
     "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel. Le contrôle Tout sélectionner reste indisponible pendant la vérification des connexions.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishChannelSelector.tsx#input:84d59623b088eae0:1"
+      "app/dashboard/booster/publier/components/PublishChannelSelector.tsx#input:fb2efa827fcec805:1"
     ]
   },
   {

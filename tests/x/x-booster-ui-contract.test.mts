@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { PUBLISH_CHANNEL_IDENTITY } from "../../app/dashboard/booster/publier/components/publishChannelIdentity.ts";
 
 import {
   BOOSTER_PUBLICATION_CHANNELS,
@@ -23,15 +24,12 @@ test("Booster exposes X as one canonical channel alongside every existing channe
   );
 
   const shared = read("app/dashboard/booster/publier/publishModal.shared.tsx");
-  const selector = read(
-    "app/dashboard/booster/publier/components/PublishChannelSelector.tsx",
-  );
   assert.match(
     shared,
     /"linkedin",\s*"tiktok",\s*"youtube_shorts",\s*"pinterest",\s*"x"/,
   );
   assert.match(shared, /x:\s*"X"/);
-  assert.match(selector, /x:\s*"\/icons\/x\.svg"/);
+  assert.equal(PUBLISH_CHANNEL_IDENTITY.x.icon, "/icons/x.svg");
 });
 
 test("X offers website and custom CTA links without promising native buttons", () => {

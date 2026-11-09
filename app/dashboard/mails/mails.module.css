@@ -4725,10 +4725,16 @@
    Le module occupe la zone utile du layout, jamais les 100dvh complets.
    Le footer/pager reste donc entièrement au-dessus du dock.
 ========================= */
+@media (max-width: 1100px) {
+  .page {
+    height: var(--inrcy-mobile-content-height, 100dvh);
+    min-height: 0;
+  }
+}
+
 @media (max-width: 560px) {
   .page {
     height: 100%;
-    min-height: 0;
     padding-bottom: 8px;
   }
 
