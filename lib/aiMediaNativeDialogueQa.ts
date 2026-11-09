@@ -68,7 +68,39 @@ export type AiMediaNativeDialogueQaResult = {
   clips: AiMediaNativeDialogueQaClipResult[];
   elapsedMs: number;
   model?: string;
+  /** Full audits of the same paid asset; never video-generation attempts. */
+  verificationAttempts?: number;
 };
+
+/**
+ * Recover an unavailable Wan speech check without regenerating its video.
+ * After uncertainty, two fresh, independent passing audits are required.
+ * A confirmed rejection is final; a partial visual check cannot be retried here.
+ */
+export async function recoverAiMediaNativeDialogueVerification(args: {
+  audit: (signal: AbortSignal) => Promise<AiMediaNativeDialogueQaResult>;
+  signal?: AbortSignal;
+}): Promise<AiMediaNativeDialogueQaResult> {
+  args.signal?.throwIfAborted();
+  const startedAt = Date.now();
+  const deadline = AbortSignal.timeout(24_000);
+  const signal = args.signal ? AbortSignal.any([args.signal, deadline]) : deadline;
+  const first = await args.audit(signal);
+  args.signal?.throwIfAborted();
+  if (first.status !== "unavailable" || first.clips.some(clip => clip.finalFrameLayout && clip.finalFrameLayout !== "passed")) return first;
+  let attempts = 1;
+  let result = first;
+  // Both fresh audits must pass, so stop immediately if either is unavailable
+  // or rejected. Each adapter retains its accounting guard and bounded timeout.
+  for (let retry = 0; retry < 2 && !signal.aborted; retry += 1) {
+    result = await args.audit(signal);
+    attempts += 1;
+    args.signal?.throwIfAborted();
+    if (result.status !== "passed") break;
+  }
+  if (result.status === "passed" && (attempts !== 3 || signal.aborted)) result = first;
+  return { ...result, elapsedMs: Date.now() - startedAt, verificationAttempts: attempts };
+}
 
 export type AiMediaNativeDialogueTranscript = {
   text: string;

@@ -73,7 +73,7 @@ import {
   createReferenceTeamFallbackVideo,
   createReferenceTeamMontage,
 } from "@/lib/aiMediaReferenceTeam";
-import { shouldAuditAiMediaNativeFinalFrame, assertAiMediaNativeFinalFrameLayout } from "@/lib/aiMediaNativeDialogueQa";
+import { shouldAuditAiMediaNativeFinalFrame, assertAiMediaNativeFinalFrameLayout, recoverAiMediaNativeDialogueVerification } from "@/lib/aiMediaNativeDialogueQa";
 import { auditAiMediaNativeDialogueWithGoogle } from "@/lib/aiMediaNativeDialogueQaGoogle";
 import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
 import {
@@ -1688,12 +1688,12 @@ export async function generateAndSaveAiMedia(args: {
       characterDialogueRequested && videoGateway.provider.startsWith("inrcy-");
     const nativeDialogueQa =
       characterDialogueRequested && !characterDialogueProviderFallback
-        ? await measure("native_character_dialogue_qa", () =>
-            auditAiMediaNativeDialogueWithGoogle({
+        ? await measure("native_character_dialogue_qa", () => {
+            const audit = (signal = args.signal) => auditAiMediaNativeDialogueWithGoogle({
               accountId: args.accountId,
               language: speechLanguage,
               pronunciationAliases: isFreeCreation ? extractAiMediaPronunciationAliases(providerRequest.freePrompt || "") : undefined,
-              signal: args.signal,
+              signal,
               clips: videoGateway.clips.map((clip, index) => ({
                 sceneIndex: index,
                 checkFinalFrameLayout: shouldAuditAiMediaNativeFinalFrame(providerRequest, videoGateway.provider),
@@ -1706,8 +1706,11 @@ export async function generateAndSaveAiMedia(args: {
                 expectedContinuation: isFreeCreation && typeof providerRequest.spokenScript === "string" &&
                   expectedDialogueLines.slice(index + 1).some((line) => Boolean(line.trim())),
               })),
-            })
-          ).catch(() => {
+            });
+            return providerRequest.videoEngine === "wan27"
+              ? recoverAiMediaNativeDialogueVerification({ audit, signal: args.signal })
+              : audit();
+          }).catch(() => {
             args.signal?.throwIfAborted();
             if (shouldAuditAiMediaNativeFinalFrame(providerRequest, videoGateway.provider)) {
               throw nativeFinalFrameFailure(new Error("ai_media_native_visual_verification_unavailable"));
@@ -1731,6 +1734,7 @@ export async function generateAndSaveAiMedia(args: {
       console.warn("[ai-media] native character speech rejected", JSON.stringify({
         jobId: args.jobId,
         provider: videoGateway.provider,
+        verificationAttempts: nativeDialogueQa?.verificationAttempts,
         clips: nativeDialogueQa?.clips.map((clip) => ({
           sceneIndex: clip.sceneIndex,
           status: clip.status,
@@ -1748,6 +1752,7 @@ export async function generateAndSaveAiMedia(args: {
     if (characterDialogueRequested && nativeDialogueQa?.status !== "passed") {
       console.warn("[ai-media] native character speech verification unavailable", JSON.stringify({
         jobId: args.jobId, provider: videoGateway.provider, elapsedMs: nativeDialogueQa?.elapsedMs,
+        verificationAttempts: nativeDialogueQa?.verificationAttempts,
         clips: nativeDialogueQa?.clips.map(clip => ({
           sceneIndex: clip.sceneIndex, status: clip.status, issues: clip.issues,
           confirmation: clip.confirmation, pronunciationVerification: clip.pronunciationVerification,

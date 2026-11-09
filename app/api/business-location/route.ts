@@ -59,6 +59,6 @@ export async function POST(req: Request) {
   if (limited) return limited;
   try {
     const saved = await autofillBusinessLocation({ supabase, accountId: activeUserId });
-    return result(activeUserId, saved.location, saved.source);
+    return result(activeUserId, saved.location, "source" in saved ? saved.source : undefined);
   } catch (error) { return jsonUserFacingError(error, { status: 500 }); }
 }
