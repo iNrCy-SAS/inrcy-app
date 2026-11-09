@@ -1,4 +1,10 @@
 {
+  "app/dashboard/kling-control-test/page.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Diagnostic temporaire d’un seul essai synthétique Kling : rendu uniquement en Preview pour son compte propriétaire fixe. Aucun lancement de génération et aucun accès en production ou pour un autre compte.",
+    "gateFiles": ["app/dashboard/kling-control-test/page.tsx"],
+    "gateAnchor": "if (process.env.VERCEL_ENV !== \"preview\") notFound();"
+  },
   "app/dashboard/_components/DashboardBoosterModalLayer.tsx": {
     "disposition": "basic",
     "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",

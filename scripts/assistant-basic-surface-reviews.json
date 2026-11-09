@@ -560,6 +560,7 @@
     "app/dashboard/generer-media/mediaGeneratorStudio.module.css": "20223146bcce68c110e47e9a5d15d38a904ae39f510a5e18b5f349a2da7db620",
     "app/dashboard/gps/gpsEditionPolicy.ts": "b25d5ad31e90b04f87ad9474dd80bc009bb20edfdbd871f6151f64fcecd61878",
     "app/dashboard/gps/noticeContent.ts": "f1f67cef69089570fbb5a08cd62ee3a9b39e11c646ed018ae2bb9a2348d2e2ce",
+    "app/dashboard/kling-control-test/page.tsx": "70cf9f6a12989c66bfe9fc5b55928b7667c9e2e40d0957d03ceed098fe8da714",
     "app/dashboard/layout.tsx": "8adff9d7c3f51973dd67713b6e9ce3c9aa817ce8089013fa877153fc4bd114bf",
     "app/dashboard/mails/MailboxClient.tsx": "3ed6d3d3521580914c5591e73f6d2fc38dd8d89eb17db8ffb80584bb7644c622",
     "app/dashboard/mails/_components/AdsCampaignDetailsModal.tsx": "69bdb35a4a43b705d8a82c3c90ab6bf77143dbb3d81e399d47b5e5dd05bcf6f5",
@@ -898,7 +899,7 @@
     "lib/aiProfessionalGenerationContext.ts": "be7dd89220461c077556dcfb34ee4b7648c162c6983924a2835e3d7cf2c90b42",
     "lib/aiPromptBudget.ts": "b9e856772c008e3a1bce85731d9a7b8d7e7051ead508fa285e40edbbeee168ad",
     "lib/aiUsageQuota.ts": "58e439183e238f89bface3100bfb18b9e2a190ee3ac28071614325f8a156ed2b",
-    "lib/aiVideoKlingApi.ts": "3b2258e526fb8bcb31c389eba057e80dd11be66c75507c04d970a95182326914",
+    "lib/aiVideoKlingApi.ts": "2bd29c0e7e8670e7154403acae0d67f9abcffb6a6f4a8d880597f7a6aa218510",
     "lib/aiVideoProvider.ts": "ed80695acce1af4dfdd150277ccaccf340e78287ee41aea48029c94fb86408d1",
     "lib/aiVideoProviderGateway.ts": "7403f89d46039dceb651573782234c0045e1ec0911eb8a91c17edc2e40ed4793",
     "lib/aiVideoProviderGoogleOmni.ts": "1cc311cb84a5b4a706b91ee859186806bfd28cb7ece57fe13e3594df8cbeb906",
@@ -1172,7 +1173,7 @@
     "lib/inrAssistantChannelTools.ts": "03931df536915478705aff248cdc84bdefbdc13d782687411455abd41c98e5f5",
     "lib/inrAssistantClientContext.ts": "82ad0a2dfba823ecef2609c78d0df92562f5dcf6b521bac3117fff635b446492",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
-    "lib/inrAssistantCodeIndex.generated.ts": "520525e9dc7666d49f302196a7eaf7620738bb00bcaadac16eaa8d605025db58",
+    "lib/inrAssistantCodeIndex.generated.ts": "f27af9c35037ff49517e2540878a26b73e6c2b5afa2ca28f4be3ae0d64da16cf",
     "lib/inrAssistantCommandRegistry.ts": "e49c619e20da3d2f1406e3c281ae9f81d979861334462dea703f95b9f4cb8a0d",
     "lib/inrAssistantCommercialTools.ts": "710efc738423e0d0405b2401342b064cdf11cebf6912f64b2a4b085d428111ab",
     "lib/inrAssistantCommunicationTools.ts": "8815a4a3433dbb2197cc7b584afd7d4eb97d342435596992ae6f3be2bb323eed",
@@ -7493,6 +7494,18 @@
         "app/dashboard/fideliser/page.tsx#PublishDraftHeaderMenu:1479f237fff970ef:1",
         "app/dashboard/fideliser/page.tsx#button:4347dbdaceaaf747:1",
         "app/dashboard/fideliser/page.tsx#button:54bf633d6b99271e:1"
+      ]
+    },
+    "app/dashboard/kling-control-test/page.tsx": {
+      "disposition": "infrastructure",
+      "reason": "Diagnostic temporaire d’un seul essai synthétique Kling : rendu uniquement en Preview pour son compte propriétaire fixe. Aucun lancement de génération et aucun accès en production ou pour un autre compte.",
+      "gateFiles": [
+        "app/dashboard/kling-control-test/page.tsx"
+      ],
+      "gateAnchor": "if (process.env.VERCEL_ENV !== \"preview\") notFound();",
+      "sourceDigest": "70cf9f6a12989c66bfe9fc5b55928b7667c9e2e40d0957d03ceed098fe8da714",
+      "controlIds": [
+        "app/dashboard/kling-control-test/page.tsx#a:38a44d8b0445414e:1"
       ]
     },
     "app/dashboard/mails/MailboxClient.tsx": {

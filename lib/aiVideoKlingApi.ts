@@ -15,6 +15,7 @@ export type KlingVideoRequest = {
 export type KlingVideoTask = {
   id: string; status: "submitted" | "processing" | "succeeded" | "failed";
   outputs: { type: string; url: string; duration: number }[];
+  createdAt?: number; updatedAt?: number;
 };
 
 /** Never retain supplier messages, which can contain private URLs or input text. */
@@ -90,7 +91,11 @@ export function createKlingApiClient(options: {
     const taskId = id(data.id);
     if (expectedId && expectedId !== taskId) throw new KlingApiError("task_scope_invalid");
     if (!["submitted", "processing", "succeeded", "failed"].includes(String(data.status))) throw new KlingApiError("response_invalid");
-    return { id: taskId, status: data.status as KlingVideoTask["status"], outputs: Array.isArray(data.outputs)
+    const timestamp = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined;
+    return { id: taskId, status: data.status as KlingVideoTask["status"],
+      ...(timestamp(data.create_time) ? { createdAt: timestamp(data.create_time) } : {}),
+      ...(timestamp(data.update_time) ? { updatedAt: timestamp(data.update_time) } : {}),
+      outputs: Array.isArray(data.outputs)
       ? data.outputs.filter(raw => object(raw).type === "video").map(raw => {
         const output = object(raw);
         return { type: "video", url: safeUrl(output.url), duration: Number(output.duration) };

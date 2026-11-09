@@ -809,7 +809,7 @@
         "lib/aiMediaSoundtrackDefinitions.ts": "4da4fc754f542b7b43d74b5aa27f30de9cc33756ef57a7201fe4292f6fa2b924",
         "lib/aiMediaVideoClientOptions.ts": "a6c1dd77fb096aede945d8def2c3fe334a2ffb1f284c56c276d5da343cfdceb4",
         "lib/aiMediaVideoSpeechBudget.ts": "cd596e78a82629816542bb93f679867bc393e3f2d8dc974f7112b06d0280f15a",
-        "lib/aiVideoKlingApi.ts": "3b2258e526fb8bcb31c389eba057e80dd11be66c75507c04d970a95182326914",
+        "lib/aiVideoKlingApi.ts": "2bd29c0e7e8670e7154403acae0d67f9abcffb6a6f4a8d880597f7a6aa218510",
         "lib/aiVideoProvider.ts": "ed80695acce1af4dfdd150277ccaccf340e78287ee41aea48029c94fb86408d1",
         "lib/aiVideoProviderGateway.ts": "7403f89d46039dceb651573782234c0045e1ec0911eb8a91c17edc2e40ed4793",
         "lib/aiVideoProviderKling.ts": "5682530013991693011fe248d3f621f4886abcad583622a0f400a8311e3e93c7",
