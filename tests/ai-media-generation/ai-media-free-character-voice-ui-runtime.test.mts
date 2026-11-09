@@ -118,7 +118,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   class FakeElement { isConnected = true; focus() { document.activeElement = this; } click() {} pause() {} showModal() {} close() {} getBoundingClientRect() { return { left: 0, top: 0, right: 560, bottom: 560 }; } }
   const document = { body: {}, activeElement: null as FakeElement | null };
   const commitRefs = (child: Element) => { for (const node of elements(child)) if (typeof node.type === "string" && node.props.ref && typeof node.props.ref === "object") { const ref = node.props.ref as { current: unknown }; ref.current ||= new FakeElement(); } };
-  const browser = { addEventListener(name: string, callback: () => void) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name)!.add(callback); }, removeEventListener(name: string, callback: () => void) { listeners.get(name)?.delete(callback); }, requestAnimationFrame() { return 1; }, setTimeout, clearTimeout };
+  const browser = { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }), addEventListener(name: string, callback: () => void) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name)!.add(callback); }, removeEventListener(name: string, callback: () => void) { listeners.get(name)?.delete(callback); }, requestAnimationFrame() { return 1; }, setTimeout, clearTimeout };
   let musicCatalogueMode: "ready" | "error" = "ready", musicCatalogueCalls = 0, musicPauses = 0, musicPlaybackDeferred = false;
   let finishMusicPlayback: (() => void) | undefined, musicAudioRef: { current: unknown } | undefined;
   const musicPlays: string[] = [];
@@ -142,7 +142,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   function load(file: string) {
     const output = ts.transpileModule(read(file), { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
     const record = { exports: {} as { default: (props: Props) => Element } };
-    new Function("module", "exports", "require", "window", "fetch", "localStorage", "document", "HTMLElement", output)(record, record.exports, (id: string) => { if (id === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy; if (id.endsWith(".module.css")) return css; assert.ok(modules.has(id), `Unexpected actual Free dependency ${id}`); return modules.get(id); }, browser, fetch, localStorage, document, FakeElement);
+    new Function("module", "exports", "require", "window", "fetch", "localStorage", "document", "HTMLElement", "ResizeObserver", output)(record, record.exports, (id: string) => { if (id === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy; if (id.endsWith(".module.css")) return css; assert.ok(modules.has(id), `Unexpected actual Free dependency ${id}`); return modules.get(id); }, browser, fetch, localStorage, document, FakeElement, class { observe() {} disconnect() {} });
     return record.exports;
   }
   const voice = load("app/dashboard/_components/MediaCharacterVoiceInput.tsx"); modules.set("./MediaCharacterVoiceInput", { __esModule: true, ...voice });

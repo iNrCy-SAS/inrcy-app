@@ -1983,7 +1983,7 @@
     "tests/ai-assistant/studio-recovery-local-controls.test.mts": "ec45a9469686c0171bcf4fd2c41c18aedd423ad5019b1875d0ed63df58e232c8",
     "tests/ai-assistant/studio-soundtrack-controls.test.mts": "9f508626dcbbb1588bb8d53cdd05647c986b9b58fd3a8c44ba71e6e242b186cc",
     "tests/ai-assistant/ui-tools.test.mts": "f10c537f9b2f2468ee242507e2e9a6423ac0fb8ce28b3c23dcc97dcfe07e8287",
-    "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts": "c1a2c2e3f1c50ef75d907f6fa79dbfd68c706378cca8dfefd14091afb9044808",
+    "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts": "150ab2be3f3483b365fea3aa2074a3f86f24ec34e66fea9100d02327253c66c8",
     "tests/ai-media-generation/ai-media-free-generation-prompt-runtime.test.mts": "c9f756b5bdd136a4942dddb773c907090312d42529d5c8d4d36f21a7df47b0b7",
     "tests/ai-media-generation/ai-media-free-grok-voiceover-runtime.test.mts": "238e17a9fe716346f3d2c857e475477d2e5bdb87137965d279f7ca502b5419f6",
     "tests/ai-media-generation/ai-media-free-identity-auto-master-frame-runtime.test.mts": "ef12227d76f76bcb523aa2c229c4bc737fb7b9c1f570721cd390672f9a1a7247",
