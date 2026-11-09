@@ -12,6 +12,21 @@ const server = load<typeof import("../../lib/aiMediaCreditQuoteServer.ts")>("lib
 });
 const voiceInput = { kind: "video", creationMode: "free", inputMode: "essential", teamVideoSpeechMode: "characters", durationSeconds: 8, inspirationImagesCount: 2, hasProvidedCharacterVoice: true };
 
+test("Kling quotes original photo references and supplied voices at its own tariff, never a composed master frame", () => {
+  const input = { ...voiceInput, videoEngine: "kling", videoResolution: "720p", identityMode: "reference_team" };
+  const quote = pricing.quoteAiMediaCredits(input);
+  assert.equal(quote.totalCredits, 137); assert.equal(quote.engine, "kling");
+  assert.equal(quote.breakdown.find(line => line.key === "preparation")?.credits, 7);
+  assert.equal(pricing.estimateAiMediaVideoSupplierCostMicroUsd(input), 1_300_000);
+  assert.equal(pricing.quoteAiMediaCredits({ ...input, videoResolution: "1080p" }).totalCredits, 201);
+});
+
+test("an unconfigured Kling key blocks the server quote before any generation reservation", () => {
+  const previous = process.env.KLING_API_KEY; delete process.env.KLING_API_KEY;
+  try { assert.throws(() => server.createAiMediaServerQuote("account-test", { ...voiceInput, videoEngine: "kling" }), /kling_credentials_missing/); }
+  finally { if (previous !== undefined) process.env.KLING_API_KEY = previous; }
+});
+
 test("HeyGen supplied voices select its reference tariff and image capacity without modifying legacy I2V", () => {
   const base = models.getAiMediaVideoModel("heygen");
   const voiced = models.getAiMediaVideoModelForCharacterVoice("heygen", true);
@@ -34,7 +49,7 @@ test("retired HeyGen tariffs remain absent from new engine choices with AI or su
 });
 
 test("voice quotes preserve original references and charge only the free creative director, never a composed frame", () => {
-  assert.equal(pricing.AI_MEDIA_CREDIT_TARIFF_VERSION, "inrstudio-media-credits-2026-11-v5");
+  assert.equal(pricing.AI_MEDIA_CREDIT_TARIFF_VERSION, "inrstudio-media-credits-2026-11-v6");
   for (const videoEngine of ["wan27", "wan3", "heygen"]) {
     const quote = pricing.quoteAiMediaCredits({ ...voiceInput, videoEngine });
     assert.equal(quote.totalCredits, videoEngine === "heygen" ? 95 : 87);

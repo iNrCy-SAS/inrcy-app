@@ -55,7 +55,7 @@
   },
   "app/dashboard/_components/MediaEngineCreditControls.tsx": {
     "disposition": "basic",
-    "reason": "Révision explicite : durée unique en Studio, paire canonique dérivée du catalogue disponible et acquittée après les deux setters natifs. Wan 3 retiré du catalogue actif, Wan 2.6/2.7 conservés ; autres parcours avec scènes natives. Aucun débit ni consentement par ces choix.",
+    "reason": "Révision explicite : avec des vocaux de personnages, le sélecteur montre les moteurs autorisés du catalogue actif, Wan 2.7 et Kling Omni, avec leurs qualités. Le changement explicite conserve les setters natifs, l'ajustement de durée et la remise à zéro du consentement par l'appelant ; aucun débit ni envoi de média par cette sélection. Sans vocal personnel, le catalogue courant reste proposé.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -63,7 +63,7 @@
   },
   "app/dashboard/_components/MediaFreeGenerator.tsx": {
     "disposition": "basic",
-    "reason": "Révision explicite : snapshot natif avec durée automatique, aucun nouveau contrôle. Genres/styles seulement en voix off IA même Exact vide ; champs masqués et anciens moteurs retirés refusés sans acquittement. Références, vocaux, consentements et verrous restent natifs.",
+    "reason": "Revue explicite Kling : le moteur conserve les controles natifs, les affectations photo/vocal et le consentement fournisseur. Un extrait de moins de 5 secondes bloque le devis et la generation avec un message localise ; aucun nouvel envoi ni controle interactif.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -79,7 +79,7 @@
   },
   "app/dashboard/_components/MediaGenerator.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Revue explicite Kling : parcours partage conserve, validation native du vocal de 5 a 10 secondes et message localise avant generation. Les restrictions du forfait, affectations et consentements restent applicables.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],

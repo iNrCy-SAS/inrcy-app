@@ -79,6 +79,7 @@ export async function getAiMediaCharacterVoiceSignedUrls(args: {
     if (image.voiceMode !== "provided") { validated.push(null); continue; }
     const sample = image.voiceSample!;
     const { bucket, durationSeconds } = await readAiMediaCharacterVoice({ ...args, path: sample.path });
+    if (args.videoEngine === "kling" && durationSeconds < 5) throw new Error("ai_media_character_voice_kling_duration_invalid");
     actualDurationSeconds += durationSeconds;
     if (args.videoEngine === "wan3" && actualDurationSeconds > AI_MEDIA_CHARACTER_VOICE_WAN3_MAX_TOTAL_SECONDS) {
       throw new Error("ai_media_character_voice_total_duration_invalid");

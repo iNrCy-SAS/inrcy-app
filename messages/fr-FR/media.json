@@ -1032,7 +1032,7 @@
   "ai_generator_character_voice_file_error": "Choisissez un fichier MP3 ou WAV de 3 Mo maximum.",
   "ai_generator_character_voice_duration_error": "Le vocal doit durer entre 1 et 10 secondes.",
   "ai_generator_character_voice_sample_missing": "Insérez un vocal pour chaque personnage en voix fournie.",
-  "ai_generator_character_voice_engine_required": "Voix fournie : choisissez Wan 2.7.",
+  "ai_generator_character_voice_engine_required": "Voix fournie : choisissez Wan 2.7 ou Kling 4.0 Omni.",
   "ai_generator_character_voice_speech_required": "Les voix fournies sont utilisées en mode Personnages.",
   "ai_generator_character_voice_switch_characters": "Utiliser le son Personnages",
   "ai_generator_character_voice_preview": "Écouter le vocal de ce personnage",
@@ -1115,5 +1115,12 @@
   "ai_generator_voice_pool_select_narration": "Importez un vocal et choisissez-le pour la voix off.",
   "ai_generator_narration_voice_reference_limits": "Voix off réelle : utilisez un vocal de référence de 5 à 10 secondes.",
   "ai_generator_narration_voice_consent_required": "Confirmez l’autorisation de recréer cette voix dans les réglages du vocal.",
-  "ai_generator_voice_pool_unassigned": "Non affecté"
+  "ai_generator_voice_pool_unassigned": "Non affecté",
+  "ai_generator_model_description_kling": "Personnages et voix de référence, dialogues en français et scènes complexes.",
+  "ai_generator_engine_info_video_use_kling": "Faire dialoguer des personnages avec leurs voix, dans des scènes mises en scène.",
+  "ai_generator_engine_info_video_limits_kling": "Jusqu’à 30 s, 5 images et 3 voix dans le Studio. Vocaux propres de 5 à 10 s. La voix sert de référence pour les nouvelles paroles.",
+  "ai_generator_character_voice_kling_reference_limits": "Pour Kling, utilisez un vocal propre de 5 à 10 secondes pour chaque personnage.",
+  "ai_generator_model_description_kling-flash": "Images et dialogues natifs avec voix IA.",
+  "ai_generator_engine_info_video_use_kling-flash": "Créer des scènes avec plusieurs personnages à partir d’images, avec des voix IA.",
+  "ai_generator_engine_info_video_limits_kling-flash": "4 à 20 s, 720p, jusqu’à 5 images. Voix IA uniquement ; pour les vocaux fournis, choisissez Kling 4.0 Omni."
 }

@@ -15,6 +15,7 @@ import type { AiGenerateJsonOptions } from "../../lib/aiGatewayClient.ts";
 import type { NormalizedAiGenerationProfile } from "../../lib/aiGenerationProfile.ts";
 import type { AiMediaCreativePlan } from "../../lib/aiMediaCreativePlan.ts";
 import type { AiVideoProviderGenerationArgs } from "../../lib/aiVideoProviderTypes.ts";
+import { evaluateAiMediaNativeDialogue } from "../../lib/aiMediaNativeDialogueQa.ts";
 
 const profile = {
   business: { companyName: "Atelier Test", services: [], customerTypologies: [], strengths: [], interventionZones: [] },
@@ -185,6 +186,81 @@ test("a sign that says exact words remains visible text even when voiceover is e
     assert.deepEqual(sent.audio_only_quotes, []);
     assert.deepEqual(sent.exact_dialogue, []);
   }
+});
+
+function coupleRequest(videoEngine = "kling-flash", overrides: Record<string, unknown> = {}) {
+  return request({ videoEngine, durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false,
+    identityConsent: true, teamVideoProviderConsent: videoEngine,
+    freePrompt: "L'homme en bleu parle, puis la femme en vert répond. Deux voix françaises distinctes.",
+    inspirationImages: ["character", "environment", "character"].map((role, index) => ({
+      data: "A".repeat(64), mimeType: "image/png", role, usage: "required", voiceMode: "ai",
+      ...(role === "character" ? { characterIndex: index === 0 ? 1 : 2 } : {}),
+    })), ...overrides });
+}
+
+const coupleTurns = [
+  { reference: 1, speaker: "homme en bleu", text: "Nous préparons vos projets avec soin." },
+  { reference: 3, speaker: "femme en vert", text: "Et nous restons à votre écoute." },
+];
+
+test("automatic Wan and Kling dialogue retains both speakers within one shot and audits both lines", async () => {
+  for (const engine of ["wan27", "kling", "kling-flash"]) {
+    const input = coupleRequest(engine);
+    const runtime = loadPlanner({ direction: "Un couple échange dans le jardin, face caméra.", scenes: [
+      { visualBrief: "L'homme parle puis la femme lui répond, l'autre écoute.", spokenLine: "Copie à remplacer.", spokenTurns: coupleTurns },
+    ] });
+    const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile });
+    const expected = coupleTurns.map(turn => turn.text).join(" ");
+    assert.deepEqual(plan.scenes[0].spokenTurns, coupleTurns);
+    assert.equal(plan.scenes[0].spokenLine, expected);
+    assert.deepEqual(prompts.resolveAiMediaFreeDialogueSequence({ request: input, plan }), [expected]);
+    assert.deepEqual(JSON.parse(runtime.calls[0].input).character_voices.map((voice: { reference: number }) => voice.reference), [1, 3]);
+    const transport = prompts.buildAiMediaFreeVideoScenePrompt(providerArgs(input, plan, []), 0, 8);
+    assert.match(transport, engine === "wan27" ? /CHARACTER_1: homme en bleu, the person from Image 1/ : /CHARACTER_1: homme en bleu, the person from @image_1/);
+    assert.match(transport, engine === "wan27" ? /THEN CHANGE SPEAKER.*CHARACTER_3: femme en vert, the person from Image 3/ : /THEN CHANGE SPEAKER.*CHARACTER_3: femme en vert, the person from @image_3/);
+    for (const turn of coupleTurns) assert.equal(transport.split(turn.text).length, 2, "Each turn is submitted exactly once.");
+    assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine: expected, transcript: expected }).status, "passed");
+    const missingReply = evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine: expected, transcript: coupleTurns[0].text });
+    assert.ok(missingReply.issues.includes("spoken_dialogue_incomplete"), "The old one-speaker Flash clip must fail a two-turn expectation.");
+  }
+});
+
+test("automatic multi-character speech shares one total duration budget", async () => {
+  const input = coupleRequest();
+  const runtime = loadPlanner({ direction: "Le couple présente son activité dans le jardin.", scenes: [{
+    visualBrief: "L'homme et la femme parlent successivement.", spokenLine: "Brouillon.", spokenTurns: coupleTurns.map(turn => ({
+      ...turn, text: "Nous accompagnons chaque projet avec une approche attentive et humaine.",
+    })),
+  }] });
+  await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile }), /ai_media_dialogue_budget/);
+});
+
+test("automatic dialogue never assigns a turn to an environment reference", async () => {
+  const input = coupleRequest();
+  const runtime = loadPlanner({ direction: "Le couple présente son activité dans le jardin.", scenes: [{
+    visualBrief: "La femme répond à son conjoint.", spokenLine: "Brouillon.", spokenTurns: [{ ...coupleTurns[1], reference: 2 }],
+  }] });
+  await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile }), /ai_media_dialogue_turns_invalid/);
+});
+
+test("multiple photos do not force a deliberately silent character to speak", async () => {
+  const input = coupleRequest("kling-flash", { freePrompt: "Seule la femme parle. L'homme écoute en silence." });
+  const runtime = loadPlanner({ direction: "La femme présente son activité, son conjoint écoute.", scenes: [{
+    visualBrief: "La femme parle seule face caméra.", spokenLine: coupleTurns[1].text, spokenTurns: [coupleTurns[1]],
+  }] });
+  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile });
+  assert.deepEqual(plan.scenes[0].spokenTurns, [coupleTurns[1]]);
+});
+
+test("multi-character Kling keeps exact user speech authoritative", async () => {
+  const spokenScript = "  Avec iNrCy, nous avançons ensemble.  ";
+  const input = coupleRequest("kling", { spokenScript });
+  const runtime = loadPlanner({ direction: "Le couple présente son activité dans le jardin.", scenes: [{
+    visualBrief: "L'homme parle, la femme écoute.", spokenLine: "Réplique automatique à ignorer.",
+  }] });
+  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile });
+  assert.equal(plan.scenes[0].spokenLine, spokenScript);
+  assert.equal(plan.scenes[0].spokenTurns, undefined);
 });
 
 test("character dialogue keeps its exact line and the image plan remains unchanged", async () => {

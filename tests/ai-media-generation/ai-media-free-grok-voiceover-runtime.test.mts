@@ -148,7 +148,7 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
       return canonicalPrompt;
     }, getAiMediaPromptOutputSpec: () => ({ kind: "video" }) }],
     ["@/lib/aiMediaSensitiveText", sensitive], ["@/lib/aiMediaVisibleContact", { isAiMediaProfilePhoneDisplayRequested: () => false, cleanAiMediaProfilePhone: () => "" }],
-    ["@/lib/aiVideoProvider", { generateOriginalAiVideoClips: async (args: Row) => {
+    ["@/lib/aiVideoProvider", { preflightKlingAiVideoAccess: async () => { events.push("kling-preflight"); }, generateOriginalAiVideoClips: async (args: Row) => {
       events.push("video"); videoCalls.push(args);
       if (failure === "video" && (!options.primaryVideoFailureOnly || videoCalls.length === 1)) throw (videoCalls.length === 1 ? options.videoError : options.fallbackVideoError) || new Error(videoCalls.length === 1 ? "selected_video_unavailable" : "fallback_video_unavailable");
       return { provider: options.nativeVideoProvider || "vercel-ai-gateway", model: "test-grok", warnings: [], estimatedCostMicroUsd: 0,
@@ -255,6 +255,7 @@ for (const automaticSpeech of [true, false]) test(`Wan image + supplied voice re
     const clips = call.clips as Row[];
     assert.equal(clips[0].buffer, firstClips[0].buffer);
     assert.equal(clips[0].expectedLine, firstClips[0].expectedLine);
+    assert.equal(clips[0].automaticDialogueContext, automaticSpeech ? original.freePrompt : undefined);
   }
   assert.equal(env.ttsCalls.length, 0);
   assert.equal(env.localFallbackCalls.length, 0);
@@ -591,7 +592,7 @@ test("all other free engines prepare one TTS before video and mute native audio;
     assert.equal(env.ttsCalls.length, 1, engine); assert.equal((env.videoCalls[0].request as contracts.AiMediaGenerationRequest).withNarration, false, engine);
     assert.equal(env.seedCalls.length, 0, engine);
     assert.equal(env.videoCalls[0].nativeNarrationLines, undefined);
-    assert.deepEqual(env.events, ["copy", "tts", "audio-preflight", "video", "compose", "save"]);
+    assert.deepEqual(env.events, [...(["kling", "kling-flash"].includes(engine) ? ["kling-preflight"] : []), "copy", "tts", "audio-preflight", "video", "compose", "save"]);
     assert.equal(env.composeCalls[0].narration, audio);
     assert.equal(env.composeCalls[0].nativeAudioMode, "mute");
     assert.equal((env.contractCalls[0].request as contracts.AiMediaGenerationRequest).withNarration, false);

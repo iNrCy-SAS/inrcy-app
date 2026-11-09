@@ -45,7 +45,7 @@ import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 import StudioMusicLibrary from "./StudioMusicLibrary";
 import StudioVoicePool, { type StudioVoiceProfile } from "./StudioVoicePool";
 import { deleteCharacterVoiceSample, getCharacterVoiceSelectionState } from "@/lib/aiMediaCharacterVoiceClient";
-import { AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, exceedsAiMediaCharacterVoiceEngineDuration, isAiMediaCharacterVoiceEngine } from "@/lib/aiMediaCharacterVoices";
+import { AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, exceedsAiMediaCharacterVoiceEngineDuration, hasTooShortAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine } from "@/lib/aiMediaCharacterVoices";
 import MediaPromptHelp from "./MediaPromptHelp";
 import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace";
 import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
@@ -343,6 +343,7 @@ export default function MediaFreeGenerator({
   }, kind === "video" && ((!voicePoolOpen && aiVoiceSettingsAvailable && editorAvailable && !stopConfirmOpen) || mediaSettingsDialog === "audio"), locked);
   const wan3VoiceDurationExceeded = kind === "video" && speechMode === "characters" && exceedsAiMediaCharacterVoiceEngineDuration("wan3", projectedReferences);
   const characterVoiceDurationExceeded = kind === "video" && speechMode === "characters" && exceedsAiMediaCharacterVoiceEngineDuration(selectedVideoEngine, projectedReferences);
+  const characterVoiceTooShort = kind === "video" && speechMode === "characters" && hasTooShortAiMediaCharacterVoice(selectedVideoEngine, projectedReferences);
   const counter = quota?.credits;
   const maxDuration = quota?.videoMaxDurationSeconds ?? 30;
   const durations = getMediaVideoDurationChoices(maxDuration);
@@ -351,7 +352,9 @@ export default function MediaFreeGenerator({
     (reference) =>
       reference.role === "character" && reference.usage === "required"
   );
-  const realVoiceNeedsPerson = kind === "video" && speechMode === "characters" && voiceSourcePreference === "provided" && !selectedVoiceReference;
+  // Pool assignments already identify their character; an editor selection is
+  // needed only while choosing a supplied voice with no existing assignment.
+  const realVoiceNeedsPerson = kind === "video" && speechMode === "characters" && voiceSourcePreference === "provided" && !selectedVoiceReference && !characterVoiceSelection.hasProvidedVoice;
   const identityRequired = personReferences.length > 0 || characterVoiceSelection.hasProvidedVoice;
   const identityMode = personReferences.length > 1 ? "reference_team" : personReferences.length === 1 ? "professional" : "auto";
   const teamConsentRequired = kind === "video" && personReferences.length > 1;
@@ -424,6 +427,7 @@ export default function MediaFreeGenerator({
     : narrationVoiceTooShort ? t("ai_generator_narration_voice_reference_limits")
     : narrationVoiceUnauthorized ? t("ai_generator_narration_voice_consent_required")
     : characterVoiceSelection.missingSample ? t("ai_generator_character_voice_sample_missing")
+    : characterVoiceTooShort ? t("ai_generator_character_voice_kling_reference_limits")
     : characterVoiceSpeechConflict ? t("ai_generator_character_voice_speech_required")
     : characterVoiceDurationExceeded ? t("ai_generator_character_voice_wan3_duration_limit") : "";
   const referencePhotoMissing = kind === "video" && references.length === 0 && !videoModel.supportsTextToVideo;
@@ -440,6 +444,7 @@ export default function MediaFreeGenerator({
     : narrationVoiceTooShort ? t("ai_generator_narration_voice_reference_limits")
     : narrationVoiceUnauthorized ? t("ai_generator_narration_voice_consent_required")
     : characterVoiceSelection.missingSample ? t("ai_generator_character_voice_sample_missing")
+    : characterVoiceTooShort ? t("ai_generator_character_voice_kling_reference_limits")
     : characterVoiceSpeechConflict ? t("ai_generator_character_voice_speech_required")
     : characterVoiceDurationExceeded ? t("ai_generator_character_voice_wan3_duration_limit")
     : speechInvalid ? speechError : spokenScriptConflict ? t("ai_generator_spoken_script_silent_help") : "";
@@ -453,7 +458,7 @@ export default function MediaFreeGenerator({
     teamVideoSpeechMode: requestSpeechMode,
     ...(kind === "video" ? { withSubtitles: effectiveWithSubtitles } : {}),
     ...(kind === "video" && spokenScriptOpen ? { spokenScript } : {}),
-  }, quota, !durationUnavailable && referenceCompatible && briefCompatible && !providedVoiceWithEmptyScript && !narrationVoiceMissing && !narrationVoiceTooShort && !narrationVoiceUnauthorized && (kind !== "video" || !speechInvalid && !misplacedSpeechBlocking && promptReady));
+  }, quota, !durationUnavailable && referenceCompatible && briefCompatible && !providedVoiceWithEmptyScript && !characterVoiceTooShort && !narrationVoiceMissing && !narrationVoiceTooShort && !narrationVoiceUnauthorized && (kind !== "video" || !speechInvalid && !misplacedSpeechBlocking && promptReady));
   const creditInsufficient = creditQuote.insufficient;
   const modelRecommendation = recommendAiMediaModel({ kind, format: fixedFormat || format, operation: "generate", brief: effectivePrompt,
     ...(source === "studio" ? { recommendationContext: "studio-free" as const } : {}),
@@ -479,6 +484,7 @@ export default function MediaFreeGenerator({
     !providedVoiceWithEmptyScript &&
     !narrationVoiceMissing && !narrationVoiceTooShort && !narrationVoiceUnauthorized &&
     !characterVoiceSelection.missingSample &&
+    !characterVoiceTooShort &&
     !characterVoiceSpeechConflict &&
     !characterVoiceDurationExceeded &&
     !spokenScriptConflict &&

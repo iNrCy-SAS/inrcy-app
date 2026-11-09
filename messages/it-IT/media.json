@@ -1032,7 +1032,7 @@
   "ai_generator_character_voice_file_error": "Scegli un file MP3 o WAV di massimo 3 MB.",
   "ai_generator_character_voice_duration_error": "Il campione vocale deve durare da 1 a 10 secondi.",
   "ai_generator_character_voice_sample_missing": "Carica un campione per ogni personaggio con voce fornita.",
-  "ai_generator_character_voice_engine_required": "Per usare una voce fornita, scegli Wan 2.7.",
+  "ai_generator_character_voice_engine_required": "Per una voce fornita, scegli Wan 2.7 o Kling 4.0 Omni.",
   "ai_generator_character_voice_speech_required": "Le voci fornite vengono utilizzate nella modalità audio Personaggi.",
   "ai_generator_character_voice_switch_characters": "Usa l’audio Personaggi",
   "ai_generator_character_voice_preview": "Ascolta il campione vocale di questo personaggio",
@@ -1115,5 +1115,12 @@
   "ai_generator_voice_pool_select_narration": "Importa una registrazione e selezionala per la voce fuori campo.",
   "ai_generator_narration_voice_reference_limits": "Voce fuori campo reale: usa una registrazione di riferimento da 5 a 10 secondi.",
   "ai_generator_narration_voice_consent_required": "Conferma l’autorizzazione a ricreare questa voce nelle impostazioni della registrazione.",
-  "ai_generator_voice_pool_unassigned": "Non assegnata"
+  "ai_generator_voice_pool_unassigned": "Non assegnata",
+  "ai_generator_model_description_kling": "Personaggi e voci di riferimento, dialoghi in francese e scene complesse.",
+  "ai_generator_engine_info_video_use_kling": "Creare scene con personaggi che parlano con le proprie voci di riferimento.",
+  "ai_generator_engine_info_video_limits_kling": "Fino a 30 s, 5 immagini e 3 voci in Studio. Campioni vocali puliti di 5–10 s. I campioni guidano la voce dei nuovi dialoghi.",
+  "ai_generator_character_voice_kling_reference_limits": "Per Kling, usa un campione vocale pulito di 5–10 secondi per ogni personaggio.",
+  "ai_generator_model_description_kling-flash": "Immagini di riferimento e dialoghi nativi con voci IA.",
+  "ai_generator_engine_info_video_use_kling-flash": "Creare scene con più personaggi da immagini di riferimento e voci IA.",
+  "ai_generator_engine_info_video_limits_kling-flash": "Da 4 a 20 s, 720p, fino a 5 immagini. Solo voci IA; per campioni vocali forniti, scegli Kling 4.0 Omni."
 }

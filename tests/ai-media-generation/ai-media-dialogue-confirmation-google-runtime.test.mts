@@ -26,6 +26,8 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
   expectedContinuation?: boolean;
   thirdTranscript?: string;
   pronunciationStatus?: "verified" | "rejected" | "unavailable" | "invalid" | "deadline";
+  automaticDialogueContext?: string;
+  automaticStatus?: "passed" | "rejected" | "unavailable" | "invalid" | "deadline";
 } = {}) {
   const expectedLine = overrides.expectedLine ?? line;
   const firstTranscript = overrides.firstTranscript ?? cut;
@@ -58,9 +60,17 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
         calls.push({ body, options });
         if (overrides.firstReadDeadline && calls.length === 1) { qaDeadline.abort(); throw new DOMException("QA deadline", "AbortError"); }
         if (overrides.firstReadThrows && calls.length === 1) throw new TypeError("PRIVATE_TRANSPORT_ERROR");
-        assert.ok(calls.length <= 3, "At most three bounded audio checks are allowed.");
+        assert.ok(calls.filter(call => (call.body.input as Array<{ type: string }>).some(part => part.type === "audio")).length <= 3, "At most three bounded audio checks are allowed.");
         const prompt = (body.input as Array<{ type: string; text?: string }>).filter((part) => part.type === "text").map(part => part.text).join("\n");
         const schema = (body.response_format as { schema: { properties: Record<string, unknown> } }).schema;
+        if (schema.properties.status && !(body.input as Array<{ type: string }>).some(part => part.type === "audio")) {
+          assert.ok(options.timeout <= 3000); assert.equal(body.store, false);
+          const data = JSON.parse(((body.input as Array<{ text?: string }>).at(-1)!).text!);
+          assert.equal(data.expectedLine, expectedLine); assert.equal(data.transcript, firstTranscript);
+          assert.equal(data.brief, overrides.automaticDialogueContext);
+          if (overrides.automaticStatus === "deadline") { qaDeadline.abort(); throw new DOMException("QA deadline", "AbortError"); }
+          return { output_text: JSON.stringify({ status: overrides.automaticStatus ?? "unavailable" }), usage: { total_input_tokens: 10, total_output_tokens: 20, total_tokens: 30 } };
+        }
         if (schema.properties.status) {
           assert.equal(calls.length, 3, "Name verification follows two blind transcripts.");
           assert.ok(!prompt.includes(expectedLine), "Name verification receives no full script.");
@@ -98,9 +108,35 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
     assert.ok(id.startsWith("node:"), `Unexpected production dependency: ${id}`); return native(id);
   }, { env: { GEMINI_API_KEY: "offline-test-only" } }, { timeout: () => qaDeadline.signal, any: AbortSignal.any });
   return { calls, reservations, extractionArgs, costs, cleaned: () => cleaned, extractions: () => extractions,
-    audit: (durationSeconds = 8) => record.exports.auditAiMediaNativeDialogueWithGoogle({ accountId: "test-account", language: "fr", pronunciationAliases: overrides.pronunciationAliases, clips: [{ sceneIndex: 0, buffer: Buffer.from("synthetic-video"), mediaType: "video/mp4", durationSeconds, expectedLine, expectedContinuation: overrides.expectedContinuation, checkFinalFrameLayout: overrides.checkFinalFrameLayout, sourceStartSeconds: overrides.sourceStartSeconds }] }),
+    audit: (durationSeconds = 8) => record.exports.auditAiMediaNativeDialogueWithGoogle({ accountId: "test-account", language: "fr", pronunciationAliases: overrides.pronunciationAliases, clips: [{ sceneIndex: 0, buffer: Buffer.from("synthetic-video"), mediaType: "video/mp4", durationSeconds, expectedLine, automaticDialogueContext: overrides.automaticDialogueContext, expectedContinuation: overrides.expectedContinuation, checkFinalFrameLayout: overrides.checkFinalFrameLayout, sourceStartSeconds: overrides.sourceStartSeconds }] }),
   };
 }
+
+test("automatic replies use a bounded text-only coherence check after blind ASR without rendering another video", async () => {
+  const expectedLine = "Nous présentons notre métier avec passion et beaucoup de soin.";
+  const firstTranscript = expectedLine + " Nous accompagnons chaque client du début à la fin.";
+  const h = adapter("still-cut", false, { expectedLine, firstTranscript,
+    automaticDialogueContext: "Un couple présente son activité.", automaticStatus: "passed" });
+  const result = await h.audit();
+  assert.equal(result.status, "passed"); assert.equal(result.clips[0].automaticDialogueVerification, "passed");
+  assert.equal(h.calls.length, 2); assert.equal(h.extractions(), 1); assert.equal(h.cleaned(), 1);
+  assert.equal(h.costs.length, 2); assert.equal(h.reservations.length, 2);
+  assert.equal(h.calls[1].options.maxRetries, 0); assert.ok(h.calls[1].options.timeout <= 3000);
+  assert.equal((h.calls[1].body.input as Array<{ type: string }>).some(part => part.type === "audio"), false);
+  assert.ok(!JSON.stringify(h.calls[0].body).includes(expectedLine));
+  assert.ok(!JSON.stringify(result).includes(firstTranscript));
+});
+
+test("unavailable, malformed and timed-out automatic checks never authorize creative additions", async () => {
+  const expectedLine = "Nous présentons notre métier avec passion et beaucoup de soin.";
+  const firstTranscript = expectedLine + " Nous accompagnons chaque client du début à la fin.";
+  for (const automaticStatus of ["unavailable", "invalid", "deadline"] as const) {
+    const h = adapter("still-cut", false, { expectedLine, firstTranscript,
+      automaticDialogueContext: "Un couple présente son activité.", automaticStatus });
+    assert.equal((await h.audit()).status, "unavailable");
+    assert.equal(h.calls.length, 2); assert.equal(h.extractions(), 1); assert.equal(h.cleaned(), 1);
+  }
+});
 
 test("Google confirmation reuses extracted audio and shares the existing deadline without a new video", async () => {
   const h = adapter("complete"); const result = await h.audit();

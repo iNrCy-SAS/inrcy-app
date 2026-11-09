@@ -56,7 +56,7 @@ export { prepareMediaGenerationImageReference } from "@/lib/mediaGenerationRefer
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 import MediaCharacterVoiceInput from "./MediaCharacterVoiceInput";
 import { deleteCharacterVoiceSample, getCharacterVoiceSelectionState } from "@/lib/aiMediaCharacterVoiceClient";
-import { AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, exceedsAiMediaCharacterVoiceEngineDuration, isAiMediaCharacterVoiceEngine, type AiMediaCharacterVoiceSample } from "@/lib/aiMediaCharacterVoices";
+import { AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, exceedsAiMediaCharacterVoiceEngineDuration, hasTooShortAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, type AiMediaCharacterVoiceSample } from "@/lib/aiMediaCharacterVoices";
 import MediaGenerationCreationWorkspace, { MediaGenerationSettingsTabs } from "./MediaGenerationCreationWorkspace";
 import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
 import MediaQuotaSummary from "./MediaQuotaSummary";
@@ -411,6 +411,7 @@ export default function MediaGenerator({
   const activeVoiceReferences = kind === "video" && mediaSourceMode === "real" ? inspirationImages : [];
   const wan3VoiceDurationExceeded = exceedsAiMediaCharacterVoiceEngineDuration("wan3", activeVoiceReferences);
   const characterVoiceDurationExceeded = exceedsAiMediaCharacterVoiceEngineDuration(selectedVideoEngine, activeVoiceReferences);
+  const characterVoiceTooShort = hasTooShortAiMediaCharacterVoice(selectedVideoEngine, activeVoiceReferences);
 
   useEffect(() => {
     if (!mediaType) return;
@@ -740,6 +741,7 @@ export default function MediaGenerator({
     characterVoiceSelection.missingSample ||
     characterVoiceSpeechConflict ||
     characterVoiceDurationExceeded ||
+    characterVoiceTooShort ||
     Boolean(referenceRoleLimitError) ||
     characterReferenceMissing ||
     identityConsentMissing ||
@@ -2145,6 +2147,7 @@ export default function MediaGenerator({
                 </p>
               ) : null}
               {characterVoiceSelection.missingSample ? <p className={styles.referenceLimitError} role="status">{t("ai_generator_character_voice_sample_missing")}</p> : null}
+              {characterVoiceTooShort ? <p className={styles.referenceLimitError} role="alert">{t("ai_generator_character_voice_kling_reference_limits")}</p> : null}
               {characterVoiceDurationExceeded ? <p className={styles.referenceLimitError} role="alert">{t("ai_generator_character_voice_wan3_duration_limit")}</p> : null}
               {characterVoiceSpeechConflict ? <div className={styles.characterVoiceConflict} role="alert">
                 <p>{t("ai_generator_character_voice_speech_required")}</p>

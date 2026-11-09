@@ -141,7 +141,7 @@ test("both Studio guides retain recovery safeguards and the reviewed automatic-d
       "Annuler la génération", "confirmation distincte", "absence de débit", "Consignes ET Interdictions", "interdictions priment",
       "Basique sans crédits mensuels", "recharges permettent de générer sans changer d’offre", "plans automatiques en Studio Libre",
       "choix explicite conservé", "moteurs disponibles", "Wan 3 et MiniMax H3 retirés de tous les parcours de génération", "Femme/Homme", "Style de voix", "réglages IA si options utiles", "3 vocaux",
-      "voix off sans photo", "Chatterbox hors moteur vidéo", "Personnage vocal : Wan 2.7 seul", "un narrateur actif", "droits à confirmer par le pro", "Import/enregistrement humains",
+      "voix off sans photo", "Chatterbox hors moteur vidéo", "Personnage vocal : Wan 2.7 ou Kling", "un vocal/personne", "Kling : 5 à 10 s, un locuteur", "un narrateur actif", "droits à confirmer par le pro", "Import/enregistrement humains",
       "une resynthèse supplémentaire", "mêmes paroles/vocal", "jamais après erreur réseau/soumission incertaine", "ni substitution de voix",
       "durée mesurée", "départ estimé", "pas d’alignement mot à mot", "≈% vidéo estimés", "sans délai garanti"]) {
       assert.ok(guide.content.toLowerCase().includes(phrase.toLowerCase()), guide.id + ": " + phrase);

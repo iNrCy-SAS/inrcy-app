@@ -40,6 +40,7 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ok: true, quote, credits: presentAiMediaQuotaCounter(quota.credits, unlimited), creditsReady: true }, { headers });
   } catch (error) {
+    if (error instanceof Error && error.message === "ai_video_kling_credentials_missing") return NextResponse.json({ ok: false, code: "AI_MEDIA_VIDEO_ENGINE_UNAVAILABLE", error: "Kling n’est pas encore activé. Choisissez un autre moteur pour cette création." }, { status: 503, headers });
     if (error instanceof AiMediaGenerationQuotaError) return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: error.httpStatus, headers });
     if (error instanceof TypeError || error instanceof SyntaxError || error instanceof RangeError || (error instanceof Error && error.message.startsWith("ai_media_"))) return NextResponse.json({ ok: false, code: "AI_MEDIA_QUOTE_INVALID", error: "Ces paramètres ne sont pas disponibles pour le moteur choisi." }, { status: 400, headers });
     console.error("[ai-media] credit quote unavailable", { error: error instanceof Error ? error.message : "unknown" });

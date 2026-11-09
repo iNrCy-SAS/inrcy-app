@@ -214,7 +214,8 @@ export default function MediaEngineCreditControls(props: Props) {
     const next = closestDurationSceneOption(options, duration, sceneMode);
     if (next) changeDurationScene(next.durationSeconds, next.sceneMode);
   }, [props.kind, props.videoEngine, selectedResolution, maximumDuration, duration, sceneMode, changeDurationScene, props.automaticSceneMode, props.disabled]);
-  const choices = getMediaVideoEngineQualityChoices(props.hasProvidedCharacterVoice);
+  const choices = getMediaVideoEngineQualityChoices(props.hasProvidedCharacterVoice)
+    .filter(choice => !props.hasProvidedCharacterVoice || !props.allowedVideoEngines || props.allowedVideoEngines.includes(choice.engine));
   const videoEngineAllowed = (engine: AiMediaVideoEngine) =>
     (!props.requiredVideoEngine || engine === props.requiredVideoEngine) &&
     (!props.allowedVideoEngines || props.allowedVideoEngines.includes(engine)) &&

@@ -50,6 +50,11 @@ async function runCleanup(request: Request) {
   const characterVoices = await purgeExpiredAiMediaCharacterVoices().catch(() => ({
     inspected: 0, removed: 0, errors: ["voice_cleanup_failed"],
   }));
+  const klingVoices = String(process.env.KLING_API_KEY || "").trim()
+    ? await import("@/lib/aiVideoProviderKling").then(module => module.purgeExpiredKlingCustomVoices()).catch(() => ({
+        removed: 0, errors: ["kling_temporary_voice_cleanup_deferred"],
+      }))
+    : { removed: 0, errors: [] as string[] };
   const compositionObjects = await purgeExpiredAiMediaCompositionObjects().then(
     (removed) => ({ removed, errors: [] as string[] }),
     () => ({ removed: 0, errors: ["composition_cleanup_failed"] }),
@@ -164,7 +169,7 @@ async function runCleanup(request: Request) {
   }
 
   return NextResponse.json({
-    ok: errors.length === 0 && generatedDrafts.errors.length === 0 && providerImages.errors.length === 0 && compositionObjects.errors.length === 0,
+    ok: errors.length === 0 && generatedDrafts.errors.length === 0 && providerImages.errors.length === 0 && compositionObjects.errors.length === 0 && klingVoices.errors.length === 0,
     inspected: candidates.data?.length || 0,
     removed,
     retained,
@@ -172,6 +177,7 @@ async function runCleanup(request: Request) {
     generatedDrafts,
     providerImages,
     characterVoices,
+    klingVoices,
     compositionObjects,
   });
 }

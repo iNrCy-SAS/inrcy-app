@@ -1032,7 +1032,7 @@
   "ai_generator_character_voice_file_error": "เลือกไฟล์ MP3 หรือ WAV ขนาดไม่เกิน 3 MB",
   "ai_generator_character_voice_duration_error": "ตัวอย่างเสียงต้องมีความยาว 1 ถึง 10 วินาที",
   "ai_generator_character_voice_sample_missing": "อัปโหลดตัวอย่างเสียงสำหรับตัวละครแต่ละตัวที่ใช้เสียงที่อัปโหลด",
-  "ai_generator_character_voice_engine_required": "หากใช้เสียงที่อัปโหลด ให้เลือก Wan 2.7",
+  "ai_generator_character_voice_engine_required": "หากใช้เสียงที่อัปโหลด ให้เลือก Wan 2.7 หรือ Kling 4.0 Omni",
   "ai_generator_character_voice_speech_required": "เสียงที่อัปโหลดจะใช้ในโหมดเสียงตัวละคร",
   "ai_generator_character_voice_switch_characters": "ใช้โหมดเสียงตัวละคร",
   "ai_generator_character_voice_preview": "ฟังตัวอย่างเสียงของตัวละครนี้",
@@ -1115,5 +1115,12 @@
   "ai_generator_voice_pool_select_narration": "นำเข้าเสียงบันทึกแล้วเลือกใช้เป็นเสียงบรรยาย",
   "ai_generator_narration_voice_reference_limits": "เสียงบรรยายจริง: ใช้เสียงอ้างอิงความยาว 5 ถึง 10 วินาที",
   "ai_generator_narration_voice_consent_required": "ยืนยันสิทธิ์ในการจำลองเสียงนี้ในการตั้งค่าเสียงบันทึก",
-  "ai_generator_voice_pool_unassigned": "ยังไม่ได้กำหนด"
+  "ai_generator_voice_pool_unassigned": "ยังไม่ได้กำหนด",
+  "ai_generator_model_description_kling": "ตัวละครและเสียงอ้างอิง บทสนทนาภาษาฝรั่งเศส และฉากที่ซับซ้อน",
+  "ai_generator_engine_info_video_use_kling": "สร้างฉากที่ตัวละครพูดด้วยเสียงอ้างอิงของตนเอง",
+  "ai_generator_engine_info_video_limits_kling": "Studio รองรับสูงสุด 30 วินาที 5 ภาพ และ 3 เสียง ใช้ตัวอย่างเสียงพูดคนเดียวที่ชัดเจนยาว 5–10 วินาที เพื่ออ้างอิงเสียงสำหรับบทพูดใหม่",
+  "ai_generator_character_voice_kling_reference_limits": "สำหรับ Kling ให้ใช้ตัวอย่างเสียงพูดคนเดียวที่ชัดเจนยาว 5–10 วินาทีต่อตัวละคร",
+  "ai_generator_model_description_kling-flash": "ภาพอ้างอิงและบทสนทนาพร้อมเสียง AI",
+  "ai_generator_engine_info_video_use_kling-flash": "สร้างฉากที่มีหลายตัวละครจากภาพอ้างอิงและเสียง AI",
+  "ai_generator_engine_info_video_limits_kling-flash": "4–20 วินาที, 720p, ภาพสูงสุด 5 ภาพ รองรับเฉพาะเสียง AI หากใช้ตัวอย่างเสียงของคุณ ให้เลือก Kling 4.0 Omni"
 }
