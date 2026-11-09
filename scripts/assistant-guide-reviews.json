@@ -284,7 +284,7 @@
       }
     },
     "basic-studio-create": {
-      "guideDigest": "8c2ae5c95d8e2d9ee391c1e3daf191b5efd2eec3799a7df6b3e8fea91741d313",
+      "guideDigest": "e78fda4421d491eb55936d4cee6f771e1810d662faed9537f8e72635a668e8c5",
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e7160cc23a5837f21d3c341501e6b213bf2cd63cd2c315aa7a1c5f85b0284d98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
@@ -779,7 +779,7 @@
       }
     },
     "studio-create": {
-      "guideDigest": "8622e3f93ae82b8f5cd1e6834d9ca8752049dcf8cff0a6662528e91e36e935e5",
+      "guideDigest": "ae146f035ae589c1df286771d7bca8dbc23198a21946a341f01dd08e06959889",
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e7160cc23a5837f21d3c341501e6b213bf2cd63cd2c315aa7a1c5f85b0284d98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
