@@ -93,9 +93,11 @@ for (const engine of ['wan27', 'grok'] as const) test(`${engine}: a 400-characte
   assert.equal(input.freePrompt!.length, 400);
   const originalImages = JSON.stringify(input.inspirationImages);
   const durations = timeline.getAiMediaVideoSegmentDurations(input.durationSeconds!, engine, input.videoResolution, input.sceneMode);
-  const response = { direction: 'D'.repeat(1_200), scenes: durations.map(() => ({ visualBrief: 'S'.repeat(300), spokenLine: 'Notre équipe soigne chaque jardin.' })) };
+  const response = { direction: 'D'.repeat(1_200), scenes: durations.map(() => ({ visualBrief: 'S'.repeat(300), spokenLine: 'Notre équipe soigne chaque jardin.',
+    ...(engine === 'wan27' ? { spokenTurns: [{ reference: 1, speaker: 'personnage 1', text: 'Notre équipe soigne chaque jardin.' }] } : {}) })) };
   const concise = { direction: 'Les trois personnes entretiennent la haie du jardin, ensemble, dans une lumière naturelle.',
-    scenes: durations.map(() => ({ visualBrief: 'Les trois personnes taillent la haie ensemble.', spokenLine: 'Notre équipe soigne chaque jardin.' })) };
+    scenes: durations.map(() => ({ visualBrief: 'Les trois personnes taillent la haie ensemble.', spokenLine: 'Notre équipe soigne chaque jardin.',
+      ...(engine === 'wan27' ? { spokenTurns: [{ reference: 1, speaker: 'personnage 1', text: 'Notre équipe soigne chaque jardin.' }] } : {}) })) };
   const h = planner([response, concise]);
   const plan = await h.runtime.prepareAiMediaFreeCreativePlan({ accountId: 'synthetic-only', request: input, profile: active });
   assert.equal(h.calls[0].input.brief, brief);
@@ -140,8 +142,10 @@ test('the longest allowed account rules reduce generated scene and direction bud
   const budget = prompts.getAiMediaFreeVideoCreativeBudget({ request: input, globalMediaConstraints: rules });
   assert.ok(budget.sceneMaxCharacters < 300);
   const h = planner([{ direction: 'Trois personnes entretiennent ensemble une haie dans le jardin.', scenes: [
-    { visualBrief: 'Trois personnes taillent la haie.', spokenLine: 'Notre équipe prend soin du jardin.' },
-    { visualBrief: 'Les mêmes personnes terminent la haie.', spokenLine: 'Un jardin entretenu avec attention.' },
+    { visualBrief: 'Trois personnes taillent la haie.', spokenLine: 'Notre équipe prend soin du jardin.',
+      spokenTurns: [{ reference: 1, speaker: 'personnage 1', text: 'Notre équipe prend soin du jardin.' }] },
+    { visualBrief: 'Les mêmes personnes terminent la haie.', spokenLine: 'Un jardin entretenu avec attention.',
+      spokenTurns: [{ reference: 2, speaker: 'personnage 2', text: 'Un jardin entretenu avec attention.' }] },
   ] }]);
   const plan = await h.runtime.prepareAiMediaFreeCreativePlan({ accountId: 'synthetic-only', request: input, profile: active });
   const args = provider(input, plan, rules);

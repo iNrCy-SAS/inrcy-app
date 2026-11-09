@@ -35,6 +35,8 @@ export type AiMediaCreativeScene = {
   spokenLine: string;
   /** Réponse éventuelle du second personnage dans une scène d'équipe. */
   spokenReply: string;
+  /** Ordered native dialogue; reference is the original one-based image index. */
+  spokenTurns?: Array<{ reference: number; speaker: string; text: string }>;
   visualBrief: string;
   layout: "hero" | "editorial" | "statement" | "cta";
 };

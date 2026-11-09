@@ -284,10 +284,10 @@
       }
     },
     "basic-studio-create": {
-      "guideDigest": "cbe8225b3ad92724aa43e4ab37f12d57bbdc1bcf63271d7064691e968def5f30",
+      "guideDigest": "8c2ae5c95d8e2d9ee391c1e3daf191b5efd2eec3799a7df6b3e8fea91741d313",
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e7160cc23a5837f21d3c341501e6b213bf2cd63cd2c315aa7a1c5f85b0284d98",
-        "app/dashboard/_components/MediaEngineCreditControls.tsx": "7c25f8414a8878fa2e2b80de2faa1ee61b780fcd180d299f2f449e834bfa3c68",
+        "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
         "app/dashboard/_components/MediaFreeGenerator.tsx": "11e67e39e6c13fb0dc8d6c508b19855f176f4a046119933e17f206a02d4a4c06",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "cda2ef09f327ef8546636c6dfcd654d2521e88b46639c2fa09b58e6e88271648",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
@@ -296,8 +296,8 @@
         "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx": "5ecaf5325711c7b8093154067cf905e279f6fdf3b13dc083fb9a30f3175f06e8",
         "app/dashboard/generer-media/page.tsx": "f54b22c7dd115ad020cf0e8697ca169838fccaaeef9a8b421c2cc6cacff5c6ea",
         "lib/aiMediaCreditsPricing.ts": "4ff404deef08ca6c37228fe7a38d439ea1f3e5f397869959c65a7d300999d684",
-        "lib/aiMediaFreeGenerationPlan.ts": "4705250aca7f9335a1c1206c44dd50edc605d8f6c3f8219f889a926d62af0a28",
-        "lib/aiMediaFreeGenerationPrompt.ts": "09f87972bd1fbfbf7aa869a3b3fd1eeb20ef4294f9d419f709c92f3a7fbcc48c",
+        "lib/aiMediaFreeGenerationPlan.ts": "d1a0fa93c7a4c53165b4b540c4ba5079ace16a6d06ed026c7aefc9d2aebd2fd6",
+        "lib/aiMediaFreeGenerationPrompt.ts": "5717e6864e6d6fb7ef8ed006a974fd66e7b050b48c21ac6fc239ae11982b3d64",
         "lib/aiMediaGeneratedVideo.ts": "6a2d74c2cf79151ec9ce2fdb015f730d5164f54f4c85ccfcfeb15b7dda5a6924",
         "lib/aiMediaGenerationContracts.ts": "3c847863fceb161307dd4e96ea22cbcb425b2549857c904a12ba0830937a333b",
         "lib/aiMediaGenerationServer.ts": "109f0671433f4d2aabf9b7024b502980320f7b59eada2ff18997ac5d46bc4d3f",
@@ -342,7 +342,7 @@
       "guideDigest": "7d65448223881c1562abc62d208ddc385941bba3a72a525501f8306e5fbda010",
       "sources": {
         "app/dashboard/_components/DashboardAssistantSession.tsx": "e5ac951e52f6e6c40d0266ab75007007c71b27be2f650bfd7b985e7b9623124c",
-        "app/dashboard/_components/MediaEngineCreditControls.tsx": "7c25f8414a8878fa2e2b80de2faa1ee61b780fcd180d299f2f449e834bfa3c68",
+        "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
         "app/dashboard/_components/dashboardAssistantSessionState.ts": "599ec8985a874e039477f7d496d1ba036842859559a2bdf7551b25727eaadce9",
         "lib/aiMediaVideoClientOptions.ts": "a6c1dd77fb096aede945d8def2c3fe334a2ffb1f284c56c276d5da343cfdceb4",
         "lib/inrAssistantAttachmentStorage.ts": "91c922f471784b2608d1564f85224f5c9bed70be1a0071010604fef6b014fe0e",
@@ -779,10 +779,10 @@
       }
     },
     "studio-create": {
-      "guideDigest": "ac311dadc67e5c29290fdc7b4b4432c5abb05cab51fcfba1c563a054f796f9bb",
+      "guideDigest": "8622e3f93ae82b8f5cd1e6834d9ca8752049dcf8cff0a6662528e91e36e935e5",
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e7160cc23a5837f21d3c341501e6b213bf2cd63cd2c315aa7a1c5f85b0284d98",
-        "app/dashboard/_components/MediaEngineCreditControls.tsx": "7c25f8414a8878fa2e2b80de2faa1ee61b780fcd180d299f2f449e834bfa3c68",
+        "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
         "app/dashboard/_components/MediaFreeGenerator.tsx": "11e67e39e6c13fb0dc8d6c508b19855f176f4a046119933e17f206a02d4a4c06",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "cda2ef09f327ef8546636c6dfcd654d2521e88b46639c2fa09b58e6e88271648",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
@@ -793,8 +793,8 @@
         "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx": "5ecaf5325711c7b8093154067cf905e279f6fdf3b13dc083fb9a30f3175f06e8",
         "app/dashboard/generer-media/page.tsx": "f54b22c7dd115ad020cf0e8697ca169838fccaaeef9a8b421c2cc6cacff5c6ea",
         "lib/aiMediaCreditsPricing.ts": "4ff404deef08ca6c37228fe7a38d439ea1f3e5f397869959c65a7d300999d684",
-        "lib/aiMediaFreeGenerationPlan.ts": "4705250aca7f9335a1c1206c44dd50edc605d8f6c3f8219f889a926d62af0a28",
-        "lib/aiMediaFreeGenerationPrompt.ts": "09f87972bd1fbfbf7aa869a3b3fd1eeb20ef4294f9d419f709c92f3a7fbcc48c",
+        "lib/aiMediaFreeGenerationPlan.ts": "d1a0fa93c7a4c53165b4b540c4ba5079ace16a6d06ed026c7aefc9d2aebd2fd6",
+        "lib/aiMediaFreeGenerationPrompt.ts": "5717e6864e6d6fb7ef8ed006a974fd66e7b050b48c21ac6fc239ae11982b3d64",
         "lib/aiMediaGeneratedVideo.ts": "6a2d74c2cf79151ec9ce2fdb015f730d5164f54f4c85ccfcfeb15b7dda5a6924",
         "lib/aiMediaGenerationContracts.ts": "3c847863fceb161307dd4e96ea22cbcb425b2549857c904a12ba0830937a333b",
         "lib/aiMediaGenerationServer.ts": "109f0671433f4d2aabf9b7024b502980320f7b59eada2ff18997ac5d46bc4d3f",

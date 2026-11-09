@@ -84,6 +84,17 @@ test("available engine and quality choices continue to reach the selection callb
   assert.equal(find(controls().render(), (element) => element.type === "select" && String(element.props.id).endsWith("-engine")).props.value, "omni:720p");
 });
 
+test("personal character voices offer only Wan 2.7 and Kling Omni with an explicit engine choice", () => {
+  const runtime = controls({ videoEngine: "wan27", referenceCount: 2, hasProvidedCharacterVoice: true,
+    allowedVideoEngines: ["wan27", "kling"], allowedVideoEnginesReason: "Wan 2.7 ou Kling Omni" });
+  const select = find(runtime.render(), element => element.type === "select" && String(element.props.id).endsWith("-engine"));
+  const options = elements(select).filter(element => element.type === "option");
+  assert.deepEqual([...new Set(options.map(option => String(option.props.value).split(":")[0]))].sort(), ["kling", "wan27"]);
+  assert.ok(options.every(option => option.props.disabled === false));
+  (select.props.onChange as (event: {target:{value:string}}) => void)({target:{value:"kling:720p"}});
+  assert.deepEqual(runtime.changes, [["engine", "kling", "720p"]]);
+});
+
 test("the information guide excludes retired HeyGen at every account duration and remains closable", () => {
   for (const maximum of [15, 20, 30]) {
     const runtime = controls({ videoMaxDurationSeconds: maximum, disabled: true });

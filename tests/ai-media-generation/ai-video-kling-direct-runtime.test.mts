@@ -175,6 +175,20 @@ test("Kling sends two distinct original faces and their own voice IDs through th
   assert.deepEqual(c.deleted, ["speaker-1", "speaker-2"]); assert.equal(c.counts.cleanups, 1);
 }));
 
+test("ordered dialogue binds each audible turn to its original photo and exclusive supplied voice", async () => withKey(async () => {
+  const c = context(); const args = argsFor();
+  args.plan.scenes[0].spokenTurns = [
+    { reference: 1, speaker: "homme en bleu", text: "Nous préparons vos projets avec soin." },
+    { reference: 3, speaker: "femme en vert", text: "Et nous restons à votre écoute." },
+  ];
+  await c.provider.klingAiVideoProvider.generate(args);
+  const prompt = c.videoBodies[0].contents.find(item => item.type === "prompt")!.text;
+  assert.match(prompt, /CHARACTER_1: homme en bleu, the person from @image_1, using only @voice_1.*Nous préparons vos projets avec soin/);
+  assert.match(prompt, /THEN CHANGE SPEAKER.*CHARACTER_3: femme en vert, the person from @image_3, using only @voice_3.*Et nous restons à votre écoute/);
+  assert.equal(c.videoBodies.length, 1, "Both speakers belong to the same paid video request.");
+  assert.deepEqual(c.deleted, ["speaker-1", "speaker-2"]);
+}));
+
 test("Kling keeps the same two voice assignments in both clips of a multi-scene film", async () => withKey(async () => {
   const c = context(); const result = await c.provider.klingAiVideoProvider.generate(argsFor(16, "multi"));
   assert.equal(result.clips.length, 2); assert.equal(c.profiles.length, 2); assert.equal(c.videoBodies.length, 2);

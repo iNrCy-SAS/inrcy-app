@@ -55,7 +55,7 @@
   },
   "app/dashboard/_components/MediaEngineCreditControls.tsx": {
     "disposition": "basic",
-    "reason": "Révision explicite : durée unique en Studio, paire canonique dérivée du catalogue disponible et acquittée après les deux setters natifs. Wan 3 retiré du catalogue actif, Wan 2.6/2.7 conservés ; autres parcours avec scènes natives. Aucun débit ni consentement par ces choix.",
+    "reason": "Révision explicite : avec des vocaux de personnages, le sélecteur montre les moteurs autorisés du catalogue actif, Wan 2.7 et Kling Omni, avec leurs qualités. Le changement explicite conserve les setters natifs, l'ajustement de durée et la remise à zéro du consentement par l'appelant ; aucun débit ni envoi de média par cette sélection. Sans vocal personnel, le catalogue courant reste proposé.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
