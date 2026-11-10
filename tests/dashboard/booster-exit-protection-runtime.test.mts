@@ -21,6 +21,24 @@ test("every unfinished Booster stage stays protected, including an already saved
   }
 });
 
+test("a partial scheduling acknowledgement cannot clear the editor's exit protection", () => {
+  const source = ts.createSourceFile("PublishModal.tsx", readFileSync(new URL("../../app/dashboard/booster/publier/PublishModal.tsx", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let call: ts.CallExpression | undefined;
+  function visit(node: ts.Node) {
+    if (ts.isCallExpression(node) && node.expression.getText(source) === "createPublicationSubmission") call = node;
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  assert.ok(call);
+  const factory = call.arguments[0] as ts.ArrowFunction;
+  const context = (factory.body as ts.ParenthesizedExpression).expression as ts.ObjectLiteralExpression;
+  const actions = (context.properties.find(property => property.name?.getText(source) === "actions") as ts.PropertyAssignment).initializer as ts.ObjectLiteralExpression;
+  const signal = (actions.properties.find(property => property.name?.getText(source) === "onUnsavedChange") as ts.PropertyAssignment).initializer;
+  const callback = new Function(`return ${signal.getText(source)};`)();
+  assert.equal(callback, undefined, "legacy subset ACKs do not own the global exit guard");
+  assert.equal(shouldProtectPublicationExit({ ...clean, creationMode: "manual", hasContent: true }), true, "unsent channels still own an unfinished workspace");
+});
+
 function guardHarness({ accepted = false, childOverlayOpen = false } = {}) {
   const source = readFileSync(new URL("../../app/dashboard/_hooks/useUnsavedExitGuard.ts", import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;

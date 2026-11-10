@@ -129,7 +129,7 @@
         "app/dashboard/_components/dashboardMobileMenuModel.ts": "c4d9be815f9b6064e2498e4b23d907265e325d0ddfd14b167b8056c57a6deb88",
         "app/dashboard/_hooks/useInrAssistantScheduledPublicationControls.ts": "b2821f84dc12790da8378f745023dfcc84444bd9c6408f48f726772e61192ef2",
         "app/dashboard/_hooks/useUnsavedExitGuard.ts": "4e2ca6bd1df1311ef91c154ae9f5a13ebf162c533892dc01df9f600b6a2c5b6c",
-        "app/dashboard/booster/publier/PublishModal.tsx": "54f51b496ce79cfa202f2d8a3540d7b460d855bed6538ac2069ce7f5e1b2cc74",
+        "app/dashboard/booster/publier/PublishModal.tsx": "ac40ad2054e0a278f530d8931ea62097bfa8c79e2c5ee4bb3588fa750bb62eed",
         "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx": "2504f63d0f193489a4388d61aeecf2e39acf57de9b82a7d3022109f82a6d20bc",
         "app/dashboard/booster/publier/components/PublishCreationModePanel.tsx": "65d8bff38f722386bad77711881c4ca58c484b8e1fb590a1457217237b986973",
         "app/dashboard/booster/publier/components/PublishFinalReviewModal.tsx": "cc7ded7a77b387eae3379c24e08ff53ffc458940cd44ff56bb6e5cca01c22933",
@@ -371,7 +371,7 @@
         "app/dashboard/_components/DashboardBoosterModalLayer.tsx": "3bc282e860f5c83ffbf25d2177c9abfc7629ec771c40aeb19896f1303be5818d",
         "app/dashboard/_components/dashboardMobileMenuModel.ts": "c4d9be815f9b6064e2498e4b23d907265e325d0ddfd14b167b8056c57a6deb88",
         "app/dashboard/_hooks/useUnsavedExitGuard.ts": "4e2ca6bd1df1311ef91c154ae9f5a13ebf162c533892dc01df9f600b6a2c5b6c",
-        "app/dashboard/booster/publier/PublishModal.tsx": "54f51b496ce79cfa202f2d8a3540d7b460d855bed6538ac2069ce7f5e1b2cc74",
+        "app/dashboard/booster/publier/PublishModal.tsx": "ac40ad2054e0a278f530d8931ea62097bfa8c79e2c5ee4bb3588fa750bb62eed",
         "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx": "2504f63d0f193489a4388d61aeecf2e39acf57de9b82a7d3022109f82a6d20bc",
         "app/dashboard/booster/publier/components/PublishCreationModePanel.tsx": "65d8bff38f722386bad77711881c4ca58c484b8e1fb590a1457217237b986973",
         "app/dashboard/booster/publier/components/PublishFinalReviewModal.tsx": "cc7ded7a77b387eae3379c24e08ff53ffc458940cd44ff56bb6e5cca01c22933",
@@ -859,7 +859,7 @@
       "guideDigest": "efd9e058a43a2c27c81cc8efe1a3055f53123eec28fbd8ba892dc355dcb991f4",
       "sources": {
         "app/dashboard/_hooks/useInrStudioSession.tsx": "d6aeb230b1a82b4878df64b390dbde07bc25058bb228c2c655cc5653545d640a",
-        "app/dashboard/booster/publier/PublishModal.tsx": "54f51b496ce79cfa202f2d8a3540d7b460d855bed6538ac2069ce7f5e1b2cc74",
+        "app/dashboard/booster/publier/PublishModal.tsx": "ac40ad2054e0a278f530d8931ea62097bfa8c79e2c5ee4bb3588fa750bb62eed",
         "lib/inrStudioNavigation.ts": "4586467a30adf62611b9e1c0a7aff2b60da0d2cd724f5fb34321a06152b082bb",
         "messages/fr-FR/booster.json": "83f3639148d2f429ec6bf252a6563791c4818fb0ff6729beeb3b3696ba8c5a36"
       }

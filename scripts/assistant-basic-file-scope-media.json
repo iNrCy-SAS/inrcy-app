@@ -269,7 +269,7 @@
   },
   "app/dashboard/booster/publier/PublishModal.tsx": {
     "disposition": "basic",
-    "reason": "Revue explicite de protection du travail Booster : l’état du parcours inachevé est distinct du snapshot à sauvegarder. Choix de création/canaux, contenu, documents locaux et traitements restent protégés, y compris après sauvegarde/restauration ; la sortie peut être annulée. Le résultat terminal libère la garde. Droits, publication, devis et confirmations restent natifs.",
+    "reason": "Revue explicite de protection du travail Booster : l’état du parcours inachevé est distinct du snapshot à sauvegarder. Choix de création/canaux, contenu, documents locaux et traitements restent protégés, y compris après sauvegarde/restauration ; la sortie peut être annulée. Un accusé de programmation ou publication partiel ne libère pas la garde ; seul le résultat terminal le fait. Droits, publication, devis et confirmations restent natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],

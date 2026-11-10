@@ -299,7 +299,8 @@ export default function PublishModal({
     onOpenInrSend: () => void;
   };
   onOverlayOpenChange?: (open: boolean) => void;
-  onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
+  /** Protect the unfinished workspace, including a draft already saved. */
+  onUnsavedChange?: (shouldProtectExit: boolean) => void;
   onWizardModeChange?: (mode: BoosterCreationMode | null) => void;
   saveDraftActionRef?: MutableRefObject<(() => void) | null>;
   openHelpActionRef?: MutableRefObject<(() => void) | null>;
@@ -4254,7 +4255,9 @@ export default function PublishModal({
         closeEmptyContentWarnings,
         trackEvent,
         completePublicationProgress,
-        onUnsavedChange,
+        // An acknowledgement for one scheduled/published subset does not end
+        // the whole editor. Only its derived workspace/result state owns exit.
+        onUnsavedChange: undefined,
         setChannelDetails,
         archivePersistentMediaWorkspace,
         onPublishSuccess,
