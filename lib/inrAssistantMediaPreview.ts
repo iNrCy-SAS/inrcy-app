@@ -21,7 +21,7 @@ export function isInrAssistantMediaPreviewButtonRequest(message: string, operati
 
 /** A refusal to publish or generate is separate from a current save decision.
  * This selects an intent only; the native tool still binds the exact owned job. */
-export function isInrAssistantMediaPreviewDecisionRequest(message: string, operation: "accept" | "discard"): boolean {
+export function isInrAssistantMediaPreviewDecisionRequest(message: string, operation: "accept" | "discard", allowGenericMedia = false): boolean {
   if (isInrAssistantMediaPreviewButtonRequest(message, operation)) return true;
   const current = inrAssistantUnquotedRequest(message);
   if (hasInrAssistantDeferredApproval(message) || /^(?:si|quand|lorsque|if|when|unless|imagine|suppose)\b/.test(current)) return false;
@@ -31,7 +31,7 @@ export function isInrAssistantMediaPreviewDecisionRequest(message: string, opera
   const affirmative = (clause: string, choice: "accept" | "discard") => !inrAssistantClauseIsAdvice(clause)
     && !/\b(?:demain|plus tard|pas maintenant|apres|avant|si|quand|lorsque|tomorrow|later|after|before|if|when)\b/.test(clause)
     && new RegExp(`^(?:(?:merci de|please|veuillez|peux-tu|pouvez-vous|can you|could you|je veux|je souhaite|je voudrais)\\s+)?${verbs[choice]}\\b`).test(clause)
-    && /\b(?:brouillon|apercu|resultat|image|photo|video|media|creation|preview|draft)\b/.test(clause);
+    && (allowGenericMedia ? /\b(?:brouillon|apercu|resultat|image|photo|video|media|creation|preview|draft)\b/ : /\b(?:brouillon|apercu|preview|draft)\b/).test(clause);
   const clauses=inrAssistantRequestClauses(message);
   return clauses.some(clause=>affirmative(clause,operation)) && !clauses.some(clause=>affirmative(clause,operation==="accept"?"discard":"accept"));
 }

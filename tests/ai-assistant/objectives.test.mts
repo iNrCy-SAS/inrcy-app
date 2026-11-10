@@ -108,10 +108,29 @@ test("the read budget admits only a progressing cursor after the two ordinary re
   assert.equal(budget.start("getBusinessDna",{}),null);
 });
 
+test("attachment reads have separate document histories and a hard eight-read turn limit",()=>{
+  const budget=createInrAssistantReadBudget();
+  const inFlight=[1,2,3,4].map(documentIndex=>{
+    const attempt=budget.start("readAttachedDocument",{documentIndex,offset:0,query:null});assert.ok(attempt,`document ${documentIndex}`);return attempt;
+  });
+  inFlight.forEach(attempt=>budget.finish(attempt,{ok:true,nextOffset:6000}));
+  for(const documentIndex of [1,2,3,4]){
+    const attempt=budget.start("readAttachedDocument",{documentIndex,offset:6000,query:null});assert.ok(attempt);budget.finish(attempt,{ok:true,nextOffset:12000});
+  }
+  assert.equal(budget.available("readAttachedDocument"),false);
+  assert.equal(budget.start("readAttachedDocument",{documentIndex:1,offset:12000,query:null}),null,"the global cap also applies to progressing pages");
+  const progressing=createInrAssistantReadBudget();
+  for(const offset of [0,6000,12000]){const attempt=progressing.start("readAttachedDocument",{documentIndex:1,offset,query:null},"document-one");assert.ok(attempt);progressing.finish(attempt,{ok:true,nextOffset:offset+6000});}
+  assert.equal(progressing.start("readAttachedDocument",{documentIndex:1,offset:24000,query:null},"document-one"),null);
+  assert.equal(progressing.start("readAttachedDocument",{documentIndex:1,offset:18000,query:"another query"},"document-one"),null);
+  const other=progressing.start("readAttachedDocument",{documentIndex:2,offset:0,query:null},"document-two");assert.ok(other);
+  for(const documentIndex of [0,5,-1,"1",undefined]) assert.equal(progressing.start("readAttachedDocument",{documentIndex,offset:0,query:null}),null);
+});
+
 test("all native offset readers retain three progressing pages with their original filters",()=>{
   for(const name of ["readStatsReports","readScheduledPublications","readPublicationWorkspace","readAdvertisingCampaigns","readAttachedDocument","listIndividualMailboxes"]){
     const budget=createInrAssistantReadBudget();
-    const fields = name === "readAdvertisingCampaigns" ? {mode:"list",campaignId:null} : {recordId:null};
+    const fields = name === "readAdvertisingCampaigns" ? {mode:"list",campaignId:null} : name === "readAttachedDocument" ? {documentIndex:1,query:null} : {recordId:null};
     for(const offset of [0,20,40]){const attempt=budget.start(name,{...fields,offset,status:"all"});assert.ok(attempt,name);budget.finish(attempt,{ok:true,nextOffset:offset+20});}
     assert.equal(budget.start(name,{...fields,offset:60,status:"failed"}),null,name);
   }

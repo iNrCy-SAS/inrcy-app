@@ -346,6 +346,12 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   }
   const trackingLimit = inrAssistantTaskTrackingLimit(requiredTools, requiredCalls);
   if (trackingLimit) return {message:trackingLimit,outcome:"blocked"};
+  const attachmentRequest = inrAssistantRequestClauses(latestRequest).join(" ");
+  const attachmentAnalysisOnly = Boolean(args.fileContexts?.length && !draftOnly && !uiSteps.length && !navigationRequested
+    && requiredTools.every(name=>name === "readAttachedDocument")
+    && /\b(?:ce|cet|cette|ces|this|these)\s+(?:(?:deux|trois|quatre|two|three|four|[1-4])\s+)?(?:videos?|clips?|images?|photos?|fichiers?|documents?|scans?|pieces?)\b|\b(?:fichier|piece|document|scan|facture).{0,70}\bjoint/.test(attachmentRequest)
+    && !/\b(?:crm|mediatheque|bibliotheque|abonnement|credits?|canaux|cockpit|adn|statistiques?|inr.?studio|mes factures|mon compte)\b/.test(attachmentRequest));
+  const attachmentAnalysisTools = new Set(["readAttachedDocument","readAppGuide","discoverCapabilities","searchPublicWeb","readCurrentDateTime"]);
   let maxCalls = complexity === "complex" || requiredTools.length > 1 || Object.values(requiredCalls).some(count=>count > 1) ? 12 : requiredTools.length ? 7 : 4;
   const gateway = createGateway({ apiKey: credential });
   const maxOutputTokens = complexity === "complex" ? 6_000 : 1_800;
@@ -359,6 +365,10 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const receipts: InrAssistantActionReceipt[] = [...(args.taskContext?.receipts ?? [])];
   let verifiedHandoffMessage: string | undefined;
   const readCounts = new Map<string,number>();
+  const attemptedTools = new Set<string>();
+  let verifiedCrmReference: {contactId:string;reference:string} | undefined;
+  let goalContinuation: {tool:"readCrmContact"|"prepareCampaignEmail";facts:Record<string,unknown>} | undefined;
+  let goalContinuationScheduled = false;
   const readBudget = createInrAssistantReadBudget();
   const readObjectiveAtStart = new Map<string, string>();
   const previewActionNames = new Set(["previewNotificationRemoval","previewPublishedPublicationEdit","previewCalendarAction","previewScheduledPublicationAction","previewScheduledPublicationEdit","previewGoogleBusinessProfileUpdate","previewMediaDeletion","previewPublicationLifecycleAction","previewIndividualMail","previewCommercialDocumentAction","previewCommercialTemplateAction","previewChannelResourceSelection","previewChannelDisconnection","previewGoogleReviewReplyAction","previewBusinessDnaDocumentRemoval","previewWebsiteAnalyticsDisconnection","previewPinterestBoardMutation","previewWebsiteReset","previewReferralSubmission"]);
@@ -431,6 +441,16 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
               if (result && !observedActionNames.has(result.toolName)) readCounts.set(result.toolName,(readCounts.get(result.toolName)??0)+1);
               if (!result) return;
               let output = result.output && typeof result.output === "object" ? result.output as Record<string, unknown> : {};
+              if (result.toolName === "searchCrmContacts") {
+                verifiedCrmReference = undefined;
+                const query = (result.input as {query?:unknown} | undefined)?.query;
+                const contacts = Array.isArray(output.contacts) ? output.contacts : [];
+                const contact = contacts.length === 1 && contacts[0] && typeof contacts[0] === "object" ? contacts[0] as Record<string,unknown> : {};
+                if (output.ok === true && output.known !== false && output.available !== false && output.limited !== true && typeof query === "string" && query.length >= 2 && query.length <= 180
+                  && inrAssistantRoutingText(latestRequest).includes(inrAssistantRoutingText(query)) && typeof contact.id === "string"
+                  && /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(contact.id))
+                  verifiedCrmReference = {contactId:contact.id,reference:query};
+              }
               if(["dispatchCampaignDraft","dispatchCampaignAudience"].includes(result.toolName) && output.status === "already_processed") {
                 const saved=String(output.savedStatus);
                 output={...output,status:["queued","paused","running","scheduled","failed","cancelled"].includes(saved)?saved:["done","completed"].includes(saved)?"processing":"unknown"};
@@ -624,7 +644,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     ...commercialTools, ...communicationTools, ...advertisingTools, ...settingsTools, ...campaignTools, ...mailboxTools, ...channelTools, ...documentTools, ...calendarTools, ...scheduledTools, ...additionalTools }, draftOnly ? "basic" : args.edition);
   // No executor is exposed during a status-only continuation. In particular a
   // queued publication can never be re-dispatched merely to obtain its status.
-  const allowedDefinition = (name: string, definition: unknown) => Boolean(definition) && !((statusOnly || draftOnly || adviceOnly) && observedActionNames.has(name) && !(statusOnly && !draftOnly && !adviceOnly && name === "acceptMediaGeneration" && canSaveExistingGeneration)) &&
+  const allowedDefinition = (name: string, definition: unknown) => Boolean(definition) && (!attachmentAnalysisOnly || attachmentAnalysisTools.has(name)) && !((statusOnly || draftOnly || adviceOnly) && observedActionNames.has(name) && !(statusOnly && !draftOnly && !adviceOnly && name === "acceptMediaGeneration" && canSaveExistingGeneration)) &&
       !(["generateMedia", "modifyMedia", "cancelMediaGeneration", "acceptMediaGeneration", "discardMediaGeneration"].includes(name) && !requiredTools.includes(name) && !(name === "acceptMediaGeneration" && canSaveExistingGeneration)) &&
       !(requiredTools.includes("updateToolSettings") && !requiredTools.some(tool => ["generateMedia", "modifyMedia"].includes(tool)) && ["generateMedia", "modifyMedia"].includes(name));
   const selectedTools = Object.fromEntries(Object.entries(assistantToolsForEdition({...allTools,...uiTools},args.edition)).filter(([name,definition])=>allowedDefinition(name,definition))) as typeof allTools & typeof uiTools;
@@ -669,10 +689,12 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   while (messages.length > 1 && bytes({ system, messages }) + schemaBytes > 31_000) messages.shift();
   if (bytes({system,messages}) + schemaBytes > 30_500) system = buildInrAssistantSystemPrompt(args.displayName,undefined,getInrAssistantAppKnowledge(latestRequest,350),args.edition,args.clientContext,Boolean(args.fileContexts?.length),true) + continuityContext + draftGuidance + (operationGuidance ? `\n${operationGuidance}` : "");
   const minimumVisuals = args.fileContexts?.filter(file => file.image || file.frames?.length).length ?? 0;
+  let attachmentVisualBudget = 6;
   // Reduce only extra visual samples. Rebuild their exact transmission notes
   // from stored contexts while retaining prose, excerpts and every visual file.
   for (let maxVisuals = 5; minimumVisuals > 0 && maxVisuals >= minimumVisuals && bytes({system,messages}) + schemaBytes > 31_000; maxVisuals--) {
     messages = assistantMessagesWithFiles(currentMessages.slice(-messages.length), args.fileContexts ?? [], {maxVisuals});
+    attachmentVisualBudget = maxVisuals;
   }
   if (bytes({ system, messages }) + schemaBytes > 31_000) {
     noteFailure("input_limit", { inputBytes: bytes({ system, messages }) + schemaBytes, historyTurns: messages.length });
@@ -682,6 +704,24 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     billingAccountId: args.accountId, requestId: args.requestId, edition: args.edition, complexity,
   });
   const chain = getInrAssistantModelChain({ edition: args.edition, complexity, solReserved: quota.solReserved });
+  const attempts = [...chain];
+  const unattemptedGoal = () => {
+    if (goalContinuationScheduled || statusOnly || draftOnly || uiSteps.length || checkpointFailed || args.signal?.aborted
+      || llmCalls >= maxCalls-2 || deadline-Date.now() < 15_000 || receipts.some(receipt=>INR_ASSISTANT_UNCERTAIN_STATUSES.has(receipt.status))) return;
+    for (const [index, objective] of objectives.entries()) {
+      if (objective.tool !== "readCrmContact" && objective.tool !== "prepareCampaignEmail" || !tools[objective.tool]
+        || attemptedTools.has(objective.tool) || inrAssistantObjectiveCompleted(objectives,index,receipts,appliedUi)
+        || !inrAssistantObjectiveReady(objectives,index,receipts,appliedUi) || inrAssistantToolsOutsideEdition([objective.tool],args.edition).length) continue;
+      if (objective.tool === "readCrmContact" && verifiedCrmReference && readBudget.available(objective.tool))
+        return {tool:objective.tool,facts:verifiedCrmReference} as const;
+      if (objective.tool === "prepareCampaignEmail" && canExecute && (requiredCalls.prepareCampaignEmail??1) === 1 && latestRequest.length <= 1600) {
+        const current = inrAssistantRequestClauses(latestRequest).join(" ");
+        const tracks = [{word:/\bvaloriser\b/,track:"valorize"},{word:/\brecolter\b/,track:"review_mail"},{word:/\boffrir\b/,track:"promo_mail"},{word:/\binformer\b/,track:"newsletter_mail"},{word:/\bsuivre\b/,track:"thanks_mail"},{word:/\benqueter\b/,track:"satisfaction_mail"}].filter(value=>value.word.test(current));
+        if (tracks.length === 1 && /\b(?:pour|offre|remise|promotion|remerciement|au sujet de|a propos de)\b/.test(current))
+          return {tool:objective.tool,facts:{instructionQuote:latestRequest,track:tracks[0].track,operationKey:null}} as const;
+      }
+    }
+  };
   let success = false;
   let continuationMessages = messages;
   const rejectedToolCallIds = new Set<string>();
@@ -746,6 +786,13 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
       success = false;
       message = [factual || savedActionReply(), "Je n’ai pas pu consulter la fiche CRM demandée. La recherche de nom seule ne permet pas de connaître les coordonnées, adresses ou notes, ni de dire que ces champs sont vides."].filter(Boolean).join("\n\n");
     }
+    if (!pendingUi.length && remaining.includes("prepareCampaignEmail") && !excludedGoals.includes("prepareCampaignEmail")) {
+      const normalized = inrAssistantRoutingText(reply.message).replace(/\s+/g," ");
+      const claimsSaved = /\b(?:brouillon|campagne)\b.{0,140}\b(?:enregistre(?:e|es|s)?|sauvegarde(?:e|es|s)?|cree(?:e|es|s)?|disponible)\b|\b(?:j.ai|je l.ai|nous avons)\b.{0,40}\b(?:enregistr\w*|sauvegard\w*|cree\w*)\b/.test(normalized);
+      const clarification = !claimsSaved && /^\s*(?:quel\w*|pour quel\w*|precis\w*|indiqu\w*|pouvez[- ]vous|pourriez[- ]vous)\b/.test(normalized) ? reply.message : "";
+      success = false;
+      message = [factual || savedActionReply(), "Je n’ai pas pu confirmer l’enregistrement du brouillon demandé. Un texte proposé dans la discussion ne suffit pas à confirmer sa sauvegarde dans vos campagnes.", clarification].filter(Boolean).join("\n\n");
+    }
     const missingFileEvidence = objectives.some(objective => objective.kind === "read" && objective.tool === "readAttachedDocument")
       && !args.fileContexts?.some(file => file.text?.trim() || file.image || file.frames?.length);
     if (!pendingUi.length && missingFileEvidence) {
@@ -775,7 +822,8 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
       await directNavigationTool.execute({ ...directNavigation, documentId: null }, { toolCallId: "direct-navigation", messages });
       if (navigation) system += `\nL’ouverture du module ${navigation.label} est déjà demandée au navigateur. Effectue aussi toutes les lectures et autres tâches demandées. N’annonce pas son ouverture avant le retour du navigateur.`;
     }
-    for (const attempt of chain) {
+    for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex++) {
+      const attempt = attempts[attemptIndex];
       let toolInputRepairAttempt: typeof attempt | undefined;
       const attemptMessages = continuationMessages === messages ? messages : compactInrAssistantGuideContext(compactInrAssistantRejectedToolContext(continuationMessages, rejectedToolCallIds), { maxGuideCharacters: 1200 });
       if (args.signal?.aborted) noteFailure("request_aborted", { model: attempt.model, callCount: llmCalls });
@@ -887,6 +935,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
             // A model fallback keeps every completed call/result pair. Only
             // repeated/oversized guide prose is compacted, never native receipts.
             continuationMessages = [...attemptMessages, ...response.messages];
+            for (const call of toolCalls) attemptedTools.add(call.toolName);
             for (const call of toolCalls) if (call.invalid && InvalidToolInputError.isInstance(call.error)) rejectedToolCallIds.add(call.toolCallId);
             if (!toolInputRepairAttempt && attempt.model === INR_ASSISTANT_MODELS.qwen && toolCalls.some(call => call.invalid && InvalidToolInputError.isInstance(call.error))) {
               toolInputRepairAttempt = chain.find(candidate => candidate.model === INR_ASSISTANT_MODELS.luna);
@@ -900,8 +949,8 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
             // business goals. Opening its module must not suppress those reads.
             const goalsDone = requiredTools.some(name=>!isInrAssistantUiTaskTool(name)) && requiredTools.every(name=>inrAssistantGoalCompleted(name,receipts,requiredCalls)) && objectives.every((_,index)=>inrAssistantObjectiveCompleted(objectives,index,receipts,appliedUi)) && (!statusOnly || [...readCounts.keys()].some(name=>requiredTools.some(goal=>INR_ASSISTANT_COMMANDS[goal]?.statusReader===name)));
             const awaitsBrowser = !statusOnly && uiSteps.some(step => step.actions?.length && !appliedUi.has(step.id)) && !uiSteps.some(step => !step.actions?.length && !appliedUi.has(step.id) && uiReady(step));
-            const answerOnly = awaitsBrowser || goalsDone || Boolean(studioDraftState.value) && draftAdviceRequested || stepNumber >= maxCalls-1 || llmCalls >= maxCalls-1;
-            const activeTools = answerOnly ? [] : Object.keys(tools).filter(name => !(name === "navigateApplication" && navigation) && readBudget.available(name) && inrAssistantPlanAllowsAction(objectives,name,receipts,appliedUi) && inrAssistantPlanAllowsRead(objectives,name,receipts,appliedUi) && !(isInrAssistantUiTaskTool(name) && uiSteps.length && !uiSteps.some(step => inrAssistantUiStepTool(step) === name && !step.actions?.length && !appliedUi.has(step.id) && uiReady(step))) && !(INR_ASSISTANT_COMMANDS[name] && requiredTools.includes(name) && inrAssistantGoalCompleted(name,receipts,requiredCalls)) && !(args.taskContext && inrAssistantGoalCompleted(name,args.taskContext.receipts,requiredCalls))) as Array<keyof typeof tools>;
+            const answerOnly = awaitsBrowser || goalsDone || Boolean(goalContinuation && attemptedTools.has(goalContinuation.tool)) || Boolean(studioDraftState.value) && draftAdviceRequested || stepNumber >= maxCalls-1 || llmCalls >= maxCalls-1;
+            const activeTools = answerOnly ? [] : Object.keys(tools).filter(name => (!goalContinuation || name === goalContinuation.tool) && !(name === "navigateApplication" && navigation) && readBudget.available(name) && inrAssistantPlanAllowsAction(objectives,name,receipts,appliedUi) && inrAssistantPlanAllowsRead(objectives,name,receipts,appliedUi) && !(isInrAssistantUiTaskTool(name) && uiSteps.length && !uiSteps.some(step => inrAssistantUiStepTool(step) === name && !step.actions?.length && !appliedUi.has(step.id) && uiReady(step))) && !(INR_ASSISTANT_COMMANDS[name] && requiredTools.includes(name) && inrAssistantGoalCompleted(name,receipts,requiredCalls)) && !(args.taskContext && inrAssistantGoalCompleted(name,args.taskContext.receipts,requiredCalls))) as Array<keyof typeof tools>;
             if (stepNumber === 0 && continuationMessages === messages && !answerOnly && !args.taskContext && !navigation) return { activeTools };
             // Keep call/result pairs intact and discard only earlier chat text.
             // After a guide or DNA lookup, creation remains possible in step 2;
@@ -914,20 +963,33 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
             const answerAttempt = answerOnly && attempt.model === INR_ASSISTANT_MODELS.qwen
               ? chain.find(candidate => candidate.model === INR_ASSISTANT_MODELS.luna) ?? attempt
               : attempt;
-            continuingSystem = buildInrAssistantSystemPrompt(args.displayName, undefined, readCounts.has("readAppGuide") ? undefined : getInrAssistantAppKnowledge(latestRequest, 1_800), args.edition, args.clientContext, Boolean(args.fileContexts?.length), true)
-              + continuityContext + draftGuidance + (operationGuidance ? `\n${operationGuidance}` : "")
+            const continuationSuffix = continuityContext + draftGuidance + (operationGuidance ? `\n${operationGuidance}` : "")
+              + (goalContinuation ? `\nReprise bornée : ${goalContinuation.tool} n’a jamais été appelé pour cette étape demandée. Le texte précédent n’est pas une preuve d’exécution. Données déjà explicites ou lues : ${JSON.stringify(goalContinuation.facts)}. Appelle cet outil avant toute réponse de succès, avec ces faits et la demande initiale seulement ; n’invente aucun champ, droit, prix ni destinataire. Si une donnée indispensable manque, demande-la au lieu d’appeler l’outil.` : "")
               + (navigation ? `\nL’ouverture de ${navigation.label} est déjà demandée au navigateur. Termine aussi les lectures demandées, sans annoncer la navigation terminée.` : "")
               + (objectives.some(objective => objective.tool === "readAdvertisingCampaigns") ? `\nLectures ADS restant à vérifier : ${objectives.filter((objective,index) => objective.tool === "readAdvertisingCampaigns" && !inrAssistantObjectiveCompleted(objectives,index,receipts,appliedUi)).map(objective => objective.readMode).join(" → ") || "aucune"}.` : "")
               + (args.taskContext ? `\nReprise vérifiée de la tâche. Résultats enregistrés, à réutiliser sans refaire ces actions : ${JSON.stringify(publicTaskReceipts(args.taskContext.receipts)).slice(0,5000)}. La précision actuelle complète seulement cette tâche. Réponds dans la langue de ce message : ${JSON.stringify(spokenRequest).slice(0,500)}` : "")
               + (answerOnly ? "\nRépondez maintenant sans appeler d’outil. Utilisez seulement les faits déjà obtenus. Si le sujet ou une donnée indispensable manque, posez une question courte pour continuer. N’inventez ni résultat ni action exécutée." : "");
+            const continuationSystem = (guideLength:number) => buildInrAssistantSystemPrompt(args.displayName, undefined, readCounts.has("readAppGuide") || !guideLength ? undefined : getInrAssistantAppKnowledge(latestRequest,guideLength), args.edition,args.clientContext,Boolean(args.fileContexts?.length),true) + continuationSuffix;
+            continuingSystem = continuationSystem(1_800);
             const currentSchemas = await Promise.all(activeTools.map(async name => ({
               type: "function", name, description: tools[name].description,
               inputSchema: await asSchema<unknown>(tools[name].inputSchema).jsonSchema,
             })));
-            const contextBytes = Math.max(0, 29_500 - bytes(continuingSystem) - bytes(currentSchemas) - 2_048);
-            const continuationContext = fitInrAssistantGuideContext(
-              compactInrAssistantRejectedToolContext(stepMessages.slice(latestUser), rejectedToolCallIds), contextBytes, bytes,
-            );
+            let continuationSource = compactInrAssistantRejectedToolContext(stepMessages.slice(latestUser),rejectedToolCallIds);
+            const fitContinuation = () => fitInrAssistantGuideContext(continuationSource,Math.max(0,29_500-bytes(continuingSystem)-bytes(currentSchemas)-2_048),bytes);
+            let continuationContext = fitContinuation();
+            const continuationBytes = () => bytes({system:continuingSystem,messages:continuationContext})+bytes(currentSchemas)+2_048;
+            for (const guideLength of [650,350,0]) if (continuationBytes()>30_500) {continuingSystem=continuationSystem(guideLength);continuationContext=fitContinuation();}
+            for (let maxVisuals=attachmentVisualBudget-1; minimumVisuals>0 && maxVisuals>=minimumVisuals && continuationBytes()>30_500; maxVisuals--) {
+              const source = currentMessages.at(-1);
+              if (!source || continuationSource[0]?.role !== "user") break;
+              const reduced = assistantMessagesWithFiles([source],args.fileContexts??[],{maxVisuals})[0];
+              if (reduced?.role !== "user") break;
+              // Keep all native calls/results exact; only extra visual samples
+              // and their server-generated transmission notes are rebuilt.
+              continuationSource=[reduced,...continuationSource.slice(1)];
+              attachmentVisualBudget=maxVisuals;continuationContext=fitContinuation();
+            }
             return {
               ...(toolInputRepairAttempt || answerOnly ? { model: guardedModel(toolInputRepairAttempt ?? answerAttempt) } : {}),
               messages: continuationContext,
@@ -974,6 +1036,14 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
         }
       }
       if(checkpointFailed) return finishReply({message:savedActionReply() || "Le résultat de la tâche doit être vérifié avant de poursuivre. Aucune opération supplémentaire n’a été lancée."});
+      if (reply) {
+        const next = unattemptedGoal(), luna = chain.find(candidate=>candidate.model === INR_ASSISTANT_MODELS.luna);
+        if (next && luna) {
+          goalContinuation = next; goalContinuationScheduled = true;
+          attempts.splice(attemptIndex+1,attempts[attemptIndex+1]?.model === luna.model?1:0,luna);
+          continue;
+        }
+      }
       if (mediaState.result) {
         success = true;
         const media = mediaState.result;

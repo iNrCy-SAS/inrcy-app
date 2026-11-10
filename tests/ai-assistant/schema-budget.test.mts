@@ -14,6 +14,7 @@ import { fitPromptPayloadToJsonBudget } from "../../lib/aiPromptBudget.ts";
 import { getAssistantInternalDestination } from "../../lib/inrAssistantNavigation.ts";
 import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
 import * as editionPolicy from "../../lib/dashboardEdition.ts";
+import { assistantModelInputBudget } from "../../lib/inrAssistantAttachments.ts";
 import type { LanguageModelV3, LanguageModelV3CallOptions } from "@ai-sdk/provider";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type * as Conversation from "../../lib/inrAssistantConversation.ts";
@@ -31,7 +32,7 @@ type Row = Record<string, unknown>;
 
 
 /** Only local schema factories/public guides run; no action executor, DB or paid provider. */
-function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: boolean; guideFollowup?: boolean; dnaFollowup?: boolean; dnaLanguage?: "fr" | "zh"; actionThenInputError?: boolean; ctaPartialThenInputError?: boolean } = {}) {
+function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: boolean; guideFollowup?: boolean; dnaFollowup?: boolean; dnaLanguage?: "fr" | "zh"; actionThenInputError?: boolean; ctaPartialThenInputError?: boolean; attachmentFollowup?:boolean } = {}) {
   const modules = new Map<string, Row>();
   const definitions = new Map<unknown, { name: string; description?: string }>();
   const schemas: Array<{ name: string; description?: string; schema: unknown }> = [];
@@ -104,6 +105,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
     createGateway: () => (modelId: string): LanguageModelV3 => ({ specificationVersion: "v3", provider: "schema-matrix", modelId, supportedUrls: {},
       doGenerate: async params => {
         providerCalls.push(params);
+        if(options.attachmentFollowup && providerCalls.length === 1) return {content:[1,2,3,4].map(documentIndex=>({type:"tool-call" as const,toolCallId:`file-${documentIndex}`,toolName:"readAttachedDocument",input:JSON.stringify({documentIndex,offset:0,query:null})})),finishReason:{unified:"tool-calls" as const,raw:"test"},usage:{inputTokens:{total:100,noCache:100,cacheRead:0,cacheWrite:0},outputTokens:{total:20,text:20,reasoning:0}},warnings:[]};
         if (options.crmThenRead && providerCalls.length <= 2) {
           const input = providerCalls.length === 1 ? { action: "create", instructionQuote: "Crée un contact CRM nommé Alice, puis consulte les dernières publications Facebook.", reference: "Alice", contactId: null,
             fields: { displayName: "Alice", companyName: null, email: null, phone: null, address: null, billingAddress: null, deliveryAddress: null, postalCode: null, city: null, siret: null, vatNumber: null, category: null, contactType: null, notes: null, important: null } } : { limit: 8 };
@@ -172,7 +174,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
       assert.fail(`Unexpected schema dependency ${id}`);
     };
     vm.runInNewContext(`(function(require,module,exports){${output}\n})`, {
-      Date, Intl, URL, URLSearchParams, Request, Response, Headers, TextEncoder, AbortSignal, setTimeout, clearTimeout, console,
+      Date, Intl, URL, URLSearchParams, Request, Response, Headers, TextEncoder, TextDecoder, Buffer, Uint8Array, AbortSignal, setTimeout, clearTimeout, console,
       process: { env: { NODE_ENV: "test" } }, fetch: untouched,
     })(dependency, moduleRecord, moduleRecord.exports);
     for (const [name, factory] of Object.entries(moduleRecord.exports)) if (/^createInrAssistant.*Tools$|^createInrAssistantAppGuideTool$/.test(name) && typeof factory === "function") {
@@ -372,6 +374,21 @@ test("real guide result fits the second SDK step without losing its call/result 
   const sizes = h.providerCalls.map(params => bytes({ prompt: params.prompt, tools: params.tools }) + 1024);
   t.diagnostic(JSON.stringify({ guideFollowupProviderBytes: sizes }));
   assert.ok(sizes.every(size => size <= 32_000));
+});
+
+test("four videos and four real attachment read results fit the full native-schema continuation", async t=>{
+  const h=harness({attachmentFollowup:true});
+  const image=Buffer.from([0xff,0xd8,0xff,0xd9]).toString("base64");
+  const fileContexts=Array.from({length:4},(_,index)=>({name:`clip-${index+1}.mp4`,kind:"video" as const,note:"VIDÉO 600 s : trois images stockées aux secondes 0,300,599.85. Parole transcrite seulement de 0 à 300 s. Intervalles entre images et autres sons non analysés.",text:`Paroles de la vidéo ${index+1} entre 0 et 300 secondes : présentation de l’atelier.`,textTruncated:true,frames:[0,300,599.85].map(timeSeconds=>({timeSeconds,image}))}));
+  await h.runtime.generateInrAssistantReply({accountId:ACCOUNT,actorUserId:ACTOR,displayName:"Atelier Démonstration",edition:"standard",requestId:randomUUID(),request:new Request("https://app.inrcy.com/api/assistant/chat"),supabase:{from:()=>assert.fail("No account query for attachment-only analysis")} as never,fileContexts,messages:[{role:"user",content:"Compare ces quatre vidéos et résume la parole disponible pour chacune. Pour chaque clip, précise quelles images te sont effectivement transmises et les limites de couverture."}]});
+  assert.equal(h.providerCalls.length,2);assert.equal(h.reservations.length,2);
+  const sizes=h.providerCalls.map(assistantModelInputBudget);assert.ok(sizes.every(size=>size<=32_000));
+  for(const call of h.providerCalls){const tools=(call.tools??[]).filter(tool=>tool.type === "function").map(tool=>tool.name);assert.ok(tools.includes("readAttachedDocument"));assert.equal(tools.includes("searchMedia"),false);assert.equal(tools.includes("readWorkspaceSection"),false);}
+  const second=h.providerCalls[1];const results=second.prompt.flatMap(message=>message.role === "tool"?message.content:[]).filter(part=>part.type === "tool-result" && part.toolName === "readAttachedDocument");
+  assert.equal(results.length,4);assert.deepEqual(results.map(part=>part.type === "tool-result"?part.toolCallId:"").sort(),["file-1","file-2","file-3","file-4"]);
+  for(const documentIndex of [1,2,3,4]) assert.ok(results.some(part=>part.type === "tool-result" && part.output.type === "json" && (part.output.value as Record<string,unknown>).documentIndex === documentIndex));
+  const user=second.prompt.find(message=>message.role === "user");assert.ok(user && Array.isArray(user.content));assert.ok(user.content.filter(part=>part.type === "file").length>=4);
+  t.diagnostic(JSON.stringify({fourVideoNativeProviderBytes:sizes}));
 });
 
 test("Standard publication continues after real Booster and Publications guide results without blaming the short request", async t => {

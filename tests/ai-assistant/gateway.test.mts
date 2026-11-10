@@ -17,6 +17,8 @@ import * as activity from "../../lib/inrAssistantActivity.ts";
 import * as gatewayDiagnostics from "../../lib/inrAssistantGatewayDiagnostics.ts";
 import * as attachmentPolicy from "../../lib/inrAssistantAttachments.ts";
 import * as attachmentPrompt from "../../lib/inrAssistantAttachmentPrompt.ts";
+import * as attachmentReader from "../../lib/inrAssistantAttachmentReader.ts";
+import type { AssistantFileContext } from "../../lib/inrAssistantAttachmentStorage.ts";
 import * as promptContext from "../../lib/inrAssistantPromptContext.ts";
 import * as mediaIntent from "../../lib/inrAssistantMediaIntent.ts";
 import * as studioDraft from "../../lib/inrAssistantStudioDraft.ts";
@@ -91,7 +93,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   mediaPreviewResult?: boolean;
   textReply?: string; unexpectedHandoff?: boolean; mediaMetadata?: boolean; crmIds?: string[]; crmStatus?: string;
   rejectEmptyContactId?: boolean;
-  plan?: Array<{tool:string;input?:Record<string,unknown>}>;
+  plan?: Array<{tool:string;input?:Record<string,unknown>}|null>;
   parallelPlan?:Array<{tool:string;input?:Record<string,unknown>}>;
   extraTools?:Record<string,unknown>;
   diagnosticRead?: () => Record<string, unknown>;
@@ -108,6 +110,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   campaignFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   publicationWorkspaceRead?: boolean;
   nativeAccountServices?: boolean;
+  nativeAttachmentTools?: boolean;
   richTextOutputTransform?: (output: unknown) => unknown;
   guideCharacters?: number;
   accountRead?: (name:string,input:unknown)=>unknown;
@@ -122,6 +125,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   const budgetFinalizations: { reservation: unknown; actualCostMicroUsd: number | undefined }[] = [];
   const factories: string[] = [];
   const actionFactories: string[] = [];
+  const attachmentReads: Array<{input:unknown;output:unknown}> = [];
   const publicationExecutions: string[] = [];
   const metadataExecutions: unknown[] = [];
   const crmExecutions: unknown[] = [];
@@ -225,7 +229,13 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantDocumentNativeTools.ts": { createInrAssistantDocumentNativeTools: (args:Record<string,unknown>) => options.documentNativeFactory?.(args)??{} },
     "./inrAssistantCalendarTools.ts": { createInrAssistantCalendarTools: (args:Record<string,unknown>) => options.calendarFactory?.(args)??{} },
     "./inrAssistantScheduledPublicationTools.ts": { createInrAssistantScheduledPublicationTools: () => ({}) },
-    "./inrAssistantAttachmentTools.ts": { createInrAssistantAttachmentTools: () => ({}) },
+    "./inrAssistantAttachmentTools.ts": { createInrAssistantAttachmentTools: (files:AssistantFileContext[]) => {
+      if (!options.nativeAttachmentTools) return {};
+      const native=loadClosedModule<typeof import("../../lib/inrAssistantAttachmentTools.ts")>("inrAssistantAttachmentTools.ts",{"server-only":{},ai:{tool,jsonSchema},"./inrAssistantAttachmentReader.ts":attachmentReader}).createInrAssistantAttachmentTools(files);
+      return {readAttachedDocument:{...native.readAttachedDocument,execute:async(...args:Parameters<NonNullable<typeof native.readAttachedDocument.execute>>)=>{
+        const output=await native.readAttachedDocument.execute!(...args);attachmentReads.push({input:args[0],output});return output;
+      }}};
+    } },
     "./inrAssistantAgentTools.ts": { createInrAssistantAgentTools: () => ({}) },
     "./inrAssistantChannelActionTools.ts": { createInrAssistantChannelActionTools: (args:Record<string,unknown>) => options.channelActionFactory?.(args) ?? {} },
     "./inrAssistantMediaLibraryTools.ts": { createInrAssistantMediaLibraryTools: (args:Record<string,unknown>) => options.mediaLibraryFactory?.(args) ?? {} },
@@ -372,7 +382,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, {
     Date, TextEncoder, AbortSignal, console, process: { env: { NODE_ENV: options.productionNoRedis ? "production" : "test" } },
   })((name: string) => { if (!(name in stubs)) throw new Error(`Unexpected dependency: ${name}`); return stubs[name]; }, moduleRecord, moduleRecord.exports);
-  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, quotaReservations, budgetReservations, budgetFinalizations, factories, actionFactories, toolScopes, ctaScopes, publicationExecutions, metadataExecutions, crmExecutions, mediaScopes, diagnostics, operationCalls, get mediaExecutions() { return mediaExecutions; } };
+  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, quotaReservations, budgetReservations, budgetFinalizations, factories, actionFactories, toolScopes, ctaScopes, publicationExecutions, metadataExecutions, crmExecutions, mediaScopes, diagnostics, operationCalls, attachmentReads, get mediaExecutions() { return mediaExecutions; } };
 }
 
 const basic = { accountId: "account-a", displayName: "Entreprise A", edition: "standard" as const,
@@ -452,6 +462,54 @@ test("CRM orchestration reads private details after resolving the name and never
   const partial=await incomplete.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
   assert.deepEqual(reads,["search"]);assert.equal(partial.outcome,"partial");
   assert.match(partial.message,/recherche de nom seule/);assert.doesNotMatch(partial.message,/0600000000|son adresse est vide/);
+});
+
+test("one bounded Luna continuation can finish an unattempted CRM detail read after a premature answer", async () => {
+  const instruction="Lis la fiche CRM Alice Martin et donne son téléphone et son adresse de facturation ; si les champs sont vides, dis-le.";
+  const reads:string[]=[];
+  const workspaceActionTools={searchCrmContacts:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>{reads.push("search");return {ok:true,contacts:[{id:advertisingId,name:"Alice Martin"}]};}}),readCrmContact:tool({inputSchema:jsonSchema<{contactId:string;reference:string}>({type:"object",properties:{contactId:{type:"string"},reference:{type:"string"}},required:["contactId","reference"],additionalProperties:false}),execute:async input=>{assert.equal(input.contactId,advertisingId);assert.equal(input.reference,"Alice Martin");reads.push("details");return {ok:true,contact:{id:advertisingId,phone:null,billing_address:null}};}})};
+  const h=harness({workspaceActionTools,plan:[{tool:"searchCrmContacts",input:{query:"Alice Martin"}},null,{tool:"readCrmContact",input:{contactId:advertisingId,reference:"Alice Martin"}}],textReply:"Le téléphone et l’adresse ne peuvent être confirmés sans lire la fiche."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.deepEqual(reads,["search","details"]);assert.equal(reply.outcome,"completed");
+  assert.equal(h.generations[2].model,policy.INR_ASSISTANT_MODELS.luna);
+  assert.deepEqual(toolNames(h.generations[2].params),["readCrmContact"]);
+  assert.equal(h.reservations.length,h.generations.length);assert.ok(h.generations.length<=4);
+});
+
+test("a premature mail draft claim gets one native opportunity and cannot survive without a confirmed receipt", async () => {
+  const instruction="Prépare une campagne mail Offrir pour notre révision de vélos : remise de 10 %, sans destinataire et sans envoi.";
+  let drafts=0;
+  const workspaceActionTools={prepareCampaignEmail:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>{drafts++;return {ok:true,status:"draft",draftId:"50000000-0000-4000-8000-000000000001",message:"Brouillon enregistré sans destinataire ni envoi."};}})};
+  const h=harness({workspaceActionTools,plan:[null,{tool:"prepareCampaignEmail"}],textReply:"Votre brouillon de campagne a été enregistré."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(drafts,1);assert.equal(reply.outcome,"completed");assert.equal(h.generations[1].model,policy.INR_ASSISTANT_MODELS.luna);assert.deepEqual(toolNames(h.generations[1].params),["prepareCampaignEmail"]);
+  const absent=harness({workspaceActionTools,plan:[],textReply:"Votre brouillon de campagne a été enregistré. Il est disponible dans vos campagnes."});
+  const missing=await absent.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(absent.generations.length,2,"one continuation, then an honest unfinished result");assert.equal(missing.taskState?.receipts.length,0);assert.notEqual(missing.outcome,"completed");
+  assert.doesNotMatch(missing.message,/Votre brouillon de campagne a été enregistré|Il est disponible/);assert.match(missing.message,/pas pu confirmer l’enregistrement/);
+  assert.doesNotMatch(missing.taskState?.question??"",/a été enregistré/);
+});
+
+test("unattempted-goal continuations never guess CRM identity, missing campaign fields or edition rights", async () => {
+  const readInstruction="Lis la fiche CRM Alice Martin et donne son téléphone.";
+  for(const contacts of [[{id:advertisingId,name:"Alice Martin"},{id:"30000000-0000-4000-8000-000000000004",name:"Alice Martin"}],[]]) {
+    let details=0;
+    const workspaceActionTools={searchCrmContacts:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>({ok:true,contacts})}),readCrmContact:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>{details++;return {ok:true};}})};
+    const h=harness({workspaceActionTools,plan:[{tool:"searchCrmContacts",input:{query:"Alice Martin"}},null],textReply:"Quelle fiche souhaitez-vous consulter ?"});
+    await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:readInstruction}]});
+    assert.equal(h.generations.length,2);assert.equal(details,0);
+  }
+  let drafts=0;
+  const workspaceActionTools={prepareCampaignEmail:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>{drafts++;return {ok:false,status:"needs_instruction",message:"La consigne n’est pas autorisée."};}})};
+  for(const [edition,instruction] of [["premium","Prépare une campagne mail."],["premium","Prépare une campagne mail Offrir."],["basic","Prépare une campagne mail Offrir pour la révision des vélos."],["standard","Prépare une campagne mail Offrir pour la révision des vélos."]] as const) {
+    const h=harness({workspaceActionTools,plan:[],textReply:"Quel contenu et quel type de campagne souhaitez-vous ?"});
+    const reply=await h.runtime.generateInrAssistantReply({...basic,edition,supabase:{} as never,messages:[{role:"user",content:instruction}]});
+    assert.equal(h.generations.length,1);assert.equal(drafts,0);if(edition === "premium") assert.match(reply.message,/Quel contenu/);
+  }
+  const instruction="Prépare une campagne mail Offrir pour la révision des vélos.";
+  const h=harness({workspaceActionTools,plan:[{tool:"prepareCampaignEmail"}],textReply:"Brouillon enregistré. Quel expéditeur souhaitez-vous ?"});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(drafts,1);assert.equal(h.generations.length,2,"a refused native attempt is never replayed by the continuation");assert.doesNotMatch(reply.message,/Brouillon enregistré/);
 });
 
 test("campaign draft preparation and a two-draft batch never become a publication or dispatch when sending is denied", async () => {
@@ -1482,6 +1540,26 @@ test("an admitted four-video request reduces extra samples before preflight whil
     assert.ok((metadata.sentVideoFrameTimesSeconds as number[]).includes(300));
   }
   for(const call of h.generations) assert.ok(attachmentPolicy.assistantModelInputBudget(call.params)<=32_000);
+});
+
+test("four parallel native attachment reads keep all results and one visual per clip within the next provider budget", async () => {
+  const image=Buffer.from([0xff,0xd8,0xff,0xd9]).toString("base64");
+  const files=Array.from({length:4},(_,index)=>({name:`clip-${index+1}.mp4`,kind:"video" as const,note:"VIDÉO 600 s : trois images stockées aux secondes 0,300,599.85. Parole transcrite seulement de 0 à 300 s. Intervalles entre images et autres sons non analysés.",text:`Paroles de la vidéo ${index+1} entre 0 et 300 secondes : présentation de l’atelier.`,textTruncated:true,frames:[0,300,599.85].map(timeSeconds=>({timeSeconds,image}))}));
+  const original=JSON.stringify(files);
+  const instruction="Compare ces quatre vidéos et résume la parole disponible pour chacune. Pour chaque clip, précise quelles images te sont effectivement transmises et les limites de couverture.";
+  const h=harness({nativeAttachmentTools:true,parallelPlan:[1,2,3,4].map(documentIndex=>({tool:"readAttachedDocument",input:{documentIndex,offset:0,query:null}})),plan:[],textReply:"Les quatre clips ont une transcription limitée et des images ponctuelles ; aucun intervalle continu n’est vérifié.",extraTools:{searchMedia:tool({description:"Schéma de médiathèque sans rapport avec la demande. ".repeat(500),inputSchema:jsonSchema({type:"object",properties:{}}),execute:async():Promise<{ok:false;message:string}>=>{throw new Error("This attachment analysis must never search account media");}})}});
+  await h.runtime.generateInrAssistantReply({...basic,edition:"standard",fileContexts:files,messages:[{role:"user",content:instruction}]});
+  assert.equal(h.attachmentReads.length,4);assert.deepEqual(h.attachmentReads.map(read=>(read.input as {documentIndex:number}).documentIndex).sort(),[1,2,3,4]);
+  assert.ok(h.attachmentReads.every(read=>(read.output as {ok:boolean}).ok));assert.equal(h.generations.length,2);assert.equal(JSON.stringify(files),original);
+  for(const call of h.generations){assert.ok(attachmentPolicy.assistantModelInputBudget(call.params)<=32_000);assert.equal(toolNames(call.params).includes("searchMedia"),false);assert.equal(toolNames(call.params).includes("readWorkspaceSection"),false);}
+  const outputs=h.generations[1].params.prompt.flatMap(message=>message.role === "tool"?message.content:[]).filter(part=>part.type === "tool-result" && part.toolName === "readAttachedDocument");
+  assert.equal(outputs.length,4);
+  for(const read of h.attachmentReads) assert.ok(outputs.some(part=>part.type === "tool-result" && part.output.type === "json" && JSON.stringify(part.output.value) === JSON.stringify(read.output)),"every native result stays byte-for-byte intact");
+  const user=h.generations[1].params.prompt.find(message=>message.role === "user");assert.ok(user && Array.isArray(user.content));
+  assert.ok(user.content.filter(part=>part.type === "file").length>=4);
+  const metadata=user.content.filter(part=>part.type === "text").map(part=>{try{return JSON.parse(part.text) as Record<string,unknown>;}catch{return null;}}).filter(value=>value?.name);
+  assert.equal(metadata.length,4);for(const item of metadata){assert.ok(Number(item?.sentVisualCount)>=1);assert.ok((item?.sentVideoFrameTimesSeconds as number[]).includes(300));}
+  assert.equal(h.diagnostics.some(row=>row.phase === "input_limit"),false);
 });
 
 test("provider timeout diagnostics preserve the original fallback policy and keep the cause private", async () => {

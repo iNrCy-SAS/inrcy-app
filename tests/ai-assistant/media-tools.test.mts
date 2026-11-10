@@ -403,6 +403,11 @@ test("saving the exact preview remains allowed while publication is refused, and
   }
 });
 
+test("a library deletion is not a temporary preview decision without an explicit preview target", () => {
+  assert.equal(mediaPreview.isInrAssistantMediaPreviewDecisionRequest("Supprime cette image de Mes médias.","discard"),false);
+  assert.equal(mediaPreview.isInrAssistantMediaPreviewDecisionRequest("Écarte cet aperçu temporaire.","discard"),true);
+});
+
 test("paid modification supports a preview without accepting its new draft or touching the source", async () => {
   const h = harness({ currentUserMessage: "Retouche cette image en aperçu" }); const result = await h.tools.modifyMedia.execute({ sourceMediaId, instruction: "Éclaircir légèrement le fond", resultMode: "preview" });
   assert.equal(result.status, "ready_to_save"); assert.equal(result.resultMode, "preview"); assert.equal(h.calls.some(call => call.stage === "accept"), false); assert.equal(h.calls.find(call => call.stage === "source")?.id, sourceMediaId);

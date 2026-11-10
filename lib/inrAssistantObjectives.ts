@@ -267,12 +267,14 @@ type ReadAttempt = {
  * strictly increasing cursor for the same query; the global call budget remains. */
 export function createInrAssistantReadBudget() {
     const attempts = new Map<string, ReadAttempt[]>();
+    let attachmentReadCount = 0;
     const row = (value: unknown): Record<string, unknown> => value && typeof value === "object" ? value as Record<string, unknown> : {};
     const paginated = new Set(["readSendPublicationHistory", "readAccountServices", "listGoogleReviews", "searchMedia", "listIndividualMailboxes", "readIndividualMailHistory", "discoverCapabilities", "readStatsReports", "readScheduledPublications", "readPublicationWorkspace", "readAdvertisingCampaigns", "readAttachedDocument", "readCommercialTemplates"]);
     const sameSearch = (left: Record<string, unknown>, right: Record<string, unknown>) => [...new Set([...Object.keys(left), ...Object.keys(right)])].filter(key => key !== "offset" && key !== "page" && key !== "cursor").every(key => JSON.stringify(left[key] ?? null) === JSON.stringify(right[key] ?? null));
     return {
         available(name: string) {
             if (name === "readAccountServices") return true;
+            if (name === "readAttachedDocument") return attachmentReadCount < 8;
             const history = attempts.get(name) ?? [];
             if (name === "readAdvertisingCampaigns") return history.length < 8;
             const last = history.at(-1);
@@ -280,7 +282,8 @@ export function createInrAssistantReadBudget() {
         },
         start(name: string, input: unknown, exhaustiveObjective?: string): ReadAttempt | null {
             const current = row(input);
-            const key = name === "readAccountServices" ? `${name}:${String(current.view)}` : name;
+            if (name === "readAttachedDocument" && (attachmentReadCount >= 8 || !Number.isSafeInteger(current.documentIndex) || Number(current.documentIndex) < 1 || Number(current.documentIndex) > 4)) return null;
+            const key = name === "readAccountServices" ? `${name}:${String(current.view)}` : name === "readAttachedDocument" ? `${name}:${String(current.documentIndex)}` : name;
             const history = attempts.get(key) ?? [];
             const last = history.at(-1);
             const cursorKey = name === "listGoogleReviews" ? "cursor" : name === "readIndividualMailHistory" ? "page" : "offset";
@@ -302,6 +305,7 @@ export function createInrAssistantReadBudget() {
             const attempt: ReadAttempt = { input: current, cursorKey, exhaustiveObjective, done: false };
             history.push(attempt);
             attempts.set(key, history);
+            if (name === "readAttachedDocument") attachmentReadCount++;
             return attempt;
         },
         finish(attempt: ReadAttempt, output: unknown) {

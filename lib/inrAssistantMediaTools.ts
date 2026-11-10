@@ -72,7 +72,7 @@ function parseDraftDecision(value: unknown): DraftDecisionInput {
   return { requestId: input.requestId, mediaId: input.mediaId.toLowerCase(), instructionQuote: input.instructionQuote };
 }
 function draftDecisionRequested(message: string, quote: string, action: "accept" | "discard") {
-  return message.includes(quote) && isInrAssistantMediaPreviewDecisionRequest(message, action) && isInrAssistantMediaPreviewDecisionRequest(quote, action);
+  return message.includes(quote) && isInrAssistantMediaPreviewDecisionRequest(message, action, true) && isInrAssistantMediaPreviewDecisionRequest(quote, action, true);
 }
 function previewRequested(message: string | undefined) { const text = inrAssistantMaskQuotedText(message ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase(); return /\b(?:apercu|previsualis\w*)\b|\bsans\s+(?:l['’]|les?\s+)?(?:enregistr\w*|sauvegard\w*)\b|\b(?:avant de|avant d['’])\s*(?:enregistr\w*|sauvegard\w*)\b|\bne\b.{0,30}\b(?:enregistr\w*|sauvegard\w*)\b.{0,15}\bpas\b/.test(text); }
 

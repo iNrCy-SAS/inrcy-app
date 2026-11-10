@@ -320,7 +320,7 @@
         "lib/aiVideoProviderGateway.ts": "7403f89d46039dceb651573782234c0045e1ec0911eb8a91c17edc2e40ed4793",
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
         "lib/inrAssistantLocalInterfaceTools.ts": "071ccde517e94fbf9b41afa723f0dc8ab8adf54c3bc08120f2285f57a7128fa3",
-        "lib/inrAssistantMediaTools.ts": "49f2bf4f1ce9d8ee621654d788aa12c5495b30b03e47b29d9fb18989165576a7",
+        "lib/inrAssistantMediaTools.ts": "8eecf451df8d547ed705b9a049d11ec05a5006e5b5f99ceebde109185ded02be",
         "lib/inrAssistantStudioFormSelection.ts": "b0a1c2d7de85f051192a9185577137c73114546b31f84802d68102ddc1fba515",
         "lib/inrAssistantStudioPreferenceTools.ts": "41f89f164a9b51d4400e4e4c3ebaaedea9e722a1054e145bf3433b86265d0a5d",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
@@ -357,8 +357,8 @@
         "lib/inrAssistantAttachmentStorage.ts": "faf1e254c5e7852fcded376a5846e9ce0c096eb6ddc646c94630bc854f9a7fa1",
         "lib/inrAssistantContentReport.ts": "fd36e2c93fe4a91243e614d22ee46ca50ccd8287f5b30e1360595a6aab1da90f",
         "lib/inrAssistantContentReportTools.ts": "0724080fc2eba3597ad658c155a4b8f5a7b31b2ca48405d7f1afcfb3de434a08",
-        "lib/inrAssistantMediaPreview.ts": "9e25d3ab2bc4ddb547d92e5678076fc627d1749be2c1f5ac49c7740debbbc2dc",
-        "lib/inrAssistantMediaTools.ts": "49f2bf4f1ce9d8ee621654d788aa12c5495b30b03e47b29d9fb18989165576a7",
+        "lib/inrAssistantMediaPreview.ts": "0289ff5dfe48a541d0b7f8c653bfe4c56b43ad43ba2a5b59892fba00f458f584",
+        "lib/inrAssistantMediaTools.ts": "8eecf451df8d547ed705b9a049d11ec05a5006e5b5f99ceebde109185ded02be",
         "lib/inrAssistantReplyReplay.ts": "1ec3ad01485505ce94bc2bbb0ed96369c60098f41a5c4986eab7ae0c72f69e4b",
         "lib/inrAssistantStudioDraftReview.ts": "fd41d73ba7bbeafa5bece668cb5dbfb5b1a104fb826dbb755c0391c1ba7dceac",
         "lib/inrAssistantStudioDraftReviewUiTools.ts": "620fbb685ea657452cf7e23bd98bccf9b798a6927512fc320dc26705bb3cb105",
@@ -721,7 +721,7 @@
       "guideDigest": "9942907e58e8ce31fb596f4b14f9817a48984b45dc8d47d6ee9f26312ec4ac03",
       "sources": {
         "lib/inrAssistantDiagnosticsTools.ts": "9e160508b6872652edb58a275a26d061da1c1acefacdf366287ecb1380adf27e",
-        "lib/inrAssistantGateway.ts": "4eba6aa72ecc8ed50756e1b55b5ae34514f8f3c4921e89e894976215c7fe8e1d",
+        "lib/inrAssistantGateway.ts": "bf1cb3d99535f59d6dba86d7d6564f9f1bf3f719ffa60fe141afc622dd010575",
         "lib/inrAssistantScheduledPublicationTools.ts": "2dd2eaa38a9472dc748c59dbfaddf06a55dbf6b58a3601ab89bd5165acefb0ec",
         "lib/inrAssistantSettingsTools.ts": "5433dec6ddf48c710ae3f898dc91e2dbfda859259280b6d4ed8f07ed7ce93d26"
       }
@@ -832,7 +832,7 @@
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
         "lib/inrAssistantLocalInterface.ts": "50ba744b88593d75fc343c52b2b42cb9dba491440cfc84ab56146f4938525c71",
         "lib/inrAssistantLocalInterfaceTools.ts": "071ccde517e94fbf9b41afa723f0dc8ab8adf54c3bc08120f2285f57a7128fa3",
-        "lib/inrAssistantMediaTools.ts": "49f2bf4f1ce9d8ee621654d788aa12c5495b30b03e47b29d9fb18989165576a7",
+        "lib/inrAssistantMediaTools.ts": "8eecf451df8d547ed705b9a049d11ec05a5006e5b5f99ceebde109185ded02be",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
         "lib/studioInspirationImagePolicy.ts": "0ab78c05540a02cc11912ed154430592824fa53492768bd0efb9c62772f8c3c0",
