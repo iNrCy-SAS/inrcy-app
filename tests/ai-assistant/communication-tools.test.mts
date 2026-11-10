@@ -233,6 +233,17 @@ test("separate recipient clauses never borrow permission or confuse another reci
   assert.equal(revoked.apiCalls.length, 0);
 });
 
+test("agenda reads reject mail sections and added search words before any query", async () => {
+  const h = harness();
+  for (const section of ["drafts", "mail_history"]) {
+    const result = await h.execute("readCommunicationRecords", { section, recordId: null, query: "Alice", timeMin: null, timeMax: null }, h.create("Confirme le rendez-vous Alice dans mon agenda."));
+    assert.equal(result.status, "needs_instruction"); assert.equal(result.inputIssue, "calendar_section_required"); assert.equal(result.noEffect, true);
+  }
+  const queryRefusal = await h.execute("readCommunicationRecords", { section: "calendar", recordId: null, query: "Alice rendez-vous", timeMin: null, timeMax: null }, h.create("Confirme le rendez-vous Alice dans mon agenda."));
+  assert.equal(queryRefusal.inputIssue, "query_not_in_current_instruction");
+  assert.equal(h.queries.length, 0); assert.equal(h.apiCalls.length, 0);
+});
+
 test("nine native agenda events are exposed as a bounded nonexhaustive result without a fabricated cursor", async () => {
   const h = harness({ message: "Liste mes rendez-vous du premier décembre." });
   h.rows.agenda_events = Array.from({ length: 9 }, (_, index) => ({ ...fixtureEvent(), id: `60000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, title: `Visite ${index + 1}` }));

@@ -104,8 +104,85 @@ function harness(options: { edition?: "standard" | "premium" | "founder"; actual
   const results: Commercial.InrAssistantCommercialResult[] = [];
   const tools = (message: string, actionRequestId = "stable-turn") => runtime.createInrAssistantCommercialTools({ request: new Request("https://app.inrcy.test/api/assistant/chat", { headers: { cookie: "session=synthetic", authorization: "Bearer synthetic" } }),
     accountId, supabase: supabase as never, edition: options.edition || "founder", currentUserMessage: message, actionRequestId, canStartWork: () => options.canStart !== false, onResult: result => { results.push(result); } }) as unknown as Record<"manageCrmContact" | "prepareCommercialDocument", Tool>;
-  return { calls, tables, nativeCalls, results, tools, crm, documents, request };
+  return { calls, tables, nativeCalls, results, tools, crm, documents, request, runtime };
 }
+
+test("the pure CRM guard denies all negative rename/replace forms without treating quoted body text as authority", () => {
+  const h = harness(), refusal = h.runtime.getInrAssistantCrmInstructionRefusal;
+  for (const prompt of [
+    "Ne renomme pas le contact Jean Dupont en Jean Durand dans le CRM.",
+    "Renomme pas le contact Jean Dupont en Jean Durand dans le CRM.",
+    "Ne remplace pas le téléphone du contact Jean Dupont dans le CRM par 0102030405.",
+    "Remplace pas le téléphone du contact Jean Dupont dans le CRM par 0102030405.",
+    "Do not rename the contact Jean Dupont to Jean Durand in the CRM.",
+  ]) {
+    const fields = /renom|rename/i.test(prompt) ? { displayName: "Jean Durand" } : { phone: "0102030405" };
+    assert.equal(refusal(prompt, manage("update", prompt, fields))?.inputIssue, "current_instruction_not_authorized", prompt);
+  }
+  for (const prompt of ["Renomme le contact Jean Dupont en Jean Durand dans le CRM.", "Remplace Jean Dupont par Jean Durand dans le CRM.", "Remplace le téléphone du contact Jean Dupont dans le CRM par 0102030405."]) {
+    assert.equal(refusal(prompt, manage("update", prompt, /telephone|téléphone/.test(prompt) ? { phone: "0102030405" } : { displayName: "Jean Durand" })), null, prompt);
+  }
+  const note = "Ne renomme pas Alice et ne remplace pas son téléphone.";
+  const prompt = `Modifie la note du contact Jean Dupont dans le CRM : « ${note} ».`;
+  assert.equal(refusal(prompt, manage("update", prompt, { notes: note })), null);
+  assert.equal(h.calls.length, 0); assert.equal(h.nativeCalls.length, 0);
+});
+
+test("phone-only CRM updates reject copied fields with actionable feedback before any native I/O", async () => {
+  const h = harness(), tools = h.tools(updateMessage);
+  const copied = manage("update", updateMessage, { phone: "0102030405", displayName: "Jean Dupont", email: "jean@example.test", notes: "PRIVATE_NOTES_NEVER_RETURN" });
+  const refusal = await tools.manageCrmContact.execute(copied);
+  assert.equal(refusal.status, "needs_instruction"); assert.equal(refusal.inputIssue, "unrequested_fields");
+  assert.equal(refusal.noEffect, true); assert.equal(refusal.retryableInput, true);
+  assert.deepEqual(Array.from(refusal.invalidFields || []), ["displayName", "email", "notes"]);
+  assert.match(refusal.message, /null.*conserver|conserver.*null/); assert.equal(h.calls.length, 0); assert.equal(h.nativeCalls.length, 0);
+  const fixed = await tools.manageCrmContact.execute(manage("update", updateMessage, { phone: "0102030405", displayName: null, email: null, notes: null }));
+  assert.equal(fixed.status, "updated"); assert.equal(h.tables.crm_contacts[0].phone, "0102030405");
+  assert.equal(h.tables.crm_contacts[0].email, "jean@example.test"); assert.equal(h.tables.crm_contacts[0].notes, "PRIVATE_NOTES_NEVER_RETURN");
+  assert.equal(h.nativeCalls.length, 1);
+});
+
+test("CRM rename paraphrases and two requested fields remain supported while other stored values survive", async () => {
+  for (const message of ["Renomme le contact Jean Dupont en Jean Durand dans le CRM.", "Remplace Jean Dupont par Jean Durand dans le CRM."]) {
+    const h = harness(); const result = await h.tools(message).manageCrmContact.execute(manage("update", message, { displayName: "Jean Durand" }));
+    assert.equal(result.status, "updated", message); assert.equal(h.nativeCalls.length, 1);
+    assert.equal(h.tables.crm_contacts[0].email, "jean@example.test"); assert.equal(h.tables.crm_contacts[0].phone, "0612345678");
+    assert.equal(h.tables.crm_contacts[0].notes, "PRIVATE_NOTES_NEVER_RETURN");
+  }
+  const h = harness(); const message = "Mets à jour le courriel et le téléphone du contact Jean Dupont dans le CRM : nouveau@example.test et 0102030405.";
+  const result = await h.tools(message).manageCrmContact.execute(manage("update", message, { email: "nouveau@example.test", phone: "0102030405" }));
+  assert.equal(result.status, "updated"); assert.equal(h.tables.crm_contacts[0].email, "nouveau@example.test"); assert.equal(h.tables.crm_contacts[0].phone, "0102030405");
+  assert.equal(h.tables.crm_contacts[0].address, "1 rue de Paris"); assert.equal(h.tables.crm_contacts[0].notes, "PRIVATE_NOTES_NEVER_RETURN");
+});
+
+test("a rewritten CRM instruction quote can be corrected before any native mutation", async () => {
+  const h = harness(), tools = h.tools(updateMessage);
+  const refusal = await tools.manageCrmContact.execute(manage("update", "Modifier le téléphone de Jean Dupont", { phone: "0102030405" }));
+  assert.equal(refusal.inputIssue, "exact_instruction_quote_required"); assert.equal(refusal.noEffect, true); assert.equal(h.calls.length, 0);
+  assert.equal((await tools.manageCrmContact.execute(manage("update", updateMessage, { phone: "0102030405" }))).status, "updated");
+  assert.equal(h.nativeCalls.length, 1);
+});
+
+test("a counted CRM list shares only its explicit unambiguous header type", async () => {
+  const message = "Crée deux fiches clients CRM : Alice Martin, alice@example.test, et Bob Martin, bob@example.test.";
+  const h = harness(), tools = h.tools(message);
+  for (const [name, email] of [["Alice Martin", "alice@example.test"], ["Bob Martin", "bob@example.test"]]) {
+    const result = await tools.manageCrmContact.execute(manage("create", message, { displayName: name, email, contactType: "client" }, null, name));
+    assert.equal(result.status, "created");
+  }
+  const alice = h.tables.crm_contacts.find(contact => contact.email === "alice@example.test"), bob = h.tables.crm_contacts.find(contact => contact.email === "bob@example.test");
+  assert.equal(alice?.contact_type, "client"); assert.equal(bob?.contact_type, "client"); assert.notEqual(alice?.id, bob?.id);
+  for (const prefix of ['Crée deux fiches CRM « clients »', "Crée deux fiches clients et prospects CRM"]) {
+    const blocked = harness(), prompt = `${prefix} : Alice Martin, alice@example.test, et Bob Martin, bob@example.test.`;
+    const result = await blocked.tools(prompt).manageCrmContact.execute(manage("create", prompt, { displayName: "Alice Martin", email: "alice@example.test", contactType: "client" }, null, "Alice Martin"));
+    assert.equal(result.status, "needs_instruction", prompt); assert.equal(blocked.nativeCalls.length, 0);
+  }
+  for (const fields of [{ displayName: "Alice Martin", email: "bob@example.test", contactType: "client" }, { displayName: "Alice Martin", email: "alice@example.test", notes: "Not supplied", contactType: "client" }]) {
+    const blocked = harness(); assert.equal((await blocked.tools(message).manageCrmContact.execute(manage("create", message, fields, null, "Alice Martin"))).status, "needs_instruction"); assert.equal(blocked.nativeCalls.length, 0);
+  }
+  const noAuto = harness(), payload = manage("create", message, { displayName: "Alice Martin", email: "alice@example.test", contactType: null }, null, "Alice Martin");
+  assert.equal((await noAuto.tools(message).manageCrmContact.execute(payload)).status, "created"); assert.equal(payload.fields.contactType, null);
+});
 
 test("native CRM creation keeps legacy behavior and adds durable account-scoped idempotency without a migration", async () => {
   const h = harness(); const body = { display_name: "Marie Durand", email: "marie@example.test" };
@@ -157,8 +234,9 @@ test("the real SDK repairs CRM serialization while native current-instruction an
     const h=harness({edition:"premium",actualEdition:"premium"});
     const input=manage("create",wrongQuote?"Crée une autre fiche absente du message":message,{displayName:"Marie Durand",email:"marie@example.test",contactType:"Client"},null,"Marie Durand");
     const bad={...input,contactId:""};
-    const model:LanguageModelV3={specificationVersion:"v3",provider:"local-crm-repair",modelId:"synthetic",supportedUrls:{},doGenerate:async()=>({content:[{type:"tool-call",toolCallId:"crm-repair",toolName:"manageCrmContact",input:JSON.stringify(bad)}],finishReason:{unified:"tool-calls",raw:"fixture"},usage:{inputTokens:{total:1},outputTokens:{total:1}},warnings:[]}),doStream:async()=>{throw Error("No provider network");}};
-    const result=await generateText({model,prompt:message,tools:{manageCrmContact:h.tools(message).manageCrmContact},experimental_repairToolCall:async({toolCall})=>repairInrAssistantToolInput(toolCall)});
+    const model:LanguageModelV3={specificationVersion:"v3",provider:"local-crm-repair",modelId:"synthetic",supportedUrls:{},doGenerate:async()=>({content:[{type:"tool-call",toolCallId:"crm-repair",toolName:"manageCrmContact",input:JSON.stringify(bad)}],finishReason:{unified:"tool-calls",raw:"fixture"},usage:{inputTokens:{total:1,noCache:1,cacheRead:0,cacheWrite:0},outputTokens:{total:1,text:1,reasoning:0}},warnings:[]}),doStream:async()=>{throw Error("No provider network");}};
+    const sdkTool=h.tools(message).manageCrmContact as ReturnType<typeof Commercial.createInrAssistantCommercialTools>["manageCrmContact"];
+    const result=await generateText({model,prompt:message,tools:{manageCrmContact:sdkTool},experimental_repairToolCall:async({toolCall})=>repairInrAssistantToolInput(toolCall)});
     assert.equal(result.toolResults.length,1);
     assert.equal(h.nativeCalls.length,wrongQuote?0:1);
     assert.equal(h.calls.filter(c=>c.operation==="insert").length,wrongQuote?0:1);

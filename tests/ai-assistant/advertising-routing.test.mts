@@ -159,3 +159,32 @@ test("a temporary preview order retains generation permission while refusing sav
     "Si Julie est disponible, génère un aperçu d’image.",
   ]) {assert.equal(permitsInrAssistantMediaAction(denied,"generate","image"),false,denied);assert.deepEqual(inrAssistantRequiredTools(denied),[],denied);}
 });
+
+test("a native media quote uses its own read facet without a phantom credit-ledger or commercial-document goal",()=>{
+  const prompt="Donne-moi le devis réel en crédits pour une image carrée d’un vélo bleu sans texte, avec le moteur FLUX.2 Pro. Ne génère pas l’image, ne réserve pas de crédits et n’enregistre rien.";
+  assert.deepEqual(inrAssistantObjectives(prompt).map(objective=>objective.tool),["quoteMediaGeneration"]);
+  assert.deepEqual(inrAssistantRequiredTools(prompt),[]);
+  assert.deepEqual(inrAssistantObjectives("Prépare un devis pour une vidéo de 8 secondes.").map(objective=>objective.tool),["quoteMediaGeneration"]);
+  assert.deepEqual(inrAssistantRequiredTools("Prépare un devis pour une vidéo de 8 secondes."),[]);
+  assert.deepEqual(inrAssistantObjectives("Donne le devis pour une image et mon solde de crédits.").map(objective=>objective.tool),["quoteMediaGeneration","readAccountServices"]);
+  assert.equal(inrAssistantObjectives("Combien de crédits me restent pour les images ?")[0].tool,"readAccountServices");
+  assert.equal(inrAssistantObjectives("Quel est le montant du devis dans l’image jointe ?")[0].tool,"readAttachedDocument");
+  assert.deepEqual(inrAssistantRequiredTools("Génère une image de mon atelier avec un budget limité."),["generateMedia"]);
+});
+
+test("information requests for an existing preview, public research and offer comparison never create unrelated writes or file reads",()=>{
+  const preview="Quel est l’état de l’image en aperçu ? Vérifie seulement son statut : ne l’enregistre pas, ne la supprime pas, ne relance rien.";
+  assert.deepEqual(inrAssistantRequiredTools(preview),[]);assert.deepEqual(inrAssistantObjectives(preview).map(objective=>objective.tool),["getMediaGeneration"]);
+  const web="Recherche sur Internet les nouveautés publiques sur les batteries solides en 2026. Ne transmets aucune information du fichier interne joint ; cite uniquement les sources obtenues par la recherche.";
+  assert.deepEqual(inrAssistantObjectives(web).map(objective=>objective.tool),["searchPublicWeb"]);
+  const comparison="Compare clairement Basique, Standard et Premium : Studio, agents, CRM, mails, agenda et ADS. Est-ce que Premium permet aussi de fusionner automatiquement des contacts ou de gérer la boîte de réception Gmail ? Ceci est une question, pas un ordre.";
+  assert.deepEqual(inrAssistantRequiredTools(comparison),[]);
+  assert.deepEqual(inrAssistantRequiredTools("Compare les fiches CRM, puis crée un contact CRM Alice."),["manageCrmContact"]);
+});
+
+test("a repeated preview status retains its target without swallowing an independent audio or attached-file read",()=>{
+  assert.deepEqual(inrAssistantObjectives("Vérifie le statut de l’aperçu, puis vérifie seulement son état.").map(objective=>objective.tool),["getMediaGeneration"]);
+  assert.deepEqual(inrAssistantObjectives("Vérifie le statut de l’aperçu, puis recherche mes sons dans la médiathèque.").map(objective=>objective.tool),["getMediaGeneration","searchMedia"]);
+  assert.deepEqual(inrAssistantObjectives("Recherche sur Internet les batteries solides, puis lis le document joint.").map(objective=>objective.tool),["searchPublicWeb","readAttachedDocument"]);
+  assert.deepEqual(inrAssistantObjectives("Donne le devis d’une image, puis consulte mon solde de crédits.").map(objective=>objective.tool),["quoteMediaGeneration","readAccountServices"]);
+});

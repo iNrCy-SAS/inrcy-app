@@ -54,6 +54,7 @@ import * as assistantClock from "../../lib/inrAssistantClock.ts";
 import * as researchIntent from "../../lib/inrAssistantResearchIntent.ts";
 import * as providerCost from "../../lib/inrAssistantProviderCost.ts";
 import * as toolInputRepair from "../../lib/inrAssistantToolInputRepair.ts";
+import * as verifiedCapabilities from "../../lib/inrAssistantCapabilities.ts";
 import { getInrAssistantDocumentPrefillNavigation } from "../../lib/inrAssistantDocumentUiCommands.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type * as ToolRegistry from "../../lib/inrAssistantToolRegistry.ts";
@@ -70,7 +71,7 @@ function loadClosedModule<T>(file: string, stubs: Record<string, unknown>): T {
   const record = { exports: {} };
   const pureDependencies: Record<string, unknown> = { "./inrAssistantBadgeIdentityTheme.ts": badgeIdentityTheme, "./inrAssistantNotificationNavigation.ts": notificationNavigation, "./inrAssistantSendPublicationIntent.ts": sendPublicationIntent, "./inrAssistantAccountUiIntent.ts": accountUiIntent, "./inrAssistantBasicShopRead.ts": basicShopRead, "./inrAssistantScheduledEditorSelection.ts": scheduledEditorSelection, "./inrAssistantStudioFormSelection.ts": studioFormSelection, "./inrAssistantUiCommands.ts": uiCommands,
     "./inrAssistantClock.ts": assistantClock, "./inrAssistantResearchIntent.ts": researchIntent, "./inrAssistantProviderCost.ts": providerCost };
-  vm.runInNewContext(`(function(require,module,exports){${source}\n})`, { URL, URLSearchParams, Request, Response, Headers, AbortSignal, setTimeout, clearTimeout })((name: string) => {
+  vm.runInNewContext(`(function(require,module,exports){${source}\n})`, { URL, URLSearchParams, Request, Response, Headers, TextEncoder, AbortSignal, setTimeout, clearTimeout })((name: string) => {
     if (name in pureDependencies && !(name in stubs)) return pureDependencies[name];
     if (!(name in stubs)) throw new Error(`Unexpected dependency: ${name}`);
     return stubs[name];
@@ -92,6 +93,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   emptyText?: boolean; ignoresToolChoice?: boolean; abortAfterPublication?: AbortController;
   mediaPreviewResult?: boolean;
   textReply?: string; unexpectedHandoff?: boolean; mediaMetadata?: boolean; crmIds?: string[]; crmStatus?: string;
+  crmOutputs?:Record<string,unknown>[];
   rejectEmptyContactId?: boolean;
   plan?: Array<{tool:string;input?:Record<string,unknown>}|null>;
   parallelPlan?:Array<{tool:string;input?:Record<string,unknown>}>;
@@ -154,7 +156,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
             const next=options.plan[generations.length-1];
             const available=(params.tools??[]).filter(t=>t.type === "function").map(t=>t.name);
             const runs=next && available.includes(next.tool);
-            return {content:runs?[{type:"tool-call",toolCallId:`plan-${generations.length}`,toolName:next.tool,input:JSON.stringify(next.input??{})}]:[{type:"text",text:next?`Outil absent : ${next.tool}`:options.textReply ?? "Les étapes demandées ont été traitées."}],finishReason:{unified:runs?"tool-calls":"stop",raw:"test"},usage:{inputTokens:{total:100,noCache:100,cacheRead:0,cacheWrite:0},outputTokens:{total:20,text:20,reasoning:0}},warnings:[]};
+            return {content:runs?[{type:"tool-call",toolCallId:`plan-${generations.length}`,toolName:next.tool,input:JSON.stringify(next.input??{})}]:[{type:"text",text:next?`Outil absent : ${next.tool}`:options.emptyText?"":options.textReply ?? "Les étapes demandées ont été traitées."}],finishReason:{unified:runs?"tool-calls":options.outputLimit?"length":"stop",raw:"test"},usage:{inputTokens:{total:100,noCache:100,cacheRead:0,cacheWrite:0},outputTokens:{total:20,text:20,reasoning:0}},warnings:[]};
           }
           if (generations.length <= (options.fail ?? 0)) throw Object.assign(new Error("Unavailable"), { statusCode: 503 });
           if (options.failAfterPublication && generations.length > 3) throw Object.assign(new Error("Summary unavailable after publication"), { statusCode: 503 });
@@ -196,6 +198,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantUiTask.ts": uiTask,
     "./inrAssistantRejectedToolContext.ts": rejectedToolContext,
     "./inrAssistantToolInputRepair.ts": toolInputRepair,
+    "./inrAssistantCapabilities.ts": verifiedCapabilities,
     "./inrAssistantActionCoverage.ts": actionCoverage,
     "./inrAssistantCommandRegistry.ts": commandRegistry,
     "./inrAssistantUiCommands.ts": uiCommands,
@@ -273,6 +276,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
       }, required: ["action", "instructionQuote", "reference", "contactId", "fields"], additionalProperties: false }, { validate: value => { const input = value as Record<string, unknown>; return input.contactId === null || typeof input.contactId === "string" && (!options.rejectEmptyContactId || input.contactId !== "") ? { success: true, value: input } : { success: false, error: new Error("Invalid contactId: " + JSON.stringify(value)) }; } }), execute: async input => {
         const id = options.crmIds![Math.min(crmExecutions.length, options.crmIds!.length - 1)];
         crmExecutions.push(input);
+        if(options.crmOutputs) return options.crmOutputs[Math.min(crmExecutions.length-1,options.crmOutputs.length-1)];
         return { ok: !options.crmStatus, status: options.crmStatus??"created", id, message: options.crmStatus?"Résultat CRM incertain.":`Fiche CRM enregistrée : ${id}.`, nextAction: { label: "iNr’CRM", href: "/dashboard/crm" } };
       } }),
     } : {} },
@@ -319,7 +323,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     } },
     "./inrAssistantWorkspaceTools.ts": { createInrAssistantWorkspaceTools: (args: {accountId: string; edition: string}) => {
       toolScopes.push({ tool: "workspace", accountId: args.accountId, edition: args.edition });
-      return { readWorkspaceSection: tool({ inputSchema: jsonSchema({ type: "object", properties: { section: { type: "string" } } }), execute: async () => ({ available: true, measured: true, count: 12 }) }) };
+      return { readWorkspaceSection: tool({ inputSchema: jsonSchema({ type: "object", properties: { section: { type: "string" } } }), execute: async input => options.accountRead?.("readWorkspaceSection",input) ?? ({ available: true, measured: true, count: 12 }) }) };
     } },
     "./inrAssistantMediaTools.ts": { createInrAssistantMediaTools: (args: { requestId: string; currentUserMessage?: string;
       onWorkStarted: (id: string) => void; onResult: (result: InrAssistantMediaResult) => void }) => {
@@ -490,6 +494,30 @@ test("a premature mail draft claim gets one native opportunity and cannot surviv
   assert.doesNotMatch(missing.taskState?.question??"",/a été enregistré/);
 });
 
+test("an explicit native noEffect input refusal gets one model retry without rewriting its quote, fields or previous receipts",async()=>{
+  const instruction="Dans le CRM, remplace uniquement le téléphone du client Alice Martin par 0601020304.";
+  const workspaceActionTools={searchCrmContacts:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>({ok:true,contacts:[{id:advertisingId,name:"Alice Martin"}]})}),readCrmContact:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>({ok:true,contact:{id:advertisingId,name:"Alice Martin",email:"alice@example.invalid"}})})};
+  const bad={action:"update",contactId:advertisingId,reference:"Alice Martin",instructionQuote:instruction,fields:{phone:"0601020304",email:"alice@example.invalid"}};
+  const good={...bad,fields:{phone:"0601020304",email:null}};
+  const h=harness({workspaceActionTools,crmIds:[advertisingId],crmOutputs:[{ok:false,status:"needs_instruction",noEffect:true,retryableInput:true,inputIssue:"unrequested_fields",invalidFields:["email"],message:"Seul le téléphone a été demandé ; laissez les autres champs à null."},{ok:true,status:"updated",id:advertisingId,message:"Téléphone seul modifié."}],plan:[{tool:"searchCrmContacts",input:{query:"Alice Martin"}},{tool:"readCrmContact",input:{contactId:advertisingId,reference:"Alice Martin"}},{tool:"manageCrmContact",input:bad},null,{tool:"manageCrmContact",input:good}]});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(h.crmExecutions.length,2,JSON.stringify({reply,calls:h.generations.map(c=>({model:c.model,tools:toolNames(c.params)}))}));assert.deepEqual(h.crmExecutions[0],bad);assert.deepEqual(h.crmExecutions[1],good);assert.equal(reply.outcome,"completed");assert.equal(h.generations[4].model,policy.INR_ASSISTANT_MODELS.luna);assert.deepEqual(toolNames(h.generations[4].params),["manageCrmContact"]);
+  const mail="Prépare une campagne mail Offrir pour la révision des vélos : remise de 10 %, sans envoi.";
+  const inputs:unknown[]=[];const workspaceMail={prepareCampaignEmail:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async input=>{inputs.push(input);return inputs.length === 1?{ok:false,status:"needs_instruction",noEffect:true,retryableInput:true,inputIssue:"operation_key_requires_counted_batch",message:"Une préparation unique exige operationKey null."}:{ok:true,status:"draft",draftId:advertisingId,message:"Brouillon natif enregistré."};}})};
+  const m=harness({workspaceActionTools:workspaceMail,plan:[{tool:"prepareCampaignEmail",input:{instructionQuote:mail,operationKey:"invented"}},null,{tool:"prepareCampaignEmail",input:{instructionQuote:mail,operationKey:null}}]});
+  const saved=await m.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:mail}]});
+  assert.equal(inputs.length,2);assert.equal((inputs[0] as {operationKey:string}).operationKey,"invented");assert.equal((inputs[1] as {operationKey:null}).operationKey,null);assert.equal(saved.outcome,"completed");
+});
+
+test("a refused reused batch slot keeps its first receipt and can retry only the missing draft once",async()=>{
+  const instruction="Prépare deux brouillons de campagne mail : une newsletter Informer et un remerciement Suivre, sans envoi.";
+  const inputs:Record<string,unknown>[]=[];
+  const workspaceActionTools={prepareCampaignEmail:tool({inputSchema:jsonSchema<Record<string,unknown>>({type:"object",properties:{}}),execute:async input=>{inputs.push(input);return inputs.length === 2?{ok:false,status:"needs_instruction",noEffect:true,retryableInput:true,inputIssue:"operation_slot_reused",message:"Cette place du lot est déjà utilisée par un autre élément."}:{ok:true,status:"draft",draftId:`50000000-0000-4000-8000-00000000000${inputs.length === 1?1:2}`,message:"Brouillon du lot enregistré."};}})};
+  const h=harness({workspaceActionTools,plan:[{tool:"prepareCampaignEmail",input:{instructionQuote:instruction,operationKey:"nl-1"}},{tool:"prepareCampaignEmail",input:{instructionQuote:instruction,operationKey:"thanks-1"}},null,{tool:"prepareCampaignEmail",input:{instructionQuote:instruction,operationKey:"thanks-2"}}]});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.deepEqual(inputs.map(input=>input.operationKey),["nl-1","thanks-1","thanks-2"],JSON.stringify({reply,calls:h.generations.map(c=>({model:c.model,tools:toolNames(c.params)}))}));assert.equal(reply.outcome,"completed");assert.equal(reply.taskState?.receipts.filter(receipt=>receipt.ok&&receipt.tool === "prepareCampaignEmail").length,2);
+});
+
 test("unattempted-goal continuations never guess CRM identity, missing campaign fields or edition rights", async () => {
   const readInstruction="Lis la fiche CRM Alice Martin et donne son téléphone.";
   for(const contacts of [[{id:advertisingId,name:"Alice Martin"},{id:"30000000-0000-4000-8000-000000000004",name:"Alice Martin"}],[]]) {
@@ -568,6 +596,11 @@ test("preview-save questions leave no phantom save or publication task in any ed
     const reply=await h.runtime.generateInrAssistantReply({...basic,edition,clientContext:{source:"untrusted_client",mediaPreview:{requestId:"threepack_preview_86e2dfb",mediaId:"40000000-0000-4000-8000-000000000001"}},messages:[{role:"user",content:instruction}]});
     assert.equal(reply.taskState,undefined,edition);assert.equal(h.mediaExecutions,0);assert.equal(h.publicationExecutions.length,0);
   }
+});
+
+test("the public offer comparison uses verified facts without a provider or mutation task",async()=>{
+  const instruction="Compare clairement Basique, Standard et Premium : Studio, agents, CRM, mails, agenda et ADS. Est-ce que Premium permet aussi de fusionner automatiquement des contacts ou de gérer la boîte de réception Gmail ? Ceci est une question, pas un ordre.";
+  for(const edition of ["basic","standard","premium"] as const){const h=harness({noCredential:true,providerError:new Error("No provider needed for verified offer facts")});const reply=await h.runtime.generateInrAssistantReply({...basic,edition,messages:[{role:"user",content:instruction}]});assert.equal(h.generations.length,0);assert.equal(h.reservations.length,0);assert.equal(reply.taskState,undefined);assert.match(reply.message,/fusion/i);assert.match(reply.message,/Gmail/);assert.equal(reply.outcome,"completed");}
 });
 
 test("an unreadable attached invoice remains a file question in every edition and cannot acquire invented amounts", async () => {
@@ -1587,7 +1620,9 @@ test("provider timeout diagnostics preserve the original fallback policy and kee
 test("a length-limited provider response is distinguished from an empty output without changing usage", async () => {
   for (const [options, phase, hasText] of [[{ outputLimit: true }, "output_limit", true], [{ emptyText: true }, "empty_output", false]] as const) {
     const h = harness(options);
-    await assert.rejects(h.runtime.generateInrAssistantReply({ ...basic, requestId: randomUUID() }), error => {
+    const run=h.runtime.generateInrAssistantReply({ ...basic, requestId: randomUUID() });
+    if(options.outputLimit){const reply=await run;assert.equal(reply.outcome,"partial");assert.match(reply.message,/limite de longueur/);}
+    else await assert.rejects(run, error => {
       assert.ok(error instanceof h.runtime.InrAssistantUnavailableError);
       assert.equal(error.diagnostic?.phase, phase); assert.equal(error.diagnostic?.hasText, hasText); return true;
     });
@@ -1596,6 +1631,69 @@ test("a length-limited provider response is distinguished from an empty output w
     assert.equal(h.commits.length, h.generations.length);
     assert.ok(h.commits.every(row => row.usage.totalTokens === 140));
   }
+});
+
+test("a late invalid Studio tool receives one targeted syntax opportunity before the final answer",async()=>{
+  const instruction="Prépare un prompt de vidéo verticale de 8 secondes de l’atelier, puis explique quel moteur est compatible. Aucune génération.";
+  const draft={version:1,mediaType:"video",prompt:"Vidéo verticale de 8 secondes dans un atelier vélo, plan clair sans texte.",format:"story",durationSeconds:8};
+  const h=harness({plan:[{tool:"getBusinessDna"},{tool:"readAppGuide"},{tool:"prepareStudioPrompt",input:{...draft,durationSeconds:"eight"}},{tool:"prepareStudioPrompt",input:draft}],textReply:"Un moteur actif compatible avec une vidéo de 8 secondes reste à choisir dans Studio."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"basic",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(h.generations.length,5);assert.equal(h.generations[3].model,policy.INR_ASSISTANT_MODELS.luna);assert.deepEqual(toolNames(h.generations[3].params),["prepareStudioPrompt"]);assert.ok(reply.studioDraft);assert.equal(reply.studioDraft.durationSeconds,8);assert.equal(h.mediaExecutions,0);assert.equal(h.reservations.length,5);
+});
+
+test("read facts and length-limited empty text end in an honest partial result instead of assistant unavailable",async()=>{
+  const h=harness({plan:[{tool:"getBusinessDna"}],outputLimit:true,emptyText:true});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,requestId:randomUUID(),supabase:{} as never,messages:[{role:"user",content:"Lis mon ADN puis propose une stratégie écrite sans publier."}]});
+  assert.equal(reply.outcome,"partial",JSON.stringify(reply));assert.match(reply.message,/pas terminé/);assert.equal(h.mediaExecutions,0);assert.equal(h.publicationExecutions.length,0);assert.ok(h.generations.length<=7);assert.ok(h.diagnostics.some(row=>row.phase === "output_limit"),JSON.stringify({diagnostics:h.diagnostics,generations:h.generations.length,reply}));
+});
+
+test("a confirmed CRM mutation is never replayed when its requested explanation reaches the output limit",async()=>{
+  const instruction="Ajoute un contact CRM Alice avec alice@example.invalid puis explique le résultat.";
+  const create={...contactPlan[0],input:{...contactPlan[0].input,instructionQuote:instruction}};
+  const h=harness({crmIds:contactIds,plan:[create],outputLimit:true,textReply:"La fiche a été enregistrée. Voici une explication incomplète."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(h.crmExecutions.length,1);assert.equal(reply.outcome,"partial");assert.equal(reply.taskState?.outcome,"partial");assert.match(reply.message,/limite de longueur/);assert.equal(reply.taskState?.receipts.filter(receipt=>receipt.ok&&receipt.tool === "manageCrmContact").length,1);assert.doesNotMatch(reply.message,/Il reste à\s*\./);
+});
+
+test("a native CRM aggregate receipt matches its exact section while unknown counts never become zero",async()=>{
+  const instruction="Combien de contacts compte mon CRM, sans noms ni adresses ?";
+  for(const known of [true,false]) {
+    const h=harness({plan:[{tool:"readWorkspaceSection",input:{section:"crm"}}],accountRead:()=>({source:"active_account_database",readOnly:true,access:"included",known,section:"crm",...(known?{counts:{contacts:12}}:{})}),textReply:known?"Le CRM contient 12 contacts.":"Le CRM contient zéro contact."});
+    const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+    assert.equal(reply.outcome,"completed");assert.deepEqual([...(reply.taskState?.requiredTools??[])],["readWorkspaceSection"]);assert.equal(reply.taskState?.receipts[0]?.status,"read");
+    if(!known){assert.match(reply.message,/inconnues|indisponibles/);assert.doesNotMatch(reply.message,/contient zéro|0 contact/);}
+  }
+});
+
+test("native calendar hasMore and truncated metadata keep an exhaustive read partial without trusting the model summary",async()=>{
+  const accountId=contactIds[0],actorUserId=contactIds[1];
+  let nativeReads=0,rowCount=9;
+  const db={from(table:string){assert.equal(table,"agenda_events");const filters:Record<string,unknown>={};const builder={select(){return builder;},eq(key:string,value:unknown){filters[key]=value;return builder;},lt(){return builder;},gt(){return builder;},order(){return builder;},limit(value:number){assert.equal(value,9);return builder;},then(resolve:(value:unknown)=>unknown){assert.equal(filters.user_id,accountId);nativeReads++;return Promise.resolve({data:Array.from({length:rowCount},(_,index)=>({id:`40000000-0000-4000-8000-${String(index+1).padStart(12,"0")}`,user_id:accountId,title:`RDV${index+1}`,start_at:"2026-11-17T13:00:00.000Z",end_at:"2026-11-17T14:00:00.000Z",meta:{status:"draft"}})),error:null}).then(resolve);}};return builder;}};
+  const native=loadClosedModule<typeof import("../../lib/inrAssistantCommunicationTools.ts")>("inrAssistantCommunicationTools.ts",{"server-only":{},"node:crypto":{createHash},ai:{tool,jsonSchema},"./requireUser":{requireUser:async()=>({activeUserId:accountId,authUserId:actorUserId})},"./inrAssistantMemory.ts":memoryRuntime,"./inrAssistantActionClause.ts":businessFormActionClauses,"./inrAssistantRequestClauses.ts":requestClauses});
+  const input={section:"calendar",recordId:null,query:null,timeMin:"2026-11-01T00:00:00.000Z",timeMax:"2026-12-01T00:00:00.000Z"};
+  const h=harness({communicationFactory:args=>native.createInrAssistantCommunicationTools({...args,supabase:db} as never),plan:[{tool:"readCommunicationRecords",input}],textReply:"J’ai lu tous les rendez-vous du mois ; aucun ne manque."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,accountId,actorUserId,edition:"premium",supabase:db as never,messages:[{role:"user",content:"Liste tous mes rendez-vous natifs de ce mois et confirme qu’aucun ne manque."}]});
+  assert.equal(nativeReads,1);assert.equal(reply.outcome,"partial");assert.equal(reply.taskState?.receipts[0]?.status,"partial");assert.match(reply.message,/reste partielle|limitée/);assert.doesNotMatch(reply.message,/J’ai lu tous les rendez-vous du mois/);
+  const scoped=harness({communicationFactory:()=>({readCommunicationRecords:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>({ok:true,status:"read",source:"account_scoped_saved_records",hasMore:false,truncated:false,period:{timeMin:"2026-11-16T00:00:00.000Z",timeMax:"2026-11-23T00:00:00.000Z"},items:[]})})}),plan:[{tool:"readCommunicationRecords",input}],textReply:"Tout le mois est couvert."});
+  const period=await scoped.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:"Liste tous mes rendez-vous natifs de ce mois."}]});
+  assert.equal(period.outcome,"partial");assert.match(period.message,/période retournée/);assert.doesNotMatch(period.message,/Tout le mois est couvert/);
+  rowCount=1;
+  for(const bounded of [false,true]) {
+    const scenario=harness({communicationFactory:args=>native.createInrAssistantCommunicationTools({...args,supabase:db} as never),plan:[{tool:"readCommunicationRecords",input:bounded?input:{...input,timeMin:null,timeMax:null}}],textReply:"Tous les rendez-vous ont été consultés, aucun ne manque."});
+    const result=await scenario.runtime.generateInrAssistantReply({...basic,accountId,actorUserId,edition:"premium",supabase:db as never,messages:[{role:"user",content:bounded?"Liste tous mes rendez-vous natifs du 2026-11-01 au 2026-12-01.":"Liste tous mes rendez-vous natifs."}]});
+    assert.equal(result.outcome,bounded?"completed":"partial");assert.equal(result.taskState?.receipts[0]?.status,bounded?"read":"partial");
+    if(!bounded){assert.match(result.message,/période demandée|reste partielle/);assert.doesNotMatch(result.message,/Tous les rendez-vous ont été consultés/);}
+  }
+  assert.equal(nativeReads,3,"one native read for each requested scenario, no inferred dates or automatic pagination");
+});
+
+test("native Badge and Search read receipts preserve unverified freshness instead of completing a refresh objective",async()=>{
+  const accountId=contactIds[0],actorUserId=contactIds[1];let nativeReads=0;
+  const native=loadClosedModule<typeof import("../../lib/inrAssistantStatsTools.ts")>("inrAssistantStatsTools.ts",{"server-only":{},ai:{tool,jsonSchema},"./requireUser":{requireUser:async()=>({activeUserId:accountId,authUserId:actorUserId})},"./dashboardEditionServer":{getDashboardEditionForAuthUser:async()=>"premium"},"./accountSubscriptionAccess":{getActiveSubscriptionAccountIds:async()=>new Set([accountId])},"./inrAssistantMemory.ts":memoryRuntime,"./inrAssistantStatsReportDocument.ts":loadClosedModule("inrAssistantStatsReportDocument.ts",{}),"@/app/api/inrstats/inrbadge/route":{GET:async()=>{nativeReads++;return Response.json({views:{month:0}});}},"@/app/api/inr-search/analytics/route":{GET:async()=>{nativeReads++;return Response.json({ok:true,analytics:{views:{month:0}}});}}});
+  const instruction="Actualise mes statistiques iNrBadge et iNrSearch puis donne les chiffres fiables.";
+  const h=harness({statsFactory:args=>native.createInrAssistantStatsTools(args as never),plan:[{tool:"refreshStatsSources",input:{channel:"inrbadge",instructionQuote:instruction}},{tool:"refreshStatsSources",input:{channel:"inr_search",instructionQuote:instruction}}],textReply:"Les deux sources sont actualisées, leur zéro est certain."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,accountId,actorUserId,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(nativeReads,2);assert.equal(reply.outcome,"partial");assert.equal(reply.taskState?.receipts.filter(receipt=>receipt.tool === "refreshStatsSources"&&receipt.status === "partial").length,1,"compaction may keep the latest unconfirmed receipt, never a refreshed receipt");assert.match(reply.message,/sans preuve de fraîcheur|valeurs restent inconnues/);assert.doesNotMatch(reply.message,/Les deux sources sont actualisées|zéro est certain/);assert.ok(h.generations.length<=3);
 });
 
 test("Redis commit and reservation failures are identified without a paid fallback or changed exception", async () => {

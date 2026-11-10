@@ -65,6 +65,21 @@ export function isInrAssistantAttachedFileRequest(message: string): boolean {
   const text = inrAssistantUnquotedRequest(message);
   return /\b(?:fichiers?|pieces?|documents?|scans?|factures?|devis|pdf)\b[^.!?;]{0,90}\b(?:joint(?:e|es|s)?|attach(?:e|ee|es|ees))\b|\b(?:dans|depuis|a partir de)\s+(?:la|le|les|ce|cette|ces|mon|ma|mes)\s+fichiers?\b/.test(text);
 }
+/** A Studio price estimate is a native read, not a commercial document or a
+ * request to read the credit ledger merely because its unit is credits. */
+export function isInrAssistantMediaQuoteRequest(message: string): boolean {
+  const text=inrAssistantUnquotedRequest(message);
+  if (isInrAssistantAttachedFileRequest(message)) return false;
+  if (!hasInrAssistantMediaSubject(message,"image") && !hasInrAssistantMediaSubject(message,"video")) return false;
+  if (!/\b(?:devis|cout\w*|tarif\w*|prix|quote|cost|combien)\b/.test(text)) return false;
+  if (!/\b(?:devis|cout\w*|tarif\w*|prix|quote|cost)\b/.test(text) && /\b(?:solde|restants?|reste|restent|disponibles?|remaining|balance)\b/.test(text)) return false;
+  return /^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:donne\w*(?:-moi)?|montre\w*|affiche\w*|indique\w*|calcule\w*|estime\w*|verifi\w*|lis|lire|consulte\w*|prepare\w*|quels?|quelles?|combien|show|check|quote)\b/.test(text);
+}
+export function isInrAssistantMediaStatusRequest(message:string):boolean {
+  const text=inrAssistantUnquotedRequest(message);
+  return /\b(?:apercu|creation|generation|preview)\b/.test(text) && /\b(?:statut|etat|suivi|ou en est|status)\b/.test(text)
+    && /^(?:quels?|quelles?|verifi\w*|montre\w*|consulte\w*|lis|lire|ou|check|show)\b/.test(text);
+}
 /** Business goals, distinct from their prerequisite reads. */
 export function inrAssistantRequiredTools(message: string): string[] {
   return [...new Set(inrAssistantActionObjectives(message).map(objective => objective.tool))];
@@ -116,13 +131,14 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
   if ([1, 2, 3, 4, 5, 6].some(id => isInrAssistantStudioForgetPreferenceRequest(message, id))) return ["forgetStudioPreferenceBlock"];
   if (inrAssistantClauseIsAdvice(t)) return result;
   if (/^(?:si|quand|lorsque|if|when|unless|imagin\w*|suppos\w*)\b/.test(t)) return result;
+  if (isInrAssistantMediaQuoteRequest(message)) return result;
   for (const operation of ["accept", "discard"] as const) if (isInrAssistantMediaPreviewDecisionRequest(message,operation)) return [operation === "accept"?"acceptMediaGeneration":"discardMediaGeneration"];
   const communication = readInrAssistantCommunicationIntent(message);
   if (communication.campaignDraftEdit) return ["updateCampaignDraft"];
   if (communication.campaignDraft) return ["prepareCampaignEmail"];
   if (communication.campaignAudiencePreview) return result;
   if (isInrAssistantLocalInterfaceRequest(message)) return ["controlLocalInterface"];
-  if (/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|cherche\w*|recherch\w*|retrouv\w*|liste\w*|regarde\w*|montre\w*|affiche\w*|ouvre\w*|indique\w*|quels?|quelles?|combien)\b/.test(t)) return result;
+  if (/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|cherche\w*|recherch\w*|retrouv\w*|liste\w*|regarde\w*|montre\w*|affiche\w*|ouvre\w*|indique\w*|compare\w*|verifi\w*|quels?|quelles?|combien)\b/.test(t)) return result;
   if (/^(?:ne\b|n['’]|not\b|never\b|don't\b|do not\b)/.test(t.trim()) || /\b(?:ne|sans|not|never)\b.{0,20}\b(?:modifi|cre|gener|publ|envoi)/.test(t)) {
     // The media guard distinguishes generating a temporary preview from saving
     // or publishing it. A refusal of those separate actions does not revoke it.

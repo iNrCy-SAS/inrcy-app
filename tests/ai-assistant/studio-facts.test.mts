@@ -11,6 +11,8 @@ test("supplied voice advice follows only the currently available native catalogu
   assert.doesNotMatch(facts, /Photo\/personnage[^\n]*(?:MiniMax|Wan 3|HeyGen)|referenceMediaIds|spokenScript|supplier|USD/);
   assert.match(facts, /5 à 10 secondes/);
   assert.match(facts, /Ajouter un vocal/);
+  assert.match(facts, /fourni OPTIONNEL/);
+  assert.match(facts, /obligatoire seulement si ce mode est choisi/);
 });
 
 test("Kling supplied-vocal minimum is mandatory and distinct from the native clip duration", () => {
@@ -25,7 +27,14 @@ test("Kling supplied-vocal minimum is mandatory and distinct from the native cli
     assert.match(facts, new RegExp(`${AI_MEDIA_NARRATION_VOICE_MIN_SECONDS} à ${AI_MEDIA_CHARACTER_VOICE_MAX_SECONDS} secondes OBLIGATOIRE`));
     assert.match(facts, /plus court refusé/);
     assert.match(facts, /vidéo : 4–30 s, distincte/);
+    assert.match(facts, /minimum5s du vocal ne relève pas le minimum4s du clip/);
+    assert.match(facts, /clip peut dépasser le vocal, sans règle de boucle\/troncature déduite/);
   }
+});
+
+test("provided narration is a separate native path with consent and no visible character requirement", () => {
+  const facts = inrAssistantStudioFacts("Différence entre voix off et personnage avec mon vocal réel ?", 1600);
+  assert.match(facts, /Voix off : parcours séparé, voix IA ou vocal réel fourni avec consentement personnel, sans personnage imposé/);
 });
 
 test("retired-model comparisons retain the active alternatives instead of substituting voice sample lengths", () => {
@@ -36,6 +45,8 @@ test("retired-model comparisons retain the active alternatives instead of substi
   assert.match(facts, /Grok Imagine/);
   assert.match(facts, /Gemini Omni/);
   assert.match(facts, /aucun classement ou plafond de locuteurs déduit/);
+  assert.match(facts, /Kling 4\.0 Flash \(4–20 s ; 720p\)/);
+  assert.match(facts, /Modèles distincts : ne pas attribuer à Flash les limites Omni/);
   assert.doesNotMatch(facts, /Kling 4\.0 Omni \(5–10 s/);
   const short = inrAssistantStudioFacts("moteurs vidéo", 650);
   if (!AI_MEDIA_AVAILABLE_VIDEO_MODELS.every(model => short.includes(model.label))) assert.match(short, /liste partielle/);

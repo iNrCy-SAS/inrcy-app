@@ -97,6 +97,32 @@ test("media metadata changes preserve omitted fields, append tags and use only t
   assert.equal(h.calls.filter(call => call.stage === "media-patch").length, 1);
 });
 
+test("campaign keys require an explicit counted lot and same slots cannot create twice", async () => {
+  const h = harness(), tools = h.tools(mailInstruction);
+  const refusal = await tools.prepareCampaignEmail.execute({ ...campaign(), operationKey: "revision-promo" });
+  assert.equal(refusal.status, "needs_instruction"); assert.equal(refusal.inputIssue, "operation_key_requires_counted_batch");
+  assert.equal(refusal.noEffect, true); assert.equal(refusal.retryableInput, true); assert.match(String(refusal.message), /null/); assert.equal(h.calls.length, 0);
+  assert.equal((await tools.prepareCampaignEmail.execute({ ...campaign(), operationKey: null })).status, "draft");
+  const batch = harness(), message = "Prépare deux brouillons de campagne mail, sans envoi.", batchTools = batch.tools(message);
+  const missing = await batchTools.prepareCampaignEmail.execute({ ...campaign(message), operationKey: null });
+  assert.equal(missing.inputIssue, "operation_key_requires_counted_batch"); assert.equal(batch.calls.length, 0);
+  const first = await batchTools.prepareCampaignEmail.execute({ ...campaign(message), operationKey: "campaign-1" });
+  const identical = await batchTools.prepareCampaignEmail.execute({ ...campaign(message), operationKey: "same-slot-1" });
+  assert.equal(identical.draftId, first.draftId);
+  const replay = await batchTools.prepareCampaignEmail.execute({ ...campaign(message), subject: "Autre objet", operationKey: "same-slot-1" });
+  assert.equal(replay.inputIssue, "operation_slot_reused"); assert.equal(replay.noEffect, true); assert.equal(replay.retryableInput, true);
+  await batchTools.prepareCampaignEmail.execute({ ...campaign(message), subject: "Deuxième brouillon", operationKey: "campaign-2" });
+  assert.equal(batch.calls.filter(call => call.stage === "mail-create").length, 2);
+  const recovered = await batch.tools(message).prepareCampaignEmail.execute({ ...campaign(message), operationKey: "campaign-1" });
+  assert.equal(recovered.draftId, first.draftId); assert.equal(batch.calls.filter(call => call.stage === "mail-create").length, 2);
+  const uncertain = harness({ appliedThenError: true }), uncertainTools = uncertain.tools(message);
+  const initial = await uncertainTools.prepareCampaignEmail.execute({ ...campaign(message), operationKey: "campaign-1" });
+  assert.equal(initial.ok, false);
+  const stopped = await uncertainTools.prepareCampaignEmail.execute({ ...campaign(message), subject: "Autre objet", operationKey: "campaign-1" });
+  assert.equal(stopped.inputIssue, "operation_result_unverified"); assert.equal(stopped.retryableInput, undefined);
+  assert.equal(uncertain.calls.filter(call => call.stage === "mail-create").length, 1);
+});
+
 test("draft campaigns use the actual workflow contract and recover the same marker across a retried turn", async () => {
   const h = harness(); const tools = h.tools(mailInstruction);
   const result = await tools.prepareCampaignEmail.execute(campaign()); assert.equal(result.status, "draft");

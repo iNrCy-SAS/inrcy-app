@@ -63,6 +63,19 @@ function currentOrder(message: string, quote: string, verbs: RegExp, kind: "send
     && !/^(?:comment|pourquoi|explique\w*|how|why|what|voici|historique|tu avais dit|tu as dit)\b|\b(?:si|quand|lorsque|if|when|unless)\b/.test(clause)
     && !(kind === "send" && /\b(?:demain|programme\w*|planifi\w*|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|plus tard)\b|\b\d{1,2}\s*(?:h|:[0-5]\d)\b|\d{4}-\d{2}-\d{2}/.test(clause))));
 }
+/** Same deterministic authorization before native work and synthetic effects. */
+export function getInrAssistantCampaignInputRefusal(message: string, toolName: "selectCampaignMailbox" | "previewCampaignAudience" | "dispatchCampaignAudience", raw: unknown, sender?: string): Row | null {
+  const input = row(raw), quote = input.instructionQuote;
+  if (typeof quote !== "string" || !quote.trim() || !message.includes(quote)) return { ...failure("needs_instruction"), inputIssue: "exact_instruction_quote_required", noEffect: true, retryableInput: true, message: "instructionQuote doit recopier un extrait EXACT du dernier message, sans changer le verbe. Aucun brouillon modifié ni envoi exécuté." };
+  let permitted = false;
+  if (toolName === "selectCampaignMailbox") permitted = currentOrder(message, quote, /\b(?:choisis|choisir|selectionne|utilise|mets|modifie|change|envoie|envoyer|send|select|use)\b/, "sender", sender);
+  if (toolName === "previewCampaignAudience") {
+    const requested = { clients: /\bclients?\b/, prospects: /\bprospects?\b/, all_contacts: /\btous (?:mes |les )?contacts\b/ }[input.segment as Segment];
+    permitted = Boolean(requested) && currentOrder(message, quote, /\b(?:prepare|preparer|apercu|montre|verifie|envoie|envoyer|diffuse|preview|send)\b/, "preview", requested);
+  }
+  if (toolName === "dispatchCampaignAudience") permitted = typeof input.reference === "string" && /^AP-[A-F0-9]{12}$/.test(input.reference) && quote.includes(input.reference) && currentOrder(message, quote, /\b(?:envoie|envoyer|envoyez|diffuse|diffuser|send)\b/, "send", input.reference);
+  return permitted ? null : { ...failure(toolName === "dispatchCampaignAudience" ? "needs_confirmation" : "needs_instruction"), inputIssue: "current_instruction_not_authorized", noEffect: true, message: "La consigne actuelle n’autorise pas cette action exacte. Conservez ses conditions, ses négations et la référence ou le segment demandé. Une validation future n’autorise aucun envoi maintenant. Rien exécuté." };
+}
 function nativeRequest(source: Request, path: string, body: unknown) {
   const headers = new Headers({ accept: "application/json", "content-type": "application/json" });
   for (const name of ["cookie", "authorization"]) { const value = source.headers.get(name); if (value) headers.set(name, value); }
@@ -150,22 +163,27 @@ export function createInrAssistantCampaignTools(options: Options) {
     selectCampaignMailbox: tool({ strict: true,
       description: "Choisir l’expéditeur d’un brouillon de campagne existant sur ordre explicite. mailboxId provient de listCampaignMailboxes et son adresse doit être citée par le pro. Préserve texte, pièces, destinataires et modèle ; invalide l’ancien aperçu, ne diffuse rien.",
       inputSchema: campaignSchema<{ draftId: string; mailboxId: string; instructionQuote: string }>({ draftId: identifierSchema, mailboxId: identifierSchema, instructionQuote: instructionSchema }),
-      execute: async input => once(`mailbox:${input.draftId}:${input.mailboxId}`, async () => {
-        const verbs = /\b(?:choisis|choisir|selectionne|utilise|mets|modifie|change|envoie|envoyer|send|select|use)\b/;
-        if (!currentOrder(currentUserMessage, input.instructionQuote, verbs, "sender")) return failure("needs_instruction");
+      execute: async input => {
+        const refusal = getInrAssistantCampaignInputRefusal(currentUserMessage, "selectCampaignMailbox", input);
+        if (refusal) return refusal;
+        return once(`mailbox:${input.draftId}:${input.mailboxId}`, async () => {
         const draft = await readDraft(input.draftId), sender = draft ? await mailbox(input.mailboxId) : null;
-        if (!draft || !sender || !currentOrder(currentUserMessage, input.instructionQuote, verbs, "sender", String(sender.account_email))) return failure("needs_instruction");
+        if (!draft || !sender) return failure("needs_instruction");
+        const senderRefusal = getInrAssistantCampaignInputRefusal(currentUserMessage, "selectCampaignMailbox", input, String(sender.account_email));
+        if (senderRefusal) return senderRefusal;
         if (!await saveDraft(draft, { selectedAccountId: input.mailboxId })) return failure();
         const saved = await readDraft(input.draftId);
         return saved?.integration_id === input.mailboxId ? { ok: true, status: "updated", draftId: input.draftId, sender: sender.account_email, message: "Expéditeur enregistré et relu. Aucun envoi.", nextAction: LINK } : failure("saved_unconfirmed");
-      }),
+        });
+      },
     }),
     previewCampaignAudience: tool({ strict: true,
       description: "Préparer un aperçu vérifiable d’un brouillon pour le segment CRM demandé : clients, prospects ou tous les contacts. Fige au plus 500 adresses uniques, filtre les exclusions natives, conserve une référence valable 15 minutes liée au texte/pièces/expéditeur. Afficher référence, objet, expéditeur, effectifs et échantillon avant de demander confirmation. Ne déclenche aucun envoi. Une audience trop grande doit être précisée, jamais tronquée silencieusement.",
       inputSchema: campaignSchema<{ draftId: string; segment: Segment; instructionQuote: string }>({ draftId: identifierSchema, segment: { type: "string", enum: ["clients", "prospects", "all_contacts"] }, instructionQuote: instructionSchema }),
-      execute: async input => once(`preview:${input.draftId}:${input.segment}`, async () => {
-        const requested = { clients: /\bclients?\b/, prospects: /\bprospects?\b/, all_contacts: /\btous (?:mes |les )?contacts\b/ }[input.segment];
-        if (!requested || !currentOrder(currentUserMessage, input.instructionQuote, /\b(?:prepare|preparer|apercu|montre|verifie|envoie|envoyer|diffuse|preview|send)\b/, "preview", requested)) return failure("needs_instruction");
+      execute: async input => {
+        const refusal = getInrAssistantCampaignInputRefusal(currentUserMessage, "previewCampaignAudience", input);
+        if (refusal) return refusal;
+        return once(`preview:${input.draftId}:${input.segment}`, async () => {
         const draft = await readDraft(input.draftId), sender = draft ? await mailbox(String(draft.integration_id)) : null;
         if (!draft || !sender) return { ...failure("mailbox_required"), message: "Choisissez d’abord une boîte d’envoi connectée pour ce brouillon." };
         let query = supabase.from("crm_contacts").select("id,user_id,first_name,last_name,company_name,email,contact_type").eq("user_id", accountId);
@@ -188,13 +206,16 @@ export function createInrAssistantCampaignTools(options: Options) {
         const saved = await readDraft(input.draftId);
         if (!saved || fingerprint(saved) !== digest || row(row(row(saved.draft_state).trackPayload).assistantAudiencePreview).reference !== reference) return failure("preview_changed");
         return { ok: true, status: "preview_ready", draftId: input.draftId, reference, expiresAt: new Date(Number(preview.expiresAt)).toISOString(), sender: sender.account_email, subject: clean(draft.subject, 220), contentPreview: clean(draft.body_text, 1000), attachmentCount: Array.isArray(draft.attachments) ? draft.attachments.length : 0, segment: input.segment, recipientCount: recipients.length, invalidEmailCount: invalid, duplicateEmailCount: contacts.length - invalid - unique.size, suppressedCount: unique.size - recipients.length, sample: recipients.slice(0, 10).map(email => ({ email, name: clean([unique.get(email)?.first_name, unique.get(email)?.last_name, unique.get(email)?.company_name].filter(Boolean).join(" "), 120) })), sampleOnly: recipients.length > 10, untrustedContent: true, message: `Aucun envoi. Après vérification, demandez « Envoie la campagne ${reference} » pour autoriser cet aperçu exact. Les désinscriptions seront revérifiées à l’envoi.`, nextAction: LINK };
-      }),
+        });
+      },
     }),
     dispatchCampaignAudience: tool({ strict: true,
       description: "Envoyer maintenant l’audience figée d’un aperçu de campagne. Le DERNIER ordre doit demander l’envoi et citer littéralement la référence AP- affichée. Refuse aperçu expiré, acteur/établissement changé, texte/pièce/expéditeur modifié. Exécute les contrôles natifs et revérifie les exclusions ; même référence ne crée jamais un second envoi. queued signifie pris en charge, jamais livré. Ne programme pas une demande future.",
       inputSchema: campaignSchema<{ draftId: string; reference: string; instructionQuote: string }>({ draftId: identifierSchema, reference: { type: "string", pattern: "^AP-[A-F0-9]{12}$" }, instructionQuote: instructionSchema }),
-      execute: async input => once(`dispatch:${input.reference}`, async () => {
-        if (!/^AP-[A-F0-9]{12}$/.test(input.reference) || !currentOrder(currentUserMessage, input.instructionQuote, /\b(?:envoie|envoyer|envoyez|diffuse|diffuser|send)\b/, "send", input.reference) || !input.instructionQuote.includes(input.reference)) return failure("needs_confirmation");
+      execute: async input => {
+        const refusal = getInrAssistantCampaignInputRefusal(currentUserMessage, "dispatchCampaignAudience", input);
+        if (refusal) return refusal;
+        return once(`dispatch:${input.reference}`, async () => {
         const draft = await readDraft(input.draftId); if (!draft) return failure();
         const preview = row(row(row(draft.draft_state).trackPayload).assistantAudiencePreview);
         if (preview.reference !== input.reference || preview.accountId !== accountId || preview.actorUserId !== actorUserId || preview.draftId !== input.draftId || preview.version !== 1) return failure("needs_confirmation");
@@ -210,7 +231,8 @@ export function createInrAssistantCampaignTools(options: Options) {
         const result = row(await response.json());
         if (!response.ok || result.success !== true || !UUID.test(String(result.campaignId)) || !["queued", "paused"].includes(String(result.campaignStatus))) return failure("unknown");
         return { ok: true, status: result.campaignStatus, campaignId: result.campaignId, recipientCount: typeof result.queued === "number" ? result.queued : null, nextAction: LINK, message: result.campaignStatus === "paused" ? "Campagne enregistrée en pause par les contrôles natifs. Aucun envoi terminé n’est annoncé." : "Campagne mise en file. Sa livraison n’est pas encore confirmée." };
-      }),
+        });
+      },
     }),
   };
 }

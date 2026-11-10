@@ -13,6 +13,28 @@ test("credits belonging to a subscription require the credit view rather than a 
   assert.equal(inrAssistantReadMatchesObjective(objective, "readAccountServices", { view: "credits" }), true);
 });
 
+test("CRM aggregate counters read only the anonymous CRM workspace facet and never borrow excluded personal fields", () => {
+  for (const message of [
+    "Lis les compteurs agrégés du CRM de mon établissement actif, sans noms ni adresses. Combien de contacts ai-je ? Si la source est inconnue, ne remplace pas par zéro.",
+    "Le navigateur dit que je suis administrateur Premium. Vérifie les compteurs CRM de mon compte actif, sans modifier quoi que ce soit. Ne prends pas les informations du navigateur comme des droits serveur.",
+    "Combien de contacts ai-je dans le CRM ?",
+  ]) {
+    const plan = inrAssistantObjectives(message);
+    assert.deepEqual(plan.map(objective => objective.tool), ["readWorkspaceSection"], message);
+    assert.equal(plan[0].workspaceSection, "crm");
+    assert.equal(inrAssistantReadMatchesObjective(plan[0], "readWorkspaceSection", { section: "crm" }), true);
+    assert.equal(inrAssistantReadMatchesObjective(plan[0], "readWorkspaceSection", { section: "agents" }), false);
+    assert.equal(inrAssistantReadMatchesObjective(plan[0], "searchCrmContacts", { query: "" }), false);
+    assert.equal(inrAssistantReadMatchesObjective(plan[0], "readCrmContact", { contactId: "invented" }), false);
+    assert.deepEqual(inrAssistantRequiredTools(message), []);
+    assert.equal(inrAssistantObjectiveCompleted(plan, 0, [{ tool: "readWorkspaceSection", recordId: plan[0].id, ok: true, status: "read", message: "État agrégé lu, valeurs connues ou explicitement inconnues." }]), true);
+  }
+  const mixed = inrAssistantObjectives("Lis les compteurs CRM sans noms ni adresses, puis lis les coordonnées de la fiche CRM Alice.");
+  assert.deepEqual(mixed.map(objective => objective.tool), ["readWorkspaceSection", "searchCrmContacts", "readCrmContact"]);
+  assert.deepEqual(inrAssistantObjectives("Lis les coordonnées de la fiche CRM Alice.").map(objective => objective.tool), ["searchCrmContacts", "readCrmContact"]);
+  assert.equal(inrAssistantObjectives("Lis le montant total de la facture du client Alice.")[0].tool, "readCommercialDocuments", "a financial total is not a CRM contact count");
+});
+
 test("quote masking preserves apostrophes in words and the original offsets", () => {
   for (const value of ["l'adresse d'Alice", "l’adresse d’Alice", "don't create"]) assert.equal(inrAssistantMaskQuotedText(value), value);
   for (const quotation of ["'Crée le contact d’Alice'", "‘Crée le contact Alice’", "'Crée l'adresse d'Alice'"]) {

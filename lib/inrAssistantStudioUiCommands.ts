@@ -70,8 +70,19 @@ export function isInrAssistantStudioInformationRequest(message: string): boolean
 }
 export function isInrAssistantStudioUiRequest(message: string, command?: string) {
   if (command && !INR_ASSISTANT_STUDIO_UI_COMMANDS.includes(command as InrAssistantStudioUiCommandName) || isInrAssistantStudioInformationRequest(message)) return false;
-  const text = studioRequestText(message);
-  if (/\b(?:comment|pourquoi|explique|how|why|si|if|quand|when|lorsque|apres|avant|demain|tomorrow|later)\b|\bplus tard\b|\b(?:ne |n['’]|sans |do not |don't ).{0,60}(?:select|chois|ouvr|utilis|modifi|chang|remplac|enregistr|sauv|reinitial|ajout|retir)|\b(?:modifie|change|enregistre|sauvegarde|reinitialise|ajoute|retire)\s+pas\b/.test(text)) return false;
+  let text = studioRequestText(message);
+  if (/\b(?:comment|pourquoi|explique|how|why|si|if|quand|when|lorsque|apres|avant|demain|tomorrow|later)\b|\bplus tard\b/.test(text)) return false;
+  const configureScope = command === "configure_image_retouch" || command === undefined;
+  if (configureScope) {
+    // A refusal to persist the result is not a refusal to edit it locally.
+    // Remove only the explicit negative save verb, never a field, value,
+    // separate negative retouch clause or conditional approval.
+    text = text.replace(/\b(?:ne\s+|n['’])(?:(?:me|le|la|les)\s+|l['’])?(?:sauvegard\w*|enregistr\w*)\s+(?:pas|jamais|rien|aucune?s?)\b/g, " ")
+      .replace(/\b(?:sans|do not|don't|never)\s+(?:sauvegard\w*|enregistr\w*|sav(?:e|ing))\b/g, " ")
+      .replace(/\b(?:sauvegard\w*|enregistr\w*)\s+(?:pas|jamais)\b/g, " ");
+    if (/\b(?:ne\s+|n['’]|sans\s+|do not\s+|don't\s+|pas de\s+|aucune?s?\s+)[^.!?;\n]{0,60}(?:retouch|touch|modifi|chang|remplac|ajout|retir|supprim|recadr|zoom|agrandi|redui|appliqu|fond|calque|overlay)|\b(?:retouch\w*|touch\w*|modifi\w*|chang\w*|zoom\w*|appliqu\w*|fond)\s+(?:pas|jamais|not)\b/.test(text)) return false;
+  }
+  if (/\b(?:ne |n['’]|sans |do not |don't ).{0,60}(?:select|chois|ouvr|utilis|modifi|chang|remplac|enregistr|sauv|reinitial|ajout|retir)|\b(?:modifie|change|enregistre|sauvegarde|reinitialise|ajoute|retire)\s+pas\b/.test(text)) return false;
   const select = /\b(?:selectionn\w*|choisi\w*|ouvre|ouvrir|utilis\w*|remplac\w*)\b/.test(text) && /\b(?:image|photo|source|retouche)\b/.test(text);
   const save = /\b(?:enregistr\w*|sauvegard\w*|save)\b/.test(text) && /\b(?:image|photo|retouche|copie)\b/.test(text);
   const reset = /\b(?:reinitialis\w*|reset|remets|annule)\b/.test(text) && /\b(?:retouche|reglage|reglages|origine|initial)\b/.test(text);

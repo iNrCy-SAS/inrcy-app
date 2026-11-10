@@ -99,6 +99,9 @@ test("adaptive four-to-six visual limits preserve every clip and every transcrip
     }
     const latest = messages.at(-1)!; assert.ok(Array.isArray(latest.content));
     assert.equal(latest.content[0].type, "text"); assert.equal(latest.content[0].text, user[0].content);
+    const constraints = latest.content.filter(part => part.type === "text").map(part => part.text).join("\n");
+    assert.match(constraints, /borne d’extraction\/transcription ne prouve pas que le son ou la parole s’arrête/);
+    assert.match(constraints, /images ponctuelles ne prouvent ni mouvement continu, ni instant de transition/);
     const budget = assistantModelInputBudget(messages); assert.ok(budget < previousBudget); previousBudget = budget;
     assert.match(JSON.stringify(messages), new RegExp(`Au maximum ${maxVisuals} visuels`));
     assert.equal(JSON.stringify(files), before);

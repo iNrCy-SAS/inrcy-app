@@ -1,5 +1,5 @@
 import type { DashboardEdition } from "./dashboardEdition.ts";
-import { inrAssistantRequestClauses } from "./inrAssistantRequestClauses.ts";
+import { inrAssistantRequestClauses, inrAssistantUnquotedRequest } from "./inrAssistantRequestClauses.ts";
 
 /** One public contract for the assistant's real actions and native confirmations. */
 export const INR_ASSISTANT_CAPABILITIES = [
@@ -36,10 +36,57 @@ Fichiers : images, texte par segments, MP3/WAV ≤3 Mio/5 min, OCR PDF ≤8 Mio 
 }
 export function verifiedInrAssistantCapabilityLimit(message: string, edition: DashboardEdition): string | null {
   const value=message.normalize("NFD").replace(/\p{M}/gu,"").toLowerCase();
+  if (inrAssistantRequestClauses(message).length === 1 && /\b(?:prepare\w*|redig\w*|ecri\w*|creer|cree)\b/.test(value)
+    && /\b(?:mail|courriel|message)\s+individuel\b/.test(value) && /\b(?:piece jointe|pieces jointes|pj|attach\w*)\b/.test(value)
+    && !/\b(?:sans|aucune?|pas de)\s+(?:pieces? jointes?|pj)\b/.test(value)) return edition === "basic" || edition === "standard"
+    ? "Les mails individuels sont inclus dans Premium. La préparation d’un mail avec pièce jointe n’est pas prise en charge par cet adaptateur de l’assistant, y compris en Premium. Aucun mail n’a été préparé ni envoyé."
+    : "La préparation d’un mail individuel avec pièce jointe n’est pas prise en charge par cet adaptateur de l’assistant. Je ne peux pas préparer ce message en retirant silencieusement le PDF demandé. Aucun mail n’a été préparé ni envoyé.";
   // A precise unsupported feature must not swallow the other questions or orders.
   if (inrAssistantRequestClauses(message).length > 1 || /\b(?:compare\w*|comparaison|differences?|capacites|studio|moteurs?|agents?|mails?|courriels?|gmail|agenda|calendar|ads|publicit\w*)\b/.test(value)) return null;
   if (/\b(?:fusionn\w*|merge)\b/.test(value) && /\b(?:crm|contacts?|doublons?)\b/.test(value)) return edition === "basic" || edition === "standard"
     ? "Le CRM est inclus dans Premium. Je peux vous expliquer son fonctionnement dans [Mon abonnement](/dashboard?panel=abonnement). La fusion automatique de fiches n’est pas disponible actuellement."
     : "La fusion automatique de fiches n’est pas disponible actuellement. Je peux vous aider à comparer les contacts et à conserver les bonnes informations dans [iNr’CRM](/dashboard/crm). Aucune fiche n’a été fusionnée ni supprimée.";
   return null;
+}
+
+/** A bounded public product comparison can be answered directly from the native
+ * catalogue. Do not let a model invent capabilities, and do not swallow a second
+ * order, a private account question, prices or model-specific advice. */
+export function verifiedInrAssistantOfferComparison(message: string): string | null {
+  if (message.length > 1_400) return null;
+  const current = inrAssistantUnquotedRequest(message);
+  if (!/\b(?:compare\w*|comparaison|differences?)\b/.test(current)
+    || ![/\b(?:basique|basic)\b/, /\bstandard\b/, /\bpremium\b/, /\bstudio\b/, /\bagents?\b/, /\bcrm\b/, /\b(?:mails?|courriels?)\b/, /\b(?:agenda|calendrier)\b/, /\b(?:ads|publicite)\b/].every(pattern => pattern.test(current))) return null;
+  if (/\b(?:mes|mon|ma|notre|nos|votre|solde|credits?|tarifs?|prix|cout|budget|combien|moteurs?|statistiques?|incidents?|erreurs?|documents?|fichiers?|joint\w*|heure|date|meteo|calcule\w*|tradui\w*)\b|https?:\/\/|[^\s@]+@[^\s@]+/.test(current)) return null;
+  if (/(?:^|[,;.!?]\s+|\b(?:et|puis|ensuite)\s+)(?:ouvre\w*|va|cree\w*|creer|gener\w*|prepare\w*|modifi\w*|change\w*|remplace\w*|envoi\w*|publie\w*|programm\w*|connect\w*|activ\w*|supprim\w*|fusionne\w*|cherche\w*|retrouv\w*|consulte\w*|lis|liste\w*|affiche\w*)\b/.test(current)) return null;
+  const areas = [
+    ["Studio et médiathèque", "Studio et outils manuels"], ["Agents", "Agents"],
+    ["CRM", "CRM"], ["Campagnes mail", "Campagnes mail / envoi individuel"],
+    ["Agenda", "Agenda local"], ["Publicité", "ADS"],
+  ] as const;
+  const included = (area: string, edition: DashboardEdition) => INR_ASSISTANT_CAPABILITIES.find(item => item.area === area)?.editions.some(value => value === edition) ? "Oui" : "Non";
+  const rows = areas.map(([area, label]) => `| ${label} | ${included(area, "basic")} | ${included(area, "standard")} | ${included(area, "premium")} |`);
+  return [
+    "Voici la comparaison des fonctions disponibles dans l’application :",
+    "| Fonction | Basique | Standard | Premium |\n|---|---|---|---|\n" + rows.join("\n"),
+    "Studio utilise les crédits média disponibles. Basique permet les créations manuelles ; Standard ajoute les agents inclus ; Premium ajoute CRM, campagnes mail, agenda et ADS.",
+    "La fusion automatique des contacts CRM est indisponible dans tous les packs. La boîte de réception Gmail/Outlook n’est pas intégrée : iNr’Send gère les envois et leur historique, sans lecture ni gestion de la réception fournisseur.",
+    "Les préparations restent des brouillons ou des aperçus jusqu’aux validations natives du professionnel. La comptabilité conserve ses droits spécifiques.",
+  ].join("\n\n");
+}
+
+export function verifiedInrAssistantProductAnswer(message: string, edition: DashboardEdition): string | null {
+  const comparison = verifiedInrAssistantOfferComparison(message);
+  if (comparison) return comparison;
+  const current = inrAssistantUnquotedRequest(message);
+  if (message.length > 1_400 || !/\b(?:sans rien executer|deux questions|question,? pas un ordre)\b/.test(current)
+    || !/\b(?:fusion\w*|doublons?)\b/.test(current) || !/\b(?:crm|contacts?|carnet d'adresses)\b/.test(current)
+    || !/\b(?:gmail|outlook)\b/.test(current) || !/\b(?:reception|recus|archiv\w*|messages?)\b/.test(current)) return null;
+  // Infinitives remain valid within the question "lire puis archiver". A new
+  // imperative, account read or media request must retain the regular planner.
+  if (/(?:^|[,;.!?]\s+|\b(?:et|puis|ensuite)\s+)(?:ouvre|cre[ez]|cree|prepare|modifie|change|remplace|envoie|publie|connecte|active|supprime|fusionne|archive|lis|consulte|cherche|affiche|calcule|traduis)\b|\b(?:combien|solde|credits?|statistiques?|factures?|fichiers?|joint\w*)\b/.test(current)) return null;
+  const access = edition === "basic" || edition === "standard"
+    ? "Le CRM et les outils mail sont inclus dans Premium ; votre offre actuelle ne les inclut pas. [Mon abonnement](/dashboard?panel=abonnement)."
+    : "Premium inclut [iNr’CRM](/dashboard/crm) et les outils d’envoi [iNr’Send](/dashboard/mails).";
+  return `${access}\n\n1. **Fusion des doublons** : la fusion automatique de fiches n’existe pas dans l’application. Il n’y a pas de bouton natif de fusion à utiliser.\n2. **Réception Gmail/Outlook** : la lecture et l’archivage des messages reçus ne sont pas intégrés. iNr’Send conserve l’historique des envois ; la réception et son archivage se gèrent directement chez le fournisseur.\n\nAucune action n’a été effectuée.`;
 }

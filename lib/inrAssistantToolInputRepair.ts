@@ -9,12 +9,24 @@ const normalize = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "
  * The SDK must validate again, and the unchanged native executor checks consent,
  * ownership, current instructions, credits and idempotency. Never drops keys. */
 export function repairInrAssistantToolInput<T extends Call>(call: T): T | null {
-  if (!["generateMedia", "quoteMediaGeneration", "manageCrmContact"].includes(call.toolName) || typeof call.input !== "string" || call.input.length > 30_000) return null;
+  if (!["generateMedia", "quoteMediaGeneration", "manageCrmContact", "prepareStudioPrompt", "runScreenCommand"].includes(call.toolName) || typeof call.input !== "string" || call.input.length > 30_000) return null;
   let input: unknown;
   try { input = JSON.parse(call.input); } catch { return null; }
   if (!row(input)) return null;
   let changed = false;
-  if (call.toolName === "manageCrmContact") {
+  if (call.toolName === "runScreenCommand") {
+    // Decode the envelope only. A field name, percentage, target, quote or
+    // consent is never inferred: the real mounted schema validates it again.
+    if (typeof input.patch === "string" && input.patch.length <= 18_000) {
+      try { const patch: unknown = JSON.parse(input.patch); if (row(patch)) { input.patch = patch; changed = true; } } catch { /* Keep malformed input rejected. */ }
+    }
+  } else if (call.toolName === "prepareStudioPrompt") {
+    // Only canonical integer spelling in the native video range. In
+    // particular, portrait/4:5 must not become story without user context.
+    if (input.mediaType === "video" && typeof input.durationSeconds === "string" && /^(?:[4-9]|[12]\d|30)$/.test(input.durationSeconds)) {
+      input.durationSeconds = Number(input.durationSeconds); changed = true;
+    }
+  } else if (call.toolName === "manageCrmContact") {
     if (input.action === "create" && input.contactId === "") { input.contactId = null; changed = true; }
     if (row(input.fields)) for (const [field, allowed] of Object.entries({ contactType: ["client", "prospect", "fournisseur", "partenaire", "autre"], category: ["particulier", "professionnel", "collectivite_publique"] })) {
       const value = input.fields[field];
@@ -36,5 +48,6 @@ export function repairInrAssistantToolInput<T extends Call>(call: T): T | null {
       if (engine && setting.valueJson !== JSON.stringify(engine.id)) { setting.valueJson = JSON.stringify(engine.id); changed = true; }
     }
   }
-  return changed ? { ...call, input: JSON.stringify(input) } : null;
+  try { return changed ? { ...call, input: JSON.stringify(input) } : null; }
+  catch { return null; }
 }

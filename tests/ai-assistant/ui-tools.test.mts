@@ -19,14 +19,17 @@ import * as mailAttachments from "../../lib/inrAssistantMailAttachments.ts";
 import * as mailLifecycle from "../../lib/inrAssistantMailLifecycle.ts";
 import type { InrAssistantClientScreen } from "../../lib/inrAssistantClientContext.ts";
 import type * as Runtime from "../../lib/inrAssistantUiTools.ts";
+import { asSchema, generateText, jsonSchema as sdkJsonSchema, tool as sdkTool } from "ai";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
+import { repairInrAssistantToolInput } from "../../lib/inrAssistantToolInputRepair.ts";
 
-function harness(message: string, options: { edition?: editions.DashboardEdition; foreign?: boolean; available?: boolean; expired?: boolean; documentOwner?: string; preview?: boolean; screen?: InrAssistantClientScreen; accountId?: string; mediaRows?: Record<string, unknown>[] } = {}) {
+function harness(message: string, options: { edition?: editions.DashboardEdition; foreign?: boolean; available?: boolean; expired?: boolean; documentOwner?: string; preview?: boolean; screen?: InrAssistantClientScreen; accountId?: string; mediaRows?: Record<string, unknown>[]; realSdk?: boolean } = {}) {
   const activeId = options.accountId ?? "active";
   const deps: Record<string, unknown> = {
     "./inrAssistantWebsiteUiCommands.ts": websiteCommands,
     "./inrAssistantRequestClauses.ts": requestClauses,
     "./inrAssistantBusinessFormUiCommands.ts": businessFormCommands, "./inrAssistantActionClause.ts": actionClauses,
-    "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (value: object, options?: {validate?:unknown}) => Object.assign(value, {validate:options?.validate}) },
+    "server-only": {}, ai: options.realSdk ? { tool: sdkTool, jsonSchema: sdkJsonSchema } : { tool: (value: unknown) => value, jsonSchema: (value: object, options?: {validate?:unknown}) => Object.assign(value, {validate:options?.validate}) },
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "other" : activeId }) },
     "./inrAssistantStudioUiCommands.ts": studioCommands, "./inrAssistantStatsUiCommands.ts": statsCommands, "./inrAssistantBadgeUiCommands.ts": badgeCommands,
     "./inrAssistantUiCommands.ts": commands,
@@ -118,6 +121,47 @@ test("mounted library schemas reject malformed model inputs before any native ex
       {...input,patch:{changes:[{field:"typeFilter",valueJson:'"image"'},{field:"typeFilter",valueJson:'"video"'}]}},
       {...input,patch:{changes:[{field:"typeFilter",valueJson:'"image"'}],name:"Hidden"}},
     ])assert.equal(schema.validate(patch).success,false,JSON.stringify(patch));
+  }
+});
+
+test("real SDK repairs only the serialized retouch envelope before native validation and exact mounted action", async () => {
+  const request = "Mets le fond en blanc et le zoom à110%. Ne sauvegarde aucune copie.";
+  const screen: InrAssistantClientScreen = { pathname: "/dashboard/generer-media", tool: "Retouche image", selection: { kind: "media", id: "30000000-0000-4000-8000-000000000001" }, revision: "image_1", availableCommands: ["configure_image_retouch"] };
+  const patch = { changes: [{ field: "backgroundMode", valueJson: '"white"' }, { field: "zoom", valueJson: "1.1" }] };
+  const raw = { command: "configure_image_retouch", instructionQuote: "Mets le fond en blanc et le zoom à110%", documentId: null, documentKind: null, recipient: null, patch: JSON.stringify(patch) };
+  const definition = harness(request, { screen, edition: "basic", realSdk: true }).runScreenCommand;
+  const schema = asSchema(definition.inputSchema);
+  assert.match(definition.description!, /110%=1\.1, pas110/);
+  assert.match(definition.description!, /backgroundMode.*white/);
+  assert.equal((await schema.validate!(raw)).success, false);
+  const fixed = JSON.parse(repairInrAssistantToolInput({ toolName: "runScreenCommand", input: JSON.stringify(raw) })!.input);
+  assert.equal((await schema.validate!(fixed)).success, true);
+  for (const value of [
+    { ...raw, patch: { changes: [{ field: "zoom", valueJson: "110" }] } },
+    { ...raw, patch: { changes: [{ field: "backgroundColor", valueJson: '"white"' }] } },
+    { ...raw, patch, accountId: "foreign" }, { ...raw, patch, documentId: "30000000-0000-4000-8000-000000000002" },
+  ]) assert.equal((await schema.validate!(value)).success, false, "business values/foreign scope remain rejected");
+  const model: LanguageModelV3 = { specificationVersion: "v3", provider: "offline-retouch", modelId: "fixture", supportedUrls: {},
+    doGenerate: async () => ({ content: [{ type: "tool-call", toolCallId: "screen-repair", toolName: "runScreenCommand", input: JSON.stringify(raw) }], finishReason: { unified: "tool-calls", raw: "fixture" }, usage: { inputTokens: { total: 0 }, outputTokens: { total: 0 } }, warnings: [] }),
+    doStream: async () => { throw new Error("No transport"); },
+  };
+  let repairs = 0;
+  const result = await generateText({ model, prompt: request, tools: { runScreenCommand: definition }, experimental_repairToolCall: async ({ toolCall }) => { repairs += 1; return repairInrAssistantToolInput(toolCall); } });
+  assert.equal(repairs, 1);
+  assert.equal(result.toolResults.length, 1);
+  const output = toolResultRow(result.toolResults[0].output);
+  assert.equal(output.ok, true, JSON.stringify(output));
+  assert.deepEqual(commands.parseInrAssistantUiCommand(output.uiCommand), { command: "configure_image_retouch", selection: screen.selection, revision: screen.revision, patch: { backgroundMode: "white", zoom: 1.1 } });
+  const foreign = harness(request, { screen, edition: "basic", foreign: true, realSdk: true }).runScreenCommand;
+  assert.equal(toolResultRow(await foreign.execute!(fixed, execution)).status, "blocked", "repair cannot bypass native active-account verification");
+  for (const message of [
+    `Comment faire : ${request}`, `Si je confirme, ${request}`, `Après mon approbation, ${request}`,
+    `${request} Ne retouche pas cette image.`, `${request} Mais pas de fond blanc.`,
+  ]) {
+    const rejected = harness(message, { screen, edition: "basic", realSdk: true }).runScreenCommand;
+    const output = toolResultRow(await rejected.execute!(fixed, execution));
+    assert.equal(output.status, "needs_instruction", message);
+    assert.equal(output.uiCommand, undefined);
   }
 });
 

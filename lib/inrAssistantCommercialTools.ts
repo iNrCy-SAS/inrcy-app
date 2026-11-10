@@ -23,6 +23,8 @@ type DraftInput = { instructionQuote: string; clientReference: string; draft: Co
 export type InrAssistantCommercialResult = {
   ok: boolean; status: "created" | "updated" | "deleted" | "unchanged" | "draft" | "incomplete_draft" | "needs_instruction" | "needs_details" | "not_included" | "blocked" | "unavailable" | "unknown";
   message: string; nextAction: { label: string; href: string }; id?: string; kind?: "devis" | "facture"; missingFields?: string[]; changedFields?: string[];
+  inputIssue?: "exact_instruction_quote_required" | "unrequested_fields" | "current_instruction_not_authorized" | "invalid_tool_input";
+  noEffect?: true; retryableInput?: true; invalidFields?: string[];
 };
 const CONTACT_COLUMNS = "id,user_id,last_name,first_name,company_name,siret,email,phone,address,billing_address,delivery_address,vat_number,city,postal_code,category,contact_type,notes,important";
 const FIELDS = { displayName: "display_name", companyName: "company_name", email: "email", phone: "phone", address: "address", billingAddress: "billing_address", deliveryAddress: "delivery_address", postalCode: "postal_code", city: "city", siret: "siret", vatNumber: "vat_number", category: "category", contactType: "contact_type", notes: "notes", important: "important" } as const;
@@ -60,8 +62,11 @@ function currentInstruction(message: string, quote: string, action: "create" | "
 function currentInstructionClause(message: string, quote: string, action: "create" | "update" | "delete" | "devis" | "facture", reference: string): boolean {
   if (!message.includes(quote)) return false;
   const current = normalize(inrAssistantMaskQuotedText(message.slice(0, 4000)));
-  if (!normalize(message).includes(normalize(reference)) || /^(?:comment|pourquoi|explique|how|why|what|where|ou)\b|(?:expli\w*|montr\w*|show|savoir|comprendre).{0,50}(?:comment|how|ou\b|where)\b/.test(current) || /\b(?:ne |n'|n’|sans |do not |don't ).{0,40}(?:supprim|effac|modif|chang|cre|prepar|ajout|enregistr|delete|create|update)/.test(current) || /\b(?:le|ce|un|du) bouton\b|\b(?:erreur|bug|message d.erreur)\b.{0,100}(?:ne marche|ne fonctionne|bloqu|impossible|echec)|\b(?:hier|precedemment|la derniere fois|tu as deja)\b/.test(current)) return false;
-  const verbs = action === "delete" ? /\b(?:supprim\w*|effac\w*|retir\w*|delete|remove)\b/ : action === "update" ? /\b(?:modifi\w*|corrig\w*|chang\w*|remplac\w*|mets|mettez|ajout\w*|effac\w*|retir\w*|update|change|edit)\b/ : /\b(?:cree\w*|creer|crea\w*|ajout\w*|enregistr\w*|prepar\w*|redig\w*|fais|faites|create|prepare|draft)\b/;
+  const verbs = action === "delete" ? /\b(?:supprim\w*|effac\w*|retir\w*|delete|remove)\b/ : action === "update" ? /\b(?:modifi\w*|corrig\w*|chang\w*|remplac\w*|renomm\w*|mets|mettez|ajout\w*|effac\w*|retir\w*|update|change|edit|rename)\b/ : /\b(?:cree\w*|creer|crea\w*|ajout\w*|enregistr\w*|prepar\w*|redig\w*|fais|faites|create|prepare|draft)\b/;
+  // Every accepted action verb must also participate in the veto. Keeping one
+  // vocabulary prevents a new paraphrase from bypassing a negative instruction.
+  const negative = new RegExp(`(?:\\b(?:ne|pas|jamais|sans|not|never|without|do not)\\b|\\bn['’]|don't).{0,45}${verbs.source}|${verbs.source}.{0,20}\\b(?:pas|jamais|not|never|rien|nothing)\\b`);
+  if (!normalize(message).includes(normalize(reference)) || /^(?:comment|pourquoi|explique|how|why|what|where|ou)\b|(?:expli\w*|montr\w*|show|savoir|comprendre).{0,50}(?:comment|how|ou\b|where)\b/.test(current) || negative.test(current) || /\b(?:le|ce|un|du) bouton\b|\b(?:erreur|bug|message d.erreur)\b.{0,100}(?:ne marche|ne fonctionne|bloqu|impossible|echec)|\b(?:hier|precedemment|la derniere fois|tu as deja)\b/.test(current)) return false;
   const subject = action === "devis" ? /\b(?:devis|quote)\b/ : action === "facture" ? /\b(?:facture|invoice)\b/ : /\b(?:contact|fiche|client|prospect|fournisseur|partenaire|crm)\b|\bcarnet (?:d['’]adresses|de clients|clients)\b/;
   return verbs.test(current) && verbs.test(normalize(quote)) && subject.test(current);
 }
@@ -76,13 +81,30 @@ function fieldsFromCurrentMessage(fields: ContactFields, message: string): boole
   }
   return true;
 }
+const CRM_UPDATE_TARGETS: Record<keyof ContactFields, string> = {
+  displayName: "(?:nom|prenom|identite|name)", companyName: "(?:entreprise|societe|raison sociale|company)",
+  email: "(?:(?:e-?)?mail|courriel|adresse electronique)", phone: "(?:telephone|numero|mobile|portable|phone)",
+  address: "(?:adresse(?! (?:de )?(?:facturation|livraison))|address)", billingAddress: "(?:facturation|billing)", deliveryAddress: "(?:livraison|delivery)",
+  postalCode: "(?:code postal|postal|zip)", city: "(?:ville|city)", siret: "siret", vatNumber: "(?:tva|vat)",
+  category: "(?:categorie|category)", contactType: "(?:type|statut)", notes: "(?:notes?|commentaires?)", important: "(?:important|prioritaire|etoile)",
+};
+function explicitlyUpdatesField(message: string, field: keyof ContactFields, reference: string): boolean {
+  const current = normalize(inrAssistantMaskQuotedText(message));
+  if (field === "displayName") {
+    if (/\b(?:renomm\w*|rename)\b/.test(current)) return true;
+    const escapedReference = normalize(reference).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`\\b(?:remplac\\w*|replace)\\s+(?:(?:la fiche|le contact)\\s+)?(?:${escapedReference}\\s+)?(?:par|by|with)\\b`).test(current)) return true;
+  }
+  const verbs = "(?:modifi\\w*|corrig\\w*|chang\\w*|remplac\\w*|mets|mettez|ajout\\w*|effac\\w*|retir\\w*|update|change|edit)";
+  return new RegExp(`\\b${verbs}\\b(?:(?![;.!?]|\\b(?:sans|ne|mais|without|not)\\b).){0,120}\\b${CRM_UPDATE_TARGETS[field]}\\b`).test(current);
+}
 /** A value supplied for another contact or in an explanation is not a field order.
  * Retain original bytes for quoted names and coordinates; split only unquoted directives. */
 function currentContactInstruction(message: string, input: ContactInput): boolean {
   return matchesInrAssistantActionClause(message, input.instructionQuote, (current, quote) => {
     if (!current.includes(quote)) return false;
     const masked = inrAssistantMaskQuotedText(current);
-    const directive = "(?:cr[ée]e\\w*|ajout\\w*|enregistr\\w*|pr[ée]par\\w*|modifi\\w*|corrig\\w*|chang\\w*|remplac\\w*|supprim\\w*|effac\\w*|retir\\w*|explique\\w*|create|add|update|delete|remove|explain)";
+    const directive = "(?:cr[ée]e\\w*|ajout\\w*|enregistr\\w*|pr[ée]par\\w*|modifi\\w*|corrig\\w*|chang\\w*|remplac\\w*|renomm\\w*|supprim\\w*|effac\\w*|retir\\w*|explique\\w*|create|add|update|delete|remove|rename|explain)";
     const boundary = new RegExp(`(?:[,;.!?]\\s+|\\s+(?:et|puis|ensuite|and|then)\\s+)(?=${directive}\\b)`, "gi");
     const clauses: string[] = [];
     let start = 0;
@@ -91,8 +113,15 @@ function currentContactInstruction(message: string, input: ContactInput): boolea
     const matching = clauses.filter(clause => currentInstructionClause(clause, clause, input.action, input.reference));
     if (matching.length !== 1) return false;
     let fieldScope = matching[0];
+    let sharedContactType: ContactFields["contactType"];
     if (/\b(?:deux|trois|quatre|cinq|plusieurs|two|three|multiple|[2-9])\s+(?:contacts?|fiches?|clients?|prospects?)\b/.test(normalize(fieldScope))) {
       const data = inrAssistantMaskQuotedText(fieldScope);
+      const headerEnd = data.search(/[:;]/);
+      if (input.action === "create" && headerEnd >= 0) {
+        const header = normalize(data.slice(0, headerEnd));
+        const types = new Set([...header.matchAll(/\b(clients?|prospects?|fournisseurs?|partenaires?|autres?)\b/g)].map(match => match[1].replace(/s$/, "")));
+        if (types.size === 1) sharedContactType = [...types][0] as NonNullable<ContactFields["contactType"]>;
+      }
       const groups: string[] = []; let from = 0;
       for (const match of data.matchAll(/[:;]\s*|\s+(?:et|and)\s+/gi)) { groups.push(fieldScope.slice(from, match.index).trim()); from = match.index! + match[0].length; }
       groups.push(fieldScope.slice(from).trim());
@@ -101,8 +130,29 @@ function currentContactInstruction(message: string, input: ContactInput): boolea
       fieldScope = targets[0];
       if (input.fields.email && new Set(fieldScope.match(/[^\s,;<>"'@]+@[^\s,;<>"'@]+/g)).size > 1) return false;
     }
-    return fieldsFromCurrentMessage(input.fields, fieldScope);
+    if (input.action === "update" && Object.entries(input.fields).some(([field, value]) => value != null && !explicitlyUpdatesField(fieldScope, field as keyof ContactFields, input.reference))) return false;
+    const scopedFields = sharedContactType && input.fields.contactType === sharedContactType ? { ...input.fields, contactType: null } : input.fields;
+    return fieldsFromCurrentMessage(scopedFields, fieldScope);
   });
+}
+/** Pure, shared with the synthetic-model bench. A prior read never authorizes
+ * writing those fields back. The native executor applies this before any I/O. */
+export function getInrAssistantCrmInstructionRefusal(message: string, raw: unknown): InrAssistantCommercialResult | null {
+  let input: ContactInput;
+  try { const supplied = row(raw); input = parseContact({ ...supplied, fields: { ...row(supplied.fields) } }); }
+  catch { return { ok: false, status: "needs_instruction", inputIssue: "invalid_tool_input", noEffect: true, nextAction: crmLink, message: "Les paramètres CRM ne respectent pas le contrat. Conservez les clés prévues, les identifiants lus et null pour les champs non demandés. Rien exécuté." }; }
+  if (!message.includes(input.instructionQuote)) return {
+    ok: false, status: "needs_instruction", inputIssue: "exact_instruction_quote_required", noEffect: true, retryableInput: true, nextAction: crmLink,
+    message: "instructionQuote doit recopier un extrait EXACT du dernier message, sans changer le verbe ni reformuler. Reprenez la consigne originale ; aucune fiche n’a été modifiée.",
+  };
+  if (currentContactInstruction(message, input)) return null;
+  const emptyFields = Object.fromEntries(Object.keys(FIELDS).map(field => [field, null]));
+  if (currentContactInstruction(message, { ...input, fields: emptyFields })) {
+    const invalidFields = Object.entries(input.fields).filter(([field, value]) => value != null && !currentContactInstruction(message, { ...input, fields: { ...emptyFields, [field]: value } })).map(([field]) => field);
+    return { ok: false, status: "needs_instruction", inputIssue: "unrequested_fields", noEffect: true, retryableInput: true, invalidFields, nextAction: crmLink,
+      message: `Ces champs ne sont pas autorisés par la consigne actuelle : ${invalidFields.join(", ")}. Mettez leurs valeurs à null pour conserver l’existant, même après readCrmContact. Envoyez uniquement les changements explicitement demandés avec la citation exacte. Aucune fiche n’a été modifiée.` };
+  }
+  return { ok: false, status: "needs_instruction", inputIssue: "current_instruction_not_authorized", noEffect: true, nextAction: crmLink, message: "La consigne actuelle n’autorise pas cette action sur cette fiche. Une citation, une condition ou une validation future ne donne pas d’autorisation. Rien exécuté." };
 }
 function nativeRequest(source: Request, path: string, method: string, body: unknown, key: string): Request {
   const headers = new Headers({ accept: "application/json", "content-type": "application/json", "idempotency-key": key });
@@ -154,18 +204,19 @@ export function createInrAssistantCommercialTools(options: {
   const fieldProperties: Record<string, JSONSchema7> = Object.fromEntries(Object.keys(FIELDS).map(field => [field, field === "important" ? { type: ["boolean", "null"] } : { type: ["string", "null"], maxLength: field === "notes" ? 2000 : field.toLowerCase().includes("address") ? 500 : 254 }]));
   fieldProperties.category = { type: ["string", "null"], enum: ["particulier", "professionnel", "collectivite_publique", null] };
   fieldProperties.contactType = { type: ["string", "null"], enum: ["client", "prospect", "fournisseur", "partenaire", "autre", null] };
-  for(const field of Object.values(fieldProperties)) field.description="Valeur facultative : null si le professionnel ne l’a pas fournie. La présence de la clé est obligatoire pour le schéma, pas celle d’une valeur. Ne pas demander ce champ uniquement pour compléter le schéma.";
+  for(const field of Object.values(fieldProperties)) field.description="null si ce champ n’est pas explicitement demandé. Pour update, null conserve l’existant : ne recopier aucune valeur de readCrmContact pour un champ que le pro n’a pas demandé de modifier. La clé est obligatoire, pas sa valeur.";
   fieldProperties.category.description += " Valeurs en minuscules exactes : particulier, professionnel, collectivite_publique ou null.";
   fieldProperties.contactType.description += " Valeurs en minuscules exactes : client, prospect, fournisseur, partenaire, autre ou null ; jamais Client.";
   const schema = <T>(definition: JSONSchema7, parse: (value: unknown) => T) => jsonSchema<T>(definition, { validate: input => { try { return { success: true, value: parse(input) }; } catch (error) { return { success: false, error: error as Error }; } } });
   return {
     manageCrmContact: tool({ strict: true,
-      description: "Créer, modifier ou supprimer UNE fiche iNr’CRM explicitement demandée maintenant (Premium). Rechercher d’abord une fiche existante via searchCrmContacts. Pour create, contactId=null ; le nom fourni suffit, tous les autres champs non fournis sont null. Entreprise, téléphone, adresse et catégorie ne sont PAS obligatoires. Chaque clé fields est requise par le schéma mais sa valeur est facultative : null conserve le champ, chaîne vide efface seulement sur demande explicite. Pour update/delete, contactId est une vraie référence lue et reference son nom cité maintenant. Ne jamais inventer identité, coordonnées, notes ou catégorie. delete exige tous les champs null et une demande explicite de suppression ; aucun mail/campagne n’est envoyé.",
+      description: "Créer, modifier ou supprimer UNE fiche iNr’CRM explicitement demandée maintenant (Premium). Rechercher d’abord une fiche existante via searchCrmContacts. Pour create, contactId=null ; le nom fourni suffit, tous les champs non fournis sont null. Pour update, renseigner UNIQUEMENT le champ demandé : téléphone seul ⇒ phone=valeur, tous les autres fields=null, même après lecture de la fiche. null conserve l’existant ; ne pas renvoyer son email, ses notes ou son nom pour les préserver. Chaîne vide efface seulement sur demande explicite. contactId est l’UUID réellement lu, reference le nom actuel. instructionQuote est un extrait exact, jamais reformulé. delete exige tous les champs null ; aucun envoi.",
       inputSchema: schema<ContactInput>({ type: "object", additionalProperties: false, properties: { action: { type: "string", enum: ["create", "update", "delete"] }, instructionQuote: { type: "string", minLength: 8, maxLength: 600 }, reference: { type: "string", minLength: 2, maxLength: 180 }, contactId: { type: ["string", "null"], pattern: COMMERCIAL_UUID.source }, fields: { type: "object", additionalProperties: false, properties: fieldProperties, required: Object.keys(FIELDS) } }, required: ["action", "instructionQuote", "reference", "contactId", "fields"] }, parseContact),
       execute: async raw => {
         const input = parseContact(raw);
         if (edition === "standard") return fail(crmLink, "not_included");
-        if (!currentContactInstruction(currentUserMessage, input)) return fail(crmLink, "needs_instruction");
+        const instructionRefusal = getInrAssistantCrmInstructionRefusal(currentUserMessage, input);
+        if (instructionRefusal) return instructionRefusal;
         return once(`contact:${input.action}:${input.contactId || normalize(input.reference)}`, input, crmLink, async () => {
           if (!await allowed(false)) return fail(crmLink, "blocked");
           const previous = input.contactId ? await contact(input.contactId) : null;

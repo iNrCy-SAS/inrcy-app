@@ -1,4 +1,4 @@
-import { inrAssistantActionObjectives, inrAssistantRequiredCalls, inrAssistantRequestClauses, inrAssistantRoutingText, inrAssistantClauseIsAdvice, inrAssistantGoalCompleted, isInrAssistantAdvertisingRequest, isInrAssistantAttachedFileRequest, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
+import { inrAssistantActionObjectives, inrAssistantRequiredCalls, inrAssistantRequestClauses, inrAssistantRoutingText, inrAssistantClauseIsAdvice, inrAssistantGoalCompleted, isInrAssistantAdvertisingRequest, isInrAssistantAttachedFileRequest, isInrAssistantMediaQuoteRequest, isInrAssistantMediaStatusRequest, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
 import { hasInrAssistantDeferredApproval } from "./inrAssistantActionClause.ts";
 import { readInrAssistantCommunicationIntent } from "./inrAssistantCommunicationIntent.ts";
 import { INR_ASSISTANT_COMMANDS, type InrAssistantCommandFamily } from "./inrAssistantCommandRegistry.ts";
@@ -15,6 +15,7 @@ export type InrAssistantObjective = {
     /** Internal plan facet; native tool schemas and permission checks are unchanged. */
     readMode?: "list" | "details" | "metrics" | "preflight";
     campaignId?: string;
+    workspaceSection?: "crm";
 };
 export type InrAssistantObjectiveContext = { attachedFiles?: ReadonlyArray<{kind:"image"|"video"|"audio"|"document"}> };
 const diagnosticReader = {
@@ -51,6 +52,9 @@ const readers: Array<{
     matches: RegExp;
 }> = [
     diagnosticReader,
+    {tool:"quoteMediaGeneration",family:"media",label:"lire le devis média demandé",matches:/devis|cout|tarif|prix|quote|cost/},
+    {tool:"getMediaGeneration",family:"media",label:"vérifier le statut de la création demandée",matches:/apercu|creation|generation|preview/},
+    {tool:"searchPublicWeb",family:"business",label:"effectuer la recherche publique demandée",matches:/internet|web|en ligne/},
     {tool:"readAccountServices",family:"management",label:"consulter les informations du compte demandées",matches:/notifications?|abonnement|credits?|recharges?|rgpd|donnees personnelles|cookies?|parrainage/},
     {tool:"readGeneratorBusinessSettings",family:"business",label:"consulter les hypothèses des estimations",matches:/panier moyen|taux de (?:conversion|transformation)|hypotheses? (?:du generateur|des estimations)/},
     {tool:"readSocialPublicationPreferences",family:"business",label:"consulter les préférences globales de formats",matches:/(?:facebook|instagram|threads).{0,60}(?:preferences?|reglages?|formats? par defaut)|(?:preferences?|reglages?|formats? par defaut).{0,60}(?:facebook|instagram|threads)/},
@@ -104,8 +108,26 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
         const implicitDiagnostic = personalDiagnosticQuestion(clause, clauses.slice(Math.max(0, clauseIndex - 2), clauseIndex + 1).join(" ")) && !diagnosticDeferred;
         if (mutations.length || inrAssistantClauseIsAdvice(clause) && !implicitDiagnostic || /^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(clause))
             continue;
-        if (!implicitDiagnostic && !getInrAssistantBasicShopReadView(clause) && !/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|recherch\w*|cherche\w*|retrouv\w*|liste\w*|verifi\w*|regarde\w*|montre\w*|affiche\w*|analyse\w*|diagnostiqu\w*|compare\w*|donne\w*|quels?|quelles?|combien|read|find|search|list|show|check)\b/.test(clause))
+        const mediaQuote=isInrAssistantMediaQuoteRequest(clause);
+        if (!implicitDiagnostic && !getInrAssistantBasicShopReadView(clause) && !mediaQuote && !/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|recherch\w*|cherche\w*|retrouv\w*|liste\w*|verifi\w*|regarde\w*|montre\w*|affiche\w*|analyse\w*|diagnostiqu\w*|compare\w*|donne\w*|quels?|quelles?|combien|read|find|search|list|show|check)\b/.test(clause))
             continue;
+        if (mediaQuote) {
+            plan.push({id:`objective_${plan.length}`,kind:"read",tool:"quoteMediaGeneration",instruction:clause,count:1});
+            if (/\b(?:solde|credits? (?:restants?|disponibles?)|combien.{0,35}(?:reste|restent))\b/.test(clause))
+                plan.push({id:`objective_${plan.length}`,kind:"read",tool:"readAccountServices",instruction:clause,count:1});
+            continue;
+        }
+        // A same-object status follow-up does not turn the possessive "son"
+        // into an audio-library search. The immediately preceding preview
+        // read already fulfils this repeated, explicitly status-only request.
+        const previousClause = clauses[clauseIndex - 1] ?? "";
+        const repeatedPreviewStatus = isInrAssistantMediaStatusRequest(previousClause)
+            && /^(?:verifi\w*|consulte\w*|montre\w*|affiche\w*|check|show)\s+(?:(?:seulement|uniquement|just|only)\s+)?(?:son|leur|le|the|its|their)\s+(?:statut|etat|status)(?:\s*:\s*(?:ne\b|n'|not\b|never\b)[^.!?]*)?[.!?]*$/.test(clause);
+        if (repeatedPreviewStatus) continue;
+        if (isInrAssistantMediaStatusRequest(clause)) {plan.push({id:`objective_${plan.length}`,kind:"read",tool:"getMediaGeneration",instruction:clause,count:1});continue;}
+        if (/^(?:recherch\w*|cherche\w*|search|look up)\b/.test(clause) && /\b(?:internet|web|en ligne)\b/.test(clause)) {
+            plan.push({id:`objective_${plan.length}`,kind:"read",tool:"searchPublicWeb",instruction:clause,count:1});continue;
+        }
         const currentAttachedVisual = !/\b(?:mediatheque|bibliotheque|library)\b/.test(clause) && context.attachedFiles?.some(file =>
             file.kind === "video" ? /\b(?:ce|cet|cette|ces|this|these)\s+(?:(?:deux|trois|quatre|two|three|four|[1-4])\s+)?(?:videos?|clips?|films?)\b/.test(clause)
               : file.kind === "image" && /\b(?:ce|cet|cette|ces|this|these)\s+(?:(?:deux|trois|quatre|two|three|four|[1-4])\s+)?(?:images?|photos?|visuels?)\b/.test(clause));
@@ -132,6 +154,16 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
                 ...(campaignId && readMode !== "list" ? { campaignId } : {}), exhaustive: readMode === "list" && exhaustiveRead.test(clause) });
             continue;
         }
+        // Counting contacts uses the anonymous account summary, not personal
+        // fiches. In particular "sans noms ni adresses" is a restriction on
+        // the aggregate read, never a request to retrieve those private fields.
+        const crmAggregate = /\bcrm\b/.test(clause) && /\b(?:compteurs?|agreg\w*|counts?)\b/.test(clause)
+            || /\b(?:nombre|total|totaux|combien)\s+(?:de|des|du|d')\s*(?:(?:mes?|nos?|les|tous les)\s+)?(?:contacts?|clients?|prospects?)\b/.test(clause)
+            || /\b(?:total|totaux)\s+(?:(?:du|de mon|de notre|de ce)\s+)?crm\b/.test(clause);
+        if (crmAggregate) {
+            plan.push({ id: `objective_${plan.length}`, kind: "read", tool: "readWorkspaceSection", workspaceSection: "crm", instruction: clause, count: 1 });
+            continue;
+        }
         if (/\b(?:crm|contacts?|clients?|prospects?|fournisseurs?|partenaires?)\b/.test(clause)
             && /\b(?:fiches?|details?|notes?|coordonnees|telephones?|e-?mails?|adresses?|facturation|siret|tva)\b/.test(clause)) {
             if (hasInrAssistantDeferredApproval(message)) continue;
@@ -151,7 +183,7 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
             && /\b(?:ce qui se passe|ce probleme|cet incident|la cause|le blocage)\b/.test(clause)
             && diagnosticReader.matches.test(previous) && !inrAssistantClauseIsAdvice(previous)
             && !/^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(previous);
-        const reader = getInrAssistantBasicShopReadView(clause) ? readers.find(reader => reader.tool === "readAccountServices") : implicitDiagnostic || diagnosticFollowup ? diagnosticReader : readers.find(reader => reader.tool !== "readCrmContact" && reader.matches.test(clause) && !(reader.tool === "readAccountServices" && /notifications?/.test(clause) && /reglages?|parametres?|preferences?/.test(clause)));
+        const reader = getInrAssistantBasicShopReadView(clause) ? readers.find(reader => reader.tool === "readAccountServices") : implicitDiagnostic || diagnosticFollowup ? diagnosticReader : readers.find(reader => !["readCrmContact","quoteMediaGeneration","getMediaGeneration","searchPublicWeb"].includes(reader.tool) && reader.matches.test(clause) && !(reader.tool === "readAccountServices" && /notifications?/.test(clause) && /reglages?|parametres?|preferences?/.test(clause)));
         if (reader?.tool === "getAccountDiagnostics" && diagnosticDeferred)
             continue;
         if (reader)
@@ -160,10 +192,12 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
     return plan;
 }
 export function inrAssistantObjectiveFamily(tool: string): InrAssistantCommandFamily | undefined {
+    if (tool === "readWorkspaceSection") return "workspace";
     if (["prepareCommercialDocumentForm", "prepareCurrentDocumentTemplate"].includes(tool)) return "commercial";
     return INR_ASSISTANT_COMMANDS[tool]?.family ?? readers.find(reader => reader.tool === tool)?.family;
 }
 export function inrAssistantObjectiveLabel(tool: string, readMode?: InrAssistantObjective["readMode"]): string {
+    if (tool === "readWorkspaceSection") return "consulter la synthèse de l’établissement";
     if (tool === "readAdvertisingCampaigns" && readMode) return {list:"lister les campagnes publicitaires",details:"lire les réglages de la campagne publicitaire",metrics:"vérifier les mesures publicitaires réelles",preflight:"effectuer le contrôle préalable publicitaire natif"}[readMode];
     return INR_ASSISTANT_COMMANDS[tool]?.label ?? readers.find(reader => reader.tool === tool)?.label ?? "terminer la lecture demandée";
 }
@@ -174,6 +208,7 @@ export function inrAssistantReadMatchesObjective(objective: InrAssistantObjectiv
     if (objective.kind !== "read") return false;
     const value = input && typeof input === "object" ? input as Record<string, unknown> : {};
     if (objective.tool === tool) {
+        if (tool === "readWorkspaceSection" && objective.workspaceSection) return value.section === objective.workspaceSection;
         if (tool === "readAdvertisingCampaigns" && objective.readMode) return value.mode === objective.readMode && (!objective.campaignId || value.campaignId === objective.campaignId);
         if (tool === "readAccountServices") { const text=objective.instruction; const expected=getInrAssistantBasicShopReadView(text) ?? (/factures?|recu/.test(text) && /abonnement|inrcy/.test(text) ? "invoices" : /historique|commandes?/.test(text) && /credits?|recharges?/.test(text) ? "credit_orders" : /notifications?/.test(text) ? "notifications" : /credits?|recharges?/.test(text) ? "credits" : /abonnement|subscription/.test(text) ? "subscription" : /rgpd|donnees personnelles|cookies?/.test(text) ? "privacy" : /parrainage/.test(text) ? "referral_program" : undefined); return !expected || value.view === expected; }
         if (tool !== "readPublicationWorkspace") return true;

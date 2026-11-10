@@ -59,6 +59,28 @@ test("mounted Studio/library commands cannot mask an unrelated business action o
   assert.equal(inrAssistantUiSteps("Ouvre les statistiques", library).some(step => step.command === "configure_media_library"), false); assert.equal(inrAssistantUiSteps("Affiche les vidéos de la médiathèque", library)[0]?.command, "configure_media_library");
 });
 
+test("retouch permission is independent of a no-save clause, while field refusals and deferred approval remain closed", () => {
+  for (const request of [
+    "Mets le fond en blanc et le zoom à110%. Ne sauvegarde aucune copie.",
+    "Ne sauvegarde pas de copie, mais mets le fond en blanc et le zoom à110%.",
+    "Sur cette image, mets le fond blanc sans enregistrer de copie.",
+    "Modifie cette image, mais ne l’enregistre jamais.",
+  ]) {
+    assert.equal(isInrAssistantStudioUiRequest(request, "configure_image_retouch"), true, request);
+    assert.equal(isInrAssistantStudioUiRequest(request, "save_image_retouch"), false, request);
+  }
+  for (const request of [
+    "Ne retouche pas cette image et ne sauvegarde pas de copie.",
+    "Mets le fond en blanc, mais ne modifie pas cette image.",
+    "Zoome cette image, mais pas de fond blanc.",
+    "Mets le zoom à110%, mais aucun fond blanc.",
+    "Ne sauvegarde pas, et ne mets pas le fond en blanc.",
+    "Comment mettre le fond en blanc sans sauvegarder ?",
+    "Si je te le demande, mets le fond en blanc sans sauvegarder.",
+    "Après mon approbation, mets le fond en blanc sans sauvegarder.",
+  ]) assert.equal(isInrAssistantStudioUiRequest(request, "configure_image_retouch"), false, request);
+});
+
 test("Studio catalogue questions create no editor objective, including the poster noun affiche", () => {
   const home = parseInrAssistantClientContext({ screen: { pathname: "/dashboard" } });
   for (const message of [

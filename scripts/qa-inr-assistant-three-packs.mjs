@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import vm from 'node:vm';
+import { nativeFixtureRefusal, fixtureEffectIdentity, fixtureEffectFingerprint, projectNativeFixtureRead, providerVisualSummary } from './lib/inr-assistant-fixture-boundary.mjs';
 const arg = name => process.argv.find(value => value.startsWith(`--${name}=`))?.slice(name.length + 3);
 const root = resolve(arg('source') || resolve(import.meta.dirname, '..'));
 const { getInrAssistantNavigation } = await import(pathToFileURL(resolve(root,'lib/inrAssistantUiCommands.ts')).href);
@@ -54,17 +55,26 @@ const fixtureMap = test => {
   }
   return result;
 };
-function fixtureExecute(name,input,factoryArgs){
+function fixtureExecute(name,input,factoryArgs,nativeModule={}){
   const call={tool:name,input}; activeCase.calls.push(call);
   const scope=factoryArgs[0] ?? {}, test=activeCase.test;
   let output;
+  const refusal=nativeFixtureRefusal(name,input,scope,nativeModule);
+  if(refusal){call.output=refusal;call.nativeInputRejected=true;call.nativeQuoteRejected=refusal.inputIssue==='exact_instruction_quote_required';return refusal;}
   const currentInstructions=[scope.currentUserMessage,scope.currentApprovalMessage].filter(value=>typeof value==='string');
   if(typeof input.instructionQuote==='string' && currentInstructions.length && !currentInstructions.some(value=>value.includes(input.instructionQuote.trim()))){
-    output={ok:false,status:'needs_instruction',message:'La citation doit être une sous-chaîne exacte de la consigne actuelle, sans réécrire le verbe ni retirer des mots. Reprenez le texte exact avant toute action. Rien exécuté.'};
+    output={ok:false,status:'needs_instruction',inputIssue:'exact_instruction_quote_required',noEffect:true,retryableInput:true,message:'La citation doit être une sous-chaîne exacte de la consigne actuelle, sans réécrire le verbe ni retirer des mots. Reprenez le texte exact avant toute action. Rien exécuté.'};
     call.output=output;call.nativeQuoteRejected=true;return output;
   }
-  const operationKey=MUTATIONS.has(name)&&name!=='runScreenCommand'?JSON.stringify([name,input]):null;
-  if(operationKey&&activeCase.mutationCache.has(operationKey)){call.output=activeCase.mutationCache.get(operationKey);call.syntheticReplay=true;return call.output;}
+  const operationKey=MUTATIONS.has(name)&&name!=='runScreenCommand'?fixtureEffectIdentity(name,input,scope,nativeModule):null;
+  const operationFingerprint=operationKey?fixtureEffectFingerprint(name,input,nativeModule):null;
+  if(operationKey&&activeCase.mutationCache.has(operationKey)){
+    const previous=activeCase.mutationCache.get(operationKey);
+    if(previous.fingerprint!==operationFingerprint&&nativeModule.getInrAssistantWorkspaceSlotReuseRefusal){
+      call.output=nativeModule.getInrAssistantWorkspaceSlotReuseRefusal(name==='prepareCampaignEmail'?'campaign':'appointment',previous.output?.ok===true);call.nativeInputRejected=true;return call.output;
+    }
+    call.output=previous.output;call.syntheticReplay=true;return call.output;
+  }
   call.fixtureBoundary=true;
   if(inrAssistantToolsOutsideEdition([name],test.edition).length) output={ok:false,status:'not_included',message:'Ce module ne fait pas partie de cette offre ; aucune action exécutée.',nextAction:{label:'Mon abonnement',href:'/dashboard?panel=abonnement'}};
   else {
@@ -98,8 +108,11 @@ function fixtureExecute(name,input,factoryArgs){
     else if(MUTATIONS.has(name)) output={ok:false,status:'needs_input',message:'Aucune fixture native admissible ne permet cette action dans ce scénario. Rien exécuté.'};
     else output={ok:false,status:'unavailable',message:'Cette source n’est pas disponible dans le scénario fictif ; aucune donnée réelle consultée.'};
   }
+  output=projectNativeFixtureRead(name,input,output);
+  if(name==='selectCampaignMailbox'&&output?.ok&&typeof output.sender==='string')output=nativeModule.getInrAssistantCampaignInputRefusal?.(scope.currentUserMessage??'',name,input,output.sender)??output;
+  if(['previewCalendarAction','applyCalendarAction'].includes(name))call.nativeGuardCoverage='quote_only_requires_separate_native_tests';
   call.output=output;
-  if(operationKey)activeCase.mutationCache.set(operationKey,output);
+  if(operationKey)activeCase.mutationCache.set(operationKey,{fingerprint:operationFingerprint,output});
   if(['generateMedia','modifyMedia','getMediaGeneration'].includes(name)) scope.onResult?.(output);
   if(['preparePublication','executePublication','editPublication','getPublicationStatus'].includes(name)) scope.onResult?.(output);
   return output;
@@ -112,7 +125,7 @@ function loadHarness(){
   const visit=node=>{if(ts.isPropertyAssignment(node)&&node.name.getText(ast)==='createGateway')replacements.push([node.getStart(ast),node.getEnd(),'createGateway: () => __evaluation.gateway']);ts.forEachChild(node,visit);}; visit(ast); assert.equal(replacements.length,1);
   for(const[start,end,value]of replacements.reverse())source=source.slice(0,start)+value+source.slice(end);
   const marker='definitions.set(definition.inputSchema, { name: toolName, description: definition.description });';assert.ok(source.includes(marker));
-  source=source.replace(marker,`${marker}\nif (!["readAppGuide","readCurrentDateTime","readAttachedDocument","recallPastDiscussions"].includes(toolName)) (value as {execute?:unknown}).execute = (input: unknown) => __evaluation.execute(toolName,input,args);`);
+  source=source.replace(marker,`${marker}\nif (!["readAppGuide","readCurrentDateTime","readAttachedDocument","recallPastDiscussions"].includes(toolName)) (value as {execute?:unknown}).execute = (input: unknown) => __evaluation.execute(toolName,input,args,moduleRecord.exports);`);
   const nativeMarker='definitions.set(result.inputSchema, { name: "proposeHumanSupport", description: result.description });';
   assert.ok(source.includes(nativeMarker));
   source=source.replace(nativeMarker,`${nativeMarker}\nif (result.execute) { const execute = result.execute; result.execute = (input: unknown, options: unknown) => __evaluation.nativeExecute(execute, input, options); }`);
@@ -127,7 +140,7 @@ function loadHarness(){
       if(!live)return{content:[{type:'text',text:'Validation locale de schémas.'}],finishReason:{unified:'stop',raw:'fixture'},usage:{inputTokens:{total:0},outputTokens:{total:0}},warnings:[]};
       const rate=rates[modelId],upper=(32000*rate.input+6000*rate.output)/1e6;
       assert.ok(apiCalls<maxCalls&&chargedEstimateUsd+upper<=maxUsd,'Batch spending or call ceiling reached');
-      apiCalls++; const trace={caseId:activeCase.test.id,turn:activeCase.turn,modelId,availableTools:(params.tools??[]).map(t=>t.name),providerBytes:new TextEncoder().encode(JSON.stringify(params.prompt)).byteLength};providerTrace.push(trace);
+      apiCalls++; const trace={caseId:activeCase.test.id,turn:activeCase.turn,modelId,availableTools:(params.tools??[]).map(t=>t.name),providerBytes:new TextEncoder().encode(JSON.stringify(params.prompt)).byteLength,...providerVisualSummary(params)};providerTrace.push(trace);
       const start=Date.now(); let response;
       try{response=await model.doGenerate({...params,abortSignal:AbortSignal.any([...(params.abortSignal?[params.abortSignal]:[]),AbortSignal.timeout(45000)])});}
       catch(error){chargedEstimateUsd+=upper;let message=String(error?.message??'Provider failure').slice(0,600);for(const secret of[process.env.AI_GATEWAY_API_KEY,process.env.VERCEL_OIDC_TOKEN].filter(Boolean))message=message.replaceAll(secret,'[redacted]');providerErrors.push({caseId:activeCase.test.id,modelId,name:error?.name,status:error?.statusCode,message,retainedEstimateUsd:upper});throw error;}

@@ -146,6 +146,17 @@ test("a newly prepared campaign goes from null sender to verified selection, aud
   assert.equal(h.calls.filter(call => call.path === "/api/crm/campaigns").length, 1);
 });
 
+test("a pure quote refusal does not poison the native once guard before a corrected exact dispatch", async () => {
+  const h = harness(); await h.select(); const preview = await h.preview();
+  const message = `Envoie la campagne ${preview.reference}.`, definition = h.create(message).dispatchCampaignAudience;
+  const execute = (instructionQuote: string) => (definition.execute as (input: Row, context: unknown) => Promise<Row>)({ draftId: DRAFT, reference: preview.reference, instructionQuote }, { toolCallId: "test", messages: [] });
+  const refusal = await execute(`Envoyer la campagne ${preview.reference}`);
+  assert.equal(refusal.inputIssue, "exact_instruction_quote_required"); assert.equal(refusal.noEffect, true);
+  assert.equal(h.calls.filter(call => call.path === "/api/crm/campaigns").length, 0);
+  assert.equal((await execute(message)).status, "queued");
+  assert.equal(h.calls.filter(call => call.path === "/api/crm/campaigns").length, 1);
+});
+
 test("campaign follow-up is scoped and read-only and distinguishes provider acceptance from delivery", async () => {
   const h = harness(); h.rows.mail_campaigns.push({ id: CAMPAIGN, user_id: ACCOUNT, status: "queued", total_count: 2, queued_count: 2, processing_count: 0, sent_count: 0, failed_count: 0 });
   const read = () => h.run("readCampaignDeliveryStatus", { campaignId: CAMPAIGN }, "Vérifie l’état de ma campagne");
