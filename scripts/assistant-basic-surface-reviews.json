@@ -1172,7 +1172,7 @@
     "lib/inrAssistantChannelTools.ts": "821cb425adc288059e1d3a940032526ddf3d9ec63a4fce44bf7dffab17adac99",
     "lib/inrAssistantClientContext.ts": "82ad0a2dfba823ecef2609c78d0df92562f5dcf6b521bac3117fff635b446492",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
-    "lib/inrAssistantCodeIndex.generated.ts": "3438a990f58183f2a256d8a468f9b51441da211fceab2d65bbf021154dc0c23f",
+    "lib/inrAssistantCodeIndex.generated.ts": "7a43748190393445986be7ab0008cfe504e9167c1674032f2a242de20e400d13",
     "lib/inrAssistantCommandRegistry.ts": "e49c619e20da3d2f1406e3c281ae9f81d979861334462dea703f95b9f4cb8a0d",
     "lib/inrAssistantCommercialTools.ts": "710efc738423e0d0405b2401342b064cdf11cebf6912f64b2a4b085d428111ab",
     "lib/inrAssistantCommunicationTools.ts": "8815a4a3433dbb2197cc7b584afd7d4eb97d342435596992ae6f3be2bb323eed",

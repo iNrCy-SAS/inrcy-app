@@ -15,7 +15,6 @@ type Props = {
 };
 
 const NEWTON_SLOT_COUNT = 5;
-const DEFAULT_STRENGTHS = ["Rapide", "Efficace", "Sérieux", "Proche", "À l’écoute"];
 
 function normalizeStrength(value: string) {
   return value
@@ -76,15 +75,8 @@ function InrBadgeQr({ value, label }: { value: string; label: string }) {
 export default function InrSearchStrengthsOrbit({ companyName, strengths, inrBadgeUrl, inrBadgeQrUrl }: Props) {
   const i18nT = useTranslations("public");
   const normalizedStrengths = strengths.map((strength) => strength.trim()).filter(Boolean);
-  const completedStrengths = [...normalizedStrengths];
-  for (const fallback of DEFAULT_STRENGTHS) {
-    if (completedStrengths.length >= NEWTON_SLOT_COUNT) break;
-    if (!completedStrengths.some((strength) => strength.toLocaleLowerCase("fr-FR") === fallback.toLocaleLowerCase("fr-FR"))) {
-      completedStrengths.push(fallback);
-    }
-  }
-  const visibleStrengths = completedStrengths.slice(0, NEWTON_SLOT_COUNT);
-  const cradleSlots = visibleStrengths;
+  const visibleStrengths = normalizedStrengths.slice(0, NEWTON_SLOT_COUNT);
+  const cradleSlots = Array.from({ length: NEWTON_SLOT_COUNT }, (_, index) => visibleStrengths[index] || "");
   const [activeIndex, setActiveIndex] = useState(0);
   const [impulse, setImpulse] = useState(0);
   const activeStrength = cradleSlots[activeIndex] || visibleStrengths[0];
@@ -120,7 +112,7 @@ export default function InrSearchStrengthsOrbit({ companyName, strengths, inrBad
                 disabled={!strength}
               >
                 <span>{String(index + 1).padStart(2, "0")}</span>
-                <strong>{strength}</strong>
+                <strong>{strength || "—"}</strong>
               </button>
             ))}
           </div>
@@ -142,7 +134,7 @@ export default function InrSearchStrengthsOrbit({ companyName, strengths, inrBad
                 key={`${strength || "empty"}-${index}`}
                 onClick={() => activate(index)}
                 role="listitem"
-                aria-label={strength}
+                aria-label={strength || "—"}
                 title={strength}
                 aria-current={Boolean(strength) && index === activeIndex ? "true" : undefined}
                 aria-disabled={strength ? undefined : true}
@@ -152,16 +144,16 @@ export default function InrSearchStrengthsOrbit({ companyName, strengths, inrBad
                   <span className={styles.strengthNewtonString} />
                   <span className={styles.strengthNewtonSphere}><i>{strength ? String(index + 1).padStart(2, "0") : ""}</i></span>
                 </span>
-                <strong>{strength || ""}</strong>
+                <strong>{strength || "—"}</strong>
               </button>
             ))}
           </div>
 
           <article className={styles.strengthNewtonDetail} aria-live="polite" tabIndex={0}>
             <small>{i18nT("engagement_selectionne_a9da550d")}</small>
-            <strong>{activeStrength}</strong>
-            <p>{strengthDefinition(activeStrength || "", companyName)}</p>
-            <span>{i18nT("un_engagement_mis_en_avant_par_2c973413")}</span>
+            <strong>{activeStrength || "—"}</strong>
+            <p>{activeStrength ? strengthDefinition(activeStrength, companyName) : "—"}</p>
+            {activeStrength ? <span>{i18nT("un_engagement_mis_en_avant_par_2c973413")}</span> : null}
           </article>
         </div>
 
