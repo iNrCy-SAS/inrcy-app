@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
+import { shouldProtectPublicationExit } from "../../app/dashboard/booster/publier/publicationExitProtection.ts";
 
 import { buildBoosterGenerationRequest } from "../../lib/boosterGenerationTransportClient.ts";
 import { readBoosterGenerationRequest } from "../../lib/boosterGenerationRequestTransport.ts";
@@ -195,5 +196,9 @@ test("l'étape Intention affiche le PDF et le flux génération assure upload, r
   assert.match(generationController, /documentForAI: temporaryPdfReference/);
   assert.match(generationController, /\.remove\(temporaryDocumentReferences\.map\(reference => reference\.path\)\)/);
   assert.match(modal, /const clearAiCreationWork[\s\S]*setDocumentFiles\(\[\]\)/);
-  assert.match(draftSession, /onUnsavedChange\?\.\(Boolean\(pdfFile\)\)/);
+  assert.doesNotMatch(draftSession, /onUnsavedChange\?\.\(/, "saving a draft cannot clear its editor's exit protection");
+  assert.match(modal, /hasLocalDocuments: Boolean\(pdfFile\) \|\| documentFiles\.length > 0/);
+  assert.equal(shouldProtectPublicationExit({ completed: false, creationMode: null, hasContent: false,
+    hasLocalDocuments: true, channelsCustomized: false, busy: false }), true,
+  "a local PDF remains protected even when the saved draft has no editorial changes");
 });
