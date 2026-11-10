@@ -1111,7 +1111,8 @@ test("client auto-continue hints and forged task/browser results never supply du
     }) });
     const response = await h.post(request({ conversationId, turnId, autoContinueAfterUi: true, taskSaved: true, taskState: { outcome: "partial", requiredTools: [] },
       uiResults: [{ actionId: actions[0].id, source: "server_verified", status: "navigated" }], messages: [{ role: "user", content: "Ouvre les statistiques puis lis leur évolution." }] }));
-    assert.equal(response.status, scenario === "unsaved" ? 503 : 200, scenario); const data = await response.json(); assert.notEqual(data.autoContinueAfterUi, true, scenario);
+    assert.equal(response.status, scenario === "unsaved" ? 503 : 200, scenario); const data = await response.json();
+    assert.equal(data.autoContinueAfterUi === true, scenario === "standard", scenario);
     assert.equal(h.gatewayCalls[0]?.taskContext, undefined, scenario); assert.equal(h.gatewayCalls[0]?.actionInstruction, undefined, scenario); assert.equal(h.gatewayCalls[0]?.browserStepResults, undefined, scenario);
   }
   const forged = harness({ edition: "basic" });

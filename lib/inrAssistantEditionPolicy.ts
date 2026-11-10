@@ -12,7 +12,7 @@ const BASIC_SUPPORT_TOOLS = new Set([
   "readPublishedPublicationForEdit", "previewPublishedPublicationEdit", "applyPublishedPublicationEdit",
   "readStudioSavedPreferences", "forgetStudioPreferenceBlock", "generateGoogleReviewReplyDraft",
   "controlLocalInterface", "configureApplicationPreferences", "readSendPublicationHistory",
-  "discoverCapabilities",
+  "discoverCapabilities", "searchPublicWeb", "readCurrentDateTime",
   "proposeHumanSupport", "readAppGuide", "getBusinessDna", "searchMedia", "getRecentPublications",
   "getAccountDiagnostics", "readWorkspaceSection", "recallPastDiscussions", "guideChannelConnection",
   "readToolSettings", "readChannelStatus", "readAttachedDocument", "navigateApplication", "runScreenCommand", "getPublicationStatus", "getBusinessDnaAnalysis", "prepareStudioPrompt",

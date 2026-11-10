@@ -98,5 +98,9 @@ test("native video source/save, optimization and bounded audio import are discov
     assert.ok(parseInrAssistantUiCommand({ command, selection: { kind: "media", id: "11111111-1111-4111-8111-111111111111" }, revision: "rev1", ...(command === "select_video_source" ? { mediaId: "22222222-2222-4222-8222-222222222222" } : {}) }));
   }
   const audio = discoverInrAssistantActionCoverage({ edition: "premium", query: "audio" }).items.find(row => row.id === "media.import");
-  assert.ok(audio); assert.match(audio.limits, /MP3\/WAV.*3 Mio.*300 secondes.*sans transcription/);
+  assert.ok(audio); assert.match(audio.limits, /MP3\/WAV.*3 Mio.*300 secondes/);
+  assert.match(audio.limits, /Analyse de la pièce jointe distincte de son import/);
+  const analysis = INR_ASSISTANT_ACTION_COVERAGE.find(row => row.id === "media.read")!;
+  assert.match(analysis.limits, /transcription MP3\/WAV.*3 Mio\/5 min/);
+  assert.match(analysis.limits, /aucune analyse intégrale présumée/);
 });

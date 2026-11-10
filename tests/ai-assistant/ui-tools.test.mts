@@ -26,7 +26,7 @@ function harness(message: string, options: { edition?: editions.DashboardEdition
     "./inrAssistantWebsiteUiCommands.ts": websiteCommands,
     "./inrAssistantRequestClauses.ts": requestClauses,
     "./inrAssistantBusinessFormUiCommands.ts": businessFormCommands, "./inrAssistantActionClause.ts": actionClauses,
-    "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (value: unknown) => value },
+    "server-only": {}, ai: { tool: (value: unknown) => value, jsonSchema: (value: object, options?: {validate?:unknown}) => Object.assign(value, {validate:options?.validate}) },
     "./requireUser": { requireUser: async () => ({ activeUserId: options.foreign ? "other" : activeId }) },
     "./inrAssistantStudioUiCommands.ts": studioCommands, "./inrAssistantStatsUiCommands.ts": statsCommands, "./inrAssistantBadgeUiCommands.ts": badgeCommands,
     "./inrAssistantUiCommands.ts": commands,
@@ -89,19 +89,42 @@ test("Stats exposes only its five native nullable settings and accepts the stric
   const patch = { ...Object.fromEntries(Object.keys(schema.properties.patch.properties).map(field => [field, null])), panel: "evolution" };
   const result = await tools.runScreenCommand.execute!({ command: "configure_stats_view", instructionQuote: request, documentId: null, documentKind: null, recipient: null, patch }, execution) as { ok: boolean; uiCommand: unknown };
   assert.equal(result.ok, true); assert.deepEqual(commands.parseInrAssistantUiCommand(result.uiCommand), { command: "configure_stats_view", selection: screen.selection, revision: screen.revision, patch: { panel: "evolution" } });
-  const shared = harness(request).runScreenCommand.inputSchema as unknown as typeof schema;
-  for (const field of ["documentId", "documentKind", "recipient"] as const) assert.deepEqual([...shared.properties[field].type], ["string", "null"]);
-  assert.ok(shared.properties.command.enum.includes("export_document_pdf")); assert.ok(shared.properties.command.enum.includes("configure_stats_view")); assert.ok(shared.properties.command.enum.length > 1);
-  const legacyPatch = { ...Object.fromEntries(Object.keys(shared.properties.patch.properties).map(field => [field, null])), panel: "evolution" };
-  assert.ok(Object.keys(legacyPatch).length > 4);
-  assert.equal((await tools.runScreenCommand.execute!({ command: "configure_stats_view", instructionQuote: request, patch: legacyPatch }, execution) as { ok: boolean }).ok, true, "legacy shared-schema null placeholders are still harmless");
+  const document = harness(request).runScreenCommand.inputSchema as unknown as typeof schema;
+  for (const field of ["documentId", "documentKind"] as const) assert.deepEqual([...document.properties[field].type], ["string", "null"]);
+  assert.equal(document.properties.recipient.type,"null");
+  assert.deepEqual([...document.properties.command.enum],["export_document_pdf"],"a document screen does not expose unrelated Stats controls");
+  const legacyPatch = { panel:"evolution",name:null,changes:null,subject:null };
+  assert.equal((await tools.runScreenCommand.execute!({ command: "configure_stats_view", instructionQuote: request, patch: legacyPatch }, execution) as { ok: boolean }).ok, true, "persisted legacy null placeholders remain harmless at the native executor");
+});
+
+test("mounted library schemas reject malformed model inputs before any native execution", () => {
+  const request="Dans la médiathèque ouverte, affiche uniquement les images.";
+  const screen: InrAssistantClientScreen={pathname:"/dashboard/mediatheque",tool:"Mes médias",selection:{kind:"media",id:"library"},revision:"library_1",availableCommands:["configure_media_library"]};
+  for(const edition of ["basic","standard"] as const){
+    const definition=harness(request,{screen,edition}).runScreenCommand;
+    const schema=definition.inputSchema as unknown as {properties:{command:{enum:string[]};patch:{properties:Record<string,unknown>}};validate:(input:unknown)=>{success:boolean}};
+    assert.deepEqual([...schema.properties.command.enum],["configure_media_library"]);
+    assert.deepEqual(Object.keys(schema.properties.patch.properties),["changes"]);
+    assert.match(definition.description!,/patch est un OBJET.*typeFilter/);
+    const input={command:"configure_media_library",instructionQuote:"affiche uniquement les images",documentId:null,documentKind:null,recipient:null,patch:{changes:[{field:"typeFilter",valueJson:'"image"'}]}};
+    assert.equal(schema.validate(input).success,true);
+    for(const patch of [
+      {...input,patch:JSON.stringify(input.patch)}, {...input,documentId:"None"}, {...input,documentKind:"None"},
+      {...input,patch:{type:"image"}}, {...input,command:"configure_ads_draft"},
+      {...input,patch:{changes:[{field:"typeFilter",valueJson:"image"}]}},
+      {...input,patch:{changes:[{field:"zoom",valueJson:"2"}]}},
+      {...input,patch:null}, {...input,patch:{changes:null}},
+      {...input,patch:{changes:[{field:"typeFilter",valueJson:'"images"'}]}},
+      {...input,patch:{changes:[{field:"typeFilter",valueJson:'"image"'},{field:"typeFilter",valueJson:'"video"'}]}},
+      {...input,patch:{changes:[{field:"typeFilter",valueJson:'"image"'}],name:"Hidden"}},
+    ])assert.equal(schema.validate(patch).success,false,JSON.stringify(patch));
+  }
 });
 
 test("Stats diagnoses invalid parameters separately from a missing mounted view and rejects every nonnull foreign field", async () => {
   const request = "Affiche la vue Évolution des statistiques.", screen: InrAssistantClientScreen = { pathname: "/dashboard/stats", tool: "iNr’Stats", selection: { kind: "stats", id: "stats" }, revision: "stats_live_1", availableCommands: ["configure_stats_view"] };
   const input = { command: "configure_stats_view" as const, instructionQuote: request, patch: { panel: "evolution" } }, tools = harness(request, { screen, edition: "basic" });
-  const shared = harness(request).runScreenCommand.inputSchema as unknown as { properties: { patch: { properties: Record<string, unknown> } } };
-  for (const field of [...Object.keys(shared.properties.patch.properties).filter(field => !["panel", "evolutionView", "metric", "channel", "indexRangeMonths"].includes(field)), "unknownSetting"]) {
+  for (const field of ["name", "primaryText", "format", "recipient", "subject", "bodyText", "attachmentIds", "mediaId", "targetBytes", "metaSlot", "changes", "adsChanges", "businessFormAction", "businessFormTab", "unknownSetting"]) {
     const result = toolResultRow(await tools.runScreenCommand.execute!({ ...input, patch: { panel: "evolution", [field]: field === "changes" ? [{ field: "panel", valueJson: '"evolution"' }] : "foreign-value" } }, execution));
     assert.equal(result.ok, false, field); assert.equal(result.code, "stats_view_invalid_patch", field); assert.equal(result.uiCommand, undefined); assert.ok(typeof result.message === "string"); assert.doesNotMatch(result.message, /Ouvrez/);
   }

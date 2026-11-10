@@ -40,7 +40,7 @@ function requestedMediaSubject(value: string, mediaType: InrAssistantMediaType, 
 function mediaActionClauses(value: string): string[] {
   // Split coordination only when another directive follows. "Image et logo"
   // remains one output request; "image puis ajoute un contact" has two objects.
-  const nextAction = `(?:(?:ne|do not|don't|no|nicht)\\s+)?(?:(?:tu|vous|you)\\s+)?(?:${GENERATE_VERBS}|${MODIFY_VERBS}|prepar\\w*|redig\\w*|ecri\\w*|envoi\\w*|publi\\w*|planifi\\w*|prepare|write|send|publish|update|schedule)`;
+  const nextAction = `(?:(?:ne|do not|don't|no|nicht)\\s+|n')?(?:(?:tu|vous|you)\\s+)?(?:${GENERATE_VERBS}|${MODIFY_VERBS}|prepar\\w*|redig\\w*|ecri\\w*|envoi\\w*|publi\\w*|planifi\\w*|prepare|write|send|publish|update|schedule)`;
   return inrAssistantMergeAdviceClauses(value.split(new RegExp(`(?:[;.!?]\\s*|\\b(?:puis|ensuite|then|luego|despues|dann)\\b\\s*|\\b(?:et|and|y|und|mais|but|pero|aber)\\s+(?=${nextAction}\\b))`, "g"))
     .map(clause => clause.trim()).filter(Boolean));
 }
@@ -79,10 +79,30 @@ export function hasInrAssistantMediaSubject(message: string, mediaType: InrAssis
  * A bare confirmation or text quoted by the user never becomes an instruction. */
 export function permitsInrAssistantMediaAction(message: string, action: InrAssistantMediaAction, mediaType: InrAssistantMediaType = "image"): boolean {
   if (typeof message !== "string" || !["generate", "modify"].includes(action) || !["image", "video"].includes(mediaType) || action === "modify" && mediaType === "video" || /^(?:assistant|system|systeme|user|utilisateur)\s*:/im.test(message.slice(0, 4_000))) return false;
-  return mediaActionClauses(currentText(message)).some(value => permitsRequestedMediaClause(value, action, mediaType));
+  const clauses = mediaActionClauses(currentText(message));
+  if (clauses.some(value => refusesMediaAction(value, action, mediaType))) return false;
+  // A wish can introduce a capability question: "Je veux une vidéo. Quels
+  // moteurs sont compatibles ?". An independent imperative still authorizes
+  // its own action, but the context of that question is not an order.
+  const allowWish = !clauses.some(value => /\b(?:quels?|quelles?|which|what|welche\w*|cual(?:es)?)\b.{0,100}\b(?:moteurs?|modeles?|engines?|models?|options?|compatibles?|utiliser|choisir|use|choose|unterstutz\w*|verwenden|usar|elegir)\b|\b(?:comment|how|wie|como)\b.{0,100}\b(?:creer|generer|modifier|create|generate|edit|erstellen|crear)\b|\b(?:explique\w*|explain|erklar\w*|explic\w*)\b/.test(value));
+  return clauses.some(value => permitsRequestedMediaClause(value, action, mediaType, allowWish));
 }
 
-function permitsRequestedMediaClause(value: string, action: InrAssistantMediaAction, mediaType: InrAssistantMediaType): boolean {
+function refusesMediaAction(value: string, action: InrAssistantMediaAction, mediaType: InrAssistantMediaType): boolean {
+  const verbs = action === "generate" ? GENERATE_VERBS : MODIFY_VERBS;
+  const negative = "(?:ne|sans|jamais|not|never|don't|do not|no|nunca|sin|nicht|niemals)";
+  const refusedVerb = new RegExp(`\\b${negative}\\b.{0,80}\\b${verbs}\\b|\\b${verbs}\\b.{0,24}\\b(?:pas|jamais|not|never|no|nunca|nicht|kein\\w*|niemals|aucun\\w*)\\b`).test(value);
+  const refusedGeneration = action === "generate" && /\b(?:sans|without|aucune?|no|sin|ohne)\b.{0,45}\b(?:generation|creation)\b/.test(value);
+  if (!refusedVerb && !refusedGeneration) return false;
+  const requestedImage = requestedMediaSubject(value, "image"), requestedVideo = requestedMediaSubject(value, "video");
+  // A refusal of video does not revoke an independent image order (or the
+  // reverse). A generic generation refusal applies to both media types.
+  if (/\bmedias?\b/.test(value) || refusedGeneration && !requestedImage && !requestedVideo) return true;
+  if (requestedImage || requestedVideo) return mediaType === "image" ? Boolean(requestedImage) : Boolean(requestedVideo);
+  return /\b(?:rien|nothing|nada|nichts)\b/.test(value) || new RegExp(`\\b${verbs}\\s+(?:pas|jamais|not|never)?[.!\\s]*$`).test(value);
+}
+
+function permitsRequestedMediaClause(value: string, action: InrAssistantMediaAction, mediaType: InrAssistantMediaType, allowWish = true): boolean {
   if (!value || /^(?:comment|pourquoi|ou|how|where|what|wie|warum|wo|was|como|por que|donde|cual)\b/.test(value) ||
     /\b(?:expliqu\w*|comprendr\w*|savoir|explain|teach|erklar\w*|versteh\w*|wissen|explic\w*|ensen\w*|saber|aprender)\b/.test(value) ||
     /\b(?:montr\w*|show|zeig\w*|mostr\w*|muestr\w*|dis|dire|tell|decir\w*|dime)\b.{0,60}\b(?:comment|how|wie|como|si|ob|whether|if)\b/.test(value) ||
@@ -92,10 +112,10 @@ function permitsRequestedMediaClause(value: string, action: InrAssistantMediaAct
     /^(?:le bouton|the button|der button|die schaltflache|el boton|message d.erreur|error message|fehlermeldung|mensaje de error)\b/.test(value) ||
     /^(?:voici\b.{0,35}\b(?:texte|citation|exemple|historique)|here is\b.{0,35}\b(?:quote|example|transcript)|historique|transcript|conversation history)\b/.test(value)) return false;
 
-  return permitsMediaClause(value, action, mediaType);
+  return permitsMediaClause(value, action, mediaType, allowWish);
 }
 
-function permitsMediaClause(value: string, action: InrAssistantMediaAction, mediaType: InrAssistantMediaType): boolean {
+function permitsMediaClause(value: string, action: InrAssistantMediaAction, mediaType: InrAssistantMediaType, allowWish: boolean): boolean {
   const editingProduct = /\b(?:fais|faire|faites|cree\w*|create|make)\s+(?:(?:moi|me|nous|please)\s+)?(?:une?|la|des?|an?|the|some)\s+(?:retouches?|modifications?|corrections?|ameliorations?|recadrages?|edits?|retouch(?:ing)?|crops?)\b/.test(value);
   if (action === "generate" && editingProduct) return false;
   // Asking for a prompt/brief is different from requesting the media described by it.
@@ -117,5 +137,5 @@ function permitsMediaClause(value: string, action: InrAssistantMediaAction, medi
 
   const needText = value.replace(/\bj'ai besoin d'/g, "j'ai besoin de ");
   const need = /\b(?:je (?:veux|souhaite|voudrais)|j.aimerais|j.ai besoin de|i (?:want|need)|i would like|quiero|necesito|me gustaria|ich mochte|ich will|ich brauche|ich hatte gern(?:e)?|ich wunsche mir)\s+(?:(?:une?|des?|an?|the|some|new|nouvelle?s?|belles?|beau|ein|eine|einen|neues?|neuen|un|una|unos|unas|nueva?s?|nuevo?s?)\s+)*(?:images?|photos?|videos?|visuels?|illustrations?|affiches?|flyers?|medias?|clips?|pictures?|logos?|logotipos?|posters?|banners?|imagen(?:es)?|fotos?|fotografias?|ilustracion(?:es)?|carteles?|bild(?:er)?|plakat(?:e)?|grafik(?:en)?)\b/.test(needText);
-  return (direct || need) && Boolean(subject);
+  return (direct || allowWish && need) && Boolean(subject);
 }

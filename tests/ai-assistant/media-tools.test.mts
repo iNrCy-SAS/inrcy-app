@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import * as sdk from "ai";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
 import { normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
 import * as catalogue from "../../lib/aiMediaModelCatalog.ts";
 import * as mediaIntent from "../../lib/inrAssistantMediaIntent.ts";
@@ -18,7 +20,7 @@ const imageInput = { mediaType: "image", prompt: "Une photo réaliste de mon ate
 const sourceMediaId = "30000000-0000-4000-8000-000000000001";
 const sourceReference = { reference: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jlpQAAAAASUVORK5CYII=", role: "inspiration", usage: "required" }, width: 1080, height: 1350, format: "portrait" };
 
-type HarnessOptions = { currentUserMessage?: string; statusReadOnly?: boolean; saveAuthorizedRequestIds?: string[]; previewTarget?: { requestId: string; mediaId: string }; accepted?: boolean; sourceUnavailable?: boolean; subscriptionActive?: boolean; canStartWork?: boolean; creditsReady?: boolean; remaining?: number; maxDuration?: number; generateError?: boolean; generateBroken?: boolean; acceptError?: boolean; acceptBroken?: boolean; discardBroken?: boolean; discardWrongReadback?: boolean; status?: string; statusResponse?: number; statusCode?: string; statusBroken?: boolean };
+type HarnessOptions = { realSdk?: boolean; currentUserMessage?: string; statusReadOnly?: boolean; saveAuthorizedRequestIds?: string[]; previewTarget?: { requestId: string; mediaId: string }; accepted?: boolean; sourceUnavailable?: boolean; subscriptionActive?: boolean; canStartWork?: boolean; creditsReady?: boolean; remaining?: number; maxDuration?: number; generateError?: boolean; generateBroken?: boolean; acceptError?: boolean; acceptBroken?: boolean; discardBroken?: boolean; discardWrongReadback?: boolean; status?: string; statusResponse?: number; statusCode?: string; statusBroken?: boolean };
 function harness(options: HarnessOptions = {}) {
   const calls: { stage: string; body?: Record<string, unknown>; request?: Request; id?: string }[] = [];
   const callbacks: string[] = [];
@@ -29,7 +31,7 @@ function harness(options: HarnessOptions = {}) {
   const json = (body: unknown, status = 200) => Response.json(body, { status });
   const stubs: Record<string, unknown> = {
     "server-only": {},
-    ai: { tool: (value: unknown) => value, jsonSchema: (schema: unknown, config: unknown) => ({ schema, ...config as object }) },
+    ai: options.realSdk ? sdk : { tool: (value: unknown) => value, jsonSchema: (schema: unknown, config: unknown) => ({ schema, ...config as object }) },
     "./aiMediaGenerationContracts.ts": { normalizeAiMediaGenerationRequest },
     "./aiMediaVideoSpeechBudget.ts": speechBudget,
     "./aiMediaModelCatalog.ts": catalogue,
@@ -104,7 +106,8 @@ function harness(options: HarnessOptions = {}) {
   });
   type TestTool = { execute: (input: unknown) => Promise<MediaTools.InrAssistantMediaResult>; inputSchema: { validate?: (input: unknown) => { success: boolean } }; toModelOutput: (args: { output: MediaTools.InrAssistantMediaResult }) => unknown };
   type TestTools = { generateMedia: TestTool; quoteMediaGeneration: TestTool; modifyMedia: TestTool; getMediaGeneration: TestTool; cancelMediaGeneration: TestTool; acceptMediaGeneration: TestTool; discardMediaGeneration: TestTool };
-  return { runtime, tools: createTools() as unknown as TestTools, retryTools: () => createTools() as unknown as TestTools, calls, callbacks, results };
+  const tools = createTools();
+  return { runtime, tools: tools as unknown as TestTools, sdkTools: tools, retryTools: () => createTools() as unknown as TestTools, calls, callbacks, results };
 }
 
 test("all media provider schemas require every declared property while legacy runtime calls retain defaults", () => {
@@ -116,7 +119,7 @@ test("all media provider schemas require every declared property while legacy ru
     for (const [key, child] of Object.entries(schema)) if (key !== "enum") { if (Array.isArray(child)) child.forEach((entry, index) => inspect(entry, `${location}.${key}[${index}]`)); else inspect(child, `${location}.${key}`); }
   };
   for (const [name, tool] of Object.entries(h.tools)) inspect((tool.inputSchema as unknown as { schema: unknown }).schema, name);
-  assert.equal(h.tools.generateMedia.inputSchema.validate?.(imageInput).success, true);
+  assert.equal(h.tools.generateMedia.inputSchema.validate?.({ ...imageInput, resultMode: null, settings: null }).success, true);
   assert.equal(h.tools.modifyMedia.inputSchema.validate?.({ sourceMediaId, instruction: "Éclaircis le fond" }).success, true);
 });
 
@@ -126,7 +129,7 @@ test("assistant video briefs use 500 characters and exact dialogue is refused be
   assert.equal(h.tools.generateMedia.inputSchema.validate?.(video).success, true);
   assert.equal(h.tools.generateMedia.inputSchema.validate?.({ ...video, prompt: "v".repeat(501) }).success, false);
   assert.equal(h.tools.quoteMediaGeneration.inputSchema.validate?.({ ...video, prompt: "v".repeat(501) }).success, false);
-  assert.equal(h.tools.generateMedia.inputSchema.validate?.({ ...imageInput, prompt: "i".repeat(3900) }).success, true);
+  assert.equal(h.tools.generateMedia.inputSchema.validate?.({ ...imageInput, resultMode: null, settings: null, prompt: "i".repeat(3900) }).success, true);
   assert.equal(h.calls.length, 0);
   const result = await h.tools.generateMedia.execute({ ...video, prompt: "Un atelier filmé en lumière naturelle.", settings: [
     { field: "videoEngine", valueJson: '"veo"' }, { field: "teamVideoSpeechMode", valueJson: '"characters"' },
@@ -180,6 +183,68 @@ test("creation reuses quota, signed quote, real generation and draft acceptance 
   for (const key of ["accountId", "authUserId", "quota", "adminUnlimited", "limitOverride"]) assert.equal(key in body, false);
   assert.equal(h.calls.find((call) => call.stage === "generate")?.request?.headers.get("cookie"), "session=synthetic");
   assert.equal(h.calls.find((call) => call.stage === "accept")?.id, mediaId);
+});
+
+test("native generation refuses knowledge context and a later no-media instruction before any paid prerequisite", async () => {
+  for (const currentUserMessage of [
+    "Je voudrais une image pour mon atelier. Quel moteur choisir ?",
+    "Crée une image carrée de mon atelier. Ne génère aucun média.",
+    "Je veux une vidéo de 8 secondes avec ma photo et mon vocal. Quels moteurs sont compatibles ? Réponds sans lancer de génération.",
+  ]) {
+    const h = harness({ currentUserMessage });
+    const result = await h.tools.generateMedia.execute({ ...imageInput, mediaType: currentUserMessage.includes("vidéo") ? "video" : "image", durationSeconds: currentUserMessage.includes("vidéo") ? 8 : null });
+    assert.equal(result.ok, false, currentUserMessage);
+    assert.deepEqual(h.calls, [], currentUserMessage);
+    assert.deepEqual(h.callbacks, [], currentUserMessage);
+  }
+});
+
+test("creation and quote schemas reject live malformed arguments while retaining native setting types", () => {
+  const h = harness(), valid = { ...imageInput, resultMode: null, settings: [{ field: "useBusinessDna", valueJson: "true" }] };
+  for (const name of ["generateMedia", "quoteMediaGeneration"] as const) {
+    const schema = h.tools[name].inputSchema;
+    assert.equal(schema.validate?.(valid).success, true, name);
+    assert.equal(schema.validate?.({ ...valid, format: "story", settings: [{ field: "imageEngine", valueJson: '"flux"' }] }).success, true, name);
+    for (const invalid of [
+      { ...valid, settings: JSON.stringify(valid.settings) },
+      { ...valid, format: "1:1" },
+      { ...valid, settings: { useBusinessDna: true } },
+      { ...valid, settings: [{ field: "useBusinessDna", valueJson: true }] },
+      { ...valid, settings: [{ field: "useBusinessDna", valueJson: "not json" }] },
+      { ...valid, settings: [...valid.settings, ...valid.settings] },
+      { ...valid, settings: [{ field: "videoEngine", valueJson: '"wan27"' }] },
+      imageInput,
+    ]) assert.equal(schema.validate?.(invalid).success, false, `${name}: ${JSON.stringify(invalid)}`);
+  }
+  assert.deepEqual(h.calls, []);
+});
+
+test("the installed AI SDK validates real media schemas before any executor runs", async () => {
+  const valid = { ...imageInput, resultMode: null, settings: null };
+  for (const [name, input, accepted] of [
+    ["generateMedia", { ...valid, settings: '[{"field":"useBusinessDna","valueJson":"true"}]' }, false],
+    ["generateMedia", { ...valid, format: "1:1" }, false],
+    ["quoteMediaGeneration", { ...valid, format: "1:1" }, false],
+    ["generateMedia", valid, true],
+  ] as const) {
+    const h = harness({ realSdk: true, currentUserMessage: "Crée une image carrée de mon atelier." });
+    const model: LanguageModelV3 = {
+      specificationVersion: "v3", provider: "local-schema-validation", modelId: "synthetic", supportedUrls: {},
+      doGenerate: async () => ({
+        content: [{ type: "tool-call", toolCallId: "local-media-1", toolName: name, input: JSON.stringify(input) }],
+        finishReason: { unified: "tool-calls", raw: "fixture" },
+        usage: { inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 1, text: 1, reasoning: 0 } }, warnings: [],
+      }),
+      doStream: async () => { throw new Error("No streaming or provider is used by this validation test"); },
+    };
+    const result = await sdk.generateText({ model, prompt: "Crée une image carrée de mon atelier.", tools: { [name]: h.sdkTools[name] } });
+    assert.equal(result.toolCalls.some(call => "invalid" in call && call.invalid), !accepted, name);
+    assert.equal(h.calls.some(call => call.stage === "generate"), accepted, name);
+    if (!accepted) {
+      assert.deepEqual(h.calls, [], name);
+      assert.deepEqual(h.callbacks, [], name);
+    }
+  }
 });
 
 test("a Studio cost question calls the native quote only and never accepts an existing draft", async () => {

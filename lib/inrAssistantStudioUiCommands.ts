@@ -65,7 +65,13 @@ export function isInrAssistantStudioUiRequest(message: string, command?: string)
   const reset = /\b(?:reinitialis\w*|reset|remets|annule)\b/.test(text) && /\b(?:retouche|reglage|reglages|origine|initial)\b/.test(text);
   const imageObject = /\b(?:image|photo|retouche|zoom|cadrage|fond|calque|habillage|superposition|overlay|bloc|opacite|transparence)\b/.test(text);
   const configure = imageObject && /\b(?:modifi\w*|corrig\w*|chang\w*|ajout\w*|retir\w*|supprim\w*|zoome\w*|recadr\w*|mets|mettre|deplac\w*|agrandi\w*|redui\w*)\b/.test(text);
-  if (command === "configure_media_library") return /\b(?:affiche\w*|filtre\w*|recherch\w*|cherch\w*|selectionn\w*|deselectionn\w*|ouvre|ferme|montre|voir|apercu)\b/.test(text) && /\b(?:mediatheque|bibliotheque|medias?|images?|photos?|videos?|audios?|fichiers?)\b/.test(text);
+  if (command === "configure_media_library") {
+    if (/\b(?:ne |n['’]|sans |do not |don't |never ).{0,45}(?:affich|filtr|recherch|cherch|selection|deselection|ouvr|ferm|montr|regl|passe|mets|mettez|mettre|chang|appliqu)|\b(?:affiche\w*|filtre\w*|recherche\w*|regle\w*|passe\w*|mets|mettez|change\w*|applique\w*)\s+(?:pas|jamais|not)\b/.test(text)) return false;
+    const view = /\b(?:affiche\w*|filtre\w*|recherch\w*|cherch\w*|selectionn\w*|deselectionn\w*|ouvre|ferme|montre|voir|apercu)\b/.test(text);
+    const filterSetting = /\b(?:regl\w*|passe\w*|met(?:s|tez|tre)|change\w*|appliqu\w*)\b/.test(text)
+      && (/\b(?:filtre|type|statut|recherche|uniquement|seulement)\b/.test(text) || /\b(?:mediatheque|bibliotheque)\b.{0,45}\b(?:images?|photos?|videos?|audios?)\b/.test(text));
+    return (view || filterSetting) && /\b(?:mediatheque|bibliotheque|medias?|images?|photos?|videos?|audios?|fichiers?)\b/.test(text);
+  }
   if (/\bvideo\b/.test(text) && !/\b(?:image|photo)\b/.test(text)) return false;
   return command === "select_image_source" ? select : command === "save_image_retouch" ? save : command === "reset_image_retouch" ? reset : command === "configure_image_retouch" ? configure : select || save || reset || configure;
 }

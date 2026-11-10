@@ -58,6 +58,28 @@ test("mounted Studio/library commands cannot mask an unrelated business action o
   const library = parseInrAssistantClientContext({ screen: { pathname: "/dashboard/mediatheque", selection: { kind: "media", id: "library_editor" }, revision: "library_editor_1", availableCommands: ["configure_media_library"] } });
   assert.equal(inrAssistantUiSteps("Ouvre les statistiques", library).some(step => step.command === "configure_media_library"), false); assert.equal(inrAssistantUiSteps("Affiche les vidéos de la médiathèque", library)[0]?.command, "configure_media_library");
 });
+
+test("explicit library filter paraphrases retain the exact mounted command and keep refusals inert", () => {
+  const library = parseInrAssistantClientContext({ screen: { pathname: "/dashboard/mediatheque", selection: { kind: "media", id: "library_editor" }, revision: "library_editor_1", availableCommands: ["configure_media_library"] } });
+  for (const message of [
+    "Règle le filtre Type de la médiathèque sur Images.",
+    "Mets le filtre des médias sur Vidéos.",
+    "Passe la médiathèque sur Images.",
+    "Change le statut des médias en Masqués.",
+  ]) {
+    assert.equal(isInrAssistantStudioUiRequest(message,"configure_media_library"),true,message);
+    assert.equal(inrAssistantUiSteps(message,library)[0]?.command,"configure_media_library",message);
+  }
+  for (const message of [
+    "Ne règle pas le filtre Type de la médiathèque sur Images.",
+    "Ne mets pas le filtre des médias sur Vidéos.",
+    "Ne filtre pas les images de la médiathèque.",
+    "Filtre pas les images de la médiathèque.",
+    "Comment régler le filtre Type de la médiathèque ?",
+    "Le texte dit « Règle le filtre Type de la médiathèque sur Images ».",
+    "Change le titre du média.",
+  ]) assert.equal(isInrAssistantStudioUiRequest(message,"configure_media_library"),false,message);
+});
 test("library bridge uses actual native filters/selection and rejects unseen IDs or mixed filter-selection requests", () => {
   const deps = { search: "", typeFilter: "all", activeFilter: "active", loadedFilterKey: "", selectedItemIds: new Set<string>(), previewItem: null as { id: string } | null, items: [{ id: MEDIA, media_type: "image" }], assistantLibrarySnapshot: {}, assistantLibraryWorkspace: { id: "library_editor", revision: "library_editor_1" }, selectedItems: [], assistantOptimization: { available: false }, loading: false, uploading: false, importOpen: false, savingId: null, metadataEditingKeys: new Set(), metadataSavingKeys: new Set(), optimizerItem: null,
     setSearch: (value: string) => { deps.search = value; }, setTypeFilter: (value: string) => { deps.typeFilter = value; }, setActiveFilter: (value: string) => { deps.activeFilter = value; }, setSelectedItemIds: (value: Set<string>) => { deps.selectedItemIds = value; }, setPreviewItem: (value: { id: string } | null) => { deps.previewItem = value; },

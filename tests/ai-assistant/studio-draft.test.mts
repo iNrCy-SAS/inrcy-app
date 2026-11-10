@@ -29,6 +29,22 @@ test("a video prompt preserves its whole fenced brief and navigable format/durat
   assert.equal(reference?.mediaType, "video");
 });
 
+test("a media-generation refusal preserves prompt preparation and insertion without granting generation", () => {
+  const requests = [
+    "Prépare un prompt image pour un vélo bleu. Ne génère aucun média.",
+    "Prépare seulement un prompt pour une image de vélo bleu. Ne génère aucun média.",
+    "Écris un prompt image pour mon atelier, mais ne génère aucune image.",
+    "Write a prompt for an image of my workshop. Do not generate any media.",
+    "Ne génère aucun média et prépare un prompt image de vélo bleu.",
+  ];
+  for (const instruction of requests) {
+    assert.equal(isInrAssistantStudioDraftRequest(instruction), true, instruction);
+    assert.equal(deriveInrAssistantStudioDraft(instruction, "> " + prompt)?.mediaType, "image");
+  }
+  for (const instruction of ["Ne génère aucun prompt image.", "Don't write a prompt for this image.", "Ne prépare pas de prompt vidéo."])
+    assert.equal(isInrAssistantStudioDraftRequest(instruction), false, instruction);
+});
+
 test("image formats, common labelled prose and displayed public URLs remain editable creative content", () => {
   const content = "Affiche carrée pour notre restaurant, fond crème et terracotta. Montrer une assiette de saison et afficher notre site https://restaurant.example au bas du visuel.";
   assert.deepEqual(deriveInrAssistantStudioDraft("Rédige un prompt pour une affiche carrée.", "Prompt : " + content), {

@@ -147,6 +147,7 @@ function navigationRequestText(message: string): string {
 }
 
 export function isInrAssistantNavigationRequest(message: string): boolean {
+  if (channelConnectionNavigationRequest(message)) return true;
   const text = navigationRequestText(message);
   if (/^(?:comment|pourquoi|explique|how|why|what|si |imagine|suppose)\b/.test(text)) return false;
   // A future confirmation is not a current navigation instruction, including
@@ -234,8 +235,33 @@ const DIRECT_DESTINATION_ALIASES: ReadonlyArray<readonly [keyof typeof INR_ASSIS
 
 type DirectNavigationRequest = { destination: string; instructionQuote: string };
 
+/** Connecting starts by opening the known native channel panel. This never
+ * consents to OAuth, creates a credential or announces a connected channel. */
+function channelConnectionNavigationRequest(message: string): (DirectNavigationRequest & { suffix: string }) | null {
+  if (!message || message.length > 1200) return null;
+  const text = navigationRequestText(message);
+  if (/\b(?:ne|pas|jamais|sans|not|never|don't|si|if|quand|when|demain|tomorrow|apres|after|avant|before)\b/.test(text)) return null;
+  const opening = text.match(/^(?:(?:peux|pourrais|pouvez|pourriez)[ -](?:tu|vous)\s+)?(?:connecte(?:r|z)?|reconnecte(?:r|z)?|connect|reconnect)\s+(?:(?:mon|ma|mes|notre|le|la|les|my|the)\s+)?(?:(?:compte|canal|page|profil|fiche|account|channel)\s+)?/);
+  if (!opening) return null;
+  const remainder = text.slice(opening[0].length);
+  const channels = new Set(["google_business", "facebook", "instagram", "threads", "linkedin", "tiktok", "youtube", "pinterest", "x", "website", "search", "directory", "badge", "mail"]);
+  for (const [destination, pattern] of DIRECT_DESTINATION_ALIASES) {
+    if (!channels.has(destination)) continue;
+    const match = remainder.match(pattern);
+    if (!match) continue;
+    const suffix = remainder.slice(match[0].length);
+    if (suffix && !/^(?:\s*(?:[.!?,;]|$)|\s+(?:et|puis|pour|s'il|stp|svp|please|maintenant|merci)\b)/.test(suffix)) return null;
+    const other = suffix.replace(/^\s*(?:[,;]\s*)?(?:(?:et|puis|ou|and|then|or)\s+)?(?:(?:mon|ma|le|la|my|the)\s+)?/, "");
+    if (DIRECT_DESTINATION_ALIASES.some(([id, alias]) => channels.has(id) && alias.test(other))) return null;
+    return { destination, instructionQuote: message, suffix };
+  }
+  return null;
+}
+
 /** Resolve an explicit module opening; record-specific requests remain with the normal tools. */
 function parseDirectNavigationRequest(message: string): (DirectNavigationRequest & { suffix: string }) | null {
+  const connection = channelConnectionNavigationRequest(message);
+  if (connection) return connection;
   if (message.length > 1200 || !isInrAssistantNavigationRequest(message)) return null;
   const text = navigationRequestText(message).replace(/^(?:(?:bonjour|salut|merci)[,!]?\s+|(?:s'il (?:te|vous) plait|stp|svp)[,!]?\s+)/, "");
   const opening = text.match(/^(?:(?:peux|pourrais|pouvez|pourriez)[ -](?:tu|vous)\s+(?:m'|me\s+|nous\s+)?)?(?:(?:ouvre|ouvrez|ouvrir|affiche|affichez|afficher|montre|montrez|montrer|open|show)(?:-moi|-nous)?\s+|(?:emmene|emmenez|emmener|amene|amenez|amener|conduis|conduisez|conduire)(?:-moi|-nous|\s+moi|\s+nous)?\s+(?:dans|sur|vers|a|au|aux)\s+|(?:va|allez|aller|go)\s+(?:dans|sur|a|au|aux|to)\s+)(?:(les|le|la|mon|ma|mes|the|my)\s+|l'\s*)?((?:module|panneau|page|ecran|outil)\s+)?/);

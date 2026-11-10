@@ -71,7 +71,11 @@ export function inrAssistantActionObjectives(message: string): InrAssistantActio
     const target = clause.match(/\b(?:campagnes?|e-?mails?|newsletters?|images?|photos?|videos?|visuels?|logos?|flyers?|affiches?|publications?|posts?|crm|contacts?|clients?|prospects?|devis|factures?|agenda|rendez.vous|rdv)\b/);
     previousWasMail = target ? /^(?:campagnes?|e-?mails?|newsletters?)$/.test(target[0]) && !/publicit|\bads\b/.test(clause) : inferredMail;
   }
-  return required;
+  // Clause routing must not discard a later explicit media refusal or turn a
+  // wish introducing a knowledge question into an unfinished paid task.
+  return required.filter(objective => objective.tool === "generateMedia"
+    ? permitsInrAssistantMediaAction(message, "generate", "image") || permitsInrAssistantMediaAction(message, "generate", "video")
+    : objective.tool !== "modifyMedia" || permitsInrAssistantMediaAction(message, "modify"));
 }
 function requiredToolsForClause(message: string, mediaContext: boolean): string[] {
   const t = inrAssistantRoutingText(message), result: string[] = [];

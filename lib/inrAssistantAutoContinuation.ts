@@ -12,10 +12,10 @@ export function canOfferInrAssistantAutoContinuation(input: {
   edition: DashboardEdition; taskSaved: boolean; outcome?: string; needsHuman?: boolean;
   remaining: number; uncertain: boolean; actions: InrAssistantUiAction[];
 }): boolean {
-  return input.edition === "basic" && input.taskSaved && input.outcome === "partial"
+  return ["basic", "standard", "premium", "founder"].includes(input.edition) && input.taskSaved && input.outcome === "partial"
     && !input.needsHuman && !input.uncertain && input.remaining > 0 && input.actions.length > 0
     && input.actions.every(action => action.type === "navigate"
-      || isInrAssistantScreenCommandAllowed("basic", action.command.command));
+      || isInrAssistantScreenCommandAllowed(input.edition, action.command.command));
 }
 
 export function canResumeInrAssistantAfterUi(input: {

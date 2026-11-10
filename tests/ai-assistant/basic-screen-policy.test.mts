@@ -32,10 +32,12 @@ test("review pagination follows only the returned signed cursor and preserves al
 
 const action: InrAssistantUiAction = {id:"view",type:"navigate",navigation:{destination:"studio",href:"/dashboard/generer-media",label:"iNr’Studio"}};
 const result: InrAssistantUiResult = {actionId:"view",source:"browser_reported",status:"applied"};
-test("automatic continuation is offered only for a durably saved unfinished Basic task", () => {
+test("automatic continuation has edition parity only for a durably saved unfinished authorized task", () => {
   const input = {edition:"basic" as const,taskSaved:true,outcome:"partial",remaining:2,uncertain:false,actions:[action]};
-  assert.equal(canOfferInrAssistantAutoContinuation(input),true);
-  for (const patch of [{edition:"premium" as const},{taskSaved:false},{outcome:"completed"},{remaining:0},{uncertain:true},{needsHuman:true},{actions:[]}]) assert.equal(canOfferInrAssistantAutoContinuation({...input,...patch}),false);
+  for (const edition of ["basic", "standard", "premium", "founder"] as const) assert.equal(canOfferInrAssistantAutoContinuation({...input,edition}),true);
+  for (const patch of [{taskSaved:false},{outcome:"completed"},{remaining:0},{uncertain:true},{needsHuman:true},{actions:[]}]) assert.equal(canOfferInrAssistantAutoContinuation({...input,...patch}),false);
+  const paidCommand = {id:"paid",type:"command" as const,command:{command:"send_mail_draft" as const,selection:{kind:"mail" as const,id:"mail"},revision:"mail_1"}};
+  assert.equal(canOfferInrAssistantAutoContinuation({...input,actions:[paidCommand]}),false,"Basic cannot borrow a Premium command when it resumes");
 });
 
 test("automatic continuation requires successful exact receipts and stops on new input, scope changes and limits", () => {

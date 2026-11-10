@@ -96,7 +96,14 @@ export async function aiTranscribeMedia(args: {
   timeoutMs?: number;
   deadlineAt?: number;
   signal?: AbortSignal;
+  /** Existing callers retain Booster accounting; assistant analysis is metered separately. */
+  feature?: "booster.transcribe" | "assistant.chat";
+  estimatedCostMicroUsd?: number;
+  /** Internal accounting hook after the account guard accepts the real attempt. */
+  onProviderAttempt?: (model: string) => void | Promise<void>;
 }): Promise<AiGatewayTranscriptionResult> {
+  const feature = args.feature ?? "booster.transcribe";
+  const estimatedCostMicroUsd = Number.isSafeInteger(args.estimatedCostMicroUsd) && Number(args.estimatedCostMicroUsd) > 0 ? Number(args.estimatedCostMicroUsd) : 1;
   const credential = getAiGatewayCredential();
   if (!credential) throw new Error("Configuration AI Gateway manquante.");
   const gatewayAuthMethod = cleanAiGatewayEnv(process.env.AI_GATEWAY_API_KEY)
@@ -127,7 +134,12 @@ export async function aiTranscribeMedia(args: {
   }
   const mediaType = normalizeMediaType(args.mediaType || args.file.type);
   const url = getAiGatewayTranscriptionUrl();
-  const models = getConfiguredModels();
+  // Assistant attachment retries are governed by an immutable file claim. Do
+  // not send the same private audio to a second model after an unknown result.
+  const models = feature === "assistant.chat" ? getConfiguredModels().slice(0, 1) : getConfiguredModels();
+  const settleUnconfirmed = (reservation: AiGatewayAccountAttemptReservation | null) => feature === "assistant.chat"
+    ? commitAiGatewayAccountAttempt({ reservation, feature, model: models[0], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, actualCostMicroUsd: estimatedCostMicroUsd })
+    : rollbackAiGatewayAccountAttempt(reservation);
   const errors: string[] = [];
   let terminalError: Error | null = null;
   for (const model of models) {
@@ -162,11 +174,13 @@ export async function aiTranscribeMedia(args: {
         retryStatuses: [408, 500, 502, 503, 504],
         onAttempt: async (attempt) => {
           const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
-            feature: "booster.transcribe",
+            feature,
             reservedOutputTokens: 128,
-            estimatedCostMicroUsd: 1,
+            estimatedCostMicroUsd,
           });
           attemptReservations.set(attempt, reservation);
+          try { await args.onProviderAttempt?.(model); }
+          catch (error) { await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined); throw error; }
         },
         onAttemptSettled: async ({ attempt, response: settledResponse }) => {
           const reservation = attemptReservations.get(attempt) || null;
@@ -174,7 +188,7 @@ export async function aiTranscribeMedia(args: {
             successfulReservation = reservation;
             return;
           }
-          await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined);
+          await settleUnconfirmed(reservation).catch(() => undefined);
         },
       });
 
@@ -182,7 +196,7 @@ export async function aiTranscribeMedia(args: {
         const errorText = await response.text().catch(() => "");
         await recordAiGatewayAccountFailure({
           accountId: args.accountId,
-          feature: "booster.transcribe",
+          feature,
           model,
           status: response.status,
         }).catch(() => undefined);
@@ -200,7 +214,7 @@ export async function aiTranscribeMedia(args: {
       const result = (await response.json().catch(() => ({}))) as AiGatewayTranscriptionResponse;
       const text = cleanTranscript(result.text);
       if (!text) {
-        await rollbackAiGatewayAccountAttempt(successfulReservation).catch(
+        await settleUnconfirmed(successfulReservation).catch(
           () => undefined,
         );
         successfulReservation = null;
@@ -210,9 +224,10 @@ export async function aiTranscribeMedia(args: {
 
       await commitAiGatewayAccountAttempt({
         reservation: successfulReservation,
-        feature: "booster.transcribe",
+        feature,
         model,
         usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        ...(args.estimatedCostMicroUsd ? { actualCostMicroUsd: estimatedCostMicroUsd } : {}),
       }).catch((error) => {
         console.warn("[ai-gateway] transcription atomic usage commit unavailable", {
           model,
@@ -221,7 +236,7 @@ export async function aiTranscribeMedia(args: {
       });
 
       console.info("[ai-gateway] transcription usage", {
-        feature: "booster.transcribe",
+        feature,
         model,
         accountId: args.accountId || undefined,
         mediaType,
@@ -237,7 +252,7 @@ export async function aiTranscribeMedia(args: {
         warnings: Array.isArray(result.warnings) ? result.warnings : [],
       };
     } catch (error) {
-      await rollbackAiGatewayAccountAttempt(successfulReservation).catch(
+      await settleUnconfirmed(successfulReservation).catch(
         () => undefined,
       );
       errors.push(`${model}: ${error instanceof Error ? error.message : "échec de transcription"}`);

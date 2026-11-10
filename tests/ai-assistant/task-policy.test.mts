@@ -50,6 +50,22 @@ test("coordinated requests keep their own action and target instead of borrowing
   assert.deepEqual(inrAssistantRequiredTools("Crée une image pour publier sur Facebook."), ["generateMedia"]);
 });
 
+test("media knowledge answers and explicit no-generation requests leave no unfinished creation task", () => {
+  for (const instruction of [
+    "Je veux une vidéo de 8 secondes à partir de ma photo et de mon propre vocal pour faire parler un personnage. Quels moteurs actuels de Studio sont compatibles ? Réponds sans lancer de génération.",
+    "Je veux une vidéo de mon atelier. Quel moteur choisir ?",
+    "I want a video of my shop. Which engines support my own voice?",
+    "Crée une image carrée de mon atelier. Ne génère aucun média.",
+    "Prépare seulement un prompt image pour un vélo bleu. Ne génère aucun média.",
+  ]) assert.deepEqual(inrAssistantRequiredTools(instruction), [], instruction);
+  for (const instruction of [
+    "Explique quels moteurs sont compatibles, puis crée une image carrée de mon atelier.",
+    "Ne génère aucune vidéo puis crée une image de mon atelier.",
+    "Crée une image et ne génère pas de vidéo.",
+  ]) assert.deepEqual(inrAssistantRequiredTools(instruction), ["generateMedia"], instruction);
+  assert.deepEqual(inrAssistantRequiredTools("Crée une image. Ne génère aucun média puis ajoute un contact CRM Alice."), ["manageCrmContact"]);
+});
+
 test("an explicit mail pronoun retains only its immediately preceding campaign target", () => {
   assert.deepEqual(inrAssistantRequiredTools("Retrouve mon brouillon de campagne mail puis envoie-le à claire@example.invalid."), ["dispatchCampaignDraft"]);
   assert.deepEqual(inrAssistantRequiredTools("Prépare une campagne mail puis envoie-la à claire@example.invalid."), ["prepareCampaignEmail", "dispatchCampaignDraft"]);

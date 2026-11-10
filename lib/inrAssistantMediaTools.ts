@@ -120,6 +120,33 @@ function parseInput(value: unknown): MediaInput {
   };
 }
 
+/** Provider arguments have an exact shape; native calls keep their defaults. */
+function mediaInputSchema() {
+  return jsonSchema<MediaInput>({
+    type: "object", properties: {
+      mediaType: { type: "string", enum: ["image", "video"] },
+      prompt: { type: "string", minLength: 3, maxLength: 4_000, description: "Brief visuel : image 4000 caractères max, vidéo 500. Paroles exactes séparées dans le réglage spokenScript." },
+      format: { type: ["string", "null"], enum: [...FORMATS, null], description: "square=carré/1:1, portrait=4:5, story=9:16, landscape=16:9. Envoyer square, jamais 1:1. null garde le format courant." },
+      durationSeconds: { type: ["integer", "null"], minimum: 4, maximum: 30, description: "Vidéo : secondes numériques, découpage automatique selon moteur/résolution. Image : toujours null." },
+      resultMode: { type: ["string", "null"], enum: ["save", "preview", null], description: "save/null enregistre le nouveau média ; preview conserve un aperçu temporaire à accepter/refuser." },
+      settings: {
+        type: ["array", "null"], maxItems: SETTING_FIELDS.length,
+        description: 'Tableau natif ou null, jamais une chaîne JSON. Exemple : [{"field":"useBusinessDna","valueJson":"true"}]. Seul valueJson est une chaîne JSON. Sans réglage : null. Durée via durationSeconds. references et referenceMediaIds exclusifs ; 5 images possédées max. Identité/voix personnelle : consentement humain Studio.',
+        items: { type: "object", properties: {
+          field: { type: "string", enum: [...SETTING_FIELDS] },
+          valueJson: { type: "string", maxLength: 6000, description: 'Valeur JSON encodée, ex. true ou "flux". references : [{mediaId,role:character/environment/product/inspiration,usage:required/inspiration,characterIndex:1|2|3|null}]. teamVideoSpeechMode : voiceover/characters.' },
+        }, required: ["field", "valueJson"], additionalProperties: false },
+      },
+    }, required: ["mediaType", "prompt", "format", "durationSeconds", "settings", "resultMode"], additionalProperties: false,
+  }, { validate: value => {
+    try {
+      const input = record(value);
+      if (!["mediaType", "prompt", "format", "durationSeconds", "settings", "resultMode"].every(field => Object.hasOwn(input, field))) throw new MediaToolError("Tous les champs du média sont requis ; utiliser null pour un réglage absent.");
+      return { success: true, value: parseInput(value) };
+    } catch (error) { return { success: false, error: error instanceof Error ? error : new Error("Réglages Studio invalides") }; }
+  } });
+}
+
 function parseModification(value: unknown): ModificationInput {
   const input = record(value);
   if (Object.keys(input).some((key) => !["sourceMediaId", "instruction", "resultMode"].includes(key)) || input.resultMode != null && !["save", "preview"].includes(String(input.resultMode)) || typeof input.sourceMediaId !== "string" || !UUID_PATTERN.test(input.sourceMediaId) ||
@@ -436,7 +463,7 @@ export function createInrAssistantMediaTools(options: {
   return {
     acceptMediaGeneration: tool({ strict: true, description: "Enregistrer un aperçu Studio sur ordre explicite actuel ou poursuivre un enregistrement déjà autorisé et prouvé côté serveur. requestId et mediaId du même résultat ready_to_save. Job du compte relu, accept natif puis draft=false vérifié ; aucun crédit ni génération. Déjà enregistré : aucune seconde écriture.", inputSchema: draftDecisionSchema, execute: async raw => decideDraft(parseDraftDecision(raw), "accept"), toModelOutput: ({ output }) => modelOutput(output) }),
     discardMediaGeneration: tool({ strict: true, description: "Refuser uniquement un aperçu temporaire Studio sur ordre explicite actuel. requestId et mediaId liés par le job du compte ; DELETE natif puis absence relue. Ne supprime jamais un média déjà accepté, ne rembourse aucun crédit et ne régénère rien. Résultat incertain : ne pas répéter.", inputSchema: draftDecisionSchema, execute: async raw => decideDraft(parseDraftDecision(raw), "discard"), toModelOutput: ({ output }) => modelOutput(output) }),
-    quoteMediaGeneration: tool({ strict: true, description: "Obtenir le vrai devis Studio, moteur/durée numérique/références/réglages identiques à generateMedia, découpage automatique sans choix de montage. Lecture seule : aucun débit, génération ou sauvegarde. settings[{field,valueJson}] encode les valeurs JSON ; referenceMediaIds contient uniquement des IDs d’images actives du compte. Aucun consentement identité n’est fourni implicitement.", inputSchema: jsonSchema<MediaInput>({ type: "object", properties: { mediaType: { type: "string", enum: ["image", "video"] }, resultMode: { type: ["string", "null"], enum: ["save", "preview", null] }, prompt: { type: "string", minLength: 3, maxLength: 4000, description: "Brief visuel : vidéo 500 caractères max, image 4000. Paroles exactes : réglage spokenScript, avec le mode de voix demandé." }, format: { type: ["string", "null"], enum: [...FORMATS, null] }, durationSeconds: { type: ["integer", "null"], minimum: 4, maximum: 30 }, settings: { type: ["array", "null"], maxItems: SETTING_FIELDS.length, items: { type: "object", properties: { field: { type: "string", enum: [...SETTING_FIELDS] }, valueJson: { type: "string", maxLength: 6000 } }, required: ["field", "valueJson"], additionalProperties: false } } }, required: ["mediaType", "prompt", "format", "durationSeconds", "settings", "resultMode"], additionalProperties: false }, { validate: value => { try { return { success: true, value: parseInput(value) }; } catch { return { success: false, error: new Error("Réglages Studio invalides") }; } } }), execute: async raw => generate(parseInput(raw), undefined, true), toModelOutput: ({ output }) => modelOutput(output) }),
+    quoteMediaGeneration: tool({ strict: true, description: "Lire le devis Studio réel pour les mêmes critères que la création. Aucun débit, génération ni sauvegarde. format=square/portrait/story/landscape/null ; settings est un tableau natif ou null, jamais une chaîne JSON. Aucun consentement identité implicite.", inputSchema: mediaInputSchema(), execute: async raw => generate(parseInput(raw), undefined, true), toModelOutput: ({ output }) => modelOutput(output) }),
     cancelMediaGeneration: tool({
       strict: true,
       description: "Demander l’arrêt natif d’une tentative Studio identifiée par son requestId réel. L’arrêt n’est possible qu’avant réservation des crédits ; une génération déjà en traitement continue chez le fournisseur. Ne jamais promettre remboursement, annulation fournisseur ni suppression du média terminé. Une simple question ou vérification de statut n’autorise pas cette action.",
@@ -484,20 +511,9 @@ export function createInrAssistantMediaTools(options: {
       }, toModelOutput: ({ output }) => modelOutput(output),
     }),
     generateMedia: tool({
-      description: "Créer une image/vidéo sur demande actuelle et l’enregistrer dans Mes médias. Rédige le brief depuis le besoin et l’ADN, choisis format/durée ; le pro ne choisit ni prompt ni fournisseur. Moteur compatible et crédits réels du compte. Une création par demande, jamais sur simple question d’aide ; média enregistré uniquement si completed.",
-      inputSchema: jsonSchema<MediaInput>({
-        type: "object", properties: {
-          mediaType: { type: "string", enum: ["image", "video"] },
-          prompt: { type: "string", minLength: 3, maxLength: 4_000, description: "Brief visuel : vidéo 500 caractères max, image 4000. Paroles exactes : réglage spokenScript, avec le mode de voix demandé." },
-          format: { type: ["string", "null"], enum: [...FORMATS, null], description: "Format adapté au besoin du pro, ou null pour le format courant." },
-          durationSeconds: { type: ["integer", "null"], minimum: 4, maximum: 30, description: "Durée vidéo numérique en secondes ou null ; découpage automatique selon moteur et résolution, sans choix de montage. Toujours null pour une image." },
-          resultMode: { type: ["string", "null"], enum: ["save", "preview", null], description: "preview laisse un aperçu temporaire à accepter/refuser ; save/null enregistre le nouveau média (défaut)." },
-          settings: { type: ["array", "null"], description: "Valeurs JSON. Durée via durationSeconds uniquement ; découpage automatique sans raccord imposé. teamVideoSpeechMode voiceover/characters. references=[{mediaId,role:character/environment/product/inspiration,usage:required/inspiration,characterIndex:1|2|3|null}], 5 images possédées ; exclusif referenceMediaIds. Identité fidèle et voix personnelle nécessitent consentement humain Studio.", maxItems: SETTING_FIELDS.length, items: { type: "object", properties: { field: { type: "string", enum: [...SETTING_FIELDS] }, valueJson: { type: "string", maxLength: 6000 } }, required: ["field", "valueJson"], additionalProperties: false } },
-        }, required: ["mediaType", "prompt", "format", "durationSeconds", "settings", "resultMode"], additionalProperties: false,
-      }, { validate: (value) => {
-        try { return { success: true, value: parseInput(value) }; }
-        catch (error) { return { success: false, error: error instanceof Error ? error : new Error("Invalid media request") }; }
-      } }),
+      strict: true,
+      description: "Créer une image/vidéo sur ordre actuel, brief rédigé depuis le besoin et l’ADN. format=square/portrait/story/landscape/null, jamais 1:1. settings est un tableau natif ou null. Moteur compatible/crédits vérifiés ; une création par demande, jamais sur question d’aide. Enregistré seulement si completed.",
+      inputSchema: mediaInputSchema(),
       execute: async (input) => {
         const parsed = parseInput(input);
         if (options.currentUserMessage !== undefined && !permitsInrAssistantMediaAction(options.currentUserMessage, "generate", parsed.mediaType)) return denied(parsed.mediaType);

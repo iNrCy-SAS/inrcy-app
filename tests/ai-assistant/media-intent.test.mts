@@ -77,6 +77,29 @@ test("a publication or edit reusing an existing medium never grants a new media 
   assert.equal(permitsInrAssistantMediaAction("Fais une retouche de cette image.", "modify"), true);
 });
 
+test("knowledge context and later explicit generation refusals cannot authorize a paid action", () => {
+  for (const message of [
+    "Je veux une vidéo de 8 secondes à partir de ma photo et de mon propre vocal. Quels moteurs actuels de Studio sont compatibles ? Réponds sans lancer de génération.",
+    "Je veux une vidéo de mon atelier. Quel moteur choisir ?",
+    "I want a video of my shop. Which engines support my own voice?",
+    "Je voudrais une image pour mon atelier. Explique-moi les options compatibles.",
+    "Crée une image carrée de mon atelier. Ne génère aucun média.",
+    "Je veux une vidéo de mon atelier. Réponds sans lancer de génération.",
+    "Create an image of my shop. Do not generate any media.",
+    "Crée une image pour mon atelier, mais ne génère rien.",
+    "Prépare un prompt image pour un vélo bleu. Ne génère aucun média.",
+  ]) for (const mediaType of ["image", "video"] as const) assert.equal(permitsInrAssistantMediaAction(message, "generate", mediaType), false, `${mediaType}: ${message}`);
+
+  for (const message of [
+    "Crée une image pour mon atelier. Quels moteurs vidéo prennent mon vocal ?",
+    "Explique quels moteurs sont compatibles, puis crée une image carrée de mon atelier.",
+    "Ne génère aucune vidéo puis crée une image de mon atelier.",
+    "Crée une image de mon atelier et ne génère pas de vidéo.",
+    "Ne crée pas de contact CRM puis crée une image de mon atelier.",
+  ]) assert.equal(permitsInrAssistantMediaAction(message, "generate", "image"), true, message);
+  assert.equal(permitsInrAssistantMediaAction("Ne crée pas d’image puis crée une vidéo de mon atelier.", "generate", "video"), true);
+});
+
 test("verbs and objects stay in their own action clause instead of borrowing a CRM edit for a media action", () => {
   for (const message of [
     "Crée une image puis ajoute un contact CRM.", "Ajoute un contact CRM puis crée une image.",

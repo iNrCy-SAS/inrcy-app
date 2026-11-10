@@ -75,10 +75,16 @@ export function isInrAssistantStudioDraftRequest(userRequest: string): boolean {
   if (!text || /^(?:comment|pourquoi|explique|how|why|what|wie|warum|como)\b/.test(text.trim()) ||
     /\b(?:explique|explain|montre|show|teach)\b.{0,70}\b(?:comment|how|pourquoi|why)\b/.test(text)) return false;
   const writing = "(?:ecri(?:s|re|vez|ves|ve|viez)|redige(?:r|z|s)?|prepare(?:r|z|s)?|propose(?:r|z|s)?|donne(?:r|z|s)?|ameliore(?:r|z|s)?|modifi(?:e|er|ez|es)|adapte(?:r|z|s)?|fais|faire|faites|genere(?:r|z|s)?|cree(?:r|z|s)?|write|draft|prepare|give|create|improve|edit|rewrite|escrib\\w*|redact\\w*|schreib\\w*|erstelle\\w*|scriv\\w*|escrev\\w*|schrijf\\w*)";
-  if (new RegExp("\\b(?:ne|pas|jamais|not|never|don't|do not|no|nicht)\\b.{0,45}\\b" + writing + "\\b|\\b" + writing + "\\b.{0,12}\\b(?:pas|jamais|not|never)\\b").test(text) ||
+  // Negating a media generation is a constraint on the resulting prompt, not
+  // a cancellation of drafting. Match the writing verb together with its
+  // prompt object, within the same clause, before rejecting a negated request.
+  const promptObject = "(?:prompt|brief|consignes?)";
+  const sameClause = "(?:(?!\\b(?:et|mais|puis|and|but|then)\\b)[^.!?;\\n])";
+  const negatedDraft = new RegExp("\\b(?:ne|pas|jamais|not|never|don't|do not|no|nicht)\\b" + sameClause + "{0,45}\\b" + writing + "\\b" + sameClause + "{0,35}\\b" + promptObject + "\\b|\\b" + writing + "\\b\\s+(?:pas|jamais|not|never)\\b" + sameClause + "{0,35}\\b" + promptObject + "\\b");
+  if (negatedDraft.test(text) ||
     /\b(?:pas de|aucun|no|not a|kein)\s+(?:prompt|brief)\b/.test(text)) return false;
   const noun = /\b(?:prompt|brief|consigne(?:s)?)\b|提示词|提示語|พรอมต์/.test(text);
-  const write = [...text.matchAll(new RegExp("\\b" + writing + "\\b([^.!?\\n]{0,80}?)\\b(?:prompt|brief|consignes?)\\b", "g"))]
+  const write = [...text.matchAll(new RegExp("(?=\\b" + writing + "\\b([^.!?\\n]{0,80}?)\\b(?:prompt|brief|consignes?)\\b)", "g"))]
     .some(match => !/\b(?:images?|photos?|videos?|flyers?|affiches?|medias?|visuels?)\b/.test(match[1]) || /^\s+pour\s+(?:cette?|une?|la|le|les|mes?|notre)\b/.test(match[1])) || /(?:写|撰写|เขียน).{0,40}(?:提示词|提示語|พรอมต์)/.test(text);
   const media = /\b(?:images?|photos?|videos?|visuels?|flyers?|affiches?|illustrations?|logos?|medias?|clips?|posters?|pictures?|imagen|bild|immagine|imagem|afbeelding)\b|图片|图像|海报|视频|รูป|ภาพ|วิดีโอ/.test(text);
   return noun && write && media;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ModelMessage } from "ai";
-import { compactInrAssistantGuideContext } from "../../lib/inrAssistantPromptContext.ts";
+import { compactInrAssistantGuideContext, fitInrAssistantGuideContext } from "../../lib/inrAssistantPromptContext.ts";
 
 const guideResult = (id: string, guides: Array<{ id: string; content: string }>, toolName = "readAppGuide"): ModelMessage => ({
   role: "tool", content: [{ type: "tool-result", toolCallId: id, toolName, output: { type: "json", value: { found: true, guides } } }],
@@ -41,4 +41,24 @@ test("fallback guide excerpts preserve call/result pairs and every native busine
   assert.match(JSON.stringify(result[0]), /Extrait du guide/);
   assert.match(JSON.stringify(result[0]), /"truncated":true/);
   assert.equal((result[0] as { content: Array<{ toolCallId: string }> }).content[0].toolCallId, "guide");
+});
+
+test("a real continuation budget compacts several distinct guides without changing native receipts", () => {
+  const native = { role: "tool", content: [{ type: "tool-result", toolCallId: "saved", toolName: "preparePublication", output: { type: "json", value: { ok: true, draftId: "owned-draft", status: "draft", content: "Keep the exact client-authorized text." } } }] } as ModelMessage;
+  const messages = [guideResult("one", [{ id: "studio", content: "Studio reference. ".repeat(600) }]), guideResult("two", [{ id: "booster", content: "Publication reference. ".repeat(600) }]), native];
+  const original = JSON.stringify(messages);
+  const measure = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  const result = fitInrAssistantGuideContext(messages, 2_800, measure);
+  assert.ok(measure(result) <= 2_800);
+  assert.equal(JSON.stringify(messages), original);
+  assert.deepEqual(result[2], native);
+  assert.equal(result.length, messages.length);
+  assert.match(JSON.stringify(result), /Extrait du guide/);
+});
+
+test("a business result is never silently truncated to satisfy a context budget", () => {
+  const native = guideResult("native", [{ id: "owned", content: "Exact business facts. ".repeat(1000) }], "readPublicationWorkspace");
+  const messages = [native];
+  const result = fitInrAssistantGuideContext(messages, 100, value => JSON.stringify(value).length);
+  assert.deepEqual(result, messages);
 });

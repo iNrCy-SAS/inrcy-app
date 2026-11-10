@@ -81,3 +81,18 @@ test("current product procedures survive compact prompts and outrank old convers
     assert.match(prompt, /droits natifs vérifiés du compte priment/);
   }
 });
+
+test("both pack prompts retain the trusted current date, effective edition and real research boundary", () => {
+  for (const edition of ["basic", "standard"] as const) for (const compact of [false, true]) {
+    const prompt = buildInrAssistantSystemPrompt("Atelier", { status: "trial", trialEnd: "2020-01-01" }, undefined, edition, undefined, true, compact);
+    assert.match(prompt, /"source":"server_clock"/);
+    const clock = JSON.parse(prompt.match(/serveur : (\{[^\n]+\})\. Utilise cette date/)![1]);
+    assert.ok(Math.abs(Date.now() - Date.parse(clock.utcInstant)) < 2000);
+    assert.equal(clock.timeZone, "Europe/Paris");
+    assert.ok(prompt.includes(`Offre de l’établissement vérifiée par le serveur : "${edition}"`));
+    assert.match(prompt, /searchPublicWeb/);
+    assert.match(prompt, /sources réellement retournées/);
+    assert.match(prompt, /les guides actuels et les outils natifs du compte priment/);
+    assert.match(prompt, /N’invente pas de lecture intégrale|ne prouvent jamais une analyse intégrale/);
+  }
+});

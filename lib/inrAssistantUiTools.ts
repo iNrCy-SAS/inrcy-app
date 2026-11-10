@@ -1,11 +1,12 @@
 import { prepareInrAssistantMediaUiAction } from "./inrAssistantMediaUiTools.ts";
 import { prepareInrAssistantAdsUiAction } from "./inrAssistantAdsUiTools.ts";
 import { INR_ASSISTANT_ADS_FIELDS } from "./inrAssistantAdsUiCommands.ts";
-import { INR_ASSISTANT_MEDIA_UI_COMMANDS, type InrAssistantMediaUiCommandName } from "./inrAssistantMediaUiCommands.ts";
+import { type InrAssistantMediaUiCommandName } from "./inrAssistantMediaUiCommands.ts";
 import "server-only";
-import { INR_ASSISTANT_BUSINESS_FORM_TABS, INR_ASSISTANT_BUSINESS_FORM_UI_COMMANDS } from "./inrAssistantBusinessFormUiCommands.ts";
+import { INR_ASSISTANT_BUSINESS_FORM_TABS } from "./inrAssistantBusinessFormUiCommands.ts";
 import { prepareInrAssistantBusinessFormUiAction } from "./inrAssistantBusinessFormUiTools.ts";
 import { jsonSchema, tool } from "ai";
+import type { JSONSchema7 } from "@ai-sdk/provider";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireUser } from "./requireUser";
 import type { InrAssistantClientContext } from "./inrAssistantClientContext.ts";
@@ -17,20 +18,141 @@ import { isDashboardDestinationAllowedForEdition, type DashboardEdition } from "
 import { isInrAssistantScreenCommandAllowed } from "./inrAssistantScreenCommandPolicy.ts";
 
 import { prepareInrAssistantStudioUiAction } from "./inrAssistantStudioUiTools.ts";
-import { INR_ASSISTANT_STUDIO_UI_COMMANDS, type InrAssistantStudioUiCommandName } from "./inrAssistantStudioUiCommands.ts";
+import { type InrAssistantStudioUiCommandName } from "./inrAssistantStudioUiCommands.ts";
 import { prepareInrAssistantStatsUiAction } from "./inrAssistantStatsUiTools.ts";
-import { INR_ASSISTANT_STATS_UI_COMMANDS, INR_ASSISTANT_STATS_CHANNELS, INR_ASSISTANT_STATS_INDEX_RANGES, type InrAssistantStatsUiCommandName } from "./inrAssistantStatsUiCommands.ts";
+import { INR_ASSISTANT_STATS_CHANNELS, INR_ASSISTANT_STATS_INDEX_RANGES, type InrAssistantStatsUiCommandName } from "./inrAssistantStatsUiCommands.ts";
 
 import { prepareInrAssistantBadgeUiAction } from "./inrAssistantBadgeUiTools.ts";
 
 import { prepareInrAssistantWebsiteUiAction } from "./inrAssistantWebsiteUiTools.ts";
 import { INR_ASSISTANT_WEBSITE_UI_COMMANDS, type InrAssistantWebsiteUiCommand } from "./inrAssistantWebsiteUiCommands.ts";
 
+const SCREEN_COMMAND_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  configure_business_form: ["businessFormAction", "businessFormTab"],
+  configure_stats_view: ["panel", "evolutionView", "metric", "channel", "indexRangeMonths"],
+  configure_media_library: ["changes"], configure_image_retouch: ["changes"],
+  select_image_source: ["mediaId"], reset_image_retouch: [], save_image_retouch: [],
+  configure_video_retouch: ["format", "adaptationMode"], select_video_source: ["mediaId"], save_video_retouch: [],
+  optimize_media: ["mediaId", "targetBytes"],
+  configure_ads_draft: ["name", "primaryText", "step", "channel", "mediaId", "metaSlot", "adsChanges"], save_ads_draft: [],
+  configure_mail_draft: ["recipient", "subject", "bodyText", "attachmentIds"],
+  save_mail_draft: [], send_mail_draft: [], open_mail_schedule: [],
+  prepare_document_mail: [], export_document_pdf: [], download_badge_qr: ["format"],
+  generate_website_widget_code: ["format"], show_website_widget_code: ["format"], copy_website_widget_code: ["format"],
+};
+const SCREEN_COMMAND_HELP: Readonly<Record<string, string>> = {
+  configure_business_form: "configure_business_form : patch.businessFormAction reset/discard/select_tab/open_persistent_reset ; businessFormTab pour l’onglet. La remise à zéro définitive ouvre seulement la confirmation personnelle.",
+  configure_stats_view: 'configure_stats_view : patch.panel="evolution" pour Évolution, "all" pour Globale ; evolutionView measured/index, metric visibility/clicks, channel et indexRangeMonths natifs. Réglages non demandés à null.',
+  configure_media_library: 'configure_media_library : patch est un OBJET contenant seulement changes[{field,valueJson}]. field=typeFilter et valueJson=\'"image"\' affiche les images ; search utilise le terme encodé comme chaîne JSON. typeFilter : all/image/video/audio ; activeFilter : active/inactive/all. Ne pas utiliser patch.type ni encoder patch comme texte.',
+  configure_image_retouch: "configure_image_retouch : changes[{field,valueJson}] contient uniquement les réglages demandés (fit, zoom, offsetX/Y, backgroundMode/Color, overlay). valueJson est une valeur JSON valide.",
+  select_image_source: "select_image_source : patch.mediaId réel obtenu dans Mes médias.",
+  reset_image_retouch: "reset_image_retouch : patch null ; réinitialisation locale, sans sauvegarde.",
+  save_image_retouch: "save_image_retouch : patch null ; sauvegarde native d’une copie, original conservé.",
+  configure_video_retouch: "configure_video_retouch : patch.format original/9_16/1_1/16_9, adaptationMode safe_frame/cover_crop ; aperçu local, sauvegarde distincte.",
+  select_video_source: "select_video_source : patch.mediaId réel obtenu dans Mes médias.",
+  save_video_retouch: "save_video_retouch : patch null ; sauvegarde native d’une copie.",
+  optimize_media: "optimize_media : patch.mediaId possédé et targetBytes optionnel de 5 à 75 Mo ; copie distincte.",
+  configure_ads_draft: "configure_ads_draft : nom/texte/étape, adsChanges[{field,valueJson}] pour réglages explicitement demandés ; mediaId possédé (+metaSlot pour Meta). Aucun ID fournisseur ou consentement inventé ; pas de diffusion.",
+  save_ads_draft: "save_ads_draft : patch null ; sauvegarde et relecture, aucune diffusion.",
+  configure_mail_draft: "configure_mail_draft : patch.recipient explicite, subject, bodyText, attachmentIds issus de Mes médias (5 médias, 10 Mo). Pièces jointes existantes conservées ; aucun envoi.",
+  save_mail_draft: "save_mail_draft : patch null ; sauvegarde exacte et relecture.",
+  send_mail_draft: "send_mail_draft : patch null ; ouvre la confirmation personnelle du contenu exact et de ses pièces jointes, jamais une preuve de livraison.",
+  open_mail_schedule: "open_mail_schedule : patch null ; ouvre le sélecteur natif, date à confirmer personnellement.",
+  prepare_document_mail: "prepare_document_mail : recipient explicite, patch null ; document finalisé, enregistré et propre, PDF joint au composeur sans envoi.",
+  export_document_pdf: "export_document_pdf : patch null ; aperçu courant avec IDs null, ou devis/facture lu et identifié par documentId/documentKind. Aucun enregistrement, finalisation ou envoi.",
+  download_badge_qr: "download_badge_qr : patch.format png/pdf, téléchargement du QR affiché.",
+  generate_website_widget_code: "generate_website_widget_code : patch.format html/react_next ou null ; génération native du code, sans installation externe.",
+  show_website_widget_code: "show_website_widget_code : patch.format html/react_next ou null ; affichage du code déjà généré.",
+  copy_website_widget_code: "copy_website_widget_code : patch.format html/react_next ou null ; copie du code natif.",
+};
+
+function matchesScreenInputSchema(value: unknown, schema: JSONSchema7): boolean {
+  if (schema.enum && !schema.enum.some(item => JSON.stringify(item) === JSON.stringify(value))) return false;
+  const types = Array.isArray(schema.type) ? schema.type : schema.type ? [schema.type] : [];
+  const kind = value === null ? "null" : Array.isArray(value) ? "array" : typeof value === "number" && Number.isInteger(value) ? "integer" : typeof value;
+  if (types.length && !types.some(type => type === kind || type === "number" && kind === "integer")) return false;
+  if (typeof value === "string") return !(schema.minLength !== undefined && value.length < schema.minLength || schema.maxLength !== undefined && value.length > schema.maxLength
+    || schema.format === "uuid" && !/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(value));
+  if (typeof value === "number") return Number.isFinite(value) && !(schema.minimum !== undefined && value < schema.minimum || schema.maximum !== undefined && value > schema.maximum);
+  if (Array.isArray(value)) return !(schema.minItems !== undefined && value.length < schema.minItems || schema.maxItems !== undefined && value.length > schema.maxItems || schema.uniqueItems && new Set(value.map(item => JSON.stringify(item))).size !== value.length)
+    && value.every(item => typeof schema.items === "object" && !Array.isArray(schema.items) ? matchesScreenInputSchema(item, schema.items) : true);
+  if (value !== null && typeof value === "object") {
+    const row = value as Record<string, unknown>, properties = schema.properties ?? {};
+    return !(schema.required?.some(key => !Object.hasOwn(row, key)) || schema.additionalProperties === false && Object.keys(row).some(key => !Object.hasOwn(properties, key)))
+      && Object.entries(row).every(([key, item]) => typeof properties[key] === "object" ? matchesScreenInputSchema(item, properties[key] as JSONSchema7) : true);
+  }
+  return true;
+}
+
+/** Schema selection reduces ambiguity; native executors still authorize every effect. */
+function screenCommandContract(options: { edition: DashboardEdition; clientContext?: InrAssistantClientContext | null }) {
+  const all = Object.keys(SCREEN_COMMAND_FIELDS).filter(command => isInrAssistantScreenCommandAllowed(options.edition, command));
+  const mounted = options.clientContext?.screen?.availableCommands?.filter(command => all.includes(command)) ?? [];
+  // A named, server-verified document can be opened and exported in one request.
+  // All other commands are narrowed when the mounted screen advertises them.
+  const commands = mounted.length ? mounted : all;
+  const fields = [...new Set(commands.flatMap(command => SCREEN_COMMAND_FIELDS[command]))];
+  const canTargetDocument = commands.includes("export_document_pdf"), canAddressMail = commands.includes("prepare_document_mail");
+  const nullableString = (maxLength: number): JSONSchema7 => ({ type: ["string", "null"], maxLength });
+  const nullableEnum = (values: readonly (string | number)[]): JSONSchema7 => ({ type: [values.every(value => typeof value === "number") ? "integer" : "string", "null"], enum: [...values, null] });
+  const libraryChanges = commands.includes("configure_media_library"), imageChanges = commands.includes("configure_image_retouch");
+  const changeFields = [...(libraryChanges ? ["search", "typeFilter", "activeFilter", "selectedMediaIds", "previewMediaId"] : []), ...(imageChanges ? ["fit", "zoom", "offsetX", "offsetY", "backgroundMode", "backgroundColor", "overlay"] : [])];
+  const formats = [...new Set([
+    ...(commands.includes("configure_video_retouch") ? ["original", "9_16", "1_1", "16_9"] : []),
+    ...(commands.includes("download_badge_qr") ? ["png", "pdf"] : []),
+    ...(commands.some(command => INR_ASSISTANT_WEBSITE_UI_COMMANDS.includes(command as never)) ? ["html", "react_next"] : []),
+  ])];
+  const properties: Record<string, JSONSchema7> = {
+    businessFormAction: nullableEnum(["reset", "discard", "select_tab", "open_persistent_reset"]), businessFormTab: nullableEnum(INR_ASSISTANT_BUSINESS_FORM_TABS),
+    name: nullableString(100), primaryText: nullableString(800), step: nullableEnum(INR_ASSISTANT_ADS_STEPS),
+    mediaId: { type: ["string", "null"], format: "uuid" }, targetBytes: { type: ["integer", "null"], minimum: 5000000, maximum: 75000000 },
+    channel: nullableEnum(commands.includes("configure_ads_draft") ? ["meta", "google", "linkedin", "pinterest", "tiktok", "x", "openai", "all", ...INR_ASSISTANT_STATS_CHANNELS.filter(channel => !["linkedin", "pinterest", "tiktok", "x"].includes(channel))] : ["all", ...INR_ASSISTANT_STATS_CHANNELS]),
+    metaSlot: nullableEnum(["feed", "story_reel"]),
+    format: nullableEnum(formats), adaptationMode: nullableEnum(["safe_frame", "cover_crop"]),
+    recipient: nullableString(254), subject: nullableString(220), bodyText: nullableString(6000),
+    attachmentIds: { type: ["array", "null"], maxItems: 5, minItems: 1, items: { type: "string", format: "uuid" }, uniqueItems: true },
+    adsChanges: { type: ["array", "null"], minItems: 1, maxItems: 40, items: { type: "object", properties: { field: { type: "string", enum: [...INR_ASSISTANT_ADS_FIELDS] }, valueJson: { type: "string", maxLength: 4000, description: "Valeur JSON du seul champ demandé." } }, required: ["field", "valueJson"], additionalProperties: false } },
+    changes: { type: ["array", "null"], minItems: 1, maxItems: 8, items: { type: "object", properties: { field: { type: "string", enum: changeFields }, valueJson: { type: "string", maxLength: 18000, description: 'Valeur JSON valide ; pour les images : "image" avec les guillemets JSON.' } }, required: ["field", "valueJson"], additionalProperties: false } },
+    panel: nullableEnum(["all", "evolution", ...INR_ASSISTANT_STATS_CHANNELS]), evolutionView: nullableEnum(["measured", "index"]), metric: nullableEnum(["visibility", "clicks"]), indexRangeMonths: nullableEnum(INR_ASSISTANT_STATS_INDEX_RANGES),
+  };
+  const schema: JSONSchema7 = { type: "object", properties: {
+    command: { type: "string", enum: commands }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200, description: "Extrait exact contenant seulement le verbe et l’objet de cette étape, sans proposition introductive ni autre étape." },
+    documentId: canTargetDocument ? { type: ["string", "null"], format: "uuid" } : { type: "null" },
+    documentKind: canTargetDocument ? nullableEnum(["quote", "invoice"]) : { type: "null" }, recipient: canAddressMail ? nullableString(254) : { type: "null" },
+    patch: fields.length ? { type: ["object", "null"], properties: Object.fromEntries(fields.map(field => [field, properties[field]])), required: fields, additionalProperties: false } : { type: "null" },
+  }, required: ["command", "instructionQuote", "documentId", "documentKind", "recipient", "patch"], additionalProperties: false };
+  return { schema, description: "Appliquer seulement les capacités déclarées de l’écran courant. " + commands.map(command => SCREEN_COMMAND_HELP[command]).join(" ")
+    + " Les champs facultatifs non fournis valent null. Citer le verbe et son objet de l’étape, pas une introduction. Attendre l’accusé du navigateur avant d’annoncer le résultat ; compte, droits et révision sont revérifiés.",
+    validate(value: unknown) {
+      let valid = matchesScreenInputSchema(value, schema);
+      const input = value as { command?: string; patch?: Record<string, unknown> | null; documentId?: unknown; documentKind?: unknown; recipient?: unknown } | null;
+      if (valid && input) {
+        const fields = SCREEN_COMMAND_FIELDS[input.command!] ?? [];
+        valid = Object.entries(input.patch ?? {}).every(([key, item]) => item === null || fields.includes(key));
+        if (input.command !== "export_document_pdf" && (input.documentId !== null || input.documentKind !== null) || input.command !== "prepare_document_mail" && input.recipient !== null) valid = false;
+        for (const name of ["changes", "adsChanges"]) if (Array.isArray(input.patch?.[name])) {
+          const changes = input.patch[name] as {field:string;valueJson:string}[];
+          if (new Set(changes.map(change => change.field)).size !== changes.length) valid = false;
+          for (const change of changes) { try { JSON.parse(change.valueJson); } catch { valid = false; } }
+        }
+        if (valid && ["configure_media_library", "configure_image_retouch"].includes(input.command!)) {
+          if (!Array.isArray(input.patch?.changes)) valid = false;
+          else {
+            const patch = Object.fromEntries(input.patch.changes.map(change => [(change as {field:string}).field, JSON.parse((change as {valueJson:string}).valueJson)]));
+            const screen = options.clientContext?.screen;
+            valid = Boolean(parseInrAssistantUiCommand({command:input.command,selection:screen?.selection,revision:screen?.revision,patch}));
+          }
+        }
+      }
+      return valid ? { success: true as const, value: value as never } : { success: false as const, error: new Error("Paramètres de commande invalides : utiliser un objet patch natif, les seules clés de l’étape, des valeurs JSON valides et null pour les champs non utilisés.") };
+    },
+  };
+}
+
 export function createInrAssistantUiTools(options: { accountId: string; actorUserId?: string; edition: DashboardEdition; currentUserMessage: string; supabase?: Pick<SupabaseClient, "from">; clientContext?: InrAssistantClientContext | null; canStartWork?: () => boolean }) {
   // Request-local only. A requested document never changes the browser snapshot.
   let requestedDocument: { kind: "quote" | "invoice"; id: string } | undefined;
-  const statsViewOnly = options.clientContext?.screen?.availableCommands?.length === 1 && options.clientContext.screen.availableCommands[0] === "configure_stats_view";
-  const businessFormOnly = options.clientContext?.screen?.availableCommands?.length === 1 && options.clientContext.screen.availableCommands[0] === "configure_business_form";
+  const screenContract = screenCommandContract(options);
   return {
     navigateApplication: tool({
       strict: true,
@@ -61,34 +183,8 @@ export function createInrAssistantUiTools(options: { accountId: string; actorUse
     }),
     runScreenCommand: tool({
       strict: true,
-      description: "Exécuter une capacité déclarée du formulaire courant. configure_business_form : businessFormAction reset (brouillon local), discard (saisies), select_tab + businessFormTab ; open_persistent_reset ouvre seulement une confirmation définitive ADN au professionnel, jamais son clic final. configure_stats_view : patch.panel=\"evolution\" pour la vue Évolution, \"all\" pour l’ensemble ou un canal natif ; evolutionView=\"measured\" (mesures) ou \"index\" (indice), metric=\"visibility\" ou \"clicks\", channel=\"all\" ou un canal Stats. Mettre les réglages non demandés à null ; aucun changes ni paramètre de publication. configure_ads_draft : nom/texte/étape, adsChanges[{field,valueJson}] pour budget/dates/ciblage/textes/réglages du canal ; channel seul demande confirmation avant perte de saisie, mediaId seul (+metaSlot pour Meta) choisit un média possédé. Aucun ID fournisseur ni consentement. save_ads_draft sauvegarde et relit le brouillon sans diffusion ; configure_video_retouch : format/cadrage ; configure_mail_draft : recipient explicite, subject, bodyText, attachmentIds de searchMedia (5 médias du compte, total 10 Mo, PJ existantes conservées). configure_* ne sauvegarde, ne publie et n’envoie rien. save_mail_draft : sauvegarde exacte du composeur avec relecture ; send_mail_draft : confirmation native de son contenu/PJ puis acceptation fournisseur ou file, jamais livraison ; open_mail_schedule : ouvre le sélecteur, date à confirmer par le professionnel, aucun envoi programmé à ce stade. select_video_source : patch.mediaId réel ; save_video_retouch : sauvegarde une copie ; optimize_media : copie optimisée avec patch.targetBytes optionnel (5–75 Mo). Originaux conservés. prepare_document_mail : document courant finalisé, enregistré, propre, recipient explicite ; PDF joint au composeur, aucun envoi. patch/documentId/documentKind/recipient null hors usage. export_document_pdf : aperçu courant avec IDs null, ou document lu via readCommercialDocuments et IDs explicites ; ouvrir puis exporter sans sauvegarde/finalisation/envoi. Attendre l’acquittement de l’interface ; compte et révision revérifiés. Téléchargement transmis ne prouve pas fichier reçu.",
-      inputSchema: jsonSchema<{ command: "configure_business_form" | "export_document_pdf" | "configure_ads_draft" | "save_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "prepare_document_mail" | InrAssistantMediaUiCommandName | InrAssistantMailLifecycleName | InrAssistantStudioUiCommandName | InrAssistantStatsUiCommandName | "download_badge_qr" | InrAssistantWebsiteUiCommand["command"]; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; recipient?: string | null; patch?: Record<string, unknown> | null }>({ type: "object", properties: {
-        command: { type: "string", enum: statsViewOnly ? ["configure_stats_view"] : businessFormOnly ? ["configure_business_form"] : ["export_document_pdf", "configure_ads_draft", "save_ads_draft", "configure_video_retouch", "configure_mail_draft", "prepare_document_mail", ...INR_ASSISTANT_MEDIA_UI_COMMANDS, ...INR_ASSISTANT_MAIL_LIFECYCLE, ...INR_ASSISTANT_STUDIO_UI_COMMANDS, ...INR_ASSISTANT_STATS_UI_COMMANDS, ...INR_ASSISTANT_BUSINESS_FORM_UI_COMMANDS, "download_badge_qr", ...INR_ASSISTANT_WEBSITE_UI_COMMANDS].filter(command => isInrAssistantScreenCommandAllowed(options.edition, command)) }, instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
-        recipient: statsViewOnly || businessFormOnly ? { type: "null" } : { type: ["string", "null"], maxLength: 254 },
-        documentId: statsViewOnly || businessFormOnly ? { type: "null" } : { type: ["string", "null"], format: "uuid" }, documentKind: statsViewOnly || businessFormOnly ? { type: "null" } : { type: ["string", "null"], enum: ["quote", "invoice", null] },
-        patch: businessFormOnly ? { type: ["object", "null"], properties: { businessFormAction: { type: "string", enum: ["reset", "discard", "select_tab", "open_persistent_reset"] }, businessFormTab: { type: ["string", "null"], enum: [...INR_ASSISTANT_BUSINESS_FORM_TABS, null] } }, required: ["businessFormAction", "businessFormTab"], additionalProperties: false } : statsViewOnly ? { type: ["object", "null"], properties: {
-          panel: { type: ["string", "null"], enum: ["all", "evolution", ...INR_ASSISTANT_STATS_CHANNELS, null], description: "Vue demandée : evolution pour Évolution, all pour l’ensemble ou le canal natif. null conserve la vue." },
-          evolutionView: { type: ["string", "null"], enum: ["measured", "index", null], description: "Mesures réelles ou indice de l’évolution ; null conserve le réglage." },
-          metric: { type: ["string", "null"], enum: ["visibility", "clicks", null], description: "Visibilité ou clics ; null conserve le réglage." },
-          channel: { type: ["string", "null"], enum: ["all", ...INR_ASSISTANT_STATS_CHANNELS, null], description: "Canal de la vue d’évolution demandée ou active (mesures et indice ont des filtres distincts). gmb correspond à Google Business. null conserve le filtre." },
-          indexRangeMonths: { type: ["integer", "null"], enum: [...INR_ASSISTANT_STATS_INDEX_RANGES, null], description: "Période explicitement demandée pour l’indice de visibilité, uniquement si son historique la débloque. null conserve la période." },
-        }, required: ["panel", "evolutionView", "metric", "channel", "indexRangeMonths"], additionalProperties: false } : { type: ["object", "null"], properties: {
-          businessFormAction: { type: ["string", "null"], enum: ["reset", "discard", "select_tab", "open_persistent_reset", null] }, businessFormTab: { type: ["string", "null"], enum: [...INR_ASSISTANT_BUSINESS_FORM_TABS, null] },
-          mediaId: { type: ["string", "null"], format: "uuid" }, targetBytes: { type: ["integer", "null"], minimum: 5000000, maximum: 75000000 },
-          channel: { type: ["string", "null"], enum: ["meta", "google", "linkedin", "pinterest", "tiktok", "x", "openai", "all", ...INR_ASSISTANT_STATS_CHANNELS.filter(channel => !["linkedin", "pinterest", "tiktok", "x"].includes(channel)), null] }, metaSlot: { type: ["string", "null"], enum: ["feed", "story_reel", null] },
-          adsChanges: options.clientContext?.screen?.availableCommands?.includes("configure_ads_draft") ? { type: ["array", "null"], minItems: 1, maxItems: 40, items: { type: "object", properties: { field: { type: "string", enum: [...INR_ASSISTANT_ADS_FIELDS] }, valueJson: { type: "string", maxLength: 4000, description: "Valeur JSON du seul champ demandé (nombre, booléen, chaîne entre guillemets, null ou liste de chaînes). Jamais les autres champs, les IDs fournisseur ou les consentements." } }, required: ["field", "valueJson"], additionalProperties: false } } : { type: "null" },
-          changes: { type: ["array", "null"], minItems: 1, maxItems: 8, items: { type: "object", properties: { field: { type: "string", enum: ["fit", "zoom", "offsetX", "offsetY", "backgroundMode", "backgroundColor", "overlay", "search", "typeFilter", "activeFilter", "selectedMediaIds", "previewMediaId"] }, valueJson: { type: "string", maxLength: 18000 } }, required: ["field", "valueJson"], additionalProperties: false } },
-          panel: { type: ["string", "null"], enum: ["all", "evolution", ...INR_ASSISTANT_STATS_CHANNELS, null] },
-          evolutionView: { type: ["string", "null"], enum: ["measured", "index", null] }, metric: { type: ["string", "null"], enum: ["visibility", "clicks", null] },
-          indexRangeMonths: { type: ["integer", "null"], enum: [...INR_ASSISTANT_STATS_INDEX_RANGES, null] },
-          name: { type: ["string", "null"], maxLength: 100 }, primaryText: { type: ["string", "null"], maxLength: 800 },
-          step: { type: ["string", "null"], enum: [...INR_ASSISTANT_ADS_STEPS, null] },
-          format: { type: ["string", "null"], enum: ["original", "9_16", "1_1", "16_9", "png", "pdf", "html", "react_next", null] },
-          adaptationMode: { type: ["string", "null"], enum: ["safe_frame", "cover_crop", null] },
-          recipient: { type: ["string", "null"], maxLength: 254 }, subject: { type: ["string", "null"], maxLength: 220 }, bodyText: { type: ["string", "null"], maxLength: 6000 },
-          attachmentIds: { type: ["array", "null"], maxItems: 5, minItems: 1, items: { type: "string", format: "uuid" }, uniqueItems: true },
-        }, required: ["businessFormAction", "businessFormTab", "name", "primaryText", "step", "format", "adaptationMode", "recipient", "subject", "bodyText", "attachmentIds", "mediaId", "targetBytes", "channel", "metaSlot", "adsChanges", "changes", "panel", "evolutionView", "metric", "indexRangeMonths"], additionalProperties: false },
-      }, required: ["command", "instructionQuote", "documentId", "documentKind", "recipient", "patch"], additionalProperties: false }),
+      description: screenContract.description,
+      inputSchema: jsonSchema<{ command: "configure_business_form" | "export_document_pdf" | "configure_ads_draft" | "save_ads_draft" | "configure_video_retouch" | "configure_mail_draft" | "prepare_document_mail" | InrAssistantMediaUiCommandName | InrAssistantMailLifecycleName | InrAssistantStudioUiCommandName | InrAssistantStatsUiCommandName | "download_badge_qr" | InrAssistantWebsiteUiCommand["command"]; instructionQuote: string; documentId?: string | null; documentKind?: "quote" | "invoice" | null; recipient?: string | null; patch?: Record<string, unknown> | null }>(screenContract.schema, { validate: screenContract.validate }),
       execute: async input => {
         if (!isInrAssistantScreenCommandAllowed(options.edition, input.command)) return { ok: false, status: "not_included", message: "Cette commande n’est pas incluse dans l’offre du compte. Aucun changement effectué." };
         const businessFormAction = await prepareInrAssistantBusinessFormUiAction(input, options); if (businessFormAction) return businessFormAction;

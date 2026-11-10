@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/requireUser";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { ASSISTANT_ATTACHMENT_MAX_COUNT, ASSISTANT_ATTACHMENT_TOTAL_BYTES, ASSISTANT_ATTACHMENT_UUID, AssistantAttachmentError, assistantAttachmentFile, parseAssistantAttachments } from "@/lib/inrAssistantAttachments";
 import { attachAssistantLibraryItem, finalizeAssistantAttachment, prepareAssistantAttachment } from "@/lib/inrAssistantAttachmentStorage";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -32,15 +33,17 @@ export async function POST(request: Request) {
     }
     if (body.action === "finalize") {
       const refs = parseAssistantAttachments([body.attachment]);
-      const attachment = await finalizeAssistantAttachment(scope, refs[0]);
+      const options = { edition: await getDashboardEditionForAccountId(auth.activeUserId), signal: AbortSignal.any([request.signal, AbortSignal.timeout(85_000)]) };
+      const attachment = await finalizeAssistantAttachment(scope, refs[0], options);
       return NextResponse.json({ accountId: scope.accountId, attachments: [attachment] }, { headers });
     }
     if (body.action === "library") {
       if (!Array.isArray(body.ids) || !body.ids.length || body.ids.length > ASSISTANT_ATTACHMENT_MAX_COUNT || new Set(body.ids).size !== body.ids.length) throw new AssistantAttachmentError("attachment_limit");
       const attachments = [];
+      const options = { edition: await getDashboardEditionForAccountId(auth.activeUserId), signal: AbortSignal.any([request.signal, AbortSignal.timeout(85_000)]) };
       let remainingBytes = ASSISTANT_ATTACHMENT_TOTAL_BYTES;
       for (const id of body.ids) {
-        const attachment = await attachAssistantLibraryItem(scope, auth.supabase, id, remainingBytes);
+        const attachment = await attachAssistantLibraryItem(scope, auth.supabase, id, remainingBytes, options);
         attachments.push(attachment); remainingBytes -= attachment.size;
       }
       parseAssistantAttachments(attachments);

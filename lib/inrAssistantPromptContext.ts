@@ -24,3 +24,15 @@ export function compactInrAssistantGuideContext(messages: ModelMessage[], option
     }) };
   });
 }
+
+/** Fit public guide prose to the next real step's remaining input budget.
+ * Native business values, instructions and all call/result identities stay exact.
+ * An oversized business result must remain an explicit limit, never be silently
+ * replaced by a made-up summary that could authorize a different action. */
+export function fitInrAssistantGuideContext(messages: ModelMessage[], maximumBytes: number, measure: (value: unknown) => number): ModelMessage[] {
+  for (const maximum of [2_400, 1_200, 600, 240]) {
+    const compacted = compactInrAssistantGuideContext(messages, { maxGuideCharacters: maximum });
+    if (measure(compacted) <= maximumBytes || maximum === 240) return compacted;
+  }
+  return messages;
+}

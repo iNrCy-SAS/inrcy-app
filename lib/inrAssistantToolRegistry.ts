@@ -1,4 +1,7 @@
 import "server-only";
+import { createInrAssistantResearchTools } from "./inrAssistantResearchTools.ts";
+import { isInrAssistantWebResearchRequest } from "./inrAssistantResearchIntent.ts";
+import { isInrAssistantCurrentTimeRequest } from "./inrAssistantClock.ts";
 import { getInrAssistantBasicShopReadView } from "./inrAssistantBasicShopRead.ts";
 import { createInrAssistantBadgeIdentityThemeUiTools } from "./inrAssistantBadgeIdentityThemeUiTools.ts";
 import { isInrAssistantBadgeLogoThemeRequest } from "./inrAssistantBadgeIdentityTheme.ts";
@@ -98,6 +101,18 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
   const { args, latestRequest, spokenRequest, families, requiredTools, canExecute,
     draftOnly, statusOnly, navigationRequested, screenCommandRequested,
     remainingTimeMs, onMediaStarted, onMediaResult, onPublicationResult, resolvePreview } = context;
+  const researchTools = (() => {
+    const searchRequested = isInrAssistantWebResearchRequest(spokenRequest) || requiredTools.includes("searchPublicWeb");
+    const clockRequested = isInrAssistantCurrentTimeRequest(spokenRequest) || requiredTools.includes("readCurrentDateTime");
+    if (!searchRequested && !clockRequested) return {};
+    const available = createInrAssistantResearchTools({ accountId: args.accountId, edition: args.edition,
+      requestId: args.requestId, currentUserMessage: spokenRequest, signal: args.signal,
+      canStartWork: () => remainingTimeMs() > 50_000 });
+    return {
+      ...(searchRequested ? { searchPublicWeb: available.searchPublicWeb } : {}),
+      ...(clockRequested ? { readCurrentDateTime: available.readCurrentDateTime } : {}),
+    };
+  })();
   const uiTools = (() => {
     if (!navigationRequested && !screenCommandRequested) return {};
     const available = createInrAssistantUiTools({accountId:args.accountId,actorUserId:args.actorUserId,edition:args.edition,currentUserMessage:latestRequest,clientContext:args.clientContext,supabase:args.supabase,canStartWork:()=>remainingTimeMs()>1000});
@@ -331,5 +346,5 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
     }
     return selected;
   })();
-  return { uiTools, mediaTools, accountTools, diagnosticTools, channelTools, workspaceTools, memoryTools, attachmentTools, businessTools, ctaTools, dnaAnalysisTools, managementTools, publicationTools, workspaceActionTools, insightsTools, commercialTools, documentTools, calendarTools, scheduledTools, communicationTools, advertisingTools, settingsTools, campaignTools, mailboxTools, additionalTools };
+  return { researchTools, uiTools, mediaTools, accountTools, diagnosticTools, channelTools, workspaceTools, memoryTools, attachmentTools, businessTools, ctaTools, dnaAnalysisTools, managementTools, publicationTools, workspaceActionTools, insightsTools, commercialTools, documentTools, calendarTools, scheduledTools, communicationTools, advertisingTools, settingsTools, campaignTools, mailboxTools, additionalTools };
 }

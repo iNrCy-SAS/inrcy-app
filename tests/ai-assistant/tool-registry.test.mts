@@ -17,6 +17,8 @@ import * as notificationNavigation from "../../lib/inrAssistantNotificationNavig
 import * as sendPublicationIntent from "../../lib/inrAssistantSendPublicationIntent.ts";
 import * as accountUiIntent from "../../lib/inrAssistantAccountUiIntent.ts";
 import * as basicShopRead from "../../lib/inrAssistantBasicShopRead.ts";
+import * as researchIntent from "../../lib/inrAssistantResearchIntent.ts";
+import * as clock from "../../lib/inrAssistantClock.ts";
 import { inrAssistantObjectives, inrAssistantReadMatchesObjective } from "../../lib/inrAssistantObjectives.ts";
 import type * as Registry from "../../lib/inrAssistantToolRegistry.ts";
 
@@ -30,6 +32,8 @@ function harness(unavailableUiTools: string[] = []) {
   const moduleRecord = { exports: {} };
   vm.runInNewContext(`(function(require,module,exports){${source}\n})`)((name: string) => {
     if (name === "server-only") return {};
+    if (name === "./inrAssistantResearchIntent.ts") return researchIntent;
+    if (name === "./inrAssistantClock.ts") return clock;
     if (name === "./inrAssistantToolRouting.ts") return routing;
     if (name === "./inrAssistantLocalInterface.ts") return localInterfaces;
     if (name === "./inrAssistantApplicationPreferences.ts") return applicationPreferences;
@@ -67,6 +71,25 @@ function harness(unavailableUiTools: string[] = []) {
   };
   return { context, calls, executions, build: (changes: Partial<Registry.InrAssistantToolRegistryContext> = {}) => runtime.createInrAssistantToolRegistry({ ...context, ...changes }) };
 }
+
+test("public research and the clock are available in both packs only when relevant, with the current user query", () => {
+  for (const edition of ["basic", "standard"] as const) {
+    const h = harness(), args = { ...h.context.args, edition };
+    const ordinary = h.build({ args, latestRequest: "Ouvre ma médiathèque", spokenRequest: "Ouvre ma médiathèque" });
+    assert.deepEqual(Object.keys(ordinary.researchTools), []);
+    const message = "Recherche les nouveautés Instagram sur Internet.";
+    const research = h.build({ args, latestRequest: "Ancienne mémoire privée", spokenRequest: message, canExecute: false });
+    assert.deepEqual(Object.keys(research.researchTools), ["searchPublicWeb"]);
+    const call = h.calls.find(call => call.factory === "createInrAssistantResearchTools")!;
+    assert.equal(call.scope.currentUserMessage, message);
+    assert.equal(call.scope.accountId, args.accountId);
+    assert.equal(call.scope.edition, edition);
+    assert.equal(call.scope.requestId, args.requestId);
+    const current = h.build({ args, spokenRequest: "Quelle heure est-il à New York ?", canExecute: false });
+    assert.deepEqual(Object.keys(current.researchTools), ["readCurrentDateTime"]);
+    assert.deepEqual(h.executions, []);
+  }
+});
 
 test("Basic Inertia and prestation questions retain their exact read-only account view without credit or purchase authority", () => {
   for (const [message, view] of [["Lis mon solde d’Unités d’Inertie", "inertia"], ["Mes commandes de prestations", "shop_orders"]] as const) {

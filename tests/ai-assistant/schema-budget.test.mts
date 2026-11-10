@@ -9,6 +9,7 @@ import ts from "typescript";
 import * as sdk from "ai";
 import * as aiMemoryModule from "../../lib/aiMemory.ts";
 import * as videoClientOptions from "../../lib/aiMediaVideoClientOptions.ts";
+import * as mediaModelCatalog from "../../lib/aiMediaModelCatalog.ts";
 import { fitPromptPayloadToJsonBudget } from "../../lib/aiPromptBudget.ts";
 import { getAssistantInternalDestination } from "../../lib/inrAssistantNavigation.ts";
 import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
@@ -43,6 +44,9 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
     "server-only": {}, "node:crypto": { createHash, createHmac, timingSafeEqual, randomUUID },
     "@/lib/requireUser": { requireUser: untouched }, "./requireUser": { requireUser: untouched },
     "@/lib/aiGatewayConfig": { getAiGatewayCredential: () => "synthetic-no-network" },
+    "./aiGatewayConfig": { getAiGatewayCredential: () => "synthetic-no-network" },
+    "./aiGatewayAccountGuard": { reserveAiGatewayAccountAttempt: untouched, commitAiGatewayAccountAttempt: untouched, recordAiGatewayAccountFailure: untouched },
+    "./aiGatewayOperationTelemetry": { recordAiGatewayOperationCall: untouched },
     "@/lib/aiGatewayAccountGuard": { AiGatewayGuardUnavailableError: class extends Error {},
       reserveAiGatewayAccountAttempt: async (_account: string, value: Row) => { reservations.push(value); return { id: reservations.length }; },
       commitAiGatewayAccountAttempt: async () => {}, recordAiGatewayAccountFailure: async () => {},
@@ -59,7 +63,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
     "./aiMemory.ts": aiMemoryModule, "./aiMemory": aiMemoryModule, "./aiPromptBudget.ts": { fitPromptPayloadToJsonBudget },
     "./aiMediaGenerationContracts.ts": { normalizeAiMediaGenerationRequest: untouched },
     "./aiMediaVideoClientOptions.ts": videoClientOptions,
-    "./aiMediaModelCatalog.ts": { getAiMediaImageModel: untouched, getAiMediaVideoModel: untouched, isAiMediaVideoEngineAvailable: untouched },
+    "./aiMediaModelCatalog.ts": { ...mediaModelCatalog, getAiMediaImageModel: untouched, getAiMediaVideoModel: untouched, isAiMediaVideoEngineAvailable: untouched },
     "./standardAgentPolicy.ts": { isStandardAgentActionDescriptor: untouched },
     "./adsAccessPolicy.ts": { ADS_PUBLIC_CHANNELS: [] }, "./aiMediaGenerationPublicErrors.ts": { getAiMediaGenerationPublicError: untouched },
     "./observability/accountDiagnostics.ts": { readAccountDiagnosticEvents: untouched },
@@ -113,7 +117,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
         };
         if (options.publicationGuideFollowup && providerCalls.length < 5) {
           const actions = [
-            { toolName: "generateMedia", input: { mediaType: "image", prompt: "Une illustration annonçant Threads dans iNrCy", format: "square", durationSeconds: null } },
+            { toolName: "generateMedia", input: { mediaType: "image", prompt: "Une illustration annonçant Threads dans iNrCy", format: "square", durationSeconds: null, settings: null, resultMode: null } },
             { toolName: "preparePublication", input: { posts: ["facebook", "instagram", "threads"].map(channel => ({ channel, title: "Threads arrive", content: "Threads est disponible dans iNrCy. Connectez votre compte pour communiquer avec votre communauté.", cta: null, hashtags: [] })), mediaIds: [MEDIA], draftId: null } },
             { toolName: "executePublication", input: { draftId: DRAFT, mode: "publish", scheduledAt: null, timezone: null } },
           ];
@@ -161,7 +165,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
         const target = resolve(dirname(path), id.endsWith(".ts") ? id : `${id}.ts`);
         if (CATALOGUE_COMPLEMENT_MODULES.has(target)) return load(target);
         const name = basename(target);
-        if (["notifications.ts", "aiMediaVideoSpeechBudget.ts", "aiMediaVideoTimeline.ts", "aiMediaSpokenScript.ts"].includes(name)) return load(target);
+        if (["notifications.ts", "aiMediaVideoSpeechBudget.ts", "aiMediaVideoTimeline.ts", "aiMediaSpokenScript.ts", "aiMediaCharacterVoices.ts"].includes(name)) return load(target);
         assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["aiEnginePreference.ts", "businessDnaActivityAutofill.ts", "businessDnaRichText.ts", "appLanguage.ts", "appAppearanceTheme.ts", "mediaRules.ts", "publicationEditVersion.ts", "aiMediaGenerationPreferences.ts", "aiMediaNarrationVoices.ts", "boosterCta.ts", "boosterFormatting.ts", "boosterPublicationSafety.ts", "notificationRemovalState.ts", "generatorSettings.ts", "facebookPublicationPreferences.ts", "instagramPublicationPreferences.ts", "threadsPublicationPreferences.ts", "referralRequest.ts", "cookieConsentPreferences.ts", "activityCatalog.ts", "activitySectors.ts", "activityJobs.ts", "activityJobSynonyms.ts", "inrSearchDisplaySettings.ts", "inrBadgeTheme.ts", "imageOverlay.ts", "imageOverlayLinkUrl.ts", "businessIdentity.ts", "activityJobSearch.ts", "activityJobCatalog.ts", "googleReviewStateFingerprint.ts", "statsCalendarMonths.ts", "monthlyMeasuredStats.ts", "manualBoosterPublicationSchedule.ts", "productNavigation.ts", "commercialDocumentTemplate.ts", "mediaLibraryAudio.ts", "commercialDocumentDraft.ts", "commercialDocumentValidation.ts", "commercialDocumentUpdate.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterCtaActions.ts", "boosterWhatsappCta.ts", "generalPreferences.ts", "googleBusinessProfile.ts", "channelPublicUrl.ts", "instagramCapabilities.ts", "instagramCaptionLimits.ts", "pinterestTextLimits.ts"].includes(name), `Unexpected dependency ${id}`);
         return load(target);
       }

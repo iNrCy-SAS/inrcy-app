@@ -48,6 +48,9 @@ import * as studioFormSelection from "../../lib/inrAssistantStudioFormSelection.
 import * as nativeDashboardEdition from "../../lib/dashboardEdition.ts";
 import * as studioSavedPreferences from "../../lib/aiMediaGenerationPreferences.ts";
 import * as pureStatsViewRequest from "../../lib/inrAssistantPureStatsViewRequest.ts";
+import * as assistantClock from "../../lib/inrAssistantClock.ts";
+import * as researchIntent from "../../lib/inrAssistantResearchIntent.ts";
+import * as providerCost from "../../lib/inrAssistantProviderCost.ts";
 import { getInrAssistantDocumentPrefillNavigation } from "../../lib/inrAssistantDocumentUiCommands.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type * as ToolRegistry from "../../lib/inrAssistantToolRegistry.ts";
@@ -62,7 +65,8 @@ function loadClosedModule<T>(file: string, stubs: Record<string, unknown>): T {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const record = { exports: {} };
-  const pureDependencies: Record<string, unknown> = { "./inrAssistantBadgeIdentityTheme.ts": badgeIdentityTheme, "./inrAssistantNotificationNavigation.ts": notificationNavigation, "./inrAssistantSendPublicationIntent.ts": sendPublicationIntent, "./inrAssistantAccountUiIntent.ts": accountUiIntent, "./inrAssistantBasicShopRead.ts": basicShopRead, "./inrAssistantScheduledEditorSelection.ts": scheduledEditorSelection, "./inrAssistantStudioFormSelection.ts": studioFormSelection, "./inrAssistantUiCommands.ts": uiCommands };
+  const pureDependencies: Record<string, unknown> = { "./inrAssistantBadgeIdentityTheme.ts": badgeIdentityTheme, "./inrAssistantNotificationNavigation.ts": notificationNavigation, "./inrAssistantSendPublicationIntent.ts": sendPublicationIntent, "./inrAssistantAccountUiIntent.ts": accountUiIntent, "./inrAssistantBasicShopRead.ts": basicShopRead, "./inrAssistantScheduledEditorSelection.ts": scheduledEditorSelection, "./inrAssistantStudioFormSelection.ts": studioFormSelection, "./inrAssistantUiCommands.ts": uiCommands,
+    "./inrAssistantClock.ts": assistantClock, "./inrAssistantResearchIntent.ts": researchIntent, "./inrAssistantProviderCost.ts": providerCost };
   vm.runInNewContext(`(function(require,module,exports){${source}\n})`, { URL, URLSearchParams, Request, Response, Headers, AbortSignal, setTimeout, clearTimeout })((name: string) => {
     if (name in pureDependencies && !(name in stubs)) return pureDependencies[name];
     if (!(name in stubs)) throw new Error(`Unexpected dependency: ${name}`);
@@ -79,6 +83,7 @@ const memoryToolsRuntime = loadClosedModule<typeof MemoryTools>("inrAssistantMem
 function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; failCommit?: boolean;
   budgetFailure?: "limit" | "unavailable"; budgetFailureAt?: number; budgetCommitFailure?: boolean;
   reportedUsage?: { input: number | undefined; output: number | undefined };
+  reportedGatewayCost?: string | number | null;
   productionNoRedis?: boolean; noCredential?: boolean; handoff?: boolean; media?: boolean; followup?: boolean; workflow?: boolean; failAfterPublication?: boolean;
   verifiedNavigation?: string; lookup?: "diagnostics" | "workspace" | "memory"; providerError?: Error; outputLimit?: boolean;
   emptyText?: boolean; ignoresToolChoice?: boolean; abortAfterPublication?: AbortController;
@@ -102,8 +107,8 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   nativeServices?: { auth: { activeUserId: string; authUserId: string }; draft?: (request: Request) => Promise<Response>; notificationFeed?: (request: Request) => Promise<Response>; notificationMark?: (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response> };
   cta?: { definition: ReturnType<typeof createCtaToolFixture>["definition"]; input: { target: "phone" | "website"; instructionQuote: string; channels: string[] | null } } } = {}) {
   const generations: { model: string; params: LanguageModelV3CallOptions }[] = [];
-  const reservations: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number }[] = [];
-  const commits: { model: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number } }[] = [];
+  const reservations: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number; estimatedCostMicroUsd: number }[] = [];
+  const commits: { model: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number }; actualCostMicroUsd: number }[] = [];
   const finalized: { success: boolean }[] = [];
   const quotaReservations: unknown[] = [];
   const budgetReservations: { accountId: string; edition: string; estimatedCostMicroUsd: number }[] = [];
@@ -117,6 +122,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   const toolScopes: { tool: string; accountId: string; edition: string }[] = [];
   const ctaScopes: { accountId: string; currentUserMessage: string }[] = [];
   const diagnostics: gatewayDiagnostics.InrAssistantGatewayDiagnostic[] = [];
+  const operationCalls: { costMicroUsd: number; usageEstimated: boolean }[] = [];
   let mediaExecutions = 0;
   const stubs: Record<string, unknown> = {
     "server-only": {}, "./dashboardEdition.ts": {},
@@ -150,20 +156,21 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
             finishReason: { unified: options.outputLimit ? "length" : callTool ? "tool-calls" : "stop", raw: "test" },
             usage: { inputTokens: { total: options.reportedUsage ? options.reportedUsage.input : 100, noCache: 100, cacheRead: 0, cacheWrite: 0 },
               outputTokens: { total: options.reportedUsage ? options.reportedUsage.output : 40, text: 10, reasoning: 30 } }, warnings: [],
+            ...(options.reportedGatewayCost !== undefined ? { providerMetadata: { gateway: { gatewayCost: options.reportedGatewayCost } } } : {}),
           };
         },
         doStream: async () => { throw new Error("Streaming not expected"); },
       }) },
     "@/lib/aiGatewayConfig": { getAiGatewayCredential: () => options.noCredential ? null : "synthetic" },
     "@/lib/aiGatewayAccountGuard": { AiGatewayGuardUnavailableError: class extends Error {},
-      reserveAiGatewayAccountAttempt: async (_id: string, args: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number }) => {
+      reserveAiGatewayAccountAttempt: async (_id: string, args: { feature: string; reservedOutputTokens: number; estimatedInputTokens: number; estimatedCostMicroUsd: number }) => {
         if (options.guardError) throw new Error("guard unavailable");
         reservations.push(args); return { id: reservations.length };
-      }, commitAiGatewayAccountAttempt: async (args: { model: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number } }) => {
+      }, commitAiGatewayAccountAttempt: async (args: { model: string; usage: { inputTokens: number; outputTokens: number; totalTokens: number }; actualCostMicroUsd: number }) => {
         commits.push(args); if (options.failCommit) throw new Error("commit unavailable");
       }, recordAiGatewayAccountFailure: async () => {} },
     "@/lib/aiGatewayEconomics": { getConfiguredAiGatewayModelPricing: () => null },
-    "@/lib/aiGatewayOperationTelemetry": { recordAiGatewayOperationCall: () => {} },
+    "@/lib/aiGatewayOperationTelemetry": { recordAiGatewayOperationCall: (input: { costMicroUsd: number; usageEstimated: boolean }) => { operationCalls.push(input); } },
     "@/lib/upstashMode": { isUpstashEnabled: () => !options.productionNoRedis },
     "./inrAssistantPolicy.ts": policy,
     "./inrAssistantEditionPolicy.ts": editionPolicy,
@@ -181,6 +188,15 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantCommandRegistry.ts": commandRegistry,
     "./inrAssistantUiCommands.ts": uiCommands,
     "./inrAssistantPureStatsViewRequest.ts": pureStatsViewRequest,
+    "./inrAssistantProviderCost.ts": providerCost,
+    "./inrAssistantResearchTools.ts": { createInrAssistantResearchTools: () => ({
+      // Integration fixture: the real SDK executes the surrounding tool loop,
+      // while public search can never contact a provider or a database here.
+      searchPublicWeb: tool({ inputSchema: jsonSchema<{ query: string; recency: string | null }>({ type: "object", properties: { query: { type: "string" }, recency: { type: ["string", "null"] } }, required: ["query", "recency"], additionalProperties: false }),
+        execute: async () => ({ ok: false, source: "public_web_search", status: "unavailable", sources: [], contentCoverage: "none", message: "Recherche indisponible dans cette fixture isolée ; aucune source web consultée." }) }),
+      readCurrentDateTime: tool({ inputSchema: jsonSchema<{ timeZone: string | null }>({ type: "object", properties: { timeZone: { type: ["string", "null"] } }, required: ["timeZone"], additionalProperties: false }),
+        execute: async input => ({ ok: true, ...assistantClock.getInrAssistantCurrentDateTime(input.timeZone ?? "Europe/Paris") }) }),
+    }) },
     "./inrAssistantUiTools.ts": { createInrAssistantUiTools: () => options.extraTools??{} },
     "./inrAssistantBusinessIdentityTools.ts": {createInrAssistantBusinessIdentityTools:()=>({})},
     "./inrAssistantChannelConfigurationTools.ts": {createInrAssistantChannelConfigurationTools:()=>({})},
@@ -347,7 +363,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, {
     Date, TextEncoder, AbortSignal, console, process: { env: { NODE_ENV: options.productionNoRedis ? "production" : "test" } },
   })((name: string) => { if (!(name in stubs)) throw new Error(`Unexpected dependency: ${name}`); return stubs[name]; }, moduleRecord, moduleRecord.exports);
-  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, quotaReservations, budgetReservations, budgetFinalizations, factories, actionFactories, toolScopes, ctaScopes, publicationExecutions, metadataExecutions, crmExecutions, mediaScopes, diagnostics, get mediaExecutions() { return mediaExecutions; } };
+  return { runtime: moduleRecord.exports as typeof Gateway, generations, reservations, commits, finalized, quotaReservations, budgetReservations, budgetFinalizations, factories, actionFactories, toolScopes, ctaScopes, publicationExecutions, metadataExecutions, crmExecutions, mediaScopes, diagnostics, operationCalls, get mediaExecutions() { return mediaExecutions; } };
 }
 
 const basic = { accountId: "account-a", displayName: "Entreprise A", edition: "standard" as const,
@@ -711,25 +727,27 @@ test("a native published-history reader obeys the later-read order while drafts 
   }
 });
 
-test("a context-budget fallback retains completed tool results and IDs while shortening only guide prose", async () => {
+test("continuation compacts an oversized public guide before dispatch while retaining native results and IDs", async () => {
   const instruction = "Crée un contact CRM nommé Alice, puis consulte les dernières publications Facebook.";
   const h = harness({ crmIds: contactIds, guideCharacters: 40_000, plan: [
     { tool: "readAppGuide" }, { tool: "searchCrmContacts" },
     { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } }, { tool: "getRecentPublications" },
   ], accountRead: () => ({ ok: true, items: [] }) });
   const reply = await h.runtime.generateInrAssistantReply({ ...basic, requestId: randomUUID(), actorUserId: "actor-a", edition: "premium", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
-  assert.equal(h.generations[1].model, policy.INR_ASSISTANT_MODELS.luna);
-  const fallbackPrompt = JSON.stringify(h.generations[1].params.prompt);
-  assert.match(fallbackPrompt, /readAppGuide/);
-  assert.match(fallbackPrompt, /Extrait du guide/);
+  assert.equal(h.generations[1].model, policy.INR_ASSISTANT_MODELS.qwen, "Preflight compaction should preserve the economical model instead of triggering a fallback");
+  const continuationPrompt = JSON.stringify(h.generations[1].params.prompt);
+  assert.match(continuationPrompt, /readAppGuide/);
+  assert.match(continuationPrompt, /Extrait du guide/);
   const guideResult = h.generations[1].params.prompt.flatMap(message => message.role === "tool" ? message.content : [])
     .find(part => part.type === "tool-result" && part.toolName === "readAppGuide");
   assert.ok(guideResult?.type === "tool-result" && guideResult.output.type === "json");
   const guides = (guideResult.output.value as { guides: Array<{ content: string }> }).guides;
-  assert.ok(guides[0].content.length < 1400);
+  assert.ok(guides[0].content.length < 2600, "The guide fits the 2400-character limit plus its explicit truncation notice");
   assert.equal(h.crmExecutions.length, 1);
   assert.equal(reply.outcome, "completed");
-  assert.ok(h.diagnostics.some(diagnostic => diagnostic.phase === "input_limit"));
+  assert.ok(reply.taskState?.receipts.some(receipt => receipt.tool === "manageCrmContact" && receipt.id === contactIds[0]), "The native saved contact identity survives compaction");
+  assert.ok(h.generations.every(({ params }) => attachmentPolicy.assistantModelInputBudget({ prompt: params.prompt, tools: params.tools }) + 1024 <= 32_000));
+  assert.equal(h.diagnostics.some(diagnostic => diagnostic.phase === "input_limit"), false);
 });
 
 test("media pagination follows a progressing cursor past two reads without allowing an unchanged loop",async()=>{
@@ -1491,6 +1509,28 @@ test("missing or invalid provider usage cannot refund the monthly assistant budg
   const valid = harness(); await valid.runtime.generateInrAssistantReply(basic);
   assert.ok(Number.isSafeInteger(valid.budgetFinalizations[0].actualCostMicroUsd));
   assert.ok(valid.budgetFinalizations[0].actualCostMicroUsd! > 0);
+});
+
+test("attested all-inclusive gatewayCost settles both guards and telemetry, preserving zero and rejecting malformed costs", async () => {
+  for (const [reportedGatewayCost, expected] of [["0.000646075", 647], [0, 0], ["0.000000", 0]] as const) {
+    const h = harness({ reportedGatewayCost });
+    await h.runtime.generateInrAssistantReply(basic);
+    assert.equal(h.generations.length, 1);
+    assert.equal(h.budgetFinalizations[0].actualCostMicroUsd, expected);
+    assert.equal(h.commits[0].actualCostMicroUsd, expected);
+    assert.equal(h.operationCalls[0].costMicroUsd, expected);
+    assert.ok(h.reservations[0].estimatedCostMicroUsd >= 500, "Upfront estimates retain the reporting-fee margin");
+  }
+  const unknownUsage = harness({ reportedGatewayCost: "0.000646075", reportedUsage: { input: undefined, output: undefined } });
+  await unknownUsage.runtime.generateInrAssistantReply(basic);
+  assert.equal(unknownUsage.budgetFinalizations[0].actualCostMicroUsd, 647, "An attested charge remains authoritative when token usage is unknown");
+  assert.equal(unknownUsage.operationCalls[0].usageEstimated, true);
+  for (const reportedGatewayCost of ["NaN", " ", null, -1]) {
+    const h = harness({ reportedGatewayCost });
+    await h.runtime.generateInrAssistantReply(basic);
+    assert.ok(h.budgetFinalizations[0].actualCostMicroUsd! > 0, "Malformed costs must retain conservative nonzero accounting");
+    assert.equal(h.budgetFinalizations[0].actualCostMicroUsd, h.commits[0].actualCostMicroUsd);
+  }
 });
 
 test("only an unsent provider call releases budget and a budget commit failure prevents tool execution", async () => {

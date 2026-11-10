@@ -86,6 +86,10 @@ const nextConfig: NextConfig = {
       ...sharpRuntimeFiles,
       "node_modules/ffmpeg-static/**/*",
     ],
+    "/api/assistant/attachments": [
+      ...sharpRuntimeFiles,
+      "node_modules/ffmpeg-static/**/*",
+    ],
     "/api/media/tiktok": sharpRuntimeFiles,
     "/api/admin/image-bank/upload": sharpRuntimeFiles,
     "/api/inrsend/**/*": sharpRuntimeFiles,
