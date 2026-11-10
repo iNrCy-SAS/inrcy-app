@@ -1,5 +1,6 @@
 import { createPublicationSubmission } from "./publicationSubmission";
 import { loadPublicationDraft, savePublicationDraft } from "./publicationDraftSession";
+import { shouldProtectPublicationExit } from "./publicationExitProtection";
 import { useBoosterGeneration } from "./useBoosterGeneration";
 import { fitGeneratedInstagramPost } from "@/lib/instagramGeneratedCaption";
 import { getPrimaryImageInteractionLink } from "@/lib/boosterImageInteractionCta";
@@ -340,6 +341,7 @@ export default function PublishModal({
     },
     onClosed: () => { studioOpeningRef.current = false; },
   });
+  const studioOverlayOpen = Boolean(studio);
   const lastSavedStudioVideoDraftRef = useRef<VideoPayload | null>(null);
   const [saving, setSaving] = useState(false);
   const [idea, setIdea] = useState("");
@@ -1188,12 +1190,13 @@ export default function PublishModal({
   }, [instagramPostHashtags]);
 
   useEffect(() => {
-    onOverlayOpenChange?.(aiConfigurationOpen || Boolean(contentAdjustmentSession));
+    onOverlayOpenChange?.(studioOverlayOpen || aiConfigurationOpen || Boolean(contentAdjustmentSession));
     return () => {
       onOverlayOpenChange?.(false);
     };
   }, [
     aiConfigurationOpen,
+    studioOverlayOpen,
     contentAdjustmentSession,
     onOverlayOpenChange,
   ]);
@@ -2731,7 +2734,7 @@ export default function PublishModal({
   // A draft request captures the current editor context once. Editing or locale
   // changes must not cancel and reload the same draft over the user's work.
   const onPublicationDraftRequested = useEffectEvent((
-    request: Pick<Parameters<typeof loadPublicationDraft>[0], "publicationDraftIdParam" | "ctaDefaults" | "legacyMediaCutoverClientAvailable" | "onUnsavedChange">,
+    request: Pick<Parameters<typeof loadPublicationDraft>[0], "publicationDraftIdParam" | "ctaDefaults" | "legacyMediaCutoverClientAvailable">,
     isCancelled: () => boolean,
   ) => {
     return loadPublicationDraft({
@@ -2812,14 +2815,13 @@ export default function PublishModal({
       return;
     let cancelled = false;
 
-    void onPublicationDraftRequested({ publicationDraftIdParam, ctaDefaults, legacyMediaCutoverClientAvailable, onUnsavedChange }, () => cancelled);
+    void onPublicationDraftRequested({ publicationDraftIdParam, ctaDefaults, legacyMediaCutoverClientAvailable }, () => cancelled);
     return () => {
       cancelled = true;
     };
   }, [
     publicationDraftIdParam,
     loadedPublicationDraftId,
-    onUnsavedChange,
     legacyMediaCutoverClientAvailable,
     ctaDefaults,
   ]);
@@ -2844,22 +2846,31 @@ export default function PublishModal({
     ],
   );
 
-  useEffect(() => {
-    onUnsavedChange?.(hasUnsavedChanges);
-  }, [hasUnsavedChanges, onUnsavedChange]);
+  const shouldProtectExit = shouldProtectPublicationExit({
+    completed: Boolean(publicationResult),
+    creationMode,
+    hasContent: hasDraftablePublicationContent,
+    hasLocalDocuments: Boolean(pdfFile) || documentFiles.length > 0,
+    channelsCustomized: manuallyControlledChannelsRef.current.size > 0,
+    busy: generating || saving || draftSaving || scheduleSaving || voiceInputBusy,
+  });
 
   useEffect(() => {
-    if (!hasUnsavedChanges || saving || draftSaving) return;
+    onUnsavedChange?.(shouldProtectExit);
+  }, [shouldProtectExit, onUnsavedChange]);
+
+  useEffect(() => {
+    if (!shouldProtectExit) return;
     const onBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
-  }, [hasUnsavedChanges, saving, draftSaving]);
+  }, [shouldProtectExit]);
 
   const confirmDiscardPublicationWork = async (actionLabel: string) => {
-    if (!hasUnsavedChanges) return true;
+    if (!shouldProtectExit) return true;
     return confirmInrcy({
       eyebrow: i18nT("publication_en_cours_58f34b8e"),
       title: actionLabel,
@@ -4322,7 +4333,6 @@ export default function PublishModal({
       router,
       setLastPublicationDraftSnapshot,
       currentPublicationDraftSnapshot,
-      onUnsavedChange,
       pdfFile,
     }, options);
 

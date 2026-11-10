@@ -1,7 +1,7 @@
 {
   "app/dashboard/_components/DashboardBoosterModalLayer.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Revue explicite des sorties Booster : la confirmation commune protège Fermer, Échap, retour et navigation tant que la publication est inachevée, même après enregistrement/rechargement du brouillon et à travers les surcouches. Échap reste géré par l’éditeur enfant lorsqu’il est ouvert ; les résultats terminaux conservent leurs handlers natifs. Aucun envoi ajouté.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -269,7 +269,7 @@
   },
   "app/dashboard/booster/publier/PublishModal.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Revue explicite de protection du travail Booster : l’état du parcours inachevé est distinct du snapshot à sauvegarder. Choix de création/canaux, contenu, documents locaux et traitements restent protégés, y compris après sauvegarde/restauration ; la sortie peut être annulée. Le résultat terminal libère la garde. Droits, publication, devis et confirmations restent natifs.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],

@@ -174,10 +174,10 @@
     "app/dashboard/_components/DashboardAssistantProvider.module.css": "ef335d31880f309547454b6b02f77bd5ba5ca82c45da1dd8de25308f247b2b0f",
     "app/dashboard/_components/DashboardAssistantProvider.tsx": "2ee52694c9a289795bfac8fb2aa20fc40be38ed1e2926902f4fb26b49b4377b7",
     "app/dashboard/_components/DashboardAssistantScreenContext.tsx": "6a63b65e70e86339820d1adc01f098c0e3dcab050c6a6542bf2901d928acbe06",
-    "app/dashboard/_components/DashboardAssistantSession.tsx": "e5ac951e52f6e6c40d0266ab75007007c71b27be2f650bfd7b985e7b9623124c",
+    "app/dashboard/_components/DashboardAssistantSession.tsx": "49ecf9694f79628013183de1c677eb060d85129cf4c5f84ed7a7437a60d93808",
     "app/dashboard/_components/DashboardAssistantTrigger.module.css": "404badc8cf3bc3851c0102326c70da18f3c271b24eefc5ae00177e80ca1f4917",
-    "app/dashboard/_components/DashboardAssistantTrigger.tsx": "94fbb27e839035ece44fd0844f0410eed7cdda3e1c6032c24256dfa9f02ab4da",
-    "app/dashboard/_components/DashboardBoosterModalLayer.tsx": "d8c4f5a3d77fecad3596b868f23ce1c2a9c4528a02c86263953cdfa62f052d01",
+    "app/dashboard/_components/DashboardAssistantTrigger.tsx": "db29eeea91c02916f3c4aac1e1a5e0d3aa60230144a82918d6c62e0bd21bde64",
+    "app/dashboard/_components/DashboardBoosterModalLayer.tsx": "3bc282e860f5c83ffbf25d2177c9abfc7629ec771c40aeb19896f1303be5818d",
     "app/dashboard/_components/DashboardBoutiqueTabs.tsx": "8c3a979da928a880648489e8227e26bab42df376dd9e8bab32c12f3ebe02f07c",
     "app/dashboard/_components/DashboardChannelBubble.module.css": "eac68b0304065865ac50809579ee0959c2575029a800c6c5e153609eee26a566",
     "app/dashboard/_components/DashboardChannelWorkspace.tsx": "40b602b769c0d00fb6292e47e06546340db4c69c8dc3c8aa7c80fa8c08e3f085",
@@ -214,7 +214,7 @@
     "app/dashboard/_components/DashboardToolHeading.module.css": "15382765e7e70dd039574a658d4e3cd38abc76426d94df3a189dea5f593fad9f",
     "app/dashboard/_components/DashboardToolHeading.tsx": "c610ab83c7f0c2fbc932806860840d204ba2902eee3a75aa9d77fe0fd186bb4f",
     "app/dashboard/_components/DashboardToolWarmup.tsx": "9bf80b11af3ce7166fc8cc4b7e16493a37c70c1b053710c4b66959c9bf728cb9",
-    "app/dashboard/_components/DashboardTopbar.tsx": "5a2e6117093c0dbd7f13e1760416d572de1f7731627d8d8c9ef66203c33fd44f",
+    "app/dashboard/_components/DashboardTopbar.tsx": "7f51f87106641ac8a53fb776019ff811718beb3c5a8f2e6c4385c0c9eb9ccd02",
     "app/dashboard/_components/DashboardUnsavedNavigationProvider.tsx": "ecb3124d4670ce517e9ab69006451ddeccde8448e1db127dca7395831325ac5d",
     "app/dashboard/_components/DashboardUsageGuide.module.css": "ab5edb60510fdca883f1a709cc0adb0e3b59a040b6022fcd4a4fbb60325c6ce5",
     "app/dashboard/_components/DashboardUsageGuide.tsx": "67ebcda61ac0c1312b8f0922db2ebf3e40edce80d2caca8601f843d27aca469d",
@@ -291,7 +291,7 @@
     "app/dashboard/_components/ResponsiveActionButton.module.css": "13e062dd0758296d75b631ea86f714a43b991435469b8a3587ceb9a4f11b939a",
     "app/dashboard/_components/ResponsiveActionButton.tsx": "a6bb689a8a64b49750d94e708930b733a34eccc51a28d41dd29e51dadbb54c85",
     "app/dashboard/_components/ResponsiveBottomNav.module.css": "a00628b9b9ab8c8a3a63c1712d1126f63a6dc81117ed259dee3da01d8dbdad85",
-    "app/dashboard/_components/ResponsiveBottomNav.tsx": "09785fddd67bb6d8329428c4e76c0d6c3916c7826a55f50b51a3aad608f4581b",
+    "app/dashboard/_components/ResponsiveBottomNav.tsx": "d094daa7d6b8904dae0fa555de752ca2182c5a4154fcadac0b6281f9c6c2f16a",
     "app/dashboard/_components/RichMailEditor.tsx": "5f1d9084abcb2ecd444a90b3fd7aada5c0a266d43b8ddca0e88eac10cd74bf1b",
     "app/dashboard/_components/SaveIcon.tsx": "f11ff2d7299ef6181ea74fd4f92a68e9b916f868f0219521650daf5c39b07a68",
     "app/dashboard/_components/SchedulePlanningPreview.tsx": "490774584bc8692c743d81b21b4c57dfdb3aee75273b496cb833645e21a502f1",
@@ -469,7 +469,7 @@
     "app/dashboard/agent/_lib/agent.workspace-messages.ts": "9d3627308c0172d6116c8242a8d1611465e21f7ea66d9e7b91b1d69e966e9ecd",
     "app/dashboard/agent/agent.module.css": "18b7d21065ebb7ff6525c58b373b6397bc1d049fb17c40a83ddc77a484cf110d",
     "app/dashboard/booster/booster.module.css": "ea2b444d2441244c09d5540240a299db8471f88e467271a2432e5e7b85871814",
-    "app/dashboard/booster/publier/PublishModal.tsx": "3188be83e17c50c384395ea45c94cf2ce59e3e52691898632070cb9c28749c6d",
+    "app/dashboard/booster/publier/PublishModal.tsx": "54f51b496ce79cfa202f2d8a3540d7b460d855bed6538ac2069ce7f5e1b2cc74",
     "app/dashboard/booster/publier/boosterGenerationContext.ts": "67db37577540f7dbf65accd792ab332045bd1fb31454c78b8ba477d1831346c1",
     "app/dashboard/booster/publier/components/BoosterVideoFormatManager.tsx": "fb3738064d1f848691182c9cf7557c8875b78428634df59749c766d6fdb0c8d4",
     "app/dashboard/booster/publier/components/ChannelNavigationRail.module.css": "8990dad7b6cdc715acd1c4f736733b1bc1aceec9c73816f1d34f2451f9c34698",
@@ -518,8 +518,9 @@
     "app/dashboard/booster/publier/generationMediaSelection.ts": "79ec4dfd1b70c293c1c253cd5ca19d2c720cf6bd2d7063a28d68cda1ebdf16b6",
     "app/dashboard/booster/publier/imageChannelAssignment.ts": "81ed09824efd994f1dfd6b8ab066a38de3b73a794677201d2d3e2237598ac3ab",
     "app/dashboard/booster/publier/persistentMediaWorkspaceMutations.ts": "e35da349c5caf7984a66d96fd9846a719fb120a84329019c8141ed558db5873a",
-    "app/dashboard/booster/publier/publicationDraftContext.ts": "39bd05bc7068baa653406f63fe26e4c72e86047b7e96d091cfbc27ec97140f60",
-    "app/dashboard/booster/publier/publicationDraftSession.ts": "54a8d02ff76d5c9b5a656bc703cee5103526c817283d0d35a1a0a900b1032263",
+    "app/dashboard/booster/publier/publicationDraftContext.ts": "76ff595b22257dacf25745923752052387799095cf619373988587ad9650aaff",
+    "app/dashboard/booster/publier/publicationDraftSession.ts": "8223a25ebfba01f942ff2c8f33326c8a8022b50ba6ee0fe45fad2fd9e053d561",
+    "app/dashboard/booster/publier/publicationExitProtection.ts": "9083419b9e3829da46b9aaab4e85451a63f78131c93d89c43b20545f4bc5e311",
     "app/dashboard/booster/publier/publicationMediaPool.ts": "d07d40dd16aefd0e21aea02ac5a24cbc239d6fc4460f5bd5c6130661ced9fbfe",
     "app/dashboard/booster/publier/publicationSubmission.ts": "4f25e7f9b4bfb56285641caf3affca4169ceda771bb73023fd2d619bf0953e48",
     "app/dashboard/booster/publier/publicationSubmissionContext.ts": "6d1c8f68d1718a2fa4947c7dfdf10d6ccfb33597768b11514b99228774aad3cc",
@@ -810,7 +811,7 @@
     "lib/aiJsonSchemaValidation.ts": "4b1288e0a26108470ad9e60b3aad01ee5c9569b34cc9913f5f4c038f0ede7c21",
     "lib/aiLanguageValidation.ts": "5159127216346e76759d94be7f190fd7f2001015868c4ed252fd4d04133fd0cf",
     "lib/aiMediaBrandKit.ts": "09e611ef7a5b1c00d553724178fff44f114d7162b15e7f139004fddece963723",
-    "lib/aiMediaBrandRenderer.ts": "e1b267d5d389a717addebdb5534b35af8d22f3398aae96752efbde711e309d20",
+    "lib/aiMediaBrandRenderer.ts": "ee95f38193f4456ce3de43b9d5ed0ac7be4c95901fcb83668a1ca31afcbfc323",
     "lib/aiMediaBuffer.ts": "506aa69052ca8322fe19b8f4eaf167d46e1143a699048819ff893ea3ced6af33",
     "lib/aiMediaBusinessDna.ts": "57c4caf98ad11ac2aa56959d06836e73ecedf210f588e43e1a6225bb0b954eaf",
     "lib/aiMediaCastingVariation.ts": "d5a3b2da1946198cc69369c2bd8f525d8deeda4defc308099d86b43eb7370d75",
@@ -1172,7 +1173,7 @@
     "lib/inrAssistantChannelTools.ts": "821cb425adc288059e1d3a940032526ddf3d9ec63a4fce44bf7dffab17adac99",
     "lib/inrAssistantClientContext.ts": "82ad0a2dfba823ecef2609c78d0df92562f5dcf6b521bac3117fff635b446492",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
-    "lib/inrAssistantCodeIndex.generated.ts": "e9ed31a412c730e1b74a8eaaccd5393b18379bd37728099ae54e0aea74849356",
+    "lib/inrAssistantCodeIndex.generated.ts": "e7fda6db57086d35e8cc60694ed0bf28ed15940d2c156a0af25fe2ce741d63ae",
     "lib/inrAssistantCommandRegistry.ts": "e49c619e20da3d2f1406e3c281ae9f81d979861334462dea703f95b9f4cb8a0d",
     "lib/inrAssistantCommercialTools.ts": "710efc738423e0d0405b2401342b064cdf11cebf6912f64b2a4b085d428111ab",
     "lib/inrAssistantCommunicationTools.ts": "8815a4a3433dbb2197cc7b584afd7d4eb97d342435596992ae6f3be2bb323eed",
@@ -1202,10 +1203,10 @@
     "lib/inrAssistantGoogleBusinessDraftUiTools.ts": "cf6e0c4c8e0700629517bf1ab91e06387520f5d76325ad8ef05370b45a7bfa55",
     "lib/inrAssistantGoogleReviewDraftIntent.ts": "bb7a17f0441ef4b812427babe3a80b5cdc268b784867cf4a05d533ada27fd538",
     "lib/inrAssistantGoogleReviewTools.ts": "320906763262c5363b5a4072db20c6ef6f88442f5cdbe3578496f7e15c6d01bc",
-    "lib/inrAssistantGuidesAccount.ts": "7b38a9207263add06a54b787b38aa15d311c3a6161f0c7042ff8f4f05dcc7b03",
-    "lib/inrAssistantGuidesBasic.ts": "e8486519cac579598c04c29da520bcfd111a4768b6317f20706fe673774e7111",
+    "lib/inrAssistantGuidesAccount.ts": "2f295754485fd0cbae0c762763e3846393baafec6dd40dfd690977c885b2344f",
+    "lib/inrAssistantGuidesBasic.ts": "0adcc3cd6933b0c3adbd95dbe31e78ff583f02c3193a33c55c9f8eadd22ca4eb",
     "lib/inrAssistantGuidesContentLimits.ts": "da0f60111e40424b2d8b39a6919b5a38b40d7d3832f8f8735c644825b9eca9f5",
-    "lib/inrAssistantGuidesCreation.ts": "5c762ca7f766ffd9b307a8d1eee16900c0e29e8dea7c70ef01daaacc31409477",
+    "lib/inrAssistantGuidesCreation.ts": "4dd3ede92a92cba3f3c04796c4696746fd0b2ba4749ae62b96c3775c0a542ffc",
     "lib/inrAssistantGuidesManagement.ts": "24b5121e3107db6b34dfbec3e0b1fa9850d2dedda58953ed037a809b5c9fd783",
     "lib/inrAssistantGuidesRecovery.ts": "c358fbf35f7b6dd6747752708f5135e130c685f1f08c5d8dff5950e4cf2fdc87",
     "lib/inrAssistantHistoryUiSelection.ts": "8c50a751e1ebbdea554c89c8d573b501b5d89d70f8dfabe603495ea43a0d2c69",
@@ -2390,7 +2391,7 @@
     },
     "app/dashboard/_components/DashboardAssistantSession.tsx": {
       "disposition": "basic",
-      "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
       "gateFiles": [
         "app/dashboard/_components/DashboardAssistantSession.tsx"
       ],
@@ -2465,7 +2466,7 @@
           "gateAnchor": "<button type=\"submit\" className={styles.sendButton} aria-label={copy.send} title={copy.send} disabled={pending || files.busy || (!draft.trim() && !files.attachments.length)}>\n            <svg viewBox=\"0 0 24 24\" aria-hid"
         }
       },
-      "sourceDigest": "e5ac951e52f6e6c40d0266ab75007007c71b27be2f650bfd7b985e7b9623124c",
+      "sourceDigest": "49ecf9694f79628013183de1c677eb060d85129cf4c5f84ed7a7437a60d93808",
       "controlIds": [
         "app/dashboard/_components/DashboardAssistantSession.tsx#dialog:483d57280538c1dc:1",
         "app/dashboard/_components/DashboardAssistantSession.tsx#button:1f4da767378fdaf0:1",
@@ -2494,7 +2495,7 @@
     },
     "app/dashboard/_components/DashboardAssistantTrigger.tsx": {
       "disposition": "basic",
-      "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
       "gateFiles": [
         "app/dashboard/_components/DashboardAssistantTrigger.tsx"
       ],
@@ -2505,19 +2506,19 @@
           "gateAnchor": "<button type=\"button\" className={styles.trigger} onClick={toggleAssistant}\n    aria-label={assistantLabel} title={assistantLabel} aria-haspopup=\"dialog\"\n    aria-controls=\"inrcy-assistant-dialog\" aria-expanded={assistant"
         }
       },
-      "sourceDigest": "94fbb27e839035ece44fd0844f0410eed7cdda3e1c6032c24256dfa9f02ab4da",
+      "sourceDigest": "db29eeea91c02916f3c4aac1e1a5e0d3aa60230144a82918d6c62e0bd21bde64",
       "controlIds": [
         "app/dashboard/_components/DashboardAssistantTrigger.tsx#button:2374ce457334a76c:1"
       ]
     },
     "app/dashboard/_components/DashboardBoosterModalLayer.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Revue explicite des sorties Booster : la confirmation commune protège Fermer, Échap, retour et navigation tant que la publication est inachevée, même après enregistrement/rechargement du brouillon et à travers les surcouches. Échap reste géré par l’éditeur enfant lorsqu’il est ouvert ; les résultats terminaux conservent leurs handlers natifs. Aucun envoi ajouté.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "d8c4f5a3d77fecad3596b868f23ce1c2a9c4528a02c86263953cdfa62f052d01",
+      "sourceDigest": "3bc282e860f5c83ffbf25d2177c9abfc7629ec771c40aeb19896f1303be5818d",
       "controlIds": [
         "app/dashboard/_components/DashboardBoosterModalLayer.tsx#button:365d58a8895fe27a:1",
         "app/dashboard/_components/DashboardBoosterModalLayer.tsx#summary:21a2584979bb2634:1",
@@ -2729,7 +2730,7 @@
     },
     "app/dashboard/_components/DashboardTopbar.tsx": {
       "disposition": "basic",
-      "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites. Les ateliers plein écran visibles masquent le header et ses groupes portalisés (inert/aria-hidden) ; fermeture du dernier atelier restaure le dashboard sans changer ses droits ni ses callbacks.",
+      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
       "gateFiles": [
         "app/dashboard/_components/DashboardTopbar.tsx",
         "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts"
@@ -2757,7 +2758,7 @@
           "gateAnchor": "isAdmin &&"
         }
       },
-      "sourceDigest": "5a2e6117093c0dbd7f13e1760416d572de1f7731627d8d8c9ef66203c33fd44f",
+      "sourceDigest": "7f51f87106641ac8a53fb776019ff811718beb3c5a8f2e6c4385c0c9eb9ccd02",
       "controlIds": [
         "app/dashboard/_components/DashboardTopbar.tsx#button:93dd567f035e515e:1",
         "app/dashboard/_components/DashboardTopbar.tsx#button:4a4ca1b29113af81:1",
@@ -3647,7 +3648,7 @@
     },
     "app/dashboard/_components/ResponsiveBottomNav.tsx": {
       "disposition": "basic",
-      "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
       "gateFiles": [
         "app/dashboard/_components/ResponsiveBottomNav.tsx"
       ],
@@ -3666,7 +3667,7 @@
           "gateAnchor": "<button type=\"button\" className={[styles.item, styles.assistPreview].join(\" \")}\n            aria-label={assistantLabel} title={assistantLabel} aria-haspopup=\"dialog\" aria-expanded={assistantOpen}\n            aria-busy={a"
         }
       },
-      "sourceDigest": "09785fddd67bb6d8329428c4e76c0d6c3916c7826a55f50b51a3aad608f4581b",
+      "sourceDigest": "d094daa7d6b8904dae0fa555de752ca2182c5a4154fcadac0b6281f9c6c2f16a",
       "controlIds": [
         "app/dashboard/_components/ResponsiveBottomNav.tsx#button:9f5e3066e6e5f9d8:1",
         "app/dashboard/_components/ResponsiveBottomNav.tsx#button:b77b6c10909728c0:1",
@@ -6508,12 +6509,12 @@
     },
     "app/dashboard/booster/publier/PublishModal.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Revue explicite de protection du travail Booster : l’état du parcours inachevé est distinct du snapshot à sauvegarder. Choix de création/canaux, contenu, documents locaux et traitements restent protégés, y compris après sauvegarde/restauration ; la sortie peut être annulée. Le résultat terminal libère la garde. Droits, publication, devis et confirmations restent natifs.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "3188be83e17c50c384395ea45c94cf2ce59e3e52691898632070cb9c28749c6d",
+      "sourceDigest": "54f51b496ce79cfa202f2d8a3540d7b460d855bed6538ac2069ce7f5e1b2cc74",
       "controlIds": [
         "app/dashboard/booster/publier/PublishModal.tsx#TiktokReviewCheckbox:98b762a092bc9c8d:1",
         "app/dashboard/booster/publier/PublishModal.tsx#input:1a65af1a209ac64e:1",

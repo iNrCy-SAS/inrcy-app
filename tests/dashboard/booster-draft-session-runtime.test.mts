@@ -102,7 +102,7 @@ test("draft save reuses the workspace, links the returned ID and preserves Studi
   assert.equal(payload.videoDraft, null);
   assert.deepEqual(payload.soundtrackByChannel, { facebook: "sound-a" });
   assert.ok(!JSON.stringify(body).includes("local-context.pdf"));
-  assert.deepEqual(f.order, ["save", "link:draft-saved", "dirty:true"]);
+  assert.deepEqual(f.order, ["save", "link:draft-saved"], "saving cannot overwrite the editor's exit protection");
   assert.deepEqual(f.writes.setDraftSaving, [true, false]);
   assert.deepEqual(f.writes.setLoadedPublicationDraftId, ["draft-saved"]);
   assert.deepEqual(f.writes.setLastPublicationDraftSnapshot, ["snapshot-current"]);
@@ -130,7 +130,7 @@ test("draft restore commits the saved text and engine after media restoration an
   assert.deepEqual(f.writes.setLoadedPublicationDraftId, ["draft-original"]);
   const snapshot = JSON.parse(String(f.writes.setLastPublicationDraftSnapshot[0]));
   assert.equal(snapshot.idea, "Saved idea"); assert.equal(snapshot.creationMode, "manual");
-  assert.deepEqual(f.order, ["load", "adopt:workspace-a", "restore-images", "dirty:false"]);
+  assert.deepEqual(f.order, ["load", "adopt:workspace-a", "restore-images"], "restoring cannot disable protection for an unfinished draft");
   assert.equal((f.context.manuallyEditedCtaChannelsRef as { current: Set<string> }).current.has("facebook"), true);
 });
 

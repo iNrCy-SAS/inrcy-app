@@ -185,7 +185,6 @@ export async function loadPublicationDraft(context: LoadPublicationDraftContext,
     setChannelImageEditors,
     setLoadedPublicationDraftId,
     setLastPublicationDraftSnapshot,
-    onUnsavedChange,
   } = context;
   setDraftMessage(i18nT("chargement_du_brouillon_4c123bfd"));
   setPublishError("");
@@ -624,7 +623,6 @@ export async function loadPublicationDraft(context: LoadPublicationDraftContext,
         imageSettingsByChannel: restoredEditors,
       }),
     );
-    onUnsavedChange?.(false);
   } catch (error) {
     if (isCancelled()) return;
     setPublishError(
@@ -698,8 +696,6 @@ export async function savePublicationDraft(context: SavePublicationDraftContext,
     router,
     setLastPublicationDraftSnapshot,
     currentPublicationDraftSnapshot,
-    onUnsavedChange,
-    pdfFile,
   } = context;
   if (saving || draftSaving || voiceInputBusy) return null;
 
@@ -876,9 +872,8 @@ export async function savePublicationDraft(context: SavePublicationDraftContext,
       }
     }
     setLastPublicationDraftSnapshot(currentPublicationDraftSnapshot);
-    // Le PDF reste volontairement local jusqu'à la prochaine génération et
-    // n'est pas inclus dans le brouillon durable.
-    onUnsavedChange?.(Boolean(pdfFile));
+    // Saving a draft does not end the publication or disable its exit guard.
+    // Local documents are still protected by the editor's workspace state.
     setDraftMessage(i18nT("brouillon_enregistre_5b3c3ae3"));
     return savedDraftId || null;
   } catch (e) {

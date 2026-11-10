@@ -90,7 +90,6 @@ export type LoadPublicationDraftContext = {
   setChannelImageEditors: Dispatch<SetStateAction<Partial<Record<ChannelKey, ChannelImageEditorState>>>>;
   setLoadedPublicationDraftId: Dispatch<SetStateAction<string | null>>;
   setLastPublicationDraftSnapshot: Dispatch<SetStateAction<string | null>>;
-  onUnsavedChange: ((hasUnsavedChanges: boolean) => void) | undefined;
 };
 
 export type SavePublicationDraftContext = {
@@ -155,6 +154,5 @@ export type SavePublicationDraftContext = {
   router: Pick<ReturnType<typeof useRouter>, "replace">;
   setLastPublicationDraftSnapshot: Dispatch<SetStateAction<string | null>>;
   currentPublicationDraftSnapshot: string;
-  onUnsavedChange: ((hasUnsavedChanges: boolean) => void) | undefined;
   pdfFile: File | null;
 };

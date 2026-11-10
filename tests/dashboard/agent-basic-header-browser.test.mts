@@ -34,7 +34,7 @@ async function setupHeader(page: Page) {
   ];
   const messages = JSON.parse(source("messages/fr-FR/agent.json")).workspaces;
   const robot = readFileSync(new URL("../../public/agent/agent-publications.webp", import.meta.url));
-  const assistant = readFileSync(new URL("../../public/agent/agent-assist-pink-v2.png", import.meta.url));
+  const assistant = readFileSync(new URL("../../public/agent/agent-assist-pink-v3.png", import.meta.url));
   const sources = {
     react: packageSource("react", "react.development.js"),
     "react/jsx-runtime": packageSource("react", "react-jsx-runtime.development.js"),
@@ -57,7 +57,7 @@ async function setupHeader(page: Page) {
   await page.addStyleTag({ content: `*{box-sizing:border-box}body{margin:0;background:#07112a;font-family:Arial,sans-serif}#root{position:relative;padding:14px;min-width:0}button{font:inherit}${styles.map(style => style.css).join("\n")}` });
   await page.addScriptTag({ content: `
     const sources=${JSON.stringify(sources)}, cssModules=${JSON.stringify(cssModules)}, messages=${JSON.stringify(messages)};
-    const images={'/agent/agent-publications.webp':'data:image/webp;base64,${robot.toString("base64")}','/agent/agent-assist-pink-v2.png':'data:image/png;base64,${assistant.toString("base64")}'};
+    const images={'/agent/agent-publications.webp':'data:image/webp;base64,${robot.toString("base64")}','/agent/agent-assist-pink-v3.png':'data:image/png;base64,${assistant.toString("base64")}'};
     const cache={},process={env:{NODE_ENV:'development'}};
     function require(name){
       if(cssModules[name])return{__esModule:true,default:cssModules[name]};

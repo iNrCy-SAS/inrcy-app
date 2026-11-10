@@ -31,7 +31,7 @@ for (const state of [null, "active", "pending", "unread"] as const) {
     assert.equal(trigger.props["aria-controls"], "inrcy-assistant-dialog", "Drawer focus management must be able to follow the assistant portal");
     assert.equal(trigger.props["aria-haspopup"], "dialog");
     assert.equal(trigger.props["aria-busy"], state === "pending" ? true : undefined);
-    assert.equal(elements(trigger).find(node => node.type === "img")?.props.src, "/agent/agent-assist-pink-v2.png");
+    assert.equal(elements(trigger).find(node => node.type === "img")?.props.src, "/agent/agent-assist-pink-v3.png");
     assert.equal(trigger.props.href, undefined);
     (trigger.props.onClick as () => void)();
     assert.equal(toggles, 1);

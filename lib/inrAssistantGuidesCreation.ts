@@ -35,6 +35,10 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
       "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx",
       "messages/fr-FR/booster.json",
       "lib/dashboardEdition.ts",
+      "app/dashboard/_components/DashboardBoosterModalLayer.tsx",
+      "app/dashboard/_hooks/useUnsavedExitGuard.ts",
+      "app/dashboard/booster/publier/publicationExitProtection.ts",
+      "app/dashboard/booster/publier/publicationDraftSession.ts"
     ],
   },
   {

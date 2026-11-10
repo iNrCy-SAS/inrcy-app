@@ -9,7 +9,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "autonome",
       "booster"
     ],
-    "content": "iNr’Assistant peut préparer les contenus, choisir les médias par canal et appliquer les options disponibles : placement classique/Reel/Story Meta, Story associée, musique native, mode Threads classique/éphémère, CTA et tableau Pinterest réellement accessible. Les réglages de cadrage/adaptation natifs sont conservés. La validation peut répartir les canaux entre diffusion immédiate et dates de programmation distinctes, avec suivi de chaque résultat. Les programmations manuelles du Basique peuvent être relues, modifiées (date, texte, médias), annulées ou reprises lorsqu’elles sont admissibles, après aperçu exact confirmé. Les tâches de l’agent restent exclues du Basique ; un résultat incertain demande une vérification avant toute reprise. L’historique Publications permet de rechercher puis reprendre un brouillon Booster précis, par référence citée ou titre unique réellement lu, sans générer ni publier. Le planning manuel permet aussi la diffusion immédiate d’une programmation encore admissible après aperçu confirmé, et l’édition de ses CTA explicites. Les publications déjà diffusées suivent un autre parcours : lire la version exacte, présenter les changements par canal, confirmer puis vérifier chaque résultat ; une issue fournisseur incertaine interdit de répéter aveuglément. Pinterest : titre 100 caractères ; description finale 800, CTA et hashtags compris. Un refus de longueur avant envoi reste corrigible sans bloquer la version. Les contrôles locaux du formulaire (texte, médias, options et calendrier) modifient le brouillon ouvert ; ils ne constituent pas à eux seuls une sauvegarde ou une diffusion.",
+    "content": "iNr’Assistant peut préparer les contenus, choisir les médias par canal et appliquer les options disponibles : placement classique/Reel/Story Meta, Story associée, musique native, mode Threads classique/éphémère, CTA et tableau Pinterest réellement accessible. Les réglages de cadrage/adaptation natifs sont conservés. La validation peut répartir les canaux entre diffusion immédiate et dates de programmation distinctes, avec suivi de chaque résultat. Les programmations manuelles du Basique peuvent être relues, modifiées (date, texte, médias), annulées ou reprises lorsqu’elles sont admissibles, après aperçu exact confirmé. Les tâches de l’agent restent exclues du Basique ; un résultat incertain demande une vérification avant toute reprise. L’historique Publications permet de rechercher puis reprendre un brouillon Booster précis, par référence citée ou titre unique réellement lu, sans générer ni publier. Le planning manuel permet aussi la diffusion immédiate d’une programmation encore admissible après aperçu confirmé, et l’édition de ses CTA explicites. Les publications déjà diffusées suivent un autre parcours : lire la version exacte, présenter les changements par canal, confirmer puis vérifier chaque résultat ; une issue fournisseur incertaine interdit de répéter aveuglément. Pinterest : titre 100 caractères ; description finale 800, CTA et hashtags compris. Un refus de longueur avant envoi reste corrigible sans bloquer la version. Les contrôles locaux du formulaire (texte, médias, options et calendrier) modifient le brouillon ouvert ; ils ne constituent pas à eux seuls une sauvegarde ou une diffusion. Une publication inachevée garde une confirmation de sortie, même après sauvegarde ou réouverture du brouillon. Annuler conserve l’éditeur ; Fermer, retour et navigation restent protégés.",
     "sourceFiles": [
       "lib/inrAssistantPublicationTools.ts",
       "lib/pinterestTextLimits.ts",
@@ -35,6 +35,11 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "lib/inrAssistantPublicationCtaPatch.ts",
       "lib/inrAssistantScheduledEditorSelection.ts",
       "app/dashboard/_hooks/useInrAssistantScheduledPublicationControls.ts"
+    ,
+      "app/dashboard/_components/DashboardBoosterModalLayer.tsx",
+      "app/dashboard/_hooks/useUnsavedExitGuard.ts",
+      "app/dashboard/booster/publier/publicationExitProtection.ts",
+      "app/dashboard/booster/publier/publicationDraftSession.ts"
     ]
   },
   {
@@ -264,7 +269,7 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "produit",
       "décor"
     ],
-    "content": "iNr’Studio est disponible en Basique avec les crédits et moteurs autorisés. iNr’Assistant peut demander un aperçu temporaire plutôt qu’un enregistrement immédiat. L’aperçu prêt est affiché avec Conserver ce média et Écarter cet aperçu. Conserver vérifie la liaison entre la génération et son média puis relit l’enregistrement ; écarter refuse uniquement le brouillon temporaire, jamais un original déjà accepté. Consulter le statut ne sauvegarde pas silencieusement. Les crédits de génération déjà consommés ne sont pas remboursés par l’abandon. Les références peuvent être décrites comme produit, décor, personnage ou inspiration ; durée/paroles selon le moteur. En Studio Libre, les plans sont automatiques ; les autres parcours gardent leurs choix natifs de scènes. Les autorisations d’identité fidèle et de voix personnelles restent dans le parcours natif du professionnel. Fermer, réinitialiser, abandonner ou reprendre une récupération ouvre les confirmations natives lorsqu’elles sont nécessaires : l’assistant attend le choix du professionnel et ne déclare pas le travail supprimé ou récupéré à l’ouverture du dialogue. Signaler un contenu demande un motif, un commentaire et un ordre actuel d’envoi ; seule une réponse native positive permet d’annoncer le signalement transmis.",
+    "content": "iNr’Studio est disponible en Basique avec les crédits et moteurs autorisés. iNr’Assistant peut demander un aperçu temporaire plutôt qu’un enregistrement immédiat. L’aperçu prêt est affiché avec Conserver ce média et Écarter cet aperçu. Conserver vérifie la liaison entre la génération et son média puis relit l’enregistrement ; écarter refuse uniquement le brouillon temporaire, jamais un original déjà accepté. Consulter le statut ne sauvegarde pas silencieusement. Les crédits de génération déjà consommés ne sont pas remboursés par l’abandon. Les références peuvent être décrites comme produit, décor, personnage ou inspiration ; durée/paroles selon le moteur. En Studio Libre, les plans sont automatiques ; les autres parcours gardent leurs choix natifs de scènes. Les autorisations d’identité fidèle et de voix personnelles restent dans le parcours natif du professionnel. Fermer, réinitialiser, abandonner ou reprendre une récupération ouvre les confirmations natives lorsqu’elles sont nécessaires : l’assistant attend le choix du professionnel et ne déclare pas le travail supprimé ou récupéré à l’ouverture du dialogue. Signaler un contenu demande un motif, un commentaire et un ordre actuel d’envoi ; seule une réponse native positive permet d’annoncer le signalement transmis. Si le logo d’entreprise est utilisé, le profil actuel est relu pour la nouvelle génération. Le fond blanc opaque est détouré, y compris ses zones fermées ; les médias déjà créés restent inchangés.",
     "sourceFiles": [
       "lib/inrAssistantMediaTools.ts",
       "lib/inrAssistantMediaPreview.ts",
@@ -279,6 +284,9 @@ export const INR_ASSISTANT_BASIC_GUIDES = [
       "lib/inrAssistantContentReportTools.ts",
       "app/dashboard/_components/MediaEngineCreditControls.tsx",
       "lib/aiMediaVideoClientOptions.ts"
+    ,
+      "lib/aiMediaBrandKit.ts",
+      "lib/aiMediaBrandRenderer.ts"
     ]
   },
   {

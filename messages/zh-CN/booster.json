@@ -212,7 +212,7 @@
   "doit_etre_converti_dans_un_format_99ec554e": "必须转换为与 Booster 兼容的格式。",
   "drop_shadow_0_0_6px_rgba_5a371e38": "drop-shadow(0 0 6px rgba(251,146,60,0.55))",
   "du_contenu_a_deja_ete_saisi_45466126": "内容已被输入、生成或编辑。此操作可能会删除您当前的工作。",
-  "du_contenu_a_deja_ete_saisi_6057d3e7": "内容已被输入、生成或编辑。如果你现在离开，它就会消失。",
+  "du_contenu_a_deja_ete_saisi_6057d3e7": "发布内容仍在编辑中。退出将关闭编辑器。只有已保存在草稿中的内容才能恢复。",
   "duo_798e2216": "👥 二重奏",
   "dupliquer_c5e1d3f1": "重复",
   "dupliquer_ce_contenu_sur_tous_les_464b623c": "跨所有渠道复制此内容",

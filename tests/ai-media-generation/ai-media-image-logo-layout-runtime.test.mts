@@ -108,6 +108,23 @@ test("an unavoidable matching background receives an alpha halo, not a solid bra
   assert.ok(pixel(400, 200).every(value => value > 245), "the rest of the photo stays untouched");
 });
 
+test("opaque white canvas is also removed inside closed colored logo contours", async () => {
+  const source = await sharp({ create: { width: 400, height: 360, channels: 4, background: "#ffffff" } })
+    .composite([{ input: Buffer.from('<svg width="400" height="360" xmlns="http://www.w3.org/2000/svg"><rect x="70" y="55" width="250" height="250" rx="30" fill="none" stroke="#c62feb" stroke-width="18"/><path d="M170 55v160M220 55v160" stroke="#15b6e8" stroke-width="18"/><circle cx="170" cy="235" r="32" fill="#ff6426"/><circle cx="220" cy="235" r="32" fill="#ff6426"/></svg>') }])
+    .png().toBuffer();
+  const output = await runtime.exports.composeAiMediaBrandedImage(args(await solid(), source, {
+    logoPlacement: { horizontal: "right", vertical: "top" },
+  }));
+  const { data } = await sharp(output).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+  let whitePixels = 0, colorPixels = 0;
+  for (let i = 0; i < data.length; i += 3) {
+    if (Math.min(data[i], data[i + 1], data[i + 2]) >= 234) whitePixels++;
+    if (data[i] > 150 && data[i + 2] > 120 && data[i + 1] < 100) colorPixels++;
+  }
+  assert.equal(whitePixels, 0, "no white strip remains in the enclosed spaces");
+  assert.ok(colorPixels > 500, "the colored brand contours remain visible");
+});
+
 test("a reserved logo stays inside the agreed rectangle in every format even when other corners are quieter", async () => {
   for (const [width, height] of [[1080, 1080], [1080, 1350], [1080, 1920], [1920, 1080]]) {
     const input = await solid(width, height, "#ffffff");

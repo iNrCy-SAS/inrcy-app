@@ -181,7 +181,7 @@ window.beginTransfer=(mediaType,prompt)=>{
 };
 require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(require('studio').default));
 `;
-const avatar = readFileSync(new URL("../../public/agent/agent-assist-pink-v2.png", import.meta.url));
+const avatar = readFileSync(new URL("../../public/agent/agent-assist-pink-v3.png", import.meta.url));
 const pdfCommandFixture = `
 const sources=${JSON.stringify(sources)}, loaded={};
 function require(name){
@@ -233,7 +233,7 @@ test("mobile assistant fills the visible viewport across keyboard resize, browse
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
-    await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: html }) : route.request().url().endsWith("agent-assist-pink-v2.png") ? route.fulfill({ contentType: "image/png", body: avatar }) : route.abort());
+    await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: html }) : route.request().url().endsWith("agent-assist-pink-v3.png") ? route.fulfill({ contentType: "image/png", body: avatar }) : route.abort());
     await page.goto("https://fixture.invalid/assistant");
     await page.addScriptTag({ content: fixture });
     assert.deepEqual(errors, []);

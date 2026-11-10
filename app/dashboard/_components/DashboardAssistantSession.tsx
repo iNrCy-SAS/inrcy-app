@@ -444,7 +444,7 @@ export default function AssistantSession({ actorUserId, activeAccountId, allowed
     >
       <div className={styles.panel}>
         <header className={styles.header}>
-          <Image className={styles.avatar} src="/agent/agent-assist-pink-v2.png" width={42} height={42} sizes="(max-width: 1100px) 36px, 42px" alt="" draggable={false} />
+          <Image className={styles.avatar} src="/agent/agent-assist-pink-v3.png" width={42} height={42} sizes="(max-width: 1100px) 36px, 42px" alt="" draggable={false} />
           <h2 id="inrcy-assistant-title">iNr’Assistant</h2>
           <button type="button" className={`${styles.iconButton} ${styles.positionButton}`} onClick={togglePosition}
             aria-label={position === "right" ? copy.moveLeft : copy.moveRight} title={position === "right" ? copy.moveLeft : copy.moveRight}>

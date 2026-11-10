@@ -110,7 +110,7 @@
   },
   "app/dashboard/_components/DashboardAssistantSession.tsx": {
     "disposition": "basic",
-    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
     "gateFiles": [
       "app/dashboard/_components/DashboardAssistantSession.tsx"
     ],
@@ -188,7 +188,7 @@
   },
   "app/dashboard/_components/DashboardAssistantTrigger.tsx": {
     "disposition": "basic",
-    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
     "gateFiles": [
       "app/dashboard/_components/DashboardAssistantTrigger.tsx"
     ],
@@ -272,7 +272,7 @@
   },
   "app/dashboard/_components/DashboardTopbar.tsx": {
     "disposition": "basic",
-    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites. Les ateliers plein écran visibles masquent le header et ses groupes portalisés (inert/aria-hidden) ; fermeture du dernier atelier restaure le dashboard sans changer ses droits ni ses callbacks.",
+    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
     "gateFiles": [
       "app/dashboard/_components/DashboardTopbar.tsx",
       "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts"
@@ -343,7 +343,7 @@
   },
   "app/dashboard/_components/ResponsiveBottomNav.tsx": {
     "disposition": "basic",
-    "reason": "Surface partagée accessible au professionnel Basique. Chaque contrôle est lié à son contrat effectif ; form signifie préparation/guide et non exécution autonome. Les exclusions locales sont seulement des gates payantes ou des conteneurs techniques explicites.",
+    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
     "gateFiles": [
       "app/dashboard/_components/ResponsiveBottomNav.tsx"
     ],

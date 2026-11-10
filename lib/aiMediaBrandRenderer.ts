@@ -259,8 +259,9 @@ function isNearWhiteCanvasPixel(
 /**
  * Les anciens logos JPEG/PNG ont parfois été enregistrés sur un rectangle
  * blanc. On ne le détoure que lorsque le bord de l'image prouve qu'il s'agit
- * bien d'un canvas blanc opaque. Un logo blanc dont le bord est transparent
- * ne déclenche donc jamais ce traitement.
+ * bien d'un canvas blanc opaque. Les réserves blanches enfermées dans les
+ * contours font partie de ce même fond. Un logo blanc dont le bord est
+ * transparent ne déclenche donc jamais ce traitement.
  */
 async function removeOpaqueNearWhiteEdgeCanvas(input: Buffer) {
   const decoded = await sharp(input, {
@@ -305,6 +306,13 @@ async function removeOpaqueNearWhiteEdgeCanvas(input: Buffer) {
     tail += 1;
   };
   for (const index of border) enqueue(index);
+  // Un contour fermé peut enfermer une partie du fond d'origine (ex. entre
+  // deux tiges reliées). Le flood-fill extérieur seul laisse alors une bande
+  // blanche. On amorce aussi ces réserves, uniquement après avoir prouvé le
+  // fond blanc opaque ; les vrais logos blancs sur alpha restent intacts.
+  for (let index = 0; index < width * height; index += 1) {
+    if (isNearWhiteCanvasPixel(decoded.data, index * 4, 234, 24)) enqueue(index);
+  }
 
   while (head < tail) {
     const index = queue[head] || 0;

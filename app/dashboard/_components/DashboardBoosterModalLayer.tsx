@@ -195,21 +195,6 @@ export default function DashboardBoosterModalLayer({
     onClose();
   }, [onClose]);
 
-  const requestClosePublishModal = useCallback(async () => {
-    if (publishHasUnsavedChanges) {
-      const ok = await confirmInrcy({
-        eyebrow: i18nT("publication_en_cours_58f34b8e"),
-        title: i18nT("quitter_la_publication_509848c0"),
-        message: i18nT("du_contenu_a_deja_ete_saisi_6057d3e7"),
-        cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
-        confirmLabel: i18nT("quitter_3e4126f5"),
-        variant: "danger",
-      });
-      if (!ok) return;
-    }
-    closePublishModal();
-  }, [closePublishModal, i18nT, publishHasUnsavedChanges]);
-
   const openPublishDraft = useCallback(async (draftId: string) => {
     const nextDraftId = String(draftId || "").trim();
     if (!nextDraftId || nextDraftId === activePublishDraftId) return;
@@ -252,10 +237,9 @@ export default function DashboardBoosterModalLayer({
   }, [mode]);
 
   const { confirmExit: confirmPublishExit } = useUnsavedExitGuard({
-    active: mode === "publish" && !publishEditorOverlayOpen,
+    active: mode === "publish",
     shouldBlock:
       mode === "publish" &&
-      !publishEditorOverlayOpen &&
       publishHasUnsavedChanges,
     onConfirmExit: closePublishModal,
     eyebrow: i18nT("publication_en_cours_58f34b8e"),
@@ -265,6 +249,12 @@ export default function DashboardBoosterModalLayer({
     confirmLabel: i18nT("quitter_3e4126f5"),
     variant: "danger",
   });
+
+  const requestClosePublishModal = useCallback(async () => {
+    // Escape belongs to the child editor while its overlay is open.
+    if (publishEditorOverlayOpen) return;
+    await confirmPublishExit();
+  }, [confirmPublishExit, publishEditorOverlayOpen]);
 
   const openBusinessDna = useCallback(async () => {
     if (!(await confirmPublishExit())) return;

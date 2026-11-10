@@ -192,7 +192,7 @@ export default function DashboardTopbar({
         aria-label={assistantLabel} title={assistantLabel} aria-haspopup="dialog" aria-expanded={assistantOpen}
         aria-busy={assistantPending || undefined} data-pending={assistantPending || undefined}
         onClick={toggleAssistant} data-testid="inr-assist-preview">
-        <Image src="/agent/agent-assist-pink-v2.png" alt="" width={38} height={38} sizes="38px" draggable={false} />
+        <Image src="/agent/agent-assist-pink-v3.png" alt="" width={38} height={38} sizes="38px" draggable={false} />
         <DashboardAssistantBadge state={assistantBadgeState} />
       </button>
 

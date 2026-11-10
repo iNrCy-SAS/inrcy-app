@@ -117,6 +117,7 @@ test("real Booster logos keep their circular geometry before decode, after accou
     const logosBrowser = engine === chromium ? browser : await engine.launch({ headless: true });
     try {
   for (const width of [390, 700, 701, 768, 820, 1024, 1280]) {
+    t.diagnostic(`${engine.name()}: checking ${width}px`);
     const mobile = width <= 768;
     const context = await logosBrowser.newContext({ viewport: { width, height: 1000 } });
     const page = await context.newPage(); const errors: string[] = [];
@@ -143,7 +144,9 @@ test("real Booster logos keep their circular geometry before decode, after accou
       assert(value.radius >= value.width / 2); assert.equal(value.width, mobile ? 24 : 43); assert.equal(value.height, value.width);
       assert.equal(value.loading, "eager"); assert.equal(value.decoding, "sync");
     }
+    t.diagnostic(`${engine.name()}: decoding ${width}px`);
     await page.locator("#root img").evaluateAll(images => Promise.all(images.map(img => (img as HTMLImageElement).decode())));
+    t.diagnostic(`${engine.name()}: decoded ${width}px`);
     const initialCount = await page.locator("#root img").count(); assert.equal(initialCount, order.length);
     const pendingBoxes = await boxes();
     assert.equal(await page.locator('.bulkControl input').isDisabled(), true);
