@@ -2,6 +2,7 @@ import "server-only";
 import { createInrAssistantResearchTools } from "./inrAssistantResearchTools.ts";
 import { isInrAssistantWebResearchRequest } from "./inrAssistantResearchIntent.ts";
 import { isInrAssistantCurrentTimeRequest } from "./inrAssistantClock.ts";
+import { isInrAssistantAccountDiagnosticRequest } from "./inrAssistantObjectives.ts";
 import { getInrAssistantBasicShopReadView } from "./inrAssistantBasicShopRead.ts";
 import { createInrAssistantBadgeIdentityThemeUiTools } from "./inrAssistantBadgeIdentityThemeUiTools.ts";
 import { isInrAssistantBadgeLogoThemeRequest } from "./inrAssistantBadgeIdentityTheme.ts";
@@ -101,6 +102,7 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
   const { args, latestRequest, spokenRequest, families, requiredTools, canExecute,
     draftOnly, statusOnly, navigationRequested, screenCommandRequested,
     remainingTimeMs, onMediaStarted, onMediaResult, onPublicationResult, resolvePreview } = context;
+  const normalizedRequest = inrAssistantRoutingText(latestRequest);
   const researchTools = (() => {
     const searchRequested = isInrAssistantWebResearchRequest(spokenRequest) || requiredTools.includes("searchPublicWeb");
     const clockRequested = isInrAssistantCurrentTimeRequest(spokenRequest) || requiredTools.includes("readCurrentDateTime");
@@ -137,10 +139,10 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
     return {
       ...(args.edition === "basic" || families.has("business") || families.has("media") || families.has("publication") ? { getBusinessDna: available.getBusinessDna } : {}),
       ...(families.has("media") || families.has("publication") ? { searchMedia: available.searchMedia } : {}),
-      ...(families.has("publication") && (requiredTools.includes("getRecentPublications") || /historique|dernier|recent|deja|similaire|bloqu|diagnosti|echec|probleme/i.test(latestRequest)) ? { getRecentPublications: available.getRecentPublications } : {}),
+      ...(families.has("publication") && (requiredTools.includes("getRecentPublications") || /historique|dernier|recent|deja|similaire|bloqu|diagnosti|echec|echou|incident|dysfonctionn|fail|probleme/.test(normalizedRequest)) ? { getRecentPublications: available.getRecentPublications } : {}),
     };
   })();
-  const diagnosticTools = args.supabase && (requiredTools.includes("getAccountDiagnostics") || /(?:erreur|error|bloqu|impossible|echec|failed|bug|ne fonctionne|probleme|diagnosti|日志|错误)/i.test(latestRequest)) ? createInrAssistantDiagnosticsTools({ supabase: args.supabase, accountId: args.accountId, edition: args.edition }) : {};
+  const diagnosticTools = args.supabase && (requiredTools.includes("getAccountDiagnostics") || isInrAssistantAccountDiagnosticRequest(latestRequest)) ? createInrAssistantDiagnosticsTools({ supabase: args.supabase, accountId: args.accountId, edition: args.edition }) : {};
   const channelTools = args.supabase && (requiredTools.includes("readChannelStatus") || (!requiredTools.length || /connect|etat|manquant|cockpit|total|blocage/i.test(latestRequest)) && /canaux|canal|channel|cockpit|connect|connexion|manquant|\b\d{1,2}\s*(?:\/|sur)\s*14\b/i.test(latestRequest))
     ? createInrAssistantChannelTools({supabase:args.supabase,accountId:args.accountId,edition:args.edition,signal:args.signal}) : {};
   const workspaceTools = args.supabase ? createInrAssistantWorkspaceTools({ supabase: args.supabase, accountId: args.accountId, edition: args.edition, request: args.request }) : {};

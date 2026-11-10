@@ -35,7 +35,7 @@ import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObj
 import { inrAssistantUiActionsFromToolResult, INR_ASSISTANT_MAX_UI_ACTIONS, type InrAssistantUiAction } from "./inrAssistantUiActions.ts";
 import { inrAssistantUiSteps, rebindInrAssistantUiStep, inrAssistantUiStepAcceptsAction, inrAssistantUiStepTool, isInrAssistantUiTaskTool, INR_ASSISTANT_UI_TASK_TOOLS, type InrAssistantUiStep } from "./inrAssistantUiTask.ts";
 import { compactInrAssistantRejectedToolContext } from "./inrAssistantRejectedToolContext.ts";
-import { discoverInrAssistantActionCoverage, INR_ASSISTANT_COVERAGE_FAMILIES } from "./inrAssistantActionCoverage.ts";
+import { discoverInrAssistantActionCoverage, INR_ASSISTANT_COVERAGE_FAMILIES, inrAssistantToolsOutsideEdition } from "./inrAssistantActionCoverage.ts";
 import { deriveInrAssistantStudioDraft, isInrAssistantStudioDraftRequest, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
 import { withInrAssistantToolActivities } from "./inrAssistantActivity.ts";
 import { classifyInrAssistantGatewayFailure, projectInrAssistantGatewayDiagnostic, recordInrAssistantGatewayDiagnostic,
@@ -695,6 +695,19 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     const unfinished=businessRequired.filter(name=>!completed.includes(name));
     const factual = [...new Set(receipts.filter(r=>r.ok).map(r=>r.message))].join("\n\n");
     let message = outcome === "partial" ? `${factual || savedActionReply() || reply.message}\n\nIl reste à ${remaining.map(label).join(", ")}. Vous pouvez me demander de continuer ; les étapes déjà réalisées seront conservées.` : reply.message;
+    const excludedGoals = inrAssistantToolsOutsideEdition(businessRequired, args.edition);
+    if (!pendingUi.length && excludedGoals.length) {
+      outcome = completed.length ? "partial" : "blocked";
+      success = false;
+      message = [factual || savedActionReply(), `Ces actions ne sont pas incluses dans votre offre actuelle : ${excludedGoals.map(label).join(", ")}. Elles n’ont pas été exécutées. Consultez [Mon abonnement](/dashboard?panel=abonnement) pour les droits de ces modules.`].filter(Boolean).join("\n\n");
+    }
+    const unreadDiagnostic = objectives.some((objective, index) => objective.kind === "read" && objective.tool === "getAccountDiagnostics"
+      && !inrAssistantObjectiveCompleted(objectives, index, receipts, appliedUi)) && !readCounts.has("getAccountDiagnostics");
+    if (!pendingUi.length && unreadDiagnostic) {
+      outcome = completed.length ? "partial" : "blocked";
+      success = false;
+      message = [excludedGoals.length ? message : factual || savedActionReply(), "Je n’ai pas pu consulter les incidents enregistrés pour cette demande. Aucun incident ni cause n’a donc été vérifié. Le diagnostic reste à effectuer avant de proposer une correction ou une relance."].filter(Boolean).join("\n\n");
+    }
     if (pendingUi.length) {
       const browserMessage = outcome === "blocked" ? "Une étape d’écran a été refusée ou a échoué. Les actions suivantes n’ont pas été lancées. Vérifiez l’écran avant une nouvelle demande."
         : pendingUi.some(step => step.actions?.length) ? "L’étape d’écran attend la confirmation du navigateur. Les actions suivantes n’ont pas été lancées. La suite attend le retour du navigateur ; l’étape déjà transmise ne sera pas rejouée."

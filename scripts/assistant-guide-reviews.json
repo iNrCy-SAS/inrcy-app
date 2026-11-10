@@ -88,11 +88,11 @@
     "assistant-capabilities": {
       "guideDigest": "bde8b7021a30934d137b3e391ae6ff63d893b656a4f88f4be152c7384bf52564",
       "sources": {
-        "lib/inrAssistantActionCoverage.ts": "9319a31971e30f9d0e7e02c96af8e68b6d659f208c2ca49b34d5578407be71f0",
+        "lib/inrAssistantActionCoverage.ts": "813557ae366b34187f969312ca16c130b0b0b37bc69fe8ebf94071c8b95868f3",
         "lib/inrAssistantCapabilities.ts": "84ed6a88a777cd17e89c5046241f4991fa3693b7d5c9dc5dc7219df71a98fdc3",
         "lib/inrAssistantEditionPolicy.ts": "93ac16feff4e9818c4b99169215a5031acdb0305a4a5beb06a24ffe03335be1f",
         "lib/inrAssistantScreenCommandPolicy.ts": "19d18f79e2898b9456fa4c2a6e87002afede4d4fdd8bff7f914006e909d38ba2",
-        "lib/inrAssistantToolRegistry.ts": "57bf4deee524123b59cb853d25ebbeed42699402e3676fef9d606fd9c28abf4b",
+        "lib/inrAssistantToolRegistry.ts": "c70011377ee474c391f3847a894c58f4a1d7640939b788bd8e0db987e3326f2b",
         "lib/inrAssistantUiCommands.ts": "05d18edc95fe771f40ac0c2db1626a4d939846a205e0e23f0d4b0d4ce02a9279",
         "lib/inrAssistantUiTools.ts": "06269ce09b4b3eb2e1a64b5988bb3dde9e03a82ab076e88553744ac7b2a0b9e8",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed"
@@ -721,7 +721,7 @@
       "guideDigest": "9942907e58e8ce31fb596f4b14f9817a48984b45dc8d47d6ee9f26312ec4ac03",
       "sources": {
         "lib/inrAssistantDiagnosticsTools.ts": "9e160508b6872652edb58a275a26d061da1c1acefacdf366287ecb1380adf27e",
-        "lib/inrAssistantGateway.ts": "7c1ee3a72853cd8075076a2cfd50b0e46349c4d1df82a7d383f8741a8e26db81",
+        "lib/inrAssistantGateway.ts": "ae141ad189de27cfbea9b2d67acf35c2d9bdb227a7b043f010a996cea9cba15e",
         "lib/inrAssistantScheduledPublicationTools.ts": "2dd2eaa38a9472dc748c59dbfaddf06a55dbf6b58a3601ab89bd5165acefb0ec",
         "lib/inrAssistantSettingsTools.ts": "5433dec6ddf48c710ae3f898dc91e2dbfda859259280b6d4ed8f07ed7ce93d26"
       }
@@ -926,7 +926,7 @@
         "lib/inrAssistantEditionPolicy.ts": "93ac16feff4e9818c4b99169215a5031acdb0305a4a5beb06a24ffe03335be1f",
         "lib/inrAssistantResearchIntent.ts": "105c9435c060844caa37b1af96cba65315fdd35ca10a096401fe0d344e203ffe",
         "lib/inrAssistantResearchTools.ts": "f06cb0947af7d22047eb5ef6f819ffdb6cf0d1691c68d5c9233fad74e8fcb080",
-        "lib/inrAssistantToolRegistry.ts": "57bf4deee524123b59cb853d25ebbeed42699402e3676fef9d606fd9c28abf4b"
+        "lib/inrAssistantToolRegistry.ts": "c70011377ee474c391f3847a894c58f4a1d7640939b788bd8e0db987e3326f2b"
       }
     },
     "studio-models-voices": {

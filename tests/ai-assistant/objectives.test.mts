@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsRead, inrAssistantReadMatchesObjective, createInrAssistantReadBudget } from "../../lib/inrAssistantObjectives.ts";
+import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsRead, inrAssistantReadMatchesObjective, createInrAssistantReadBudget, isInrAssistantAccountDiagnosticRequest } from "../../lib/inrAssistantObjectives.ts";
 import { inrAssistantRequiredTools, inrAssistantRequiredCalls } from "../../lib/inrAssistantTaskPolicy.ts";
 import { matchesInrAssistantActionClause } from "../../lib/inrAssistantActionClause.ts";
 import { inrAssistantSelectionToolHints } from "../../lib/inrAssistantToolRouting.ts";
@@ -142,4 +142,53 @@ test("an explicit recovery follow-up tracks diagnostics without confusing a publ
   ]) assert.ok(!inrAssistantObjectives(message).some(item => item.tool === "getAccountDiagnostics"), message);
   const ordinary = inrAssistantObjectives("Consulte mes dernières publications.");
   assert.equal(ordinary[0].tool, "getRecentPublications");
+});
+
+test("recorded incident and failure vocabulary creates a native diagnostic read without authorizing repairs", () => {
+  for (const message of [
+    "Ma publication Facebook du 8 novembre 2026 a échoué. Lis les incidents enregistrés des sept derniers jours, explique ce qui est daté et donne le parcours de résolution. Ne répare rien et ne republie rien.",
+    "Ma publication Facebook a échoué. Vérifie ce qui se passe sans relancer.",
+    "Ma publication échoue. Consulte les erreurs enregistrées.",
+    "Lis les incidents enregistrés des sept derniers jours.",
+    "Vérifie le dysfonctionnement de ma publication Facebook.",
+    "Read the recorded publication failures.",
+  ]) {
+    const plan = inrAssistantObjectives(message);
+    assert.equal(isInrAssistantAccountDiagnosticRequest(message), true, message);
+    assert.equal(plan.find(item => item.kind === "read")?.tool, "getAccountDiagnostics", message);
+    assert.ok(plan.every(item => item.kind === "read"), message);
+    assert.deepEqual(inrAssistantRequiredTools(message), [], message);
+  }
+});
+
+test("a personal failure question requests a scoped diagnostic while general advice remains a guide", () => {
+  for (const message of ["Pourquoi ma publication Facebook a échoué ?", "Pourquoi mon post échoue ?", "Pourquoi notre génération a échoué ?", "Why did my publication fail?"]) {
+    assert.equal(isInrAssistantAccountDiagnosticRequest(message), true, message);
+    assert.deepEqual(inrAssistantObjectives(message).map(item => [item.kind, item.tool]), [["read", "getAccountDiagnostics"]], message);
+    assert.deepEqual(inrAssistantRequiredTools(message), [], message);
+  }
+  for (const message of [
+    "Comment fonctionne le diagnostic ?", "Explique comment lire les incidents.", "Pourquoi une publication échoue ?",
+    "Pourquoi ma publication pourrait échouer ?", "Imagine que ma publication échoue. Lis les incidents.",
+    "Supposons que ma publication ait échoué. Lis les incidents.",
+    "Explique « Lis les incidents enregistrés des sept derniers jours ». ",
+    "Lis ce texte : 'Ma publication a échoué. Lis les incidents.'",
+    "Si je confirme, lis les incidents enregistrés.", "Lis les incidents seulement si je confirme.",
+    "Lis les incidents après mon accord.", "En cas de panne, lis les incidents.",
+    "Ne lis pas les incidents enregistrés.", "Lis pas les incidents.",
+    "Ma publication a échoué. Ne vérifie pas les incidents.", "Do not read the recorded failures.",
+    "Quels canaux sont dans mon cockpit ? Explique comment lire les incidents.",
+  ]) {
+    assert.equal(isInrAssistantAccountDiagnosticRequest(message), false, message);
+    assert.equal(inrAssistantObjectives(message).some(item => item.tool === "getAccountDiagnostics"), false, message);
+  }
+});
+
+test("explaining the blockage of the account's missing channels retains both ordered native reads", () => {
+  const message = "Quels sont les deux canaux non connectés parmi les 14 de mon cockpit ? Lis leur état actuel et explique ce qui bloque chacun, sans rien modifier ni lancer de connexion.";
+  assert.equal(isInrAssistantAccountDiagnosticRequest(message), true);
+  const plan = inrAssistantObjectives(message);
+  assert.deepEqual(plan.map(item => [item.kind, item.tool]), [["read", "readChannelStatus"], ["read", "getAccountDiagnostics"]]);
+  assert.equal(inrAssistantObjectiveReady(plan, 1, []), false);
+  assert.equal(inrAssistantObjectiveReady(plan, 1, [{ tool: "readChannelStatus", ok: true, status: "read", recordId: plan[0].id, message: "État natif relu" }]), true);
 });

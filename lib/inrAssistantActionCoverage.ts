@@ -154,6 +154,15 @@ export const INR_ASSISTANT_ACTION_COVERAGE: readonly InrAssistantActionCoverage[
   entry("support.human", "support", "Préparer un résumé pour contacter l’assistance humaine", "prefill", ["proposeHumanSupport"], [], ALL, "Rien transmis automatiquement ; le pro vérifie puis contacte l’équipe."),
 ];
 
+/** A missing catalogue row is unknown, never a permission grant or an offer ban.
+ * Shared tools remain available if any native path includes the edition. */
+export function inrAssistantToolsOutsideEdition(names: readonly string[], edition: DashboardEdition): string[] {
+  return [...new Set(names)].filter(name => {
+    const paths = INR_ASSISTANT_ACTION_COVERAGE.filter(item => item.availability !== "not_in_app" && item.tools.includes(name));
+    return paths.length > 0 && paths.every(item => !item.editions.includes(edition));
+  });
+}
+
 const normalized = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
 export function discoverInrAssistantActionCoverage(input: { query?: string; domain?: string; edition: DashboardEdition; offset?: number; limit?: number }) {
   const offset = Number.isSafeInteger(input.offset) && Number(input.offset) >= 0 ? Math.min(Number(input.offset), 1000) : 0;

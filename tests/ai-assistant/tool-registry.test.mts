@@ -19,7 +19,7 @@ import * as accountUiIntent from "../../lib/inrAssistantAccountUiIntent.ts";
 import * as basicShopRead from "../../lib/inrAssistantBasicShopRead.ts";
 import * as researchIntent from "../../lib/inrAssistantResearchIntent.ts";
 import * as clock from "../../lib/inrAssistantClock.ts";
-import { inrAssistantObjectives, inrAssistantReadMatchesObjective } from "../../lib/inrAssistantObjectives.ts";
+import { inrAssistantObjectives, inrAssistantReadMatchesObjective, isInrAssistantAccountDiagnosticRequest } from "../../lib/inrAssistantObjectives.ts";
 import type * as Registry from "../../lib/inrAssistantToolRegistry.ts";
 
 type Scope = Record<string, unknown>;
@@ -34,6 +34,7 @@ function harness(unavailableUiTools: string[] = []) {
     if (name === "server-only") return {};
     if (name === "./inrAssistantResearchIntent.ts") return researchIntent;
     if (name === "./inrAssistantClock.ts") return clock;
+    if (name === "./inrAssistantObjectives.ts") return { isInrAssistantAccountDiagnosticRequest };
     if (name === "./inrAssistantToolRouting.ts") return routing;
     if (name === "./inrAssistantLocalInterface.ts") return localInterfaces;
     if (name === "./inrAssistantApplicationPreferences.ts") return applicationPreferences;
@@ -55,6 +56,7 @@ function harness(unavailableUiTools: string[] = []) {
       calls.push({ factory, scope });
       if (factory === "createInrAssistantUiTools") return Object.fromEntries(["navigateApplication", "runScreenCommand"]
         .filter(name => !unavailableUiTools.includes(name)).map(name => [name, { execute: () => { executions.push(name); } }]));
+      if (factory === "createInrAssistantDiagnosticsTools") return { getAccountDiagnostics: { execute: () => { executions.push("getAccountDiagnostics"); } } };
       const definitions: Record<string, { execute: () => void }> = {};
       return new Proxy(definitions, { get(target, key: string) {
         return target[key] ??= { execute: () => { executions.push(key); } };
@@ -87,6 +89,50 @@ test("public research and the clock are available in both packs only when releva
     assert.equal(call.scope.requestId, args.requestId);
     const current = h.build({ args, spokenRequest: "Quelle heure est-il à New York ?", canExecute: false });
     assert.deepEqual(Object.keys(current.researchTools), ["readCurrentDateTime"]);
+    assert.deepEqual(h.executions, []);
+  }
+});
+
+test("both packs expose scoped diagnostics for accented failures and recorded incident reads without constructing a mutation", () => {
+  for (const edition of ["basic", "standard"] as const) for (const message of [
+    "Ma publication Facebook du 8 novembre 2026 a échoué. Lis les incidents enregistrés des sept derniers jours, explique ce qui est daté et donne le parcours de résolution. Ne répare rien et ne republie rien.",
+    "Ma publication échoue. Vérifie ce qui se passe sans relancer.",
+    "Lis les incidents enregistrés des sept derniers jours.",
+    "Vérifie le dysfonctionnement de ma publication Facebook.",
+    "Read the recorded publication failures.", "Pourquoi ma publication Facebook a échoué ?",
+    "Quels sont les deux canaux non connectés parmi les 14 de mon cockpit ? Lis leur état actuel et explique ce qui bloque chacun, sans rien modifier ni lancer de connexion.",
+  ]) {
+    const h = harness(), args = { ...h.context.args, edition };
+    const requiredTools = inrAssistantObjectives(message).map(item => item.tool);
+    assert.ok(requiredTools.includes("getAccountDiagnostics"), message);
+    // Check the lexical selection separately from the objective hint, so an
+    // accent regression cannot be hidden by requiredTools forcing the reader.
+    for (const hints of [[], requiredTools]) {
+      const registry = h.build({ args, latestRequest: message, spokenRequest: message, requiredTools: hints, canExecute: false, families: new Set(["publication"]) });
+      assert.ok(h.calls.some(call => call.factory === "createInrAssistantDiagnosticsTools"), `${edition}: ${message}`);
+      assert.ok(Object.hasOwn(registry.diagnosticTools, "getAccountDiagnostics"), `${edition}: ${message}`);
+      const factory = h.calls.find(call => call.factory === "createInrAssistantDiagnosticsTools")!;
+      assert.equal(factory.scope.accountId, args.accountId); assert.equal(factory.scope.edition, edition); assert.equal(factory.scope.supabase, args.supabase);
+      for (const name of ["preparePublication", "executePublication", "editPublication"]) assert.equal(Object.hasOwn(registry.publicationTools, name), false, name);
+      assert.equal(h.calls.some(call => call.factory === "createInrAssistantMediaTools"), false);
+      assert.deepEqual(h.executions, []);
+    }
+  }
+});
+
+test("quoted, denied and conditional incident wording never selects diagnostic reading in either pack", () => {
+  for (const edition of ["basic", "standard"] as const) for (const message of [
+    "Comment fonctionne le diagnostic ?", "Explique comment vérifier les incidents.", "Pourquoi une publication échoue ?",
+    "Explique « Lis les incidents enregistrés ». ", "Lis ce texte : 'Ma publication a échoué. Lis les incidents.'",
+    "Si je confirme, lis les incidents enregistrés.", "Lis les incidents seulement si je confirme.",
+    "Lis les incidents après mon accord.", "Imagine que ma publication échoue. Lis les incidents.",
+    "Ne lis pas les incidents enregistrés.", "Ma publication a échoué. Ne vérifie pas les incidents.",
+    "Quels canaux sont dans mon cockpit ? Explique comment lire les incidents.",
+  ]) {
+    const h = harness();
+    const registry = h.build({ args: { ...h.context.args, edition }, latestRequest: message, spokenRequest: message, canExecute: false });
+    assert.equal(h.calls.some(call => call.factory === "createInrAssistantDiagnosticsTools"), false, `${edition}: ${message}`);
+    assert.deepEqual(Object.keys(registry.diagnosticTools), []);
     assert.deepEqual(h.executions, []);
   }
 });

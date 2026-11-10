@@ -4,10 +4,17 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { INR_ASSISTANT_ACTION_COVERAGE, INR_ASSISTANT_COVERAGE_FAMILIES, discoverInrAssistantActionCoverage } from "../../lib/inrAssistantActionCoverage.ts";
+import { INR_ASSISTANT_ACTION_COVERAGE, INR_ASSISTANT_COVERAGE_FAMILIES, discoverInrAssistantActionCoverage, inrAssistantToolsOutsideEdition } from "../../lib/inrAssistantActionCoverage.ts";
 import { parseInrAssistantUiCommand } from "../../lib/inrAssistantUiCommands.ts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
+test("offer exclusions apply only to tools whose every known native path requires another edition", () => {
+  for (const edition of ["basic", "standard"] as const) {
+    assert.deepEqual(inrAssistantToolsOutsideEdition(["manageCrmContact", "searchCrmContacts", "readStatsSnapshots", "readToolSettings", "unknownFutureTool"], edition), ["manageCrmContact", "searchCrmContacts"]);
+  }
+  assert.deepEqual(inrAssistantToolsOutsideEdition(["manageCrmContact", "prepareCommercialDocument"], "founder"), []);
+  assert.deepEqual(inrAssistantToolsOutsideEdition(["readToolSettings", "navigateApplication", "runScreenCommand"], "basic"), []);
+});
 test("each implemented capability names real tool definitions and every native route exists", () => {
   const tools = new Set(["readAppGuide", "proposeHumanSupport", "prepareStudioPrompt"]);
   for (const file of readdirSync(path.join(root, "lib")).filter(file => /^inrAssistant.*Tools\.ts$/.test(file))) {

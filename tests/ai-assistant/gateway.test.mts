@@ -1847,7 +1847,7 @@ test("UI then business mutation waits for scoped browser results and Continue wi
   const create = { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } };
   let uiExecutions = 0;
   const h = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
-  const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: instruction }] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: instruction }] });
   assert.equal(uiExecutions, 1);
   assert.equal(h.crmExecutions.length, 0);
   assert.equal(reply.outcome, "partial");
@@ -1856,7 +1856,7 @@ test("UI then business mutation waits for scoped browser results and Continue wi
   assert.equal(taskPolicy.continueInrAssistantTask("Continuer", state, Date.now(), "continue"), instruction);
   for (const status of [undefined, "pending", "failed", "cancelled", "applied"] as const) {
     const resumed = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
-    const result = await resumed.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, taskContext: state, actionInstruction: instruction, taskIntent: "continue", ...(status ? { browserStepResults: [{ stepId: state.uiSteps![0].id, status }] } : {}), messages: [{ role: "user", content: "Continuer" }] });
+    const result = await resumed.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, taskContext: state, actionInstruction: instruction, taskIntent: "continue", ...(status ? { browserStepResults: [{ stepId: state.uiSteps![0].id, status }] } : {}), messages: [{ role: "user", content: "Continuer" }] });
     assert.equal(resumed.crmExecutions.length, status === "applied" ? 1 : 0, String(status));
     assert.equal(result.outcome, status === "applied" ? "completed" : status === "failed" || status === "cancelled" ? "blocked" : "partial");
     assert.equal(result.uiActions, undefined);
@@ -1865,10 +1865,10 @@ test("UI then business mutation waits for scoped browser results and Continue wi
   assert.equal(uiExecutions, 1, "a delivered screen step is never replayed, including on refusal");
   const unbound = structuredClone(state); delete unbound.uiSteps![0].source;
   const reclaimed = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
-  await reclaimed.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, taskContext: unbound, actionInstruction: instruction, browserStepResults: [{ stepId: unbound.uiSteps![0].id, status: "applied" }], messages: [{ role: "user", content: "Continuer" }] });
+  await reclaimed.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, taskContext: unbound, actionInstruction: instruction, browserStepResults: [{ stepId: unbound.uiSteps![0].id, status: "applied" }], messages: [{ role: "user", content: "Continuer" }] });
   assert.equal(reclaimed.crmExecutions.length, 0, "unbound checkpoint is not a browser acknowledgement");
   const sameTurn = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => uiExecutions++), parallelPlan: [uiBarrierCall, create] });
-  await sameTurn.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, taskContext: state, actionInstruction: instruction, browserStepResults: [{ stepId: state.uiSteps![0].id, status: "applied" }], messages: [{ role: "user", content: instruction }] });
+  await sameTurn.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, taskContext: state, actionInstruction: instruction, browserStepResults: [{ stepId: state.uiSteps![0].id, status: "applied" }], messages: [{ role: "user", content: instruction }] });
   assert.equal(sameTurn.crmExecutions.length, 0, "a reclaimed original turn cannot use an acknowledgement as an explicit Continue");
   assert.equal(uiExecutions, 1);
 });
@@ -1878,7 +1878,7 @@ test("business before UI must complete before its command can be queued", async 
   const create = { ...contactPlan[0], input: { ...contactPlan[0].input, instructionQuote: instruction } };
   const observations: number[] = [];
   const h = harness({ crmIds: contactIds, extraTools: uiBarrierFixture(() => observations.push(h.crmExecutions.length)), parallelPlan: [uiBarrierCall, create], plan: [{ tool: "readAppGuide" }, uiBarrierCall] });
-  const reply = await h.runtime.generateInrAssistantReply({ ...basic, supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: instruction }] });
+  const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition: "premium", supabase: {} as never, clientContext: { source: "untrusted_client", screen: uiBarrierScreen }, messages: [{ role: "user", content: instruction }] });
   assert.deepEqual(observations, [1]);
   assert.equal(reply.uiActions?.length, 1);
   assert.equal(reply.outcome, "partial");
@@ -1960,6 +1960,74 @@ test("recovery stays unfinished after an ordinary status read and requires verif
     assert.deepEqual(Array.from(reply.taskState?.requiredTools ?? []), ["getAccountDiagnostics"]);
     assert.equal(reply.taskState?.receipts.some(receipt => receipt.tool === "getAccountDiagnostics" && receipt.status === "read"), mode === "complete");
     assert.equal(h.crmExecutions.length, 0); assert.equal(h.mediaExecutions, 0); assert.equal(h.publicationExecutions.length, 0);
+  }
+});
+
+test("diagnostic claims from the model are discarded when no scoped diagnostic has been read", async () => {
+  const instruction = "Ma publication Facebook semble bloquée. Vérifie ce qui se passe sans la republier ni créer un nouveau contenu.";
+  const invented = "D’après le suivi interne, l’incident du 8 novembre 2026 est bien enregistré. Sa cause est un jeton Facebook expiré. Ouvrez Booster → Agenda → Réglages.";
+  for (const edition of ["basic", "standard"] as const) {
+    let reads = 0;
+    const h = harness({ plan: [], textReply: invented, diagnosticRead: () => { reads++; return { ok: true, complete: true, sources: [{ status: "available" }], items: [] }; } });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition, supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+    assert.equal(reads, 0, edition);
+    assert.equal(reply.outcome, "blocked", edition);
+    assert.equal(reply.taskState?.outcome, "blocked", edition);
+    assert.doesNotMatch(reply.message, /bien enregistré|cause est un jeton|Booster → Agenda/, edition);
+    assert.match(reply.message, /diagnostic|incident|vérifi|consult/i, edition);
+    assert.ok(!reply.taskState?.receipts.some(receipt => receipt.tool === "getAccountDiagnostics" && receipt.ok), edition);
+    assert.equal(h.publicationExecutions.length, 0, edition);
+  }
+});
+
+test("a verified dated diagnostic preserves its factual synthesis", async () => {
+  const instruction = "Ma publication Facebook semble bloquée. Vérifie ce qui se passe sans la republier ni créer un nouveau contenu.";
+  const synthesis = "Un incident Facebook est enregistré le 8 novembre 2026 : l’autorisation était expirée à cette date. Ce signal est daté, pas une vérification en direct. Ouvrez Accueil → Connecter mes canaux → Facebook.";
+  for (const edition of ["basic", "standard"] as const) {
+    let reads = 0;
+    const h = harness({ plan: [{ tool: "getAccountDiagnostics", input: { area: "publications" } }], textReply: synthesis, diagnosticRead: () => {
+      reads++;
+      return { ok: true, complete: true, source: "active_account_diagnostics", checkedAt: "2026-11-10T19:00:00.000Z", liveVerified: false,
+        sources: [{ id: "server_events", status: "available", found: 1 }],
+        items: [{ area: "publications", category: "connection_required", status: "failed", occurredAt: "2026-11-08T09:15:00.000Z", channel: "facebook", message: "L’autorisation était expirée lors de cette tentative." }] };
+    } });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition, supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+    assert.equal(reads, 1, edition);
+    assert.equal(reply.outcome, "completed", edition);
+    assert.equal(reply.message, synthesis, edition);
+    assert.ok(reply.taskState?.receipts.some(receipt => receipt.tool === "getAccountDiagnostics" && receipt.ok && receipt.status === "read"), edition);
+    assert.equal(h.publicationExecutions.length, 0, edition);
+  }
+});
+
+test("excluded CRM creation is blocked even if the model falsely reports a created contact", async () => {
+  const instruction = "Crée une fiche client dans iNr’CRM pour Alice Martin, alice@example.invalid.";
+  for (const edition of ["basic", "standard"] as const) {
+    const h = harness({ plan: [], textReply: "La fiche CRM d’Alice est créée sous la référence crm_faux_123." });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition, actorUserId: "actor-a", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+    assert.equal(h.crmExecutions.length, 0, edition);
+    assert.equal(reply.outcome, "blocked", edition);
+    assert.equal(reply.taskState?.outcome, "blocked", edition);
+    assert.match(reply.message, /offre|abonnement|inclu|Premium/i, edition);
+    assert.doesNotMatch(reply.message, /crm_faux_123|fiche CRM d’Alice est créée/, edition);
+    assert.ok(!reply.taskState?.receipts.some(receipt => receipt.tool === "manageCrmContact" && receipt.ok), edition);
+  }
+});
+
+test("a mixed included creation and excluded CRM request stays partial with its confirmed media ID", async () => {
+  const instruction = "Crée une image carrée de notre atelier, puis crée une fiche CRM pour Alice Martin.";
+  const mediaId = "10000000-0000-4000-8000-000000000001";
+  for (const edition of ["basic", "standard"] as const) {
+    const h = harness({ mediaMetadata: true, plan: [{ tool: "generateMedia", input: { prompt: "Une image carrée de notre atelier." } }], textReply: "Tout est terminé, y compris la fiche CRM crm_faux_123." });
+    const reply = await h.runtime.generateInrAssistantReply({ ...basic, edition, actorUserId: "actor-a", supabase: {} as never, messages: [{ role: "user", content: instruction }] });
+    assert.equal(h.mediaExecutions, 1, edition);
+    assert.equal(h.crmExecutions.length, 0, edition);
+    assert.equal(reply.outcome, "partial", edition);
+    assert.equal(reply.taskState?.outcome, "partial", edition);
+    assert.equal(reply.media?.media?.id, mediaId, edition);
+    assert.ok(reply.taskState?.receipts.some(receipt => receipt.tool === "generateMedia" && receipt.ok && receipt.id === mediaId), edition);
+    assert.ok(!reply.taskState?.receipts.some(receipt => receipt.tool === "manageCrmContact" && receipt.ok), edition);
+    assert.doesNotMatch(reply.message, /crm_faux_123|Tout est terminé/, edition);
   }
 });
 

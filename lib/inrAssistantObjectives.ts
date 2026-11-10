@@ -13,8 +13,30 @@ export type InrAssistantObjective = {
 };
 const diagnosticReader = {
     tool: "getAccountDiagnostics", family: "business" as const, label: "vérifier les signaux du problème signalé",
-    matches: /\b(?:diagnosti\w*|erreurs?|echecs?|problemes?|bugs?|pannes?|bloqu\w*|impossible)\b|\bne fonctionne/,
+    matches: /\b(?:diagnosti\w*|erreurs?|errors?|echecs?|echou\w*|incidents?|dysfonctionn\w*|fail(?:ed|ures?|ing|s)?|problemes?|bugs?|pannes?|bloqu\w*|impossible)\b|\bne fonctionne|日志|错误/,
 };
+const diagnosticReadVerbs = "(?:lis|lire|consulte\\w*|verifi\\w*|regarde\\w*|analyse\\w*|diagnosti\\w*|read|check|inspect|investigate)";
+const deniedDiagnosticRead = new RegExp(`\\b(?:ne\\s+|n'|do not\\s+|don't\\s+|never\\s+|not\\s+)${diagnosticReadVerbs}\\b|\\b${diagnosticReadVerbs}\\s+(?:pas|jamais|not)\\b|\\b(?:sans|pas de|aucun)\\s+diagnostic\\b`);
+const deferredDiagnosticRead = /^(?:si|quand|lorsque|if|when|unless|imagin\w*|suppos\w*)\b|\b(?:si|quand|lorsque|if|when|unless)\s+(?:je|j'|tu|vous|nous|on|il|elle|le|la|les|un|une|the|i|you|we|they)\b|\b(?:en cas de|a condition|sous reserve|only if|apres (?:ma|mon|notre|votre) (?:confirmation|accord))\b/;
+
+function personalDiagnosticQuestion(clause: string, nearbyContext = clause): boolean {
+    const why = /^(?:pourquoi|why)\b/.test(clause);
+    const explainCause = /^(?:explique|explain)\b/.test(clause)
+        && /\b(?:pourquoi|cause|blocage|ce qui (?:bloqu\w*|echou\w*)|what (?:blocks?|failed))\b/.test(clause);
+    return (why || explainCause) && diagnosticReader.matches.test(clause)
+        && /\b(?:ma|mon|mes|notre|nos|my|our)\s+.{0,65}\b(?:publications?|posts?|canaux|canal|connexions?|generations?|images?|videos?|campagnes?|mails?|envois?|application|inrcy|comptes?|cockpit)\b/.test(why ? clause : nearbyContext)
+        && !/\b(?:pourrait|pourraient|devrait|devraient|risquerait|hypothetique|imagine|suppose|might|would|could)\b/.test(clause);
+}
+
+/** Select a scoped reader from the unquoted current problem or read request.
+ * This does not grant any retry, mutation, provider access or administration. */
+export function isInrAssistantAccountDiagnosticRequest(message: string): boolean {
+    const clauses = inrAssistantRequestClauses(message), text = clauses.join(" ");
+    if (deniedDiagnosticRead.test(text) || deferredDiagnosticRead.test(text)) return false;
+    return clauses.some((clause, index) => diagnosticReader.matches.test(clause)
+        && (!inrAssistantClauseIsAdvice(clause) || personalDiagnosticQuestion(clause, clauses.slice(Math.max(0, index - 2), index + 1).join(" ")))
+        && !/^(?:ne\b|n['’]|not\b|never\b|imagine\b|suppose\b)/.test(clause));
+}
 const readers: Array<{
     tool: string;
     family: InrAssistantCommandFamily;
@@ -59,6 +81,7 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
     const actions = inrAssistantActionObjectives(message);
     const plan: InrAssistantObjective[] = [];
     const clauses = inrAssistantRequestClauses(message);
+    const diagnosticDeferred = deniedDiagnosticRead.test(clauses.join(" ")) || deferredDiagnosticRead.test(clauses.join(" "));
     for (const [clauseIndex, clause] of clauses.entries()) {
         const screenStep = uiSteps.find(step => step.id === `ui_${clauseIndex}` && inrAssistantRequestClauses(step.instruction).length === 1 && inrAssistantRequestClauses(step.instruction)[0] === clause);
         if (screenStep) {
@@ -68,9 +91,10 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
         const mutations = actions.filter(action => action.instruction === inrAssistantRoutingText(clause));
         for (const action of mutations)
             plan.push({ id: `objective_${plan.length}`, kind: "action", tool: action.tool, instruction: clause, count: inrAssistantRequiredCalls(clause)[action.tool] ?? 1 });
-        if (mutations.length || inrAssistantClauseIsAdvice(clause) || /^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(clause))
+        const implicitDiagnostic = personalDiagnosticQuestion(clause, clauses.slice(Math.max(0, clauseIndex - 2), clauseIndex + 1).join(" ")) && !diagnosticDeferred;
+        if (mutations.length || inrAssistantClauseIsAdvice(clause) && !implicitDiagnostic || /^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(clause))
             continue;
-        if (!getInrAssistantBasicShopReadView(clause) && !/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|recherch\w*|cherche\w*|retrouv\w*|liste\w*|verifi\w*|regarde\w*|montre\w*|affiche\w*|analyse\w*|diagnostiqu\w*|compare\w*|quels?|quelles?|combien|read|find|search|list|show|check)\b/.test(clause))
+        if (!implicitDiagnostic && !getInrAssistantBasicShopReadView(clause) && !/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|recherch\w*|cherche\w*|retrouv\w*|liste\w*|verifi\w*|regarde\w*|montre\w*|affiche\w*|analyse\w*|diagnostiqu\w*|compare\w*|quels?|quelles?|combien|read|find|search|list|show|check)\b/.test(clause))
             continue;
         const previous = clauses[clauseIndex - 1] ?? "";
         // Resolve a short diagnostic follow-up only against the immediately
@@ -79,8 +103,8 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
             && /\b(?:ce qui se passe|ce probleme|cet incident|la cause|le blocage)\b/.test(clause)
             && diagnosticReader.matches.test(previous) && !inrAssistantClauseIsAdvice(previous)
             && !/^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(previous);
-        const reader = getInrAssistantBasicShopReadView(clause) ? readers.find(reader => reader.tool === "readAccountServices") : diagnosticFollowup ? diagnosticReader : readers.find(reader => reader.matches.test(clause) && !(reader.tool === "readAccountServices" && /notifications?/.test(clause) && /reglages?|parametres?|preferences?/.test(clause)));
-        if (reader?.tool === "getAccountDiagnostics" && /^(?:si|quand|lorsque|if|when|unless)\b|\b(?:si|quand|lorsque|if|when|unless)\s+(?:je|j'|tu|vous|nous|on|il|elle|le|la|les|un|une|the|i|you|we|they)\b/.test(clauses.join(" ")))
+        const reader = getInrAssistantBasicShopReadView(clause) ? readers.find(reader => reader.tool === "readAccountServices") : implicitDiagnostic || diagnosticFollowup ? diagnosticReader : readers.find(reader => reader.matches.test(clause) && !(reader.tool === "readAccountServices" && /notifications?/.test(clause) && /reglages?|parametres?|preferences?/.test(clause)));
+        if (reader?.tool === "getAccountDiagnostics" && diagnosticDeferred)
             continue;
         if (reader)
             plan.push({ id: `objective_${plan.length}`, kind: "read", tool: reader.tool, instruction: clause, count: 1, exhaustive: /\b(?:tous|toutes|chaque|complet\w*|integralite|all|every)\b/.test(clause) });
