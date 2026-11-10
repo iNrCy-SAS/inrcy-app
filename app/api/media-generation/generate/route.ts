@@ -159,6 +159,7 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
     promptVersion: request.creationMode === "free" ? AI_MEDIA_FREE_PROMPT_VERSION : AI_MEDIA_PROMPT_VERSION,
     creationMode: request.creationMode || "guided",
     freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
+    ...(request.creationMode === "free" && request.kind === "image" && request.publicationSubject ? { publicationSubject: request.publicationSubject } : {}),
     spokenScript: request.creationMode === "free" && request.kind === "video" ? request.spokenScript : undefined,
     ...(request.creationMode === "free" && request.kind === "video" && request.withSubtitles ? { withSubtitles: true } : {}),
     ...(request.creationMode === "free" && request.useBusinessDna ? { useBusinessDna: true } : {}),

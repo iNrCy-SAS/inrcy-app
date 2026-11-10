@@ -20,7 +20,7 @@ import { buildAiMediaFreeBasePlan, prepareAiMediaFreeCreativePlan, writeAiMediaF
 import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, buildAiMediaFreeVideoBusinessDnaDirection, getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, getAiMediaFreeImageSize, isAiMediaProfileLogoApplicationRequested, usesAiMediaAutomaticImageLogo, resolveAiMediaFreeDialogueSequence, resolveAiMediaFreeSpeechLanguage, splitAiMediaFreeNarrationByScene } from "@/lib/aiMediaFreeGenerationPrompt";
 import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover } from "@/lib/aiMediaFreeVoiceoverPolicy";
 import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
-import { buildAiMediaLocalLogoCompositionPrompt } from "./aiMediaLocalLogoCompositionPrompt.ts";
+import { buildAiMediaLocalLogoCompositionPrompt, resolveAiMediaImageLogoReservation } from "./aiMediaLocalLogoCompositionPrompt.ts";
 import { prepareAiMediaNarration } from "@/lib/aiMediaNarrationPreparation";
 import type { PreparedAiMediaNarrationVoice } from "./aiMediaNarrationVoicePreflight.ts";
 import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
@@ -589,6 +589,9 @@ export async function generateAndSaveAiMedia(args: {
   const localDnaLogo = useFreeDna && Boolean(officialLogo);
   const promptBrandColors = freeBrandPolicy?.useBrandColors && (!useFreeDna || brandKit.hasOfficialPalette) ? brandKit.colors : [];
   const localLogoOnlyComposition = providerRequest.kind === "image" && Boolean(officialLogo);
+  const imageLogoReservation = isFreeCreation && providerRequest.kind === "image" && providerRequest.operation !== "modify" && officialLogo
+    ? resolveAiMediaImageLogoReservation({ ...AI_MEDIA_FORMAT_SPECS[providerRequest.format], placement: freeLogoPlacement })
+    : undefined;
   const effectiveColors: [string, string, string] = isFreeCreation ? (promptBrandColors.length ? brandKit.colors : ["#000000", "#FFFFFF", "#808080"]) : providerRequest.useBrandColors
     ? brandKit.colors
     : FREE_STYLE_PALETTES[providerRequest.visualStyle];
@@ -611,7 +614,7 @@ export async function generateAndSaveAiMedia(args: {
     castingDirection: castingVariation?.direction,
   });
   const prompt = localLogoOnlyComposition
-    ? `${compiledPrompt}\n\n${buildAiMediaLocalLogoCompositionPrompt({ operation: providerRequest.operation || "generate", logoBrief, logoPlacement: freeLogoPlacement })}`
+    ? `${compiledPrompt}\n\n${buildAiMediaLocalLogoCompositionPrompt({ operation: providerRequest.operation || "generate", logoBrief, logoPlacement: freeLogoPlacement, imageLogoReservation })}`
     : `${compiledPrompt}${profileLogoRequested && !officialLogo ? "\n\nAucun fichier de logo officiel n’est disponible : ne pas en inventer ni en dessiner un. Conserver les autres éléments demandés." : ""}`;
   const promptHash = promptSha256(prompt);
   const format = AI_MEDIA_FORMAT_SPECS[providerRequest.format];
@@ -969,6 +972,7 @@ export async function generateAndSaveAiMedia(args: {
           visualStyle: providerRequest.visualStyle,
           logoMode: effectiveLogoMode,
           logoPlacement: freeLogoPlacement,
+          imageLogoReservation,
           imagePurpose: providerRequest.imagePurpose,
           withText: false,
         })

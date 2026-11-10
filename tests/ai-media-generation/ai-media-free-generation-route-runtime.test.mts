@@ -205,6 +205,18 @@ function narratorRequest() {
   return { reference, request };
 }
 
+test("Booster editorial image context reaches generation intact in JSON and streamed requests", async () => {
+  for (const streamed of [false, true]) {
+    const route = loadRoute();
+    const topic = "Une journée dans notre atelier";
+    const response = await route.post(body({ freePrompt: topic, publicationSubject: topic }), streamed ? { headers: { "Content-Type": "application/json", accept: generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE } } : undefined);
+    await response.text();
+    assert.equal(route.generationCalls.length, 1);
+    assert.equal(route.generationCalls[0].request.freePrompt, topic);
+    assert.equal(route.generationCalls[0].request.publicationSubject, topic);
+  }
+});
+
 test("JSON and streamed generation keep the original 760s POST deadline after authentication instead of restarting the work budget", async () => {
   for (const streamed of [false, true]) {
     const clock = { now: 1_800_000_000_000 }, startedAt = clock.now;
@@ -694,6 +706,17 @@ test("le rejeu d'une demande Libre retrouve son média sans nouvelle génératio
   assert.equal(route.generationCalls.length, 1);
   assert.equal(route.completionCalls.length, 1);
   assert.equal(route.failureCalls.length, 0);
+});
+
+test("changing the editorial role of an inherited image subject cannot replay a different image request", async () => {
+  const route = loadRoute();
+  const topic = "Nos nouveaux services";
+  const input = body({ freePrompt: topic, publicationSubject: topic });
+  assert.equal((await route.post(input)).status, 200);
+  const conflict = await route.post(body({ ...input, publicationSubject: undefined }));
+  assert.equal(conflict.status, 409);
+  assert.equal((await conflict.json()).code, "AI_MEDIA_IDEMPOTENCY_CONFLICT");
+  assert.equal(route.generationCalls.length, 1);
 });
 
 test("l'empreinte sépare les parcours et couvre la fin d'un long prompt Libre", async () => {

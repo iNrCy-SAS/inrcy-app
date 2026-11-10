@@ -150,6 +150,7 @@ export type MediaGenerationInspirationImage = {
 export type MediaGenerationRequest = {
   creationMode?: "guided" | "free";
   freePrompt?: string;
+  publicationSubject?: string;
   spokenScript?: string;
   withSubtitles?: boolean;
   useBusinessDna?: boolean;
@@ -288,6 +289,7 @@ export function buildGenerationAttemptKey(
   return JSON.stringify({
     creationMode: request.creationMode || "guided",
     freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
+    ...(request.creationMode === "free" && request.kind === "image" && request.publicationSubject ? { publicationSubject: request.publicationSubject } : {}),
     spokenScript: request.creationMode === "free" && request.kind === "video" ? request.spokenScript : undefined,
     ...(request.creationMode === "free" && request.kind === "video" && request.withSubtitles &&
       (request.withNarration || request.teamVideoSpeechMode === "characters") ? { withSubtitles: true } : {}),

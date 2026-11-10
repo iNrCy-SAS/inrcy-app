@@ -47,6 +47,43 @@ function args(overrides: Record<string, unknown> = {}): AiMediaPromptBuilderArgs
   return { request: request(overrides), profile, brandColors: ["#abcdef"], hasLogo: true };
 }
 
+test("a Booster topic remains editorial context and permits original optional copy instead of printing the subject", () => {
+  const topic = "Pourquoi entretenir sa terrasse avant l'été ?";
+  for (const imageEngine of ["openai", "gemini", "flux", "grok", "recraft"]) {
+    const input = args({ freePrompt: topic, publicationSubject: topic, imageEngine, format: "square" });
+    assert.equal(input.request.publicationSubject, topic);
+    const prompt = freePrompts.buildAiMediaFreeImagePrompt(input);
+    assert.match(prompt, /CONTEXTE ÉDITORIAL, PAS TEXTE À AFFICHER/);
+    assert.match(prompt, /ne pas le recopier dans l'image/);
+    assert.match(prompt, /accroche originale, courte, pertinente et distincte du sujet/);
+    assert.match(prompt, /il reste facultatif/);
+    assert.equal(prompt.split(topic).length - 1, 1, "the inherited subject is not duplicated as literal copy");
+    assert.ok(prompt.length < 9_000);
+  }
+});
+
+test("exact lettering stays available while standalone subjects are not automatically printable text", () => {
+  const topic = "Nos nouveaux services";
+  const brief = "Une affiche avec le titre exact « Un jardin qui respire » et le prix 49 €.";
+  const prompt = freePrompts.buildAiMediaFreeImagePrompt(args({ freePrompt: brief, publicationSubject: topic }));
+  assert.ok(prompt.includes(brief));
+  assert.ok(prompt.includes(topic));
+  assert.match(prompt, /demande explicite du professionnel d'afficher un texte exact reste prioritaire/);
+  assert.match(prompt, /uniquement les textes explicitement demandés à l'affichage/);
+  const standalone = freePrompts.buildAiMediaFreeImagePrompt(args({ freePrompt: "Une journée dans notre atelier" }));
+  assert.match(standalone, /une phrase décrivant le sujet, même entre guillemets/);
+  assert.match(standalone, /Ne jamais recopier le brief ou son sujet sur l'image par défaut/);
+  assert.doesNotMatch(standalone, /SUJET DE PUBLICATION TRANSMIS/);
+});
+
+test("publication subject is bounded, image-only and never restores a hidden guided control", () => {
+  assert.throws(() => request({ publicationSubject: "x".repeat(2_001) }), /sujet de publication/);
+  assert.throws(() => request({ publicationSubject: { text: "Sujet" } }), /sujet de publication/);
+  assert.equal(request({ publicationSubject: "  Sujet de test  " }).publicationSubject, "Sujet de test");
+  assert.equal(request({ publicationSubject: "  " }).publicationSubject, undefined);
+  assert.equal(request({ kind: "video", videoEngine: "omni", durationSeconds: 8, publicationSubject: "Sujet image" }).publicationSubject, undefined);
+});
+
 function transpileModule(relative: string, modules: Map<string, unknown>) {
   const output = ts.transpileModule(readFileSync(new URL(relative, import.meta.url), "utf8"), {
     compilerOptions: { esModuleInterop: true, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },

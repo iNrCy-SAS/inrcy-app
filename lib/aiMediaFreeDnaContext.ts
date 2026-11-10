@@ -9,6 +9,17 @@ export type AiMediaFreeDnaContext = {
   localisation_editoriale?: Record<string, string>;
 };
 
+type AiMediaPublicationDna = {
+  identite: Record<string, string>;
+  prestations_pertinentes?: string[];
+  atouts_pertinents?: string[];
+  coordonnees?: Record<string, string>;
+  liens?: Record<string, string>;
+  informations_demandees?: string[];
+  localisation_editoriale?: Record<string, string>;
+  horaires?: string;
+};
+
 export const AI_MEDIA_FREE_DNA_MAX_CHARS = 4_800;
 
 function record(value: unknown): Record<string, unknown> {
@@ -39,6 +50,77 @@ export function normalizeAiMediaBusinessUrl(value: unknown) {
 function terms(value: string) {
   return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
     .match(/[a-z0-9]{3,}/g)?.filter((word) => !/^(?:une|des|les|avec|pour|dans|mon|mes|notre|nos|sur|par|que|qui|video|image|affiche|creer|realise|montre)$/.test(word)) || [];
+}
+
+/** Small publication context; the complete saved ADN stays on the server. */
+export function selectAiMediaFreePublicationDna(args: {
+  profile: NormalizedAiGenerationProfile;
+  prompt: string;
+  context?: AiMediaFreeDnaContext;
+}): AiMediaPublicationDna {
+  const { business, memory } = args.profile;
+  const wanted = args.prompt.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const keywords = new Set(terms(args.prompt));
+  const companyTerms = new Set(terms(business.companyName));
+  const topicKeywords = new Set([...keywords].filter(word => !companyTerms.has(word)
+    && !/^(?:photo\w*|visuel\w*|publication\w*|texte\w*|logo|charte|couleurs?|sans|flyer|accroche\w*|original\w*|telephone|site|lien\w*|prix|tarif\w*|cout\w*|price\w*|pricing|offre\w*|offer\w*|promotion\w*)$/.test(word)));
+  const presentation = /\b(?:present\w*|decouvr\w*|introduc\w*|about us)\b/.test(wanted);
+  const relevant = (values: readonly string[] | undefined, maximum: number) => {
+    const ranked = [...new Set((values || []).map(value => text(value, 180)).filter(Boolean))]
+      .map((value, order) => ({ value, order, score: terms(value).filter(word => keywords.has(word)).length }))
+      .filter(item => item.score > 0 || presentation)
+      .sort((a, b) => b.score - a.score || a.order - b.order);
+    return ranked.slice(0, maximum).map(item => item.value);
+  };
+  const identity = Object.fromEntries(Object.entries({
+    entreprise: text(business.companyName, 180), metier: text(business.professionLabel, 140), secteur: text(business.sectorLabel, 120),
+    ...(!business.professionLabel && business.description ? { activite: text(business.description, 280) } : {}),
+  }).filter(([, value]) => value));
+  const services = relevant(business.services, 3);
+  const strengths = relevant([...(business.strengths || []), ...(memory.differentiators || [])], 2);
+  const base: AiMediaPublicationDna = {
+    identite: identity,
+    ...(services.length ? { prestations_pertinentes: services } : {}),
+    ...(strengths.length ? { atouts_pertinents: strengths } : {}),
+  };
+  const context = args.context;
+  if (!context) return base;
+
+  const allContacts = /coordonnees|contact details|contact information|contact info|kontaktdaten|datos de contacto|contatti|контактные данные|بيانات الاتصال/.test(wanted);
+  const phone = allContacts || /telephon|telefon|\bphone\b|\btel\b|numero|nummer|call us|appelez|appeler|телефон|هاتف/.test(wanted);
+  const email = allContacts || /e.?mail|courriel|correo|posta elettronica|электронн|بريد/.test(wanted);
+  const address = allContacts || /adresse|address|direccion|endereco|indirizzo|anschrift|\badres\b|адрес|عنوان/.test(wanted);
+  const hours = /horaire|opening hours|horarios?|orari|offnungszeiten|openingstijden|часы работы|مواعيد|ساعات العمل/.test(wanted);
+  const price = /\b(?:prix|tarif\w*|cout\w*|price\w*|pricing|rate\w*|cost\w*|offre\w*|offer\w*|promotion\w*|preis\w*|precio\w*|preco\w*|prezz\w*)\b|цена|стоим|سعر|اسعار/.test(wanted)
+    || /\d[\d\s.,]*(?:€|EUR|euros?|USD|\$|£|%)/i.test(args.prompt);
+  const contacts = Object.fromEntries(Object.entries(context.coordonnees).filter(([key]) =>
+    key === "telephone" ? phone : key === "email" ? email : ["adresse", "code_postal", "ville", "pays"].includes(key) ? address : false));
+  const allSocial = /reseaux sociaux|social (?:networks|media|links)|redes sociais|redes sociales|социальн|شبكات اجتماعية/.test(wanted);
+  const namedSocial = /facebook|instagram|threads|linkedin|tiktok|pinterest|youtube|google business|google maps|\bx\b/.test(wanted);
+  const website = /\b(?:site|site_web|website|webseite|sito|sitio|pagina)\b|сайт|موقع/.test(wanted)
+    || (!namedSocial && /\b(?:lien|liens|url|link|links|reservation)\b/.test(wanted));
+  const links = Object.fromEntries(Object.entries(context.liens).filter(([key]) => key === "site_web" ? website
+    : allSocial || (key === "google_business" ? /google business|google maps/.test(wanted) : key === "x" ? /\bx\b|twitter/.test(wanted) : wanted.includes(key))));
+  const evidence = context.informations_demandees.filter(value => {
+    // Relevant source extracts can mention tariffs without being a price request.
+    if (!price && /\d[\d\s.,]*(?:€|EUR|euros?|USD|\$|£|%)/i.test(value)) return false;
+    if (!hours && /horaire|opening hours|horarios?|orari/i.test(value)) return false;
+    if (!email && /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/.test(value)) return false;
+    if (!website && !namedSocial && !allSocial && /https?:\/\//i.test(value)) return false;
+    if (!phone && /(?:telephone|telefon|phone|\btel\b)[^\n]{0,40}\d/i.test(value.normalize("NFKD").replace(/[\u0300-\u036f]/g, ""))) return false;
+    if (!/histoire|historique|mission|valeurs?|strategie|story|history|values|strategy/.test(wanted)
+      && /^(?:mission|values|brandPersonality|commitments|preferredVocabulary|forbiddenVocabulary|editorialStrategy|campaignCalendar)\s*:/.test(value)) return false;
+    if (topicKeywords.size && !terms(value).some(word => topicKeywords.has(word))) return false;
+    return true;
+  }).slice(0, /\b(?:tous|toutes|all|complete|complet)\b/.test(wanted) ? context.informations_demandees.length : 4);
+  return {
+    ...base,
+    ...(context.localisation_editoriale ? { localisation_editoriale: context.localisation_editoriale } : {}),
+    ...(Object.keys(contacts).length ? { coordonnees: contacts } : {}),
+    ...(Object.keys(links).length ? { liens: links } : {}),
+    ...(hours && business.openingHours ? { horaires: business.openingHours } : {}),
+    ...(evidence.length ? { informations_demandees: evidence } : {}),
+  };
 }
 
 /** Retrieve relevant intact facts from all saved ADN fields and document extracts. */

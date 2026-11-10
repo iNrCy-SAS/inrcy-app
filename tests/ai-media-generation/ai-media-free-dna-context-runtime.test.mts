@@ -10,6 +10,7 @@ import { buildAiMediaFreeBusinessContext, buildAiMediaFreeImagePrompt, buildAiMe
 import { normalizeAiMediaGenerationRequest, AiMediaRequestValidationError } from "../../lib/aiMediaGenerationContracts.ts";
 import { buildAiMediaVideoProviderContract } from "../../lib/aiMediaVideoProviderContract.ts";
 import * as dna from "../../lib/aiMediaFreeDnaContext.ts";
+import { buildAiMediaLocalLogoCompositionPrompt, resolveAiMediaImageLogoReservation } from "../../lib/aiMediaLocalLogoCompositionPrompt.ts";
 import type { AiVideoProviderGenerationArgs } from "../../lib/aiVideoProviderTypes.ts";
 
 const profile = {
@@ -43,12 +44,21 @@ test("ADN exclusions stay attached to their object and an attached logo override
 });
 
 test("Recraft reserves its complete prompt budget without truncating a 4000-character brief or exact business facts", () => {
-  const brief = (`Une affiche avec notre logo. Afficher 49,90 € et le téléphone exact. ${"Matières et ombres raffinées. ".repeat(160)}`).slice(0, 4_000);
+  const brief = (`Une affiche avec notre logo. Afficher 49,90 €, le téléphone exact et le lien du site. ${"Matières et ombres raffinées. ".repeat(160)}`).slice(0, 4_000);
   const richProfile = { ...profile, memory: { ...profile.memory, detailedDescription: "Histoire de notre atelier. ".repeat(400) } } as NormalizedAiGenerationProfile;
   const result = buildAiMediaFreeImagePrompt({ request: request({ imageEngine: "recraft", freePrompt: brief }), profile: richProfile, businessDnaContext: context, brandColors: ["#123456"], logoComposedLocally: true });
   assert.ok(result.length <= 9_000, String(result.length));
   assert.ok(result.includes(brief));
   for (const exact of ["49,90 €", "01 23 45 67 89", "https://cosmos.example/reserver"]) assert.ok(result.includes(exact), exact);
+  const gateway = ts.createSourceFile("gateway.ts", readFileSync(new URL("../../lib/aiMediaGateway.ts", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
+  const roleBuilder = gateway.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "buildImageReferenceRoleRules");
+  assert.ok(roleBuilder);
+  const emitted = ts.transpileModule(roleBuilder.getText(gateway), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const roleRules = new Function(`${emitted}; return buildImageReferenceRoleRules;`)()({ input: { referenceImagesCount: 0 } });
+  const logoRules = buildAiMediaLocalLogoCompositionPrompt({ operation: "generate", logoBrief: brief,
+    imageLogoReservation: resolveAiMediaImageLogoReservation({ width: 1080, height: 1920 }) });
+  const finalPrompt = [result, logoRules, roleRules].join("\n\n");
+  assert.ok(finalPrompt.length <= 10_000, `The final Recraft payload must fit, including logo and provider rules: ${finalPrompt.length}`);
 });
 function request(overrides: Record<string, unknown> = {}) {
   return normalizeAiMediaGenerationRequest({ requestId: "business-dna-context-test", source: "studio", operation: "generate", creationMode: "free",
@@ -77,7 +87,7 @@ test("le contexte riche garde téléphone, URL et tarif intacts dans le budget d
     { name: "Tarifs poterie", extractedText: "Atelier poterie : 49,90 € TTC par personne." },
   ] } } as NormalizedAiGenerationProfile;
   const richContext = buildAiMediaFreeDnaContext({ profile: richProfile, publicProfile, publicLinks: { ...context.liens }, prompt: "Tarif atelier poterie et téléphone" });
-  const args = { request: request(), profile: richProfile, businessDnaContext: richContext, brandColors: ["#123456"], logoComposedLocally: true };
+  const args = { request: request({ freePrompt: "Un flyer pour l'atelier poterie avec le tarif, mon téléphone et le lien de mon site." }), profile: richProfile, businessDnaContext: richContext, brandColors: ["#123456"], logoComposedLocally: true };
   const serialized = JSON.stringify(buildAiMediaFreeBusinessContext(args));
   assert.ok(serialized.length <= AI_MEDIA_FREE_DNA_MAX_CHARS, serialized.length.toString());
   for (const literal of ["01 23 45 67 89", "https://cosmos.example/reserver", "49,90 € TTC"]) assert.ok(serialized.includes(literal), literal);
@@ -88,6 +98,44 @@ test("le contexte riche garde téléphone, URL et tarif intacts dans le budget d
     assert.match(prompt, /#123456/);
     assert.ok(prompt.length < 11_800);
   }
+});
+
+test("a publication receives essential ADN, not the full profile, contact sheet or unrelated documents", () => {
+  const richProfile = { ...profile,
+    business: { ...profile.business, services: ["Ateliers poterie", "Visite guidée", "Vente de luminaires"], openingHours: "Lundi de 9 h à 17 h" },
+    memory: { ...profile.memory, detailedDescription: "HISTOIRE_COMPLETE_NON_NECESSAIRE ".repeat(150), mission: "MISSION_NON_DEMANDEE",
+      values: ["VALEURS_NON_DEMANDEES"], recentNewsItems: ["ACTUALITE_SANS_RAPPORT"], offersAndArguments: "STRATEGIE_PREMIUM_NON_DEMANDEE", referenceDocuments: [{ name: "DOCUMENT_COMPLET", extractedText: "DOCUMENT_BRUT_NON_NECESSAIRE ".repeat(150) }] },
+  } as NormalizedAiGenerationProfile;
+  const selected = buildAiMediaFreeBusinessContext({ request: request({ freePrompt: "Une photo de notre atelier poterie avec notre logo." }), profile: richProfile,
+    businessDnaContext: { ...context, informations_demandees: ["mission : MISSION_NON_DEMANDEE", "Atelier poterie : 49,90 € par personne", "horaires : Lundi de 9 h à 17 h"] } });
+  const serialized = JSON.stringify(selected);
+  assert.match(serialized, /Atelier Cosmos|Artisan/);
+  assert.match(serialized, /Ateliers poterie/);
+  assert.doesNotMatch(serialized, /HISTOIRE_COMPLETE|MISSION_NON_DEMANDEE|VALEURS_NON_DEMANDEES|ACTUALITE_SANS_RAPPORT|STRATEGIE_PREMIUM|DOCUMENT_BRUT|49,90|contact@|01 23|rue du Soleil|cosmos.example|instagram|9 h|Visite guidée|luminaires/);
+  assert.ok(serialized.length < 1_000, serialized.length.toString());
+});
+
+test("only requested contact channels and hours are sent, preserving their exact values", () => {
+  const withHours = { ...profile, business: { ...profile.business, openingHours: "Lundi de 9 h à 17 h" } };
+  const build = (brief: string) => JSON.stringify(buildAiMediaFreeBusinessContext({ request: request({ freePrompt: brief }), profile: withHours, businessDnaContext: context }));
+  const phoneAndSite = build("Une affiche avec mon téléphone et le lien de mon site.");
+  assert.match(phoneAndSite, /01 23 45 67 89/);
+  assert.match(phoneAndSite, /https:\/\/cosmos.example\/reserver/);
+  assert.doesNotMatch(phoneAndSite, /contact@|rue du Soleil|instagram|9 h/);
+  const addressAndEmail = build("Une affiche avec notre adresse et notre email.");
+  assert.match(addressAndEmail, /12 rue du Soleil|contact@cosmos.example/);
+  assert.doesNotMatch(addressAndEmail, /01 23|https:|instagram|9 h/);
+  assert.match(build("Une affiche avec nos horaires."), /Lundi de 9 h à 17 h/);
+  assert.doesNotMatch(build("Une affiche avec le lien Instagram."), /site_web|https:\/\/cosmos.example/);
+  assert.match(build("Une affiche avec le lien Instagram."), /instagram.com\/cosmos/);
+});
+
+test("a price request for one service excludes unrelated prices even when they share a source document", () => {
+  const brief = "Une affiche pour l'atelier poterie avec son tarif.";
+  const payload = buildAiMediaFreeBusinessContext({ request: request({ freePrompt: brief }), profile, businessDnaContext: context });
+  const serialized = JSON.stringify(payload);
+  assert.match(serialized, /49,90/);
+  assert.doesNotMatch(serialized, /15 €|Visite de l/);
 });
 
 test("décocher ignore le supplément ADN et conserve exactement le prompt libre", () => {

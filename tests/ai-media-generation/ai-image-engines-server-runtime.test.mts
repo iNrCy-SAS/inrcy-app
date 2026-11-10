@@ -218,6 +218,26 @@ test("checked ADN preserves the free request and selected engine while composing
   });
 });
 
+test("square free images reserve the same logo rectangle in the provider prompt and compositor on every engine", async () => {
+  await withCredentials(async () => {
+    for (const imageEngine of ["openai", "gemini", "flux", "grok", "recraft"] as const) {
+      const h = serverHarness();
+      await h.generate(request(imageEngine, { creationMode: "free", format: "square", freePrompt: "Une affiche avec une accroche originale et notre logo en bas à gauche." }));
+      assert.equal(h.providerCalls.length, 1, "reserving a logo must not add a generation");
+      const reservation = localLogoComposition.resolveAiMediaImageLogoReservation({ width: 1080, height: 1080, placement: { horizontal: "left", vertical: "bottom" } });
+      assert.deepEqual(h.composerCalls[0].imageLogoReservation, reservation);
+      const policy = localLogoComposition.buildAiMediaLocalLogoCompositionPrompt({ operation: "generate", logoBrief: "", imageLogoReservation: reservation });
+      assert.ok(String(h.providerCalls[0].prompt).endsWith(policy));
+      assert.match(policy, /aucun texte, lettre, prix, coordonnée, titre, accroche/);
+      assert.equal(h.composerCalls[0].withText, false);
+    }
+    const noLogo = serverHarness();
+    await noLogo.generate(request("openai", { creationMode: "free", format: "square", freePrompt: "Une photo sans logo." }));
+    assert.doesNotMatch(String(noLogo.providerCalls[0].prompt), /ZONE RÉSERVÉE AU LOGO FINAL/);
+    assert.equal(noLogo.composerCalls.length, 0);
+  });
+});
+
 test("checked ADN respects a request without a logo", async () => {
   await withCredentials(async () => {
     const harness = serverHarness();

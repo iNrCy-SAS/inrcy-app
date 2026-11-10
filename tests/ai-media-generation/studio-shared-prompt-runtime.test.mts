@@ -75,6 +75,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
 
 function fixture(extra: Props = {}) {
   let generations = 0;
+  let generationHandler: ((input: Props) => void) | undefined;
   const discards: Array<{ mediaId: string; scope: { accountId: string | null; kind: string; isCurrent: () => boolean } }> = [];
   let discardHandler: () => Promise<boolean> = async () => true;
   const hookState = {
@@ -82,7 +83,7 @@ function fixture(extra: Props = {}) {
     quotaLoading: false,
     canRecover: false, recoveryContext: null, result: null,
     busy: false, progress: 0, error: "", loadQuota() {}, reset() {},
-    generate() { generations++; assert.fail("Editing or inserting a prompt cannot generate media"); },
+    generate(input: Props) { generations++; if (generationHandler) return generationHandler(input); assert.fail("Editing or inserting a prompt cannot generate media"); },
   };
   const hookModule = { __esModule: true, default: () => hookState, async discardMediaGenerationDraft(mediaId: string, scope: { accountId: string | null; kind: string; isCurrent: () => boolean }) { discards.push({ mediaId, scope }); return discardHandler(); }, MediaGenerationAccountChangedError: Error, MediaGenerationCancelledError: Error };
   const common = new Map<string, unknown>([
@@ -120,6 +121,7 @@ function fixture(extra: Props = {}) {
   const panels: ReturnType<typeof runtime>[] = [];
   return {
     modal, props, hookState, quote, discards,
+    setGenerationHandler(handler: (input: Props) => void) { generationHandler = handler; },
     setDiscardHandler(handler: () => Promise<boolean>) { discardHandler = handler; },
     render(overrides: Props = {}) { return modal.render({ ...props, ...overrides }); },
     panel(tree: unknown) { return find(find(tree, node => node.type === "activity" && node.props.mode === "visible"), node => node.type === "./MediaFreeGenerator"); },
@@ -140,6 +142,41 @@ function ready(f: ReturnType<typeof fixture>) {
   (f.panel(tree).props.onPendingRecoveryChange as (pending: boolean) => void)(false);
   return f.render();
 }
+
+test("the Booster handoff preserves the editable subject but identifies its editorial role only for the inherited prompt", () => {
+  const topic = "Préparer la terrasse avant les beaux jours";
+  const f = fixture({ origin: "booster", publicationBrief: topic });
+  const inherited = f.panel(f.render()).props;
+  assert.equal(inherited.initialPrompt, topic);
+  assert.equal(inherited.publicationSubject, topic);
+  (inherited.onSharedPromptChange as (value: string) => void)("Une autre création, sans rapport avec la terrasse");
+  assert.equal(f.panel(f.render()).props.publicationSubject, undefined, "an edited or reset brief must not inherit stale Booster context");
+  f.dispose();
+  for (const extra of [{ origin: "menu", publicationBrief: topic }, { origin: "booster", publicationBrief: topic, initialFreePrompt: "Une consigne explicite de l'assistant" }]) {
+    const other = fixture(extra);
+    assert.equal(other.panel(other.render()).props.publicationSubject, undefined);
+    other.dispose();
+  }
+});
+
+test("generating an inherited Booster image sends editorial context with the unmodified user subject", async () => {
+  const topic = "Comment préparer sa terrasse pour l'été ?";
+  const f = fixture({ origin: "booster", publicationBrief: topic });
+  let sent: Props | undefined;
+  f.setGenerationHandler(input => { sent = input; });
+  const image = f.createPanel();
+  const tree = image.render(f.panel(f.render()).props);
+  const primary = find(tree, node => node.props["data-media-primary-action"] !== undefined);
+  assert.equal(primary.props.disabled, false);
+  await (primary.props.onClick as () => Promise<void>)();
+  assert.ok(sent);
+  const normalized = contracts.normalizeAiMediaGenerationRequest({ ...sent, requestId: "booster-image-subject-runtime" });
+  assert.equal(normalized.freePrompt, topic);
+  assert.equal(normalized.publicationSubject, topic);
+  assert.equal(normalized.kind, "image");
+  assert.equal(normalized.withText, false, "no legacy automatic text composition is enabled");
+  f.dispose();
+});
 
 test("zero and insufficient Studio balances stay in credit controls without unsolicited bottom errors", () => {
   for (const mediaType of ["image", "video"] as const) {
