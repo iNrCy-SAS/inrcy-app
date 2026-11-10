@@ -15828,17 +15828,17 @@
       "app/dashboard/_components/StudioVoicePool.tsx",
       "lib/inrAssistantLocalInterface.ts"
     ],
-    "sourceAnchor": "<button key={profile.id} type=\"button\" className={styles.chip} data-voice-profile={profile.id} disabled={disabled}\n            aria-label={`${t(\"ai_generator_voice_profile\", { index: index + 1 })} · ${profile.sample.name}`} title={profile.sample.name}\n            aria-pressed={profile.id === editingId} onClick={() => edit(profile)}>{t(\"ai_generator_voice_profile\", { index: index + 1 })}</button>",
+    "sourceAnchor": "<button key={profile.id} type=\"button\" role=\"tab\" id={`${id}-tab-${profile.id}`} className={styles.chip} data-voice-profile={profile.id} disabled={disabled}\n            aria-label={`${t(\"ai_generator_voice_profile\", { index: index + 1 })} · ${profile.sample.name}`} title={profile.sample.name}\n            aria-controls={`${id}-panel`} aria-selected={profile.id === editingId} tabIndex={profile.id === editingId ? 0 : -1}\n            onClick={() => edit(profile)}>{t(\"ai_generator_voice_profile\", { index: index + 1 })}</button>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "studio_voice_pool.open(voice:N|new) ouvre le profil explicitement choisi ou prépare un emplacement vide si moins de trois sources existent. ACK sur ID du profil ou du brouillon capturé, compte identique, fenêtre ouverte après rendu. Ajouter prépare seulement Importer/Enregistrer/Médiathèque ; aucun fichier ni enregistrement créé par ce contrôle.",
+    "notes": "studio_voice_pool.open(voice:N|new) ouvre le profil explicitement choisi ou prépare un emplacement vide si moins de trois sources existent. ACK sur ID du profil ou du brouillon capturé, compte identique, fenêtre ouverte après rendu. Ajouter prépare seulement Importer/Enregistrer/Médiathèque ; aucun fichier ni enregistrement créé par ce contrôle. Parcours relu : sources du vocal en premier, réglages visibles seulement après import ; onglet Ajouter unique jusqu’à trois sources. Les IDs stables, verrous et droits humains restent déterminants.",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/StudioVoicePool.tsx#button:d63de075fde142aa:1",
-      "app/dashboard/_components/StudioVoicePool.tsx#button:5224282f001e165f:1"
+      "app/dashboard/_components/StudioVoicePool.tsx#button:5d23c658af64fd47:1",
+      "app/dashboard/_components/StudioVoicePool.tsx#button:f3345c26effbda2c:1"
     ],
     "testFiles": [
       "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
@@ -15918,19 +15918,19 @@
       "app/dashboard/_components/StudioVoicePool.tsx",
       "lib/inrAssistantLocalInterface.ts"
     ],
-    "sourceAnchor": "<select value={edited.target === null ? \"none\" : edited.target === \"narration\" ? \"narration\" : edited.target.characterId} disabled={disabled} onChange={event => changeTarget(event.target.value)}>\n            <option value=\"none\">{t(\"ai_generator_voice_pool_unassigned\")}</option>\n            <option value=\"narration\">{t(\"ai_generator_free_audio_voiceover\")}</option>\n            {characters.map(character => <option key={character.id} value={character.id} disabled={profiles.some(profile => profile.id !== edited.id && profile.target && profile.target !== \"narration\" && profile.target.characterId === character.id)}>{character.name}</option>)}\n          </select>",
+    "sourceAnchor": "<select aria-label={t(\"ai_generator_voice_pool_target\")} value={current.target === null ? \"none\" : current.target === \"narration\" ? \"narration\" : current.target.characterId} disabled={disabled} onChange={event => changeTarget(event.target.value)}>\n            <option value=\"none\">{t(\"ai_generator_voice_pool_unassigned\")}</option>\n            <option value=\"narration\">{t(\"ai_generator_free_audio_voiceover\")}</option>\n            {characters.map(character => <option key={character.id} value={character.id} disabled={profiles.some(profile => profile.id !== current.id && profile.target && profile.target !== \"narration\" && profile.target.characterId === character.id)}>{character.name}</option>)}\n          </select>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "studio_voice_pool.select(target:N:narration|none|reference:M) agit sur le profil sauvegardé déjà ouvert et la photo Personnage explicitement désignée. ACK sur IDs profil et photo capturés ; aucun déplacement vers une photo réordonnée, remplacée ou étrangère. Affectation double d’une photo refusée ; none retire seulement le lien et conserve le vocal. Les choix d’un emplacement vide se font humainement avant import ; aucune voix clonée ou autorisée implicitement.",
+    "notes": "studio_voice_pool.select(target:N:narration|none|reference:M) agit sur le profil sauvegardé déjà ouvert et la photo Personnage explicitement désignée. ACK sur IDs profil et photo capturés ; aucun déplacement vers une photo réordonnée, remplacée ou étrangère. Affectation double d’une photo refusée ; none retire seulement le lien et conserve le vocal. Les réglages sont visibles uniquement après import ; aucune voix clonée ou autorisée implicitement. Parcours relu : sources du vocal en premier, réglages visibles seulement après import ; onglet Ajouter unique jusqu’à trois sources. Les IDs stables, verrous et droits humains restent déterminants.",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/StudioVoicePool.tsx#select:1b57cc9e8cd848a6:1",
+      "app/dashboard/_components/StudioVoicePool.tsx#select:4c5408f78b658ed3:1",
       "app/dashboard/_components/StudioVoicePool.tsx#option:fda82d713a866b7d:1",
       "app/dashboard/_components/StudioVoicePool.tsx#option:47aee232ffdf4246:1",
-      "app/dashboard/_components/StudioVoicePool.tsx#option:7dcce56e9cf70a6a:1"
+      "app/dashboard/_components/StudioVoicePool.tsx#option:9a9ab37cc277286e:1"
     ],
     "testFiles": [
       "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
@@ -15965,16 +15965,16 @@
       "app/dashboard/_components/StudioVoicePool.tsx",
       "lib/inrAssistantLocalInterface.ts"
     ],
-    "sourceAnchor": "<select value={edited.gender} disabled={disabled} onChange={event => changeGender(event.target.value as StudioVoiceProfile[\"gender\"])}>\n            <option value=\"auto\">{t(\"ai_generator_people_auto\")}</option><option value=\"female\">{t(\"ai_generator_narration_voice_female\")}</option><option value=\"male\">{t(\"ai_generator_narration_voice_male\")}</option>\n          </select>",
+    "sourceAnchor": "<select aria-label={t(\"ai_generator_voice_pool_gender\")} value={current.gender} disabled={disabled} onChange={event => changeGender(event.target.value as StudioVoiceProfile[\"gender\"])}>\n            <option value=\"auto\">{t(\"ai_generator_people_auto\")}</option><option value=\"female\">{t(\"ai_generator_narration_voice_female\")}</option><option value=\"male\">{t(\"ai_generator_narration_voice_male\")}</option>\n          </select>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "studio_voice_pool.select(gender:N:auto|female|male) renseigne uniquement le profil sauvegardé explicitement ouvert, ACK sur son ID stable. Genre descriptif de la voix réelle, sans prétendre détecter, transformer le sexe vocal ou remplacer la référence. Compte et verrou natifs préservés ; aucun consentement ni synthèse lancée.",
+    "notes": "studio_voice_pool.select(gender:N:auto|female|male) renseigne uniquement le profil sauvegardé explicitement ouvert, ACK sur son ID stable. Genre descriptif de la voix réelle, sans prétendre détecter, transformer le sexe vocal ou remplacer la référence. Compte et verrou natifs préservés ; aucun consentement ni synthèse lancée. Parcours relu : sources du vocal en premier, réglages visibles seulement après import ; onglet Ajouter unique jusqu’à trois sources. Les IDs stables, verrous et droits humains restent déterminants.",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/StudioVoicePool.tsx#select:8f83183b10933ac2:1",
+      "app/dashboard/_components/StudioVoicePool.tsx#select:1b947bf375624772:1",
       "app/dashboard/_components/StudioVoicePool.tsx#option:5b3fc80626ecdc1d:1",
       "app/dashboard/_components/StudioVoicePool.tsx#option:595a6806739e53e6:1",
       "app/dashboard/_components/StudioVoicePool.tsx#option:1cdd038cc3fb6f9f:1"

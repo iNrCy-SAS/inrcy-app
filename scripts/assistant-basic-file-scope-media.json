@@ -649,7 +649,7 @@
   },
   "app/dashboard/_components/StudioVoicePool.tsx": {
     "disposition": "basic",
-    "reason": "Révision explicite : pool natif limité à trois vocaux, intitulé Voix réelle et ajout unique pendant un brouillon ; choix par ID et affectations narration/personnages conservés. Import, enregistrement et consentement restent humains.",
+    "reason": "Révision explicite : trois onglets vocaux maximum ; onglet Ajouter au fil des imports, sources avant réglages de chaque vocal. Navigation clavier, IDs et affectations narration/personnages conservés ; import, enregistrement et consentement restent humains.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
