@@ -137,6 +137,11 @@ export default function MediaGeneratorModal({
     ? publicationBrief.trim()
     : "";
   const [generationPrompt, setGenerationPrompt] = useState(initialGenerationPrompt);
+  const inheritedPublicationSubject = !initialFreePrompt.trim()
+    && (source === "booster" || origin === "booster")
+    && generationPrompt.trim() === publicationBrief.trim()
+    ? publicationBrief.trim() || undefined
+    : undefined;
   const openedRef = useRef(false);
   const [freeMediaType, setFreeMediaType] = useState<StudioMediaType>(initialFreeMediaType);
   const [visitedFreeTypes, setVisitedFreeTypes] = useState<StudioMediaType[]>([initialFreeMediaType]);
@@ -852,6 +857,7 @@ export default function MediaGeneratorModal({
                     mediaType={kind}
                     imageOnly={imageOnly}
                     initialPrompt={generationPrompt}
+                    publicationSubject={inheritedPublicationSubject}
                     sharedPrompt={generationPrompt}
                     onSharedPromptChange={handleGenerationPromptChange}
                     requiredPromptSuffix={requiredFreePromptSuffix}

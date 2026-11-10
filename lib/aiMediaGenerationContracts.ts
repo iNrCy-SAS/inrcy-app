@@ -226,6 +226,8 @@ export type AiMediaGenerationRequest = {
   /** Independent free-form creative path; never the legacy `ai_free` casting option. */
   creationMode?: AiMediaCreationMode;
   freePrompt?: string;
+  /** Booster topic is editorial context, never literal image lettering by default. */
+  publicationSubject?: string;
   /** Exact speech for free Studio video. An explicit empty string overrides legacy quoted speech. */
   spokenScript?: string;
   /** Optional native subtitles for free Studio video only. */
@@ -641,6 +643,13 @@ export function normalizeAiMediaGenerationRequest(
     throw new AiMediaRequestValidationError("Parcours de création invalide.");
   }
   const creationMode: AiMediaCreationMode = body.creationMode === "free" ? "free" : "guided";
+  let publicationSubject: string | undefined;
+  if (creationMode === "free" && body.kind === "image" && body.publicationSubject !== undefined) {
+    if (typeof body.publicationSubject !== "string" || body.publicationSubject.length > 2_000) {
+      throw new AiMediaRequestValidationError("Le sujet de publication doit contenir au maximum 2 000 caractères.");
+    }
+    publicationSubject = normalizeAiInstruction(body.publicationSubject, 2_000) || undefined;
+  }
   const useBusinessDna = creationMode === "free" && body.useBusinessDna === true;
   const spokenScript = creationMode === "free" && body.kind === "video"
     ? normalizeAiMediaSpokenScript(body.spokenScript)
@@ -1307,6 +1316,7 @@ export function normalizeAiMediaGenerationRequest(
     requestId,
     creationMode,
     freePrompt: creationMode === "free" ? freePrompt : undefined,
+    publicationSubject,
     spokenScript,
     withSubtitles,
     useBusinessDna: creationMode === "free" ? useBusinessDna : undefined,

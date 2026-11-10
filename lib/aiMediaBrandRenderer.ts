@@ -5,6 +5,7 @@ import sharp from "sharp";
 
 import type { AiMediaCreativeScene } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaFreeLogoPlacement } from "@/lib/aiMediaFreeGenerationPrompt";
+import type { AiMediaImageLogoReservation } from "./aiMediaLocalLogoCompositionPrompt.ts";
 import type {
   AiMediaImagePurpose,
   AiMediaLogoMode,
@@ -31,6 +32,8 @@ type RenderBaseArgs = {
   visualStyle: AiMediaVisualStyle;
   logoMode: AiMediaLogoMode;
   logoPlacement?: AiMediaFreeLogoPlacement;
+  /** A new free image reserves this exact region before the provider renders text. */
+  imageLogoReservation?: AiMediaImageLogoReservation;
   imagePurpose?: AiMediaImagePurpose;
   /**
    * Copie saisie par l'utilisateur en mode `exact`. Elle suit un compositeur
@@ -426,8 +429,9 @@ async function buildImageBrandOverlays(
   ]);
   const marginX = Math.min(Math.round(args.width * 0.045), Math.floor((args.width - logo.width) / 2));
   const marginY = Math.min(Math.round(args.height * 0.045), Math.floor((args.height - logo.height) / 2));
-  const axesX = args.logoPlacement?.horizontal ? [args.logoPlacement.horizontal] : ["left", "right"] as const;
-  const axesY = args.logoPlacement?.vertical ? [args.logoPlacement.vertical] : ["top", "bottom"] as const;
+  const reservation = args.imageLogoReservation;
+  const axesX = reservation ? [reservation.horizontal] : args.logoPlacement?.horizontal ? [args.logoPlacement.horizontal] : ["left", "right"] as const;
+  const axesY = reservation ? [reservation.vertical] : args.logoPlacement?.vertical ? [args.logoPlacement.vertical] : ["top", "bottom"] as const;
   const luminance = (red: number, green: number, blue: number) => (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
   const backgroundPixel = (x: number, y: number) => {
     const sampleX = Math.max(0, Math.min(background.info.width - 1, Math.round(x * background.info.width / args.width)));
@@ -436,8 +440,12 @@ async function buildImageBrandOverlays(
     return luminance(background.data[offset], background.data[offset + 1], background.data[offset + 2]);
   };
   const candidates = axesY.flatMap(vertical => axesX.map(horizontal => {
-    const left = horizontal === "left" ? marginX : horizontal === "center" ? Math.round((args.width - logo.width) / 2) : args.width - marginX - logo.width;
-    const top = vertical === "top" ? marginY : vertical === "center" ? Math.round((args.height - logo.height) / 2) : args.height - marginY - logo.height;
+    const left = reservation
+      ? Math.round(reservation.left * args.width + (reservation.width * args.width - logo.width) * (horizontal === "left" ? 0 : horizontal === "center" ? 0.5 : 1))
+      : horizontal === "left" ? marginX : horizontal === "center" ? Math.round((args.width - logo.width) / 2) : args.width - marginX - logo.width;
+    const top = reservation
+      ? Math.round(reservation.top * args.height + (reservation.height * args.height - logo.height) * (vertical === "top" ? 0 : vertical === "center" ? 0.5 : 1))
+      : vertical === "top" ? marginY : vertical === "center" ? Math.round((args.height - logo.height) / 2) : args.height - marginY - logo.height;
     let sum = 0, squared = 0, detail = 0, contrast = 0, opacity = 0, logoLuminance = 0;
     for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
       const sampleX = left + (x + 0.5) * logo.width / 32;

@@ -1118,6 +1118,7 @@ export default function useMediaGeneration() {
             contractVersion: 4,
             creationMode: request.creationMode || "guided",
             freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
+            publicationSubject: request.creationMode === "free" && request.kind === "image" ? request.publicationSubject : undefined,
             spokenScript: request.creationMode === "free" && request.kind === "video" ? request.spokenScript : undefined,
             withSubtitles: request.creationMode === "free" && request.kind === "video" ? request.withSubtitles === true : undefined,
             useBusinessDna: request.creationMode === "free" ? request.useBusinessDna === true : undefined,

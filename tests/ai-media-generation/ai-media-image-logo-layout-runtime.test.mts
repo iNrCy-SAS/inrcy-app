@@ -7,6 +7,7 @@ import ts from "typescript";
 import * as videoLayout from "../../lib/aiMediaVideoLayout.ts";
 import * as textIntegrity from "../../lib/aiMediaTextIntegrity.ts";
 import type { composeAiMediaBrandedImage, renderAiMediaVideoOverlay } from "../../lib/aiMediaBrandRenderer.ts";
+import { resolveAiMediaImageLogoReservation } from "../../lib/aiMediaLocalLogoCompositionPrompt.ts";
 
 type ImageArgs = Parameters<typeof composeAiMediaBrandedImage>[0];
 const source = readFileSync(new URL("../../lib/aiMediaBrandRenderer.ts", import.meta.url), "utf8");
@@ -105,4 +106,23 @@ test("an unavoidable matching background receives an alpha halo, not a solid bra
   assert.ok(pixel(100, 65).every(value => value > 245), "the actual white logo is retained");
   assert.ok(pixel(44, 65).every(value => value < 230), "a contrasting narrow edge separates the white logo");
   assert.ok(pixel(400, 200).every(value => value > 245), "the rest of the photo stays untouched");
+});
+
+test("a reserved logo stays inside the agreed rectangle in every format even when other corners are quieter", async () => {
+  for (const [width, height] of [[1080, 1080], [1080, 1350], [1080, 1920], [1920, 1080]]) {
+    const input = await solid(width, height, "#ffffff");
+  for (const placement of [undefined, { horizontal: "left", vertical: "bottom", size: "large" }, { horizontal: "center", vertical: "top", size: "small" }] as const) {
+    const reservation = resolveAiMediaImageLogoReservation({ width, height, placement });
+    for (const logoBuffer of [await logo(600, 140), await logo(140, 600)]) {
+      const output = await runtime.exports.composeAiMediaBrandedImage(args(input, logoBuffer, { width, height, logoPlacement: placement, imageLogoReservation: reservation }));
+      const bounds = await coloredLogoBounds(output);
+      assert.ok(bounds.count > 200);
+      assert.ok(bounds.minX >= Math.floor(reservation.left * width) - 2, JSON.stringify({ reservation, bounds }));
+      assert.ok(bounds.minY >= Math.floor(reservation.top * height) - 2);
+      assert.ok(bounds.maxX <= Math.ceil((reservation.left + reservation.width) * width) + 2);
+      assert.ok(bounds.maxY <= Math.ceil((reservation.top + reservation.height) * height) + 2);
+      assert.ok(bounds.maxX < width && bounds.maxY < height);
+    }
+  }
+  }
 });

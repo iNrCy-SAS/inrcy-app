@@ -2,13 +2,12 @@ import { getAiMediaFreeSpeechBudget, getAiMediaFreeRequestedLanguage, getAiMedia
 export { getAiMediaFreeSpeechBudget, getAiMediaFreeRequestedLanguage, resolveAiMediaFreeSpeechLanguage, getAiMediaFreeRequestedDialogue, splitAiMediaFreeQuotedSpeech } from "./aiMediaVideoSpeechBudget.ts";
 import { createHash } from "node:crypto";
 import { AI_MEDIA_FORMAT_SPECS, AiMediaRequestValidationError, type AiMediaGenerationRequest } from "./aiMediaGenerationContracts.ts";
-import { buildAiMediaBusinessDnaPayload } from "./aiMediaBusinessDna.ts";
 import { buildAiMediaGlobalConstraints } from "./aiMediaGlobalConstraints.ts";
 import type { AiMediaPromptBuilderArgs } from "./aiMediaPromptShared.ts";
 import type { AiMediaCreativePlan } from "./aiMediaCreativePlan.ts";
 import type { AiVideoProviderGenerationArgs } from "./aiVideoProviderTypes.ts";
 import { usesSeparateAiMediaFreeVoiceover } from "./aiMediaFreeVoiceoverPolicy.ts";
-import { AI_MEDIA_FREE_DNA_MAX_CHARS } from "./aiMediaFreeDnaContext.ts";
+import { AI_MEDIA_FREE_DNA_MAX_CHARS, selectAiMediaFreePublicationDna } from "./aiMediaFreeDnaContext.ts";
 import { buildAiContentLocationInstruction, buildAiContentLocationPromptPayload } from "./aiContentLocation.ts";
 import { fitPromptPayloadToJsonBudget } from "./aiPromptBudget.ts";
 import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
@@ -16,7 +15,9 @@ import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
 import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
 import { buildAiMediaVideoProviderContract } from "./aiMediaVideoProviderContract.ts";
 
-export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v16-first-shot-master-frame";
+export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v17-editorial-subject-logo-space";
+// Recraft also receives the exact-logo reservation and provider identity rules.
+const AI_MEDIA_FREE_RECRAFT_PROMPT_MAX_CHARS = 8_600;
 
 /** Verified final provider ceilings, including appended reference bindings.
  * https://vercel.com/ai-gateway/models/wan-v2.7-r2v
@@ -341,27 +342,28 @@ export function buildAiMediaFreeReferenceInstructions(request: AiMediaGeneration
   }).join("\n");
 }
 
-export function buildAiMediaFreeBusinessContext(args: AiMediaPromptBuilderArgs) {
-  // Reuse only already approved business facts, never hidden guided AI settings.
-  const base = Object.fromEntries(Object.entries(buildAiMediaBusinessDnaPayload(args.profile))
-    .filter(([key]) => key !== "configuration_ia"));
+export function buildAiMediaFreeBusinessContext(args: AiMediaPromptBuilderArgs): Record<string, string | string[] | Record<string, string>> {
+  // The full guided ADN is not an image brief. Send only publication essentials.
+  const selected = selectAiMediaFreePublicationDna({ profile: args.profile, prompt: args.request.freePrompt || "",
+    context: args.request.useBusinessDna ? args.businessDnaContext : undefined });
+  const { coordonnees, liens, informations_demandees, localisation_editoriale, horaires, ...base } = selected;
   if (!args.request.useBusinessDna) return base;
-  const context = args.businessDnaContext;
-  const contentLocation = context?.localisation_editoriale || buildAiContentLocationPromptPayload(args.profile);
+  const contentLocation = localisation_editoriale || buildAiContentLocationPromptPayload(args.profile);
   const facts = {
     ...(contentLocation ? { localisation_editoriale: contentLocation } : {}),
-    coordonnees: context?.coordonnees || {},
+    ...(horaires ? { horaires } : {}),
+    coordonnees: coordonnees || {},
     liens: {} as Record<string, string>,
     informations_demandees: [] as string[],
   };
   // Exact contact data and requested source facts are reserved before reducing
   // background context. A budget must never turn a URL or price into a different value.
   const wanted = (args.request.freePrompt || "").toLowerCase();
-  const links = Object.entries(context?.liens || {}).sort(([a], [b]) => Number(wanted.includes(b.replace("site_web", "site"))) - Number(wanted.includes(a.replace("site_web", "site"))));
+  const links = Object.entries(liens || {}).sort(([a], [b]) => Number(wanted.includes(b.replace("site_web", "site"))) - Number(wanted.includes(a.replace("site_web", "site"))));
   for (const [key, value] of links) {
     if (JSON.stringify({ ...facts, liens: { ...facts.liens, [key]: value } }).length < 2_900) facts.liens[key] = value;
   }
-  for (const value of context?.informations_demandees || []) {
+  for (const value of informations_demandees || []) {
     if (JSON.stringify({ ...facts, informations_demandees: [...facts.informations_demandees, value] }).length < 3_800) facts.informations_demandees.push(value);
   }
   const budget = Math.max(300, AI_MEDIA_FREE_DNA_MAX_CHARS - JSON.stringify(facts).length - 80);
@@ -374,8 +376,8 @@ function businessContext(args: AiMediaPromptBuilderArgs, payloadBudget?: number)
   const fullPayload = buildAiMediaFreeBusinessContext(args);
   let payload = fullPayload;
   if (payloadBudget !== undefined && JSON.stringify(fullPayload).length > payloadBudget) {
-    const { coordonnees, liens, informations_demandees, localisation_editoriale, ...background } = fullPayload as Record<string, string | string[] | Record<string, string>>;
-    const protectedFacts = { coordonnees, liens, informations_demandees, ...(localisation_editoriale ? { localisation_editoriale } : {}) };
+    const { coordonnees, liens, informations_demandees, localisation_editoriale, horaires, ...background } = fullPayload as Record<string, string | string[] | Record<string, string>>;
+    const protectedFacts = { coordonnees, liens, informations_demandees, ...(localisation_editoriale ? { localisation_editoriale } : {}), ...(horaires ? { horaires } : {}) };
     const reserved = JSON.stringify(protectedFacts).length;
     if (reserved > payloadBudget) throw new AiMediaRequestValidationError("Le brief et les informations exactes dépassent la capacité de ce moteur. Réduisez les informations demandées ou choisissez un autre moteur image.");
     payload = { ...fitPromptPayloadToJsonBudget(background, Math.max(2, payloadBudget - reserved - 2)), ...protectedFacts };
@@ -393,6 +395,11 @@ function businessContext(args: AiMediaPromptBuilderArgs, payloadBudget?: number)
 
 function freeBrief(args: AiMediaPromptBuilderArgs, prompt = args.request.freePrompt || "", payloadBudget?: number) {
   return [
+    args.request.kind === "image" && args.request.publicationSubject ? [
+      "SUJET DE PUBLICATION TRANSMIS PAR L'OUTIL D'ORIGINE — CONTEXTE ÉDITORIAL, PAS TEXTE À AFFICHER :",
+      args.request.publicationSubject.trim() === prompt.trim() ? "La demande ci-dessous reprend ce sujet." : JSON.stringify({ sujet: args.request.publicationSubject }),
+      "Créer une image en rapport avec ce sujet. Même si la demande ci-dessous reprend ce sujet mot pour mot, ne pas le recopier dans l'image, ni l'utiliser tel quel comme titre ou slogan. Un texte éventuel doit être une accroche originale, courte, pertinente et distincte du sujet ; il reste facultatif. Une demande explicite du professionnel d'afficher un texte exact reste prioritaire.",
+    ].join("\n") : "",
     "DEMANDE CRÉATIVE DU PROFESSIONNEL (conserver toutes ses intentions, contraintes et exclusions) :",
     prompt,
     "FIN DE LA DEMANDE.",
@@ -411,17 +418,25 @@ export function buildAiMediaFreeImagePrompt(args: AiMediaPromptBuilderArgs) {
     "Interpréter le type de création, l'esthétique, les sujets, le cadrage, la hiérarchie et la mise en page à partir de la demande. Un flyer, une affiche ou une infographie doit être une composition graphique aboutie, pas une photographie d'un document ni un fond à compléter.",
     "CHOIX DU RENDU : sans style artistique explicitement demandé, représenter les personnes, les lieux, les produits et les scènes du monde réel en photographie réaliste, avec visages, anatomie, matières et lumière naturels. Une affiche, un flyer, des couleurs de marque ou une mise en page graphique ne demandent pas à eux seuls des personnages dessinés : intégrer une scène photographique à cette composition. Ne pas transformer spontanément ces sujets en dessin animé, illustration, avatar ou rendu 3D. Cette préférence par défaut ne remplace jamais une illustration, un dessin animé, une peinture, une 3D ou tout autre style explicitement demandé dans le brief ; respecter alors ce choix. Une référence illustrée, un logo ou une demande de reprendre un personnage, un produit ou un lieu ne constitue pas une demande de style animé. Pour suivre le rendu artistique d'une référence, le brief doit le demander explicitement, par exemple « reprends le style de cette référence ».",
     "Le fournisseur produit le résultat ENTIER, y compris les textes demandés. Aucun gabarit, bandeau, slogan, CTA ou grille publicitaire ne sera ajouté ensuite. Ne pas inventer ces éléments lorsqu'ils ne sont pas demandés.",
-    "Reproduire intégralement et fidèlement les textes cités, noms propres, prix, dates, coordonnées et chiffres fournis. Respecter accents, orthographe et ponctuation. Adapter la taille, les marges et la hiérarchie pour que tout reste lisible ; ne jamais tronquer un texte ni inventer des informations commerciales.",
-    "Si la demande appelle du texte sans le rédiger, écrire un texte bref, naturel et pertinent dans la langue de la demande. Si elle demande une image sans texte, conserver ce choix. Les styles photo, illustration, collage, dessin, 3D ou autres restent disponibles selon le brief, avec la préférence photographique ci-dessus uniquement lorsque le rendu de sujets réels n'est pas précisé.",
+    "Distinguer le sujet à illustrer du texte à afficher : une phrase décrivant le sujet, même entre guillemets, n'est pas un titre à imprimer. Ne jamais recopier le brief ou son sujet sur l'image par défaut. Un texte éventuel est une accroche originale et concise, sans paraphraser le sujet.",
+    "Reproduire fidèlement uniquement les textes explicitement demandés à l'affichage, avec noms propres, prix, dates, coordonnées et chiffres exacts. Accents, orthographe et ponctuation corrects ; adapter taille, marges et hiérarchie sans tronquer ni inventer d'informations commerciales.",
+    "Si la demande appelle du texte sans le rédiger, écrire une accroche originale, brève et pertinente dans sa langue. Si elle demande une image sans texte, conserver ce choix. Aucun texte ajouté à une photo ordinaire sans raison graphique.",
   ];
-  const render = (payloadBudget?: number) => [...instructions, freeBrief(args, undefined, payloadBudget)].filter(Boolean).join("\n\n");
+  // A long Recraft brief keeps every requested word and exact business fact.
+  // Reduce our own repeated style guidance before reducing background context.
+  const compactInstructions = instructions.map(instruction => instruction.startsWith("CHOIX DU RENDU :")
+    ? "CHOIX DU RENDU : sans style artistique explicitement demandé, représenter les scènes du monde réel en photographie réaliste. Une affiche, un flyer ou une palette de marque ne demandent pas à eux seuls des personnages dessinés : intégrer une scène photographique à cette composition. Respecter toute illustration, dessin animé, peinture ou 3D explicitement demandée. Une référence illustrée, un logo ou un sujet obligatoire ne constitue pas une demande de style animé ; suivre le style d'une référence uniquement sur demande explicite."
+    : instruction);
+  const render = (payloadBudget?: number, compact = false) => [...(compact ? compactInstructions : instructions), freeBrief(args, undefined, payloadBudget)].filter(Boolean).join("\n\n");
   const complete = render();
   // Reserve room for local logo instructions and provider reference-role rules.
   // The professional's brief and exact requested facts are never truncated.
-  if (args.request.imageEngine !== "recraft" || complete.length <= 9_000) return complete;
+  if (args.request.imageEngine !== "recraft" || complete.length <= AI_MEDIA_FREE_RECRAFT_PROMPT_MAX_CHARS) return complete;
+  const compact = render(undefined, true);
+  if (compact.length <= AI_MEDIA_FREE_RECRAFT_PROMPT_MAX_CHARS) return compact;
   const payloadLength = JSON.stringify(buildAiMediaFreeBusinessContext(args)).length;
-  const reduced = render(Math.max(0, payloadLength - (complete.length - 9_000) - 40));
-  if (reduced.length > 9_000) throw new AiMediaRequestValidationError("Cette demande dépasse la capacité du moteur image choisi. Réduisez le brief ou choisissez un autre moteur image.");
+  const reduced = render(Math.max(0, payloadLength - (compact.length - AI_MEDIA_FREE_RECRAFT_PROMPT_MAX_CHARS) - 40), true);
+  if (reduced.length > AI_MEDIA_FREE_RECRAFT_PROMPT_MAX_CHARS) throw new AiMediaRequestValidationError("Cette demande dépasse la capacité du moteur image choisi. Réduisez le brief ou choisissez un autre moteur image.");
   return reduced;
 }
 

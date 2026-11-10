@@ -70,3 +70,12 @@ test("modification instructions preserve the exact trimmed text and enforce thei
   assert.doesNotThrow(() => key({ ...input, aiInstruction: "a".repeat(AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS) }));
   assert.throws(() => key({ ...input, aiInstruction: "a".repeat(AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS + 1) }), /La consigne de modification ne peut pas dépasser/);
 });
+
+test("the editorial role of an image subject changes request identity without changing video or guided jobs", () => {
+  const input = request({ kind: "image", creationMode: "free", freePrompt: "Nos nouveaux services", publicationSubject: "Nos nouveaux services" });
+  assert.equal(JSON.parse(key(input)).publicationSubject, "Nos nouveaux services");
+  assert.notEqual(key(input), key({ ...input, publicationSubject: undefined }));
+  for (const patch of [{ kind: "video" as const }, { creationMode: "guided" as const }]) {
+    assert.equal(Object.hasOwn(JSON.parse(key({ ...input, ...patch })), "publicationSubject"), false);
+  }
+});

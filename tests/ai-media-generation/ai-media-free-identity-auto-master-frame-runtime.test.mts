@@ -233,7 +233,7 @@ test("a changed first director shot changes the real master prompt without impor
 
 test("initial-shot structure preserves exact visual text, requested ADN facts, account constraints and explicit duplication in that current shot", () => {
   const photo = Buffer.from("opaque-synthetic-reference".repeat(5));
-  const request = { ...sourceRequest("character", "Plan1 : deux copies fantastiques explicitement voulues du même adulte près du panneau « Jardin 39,90 € ». Plan2 : les copies rejoignent la terrasse. Utiliser notre ADN et notre téléphone demandé.", photo), useBusinessDna: true };
+  const request = { ...sourceRequest("character", "Plan1 : deux copies fantastiques explicitement voulues du même adulte près du panneau « Jardin 39,90 € ». Plan2 : les copies rejoignent la terrasse. Utiliser notre ADN, notre téléphone et le lien de notre site.", photo), useBusinessDna: true };
   const current = "Deux copies de l’adulte, explicitement demandées ensemble dès le premier plan, près du panneau « Jardin 39,90 € ».";
   const prompt = buildAiMediaFreeSceneFramePrompt({ request,
     profile: { ...profile, preferences: { ...profile.preferences, customInstructions: "CONTRAINTE_COMPTE_INTACTE" } },

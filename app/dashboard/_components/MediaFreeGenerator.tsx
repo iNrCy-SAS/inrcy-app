@@ -66,6 +66,7 @@ type Props = {
   mediaType?: MediaGenerationKind;
   imageOnly?: boolean;
   initialPrompt?: string;
+  publicationSubject?: string;
   /** Studio shares only this editable brief; media settings and jobs stay local. */
   sharedPrompt?: string;
   onSharedPromptChange?: (prompt: string) => void;
@@ -168,6 +169,7 @@ export default function MediaFreeGenerator({
   mediaType = "image",
   imageOnly = false,
   initialPrompt = "",
+  publicationSubject,
   sharedPrompt,
   onSharedPromptChange,
   requiredPromptSuffix = "",
@@ -805,6 +807,7 @@ export default function MediaFreeGenerator({
         operation: "generate",
         creationMode: "free",
         freePrompt: effectivePrompt,
+        ...(kind === "image" && publicationSubject?.trim() ? { publicationSubject } : {}),
         ...(kind === "video" && spokenScriptOpen ? { spokenScript } : {}),
         useBusinessDna,
         inputMode: "essential",
