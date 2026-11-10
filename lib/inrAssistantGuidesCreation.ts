@@ -41,17 +41,17 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
     id: "studio-create",
     title: "iNrStudio : générer une image ou une vidéo",
     keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits", "voix", "vocal", "musiques", "narration", "sous-titres"],
-    content: `${productNavigationSummary("studio", false)} Image/Vidéo : format, moteur, durée (s), plans automatiques. Choix explicites conservés. Wan 3 et MiniMax H3 retirés.
-Visuel : vidéo 500 caractères max, image 4 000 ; paroles séparées. Utiliser mon ADN avant la consigne : contexte facultatif, prompt libre. Logo enregistré d’image par défaut sauf exclusion ; logo explicite permis sans ADN, coordonnées sur demande. Consignes ET Interdictions de Ma communication intégrales ; interdictions prioritaires, incompatibilité bloquée.
-Inspiration/Personnage/Décor/Produit : rôle avant Importer/Médiathèque (images seules), fermeture après ajout. Inspiration facultative, autres Obligatoires ; usage sur miniature. Vérifier identités/doublons.
-Musiques : catalogue iNrCy, Automatique/Sans musique/piste et préécoute ; distinct des vocaux.
-Voix off/Personnages/Sans parole. Automatiques : IA sans champ, ajouts cohérents permis. Paroles exactes : champ/compteur durée/moteur/plans/langue. Jamais tronquer texte/brouillon ; réduire avec accord ou durée compatible. Exact vide = sans parole.
-Voix IA : Réglages → Femme/Homme, Style de voix si utile. Voix réelle : 3 vocaux max. Onglet Ajouter un vocal → Importer/Enregistrer/Médiathèque → utilisation/genre ; réglages indépendants. Voix off sans photo : Chatterbox hors moteur vidéo (5 à 10 s), un narrateur actif. Personnages : Wan 2.7/Kling Omni, un vocal/personne ; Kling 5 à 10 s, un locuteur. Genre descriptif, vocal pour le timbre. Droits à confirmer ; import/enregistrement humains.
-En Libre, paroles exactes compatibles, piste réelle complète trop longue : une resynthèse supplémentaire, mêmes paroles/vocal ; jamais après erreur réseau/soumission incertaine, ni substitution de voix.
-Sous-titres voix off : durée mesurée, départ estimé, pas d’alignement mot à mot. Barre et ≈% vidéo estimés, sans délai garanti.
-Vérifier coût/solde puis Générer ; Enregistrer dans la Médiathèque/Utiliser ce média conserve le résultat. Réajuster reprend les critères ; régénérer peut débiter.
+    content: `${productNavigationSummary("studio", false)} Image/Vidéo : format, moteur, durée (s), plans automatiques en Studio Libre ; choix explicite conservé. Moteurs disponibles ; Wan 3 et MiniMax H3 retirés de tous les parcours de génération.
+Visuel : vidéo 500 caractères, image 4 000 ; paroles séparées. Utiliser mon ADN avant le prompt, facultatif. Logo d’image enregistré par défaut sauf exclusion ; logo explicite sans ADN, coordonnées sur demande. Consignes ET Interdictions de Ma communication intégrales ; les interdictions priment ; incompatibilité bloquée.
+Inspiration/Personnage/Décor/Produit : rôle puis Importer/Médiathèque (images seules). Inspiration facultative, autres Obligatoires ; usage sur miniature. Vérifier identités/doublons.
+Musiques : catalogue iNrCy, Automatique/Sans musique/piste, préécoute, hors vocaux.
+Voix off/Personnages/Sans parole. Automatiques : IA sans champ. Paroles exactes : compteur durée/moteur/plans/langue ; texte/brouillon jamais tronqué, réduction avec accord ou durée compatible. Exact vide = sans parole.
+Voix IA : Réglages → Femme/Homme, Style de voix ; réglages IA si options utiles. Voix réelle : 3 vocaux max ; onglet Ajouter un vocal → Importer/Enregistrer/Médiathèque → utilisation/genre. Voix off sans photo : Chatterbox hors moteur vidéo (5 à 10 s), un narrateur actif. Personnage vocal : Wan 2.7 ou Kling Omni, un vocal/personne. Kling : 5 à 10 s, un locuteur. Genre descriptif ; vocal pour le timbre ; droits à confirmer par le pro. Import/enregistrement humains.
+En Libre, paroles exactes compatibles et piste réelle trop longue : une resynthèse supplémentaire, mêmes paroles/vocal ; jamais après erreur réseau/soumission incertaine, ni substitution de voix.
+Sous-titres : durée mesurée, départ estimé, pas d’alignement mot à mot. Barre et ≈% vidéo estimés, sans délai garanti.
+Coût/solde puis Générer ; Enregistrer/Utiliser ce média garde le résultat. Réajuster reprend les critères ; régénérer peut débiter.
 Vérifier mon média : même tentative, sans relance. Pause/fermeture garde l’identifiant ; critères restent modifiables. Une nouvelle génération attend sa résolution. Annuler la génération : confirmation distincte ; arrêt ≠ absence de débit.
-Basique sans crédits mensuels ; les recharges permettent de générer sans changer d’offre. Depuis Booster, type/format fixés, retour à l’origine.`,
+Basique sans crédits mensuels ; les recharges permettent de générer sans changer d’offre. Booster : type/format fixés.`,
     sourceFiles: [
       "lib/inrAssistantMediaTools.ts",
       "lib/productNavigation.ts",
