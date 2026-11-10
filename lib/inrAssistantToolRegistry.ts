@@ -257,7 +257,7 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
   })();
   const settingsTools = families.has("settings") ? createInrAssistantSettingsTools({ request: args.request, accountId: args.accountId,
     actorUserId: args.actorUserId, edition: args.edition, currentUserMessage: latestRequest, canStartWork: () => remainingTimeMs() > 15_000 }) : {};
-  const campaignTools = args.supabase && args.actorUserId && families.has("workspace") && (requiredTools.some(name=>["dispatchCampaignAudience","selectCampaignMailbox","listCampaignMailboxes","readCampaignDeliveryStatus"].includes(name)) || statusOnly && requiredTools.includes("dispatchCampaignDraft") || /audience|segment|expediteur|mailbox|boite|\bap-[a-f0-9]{12}\b/.test(routingTopic))
+  const campaignTools = args.supabase && args.actorUserId && families.has("workspace") && (requiredTools.some(name=>["previewCampaignAudience","dispatchCampaignAudience","selectCampaignMailbox","listCampaignMailboxes","readCampaignDeliveryStatus"].includes(name)) || statusOnly && requiredTools.includes("dispatchCampaignDraft") || /audience|segment|expediteur|mailbox|boite|\bap-[a-f0-9]{12}\b/.test(routingTopic))
     ? (()=>{ const available=createInrAssistantCampaignTools({request:args.request,accountId:args.accountId,actorUserId:args.actorUserId!,edition:args.edition,supabase:args.supabase!,currentUserMessage:latestRequest,actionRequestId:args.actionRequestId??args.requestId,canStartWork:()=>remainingTimeMs()>15_000});
       return { listCampaignMailboxes:available.listCampaignMailboxes,
         ...(statusOnly || requiredTools.includes("readCampaignDeliveryStatus")?{readCampaignDeliveryStatus:available.readCampaignDeliveryStatus}:{}),

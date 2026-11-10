@@ -70,6 +70,7 @@ export const INR_ASSISTANT_COMMANDS: Record<string, Command> = {
   updateCampaignDraft: { family:"workspace",label:"corriger le brouillon de campagne",clarification:/objet|sujet|contenu|texte|brouillon/ },
   dispatchCampaignDraft: { family:"workspace",label:"envoyer ou programmer la campagne",statusReader:"readCampaignDeliveryStatus" },
   selectCampaignMailbox: { family:"workspace",label:"sélectionner l’expéditeur de la campagne" },
+  previewCampaignAudience: { family:"workspace",label:"préparer l’aperçu de la campagne et vérifier son audience",clarification:/apercu|campagne|clients?|contacts?|segment|brouillon/ },
   dispatchCampaignAudience: { family:"workspace",label:"envoyer la campagne à l’audience vérifiée",statusReader:"readCampaignDeliveryStatus" },
   prepareCalendarAppointment: { family:"workspace",label:"préparer le rendez-vous",clarification:/date|heure|jour|quand|duree|client|contact|objet|titre/,batchObject:"rendez.vous|rdv" },
   updateCalendarAppointment: { family:"workspace",label:"modifier le rendez-vous",clarification:/date|heure|jour|quand|duree|client|contact|objet|titre/,batchObject:"rendez.vous|rdv" },

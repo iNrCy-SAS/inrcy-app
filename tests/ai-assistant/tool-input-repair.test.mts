@@ -8,6 +8,20 @@ import { parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "../.
 const draft = { version: 1, mediaType: "video", prompt: "Vidéo verticale d’un vélo rouge, sans texte.", format: "portrait", durationSeconds: "8" };
 const call = (toolName: string, input: unknown) => ({ type: "tool-call" as const, toolCallId: "offline-repair", toolName, input: JSON.stringify(input) });
 
+test("campaign schedule repair uses only a unique local instant in its explicit timezone", () => {
+  const input = { mode: "schedule", scheduledAt: "2030-01-15T09:30:00", timezone: "Europe/Paris", instructionQuote: "EXACT ORIGINAL", recipients: ["Alice@example.test"], draftId: "retain-target", accountId: "retain-rejected-extra" };
+  for (const [local, instant] of [["2030-01-15T09:30:00", "2030-01-15T08:30:00.000Z"], ["2030-07-15T09:30:00", "2030-07-15T07:30:00.000Z"], ["2030-07-15T09:30:42.123", "2030-07-15T07:30:42.123Z"]]) {
+    const fixed = repairInrAssistantToolInput(call("dispatchCampaignDraft", { ...input, scheduledAt: local }));
+    assert.ok(fixed); assert.deepEqual(JSON.parse(fixed.input), { ...input, scheduledAt: instant });
+  }
+  for (const invalid of [
+    { scheduledAt: "2030-03-31T02:30:00" }, { scheduledAt: "2030-10-27T02:30:00" },
+    { timezone: "Mars/Olympus" }, { timezone: null }, { timezone: "+01:00" },
+    { scheduledAt: "2030-01-15" }, { scheduledAt: "2030-01-15T09" }, { scheduledAt: "2030-02-31T09:30:00" },
+    { mode: "send" }, { scheduledAt: "2030-01-15T09:30:00+01:00" },
+  ]) assert.equal(repairInrAssistantToolInput(call("dispatchCampaignDraft", { ...input, ...invalid })), null, JSON.stringify(invalid));
+});
+
 test("Studio draft repair accepts only canonical bounded video integers and never changes format or creative content", () => {
   for (const durationSeconds of ["4", "8", "30"]) {
     const fixed = repairInrAssistantToolInput(call("prepareStudioPrompt", { ...draft, durationSeconds }));

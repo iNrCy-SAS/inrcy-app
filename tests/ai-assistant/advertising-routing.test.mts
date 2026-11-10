@@ -7,6 +7,40 @@ import { createInrAssistantReadBudget, inrAssistantObjectives, inrAssistantReadM
 
 const campaignId = "30000000-0000-4000-8000-000000000003";
 
+test("an explicit campaign sender choice survives a body-preservation clause without granting advice, denial or future approval",()=>{
+  const order="Choisis atelier@example.invalid comme expéditeur du brouillon de campagne Révision sans modifier son texte.";
+  assert.deepEqual(inrAssistantRequiredTools(order),["selectCampaignMailbox"]);
+  assert.deepEqual(inrAssistantObjectives(order).map(objective=>objective.tool),["selectCampaignMailbox"]);
+  for(const message of [
+    "Explique comment choisir atelier@example.invalid comme expéditeur du brouillon de campagne Révision.",
+    "Ne choisis pas atelier@example.invalid comme expéditeur du brouillon de campagne Révision.",
+    "Choisis atelier@example.invalid comme expéditeur du brouillon de campagne Révision. Ne sélectionne plus aucun expéditeur.",
+    "Si Julie confirme, choisis atelier@example.invalid comme expéditeur du brouillon de campagne Révision.",
+    "Choisis atelier@example.invalid comme expéditeur du brouillon de campagne Révision seulement si Julie confirme après.",
+    "Choisis atelier@example.invalid comme expéditeur du brouillon de campagne Révision seulement si Julie est disponible.",
+    "Résume « Choisis atelier@example.invalid comme expéditeur du brouillon de campagne Révision ».",
+    "Comment modifier l’expéditeur du brouillon de campagne Révision sans modifier son texte ?",
+  ]) assert.equal(inrAssistantRequiredTools(message).includes("selectCampaignMailbox"),false,message);
+});
+
+test("requested campaign audience previews are separate goals without authorizing draft creation or sending",()=>{
+  for(const message of [
+    "Prépare un aperçu de la campagne Révision pour mes clients sans envoi.",
+    "Prépare un aperçu de la campagne Révision pour tous mes clients CRM.",
+    "Montre un aperçu de la campagne Révision pour tous mes contacts CRM.",
+  ]) {
+    assert.deepEqual(inrAssistantRequiredTools(message),["previewCampaignAudience"]);
+    assert.deepEqual(inrAssistantObjectives(message).map(objective=>objective.tool),["previewCampaignAudience"]);
+  }
+  for(const message of [
+    "Comment préparer un aperçu de la campagne Révision pour mes clients sans envoi ?",
+    "Explique « Prépare un aperçu de la campagne Révision pour mes clients ».",
+    "Ne prépare pas d’aperçu de la campagne Révision pour mes clients.",
+    "Prépare un aperçu de la campagne Révision pour mes clients si Julie confirme.",
+    "Prépare un aperçu ADS sur Google pour mes clients.",
+  ]) assert.equal(inrAssistantRequiredTools(message).includes("previewCampaignAudience"),false,message);
+});
+
 test("named advertising spend, launch checks and Google drafts select ADS rather than mail", () => {
   for (const message of [
     "Combien la campagne Atelier Paris a-t-elle réellement dépensé cette semaine ?",

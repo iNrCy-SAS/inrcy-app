@@ -59,9 +59,23 @@ export function projectNativeFixtureRead(name, input, supplied) {
 
 /** Counts only public part types. Never retain image bytes, URLs or text. */
 export function providerVisualSummary(params) {
-  const visualParts = {image:0,image_url:0};
+  const visualParts = {image:0,image_url:0,file_image:0};
   for (const message of params.prompt ?? []) for (const part of Array.isArray(message.content)?message.content:[]) {
-    if (Object.hasOwn(visualParts,part.type)) visualParts[part.type]++;
+    if (part.type === 'image') visualParts.image++;
+    else if (part.type === 'image_url') visualParts.image_url++;
+    else if (part.type === 'file' && [part.mediaType,part.mimeType].some(value=>typeof value==='string' && /^image\//i.test(value))) visualParts.file_image++;
   }
-  return {visualCount:visualParts.image+visualParts.image_url,visualParts,serverFileTransmission:null};
+  return {visualCount:visualParts.image+visualParts.image_url+visualParts.file_image,visualParts,serverFileTransmission:null};
+}
+
+/** Provider history diagnostics, with lengths only. No content/metadata retained. */
+export function providerOutputPartSummary(output) {
+  const types = new Set(['text','reasoning','file','image','tool-call','tool-result','tool-approval-request','source']);
+  const size = value => {
+    if (value === undefined) return 0;
+    try { return new TextEncoder().encode(JSON.stringify(value)).byteLength; } catch { return null; }
+  };
+  return (Array.isArray(output.content)?output.content:[]).map(part=>({
+    type:types.has(part.type)?part.type:'unknown', serializedBytes:size(part), providerMetadataBytes:size(part.providerMetadata),
+  }));
 }

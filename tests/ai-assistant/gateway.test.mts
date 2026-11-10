@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
-import { asSchema, generateText, InvalidToolInputError, jsonSchema, stepCountIs, tool, wrapLanguageModel } from "ai";
+import { asSchema, generateText, InvalidToolInputError, jsonSchema, pruneMessages, stepCountIs, tool, wrapLanguageModel } from "ai";
 import type { LanguageModelV3, LanguageModelV3CallOptions } from "@ai-sdk/provider";
 import * as policy from "../../lib/inrAssistantPolicy.ts";
 import * as editionPolicy from "../../lib/inrAssistantEditionPolicy.ts";
@@ -109,12 +109,14 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   advertisingFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   workspaceActionTools?: Record<string,unknown>;
   communicationFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
+  workspaceFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   campaignFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   publicationWorkspaceRead?: boolean;
   nativeAccountServices?: boolean;
   nativeAttachmentTools?: boolean;
   richTextOutputTransform?: (output: unknown) => unknown;
   guideCharacters?: number;
+  reasoningProtocolBytes?: number;
   accountRead?: (name:string,input:unknown)=>unknown;
   nativeServices?: { auth: { activeUserId: string; authUserId: string }; draft?: (request: Request) => Promise<Response>; notificationFeed?: (request: Request) => Promise<Response>; notificationMark?: (request: Request, context: { params: Promise<{ id: string }> }) => Promise<Response> };
   cta?: { definition: ReturnType<typeof createCtaToolFixture>["definition"]; input: { target: "phone" | "website"; instructionQuote: string; channels: string[] | null } } } = {}) {
@@ -139,7 +141,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   let mediaExecutions = 0;
   const stubs: Record<string, unknown> = {
     "server-only": {}, "./dashboardEdition.ts": {},
-    ai: { asSchema, generateText, InvalidToolInputError, jsonSchema, stepCountIs, tool, wrapLanguageModel,
+    ai: { asSchema, generateText, InvalidToolInputError, jsonSchema, pruneMessages, stepCountIs, tool, wrapLanguageModel,
       createGateway: () => (id: string): LanguageModelV3 => ({
         specificationVersion: "v3", provider: "test", modelId: id, supportedUrls: {},
         doGenerate: async (params) => {
@@ -156,7 +158,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
             const next=options.plan[generations.length-1];
             const available=(params.tools??[]).filter(t=>t.type === "function").map(t=>t.name);
             const runs=next && available.includes(next.tool);
-            return {content:runs?[{type:"tool-call",toolCallId:`plan-${generations.length}`,toolName:next.tool,input:JSON.stringify(next.input??{})}]:[{type:"text",text:next?`Outil absent : ${next.tool}`:options.emptyText?"":options.textReply ?? "Les étapes demandées ont été traitées."}],finishReason:{unified:runs?"tool-calls":options.outputLimit?"length":"stop",raw:"test"},usage:{inputTokens:{total:100,noCache:100,cacheRead:0,cacheWrite:0},outputTokens:{total:20,text:20,reasoning:0}},warnings:[]};
+            return {content:runs?[...(options.reasoningProtocolBytes && generations.length === 1?[{type:"reasoning" as const,text:"protocol fixture",providerMetadata:{openai:{itemId:"rs_fixture",reasoningEncryptedContent:"R".repeat(options.reasoningProtocolBytes)}}}]:[]),{type:"tool-call",toolCallId:`plan-${generations.length}`,toolName:next.tool,input:JSON.stringify(next.input??{})}]:[{type:"text",text:next?`Outil absent : ${next.tool}`:options.emptyText?"":options.textReply ?? "Les étapes demandées ont été traitées."}],finishReason:{unified:runs?"tool-calls":options.outputLimit?"length":"stop",raw:"test"},usage:{inputTokens:{total:100,noCache:100,cacheRead:0,cacheWrite:0},outputTokens:{total:20,text:20,reasoning:0}},warnings:[]};
           }
           if (generations.length <= (options.fail ?? 0)) throw Object.assign(new Error("Unavailable"), { statusCode: 503 });
           if (options.failAfterPublication && generations.length > 3) throw Object.assign(new Error("Summary unavailable after publication"), { statusCode: 503 });
@@ -323,7 +325,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     } },
     "./inrAssistantWorkspaceTools.ts": { createInrAssistantWorkspaceTools: (args: {accountId: string; edition: string}) => {
       toolScopes.push({ tool: "workspace", accountId: args.accountId, edition: args.edition });
-      return { readWorkspaceSection: tool({ inputSchema: jsonSchema({ type: "object", properties: { section: { type: "string" } } }), execute: async input => options.accountRead?.("readWorkspaceSection",input) ?? ({ available: true, measured: true, count: 12 }) }) };
+      return options.workspaceFactory?.(args) ?? { readWorkspaceSection: tool({ inputSchema: jsonSchema({ type: "object", properties: { section: { type: "string" } } }), execute: async input => options.accountRead?.("readWorkspaceSection",input) ?? ({ available: true, measured: true, count: 12 }) }) };
     } },
     "./inrAssistantMediaTools.ts": { createInrAssistantMediaTools: (args: { requestId: string; currentUserMessage?: string;
       onWorkStarted: (id: string) => void; onResult: (result: InrAssistantMediaResult) => void }) => {
@@ -492,6 +494,36 @@ test("a premature mail draft claim gets one native opportunity and cannot surviv
   assert.equal(absent.generations.length,2,"one continuation, then an honest unfinished result");assert.equal(missing.taskState?.receipts.length,0);assert.notEqual(missing.outcome,"completed");
   assert.doesNotMatch(missing.message,/Votre brouillon de campagne a été enregistré|Il est disponible/);assert.match(missing.message,/pas pu confirmer l’enregistrement/);
   assert.doesNotMatch(missing.taskState?.question??"",/a été enregistré/);
+});
+
+test("a repaired native reader keeps the requested campaign sender selection pending until its own verified receipt",async()=>{
+  const accountId=contactIds[0],actorUserId=contactIds[1],draftId="40000000-0000-4000-8000-000000000001",mailboxId="60000000-0000-4000-8000-000000000001";
+  const instruction="Choisis atelier@example.invalid comme expéditeur du brouillon de campagne Révision sans modifier son texte.";
+  const nativeCampaign=loadClosedModule<typeof import("../../lib/inrAssistantCampaignTools.ts")>("inrAssistantCampaignTools.ts",{"server-only":{},"node:crypto":{createHash},ai:{tool,jsonSchema},"./requireUser":{requireUser:async()=>({activeUserId:accountId,authUserId:actorUserId})},"./inrAssistantActionClause.ts":businessFormActionClauses,"./inrAssistantRequestClauses.ts":requestClauses});
+  const nativeCommunication=loadClosedModule<typeof import("../../lib/inrAssistantCommunicationTools.ts")>("inrAssistantCommunicationTools.ts",{"server-only":{},"node:crypto":{createHash},ai:{tool,jsonSchema},"./requireUser":{requireUser:async()=>({activeUserId:accountId,authUserId:actorUserId})},"./inrAssistantMemory.ts":memoryRuntime,"./inrAssistantActionClause.ts":businessFormActionClauses,"./inrAssistantRequestClauses.ts":requestClauses});
+  let reads=0,selections=0;
+  const invalid={section:"drafts",recordId:null,query:"Révision",timeMin:"2025-01-01T00:00:00Z",timeMax:"2027-01-01T00:00:00Z"};
+  const selection={draftId,mailboxId,instructionQuote:instruction};
+  const h=harness({campaignFactory:args=>{const tools=nativeCampaign.createInrAssistantCampaignTools(args as never);return {listCampaignMailboxes:{...tools.listCampaignMailboxes,execute:async()=>({ok:true,status:"read",mailboxes:[{id:mailboxId,email:"atelier@example.invalid",provider:"gmail"}]})},selectCampaignMailbox:{...tools.selectCampaignMailbox,execute:async(input:typeof selection)=>{const refusal=nativeCampaign.getInrAssistantCampaignInputRefusal(instruction,"selectCampaignMailbox",input,"atelier@example.invalid");if(refusal)return refusal;selections++;return {ok:true,status:"updated",draftId,message:"Expéditeur enregistré et relu. Texte conservé, aucun envoi."};}}};},communicationFactory:args=>{const tools=nativeCommunication.createInrAssistantCommunicationTools(args as never);return {readCommunicationRecords:{...tools.readCommunicationRecords,execute:async()=>{reads++;return {ok:true,status:"read",source:"account_scoped_saved_records",hasMore:false,truncated:false,items:[{id:draftId,title:"Révision",status:"draft"}]};}}};},parallelPlan:[{tool:"listCampaignMailboxes"},{tool:"readWorkspaceSection",input:{section:"campaigns"}}],plan:[null,{tool:"readCommunicationRecords",input:invalid},{tool:"readCommunicationRecords",input:{...invalid,timeMin:null,timeMax:null}},{tool:"selectCampaignMailbox",input:selection}],textReply:"Expéditeur enregistré, texte conservé, aucun envoi."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,accountId,actorUserId,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(reads,1,"the invalid reader never executes");assert.equal(selections,1);assert.equal(reply.outcome,"completed");assert.deepEqual([...(reply.taskState?.requiredTools??[])],["selectCampaignMailbox"]);assert.equal(reply.taskState?.receipts.filter(receipt=>receipt.tool==="selectCampaignMailbox"&&receipt.ok).length,1);
+  assert.deepEqual(toolNames(h.generations[2].params),["readCommunicationRecords"]);assert.equal(toolNames(h.generations[3].params).includes("selectCampaignMailbox"),true);assert.equal(h.generations.length,5);assert.equal(h.reservations.length,5);assert.equal(h.commits.length,5);
+});
+
+test("a requested audience preview completes only with its draft-bound AP receipt and never with CRM totals or proposed mail text",async()=>{
+  const accountId=contactIds[0],actorUserId=contactIds[1],draftId="40000000-0000-4000-8000-000000000001";
+  const instruction="Prépare un aperçu de la campagne Révision pour mes clients sans envoi.";
+  const native=loadClosedModule<typeof import("../../lib/inrAssistantCampaignTools.ts")>("inrAssistantCampaignTools.ts",{"server-only":{},"node:crypto":{createHash},ai:{tool,jsonSchema},"./requireUser":{requireUser:async()=>({activeUserId:accountId,authUserId:actorUserId})},"./inrAssistantActionClause.ts":businessFormActionClauses,"./inrAssistantRequestClauses.ts":requestClauses});
+  const input={draftId,segment:"clients",instructionQuote:instruction};
+  for(const mode of ["valid","too_large","invalid_reference","not_called"] as const) {
+    let previews=0;
+    const h=harness({campaignFactory:args=>{const tools=native.createInrAssistantCampaignTools(args as never);return {listCampaignMailboxes:tools.listCampaignMailboxes,previewCampaignAudience:{...tools.previewCampaignAudience,execute:async(value:typeof input)=>{const refusal=native.getInrAssistantCampaignInputRefusal(instruction,"previewCampaignAudience",value);if(refusal)return refusal;previews++;return mode==="too_large"?{ok:false,status:"too_large",message:"La sélection dépasse500fiches. Affinez le segment, aucun destinataire ni envoi."}:{ok:true,status:"preview_ready",draftId,reference:mode==="valid"?"AP-A1B2C3D4E5F6":"AP-INVALID",recipientCount:2,sender:"atelier@example.invalid",message:mode==="valid"?"Aperçu AP-A1B2C3D4E5F6 prêt,2destinataires vérifiés, aucun envoi.":"Aperçu prêt pour501clients prêts à être ciblés."};}}};},plan:mode==="not_called"?[{tool:"readWorkspaceSection",input:{section:"crm"}}]:[{tool:"previewCampaignAudience",input}],accountRead:()=>({source:"active_account_database",readOnly:true,access:"allowed",known:true,section:"crm",data:{total:501}}),textReply:"Aperçu prêt pour501clients prêts à être ciblés. Objet : Nouvelle campagne."});
+    const reply=await h.runtime.generateInrAssistantReply({...basic,accountId,actorUserId,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+    assert.equal(previews,mode==="not_called"?0:1);assert.deepEqual([...(reply.taskState?.requiredTools??[])],["previewCampaignAudience"]);
+    assert.equal(toolNames(h.generations[0].params).includes("prepareCampaignEmail"),false);assert.equal(toolNames(h.generations[0].params).includes("dispatchCampaignAudience"),false);assert.equal(h.crmExecutions.length,0);assert.equal(h.publicationExecutions.length,0);
+    if(mode==="valid"){assert.equal(reply.outcome,"completed");assert.equal(reply.taskState?.receipts[0]?.status,"prepared");assert.equal(reply.taskState?.receipts[0]?.approvalReference,"AP-A1B2C3D4E5F6");}
+    else {assert.notEqual(reply.outcome,"completed");assert.match(reply.message,/pas pu confirmer l’aperçu|référence AP valide/);assert.doesNotMatch(reply.message,/501clients prêts|Objet : Nouvelle campagne/);}
+  }
 });
 
 test("an explicit native noEffect input refusal gets one model retry without rewriting its quote, fields or previous receipts",async()=>{
@@ -1655,14 +1687,33 @@ test("a confirmed CRM mutation is never replayed when its requested explanation 
   assert.equal(h.crmExecutions.length,1);assert.equal(reply.outcome,"partial");assert.equal(reply.taskState?.outcome,"partial");assert.match(reply.message,/limite de longueur/);assert.equal(reply.taskState?.receipts.filter(receipt=>receipt.ok&&receipt.tool === "manageCrmContact").length,1);assert.doesNotMatch(reply.message,/Il reste à\s*\./);
 });
 
-test("a native CRM aggregate receipt matches its exact section while unknown counts never become zero",async()=>{
+test("the real WorkspaceTools aggregate uses allowed and keeps unknown or excluded counts honest",async()=>{
   const instruction="Combien de contacts compte mon CRM, sans noms ni adresses ?";
-  for(const known of [true,false]) {
-    const h=harness({plan:[{tool:"readWorkspaceSection",input:{section:"crm"}}],accountRead:()=>({source:"active_account_database",readOnly:true,access:"included",known,section:"crm",...(known?{counts:{contacts:12}}:{})}),textReply:known?"Le CRM contient 12 contacts.":"Le CRM contient zéro contact."});
-    const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
-    assert.equal(reply.outcome,"completed");assert.deepEqual([...(reply.taskState?.requiredTools??[])],["readWorkspaceSection"]);assert.equal(reply.taskState?.receipts[0]?.status,"read");
-    if(!known){assert.match(reply.message,/inconnues|indisponibles/);assert.doesNotMatch(reply.message,/contient zéro|0 contact/);}
+  const native=loadClosedModule<typeof import("../../lib/inrAssistantWorkspaceTools.ts")>("inrAssistantWorkspaceTools.ts",{"server-only":{},ai:{tool,jsonSchema},"./dashboardEdition.ts":nativeDashboardEdition,"./subscriptionOffers.ts":{currentSubscriptionOffer:()=>{throw new Error("No subscription lookup for CRM counters");}},"./inrstats/visibilityIndexModel.ts":{},"./productNavigation.ts":{PRODUCT_GOOGLE_REVIEWS_HREF:"/dashboard?panel=gmb&googleReviews=1",productNavigationSummary:()=>"Native public navigation"}});
+  for(const scenario of [{edition:"premium",known:true},{edition:"premium",known:false},{edition:"basic",known:false}] as const) {
+    let queries=0;
+    const db={from(table:string){assert.equal(table,"crm_contacts");const filters:Record<string,unknown>={};const builder={select(columns:string,options:unknown){assert.equal(columns,"id");assert.equal((options as {count:string}).count,"exact");assert.equal((options as {head:boolean}).head,true);return builder;},eq(key:string,value:unknown){filters[key]=value;return builder;},then(resolve:(value:unknown)=>unknown){assert.equal(filters.user_id,basic.accountId);queries++;return Promise.resolve({data:null,count:scenario.known?filters.contact_type===undefined?12:filters.contact_type==="client"?7:filters.contact_type==="prospect"?5:0:null,error:scenario.known?null:{code:"source_unavailable"}}).then(resolve);}};return builder;}};
+    const outputs:Record<string,unknown>[]=[];
+    const h=harness({workspaceFactory:args=>{const tools=native.createInrAssistantWorkspaceTools({...args,supabase:db} as never);return {readWorkspaceSection:{...tools.readWorkspaceSection,execute:async(...params:Parameters<NonNullable<typeof tools.readWorkspaceSection.execute>>)=>{const output=await tools.readWorkspaceSection.execute!(...params) as Record<string,unknown>;outputs.push(output);return output;}}};},plan:[{tool:"readWorkspaceSection",input:{section:"crm"}}],textReply:scenario.known?"Le CRM contient 12 contacts.":"Le CRM contient zéro contact."});
+    const reply=await h.runtime.generateInrAssistantReply({...basic,edition:scenario.edition,supabase:db as never,messages:[{role:"user",content:instruction}]});
+    assert.equal(outputs.length,1);assert.equal(outputs[0].source,"active_account_database");assert.equal(outputs[0].readOnly,true);assert.equal(typeof outputs[0].asOf,"string");assert.equal(outputs[0].access,scenario.edition==="premium"?"allowed":"not_included");assert.equal(queries,scenario.edition==="premium"?6:0);
+    assert.equal(reply.outcome,scenario.edition==="premium"?"completed":"blocked");assert.deepEqual([...(reply.taskState?.requiredTools??[])],["readWorkspaceSection"]);assert.equal(reply.taskState?.receipts[0]?.status,scenario.edition==="premium"?"read":"partial");
+    if(scenario.edition==="premium"&&!scenario.known){assert.match(reply.message,/inconnues|indisponibles/);assert.doesNotMatch(reply.message,/contient zéro|0 contact/);}
+    if(scenario.edition==="basic")assert.doesNotMatch(reply.message,/contient zéro|0 contact/);
   }
+});
+
+test("SDK reasoning protocol compaction preserves exact native tool calls and results under the 32k input limit",async()=>{
+  const nativeFact={ok:true,source:"active_account_database",knowledge:{company:"Atelier fictif",services:["Réparation de vélos"]}};
+  const h=harness({reasoningProtocolBytes:38_000,plan:[{tool:"getBusinessDna"}],accountRead:()=>nativeFact,textReply:"Scénario A :60€. Scénario B :120€. Plan écrit uniquement, aucune campagne créée."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,requestId:randomUUID(),supabase:{} as never,messages:[{role:"user",content:"Analyse une stratégie Facebook et Instagram, compare deux scénarios pour un budget maximum120€, puis prépare seulement un plan écrit. Aucune création ni dépense."}]});
+  assert.match(reply.message,/Scénario A/);assert.equal(h.generations.length,2);assert.equal(h.reservations.length,2);assert.equal(h.commits.length,2);assert.ok(h.generations.every(call=>attachmentPolicy.assistantModelInputBudget(call.params)<=32_000));
+  const continuation=h.generations[1].params.prompt;
+  assert.equal(continuation.some(message=>message.role === "assistant"&&message.content.some(part=>part.type==="reasoning")),false);
+  const calls=continuation.flatMap(message=>message.role === "assistant"?message.content.filter(part=>part.type==="tool-call"):[]);
+  const results=continuation.flatMap(message=>message.role === "tool"?message.content.filter(part=>part.type==="tool-result"):[]);
+  assert.equal(calls.length,1);assert.equal(results.length,1);assert.equal(calls[0].toolCallId,"plan-1");assert.equal(results[0].toolCallId,calls[0].toolCallId);assert.equal(calls[0].toolName,"getBusinessDna");assert.deepEqual(calls[0].input,{});assert.deepEqual(results[0].output,{type:"json",value:nativeFact});
+  assert.equal(h.mediaExecutions,0);assert.equal(h.crmExecutions.length,0);assert.equal(h.diagnostics.some(row=>row.phase==="input_limit"),false);
 });
 
 test("native calendar hasMore and truncated metadata keep an exhaustive read partial without trusting the model summary",async()=>{

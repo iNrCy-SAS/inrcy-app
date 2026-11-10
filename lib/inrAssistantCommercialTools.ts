@@ -224,6 +224,10 @@ export function createInrAssistantCommercialTools(options: {
           const body: Row = previous ? Object.fromEntries(CONTACT_COLUMNS.split(",").filter(field => field !== "id" && field !== "user_id").map(field => [field, previous[field] ?? (field === "important" ? false : "")])) : {};
           const changedFields: string[] = [];
           for (const [name, value] of Object.entries(input.fields)) if (value != null) { const native = FIELDS[name as keyof ContactFields]; if (body[native] !== value) changedFields.push(name); body[native] = value; }
+          // The native display_name parser owns both name components. Sending
+          // legacy first/last values as fallbacks would duplicate an old name.
+          // A phone-only update keeps those values exactly as they were read.
+          if (input.action === "update" && input.fields.displayName != null) { body.first_name = ""; body.last_name = ""; }
           if (input.action === "create" && ![body.display_name, body.company_name, body.email, body.phone].some(value => typeof value === "string" && value.trim())) return fail(crmLink, "needs_details", ["Identité du contact"]);
           if (input.action === "create" && !normalize([body.display_name, body.company_name, body.email, body.phone].join(" ")).includes(normalize(input.reference))) return fail(crmLink, "needs_instruction");
           if (input.action === "update" && changedFields.length === 0) return { ok: true, status: "unchanged", id: input.contactId!, nextAction: crmLink, message: "La fiche contient déjà les valeurs demandées. Aucun autre champ n’a été modifié." };

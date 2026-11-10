@@ -6,7 +6,7 @@ import { pathToFileURL } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import vm from 'node:vm';
-import { nativeFixtureRefusal, fixtureEffectIdentity, fixtureEffectFingerprint, projectNativeFixtureRead, providerVisualSummary } from './lib/inr-assistant-fixture-boundary.mjs';
+import { nativeFixtureRefusal, fixtureEffectIdentity, fixtureEffectFingerprint, projectNativeFixtureRead, providerVisualSummary, providerOutputPartSummary } from './lib/inr-assistant-fixture-boundary.mjs';
 const arg = name => process.argv.find(value => value.startsWith(`--${name}=`))?.slice(name.length + 3);
 const root = resolve(arg('source') || resolve(import.meta.dirname, '..'));
 const { getInrAssistantNavigation } = await import(pathToFileURL(resolve(root,'lib/inrAssistantUiCommands.ts')).href);
@@ -144,7 +144,8 @@ function loadHarness(){
       const start=Date.now(); let response;
       try{response=await model.doGenerate({...params,abortSignal:AbortSignal.any([...(params.abortSignal?[params.abortSignal]:[]),AbortSignal.timeout(45000)])});}
       catch(error){chargedEstimateUsd+=upper;let message=String(error?.message??'Provider failure').slice(0,600);for(const secret of[process.env.AI_GATEWAY_API_KEY,process.env.VERCEL_OIDC_TOKEN].filter(Boolean))message=message.replaceAll(secret,'[redacted]');providerErrors.push({caseId:activeCase.test.id,modelId,name:error?.name,status:error?.statusCode,message,retainedEstimateUsd:upper});throw error;}
-      trace.durationMs=Date.now()-start;trace.toolCalls=response.content.filter(c=>c.type==='tool-call');
+      trace.durationMs=Date.now()-start;trace.outputParts=providerOutputPartSummary(response);
+      trace.toolCalls=response.content.filter(c=>c.type==='tool-call').map(({type,toolCallId,toolName,input})=>({type,toolCallId,toolName,input}));
       for(const call of trace.toolCalls)activeCase.toolCallNames.set(call.toolCallId,call.toolName);
       const inputTokens=response.usage?.inputTokens?.total,outputTokens=response.usage?.outputTokens?.total;
       const cost=response.providerMetadata?.gateway?.gatewayCost;

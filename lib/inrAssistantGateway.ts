@@ -5,7 +5,7 @@ import type { InrAssistantGatewayArgs, InrAssistantReply } from "./inrAssistantG
 import type { InrAssistantMediaResult } from "./inrAssistantMediaTools.ts";
 import type { InrAssistantPublicationResult } from "./inrAssistantPublicationTools.ts";
 
-import { asSchema, createGateway, generateText, InvalidToolInputError, jsonSchema, tool, wrapLanguageModel } from "ai";
+import { asSchema, createGateway, generateText, InvalidToolInputError, jsonSchema, pruneMessages, tool, wrapLanguageModel } from "ai";
 import { assistantToolsForEdition } from "./inrAssistantEditionPolicy.ts";
 import { getAiGatewayCredential } from "@/lib/aiGatewayConfig";
 import {
@@ -373,6 +373,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const retryableNativeInputs = new Map<string,{input:Record<string,unknown>;inputIssue:string;invalidFields:string[]}>();
   const verifiedCrmContactIds = new Set<string>();
   const unknownWorkspaceSections = new Set<string>();
+  const excludedWorkspaceSections = new Set<string>();
   let limitedCalendarRead=false, unverifiedStatsRead=false;
   let hadInvalidToolInput=false, hadReadResult=false, hadOutputLimit=false;
   let outputLimitAtCall=-1;
@@ -488,7 +489,8 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
                 if(index>=0) {
                   const objective=objectives[index];
                   const preflightRead=result.toolName === "readAdvertisingCampaigns" && (result.input as {mode?:string} | undefined)?.mode === "preflight" && typeof output.ready === "boolean";
-                  const workspaceRead=result.toolName === "readWorkspaceSection" && output.source === "active_account_database" && output.readOnly === true && output.access === "included" && typeof output.known === "boolean" && typeof output.section === "string" && output.section === (result.input as {section?:unknown}|undefined)?.section;
+                  const workspaceRead=result.toolName === "readWorkspaceSection" && output.source === "active_account_database" && output.readOnly === true && output.access === "allowed" && typeof output.known === "boolean" && typeof output.section === "string" && output.section === (result.input as {section?:unknown}|undefined)?.section;
+                  if(result.toolName === "readWorkspaceSection" && output.source === "active_account_database" && output.readOnly === true && output.access === "not_included" && output.section === (result.input as {section?:unknown}|undefined)?.section) excludedWorkspaceSections.add(String(output.section));
                   if(workspaceRead && output.known === false) unknownWorkspaceSections.add(String(output.section));
                   const verified=(workspaceRead || preflightRead || (output.ok===true || output.available===true || output.found===true) && output.ok!==false) && output.available!==false
                     && !(result.toolName === "getAccountDiagnostics" && output.complete === false) && !(result.toolName === "readAccountServices" && (result.input as {view?:string} | undefined)?.view === "credits" && output.quotaKnown === false);
@@ -551,6 +553,12 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
                 for (let index=0;index<receipts.length;index++) { const previous=receipts[index]; if (["generateMedia","modifyMedia"].includes(previous.tool) && previous.requestId === output.requestId) receipts[index]={...previous,ok:true,status:"completed",draft:false,message}; }
               }
               const receipt: InrAssistantActionReceipt = {tool:resultToolName(result.toolName,output),ok:output.ok === true,status:typeof output.status === "string"?output.status:"unknown",message};
+              if(result.toolName === "previewCampaignAudience" && output.ok === true) {
+                const validPreview=output.status === "preview_ready" && typeof output.reference === "string" && /^AP-[A-F0-9]{12}$/.test(output.reference) && typeof output.draftId === "string" && output.draftId === (result.input as {draftId?:unknown}|undefined)?.draftId;
+                receipt.ok=validPreview;receipt.status=validPreview?"prepared":"partial";
+                if(validPreview){receipt.approvalReference=String(output.reference);receipt.message=`${message}\nRéférence de l’aperçu vérifié : ${output.reference}`;}
+                else {receipt.message="L’aperçu demandé n’a pas de référence AP vérifiable pour ce brouillon.";actionFacts.set(result.toolCallId,{message:receipt.message});}
+              }
               if (output.resultMode === "save" || output.resultMode === "preview") receipt.resultMode=output.resultMode;
               if (typeof output.draft === "boolean") receipt.draft=output.draft;
               if (receipt.ok && receipt.status === "ready_to_save" && receipt.resultMode === "preview" && receipt.draft === true) receipt.status="preview_generated";
@@ -842,7 +850,15 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
       success=false;
       message=[factual || savedActionReply(),"Je n’ai pas pu confirmer toutes les opérations CRM demandées. Aucun résultat supplémentaire ne peut être présenté comme enregistré."].filter(Boolean).join("\n\n");
     }
+    if(!pendingUi.length && remaining.includes("previewCampaignAudience") && !excludedGoals.includes("previewCampaignAudience")) {
+      success=false;
+      message=[factual || savedActionReply(),"Je n’ai pas pu confirmer l’aperçu demandé. Un total CRM ne constitue pas une audience vérifiée : aucun aperçu avec référence AP valide, expéditeur et exclusions contrôlés n’est confirmé. Aucun envoi n’a été effectué."].filter(Boolean).join("\n\n");
+    }
     if(!pendingUi.length && unknownWorkspaceSections.size) message=[factual || savedActionReply(),`Les données demandées (${[...unknownWorkspaceSections].join(", ")}) restent inconnues ou indisponibles. Aucun compteur ne peut être interprété comme zéro.`].filter(Boolean).join("\n\n");
+    if(!pendingUi.length && excludedWorkspaceSections.size) {
+      outcome=completed.length?"partial":"blocked";success=false;
+      message=[factual || savedActionReply(),"Cette rubrique n’est pas incluse dans votre offre actuelle. Aucune donnée privée de cette rubrique n’a été lue ; aucun compteur ne peut être confirmé. Consultez [Mon abonnement](/dashboard?panel=abonnement)."].filter(Boolean).join("\n\n");
+    }
     if(!pendingUi.length && limitedCalendarRead) {
       if(outcome === "completed") outcome="partial";
       success=false;
@@ -886,7 +902,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     for (let attemptIndex = 0; attemptIndex < attempts.length; attemptIndex++) {
       const attempt = attempts[attemptIndex];
       let toolInputRepairAttempt: typeof attempt | undefined;
-      const attemptMessages = continuationMessages === messages ? messages : compactInrAssistantGuideContext(compactInrAssistantRejectedToolContext(continuationMessages, rejectedToolCallIds), { maxGuideCharacters: 1200 });
+      const attemptMessages = continuationMessages === messages ? messages : compactInrAssistantGuideContext(compactInrAssistantRejectedToolContext(pruneMessages({messages:continuationMessages,reasoning:"all",toolCalls:"none"}), rejectedToolCallIds), { maxGuideCharacters: 1200 });
       if (args.signal?.aborted) noteFailure("request_aborted", { model: attempt.model, callCount: llmCalls });
       args.signal?.throwIfAborted();
       const remaining = deadline - Date.now();
@@ -1047,7 +1063,10 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
               type: "function", name, description: tools[name].description,
               inputSchema: await asSchema<unknown>(tools[name].inputSchema).jsonSchema,
             })));
-            let continuationSource = compactInrAssistantRejectedToolContext(stepMessages.slice(latestUser),rejectedToolCallIds);
+            // SDK reasoning parts can contain large opaque provider replay data.
+            // They are not user instructions or native receipts. Use the SDK's
+            // supported pruning API; retain every tool call/result/approval.
+            let continuationSource = compactInrAssistantRejectedToolContext(pruneMessages({messages:stepMessages.slice(latestUser),reasoning:"all",toolCalls:"none"}),rejectedToolCallIds);
             const fitContinuation = () => fitInrAssistantGuideContext(continuationSource,Math.max(0,29_500-bytes(continuingSystem)-bytes(currentSchemas)-2_048),bytes);
             let continuationContext = fitContinuation();
             const continuationBytes = () => bytes({system:continuingSystem,messages:continuationContext})+bytes(currentSchemas)+2_048;

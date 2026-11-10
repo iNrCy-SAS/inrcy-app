@@ -8,7 +8,7 @@ import { jsonSchema, tool } from "ai";
 import * as actionClauses from "../../lib/inrAssistantActionClause.ts";
 import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import * as commercialDraft from "../../lib/commercialDocumentDraft.ts";
-import { nativeFixtureRefusal, fixtureEffectIdentity, fixtureEffectFingerprint, projectNativeFixtureRead, providerVisualSummary } from "../../scripts/lib/inr-assistant-fixture-boundary.mjs";
+import { nativeFixtureRefusal, fixtureEffectIdentity, fixtureEffectFingerprint, projectNativeFixtureRead, providerVisualSummary, providerOutputPartSummary } from "../../scripts/lib/inr-assistant-fixture-boundary.mjs";
 
 type Row = Record<string, unknown>;
 function native(file: string): Row {
@@ -75,7 +75,26 @@ test("synthetic readers filter the actual query and section and retain native pr
 });
 
 test("provider visual observability counts transmitted parts without retaining payload, URLs or text", () => {
-  const summary = providerVisualSummary({ prompt: [{ role: "user", content: [{ type: "image", image: "SECRET_IMAGE" }, { type: "image_url", image_url: "SECRET_URL" }, { type: "text", text: "PRIVATE_TEXT" }] }] });
-  assert.equal(summary.visualCount, 2); assert.deepEqual(summary.visualParts, { image: 1, image_url: 1 });
+  const summary = providerVisualSummary({ prompt: [{ role: "user", content: [
+    { type: "image", image: "SECRET_IMAGE" }, { type: "image_url", image_url: "SECRET_URL" },
+    { type: "file", mediaType: "image/png", data: "SECRET_FILE_IMAGE" }, { type: "file", mimeType: "image/jpeg", data: "SECRET_MIME_IMAGE" },
+    { type: "file", mediaType: "audio/mp3", data: "SECRET_AUDIO" }, { type: "text", text: "PRIVATE_TEXT" },
+  ] }] });
+  assert.equal(summary.visualCount, 4); assert.deepEqual(summary.visualParts, { image: 1, image_url: 1, file_image: 2 });
   assert.equal(summary.serverFileTransmission, null); assert.doesNotMatch(JSON.stringify(summary), /SECRET|PRIVATE/);
+});
+
+test("provider output diagnostics retain only part types and UTF8 sizes, including metadata sizes", () => {
+  const content = [
+    { type: "text", text: "PRIVATE é", providerMetadata: { hidden: "SECRET_METADATA" } },
+    { type: "reasoning", text: "SECRET_REASONING", providerMetadata: { encrypted: "SECRET_ENCRYPTED" } },
+    { type: "file", data: "SECRET_IMAGE", mediaType: "image/png" },
+  ];
+  const summary = providerOutputPartSummary({ content });
+  assert.deepEqual(summary.map((part: { type: string }) => part.type), ["text", "reasoning", "file"]);
+  for (let index = 0; index < content.length; index++) {
+    assert.equal(summary[index].serializedBytes, new TextEncoder().encode(JSON.stringify(content[index])).byteLength);
+    assert.equal(summary[index].providerMetadataBytes, content[index].providerMetadata === undefined ? 0 : new TextEncoder().encode(JSON.stringify(content[index].providerMetadata)).byteLength);
+  }
+  assert.doesNotMatch(JSON.stringify(summary), /PRIVATE|SECRET|"hidden":|"encrypted":|"data":|"text":|"providerMetadata":/);
 });

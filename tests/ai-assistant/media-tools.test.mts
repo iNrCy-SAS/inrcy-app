@@ -266,6 +266,49 @@ test("the real SDK repairs serialized quote arguments once and revalidates befor
   assert.equal(h.calls.some(c=>c.stage==="generate"||c.stage==="accept"),false);
 });
 
+for (const [label, durationSeconds, resultMode, engine] of [
+  ["empty image quote placeholders", "", "", "FLUX.2 Pro"],
+  ["a unique catalogue label with different separators", null, null, "flux.2-pro"],
+] as const) test(`the real SDK repairs ${label} before one native quote and no media creation`, async () => {
+  const h = harness({ realSdk: true, currentUserMessage: "Donne le devis réel d’une image carrée avec FLUX.2 Pro, sans générer ni enregistrer." });
+  const input = { ...imageInput, durationSeconds, resultMode, settings: [{ field: "imageEngine", valueJson: JSON.stringify(engine) }] };
+  let repairs = 0;
+  const model: LanguageModelV3 = { specificationVersion: "v3", provider: "offline-quote-repair", modelId: label, supportedUrls: {},
+    doGenerate: async () => ({ content: [{ type: "tool-call", toolCallId: "quote-finite-repair", toolName: "quoteMediaGeneration", input: JSON.stringify(input) }], finishReason: { unified: "tool-calls", raw: "fixture" }, usage: { inputTokens: { total: 0 }, outputTokens: { total: 0 } }, warnings: [] }),
+    doStream: async () => { throw new Error("No transport"); },
+  };
+  const result = await sdk.generateText({ model, prompt: "Devis seulement", tools: { quoteMediaGeneration: h.sdkTools.quoteMediaGeneration }, experimental_repairToolCall: async ({ toolCall }) => { repairs += 1; return repairInrAssistantToolInput(toolCall); } });
+  assert.equal(repairs, 1);
+  assert.equal(result.toolResults.length, 1);
+  assert.equal(h.calls.filter(c => c.stage === "quote").length, 1);
+  assert.equal(h.calls.find(c => c.stage === "quote")?.body?.imageEngine, "flux");
+  assert.equal(h.calls.find(c => c.stage === "quote")?.body?.durationSeconds, null, "an image retains the native null duration");
+  assert.equal(h.calls.some(c => c.stage === "generate" || c.stage === "accept"), false);
+  assert.deepEqual(h.results, []); assert.deepEqual(h.callbacks, []);
+});
+
+test("SDK revalidation rejects an unknown engine and a blank generation mode after bounded repair", async () => {
+  for (const [name, engine, resultMode] of [
+    ["quoteMediaGeneration", "flux.2-pro-unknown", ""],
+    ["generateMedia", "flux.2-pro", ""],
+  ] as const) {
+    const h = harness({ realSdk: true, currentUserMessage: "Génère une image carrée dans iNr’Studio." });
+    const input = { ...imageInput, durationSeconds: "", resultMode, settings: [{ field: "imageEngine", valueJson: JSON.stringify(engine) }] };
+    const fixed = JSON.parse(repairInrAssistantToolInput({ toolName: name, input: JSON.stringify(input) })!.input);
+    if (name === "quoteMediaGeneration") assert.equal(fixed.settings[0].valueJson, JSON.stringify(engine), "an unknown alias is never approximated");
+    else assert.equal(fixed.resultMode, "", "blank generation mode is not permission to save or preview");
+    const model: LanguageModelV3 = { specificationVersion: "v3", provider: "offline-quote-repair", modelId: name, supportedUrls: {},
+      doGenerate: async () => ({ content: [{ type: "tool-call", toolCallId: "rejected-finite-repair", toolName: name, input: JSON.stringify(input) }], finishReason: { unified: "tool-calls", raw: "fixture" }, usage: { inputTokens: { total: 0 }, outputTokens: { total: 0 } }, warnings: [] }),
+      doStream: async () => { throw new Error("No transport"); },
+    };
+    const result = await sdk.generateText({ model, prompt: "Respecter le contrat natif", tools: { [name]: h.sdkTools[name] }, experimental_repairToolCall: async ({ toolCall }) => repairInrAssistantToolInput(toolCall) });
+    assert.equal(result.toolCalls.length, 1);
+    assert.equal("invalid" in result.toolCalls[0] && result.toolCalls[0].invalid, true);
+    assert.deepEqual(h.calls, [], "invalid arguments never reach quota, quote, generation or save");
+    assert.deepEqual(h.results, []); assert.deepEqual(h.callbacks, []);
+  }
+});
+
 test("syntactic repair never removes injected scope or invents a reference, instruction or consent", async () => {
   const h=harness();
   const raw={...imageInput,resultMode:null,settings:JSON.stringify([{field:"imageEngine",valueJson:'"FLUX.2 Pro"'}]),accountId:"foreign"};

@@ -138,14 +138,18 @@ test("phone-only CRM updates reject copied fields with actionable feedback befor
   assert.match(refusal.message, /null.*conserver|conserver.*null/); assert.equal(h.calls.length, 0); assert.equal(h.nativeCalls.length, 0);
   const fixed = await tools.manageCrmContact.execute(manage("update", updateMessage, { phone: "0102030405", displayName: null, email: null, notes: null }));
   assert.equal(fixed.status, "updated"); assert.equal(h.tables.crm_contacts[0].phone, "0102030405");
+  assert.equal(h.tables.crm_contacts[0].first_name, "Jean"); assert.equal(h.tables.crm_contacts[0].last_name, "Dupont");
   assert.equal(h.tables.crm_contacts[0].email, "jean@example.test"); assert.equal(h.tables.crm_contacts[0].notes, "PRIVATE_NOTES_NEVER_RETURN");
   assert.equal(h.nativeCalls.length, 1);
 });
 
 test("CRM rename paraphrases and two requested fields remain supported while other stored values survive", async () => {
   for (const message of ["Renomme le contact Jean Dupont en Jean Durand dans le CRM.", "Remplace Jean Dupont par Jean Durand dans le CRM."]) {
-    const h = harness(); const result = await h.tools(message).manageCrmContact.execute(manage("update", message, { displayName: "Jean Durand" }));
+    const h = harness(); h.tables.crm_contacts[0].company_name = "Entreprise historique";
+    const result = await h.tools(message).manageCrmContact.execute(manage("update", message, { displayName: "Jean Durand" }));
     assert.equal(result.status, "updated", message); assert.equal(h.nativeCalls.length, 1);
+    assert.equal(h.tables.crm_contacts[0].first_name, ""); assert.equal(h.tables.crm_contacts[0].last_name, "Jean Durand");
+    assert.equal(h.tables.crm_contacts[0].company_name, "Entreprise historique");
     assert.equal(h.tables.crm_contacts[0].email, "jean@example.test"); assert.equal(h.tables.crm_contacts[0].phone, "0612345678");
     assert.equal(h.tables.crm_contacts[0].notes, "PRIVATE_NOTES_NEVER_RETURN");
   }

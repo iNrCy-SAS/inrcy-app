@@ -4,7 +4,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
-import { asSchema, jsonSchema, tool } from "ai";
+import { asSchema, generateText, jsonSchema, tool } from "ai";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
+import { repairInrAssistantToolInput } from "../../lib/inrAssistantToolInputRepair.ts";
 import * as actionClauses from "../../lib/inrAssistantActionClause.ts";
 import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import type * as Communication from "../../lib/inrAssistantCommunicationTools.ts";
@@ -251,6 +253,39 @@ test("nine native agenda events are exposed as a bounded nonexhaustive result wi
   assert.equal((result.items as Row[]).length, 8); assert.equal(result.hasMore, true); assert.equal(result.truncated, true);
   assert.equal(result.availabilityGuaranteed, false); assert.equal(result.nextPage, undefined); assert.equal(result.nextCursor, undefined);
   assert.match(String(result.message), /limit|extrait|huit/i); assert.equal(h.queries[0].limit, 9); assert.equal(h.apiCalls.length, 0);
+});
+
+test("real SDK repairs local winter/summer schedules and the unchanged native executor rechecks consent", async () => {
+  for (const [local, instant] of [["2030-01-15T09:30:00", "2030-01-15T08:30:00.000Z"], ["2030-07-15T09:30:00", "2030-07-15T07:30:00.000Z"]]) {
+    const message = `Programme le brouillon de campagne ${DRAFT} à alice@example.test pour le ${local.slice(0, 10)} à 09 h 30, fuseau Europe/Paris.`;
+    const h = harness({ message });
+    const input = { instructionQuote: message, draftId: DRAFT, mode: "schedule", recipients: ["alice@example.test"], scheduledAt: local, timezone: "Europe/Paris" };
+    let repairs = 0;
+    const model: LanguageModelV3 = { specificationVersion: "v3", provider: "offline-schedule", modelId: "synthetic", supportedUrls: {}, doGenerate: async () => ({
+      content: [{ type: "tool-call", toolCallId: "schedule", toolName: "dispatchCampaignDraft", input: JSON.stringify(input) }], finishReason: { unified: "tool-calls", raw: "fixture" },
+      usage: { inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 0, text: 0, reasoning: 0 } }, warnings: [],
+    }), doStream: async () => { throw new Error("No provider network"); } };
+    const result = await generateText({ model, prompt: message, tools: { dispatchCampaignDraft: h.tools.dispatchCampaignDraft }, experimental_repairToolCall: async ({ toolCall }) => {
+      repairs++; const fixed = repairInrAssistantToolInput(toolCall); assert.ok(fixed);
+      assert.deepEqual(JSON.parse(fixed.input), { ...input, scheduledAt: instant }); return fixed;
+    } });
+    assert.equal(repairs, 1); assert.equal(result.toolResults.length, 1); assert.equal(h.apiCalls.length, 1);
+    assert.equal(h.apiCalls[0].body.scheduledAt, instant); assert.equal(h.apiCalls[0].body.timezone, "Europe/Paris");
+  }
+});
+
+test("real SDK never executes unrepairable ambiguous, nonexistent or unscoped local schedules", async () => {
+  for (const patch of [{ scheduledAt: "2030-03-31T02:30:00" }, { scheduledAt: "2030-10-27T02:30:00" }, { timezone: "Mars/Olympus" }, { timezone: null }, { mode: "send" }]) {
+    const message = `Programme le brouillon de campagne ${DRAFT} à alice@example.test pour le 2030-01-15 à 09 h 30, fuseau Europe/Paris.`;
+    const h = harness({ message }); const input = { instructionQuote: message, draftId: DRAFT, mode: "schedule", recipients: ["alice@example.test"], scheduledAt: "2030-01-15T09:30:00", timezone: "Europe/Paris", ...patch };
+    let repairs = 0;
+    const model: LanguageModelV3 = { specificationVersion: "v3", provider: "offline-schedule-refusal", modelId: "synthetic", supportedUrls: {}, doGenerate: async () => ({ content: [{ type: "tool-call", toolCallId: "schedule", toolName: "dispatchCampaignDraft", input: JSON.stringify(input) }], finishReason: { unified: "tool-calls", raw: "fixture" }, usage: { inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 0, text: 0, reasoning: 0 } }, warnings: [] }), doStream: async () => { throw new Error("No provider network"); } };
+    try {
+      const result = await generateText({ model, prompt: message, tools: { dispatchCampaignDraft: h.tools.dispatchCampaignDraft }, experimental_repairToolCall: async ({ toolCall }) => { repairs++; const fixed = repairInrAssistantToolInput(toolCall); assert.equal(fixed, null); return fixed; } });
+      assert.equal(result.toolResults.length, 0);
+    } catch (error) { assert.match(error instanceof Error ? error.name : "", /InvalidToolInput|ToolCallRepair/); }
+    assert.equal(repairs, 1); assert.equal(h.apiCalls.length, 0); assert.equal(h.queries.length, 0);
+  }
 });
 
 test("schedule uses the native stable UUID contract and requires the exact requested date, time and zone", async () => {

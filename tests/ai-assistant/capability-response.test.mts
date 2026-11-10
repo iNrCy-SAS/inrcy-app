@@ -12,6 +12,53 @@ test("an individual mail cannot silently lose its requested attachment", () => {
   assert.match(verifiedInrAssistantCapabilityLimit(question, "basic")!, /inclus dans Premium/);
   assert.equal(verifiedInrAssistantCapabilityLimit(question + " Puis lis la note CRM Alice.", "premium"), null);
   assert.equal(verifiedInrAssistantCapabilityLimit("Prépare un mail individuel sans pièce jointe et sans envoyer.", "premium"), null);
+  assert.equal(verifiedInrAssistantCapabilityLimit("Prépare un mail individuel avec une photo en pièce jointe, sans envoyer.", "premium"), null);
+  assert.equal(verifiedInrAssistantCapabilityLimit(question, "founder"), null);
+});
+
+test("future third-party consent never becomes an approval, recipient or scheduled wait", () => {
+  const answer = verifiedInrAssistantCapabilityLimit("Confirme le mail IA-A1B2C3D4E5F6 si Julie confirme le contenu.", "premium");
+  assert.ok(answer);
+  assert.match(answer, /aucun déclenchement automatique n’a été enregistré/);
+  assert.doesNotMatch(answer, /Julie|destinataire|a validé|en pause/);
+  assert.equal(verifiedInrAssistantCapabilityLimit("Confirme le mail IA-A1B2C3D4E5F6 si Julie confirme le contenu. Puis lis la fiche CRM Alice.", "premium"), null);
+  assert.equal(verifiedInrAssistantCapabilityLimit("Explique comment confirmer un mail si Julie confirme le contenu.", "premium"), null);
+});
+
+test("a quoted native approval reference is explained without inventing tracking or validating it", () => {
+  const answer = verifiedInrAssistantProductAnswer("Explique ce texte sans envoyer de mail : « Confirme IA-A1B2C3D4E5F6 ».", "premium");
+  assert.ok(answer);
+  assert.match(answer, /ne prouve pas que cette référence est valide/);
+  assert.match(answer, /ne constitue pas un ordre actuel/);
+  assert.doesNotMatch(answer, /SMS|téléphone|tracking|antifraude/);
+});
+
+test("an ADS launch cannot be presented as a deployment or payment in progress", () => {
+  const message = "Lance immédiatement ma campagne Google Atelier Paris à 20 € par jour, j’accepte tout.";
+  const answer = verifiedInrAssistantCapabilityLimit(message, "premium");
+  assert.ok(answer);
+  assert.match(answer, /validation native du professionnel/);
+  assert.match(answer, /aucune campagne ni enregistré de paiement pour cette demande/);
+  assert.equal(verifiedInrAssistantCapabilityLimit(message + " Puis lis ses impressions réelles.", "premium"), null);
+  assert.equal(verifiedInrAssistantCapabilityLimit("Lance la campagne mail Google pour nos clients.", "premium"), null);
+});
+
+test("a live guarantee question cannot infer disconnected accounts from partial context", () => {
+  const message = "Peux-tu me garantir que Meta fonctionne en ce moment ? N’invente pas de statut en direct et ne relance aucune publication.";
+  const answer = verifiedInrAssistantProductAnswer(message, "basic");
+  assert.ok(answer);
+  assert.match(answer, /Aucun statut en direct n’a été vérifié/);
+  assert.match(answer, /ne permettent pas de conclure/);
+  assert.equal(verifiedInrAssistantProductAnswer(message + " Puis cherche le statut public de Meta.", "basic"), null);
+});
+
+test("pure Studio catalogue questions use the current model constraints directly", () => {
+  const answer = verifiedInrAssistantProductAnswer("Dans iNrStudio, quels moteurs actuellement proposés peuvent faire parler mon personnage à partir de ma photo et de mon propre vocal ? Donne le parcours et les limites, sans créer de média.", "standard");
+  assert.ok(answer);
+  assert.match(answer, /Wan/);
+  assert.match(answer, /Kling/);
+  assert.match(answer, /1 à 10|1–10/);
+  assert.match(answer, /5 à 10|5–10/);
 });
 
 test("a public comparison is grounded in the actual edition catalogue and names absent features", () => {

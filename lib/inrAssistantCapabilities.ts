@@ -1,5 +1,7 @@
 import type { DashboardEdition } from "./dashboardEdition.ts";
 import { inrAssistantRequestClauses, inrAssistantUnquotedRequest } from "./inrAssistantRequestClauses.ts";
+import { hasInrAssistantDeferredApproval } from "./inrAssistantActionClause.ts";
+import { verifiedInrAssistantStudioCatalogueAnswer } from "./inrAssistantStudioFacts.ts";
 
 /** One public contract for the assistant's real actions and native confirmations. */
 export const INR_ASSISTANT_CAPABILITIES = [
@@ -36,8 +38,17 @@ Fichiers : images, texte par segments, MP3/WAV ≤3 Mio/5 min, OCR PDF ≤8 Mio 
 }
 export function verifiedInrAssistantCapabilityLimit(message: string, edition: DashboardEdition): string | null {
   const value=message.normalize("NFD").replace(/\p{M}/gu,"").toLowerCase();
-  if (inrAssistantRequestClauses(message).length === 1 && /\b(?:prepare\w*|redig\w*|ecri\w*|creer|cree)\b/.test(value)
+  const current = inrAssistantUnquotedRequest(message);
+  if (message.length <= 4_000 && inrAssistantRequestClauses(message).length === 1 && hasInrAssistantDeferredApproval(message)
+    && /^(?:(?:peux|pourrais)[- ]tu\s+)?(?:confirme\w*|envoi\w*|publie\w*|cree\w*|modifi\w*|supprim\w*|prepare\w*|lance\w*|active\w*)\b/.test(current)
+    && /\b(?:mails?|campagnes?|publications?|contacts?|crm|rendez.vous|rdv|images?|videos?|canaux?)\b/.test(current)) return "La condition de validation future n’est pas une approbation actuelle. Aucune action n’a été exécutée ou programmée, et aucun déclenchement automatique n’a été enregistré. Une nouvelle consigne explicite sera nécessaire ; les aperçus sensibles devront être confirmés avec leur référence native.";
+  if (inrAssistantRequestClauses(message).length === 1 && /^(?:(?:peux|pourrais)[- ]tu\s+)?(?:lance\w*|deploi\w*|publie\w*)\b/.test(current)
+    && /\bcampagnes?\b/.test(current) && /\b(?:ads|publicit\w*|google|meta|facebook|instagram|linkedin|tiktok|pinterest)\b/.test(current)
+    && !/\b(?:mails?|courriels?|newsletter|gmail)\b/.test(current)) return (edition === "basic" || edition === "standard" ? "Les campagnes ADS sont incluses dans Premium. " : "")
+      + "Le lancement publicitaire et la validation du budget se font dans [iNr’ADS](/dashboard/ads), avec la validation native du professionnel. Je n’ai lancé aucune campagne ni enregistré de paiement pour cette demande. Vérifiez la campagne, le compte publicitaire et son budget dans cet écran avant de valider.";
+  if (edition !== "founder" && inrAssistantRequestClauses(message).length === 1 && /\b(?:prepare\w*|redig\w*|ecri\w*|creer|cree)\b/.test(value)
     && /\b(?:mail|courriel|message)\s+individuel\b/.test(value) && /\b(?:piece jointe|pieces jointes|pj|attach\w*)\b/.test(value)
+    && /\bpdf\b/.test(value)
     && !/\b(?:sans|aucune?|pas de)\s+(?:pieces? jointes?|pj)\b/.test(value)) return edition === "basic" || edition === "standard"
     ? "Les mails individuels sont inclus dans Premium. La préparation d’un mail avec pièce jointe n’est pas prise en charge par cet adaptateur de l’assistant, y compris en Premium. Aucun mail n’a été préparé ni envoyé."
     : "La préparation d’un mail individuel avec pièce jointe n’est pas prise en charge par cet adaptateur de l’assistant. Je ne peux pas préparer ce message en retirant silencieusement le PDF demandé. Aucun mail n’a été préparé ni envoyé.";
@@ -78,7 +89,13 @@ export function verifiedInrAssistantOfferComparison(message: string): string | n
 export function verifiedInrAssistantProductAnswer(message: string, edition: DashboardEdition): string | null {
   const comparison = verifiedInrAssistantOfferComparison(message);
   if (comparison) return comparison;
+  const studio = verifiedInrAssistantStudioCatalogueAnswer(message);
+  if (studio) return studio;
   const current = inrAssistantUnquotedRequest(message);
+  if (message.length <= 1_000 && /\bgarantir\b/.test(current) && /\b(?:meta|google|facebook|instagram|linkedin|tiktok|pinterest)\b/.test(current)
+    && /\b(?:ce moment|maintenant|en direct)\b/.test(current) && inrAssistantRequestClauses(message).every(clause => !/^(?:cherche\w*|recherch\w*|consulte\w*|lis|ouvre\w*|actualis\w*)\b/.test(clause))) return "Je ne peux pas garantir le fonctionnement d’un fournisseur à chaque instant. Aucun statut en direct n’a été vérifié pour cette réponse ; les informations initiales du compte ne permettent pas de conclure à une panne ni à l’absence d’une connexion. La disponibilité du fournisseur et l’état du canal du compte doivent être vérifiés séparément. Aucune publication n’a été relancée.";
+  if (message.length <= 1_400 && /^explique\b/.test(current) && /\bsans\s+(?:envoy\w*|envoi\w*|action)\b/.test(current)
+    && /[«“"]\s*confirme\s+IA-[A-F0-9]{12}\s*[»”"]/i.test(message) && inrAssistantRequestClauses(message).length === 1) return "Dans iNr’Send, « Confirme IA-… » est la forme de confirmation d’un aperçu de mail individuel. Sa référence doit correspondre à un aperçu natif valide, au contenu, au compte et au professionnel concernés. L’exemple cité ne prouve pas que cette référence est valide et ne constitue pas un ordre actuel d’envoi. Aucun mail n’a été envoyé.";
   if (message.length > 1_400 || !/\b(?:sans rien executer|deux questions|question,? pas un ordre)\b/.test(current)
     || !/\b(?:fusion\w*|doublons?)\b/.test(current) || !/\b(?:crm|contacts?|carnet d'adresses)\b/.test(current)
     || !/\b(?:gmail|outlook)\b/.test(current) || !/\b(?:reception|recus|archiv\w*|messages?)\b/.test(current)) return null;

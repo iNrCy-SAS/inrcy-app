@@ -278,6 +278,7 @@ const prerequisiteReaders: Record<string, string[]> = {
     dispatchCampaignDraft: ["readCommunicationRecords", "listCampaignMailboxes"],
     dispatchCampaignAudience: ["readCommunicationRecords", "listCampaignMailboxes", "searchCrmContacts"],
     selectCampaignMailbox: ["listCampaignMailboxes"],
+    previewCampaignAudience: ["readCommunicationRecords", "listCampaignMailboxes"],
     applyGoogleBusinessProfileUpdate: ["readGoogleBusinessProfile", "searchGoogleBusinessCategories"],
     managePublicationIdeas: ["readPublicationIdeas"],
     applyPublicationLifecycleAction: ["readPublicationWorkspace"],

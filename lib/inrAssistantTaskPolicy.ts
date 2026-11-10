@@ -84,6 +84,20 @@ export function isInrAssistantMediaStatusRequest(message:string):boolean {
 export function inrAssistantRequiredTools(message: string): string[] {
   return [...new Set(inrAssistantActionObjectives(message).map(objective => objective.tool))];
 }
+/** Preserving a draft's body does not revoke an explicit choice of sender.
+ * This tracks only that current choice; native tools still validate its quote,
+ * mailbox ownership, draft identity and the complete original instruction. */
+function campaignSenderSelectionRequested(message:string):boolean {
+  const current=inrAssistantUnquotedRequest(message);
+  if(hasInrAssistantDeferredApproval(message) || /\b(?:si|quand|lorsque|if|when|unless)\b|^(?:imagin\w*|suppos\w*)\b/.test(current)) return false;
+  const selection="(?:choisi\\w*|selection\\w*|utilis\\w*|select|use)";
+  if(new RegExp(`(?:\\b(?:ne|pas|jamais|sans|not|never|without|do not)\\b|\\bn'|don't).{0,40}\\b${selection}\\b|\\b${selection}\\b.{0,16}\\b(?:pas|jamais|not|never|rien|nothing)\\b`).test(current)
+    || /(?:\b(?:ne|sans|not|never|without|do not)\b|\bn').{0,20}\b(?:modifi\w*|chang\w*|mets)\b.{0,35}\b(?:expediteur|boite|adresse d.envoi|sender|mailbox)\b/.test(current)) return false;
+  return inrAssistantRequestClauses(message).some(clause=>!inrAssistantClauseIsAdvice(clause)
+    && /^(?:choisis|selectionne|utilise|mets|change|modifie|select|use)\b/.test(clause)
+    && /\b(?:campagne|mail|newsletter|brouillon|draft)\b/.test(clause)
+    && /\b(?:expediteur|boite|adresse d.envoi|sender|mailbox)\b/.test(clause));
+}
 export type InrAssistantActionObjective = { kind: "action"; tool: string; instruction: string };
 export function inrAssistantActionObjectives(message: string): InrAssistantActionObjective[] {
   for (const operation of ["accept", "discard"] as const) if (isInrAssistantMediaPreviewButtonRequest(message, operation)) return [{kind:"action",tool:operation === "accept" ? "acceptMediaGeneration" : "discardMediaGeneration",instruction:inrAssistantRoutingText(message)}];
@@ -107,7 +121,8 @@ export function inrAssistantActionObjectives(message: string): InrAssistantActio
   }
   // Clause routing must not discard a later explicit media refusal or turn a
   // wish introducing a knowledge question into an unfinished paid task.
-  return required.filter(objective => !(["prepareAdvertisingCampaign", "manageAdvertisingCampaign", "manageCrmContact", "acceptMediaGeneration", "discardMediaGeneration", "prepareCampaignEmail", "updateCampaignDraft", "dispatchCampaignDraft", "dispatchCampaignAudience"].includes(objective.tool) && deferredSensitiveAction)
+  return required.filter(objective => !(["prepareAdvertisingCampaign", "manageAdvertisingCampaign", "manageCrmContact", "acceptMediaGeneration", "discardMediaGeneration", "prepareCampaignEmail", "updateCampaignDraft", "previewCampaignAudience", "dispatchCampaignDraft", "dispatchCampaignAudience", "selectCampaignMailbox"].includes(objective.tool) && deferredSensitiveAction)
+    && (objective.tool !== "selectCampaignMailbox" || campaignSenderSelectionRequested(message))
     && (objective.tool !== "prepareCampaignEmail" || communication.campaignDraft)
     && (objective.tool !== "updateCampaignDraft" || communication.campaignDraftEdit)
     && (objective.tool !== "acceptMediaGeneration" || isInrAssistantMediaPreviewDecisionRequest(message,"accept"))
@@ -136,7 +151,8 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
   const communication = readInrAssistantCommunicationIntent(message);
   if (communication.campaignDraftEdit) return ["updateCampaignDraft"];
   if (communication.campaignDraft) return ["prepareCampaignEmail"];
-  if (communication.campaignAudiencePreview) return result;
+  if (communication.campaignAudiencePreview) return ["previewCampaignAudience"];
+  if (campaignSenderSelectionRequested(message)) return ["selectCampaignMailbox"];
   if (isInrAssistantLocalInterfaceRequest(message)) return ["controlLocalInterface"];
   if (/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|cherche\w*|recherch\w*|retrouv\w*|liste\w*|regarde\w*|montre\w*|affiche\w*|ouvre\w*|indique\w*|compare\w*|verifi\w*|quels?|quelles?|combien)\b/.test(t)) return result;
   if (/^(?:ne\b|n['’]|not\b|never\b|don't\b|do not\b)/.test(t.trim()) || /\b(?:ne|sans|not|never)\b.{0,20}\b(?:modifi|cre|gener|publ|envoi)/.test(t)) {
