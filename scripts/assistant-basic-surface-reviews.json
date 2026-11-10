@@ -171,11 +171,11 @@
     "app/dashboard/_components/DashboardAssistantCommandContext.tsx": "e7c28dd9d6f984225aabb42f95c74e090e951b5abae19bfe01495c984a744c84",
     "app/dashboard/_components/DashboardAssistantMessageContent.module.css": "878c184b372a094ef7cf69a716939d79e5749d39a78f1bf840b0a460239e51eb",
     "app/dashboard/_components/DashboardAssistantMessageContent.tsx": "6175ae6185c1bc5ed7e694670fe5715dd6c848c9eaded845000d7ea7517fc450",
-    "app/dashboard/_components/DashboardAssistantProvider.module.css": "ef335d31880f309547454b6b02f77bd5ba5ca82c45da1dd8de25308f247b2b0f",
+    "app/dashboard/_components/DashboardAssistantProvider.module.css": "bed01df699428a9c98d856a4b323bb2f9b8d0532a5356c6655b4c6f308b3a80c",
     "app/dashboard/_components/DashboardAssistantProvider.tsx": "2ee52694c9a289795bfac8fb2aa20fc40be38ed1e2926902f4fb26b49b4377b7",
     "app/dashboard/_components/DashboardAssistantScreenContext.tsx": "6a63b65e70e86339820d1adc01f098c0e3dcab050c6a6542bf2901d928acbe06",
     "app/dashboard/_components/DashboardAssistantSession.tsx": "49ecf9694f79628013183de1c677eb060d85129cf4c5f84ed7a7437a60d93808",
-    "app/dashboard/_components/DashboardAssistantTrigger.module.css": "404badc8cf3bc3851c0102326c70da18f3c271b24eefc5ae00177e80ca1f4917",
+    "app/dashboard/_components/DashboardAssistantTrigger.module.css": "9248594799cb66d41a89e649b7afcb16be824e83fa49be456e2b8344c41ca815",
     "app/dashboard/_components/DashboardAssistantTrigger.tsx": "db29eeea91c02916f3c4aac1e1a5e0d3aa60230144a82918d6c62e0bd21bde64",
     "app/dashboard/_components/DashboardBoosterModalLayer.tsx": "3bc282e860f5c83ffbf25d2177c9abfc7629ec771c40aeb19896f1303be5818d",
     "app/dashboard/_components/DashboardBoutiqueTabs.tsx": "8c3a979da928a880648489e8227e26bab42df376dd9e8bab32c12f3ebe02f07c",
@@ -185,7 +185,7 @@
     "app/dashboard/_components/DashboardChannelsModal.tsx": "0da98de6de3759c4a492a50cf1fc4e7305d8b2e215ef5ae30e10a7138fee8ce4",
     "app/dashboard/_components/DashboardChannelsSection.tsx": "69f0686cbd8c1b5041b986a2ea850480d525d0873186fb45c3829fc6bc828603",
     "app/dashboard/_components/DashboardCompletionBypassProvider.tsx": "4f5bf8e2737c66041581e2455e781723ec861ddadc3bcb987ee205aaed892696",
-    "app/dashboard/_components/DashboardDesktopDock.module.css": "ff74e268281f75ca49dd2258779f341aa9905596cb35c0d88ac67cfa1da8c356",
+    "app/dashboard/_components/DashboardDesktopDock.module.css": "ab1763235601a0d79f423677cbe5570b0d643497adf04e72637fa7968d8aa62b",
     "app/dashboard/_components/DashboardEditionProvider.tsx": "062133318abcb89631484a55d0432c89221fd3a39bbb85848dc902b49801887f",
     "app/dashboard/_components/DashboardExperience.module.css": "316288df5d6fe3511243b0abc7e13dc949cda18f3e2d0c2fb1a7d361c29aea62",
     "app/dashboard/_components/DashboardFluxBubble.tsx": "ee819a50db88ba8e86bc91d2065158766eed736c98fdc6e01bccf29d8028c5f2",
@@ -290,7 +290,7 @@
     "app/dashboard/_components/ReferralPanel.tsx": "055f1165817971871422cd1bf6efa80de937996662f55ed298a75fff0bdbd9f6",
     "app/dashboard/_components/ResponsiveActionButton.module.css": "13e062dd0758296d75b631ea86f714a43b991435469b8a3587ceb9a4f11b939a",
     "app/dashboard/_components/ResponsiveActionButton.tsx": "a6bb689a8a64b49750d94e708930b733a34eccc51a28d41dd29e51dadbb54c85",
-    "app/dashboard/_components/ResponsiveBottomNav.module.css": "a00628b9b9ab8c8a3a63c1712d1126f63a6dc81117ed259dee3da01d8dbdad85",
+    "app/dashboard/_components/ResponsiveBottomNav.module.css": "d48bb4361c242898f6279d500f74842a891f99c54b45e12d1799abafd7275b96",
     "app/dashboard/_components/ResponsiveBottomNav.tsx": "d094daa7d6b8904dae0fa555de752ca2182c5a4154fcadac0b6281f9c6c2f16a",
     "app/dashboard/_components/RichMailEditor.tsx": "5f1d9084abcb2ecd444a90b3fd7aada5c0a266d43b8ddca0e88eac10cd74bf1b",
     "app/dashboard/_components/SaveIcon.tsx": "f11ff2d7299ef6181ea74fd4f92a68e9b916f868f0219521650daf5c39b07a68",
@@ -2391,7 +2391,7 @@
     },
     "app/dashboard/_components/DashboardAssistantSession.tsx": {
       "disposition": "basic",
-      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
+      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés. Cadrage visuel compensé pour garder la présence du robot antérieur malgré le point d’interrogation ajouté au-dessus, sans changer la place des commandes ni leurs actions.",
       "gateFiles": [
         "app/dashboard/_components/DashboardAssistantSession.tsx"
       ],
@@ -2495,7 +2495,7 @@
     },
     "app/dashboard/_components/DashboardAssistantTrigger.tsx": {
       "disposition": "basic",
-      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
+      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés. Cadrage visuel compensé pour garder la présence du robot antérieur malgré le point d’interrogation ajouté au-dessus, sans changer la place des commandes ni leurs actions.",
       "gateFiles": [
         "app/dashboard/_components/DashboardAssistantTrigger.tsx"
       ],
@@ -2730,7 +2730,7 @@
     },
     "app/dashboard/_components/DashboardTopbar.tsx": {
       "disposition": "basic",
-      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
+      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés. Cadrage visuel compensé pour garder la présence du robot antérieur malgré le point d’interrogation ajouté au-dessus, sans changer la place des commandes ni leurs actions.",
       "gateFiles": [
         "app/dashboard/_components/DashboardTopbar.tsx",
         "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts"
@@ -3648,7 +3648,7 @@
     },
     "app/dashboard/_components/ResponsiveBottomNav.tsx": {
       "disposition": "basic",
-      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
+      "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés. Cadrage visuel compensé pour garder la présence du robot antérieur malgré le point d’interrogation ajouté au-dessus, sans changer la place des commandes ni leurs actions.",
       "gateFiles": [
         "app/dashboard/_components/ResponsiveBottomNav.tsx"
       ],

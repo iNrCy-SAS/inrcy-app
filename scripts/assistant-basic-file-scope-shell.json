@@ -110,7 +110,7 @@
   },
   "app/dashboard/_components/DashboardAssistantSession.tsx": {
     "disposition": "basic",
-    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
+    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés. Cadrage visuel compensé pour garder la présence du robot antérieur malgré le point d’interrogation ajouté au-dessus, sans changer la place des commandes ni leurs actions.",
     "gateFiles": [
       "app/dashboard/_components/DashboardAssistantSession.tsx"
     ],
@@ -188,7 +188,7 @@
   },
   "app/dashboard/_components/DashboardAssistantTrigger.tsx": {
     "disposition": "basic",
-    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
+    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés. Cadrage visuel compensé pour garder la présence du robot antérieur malgré le point d’interrogation ajouté au-dessus, sans changer la place des commandes ni leurs actions.",
     "gateFiles": [
       "app/dashboard/_components/DashboardAssistantTrigger.tsx"
     ],
@@ -272,7 +272,7 @@
   },
   "app/dashboard/_components/DashboardTopbar.tsx": {
     "disposition": "basic",
-    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
+    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés. Cadrage visuel compensé pour garder la présence du robot antérieur malgré le point d’interrogation ajouté au-dessus, sans changer la place des commandes ni leurs actions.",
     "gateFiles": [
       "app/dashboard/_components/DashboardTopbar.tsx",
       "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts"
@@ -343,7 +343,7 @@
   },
   "app/dashboard/_components/ResponsiveBottomNav.tsx": {
     "disposition": "basic",
-    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés.",
+    "reason": "Revue explicite de l’icône iNr’Assistant v3 approuvée : un seul point d’interrogation au-dessus du robot, fond transparent et ratio contenu dans les dimensions existantes. Seule la référence de l’image change ; labels accessibles, handlers, session partagée, menus, droits et confirmations de navigation sont conservés. Cadrage visuel compensé pour garder la présence du robot antérieur malgré le point d’interrogation ajouté au-dessus, sans changer la place des commandes ni leurs actions.",
     "gateFiles": [
       "app/dashboard/_components/ResponsiveBottomNav.tsx"
     ],

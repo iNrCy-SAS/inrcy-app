@@ -21,7 +21,7 @@
 .panel { display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .header { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #c6a7f52b; background: linear-gradient(115deg, #173b59, #3d2456); }
 .header h2 { flex: 1; min-width: 0; margin: 0; font-size: 18px; font-weight: 800; }
-.avatar { object-fit: contain; flex-shrink: 0; filter: drop-shadow(0 0 7px #ff75d45c); }
+.avatar { object-fit: contain; flex-shrink: 0; transform: translateY(-5px) scale(1.25); filter: drop-shadow(0 0 7px #ff75d45c); }
 .iconButton { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; padding: 0; border: 1px solid #d3c4f238; border-radius: 13px; background: #ffffff0c; color: inherit; cursor: pointer; }
 .iconButton svg, .sendButton svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .iconButton:disabled { opacity: .4; cursor: default; }
