@@ -34,5 +34,6 @@ export function getDirectoryProfessionFacets(companies: readonly { professionSlu
     }
   }
   if (counts.has("autre-metier")) entries.set("autre-metier", { slug: "autre-metier", label: "Autre métier", count: counts.get("autre-metier") || 0, sector: "Autre" });
+  if (counts.has("autre")) entries.set("autre", { slug: "autre", label: "Autre", count: counts.get("autre") || 0, sector: "Autre" });
   return [...entries.values()].sort((a, b) => a.sector.localeCompare(b.sector, "fr") || a.label.localeCompare(b.label, "fr"));
 }

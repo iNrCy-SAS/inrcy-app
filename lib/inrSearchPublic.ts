@@ -2,7 +2,6 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { getActivitySectorLabel, decodeBusinessSector } from "@/lib/activitySectors";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
-import { getNativeChannelMissingFields } from "@/lib/nativeChannelActivation";
 import { filterEligibleInrSearchAccountIds, getInrSearchPublicationEligibility } from "@/lib/inrSearchEligibility";
 import { LOGO_BUCKET, resolveProfileLogoUrl } from "@/lib/profileLogo";
 import { createSafeStorageSignedUrl, probeStorageObject } from "@/lib/safeStorageSignedUrl";
@@ -809,6 +808,18 @@ async function normalizeDurableInrSearchPublications(
   return publications;
 }
 
+function hasSearchActivation(config: Record<string, unknown>) {
+  return config.activationVersion === 1 ? config.activationRequested === true : config.enabled === true;
+}
+
+function configuredIdentity(config: Record<string, unknown>) {
+  return config.identityProvisional === true || config.systemManaged === true ? "" : clean(config.pageTitle, 180);
+}
+
+function publicPageTitle(config: Record<string, unknown>, companyName: string) {
+  return clean(config.pageTitleOverride, 160) || configuredIdentity(config) || companyName;
+}
+
 async function findPublishedConfigBySlug(slug: string) {
   const normalizedSlug = normalizeInrSearchDirectorySlug(slug);
   if (!normalizedSlug) return null;
@@ -816,7 +827,7 @@ async function findPublishedConfigBySlug(slug: string) {
   const direct = await supabaseAdmin
     .from("pro_tools_configs")
     .select("user_id,settings")
-    .contains("settings", { inrSearch: { slug: normalizedSlug, enabled: true } })
+    .contains("settings", { inrSearch: { slug: normalizedSlug } })
     .limit(1)
     .maybeSingle();
 
@@ -832,7 +843,7 @@ async function findPublishedConfigBySlug(slug: string) {
   if (!fallback) return null;
   return fallback.find((row) => {
     const config = asRecord(asRecord(row.settings).inrSearch);
-    return config.enabled === true && normalizeInrSearchDirectorySlug(config.slug) === normalizedSlug;
+    return normalizeInrSearchDirectorySlug(config.slug) === normalizedSlug;
   }) ?? null;
 }
 
@@ -1021,7 +1032,7 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
   const rootSettings = asRecord(configRow.settings);
   const config = asRecord(rootSettings.inrSearch);
   const normalizedSlug = normalizeInrSearchDirectorySlug(config.slug);
-  if (!normalizedSlug || config.enabled !== true || (config.activationVersion === 1 && config.activationRequested !== true)) return null;
+  if (!normalizedSlug || !hasSearchActivation(config)) return null;
 
   const profileOwnerIds = Array.from(new Set([userId, eligibility.authUserId].filter(Boolean)));
   const [
@@ -1076,12 +1087,13 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
   const ownerProfile = profileRows.find(
     (row) => clean(row.user_id, 120) === eligibility.authUserId,
   ) || null;
-  const selectedProfile = accountProfile || ownerProfile;
-  if (profileRes.error || !selectedProfile) return null;
+  // New accounts publish their own identity, or a neutral placeholder, never
+  // another establishment's owner contact details. Keep the legacy migration.
+  const selectedProfile = accountProfile || (config.activationVersion !== 1 ? ownerProfile : null);
+  if (profileRes.error || businessRes.error || (!selectedProfile && config.activationVersion !== 1)) return null;
 
-  const profile = selectedProfile;
+  const profile = selectedProfile || {};
   const business = asRecord(businessRes.data);
-  if (config.activationVersion === 1 && getNativeChannelMissingFields(accountProfile, business, rootSettings).inr_search.length) return null;
   const deliveredPublicationIds = Array.from(
     new Set(
       (Array.isArray(inrSearchDeliveriesRes.data)
@@ -1134,15 +1146,15 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
 
   const companyName = resolveProfessionalCompanyNameFromProfile(
     clean(profile.company_legal_name, 180),
-    clean(config.pageTitle, 180),
-  ) || "Entreprise";
+    configuredIdentity(config),
+  ) || "Utilisateur";
   const contactName = [clean(profile.first_name, 80), clean(profile.last_name, 80)].filter(Boolean).join(" ");
   const phone = clean(profile.phone, 80);
   const email = clean(profile.contact_email, 180);
   const address = clean(profile.hq_address, 240);
   const zip = clean(profile.hq_zip, 30);
   const city = clean(profile.hq_city, 120);
-  const country = clean(profile.hq_country, 120) || "France";
+  const country = clean(profile.hq_country, 120) || (address || zip || city ? "France" : "");
   const addressLine = [address, [zip, city].filter(Boolean).join(" "), country].filter(Boolean).join(", ");
   const inrBadgeUrl = createInrBadgePublicUrl({
     userId,
@@ -1156,8 +1168,8 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
   const inrBadgeQrUrl = createInrBadgeQrTrackingUrl(inrBadgeUrl);
 
   const decodedSector = decodeBusinessSector(clean(business.sector, 300));
-  const sectorLabel = getActivitySectorLabel(decodedSector.sectorCategory);
-  const profession = clean(decodedSector.profession, 180);
+  const sectorLabel = clean(business.sector, 300) ? getActivitySectorLabel(decodedSector.sectorCategory) : "";
+  const profession = clean(business.sector, 300) ? clean(decodedSector.profession, 180) : "";
   const services = listFromUnknown(Array.isArray(business.services) ? business.services : business.services_text);
   const serviceDescriptions = normalizeServiceDescriptionMap(
     config.serviceDescriptions,
@@ -1219,8 +1231,8 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
   const publicData = applyInrSearchPublicDisplaySettings({
     userId,
     slug: normalizedSlug,
-    pageTitle: clean(config.pageTitleOverride, 160) || clean(config.pageTitle, 180) || companyName,
-    pageDescription: clean(config.pageDescriptionOverride, 500) || clean(config.pageDescription, 500) || description,
+    pageTitle: publicPageTitle(config, companyName),
+    pageDescription: clean(config.pageDescriptionOverride, 500) || (config.systemManaged === true ? description : clean(config.pageDescription, 500) || description),
     enabled: true,
     sections: normalizeInrSearchSections(config.sections),
     updatedAt,
@@ -1235,7 +1247,7 @@ async function loadInrSearchPublicPageUncached(slug: string): Promise<InrSearchP
     country,
     addressLine,
     description,
-    sectorCategory: decodedSector.sectorCategory,
+    sectorCategory: clean(business.sector, 300) ? decodedSector.sectorCategory : "",
     sectorLabel,
     profession,
     services,
@@ -1296,7 +1308,7 @@ export async function getInrSearchPublicStatus(slugValue: unknown): Promise<InrS
 
   const accountId = clean(configRow.user_id, 120);
   const config = asRecord(asRecord(configRow.settings).inrSearch);
-  if (config.enabled !== true || (config.activationVersion === 1 && config.activationRequested !== true)) return { ...base, accountId, published: false, reason: "page_disabled" };
+  if (!hasSearchActivation(config)) return { ...base, accountId, published: false, reason: "page_disabled" };
 
   const eligibility = await getInrSearchPublicationEligibility(accountId);
   if (!eligibility.allowed) {
@@ -1306,12 +1318,6 @@ export async function getInrSearchPublicStatus(slugValue: unknown): Promise<InrS
       published: false,
       reason: eligibility.reason === "subscription_inactive" ? "subscription_inactive" : "bubble_disabled",
     };
-  }
-
-  const profileOwnerIds = Array.from(new Set([accountId, eligibility.authUserId].filter(Boolean)));
-  const profile = await supabaseAdmin.from("profiles").select("user_id").in("user_id", profileOwnerIds).limit(1);
-  if (profile.error || !Array.isArray(profile.data) || !profile.data.length) {
-    return { ...base, accountId, published: false, reason: "profile_missing" };
   }
 
   const page = await loadInrSearchPublicPageUncached(slug);
@@ -1337,7 +1343,7 @@ async function listPublishedInrSearchCompaniesUncached(): Promise<PublishedInrSe
       const directoryEnabled = typeof config.directoryEnabled === "boolean"
         ? config.directoryEnabled
         : config.enabled === true;
-      if (config.enabled !== true || !directoryEnabled || !slug || (config.activationVersion === 1 && (config.activationRequested !== true || config.publicationReady === false))) return null;
+      if (!hasSearchActivation(config) || !directoryEnabled || !slug) return null;
       return { userId: row.user_id, slug, config };
     })
     .filter((item): item is { userId: string; slug: string; config: Record<string, unknown> } => Boolean(item));
@@ -1360,6 +1366,7 @@ async function listPublishedInrSearchCompaniesUncached(): Promise<PublishedInrSe
       .in("user_id", userIds),
   ]);
 
+  if (profilesRes.error || businessRes.error) return [];
   const profiles = new Map<string, Record<string, unknown>>();
   for (const row of Array.isArray(profilesRes.data) ? profilesRes.data : []) profiles.set(clean((row as any).user_id, 120), asRecord(row));
   const businesses = new Map<string, Record<string, unknown>>();
@@ -1385,8 +1392,8 @@ async function listPublishedInrSearchCompaniesUncached(): Promise<PublishedInrSe
       const decodedSector = decodeBusinessSector(clean(business.sector, 300));
       const companyName = resolveProfessionalCompanyNameFromProfile(
         clean(profile.company_legal_name, 180),
-        clean(item.config.pageTitle, 180),
-      ) || "Entreprise";
+        configuredIdentity(item.config),
+      ) || "Utilisateur";
       const pageDescription = sections.presentation ? sanitize(sanitizeProfessionalIdentityText(
         clean(item.config.pageDescriptionOverride, 500) || clean(item.config.pageDescription, 300)
           || clean(business.business_description || business.activity_description, 300)
@@ -1407,12 +1414,12 @@ async function listPublishedInrSearchCompaniesUncached(): Promise<PublishedInrSe
           || profile.address_region,
         160,
       ) || geography?.region || "" : "";
-      const profession = sections.sectors ? clean(decodedSector.profession, 180) : "";
-      const sectorLabel = sections.sectors ? getActivitySectorLabel(decodedSector.sectorCategory) : "";
+      const profession = sections.sectors && clean(business.sector, 300) ? clean(decodedSector.profession, 180) : "";
+      const sectorLabel = sections.sectors && clean(business.sector, 300) ? getActivitySectorLabel(decodedSector.sectorCategory) : "";
       return {
         slug: item.slug,
         companyName: sanitize(companyName),
-        pageTitle: sanitize(clean(item.config.pageTitleOverride, 160) || clean(item.config.pageTitle, 180) || companyName),
+        pageTitle: sanitize(publicPageTitle(item.config, companyName)),
         pageDescription,
         city,
         citySlug: normalizeInrSearchDirectorySlug(city),
@@ -1422,7 +1429,7 @@ async function listPublishedInrSearchCompaniesUncached(): Promise<PublishedInrSe
         regionSlug: normalizeInrSearchDirectorySlug(region),
         profession,
         professionSlug: normalizeInrSearchDirectorySlug(profession),
-        sectorCategory: sections.sectors ? decodedSector.sectorCategory : "",
+        sectorCategory: sections.sectors && clean(business.sector, 300) ? decodedSector.sectorCategory : "",
         sectorLabel,
         sectorSlug: normalizeInrSearchDirectorySlug(sectorLabel),
         updatedAt: latestIsoDate([

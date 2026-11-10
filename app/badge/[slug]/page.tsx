@@ -324,9 +324,9 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     getDashboardEditionForAccountId(userId),
   ]);
 
-  if (profileRes.error || !profileRes.data || toolsRes.error) notFound();
+  if (profileRes.error || toolsRes.error) notFound();
 
-  const profile = profileRes.data as Record<string, unknown>;
+  const profile = (profileRes.data ?? {}) as Record<string, unknown>;
   const business = (businessRes.data ?? {}) as Record<string, unknown>;
   const badgeLanguageRow = (badgeLanguageRes.data ?? {}) as Record<string, unknown>;
   const toolSettings = safeObj((toolsRes.data as { settings?: unknown } | null)?.settings);
@@ -344,7 +344,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     proToolsConfig: toolsRes.data,
     integrations: Array.isArray(integrationsRes.data) ? integrationsRes.data : [],
   });
-  if (activation.activationVersion === 1) {
+  if (activation.activationVersion === 1 || safeObj(toolSettings.inrDirectory).activationVersion === 1 || !profileRes.data) {
     const native = channelStates.native_channels;
     // The directory also uses this public landing page, with its own publication access.
     if (!native || (!native.inrbadge.published && !native.inr_directory.published)) notFound();
@@ -354,14 +354,13 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const lastName = trim(profile.last_name);
   const displayName = [firstName, lastName].filter(Boolean).join(" ");
   const company = resolveProfessionalCompanyNameFromProfile(profile.company_legal_name)
-    || displayName
-    || "Entreprise";
+    || "Utilisateur";
   const phone = trim(profile.phone);
   const email = trim(profile.contact_email);
   const address = trim(profile.hq_address);
   const zip = trim(profile.hq_zip);
   const city = trim(profile.hq_city);
-  const country = trim(profile.hq_country) || "France";
+  const country = trim(profile.hq_country) || (address || zip || city ? "France" : "");
   const description = sanitizeProfessionalIdentityText(
     trim(business.business_description),
     company,

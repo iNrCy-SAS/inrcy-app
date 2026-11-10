@@ -18,11 +18,21 @@ export async function syncNativeChannelsForAccount(accountId: string, mutation?:
     const provisioned = await ensureSystemManagedInrSearch(supabaseAdmin, accountId);
     if (!provisioned.inrSearch.slug) throw new Error("La page iNrSearch n’a pas pu être préparée. Réessayez.");
   }
+  let recoveredSearchUrl = false;
   for (let attempt = 0; attempt < 4; attempt++) {
     const config = await supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", accountId).maybeSingle();
     if (config.error) throw config.error;
-    // Read the foundation after the config snapshot, and again after each CAS
-    // conflict: an older request cannot restore a pre-save readiness result.
+    const storedSearch = record(record(config.data?.settings).inrSearch);
+    if (!recoveredSearchUrl && allowed.inr_search && storedSearch.activationVersion === 1
+      && storedSearch.activationRequested === true && !storedSearch.slug
+      && !(mutation?.key === "inr_search" && !mutation.enabled)) {
+      const provisioned = await ensureSystemManagedInrSearch(supabaseAdmin, accountId);
+      if (!provisioned.inrSearch.slug) throw new Error("La page iNrSearch n’a pas pu être préparée. Réessayez.");
+      recoveredSearchUrl = true;
+      continue;
+    }
+    // Read current identity after each CAS conflict without making its
+    // completeness a publication condition.
     const [profileResult, businessResult] = await Promise.all([
       supabaseAdmin.from("profiles").select("company_legal_name,first_name,last_name,phone,contact_email,hq_zip,hq_city").eq("user_id", accountId).maybeSingle(),
       supabaseAdmin.from("business_profiles").select("sector").eq("user_id", accountId).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
@@ -59,7 +69,7 @@ export async function syncNativeChannelsForAccount(accountId: string, mutation?:
       revalidateInrSearchPublicRoutes(slug);
       if (process.env.NODE_ENV === "production") await purgeInrSearchDirectoryCache({ reason: "profile_updated", slug }).catch(() => undefined);
     }
-    return { ok: true as const, accountId, states, companyName: String(profile.company_legal_name || ""), badgeUrl: states.inrbadge.published ? badgeUrl : "", searchSlug: slug, changed };
+    return { ok: true as const, accountId, states, companyName: String(profile.company_legal_name || "").trim() || "Utilisateur", badgeUrl: states.inrbadge.published ? badgeUrl : "", searchSlug: slug, changed };
   }
   throw new Error("Votre compte a été actualisé pendant l’enregistrement. Réessayez.");
 }

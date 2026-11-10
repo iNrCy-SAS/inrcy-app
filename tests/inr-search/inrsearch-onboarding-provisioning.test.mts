@@ -11,7 +11,7 @@ test("iNrSearch remains provisionable before the profile or iNrADN are filled", 
   const settingsRoute = read("app/api/inr-search/settings/route.ts");
   const workspace = read("app/dashboard/_components/DashboardChannelWorkspace.tsx");
 
-  assert.match(provisioning, /const PROVISIONAL_PAGE_TITLE = "Votre entreprise";/);
+  assert.match(provisioning, /const PROVISIONAL_PAGE_TITLE = "Utilisateur";/);
   assert.match(provisioning, /fallbackSlugSeed\(activeUserId\)/);
   assert.match(provisioning, /const canPublish = Boolean\(slug\);/);
   assert.doesNotMatch(provisioning, /const canPublish = Boolean\(companyName && slug\);/);

@@ -37,7 +37,7 @@ test("public Search rejects stale enabled=true after explicit or missing version
   assert.equal(legacy.published, true);
 });
 
-function badgeGuard(options: { badgePublished?: boolean; directoryPublished?: boolean; legacy?: boolean; toolsError?: boolean }) {
+function badgeGuard(options: { badgePublished?: boolean; directoryPublished?: boolean; legacy?: boolean; toolsError?: boolean; missingProfile?: boolean }) {
   let channelReads = 0;
   const stopped = new Error("REACHED_PUBLIC_CONTENT_AFTER_GUARD");
   const notFound = new Error("NOT_FOUND");
@@ -51,7 +51,7 @@ function badgeGuard(options: { badgePublished?: boolean; directoryPublished?: bo
         order: () => query, limit: () => query,
         maybeSingle: async () => {
           assert.equal(account, ACCOUNT);
-          return table === "profiles" ? { data: profile, error: null }
+          return table === "profiles" ? { data: options.missingProfile ? null : profile, error: null }
             : table === "pro_tools_configs" ? { data: { settings: options.legacy ? {} : { inrBadge: { activationVersion: 1, enabled: true } } }, error: options.toolsError ? new Error("config unavailable") : null }
               : { data: { sector: "[[SECTOR:artisan_btp]] Menuisier" }, error: null };
         },
@@ -98,6 +98,28 @@ test("public Badge fails closed on config errors while preserving legacy public 
   assert.equal(failed.channelReads, 0);
   const legacy = badgeGuard({ legacy: true, badgePublished: false });
   await assert.rejects(legacy.run(), (error) => error === legacy.stopped);
+});
+
+test("a profile row is optional only when authoritative Badge or directory publication is allowed", async () => {
+  for (const options of [{ badgePublished: true }, { directoryPublished: true }]) {
+    const h = badgeGuard({ ...options, missingProfile: true });
+    await assert.rejects(h.run(), error => error === h.stopped);
+  }
+  const disabled = badgeGuard({ missingProfile: true });
+  await assert.rejects(disabled.run(), error => error === disabled.notFound);
+  const unknownLegacy = badgeGuard({ missingProfile: true, legacy: true });
+  await assert.rejects(unknownLegacy.run(), error => error === unknownLegacy.notFound);
+});
+
+test("old profile readiness flags never block explicitly activated Search, while access still applies", () => {
+  const inrSearch = { slug: "utilisateur", enabled: false, activationVersion: 1, activationRequested: true, publicationReady: false };
+  const ready = resolveInrSearchMinimalStatus({ accountId: ACCOUNT, inrSearch, eligibility: { allowed: true, reason: "published" } });
+  assert.equal(ready.published, true);
+  for (const reason of ["bubble_disabled", "subscription_inactive"] as const) {
+    const denied = resolveInrSearchMinimalStatus({ accountId: ACCOUNT, inrSearch, eligibility: { allowed: false, reason } });
+    assert.equal(denied.published, false);
+    assert.equal(denied.reason, reason);
+  }
 });
 
 test("public profile refresh synchronizes only the authorized active establishment and refuses a missing session", async () => {

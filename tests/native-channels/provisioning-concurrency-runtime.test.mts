@@ -18,8 +18,10 @@ const compiled = ts.transpileModule(readFileSync(new URL("../../lib/inrSearchPro
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
 }).outputText;
 
-function harness(initial: Row | null = initialSettings()) {
+function harness(initial: Row | null = initialSettings(), foundation: { profile?: Row | null; business?: Row } = {}) {
   let settings: Row | null = structuredClone(initial);
+  let currentProfile = foundation.profile === undefined ? { user_id: ACCOUNT, company_legal_name: "Jardins du Nord", hq_city: "Arras" } : foundation.profile;
+  let currentBusiness = foundation.business ?? { sector: "[[SECTOR:exterieur_jardin]] Paysagiste", business_description: "Entretien de jardins." };
   let beforeWrite: (() => void) | undefined;
   let duplicateInsert = false;
   let alwaysConflict = false;
@@ -43,9 +45,9 @@ function harness(initial: Row | null = initialSettings()) {
         }
         if (table === "profiles") {
           assert.deepEqual(profileIds, [ACCOUNT]);
-          return [{ user_id: ACCOUNT, company_legal_name: "Jardins du Nord", hq_city: "Arras" }];
+          return currentProfile ? [currentProfile] : [];
         }
-        if (table === "business_profiles") return { sector: "[[SECTOR:exterieur_jardin]] Paysagiste", business_description: "Entretien de jardins." };
+        if (table === "business_profiles") return currentBusiness;
         assert.equal(table, "pro_tools_configs");
         if (collisionQuery || exclusions.length) return [];
         assert.ok(filters.some(([key, id]) => key === "user_id" && id === ACCOUNT));
@@ -101,12 +103,35 @@ function harness(initial: Row | null = initialSettings()) {
   return {
     ensure: () => loaded.exports.ensureSystemManagedInrSearch(database, ACCOUNT),
     get settings() { return settings; }, get writes() { return writes; }, get indexings() { return indexings; }, neighbor, invalidations, tagInvalidations,
+    setProfile(profile: Row | null) { currentProfile = profile; },
+    setBusiness(business: Row) { currentBusiness = business; },
     invalidate: (immediate = false) => loaded.exports.revalidateInrSearchPublicRoutes("jardins-du-nord", immediate),
     changeBeforeWrite(change: (value: Row) => Row) { beforeWrite = () => { settings = change(settings || {}); }; },
     insertRace() { duplicateInsert = true; beforeWrite = () => { settings = { facebook: { pageId: "created-concurrently" }, inrDirectory: { enabled: false } }; }; },
     conflictForever() { alwaysConflict = true; },
   };
 }
+
+test("empty accounts receive a neutral stable Search URL which survives adding or clearing identity", async () => {
+  const h = harness({ inrSearch: { activationVersion: 1, activationRequested: false, enabled: false } }, { profile: null, business: {} });
+  const first = await h.ensure();
+  assert.equal(first.inrSearch.pageTitle, "Utilisateur");
+  assert.equal(first.inrSearch.identityProvisional, true);
+  assert.match(first.inrSearch.slug, /^entreprise-[a-f0-9]+$/);
+  assert.equal(first.inrSearch.enabled, false, "preparing a URL never opts in the account");
+  h.setProfile({ user_id: ACCOUNT, company_legal_name: "Nouvel atelier", hq_city: "Arras" });
+  h.setBusiness({ sector: "[[SECTOR:artisan_btp]] Menuisier", business_description: "Notre atelier." });
+  const enriched = await h.ensure();
+  assert.equal(enriched.inrSearch.pageTitle, "Nouvel atelier");
+  assert.equal(enriched.inrSearch.identityProvisional, false);
+  assert.equal(enriched.inrSearch.slug, first.inrSearch.slug);
+  assert.equal(enriched.inrSearch.enabled, false);
+  h.setProfile(null);
+  h.setBusiness({});
+  const cleared = await h.ensure();
+  assert.equal(cleared.inrSearch.pageTitle, "Utilisateur");
+  assert.equal(cleared.inrSearch.slug, first.inrSearch.slug);
+});
 
 test("provisioning CAS preserves a concurrent unrelated connection and the neighbor account", async () => {
   const h = harness();

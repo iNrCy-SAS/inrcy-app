@@ -177,7 +177,7 @@ test("invalid payloads and stale active-account hints never mutate a different a
   assert.equal(fixture.state.writes.length, 0);
 });
 
-test("incomplete ADN records activation pending publication; unavailable access prevents activation but permits withdrawal", async () => {
+test("incomplete ADN publishes immediately; unavailable access prevents activation but permits withdrawal", async () => {
   const unavailable = settingsFixture({ allowed: false, settings: { inrDirectory: { enabled: true } } });
   assert.equal((await unavailable.post(true)).status, 400);
   assert.equal((await unavailable.post(false)).status, 200);
@@ -187,14 +187,14 @@ test("incomplete ADN records activation pending publication; unavailable access 
   assert.equal(pending.status, 200);
   const pendingBody = await pending.json();
   assert.equal(pendingBody.enabled, true);
-  assert.equal(pendingBody.visible, false);
-  assert.equal(pendingBody.pending, true);
-  assert.equal(pendingBody.badgeUrl, "");
-  assert.deepEqual(pendingBody.missingFields, ["city", "postalCode"]);
+  assert.equal(pendingBody.visible, true);
+  assert.equal(pendingBody.pending, false);
+  assert.match(pendingBody.badgeUrl, /\/badge\//);
+  assert.deepEqual(pendingBody.missingFields, []);
   incomplete.state.profile.hq_city = "Arras";
   incomplete.state.profile.hq_zip = "62000";
   const completed = await (await incomplete.api.GET()).json();
-  assert.equal(completed.visible, true, "ADN completion publishes without a second activation");
+  assert.equal(completed.visible, true, "ADN completion enriches an already usable channel");
 });
 
 test("unauthenticated settings calls never read or write account data", async () => {
@@ -295,7 +295,7 @@ test("an eligibility lookup failure fails closed", async () => {
   await assert.rejects(() => eligibility.getInrDirectoryPublicationEligibility(accountId), /Unavailable/);
 });
 
-test("the public listing contains only opted-in eligible complete profiles and never exposes private data", async () => {
+test("the public listing includes incomplete opted-in eligible accounts and never exposes private data", async () => {
   const otherId = "22222222-2222-4222-8222-222222222222";
   const excludedId = "33333333-3333-4333-8333-333333333333";
   const incompleteId = "44444444-4444-4444-8444-444444444444";
@@ -315,11 +315,52 @@ test("the public listing contains only opted-in eligible complete profiles and n
     "@/lib/inrSearchEligibility": { filterEligibleInrDirectoryAccountIds: async (ids: string[]) => { checked = ids; return new Set([accountId, incompleteId]); } },
   });
   const items = await listing.listInrDirectoryCompanies();
-  assert.equal(items.length, 1);
+  assert.equal(items.length, 2);
+  assert.equal(items.find(item => item.citySlug === "autre")?.city, "—");
   assert.ok(!checked.includes(excludedId));
   assert.match(items[0].url, /\/badge\//); assert.doesNotMatch(items[0].url, /\/entreprises\//);
   assert.equal(items[0].profession, "Maçon");
   assert.doesNotMatch(JSON.stringify(items), /private|never-public|contact_email|admin_email|phone|user_id/);
+});
+
+test("an activated empty account is listed under Other, then enriched without breaking its original Badge or QR URL", async () => {
+  const tables: Record<string, TableRow[]> = {
+    pro_tools_configs: [{ user_id: accountId, settings: { inrDirectory: { activationVersion: 1, enabled: true } } }],
+    profiles: [], business_profiles: [],
+  };
+  const publicApi = load<PublicModule>("lib/inrDirectoryPublic.ts", {
+    "@/lib/supabaseAdmin": { supabaseAdmin: tableClient(tables) },
+    "@/lib/inrSearchEligibility": { filterEligibleInrDirectoryAccountIds: async () => new Set([accountId]) },
+  });
+  const query = load<QueryModule>("lib/inrDirectoryQuery.ts", { "@/lib/inrDirectoryPublic": publicApi });
+  const empty = await query.getInrDirectoryResult(new URLSearchParams({ departement: "autre", metier: "autre" }));
+  assert.equal(empty.total, 1);
+  const first = empty.items[0];
+  assert.equal(first.companyName, "Utilisateur");
+  for (const key of ["city", "department", "region", "profession"] as const) assert.equal(first[key], "—");
+  for (const key of ["citySlug", "departmentSlug", "regionSlug", "professionSlug", "sectorSlug"] as const) assert.equal(first[key], "autre");
+  assert.ok(empty.facets.departments.some(facet => facet.slug === "autre" && facet.label === "Autre" && facet.count === 1));
+  assert.ok(empty.facets.professions.some(facet => facet.slug === "autre" && facet.count === 1));
+  tables.profiles.push({ user_id: accountId, company_legal_name: "Atelier Nouveau", hq_city: "Arras", hq_zip: "" });
+  const noPostcode = (await publicApi.listInrDirectoryCompanies())[0];
+  assert.equal(noPostcode.companyName, "Atelier Nouveau");
+  assert.equal(noPostcode.city, "Arras");
+  assert.equal(noPostcode.departmentSlug, "autre", "city alone does not guess a postcode or department");
+  tables.profiles[0].hq_zip = "62000";
+  tables.business_profiles.push({ user_id: accountId, sector: "[[SECTOR:artisan_btp]] Maçon" });
+  const complete = (await publicApi.listInrDirectoryCompanies())[0];
+  assert.equal(complete.department, "Pas-de-Calais");
+  assert.equal(complete.profession, "Maçon");
+  assert.equal((await query.getInrDirectoryResult(new URLSearchParams({ departement: "autre" }))).total, 0);
+  const badge = load<typeof import("../../lib/inrBadge")>("lib/inrBadge.ts");
+  assert.equal(badge.extractInrBadgeUserIdFromSlug(first.slug), accountId);
+  assert.equal(badge.extractInrBadgeUserIdFromSlug(complete.slug), accountId);
+  assert.match(publicApi.directoryBadgeQrTarget(first.slug), /src=qr/, "old QR remains a valid account-based Badge link");
+  const unavailable = load<PublicModule>("lib/inrDirectoryPublic.ts", {
+    "@/lib/supabaseAdmin": { supabaseAdmin: tableClient(tables, { profiles: new Error("read unavailable") }) },
+    "@/lib/inrSearchEligibility": { filterEligibleInrDirectoryAccountIds: async () => new Set([accountId]) },
+  });
+  await assert.rejects(unavailable.listInrDirectoryCompanies(), /read unavailable/, "a DB failure is not an empty profile");
 });
 
 function publicServicesFixture(searchPatch: Record<string, unknown> = {}, options: { searchEligible?: boolean; lookupError?: boolean; directoryEnabled?: boolean } = {}) {
@@ -359,8 +400,8 @@ test("only services already visible on an eligible published Search page enter p
 
 test("hidden, unrequested, disabled, missing or ineligible Search never publishes ADN services through directory consent", async () => {
   const cases = [
-    { patch: { sections: { services: false } } }, { patch: { enabled: false } }, { patch: { activationRequested: false } },
-    { patch: { publicationReady: false } }, { patch: { slug: "" } }, { patch: {}, options: { searchEligible: false } },
+    { patch: { sections: { services: false } } }, { patch: { enabled: false, activationRequested: false } }, { patch: { activationRequested: false } },
+    { patch: { slug: "" } }, { patch: {}, options: { searchEligible: false } },
     { patch: {}, options: { lookupError: true } },
   ];
   for (const entry of cases) {
@@ -375,6 +416,8 @@ test("hidden, unrequested, disabled, missing or ineligible Search never publishe
   assert.deepEqual(disabled.calls, []);
   const legacy = publicServicesFixture({ activationVersion: undefined, activationRequested: undefined });
   assert.ok((await legacy.publicApi.listInrDirectoryCompanies())[0].services?.includes("Préparation de fichiers EPUB"), "existing public Search pages retain their published service visibility");
+  const formerlyPending = publicServicesFixture({ enabled: false, publicationReady: false });
+  assert.ok((await formerlyPending.publicApi.listInrDirectoryCompanies())[0].services?.includes("Préparation de fichiers EPUB"), "explicit Search consent stays usable despite old ADN readiness flags");
 });
 
 test("the QR endpoint rejects invalid slugs and returns a first-party SVG with a quiet zone", async () => {

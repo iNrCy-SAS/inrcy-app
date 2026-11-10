@@ -14,6 +14,7 @@ const record = (v: unknown): Record<string, unknown> => v && typeof v === "objec
 const text = (v: unknown) => typeof v === "string" ? v.trim() : "";
 const validLink = (v: unknown) => { try { return ["http:", "https:"].includes(new URL(text(v)).protocol); } catch { return false; } };
 
+/** Optional completion suggestions only. They must never gate activation or public access. */
 export function getNativeChannelMissingFields(profileValue: unknown, businessValue: unknown, settingsValue: unknown) {
   const profile = record(profileValue), business = record(businessValue), settings = record(settingsValue);
   const company = Boolean(resolveProfessionalCompanyNameFromProfile(profile.company_legal_name));
@@ -33,27 +34,26 @@ export function getNativeChannelMissingFields(profileValue: unknown, businessVal
   return { inrbadge: badge, inr_search: listing, inr_directory: [...listing] };
 }
 
-/** Activation consent is separate from publication readiness. Legacy public pages stay public. */
+/** Profile fields enrich a channel; only consent, access and its public URL control publication. */
 export function resolveNativeChannelStates(params: {
   profile: unknown; business: unknown; settings: unknown;
   allowed?: Partial<Record<NativeChannelKey, boolean>>;
 }): NativeChannelStates {
   const root = record(params.settings), profile = record(params.profile);
-  const badge = record(root.inrBadge), search = record(root.inrSearch), directory = record(root.inrDirectory);
-  const missing = getNativeChannelMissingFields(profile, params.business, root);
+  const badge = record(root.inrBadge), search = record(root.inrSearch);
   const legacyBadgeReady = ["first_name", "last_name", "company_legal_name", "phone", "contact_email", "hq_zip", "hq_city"].every(key => text(profile[key]));
   const requested = {
     inrbadge: badge.activationVersion === 1 ? badge.enabled === true : typeof badge.enabled === "boolean" ? badge.enabled : legacyBadgeReady,
     inr_search: search.activationVersion === 1 ? search.activationRequested === true : typeof search.activationRequested === "boolean" ? search.activationRequested : search.enabled === true,
     inr_directory: isInrDirectoryEnabled(root),
   };
-  const nodes = { inrbadge: badge, inr_search: search, inr_directory: directory };
-  return Object.fromEntries(NATIVE_CHANNEL_KEYS.map(key => {
+  const stateFor = (key: NativeChannelKey): NativeChannelState => {
     const allowed = params.allowed?.[key] !== false;
-    const legacyPublished = nodes[key].activationVersion !== 1 && (key === "inrbadge" ? legacyBadgeReady : key === "inr_search" ? search.enabled === true : requested.inr_directory && !missing.inr_directory.filter(field => field !== "postalCode").length);
-    const ready = legacyPublished || missing[key].length === 0;
-    return [key, { requested: requested[key], ready, published: allowed && requested[key] && ready && (key !== "inr_search" || Boolean(text(search.slug))), pending: allowed && requested[key] && !ready, allowed, missingFields: ready ? [] : missing[key] }];
-  })) as NativeChannelStates;
+    const ready = key !== "inr_search" || Boolean(text(search.slug));
+    return { requested: requested[key], ready, published: allowed && requested[key] && ready,
+      pending: allowed && requested[key] && !ready, allowed, missingFields: [] };
+  };
+  return { inrbadge: stateFor("inrbadge"), inr_search: stateFor("inr_search"), inr_directory: stateFor("inr_directory") };
 }
 
 export function updateNativeChannelActivation(settingsValue: unknown, key: NativeChannelKey, enabled: boolean) {
