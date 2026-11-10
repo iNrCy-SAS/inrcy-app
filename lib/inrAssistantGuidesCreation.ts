@@ -42,7 +42,7 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
     title: "iNrStudio : générer une image ou une vidéo",
     keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits", "voix", "vocal", "musiques", "narration", "sous-titres"],
     content: `${productNavigationSummary("studio", false)} Image/Vidéo : format, moteur, durée (s), plans automatiques en Studio Libre ; choix explicite conservé. Moteurs disponibles ; Wan 3 et MiniMax H3 retirés de tous les parcours de génération.
-Visuel : vidéo 500 caractères, image 4 000 ; paroles séparées. Utiliser mon ADN avant le prompt, facultatif. Logo d’image enregistré par défaut sauf exclusion ; logo explicite sans ADN, coordonnées sur demande. Consignes ET Interdictions de Ma communication intégrales ; les interdictions priment ; incompatibilité bloquée.
+Visuel : vidéo 500 caractères, image 4 000 ; paroles séparées. ADN : faits utiles au sujet. Booster : sujet illustré, pas recopié ; texte original ou exact demandé. Zone logo réservée ; coordonnées sur demande. Consignes ET Interdictions de Ma communication intégrales ; les interdictions priment ; incompatibilité bloquée.
 Inspiration/Personnage/Décor/Produit : rôle puis Importer/Médiathèque (images seules). Inspiration facultative, autres Obligatoires ; usage sur miniature. Vérifier identités/doublons.
 Musiques : catalogue iNrCy, Automatique/Sans musique/piste, préécoute, hors vocaux.
 Voix off/Personnages/Sans parole. Automatiques : IA sans champ. Paroles exactes : compteur durée/moteur/plans/langue ; texte/brouillon jamais tronqué, réduction avec accord ou durée compatible. Exact vide = sans parole.
@@ -79,6 +79,9 @@ Basique sans crédits mensuels ; les recharges permettent de générer sans chan
       "lib/aiMediaGlobalConstraints.ts",
       "lib/aiMediaGenerationServer.ts",
       "lib/aiMediaFreeGenerationPrompt.ts",
+      "lib/aiMediaFreeDnaContext.ts",
+      "lib/aiMediaLocalLogoCompositionPrompt.ts",
+      "lib/aiMediaBrandRenderer.ts",
       "lib/aiMediaFreeGenerationPlan.ts",
       "lib/aiMediaModelCatalog.ts",
       "lib/aiMediaCreditsPricing.ts",
