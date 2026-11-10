@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { chromium, type Page } from "@playwright/test";
+import { chromium, webkit, type Page } from "@playwright/test";
 import ts from "typescript";
 
 const require = createRequire(import.meta.url);
@@ -446,7 +446,7 @@ test("the single video panel keeps the prompt visible while native Images/Audio 
       const format = page.locator('select[id$="-media-format"]');
       await format.selectOption("landscape");
       assert.equal(await visual.isVisible(), true);
-      assert.equal(await page.locator('[role="tablist"]').count(), 0, "video criteria no longer require a hidden second tab");
+      assert.equal(await page.locator('.free-videoSettingsPane [role="tablist"]').count(), 0, "video criteria no longer require a hidden second tab; vocal tabs stay in their own closed dialog");
       await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
       const speech = page.locator('textarea[id$="-spoken-script"]');
       await speech.fill("Bonjour, nous prenons soin de votre jardin.");
@@ -608,7 +608,9 @@ test("real Studio voice Settings opens the three-source pool and preserves new s
       const subtitles = page.locator('[data-media-subtitles]'); assert.equal(await subtitles.isVisible(), true); await subtitles.check();
       await settings.click(); const dialog = page.locator('[data-media-settings-dialog="voices"]'); await dialog.waitFor({ state: "visible" });
       assert.equal(await dialog.locator('h2').innerText(), messages.ai_generator_voice_real, "the vocal editor has a contextual title");
-      assert.equal(await dialog.locator('[data-voice-pool-add]').count(), 0, "an open unsaved vocal already exposes its import sources without another Add button");
+      assert.equal(await dialog.locator('[data-voice-pool-add]').count(), 1, "the selected Add tab exposes the first vocal's sources");
+      assert.equal(await dialog.locator('[data-voice-pool-add]').getAttribute('aria-selected'), "true");
+      assert.equal(await dialog.locator('select').count(), 0, "usage and gender are available after a vocal has been imported");
       assert.equal(await dialog.locator('input[type="file"]').count(), 1, "the actual reusable voice importer is mounted in Settings");
       assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).fixtureVoiceUploads), 0, "opening Settings never uploads or records a vocal");
       await dialog.locator('input[type="file"]').setInputFiles({ name: "voix.wav", mimeType: "audio/wav", buffer: Buffer.from("local-synthetic-audio") });
@@ -616,9 +618,9 @@ test("real Studio voice Settings opens the three-source pool and preserves new s
       assert.equal(await dialog.locator('[data-voice-profile]').count(), 1);
       assert.equal(await dialog.locator('[data-voice-pool-add]').count(), 1, "a saved vocal exposes one action for adding another source");
       const portalLayout = await dialog.evaluate(element => {
-        const chip = element.querySelector<HTMLElement>('[data-voice-profile]')!, row = chip.parentElement!, count = row.querySelector<HTMLElement>('.pool-count')!;
+        const chip = element.querySelector<HTMLElement>('[data-voice-profile]')!, row = chip.closest<HTMLElement>('.pool-inline')!, count = row.querySelector<HTMLElement>('.pool-count')!;
         const chipBounds = chip.getBoundingClientRect(), dialogBounds = element.getBoundingClientRect(), chipStyle = getComputedStyle(chip), rowStyle = getComputedStyle(row);
-        return { side: dialogBounds.width, height: dialogBounds.height, centerX: dialogBounds.x + dialogBounds.width / 2, centerY: dialogBounds.y + dialogBounds.height / 2, chipHeight: chipBounds.height, chipFont: parseFloat(chipStyle.fontSize), paddingX: parseFloat(chipStyle.paddingLeft), paddingY: parseFloat(chipStyle.paddingTop), gap: parseFloat(rowStyle.gap), countFont: parseFloat(getComputedStyle(count).fontSize), selected: chip.getAttribute('aria-pressed') };
+        return { side: dialogBounds.width, height: dialogBounds.height, centerX: dialogBounds.x + dialogBounds.width / 2, centerY: dialogBounds.y + dialogBounds.height / 2, chipHeight: chipBounds.height, chipFont: parseFloat(chipStyle.fontSize), paddingX: parseFloat(chipStyle.paddingLeft), paddingY: parseFloat(chipStyle.paddingTop), gap: parseFloat(rowStyle.gap), countFont: parseFloat(getComputedStyle(count).fontSize), selected: chip.getAttribute('aria-selected') };
       });
       assert.ok(Math.abs(portalLayout.side - Math.min(520, viewport.width - 32)) <= 1 && portalLayout.height <= viewport.height - 32 && Math.abs(portalLayout.centerX - viewport.width / 2) <= 1 && Math.abs(portalLayout.centerY - viewport.height / 2) <= 1, "the actual portaled pool fits its controls and stays centered");
       assert.ok(portalLayout.chipHeight >= 34 && portalLayout.chipFont >= 12 && portalLayout.paddingX >= 10 && portalLayout.paddingY >= 6 && portalLayout.gap >= 8 && portalLayout.countFont >= 12, `portaled vocal chips retain their real readable styles ${JSON.stringify(portalLayout)}`);
@@ -654,6 +656,110 @@ test("real Studio voice Settings opens the three-source pool and preserves new s
       assert.deepEqual(errors, []); await page.close();
     }
   } finally { await browser.close(); }
+});
+
+test("real vocal tabs keep sources first and reveal independent settings only after each import", async () => {
+  for (const engine of [chromium, webkit]) {
+    const browser = await engine.launch({ headless: true });
+    try {
+      for (const viewport of [{ width: 1366, height: 768 }, { width: 820, height: 1180 }, { width: 360, height: 800 }]) {
+        const page = await browser.newPage({ viewport }); const errors = await mount(page);
+        await page.evaluate(() => { (window as unknown as FixtureWindow).fixtureVoiceUploadsEnabled = true; HTMLMediaElement.prototype.pause = function() {}; });
+        await page.locator('select[id$="-video-voice-mode"]').selectOption("provided");
+        await page.locator('[data-voice-pool-settings]').click();
+        const dialog = page.locator('[data-media-settings-dialog="voices"]'); await dialog.waitFor({ state: "visible" });
+        const add = dialog.getByRole("tab", { name: messages.ai_generator_character_voice_upload, exact: true });
+        for (let index = 0; index < 3; index++) {
+          if (index) await add.click();
+          assert.equal(await add.getAttribute("aria-selected"), "true");
+          assert.equal(await dialog.locator('[data-voice-profile]').count(), index);
+          assert.equal(await dialog.locator('select').count(), 0, "an empty vocal tab shows sources before usage or gender");
+          for (const key of ["import", "record", "library"]) assert.equal(await dialog.getByRole("button", { name: messages[`ai_generator_character_voice_${key}`], exact: true }).isVisible(), true);
+          await dialog.locator('input[type="file"]').setInputFiles({ name: `voice-${index + 1}.wav`, mimeType: "audio/wav", buffer: Buffer.from("local-synthetic-vocal") });
+          await page.waitForFunction(count => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_voice_pool.snapshot as { profiles: unknown[] }).profiles.length === count, index + 1);
+          assert.equal(await dialog.locator('[data-voice-profile]').nth(index).getAttribute("aria-selected"), "true");
+          assert.equal(await dialog.locator('select').count(), 2);
+          const target = dialog.getByLabel(messages.ai_generator_voice_pool_target, { exact: true });
+          const gender = dialog.getByLabel(messages.ai_generator_voice_pool_gender, { exact: true });
+          await gender.selectOption(index === 1 ? "female" : "male");
+          if (index === 1) await target.selectOption("none");
+          const order = await target.evaluate(element => {
+            const panel = element.closest('[data-voice-pool-panel]')!, source = panel.querySelector('[data-character-voice-mode]')!;
+            return { sourceBottom: source.getBoundingClientRect().bottom, optionsTop: element.parentElement!.getBoundingClientRect().top,
+              firstChild: panel.firstElementChild === source };
+          });
+          assert.equal(order.firstChild, true);
+          assert.ok(order.sourceBottom <= order.optionsTop, "import, recording, library and preview precede per-vocal settings");
+          assert.equal(await add.count(), index < 2 ? 1 : 0, "the next Add tab appears until the three-vocal limit");
+          if (process.env.INRCY_STUDIO_CAPTURE === "1" && engine === chromium && index === 1) await dialog.screenshot({ path: path.join(taskRoot, "outputs", `studio-vocaux-deux-onglets-${viewport.width}.png`) });
+        }
+        const tabs = dialog.locator('[data-voice-profile]');
+        assert.equal(await dialog.getByRole("tab").count(), 3);
+        await tabs.nth(0).click();
+        assert.equal(await dialog.getByLabel(messages.ai_generator_voice_pool_gender, { exact: true }).inputValue(), "male");
+        await page.keyboard.press("ArrowRight");
+        await page.waitForFunction(() => document.querySelectorAll('[data-voice-profile]')[1]?.getAttribute('aria-selected') === 'true');
+        assert.equal(await dialog.getByLabel(messages.ai_generator_voice_pool_gender, { exact: true }).inputValue(), "female");
+        assert.equal(await dialog.getByLabel(messages.ai_generator_voice_pool_target, { exact: true }).inputValue(), "none");
+        await page.keyboard.press("End");
+        await page.waitForFunction(() => document.querySelectorAll('[data-voice-profile]')[2]?.getAttribute('aria-selected') === 'true');
+        assert.equal(await dialog.getByLabel(messages.ai_generator_voice_pool_gender, { exact: true }).inputValue(), "male");
+        await page.keyboard.press("Home");
+        await page.waitForFunction(() => document.querySelectorAll('[data-voice-profile]')[0]?.getAttribute('aria-selected') === 'true');
+        const fit = await dialog.evaluate(element => {
+          const bounds = element.getBoundingClientRect();
+          return { fits: bounds.x >= 0 && bounds.right <= innerWidth + 1 && bounds.y >= 0 && bounds.bottom <= innerHeight + 1,
+            controlsFit: Array.from(element.querySelectorAll('button,select,audio')).filter(node => node.getClientRects().length).every(node => { const r = node.getBoundingClientRect(); return r.x >= bounds.x && r.right <= bounds.right + 1; }) };
+        });
+        assert.equal(fit.fits, true); assert.equal(fit.controlsFit, true);
+        assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).fixtureVoiceUploads), 3);
+        assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).studioRequests.length), 0);
+        assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
+        assert.deepEqual(errors, []); await page.close();
+      }
+    } finally { await browser.close(); }
+  }
+});
+
+test("company DNA stays above the free prompt and keeps its full-width left-aligned choice on every screen", async () => {
+  for (const engine of [chromium, webkit]) {
+    const browser = await engine.launch({ headless: true });
+    try {
+      for (const viewport of [{ width: 1707, height: 842 }, { width: 1366, height: 768 }, { width: 820, height: 1180 }, { width: 360, height: 800 }]) {
+        for (const kind of ["video", "image"]) {
+          const page = await browser.newPage({ viewport }); const errors = await mount(page);
+          if (kind === "image") await page.evaluate(() => (window as unknown as FixtureWindow).renderStudio(undefined, "image"));
+          await page.locator(`.free-workspace[data-media-kind="${kind}"]`).waitFor();
+          const dna = page.getByRole("checkbox", { name: messages.ai_generator_use_business_dna_label, exact: true });
+          await dna.waitFor();
+          const prompt = page.locator('textarea[id$="-prompt"]'), initialPrompt = await prompt.inputValue();
+          const layout = await dna.evaluate(input => {
+            const row = input.closest('.free-businessDnaRow')!, brief = row.closest('[data-media-brief-frame]')!;
+            const text = brief.querySelector('textarea')!, heading = brief.querySelector('label[for="' + text.id + '"]')!;
+            const r = row.getBoundingClientRect(), b = brief.getBoundingClientRect(), c = input.getBoundingClientRect(), h = heading.getBoundingClientRect();
+            const format = document.querySelector('.free-videoFormatControl')!.getBoundingClientRect();
+            return { width: innerWidth, abovePrompt: r.bottom <= h.top + 1, rowWidth: r.width, briefWidth: b.width,
+              checkboxLeft: c.x, rowLeft: r.x, checkboxSize: c.width, formatWidth: format.width,
+              overflow: document.documentElement.scrollWidth > innerWidth + 1 };
+          });
+          assert.equal(layout.abovePrompt, true, `${engine.name()} ${kind} ${viewport.width}`);
+          assert.ok(layout.rowWidth >= layout.briefWidth - 32, "the DNA choice spans the brief column");
+          assert.ok(layout.checkboxLeft <= layout.rowLeft + 16, "the checkbox starts at the left of its highlighted row");
+          assert.ok(layout.checkboxSize >= 18, JSON.stringify(layout));
+          assert.equal(layout.overflow, false);
+          if (viewport.width > 1100) assert.ok(layout.formatWidth <= 301, "the desktop format selector stays compact");
+          const initialChecked = await dna.isChecked();
+          await dna.setChecked(!initialChecked); assert.equal(await dna.isChecked(), !initialChecked);
+          assert.equal(await prompt.inputValue(), initialPrompt, "using company context keeps the creative prompt intact");
+          await dna.setChecked(initialChecked);
+          if (process.env.INRCY_STUDIO_CAPTURE === "1" && engine === chromium && kind === "video") await page.locator(viewport.width > 1100 ? '.free-promptPanel' : '[data-media-brief-frame]').screenshot({ path: path.join(taskRoot, "outputs", `studio-adn-avant-consignes-${viewport.width}.png`) });
+          assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).studioRequests.length), 0);
+          assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
+          assert.deepEqual(errors, []); await page.close();
+        }
+      }
+    } finally { await browser.close(); }
+  }
 });
 
 test("real assistant callbacks focus the mounted video sections including same-value aliases and open the actual library through Images", async () => {

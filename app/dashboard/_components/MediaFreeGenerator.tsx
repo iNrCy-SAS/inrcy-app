@@ -1397,7 +1397,7 @@ export default function MediaFreeGenerator({
       data-media-kind={kind}
       data-view="editor"
     >
-      <div className={editorStyles.editorBody} data-recovery-pending={recoveryPending}>
+      <div className={`${editorStyles.editorBody} ${styles.studioEditorBody}`} data-recovery-pending={recoveryPending}>
         <div className={`${editorStyles.settingsPane} ${kind === "video" ? styles.videoSettingsPane : ""}`}>
           <div className={editorStyles.settingsPanels}>
 
@@ -1407,6 +1407,18 @@ export default function MediaFreeGenerator({
           id={`${instanceId}-panel-prompt`}
         >
           <div className={styles.videoBriefFrame} data-media-brief-frame data-video-brief-frame={kind === "video" ? true : undefined}>
+              <div className={styles.businessDnaRow}>
+                <label className={styles.businessDnaOption}>
+                  <input
+                    type="checkbox"
+                    checked={useBusinessDna}
+                    disabled={operationLocked}
+                    onChange={(event) => setUseBusinessDna(event.target.checked)}
+                  />
+                  <strong>{t("ai_generator_use_business_dna_label")}</strong>
+                </label>
+                <MediaBusinessDnaHelp />
+              </div>
           <div className={styles.videoFrameHeading}>
             <label htmlFor={`${instanceId}-prompt`}>{t(kind === "video" ? "ai_generator_video_visual_brief_title" : "ai_generator_free_prompt_label")}</label>
             <div className={styles.videoBriefHeadingHelp}>
@@ -1466,18 +1478,6 @@ export default function MediaFreeGenerator({
                   {FORMATS.filter(option => !fixedFormat || option.id === fixedFormat).map(option => <option key={option.id} value={option.id}>{t(`ai_generator_format_${option.id}`)} · {option.ratio}</option>)}
                 </select>
               </label>
-              <div className={styles.businessDnaRow}>
-                <label className={styles.businessDnaOption}>
-                  <input
-                    type="checkbox"
-                    checked={useBusinessDna}
-                    disabled={operationLocked}
-                    onChange={(event) => setUseBusinessDna(event.target.checked)}
-                  />
-                  <strong>{t("ai_generator_use_business_dna_label")}</strong>
-                </label>
-                <MediaBusinessDnaHelp />
-              </div>
             </div>
             <div className={styles.referenceAddControl}>
               <span id={`${instanceId}-add-media-title`} className={styles.mediaToolsTitle}>{t("ai_generator_add_media_title")}</span>

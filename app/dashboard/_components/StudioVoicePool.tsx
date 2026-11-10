@@ -78,7 +78,7 @@ export default function StudioVoicePool({ visible, available = true, onOpenChang
   };
   const begin = (proposed?: Draft) => {
     if (disabled || profiles.length >= 3) return null;
-    const next = proposed ?? newDraft();
+    const next = proposed ?? draft ?? newDraft();
     importTarget.current = next;
     setDraft(next); setEditingId(null); setOpen(true);
     return next;
@@ -180,29 +180,44 @@ export default function StudioVoicePool({ visible, available = true, onOpenChang
       <header className={dialogStyles.mediaSettingsDialogHeader}><h2 id={`${id}-title`}>{t("ai_generator_voice_real")}</h2><button ref={closeRef} type="button" disabled={disabled} aria-label={t("ai_generator_video_settings_close")} onClick={() => setOpen(false)}>×</button></header>
       <div className={`${dialogStyles.mediaSettingsDialogBody} ${styles.details}`}>
         <div className={styles.inline}>
-          {profiles.map((profile, index) => <button key={profile.id} type="button" className={styles.chip} data-voice-profile={profile.id} disabled={disabled}
+          <div className={styles.tabs} role="tablist" aria-label={t("ai_generator_voice_real")} onKeyDown={event => {
+            if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+            const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button[role="tab"]:not(:disabled)'));
+            const index = tabs.indexOf(document.activeElement as HTMLButtonElement);
+            if (index < 0) return;
+            event.preventDefault(); event.stopPropagation();
+            const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+            tabs[next]?.click(); tabs[next]?.focus();
+          }}>
+          {profiles.map((profile, index) => <button key={profile.id} type="button" role="tab" id={`${id}-tab-${profile.id}`} className={styles.chip} data-voice-profile={profile.id} disabled={disabled}
             aria-label={`${t("ai_generator_voice_profile", { index: index + 1 })} · ${profile.sample.name}`} title={profile.sample.name}
-            aria-pressed={profile.id === editingId} onClick={() => edit(profile)}>{t("ai_generator_voice_profile", { index: index + 1 })}</button>)}
+            aria-controls={`${id}-panel`} aria-selected={profile.id === editingId} tabIndex={profile.id === editingId ? 0 : -1}
+            onClick={() => edit(profile)}>{t("ai_generator_voice_profile", { index: index + 1 })}</button>)}
+          {profiles.length < 3 ? <button type="button" role="tab" id={`${id}-tab-new`} data-voice-pool-add disabled={disabled}
+            aria-label={t("ai_generator_character_voice_upload")} aria-controls={`${id}-panel`} aria-selected={!current} tabIndex={current ? -1 : 0}
+            onClick={() => begin()}><span aria-hidden="true">+ </span>{t("ai_generator_character_voice_upload")}</button> : null}
+          </div>
           <span className={styles.count}>{t("ai_generator_voice_pool_count", { count: profiles.length })}</span>
-          {profiles.length < 3 && !draft ? <button type="button" data-voice-pool-add disabled={disabled} onClick={() => begin()}>{t("ai_generator_character_voice_upload")}</button> : null}
         </div>
-        {edited ? <>
-          <label>{t("ai_generator_voice_pool_target")}<select value={edited.target === null ? "none" : edited.target === "narration" ? "narration" : edited.target.characterId} disabled={disabled} onChange={event => changeTarget(event.target.value)}>
+        <div className={styles.editor} role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-tab-${current?.id ?? "new"}`} data-voice-pool-panel>
+        <MediaCharacterVoiceInput key={edited?.id ?? "empty"} context={edited?.target && edited.target !== "narration" ? "character" : "narration"} active={open} hideModeControl mode="provided" sample={current?.sample} disabled={disabled}
+          onModeChange={() => undefined} onSampleChange={changeSample} onBusyChange={onBusyChange} />
+        {current ? <>
+          <label>{t("ai_generator_voice_pool_target")}<select aria-label={t("ai_generator_voice_pool_target")} value={current.target === null ? "none" : current.target === "narration" ? "narration" : current.target.characterId} disabled={disabled} onChange={event => changeTarget(event.target.value)}>
             <option value="none">{t("ai_generator_voice_pool_unassigned")}</option>
             <option value="narration">{t("ai_generator_free_audio_voiceover")}</option>
-            {characters.map(character => <option key={character.id} value={character.id} disabled={profiles.some(profile => profile.id !== edited.id && profile.target && profile.target !== "narration" && profile.target.characterId === character.id)}>{character.name}</option>)}
+            {characters.map(character => <option key={character.id} value={character.id} disabled={profiles.some(profile => profile.id !== current.id && profile.target && profile.target !== "narration" && profile.target.characterId === character.id)}>{character.name}</option>)}
           </select></label>
-          <label>{t("ai_generator_voice_pool_gender")}<select value={edited.gender} disabled={disabled} onChange={event => changeGender(event.target.value as StudioVoiceProfile["gender"])}>
+          <label>{t("ai_generator_voice_pool_gender")}<select aria-label={t("ai_generator_voice_pool_gender")} value={current.gender} disabled={disabled} onChange={event => changeGender(event.target.value as StudioVoiceProfile["gender"])}>
             <option value="auto">{t("ai_generator_people_auto")}</option><option value="female">{t("ai_generator_narration_voice_female")}</option><option value="male">{t("ai_generator_narration_voice_male")}</option>
           </select></label>
           <p>{t("ai_generator_voice_pool_gender_help")}</p>
         </> : null}
-        <MediaCharacterVoiceInput context={edited?.target && edited.target !== "narration" ? "character" : "narration"} active={open} hideModeControl mode="provided" sample={current?.sample} disabled={disabled}
-          onModeChange={() => undefined} onSampleChange={changeSample} onBusyChange={onBusyChange} />
         {current?.target === "narration" ? <>
           <button type="button" data-voice-narration-active disabled={disabled || activeNarrationVoiceId === current.id} onClick={() => onNarrationChange(current.id)}>{t("ai_generator_voice_pool_activate")}</button>
           {activeNarrationVoiceId === current.id ? <label className={styles.consent}><input type="checkbox" checked={narrationConsent} disabled={disabled} onChange={event => onNarrationConsentChange(event.target.checked)} />{t("ai_generator_narration_voice_consent")}</label> : null}
         </> : null}
+        </div>
       </div>
     </dialog>, document.body) : null}
   </div>;

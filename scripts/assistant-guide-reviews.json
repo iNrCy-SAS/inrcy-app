@@ -284,14 +284,14 @@
       }
     },
     "basic-studio-create": {
-      "guideDigest": "e78fda4421d491eb55936d4cee6f771e1810d662faed9537f8e72635a668e8c5",
+      "guideDigest": "30e8b2cb2af3bff16c0361bc106cd605c792f9ce1e0095ea1b410cb7072a0697",
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e7160cc23a5837f21d3c341501e6b213bf2cd63cd2c315aa7a1c5f85b0284d98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "11e67e39e6c13fb0dc8d6c508b19855f176f4a046119933e17f206a02d4a4c06",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "a69db5312f19b6a634eb13a903541977952dce617ec3810302c47dc2121dd158",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "cda2ef09f327ef8546636c6dfcd654d2521e88b46639c2fa09b58e6e88271648",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
-        "app/dashboard/_components/StudioVoicePool.tsx": "9a7b0c99c48dcc9cd8ee6e9eaee2e2bf5e478f1bc5795d97f5c8168c51110cb3",
+        "app/dashboard/_components/StudioVoicePool.tsx": "d305ca8b7e6fba17cec1f188eb776b03bd279b64fa7dcca5e6090310a6a72a1d",
         "app/dashboard/_hooks/useMediaGeneration.ts": "0c6d0e44d952d22163568e564b0ed77567cbbcea5f2ae6335ccc4f37ec43eaff",
         "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx": "5ecaf5325711c7b8093154067cf905e279f6fdf3b13dc083fb9a30f3175f06e8",
         "app/dashboard/generer-media/page.tsx": "f54b22c7dd115ad020cf0e8697ca169838fccaaeef9a8b421c2cc6cacff5c6ea",
@@ -779,16 +779,16 @@
       }
     },
     "studio-create": {
-      "guideDigest": "ae146f035ae589c1df286771d7bca8dbc23198a21946a341f01dd08e06959889",
+      "guideDigest": "39ab9fbe7fb6e01cd1b7bedad713a47d230baae6b7cefd099b7b3b858db5e986",
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e7160cc23a5837f21d3c341501e6b213bf2cd63cd2c315aa7a1c5f85b0284d98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "11e67e39e6c13fb0dc8d6c508b19855f176f4a046119933e17f206a02d4a4c06",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "a69db5312f19b6a634eb13a903541977952dce617ec3810302c47dc2121dd158",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "cda2ef09f327ef8546636c6dfcd654d2521e88b46639c2fa09b58e6e88271648",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "3e943ed3ccaf72b3c1489fc8a531fdee0fefbbaecf5e31c71c5d49ac581df4d4",
         "app/dashboard/_components/MediaModifier.tsx": "4a5fdbca9e0133b57684e29f0f7e532c8714a82f01ab143288a3d00f5d42dee2",
         "app/dashboard/_components/StudioMusicLibrary.tsx": "c29208bc21d328f967ed8fbdb353dcc86394bbecd68ca5171c96bd4aa9dc7907",
-        "app/dashboard/_components/StudioVoicePool.tsx": "9a7b0c99c48dcc9cd8ee6e9eaee2e2bf5e478f1bc5795d97f5c8168c51110cb3",
+        "app/dashboard/_components/StudioVoicePool.tsx": "d305ca8b7e6fba17cec1f188eb776b03bd279b64fa7dcca5e6090310a6a72a1d",
         "app/dashboard/_hooks/useMediaGeneration.ts": "0c6d0e44d952d22163568e564b0ed77567cbbcea5f2ae6335ccc4f37ec43eaff",
         "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx": "5ecaf5325711c7b8093154067cf905e279f6fdf3b13dc083fb9a30f3175f06e8",
         "app/dashboard/generer-media/page.tsx": "f54b22c7dd115ad020cf0e8697ca169838fccaaeef9a8b421c2cc6cacff5c6ea",
