@@ -101,10 +101,11 @@ test("free media authors use their explicit brief and opt-in company context, ne
   assert.doesNotMatch(freePlanner, /profile\.(?:strategy|memory|configuration_ia)|preferences\.(?:tone|writingStyle|contentStyle)/);
   assert.match(freePrompts, /export function buildAiMediaFreeBusinessContext/);
   assert.doesNotMatch(freePrompts, /buildAiWritingProfilePromptSection|buildAiWritingProfileRules|buildCompactAiWritingDirective/);
-  // Verified business facts are reusable on explicit request, but their guided AI settings are not.
+  // Free publication briefs use selected business essentials, never the complete guided ADN.
   const freeBusinessContext = freePrompts.slice(freePrompts.indexOf("export function buildAiMediaFreeBusinessContext"), freePrompts.indexOf("function businessContext"));
-  assert.match(freeBusinessContext, /buildAiMediaBusinessDnaPayload\(args\.profile\)/);
-  assert.match(freeBusinessContext, /\.filter\(\(\[key\]\) => key !== "configuration_ia"\)/);
+  assert.match(freeBusinessContext, /selectAiMediaFreePublicationDna\(\{ profile: args\.profile, prompt: args\.request\.freePrompt/);
+  assert.match(freeBusinessContext, /context: args\.request\.useBusinessDna \? args\.businessDnaContext : undefined/);
+  assert.doesNotMatch(freeBusinessContext, /buildAiMediaBusinessDnaPayload|configuration_ia|profile\.memory/);
 });
 
 test("iNrAgent campaign and report entrypoints no longer reload professional tables ad hoc", () => {

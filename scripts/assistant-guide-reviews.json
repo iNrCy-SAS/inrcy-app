@@ -284,7 +284,7 @@
       }
     },
     "basic-studio-create": {
-      "guideDigest": "12a0474c5cb116d4e0f17a81d02b49bbc2b2597cfbc029238f921c18c9b17e03",
+      "guideDigest": "f975f54bf056d326905853f62be2afb7d1ece2d7e7d631f19b57fe03ac5f5004",
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e7160cc23a5837f21d3c341501e6b213bf2cd63cd2c315aa7a1c5f85b0284d98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
@@ -297,7 +297,7 @@
         "app/dashboard/generer-media/page.tsx": "f54b22c7dd115ad020cf0e8697ca169838fccaaeef9a8b421c2cc6cacff5c6ea",
         "lib/aiMediaBrandRenderer.ts": "e1b267d5d389a717addebdb5534b35af8d22f3398aae96752efbde711e309d20",
         "lib/aiMediaCreditsPricing.ts": "4ff404deef08ca6c37228fe7a38d439ea1f3e5f397869959c65a7d300999d684",
-        "lib/aiMediaFreeDnaContext.ts": "fff8867050a9afda1a8cdc6fbd842070ba85aa7a3bb981967f806becdc88c3b9",
+        "lib/aiMediaFreeDnaContext.ts": "0e70ad42062abf0e04ab02ee82b120e217931924d522381f539adcfe686997eb",
         "lib/aiMediaFreeGenerationPlan.ts": "d1a0fa93c7a4c53165b4b540c4ba5079ace16a6d06ed026c7aefc9d2aebd2fd6",
         "lib/aiMediaFreeGenerationPrompt.ts": "a2ac00b653a60da19efbbf153e5f5117fc8265ae53ec33fcd32c7480a204f749",
         "lib/aiMediaGeneratedVideo.ts": "6a2d74c2cf79151ec9ce2fdb015f730d5164f54f4c85ccfcfeb15b7dda5a6924",
@@ -782,7 +782,7 @@
       }
     },
     "studio-create": {
-      "guideDigest": "4d3987d6efb94a6cc7b5d3b475b500c0ece844db74fd8c22e51d914cbfab7926",
+      "guideDigest": "24a69cbc66c7ee373c1de668ddaaf702b29e1cb8d35f9cbf6b2a90268ff42eec",
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e7160cc23a5837f21d3c341501e6b213bf2cd63cd2c315aa7a1c5f85b0284d98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
@@ -797,7 +797,7 @@
         "app/dashboard/generer-media/page.tsx": "f54b22c7dd115ad020cf0e8697ca169838fccaaeef9a8b421c2cc6cacff5c6ea",
         "lib/aiMediaBrandRenderer.ts": "e1b267d5d389a717addebdb5534b35af8d22f3398aae96752efbde711e309d20",
         "lib/aiMediaCreditsPricing.ts": "4ff404deef08ca6c37228fe7a38d439ea1f3e5f397869959c65a7d300999d684",
-        "lib/aiMediaFreeDnaContext.ts": "fff8867050a9afda1a8cdc6fbd842070ba85aa7a3bb981967f806becdc88c3b9",
+        "lib/aiMediaFreeDnaContext.ts": "0e70ad42062abf0e04ab02ee82b120e217931924d522381f539adcfe686997eb",
         "lib/aiMediaFreeGenerationPlan.ts": "d1a0fa93c7a4c53165b4b540c4ba5079ace16a6d06ed026c7aefc9d2aebd2fd6",
         "lib/aiMediaFreeGenerationPrompt.ts": "a2ac00b653a60da19efbbf153e5f5117fc8265ae53ec33fcd32c7480a204f749",
         "lib/aiMediaGeneratedVideo.ts": "6a2d74c2cf79151ec9ce2fdb015f730d5164f54f4c85ccfcfeb15b7dda5a6924",

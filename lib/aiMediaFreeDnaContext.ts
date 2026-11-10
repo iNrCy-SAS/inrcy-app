@@ -86,27 +86,30 @@ export function selectAiMediaFreePublicationDna(args: {
   const context = args.context;
   if (!context) return base;
 
-  const allContacts = /coordonnees|contact details|contact information|contact info|kontaktdaten|datos de contacto|contatti|контактные данные|بيانات الاتصال/.test(wanted);
-  const phone = allContacts || /telephon|telefon|\bphone\b|\btel\b|numero|nummer|call us|appelez|appeler|телефон|هاتف/.test(wanted);
-  const email = allContacts || /e.?mail|courriel|correo|posta elettronica|электронн|بريد/.test(wanted);
-  const address = allContacts || /adresse|address|direccion|endereco|indirizzo|anschrift|\badres\b|адрес|عنوان/.test(wanted);
-  const hours = /horaire|opening hours|horarios?|orari|offnungszeiten|openingstijden|часы работы|مواعيد|ساعات العمل/.test(wanted);
-  const price = /\b(?:prix|tarif\w*|cout\w*|price\w*|pricing|rate\w*|cost\w*|offre\w*|offer\w*|promotion\w*|preis\w*|precio\w*|preco\w*|prezz\w*)\b|цена|стоим|سعر|اسعار/.test(wanted)
-    || /\d[\d\s.,]*(?:€|EUR|euros?|USD|\$|£|%)/i.test(args.prompt);
+  const excluded = (topic: string) => new RegExp(`(?:^|\\s)(?:sans|without|no|aucune?s?|pas|без|بدون)\\s+(?:(?:afficher|ajouter|mettre|indiquer|inclure|utiliser)\\s+)?(?:(?:mon|ma|mes|notre|nos|le|la|les|de|du|my|our|the|any|d['’])\\s*){0,3}(?:${topic})`, "u").test(wanted);
+
+  const allContacts = !excluded("coordonnees|contact details|contact information|contact info|kontaktdaten|datos de contacto|contatti|контакт|بيانات الاتصال") && /coordonnees|contact details|contact information|contact info|kontaktdaten|datos de contacto|contatti|контактные данные|بيانات الاتصال/.test(wanted);
+  const phone = !excluded("telephon|telefon|phone|tel\\b|numero|nummer|телефон|هاتف") && (allContacts || /telephon|telefon|\bphone\b|\btel\b|numero|nummer|call us|appelez|appeler|телефон|هاتف/.test(wanted));
+  const email = !excluded("e.?mail|courriel|correo|posta elettronica|электронн|بريد") && (allContacts || /e.?mail|courriel|correo|posta elettronica|электронн|بريد/.test(wanted));
+  const address = !excluded("adresse|address|direccion|endereco|indirizzo|anschrift|adres|адрес|عنوان") && (allContacts || /adresse|address|direccion|endereco|indirizzo|anschrift|\badres\b|адрес|عنوان/.test(wanted));
+  const hours = !excluded("horaire|opening hours|horario|orari|offnungszeiten|openingstijden|часы|ساعات") && /horaire|opening hours|horarios?|orari|offnungszeiten|openingstijden|часы работы|مواعيد|ساعات العمل/.test(wanted);
+  const price = !excluded("prix|tarif|cout|price|pricing|rate|cost|offre|offer|promotion|preis|precio|preco|prezz|цена|стоим|سعر|اسعار")
+    && (/\b(?:prix|tarif\w*|cout\w*|price\w*|pricing|rate\w*|cost\w*|offre\w*|offer\w*|promotion\w*|preis\w*|precio\w*|preco\w*|prezz\w*)\b|цена|стоим|سعر|اسعار/.test(wanted)
+      || /\d[\d\s.,]*(?:€|EUR|euros?|USD|\$|£|%)/i.test(args.prompt));
   const contacts = Object.fromEntries(Object.entries(context.coordonnees).filter(([key]) =>
     key === "telephone" ? phone : key === "email" ? email : ["adresse", "code_postal", "ville", "pays"].includes(key) ? address : false));
-  const allSocial = /reseaux sociaux|social (?:networks|media|links)|redes sociais|redes sociales|социальн|شبكات اجتماعية/.test(wanted);
+  const allSocial = !excluded("reseaux|social|redes|социальн|شبكات") && /reseaux sociaux|social (?:networks|media|links)|redes sociais|redes sociales|социальн|شبكات اجتماعية/.test(wanted);
   const namedSocial = /facebook|instagram|threads|linkedin|tiktok|pinterest|youtube|google business|google maps|\bx\b/.test(wanted);
-  const website = /\b(?:site|site_web|website|webseite|sito|sitio|pagina)\b|сайт|موقع/.test(wanted)
-    || (!namedSocial && /\b(?:lien|liens|url|link|links|reservation)\b/.test(wanted));
-  const links = Object.fromEntries(Object.entries(context.liens).filter(([key]) => key === "site_web" ? website
-    : allSocial || (key === "google_business" ? /google business|google maps/.test(wanted) : key === "x" ? /\bx\b|twitter/.test(wanted) : wanted.includes(key))));
+  const website = !excluded("site|website|webseite|sito|sitio|pagina|lien|url|link|сайт|موقع") && (/\b(?:site|site_web|website|webseite|sito|sitio|pagina)\b|сайт|موقع/.test(wanted)
+    || (!namedSocial && /\b(?:lien|liens|url|link|links|reservation)\b/.test(wanted)));
+  const links = Object.fromEntries(Object.entries(context.liens).filter(([key]) => !excluded("lien|url|link") && !excluded(key === "google_business" ? "google business|google maps" : key)
+    && (key === "site_web" || key === "site" ? website : allSocial || (key === "google_business" ? /google business|google maps/.test(wanted) : key === "x" ? /\bx\b|twitter/.test(wanted) : wanted.includes(key)))));
   const evidence = context.informations_demandees.filter(value => {
     // Relevant source extracts can mention tariffs without being a price request.
     if (!price && /\d[\d\s.,]*(?:€|EUR|euros?|USD|\$|£|%)/i.test(value)) return false;
     if (!hours && /horaire|opening hours|horarios?|orari/i.test(value)) return false;
     if (!email && /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/.test(value)) return false;
-    if (!website && !namedSocial && !allSocial && /https?:\/\//i.test(value)) return false;
+    if (!Object.keys(links).length && /https?:\/\//i.test(value)) return false;
     if (!phone && /(?:telephone|telefon|phone|\btel\b)[^\n]{0,40}\d/i.test(value.normalize("NFKD").replace(/[\u0300-\u036f]/g, ""))) return false;
     if (!/histoire|historique|mission|valeurs?|strategie|story|history|values|strategy/.test(wanted)
       && /^(?:mission|values|brandPersonality|commitments|preferredVocabulary|forbiddenVocabulary|editorialStrategy|campaignCalendar)\s*:/.test(value)) return false;

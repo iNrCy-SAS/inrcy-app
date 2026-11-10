@@ -82,6 +82,7 @@ function resultContext() {
     identityMode: "auto",
     videoResolution: "720p",
     useBusinessDna: false,
+    publicationSubject: undefined,
     hasSpokenScript: false,
     spokenScript: "",
     spokenScriptOpen: false,

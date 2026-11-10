@@ -138,6 +138,15 @@ test("a price request for one service excludes unrelated prices even when they s
   assert.doesNotMatch(serialized, /15 €|Visite de l/);
 });
 
+test("explicit exclusions keep unwanted contact, price and link data out of the publication brief", () => {
+  const serialized = JSON.stringify(buildAiMediaFreeBusinessContext({ request: request({ freePrompt: "Une photo de l'atelier sans coordonnées, sans prix, sans horaires, sans liens et sans Instagram." }), profile,
+    businessDnaContext: { ...context, informations_demandees: ["Atelier poterie : 49,90 €", "Téléphone : 01 23 45 67 89", "Site : https://cosmos.example/reserver"] } }));
+  assert.doesNotMatch(serialized, /01 23|contact@|rue du Soleil|49,90|https:|instagram|horaires/);
+  const phoneOnly = JSON.stringify(buildAiMediaFreeBusinessContext({ request: request({ freePrompt: "Une affiche sans adresse, avec mon téléphone." }), profile, businessDnaContext: context }));
+  assert.match(phoneOnly, /01 23 45 67 89/);
+  assert.doesNotMatch(phoneOnly, /rue du Soleil|contact@|https:/);
+});
+
 test("décocher ignore le supplément ADN et conserve exactement le prompt libre", () => {
   const input = { request: request({ useBusinessDna: false, freePrompt: "Une galaxie dessinée, une baleine bleue." }), profile };
   assert.equal(buildAiMediaFreeImagePrompt({ ...input, businessDnaContext: context, brandColors: ["#123456"], logoComposedLocally: true }), buildAiMediaFreeImagePrompt(input));
