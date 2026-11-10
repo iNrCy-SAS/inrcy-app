@@ -237,6 +237,9 @@ test("mobile assistant fills the visible viewport across keyboard resize, browse
     await page.goto("https://fixture.invalid/assistant");
     await page.addScriptTag({ content: fixture });
     assert.deepEqual(errors, []);
+    // The native dialog focuses on its first animation frame after opening.
+    // Wait for initial readiness once; resize assertions still require focus to stay put.
+    await page.waitForFunction(() => document.activeElement === document.querySelector('textarea'));
     await assertBounds(page, { x: 0, y: 0, width: 390, height: 844 });
     await page.getByRole("textbox").fill("Prépare une publication pour mes canaux.");
     const update = (bounds: object, event = "resize") => page.evaluate(({ bounds, event }) => {
@@ -278,6 +281,7 @@ test("mobile assistant fills the visible viewport across keyboard resize, browse
     await fallback.route("**/*", route => route.fulfill({ contentType: "text/html", body: html }));
     await fallback.goto("https://fixture.invalid/assistant?fallback");
     await fallback.addScriptTag({ content: fixture });
+    await fallback.waitForFunction(() => document.activeElement === document.querySelector('textarea'));
     await assertBounds(fallback, { x: 0, y: 0, width: 390, height: 844 });
     await fallback.setViewportSize({ width: 390, height: 430 });
     await assertBounds(fallback, { x: 0, y: 0, width: 390, height: 430 });

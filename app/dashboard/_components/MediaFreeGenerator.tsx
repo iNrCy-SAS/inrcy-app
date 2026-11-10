@@ -1407,6 +1407,13 @@ export default function MediaFreeGenerator({
           id={`${instanceId}-panel-prompt`}
         >
           <div className={styles.videoBriefFrame} data-media-brief-frame data-video-brief-frame={kind === "video" ? true : undefined}>
+          <div className={styles.videoFrameHeading}>
+            <label htmlFor={`${instanceId}-prompt`}>{t(kind === "video" ? "ai_generator_video_visual_brief_title" : "ai_generator_free_prompt_label")}</label>
+            <div className={styles.videoBriefHeadingHelp}>
+              {kind === "video" ? <p id={`${instanceId}-visual-brief-help`}>{t("ai_generator_video_visual_brief_hint_short")}</p> : null}
+              <MediaPromptHelp kind={kind} />
+            </div>
+          </div>
               <div className={styles.businessDnaRow}>
                 <label className={styles.businessDnaOption}>
                   <input
@@ -1419,13 +1426,6 @@ export default function MediaFreeGenerator({
                 </label>
                 <MediaBusinessDnaHelp />
               </div>
-          <div className={styles.videoFrameHeading}>
-            <label htmlFor={`${instanceId}-prompt`}>{t(kind === "video" ? "ai_generator_video_visual_brief_title" : "ai_generator_free_prompt_label")}</label>
-            <div className={styles.videoBriefHeadingHelp}>
-              {kind === "video" ? <p id={`${instanceId}-visual-brief-help`}>{t("ai_generator_video_visual_brief_hint_short")}</p> : null}
-              <MediaPromptHelp kind={kind} />
-            </div>
-          </div>
           <div className={styles.promptContainer} data-invalid={kind === "video" && (prompt.length > maxUserPromptLength || misplacedSpeechBlocking) ? true : undefined}>
             <textarea
               ref={promptInputRef}
