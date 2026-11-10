@@ -56,9 +56,21 @@ export function parseInrAssistantStudioUiCommand(value: unknown): InrAssistantSt
   if (row.command === "configure_media_library") { const patch = parseInrAssistantLibraryPatch(row.patch); return patch ? { ...target, command: row.command, patch } : null; }
   return { ...target, command: row.command as "reset_image_retouch" | "save_image_retouch" };
 }
+function studioRequestText(message: string) {
+  return message.replace(/```[\s\S]*?(?:```|(?![\s\S]))/g, " ").replace(/`[^`]*(?:`|$)|«[^»]*(?:»|$)|“[^”]*(?:”|$)|"[^"]*(?:"|$)|(?<![\p{L}])'[\s\S]*?(?:'(?![\p{L}])|$)|‘[\s\S]*?(?:’(?![\p{L}])|$)/gu, " ").replace(/^\s*>.*$/gm, " ").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+}
+/** Catalogue advice does not become an editor command merely because a poster
+ * is called an "affiche". A separate, explicit UI imperative remains eligible. */
+export function isInrAssistantStudioInformationRequest(message: string): boolean {
+  const text = studioRequestText(message);
+  if (!/\b(?:studio|moteurs?|modeles?|voix|vocal)\b/.test(text) ||
+    !/\b(?:compar\w*|differen\w*|catalogue|quels?|quelles?|lesquels?|lesquelles?|options?|possibil\w*|compatib\w*)\b/.test(text)) return false;
+  const clauses = text.split(/[.!?,;:\n]+|\b(?:et puis|et|puis|ensuite|mais|and then|and|then)\b/);
+  return !clauses.some(clause => /^\s*(?:(?:peux|pourrais|pouvez|pourriez)[ -](?:tu|vous)\s+(?:me\s+|m['’])?)?(?:ouvre\w*|affiche\w*|montre\w*|selectionne\w*|choisis|modifie\w*|change\w*|regle\w*|mets|applique\w*|recadre\w*|zoome\w*|enregistre\w*|sauvegarde\w*|ferme\w*|filtre\w*|coche\w*|decoche\w*|associe\w*|open|show|select|set)\b/.test(clause));
+}
 export function isInrAssistantStudioUiRequest(message: string, command?: string) {
-  if (command && !INR_ASSISTANT_STUDIO_UI_COMMANDS.includes(command as InrAssistantStudioUiCommandName)) return false;
-  const text = message.replace(/```[\s\S]*?(?:```|(?![\s\S]))/g, " ").replace(/`[^`]*(?:`|$)|«[^»]*(?:»|$)|“[^”]*(?:”|$)|"[^"]*(?:"|$)|(?<![\p{L}])'[\s\S]*?(?:'(?![\p{L}])|$)|‘[\s\S]*?(?:’(?![\p{L}])|$)/gu, " ").replace(/^\s*>.*$/gm, " ").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  if (command && !INR_ASSISTANT_STUDIO_UI_COMMANDS.includes(command as InrAssistantStudioUiCommandName) || isInrAssistantStudioInformationRequest(message)) return false;
+  const text = studioRequestText(message);
   if (/\b(?:comment|pourquoi|explique|how|why|si|if|quand|when|lorsque|apres|avant|demain|tomorrow|later)\b|\bplus tard\b|\b(?:ne |n['’]|sans |do not |don't ).{0,60}(?:select|chois|ouvr|utilis|modifi|chang|remplac|enregistr|sauv|reinitial|ajout|retir)|\b(?:modifie|change|enregistre|sauvegarde|reinitialise|ajoute|retire)\s+pas\b/.test(text)) return false;
   const select = /\b(?:selectionn\w*|choisi\w*|ouvre|ouvrir|utilis\w*|remplac\w*)\b/.test(text) && /\b(?:image|photo|source|retouche)\b/.test(text);
   const save = /\b(?:enregistr\w*|sauvegard\w*|save)\b/.test(text) && /\b(?:image|photo|retouche|copie)\b/.test(text);

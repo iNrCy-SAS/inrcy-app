@@ -10,6 +10,8 @@ import { parseAdsCampaignLifecycleRequest } from "./adsCampaignLifecycle.ts";
 import { normalizeChannelPublicUrl } from "./channelPublicUrl.ts";
 import { sanitizeInrAssistantMemoryText } from "./inrAssistantMemory.ts";
 import { requireUser } from "./requireUser";
+import { matchesInrAssistantActionClause } from "./inrAssistantActionClause.ts";
+import { inrAssistantUnquotedRequest } from "./inrAssistantRequestClauses.ts";
 
 type Row = Record<string, unknown>;
 const PROVIDERS = ["meta", "google", "linkedin", "pinterest", "openai"] as const;
@@ -76,6 +78,15 @@ function parseManage(value: unknown): ManageInput {
 const schema = <T>(definition: JSONSchema7, parse: (value: unknown) => T) => jsonSchema<T>(definition, { validate: value => { try { return { success: true, value: parse(value) }; } catch { return { success: false, error: new Error("Critères ADS invalides.") }; } } });
 const quoteSchema: JSONSchema7 = { type: "string", minLength: 1, maxLength: 1200, description: "Citation exacte de la consigne actuelle, avec budget et date lorsqu’ils changent. Jamais une ancienne mémoire." };
 function instruction(message: string, quote: string, action: "prepare" | Action): string | null {
+  if (/^(?:imagin\w*|suppos\w*|pretend|assume)\b/.test(inrAssistantUnquotedRequest(message))) return null;
+  let selected: string | null = null;
+  const permitted = matchesInrAssistantActionClause(message, quote, (current, exact) => {
+    selected = instructionClause(current, exact, action);
+    return selected !== null;
+  });
+  return permitted ? selected : null;
+}
+function instructionClause(message: string, quote: string, action: "prepare" | Action): string | null {
   if (!message.includes(quote)) return null;
   const clean = normalize(visible(message)); const cited = normalize(visible(quote)).trim();
   if (!cited || /\b(?:comment|pourquoi|how|where|expli\w*|savoir|comprendre)\b/.test(clean)) return null;
@@ -123,6 +134,8 @@ export function createInrAssistantAdvertisingTools(options: { request: Request; 
   const accountId = id(options.accountId);
   if (typeof options.actionRequestId !== "string" || !options.actionRequestId || options.actionRequestId.length > 180 || typeof options.currentUserMessage !== "string") throw new Error("Périmètre ADS invalide.");
   const writes = new Map<string, Promise<Result>>();
+  const managementTails = new Map<string, Promise<void>>();
+  const uncertainCampaigns = new Set<string>();
   const observed = new Map<string, string>();
   let completeList = false;
   const fail = (status = "unavailable", campaignId?: string, message = "L’action n’a pas pu être confirmée. Vérifiez iNr’ADS avant de reprendre ; aucun lancement ni aucune dépense n’est annoncé."): Result => ({ ok: false, status, message, nextAction: link(campaignId), ...(campaignId ? { campaignId } : {}) });
@@ -135,6 +148,21 @@ export function createInrAssistantAdvertisingTools(options: { request: Request; 
     if (!writes.has(key)) writes.set(key, run().catch(() => fail("unknown")));
     return writes.get(key)!;
   };
+  const onceManagement = (key: string, campaignId: string, run: () => Promise<Result>) => once(key, () => {
+    // Distinct operations keep their own receipts, but changes to one target
+    // remain ordered. An uncertain outcome must be reconciled before any later
+    // operation on that same campaign, even when SDK calls arrive in parallel.
+    const previous = managementTails.get(campaignId) ?? Promise.resolve();
+    const pending = previous.then(async () => {
+      if (uncertainCampaigns.has(campaignId)) return fail("unknown", campaignId, "Une opération précédente sur cette campagne reste incertaine. Vérifiez son suivi natif avant une autre modification.");
+      try { return await run(); } catch { return fail("unknown", campaignId); }
+    }).then(result => {
+      if (result.status === "unknown") uncertainCampaigns.add(campaignId);
+      return result;
+    });
+    managementTails.set(campaignId, pending.then(() => undefined));
+    return pending;
+  });
   const load = async (campaignId: string) => {
     const { GET } = await import("@/app/api/ads/campaigns/[id]/route");
     const response = await nativeCall(() => GET(localRequest(options.request, `/api/ads/campaigns/${campaignId}`), { params: Promise.resolve({ id: campaignId }) }));
@@ -217,7 +245,8 @@ export function createInrAssistantAdvertisingTools(options: { request: Request; 
         if (input.action === "resume") return { ...fail("requires_native_confirmation", input.campaignId, "La reprise réactive une diffusion potentiellement payante. Dans iNr’Send, ouvrez Campagnes ADS puis le détail de cette campagne pour vérifier budget, calendrier et facturation ; aucune reprise n’a été effectuée."), nextAction: MANAGEMENT_LINK };
         const localDraft = campaign.status === "draft" && campaign.published_at === null && campaign.provider_resources !== null && typeof campaign.provider_resources === "object" && !Array.isArray(campaign.provider_resources) && Object.keys(campaign.provider_resources).length === 0;
         if (input.action === "delete" && !localDraft || input.action === "update" && localDraft && (input.name !== null || input.dailyBudgetEuros !== null)) return { ...fail("requires_native_confirmation", input.campaignId, "Cette modification nécessite le parcours natif afin de préserver la campagne et les autres réglages. Aucune suppression distante ni écrasement de brouillon n’a été effectué."), nextAction: localDraft ? link(input.campaignId) : MANAGEMENT_LINK };
-        return once(`manage:${input.campaignId}`, async () => {
+        const operation = createHash("sha256").update(JSON.stringify([input.action, input.name, input.dailyBudgetEuros, input.endDate])).digest("hex");
+        return onceManagement(`manage:${input.campaignId}:${operation}`, input.campaignId, async () => {
           if (!await access()) return fail("blocked", input.campaignId);
           if (input.action === "pause" && !["active", "paused", "demo_paused"].includes(String(campaign.status)) || input.action === "update" && !localDraft && !["active", "paused"].includes(String(campaign.status))) return fail("requires_native_confirmation", input.campaignId);
           if (input.action === "update" && input.name === null && input.dailyBudgetEuros === null && campaign.end_date === input.endDate) return { ok: true, status: "unchanged", message: "Cette date est déjà enregistrée.", nextAction: link(input.campaignId) };

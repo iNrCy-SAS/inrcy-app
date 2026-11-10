@@ -216,7 +216,7 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
       edition: args.edition, currentUserMessage: latestRequest, actionRequestId: args.actionRequestId ?? args.requestId,
       canStartWork: () => remainingTimeMs() > 15_000 });
     return {
-      ...(/(?:ajout|cre|modifi|corrig|chang|supprim|effac|retire|update|delete).{0,60}(?:contact|client|prospect)|(?:contact|client|prospect).{0,60}(?:ajout|cre|modifi|corrig|chang|supprim|effac|retire|update|delete)/.test(topic) ? { manageCrmContact: available.manageCrmContact } : {}),
+      ...(requiredTools.includes("manageCrmContact") ? { manageCrmContact: available.manageCrmContact } : {}),
       ...(requiredTools.includes("prepareCommercialDocument") ? { prepareCommercialDocument: available.prepareCommercialDocument } : {}),
     };
   })();

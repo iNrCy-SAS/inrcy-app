@@ -1,4 +1,5 @@
-import { inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
+import { inrAssistantMaskQuotedText, inrAssistantUnquotedRequest, inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantRequestClauses.ts";
+import { hasInrAssistantDeferredApproval } from "./inrAssistantActionClause.ts";
 type Copy = { label: string; keep: string; discard: string; keepRequest: string; discardRequest: string };
 const COPY: Record<string, Copy> = {
   fr:{label:"Aperçu prêt, pas encore enregistré.",keep:"Conserver ce média",discard:"Écarter cet aperçu",keepRequest:"Enregistre cet aperçu dans mes médias.",discardRequest:"Écarte cet aperçu généré."},
@@ -16,6 +17,23 @@ export function inrAssistantMediaPreviewCopy(locale: string): Copy { return COPY
 export function isInrAssistantMediaPreviewButtonRequest(message: string, operation: "accept" | "discard"): boolean {
   const clean = inrAssistantMaskQuotedText(message).trim();
   return Object.values(COPY).some(copy => clean === (operation === "accept" ? copy.keepRequest : copy.discardRequest));
+}
+
+/** A refusal to publish or generate is separate from a current save decision.
+ * This selects an intent only; the native tool still binds the exact owned job. */
+export function isInrAssistantMediaPreviewDecisionRequest(message: string, operation: "accept" | "discard"): boolean {
+  if (isInrAssistantMediaPreviewButtonRequest(message, operation)) return true;
+  const current = inrAssistantUnquotedRequest(message);
+  if (hasInrAssistantDeferredApproval(message) || /^(?:si|quand|lorsque|if|when|unless|imagine|suppose)\b/.test(current)) return false;
+  const stems = operation === "accept" ? "(?:enregistr\\w*|sauvegard\\w*|conserv\\w*|accept\\w*|valid\\w*|save|keep|store)" : "(?:rejett\\w*|refus\\w*|jett\\w*|supprim\\w*|retir\\w*|ecart\\w*|abandon\\w*|discard|reject|remove)";
+  if (new RegExp(`\\b(?:ne|n'|pas|jamais|sans|not|never|don't|do not)\\b.{0,45}\\b${stems}\\b|\\b${stems}\\s+(?:pas|jamais|not)\\b`).test(current)) return false;
+  const verbs = {accept:"(?:enregistre(?:z|r)?|sauvegarde(?:z|r)?|conserve(?:z|r)?|accepte(?:z|r)?|valide(?:z|r)?|save|keep|store)",discard:"(?:rejette(?:z|r)?|refuse(?:z|r)?|jette(?:z|r)?|supprime(?:z|r)?|retire(?:z|r)?|ecarte(?:z|r)?|abandonne(?:z|r)?|discard|reject|remove)"};
+  const affirmative = (clause: string, choice: "accept" | "discard") => !inrAssistantClauseIsAdvice(clause)
+    && !/\b(?:demain|plus tard|pas maintenant|apres|avant|si|quand|lorsque|tomorrow|later|after|before|if|when)\b/.test(clause)
+    && new RegExp(`^(?:(?:merci de|please|veuillez|peux-tu|pouvez-vous|can you|could you|je veux|je souhaite|je voudrais)\\s+)?${verbs[choice]}\\b`).test(clause)
+    && /\b(?:brouillon|apercu|resultat|image|photo|video|media|creation|preview|draft)\b/.test(clause);
+  const clauses=inrAssistantRequestClauses(message);
+  return clauses.some(clause=>affirmative(clause,operation)) && !clauses.some(clause=>affirmative(clause,operation==="accept"?"discard":"accept"));
 }
 
 export type InrAssistantMediaPreviewReference = {status:"ready_to_save";draft:true;requestId:string;mediaId:string;mediaType?:"image"|"video";resultMode?:"save"|"preview"};

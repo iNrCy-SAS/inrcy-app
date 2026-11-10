@@ -81,3 +81,27 @@ test("omitted frames still undergo validation before a request can be built", as
   files[3].frames![2].image = Buffer.from("invalid JPEG").toString("base64");
   assert.throws(() => assistantMessagesWithFiles([{ role: "user", content: "Compare les vidéos." }], files), /Invalid assistant video frame/);
 });
+
+test("adaptive four-to-six visual limits preserve every clip and every transcript with exact new coverage", async () => {
+  const image = await preview(), files = [1, 2, 3, 4].map(index => video(index, image));
+  const before = JSON.stringify(files), user = [{ role: "user" as const, content: "Compare ces clips, sans aucune publication." }];
+  let previousBudget = Infinity;
+  for (const maxVisuals of [6, 5, 4]) {
+    const messages = assistantMessagesWithFiles(user, files, { maxVisuals });
+    const result = inspect(messages);
+    assert.equal(result.imageCount, maxVisuals);
+    assert.deepEqual(result.metadata.map(file => file.sentVisualCount), maxVisuals === 6 ? [2, 2, 1, 1] : maxVisuals === 5 ? [2, 1, 1, 1] : [1, 1, 1, 1]);
+    for (const [index, metadata] of result.metadata.entries()) {
+      assert.equal(metadata.sentVideoFrameTimesSeconds?.[0], 30);
+      assert.deepEqual(metadata.sentVideoFrameTimesSeconds, result.timestamps.get(index + 1));
+      assert.equal(metadata.omittedVideoFrameCount, 3 - metadata.sentVideoFrameTimesSeconds!.length);
+      assert.equal(metadata.excerpt, files[index].text);
+    }
+    const latest = messages.at(-1)!; assert.ok(Array.isArray(latest.content));
+    assert.equal(latest.content[0].type, "text"); assert.equal(latest.content[0].text, user[0].content);
+    const budget = assistantModelInputBudget(messages); assert.ok(budget < previousBudget); previousBudget = budget;
+    assert.match(JSON.stringify(messages), new RegExp(`Au maximum ${maxVisuals} visuels`));
+    assert.equal(JSON.stringify(files), before);
+  }
+  for (const maxVisuals of [0, 3, 7, 4.5, NaN]) assert.throws(() => assistantMessagesWithFiles(user, files, { maxVisuals }), /Invalid assistant visual budget/);
+});

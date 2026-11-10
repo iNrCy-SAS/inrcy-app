@@ -14,11 +14,13 @@ import { isInrAssistantLocalInterfaceRequest } from "./inrAssistantLocalInterfac
 import { isInrAssistantApplicationPreferenceRequest } from "./inrAssistantApplicationPreferences.ts";
 import { hasInrAssistantMediaSubject, permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
 import { isInrAssistantDnaScheduleRequest, isInrAssistantPinterestBoardRequest, isInrAssistantSocialPreferencesRequest, isInrAssistantWebsiteLifecycleRequest, isInrAssistantNativePresentationRequest, isInrAssistantWebsiteConfigurationRequest } from "./inrAssistantBasicTargetIntents.ts";
-import { isInrAssistantMediaPreviewButtonRequest } from "./inrAssistantMediaPreview.ts";
+import { isInrAssistantMediaPreviewButtonRequest, isInrAssistantMediaPreviewDecisionRequest } from "./inrAssistantMediaPreview.ts";
 import { isInrAssistantStudioDraftRequest } from "./inrAssistantStudioDraft.ts";
 import { inrAssistantStandardCommands } from "./inrAssistantStandardRouting.ts";
 import { INR_ASSISTANT_COMMANDS, INR_ASSISTANT_PENDING_STATUSES, INR_ASSISTANT_UNCERTAIN_STATUSES, isInrAssistantAcceptedReceipt, inrAssistantSettingTargets, requestsInrAssistantSettingsChange } from "./inrAssistantCommandRegistry.ts";
-import { inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantRequestClauses.ts";
+import { inrAssistantRequestClauses, inrAssistantClauseIsAdvice, inrAssistantUnquotedRequest } from "./inrAssistantRequestClauses.ts";
+import { hasInrAssistantDeferredApproval } from "./inrAssistantActionClause.ts";
+import { readInrAssistantCommunicationIntent } from "./inrAssistantCommunicationIntent.ts";
 import type { InrAssistantUiStep } from "./inrAssistantUiTask.ts";
 import { isInrAssistantDocumentTemplateInstruction } from "./inrAssistantDocumentUiCommands.ts";
 export { inrAssistantRequestClauses, inrAssistantClauseIsAdvice } from "./inrAssistantRequestClauses.ts";
@@ -49,6 +51,20 @@ export function inrAssistantRoutingText(text: string): string {
     .replace(/\b(?:boton|button|schaltflache)\b/g, "bouton")
     .replace(/\b(?:alle|todos|todas|all)\b/g, "tous").replace(/\b(?:canales|kanale|channels)\b/g, "canaux");
 }
+/** Schema discovery only. A provider, actual spend or preflight distinguishes
+ * advertising from an otherwise ambiguous mail campaign; this grants no action. */
+export function isInrAssistantAdvertisingRequest(message: string): boolean {
+  const text = inrAssistantRoutingText(inrAssistantUnquotedRequest(message));
+  if (/\bads\b|publicit|annonceur|campagne sponsoris|\badvertising\b/.test(text)) return true;
+  if (!/\b(?:campagnes?|campaigns?)\b/.test(text) || /\b(?:(?:e-?)?mails?|courriels?|newsletters?|fidelis\w*|propuls\w*)\b/.test(text)) return false;
+  return /\b(?:google|meta|facebook|instagram|linkedin|pinterest|chatgpt|openai|depens\w*|cout\w*|budget|clics?|impressions?|conversions?|roas|cpa|spend|spent|metrics|preflight)\b|\b(?:pret\w*|prealable)\b.{0,60}\b(?:lanc\w*|diffus\w*|activ\w*)\b|\b(?:lanc\w*|diffus\w*)\b.{0,50}\bpret\w*\b/.test(text);
+}
+/** A mentioned invoice can be attachment evidence rather than an account record.
+ * Resolve this only within its unquoted clause, never from another requested read. */
+export function isInrAssistantAttachedFileRequest(message: string): boolean {
+  const text = inrAssistantUnquotedRequest(message);
+  return /\b(?:fichiers?|pieces?|documents?|scans?|factures?|devis|pdf)\b[^.!?;]{0,90}\b(?:joint(?:e|es|s)?|attach(?:e|ee|es|ees))\b|\b(?:dans|depuis|a partir de)\s+(?:la|le|les|ce|cette|ces|mon|ma|mes)\s+fichiers?\b/.test(text);
+}
 /** Business goals, distinct from their prerequisite reads. */
 export function inrAssistantRequiredTools(message: string): string[] {
   return [...new Set(inrAssistantActionObjectives(message).map(objective => objective.tool))];
@@ -60,6 +76,9 @@ export function inrAssistantActionObjectives(message: string): InrAssistantActio
   const clauses = inrAssistantRequestClauses(message).map(inrAssistantRoutingText);
   const mediaContext = hasInrAssistantMediaSubject(message, "image") || hasInrAssistantMediaSubject(message, "video");
   const required: InrAssistantActionObjective[] = [];
+  const communication = readInrAssistantCommunicationIntent(message);
+  const current = inrAssistantUnquotedRequest(message);
+  const deferredSensitiveAction = hasInrAssistantDeferredApproval(message) || /^(?:si|quand|lorsque|if|when|unless|imagin\w*|suppos\w*)\b|\b(?:si|quand|lorsque|if|when|unless)\s+(?:je|j'|tu|vous|nous|on|il|elle|le|la|les|un|une|the|i|you|we|they)\b/.test(current);
   let previousWasMail = false;
   for (const clause of clauses) {
     // Only an explicit object pronoun can inherit the immediately preceding
@@ -69,16 +88,20 @@ export function inrAssistantActionObjectives(message: string): InrAssistantActio
     const inferredMail: boolean = previousWasMail && mailPronoun;
     required.push(...requiredToolsForClause(inferredMail ? `${clause} — campagne mail` : clause, mediaContext).map(tool => ({ kind: "action" as const, tool, instruction: clause })));
     const target = clause.match(/\b(?:campagnes?|e-?mails?|newsletters?|images?|photos?|videos?|visuels?|logos?|flyers?|affiches?|publications?|posts?|crm|contacts?|clients?|prospects?|devis|factures?|agenda|rendez.vous|rdv)\b/);
-    previousWasMail = target ? /^(?:campagnes?|e-?mails?|newsletters?)$/.test(target[0]) && !/publicit|\bads\b/.test(clause) : inferredMail;
+    previousWasMail = target ? /^(?:campagnes?|e-?mails?|newsletters?)$/.test(target[0]) && !isInrAssistantAdvertisingRequest(clause) : inferredMail;
   }
   // Clause routing must not discard a later explicit media refusal or turn a
   // wish introducing a knowledge question into an unfinished paid task.
-  return required.filter(objective => objective.tool === "generateMedia"
+  return required.filter(objective => !(["prepareAdvertisingCampaign", "manageAdvertisingCampaign", "manageCrmContact", "acceptMediaGeneration", "discardMediaGeneration", "prepareCampaignEmail", "updateCampaignDraft", "dispatchCampaignDraft", "dispatchCampaignAudience"].includes(objective.tool) && deferredSensitiveAction)
+    && (objective.tool !== "prepareCampaignEmail" || communication.campaignDraft)
+    && (objective.tool !== "updateCampaignDraft" || communication.campaignDraftEdit)
+    && (objective.tool !== "acceptMediaGeneration" || isInrAssistantMediaPreviewDecisionRequest(message,"accept"))
+    && (objective.tool !== "discardMediaGeneration" || isInrAssistantMediaPreviewDecisionRequest(message,"discard"))).filter(objective => objective.tool === "generateMedia"
     ? permitsInrAssistantMediaAction(message, "generate", "image") || permitsInrAssistantMediaAction(message, "generate", "video")
     : objective.tool !== "modifyMedia" || permitsInrAssistantMediaAction(message, "modify"));
 }
 function requiredToolsForClause(message: string, mediaContext: boolean): string[] {
-  const t = inrAssistantRoutingText(message), result: string[] = [];
+  const t = inrAssistantRoutingText(message).replace(/^(?:dans|sur)\s+(?:(?:le|mon|notre)\s+)?crm\s*[:,]?\s*/, ""), result: string[] = [];
   if (isInrAssistantBadgeLogoThemeRequest(message)) return ["refreshBadgeThemeFromLogo"];
   if (isInrAssistantResumePublicationDraftRequest(message)) return ["resumePublicationDraft"];
   if (isInrAssistantNotificationActionRequest(message)) return ["openNotificationAction"];
@@ -92,9 +115,21 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
   if (isInrAssistantGoogleReviewDraftRequest(message, "avis-1") || [...message.matchAll(/\bavis-[1-9]\d{0,3}\b/gi)].some(match => isInrAssistantGoogleReviewDraftRequest(message, match[0].toLowerCase()))) return ["generateGoogleReviewReplyDraft"];
   if ([1, 2, 3, 4, 5, 6].some(id => isInrAssistantStudioForgetPreferenceRequest(message, id))) return ["forgetStudioPreferenceBlock"];
   if (inrAssistantClauseIsAdvice(t)) return result;
+  if (/^(?:si|quand|lorsque|if|when|unless|imagin\w*|suppos\w*)\b/.test(t)) return result;
+  for (const operation of ["accept", "discard"] as const) if (isInrAssistantMediaPreviewDecisionRequest(message,operation)) return [operation === "accept"?"acceptMediaGeneration":"discardMediaGeneration"];
+  const communication = readInrAssistantCommunicationIntent(message);
+  if (communication.campaignDraftEdit) return ["updateCampaignDraft"];
+  if (communication.campaignDraft) return ["prepareCampaignEmail"];
+  if (communication.campaignAudiencePreview) return result;
   if (isInrAssistantLocalInterfaceRequest(message)) return ["controlLocalInterface"];
   if (/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|cherche\w*|recherch\w*|retrouv\w*|liste\w*|regarde\w*|montre\w*|affiche\w*|ouvre\w*|indique\w*|quels?|quelles?|combien)\b/.test(t)) return result;
-  if (/^(?:ne\b|n['’]|not\b|never\b|don't\b|do not\b)/.test(t.trim()) || /\b(?:ne|sans|not|never)\b.{0,20}\b(?:modifi|cre|gener|publ|envoi)/.test(t)) return result;
+  if (/^(?:ne\b|n['’]|not\b|never\b|don't\b|do not\b)/.test(t.trim()) || /\b(?:ne|sans|not|never)\b.{0,20}\b(?:modifi|cre|gener|publ|envoi)/.test(t)) {
+    // The media guard distinguishes generating a temporary preview from saving
+    // or publishing it. A refusal of those separate actions does not revoke it.
+    if (permitsInrAssistantMediaAction(message, "generate", "image") || permitsInrAssistantMediaAction(message, "generate", "video")) result.push("generateMedia");
+    if (permitsInrAssistantMediaAction(message, "modify")) result.push("modifyMedia");
+    return result;
+  }
   if (/\bnotifications?\b/.test(t) && /\b(?:supprim\w*|retir\w*|effac\w*|delete|remove)\b/.test(t)) return ["applyNotificationRemoval"];
   if (/notifications?/.test(t) && /\b(?:marque\w*|classe\w*)\b/.test(t) && /\blues?\b/.test(t)) return ["markNotificationsRead"];
   if (isInrAssistantApplicationPreferenceRequest(message)) return ["configureApplicationPreferences"];
@@ -103,8 +138,6 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
   if (/\b(?:adn|dna)\b/.test(t) && /document|fichier/.test(t) && /supprime|retire|efface/.test(t)) return ["applyBusinessDnaDocumentRemoval"];
   if (/ga4|gsc|search console|google analytics/.test(t) && /deconnect|dissoci/.test(t)) return ["applyWebsiteAnalyticsDisconnection"];
   if ((["analytics", "widget"] as const).some(section => isInrAssistantWebsiteConfigurationRequest(message, section))) return ["updateWebsiteConfiguration"];
-  if (/\b(?:apercu|brouillon|resultat)\b/.test(t) && !/publication|campagne|mail|facture|devis/.test(t) && /\b(?:enregistre\w*|conserve\w*|sauvegarde\w*|accepte\w*|save|accept)\b/.test(t)) return ["acceptMediaGeneration"];
-  if (/\b(?:apercu|brouillon|resultat)\b/.test(t) && !/publication|campagne|mail|facture|devis/.test(t) && /\b(?:ecarte\w*|rejette\w*|abandonne\w*|discard)\b/.test(t)) return ["discardMediaGeneration"];
   if (/panier moyen|taux de (?:conversion|transformation)|hypotheses? (?:du generateur|des estimations)/.test(t) && /modifie|change|mets|definis|enregistre/.test(t)) return ["updateGeneratorBusinessSettings"];
   const identity = /\b(?:identite|profil entreprise|nom|prenom|societe|raison sociale|adresse|code postal|ville|profession|metier|telephone|email professionnel)\b/.test(t) && /\b(?:modifi\w*|chang\w*|mets|remplac\w*|enregistr\w*|complet\w*|defini\w*)\b/.test(t);
   if (isInrAssistantDnaScheduleRequest(message)) return ["updateBusinessDnaSchedule"];
@@ -149,10 +182,11 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
   if (/\b(?:devis|factures?|document commercial)\b/.test(t) && /\b(?:modifi\w*|corrig\w*|complet\w*|ajout\w*|change\w*|remplac\w*|update|edit)\b/.test(t)) result.push("updateCommercialDocument");
   const crmTarget = /\b(?:crm|contacts?|clients?|prospects?)\b/.exec(t);
   const otherObject = /\b(?:images?|photos?|videos?|visuels?|logos?|flyers?|affiches?|publications?|posts?|campagnes?|e-?mails?|newsletters?|devis|factures?|agenda|rendez.vous|rdv)\b/.exec(t);
-  if (crmTarget && (!otherObject || crmTarget.index < otherObject.index) && /\b(?:ajout\w*|cree|modifi\w*|supprim\w*|retire|fusionn\w*|add|update|merge|delete)\b/.test(t)) result.push(/fusionn|merge/.test(t)?"mergeCrmContacts":"manageCrmContact");
+  if (crmTarget && (!otherObject || crmTarget.index < otherObject.index) && /\b(?:ajout\w*|cree|modifi\w*|remplac\w*|supprim\w*|retire|fusionn\w*|add|update|merge|delete)\b/.test(t)) result.push(/fusionn|merge/.test(t)?"mergeCrmContacts":"manageCrmContact");
   const individualMail=/\b(?:mail|email|courriel)\b/.test(t) && !/campagne|newsletter|audience|segment/.test(t) && (/individuel/.test(t) || /@/.test(t));
   if(individualMail && /\b(?:envoi\w*|prepar\w*|redig\w*|ecris)\b/.test(t)) result.push("sendIndividualMail");
-  if (!individualMail && /\b(?:mail|email|campagne|newsletter)\b/.test(t) && !/publicit|\bads\b/.test(t) && !inrAssistantSettingTargets(message).includes("notifications")) {
+  const advertising = isInrAssistantAdvertisingRequest(message);
+  if (!individualMail && /\b(?:mail|email|campagne|newsletter)\b/.test(t) && !advertising && !inrAssistantSettingTargets(message).includes("notifications")) {
     if (/\b(?:envoie|envoyer|diffuse|send|programme|schedule)\b/.test(t)) result.push(/\bap-[a-f0-9]{12}\b|(?:tous|mes|segment|audience).{0,35}(?:clients|prospects|contacts)|audience|segment/.test(t)?"dispatchCampaignAudience":"dispatchCampaignDraft");
     else if (/\b(?:modifi\w*|corrig\w*|change\w*)\b/.test(t)) result.push("updateCampaignDraft");
     else if (/\b(?:prepare\w*|cree|redige|ecris)\b/.test(t)) result.push("prepareCampaignEmail");
@@ -166,7 +200,7 @@ function requiredToolsForClause(message: string, mediaContext: boolean): string[
     else if (/\b(?:modifi\w*|deplac\w*|report\w*|change\w*|invite\w*)\b/.test(t) || /\b(?:rappels?|invites?)\b/.test(t) && /\b(?:ajoute\w*|active\w*|reactive\w*|desactive\w*|coupe\w*|utilise\w*|choisis|selectionne\w*)\b/.test(t)) result.push("updateCalendarAppointment");
     else if (/\b(?:prepare\w*|cree|ajoute|planifie)\b/.test(t)) result.push("prepareCalendarAppointment");
   }
-  if (/\b(?:ads|publicitaire|publicite)\b/.test(t) && /\b(?:prepare\w*|cree\w*|pause|arret|arrete|suspend|modifi\w*|change\w*|supprime|reprend)\b/.test(t)) result.push(/\b(?:pause|arret|arrete|suspend|modifi\w*|change\w*|supprime|reprend)\b/.test(t)?"manageAdvertisingCampaign":"prepareAdvertisingCampaign");
+  if (advertising && /^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:prepare\w*|cree\w*|mets?\b.{0,30}\bpause|pause|arret\w*|suspend\w*|modifi\w*|change\w*|supprime\w*|repren\w*)\b/.test(t)) result.push(/\b(?:pause|arret\w*|suspend\w*|modifi\w*|change\w*|supprime\w*|repren\w*)\b/.test(t)?"manageAdvertisingCampaign":"prepareAdvertisingCampaign");
   return [...new Set(result)];
 }
 /** A transcript is never a grant. Only server-stored, scoped, recent pending work qualifies. */
@@ -245,7 +279,7 @@ export function inrAssistantRequiredCalls(message: string): Record<string, numbe
     const name = objective.tool;
     const object=INR_ASSISTANT_COMMANDS[name]?.batchObject;
     if (!object) continue;
-    const match=objective.instruction.match(new RegExp(`\\b(\\d{1,6}|${Object.keys(numbers).join("|")})\\s+(?:(?:nouveaux?|nouvelles?)\\s+)?(?:${object})\\b`));
+    const match=objective.instruction.match(new RegExp(`\\b(\\d{1,6}|${Object.keys(numbers).join("|")})\\s+(?:(?:nouveaux?|nouvelles?)\\s+)?(?:${name === "prepareCampaignEmail" ? "brouillons?|" : ""}${object})\\b`));
     const count=match ? numbers[match[1]] ?? Number(match[1]) : 1;
     counts[name]=(counts[name]??0)+count;
   }

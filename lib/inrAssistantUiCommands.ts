@@ -5,7 +5,7 @@ import { parseInrAssistantBadgeIdentityThemeCommand, type InrAssistantBadgeIdent
 import { parseInrAssistantNotificationNavigation, type InrAssistantNotificationNavigation } from "./inrAssistantNotificationNavigation.ts";
 import { isInrAssistantBusinessFormUiRequest, parseInrAssistantBusinessFormUiCommand, type InrAssistantBusinessFormUiCommand } from "./inrAssistantBusinessFormUiCommands.ts";
 import { isInrAssistantMediaUiCommandName, isInrAssistantMediaUiCommandText, parseInrAssistantMediaUiCommand, type InrAssistantMediaUiCommand } from "./inrAssistantMediaUiCommands.ts";
-import { INR_ASSISTANT_STUDIO_UI_COMMANDS, isInrAssistantStudioUiRequest, parseInrAssistantStudioUiCommand, type InrAssistantStudioUiCommand } from "./inrAssistantStudioUiCommands.ts";
+import { INR_ASSISTANT_STUDIO_UI_COMMANDS, isInrAssistantStudioInformationRequest, isInrAssistantStudioUiRequest, parseInrAssistantStudioUiCommand, type InrAssistantStudioUiCommand } from "./inrAssistantStudioUiCommands.ts";
 import { isInrAssistantStatsUiCommandName, isInrAssistantStatsUiCommandText, parseInrAssistantStatsUiCommand, type InrAssistantStatsUiCommand } from "./inrAssistantStatsUiCommands.ts";
 import { isInrAssistantBadgeQrRequest, parseInrAssistantBadgeUiCommand, type InrAssistantBadgeUiCommand } from "./inrAssistantBadgeUiCommands.ts";
 import { parseInrAssistantAccountDocumentCommand, type InrAssistantAccountDocumentCommand } from "./inrAssistantAccountDocuments.ts";
@@ -147,6 +147,7 @@ function navigationRequestText(message: string): string {
 }
 
 export function isInrAssistantNavigationRequest(message: string): boolean {
+  if (isInrAssistantStudioInformationRequest(message)) return false;
   if (channelConnectionNavigationRequest(message)) return true;
   const text = navigationRequestText(message);
   if (/^(?:comment|pourquoi|explique|how|why|what|si |imagine|suppose)\b/.test(text)) return false;
@@ -160,6 +161,7 @@ export function isInrAssistantNavigationRequest(message: string): boolean {
 }
 
 export function isInrAssistantScreenCommandRequest(message: string, command?: InrAssistantUiCommand["command"]): boolean {
+  if (isInrAssistantStudioInformationRequest(message)) return false;
   const text = navigationRequestText(message);
   if (command && INR_ASSISTANT_WEBSITE_UI_COMMANDS.some(name => name === command)) return isInrAssistantWebsiteUiRequest(message, command);
   if (command && INR_ASSISTANT_ACCOUNT_UI_COMMANDS.some(name => name === command)) return isInrAssistantAccountUiRequest(message, command);

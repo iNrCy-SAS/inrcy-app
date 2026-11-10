@@ -111,8 +111,9 @@ test("the read budget admits only a progressing cursor after the two ordinary re
 test("all native offset readers retain three progressing pages with their original filters",()=>{
   for(const name of ["readStatsReports","readScheduledPublications","readPublicationWorkspace","readAdvertisingCampaigns","readAttachedDocument","listIndividualMailboxes"]){
     const budget=createInrAssistantReadBudget();
-    for(const offset of [0,20,40]){const attempt=budget.start(name,{offset,status:"all",recordId:null});assert.ok(attempt,name);budget.finish(attempt,{ok:true,nextOffset:offset+20});}
-    assert.equal(budget.start(name,{offset:60,status:"failed",recordId:null}),null,name);
+    const fields = name === "readAdvertisingCampaigns" ? {mode:"list",campaignId:null} : {recordId:null};
+    for(const offset of [0,20,40]){const attempt=budget.start(name,{...fields,offset,status:"all"});assert.ok(attempt,name);budget.finish(attempt,{ok:true,nextOffset:offset+20});}
+    assert.equal(budget.start(name,{...fields,offset:60,status:"failed"}),null,name);
   }
   const budget=createInrAssistantReadBudget();
   for(const page of [1,2,3]){const attempt=budget.start("readIndividualMailHistory",{page,mailboxId:"box-a",query:null});assert.ok(attempt);budget.finish(attempt,{ok:true,nextPage:page+1});}

@@ -223,7 +223,7 @@ export function createInrAssistantWorkspaceActionTools(options: {
       },
     }),
     searchCrmContacts: tool({ strict: true,
-      description: "Retrouver jusqu’à cinq contacts de l’établissement actif par un nom/entreprise cité dans la demande actuelle. Retour minimal : référence, nom, entreprise, catégorie et type ; jamais notes, email, téléphone, adresse ou dossier privé. Lecture Premium. Pour créer/modifier une fiche, ouvrir iNr’CRM et la vérifier ; cet outil n’effectue aucune mutation CRM.",
+      description: "Retrouver jusqu’à cinq contacts de l’établissement actif par un nom/entreprise cité actuellement. Retour minimal : référence, nom, entreprise, catégorie et type ; jamais notes, email, téléphone ni adresse. Lecture Premium. Pour des coordonnées ou notes, continuer avec readCrmContact. Pour une création ou modification explicitement demandée, utiliser manageCrmContact avec les références vérifiées ; cette recherche ne modifie aucune fiche.",
       inputSchema: schema<{ query: string }>({ type: "object", properties: { query: { type: "string", minLength: 2, maxLength: 80 } }, required: ["query"], additionalProperties: false }, value => { const input = strict(value, ["query"]); const query = text(input.query, 80); if (query.length < 2) throw new Error("Nom incomplet."); return { query }; }),
       execute: async raw => {
         const input = strict(raw, ["query"]); const query = text(input.query, 80);
@@ -239,7 +239,7 @@ export function createInrAssistantWorkspaceActionTools(options: {
         catch { return fail(LINKS.crm); }
         if (read.error || !Array.isArray(read.data)) return fail(LINKS.crm);
         const contacts = read.data.map(record).filter(row => row.user_id === accountId && UUID.test(String(row.id)) && parts.every(part => normalize([row.first_name, row.last_name, row.company_name].join(" ")).includes(normalize(part)))).slice(0, 5).map(row => ({ id: row.id, name: [row.first_name, row.last_name].filter(value => typeof value === "string").join(" ").slice(0, 180), companyName: typeof row.company_name === "string" ? row.company_name.slice(0, 180) : "", category: ["particulier", "professionnel", "collectivite_publique"].includes(String(row.category)) ? row.category : null, contactType: ["client", "prospect", "fournisseur", "partenaire", "autre"].includes(String(row.contact_type)) ? row.contact_type : null }));
-        return { ok: true, readOnly: true, untrustedContent: true, known: true, contacts, limited: read.data.length === 8, nextAction: LINKS.crm, message: "Résultats limités aux noms recherchés dans le compte actif. Aucune fiche n’a été créée ou modifiée ; ouvrir iNr’CRM pour vérifier la fiche avant édition." };
+        return { ok: true, readOnly: true, untrustedContent: true, known: true, contacts, limited: read.data.length === 8, nextAction: LINKS.crm, message: "Résultats limités aux noms recherchés dans le compte actif. Les détails d’une fiche se consultent séparément. Cette recherche n’a créé ni modifié aucune fiche." };
       },
     }),
     readCrmContact: tool({ strict: true,

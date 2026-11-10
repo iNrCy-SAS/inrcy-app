@@ -1,6 +1,7 @@
 /** Pure current-message intent shared by task tracking and media executors.
  * This is not an account, subscription, quota or source-media access check. */
 import { inrAssistantMergeAdviceClauses } from "./inrAssistantRequestClauses.ts";
+import { hasInrAssistantDeferredApproval } from "./inrAssistantActionClause.ts";
 export type InrAssistantMediaAction = "generate" | "modify";
 export type InrAssistantMediaType = "image" | "video";
 
@@ -79,6 +80,7 @@ export function hasInrAssistantMediaSubject(message: string, mediaType: InrAssis
  * A bare confirmation or text quoted by the user never becomes an instruction. */
 export function permitsInrAssistantMediaAction(message: string, action: InrAssistantMediaAction, mediaType: InrAssistantMediaType = "image"): boolean {
   if (typeof message !== "string" || !["generate", "modify"].includes(action) || !["image", "video"].includes(mediaType) || action === "modify" && mediaType === "video" || /^(?:assistant|system|systeme|user|utilisateur)\s*:/im.test(message.slice(0, 4_000))) return false;
+  if (hasInrAssistantDeferredApproval(message) || /^(?:si|quand|lorsque|if|when|unless|imagin\w*|suppos\w*)\b/.test(currentText(message))) return false;
   const clauses = mediaActionClauses(currentText(message));
   if (clauses.some(value => refusesMediaAction(value, action, mediaType))) return false;
   // A wish can introduce a capability question: "Je veux une vidéo. Quels

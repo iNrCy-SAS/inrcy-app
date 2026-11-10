@@ -336,6 +336,15 @@ test("advice can inspect CRM, campaign, scheduled publication and advertising re
   assert.deepEqual(h.executions,[]);
 });
 
+test("a resolved CRM replacement goal exposes its native writer without a second drifting verb filter", () => {
+  const h=harness();
+  const current={args:{...h.context.args,edition:"premium" as const},latestRequest:"Dans le CRM, remplace uniquement le téléphone du client Alice Martin par 0601020304.",families:new Set<"commercial">(["commercial"]),requiredTools:["manageCrmContact"]};
+  assert.ok(h.build(current).commercialTools.manageCrmContact);
+  assert.equal("manageCrmContact" in h.build({...current,canExecute:false}).commercialTools,false);
+  assert.equal("manageCrmContact" in h.build({...current,requiredTools:[]}).commercialTools,false);
+  assert.deepEqual(h.executions,[]);
+});
+
 test("document templates expose a bounded reader while form preparation retains explicit goal, edition and actor gates", () => {
   const h = harness(), args = { ...h.context.args, edition: "founder" as const };
   const base = { args, families: new Set<Parameters<typeof h.build>[0] extends never ? never : "commercial">(["commercial"]), latestRequest: "Liste mes modèles de devis" };

@@ -59,6 +59,31 @@ test("mounted Studio/library commands cannot mask an unrelated business action o
   assert.equal(inrAssistantUiSteps("Ouvre les statistiques", library).some(step => step.command === "configure_media_library"), false); assert.equal(inrAssistantUiSteps("Affiche les vidéos de la médiathèque", library)[0]?.command, "configure_media_library");
 });
 
+test("Studio catalogue questions create no editor objective, including the poster noun affiche", () => {
+  const home = parseInrAssistantClientContext({ screen: { pathname: "/dashboard" } });
+  for (const message of [
+    "Je veux uniquement comparer les moteurs d’image disponibles dans Studio pour faire une affiche. Pas de vidéo et aucune génération : lesquels me proposes-tu ?",
+    "Quels moteurs Studio pour cette affiche ?",
+    "Compare les modèles de Studio pour un flyer ; le texte dit « ouvre la médiathèque ».",
+  ]) {
+    assert.equal(isInrAssistantStudioUiRequest(message), false, message);
+    assert.deepEqual(inrAssistantUiSteps(message, home), [], message);
+  }
+});
+
+test("a catalogue question followed by an explicit module opening preserves only that ordered action", () => {
+  const home = parseInrAssistantClientContext({ screen: { pathname: "/dashboard" } });
+  for (const message of [
+    "Compare les moteurs d’image dans Studio, puis ouvre la médiathèque.",
+    "Ouvre la médiathèque, puis compare les moteurs d’image dans Studio.",
+  ]) {
+    const steps = inrAssistantUiSteps(message, home);
+    assert.equal(steps.length, 1, message);
+    assert.equal(steps[0].command, "navigateApplication", message);
+    assert.match(steps[0].instruction, /médiathèque|mediatheque/);
+  }
+});
+
 test("explicit library filter paraphrases retain the exact mounted command and keep refusals inert", () => {
   const library = parseInrAssistantClientContext({ screen: { pathname: "/dashboard/mediatheque", selection: { kind: "media", id: "library_editor" }, revision: "library_editor_1", availableCommands: ["configure_media_library"] } });
   for (const message of [

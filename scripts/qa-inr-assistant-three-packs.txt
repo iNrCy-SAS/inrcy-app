@@ -1,0 +1,27 @@
+iNrAssist: comportement Basique, Standard et Premium
+
+Le dataset tests/fixtures/inr-assistant-packs.json contient les scénarios et les
+fixtures publiques de la campagne du 10 novembre 2026. Revoir les dates futures
+avant une campagne ultérieure. Les modèles, le SDK, les schémas et l’orchestrateur
+sont réels. Les effets métier et les accès DB sont substitués: aucune diffusion,
+écriture client, dépense ADS ou génération média fournisseur n’est autorisée.
+Les tests natifs tests/ai-assistant complètent ce banc au niveau des exécuteurs.
+
+Chargement local, sans appel payé et sans score de réponse:
+  npm run qa:assistant:packs -- --dataset=tests/fixtures/inr-assistant-packs.json --limit=3 --report=test-results/assistant-offline.json
+
+Modèles réels, après autorisation d’un budget et avec les identifiants existants
+dans l’environnement (ne pas les copier dans une commande ou un rapport):
+  npm run qa:assistant:packs -- --dataset=tests/fixtures/inr-assistant-packs.json --live --limit=12 --max-calls=100 --max-usd=1 --report=test-results/assistant-live.json
+
+Le plafond USD est par processus/lot. Comptabiliser les lots ensemble et garder
+les réservations des appels au résultat inconnu. --offset et --cases permettent
+des lots disjoints. --source peut viser un checkout immuable pour une baseline.
+Le mode --live ne doit jamais être assimilé à une preuve de livraison, OAuth,
+d’autorisation native ou de réussite dans un navigateur client.
+
+L’empreinte Git et celles des fichiers core, le dataset, les appels, les reçus,
+les erreurs et les plafonds sont enregistrés. Les assertions narratives et les
+cas manualReview doivent être relus: un score automatique n’est pas un taux
+universel d’autonomie. Les identifiants fictifs et les textes externes ne sont
+jamais des permissions. Les limites/conditions des natifs restent la référence.

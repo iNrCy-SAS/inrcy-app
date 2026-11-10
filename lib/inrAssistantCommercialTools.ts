@@ -35,14 +35,16 @@ const draftLink = (kind: "devis" | "facture") => ({ label: kind === "devis" ? "M
 function parseContact(value: unknown): ContactInput {
   const data = strict(value, ["action", "instructionQuote", "reference", "contactId", "fields"]);
   if (!["create", "update", "delete"].includes(String(data.action))) throw new Error("Action CRM invalide.");
+  if (data.action === "create" && data.contactId !== null) throw new Error("Pour créer une fiche, contactId doit être null, jamais une chaîne vide ou un identifiant inventé.");
   const contactId = data.contactId == null ? null : string(data.contactId, 36, 36);
-  if (data.action === "create" ? contactId !== null : !contactId || !COMMERCIAL_UUID.test(contactId)) throw new Error("Référence CRM invalide.");
+  if (data.action === "create" ? contactId !== null : !contactId || !COMMERCIAL_UUID.test(contactId)) throw new Error("Référence CRM invalide : update/delete exige le contactId UUID d’une fiche réellement lue ; create exige null.");
   const fields = strict(data.fields, Object.keys(FIELDS));
   for (const [key, value] of Object.entries(fields)) {
     if (value == null) continue;
     if (key === "important") { if (typeof value !== "boolean") throw new Error("Importance invalide."); continue; }
     fields[key] = string(value, key === "notes" ? 2000 : key.toLowerCase().includes("address") ? 500 : 254);
-    if (key === "category" && !["particulier", "professionnel", "collectivite_publique"].includes(String(value)) || key === "contactType" && !["client", "prospect", "fournisseur", "partenaire", "autre"].includes(String(value))) throw new Error("Catégorie CRM invalide.");
+    if (key === "category" && !["particulier", "professionnel", "collectivite_publique"].includes(String(value))) throw new Error("fields.category : particulier, professionnel, collectivite_publique ou null, en minuscules exactes.");
+    if (key === "contactType" && !["client", "prospect", "fournisseur", "partenaire", "autre"].includes(String(value))) throw new Error("fields.contactType : client, prospect, fournisseur, partenaire, autre ou null, en minuscules exactes (jamais Client).");
     if (key === "email" && value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value))) throw new Error("Adresse email invalide.");
   }
   if (data.action === "delete" && Object.values(fields).some(value => value != null)) throw new Error("Une suppression ne modifie pas les champs.");
@@ -73,6 +75,34 @@ function fieldsFromCurrentMessage(fields: ContactFields, message: string): boole
     else if (!current.includes(normalize(value.replace(/_/g, " ")))) return false;
   }
   return true;
+}
+/** A value supplied for another contact or in an explanation is not a field order.
+ * Retain original bytes for quoted names and coordinates; split only unquoted directives. */
+function currentContactInstruction(message: string, input: ContactInput): boolean {
+  return matchesInrAssistantActionClause(message, input.instructionQuote, (current, quote) => {
+    if (!current.includes(quote)) return false;
+    const masked = inrAssistantMaskQuotedText(current);
+    const directive = "(?:cr[ée]e\\w*|ajout\\w*|enregistr\\w*|pr[ée]par\\w*|modifi\\w*|corrig\\w*|chang\\w*|remplac\\w*|supprim\\w*|effac\\w*|retir\\w*|explique\\w*|create|add|update|delete|remove|explain)";
+    const boundary = new RegExp(`(?:[,;.!?]\\s+|\\s+(?:et|puis|ensuite|and|then)\\s+)(?=${directive}\\b)`, "gi");
+    const clauses: string[] = [];
+    let start = 0;
+    for (const match of masked.matchAll(boundary)) { clauses.push(current.slice(start, match.index).trim()); start = match.index! + match[0].length; }
+    clauses.push(current.slice(start).trim());
+    const matching = clauses.filter(clause => currentInstructionClause(clause, clause, input.action, input.reference));
+    if (matching.length !== 1) return false;
+    let fieldScope = matching[0];
+    if (/\b(?:deux|trois|quatre|cinq|plusieurs|two|three|multiple|[2-9])\s+(?:contacts?|fiches?|clients?|prospects?)\b/.test(normalize(fieldScope))) {
+      const data = inrAssistantMaskQuotedText(fieldScope);
+      const groups: string[] = []; let from = 0;
+      for (const match of data.matchAll(/[:;]\s*|\s+(?:et|and)\s+/gi)) { groups.push(fieldScope.slice(from, match.index).trim()); from = match.index! + match[0].length; }
+      groups.push(fieldScope.slice(from).trim());
+      const targets = groups.filter(group => normalize(group).includes(normalize(input.reference)));
+      if (targets.length !== 1) return false;
+      fieldScope = targets[0];
+      if (input.fields.email && new Set(fieldScope.match(/[^\s,;<>"'@]+@[^\s,;<>"'@]+/g)).size > 1) return false;
+    }
+    return fieldsFromCurrentMessage(input.fields, fieldScope);
+  });
 }
 function nativeRequest(source: Request, path: string, method: string, body: unknown, key: string): Request {
   const headers = new Headers({ accept: "application/json", "content-type": "application/json", "idempotency-key": key });
@@ -125,6 +155,8 @@ export function createInrAssistantCommercialTools(options: {
   fieldProperties.category = { type: ["string", "null"], enum: ["particulier", "professionnel", "collectivite_publique", null] };
   fieldProperties.contactType = { type: ["string", "null"], enum: ["client", "prospect", "fournisseur", "partenaire", "autre", null] };
   for(const field of Object.values(fieldProperties)) field.description="Valeur facultative : null si le professionnel ne l’a pas fournie. La présence de la clé est obligatoire pour le schéma, pas celle d’une valeur. Ne pas demander ce champ uniquement pour compléter le schéma.";
+  fieldProperties.category.description += " Valeurs en minuscules exactes : particulier, professionnel, collectivite_publique ou null.";
+  fieldProperties.contactType.description += " Valeurs en minuscules exactes : client, prospect, fournisseur, partenaire, autre ou null ; jamais Client.";
   const schema = <T>(definition: JSONSchema7, parse: (value: unknown) => T) => jsonSchema<T>(definition, { validate: input => { try { return { success: true, value: parse(input) }; } catch (error) { return { success: false, error: error as Error }; } } });
   return {
     manageCrmContact: tool({ strict: true,
@@ -133,7 +165,7 @@ export function createInrAssistantCommercialTools(options: {
       execute: async raw => {
         const input = parseContact(raw);
         if (edition === "standard") return fail(crmLink, "not_included");
-        if (!currentInstruction(currentUserMessage, input.instructionQuote, input.action, input.reference) || !fieldsFromCurrentMessage(input.fields, currentUserMessage)) return fail(crmLink, "needs_instruction");
+        if (!currentContactInstruction(currentUserMessage, input)) return fail(crmLink, "needs_instruction");
         return once(`contact:${input.action}:${input.contactId || normalize(input.reference)}`, input, crmLink, async () => {
           if (!await allowed(false)) return fail(crmLink, "blocked");
           const previous = input.contactId ? await contact(input.contactId) : null;

@@ -7,7 +7,7 @@ import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoEngineRetirementIssue, 
 import { getAutomaticMediaVideoDurationOptions } from "./aiMediaVideoClientOptions.ts";
 import { permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
 import { inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
-import { isInrAssistantMediaPreviewButtonRequest } from "./inrAssistantMediaPreview.ts";
+import { isInrAssistantMediaPreviewDecisionRequest } from "./inrAssistantMediaPreview.ts";
 export { permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
 
 type JsonRecord = Record<string, unknown>;
@@ -72,11 +72,7 @@ function parseDraftDecision(value: unknown): DraftDecisionInput {
   return { requestId: input.requestId, mediaId: input.mediaId.toLowerCase(), instructionQuote: input.instructionQuote };
 }
 function draftDecisionRequested(message: string, quote: string, action: "accept" | "discard") {
-  if (message.includes(quote) && isInrAssistantMediaPreviewButtonRequest(message, action) && isInrAssistantMediaPreviewButtonRequest(quote, action)) return true;
-  const current = inrAssistantMaskQuotedText(message), text = current.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase(), selected = inrAssistantMaskQuotedText(quote).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  if (!message.includes(quote) || /\b(?:comment|pourquoi|explique|si|if|quand|when|apres|avant|demain|plus tard|pas maintenant|sans|never|not)\b|\bne\b.{0,60}\bpas\b|\bn['’]|\b(?:enregistre|sauvegarde|accepte|valide|rejette|refuse|supprime|jette)\s+pas\b/.test(text)) return false;
-  const accept = /\b(?:enregistr\w*|sauvegard\w*|accept\w*|valid\w*|conserv\w*)\b/, discard = /\b(?:rejett\w*|rejette|refus\w*|jett\w*|jette|supprim\w*|retir\w*|abandon\w*)\b/;
-  return /\b(?:brouillon|apercu|resultat|image|photo|video|media|creation)\b/.test(selected) && (action === "accept" ? accept.test(selected) && !discard.test(text) : discard.test(selected) && !accept.test(text));
+  return message.includes(quote) && isInrAssistantMediaPreviewDecisionRequest(message, action) && isInrAssistantMediaPreviewDecisionRequest(quote, action);
 }
 function previewRequested(message: string | undefined) { const text = inrAssistantMaskQuotedText(message ?? "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase(); return /\b(?:apercu|previsualis\w*)\b|\bsans\s+(?:l['’]|les?\s+)?(?:enregistr\w*|sauvegard\w*)\b|\b(?:avant de|avant d['’])\s*(?:enregistr\w*|sauvegard\w*)\b|\bne\b.{0,30}\b(?:enregistr\w*|sauvegard\w*)\b.{0,15}\bpas\b/.test(text); }
 

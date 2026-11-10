@@ -1,4 +1,5 @@
 import type { DashboardEdition } from "./dashboardEdition.ts";
+import { inrAssistantRequestClauses } from "./inrAssistantRequestClauses.ts";
 
 /** One public contract for the assistant's real actions and native confirmations. */
 export const INR_ASSISTANT_CAPABILITIES = [
@@ -35,6 +36,8 @@ Fichiers : images, texte par segments, MP3/WAV ≤3 Mio/5 min, OCR PDF ≤8 Mio 
 }
 export function verifiedInrAssistantCapabilityLimit(message: string, edition: DashboardEdition): string | null {
   const value=message.normalize("NFD").replace(/\p{M}/gu,"").toLowerCase();
+  // A precise unsupported feature must not swallow the other questions or orders.
+  if (inrAssistantRequestClauses(message).length > 1 || /\b(?:compare\w*|comparaison|differences?|capacites|studio|moteurs?|agents?|mails?|courriels?|gmail|agenda|calendar|ads|publicit\w*)\b/.test(value)) return null;
   if (/\b(?:fusionn\w*|merge)\b/.test(value) && /\b(?:crm|contacts?|doublons?)\b/.test(value)) return edition === "basic" || edition === "standard"
     ? "Le CRM est inclus dans Premium. Je peux vous expliquer son fonctionnement dans [Mon abonnement](/dashboard?panel=abonnement). La fusion automatique de fiches n’est pas disponible actuellement."
     : "La fusion automatique de fiches n’est pas disponible actuellement. Je peux vous aider à comparer les contacts et à conserver les bonnes informations dans [iNr’CRM](/dashboard/crm). Aucune fiche n’a été fusionnée ni supprimée.";

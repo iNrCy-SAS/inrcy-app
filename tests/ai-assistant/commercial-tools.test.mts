@@ -5,7 +5,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
-import { asSchema, jsonSchema, tool } from "ai";
+import { asSchema, generateText, jsonSchema, tool } from "ai";
+import type { LanguageModelV3 } from "@ai-sdk/provider";
+import { repairInrAssistantToolInput } from "../../lib/inrAssistantToolInputRepair.ts";
 import * as documentInput from "../../lib/commercialDocumentDraft.ts";
 import type * as Commercial from "../../lib/inrAssistantCommercialTools.ts";
 import type * as Idempotency from "../../lib/commercialMutationIdempotency.ts";
@@ -149,6 +151,20 @@ test("the assistant creates one real scoped CRM contact and retries the same nat
   assert.doesNotMatch(JSON.stringify(first), /PRIVATE|session|Bearer|user_id/);
 });
 
+test("the real SDK repairs CRM serialization while native current-instruction and field guards still run", async () => {
+  for(const wrongQuote of [false,true]) {
+    const message="Crée la fiche client Marie Durand dans le CRM avec marie@example.test.";
+    const h=harness({edition:"premium",actualEdition:"premium"});
+    const input=manage("create",wrongQuote?"Crée une autre fiche absente du message":message,{displayName:"Marie Durand",email:"marie@example.test",contactType:"Client"},null,"Marie Durand");
+    const bad={...input,contactId:""};
+    const model:LanguageModelV3={specificationVersion:"v3",provider:"local-crm-repair",modelId:"synthetic",supportedUrls:{},doGenerate:async()=>({content:[{type:"tool-call",toolCallId:"crm-repair",toolName:"manageCrmContact",input:JSON.stringify(bad)}],finishReason:{unified:"tool-calls",raw:"fixture"},usage:{inputTokens:{total:1},outputTokens:{total:1}},warnings:[]}),doStream:async()=>{throw Error("No provider network");}};
+    const result=await generateText({model,prompt:message,tools:{manageCrmContact:h.tools(message).manageCrmContact},experimental_repairToolCall:async({toolCall})=>repairInrAssistantToolInput(toolCall)});
+    assert.equal(result.toolResults.length,1);
+    assert.equal(h.nativeCalls.length,wrongQuote?0:1);
+    assert.equal(h.calls.filter(c=>c.operation==="insert").length,wrongQuote?0:1);
+  }
+});
+
 test("a separate explicit CRM order after advice reaches the real native route, while quoted, negative and conditional variants never write",async()=>{
   const message=`Explique comment fonctionne le CRM, puis ${createMessage}`;
   const h=harness();
@@ -187,6 +203,50 @@ test("quoted field values remain data in an explicit current native CRM instruct
     const result = await h.tools(message).manageCrmContact.execute(manage("create", message, { displayName: "Marie Durand", email: "marie@example.test" }, null, "Marie Durand"));
     assert.equal(result.status, "created", name);
     assert.equal(h.nativeCalls.length, 1, name);
+  }
+});
+
+test("CRM fields cannot be borrowed from another contact or an explanatory clause", async () => {
+  for (const message of [
+    "Crée un contact CRM Marie Durand avec marie@example.test, puis crée un contact CRM Bob Martin avec bob@example.test.",
+    "Explique le rôle de bob@example.test, puis crée un contact CRM Marie Durand avec marie@example.test.",
+    "Ajoute deux contacts CRM : Marie Durand avec marie@example.test et Bob Martin avec bob@example.test.",
+    "Crée deux fiches clients CRM : Marie Durand, marie@example.test, et Bob Martin, bob@example.test.",
+  ]) {
+    const h = harness({edition:"premium",actualEdition:"premium"});
+    const result = await h.tools(message).manageCrmContact.execute(manage("create", message, {displayName:"Marie Durand",email:"bob@example.test"}, null,"Marie Durand"));
+    assert.equal(result.status,"needs_instruction",message);
+    assert.equal(h.nativeCalls.length,0,message);
+    assert.equal(h.calls.length,0,message);
+  }
+});
+
+test("two CRM contacts keep their own fields in independently ordered clauses and counted lists", async () => {
+  for (const message of [
+    "Crée un contact CRM Marie Durand avec marie@example.test, puis crée un contact CRM Bob Martin avec bob@example.test.",
+    "Ajoute deux contacts CRM : Marie Durand avec marie@example.test et Bob Martin avec bob@example.test.",
+    "Crée deux fiches clients CRM : Marie Durand, marie@example.test, et Bob Martin, bob@example.test.",
+  ]) {
+    const h=harness({edition:"premium",actualEdition:"premium"});
+    const tools=h.tools(message);
+    for(const[name,email]of [["Marie Durand","marie@example.test"],["Bob Martin","bob@example.test"]]) {
+      const result=await tools.manageCrmContact.execute(manage("create",message,{displayName:name,email},null,name));
+      assert.equal(result.status,"created",name);
+      const saved=h.tables.crm_contacts.find(row=>row.email===email);
+      assert.ok(saved,name); assert.equal(`${saved.first_name} ${saved.last_name}`.trim(),name);
+    }
+    assert.equal(h.nativeCalls.length,2);
+  }
+});
+
+test("a named person's future consent blocks CRM creation before authentication or persistence", async () => {
+  for(const message of [
+    "Crée le contact CRM Marie Durand avec marie@example.test si Julie confirme.",
+    "Crée le contact CRM Marie Durand avec marie@example.test après validation de Julie.",
+  ]) {
+    const h=harness({edition:"premium",actualEdition:"premium"});
+    const result=await h.tools(message).manageCrmContact.execute(manage("create",message,{displayName:"Marie Durand",email:"marie@example.test"},null,"Marie Durand"));
+    assert.equal(result.ok,false,message); assert.equal(h.calls.length,0); assert.equal(h.nativeCalls.length,0);
   }
 });
 

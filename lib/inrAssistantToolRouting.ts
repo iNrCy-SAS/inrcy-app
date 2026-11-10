@@ -1,4 +1,4 @@
-import { inrAssistantRoutingText, inrAssistantRequiredTools, inrAssistantRequestClauses } from "./inrAssistantTaskPolicy.ts";
+import { inrAssistantRoutingText, inrAssistantRequiredTools, inrAssistantRequestClauses, isInrAssistantAdvertisingRequest, isInrAssistantAttachedFileRequest } from "./inrAssistantTaskPolicy.ts";
 import { INR_ASSISTANT_COMMANDS, inrAssistantSettingTargets, type InrAssistantCommandFamily } from "./inrAssistantCommandRegistry.ts";
 export { inrAssistantRoutingText, inrAssistantRequiredTools, inrAssistantTaskOutcome } from "./inrAssistantTaskPolicy.ts";
 export { verifiedInrAssistantCapabilityLimit } from "./inrAssistantCapabilities.ts";
@@ -40,8 +40,8 @@ export function selectInrAssistantToolFamilies(latest: string, recentUserMessage
   if (/\b(?:identite|profession|metier|societe|adresse|postal|ville|telephone|profil|google|facebook|instagram|linkedin|pinterest|threads|tiktok|youtube|twitter)\b/.test(text)) families.add("business");
   if (/\b(?:abonnement|abonner|souscrire|souscription|resilier|resiliation|facturation|standard|premium|founder|stripe|agents?|automatisation|planning|rapport|bilan|active|desactive)\b|订阅|สมัคร/.test(text)) families.add("management");
   if (/\b(?:crm|clients?|prospects?|contacts?|agenda|rendez.vous|rdv|calendar|campagnes?|email|emails?|mail|mails|newsletter|courriel|fidelis|propuls|reputation|avis|mediatheque|tags?)\b|评论|邮件|客户|อีเมล/.test(text)) families.add("workspace");
-  if (/\b(?:crm|devis|factures?|encaisser|clients?|prospects?|contacts?)\b/.test(text)) families.add("commercial");
-  if (/\bads\b|publicit|publicitair|annonceur|campagne sponsoris/.test(text)) families.add("advertising");
+  if ([latest, ...recentUserMessages.slice(-2)].flatMap(inrAssistantRequestClauses).some(clause => !isInrAssistantAttachedFileRequest(clause) && /\b(?:crm|devis|factures?|encaisser|clients?|prospects?|contacts?)\b/.test(clause))) families.add("commercial");
+  if (isInrAssistantAdvertisingRequest(latest) || recentUserMessages.slice(-2).some(isInrAssistantAdvertisingRequest)) families.add("advertising");
   if (/notification|inr.?badge|qr.code|\bpreferences\b|(?:reglag|parametr|configur|criteres?|defaut).{0,65}(?:studio|generateur|calendar|agenda|devis|facture|tiktok)|(?:studio|generateur|calendar|agenda|devis|facture|tiktok).{0,65}(?:reglag|parametr|configur|criteres?|defaut)/.test(text)) families.add("settings");
   if (inrAssistantSettingTargets(text).length) families.add("settings");
   if (/\bap-[a-f0-9]{12}\b/.test(text)) families.add("workspace");

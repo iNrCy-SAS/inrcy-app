@@ -5,6 +5,8 @@ import { jsonSchema, tool } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DashboardEdition } from "./dashboardEdition.ts";
 import { requireUser } from "./requireUser";
+import { matchesInrAssistantActionClause } from "./inrAssistantActionClause.ts";
+import { inrAssistantRequestClauses } from "./inrAssistantRequestClauses.ts";
 
 type Row = Record<string, unknown>;
 type Segment = "clients" | "prospects" | "all_contacts";
@@ -18,12 +20,48 @@ const normalize = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const clean = (value: unknown, max = 200) => typeof value === "string" ? value.replace(/[\u0000-\u001f]/g, " ").slice(0, max) : "";
 const failure = (status = "unavailable") => ({ ok: false, status, nextAction: LINK, message: status === "preview_changed" ? "Le brouillon ou l’aperçu a changé. Demandez un nouvel aperçu avant l’envoi." : status === "needs_confirmation" ? "Vérifiez l’aperçu, puis demandez l’envoi avec sa référence exacte. Aucun envoi n’a été effectué." : "L’opération ne peut pas être confirmée. Aucun envoi réussi n’est annoncé." });
-function currentOrder(message: string, quote: string, verbs: RegExp) {
-  if (!quote || !message.includes(quote)) return false;
-  const unquoted = message.replace(/```[\s\S]*?(?:```|$)|`[^`]*`|«[^»]*»|“[^”]*”|"[^"]*"|^>.*$/gm, " ");
-  if (!unquoted.includes(quote)) return false;
-  const command = normalize(unquoted);
-  return verbs.test(normalize(quote)) && verbs.test(command) && !/\b(?:comment|pourquoi|explique|imagine|suppose|si je|si on|ne pas|never|do not)\b|\bne\b.{0,40}\bpas\b|\bsans\s+(?:envoi|envoyer|modifier)|\b(?:envoie|envoyer)\s+pas\b/.test(command);
+type CampaignInputProperty = { type: "string"; format?: "uuid"; enum?: string[]; pattern?: string; minLength?: number; maxLength?: number; description?: string };
+const identifierSchema: CampaignInputProperty = { type: "string", format: "uuid" };
+const instructionSchema: CampaignInputProperty = { type: "string", minLength: 1, maxLength: 1200, pattern: "\\S", description: "Extrait EXACT du dernier ordre du professionnel. Conserver ses conditions et négations ; ne pas reformuler ni citer une mémoire." };
+// These five closed contracts contain strings only. Validate the same shapes
+// before SDK execution, without calling authentication, a reader or a route.
+function campaignSchema<T>(properties: Record<string, CampaignInputProperty>) {
+  return jsonSchema<T>({ type: "object", properties, required: Object.keys(properties), additionalProperties: false }, { validate(value) {
+    const input = row(value), keys = Object.keys(properties);
+    const invalid = !value || typeof value !== "object" || Array.isArray(value) || Object.keys(input).length !== keys.length || keys.some(key => {
+      const item = input[key], property = properties[key];
+      return !Object.hasOwn(input, key) || typeof item !== "string"
+        || property.format === "uuid" && !UUID.test(item)
+        || property.enum !== undefined && !property.enum.includes(item)
+        || property.pattern !== undefined && !new RegExp(property.pattern).test(item)
+        || property.minLength !== undefined && item.length < property.minLength
+        || property.maxLength !== undefined && item.length > property.maxLength;
+    });
+    return invalid ? { success: false, error: new Error("Paramètres de campagne invalides : objet fermé, identifiants réels, valeurs autorisées et extrait exact non vide requis.") } : { success: true, value: value as T };
+  } });
+}
+function currentOrder(message: string, quote: string, verbs: RegExp, kind: "sender" | "preview" | "send", target?: string | RegExp) {
+  if (typeof message !== "string" || typeof quote !== "string" || !quote.trim() || !message.includes(quote)) return false;
+  // Intent analysis uses masked/normalized clauses; original quote bytes and
+  // saved content are never rewritten. Include negative pronoun coordination.
+  const clauses = (value: string) => inrAssistantRequestClauses(value).flatMap(clause => clause.split(/[;!?]|\.(?=\s|$)|\s+(?:et|puis|ensuite|and|then|mais|but)\s+(?=(?:ne|not|never|do not)\s+|n'|don't\s+)/)).map(clause => clause.trim()).filter(Boolean);
+  const all = clauses(message), selected = clauses(quote);
+  const subject = kind === "send" ? "(?:envo[iy]\\w*|diffus\\w*|send)" : kind === "preview" ? "(?:prepar\\w*|apercu|preview|montre\\w*|verifi\\w*)" : "(?:choisi\\w*|selection\\w*|utilis\\w*|select|use)";
+  const negative = new RegExp(`(?:\\b(?:ne|pas|jamais|not|never|sans|without|don't|do not)\\b|\\bn').{0,55}\\b${subject}\\b|\\b${subject}\\b.{0,20}\\b(?:pas|jamais|not|never|rien|nothing)\\b`);
+  const matchesTarget = (clause: string) => target === undefined || (typeof target === "string" ? clause.includes(normalize(target)) : target.test(clause));
+  const vetoesTarget = (clause: string) => {
+    if (!negative.test(clause) && !(kind === "send" && /\b(?:annul\w*|arret\w*|stop|cancel)\b.{0,50}\b(?:envoi|diffusion|campagne)\b/.test(clause))) return false;
+    if (typeof target === "string") {
+      const targets = kind === "send" ? clause.match(/\bap-[a-f0-9]{12}\b/g) ?? [] : clause.match(/[^\s@]+@[^\s@]+\.[^\s@]+/g) ?? [];
+      if (targets.length && !matchesTarget(clause)) return false;
+    } else if (target && /\b(?:clients?|prospects?|contacts?)\b/.test(clause) && !matchesTarget(clause)) return false;
+    return true;
+  };
+  if (all.some(vetoesTarget) || all.some(clause => /^(?:si|quand|lorsque|if|when|unless)\b/.test(clause))) return false;
+  return matchesInrAssistantActionClause(message, quote, () => all.some(clause =>
+    selected.some(part => clause.includes(part) || part.includes(clause)) && matchesTarget(clause) && verbs.test(clause)
+    && !/^(?:comment|pourquoi|explique\w*|how|why|what|voici|historique|tu avais dit|tu as dit)\b|\b(?:si|quand|lorsque|if|when|unless)\b/.test(clause)
+    && !(kind === "send" && /\b(?:demain|programme\w*|planifi\w*|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|plus tard)\b|\b\d{1,2}\s*(?:h|:[0-5]\d)\b|\d{4}-\d{2}-\d{2}/.test(clause))));
 }
 function nativeRequest(source: Request, path: string, body: unknown) {
   const headers = new Headers({ accept: "application/json", "content-type": "application/json" });
@@ -78,7 +116,7 @@ export function createInrAssistantCampaignTools(options: Options) {
   return {
     readCampaignDeliveryStatus: tool({ strict: true,
       description: "Lire uniquement le statut et les compteurs enregistrés d’une campagne par son campaignId réel, dans l’établissement actif. Aucun envoi, reprise, recalcul ou rapport persisté. completed signifie traitement d’envoi terminé et sent_count acceptés par le fournisseur : cela ne prouve ni livraison en boîte de réception ni lecture. Les compteurs manquants restent inconnus.",
-      inputSchema: jsonSchema<{ campaignId: string }>({ type: "object", properties: { campaignId: { type: "string", format: "uuid" } }, required: ["campaignId"], additionalProperties: false }),
+      inputSchema: campaignSchema<{ campaignId: string }>({ campaignId: identifierSchema }),
       execute: async input => {
         if (!input || Object.keys(input).length !== 1 || typeof input.campaignId !== "string" || !UUID.test(input.campaignId)) return failure("invalid_input");
         if (!await scope()) return failure("blocked");
@@ -98,7 +136,7 @@ export function createInrAssistantCampaignTools(options: Options) {
     }),
     listCampaignMailboxes: tool({ strict: true,
       description: "Lister les boîtes d’envoi connectées de l’établissement actif (identifiant, fournisseur, adresse professionnelle seulement). N’expose aucun secret et ne choisit aucune boîte. Utiliser selectCampaignMailbox sur le choix explicite du pro avant l’aperçu de campagne.",
-      inputSchema: jsonSchema<Record<string, never>>({ type: "object", properties: {}, additionalProperties: false }),
+      inputSchema: campaignSchema<Record<string, never>>({}),
       execute: async () => {
         try {
           if (!await scope()) return failure("blocked");
@@ -111,11 +149,12 @@ export function createInrAssistantCampaignTools(options: Options) {
     }),
     selectCampaignMailbox: tool({ strict: true,
       description: "Choisir l’expéditeur d’un brouillon de campagne existant sur ordre explicite. mailboxId provient de listCampaignMailboxes et son adresse doit être citée par le pro. Préserve texte, pièces, destinataires et modèle ; invalide l’ancien aperçu, ne diffuse rien.",
-      inputSchema: jsonSchema<{ draftId: string; mailboxId: string; instructionQuote: string }>({ type: "object", properties: { draftId: { type: "string", format: "uuid" }, mailboxId: { type: "string", format: "uuid" }, instructionQuote: { type: "string", maxLength: 1200 } }, required: ["draftId", "mailboxId", "instructionQuote"], additionalProperties: false }),
+      inputSchema: campaignSchema<{ draftId: string; mailboxId: string; instructionQuote: string }>({ draftId: identifierSchema, mailboxId: identifierSchema, instructionQuote: instructionSchema }),
       execute: async input => once(`mailbox:${input.draftId}:${input.mailboxId}`, async () => {
-        if (!currentOrder(currentUserMessage, input.instructionQuote, /\b(?:choisis|choisir|selectionne|utilise|mets|modifie|change|envoie|envoyer|send|select|use)\b/)) return failure("needs_instruction");
+        const verbs = /\b(?:choisis|choisir|selectionne|utilise|mets|modifie|change|envoie|envoyer|send|select|use)\b/;
+        if (!currentOrder(currentUserMessage, input.instructionQuote, verbs, "sender")) return failure("needs_instruction");
         const draft = await readDraft(input.draftId), sender = draft ? await mailbox(input.mailboxId) : null;
-        if (!draft || !sender || !normalize(input.instructionQuote).includes(normalize(String(sender.account_email)))) return failure("needs_instruction");
+        if (!draft || !sender || !currentOrder(currentUserMessage, input.instructionQuote, verbs, "sender", String(sender.account_email))) return failure("needs_instruction");
         if (!await saveDraft(draft, { selectedAccountId: input.mailboxId })) return failure();
         const saved = await readDraft(input.draftId);
         return saved?.integration_id === input.mailboxId ? { ok: true, status: "updated", draftId: input.draftId, sender: sender.account_email, message: "Expéditeur enregistré et relu. Aucun envoi.", nextAction: LINK } : failure("saved_unconfirmed");
@@ -123,10 +162,10 @@ export function createInrAssistantCampaignTools(options: Options) {
     }),
     previewCampaignAudience: tool({ strict: true,
       description: "Préparer un aperçu vérifiable d’un brouillon pour le segment CRM demandé : clients, prospects ou tous les contacts. Fige au plus 500 adresses uniques, filtre les exclusions natives, conserve une référence valable 15 minutes liée au texte/pièces/expéditeur. Afficher référence, objet, expéditeur, effectifs et échantillon avant de demander confirmation. Ne déclenche aucun envoi. Une audience trop grande doit être précisée, jamais tronquée silencieusement.",
-      inputSchema: jsonSchema<{ draftId: string; segment: Segment; instructionQuote: string }>({ type: "object", properties: { draftId: { type: "string", format: "uuid" }, segment: { type: "string", enum: ["clients", "prospects", "all_contacts"] }, instructionQuote: { type: "string", maxLength: 1200 } }, required: ["draftId", "segment", "instructionQuote"], additionalProperties: false }),
+      inputSchema: campaignSchema<{ draftId: string; segment: Segment; instructionQuote: string }>({ draftId: identifierSchema, segment: { type: "string", enum: ["clients", "prospects", "all_contacts"] }, instructionQuote: instructionSchema }),
       execute: async input => once(`preview:${input.draftId}:${input.segment}`, async () => {
         const requested = { clients: /\bclients?\b/, prospects: /\bprospects?\b/, all_contacts: /\btous (?:mes |les )?contacts\b/ }[input.segment];
-        if (!requested || !currentOrder(currentUserMessage, input.instructionQuote, /\b(?:prepare|preparer|apercu|montre|verifie|envoie|envoyer|diffuse|preview|send)\b/) || !requested.test(normalize(input.instructionQuote))) return failure("needs_instruction");
+        if (!requested || !currentOrder(currentUserMessage, input.instructionQuote, /\b(?:prepare|preparer|apercu|montre|verifie|envoie|envoyer|diffuse|preview|send)\b/, "preview", requested)) return failure("needs_instruction");
         const draft = await readDraft(input.draftId), sender = draft ? await mailbox(String(draft.integration_id)) : null;
         if (!draft || !sender) return { ...failure("mailbox_required"), message: "Choisissez d’abord une boîte d’envoi connectée pour ce brouillon." };
         let query = supabase.from("crm_contacts").select("id,user_id,first_name,last_name,company_name,email,contact_type").eq("user_id", accountId);
@@ -153,9 +192,9 @@ export function createInrAssistantCampaignTools(options: Options) {
     }),
     dispatchCampaignAudience: tool({ strict: true,
       description: "Envoyer maintenant l’audience figée d’un aperçu de campagne. Le DERNIER ordre doit demander l’envoi et citer littéralement la référence AP- affichée. Refuse aperçu expiré, acteur/établissement changé, texte/pièce/expéditeur modifié. Exécute les contrôles natifs et revérifie les exclusions ; même référence ne crée jamais un second envoi. queued signifie pris en charge, jamais livré. Ne programme pas une demande future.",
-      inputSchema: jsonSchema<{ draftId: string; reference: string; instructionQuote: string }>({ type: "object", properties: { draftId: { type: "string", format: "uuid" }, reference: { type: "string", pattern: "^AP-[A-F0-9]{12}$" }, instructionQuote: { type: "string", maxLength: 1200 } }, required: ["draftId", "reference", "instructionQuote"], additionalProperties: false }),
+      inputSchema: campaignSchema<{ draftId: string; reference: string; instructionQuote: string }>({ draftId: identifierSchema, reference: { type: "string", pattern: "^AP-[A-F0-9]{12}$" }, instructionQuote: instructionSchema }),
       execute: async input => once(`dispatch:${input.reference}`, async () => {
-        if (!/^AP-[A-F0-9]{12}$/.test(input.reference) || !currentOrder(currentUserMessage, input.instructionQuote, /\b(?:envoie|envoyer|envoyez|diffuse|diffuser|send)\b/) || !input.instructionQuote.includes(input.reference) || /\b(?:demain|programme\w*|planifi\w*|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|plus tard)\b|\b\d{1,2}\s*(?:h|:[0-5]\d)\b|\d{4}-\d{2}-\d{2}/.test(normalize(currentUserMessage))) return failure("needs_confirmation");
+        if (!/^AP-[A-F0-9]{12}$/.test(input.reference) || !currentOrder(currentUserMessage, input.instructionQuote, /\b(?:envoie|envoyer|envoyez|diffuse|diffuser|send)\b/, "send", input.reference) || !input.instructionQuote.includes(input.reference)) return failure("needs_confirmation");
         const draft = await readDraft(input.draftId); if (!draft) return failure();
         const preview = row(row(row(draft.draft_state).trackPayload).assistantAudiencePreview);
         if (preview.reference !== input.reference || preview.accountId !== accountId || preview.actorUserId !== actorUserId || preview.draftId !== input.draftId || preview.version !== 1) return failure("needs_confirmation");

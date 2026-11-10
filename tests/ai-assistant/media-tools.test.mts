@@ -10,6 +10,7 @@ import * as catalogue from "../../lib/aiMediaModelCatalog.ts";
 import * as mediaIntent from "../../lib/inrAssistantMediaIntent.ts";
 import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import * as mediaPreview from "../../lib/inrAssistantMediaPreview.ts";
+import { repairInrAssistantToolInput } from "../../lib/inrAssistantToolInputRepair.ts";
 import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as videoClientOptions from "../../lib/aiMediaVideoClientOptions.ts";
 import type * as MediaTools from "../../lib/inrAssistantMediaTools.ts";
@@ -254,6 +255,31 @@ test("a Studio cost question calls the native quote only and never accepts an ex
   assert.equal(h.calls.find(call => call.stage === "quote")!.body!.imageEngine, "openai");
 });
 
+test("the real SDK repairs serialized quote arguments once and revalidates before the native read-only quote", async () => {
+  const h=harness({realSdk:true,currentUserMessage:"Donne le devis d’une image carrée avec FLUX.2 Pro. Ne génère ni n’enregistre rien."});
+  const input={...imageInput,resultMode:null,durationSeconds:"None",settings:JSON.stringify([{field:"imageEngine",valueJson:JSON.stringify(JSON.stringify("FLUX.2 Pro"))}])};
+  let repaired=0;
+  const model:LanguageModelV3={specificationVersion:"v3",provider:"local-repair-test",modelId:"synthetic",supportedUrls:{},doGenerate:async()=>({content:[{type:"tool-call",toolCallId:"quote-repair",toolName:"quoteMediaGeneration",input:JSON.stringify(input)}],finishReason:{unified:"tool-calls",raw:"fixture"},usage:{inputTokens:{total:1},outputTokens:{total:1}},warnings:[]}),doStream:async()=>{throw Error("No network");}};
+  const result=await sdk.generateText({model,prompt:"Devis seulement",tools:{quoteMediaGeneration:h.sdkTools.quoteMediaGeneration},experimental_repairToolCall:async({toolCall})=>{repaired++;return repairInrAssistantToolInput(toolCall);}});
+  assert.equal(repaired,1);assert.ok(result.toolResults.length);assert.equal(h.calls.filter(c=>c.stage==="quote").length,1);
+  assert.equal(h.calls.find(c=>c.stage==="quote")?.body?.imageEngine,"flux");
+  assert.equal(h.calls.some(c=>c.stage==="generate"||c.stage==="accept"),false);
+});
+
+test("syntactic repair never removes injected scope or invents a reference, instruction or consent", async () => {
+  const h=harness();
+  const raw={...imageInput,resultMode:null,settings:JSON.stringify([{field:"imageEngine",valueJson:'"FLUX.2 Pro"'}]),accountId:"foreign"};
+  const repaired=repairInrAssistantToolInput({toolName:"quoteMediaGeneration",input:JSON.stringify(raw)})!;
+  assert.equal(JSON.parse(repaired.input).accountId,"foreign");
+  assert.equal(h.tools.quoteMediaGeneration.inputSchema.validate?.(JSON.parse(repaired.input)).success,false);
+  assert.deepEqual(h.calls,[]);
+  assert.equal(repairInrAssistantToolInput({toolName:"applyCalendarAction",input:'{"reference":"IA-UNKNOWN"}'}),null);
+  const contact={action:"create",instructionQuote:"Unchanged exact instruction",reference:"Alice",contactId:"",fields:{displayName:"None",email:"None",contactType:"Client"}};
+  const fixed=JSON.parse(repairInrAssistantToolInput({toolName:"manageCrmContact",input:JSON.stringify(contact)})!.input);
+  assert.equal(fixed.contactId,null);assert.equal(fixed.fields.contactType,"client");
+  assert.equal(fixed.fields.displayName,"None");assert.equal(fixed.fields.email,"None");assert.equal(fixed.instructionQuote,contact.instructionQuote);
+});
+
 test("Studio image references are resolved by owned IDs and included in native quote and generation", async () => {
   const h = harness();
   const result = await h.tools.generateMedia.execute({ ...imageInput, settings: [{ field: "referenceMediaIds", valueJson: JSON.stringify([sourceMediaId]) }, { field: "useBusinessDna", valueJson: "false" }] });
@@ -362,6 +388,19 @@ test("explicit draft acceptance binds exact job/media, verifies native readback 
   const replay = await h.retryTools().acceptMediaGeneration.execute(input); assert.equal(replay.status, "completed"); assert.equal(h.calls.filter(call => call.stage === "accept").length, 1);
   const other = harness({ status: "completed", currentUserMessage: message }); assert.equal((await other.tools.acceptMediaGeneration.execute({ ...input, mediaId: sourceMediaId })).ok, false); assert.equal(other.calls.some(call => call.stage === "accept"), false);
   const namedMessage = "Enregistre cet aperçu « Atelier »", named = harness({ status: "completed", currentUserMessage: namedMessage }); assert.equal((await named.tools.acceptMediaGeneration.execute({ ...input, instructionQuote: namedMessage })).status, "completed");
+});
+
+test("saving the exact preview remains allowed while publication is refused, and a save revocation still blocks it", async () => {
+  const message="Enregistre maintenant cet aperçu exact dans Mes médias. Conserve son contenu et ne le publie pas.";
+  const h=harness({status:"completed",currentUserMessage:message});
+  const input={requestId:"assistant_previous_generation",mediaId,instructionQuote:message};
+  assert.equal((await h.tools.acceptMediaGeneration.execute(input)).status,"completed");
+  assert.equal(h.calls.filter(c=>c.stage==="accept").length,1);
+  for(const denied of ["Enregistre cet aperçu. Finalement ne l’enregistre pas.","Enregistre cet aperçu si Julie confirme.","Comment enregistrer cet aperçu sans publier ?"]){
+    const stopped=harness({status:"completed",currentUserMessage:denied});
+    assert.equal((await stopped.tools.acceptMediaGeneration.execute({...input,instructionQuote:denied})).ok,false,denied);
+    assert.equal(stopped.calls.length,0,denied);
+  }
 });
 
 test("paid modification supports a preview without accepting its new draft or touching the source", async () => {

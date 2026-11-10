@@ -51,6 +51,7 @@ import * as pureStatsViewRequest from "../../lib/inrAssistantPureStatsViewReques
 import * as assistantClock from "../../lib/inrAssistantClock.ts";
 import * as researchIntent from "../../lib/inrAssistantResearchIntent.ts";
 import * as providerCost from "../../lib/inrAssistantProviderCost.ts";
+import * as toolInputRepair from "../../lib/inrAssistantToolInputRepair.ts";
 import { getInrAssistantDocumentPrefillNavigation } from "../../lib/inrAssistantDocumentUiCommands.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type * as ToolRegistry from "../../lib/inrAssistantToolRegistry.ts";
@@ -87,7 +88,9 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   productionNoRedis?: boolean; noCredential?: boolean; handoff?: boolean; media?: boolean; followup?: boolean; workflow?: boolean; failAfterPublication?: boolean;
   verifiedNavigation?: string; lookup?: "diagnostics" | "workspace" | "memory"; providerError?: Error; outputLimit?: boolean;
   emptyText?: boolean; ignoresToolChoice?: boolean; abortAfterPublication?: AbortController;
+  mediaPreviewResult?: boolean;
   textReply?: string; unexpectedHandoff?: boolean; mediaMetadata?: boolean; crmIds?: string[]; crmStatus?: string;
+  rejectEmptyContactId?: boolean;
   plan?: Array<{tool:string;input?:Record<string,unknown>}>;
   parallelPlan?:Array<{tool:string;input?:Record<string,unknown>}>;
   extraTools?:Record<string,unknown>;
@@ -99,6 +102,10 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   channelActionFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   statsFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   mailboxFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
+  advertisingFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
+  workspaceActionTools?: Record<string,unknown>;
+  communicationFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
+  campaignFactory?: (args:Record<string,unknown>)=>Record<string,unknown>;
   publicationWorkspaceRead?: boolean;
   nativeAccountServices?: boolean;
   richTextOutputTransform?: (output: unknown) => unknown;
@@ -184,6 +191,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantUiActions.ts": uiActions,
     "./inrAssistantUiTask.ts": uiTask,
     "./inrAssistantRejectedToolContext.ts": rejectedToolContext,
+    "./inrAssistantToolInputRepair.ts": toolInputRepair,
     "./inrAssistantActionCoverage.ts": actionCoverage,
     "./inrAssistantCommandRegistry.ts": commandRegistry,
     "./inrAssistantUiCommands.ts": uiCommands,
@@ -211,7 +219,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantAccountServiceTools.ts": {createInrAssistantAccountServiceTools:()=>({})},
     "./inrAssistantNativePresentationTools.ts": {createInrAssistantNativePresentationTools:()=>({})},
     "./inrAssistantChannelTools.ts": { createInrAssistantChannelTools: () => ({}) },
-    "./inrAssistantCampaignTools.ts": { createInrAssistantCampaignTools: () => ({}) },
+    "./inrAssistantCampaignTools.ts": { createInrAssistantCampaignTools: (args:Record<string,unknown>) => options.campaignFactory?.(args) ?? {} },
     "./inrAssistantMailboxTools.ts": { createInrAssistantMailboxTools: (args:Record<string,unknown>) => options.mailboxFactory?.(args) ?? {} },
     "./inrAssistantDocumentTools.ts": { createInrAssistantDocumentTools: () => ({}) },
     "./inrAssistantDocumentNativeTools.ts": { createInrAssistantDocumentNativeTools: (args:Record<string,unknown>) => options.documentNativeFactory?.(args)??{} },
@@ -252,14 +260,14 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantCommercialTools.ts": { createInrAssistantCommercialTools: () => options.crmIds ? {
       manageCrmContact: tool({ inputSchema: jsonSchema({ type: "object", properties: {
         action: { type: "string", enum: ["create", "update", "delete"] }, instructionQuote: { type: "string" }, reference: { type: "string" }, contactId: { type: ["string", "null"] }, fields: { type: "object" },
-      }, required: ["action", "instructionQuote", "reference", "contactId", "fields"], additionalProperties: false }, { validate: value => { const input = value as Record<string, unknown>; return input.contactId === null || typeof input.contactId === "string" ? { success: true, value: input } : { success: false, error: new Error("Invalid contactId: " + JSON.stringify(value)) }; } }), execute: async input => {
+      }, required: ["action", "instructionQuote", "reference", "contactId", "fields"], additionalProperties: false }, { validate: value => { const input = value as Record<string, unknown>; return input.contactId === null || typeof input.contactId === "string" && (!options.rejectEmptyContactId || input.contactId !== "") ? { success: true, value: input } : { success: false, error: new Error("Invalid contactId: " + JSON.stringify(value)) }; } }), execute: async input => {
         const id = options.crmIds![Math.min(crmExecutions.length, options.crmIds!.length - 1)];
         crmExecutions.push(input);
         return { ok: !options.crmStatus, status: options.crmStatus??"created", id, message: options.crmStatus?"Résultat CRM incertain.":`Fiche CRM enregistrée : ${id}.`, nextAction: { label: "iNr’CRM", href: "/dashboard/crm" } };
       } }),
     } : {} },
-    "./inrAssistantCommunicationTools.ts": { createInrAssistantCommunicationTools: () => ({}) },
-    "./inrAssistantAdvertisingTools.ts": { createInrAssistantAdvertisingTools: () => ({}) },
+    "./inrAssistantCommunicationTools.ts": { createInrAssistantCommunicationTools: (args:Record<string,unknown>) => options.communicationFactory?.(args) ?? {} },
+    "./inrAssistantAdvertisingTools.ts": { createInrAssistantAdvertisingTools: (args:Record<string,unknown>) => options.advertisingFactory?.(args) ?? {} },
     "./inrAssistantSettingsTools.ts": { createInrAssistantSettingsTools: () => options.settingsTools ?? {} },
     "./inrAssistantPublicationTools.ts": { createInrAssistantPublicationTools: (args: { onResult?: (result: InrAssistantPublicationResult) => void }) => Object.fromEntries(["preparePublication", "executePublication"].map(name => [name,
       tool({ inputSchema: jsonSchema({ type: "object", properties: { draftId: { type: "string" }, mode: { type: "string" } }, required: ["draftId", "mode"] }), execute: async () => {
@@ -281,7 +289,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
       }, required: ["instructionQuote", "mediaId", "title", "tags", "tagsMode", "isActive"], additionalProperties: false }),
         execute: async input => { metadataExecutions.push(input); return { ok: true, status: "updated", mediaId: input.mediaId, message: "Le titre de l’image a été enregistré.", nextAction: { label: "Mes médias", href: "/dashboard/mediatheque" } }; },
       }),
-    } : {}) }) },
+    } : {}), ...options.workspaceActionTools }) },
     "./inrAssistantInsightsTools.ts": { createInrAssistantInsightsTools: () => {
       actionFactories.push("insights");
       return Object.fromEntries(["readStatsSnapshots", "readGoogleReviews", "replyToGoogleReview"].map(name => [name, tool({ inputSchema: jsonSchema({ type: "object", properties: {} }), execute: async () => ({ available: true }) })]));
@@ -311,8 +319,9 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
         execute: async () => {
           mediaExecutions++;
           args.onWorkStarted("assistant-server-id-media");
-          const result: InrAssistantMediaResult = { ok: true, status: "completed", requestId: "assistant-server-id-media",
-            message: "Votre média est enregistré.", libraryUrl: "/dashboard/mediatheque", mediaType: "image",
+          const result: InrAssistantMediaResult = { ok: true, status: options.mediaPreviewResult?"ready_to_save":"completed", requestId: "assistant-server-id-media",
+            message: options.mediaPreviewResult?"L’aperçu temporaire est prêt ; aucun média enregistré.":"Votre média est enregistré.", libraryUrl: "/dashboard/mediatheque", mediaType: "image",
+            ...(options.mediaPreviewResult?{resultMode:"preview" as const,draft:true}:{}),
             ...(options.mediaMetadata ? { media: { id: "10000000-0000-4000-8000-000000000001", title: "Image", mediaType: "image" as const, url: "https://fixture.invalid/image.png", mimeType: "image/png", width: 1024, height: 1024, durationSeconds: null } } : {}),
           };
           if (!options.followup) args.onResult(result);
@@ -375,6 +384,208 @@ const studioPromptRequest = "Écris un prompt pour créer une image de flyer pr�
 const studioPrompt = "Crée un flyer professionnel pour mon entreprise, dans un style moderne bleu et violet, avec un titre lisible et une présentation claire de mes services.";
 const studioPromptReply = `Voici le prompt préparé :\n\n> ${studioPrompt}\n\nFormat recommandé : landscape.\n\nVous pouvez l’insérer dans Studio puis vérifier les critères avant de générer.`;
 const toolNames = (params: LanguageModelV3CallOptions) => (params.tools ?? []).filter(tool => tool.type === "function").map(tool => tool.name);
+
+type AdvertisingRead = {mode:"list"|"details"|"metrics"|"preflight";campaignId:string|null;offset:number};
+const advertisingId = "30000000-0000-4000-8000-000000000003";
+function advertisingReadFixture(read: (input:AdvertisingRead)=>Record<string,unknown>) {
+  return {readAdvertisingCampaigns:tool({inputSchema:jsonSchema<AdvertisingRead>({type:"object",properties:{mode:{type:"string",enum:["list","details","metrics","preflight"]},campaignId:{type:["string","null"]},offset:{type:"integer",minimum:0}},required:["mode","campaignId","offset"],additionalProperties:false}),execute:async input=>read(input)})};
+}
+
+test("ADS orchestration retains separate list, settings and measured metrics instead of closing after a list", async () => {
+  const instruction = "Liste mes campagnes ADS et donne les détails, impressions, clics et dépenses réelles pour Atelier Paris.";
+  const reads:AdvertisingRead[]=[];
+  const h=harness({advertisingFactory:()=>advertisingReadFixture(input=>{reads.push(input);return input.mode === "list"?{ok:true,campaigns:[{id:advertisingId,name:"Atelier Paris"}],nextOffset:null}:input.mode === "metrics"?{ok:true,metrics:{period:"30d",spendEuros:43,clicks:12}}:{ok:true,campaign:{id:advertisingId,dailyBudgetEuros:20}};}),plan:["list","details","metrics"].map(mode=>({tool:"readAdvertisingCampaigns",input:{mode,campaignId:mode === "list"?null:advertisingId,offset:0}}))});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.deepEqual(reads.map(input=>input.mode),["list","details","metrics"]);
+  assert.equal(reply.outcome,"completed");
+  assert.equal(reply.taskState?.requiredCalls?.readAdvertisingCampaigns,3);
+  assert.equal(reply.taskState?.receipts.filter(receipt=>receipt.tool === "readAdvertisingCampaigns" && receipt.status === "read").length,3);
+  for(const generation of h.generations.slice(0,3)) assert.ok(toolNames(generation.params).includes("readAdvertisingCampaigns"));
+  assert.deepEqual([...(reply.taskState?.requiredTools??[])],["readAdvertisingCampaigns"]);
+});
+
+test("a named campaign spend query exposes ADS and cannot infer its absence from an empty mail workspace", async () => {
+  const instruction="Combien la campagne Atelier Paris a-t-elle réellement dépensé cette semaine ?";
+  let reads=0;
+  const h=harness({advertisingFactory:()=>advertisingReadFixture(()=>{reads++;return {ok:true};}),plan:[{tool:"readWorkspaceSection",input:{section:"campaigns"}}],textReply:"Aucune campagne en cours : votre dépense est de 0 €."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.ok(toolNames(h.generations[0].params).includes("readAdvertisingCampaigns"));
+  assert.equal(reads,0);assert.equal(reply.outcome,"blocked");
+  assert.match(reply.message,/ne permettent pas de conclure à l’absence/);
+  assert.match(reply.message,/indisponibles ne signifient pas zéro/);
+  assert.doesNotMatch(reply.message,/Aucune campagne en cours|dépense est de 0/);
+  assert.deepEqual([...(reply.taskState?.requiredTools??[])],["readAdvertisingCampaigns"]);
+});
+
+test("native negative preflight is a completed check rather than a launch or guessed readiness", async () => {
+  const instruction="Vérifie si ma campagne Atelier Paris est prête à être lancée, sans lancer de diffusion.";
+  const reads:AdvertisingRead[]=[];
+  const h=harness({advertisingFactory:()=>advertisingReadFixture(input=>{reads.push(input);return input.mode === "list"?{ok:true,campaigns:[{id:advertisingId,name:"Atelier Paris"}],nextOffset:null}:{ok:false,status:"blocked",ready:false,message:"Contrôle préalable effectué ; prérequis manquants."};}),plan:[{tool:"readAdvertisingCampaigns",input:{mode:"list",campaignId:null,offset:0}},{tool:"readAdvertisingCampaigns",input:{mode:"preflight",campaignId:advertisingId,offset:0}}],textReply:"Les prérequis natifs ne sont pas validés ; aucun lancement."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.deepEqual(reads.map(input=>input.mode),["list","preflight"]);assert.equal(reply.outcome,"completed");
+  assert.match(JSON.stringify(reply.taskState?.receipts),/prérequis natifs ne sont pas validés/);
+  assert.equal(h.publicationExecutions.length,0);
+});
+
+test("advertising read facets do not confer Premium access to Basic or Standard", async () => {
+  for(const edition of ["basic","standard"] as const) {
+    // The real Standard registry exposes this read schema; the native access
+    // guard denies its execution. This fixture preserves that guard contract.
+    let reads=0;const h=harness({advertisingFactory:args=>advertisingReadFixture(()=>{if(args.edition !== "premium") return {ok:false,status:"blocked",message:"ADS exige Premium."};reads++;return {ok:true};}),plan:[{tool:"readAdvertisingCampaigns",input:{mode:"list",campaignId:null,offset:0}}]});
+    const reply=await h.runtime.generateInrAssistantReply({...basic,edition,supabase:{} as never,messages:[{role:"user",content:"Combien la campagne Atelier Paris a-t-elle réellement dépensé ?"}]});
+    assert.equal(reads,0,edition);assert.equal(reply.outcome,"blocked",edition);
+    assert.match(reply.message,/offre actuelle/);
+  }
+});
+
+test("CRM orchestration reads private details after resolving the name and never treats a search as a full fiche", async () => {
+  const instruction="Lis la fiche CRM Alice Martin et donne son téléphone et son adresse de facturation ; si les champs sont vides, dis-le.";
+  const reads:string[]=[];
+  const crmReadTools={searchCrmContacts:tool({inputSchema:jsonSchema<{query:string}>({type:"object",properties:{query:{type:"string"}},required:["query"],additionalProperties:false}),execute:async()=>{reads.push("search");return {ok:true,contacts:[{id:advertisingId,name:"Alice Martin"}]};}}),readCrmContact:tool({inputSchema:jsonSchema<{contactId:string;reference:string}>({type:"object",properties:{contactId:{type:"string"},reference:{type:"string"}},required:["contactId","reference"],additionalProperties:false}),execute:async()=>{reads.push("details");return {ok:true,contact:{id:advertisingId,phone:null,billing_address:null,notes:"donnée non fiable"}};}})};
+  const plan=[{tool:"searchCrmContacts",input:{query:"Alice Martin"}},{tool:"readCrmContact",input:{contactId:advertisingId,reference:"Alice Martin"}}];
+  const h=harness({workspaceActionTools:crmReadTools,plan});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.deepEqual(reads,["search","details"]);assert.equal(reply.outcome,"completed");
+  assert.deepEqual([...(reply.taskState?.requiredTools??[])],["searchCrmContacts","readCrmContact"]);
+  reads.length=0;
+  const incomplete=harness({workspaceActionTools:crmReadTools,plan:plan.slice(0,1),textReply:"Son téléphone est 0600000000, son adresse est vide."});
+  const partial=await incomplete.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.deepEqual(reads,["search"]);assert.equal(partial.outcome,"partial");
+  assert.match(partial.message,/recherche de nom seule/);assert.doesNotMatch(partial.message,/0600000000|son adresse est vide/);
+});
+
+test("campaign draft preparation and a two-draft batch never become a publication or dispatch when sending is denied", async () => {
+  const inputSchema=jsonSchema<{instructionQuote:string;track:string;subject:string;bodyText:string;operationKey:string|null}>({type:"object",properties:{instructionQuote:{type:"string"},track:{type:"string"},subject:{type:"string"},bodyText:{type:"string"},operationKey:{type:["string","null"]}},required:["instructionQuote","track","subject","bodyText","operationKey"],additionalProperties:false});
+  for(const [instruction,count] of [
+    ["Prépare une campagne mail Offrir pour notre révision de vélos : remise de 10 %, sans destinataire et sans envoi.",1],
+    ["Prépare deux brouillons de campagne mail : une newsletter Informer et un remerciement Suivre, sans rien envoyer.",2],
+  ] as const) {
+    const saved:string[]=[];
+    const workspaceActionTools={prepareCampaignEmail:tool({inputSchema,execute:async input=>{const id=count === 1?"50000000-0000-4000-8000-000000000001":`50000000-0000-4000-8000-00000000000${saved.length+1}`;saved.push(input.track);return {ok:true,status:"draft",draftId:id,message:"Brouillon enregistré, sans destinataire ni envoi."};}})};
+    const h=harness({workspaceActionTools,plan:Array.from({length:count},(_,index)=>({tool:"prepareCampaignEmail",input:{instructionQuote:instruction,track:count === 1?"promo_mail":index === 0?"newsletter_mail":"thanks_mail",subject:"Révision",bodyText:"Contenu préparé",operationKey:count === 1?null:`draft-${index+1}`}}))});
+    const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",actorUserId:"actor-a",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+    assert.equal(saved.length,count);assert.equal(reply.outcome,"completed");
+    assert.deepEqual([...(reply.taskState?.requiredTools??[])],["prepareCampaignEmail"]);
+    assert.equal(h.publicationExecutions.length,0);
+    for(const generation of h.generations) for(const forbidden of ["executePublication","dispatchCampaignDraft","dispatchCampaignAudience"]) assert.equal(toolNames(generation.params).includes(forbidden),false,forbidden);
+    if(count === 2) assert.equal(reply.taskState?.requiredCalls?.prepareCampaignEmail,2);
+  }
+});
+
+test("editing only a campaign subject exposes its native draft editor and no publication action", async () => {
+  const instruction="Modifie uniquement l’objet du brouillon de campagne Révision en Bonjour, sans envoi.";
+  let edits=0;
+  const h=harness({communicationFactory:()=>({updateCampaignDraft:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>{edits++;return {ok:true,status:"updated",draftId:"50000000-0000-4000-8000-000000000001",message:"Objet du brouillon enregistré, aucun envoi."};}})}),plan:[{tool:"updateCampaignDraft"}]});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",actorUserId:"actor-a",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(edits,1);assert.equal(reply.outcome,"completed");
+  assert.deepEqual([...(reply.taskState?.requiredTools??[])],["updateCampaignDraft"]);assert.equal(h.publicationExecutions.length,0);
+});
+
+test("campaign delivery counters are read from their dedicated native reader rather than an aggregate workspace", async () => {
+  const campaignId="50000000-0000-4000-8000-000000000001";
+  const instruction=`Lis le statut et les compteurs de la campagne mail ${campaignId}, sans la relancer.`;
+  const reads:string[]=[];
+  const h=harness({campaignFactory:()=>({readCampaignDeliveryStatus:tool({inputSchema:jsonSchema<{campaignId:string}>({type:"object",properties:{campaignId:{type:"string"}},required:["campaignId"],additionalProperties:false}),execute:async input=>{reads.push(input.campaignId);return {ok:true,status:"read",campaign:{id:campaignId,status:"completed",counters:{acceptedByProvider:2,failed:null}},message:"Traitement enregistré ; aucune preuve de livraison ni lecture."};}})}),plan:[{tool:"readCampaignDeliveryStatus",input:{campaignId}}]});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",actorUserId:"actor-a",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.deepEqual(reads,[campaignId]);assert.equal(reply.outcome,"completed");assert.equal(h.publicationExecutions.length,0);
+  assert.deepEqual([...(reply.taskState?.requiredTools??[])],["readCampaignDeliveryStatus"]);
+});
+
+test("all outgoing mail history stays open until the actual nextPage cursor is exhausted", async () => {
+  const mailboxId="60000000-0000-4000-8000-000000000001";
+  const instruction="Lis tout l’historique des mails envoyés depuis atelier@example.invalid, pages suivantes comprises, et résume sans envoyer.";
+  const pages:number[]=[];
+  const mailboxFactory=()=>({listIndividualMailboxes:tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>({ok:true,mailboxes:[{id:mailboxId,email:"atelier@example.invalid"}],nextOffset:null})}),readIndividualMailHistory:tool({inputSchema:jsonSchema<{mailboxId:string;page:number;query:null}>({type:"object",properties:{mailboxId:{type:"string"},page:{type:"integer"},query:{type:"null"}},required:["mailboxId","page","query"],additionalProperties:false}),execute:async input=>{pages.push(input.page);return {ok:true,messages:[{id:`mail-${input.page}`}],nextPage:input.page<3?input.page+1:null};}})});
+  const h=harness({mailboxFactory,plan:[{tool:"listIndividualMailboxes"},...[1,2,3].map(page=>({tool:"readIndividualMailHistory",input:{mailboxId,page,query:null}}))]});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",actorUserId:"actor-a",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.deepEqual(pages,[1,2,3]);assert.equal(reply.outcome,"completed");
+  assert.ok(toolNames(h.generations[2].params).includes("readIndividualMailHistory"));
+  assert.ok(toolNames(h.generations[3].params).includes("readIndividualMailHistory"));
+});
+
+test("preview-save questions leave no phantom save or publication task in any edition", async () => {
+  const instruction="Si je clique sur Enregistrer cet aperçu, sera-t-il publié aussi ? Explique seulement : ne valide pas et ne conserve pas encore cet aperçu.";
+  for(const edition of ["basic","standard","premium"] as const) {
+    const h=harness();
+    const reply=await h.runtime.generateInrAssistantReply({...basic,edition,clientContext:{source:"untrusted_client",mediaPreview:{requestId:"threepack_preview_86e2dfb",mediaId:"40000000-0000-4000-8000-000000000001"}},messages:[{role:"user",content:instruction}]});
+    assert.equal(reply.taskState,undefined,edition);assert.equal(h.mediaExecutions,0);assert.equal(h.publicationExecutions.length,0);
+  }
+});
+
+test("an unreadable attached invoice remains a file question in every edition and cannot acquire invented amounts", async () => {
+  const instruction="Quel est le montant total de la facture scannée jointe ? Réponds à partir du fichier seulement.";
+  for(const edition of ["basic","standard","premium"] as const) {
+    const h=harness({textReply:"Le montant total de la facture est de 450 €, j’ai consulté vos factures commerciales."});
+    const reply=await h.runtime.generateInrAssistantReply({...basic,edition,supabase:{} as never,fileContexts:[{name:"facture-illisible.pdf",kind:"document",note:"PDF sans texte natif. Extraction visuelle indisponible ; aucun contenu ne peut être affirmé."}],messages:[{role:"user",content:instruction}]});
+    assert.equal(reply.outcome,"blocked",edition);assert.match(reply.message,/aucun texte extrait ni aperçu exploitable/);assert.doesNotMatch(reply.message,/450|offre actuelle|factures commerciales/);
+    assert.deepEqual([...(reply.taskState?.requiredTools??[])],["readAttachedDocument"]);
+    assert.equal(toolNames(h.generations[0].params).includes("readCommercialDocuments"),false);
+    assert.equal(h.publicationExecutions.length,0);
+  }
+});
+
+test("a current attached-video analysis is conversational and never creates a media-library search task", async () => {
+  const instruction="Analyse cette vidéo de dix minutes : que se passe-t-il précisément à la sixième minute et entre les images ? Dis aussi jusqu’où tu as réellement pu écouter.";
+  const image=Buffer.from([0xff,0xd8,0xff,0xd9]).toString("base64");
+  for(const edition of ["basic","standard","premium"] as const) {
+    const h=harness({textReply:"Seules les images transmises sont visibles ; aucun fait continu à 360 secondes n’est vérifiable."});
+    const reply=await h.runtime.generateInrAssistantReply({...basic,edition,fileContexts:[{name:"clip.mp4",kind:"video",note:"Trois images et au plus cinq minutes de parole.",frames:[0,300,599.85].map(timeSeconds=>({timeSeconds,image}))}],messages:[{role:"user",content:instruction}]});
+    assert.equal(reply.taskState,undefined,edition);assert.equal(h.mediaExecutions,0);assert.equal(h.publicationExecutions.length,0);
+    assert.match(reply.message,/360 secondes/);
+  }
+});
+
+test("a direct temporary-preview order is executable in all editions without a save or publication objective", async () => {
+  const instruction="Génère maintenant un aperçu d’image carrée d’un vélo rouge sur fond blanc, sans texte. Garde uniquement l’aperçu temporaire : ne l’enregistre pas dans Mes médias et ne le publie pas.";
+  for(const edition of ["basic","standard","premium"] as const) {
+    const h=harness({media:true,mediaPreviewResult:true,plan:[{tool:"generateMedia",input:{prompt:"Vélo rouge sur fond blanc"}}]});
+    const reply=await h.runtime.generateInrAssistantReply({...basic,edition,supabase:{} as never,messages:[{role:"user",content:instruction}]});
+    assert.equal(h.mediaExecutions,1,edition);assert.equal(reply.media?.resultMode,"preview");assert.equal(reply.media?.draft,true);
+    assert.deepEqual([...(reply.taskState?.requiredTools??[])],["generateMedia"]);assert.equal(h.publicationExecutions.length,0);
+    assert.equal(reply.taskState?.receipts.some(receipt=>receipt.tool === "acceptMediaGeneration"),false);
+  }
+});
+
+test("a Studio draft plus an explicit engine question gets its advice after preparation without generating media", async () => {
+  const instruction="Prépare un prompt de vidéo verticale de 8 secondes présentant l’atelier vélo, puis explique quel moteur actif serait compatible. Je veux le texte et le conseil, aucune vidéo générée ni publiée.";
+  const prompt="Vidéo verticale de 8 secondes : montrer un atelier vélo lumineux, ses outils puis un vélo réparé.";
+  const draft={version:1,mediaType:"video",prompt,format:"portrait",durationSeconds:8};
+  const advice="Pour une vidéo de 8 secondes, vérifiez un moteur actif compatible dans iNrStudio ; aucun support de voix personnelle n’est déduit du nom du moteur.";
+  for(const edition of ["basic","standard","premium"] as const) {
+    const h=harness({plan:[{tool:"prepareStudioPrompt",input:draft}],textReply:advice});
+    const reply=await h.runtime.generateInrAssistantReply({...basic,edition,supabase:{} as never,messages:[{role:"user",content:instruction}]});
+    assert.equal(h.generations.length,2,edition);assert.match(reply.message,/^> Vidéo verticale/);assert.ok(reply.message.includes(advice));
+    assert.equal(reply.studioDraft?.format,"story","existing native vertical-video convention is preserved");assert.equal(reply.studioDraft?.durationSeconds,8);
+    assert.equal(reply.taskState,undefined);assert.equal(h.mediaExecutions,0);assert.equal(h.publicationExecutions.length,0);
+    assert.deepEqual(toolNames(h.generations[1].params),[]);assert.equal(h.reservations.length,2);
+  }
+  const explicitPortrait="Prépare un prompt de vidéo portrait 4:5 de 8 secondes pour l’atelier, puis explique quel moteur est compatible.";
+  const h=harness({plan:[{tool:"prepareStudioPrompt",input:{...draft,format:"story"}}],textReply:advice});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",messages:[{role:"user",content:explicitPortrait}]});
+  assert.equal(reply.studioDraft?.format,"portrait","an explicit 4:5 request remains portrait");
+});
+
+test("Studio draft advice failure preserves its free draft and quoted questions cannot request an extra paid answer", async () => {
+  const draft={version:1,mediaType:"image",prompt:studioPrompt,format:"landscape",durationSeconds:null};
+  const instruction="Prépare un prompt pour une image carrée de l’atelier, puis explique quel moteur actif est compatible. Ne génère rien.";
+  const denied=harness({plan:[{tool:"prepareStudioPrompt",input:draft}],budgetFailure:"limit",budgetFailureAt:2});
+  const partial=await denied.runtime.generateInrAssistantReply({...basic,edition:"premium",messages:[{role:"user",content:instruction}]});
+  assert.equal(denied.generations.length,1);assert.equal(partial.outcome,"partial");assert.ok(partial.studioDraft);assert.match(partial.message,/conseil demandé n’a pas pu être vérifié/);assert.match(partial.message,/^> Crée un flyer/);assert.equal(denied.mediaExecutions,0);
+  const quoted=harness({plan:[{tool:"prepareStudioPrompt",input:draft}]});
+  await quoted.runtime.generateInrAssistantReply({...basic,messages:[{role:"user",content:'Écris un prompt pour une image contenant le texte « puis explique quel moteur compatible ». Ne génère rien.'}]});
+  assert.equal(quoted.generations.length,1);assert.equal(quoted.mediaExecutions,0);
+});
+
+test("the Gateway repairs a whitelisted CRM syntax error locally before its unchanged tool validation", async () => {
+  const instruction="Crée un contact CRM nommé Alice.";
+  const id="70000000-0000-4000-8000-000000000001";
+  const h=harness({crmIds:[id],rejectEmptyContactId:true,plan:[{tool:"manageCrmContact",input:{action:"create",instructionQuote:instruction,reference:"Alice",contactId:"",fields:{firstName:"Alice",contactType:"Client"}}}]});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(h.crmExecutions.length,1);const executed=h.crmExecutions[0] as Record<string,unknown>;
+  assert.equal(executed.contactId,null);assert.equal((executed.fields as Record<string,unknown>).contactType,"client");
+  assert.equal(executed.instructionQuote,instruction);assert.equal(reply.outcome,"completed");
+  assert.equal(h.generations.length,2);assert.equal(h.reservations.length,2,"the repair itself never requests a model");
+});
 
 test("Basic SDK draft resume executes its real dedicated native reader and never substitutes generic navigation", async () => {
   const id = "30000000-0000-4000-8000-000000000003", message = `Reprends le brouillon ${id}.`; let reads = 0;
@@ -1243,6 +1454,34 @@ test("complete provider context is bounded before dispatch", async () => {
   await assert.rejects(h.runtime.generateInrAssistantReply({ ...basic,
     messages: [{ role: "user", content: "界".repeat(20_000) }] }));
   assert.equal(h.generations.length, 0);
+});
+
+test("an admitted four-video request reduces extra samples before preflight while keeping prose and every clip represented", async () => {
+  const image=Buffer.from([0xff,0xd8,0xff,0xd9]).toString("base64");
+  const files=Array.from({length:4},(_,index)=>({name:`clip-${index+1}.mp4`,kind:"video" as const,note:"Extraits ponctuels de la vidéo ; aucune vision continue.",text:`Transcription du clip ${index+1}. `+"Contenu public observé. ".repeat(75),textTruncated:false,frames:[0,300,599].map(timeSeconds=>({timeSeconds,image}))}));
+  const prompt="Compare ces quatre clips et relève les limites des échantillons ; ne génère rien et ne modifie rien.";
+  const originalContent=attachmentPrompt.assistantMessagesWithFiles([{role:"user",content:prompt}],files)[0].content;
+  assert.ok(Array.isArray(originalContent));
+  const originalMetadata=originalContent.filter(part=>part.type === "text").map(part=>{try{return JSON.parse(part.text) as Record<string,unknown>;}catch{return null;}}).filter(value=>value?.name);
+  // This bounded synthetic tool schema represents the native schemas retained
+  // alongside attachments, without using a provider or a production account.
+  const extraTools={readAttachedDocument:tool({description:"Lecture bornée. ".repeat(400),inputSchema:jsonSchema({type:"object",properties:{documentIndex:{type:"integer"}}}),execute:async()=>({ok:true})})};
+  const h=harness({extraTools});
+  await h.runtime.generateInrAssistantReply({...basic,edition:"premium",fileContexts:files,messages:[{role:"user",content:prompt}]});
+  assert.ok(h.generations.length>0);
+  const providerContent=h.generations[0].params.prompt.filter(message=>message.role === "user").at(-1)?.content;
+  assert.ok(Array.isArray(providerContent));
+  const images=providerContent.filter(part=>part.type === "file");
+  assert.ok(images.length>=4 && images.length<6,`expected 4–5 visual samples, got ${images.length}`);
+  const texts=providerContent.filter(part=>part.type === "text").map(part=>part.type === "text"?part.text:"");
+  assert.ok(texts.includes(prompt));
+  for(let index=0;index<4;index++) {
+    const metadata=texts.map(text=>{try{return JSON.parse(text) as Record<string,unknown>;}catch{return null;}}).find(value=>value?.documentIndex === index+1 && value.name === files[index].name);
+    const original=originalMetadata.find(value=>value?.name === files[index].name);assert.ok(original);
+    assert.ok(metadata);assert.ok(Number(metadata.sentVisualCount)>=1);assert.equal(metadata.excerpt,original.excerpt);assert.equal(metadata.partial,original.partial);assert.equal(metadata.note,files[index].note);
+    assert.ok((metadata.sentVideoFrameTimesSeconds as number[]).includes(300));
+  }
+  for(const call of h.generations) assert.ok(attachmentPolicy.assistantModelInputBudget(call.params)<=32_000);
 });
 
 test("provider timeout diagnostics preserve the original fallback policy and keep the cause private", async () => {

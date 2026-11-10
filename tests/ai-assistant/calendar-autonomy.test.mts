@@ -1,4 +1,5 @@
 import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
+import * as actionClauses from "../../lib/inrAssistantActionClause.ts";
 import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -39,7 +40,7 @@ function harness() {
     if (uncertain) throw new Error("transport lost after commit");
     return Response.json({ ok: true });
   };
-  const runtime = load<CalendarRuntime>("../../lib/inrAssistantCalendarTools.ts", { "server-only": {}, ai: { jsonSchema, tool }, "./requireUser": { requireUser: async () => ({ activeUserId: account, authUserId: actor }) }, "./inrAssistantRequestClauses.ts": requestClauses, "./inrAssistantActionPreview.ts": preview, "./inrAssistantMemory.ts": { sanitizeInrAssistantMemoryText: (text: string, max: number) => text.slice(0, max) }, "@/app/api/calendar/events/route": { PATCH: native, DELETE: native }, "@/app/api/calendar/appointment-requests/route": { PATCH: native } }, { Date: Clock });
+  const runtime = load<CalendarRuntime>("../../lib/inrAssistantCalendarTools.ts", { "server-only": {}, ai: { jsonSchema, tool }, "./requireUser": { requireUser: async () => ({ activeUserId: account, authUserId: actor }) }, "./inrAssistantRequestClauses.ts": requestClauses, "./inrAssistantActionClause.ts": actionClauses, "./inrAssistantActionPreview.ts": preview, "./inrAssistantMemory.ts": { sanitizeInrAssistantMemoryText: (text: string, max: number) => text.slice(0, max) }, "@/app/api/calendar/events/route": { PATCH: native, DELETE: native }, "@/app/api/calendar/appointment-requests/route": { PATCH: native } }, { Date: Clock });
   const saved = new Map<string, string>();
   const create = (message: string, edition = "premium", currentApprovalMessage?: string) => runtime.createInrAssistantCalendarTools({ request: new Request("https://app.test/api/assistant/chat", { headers: { cookie: "session", "x-account-id": OTHER } }), accountId: ACCOUNT, actorUserId: ACTOR, edition, supabase: db, currentUserMessage: message, currentApprovalMessage, resolvePreview: (reference: string) => saved.get(reference) ?? null });
   const propose = (operation = "confirm", patch: Row = {}) => { const quote = operation === "confirm" ? "Confirme le rendez-vous Alice" : operation === "cancel" ? "Annule le rendez-vous Alice" : "Déplace le rendez-vous Alice au 2 décembre à 10h"; return create(quote).previewCalendarAction.execute({ eventId: EVENT, operation, instructionQuote: quote, title: null, description: null, location: null, start: null, end: null, ...patch }); };
@@ -64,6 +65,37 @@ test("confirmed event edits and cancellations apply the exact preview; cancellat
   const cancel = await h.propose("cancel"); assert.ok(cancel.proposal); assert.match(cancel.proposal.effect, /n’envoie pas/);
   assert.equal((await h.apply(cancel)).status, "cancelled"); assert.equal((await h.apply(cancel)).status, "cancelled");
   assert.equal(h.calls.filter(call => call.method === "DELETE").length, 1);
+});
+
+test("an independent calendar edit plus explanation prepares its exact signed preview before any mutation", async () => {
+  const h = harness(); h.get().meta.status = "confirmed";
+  const quote = "Déplace le rendez-vous Alice au 2 décembre de 10h à 11h";
+  const result = await h.create(`${quote}. Explique ensuite quels rappels restent activés.`).previewCalendarAction.execute({
+    eventId: EVENT, operation: "edit", instructionQuote: quote, title: null, description: null, location: null,
+    start: "2026-12-02T09:00:00Z", end: "2026-12-02T10:00:00Z", addGuestEmails: null, remindersEnabled: null, reminderMailboxId: null,
+  });
+  assert.equal(result.status, "preview_ready"); assert.equal(h.calls.length, 0);
+  assert.equal(h.get().start_at, "2026-12-01T09:00:00.000Z");
+  assert.equal((await h.apply(result)).status, "updated");
+  assert.equal(h.get().start_at, "2026-12-02T09:00:00.000Z");
+  assert.equal(h.get().meta.reminders.enabled, true);
+  assert.equal(h.get().meta.reminders.emailMinutesBefore, 1440);
+});
+
+test("calendar explanation fallback retains hypothetical, denied and named approval boundaries", async () => {
+  const quote = "Déplace le rendez-vous Alice au 2 décembre de 10h à 11h";
+  for (const message of [
+    `Si Julie confirme, ${quote}. Explique ensuite les rappels.`,
+    `${quote} après validation de Julie. Explique ensuite les rappels.`,
+    `Imagine que nous changeons l’agenda. ${quote}. Explique ensuite les rappels.`,
+    `Ne déplace pas ce rendez-vous. ${quote}. Explique ensuite les rappels.`,
+    `Le client dit « ${quote} ». Explique sa demande.`,
+  ]) {
+    const h = harness();
+    const result = await h.create(message).previewCalendarAction.execute({ eventId: EVENT, operation: "edit", instructionQuote: quote,
+      title: null, description: null, location: null, start: "2026-12-02T09:00:00Z", end: "2026-12-02T10:00:00Z", addGuestEmails: null, remindersEnabled: null, reminderMailboxId: null });
+    assert.equal(result.status, "needs_instruction", message); assert.equal(h.calls.length, 0, message);
+  }
 });
 
 test("signatures, actor/account, expiry, scope and explicit confirmation cannot be supplied by untrusted text", async () => {

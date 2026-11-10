@@ -5,6 +5,8 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import { asSchema, jsonSchema, tool } from "ai";
+import * as actionClauses from "../../lib/inrAssistantActionClause.ts";
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import type * as Communication from "../../lib/inrAssistantCommunicationTools.ts";
 import type * as Memory from "../../lib/inrAssistantMemory.ts";
 
@@ -86,6 +88,7 @@ function harness(options: { edition?: "standard" | "premium" | "founder"; messag
   };
   const common: Record<string, unknown> = {
     "server-only": {}, "node:crypto": { createHash, randomUUID }, ai: { tool, jsonSchema },
+    "./inrAssistantActionClause.ts": actionClauses, "./inrAssistantRequestClauses.ts": requestClauses,
     "./requireUser": { requireUser: async () => { authCalls++; return { errorResponse: null, activeUserId: options.scopeChangeOnAuth && authCalls >= options.scopeChangeOnAuth ? OTHER : ACCOUNT, authUserId: options.actorChanged ? OTHER : ACTOR }; } },
     "@/app/api/mails/workflow-draft/route": { POST: native }, "@/app/api/crm/campaigns/route": { POST: native },
     "@/app/api/agent/scheduled-actions/route": { POST: native }, "@/app/api/calendar/events/route": { PATCH: native, DELETE:native },
@@ -198,6 +201,47 @@ test("native campaign dispatch preserves suppression/quota checks and announces 
   }
 });
 
+test("conditional or deferred explicit-recipient sends fail before any native query or submission", async () => {
+  for (const suffix of ["si Julie confirme", "après validation de Julie", "quand mon associé donnera son accord", "if Julie approves", "si Julie est disponible"]) {
+    const message = `Envoie le brouillon à ${RECIPIENT} ${suffix}.`, h = harness({ message });
+    assert.equal((await h.execute("dispatchCampaignDraft", dispatch(message))).status, "needs_instruction", suffix);
+    assert.equal(h.apiCalls.length, 0, suffix); assert.equal(h.queries.length, 0, suffix);
+  }
+});
+
+test("a no-send constraint preserves the independently requested subject edit", async () => {
+  const message = "Modifie uniquement l’objet du brouillon en Bonjour, sans envoi.", h = harness({ message });
+  const before = clone(h.rows.send_items[0]);
+  assert.equal((await h.execute("updateCampaignDraft", edit({ instructionQuote: message, subject: "Bonjour" }))).status, "updated");
+  assert.equal(h.apiCalls.length, 1); assert.equal(h.apiCalls[0].path, "/api/mails/workflow-draft");
+  assert.equal(h.apiCalls[0].body.bodyText, before.body_text); assert.equal(h.apiCalls[0].body.bodyHtml, before.body_html);
+  assert.deepEqual(h.apiCalls[0].body.attachments, before.attachments);
+});
+
+test("separate recipient clauses never borrow permission or confuse another recipient's veto with this send", async () => {
+  const allowed = `Envoie le brouillon à ${RECIPIENT}`, denied = "ne l’envoie pas à bob@example.test";
+  for (const separator of [". ", " et "]) {
+    const message = `${allowed}${separator}${denied}.`, h = harness({ message });
+    assert.equal((await h.execute("dispatchCampaignDraft", dispatch(allowed))).status, "queued", separator);
+    assert.deepEqual(h.apiCalls[0].body.recipients, [{ email: RECIPIENT }]);
+    const other = harness({ message });
+    assert.equal((await other.execute("dispatchCampaignDraft", dispatch(denied, { recipients: ["bob@example.test"] }))).status, "needs_instruction");
+    assert.equal(other.apiCalls.length, 0);
+  }
+  const revokedMessage = `${allowed} Ne l’envoie pas.`, revoked = harness({ message: revokedMessage });
+  assert.equal((await revoked.execute("dispatchCampaignDraft", dispatch(allowed))).status, "needs_instruction");
+  assert.equal(revoked.apiCalls.length, 0);
+});
+
+test("nine native agenda events are exposed as a bounded nonexhaustive result without a fabricated cursor", async () => {
+  const h = harness({ message: "Liste mes rendez-vous du premier décembre." });
+  h.rows.agenda_events = Array.from({ length: 9 }, (_, index) => ({ ...fixtureEvent(), id: `60000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`, title: `Visite ${index + 1}` }));
+  const result = await h.execute("readCommunicationRecords", read({ section: "calendar", timeMin: "2026-12-01T00:00:00.000Z", timeMax: "2026-12-02T00:00:00.000Z" }));
+  assert.equal((result.items as Row[]).length, 8); assert.equal(result.hasMore, true); assert.equal(result.truncated, true);
+  assert.equal(result.availabilityGuaranteed, false); assert.equal(result.nextPage, undefined); assert.equal(result.nextCursor, undefined);
+  assert.match(String(result.message), /limit|extrait|huit/i); assert.equal(h.queries[0].limit, 9); assert.equal(h.apiCalls.length, 0);
+});
+
 test("schedule uses the native stable UUID contract and requires the exact requested date, time and zone", async () => {
   const when = new Date(Date.now() + 2 * 86400_000);
   const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(when).map(part => [part.type, part.value]));
@@ -277,7 +321,7 @@ test("saved mail/agenda reading exposes bounded prose only, no foreign rows, raw
   h.rows.send_items = Array.from({ length: 12 }, (_, index) => ({ ...fixtureDraft(), id: index ? randomUUID() : DRAFT, subject: `Sujet ${index} client@example.test`, body_text: `Contact client@example.test Bearer PRIVATE_TOKEN ${"Texte ".repeat(1000)}`, body_html: "<script>PRIVATE HTML</script>", draft_state: { token: "PRIVATE STATE" } }));
   h.rows.send_items.unshift({ ...fixtureDraft(), user_id: OTHER, subject: "FOREIGN SECRET" });
   const list = await h.execute("readCommunicationRecords", read());
-  assert.equal((list.items as Row[]).length, 7); // First SQL page contains one rejected foreign row.
+  assert.equal((list.items as Row[]).length, 8); // Nine-row lookahead contains one rejected foreign row.
   assert.ok(new TextEncoder().encode(JSON.stringify(list)).byteLength < 6000);
   assert.doesNotMatch(JSON.stringify(list), /FOREIGN|PRIVATE|example\.test|body_html|draft_state|attachments|integration_id|user_id/);
   const detail = await h.execute("readCommunicationRecords", read({ recordId: DRAFT }));

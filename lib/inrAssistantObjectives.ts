@@ -1,4 +1,6 @@
-import { inrAssistantActionObjectives, inrAssistantRequiredCalls, inrAssistantRequestClauses, inrAssistantRoutingText, inrAssistantClauseIsAdvice, inrAssistantGoalCompleted, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
+import { inrAssistantActionObjectives, inrAssistantRequiredCalls, inrAssistantRequestClauses, inrAssistantRoutingText, inrAssistantClauseIsAdvice, inrAssistantGoalCompleted, isInrAssistantAdvertisingRequest, isInrAssistantAttachedFileRequest, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
+import { hasInrAssistantDeferredApproval } from "./inrAssistantActionClause.ts";
+import { readInrAssistantCommunicationIntent } from "./inrAssistantCommunicationIntent.ts";
 import { INR_ASSISTANT_COMMANDS, type InrAssistantCommandFamily } from "./inrAssistantCommandRegistry.ts";
 import { getInrAssistantBasicShopReadView } from "./inrAssistantBasicShopRead.ts";
 import { inrAssistantUiStepTool, type InrAssistantUiStep } from "./inrAssistantUiTask.ts";
@@ -10,7 +12,11 @@ export type InrAssistantObjective = {
     instruction: string;
     count: number;
     exhaustive?: boolean;
+    /** Internal plan facet; native tool schemas and permission checks are unchanged. */
+    readMode?: "list" | "details" | "metrics" | "preflight";
+    campaignId?: string;
 };
+export type InrAssistantObjectiveContext = { attachedFiles?: ReadonlyArray<{kind:"image"|"video"|"audio"|"document"}> };
 const diagnosticReader = {
     tool: "getAccountDiagnostics", family: "business" as const, label: "vérifier les signaux du problème signalé",
     matches: /\b(?:diagnosti\w*|erreurs?|errors?|echecs?|echou\w*|incidents?|dysfonctionn\w*|fail(?:ed|ures?|ing|s)?|problemes?|bugs?|pannes?|bloqu\w*|impossible)\b|\bne fonctionne|日志|错误/,
@@ -18,6 +24,7 @@ const diagnosticReader = {
 const diagnosticReadVerbs = "(?:lis|lire|consulte\\w*|verifi\\w*|regarde\\w*|analyse\\w*|diagnosti\\w*|read|check|inspect|investigate)";
 const deniedDiagnosticRead = new RegExp(`\\b(?:ne\\s+|n'|do not\\s+|don't\\s+|never\\s+|not\\s+)${diagnosticReadVerbs}\\b|\\b${diagnosticReadVerbs}\\s+(?:pas|jamais|not)\\b|\\b(?:sans|pas de|aucun)\\s+diagnostic\\b`);
 const deferredDiagnosticRead = /^(?:si|quand|lorsque|if|when|unless|imagin\w*|suppos\w*)\b|\b(?:si|quand|lorsque|if|when|unless)\s+(?:je|j'|tu|vous|nous|on|il|elle|le|la|les|un|une|the|i|you|we|they)\b|\b(?:en cas de|a condition|sous reserve|only if|apres (?:ma|mon|notre|votre) (?:confirmation|accord))\b/;
+const exhaustiveRead = /\b(?:tout|toute|tous|toutes|chaque|complet\w*|integralite|all|every)\b|\bpages?\s+suivantes?\b/;
 
 function personalDiagnosticQuestion(clause: string, nearbyContext = clause): boolean {
     const why = /^(?:pourquoi|why)\b/.test(clause);
@@ -60,11 +67,14 @@ const readers: Array<{
     { tool: "readSendPublicationHistory", family: "publication", label: "consulter l’historique Publications iNr’Send", matches: /(?:inrsend|inr.send).{0,80}(?:historique|publication|brouillon)|(?:historique|publication|brouillon).{0,80}(?:inrsend|inr.send)/ },
     { tool: "readPublicationWorkspace", family: "publication", label: "retrouver les brouillons de publication", matches: /(?:brouillon|proposition|historique).{0,50}(?:publication|post)|(?:publication|post).{0,50}(?:brouillon|proposition|historique)/ },
     { tool: "getRecentPublications", family: "publication", label: "consulter les publications demandées", matches: /publication|\bposts?\b/ },
+    { tool: "readAttachedDocument", family: "workspace", label: "lire le fichier joint demandé", matches: /(?:fichier|piece|document|scan).{0,90}joint/ },
     { tool: "readCommercialTemplates", family: "commercial", label: "consulter les modèles de documents", matches: /(?:modele|template).{0,60}(?:devis|facture|document)|(?:devis|facture|document).{0,60}(?:modele|template)/ },
     { tool: "readCommercialDocuments", family: "commercial", label: "lire les documents commerciaux", matches: /devis|facture|document commercial/ },
     { tool: "listIndividualMailboxes", family: "workspace", label: "consulter les boîtes expéditrices", matches: /boites?|expediteurs?/ },
     { tool: "readIndividualMailHistory", family: "workspace", label: "consulter l’historique des mails envoyés", matches: /(?:historique|envoyes).{0,45}(?:mail|courriel)|(?:mail|courriel).{0,45}(?:historique|envoyes)/ },
+    { tool: "readCampaignDeliveryStatus", family: "workspace", label: "lire le statut natif de livraison de la campagne", matches: /(?:statut|etat|compteur|livraison|delivery).{0,80}(?:campagne|newsletter)|(?:campagne|newsletter).{0,80}(?:statut|etat|compteur|livraison|delivery)/ },
     { tool: "readCommunicationRecords", family: "workspace", label: "consulter les campagnes ou rendez-vous", matches: /campagne|mail|newsletter|courriel|agenda|rendez.vous|\brdv\b/ },
+    { tool: "readCrmContact", family: "commercial", label: "lire la fiche CRM demandée", matches: /\b(?:fiche|details?|notes?|coordonnees|telephone|adresse|facturation)\b/ },
     { tool: "searchCrmContacts", family: "commercial", label: "retrouver les contacts demandés", matches: /\bcrm\b|contact|client|prospect/ },
     { tool: "getBusinessDna", family: "business", label: "lire l’ADN de l’entreprise", matches: /\badn\b|\bdna\b|mission|prestations|services de (?:mon|notre) entreprise/ },
     { tool: "searchMedia", family: "media", label: "rechercher les médias demandés", matches: /mediatheque|medias?|images?|photos?|videos?|audios?|\bsons?\b|visuels?|flyers?|logos?/ },
@@ -77,7 +87,7 @@ const readers: Array<{
 export function inrAssistantReadObjectives(message: string): InrAssistantObjective[] {
     return inrAssistantObjectives(message).filter(objective => objective.kind === "read");
 }
-export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiStep[] = []): InrAssistantObjective[] {
+export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiStep[] = [], context: InrAssistantObjectiveContext = {}): InrAssistantObjective[] {
     const actions = inrAssistantActionObjectives(message);
     const plan: InrAssistantObjective[] = [];
     const clauses = inrAssistantRequestClauses(message);
@@ -94,8 +104,46 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
         const implicitDiagnostic = personalDiagnosticQuestion(clause, clauses.slice(Math.max(0, clauseIndex - 2), clauseIndex + 1).join(" ")) && !diagnosticDeferred;
         if (mutations.length || inrAssistantClauseIsAdvice(clause) && !implicitDiagnostic || /^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(clause))
             continue;
-        if (!implicitDiagnostic && !getInrAssistantBasicShopReadView(clause) && !/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|recherch\w*|cherche\w*|retrouv\w*|liste\w*|verifi\w*|regarde\w*|montre\w*|affiche\w*|analyse\w*|diagnostiqu\w*|compare\w*|quels?|quelles?|combien|read|find|search|list|show|check)\b/.test(clause))
+        if (!implicitDiagnostic && !getInrAssistantBasicShopReadView(clause) && !/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|recherch\w*|cherche\w*|retrouv\w*|liste\w*|verifi\w*|regarde\w*|montre\w*|affiche\w*|analyse\w*|diagnostiqu\w*|compare\w*|donne\w*|quels?|quelles?|combien|read|find|search|list|show|check)\b/.test(clause))
             continue;
+        const currentAttachedVisual = !/\b(?:mediatheque|bibliotheque|library)\b/.test(clause) && context.attachedFiles?.some(file =>
+            file.kind === "video" ? /\b(?:ce|cet|cette|ces|this|these)\s+(?:(?:deux|trois|quatre|two|three|four|[1-4])\s+)?(?:videos?|clips?|films?)\b/.test(clause)
+              : file.kind === "image" && /\b(?:ce|cet|cette|ces|this|these)\s+(?:(?:deux|trois|quatre|two|three|four|[1-4])\s+)?(?:images?|photos?|visuels?)\b/.test(clause));
+        // The current model input already carries these bounded visual samples.
+        // Their analysis is not an instruction to search the account library.
+        if (currentAttachedVisual) {
+            if (/\b(?:texte|transcription|verbatim)\b/.test(clause)) plan.push({ id: `objective_${plan.length}`, kind: "read", tool: "readAttachedDocument", instruction: clause, count: 1, exhaustive: exhaustiveRead.test(clause) });
+            continue;
+        }
+        if (isInrAssistantAttachedFileRequest(clause)) {
+            plan.push({ id: `objective_${plan.length}`, kind: "read", tool: "readAttachedDocument", instruction: clause, count: 1, exhaustive: exhaustiveRead.test(clause) });
+            continue;
+        }
+        if (isInrAssistantAdvertisingRequest(clause)) {
+            if (hasInrAssistantDeferredApproval(message) || deferredDiagnosticRead.test(clauses.join(" ")) && !/^verifi\w*\s+si\b/.test(clause)) continue;
+            const campaignId = clause.match(/\b[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\b/i)?.[0];
+            const modes: NonNullable<InrAssistantObjective["readMode"]>[] = [];
+            if (/\b(?:details?|reglages?|parametres?|configuration|budget|dates?)\b/.test(clause)) modes.push("details");
+            if (/\b(?:mesures?|metriques?|statistiques?|stats|performances?|impressions?|clics?|depens\w*|cout\w*|conversions?|roas|cpa|spend|spent|metrics)\b/.test(clause)) modes.push("metrics");
+            if (/\b(?:preflight|pret\w*|prealable|prerequis)\b/.test(clause)) modes.push("preflight");
+            if (!campaignId || /\b(?:liste\w*|list|toutes?|tous)\b/.test(clause) || !modes.length && /\bcampagnes\b/.test(clause)) modes.unshift("list");
+            if (!modes.length) modes.push("details");
+            for (const readMode of modes) plan.push({ id: `objective_${plan.length}`, kind: "read", tool: "readAdvertisingCampaigns", instruction: clause, count: 1, readMode,
+                ...(campaignId && readMode !== "list" ? { campaignId } : {}), exhaustive: readMode === "list" && exhaustiveRead.test(clause) });
+            continue;
+        }
+        if (/\b(?:crm|contacts?|clients?|prospects?|fournisseurs?|partenaires?)\b/.test(clause)
+            && /\b(?:fiches?|details?|notes?|coordonnees|telephones?|e-?mails?|adresses?|facturation|siret|tva)\b/.test(clause)) {
+            if (hasInrAssistantDeferredApproval(message)) continue;
+            if (!/\b[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\b/i.test(clause))
+                plan.push({ id: `objective_${plan.length}`, kind: "read", tool: "searchCrmContacts", instruction: clause, count: 1 });
+            plan.push({ id: `objective_${plan.length}`, kind: "read", tool: "readCrmContact", instruction: clause, count: 1 });
+            continue;
+        }
+        if (readInrAssistantCommunicationIntent(clause).campaignDeliveryRead) {
+            plan.push({ id: `objective_${plan.length}`, kind: "read", tool: "readCampaignDeliveryStatus", instruction: clause, count: 1 });
+            continue;
+        }
         const previous = clauses[clauseIndex - 1] ?? "";
         // Resolve a short diagnostic follow-up only against the immediately
         // preceding unquoted problem statement, never an arbitrary past topic.
@@ -103,11 +151,11 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
             && /\b(?:ce qui se passe|ce probleme|cet incident|la cause|le blocage)\b/.test(clause)
             && diagnosticReader.matches.test(previous) && !inrAssistantClauseIsAdvice(previous)
             && !/^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(previous);
-        const reader = getInrAssistantBasicShopReadView(clause) ? readers.find(reader => reader.tool === "readAccountServices") : implicitDiagnostic || diagnosticFollowup ? diagnosticReader : readers.find(reader => reader.matches.test(clause) && !(reader.tool === "readAccountServices" && /notifications?/.test(clause) && /reglages?|parametres?|preferences?/.test(clause)));
+        const reader = getInrAssistantBasicShopReadView(clause) ? readers.find(reader => reader.tool === "readAccountServices") : implicitDiagnostic || diagnosticFollowup ? diagnosticReader : readers.find(reader => reader.tool !== "readCrmContact" && reader.matches.test(clause) && !(reader.tool === "readAccountServices" && /notifications?/.test(clause) && /reglages?|parametres?|preferences?/.test(clause)));
         if (reader?.tool === "getAccountDiagnostics" && diagnosticDeferred)
             continue;
         if (reader)
-            plan.push({ id: `objective_${plan.length}`, kind: "read", tool: reader.tool, instruction: clause, count: 1, exhaustive: /\b(?:tous|toutes|chaque|complet\w*|integralite|all|every)\b/.test(clause) });
+            plan.push({ id: `objective_${plan.length}`, kind: "read", tool: reader.tool, instruction: clause, count: 1, exhaustive: exhaustiveRead.test(clause) });
     }
     return plan;
 }
@@ -115,7 +163,8 @@ export function inrAssistantObjectiveFamily(tool: string): InrAssistantCommandFa
     if (["prepareCommercialDocumentForm", "prepareCurrentDocumentTemplate"].includes(tool)) return "commercial";
     return INR_ASSISTANT_COMMANDS[tool]?.family ?? readers.find(reader => reader.tool === tool)?.family;
 }
-export function inrAssistantObjectiveLabel(tool: string): string {
+export function inrAssistantObjectiveLabel(tool: string, readMode?: InrAssistantObjective["readMode"]): string {
+    if (tool === "readAdvertisingCampaigns" && readMode) return {list:"lister les campagnes publicitaires",details:"lire les réglages de la campagne publicitaire",metrics:"vérifier les mesures publicitaires réelles",preflight:"effectuer le contrôle préalable publicitaire natif"}[readMode];
     return INR_ASSISTANT_COMMANDS[tool]?.label ?? readers.find(reader => reader.tool === tool)?.label ?? "terminer la lecture demandée";
 }
 
@@ -125,6 +174,7 @@ export function inrAssistantReadMatchesObjective(objective: InrAssistantObjectiv
     if (objective.kind !== "read") return false;
     const value = input && typeof input === "object" ? input as Record<string, unknown> : {};
     if (objective.tool === tool) {
+        if (tool === "readAdvertisingCampaigns" && objective.readMode) return value.mode === objective.readMode && (!objective.campaignId || value.campaignId === objective.campaignId);
         if (tool === "readAccountServices") { const text=objective.instruction; const expected=getInrAssistantBasicShopReadView(text) ?? (/factures?|recu/.test(text) && /abonnement|inrcy/.test(text) ? "invoices" : /historique|commandes?/.test(text) && /credits?|recharges?/.test(text) ? "credit_orders" : /notifications?/.test(text) ? "notifications" : /credits?|recharges?/.test(text) ? "credits" : /abonnement|subscription/.test(text) ? "subscription" : /rgpd|donnees personnelles|cookies?/.test(text) ? "privacy" : /parrainage/.test(text) ? "referral_program" : undefined); return !expected || value.view === expected; }
         if (tool !== "readPublicationWorkspace") return true;
         const expectedView = /brouillon/.test(objective.instruction) ? "drafts" : /proposition|prepare/.test(objective.instruction) ? "prepared" : /historique/.test(objective.instruction) ? "history" : null;
@@ -224,6 +274,7 @@ export function createInrAssistantReadBudget() {
         available(name: string) {
             if (name === "readAccountServices") return true;
             const history = attempts.get(name) ?? [];
+            if (name === "readAdvertisingCampaigns") return history.length < 8;
             const last = history.at(-1);
             return history.length < 2 || paginated.has(name) && last?.done === true && (typeof last.nextOffset === "number" || typeof last.nextOffset === "string");
         },
@@ -233,13 +284,20 @@ export function createInrAssistantReadBudget() {
             const history = attempts.get(key) ?? [];
             const last = history.at(-1);
             const cursorKey = name === "listGoogleReviews" ? "cursor" : name === "readIndividualMailHistory" ? "page" : "offset";
+            if (name === "readAdvertisingCampaigns") {
+                if (history.length >= 8) return null;
+                if (current.mode === "list") {
+                    const previous = history.filter(attempt => attempt.input.mode === "list").at(-1);
+                    if (previous ? !previous.done || typeof previous.nextOffset !== "number" || current.offset !== previous.nextOffset || !sameSearch(previous.input, current) : current.offset !== 0) return null;
+                } else if (!["details", "metrics", "preflight"].includes(String(current.mode)) || typeof current.campaignId !== "string" || current.offset !== 0 || history.some(attempt => attempt.input.mode === current.mode && attempt.input.campaignId === current.campaignId)) return null;
+            }
             if (exhaustiveObjective && paginated.has(name)) {
                 const previous = history.filter(attempt => attempt.exhaustiveObjective === exhaustiveObjective).at(-1);
                 if (previous) {
                     if (!previous.done || (typeof previous.nextOffset !== "number" && typeof previous.nextOffset !== "string") || current[cursorKey] !== previous.nextOffset || !sameSearch(previous.input, current)) return null;
                 } else if (cursorKey === "cursor" ? current.cursor != null : Number(current[cursorKey] ?? (cursorKey === "page" ? 1 : 0)) !== (cursorKey === "page" ? 1 : 0)) return null;
             }
-            if (history.length >= 2 && !(paginated.has(name) && last?.done && (typeof last.nextOffset === "number" || typeof last.nextOffset === "string") && current[last.cursorKey] === last.nextOffset && sameSearch(last.input, current)))
+            if (name !== "readAdvertisingCampaigns" && history.length >= 2 && !(paginated.has(name) && last?.done && (typeof last.nextOffset === "number" || typeof last.nextOffset === "string") && current[last.cursorKey] === last.nextOffset && sameSearch(last.input, current)))
                 return null;
             const attempt: ReadAttempt = { input: current, cursorKey, exhaustiveObjective, done: false };
             history.push(attempt);

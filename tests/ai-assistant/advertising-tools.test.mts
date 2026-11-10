@@ -234,6 +234,60 @@ test("pause is absolute and called once; uncertain mutations remain uncertain on
   assert.equal(uncertain.calls.filter(call => call.kind === "native:lifecycle").length, 1);
 });
 
+test("different operations on one ADS campaign each apply once, including parallel SDK calls", async () => {
+  const pause = `Mets en pause la campagne ADS ${campaignId}`;
+  const update = `Modifie le budget de la campagne ADS ${campaignId} à 25 € par jour`;
+  for (const parallel of [false, true]) {
+    const h = fixture({ current: `${pause}. ${update}.`, status: "active" });
+    const inputs = [manage("pause", pause), manage("update", update, { dailyBudgetEuros: 25 })];
+    const results = parallel ? await Promise.all(inputs.map(input => h.execute("manageAdvertisingCampaign", input)))
+      : [await h.execute("manageAdvertisingCampaign", inputs[0]), await h.execute("manageAdvertisingCampaign", inputs[1])];
+    assert.ok(results.every(result => result.ok === true));
+    assert.equal(h.rows.get(campaignId)!.status, "paused");
+    assert.equal(h.rows.get(campaignId)!.daily_budget_cents, 2500, "A pause receipt cannot substitute for the later budget change");
+    assert.deepEqual(h.calls.filter(call => call.kind === "native:lifecycle").map(call => (call.value as Row).action), ["pause", "update"]);
+    for (const input of inputs) await h.execute("manageAdvertisingCampaign", input);
+    assert.equal(h.calls.filter(call => call.kind === "native:lifecycle").length, 2, "Repeating either exact operation cannot execute again");
+  }
+});
+
+test("an uncertain ADS operation blocks a later different operation on that same campaign", async () => {
+  const pause = `Mets en pause la campagne ADS ${campaignId}`, update = `Modifie le budget de la campagne ADS ${campaignId} à 25 € par jour`;
+  const h = fixture({ current: `${pause}. ${update}.`, status: "active", remoteError: true });
+  assert.equal((await h.execute("manageAdvertisingCampaign", manage("pause", pause))).status, "unknown");
+  assert.equal((await h.execute("manageAdvertisingCampaign", manage("update", update, { dailyBudgetEuros: 25 }))).status, "unknown");
+  assert.equal(h.calls.filter(call => call.kind === "native:lifecycle").length, 1);
+  assert.equal(h.rows.get(campaignId)!.daily_budget_cents, 2000);
+});
+
+test("independent ADS orders may precede explanations without borrowing financial fields from another clause", async () => {
+  const h = fixture({ current: `${createInstruction}. Explique ensuite les réglages qui restent à valider.` });
+  assert.equal((await h.execute("prepareAdvertisingCampaign", prepare())).status, "draft");
+  assert.equal(h.calls.filter(call => call.kind === "db:insert").length, 1);
+  const pause = `Mets en pause la campagne ADS ${campaignId}`;
+  const manageFixture = fixture({ current: `${pause}. Explique ensuite son statut.`, status: "active" });
+  assert.equal((await manageFixture.execute("manageAdvertisingCampaign", manage("pause", pause))).status, "updated");
+  assert.equal(manageFixture.calls.filter(call => call.kind === "native:lifecycle").length, 1);
+  const missingBudget = createInstruction.replace("20 € par jour", "un budget à préciser");
+  const borrowed = fixture({ current: `${missingBudget}. Explique comment fonctionne un budget de 20 € par jour.` });
+  assert.equal((await borrowed.execute("prepareAdvertisingCampaign", prepare(missingBudget))).status, "needs_instruction");
+  assert.equal(borrowed.calls.length, 0);
+});
+
+test("ADS mixed explanations cannot unwrap hypothetical, negative or deferred approval orders", async () => {
+  for (const current of [
+    `Si Julie confirme, ${createInstruction}. Explique ensuite les étapes.`,
+    `${createInstruction} après validation de Julie. Explique ensuite les étapes.`,
+    `Imagine que nous lançons une campagne. ${createInstruction}. Explique ensuite les étapes.`,
+    `Ne prépare pas cette campagne. ${createInstruction}. Explique ensuite les étapes.`,
+    `Le client dit « ${createInstruction} ». Explique cette demande.`,
+  ]) {
+    const h = fixture({ current });
+    assert.equal((await h.execute("prepareAdvertisingCampaign", prepare())).status, "needs_instruction", current);
+    assert.equal(h.calls.length, 0, current);
+  }
+});
+
 test("remote edits send only literal absolute changes while preserving every unrelated setting", async () => {
   const current = `Modifie le budget de la campagne ADS ${campaignId} à 25 € par jour jusqu’au ${laterDate}`;
   const h = fixture({ current, status: "active" }); const before = clone(h.rows.get(campaignId)!.draft);

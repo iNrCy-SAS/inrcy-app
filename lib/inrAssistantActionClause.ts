@@ -1,5 +1,14 @@
 import { inrAssistantClauseIsAdvice, inrAssistantUnquotedRequest, inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
 export { inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
+
+/** An approval promised by a named person or for a later time is not current consent.
+ * Quoted message bodies and field values remain data, never authority. */
+export function hasInrAssistantDeferredApproval(message: string): boolean {
+    const current = inrAssistantUnquotedRequest(message);
+    const approval = "(?:confirm\\w*|valid\\w*|approuv\\w*|autoris\\w*|accord\\w*|approv\\w*|authoriz\\w*|authoris\\w*|agree\\w*|accept\\w*)";
+    return new RegExp(`\\b(?:si|quand|lorsque|if|when|unless)\\b[^.!?;]{0,140}\\b${approval}\\b`).test(current)
+        || new RegExp(`\\b(?:apres|une fois|des que|sous reserve|a condition|only after|after|once|pending|wait for|attends?|attendre)\\b[^.!?;]{0,140}\\b${approval}\\b`).test(current);
+}
 /** Keep the native guard as the authority. Only an independently delimited
  * imperative may be checked separately from an explanation in the same turn.
  * Original bytes (including field values) and exact quote containment survive.
@@ -10,7 +19,7 @@ export function matchesInrAssistantActionClause(message: string, quote: string, 
     const unquoted = inrAssistantUnquotedRequest(message);
     // A condition is not the current instruction to execute. Check this before
     // the native fast path, including when a condition precedes the action.
-    if (/^(?:si|quand|lorsque|if|when|unless)\b|\b(?:si|quand|lorsque|if|when|unless)\s+(?:je|j'|tu|vous|nous|on|il|elle|le|la|les|un|une|the|i|you|we|they)\b/.test(unquoted))
+    if (hasInrAssistantDeferredApproval(message) || /^(?:si|quand|lorsque|if|when|unless)\b|\b(?:si|quand|lorsque|if|when|unless)\s+(?:je|j'|tu|vous|nous|on|il|elle|le|la|les|un|une|the|i|you|we|they)\b/.test(unquoted))
         return false;
     if (validate(message, quote))
         return true;

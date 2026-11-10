@@ -4,7 +4,9 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
-import { jsonSchema, tool } from "ai";
+import { asSchema, jsonSchema, tool } from "ai";
+import * as actionClauses from "../../lib/inrAssistantActionClause.ts";
+import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import type { createInrAssistantCampaignTools } from "../../lib/inrAssistantCampaignTools.ts";
 
 type Row = Record<string, unknown>;
@@ -35,8 +37,9 @@ function harness() {
     mail_campaigns: [],
   };
   const calls: { path: string; body: NativeBody }[] = [], suppressions = new Map<string, { reason: string }>();
-  let activeAccount = ACCOUNT, activeActor = ACTOR, throwAfterCommit = false;
+  let activeAccount = ACCOUNT, activeActor = ACTOR, throwAfterCommit = false, queryCount = 0;
   const db = { from(table: string) {
+    queryCount++;
     assert.ok(Object.hasOwn(rows, table));
     const filters: [string, string, unknown][] = []; let max = Infinity;
     const result = (single = false) => {
@@ -75,6 +78,7 @@ function harness() {
   };
   const dependencies: Row = {
     "server-only": {}, "node:crypto": { createHash }, ai: { jsonSchema, tool },
+    "./inrAssistantActionClause.ts": actionClauses, "./inrAssistantRequestClauses.ts": requestClauses,
     "./requireUser": { requireUser: async () => ({ activeUserId: activeAccount, authUserId: activeActor }) },
     "@/lib/mailSuppression": { fetchSuppressedEmailsByUser: async (id: string) => { assert.equal(id, ACCOUNT); return suppressions; } },
     "@/app/api/mails/workflow-draft/route": { POST: native }, "@/app/api/crm/campaigns/route": { POST: native },
@@ -87,8 +91,43 @@ function harness() {
   const select = () => run("selectCampaignMailbox", { draftId: DRAFT, mailboxId: MAILBOX, instructionQuote: "Utilise pro@example.test pour la campagne." }, "Utilise pro@example.test pour la campagne.");
   const preview = () => run("previewCampaignAudience", { draftId: DRAFT, segment: "clients", instructionQuote: "Prépare un aperçu de la campagne pour mes clients." }, "Prépare un aperçu de la campagne pour mes clients.", "preview-turn");
   const send = (reference: string | undefined, message = `Envoie la campagne ${reference}.`, turn = "send-turn") => { assert.equal(typeof reference, "string"); return run("dispatchCampaignAudience", { draftId: DRAFT, reference, instructionQuote: message }, message, turn); };
-  return { rows, calls, run, select, preview, send, suppressions, scope: (account: string, actor = ACTOR) => { activeAccount = account; activeActor = actor; }, uncertain: () => { throwAfterCommit = true; } };
+  return { rows, calls, run, create, select, preview, send, suppressions, get queryCount() { return queryCount; }, scope: (account: string, actor = ACTOR) => { activeAccount = account; activeActor = actor; }, uncertain: () => { throwAfterCommit = true; } };
 }
+
+test("all five campaign schemas reject malformed model arguments before native work", async () => {
+  const h = harness(), definitions = h.create("Vérifie uniquement les formes d’entrée.");
+  const quote = "Prépare un aperçu pour mes clients, sans envoi.";
+  const valid = {
+    readCampaignDeliveryStatus: { campaignId: CAMPAIGN },
+    listCampaignMailboxes: {},
+    selectCampaignMailbox: { draftId: DRAFT, mailboxId: MAILBOX, instructionQuote: quote },
+    previewCampaignAudience: { draftId: DRAFT, segment: "clients", instructionQuote: quote },
+    dispatchCampaignAudience: { draftId: DRAFT, reference: "AP-A1B2C3D4E5F6", instructionQuote: quote },
+  };
+  for (const [name, value] of Object.entries(valid)) {
+    const schema = asSchema<unknown>(definitions[name as keyof typeof definitions].inputSchema);
+    assert.equal((await schema.validate?.(value))?.success, true, name);
+    for (const malformed of [null, [], JSON.stringify(value), { ...value, accountId: OTHER }]) {
+      assert.equal((await schema.validate?.(malformed))?.success, false, `${name}: closed object`);
+    }
+    for (const field of Object.keys(value)) {
+      const missing = { ...value } as Row; delete missing[field];
+      assert.equal((await schema.validate?.(missing))?.success, false, `${name}: missing ${field}`);
+      for (const bad of [null, 123, [], {}, "None", ""]) {
+        if (field === "instructionQuote" && bad === "None") continue;
+        assert.equal((await schema.validate?.({ ...value, [field]: bad }))?.success, false, `${name}: invalid ${field}`);
+      }
+    }
+    if (Object.hasOwn(value, "instructionQuote")) {
+      for (const badQuote of [" ", "a".repeat(1201)]) assert.equal((await schema.validate?.({ ...value, instructionQuote: badQuote }))?.success, false, `${name}: quote bound`);
+    }
+  }
+  const preview = asSchema<unknown>(definitions.previewCampaignAudience.inputSchema);
+  assert.equal((await preview.validate?.({ ...valid.previewCampaignAudience, segment: "Client" }))?.success, false);
+  const dispatch = asSchema<unknown>(definitions.dispatchCampaignAudience.inputSchema);
+  assert.equal((await dispatch.validate?.({ ...valid.dispatchCampaignAudience, reference: "AP-a1b2c3d4e5f6" }))?.success, false);
+  assert.equal(h.queryCount, 0); assert.equal(h.calls.length, 0);
+});
 
 test("a newly prepared campaign goes from null sender to verified selection, audience preview and one native dispatch", async () => {
   const h = harness();
@@ -162,4 +201,35 @@ test("oversized audience, foreign sender and unavailable edition never cause nat
   await h.select(); h.rows.crm_contacts = Array.from({ length: 501 }, (_, index) => ({ id: CONTACT, user_id: ACCOUNT, contact_type: "client", email: `client${index}@example.test` }));
   assert.equal((await h.preview()).status, "audience_too_large");
   assert.equal(h.calls.filter(call => call.path === "/api/crm/campaigns").length, 0);
+});
+
+test("named or deferred campaign approval never submits a native dispatch", async () => {
+  for (const suffix of ["si Julie confirme", "après validation de Julie", "quand mon associé donnera son accord", "if Julie approves", "si Julie est disponible"]) {
+    const h = harness(); await h.select(); const preview = await h.preview();
+    const message = `Envoie la campagne ${preview.reference} ${suffix}.`;
+    assert.equal((await h.send(preview.reference, message)).status, "needs_confirmation", suffix);
+    assert.equal(h.calls.filter(call => call.path === "/api/crm/campaigns").length, 0, suffix);
+  }
+});
+
+test("sender preservation and no-send constraints allow the requested local campaign preparation", async () => {
+  const h = harness(), original = copy(h.rows.send_items[0]);
+  const selection = "Choisis pro@example.test comme expéditeur de la campagne sans modifier son texte.";
+  assert.equal((await h.run("selectCampaignMailbox", { draftId: DRAFT, mailboxId: MAILBOX, instructionQuote: selection }, selection)).status, "updated");
+  assert.equal(h.rows.send_items[0].body_text, original.body_text);
+  assert.deepEqual(h.rows.send_items[0].attachments, original.attachments);
+  const quote = "Prépare un aperçu de la campagne pour mes clients sans envoi.";
+  assert.equal((await h.run("previewCampaignAudience", { draftId: DRAFT, segment: "clients", instructionQuote: quote }, quote)).status, "preview_ready");
+  assert.equal(h.calls.filter(call => call.path === "/api/crm/campaigns").length, 0);
+});
+
+test("an unrelated edit veto does not cancel an explicit frozen audience send, but a send revocation does", async () => {
+  const h = harness(); await h.select(); const preview = await h.preview();
+  const message = `Envoie la campagne ${preview.reference}. Ne modifie pas le brouillon.`;
+  assert.equal((await h.send(preview.reference, message)).status, "queued");
+  assert.equal(h.calls.filter(call => call.path === "/api/crm/campaigns").length, 1);
+  const revoked = harness(); await revoked.select(); const otherPreview = await revoked.preview();
+  const denied = `Envoie la campagne ${otherPreview.reference}. Ne l’envoie pas.`;
+  assert.equal((await revoked.send(otherPreview.reference, denied)).status, "needs_confirmation");
+  assert.equal(revoked.calls.filter(call => call.path === "/api/crm/campaigns").length, 0);
 });

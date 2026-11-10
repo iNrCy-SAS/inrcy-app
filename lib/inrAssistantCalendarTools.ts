@@ -6,7 +6,8 @@ import type { DashboardEdition } from "./dashboardEdition.ts";
 import { requireUser } from "./requireUser";
 import { calendarEventFingerprint, createAssistantActionPreview, hasAssistantActionApproval, verifyAssistantActionPreview } from "./inrAssistantActionPreview.ts";
 import { sanitizeInrAssistantMemoryText } from "./inrAssistantMemory.ts";
-import { inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
+import { inrAssistantMaskQuotedText, inrAssistantUnquotedRequest } from "./inrAssistantRequestClauses.ts";
+import { matchesInrAssistantActionClause } from "./inrAssistantActionClause.ts";
 
 type Row = Record<string, unknown>;
 type Preview = { eventId: string; operation: "confirm" | "edit" | "cancel" | "reject"; instructionQuote: string; title: string | null; description: string | null; location: string | null; start: string | null; end: string | null; addGuestEmails: string[] | null; remindersEnabled: boolean | null; reminderMailboxId: string | null };
@@ -38,6 +39,10 @@ function parseApply(value: unknown): Apply { const input = fields(value, ["refer
 function schema<T>(properties: Record<string, JSONSchema7>, parse: (input: unknown) => T) { return jsonSchema<T>({ type: "object", additionalProperties: false, properties, required: Object.keys(properties) }, { validate: value => { try { return { success: true, value: parse(value) }; } catch { return { success: false, error: new Error("Paramètres agenda invalides") }; } } }); }
 const safe = (value: unknown, maximum: number) => sanitizeInrAssistantMemoryText(typeof value === "string" ? value : "", maximum);
 function command(message: string, quote: string, action: Preview["operation"]) {
+  if (/^(?:imagin\w*|suppos\w*|pretend|assume)\b/.test(inrAssistantUnquotedRequest(message))) return false;
+  return matchesInrAssistantActionClause(message, quote, (current, exact) => commandClause(current, exact, action));
+}
+function commandClause(message: string, quote: string, action: Preview["operation"]) {
   if (!inrAssistantMaskQuotedText(message).includes(quote)) return false;
   const text = normalize(inrAssistantMaskQuotedText(message)), directive = normalize(inrAssistantMaskQuotedText(quote));
   if (/\b(?:comment|pourquoi|explique|imagine|suppose|si|quand|lorsque|ne pas)\b|\bne\b.{0,40}\bpas\b|\bn['’]|\b(?:annule|confirme|modifie|refuse|rejette|ajoute|active|desactive|invite|coupe)\s+pas\b/.test(text)) return false;
