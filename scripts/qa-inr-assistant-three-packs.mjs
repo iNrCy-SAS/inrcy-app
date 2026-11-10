@@ -58,14 +58,22 @@ function fixtureExecute(name,input,factoryArgs){
   const call={tool:name,input}; activeCase.calls.push(call);
   const scope=factoryArgs[0] ?? {}, test=activeCase.test;
   let output;
+  const currentInstructions=[scope.currentUserMessage,scope.currentApprovalMessage].filter(value=>typeof value==='string');
+  if(typeof input.instructionQuote==='string' && currentInstructions.length && !currentInstructions.some(value=>value.includes(input.instructionQuote.trim()))){
+    output={ok:false,status:'needs_instruction',message:'La citation doit être une sous-chaîne exacte de la consigne actuelle, sans réécrire le verbe ni retirer des mots. Reprenez le texte exact avant toute action. Rien exécuté.'};
+    call.output=output;call.nativeQuoteRejected=true;return output;
+  }
+  const operationKey=MUTATIONS.has(name)&&name!=='runScreenCommand'?JSON.stringify([name,input]):null;
+  if(operationKey&&activeCase.mutationCache.has(operationKey)){call.output=activeCase.mutationCache.get(operationKey);call.syntheticReplay=true;return call.output;}
+  call.fixtureBoundary=true;
   if(inrAssistantToolsOutsideEdition([name],test.edition).length) output={ok:false,status:'not_included',message:'Ce module ne fait pas partie de cette offre ; aucune action exécutée.',nextAction:{label:'Mon abonnement',href:'/dashboard?panel=abonnement'}};
   else {
     const definitions=fixtureMap(test), declared=definitions[name] ?? (dataset.fixtures?.[test.fixtureSet]?.[name]);
     if(declared !== undefined){
-      const index=activeCase.calls.filter(c=>c.tool===name).length-1;
+      const index=activeCase.calls.filter(c=>c.tool===name&&c.fixtureBoundary).length-1;
       const sequence=declared?.responses ?? (Array.isArray(declared)?declared:null);
       const branch=declared?.byInput?.find(branch=>Object.entries(branch.when??{}).every(([key,value])=>JSON.stringify(input[key])===JSON.stringify(value)));
-      const branchCalls=branch?activeCase.calls.filter(c=>c.tool===name&&Object.entries(branch.when??{}).every(([key,value])=>JSON.stringify(c.input[key])===JSON.stringify(value))).length-1:0;
+      const branchCalls=branch?activeCase.calls.filter(c=>c.tool===name&&c.fixtureBoundary&&Object.entries(branch.when??{}).every(([key,value])=>JSON.stringify(c.input[key])===JSON.stringify(value))).length-1:0;
       const branchOutput=branch?.responses?branch.responses[Math.min(branchCalls,branch.responses.length-1)]:branch?.output;
       output=structuredClone(declared?.byInput ? branchOutput ?? declared.fallback ?? {ok:false,status:'unavailable',message:'Fixture absente pour cette variante native ; aucun fait inventé.'} : sequence ? sequence[Math.min(index,sequence.length-1)] : declared);
       if(output && Object.hasOwn(output,'output')) output=output.output;
@@ -91,6 +99,7 @@ function fixtureExecute(name,input,factoryArgs){
     else output={ok:false,status:'unavailable',message:'Cette source n’est pas disponible dans le scénario fictif ; aucune donnée réelle consultée.'};
   }
   call.output=output;
+  if(operationKey)activeCase.mutationCache.set(operationKey,output);
   if(['generateMedia','modifyMedia','getMediaGeneration'].includes(name)) scope.onResult?.(output);
   if(['preparePublication','executePublication','editPublication','getPublicationStatus'].includes(name)) scope.onResult?.(output);
   return output;
@@ -135,7 +144,7 @@ function loadHarness(){
   return record.exports.harness;
 }
 const harness=loadHarness();
-const actualEffects = calls => calls.filter(c=>MUTATIONS.has(c.tool)&&c.output?.ok===true&&!NON_EFFECT_STATUSES.has(c.output.status));
+const actualEffects = calls => calls.filter(c=>!c.syntheticReplay&&MUTATIONS.has(c.tool)&&c.output?.ok===true&&!NON_EFFECT_STATUSES.has(c.output.status));
 function checkCase(test,reply,failure,calls){
   const exp=test.expectations??{},issues=[],checks=[];
   if(!live)return{passed:!failure,issues:failure?['offline_runtime_load']:[],checks:['offline_runtime_load_only'],counts:{},effects:[],needsHumanReview:true};
@@ -180,7 +189,7 @@ function save(){mkdirSync(dirname(reportPath),{recursive:true});writeFileSync(re
 if(live&&!process.env.AI_GATEWAY_API_KEY&&!process.env.VERCEL_OIDC_TOKEN)throw Error('Existing AI Gateway credential required');
 for(const test of selected){
   assert.ok(['basic','standard','premium'].includes(test.edition));assert.deepEqual(fingerprints(),initialSourceFingerprints,'Source changed during batch');
-  activeCase={test,calls:[],turn:0,toolCallNames:new Map()};const h=harness();let reply,failure;const turns=[];let messages=structuredClone(test.messages??test.messagesPrefix??[]),state;
+  activeCase={test,calls:[],turn:0,toolCallNames:new Map(),mutationCache:new Map()};const h=harness();let reply,failure;const turns=[];let messages=structuredClone(test.messages??test.messagesPrefix??[]),state;
   for(const[turn,step]of(test.steps??[{prompt:test.prompt}]).entries()){
     activeCase.turn=turn;const prompt=step.prompt??test.prompt;messages.push({role:'user',content:prompt});const before=activeCase.calls.length;
     try{const taskArgs=step.continueTask&&state?{taskContext:state,actionInstruction:continueInrAssistantTask(prompt,state,Date.now(),step.taskIntent),...(step.taskIntent?{taskIntent:step.taskIntent}:{})}:{};
