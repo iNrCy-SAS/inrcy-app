@@ -8,7 +8,6 @@ import { createInrBadgePublicUrl } from "@/lib/inrBadge";
 import { purgeInrSearchDirectoryCache } from "@/lib/inrSearchDirectoryCache";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { resolveProfessionalCompanyNameFromProfile } from "@/lib/professionalBusinessIdentity";
-import { getNativeChannelMissingFields } from "@/lib/nativeChannelActivation";
 
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
@@ -59,10 +58,8 @@ async function handle(request?: Request) {
     const root = record(config.data?.settings);
     const profile = record(profileResult.data);
     const trade = resolveDirectoryProfession(String(businessResult.data?.sector || ""));
-    const companyName = resolveProfessionalCompanyNameFromProfile(profile.company_legal_name);
+    const companyName = resolveProfessionalCompanyNameFromProfile(profile.company_legal_name) || "Utilisateur";
     const city = String(profile.hq_city || "").trim();
-    const missingFields = getNativeChannelMissingFields(profile, businessResult.data, root).inr_directory;
-    const profileReady = missingFields.length === 0;
     let enabled = isInrDirectoryEnabled(root);
     let warning = "";
     if (request) {
@@ -79,10 +76,12 @@ async function handle(request?: Request) {
         catch { warning = "Le choix est enregistré. L’actualisation du site peut prendre un peu de temps."; }
       }
     }
-    const badgeUrl = companyName ? createInrBadgePublicUrl({ userId: activeUserId, companyLegalName: companyName,
-      firstName: String(profile.first_name || ""), lastName: String(profile.last_name || ""), logoUrl: "", phone: "", contactEmail: "" }) : "";
-    return NextResponse.json({ ok: true, accountId: activeUserId, enabled, visible: enabled && profileReady && eligibility.allowed,
-      allowed: eligibility.allowed, profileReady, pending: enabled && !profileReady, missingFields, companyName, city, profession: trade.profession, badgeUrl: profileReady && enabled ? badgeUrl : "", warning }, { headers: { "Cache-Control": "no-store" } });
+    const visible = enabled && eligibility.allowed;
+    const badgeUrl = createInrBadgePublicUrl({ userId: activeUserId, companyLegalName: companyName,
+      firstName: String(profile.first_name || ""), lastName: String(profile.last_name || ""), logoUrl: "", phone: "", contactEmail: "" });
+    return NextResponse.json({ ok: true, accountId: activeUserId, enabled, visible,
+      allowed: eligibility.allowed, profileReady: true, pending: false, missingFields: [], companyName,
+      city: city || "—", profession: trade.profession || "—", badgeUrl: visible ? badgeUrl : "", warning }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return NextResponse.json({ ok: false, error: getSimpleFrenchErrorMessage(error, "L’annuaire est momentanément indisponible.") }, { status: 503 });
   }

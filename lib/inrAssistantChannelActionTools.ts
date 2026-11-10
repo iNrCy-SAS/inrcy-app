@@ -99,7 +99,7 @@ export function createInrAssistantChannelActionTools(options: { request: Request
     return result;
   };
   return {
-    setNativeChannelActivation: tool({ strict: true, description: "Activer ou désactiver explicitement iNr’Badge, iNr’Search ou l’Annuaire iNrCy avec le même bouton natif. Enregistre uniquement le canal demandé. Rapporte si la publication est effective ou attend les informations ADN manquantes. Aucune connexion OAuth ni abonnement modifié.",
+    setNativeChannelActivation: tool({ strict: true, description: "Activer ou désactiver explicitement iNr’Badge, iNr’Search ou l’Annuaire iNrCy avec le même bouton natif. Enregistre uniquement le canal demandé. L’ADN enrichit le canal sans conditionner son activation. Rapporte la publication confirmée ou une préparation technique encore en cours. Aucune connexion OAuth ni abonnement modifié.",
       inputSchema: jsonSchema<{ channel: NativeChannel; enabled: boolean; instructionQuote: string }>(objectSchema({ channel: { type: "string", enum: CHANNELS }, enabled: { type: "boolean" }, instructionQuote: { type: "string", maxLength: 1200 } })),
       execute: async raw => {
         const input = fields(raw, ["channel", "enabled", "instructionQuote"]), channel = String(input.channel), quote = string(input.instructionQuote, 1200);
@@ -115,7 +115,7 @@ export function createInrAssistantChannelActionTools(options: { request: Request
           const response = await api.POST(local(request, "/api/native-channels/settings", "POST", { accountId, key: channel, enabled: input.enabled }));
           const data = row(await response.json()), state = row(row(data.states)[channel]);
           if (!response.ok || data.ok !== true || data.accountId !== accountId || state.requested !== input.enabled) return fail("unknown", "L’activation n’est pas confirmée. Vérifiez le canal.", channel);
-          return { ok: true, status: "saved", channel, requested: state.requested, published: state.published === true, pending: state.pending === true, ready: state.ready === true, missingFields: Array.isArray(state.missingFields) ? state.missingFields.filter(value => ["company", "contact", "profession", "city", "postalCode"].includes(String(value))) : [], nextAction: link(channel), message: !input.enabled ? "Le canal est désactivé." : state.published === true ? "Le canal est activé et sa publication est confirmée." : "L’activation est enregistrée. La publication attend encore les conditions ou informations indiquées par le canal." };
+          return { ok: true, status: "saved", channel, requested: state.requested, published: state.published === true, pending: state.pending === true, ready: state.ready === true, missingFields: Array.isArray(state.missingFields) ? state.missingFields.filter(value => ["company", "contact", "profession", "city", "postalCode"].includes(String(value))) : [], nextAction: link(channel), message: !input.enabled ? "Le canal est désactivé." : state.published === true ? "Le canal est activé et sa publication est confirmée." : "L’activation est enregistrée. La préparation technique du canal reste à confirmer ; aucun champ ADN n’est obligatoire." };
         });
       } }),
     updateChannelPublicUrl: tool({ strict: true, description: "Corriger le lien public d’un canal sur ordre explicite contenant le lien exact. Même validation de domaine/chemin et même API que le bouton natif. Pour LinkedIn choisir explicitement profil personnel ou organisation. Ne connecte aucun compte et ne change aucun identifiant OAuth.",

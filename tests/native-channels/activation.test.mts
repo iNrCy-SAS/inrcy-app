@@ -41,8 +41,8 @@ const business = { sector: "[[SECTOR:exterieur_jardin]] Jardinier paysagiste" };
 test("new-account defaults require consent even after the full profile arrives, while recovery preserves older public pages", () => {
   const newSettings = withNewAccountNativeChannelDefaults({});
   const newStates = policy.resolveNativeChannelStates({ profile: fullProfile, business, settings: newSettings });
-  for (const state of Object.values(newStates)) {
-    assert.equal(state.ready, true);
+  for (const [key, state] of Object.entries(newStates)) {
+    assert.equal(state.ready, key !== "inr_search");
     assert.equal(state.requested, false);
     assert.equal(state.published, false);
   }
@@ -58,7 +58,7 @@ function allRequested() {
   return settings;
 }
 
-test("Badge requires a company plus any usable contact, without location or profession", () => {
+test("optional Badge completion hints describe contact data without controlling activation", () => {
   const empty = policy.getNativeChannelMissingFields({}, {}, {});
   assert.deepEqual(empty.inrbadge, ["company", "contact"]);
   for (const contact of [{ phone: "+33 6 12 34 56 78" }, { contact_email: "bonjour@example.fr" }]) {
@@ -68,7 +68,7 @@ test("Badge requires a company plus any usable contact, without location or prof
   assert.deepEqual(policy.getNativeChannelMissingFields({ company_legal_name: "Entreprise exemple", phone: "12345", contact_email: "pas-un-mail" }, {}, { site_web: { url: "javascript:alert(1)" } }).inrbadge, ["contact"]);
 });
 
-test("Search and directory require company, profession, city and postcode, independently of content targeting", () => {
+test("optional Search and directory completion hints stay separate from activation", () => {
   assert.deepEqual(policy.getNativeChannelMissingFields({}, {}, {}).inr_search, ["company", "profession", "city", "postalCode"]);
   const ready = policy.getNativeChannelMissingFields(fullProfile, business, {});
   assert.deepEqual(ready.inr_search, []);
@@ -81,22 +81,30 @@ test("Search and directory require company, profession, city and postcode, indep
   assert.deepEqual(policy.getNativeChannelMissingFields(fullProfile, { sector: "" }, {}).inr_search, ["profession"]);
 });
 
-test("an activation request remains pending until the actual required fields arrive", () => {
+test("activation publishes all three channels immediately with an empty or partial ADN", () => {
   const settings = allRequested();
-  const pending = policy.resolveNativeChannelStates({ profile: {}, business: {}, settings });
-  for (const state of Object.values(pending)) {
-    assert.equal(state.requested, true);
-    assert.equal(state.pending, true);
-    assert.equal(state.published, false);
-    assert.ok(state.missingFields.length);
+  for (const profile of [null, {}, fullProfile, ...Object.keys(fullProfile).map(key => ({ ...fullProfile, [key]: "" }))]) {
+    for (const activity of [null, {}, business]) {
+      const states = policy.resolveNativeChannelStates({ profile, business: activity, settings });
+      for (const state of Object.values(states)) {
+        assert.equal(state.requested, true);
+        assert.equal(state.ready, true);
+        assert.equal(state.pending, false);
+        assert.equal(state.published, true);
+        assert.deepEqual(state.missingFields, []);
+      }
+    }
   }
-  const complete = policy.resolveNativeChannelStates({ profile: fullProfile, business, settings });
-  for (const state of Object.values(complete)) {
-    assert.equal(state.requested, true);
-    assert.equal(state.pending, false);
-    assert.equal(state.published, true);
-    assert.deepEqual(state.missingFields, []);
-  }
+});
+
+test("only an unprepared Search URL can be technically pending, not missing ADN", () => {
+  const states = policy.resolveNativeChannelStates({ profile: {}, business: {}, settings: {
+    ...allRequested(), inrSearch: { activationVersion: 1, activationRequested: true, slug: "" },
+  } });
+  assert.equal(states.inr_search.pending, true);
+  assert.deepEqual(states.inr_search.missingFields, []);
+  assert.equal(states.inrbadge.published, true);
+  assert.equal(states.inr_directory.published, true);
 });
 
 test("disabled channels remain disabled after data is completed, and eligibility stays a separate gate", () => {
@@ -140,8 +148,9 @@ test("already-public legacy pages remain public, including the older directory w
   assert.equal(withoutPostcode.inr_search.published, true);
   const upgraded = policy.updateNativeChannelActivation(settings, "inr_directory", true);
   const pending = policy.resolveNativeChannelStates({ profile: { ...fullProfile, hq_zip: "" }, business, settings: upgraded });
-  assert.equal(pending.inr_directory.pending, true);
-  assert.deepEqual(pending.inr_directory.missingFields, ["postalCode"]);
+  assert.equal(pending.inr_directory.pending, false);
+  assert.equal(pending.inr_directory.published, true);
+  assert.deepEqual(pending.inr_directory.missingFields, []);
 });
 
 test("activation mutations preserve unrelated settings and freeze the previous directory opt-in", () => {
@@ -155,7 +164,7 @@ test("activation mutations preserve unrelated settings and freeze the previous d
   assert.equal((next as RecordValue).inrSearch && ((next as RecordValue).inrSearch as RecordValue).activationRequested, false);
 });
 
-type HarnessOptions = { profile?: RecordValue; settings?: RecordValue | null; allowed?: boolean; firstEligibilityGate?: Promise<void> };
+type HarnessOptions = { profile?: RecordValue; settings?: RecordValue | null; allowed?: boolean; firstEligibilityGate?: Promise<void>; provisionedSlug?: string };
 function serverHarness(options: HarnessOptions = {}) {
   let profile = structuredClone(options.profile ?? fullProfile);
   let settings: RecordValue | null = structuredClone(options.settings === undefined ? allRequested() : options.settings);
@@ -204,7 +213,11 @@ function serverHarness(options: HarnessOptions = {}) {
     "./inrSearchEligibility": { getNativeChannelPublicationEligibility: async (account: string) => { assert.equal(account, ACCOUNT); eligibilityReads++; if (eligibilityReads === 1) await options.firstEligibilityGate; return {
       inrbadge: { allowed: options.allowed !== false }, inr_search: { allowed: options.allowed !== false }, inr_directory: { allowed: options.allowed !== false },
     }; } },
-    "./inrSearchProvisioning": { ensureSystemManagedInrSearch: async (_db: unknown, account: string) => { assert.equal(account, ACCOUNT); provisions++; return { inrSearch: { slug: String((settings?.inrSearch as RecordValue | undefined)?.slug || "") } }; }, revalidateInrSearchPublicRoutes: (slug: string) => invalidations.push(slug) },
+    "./inrSearchProvisioning": { ensureSystemManagedInrSearch: async (_db: unknown, account: string) => {
+      assert.equal(account, ACCOUNT); provisions++;
+      if (options.provisionedSlug) settings = { ...settings, inrSearch: { ...settings?.inrSearch as RecordValue, slug: options.provisionedSlug } };
+      return { inrSearch: { slug: String((settings?.inrSearch as RecordValue | undefined)?.slug || "") } };
+    }, revalidateInrSearchPublicRoutes: (slug: string) => invalidations.push(slug) },
     "./nativeChannelActivation": policy,
     "./inrBadge": { createInrBadgePublicUrl: (input: { userId: string }) => `https://app.example/badge/${input.userId}` },
     "./inrSearchDirectoryCache": { purgeInrSearchDirectoryCache: async () => { throw new Error("No remote purge in local fixtures"); } },
@@ -219,11 +232,12 @@ function serverHarness(options: HarnessOptions = {}) {
   };
 }
 
-test("server turns a pending Search green automatically after location is saved, without a second activation", async () => {
+test("server heals an old pending Search before location is saved and never deactivates it on profile edits", async () => {
   const h = serverHarness({ profile: { ...fullProfile, hq_city: "", hq_zip: "" } });
   const pending = await h.service.syncNativeChannelsForAccount(ACCOUNT);
-  assert.equal(pending.states.inr_search.pending, true);
-  assert.equal((h.settings!.inrSearch as RecordValue).enabled, false);
+  assert.equal(pending.states.inr_search.pending, false);
+  assert.equal(pending.states.inr_search.published, true);
+  assert.equal((h.settings!.inrSearch as RecordValue).enabled, true);
   h.setProfile(fullProfile);
   const complete = await h.service.syncNativeChannelsForAccount(ACCOUNT, undefined, { profileSaved: true });
   assert.equal(complete.states.inr_search.published, true);
@@ -231,13 +245,18 @@ test("server turns a pending Search green automatically after location is saved,
   assert.equal((h.settings!.inrSearch as RecordValue).activationRequested, true);
   assert.equal(h.provisions, 0, "existing page does not need provisioning for a data refresh");
   assert.ok(h.invalidations.includes("/annuaire"));
+  h.setProfile({});
+  const cleared = await h.service.syncNativeChannelsForAccount(ACCOUNT, undefined, { profileSaved: true });
+  for (const state of Object.values(cleared.states)) assert.equal(state.published, true);
 });
 
-test("server saves an early request, keeps explicit disabled channels off and returns only published Badge URLs", async () => {
+test("server immediately returns a usable Badge URL without ADN and keeps explicit disabled channels off", async () => {
   const h = serverHarness({ profile: {} });
   const pending = await h.service.syncNativeChannelsForAccount(ACCOUNT, { key: "inrbadge", enabled: true });
-  assert.equal(pending.states.inrbadge.pending, true);
-  assert.equal(pending.badgeUrl, "");
+  assert.equal(pending.states.inrbadge.pending, false);
+  assert.equal(pending.states.inrbadge.published, true);
+  assert.match(pending.badgeUrl, /\/badge\//);
+  assert.equal(pending.companyName, "Utilisateur");
   await h.service.syncNativeChannelsForAccount(ACCOUNT, { key: "inrbadge", enabled: false });
   h.setProfile(fullProfile);
   const complete = await h.service.syncNativeChannelsForAccount(ACCOUNT);
@@ -246,16 +265,34 @@ test("server saves an early request, keeps explicit disabled channels off and re
   assert.equal(complete.badgeUrl, "");
 });
 
-test("connecting Search provisions its URL first but keeps an incomplete page pending", async () => {
+test("connecting Search provisions its URL and publishes an incomplete page immediately", async () => {
   const h = serverHarness({ profile: {}, settings: { inrSearch: { slug: "prepared-url", enabled: false } } });
   const result = await h.service.syncNativeChannelsForAccount(ACCOUNT, { key: "inr_search", enabled: true });
   assert.equal(h.provisions, 1);
   assert.equal(result.states.inr_search.requested, true);
-  assert.equal(result.states.inr_search.pending, true);
-  assert.equal((h.settings!.inrSearch as RecordValue).enabled, false);
+  assert.equal(result.states.inr_search.pending, false);
+  assert.equal(result.states.inr_search.published, true);
+  assert.equal((h.settings!.inrSearch as RecordValue).enabled, true);
   const denied = serverHarness({ allowed: false });
   await assert.rejects(denied.service.syncNativeChannelsForAccount(ACCOUNT, { key: "inr_search", enabled: true }), /disponible/);
   assert.equal(denied.provisions, 0, "eligibility is checked before provisioning writes");
+});
+
+test("an old requested Search without a URL is provisioned once, while genuine preparation errors and withdrawal stay truthful", async () => {
+  const settings = { inrSearch: { activationVersion: 1, activationRequested: true, enabled: false, publicationReady: false }, instagram: { username: "keep" } };
+  const h = serverHarness({ settings, profile: {}, provisionedSlug: "entreprise-test" });
+  const recovered = await h.service.syncNativeChannelsForAccount(ACCOUNT);
+  assert.equal(h.provisions, 1);
+  assert.equal(recovered.searchSlug, "entreprise-test");
+  assert.equal(recovered.states.inr_search.published, true);
+  assert.deepEqual(h.settings!.instagram, settings.instagram);
+  const failed = serverHarness({ settings, profile: {} });
+  await assert.rejects(failed.service.syncNativeChannelsForAccount(ACCOUNT), /préparée/);
+  assert.equal(failed.writes, 0);
+  const withdrawn = await failed.service.syncNativeChannelsForAccount(ACCOUNT, { key: "inr_search", enabled: false });
+  assert.equal(withdrawn.states.inr_search.requested, false);
+  assert.equal(withdrawn.states.inr_search.published, false);
+  assert.equal(failed.provisions, 1, "deactivation never retries URL preparation");
 });
 
 test("server CAS retries preserve a concurrent unrelated channel setting", async () => {

@@ -4,8 +4,8 @@ import { directorySlug, getDirectoryProfessionFacets, resolveDirectoryProfession
 function facet(companies: InrDirectoryCompany[], key: "city" | "department" | "region" | "sectorLabel") {
   const map = new Map<string, { slug: string; label: string; count: number }>();
   for (const company of companies) {
-    const label = company[key];
-    const slug = directorySlug(label);
+    const slug = key === "sectorLabel" ? company.sectorSlug : company[`${key}Slug`];
+    const label = slug === "autre" ? "Autre" : company[key];
     if (slug) map.set(slug, { slug, label, count: (map.get(slug)?.count || 0) + 1 });
   }
   return [...map.values()].sort((a, b) => a.label.localeCompare(b.label, "fr"));

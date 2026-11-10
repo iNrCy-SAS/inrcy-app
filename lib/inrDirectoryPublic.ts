@@ -7,7 +7,6 @@ import { createInrBadgeSlug, getInrBadgeBaseUrl, createInrBadgeQrTrackingUrl } f
 import { directorySlug, resolveDirectoryProfession } from "@/lib/inrDirectoryCatalog";
 import { resolveFrenchGeography } from "@/lib/frenchGeography";
 import { resolveProfessionalCompanyNameFromProfile } from "@/lib/professionalBusinessIdentity";
-import { getNativeChannelMissingFields } from "@/lib/nativeChannelActivation";
 import { applyInrSearchPublicDisplaySettings, normalizeInrSearchSections } from "@/lib/inrSearchDisplaySettings";
 
 export type InrDirectoryCompany = {
@@ -22,8 +21,8 @@ const record = (value: unknown): Record<string, unknown> => value && typeof valu
 
 function hasPublishedServiceSection(settings: unknown) {
   const search = record(record(settings).inrSearch);
-  return search.enabled === true && typeof search.slug === "string" && Boolean(directorySlug(search.slug))
-    && (search.activationVersion !== 1 || (search.activationRequested === true && search.publicationReady !== false))
+  return (search.activationVersion === 1 ? search.activationRequested === true : search.enabled === true)
+    && typeof search.slug === "string" && Boolean(directorySlug(search.slug))
     && normalizeInrSearchSections(search.sections).services;
 }
 
@@ -31,8 +30,7 @@ function hasPublishedServiceSection(settings: unknown) {
  * Directory consent alone never publishes private ADN or catalogue defaults. */
 function publishedServices(profile: Record<string, unknown>, business: Record<string, unknown>, settings: unknown, searchAllowed: boolean): string[] {
   if (!searchAllowed || !hasPublishedServiceSection(settings)) return [];
-  const root = record(settings), search = record(root.inrSearch);
-  if (search.activationVersion === 1 && getNativeChannelMissingFields(profile, business, root).inr_search.length) return [];
+  const search = record(record(settings).inrSearch);
   const raw = Array.isArray(business.services) ? business.services.flatMap(value => typeof value === "string" ? value.split(/\r?\n/) : [])
     : typeof business.services === "string" ? business.services.split(/\r?\n|,|;/) : [];
   const services = [...new Set(raw.map(value => clean(value, 180).replace(/^(?:[-–—•·▪◦*]+|\d+[.)])\s*/u, "")
@@ -74,27 +72,30 @@ export const listInrDirectoryCompanies = cache(async (): Promise<InrDirectoryCom
     if (businesses.error) throw businesses.error;
     const byAccount = new Map<string, Record<string, unknown>>();
     for (const business of businesses.data || []) if (!byAccount.has(business.user_id)) byAccount.set(business.user_id, business);
-    for (const profile of profiles.data || []) {
-      const business = byAccount.get(profile.user_id);
-      const companyName = resolveProfessionalCompanyNameFromProfile(profile.company_legal_name);
+    const profileByAccount = new Map<string, Record<string, unknown>>((profiles.data || []).map(profile => [profile.user_id, profile]));
+    // Consent belongs to the account, even before it has a profile row.
+    for (const accountId of batch) {
+      const profile = profileByAccount.get(accountId) || {};
+      const business = byAccount.get(accountId);
+      const companyName = resolveProfessionalCompanyNameFromProfile(profile.company_legal_name) || "Utilisateur";
       const city = clean(profile.hq_city, 120);
-      const trade = resolveDirectoryProfession(clean(business?.sector, 300));
-      if (!companyName || !city || !trade.profession) continue;
-      const settings = record(configByAccount.get(profile.user_id));
-      const directory = (settings.inrDirectory || {}) as Record<string, unknown>;
-      if (directory.activationVersion === 1 && getNativeChannelMissingFields(profile, business, settings).inr_directory.length) continue;
-      const geography = resolveFrenchGeography(profile.hq_zip, city);
+      const sector = clean(business?.sector, 300);
+      const trade = resolveDirectoryProfession(sector);
+      const settings = record(configByAccount.get(accountId));
+      const geography = clean(profile.hq_zip) ? resolveFrenchGeography(profile.hq_zip, city) : null;
       const department = geography?.department || "";
       const region = geography?.region || "";
-      const slug = createInrBadgeSlug({ userId: profile.user_id, companyLegalName: companyName, firstName: clean(profile.first_name), lastName: clean(profile.last_name), logoUrl: "", phone: "", contactEmail: "" });
+      const slug = createInrBadgeSlug({ userId: accountId, companyLegalName: companyName, firstName: clean(profile.first_name), lastName: clean(profile.last_name), logoUrl: "", phone: "", contactEmail: "" });
       const url = `${getInrBadgeBaseUrl()}/badge/${slug}`;
       const updated = [clean(profile.updated_at), clean(business?.updated_at)].filter(Boolean).sort().at(-1) || null;
       companies.push({ slug, url, qrUrl: `${getInrBadgeBaseUrl()}/api/public/directory/qr/${slug}`, companyName, pageTitle: companyName,
-        pageDescription: `${companyName} — ${trade.profession} à ${city}.`, city, citySlug: directorySlug(city), department,
-        departmentSlug: directorySlug(department), region, regionSlug: directorySlug(region),
-        profession: trade.profession, professionSlug: trade.professionSlug, sectorCategory: trade.sectorCategory,
-        sectorLabel: trade.sectorLabel, sectorSlug: directorySlug(trade.sectorLabel), updatedAt: updated,
-        services: publishedServices(profile, business || {}, settings, searchEligible.has(profile.user_id)) });
+        pageDescription: [companyName, trade.profession, city].filter(Boolean).join(" — "),
+        city: city || "—", citySlug: directorySlug(city) || "autre", department: department || "—",
+        departmentSlug: directorySlug(department) || "autre", region: region || "—", regionSlug: directorySlug(region) || "autre",
+        profession: trade.profession || "—", professionSlug: trade.profession ? trade.professionSlug : "autre",
+        sectorCategory: sector ? trade.sectorCategory : "autre", sectorLabel: sector ? trade.sectorLabel : "Autre",
+        sectorSlug: sector ? directorySlug(trade.sectorLabel) : "autre", updatedAt: updated,
+        services: publishedServices(profile, business || {}, settings, searchEligible.has(accountId)) });
     }
   }
   return companies.sort((a, b) => a.companyName.localeCompare(b.companyName, "fr"));

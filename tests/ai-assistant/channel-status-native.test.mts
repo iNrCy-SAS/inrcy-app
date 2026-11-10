@@ -91,7 +91,7 @@ test("pilot and commercial rights match the cockpit instead of inventing absent 
   assert.equal(result.channels.find((channel: Row) => channel.key === "mails")!.cause, "premium_required");
 });
 
-test("recorded account access, reconnection and profile prerequisites remain distinct", async () => {
+test("account access and reconnection stay distinct from optional ADN completeness", async () => {
   const h = harness();
   h.rows.app_bubble_access = [{ bubble_key: "facebook", enabled: false }];
   (h.rows.profiles as Row).phone = "";
@@ -104,10 +104,10 @@ test("recorded account access, reconnection and profile prerequisites remain dis
   assert.equal(result.channels.find((channel: Row) => channel.key === "facebook")!.cause, "account_access_disabled");
   assert.equal(result.channels.find((channel: Row) => channel.key === "linkedin")!.status, "needs_update");
   const badge = result.channels.find((channel: Row) => channel.key === "inrbadge")!;
-  assert.equal(badge.status, "needs_update");
-  assert.equal(badge.cause, "dna_incomplete");
-  assert.deepEqual([...badge.missingPrerequisites], ["Au moins un lien ou moyen de contact"]);
-  assert.deepEqual(JSON.parse(JSON.stringify(badge.nextAction)), { label: "Continuer les connexions", href: "/dashboard?action=channels" });
+  assert.equal(badge.status, "connected");
+  assert.equal(badge.cause, "public_profile_published");
+  assert.deepEqual([...badge.missingPrerequisites], []);
+  assert.deepEqual(JSON.parse(JSON.stringify(badge.nextAction)), { label: "Ouvrir iNr’Badge", href: "/dashboard?panel=inrbadge" });
 });
 
 test("canonical Pinterest account without a selected board does not falsely count connected", async () => {
@@ -116,7 +116,7 @@ test("canonical Pinterest account without a selected board does not falsely coun
   assert.equal(result.channels.find((channel: Row) => channel.key === "pinterest")!.cause, "resource_selection_required");
 });
 
-test("native Badge readiness uses any saved public contact instead of requiring every profile field", async () => {
+test("native Badge remains active regardless of missing profile fields", async () => {
   const h = harness();
   const profile = h.rows.profiles as Row;
   profile.phone = ""; profile.first_name = ""; profile.hq_city = ""; profile.hq_zip = "";

@@ -5,7 +5,6 @@ import { getChannelConnectionStates } from "./channelConnectionState";
 import { isMetaChannelPilotEnabledForActorAndAccount } from "./metaChannelRolloutServer";
 import { buildBubbleAccessMap, isBubbleEnabled, type AppBubbleAccessRow } from "./bubbleAccess.ts";
 import { isStandardDashboardEdition, type DashboardEdition } from "./dashboardEdition.ts";
-import { DASHBOARD_PROFILE_COMPLETION_SELECT, evaluateDashboardProfileCompletion } from "./dashboardCompletion.ts";
 import { DASHBOARD_CHANNEL_SETUP, getDashboardChannelSetup, type DashboardSetupChannelKey } from "../app/dashboard/dashboard.channel-setup.ts";
 import { requireUser } from "./requireUser";
 
@@ -39,16 +38,13 @@ export async function readInrAssistantChannelStatus(options: {
   const pilot = await bounded(isMetaChannelPilotEnabledForActorAndAccount(supabase, accountId));
   const results = await Promise.allSettled([
     bounded(getChannelConnectionStates(supabase, accountId, undefined, { metaPilotEnabled: pilot })),
-    bounded(supabase.from("profiles").select(DASHBOARD_PROFILE_COMPLETION_SELECT).eq("user_id", accountId).maybeSingle()),
     bounded(supabase.from("app_bubble_access").select("bubble_key,enabled").eq("user_id", accountId)),
   ]);
   if (signal?.aborted) throw new Error("Channel read cancelled");
-  const stateResult = results[0], profileResult = results[1], accessResult = results[2];
+  const stateResult = results[0], accessResult = results[1];
   const states = stateResult.status === "fulfilled" ? record(stateResult.value) : null;
-  const profile = profileResult.status === "fulfilled" && !profileResult.value.error ? record(profileResult.value.data) : null;
   const access = accessResult.status === "fulfilled" && !accessResult.value.error && Array.isArray(accessResult.value.data)
     ? buildBubbleAccessMap(accessResult.value.data as AppBubbleAccessRow[]) : null;
-  const profileCompletion = profile ? evaluateDashboardProfileCompletion(profile) : null;
   const channels = getDashboardChannelSetup(pilot).map(({ key }) => {
     let status: Status = "unknown", cause = "source_unavailable";
     let missingPrerequisites: string[] = [];
@@ -58,15 +54,12 @@ export async function readInrAssistantChannelStatus(options: {
     else if (access && states && ["inrbadge", "inr_search", "inr_directory"].includes(key) && record(record(states.native_channels)[key]).published !== undefined) {
       const native = record(record(states.native_channels)[key]);
       status = native.allowed === false ? "disabled" : native.published === true ? "connected" : native.pending === true ? "needs_update" : "disconnected";
-      cause = native.published === true ? "public_profile_published" : native.pending === true ? "dna_incomplete" : "activation_required";
+      cause = native.published === true ? "public_profile_published" : native.pending === true ? "publication_preparing" : "activation_required";
       const labels: Record<string, string> = { company: "Nom de l’entreprise", contact: "Au moins un lien ou moyen de contact", profession: "Métier", city: "Ville d’implantation", postalCode: "Code postal d’implantation" };
       missingPrerequisites = native.pending === true && Array.isArray(native.missingFields) ? native.missingFields.map(field => labels[String(field)]).filter(Boolean) : [];
       if (native.pending === true) { nextAction.label = "Continuer les connexions"; nextAction.href = "/dashboard?action=channels"; }
     }
-    else if (access && key === "inrbadge" && profileCompletion) {
-      status = profileCompletion.completed ? "connected" : "disconnected"; cause = profileCompletion.completed ? "profile_complete" : "profile_incomplete";
-      missingPrerequisites = [...profileCompletion.missingFields]; if (!profileCompletion.completed) nextAction.href = "/dashboard?panel=compte";
-    } else if (access && states) {
+    else if (access && states) {
       const state = record(states[key === "inr_directory" ? "inr_search" : key]);
       if (key === "inr_directory" && typeof state.directory_enabled === "boolean") { status = state.directory_enabled ? "connected" : "disconnected"; cause = state.directory_enabled ? "directory_enabled" : "directory_disabled"; }
       else if (key === "site_web" && (typeof state.url === "string" || state.url === null)) { status = websiteReady(state.url) ? "connected" : "disconnected"; cause = status === "connected" ? "website_saved" : "website_missing_or_invalid"; if (status !== "connected") missingPrerequisites = ["Une adresse de site Web valide enregistrée"]; }

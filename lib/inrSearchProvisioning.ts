@@ -17,7 +17,7 @@ import {
 // enrichissent ensuite la page, mais ne doivent jamais empêcher le
 // professionnel de l'activer. Cette identité neutre ne sert que pendant ce
 // court intervalle sans information métier exploitable.
-const PROVISIONAL_PAGE_TITLE = "Votre entreprise";
+const PROVISIONAL_PAGE_TITLE = "Utilisateur";
 const PROVISIONAL_PAGE_DESCRIPTION =
   "Cette page professionnelle est en cours de personnalisation.";
 
@@ -138,20 +138,22 @@ export async function ensureSystemManagedInrSearch(
   ]);
 
   if (configError) throw configError;
+  if (profileRes.error) throw profileRes.error;
+  if (businessRes.error) throw businessRes.error;
 
   const profileRows = Array.isArray(profileRes.data) ? profileRes.data : [];
+  const previousSettings = asRecord(configData).settings;
+  const root = asRecord(previousSettings);
+  const current = asRecord(root.inrSearch);
   const selectedProfile = profileRows.find((row: any) => clean(row?.user_id, 120) === activeUserId)
-    || profileRows.find((row: any) => profileOwnerIds.includes(clean(row?.user_id, 120)))
+    || (current.activationVersion !== 1 ? profileRows.find((row: any) => profileOwnerIds.includes(clean(row?.user_id, 120))) : null)
     || null;
   const profile = asRecord(selectedProfile);
   const business = asRecord(businessRes.data);
-  const previousSettings = asRecord(configData).settings;
   const settingsFingerprint = previousSettings == null ? null : JSON.stringify(previousSettings);
-  const root = asRecord(asRecord(configData).settings);
   // Capture the old opt-in before normalizing Search; reading Search must not change directory consent.
   if (typeof asRecord(root.inrDirectory).enabled !== "boolean") root.inrDirectory = { ...asRecord(root.inrDirectory), enabled: isInrDirectoryEnabled(root) };
-  const current = asRecord(root.inrSearch);
-  const configuredTitle = current.identityProvisional === true
+  const configuredTitle = current.identityProvisional === true || current.systemManaged === true
     ? ""
     : clean(current.pageTitle, 180);
   const companyName = resolveProfessionalCompanyNameFromProfile(

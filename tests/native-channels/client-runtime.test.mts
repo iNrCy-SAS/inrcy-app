@@ -78,7 +78,7 @@ function runtime(initial = payload(), key: NativeChannelKey = "inrbadge") {
 }
 
 for (const key of ["inrbadge", "inr_search", "inr_directory"] as const) {
-  test(`${key}: activation can wait for ADN; pending can be deactivated without changing public readiness`, async () => {
+  test(`${key}: a technically pending response stays truthful and can be deactivated`, async () => {
     const h = runtime(payload(false, false), key);
     h.render(); await h.mount();
     let connection = h.render();
@@ -90,7 +90,7 @@ for (const key of ["inrbadge", "inr_search", "inr_directory"] as const) {
     connection = h.render();
     assert.equal(connection.status, "available");
     assert.equal(connection.publicView?.disabled, true);
-    assert.match(String(connection.statusText), /attente/);
+    assert.equal(connection.statusText, messages.nativeChannels.pending);
     const details = channelNodes(connection.resourceContent).find(node => node.props.role === "status")!;
     assert.ok(details, "One short waiting status stays inside the circle");
     assert.deepEqual(channelNodes(details).filter(node => node.type === "strong").map(node => node.props.children), [messages.nativeChannels.pending]);
@@ -105,6 +105,22 @@ for (const key of ["inrbadge", "inr_search", "inr_directory"] as const) {
     assert.equal(h.render().accountConnected, false);
   });
 }
+
+test("all three activated native channels turn green and expose their public actions without ADN prerequisites", async () => {
+  for (const key of ["inrbadge", "inr_search", "inr_directory"] as const) {
+    const h = runtime(payload(false, true), key);
+    h.render(); await h.mount();
+    const button = channelNodes(h.render().resourceContent).find(node => node.type === "button")!;
+    h.respond({ ...payload(true, true), companyName: "Utilisateur" });
+    await button.props.onClick(); await new Promise(resolve => setImmediate(resolve));
+    const connection = h.render();
+    assert.equal(connection.status, "connected", key);
+    assert.equal(connection.statusText, messages.nativeChannels.published);
+    assert.equal(connection.publicView?.disabled, false);
+    assert.ok(connection.publicView?.href);
+    assert.equal(connection.accountConnected, true);
+  }
+});
 
 test("published state enables public actions; stale POST completion cannot update another account", async () => {
   const h = runtime(payload(true, true));
