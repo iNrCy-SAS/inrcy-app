@@ -721,7 +721,7 @@ test("real vocal tabs keep sources first and reveal independent settings only af
   }
 });
 
-test("company DNA stays above the free prompt and keeps its full-width left-aligned choice on every screen", async () => {
+test("company DNA keeps its original compact size on a second line between the title and the prompt on every screen", async () => {
   for (const engine of [chromium, webkit]) {
     const browser = await engine.launch({ headless: true });
     try {
@@ -738,21 +738,26 @@ test("company DNA stays above the free prompt and keeps its full-width left-alig
             const text = brief.querySelector('textarea')!, heading = brief.querySelector('label[for="' + text.id + '"]')!;
             const r = row.getBoundingClientRect(), b = brief.getBoundingClientRect(), c = input.getBoundingClientRect(), h = heading.getBoundingClientRect();
             const format = document.querySelector('.free-videoFormatControl')!.getBoundingClientRect();
-            return { width: innerWidth, abovePrompt: r.bottom <= h.top + 1, rowWidth: r.width, briefWidth: b.width,
-              checkboxLeft: c.x, rowLeft: r.x, checkboxSize: c.width, formatWidth: format.width,
+            const style = getComputedStyle(row), option = getComputedStyle(input.closest('label')!.querySelector('strong')!);
+            return { width: innerWidth, belowTitle: r.top >= h.bottom - 1, abovePrompt: r.bottom <= text.getBoundingClientRect().top + 1, rowWidth: r.width, briefWidth: b.width,
+              checkboxLeft: c.x, rowLeft: r.x, briefLeft: b.x, checkboxSize: c.width, checkboxCssSize: parseFloat(getComputedStyle(input).width), labelSize: parseFloat(option.fontSize), formatWidth: format.width,
+              unboxed: style.borderTopWidth === '0px' && style.backgroundColor === 'rgba(0, 0, 0, 0)' && style.paddingLeft === '0px',
               overflow: document.documentElement.scrollWidth > innerWidth + 1 };
           });
+          assert.equal(layout.belowTitle, true, `${engine.name()} ${kind} ${viewport.width}: title stays on the first line`);
           assert.equal(layout.abovePrompt, true, `${engine.name()} ${kind} ${viewport.width}`);
-          assert.ok(layout.rowWidth >= layout.briefWidth - 32, "the DNA choice spans the brief column");
-          assert.ok(layout.checkboxLeft <= layout.rowLeft + 16, "the checkbox starts at the left of its highlighted row");
-          assert.ok(layout.checkboxSize >= 18, JSON.stringify(layout));
+          assert.ok(layout.rowWidth < layout.briefWidth - 32, "the DNA choice stays compact");
+          assert.ok(layout.checkboxLeft <= layout.briefLeft + 16, "the second line stays aligned to the left");
+          assert.equal(layout.checkboxCssSize, 16, "the checkbox retains its original dimensions");
+          assert.equal(layout.labelSize, 12, "the label retains its original dimensions");
+          assert.equal(layout.unboxed, true, "the optional choice has no card, padding or colored background");
           assert.equal(layout.overflow, false);
           if (viewport.width > 1100) assert.ok(layout.formatWidth <= 301, "the desktop format selector stays compact");
           const initialChecked = await dna.isChecked();
           await dna.setChecked(!initialChecked); assert.equal(await dna.isChecked(), !initialChecked);
           assert.equal(await prompt.inputValue(), initialPrompt, "using company context keeps the creative prompt intact");
           await dna.setChecked(initialChecked);
-          if (process.env.INRCY_STUDIO_CAPTURE === "1" && engine === chromium && kind === "video") await page.locator(viewport.width > 1100 ? '.free-promptPanel' : '[data-media-brief-frame]').screenshot({ path: path.join(taskRoot, "outputs", `studio-adn-avant-consignes-${viewport.width}.png`) });
+          if (process.env.INRCY_STUDIO_CAPTURE === "1" && engine === chromium) await page.locator(viewport.width > 1100 ? '.free-promptPanel' : '[data-media-brief-frame]').screenshot({ path: path.join(taskRoot, "outputs", `studio-adn-ligne-2-${kind}-${viewport.width}.png`) });
           assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).studioRequests.length), 0);
           assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);
           assert.deepEqual(errors, []); await page.close();
