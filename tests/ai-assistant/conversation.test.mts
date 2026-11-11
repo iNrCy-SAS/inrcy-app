@@ -96,3 +96,19 @@ test("both pack prompts retain the trusted current date, effective edition and r
     assert.match(prompt, /N’invente pas de lecture intégrale|ne prouvent jamais une analyse intégrale/);
   }
 });
+
+test("all editions retain quantitative evidence and activity boundaries in full and compact prompts without rewriting a fictional exercise", () => {
+  const request = "Données fictives pour un réparateur de vélos : 100 visites, 8 devis et 2 ventes. Calcule les deux taux puis propose trois améliorations concrètes. Aucun accès au compte ni action.";
+  const messages = parseInrAssistantMessages({ messages: [{ role: "user", content: request }] });
+  assert.equal(messages[0].content, request);
+  for (const edition of ["basic", "standard", "premium"] as const) for (const compact of [false, true]) {
+    const prompt = buildInrAssistantSystemPrompt("Atelier cycles", undefined, undefined, edition, undefined, false, compact);
+    assert.match(prompt, /Exemple fictif : calcule uniquement à partir des données fournies/);
+    assert.match(prompt, /Distingue calcul exact et conseil/);
+    assert.match(prompt, /aucune moyenne, projection, promesse chiffrée ni prix présenté comme fait sans source vérifiée ou résultat métier/);
+    assert.match(prompt, /Toute hypothèse chiffrée doit être explicitement fictive/);
+    assert.match(prompt, /Adapte les conseils à l’activité exacte/);
+    assert.match(prompt, /Ne promets ni SMS natif ni intégration absente du catalogue vérifié/);
+    assert.doesNotMatch(prompt, /60.?70\s*%|12.?15\s*%|35.?45\s*%|Pavage|15\s*€/);
+  }
+});
