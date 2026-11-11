@@ -16,9 +16,10 @@ const ranges = (Object.entries(BOOSTER_CHANNEL_CONTENT_RULES) as Array<[BoosterC
 export const INR_ASSISTANT_CONTENT_LIMIT_GUIDES: readonly InrAssistantAppGuide[] = [{
   id: "publication-lengths",
   title: "Longueurs des contenus et limites des légendes par canal",
-  keywords: ["longueur", "longueurs", "caractères", "limite", "maximum", "court", "moyen", "long", "approfondi", "instagram", "pinterest", "légende", "caption", "2200", "800"],
+  keywords: ["longueur", "longueurs", "caractères", "limite", "maximum", "court", "moyen", "long", "approfondi", "instagram", "pinterest", "légende", "caption", "2200", "800", "Google Business", "photos", "carrousel"],
   content: [
-    "Plages du champ content nouvellement généré, en caractères, dans l’ordre Adapté / Court / Moyen / Long / Approfondi (Premium selon les droits). Titre, CTA et hashtags sont comptés séparément. Ces objectifs éditoriaux ne sont pas les limites API des réseaux.",
+    "Plages du corps content généré, en caractères : Adapté / Court / Moyen / Long / Approfondi (Premium selon les droits). Titre, CTA et hashtags séparés. Objectifs éditoriaux, pas plafonds API.",
+    "Google Business : l’API reçoit uniquement la première photo dans l’ordre du canal, même si cinq restent sélectionnées. Déplacer une photo en position 1 la choisit pour Google. Les autres canaux gardent leur sélection.",
     `Instagram : corps généré au plus ${BOOSTER_CHANNEL_CONTENT_RULES.instagram.max}, puis ajusté au budget réel avant revue. La légende finale ne dépasse pas ${INSTAGRAM_CAPTION_MAX_LENGTH} caractères, titre, CTA, URL ou téléphone, séparateurs et hashtags compris. Le compteur est conservateur et identique au contrôle serveur. Les photos sélectionnées et leur éventuel lien sont pris en compte.`,
     `Pinterest : titre au plus ${PINTEREST_TITLE_MAX_LENGTH} ; description finale au plus ${PINTEREST_DESCRIPTION_MAX_LENGTH}, CTA et hashtags compris. La création garde le titre séparé ; l’édition publiée conserve son assemblage existant avec titre dans la description.`,
     ranges,

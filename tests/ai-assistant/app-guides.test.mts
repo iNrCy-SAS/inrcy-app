@@ -43,6 +43,14 @@ test("current guides cover each professional tool and retain real source referen
   }
 });
 
+test("Google photo questions explain the first-photo API rule while keeping the other selections", () => {
+  const knowledge = runtime.getInrAssistantAppKnowledge("Google Business : quelle photo publier avec un carrousel de cinq photos ?", 1200);
+  assert.match(knowledge, /uniquement la première photo/);
+  assert.match(knowledge, /position 1/);
+  assert.match(knowledge, /autres canaux gardent leur sélection/);
+  assert.ok(knowledge.length <= 1200);
+});
+
 test("Facebook instructions select the live direct connection flow over obsolete configure commands", () => {
   const text = runtime.getInrAssistantAppKnowledge("Comment connecter ma Page Facebook ?");
   assert.match(text, /\/dashboard\?action=channels/);
