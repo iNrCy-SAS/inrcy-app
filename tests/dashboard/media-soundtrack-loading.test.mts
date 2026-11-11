@@ -34,7 +34,7 @@ async function setup(page: Page, config: { inline?: boolean; soundtrackId?: stri
     selector: compile("app/dashboard/_components/MediaSoundtrackSelector.tsx"),
     "@/lib/mediaSoundtrackSelection": compile("lib/mediaSoundtrackSelection.ts"),
     localInterface: compile("app/dashboard/_hooks/useInrAssistantLocalInterface.ts"),
-    ...Object.fromEntries(["inrAssistantLocalInterface", "inrAssistantNativeChannelLinks", "inrAssistantRequestClauses"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
+    ...Object.fromEntries(["inrAssistantLocalInterface", "inrAssistantNativeChannelLinks", "inrAssistantRequestClauses", "inrAssistantAgentSettingsUi", "inrAssistantActionClause"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
   };
   await page.route("**/*", route => route.request().resourceType() === "document" ? route.fulfill({ contentType: "text/html", body: '<!doctype html><html><body><div id="root"></div></body></html>' }) : route.abort());
   await page.goto("https://soundtrack.invalid/dashboard/booster");

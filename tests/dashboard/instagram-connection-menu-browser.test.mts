@@ -22,7 +22,7 @@ const modules = {
   menu: compile("app/dashboard/_components/ChannelConnectionMenu.tsx"),
   dialog: compile("app/dashboard/_components/ChannelParametersDialog.tsx"),
   localInterface: compile("app/dashboard/_hooks/useInrAssistantLocalInterface.ts"),
-  ...Object.fromEntries(["inrAssistantLocalInterface", "inrAssistantNativeChannelLinks", "inrAssistantRequestClauses"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
+  ...Object.fromEntries(["inrAssistantLocalInterface", "inrAssistantNativeChannelLinks", "inrAssistantRequestClauses", "inrAssistantAgentSettingsUi", "inrAssistantActionClause"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
 };
 const rawCss = read("app/dashboard/dashboard.module.css")
   + read("app/dashboard/_components/ChannelParametersDialog.module.css")

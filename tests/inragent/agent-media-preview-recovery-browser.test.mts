@@ -21,6 +21,8 @@ const sources = {
   "@/lib/inrAssistantLocalInterface": compile("lib/inrAssistantLocalInterface.ts"),
   "./inrAssistantNativeChannelLinks.ts": compile("lib/inrAssistantNativeChannelLinks.ts"),
   "./inrAssistantRequestClauses.ts": compile("lib/inrAssistantRequestClauses.ts"),
+  "./inrAssistantAgentSettingsUi.ts": compile("lib/inrAssistantAgentSettingsUi.ts"),
+  "./inrAssistantActionClause.ts": compile("lib/inrAssistantActionClause.ts"),
 };
 const expired = "/api/storage/content?bucket=inrcy-pro-media&path=account-a%2Fold.png&token=fixture";
 const fresh = "/api/media-library/items/10000000-0000-4000-8000-000000000001/content?token=fixture-fresh";

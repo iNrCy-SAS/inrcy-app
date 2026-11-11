@@ -82,7 +82,7 @@ const sources = {
   "./inrAssistantMailLifecycle.ts": compile("lib/inrAssistantMailLifecycle.ts"),
   "./inrAssistantMailCompose.ts": compile("lib/inrAssistantMailCompose.ts"),
   "./inrAssistantMailAttachments.ts": compile("lib/inrAssistantMailAttachments.ts"),
-  ...Object.assign({}, ...["inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantAttachments", "inrAssistantClientContext", "inrAssistantStudioDraft", "inrAssistantStudioHandoff", "inrAssistantAutoContinuation", "inrAssistantAccountDocuments", "inrAssistantNavigationForm", "inrAssistantMediaPreview", "inrAssistantCookieOptions", "inrAssistantNativeChannelLinks", "inrAssistantContentReport"].map(entry => browserLibSources(entry))),
+  ...Object.assign({}, ...["inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantAttachments", "inrAssistantClientContext", "inrAssistantStudioDraft", "inrAssistantStudioHandoff", "inrAssistantAutoContinuation", "inrAssistantAccountDocuments", "inrAssistantNavigationForm", "inrAssistantMediaPreview", "inrAssistantCookieOptions", "inrAssistantNativeChannelLinks", "inrAssistantContentReport", "inrAssistantAgentSettingsNavigation"].map(entry => browserLibSources(entry))),
 };
 const fixture = `
 window.viewportFixtureError=null;
