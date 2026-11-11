@@ -1,6 +1,6 @@
 {
   "formatVersion": 3,
-  "fragmentsDigest": "e5dc43cf97702c9726b687fb7080b9a0a18a4b940c4eab56f5469a676c0b54eb",
+  "fragmentsDigest": "50d91b4685f61b1d87dcac4039bedaaa7a7ac5a6591d9b32804dbd9249e738e3",
   "evidenceDigests": {
     "app/_components/CookieConsentBanner.tsx": "b8e8f644160ee0ba81a0ff7b887386aa119fff1e99c60f6973a872354eb37ccc",
     "app/_components/InrcyDialogProvider.tsx": "ec03c94a31d50b1db159a62a418b184b58b6489872088bc5af6eda5aada86072",
@@ -237,7 +237,7 @@
     "app/dashboard/_components/HelpModal.module.css": "ef121b936c187136fb2d51d2bcc8a5f5e8d5506bfe47e4373d1ce566998152da",
     "app/dashboard/_components/HelpModal.tsx": "0881186102ba165135be50aecb386d6856e205cac057429148fad62e62dc22fd",
     "app/dashboard/_components/HelpModalNativeLayer.module.css": "42561743f87b6780c2946fb29bf251987312614a2bf255ec887d6028daf4b6b9",
-    "app/dashboard/_components/InrBadgeBubbleActions.tsx": "2dddb3e4afe880f860ca638bc4cb487bf7614f4e844f5d452229161d9443f01a",
+    "app/dashboard/_components/InrBadgeBubbleActions.tsx": "dc3c0662e06c3e2f9ccb5b730c32130784e64f095c282dcaf8b9f1ffaf0be835",
     "app/dashboard/_components/InrBadgePreviewModal.tsx": "b3abe2253067b2c921cc7fbfa3d5c8b28cb79a4de699c3e7bfea0488e96adb8d",
     "app/dashboard/_components/InrBadgeQrCode.tsx": "f2969dad3ca0a80d784afa5bb177d270e014cd80bc44fe999dc14306ba901bf4",
     "app/dashboard/_components/InrcyCameraCaptureModal.tsx": "42df6e53b82ae3902f8d4793627f12729f7becd9b7ae5f41694a93345b80a47c",
@@ -644,7 +644,7 @@
     "app/dashboard/settings/_components/MailsSettingsContent.tsx": "fc82d7da09d30710178db090fa3c892b8d26c62dc334cafbdcd497441bd51401",
     "app/dashboard/settings/_components/MailsSignaturePanel.module.css": "e5945c108cd1e4c9f99d53a409915d3b8382e2fb9bfc512dc5fb97b1fdac3a72",
     "app/dashboard/settings/_components/NativeChannelSettingsContent.module.css": "b14864e895d8f3abc9f17f8003382556d7679b7321b2d539f3d3afada267329d",
-    "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx": "debe1d1b26ddf2b6e0045bc19d5c6a261f137b3f9ae2274e9dfc4580c217876b",
+    "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx": "28860360dc34d4a90e6fceebd0b36baba9c61d9d55f5a020e3031010db3a7557",
     "app/dashboard/settings/_components/NotificationsSettingsContent.tsx": "60b1cdb153e570d1b46adaa84ad730b8ac345b89448b585df182daf8c3cf5b5b",
     "app/dashboard/settings/_components/PinterestSettingsContent.tsx": "9744e7eb55ddb179b69b14d9ff2cec102d7c88e71c15bc53965da1360133e30f",
     "app/dashboard/settings/_components/PreferencesContent.module.css": "960569687981c2b73d9dcd3bc7a48a1bc13534beb6a53aeda00a1fd4fb94e107",
@@ -1180,7 +1180,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "fa362f1be605cc196b904fca7c6c2e54ae73e37c76dec038170f1d3d77b2cced",
+    "lib/inrAssistantCodeIndex.generated.ts": "d933e9e85b4cae28887d1c50a80fbf0fcad83345d4d1beafab1d9d7cb6996788",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -1968,7 +1968,7 @@
     "tests/ai-assistant/business-dna-sources-website.test.mts": "88c6c11e44be89c2b5595b555887e2678371d2fd3bcf46ee45404771953813c0",
     "tests/ai-assistant/business-form-ui.test.mts": "64444f9904f51291235daeb059c427b12b35a7f5077fc92b53c24038f5523921",
     "tests/ai-assistant/business-identity.test.mts": "5844eaa57899d8ea828ce3b51a7baaf8728245d055e052f367b9567590e13c03",
-    "tests/ai-assistant/business-local-controls.test.mts": "f7dfc3008cf36fe4e190e3d99f2d83d7001e39105162bfdc06cab2789ab9969a",
+    "tests/ai-assistant/business-local-controls.test.mts": "52efc9edd79a4455c5ee56a9aef9adca4b5c42f8f5d1f14de969708c150cc5e3",
     "tests/ai-assistant/business-tools.test.mts": "67f23db7ef84d6d069dc2a08727f6e4bb8957770457006554f96c5f7c4ff1c76",
     "tests/ai-assistant/channel-action-tools.test.mts": "9978d2e20a379680ce93987b58fa10e3b1a8b66ebd8567efcd1ac9257db0b1ec",
     "tests/ai-assistant/channel-configuration-presentation.test.mts": "d7e07298cdef6c005435d576352c4589d56d6b76314d903ddbcd2db00a9c3550",
@@ -2023,6 +2023,7 @@
     "tests/boutique/media-credit-client.test.mjs": "17883da2a45a36a10856f97c6d364aca6760b91c088183888b67d4579a466b05",
     "tests/dashboard/account-local-controls-browser.test.mts": "fcbda575111aae8ed126cd824e8dda950c46e5994691c5d2eca82d3ec6eb4af7",
     "tests/dashboard/badge-logo-theme-browser.test.mts": "fda7a92273e9b859739d361806e07f2585b6c388b1f28914b00ef08262b49d40",
+    "tests/dashboard/channel-bubble-workspace-runtime.test.mts": "f4ef59efc3f725167c027f66c94748b7f824e56aec356ac236d4fd36e4b4b871",
     "tests/dashboard/channels-mobile-dock-runtime.test.mts": "4b4d185580b5c8b31923b1bfdb1868f43c13984ad36dfc6bfa63af8f49b67a0a",
     "tests/dashboard/dashboard-assistant-chat-runtime.test.mts": "61ca967aa6e70afd2ecdcf710932de711315602af0f02135f8e7482fc24dbab9",
     "tests/dashboard/dashboard-assistant-media-preview-runtime.test.mts": "3672e3a6e804c79c081faba3cb32ed3955d35e730304412c7b7fdb5bd776bb19",
@@ -3030,7 +3031,7 @@
         "app/dashboard/_components/DashboardChannelWorkspace.tsx"
       ],
       "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;",
-      "sourceDigest": "2dddb3e4afe880f860ca638bc4cb487bf7614f4e844f5d452229161d9443f01a",
+      "sourceDigest": "dc3c0662e06c3e2f9ccb5b730c32130784e64f095c282dcaf8b9f1ffaf0be835",
       "controlIds": [
         "app/dashboard/_components/InrBadgeBubbleActions.tsx#button:4a8b16ef884d6f24:1",
         "app/dashboard/_components/InrBadgeBubbleActions.tsx#button:4a9df0f534ef6a3c:1",
@@ -8881,12 +8882,12 @@
         "app/dashboard/_components/DashboardChannelWorkspace.tsx"
       ],
       "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;",
-      "sourceDigest": "debe1d1b26ddf2b6e0045bc19d5c6a261f137b3f9ae2274e9dfc4580c217876b",
+      "sourceDigest": "28860360dc34d4a90e6fceebd0b36baba9c61d9d55f5a020e3031010db3a7557",
       "controlIds": [
         "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx#button:044b8fd5cea76363:1",
         "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx#InrBadgeQrButton:4084304178b933a9:1",
         "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx#InrBadgeDownloadButton:c09f7ba145852cdb:1",
-        "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx#InrBadgeCopyButton:9aa475835d0e6bbd:1"
+        "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx#InrBadgeCopyButton:e885d2e13d18b05c:1"
       ]
     },
     "app/dashboard/settings/_components/NotificationsSettingsContent.tsx": {

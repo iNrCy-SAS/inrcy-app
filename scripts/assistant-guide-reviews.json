@@ -73,7 +73,7 @@
     "ai-configuration": {
       "guideDigest": "ab6ed7fa523e7b94d3be516622d5b30dcf163c0048efb28164c480fdbb4b33d5",
       "sources": {
-        "app/badge/[slug]/page.tsx": "316ee1adc043487298c13c2d4160265484d070e435de0fe28454e79b10fdf161",
+        "app/badge/[slug]/page.tsx": "7103f4ce9c3dcc6916b995b0feee16efebc2b214a5c7a15ea415c5e245381bf2",
         "app/dashboard/configuration-ia/page.tsx": "0790cf2312f6284acfc4b9c3495797340b636a046cfe1302fda7793375668ac5",
         "app/dashboard/personnalisation/page.tsx": "ca0afa878c442ad078d57047a1a7463de70ce0d022263d6e651fb5f7b5e0633b",
         "app/dashboard/settings/_components/AiChannelCtaPanel.tsx": "801c132dac90a667f37fe0627ff38a319a9fa285a18a36bfb2712378d9507393",
@@ -457,10 +457,10 @@
         "app/dashboard/_components/DashboardChannelWorkspace.tsx": "40b602b769c0d00fb6292e47e06546340db4c69c8dc3c8aa7c80fa8c08e3f085",
         "app/dashboard/_components/DashboardChannelsModal.tsx": "0da98de6de3759c4a492a50cf1fc4e7305d8b2e215ef5ae30e10a7138fee8ce4",
         "app/dashboard/_components/DashboardFluxBubble.tsx": "ee819a50db88ba8e86bc91d2065158766eed736c98fdc6e01bccf29d8028c5f2",
-        "app/dashboard/_components/InrBadgeBubbleActions.tsx": "2dddb3e4afe880f860ca638bc4cb487bf7614f4e844f5d452229161d9443f01a",
+        "app/dashboard/_components/InrBadgeBubbleActions.tsx": "dc3c0662e06c3e2f9ccb5b730c32130784e64f095c282dcaf8b9f1ffaf0be835",
         "app/dashboard/_hooks/channels/useThreadsChannel.ts": "ca967c2c8b16ad6a3601e589956c975904729a0c28136103e3f92fabb9ee574f",
         "app/dashboard/settings/_components/InrSearchPresentationSettings.tsx": "4bb0d516722e077bc36678b7c60ad3058e4a8e5a0cd878c7fe28b0f02604e9cc",
-        "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx": "debe1d1b26ddf2b6e0045bc19d5c6a261f137b3f9ae2274e9dfc4580c217876b",
+        "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx": "28860360dc34d4a90e6fceebd0b36baba9c61d9d55f5a020e3031010db3a7557",
         "lib/inrSearchDisplaySettings.ts": "6e6e47270ae81e3f08b9d5a8d11e686d0ecc36ee1c92eda3cc81614d5731062e",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
         "messages/fr-FR/dashboard.json": "9d3af13ef85020fdf8ea20c95a757a0c441c77155b9c031d3bbf0a2c816f311b"

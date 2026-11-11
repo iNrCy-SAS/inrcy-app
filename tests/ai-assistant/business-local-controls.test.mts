@@ -87,7 +87,7 @@ test("Basic closing the subscription activation choice uses its native close and
 });
 test("Basic Badge link copy uses the exact current native URL and refuses a failed clipboard or invented copy target", async () => {
   const file = "app/dashboard/_components/InrBadgeBubbleActions.tsx", copied: string[] = []; let failed = false;
-  const state = { publicUrl: "https://public.example/badge-owned", copiedUrl: "", setCopiedUrl: (value: string) => { state.copiedUrl = value; }, navigator: { clipboard: { writeText: async (value: string) => { if (failed) throw new Error("Clipboard refused"); copied.push(value); } } }, t: (key: string) => key, onNotice() {}, onError() {}, copyLink: () => nativeFunction(file, "copyLink", state)() };
+  const state = { publicUrl: "https://public.example/badge-owned", assistantBadge: true, copiedUrl: "", setCopiedUrl: (value: string) => { state.copiedUrl = value; }, navigator: { clipboard: { writeText: async (value: string) => { if (failed) throw new Error("Clipboard refused"); copied.push(value); } } }, t: (key: string) => key, onNotice() {}, onError() {}, copyLink: () => nativeFunction(file, "copyLink", state)() };
   const h = nativeRegistration(file, "badge_link", state);
   try { assert.equal(await h.run("copy", "other"), false); assert.deepEqual(copied, []); const pending = h.run("copy", "link"); await tick(); h.commit(); assert.equal(await pending, true); assert.deepEqual(copied, [state.publicUrl]); failed = true; assert.equal(await h.run("copy", "link"), false); assert.equal(copied.length, 1); } finally { h.close(); }
 });

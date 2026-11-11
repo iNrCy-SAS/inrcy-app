@@ -79,7 +79,7 @@ export function InrBadgeDownloadButton({ publicUrl, profile }: { publicUrl: stri
   </>;
 }
 
-export function InrBadgeCopyButton({ publicUrl, onNotice, onError }: { publicUrl: string; onNotice: (notice: string) => void; onError: (error: string) => void }) {
+export function InrBadgeCopyButton({ publicUrl, onNotice, onError, assistantBadge = true }: { publicUrl: string; onNotice: (notice: string) => void; onError: (error: string) => void; assistantBadge?: boolean }) {
   const t = useTranslations("settings");
   const bubble = useTranslations("dashboard.channelBubble");
   const [copiedUrl, setCopiedUrl] = useState("");
@@ -91,7 +91,7 @@ export function InrBadgeCopyButton({ publicUrl, onNotice, onError }: { publicUrl
   };
   useInrAssistantLocalInterface("badge_link", { copiedUrl }, {
     copy: { invoke: async value => { if (value !== "link") throw new Error("Badge link required"); await copyLink(); }, matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "copiedUrl" in snapshot && snapshot.copiedUrl === publicUrl) },
-  }, true, !publicUrl);
+  }, assistantBadge, !publicUrl);
   return <div className={styles.badgeCopyAction}>
     <button type="button" className={styles.iconAction} aria-label={t("copier_le_lien_2b135d8c")} title={t("copier_le_lien_2b135d8c")} disabled={!publicUrl} onClick={async () => {
       try { await copyLink(); } catch {}

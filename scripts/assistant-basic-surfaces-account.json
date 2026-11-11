@@ -14948,7 +14948,7 @@
     ],
     "sourceAnchor": "onNotice={setNotice}",
     "controlIds": [
-      "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx#InrBadgeCopyButton:9aa475835d0e6bbd:1"
+      "app/dashboard/settings/_components/NativeChannelSettingsContent.tsx#InrBadgeCopyButton:e885d2e13d18b05c:1"
     ],
     "capabilityId": "navigation.local-controls",
     "toolNames": [
@@ -14967,7 +14967,17 @@
     },
     "coverageStatus": "implemented",
     "status": "native_callback_runtime",
-    "notes": "Commande locale finie, montage/compte/acteur/révision vérifiés. Le composant relit son état après rendu ; cette preuve ne certifie pas un appel fournisseur réel."
+    "notes": "Badge : commande locale finie, montage/compte/acteur/révision vérifiés et état relu après rendu. Search et Annuaire conservent leur copie manuelle et leur propre lien public, sans enregistrer badge_link. Cette preuve ne certifie pas un appel fournisseur réel.",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/channel-bubble-workspace-runtime.test.mts",
+        "testAnchor": "Search manual copy uses its exact current public URL without registering the Badge assistant action"
+      },
+      {
+        "file": "tests/dashboard/channel-bubble-workspace-runtime.test.mts",
+        "testAnchor": "Search keeps its rendered public anchor and exact assistant channel target after Badge-only actions are removed"
+      }
+    ]
   },
   {
     "id": "account-8e37a4051da6d1b6",

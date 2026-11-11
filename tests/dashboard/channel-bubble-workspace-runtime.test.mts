@@ -81,7 +81,7 @@ function runtime(path: string, overrides: Props = {}) {
   const fixtureModule = { exports: {} as Props };
   const fetch = overrides.fetch || (() => { throw Error("Unexpected request"); });
   const browser = { setTimeout() {}, clearTimeout() {}, requestAnimationFrame(callback: () => void) { callback(); }, dispatchEvent() {}, location: { href: "", search: "" } };
-  new Function("module", "exports", "require", "fetch", "window", code)(fixtureModule, fixtureModule.exports, localRequire, fetch, browser);
+  new Function("module", "exports", "require", "fetch", "window", "navigator", code)(fixtureModule, fixtureModule.exports, localRequire, fetch, browser, overrides.navigator ?? globalThis.navigator);
   return { browser, exports: fixtureModule.exports, render: (name: string, props: RuntimeValue) => { cursor = 0; return fixtureModule.exports[name](props); }, flushEffects: async () => { await Promise.all(effects.splice(0).map(effect => effect())); } };
 }
 
@@ -984,6 +984,74 @@ test("iNrBadge delegates activation and public actions to the native controller 
   assert.doesNotMatch(read("app/dashboard/settings/_components/InrBadgeSettingsContent.tsx"), /hideQrControls|downloadMenuOpen|toggleDownloadMenu/);
   const sharedSource = read("app/dashboard/settings/_components/NativeChannelSettingsContent.tsx");
   assert.match(sharedSource, /InrBadgeQrButton[\s\S]*InrBadgeDownloadButton[\s\S]*InrBadgeCopyButton/);
+});
+
+test("native channel bubbles reserve QR and badge export for Badge while preserving Search and directory copy and settings", async () => {
+  const Qr = () => null, Download = () => null, Copy = () => null;
+  const states = Object.fromEntries(["inrbadge", "inr_search", "inr_directory"].map(key => [key, { requested: true, ready: true, published: true, pending: false, allowed: true, missingFields: [] }]));
+  for (const channelKey of ["inrbadge", "inr_search", "inr_directory"]) {
+    let connection: Props = {}; const calls: Props[] = [];
+    const h = runtime("app/dashboard/settings/_components/NativeChannelSettingsContent.tsx", {
+      "../../_components/InrBadgeBubbleActions": { InrBadgeQrButton: Qr, InrBadgeDownloadButton: Download, InrBadgeCopyButton: Copy },
+      "../../_components/native-channel-state": require("../../app/dashboard/_components/native-channel-state.ts"),
+      "../../_hooks/useInrAssistantRefresh": { useInrAssistantRefresh() {} },
+      "@/lib/inrDirectorySettings": require("../../lib/inrDirectorySettings.ts"),
+      fetch: async (url: string, init: RequestInit) => { calls.push({ url, method: init?.method }); return Response.json({ ok: true, accountId: "fixture", states, companyName: "Atelier Cycles", badgeUrl: "https://app.inrcy.com/badge/owned", searchSlug: "atelier-écolo" }); },
+    });
+    Object.assign(h.browser.location, { origin: "https://app.inrcy.com" });
+    const searchParameters = React.createElement("div", {}, "Réglages Search"), badgeParameters = React.createElement("div", {}, "Réglages Badge");
+    const props = { channelKey, badgeProfile: {}, searchParameters, badgeParameters, renderBubble: (value: Props) => { connection = value; return null; } };
+    h.render("default", props); await h.flushEffects(); await new Promise(setImmediate); h.render("default", props);
+    const actions = nodes(connection.extraActions);
+    assert.equal(actions.filter(node => node.type === Qr).length, channelKey === "inrbadge" ? 1 : 0);
+    assert.equal(actions.filter(node => node.type === Download).length, channelKey === "inrbadge" ? 1 : 0);
+    const copy = actions.find(node => node.type === Copy)!;
+    assert.ok(copy); assert.equal(copy.props.assistantBadge, channelKey === "inrbadge");
+    const expected = channelKey === "inrbadge" ? "https://app.inrcy.com/badge/owned" : channelKey === "inr_search" ? "https://app.inrcy.com/entreprises/atelier-%C3%A9colo" : "https://inrcy.com/annuaire/";
+    assert.equal(connection.publicView.href, expected); assert.equal(connection.publicView.disabled, false); assert.equal(copy.props.publicUrl, expected);
+    if (channelKey === "inr_search") { assert.equal(connection.parameters, searchParameters); assert.equal(connection.parametersAlwaysVisible, true); }
+    if (channelKey === "inrbadge") assert.equal(connection.parameters, badgeParameters);
+    assert.deepEqual(calls, [{ url: "/api/native-channels/settings", method: undefined }], "Rendering public actions must not change activation");
+  }
+});
+
+test("Search manual copy uses its exact current public URL without registering the Badge assistant action", async () => {
+  const copied: string[] = [], notices: string[] = [];
+  const scope = { actorUserId: "search-copy-actor", accountId: "search-copy-account", pathname: "/dashboard" };
+  const h = runtime("app/dashboard/_components/InrBadgeBubbleActions.tsx", {
+    navigator: { clipboard: { writeText: async (value: string) => { copied.push(value); } } },
+    "../_components/DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ actorUserId: scope.actorUserId, activeAccountId: scope.accountId }) },
+  });
+  const url = "https://app.inrcy.com/entreprises/atelier-cycles";
+  const props = { publicUrl: url, assistantBadge: false, onNotice: (value: string) => notices.push(value), onError() { assert.fail("Copy should succeed"); } };
+  let tree = h.render("InrBadgeCopyButton", props); await h.flushEffects();
+  assert.ok(!localInterfaces.getInrAssistantLocalInterfaceHints(scope)?.some(hint => hint.id === "badge_link"));
+  const button = nodes(tree).find(node => node.type === "button")!;
+  assert.equal(button.props.disabled, false); await button.props.onClick();
+  assert.deepEqual(copied, [url]); assert.ok(notices.length > 0);
+  tree = h.render("InrBadgeCopyButton", props); await h.flushEffects();
+  assert.ok(!localInterfaces.getInrAssistantLocalInterfaceHints(scope)?.some(hint => hint.id === "badge_link"));
+  assert.equal(nodes(tree).find(node => node.type === "button")!.props.disabled, false);
+});
+
+test("Search keeps its rendered public anchor and exact assistant channel target after Badge-only actions are removed", async () => {
+  const scope = { actorUserId: "search-view-actor", accountId: "search-view-account", pathname: "/dashboard" };
+  const h = runtime("app/dashboard/_components/DashboardFluxBubble.tsx", {
+    "../_components/DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ actorUserId: scope.actorUserId, activeAccountId: scope.accountId }) },
+  });
+  const href = "https://app.inrcy.com/entreprises/atelier-cycles";
+  const tree = h.render("default", { item: { ...item, key: "inr_search", name: "iNr’Search", connection: { accountConnected: true, resourceLabel: "Atelier Cycles", publicView: { href }, parameters: React.createElement("div", {}, "Réglages") } } });
+  const anchor = nodes(tree).find(node => node.type === "a" && node.props.href === href)!;
+  assert.ok(anchor); let opens = 0;
+  anchor.props.ref.current = { href, isConnected: true, click: () => { opens++; } };
+  await h.flushEffects();
+  const entries = nativeChannelLinks.getInrAssistantNativeChannelLinksSnapshot().filter(entry => entry.actorUserId === scope.actorUserId && entry.accountId === scope.accountId);
+  try {
+    assert.equal(entries.length, 1); assert.equal(entries[0].target, "inr_search");
+    const result = nativeChannelLinks.requestInrAssistantNativeChannelLink(scope, "public", "inr_search", "open", () => true, entries);
+    assert.equal(opens, 1); assert.equal(result.matches(nativeChannelLinks.getInrAssistantNativeChannelLinksSnapshot()), true);
+    assert.throws(() => nativeChannelLinks.requestInrAssistantNativeChannelLink(scope, "public", "inr_badge", "open", () => true, entries));
+  } finally { for (const entry of entries) nativeChannelLinks.registerInrAssistantNativeChannelLink(entry.key, null); }
 });
 
 test("iNrBadge displays the QR for the same tracked badge URL used by its existing exports", () => {

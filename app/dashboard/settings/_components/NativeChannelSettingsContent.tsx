@@ -93,7 +93,7 @@ export default function NativeChannelSettingsContent({ channelKey, renderBubble,
         <button type="button" className={`${styles.action} ${pending ? local.deactivate : ""}`} disabled={disabled} aria-busy={busy || loading} onClick={() => void save(!state?.requested)}>{loading ? bubble("loading") : t(state?.requested ? "deactivate" : "activate")}</button>
       </div>
     </div>,
-    extraActions: <><InrBadgeQrButton publicUrl={publicUrl} companyName={name} compact /><InrBadgeDownloadButton publicUrl={publicUrl} profile={{ ...badgeProfile, companyLegalName: name }} /><InrBadgeCopyButton publicUrl={publicUrl} onNotice={setNotice} onError={setError} /></>,
+    extraActions: <>{channelKey === "inrbadge" ? <><InrBadgeQrButton publicUrl={publicUrl} companyName={name} compact /><InrBadgeDownloadButton publicUrl={publicUrl} profile={{ ...badgeProfile, companyLegalName: name }} /></> : null}<InrBadgeCopyButton publicUrl={publicUrl} assistantBadge={channelKey === "inrbadge"} onNotice={setNotice} onError={setError} /></>,
     afterContent: <>{notice ? <p className={local.notice} role="status">{notice}</p> : null}{state && !state.allowed ? <p className={local.notice}>{t("unavailable")}</p> : null}</>,
     error, parameters: channelKey === "inr_search" ? searchParameters : channelKey === "inrbadge" && published ? badgeParameters : undefined,
     parametersAlwaysVisible: channelKey === "inr_search", parametersFullScreen: true,

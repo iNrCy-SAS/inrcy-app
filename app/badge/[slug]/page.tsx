@@ -10,6 +10,7 @@ import { getProfileLogoVersion } from "@/lib/profileLogo";
 import { normalizeInrBadgeShareSettings } from "@/lib/inrBadgeSettings";
 import { getInrBadgeThemeCssVariables, normalizeInrBadgeThemeSettings } from "@/lib/inrBadgeTheme";
 import { getInrBadgeTexts, normalizeInrBadgeLanguage } from "@/lib/inrBadgeLanguage";
+import { getInrBadgePresentation } from "@/lib/inrBadgePresentation";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { getInrSearchPublicStatus } from "@/lib/inrSearchPublic";
 import { fetchPinterestUserAccount, getPinterestAccessToken } from "@/lib/pinterestOAuth";
@@ -361,10 +362,11 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   const zip = trim(profile.hq_zip);
   const city = trim(profile.hq_city);
   const country = trim(profile.hq_country) || (address || zip || city ? "France" : "");
-  const description = sanitizeProfessionalIdentityText(
+  const fullBusinessDescription = sanitizeProfessionalIdentityText(
     trim(business.business_description),
     company,
   );
+  const description = getInrBadgePresentation({ description: fullBusinessDescription, sector: business.sector, language: badgeLanguage });
 
   const siteWebSettings = safeObj(toolSettings.site_web);
   const gmbSettings = safeObj(toolSettings.gmb);
