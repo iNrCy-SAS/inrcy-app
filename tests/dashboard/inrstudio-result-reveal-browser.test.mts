@@ -20,7 +20,7 @@ const modules = {
   localClose: compile(read("app/dashboard/_hooks/useInrAssistantLocalClose.ts")),
   "./DashboardAssistantScreenContext": compile(read("app/dashboard/_components/DashboardAssistantScreenContext.tsx")),
   "./DashboardUnsavedNavigationProvider": compile(read("app/dashboard/_components/DashboardUnsavedNavigationProvider.tsx")),
-  ...Object.fromEntries(["inrAssistantLocalInterface", "inrAssistantNativeChannelLinks", "inrAssistantRequestClauses"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
+  ...Object.fromEntries(["inrAssistantLocalInterface", "inrAssistantNativeChannelLinks", "inrAssistantRequestClauses", "inrAssistantAgentSettingsUi", "inrAssistantActionClause"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
 };
 const fixture = `
 const sources=${JSON.stringify(modules)},loaded={},messages=${JSON.stringify(JSON.parse(read("messages/fr-FR/media.json")))};

@@ -91,6 +91,7 @@ const sources = {
   "./useInrAssistantLocalInterface": compile("app/dashboard/_hooks/useInrAssistantLocalInterface.ts"),
   ...clientLibSources("inrAssistantCookieOptions"), ...clientLibSources("inrAssistantLocalInterface"),
   ...clientLibSources("inrAssistantRefresh"),
+  ...clientLibSources("inrAssistantAgentSettingsNavigation"),
   ...clientLibSources("dashboardEdition"),
   ...clientLibSources("inrAssistantBusinessRichText"), ...clientLibSources("inrAssistantBusinessRichTextNative"),
   ...clientLibSources("inrAssistantNativeChannelLinks"),
