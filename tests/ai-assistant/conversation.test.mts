@@ -103,12 +103,14 @@ test("all editions retain quantitative evidence and activity boundaries in full 
   assert.equal(messages[0].content, request);
   for (const edition of ["basic", "standard", "premium"] as const) for (const compact of [false, true]) {
     const prompt = buildInrAssistantSystemPrompt("Atelier cycles", undefined, undefined, edition, undefined, false, compact);
-    assert.match(prompt, /Exemple fictif : calcule uniquement à partir des données fournies/);
-    assert.match(prompt, /Distingue calcul exact et conseil/);
-    assert.match(prompt, /aucune moyenne, projection, promesse chiffrée ni prix présenté comme fait sans source vérifiée ou résultat métier/);
-    assert.match(prompt, /Toute hypothèse chiffrée doit être explicitement fictive/);
-    assert.match(prompt, /Adapte les conseils à l’activité exacte/);
-    assert.match(prompt, /Ne promets ni SMS natif ni intégration absente du catalogue vérifié/);
+    const advice = prompt.split("\n").find(line => line.startsWith("Calcule avec les seules données fournies."));
+    assert.ok(advice && new TextEncoder().encode(advice).byteLength <= 404, "Keep the stronger rule within the original prompt byte budget in every edition/mode");
+    assert.match(advice, /aucun taux cible, objectif numérique ou projection sans demande explicitement chiffrée/);
+    assert.match(advice, /chaque valeur ajoutée porte « hypothèse fictive », jamais une réserve globale/);
+    assert.match(advice, /Fictif seul n’autorise aucun ajout/);
+    assert.match(advice, /Moyenne\/prix factuel : source vérifiée/);
+    assert.match(advice, /Adapte à l’activité exacte/);
+    assert.match(advice, /ne promets ni SMS natif ni intégration hors catalogue/);
     assert.doesNotMatch(prompt, /60.?70\s*%|12.?15\s*%|35.?45\s*%|Pavage|15\s*€/);
   }
 });
