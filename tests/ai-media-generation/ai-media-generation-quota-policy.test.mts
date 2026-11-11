@@ -36,7 +36,7 @@ test("les plafonds mensuels sont propres a chaque edition", () => {
     },
     founder: {
       image: 50,
-      video: 144,
+      video: 104,
       studioEnabled: true,
       videoMaxDurationSeconds: 30,
     },
@@ -49,7 +49,7 @@ test("les plafonds mensuels sont propres a chaque edition", () => {
   assert.equal(getAiMediaMonthlyLimit("premium", "image"), 70);
   assert.equal(getAiMediaMonthlyLimit("premium", "video"), 204);
   assert.equal(getAiMediaMonthlyLimit("founder", "image"), 50);
-  assert.equal(getAiMediaMonthlyLimit("founder", "video"), 144);
+  assert.equal(getAiMediaMonthlyLimit("founder", "video"), 104);
   assert.equal(getAiMediaVideoMaxDuration("standard"), 30);
   assert.equal(getAiMediaVideoMaxDuration("premium"), 30);
   assert.equal(getAiMediaVideoMaxDuration("founder"), 30);
@@ -82,6 +82,8 @@ test("les droits existants se convertissent sans changer la durée ni le nombre 
   assert.deepEqual(AI_MEDIA_LEGACY_CREDIT_FACTORS,{image:7,video:10});
   assert.equal(legacyAiMediaAmountToCredits("image",25)+legacyAiMediaAmountToCredits("video",54),715);
   assert.equal(legacyAiMediaAmountToCredits("image",AI_MEDIA_MONTHLY_LIMITS.standard.image)+legacyAiMediaAmountToCredits("video",AI_MEDIA_MONTHLY_LIMITS.standard.video),735);
+  assert.equal(legacyAiMediaAmountToCredits("image",AI_MEDIA_MONTHLY_LIMITS.founder.image)+legacyAiMediaAmountToCredits("video",AI_MEDIA_MONTHLY_LIMITS.founder.video),1390);
+  assert.equal(legacyAiMediaAmountToCredits("image",AI_MEDIA_ROLLOVER_CAPS.founder.image)+legacyAiMediaAmountToCredits("video",AI_MEDIA_ROLLOVER_CAPS.founder.video),5290);
   assert.equal(legacyAiMediaAmountToCredits("video",50),500);
   assert.throws(()=>legacyAiMediaAmountToCredits("video",-1),/invalide/);
   assert.throws(()=>legacyAiMediaAmountToCredits("image",1.5),/invalide/);

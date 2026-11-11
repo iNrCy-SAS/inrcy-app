@@ -77,7 +77,7 @@ export const AI_MEDIA_MONTHLY_LIMITS: Readonly<Record<AiMediaEdition, AiMediaPla
     }),
     founder: Object.freeze({
       image: 50,
-      video: 144,
+      video: 104,
       studioEnabled: true,
       videoMaxDurationSeconds: 30,
     }),

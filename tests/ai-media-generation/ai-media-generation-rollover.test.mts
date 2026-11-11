@@ -57,7 +57,7 @@ test("les plafonds produit conservent le report pour tous les forfaits", () => {
       basic: { image: 0, video: 0 },
       standard: { image: 25, video: 56 },
       premium: { image: 70, video: 204 },
-      founder: { image: 50, video: 144 },
+      founder: { image: 50, video: 104 },
     },
   );
   assert.deepEqual(AI_MEDIA_ROLLOVER_CAPS, {
