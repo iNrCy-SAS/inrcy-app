@@ -16,6 +16,8 @@ import * as uiActions from "../../lib/inrAssistantUiActions.ts";
 import * as mediaPreview from "../../lib/inrAssistantMediaPreview.ts";
 import * as accountDocuments from "../../lib/inrAssistantAccountDocuments.ts";
 import * as navigationForm from "../../lib/inrAssistantNavigationForm.ts";
+import * as agentSettingsNavigation from "../../lib/inrAssistantAgentSettingsNavigation.ts";
+import * as agentSettingsUi from "../../lib/inrAssistantAgentSettingsUi.ts";
 import * as autoContinuation from "../../lib/inrAssistantAutoContinuation.ts";
 import * as taskCopy from "../../app/dashboard/_components/dashboardAssistantTaskCopy.ts";
 import * as nativeChannelLinks from "../../lib/inrAssistantNativeChannelLinks.ts";
@@ -134,6 +136,8 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
     if (name === "@/lib/inrAssistantMediaPreview") return mediaPreview;
     if (name === "@/lib/inrAssistantAccountDocuments") return accountDocuments;
     if (name === "@/lib/inrAssistantNavigationForm") return navigationForm;
+    if (name === "@/lib/inrAssistantAgentSettingsNavigation") return agentSettingsNavigation;
+    if (name === "@/lib/inrAssistantAgentSettingsUi") return agentSettingsUi;
     if (name === "@/lib/inrAssistantAutoContinuation") return autoContinuation;
     if (name === "@/lib/inrAssistantNativeChannelLinks") return nativeChannelLinks;
     if (name === "@/lib/inrAssistantCookieOptions") return cookieOptions;

@@ -15,11 +15,12 @@ const names: Record<keyof typeof INR_ASSISTANT_NAVIGATION, string> = {
   document_settings: "paramètres des documents", badge: "iNr’Badge", google_business: "Google Business", facebook: "Facebook", instagram: "Instagram",
   threads: "Threads", linkedin: "LinkedIn", tiktok: "TikTok", youtube: "YouTube", pinterest: "Pinterest", x: "X", website: "site web", search: "iNr’Search", directory: "iNr’Annuaire",
   publication_agent: "agent publications", email_agent: "agent emailings", stats_agent: "agent stats", help: "aide iNrCy", contact: "contact", credits: "crédits médias", cash: "encaisser",
+  publication_agent_settings: "réglages de l’agent Publications", stats_agent_settings: "réglages de l’agent Stats",
 };
 
-test("all 53 registered destinations have a direct unambiguous module name and a canonical route", () => {
+test("all 55 registered destinations have a direct unambiguous module name and a canonical route", () => {
   assert.deepEqual(Object.keys(names).sort(), Object.keys(INR_ASSISTANT_NAVIGATION).sort());
-  assert.equal(Object.keys(names).length, 53);
+  assert.equal(Object.keys(names).length, 55);
   for (const [destination, name] of Object.entries(names)) {
     const request = `Ouvre le module ${name}.`;
     assert.deepEqual(getDirectInrAssistantNavigationRequest(request), { destination, instructionQuote: request });

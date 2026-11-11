@@ -2025,7 +2025,7 @@
     "tests/dashboard/channels-mobile-dock-runtime.test.mts": "4b4d185580b5c8b31923b1bfdb1868f43c13984ad36dfc6bfa63af8f49b67a0a",
     "tests/dashboard/dashboard-assistant-chat-runtime.test.mts": "61ca967aa6e70afd2ecdcf710932de711315602af0f02135f8e7482fc24dbab9",
     "tests/dashboard/dashboard-assistant-media-preview-runtime.test.mts": "3672e3a6e804c79c081faba3cb32ed3955d35e730304412c7b7fdb5bd776bb19",
-    "tests/dashboard/dashboard-assistant-runtime-harness.mts": "f5b36904b0efd33a49b0af0c492388a2eb0d83727b40a3604d81bb9ad3c5b627",
+    "tests/dashboard/dashboard-assistant-runtime-harness.mts": "63a8f06cd65798ba68aef0f417222917e032cdcde72dff7fc38a044b485278c8",
     "tests/dashboard/dashboard-assistant-ui-actions-browser.test.mts": "db02952042592af4eed88e0264a261c7dc22d73cb683647f24387bf5c4a075d9",
     "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts": "000c5a6a0f4eaf3bcf07aa841f5482016c7309c9af9072658ac1c950ced27a32",
     "tests/dashboard/dashboard-header-tool-overlay-browser.test.mts": "e7182058080c0c8f8932516284e45e7b07a71908bf1b9a86588f106823b4cb27",
