@@ -1,4 +1,4 @@
-import { inrAssistantActionObjectives, inrAssistantRequiredCalls, inrAssistantRequestClauses, inrAssistantRoutingText, inrAssistantClauseIsAdvice, inrAssistantGoalCompleted, isInrAssistantAdvertisingRequest, isInrAssistantAttachedFileRequest, isInrAssistantMediaQuoteRequest, isInrAssistantMediaStatusRequest, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
+import { inrAssistantActionObjectives, inrAssistantRequiredCalls, inrAssistantRequestClauses, inrAssistantRoutingText, inrAssistantClauseIsAdvice, inrAssistantGoalCompleted, isInrAssistantAdvertisingRequest, isInrAssistantAttachedFileRequest, isInrAssistantMediaQuoteRequest, isInrAssistantMediaStatusRequest, isInrAssistantCrmAggregateReadRequest, type InrAssistantActionReceipt } from "./inrAssistantTaskPolicy.ts";
 import { hasInrAssistantDeferredApproval } from "./inrAssistantActionClause.ts";
 import { readInrAssistantCommunicationIntent } from "./inrAssistantCommunicationIntent.ts";
 import { INR_ASSISTANT_COMMANDS, type InrAssistantCommandFamily } from "./inrAssistantCommandRegistry.ts";
@@ -26,6 +26,18 @@ const diagnosticReadVerbs = "(?:lis|lire|consulte\\w*|verifi\\w*|regarde\\w*|ana
 const deniedDiagnosticRead = new RegExp(`\\b(?:ne\\s+|n'|do not\\s+|don't\\s+|never\\s+|not\\s+)${diagnosticReadVerbs}\\b|\\b${diagnosticReadVerbs}\\s+(?:pas|jamais|not)\\b|\\b(?:sans|pas de|aucun)\\s+diagnostic\\b`);
 const deferredDiagnosticRead = /^(?:si|quand|lorsque|if|when|unless|imagin\w*|suppos\w*)\b|\b(?:si|quand|lorsque|if|when|unless)\s+(?:je|j'|tu|vous|nous|on|il|elle|le|la|les|un|une|the|i|you|we|they)\b|\b(?:en cas de|a condition|sous reserve|only if|apres (?:ma|mon|notre|votre) (?:confirmation|accord))\b/;
 const exhaustiveRead = /\b(?:tout|toute|tous|toutes|chaque|complet\w*|integralite|all|every)\b|\bpages?\s+suivantes?\b/;
+
+/** Privacy exclusions select no reader. Keep the original clause unchanged for
+ * native authorization and scope; only mask these finite, explicitly negated
+ * nouns while selecting a read objective. A positive CRM request elsewhere in
+ * this clause or in a later independent clause remains visible. */
+function readSelectionClause(clause: string): string {
+    const person = "(?:contacts?|clients?|prospects?|crm)";
+    const personalField = "(?:identites?|noms?|prenoms?|coordonnees|adresses?(?: e-?mails?)?|e-?mails?|telephones?|fiches?|details?|notes?)";
+    const target = `(?:${person}(?:\\s+crm)?|${personalField}(?:\\s+(?:(?:de|des|du|d['’])\\s*(?:(?:mes|nos|vos|les|mon|notre|votre|un|une|ce|cet|cette)\\s+)?)?${person}(?:\\s+crm)?)?)`;
+    const exclusion = new RegExp(`\\b(?:sans|aucun(?:e)?|pas de)\\s+(?:(?:lire|afficher|consulter|devoiler|reveler|exposer|inclure)\\s+)?(?:(?:aucun(?:e)?|les|des|de|le|la|un|une)\\s+)?${target}(?:\\s+(?:ni|ou)\\s+${target})*\\b`, "g");
+    return clause.replace(exclusion, match => " ".repeat(match.length));
+}
 
 function personalDiagnosticQuestion(clause: string, nearbyContext = clause): boolean {
     const why = /^(?:pourquoi|why)\b/.test(clause);
@@ -83,7 +95,7 @@ const readers: Array<{
     { tool: "getBusinessDna", family: "business", label: "lire l’ADN de l’entreprise", matches: /\badn\b|\bdna\b|mission|prestations|services de (?:mon|notre) entreprise/ },
     { tool: "searchMedia", family: "media", label: "rechercher les médias demandés", matches: /mediatheque|medias?|images?|photos?|videos?|audios?|\bsons?\b|visuels?|flyers?|logos?/ },
     { tool: "readStatsReports", family: "workspace", label: "consulter les rapports de statistiques", matches: /(?:rapports?|bilans?).{0,60}(?:stats|statistiq)|(?:stats|statistiq).{0,60}(?:rapports?|bilans?)/ },
-    { tool: "readStatsSnapshots", family: "workspace", label: "consulter les statistiques", matches: /stats|statistiq|resultats?|performances?|impressions?/ },
+    { tool: "readStatsSnapshots", family: "workspace", label: "consulter les statistiques", matches: /stats|statistiq|resultats?|performances?|impressions?|\bleads?\b|\bopportunites?\b|\bpotentiel commercial\b/ },
     {tool:"listGoogleReviews",family:"workspace",label:"lister les avis Google avec filtres",matches:/(?:tous|toutes|chaque|sans reponse|non repondus|repondu|etoiles?|notes?|recents?|negatifs?|positifs?).{0,60}(?:avis|reviews?)|(?:avis|reviews?).{0,60}(?:tous|toutes|chaque|sans reponse|non repondus|repondu|etoiles?|notes?|recents?|negatifs?|positifs?)/},
     { tool: "readGoogleReviews", family: "workspace", label: "consulter les avis", matches: /\bavis\b|reputation|reviews?/ },
     { tool: "readChannelStatus", family: "business", label: "vérifier les connexions des canaux", matches: /canaux|canal|connexion|connecte|cockpit/ },
@@ -108,7 +120,8 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
         const implicitDiagnostic = personalDiagnosticQuestion(clause, clauses.slice(Math.max(0, clauseIndex - 2), clauseIndex + 1).join(" ")) && !diagnosticDeferred;
         if (mutations.length || inrAssistantClauseIsAdvice(clause) && !implicitDiagnostic || /^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(clause))
             continue;
-        const mediaQuote=isInrAssistantMediaQuoteRequest(clause);
+        const readClause = readSelectionClause(clause);
+        const mediaQuote=!isInrAssistantCrmAggregateReadRequest(readClause) && isInrAssistantMediaQuoteRequest(clause);
         if (!implicitDiagnostic && !getInrAssistantBasicShopReadView(clause) && !mediaQuote && !/^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:lis|lire|consulte\w*|recherch\w*|cherche\w*|retrouv\w*|liste\w*|verifi\w*|regarde\w*|montre\w*|affiche\w*|analyse\w*|diagnostiqu\w*|compare\w*|donne\w*|quels?|quelles?|combien|read|find|search|list|show|check)\b/.test(clause))
             continue;
         if (mediaQuote) {
@@ -141,6 +154,11 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
             plan.push({ id: `objective_${plan.length}`, kind: "read", tool: "readAttachedDocument", instruction: clause, count: 1, exhaustive: exhaustiveRead.test(clause) });
             continue;
         }
+        // An explicitly synthetic worked example supplies its own evidence.
+        // It does not ask to inspect the account's estimation assumptions.
+        if (/^(?:analyse\w*|calcule\w*|explique\w*|compare\w*)\b/.test(clause)
+            && /\b(?:donnees|chiffres|exemples?|scenarios?)\s+(?:ficti\w*|syntheti\w*|hypotheti\w*)\b/.test(clause)
+            && !/\b(?:mon|ma|mes|notre|nos|compte|cockpit|crm|internet|web)\b/.test(clause)) continue;
         if (isInrAssistantAdvertisingRequest(clause)) {
             if (hasInrAssistantDeferredApproval(message) || deferredDiagnosticRead.test(clauses.join(" ")) && !/^verifi\w*\s+si\b/.test(clause)) continue;
             const campaignId = clause.match(/\b[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\b/i)?.[0];
@@ -157,15 +175,15 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
         // Counting contacts uses the anonymous account summary, not personal
         // fiches. In particular "sans noms ni adresses" is a restriction on
         // the aggregate read, never a request to retrieve those private fields.
-        const crmAggregate = /\bcrm\b/.test(clause) && /\b(?:compteurs?|agreg\w*|counts?)\b/.test(clause)
-            || /\b(?:nombre|total|totaux|combien)\s+(?:de|des|du|d')\s*(?:(?:mes?|nos?|les|tous les)\s+)?(?:contacts?|clients?|prospects?)\b/.test(clause)
-            || /\b(?:total|totaux)\s+(?:(?:du|de mon|de notre|de ce)\s+)?crm\b/.test(clause);
+        const crmAggregate = /\bcrm\b/.test(readClause) && /\b(?:compteurs?|agreg\w*|counts?)\b/.test(readClause)
+            || /\b(?:nombre|total|totaux|combien)\s+(?:de|des|du|d')\s*(?:(?:mes?|nos?|les|tous les)\s+)?(?:contacts?|clients?|prospects?)\b/.test(readClause)
+            || /\b(?:total|totaux)\s+(?:(?:du|de mon|de notre|de ce)\s+)?crm\b/.test(readClause);
         if (crmAggregate) {
             plan.push({ id: `objective_${plan.length}`, kind: "read", tool: "readWorkspaceSection", workspaceSection: "crm", instruction: clause, count: 1 });
             continue;
         }
-        if (/\b(?:crm|contacts?|clients?|prospects?|fournisseurs?|partenaires?)\b/.test(clause)
-            && /\b(?:fiches?|details?|notes?|coordonnees|telephones?|e-?mails?|adresses?|facturation|siret|tva)\b/.test(clause)) {
+        if (/\b(?:crm|contacts?|clients?|prospects?|fournisseurs?|partenaires?)\b/.test(readClause)
+            && /\b(?:fiches?|details?|notes?|coordonnees|telephones?|e-?mails?|adresses?|facturation|siret|tva)\b/.test(readClause)) {
             if (hasInrAssistantDeferredApproval(message)) continue;
             if (!/\b[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\b/i.test(clause))
                 plan.push({ id: `objective_${plan.length}`, kind: "read", tool: "searchCrmContacts", instruction: clause, count: 1 });
@@ -183,7 +201,7 @@ export function inrAssistantObjectives(message: string, uiSteps: InrAssistantUiS
             && /\b(?:ce qui se passe|ce probleme|cet incident|la cause|le blocage)\b/.test(clause)
             && diagnosticReader.matches.test(previous) && !inrAssistantClauseIsAdvice(previous)
             && !/^(?:ne\b|n['’]|not\b|never\b|si\b|imagine\b|suppose\b)/.test(previous);
-        const reader = getInrAssistantBasicShopReadView(clause) ? readers.find(reader => reader.tool === "readAccountServices") : implicitDiagnostic || diagnosticFollowup ? diagnosticReader : readers.find(reader => !["readCrmContact","quoteMediaGeneration","getMediaGeneration","searchPublicWeb"].includes(reader.tool) && reader.matches.test(clause) && !(reader.tool === "readAccountServices" && /notifications?/.test(clause) && /reglages?|parametres?|preferences?/.test(clause)));
+        const reader = getInrAssistantBasicShopReadView(clause) ? readers.find(reader => reader.tool === "readAccountServices") : implicitDiagnostic || diagnosticFollowup ? diagnosticReader : readers.find(reader => !["readCrmContact","quoteMediaGeneration","getMediaGeneration","searchPublicWeb"].includes(reader.tool) && reader.matches.test(readClause) && !(reader.tool === "readAccountServices" && /notifications?/.test(readClause) && /reglages?|parametres?|preferences?/.test(readClause)));
         if (reader?.tool === "getAccountDiagnostics" && diagnosticDeferred)
             continue;
         if (reader)

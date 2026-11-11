@@ -124,6 +124,20 @@ test("mounted library schemas reject malformed model inputs before any native ex
   }
 });
 
+test("a requested native library filter identifies the library and waits for its ACK instead of referring to image retouch", async () => {
+  const request = "Ouvre la médiathèque et affiche uniquement les images.";
+  const screen: InrAssistantClientScreen = { pathname: "/dashboard/mediatheque", tool: "Mes médias", selection: { kind: "media", id: "library" }, revision: "library_1", availableCommands: ["configure_media_library"] };
+  const input = { command: "configure_media_library" as const, instructionQuote: "affiche uniquement les images", documentId: null, documentKind: null, recipient: null, patch: { changes: [{ field: "typeFilter", valueJson: '"image"' }] } };
+  for (const edition of ["basic", "standard", "premium"] as const) {
+    const output = toolResultRow(await harness(request, { screen, edition, realSdk: true }).runScreenCommand.execute!(input, execution));
+    assert.equal(output.ok, true); assert.equal(output.status, "ui_action_requested");
+    assert.match(String(output.message), /médiathèque.*attendre.*confirmation du navigateur/);
+    assert.doesNotMatch(String(output.message), /retouch|appliqu|enregistr/i);
+    const refused = toolResultRow(await harness(request, { screen: { ...screen, availableCommands: [] }, edition, realSdk: true }).runScreenCommand.execute!(input, execution));
+    assert.equal(refused.ok, false); assert.match(String(refused.message), /médiathèque/i); assert.doesNotMatch(String(refused.message), /retouche/i);
+  }
+});
+
 test("real SDK repairs only the serialized retouch envelope before native validation and exact mounted action", async () => {
   const request = "Mets le fond en blanc et le zoom à110%. Ne sauvegarde aucune copie.";
   const screen: InrAssistantClientScreen = { pathname: "/dashboard/generer-media", tool: "Retouche image", selection: { kind: "media", id: "30000000-0000-4000-8000-000000000001" }, revision: "image_1", availableCommands: ["configure_image_retouch"] };
@@ -142,7 +156,7 @@ test("real SDK repairs only the serialized retouch envelope before native valida
     { ...raw, patch, accountId: "foreign" }, { ...raw, patch, documentId: "30000000-0000-4000-8000-000000000002" },
   ]) assert.equal((await schema.validate!(value)).success, false, "business values/foreign scope remain rejected");
   const model: LanguageModelV3 = { specificationVersion: "v3", provider: "offline-retouch", modelId: "fixture", supportedUrls: {},
-    doGenerate: async () => ({ content: [{ type: "tool-call", toolCallId: "screen-repair", toolName: "runScreenCommand", input: JSON.stringify(raw) }], finishReason: { unified: "tool-calls", raw: "fixture" }, usage: { inputTokens: { total: 0 }, outputTokens: { total: 0 } }, warnings: [] }),
+    doGenerate: async () => ({ content: [{ type: "tool-call", toolCallId: "screen-repair", toolName: "runScreenCommand", input: JSON.stringify(raw) }], finishReason: { unified: "tool-calls", raw: "fixture" }, usage: { inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 0, text: 0, reasoning: 0 } }, warnings: [] }),
     doStream: async () => { throw new Error("No transport"); },
   };
   let repairs = 0;
@@ -230,6 +244,21 @@ test("navigation validates current instruction and active account before emittin
   assert.equal((await harness(request).navigateApplication.execute!({ destination: "crm", instructionQuote: request }, execution) as { ok: boolean }).ok, true);
   for (const options of [{ foreign: true }, { expired: true }]) assert.equal((await harness(request, options).navigateApplication.execute!({ destination: "crm", instructionQuote: request }, execution) as { ok: boolean }).ok, false);
   assert.equal((await harness("N’ouvre pas le CRM").navigateApplication.execute!({ destination: "crm", instructionQuote: request }, execution) as { ok: boolean }).ok, false);
+});
+
+test("native agent settings navigation preserves edition scope and the exact named agent without changing any setting", async () => {
+  for (const request of ["Ouvre les réglages de l’agent Publications. Ne modifie rien.", "Dans l’Agent Publications déjà ouvert, affiche maintenant le panneau Réglages. Ne change aucune valeur."]) {
+    const input = { destination: "publication_agent_settings", instructionQuote: request, documentId: null };
+    const result = toolResultRow(await harness(request, { edition: "standard", realSdk: true }).navigateApplication.execute!(input, execution));
+    assert.equal(result.ok, true); assert.equal(result.status, "navigation_requested");
+    assert.equal((result.navigation as { destination: string }).destination, "publication_agent_settings");
+    assert.equal(toolResultRow(await harness(request, { edition: "standard", realSdk: true }).navigateApplication.execute!({ ...input, destination: "stats_agent_settings" }, execution)).ok, false);
+    assert.equal(toolResultRow(await harness(request, { edition: "basic", realSdk: true }).navigateApplication.execute!(input, execution)).ok, false);
+    assert.match(String(result.message), /Ouverture.*demandée/);
+    assert.doesNotMatch(String(result.message), /est ouvert|a été ouvert|appliqu|sauvegard/i);
+  }
+  const request = "Ouvre iNr’CRM pour consulter la liste. Ne crée et ne modifie aucune fiche.";
+  assert.equal(toolResultRow(await harness(request, { edition: "premium", realSdk: true }).navigateApplication.execute!({ destination: "crm", instructionQuote: request, documentId: null }, execution)).ok, true);
 });
 test("PDF uses only the mounted capability for the exact selected document", async () => {
   const request = "Télécharge le PDF de ce devis";

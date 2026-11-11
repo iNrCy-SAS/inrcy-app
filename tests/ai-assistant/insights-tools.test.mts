@@ -31,7 +31,7 @@ function load<T>(file: string, dependencies: Record<string, unknown>, fastTimeou
 }
 const { sanitizeInrAssistantMemoryText } = load<typeof Memory>("../../lib/inrAssistantMemory.ts", { "server-only": {}, "node:crypto": { randomUUID } });
 
-function fixture(options: { current?: string; stats?: Row[]; statsError?: boolean; reviews?: Row[]; disconnected?: boolean; replyError?: boolean; nextPage?: boolean; foreignAuth?: boolean; hangRead?: boolean; hangReply?: boolean; nativeReply?: boolean; actorScoped?: boolean } = {}) {
+function fixture(options: { current?: string; stats?: Row[]; statsError?: boolean; statsErrorSource?: string; switchDuringStatsRead?: boolean; reviews?: Row[]; disconnected?: boolean; replyError?: boolean; nextPage?: boolean; foreignAuth?: boolean; hangRead?: boolean; hangReply?: boolean; nativeReply?: boolean; actorScoped?: boolean } = {}) {
   const queries: Query[] = []; const apiCalls: Array<{ method: string; request: Request; body?: Row }> = [];
   const providerWrites: string[] = []; let nativeReviewRace = false;
   let currentAccount = options.foreignAuth ? foreignId : accountId;
@@ -55,7 +55,8 @@ function fixture(options: { current?: string; stats?: Row[]; statsError?: boolea
         assert.equal(signal.aborted, false);
         assert.ok(query.filters.some(([key, value]) => key === "user_id" && value === accountId));
         assert.ok(query.maximum <= 24);
-        if (options.statsError) return { data: null, error: { message: "PRIVATE SQL ERROR", hint: "RAW PRIVATE TOKEN" } };
+        if (options.switchDuringStatsRead && query.filters.some(([key, value]) => key === "source" && value === "metrics_summary")) currentAccount = foreignId;
+        if (options.statsError || options.statsErrorSource && query.filters.some(([key, value]) => key === "source" && (Array.isArray(value) ? value.includes(options.statsErrorSource) : value === options.statsErrorSource))) return { data: null, error: { message: "PRIVATE SQL ERROR", hint: "RAW PRIVATE TOKEN" } };
         const matches = stats.filter(entry => query.filters.every(([key, value]) => Array.isArray(value) ? value.includes(entry[key]) : entry[key] === value)).slice(0, query.maximum);
         // Emulate the actual PostgREST alias projection from a real cache payload.
         const data = matches.map(entry => Object.fromEntries(query.fields.split(",").map(field => {
@@ -122,6 +123,90 @@ test("saved stats use real direct-payload aliases and only numeric scoped projec
   assert.doesNotMatch(h.queries[0].fields, /(?:^|,)payload(?:,|$)|identities|raw|token|url/i);
   assert.doesNotMatch(JSON.stringify(result), /PRIVATE|private@|provider\.invalid|9999999/);
   assert.equal(h.apiCalls.length, 0);
+});
+
+function cockpitCache(overrides: Row = {}, payloadOverrides: Row = {}): Row {
+  return { user_id: accountId, source: "metrics_summary", range_key: "metaPilot=0|month=30|week=7|today=2|snapshot=live|conn=safe", expires_at: "2026-10-27T00:00:00Z", payload: {
+    leads: { week: 69, month: 255, today: 999, email: "private@example.test" }, details: { opportunities: { month: 210, week: 49, total: 999 }, profile: { name: "PRIVATE CLIENT", avg_basket: 500 } }, estimatedValue: 10500,
+    meta: { source: "api/metrics/summary", generatedAt: "2026-10-26T10:00:00Z", snapshotDate: null, live: true },
+    raw: "PRIVATE RAW", debug: { token: "PRIVATE TOKEN" }, paidRevenue: 9999999, ...payloadOverrides,
+  }, ...overrides };
+}
+
+test("cockpit cache projection reads exact native periods and never confuses potential with paid revenue", async () => {
+  for (const days of [null, 7, 30] as const) {
+    const h = fixture({ stats: [cockpitCache(), cockpitCache({ user_id: foreignId })] });
+    const result = await h.execute("readStatsSnapshots", { days }); const snapshot = result.cockpitSnapshot as Row, metrics = snapshot.metrics as Row;
+    assert.equal(result.ok, true); assert.equal(result.liveVerified, false); assert.equal(snapshot.currentVerified, false);
+    assert.equal(snapshot.generatedAt, "2026-10-26T10:00:00.000Z"); assert.equal(snapshot.expiredCache, false);
+    assert.equal(metrics.capturedLeadsWeek, days === 30 ? null : 69);
+    assert.equal(metrics.capturedLeadsMonth, days === 7 ? null : 255);
+    assert.equal(metrics.opportunitiesEstimatedMonth, days === 7 ? null : 210);
+    assert.equal(metrics.potentialCommercialEstimatedMonth, days === 7 ? null : 10500);
+    assert.equal(metrics.revenueCollected, null);
+    assert.match(String(snapshot.message), /jamais du chiffre d’affaires encaissé/);
+    const query = h.queries.find(q => q.filters.some(([key, value]) => key === "source" && value === "metrics_summary"))!;
+    assert.equal(query.maximum, 4); assert.ok(query.filters.some(([key, value]) => key === "user_id" && value === accountId));
+    assert.doesNotMatch(query.fields, /(?:^|,)payload(?:,|$)|profile|raw|debug|token|email|paidRevenue/);
+    assert.doesNotMatch(JSON.stringify(result), /PRIVATE|private@|9999999|safe|conn=/);
+    assert.equal(h.apiCalls.length, 0); assert.equal(h.providerWrites.length, 0);
+  }
+});
+
+test("missing or invalid cockpit values remain null while a saved genuine zero remains zero", async () => {
+  const h = fixture({ stats: [cockpitCache({}, { leads: { week: 0, month: null }, details: { opportunities: { month: "210" } }, estimatedValue: -1 })] });
+  const snapshot = (await h.execute("readStatsSnapshots", { days: null })).cockpitSnapshot as Row;
+  assert.deepEqual(JSON.parse(JSON.stringify(snapshot.metrics)), { capturedLeadsWeek: 0, capturedLeadsMonth: null, opportunitiesEstimatedMonth: null, potentialCommercialEstimatedMonth: null, revenueCollected: null });
+  const zero = fixture({ stats: [cockpitCache({}, { leads: { week: 0, month: 0 }, details: { opportunities: { month: 0 } }, estimatedValue: 0 })] });
+  const zeroSnapshot = (await zero.execute("readStatsSnapshots", { days: null })).cockpitSnapshot as Row;
+  assert.equal((zeroSnapshot.metrics as Row).potentialCommercialEstimatedMonth, 0);
+  assert.equal(zeroSnapshot.currentVerified, false);
+});
+
+test("wrong cockpit source, windows and missing generation dates never become current counters", async () => {
+  const nativeMeta = (cockpitCache().payload as Row).meta as Row;
+  for (const entry of [
+    cockpitCache({ source: "unrelated_source" }),
+    cockpitCache({ range_key: "metaPilot=0|month=300|week=7|today=2|snapshot=live|conn=safe" }),
+    cockpitCache({ range_key: "metaPilot=0|month=30|week=70|today=2|snapshot=live|conn=safe" }),
+    cockpitCache({}, { meta: { ...nativeMeta, source: "unrelated_payload" } }),
+    cockpitCache({}, { meta: { ...nativeMeta, generatedAt: null } }),
+    cockpitCache({}, { meta: { ...nativeMeta, generatedAt: "invalid" } }),
+    cockpitCache({}, { meta: { ...nativeMeta, generatedAt: "2026-10-27T10:00:00Z" } }),
+    cockpitCache({}, { meta: { ...nativeMeta, live: false, snapshotDate: "2026-10-25" } }),
+  ]) {
+    const snapshot = (await fixture({ stats: [entry] }).execute("readStatsSnapshots", { days: null })).cockpitSnapshot as Row;
+    assert.equal(snapshot.currentDataKnown, false); assert.equal(snapshot.currentVerified, false);
+    assert.ok(Object.values(snapshot.metrics as Row).every(value => value === null));
+  }
+  const stale = fixture({ stats: [cockpitCache({ expires_at: "2026-10-25T00:00:00Z" }, { meta: { ...nativeMeta, generatedAt: "2026-10-24T10:00:00Z" } })] });
+  const historical = (await stale.execute("readStatsSnapshots", { days: 30 })).cockpitSnapshot as Row;
+  assert.equal(historical.status, "historical"); assert.equal(historical.expiredCache, true); assert.equal(historical.currentDataKnown, false); assert.equal(historical.currentVerified, false);
+  assert.equal((historical.metrics as Row).capturedLeadsMonth, 255); assert.equal(historical.generatedAt, "2026-10-24T10:00:00.000Z");
+});
+
+test("cockpit cache errors and a mid-read account switch cannot leak other sources or downgrade scope checks", async () => {
+  const missing = await fixture({ stats: [] }).execute("readStatsSnapshots", { days: null });
+  assert.equal(((missing.cockpitSnapshot as Row).metrics as Row).capturedLeadsWeek, null);
+  const failed = await fixture({ stats: [cockpitCache()], statsErrorSource: "metrics_summary" }).execute("readStatsSnapshots", { days: null });
+  assert.equal(((failed.cockpitSnapshot as Row).metrics as Row).capturedLeadsMonth, null); assert.doesNotMatch(JSON.stringify(failed), /SQL|TOKEN|PRIVATE/);
+  const isolated = await fixture({ stats: [cockpitCache()], statsErrorSource: "overview" }).execute("readStatsSnapshots", { days: 30 });
+  assert.equal(((isolated.cockpitSnapshot as Row).metrics as Row).capturedLeadsMonth, 255);
+  const switched = fixture({ stats: [cockpitCache()], switchDuringStatsRead: true, actorScoped: true });
+  const rejected = await switched.execute("readStatsSnapshots", { days: null });
+  assert.equal(rejected.ok, false); assert.doesNotMatch(JSON.stringify(rejected), /10500|255|69/);
+  const unauthorized = fixture({ stats: [cockpitCache()], foreignAuth: true });
+  assert.equal((await unauthorized.execute("readStatsSnapshots", { days: null })).ok, false); assert.equal(unauthorized.queries.length, 0);
+});
+
+test("traffic with Unicode labels and cockpit counters share one six-kilobyte output budget", async () => {
+  const totals = { users: 123456789.123, sessions: 123456789.123, pageviews: 123456789.123, clicks: 123456789.123, impressions: 123456789.123, engagementRate: 12.34, avgSessionDuration: 123.45, ctr: 12.34 };
+  const traffic = { user_id: accountId, source: "overview", range_key: "days=30|", expires_at: "2026-10-27T00:00:00Z", payload: { totals, channels: Array.from({ length: 13 }, () => ({ label: "界".repeat(60), ...totals })) } };
+  const h = fixture({ stats: [traffic, { ...traffic }, { ...traffic }, { ...traffic }, cockpitCache()] });
+  const result = await h.execute("readStatsSnapshots", { days: null });
+  assert.equal(result.truncated, true); assert.ok(Buffer.byteLength(JSON.stringify(result), "utf8") <= 6000);
+  assert.equal((((result.cockpitSnapshot as Row).metrics as Row).capturedLeadsWeek), 69);
+  assert.equal((result.cockpitSnapshot as Row).currentVerified, false);
 });
 
 test("expired or invalid cache dates never become current verified stats and missing values stay unknown", async () => {

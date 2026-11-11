@@ -4,7 +4,7 @@ import 'server-only';
 import { jsonSchema, tool } from 'ai';
 import { requireUser } from './requireUser';
 import type { InrAssistantClientContext } from './inrAssistantClientContext.ts';
-import { INR_ASSISTANT_LOCAL_OPERATIONS, inrAssistantLocalInterfaceValueLimit, isInrAssistantLocalInterfaceRequest, isInrAssistantLocalInterfaceValueRequested, parseInrAssistantLocalInterfaceCommand, type InrAssistantLocalInterface, type InrAssistantLocalOperation } from './inrAssistantLocalInterface.ts';
+import { getInrAssistantAgentSettingsRequest, INR_ASSISTANT_LOCAL_OPERATIONS, inrAssistantLocalInterfaceValueLimit, isInrAssistantLocalInterfaceRequest, isInrAssistantLocalInterfaceValueRequested, parseInrAssistantLocalInterfaceCommand, type InrAssistantLocalInterface, type InrAssistantLocalOperation } from './inrAssistantLocalInterface.ts';
 import { matchesInrAssistantActionClause } from './inrAssistantActionClause.ts';
 type Input = { interface: InrAssistantLocalInterface; operation: InrAssistantLocalOperation; revision: string; value: string | null; instructionQuote: string };
 export function createInrAssistantLocalInterfaceTools(options: { accountId: string; actorUserId: string; currentUserMessage: string; clientContext?: InrAssistantClientContext | null; canStartWork?: () => boolean }) {
@@ -17,6 +17,11 @@ export function createInrAssistantLocalInterfaceTools(options: { accountId: stri
       const hint = hints.find(hint => hint.id === input.interface && hint.revision === input.revision && hint.operations.includes(input.operation));
       const failure = (status: string, message: string) => ({ ok: false, status, message });
       if (!command || !hint) return failure('navigation_required', 'Ouvrez le panneau concerné pour utiliser son contrôle natif actuel.');
+      if (input.interface === 'agent_settings') {
+        const requested = getInrAssistantAgentSettingsRequest(options.currentUserMessage);
+        const expectedPath = requested?.agent === 'publish' ? '/dashboard/agent/publications' : requested?.agent === 'stats' ? '/dashboard/agent/stats' : null;
+        if (!expectedPath || options.clientContext?.screen?.pathname !== expectedPath) return failure('navigation_required', 'Ouvrez la page de l’agent explicitement demandé avant son panneau Réglages.');
+      }
       if (typeof input.instructionQuote !== 'string' || !matchesInrAssistantActionClause(options.currentUserMessage, input.instructionQuote, (current, quote) => isInrAssistantLocalInterfaceRequest(current, input.interface, input.operation) && isInrAssistantLocalInterfaceRequest(quote, input.interface, input.operation))) return failure('needs_instruction', 'Précisez le contrôle d’interface que vous souhaitez utiliser maintenant.');
       if (["studio_guided_form", "studio_free_form"].includes(input.interface) && input.operation === "select" && !isInrAssistantStudioFormSelectionRequested(input.instructionQuote, input.value, input.interface === "studio_guided_form" ? "guided" : "free")) return failure("needs_instruction", "Le champ et la valeur Studio doivent correspondre à votre demande explicite.");
       if (input.interface.startsWith("scheduled_publication_") && !isInrAssistantScheduledEditorValueRequested(input.instructionQuote, input.interface, input.value)) return failure("needs_instruction", "Le champ, le canal et la valeur du brouillon programmé doivent correspondre à votre demande explicite.");

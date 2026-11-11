@@ -1,3 +1,4 @@
+import { getInrAssistantAgentSettingsNavigationRequest } from './inrAssistantAgentSettingsUi.ts';
 import { getInrAssistantPublicationDraftNavigation } from "./inrAssistantPublicationDraftNavigation.ts";
 export { getInrAssistantPublicationDraftNavigation } from "./inrAssistantPublicationDraftNavigation.ts";
 import { parseInrAssistantContentReportCommand, type InrAssistantContentReportCommand } from "./inrAssistantContentReport.ts";
@@ -43,6 +44,7 @@ export const INR_ASSISTANT_NAVIGATION = {
   youtube: "/dashboard?panel=youtube_shorts", pinterest: "/dashboard?panel=pinterest",
   x: "/dashboard?panel=x", website: "/dashboard?panel=site_web", search: "/dashboard?panel=inr_search",
   directory: "/dashboard?panel=inr_directory",
+  publication_agent_settings: "/dashboard/agent/publications", stats_agent_settings: "/dashboard/agent/stats",
   publication_agent: "/dashboard/agent/publications", email_agent: "/dashboard/agent/campagnes-mails",
   stats_agent: "/dashboard/agent/stats", help: "/dashboard?help=1", contact: "/dashboard?panel=contact",
   credits: "/dashboard/boutique/recharges", cash: "/dashboard?action=cash",
@@ -262,6 +264,8 @@ function channelConnectionNavigationRequest(message: string): (DirectNavigationR
 
 /** Resolve an explicit module opening; record-specific requests remain with the normal tools. */
 function parseDirectNavigationRequest(message: string): (DirectNavigationRequest & { suffix: string }) | null {
+  const settings = getInrAssistantAgentSettingsNavigationRequest(message);
+  if (settings) return { destination: settings.destination, instructionQuote: settings.instructionQuote, suffix: settings.pure ? '' : message };
   const connection = channelConnectionNavigationRequest(message);
   if (connection) return connection;
   if (message.length > 1200 || !isInrAssistantNavigationRequest(message)) return null;
@@ -282,7 +286,8 @@ function parseDirectNavigationRequest(message: string): (DirectNavigationRequest
     if (destination === "quotes" && moduleDescription && (moduleDescription[1] === "du" || ["mon", "le"].includes(moduleDescription[2]))) return null;
     const after = remainder.slice(match[0].length);
     const suffix = after.replace(/^\s+(?:de l'application|de mon application)\b/, "");
-    if (!/^(?:\s*(?:$|[.!?,;])|\s+(?:et|puis|and|then|pour moi|sans|seulement|s'il|stp|svp|please|maintenant|merci)\b)/.test(suffix)) return null;
+    const crmListPurpose = destination === "crm" && /^\s+pour\s+(?:consulter|voir)\s+la\s+liste\b/.test(suffix);
+    if (!crmListPurpose && !/^(?:\s*(?:$|[.!?,;])|\s+(?:et|puis|and|then|pour moi|sans|seulement|s'il|stp|svp|please|maintenant|merci)\b)/.test(suffix)) return null;
     if (isInrAssistantNavigationRequest(suffix)) return null;
     const secondTarget = suffix.match(/^\s*(?:[,;]\s*)?(?:(?:et|puis|ou|and|then|or)\s+)?(?:(?:les|le|la|mon|ma|mes|the|my)\s+|l')?(.*)$/)?.[1] ?? "";
     if (/^(?:module|panneau|page|ecran|outil)\b/.test(secondTarget)) return null;
@@ -299,7 +304,10 @@ export function getDirectInrAssistantNavigationRequest(message: string): DirectN
 
 /** A strict subset needing no model: one named module and optional courtesy, with no extra task. */
 export function getPureInrAssistantNavigationRequest(message: string): DirectNavigationRequest | null {
+  const settings = getInrAssistantAgentSettingsNavigationRequest(message);
+  if (settings) return settings.pure ? { destination: settings.destination, instructionQuote: settings.instructionQuote } : null;
   const parsed = parseDirectNavigationRequest(message);
+  if (parsed?.destination === "crm" && /^\s+pour\s+(?:consulter|voir)\s+la\s+liste[.!?]*\s*(?:ne\s+cree\s+et\s+ne\s+modifie\s+aucune\s+fiche[.!?]*)?\s*$/.test(parsed.suffix)) return { destination: parsed.destination, instructionQuote: parsed.instructionQuote };
   if (!parsed || !/^(?:[\s.!?,;]|pour moi\b|s'il (?:te|vous) plait\b|stp\b|svp\b|please\b|maintenant\b|merci\b)*$/.test(parsed.suffix)) return null;
   return { destination: parsed.destination, instructionQuote: parsed.instructionQuote };
 }

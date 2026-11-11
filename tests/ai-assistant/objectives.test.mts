@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { inrAssistantObjectives, inrAssistantObjectiveCompleted, inrAssistantObjectiveReady, inrAssistantPlanAllowsRead, inrAssistantReadMatchesObjective, createInrAssistantReadBudget, isInrAssistantAccountDiagnosticRequest } from "../../lib/inrAssistantObjectives.ts";
-import { inrAssistantRequiredTools, inrAssistantRequiredCalls } from "../../lib/inrAssistantTaskPolicy.ts";
+import { inrAssistantRequiredTools, inrAssistantRequiredCalls, inrAssistantRequestClauses } from "../../lib/inrAssistantTaskPolicy.ts";
 import { matchesInrAssistantActionClause } from "../../lib/inrAssistantActionClause.ts";
 import { inrAssistantSelectionToolHints } from "../../lib/inrAssistantToolRouting.ts";
 import { inrAssistantMaskQuotedText } from "../../lib/inrAssistantRequestClauses.ts";
@@ -11,6 +11,95 @@ test("credits belonging to a subscription require the credit view rather than a 
   assert.equal(objective.tool, "readAccountServices");
   assert.equal(inrAssistantReadMatchesObjective(objective, "readAccountServices", { view: "subscription" }), false);
   assert.equal(inrAssistantReadMatchesObjective(objective, "readAccountServices", { view: "credits" }), true);
+});
+
+const realStatsPrivacyRequest = "Lis uniquement les statistiques agrégées réelles de mon compte sur les 7 et 30 derniers jours : leads, opportunités et potentiel commercial. Distingue bien le potentiel estimé du chiffre d’affaires réellement encaissé. Aucune modification et aucun nom de contact.";
+const realCrmCountersRequest = "Donne uniquement les six compteurs agrégés du CRM de mon compte actif : total, prospects, clients, non lus, RDV à confirmer et devis à accepter. Aucun nom, aucune adresse et aucune modification.";
+
+test("privacy exclusions cannot replace an actual statistics read with a forbidden CRM objective", () => {
+  for (const message of [realStatsPrivacyRequest,
+    "Lis mes statistiques des 30 derniers jours, sans noms ni adresses de contacts.",
+    "Lis mes statistiques des 30 derniers jours, sans CRM ni contact.",
+    "Lis mes statistiques des 30 derniers jours, sans lire les fiches CRM.",
+    "Lis mes statistiques des 30 derniers jours ; pas de noms de clients.",
+  ]) {
+    const plan = inrAssistantObjectives(message);
+    assert.deepEqual(plan.map(x => x.tool), ["readStatsSnapshots"], message);
+    assert.deepEqual(inrAssistantRequiredTools(message), [], message);
+    assert.equal(plan[0].instruction, inrAssistantRequestClauses(message)[0], "the original clause, including its exclusions, remains available to native guards");
+  }
+  for (const separator of [", puis ", " et ", ", mais "]) {
+    const mixed = realStatsPrivacyRequest + separator + "lis les coordonnées de la fiche CRM Alice.";
+    assert.deepEqual(inrAssistantObjectives(mixed).map(x => x.tool), ["readStatsSnapshots", "searchCrmContacts", "readCrmContact"], separator);
+  }
+  assert.deepEqual(inrAssistantObjectives("Cherche les contacts CRM Alice, sans nom de contact affiché.").map(x => x.tool), ["searchCrmContacts"]);
+  assert.deepEqual(inrAssistantObjectives("Lis les coordonnées de la fiche CRM Alice, sans adresse de contact.").map(x => x.tool), ["searchCrmContacts", "readCrmContact"]);
+  const calendar = "Lis mes rendez-vous du 12 novembre 2026 dans le fuseau Europe/Paris. Indique seulement les horaires et le nombre, sans identité ni modification et sans envoyer de rappel.";
+  assert.deepEqual(inrAssistantObjectives(calendar).map(x => x.tool), ["readCommunicationRecords"]);
+  assert.deepEqual(inrAssistantRequiredTools(calendar), []);
+  assert.deepEqual(inrAssistantObjectives("Lis l’identité de mon entreprise, puis lis mes rendez-vous sans identité de client.").map(x => x.tool), ["readBusinessIdentity", "readCommunicationRecords"]);
+});
+
+test("pending CRM counter labels remain one anonymous read and never commercial, contact or calendar mutations", () => {
+  for (const message of [realCrmCountersRequest,
+    "Donne-moi les compteurs CRM : contacts non lus, rendez-vous à confirmer, devis à accepter. Lecture seule.",
+    "Lis les compteurs agrégés CRM : RDV à confirmer et devis à valider. Sans noms ni adresses.",
+    "Affiche les compteurs CRM, y compris les rendez-vous à accepter et les devis à finaliser.",
+  ]) {
+    assert.deepEqual(inrAssistantRequiredTools(message), [], message);
+    const plan = inrAssistantObjectives(message);
+    assert.deepEqual(plan.map(x => [x.kind, x.tool, x.workspaceSection]), [["read", "readWorkspaceSection", "crm"]], message);
+  }
+});
+
+test("independent confirmations and changes survive a preceding CRM counter read without granting execution", () => {
+  const actions = [
+    ["confirme le rendez-vous RDV-1.", "confirmCalendarAppointment"],
+    ["accepte le rendez-vous RDV-1.", "confirmCalendarAppointment"],
+    ["valide le devis D-1.", "finalizeCommercialDocument"],
+    ["finalise le devis D-1.", "finalizeCommercialDocument"],
+    ["modifie la fiche CRM Alice : téléphone 0102030405.", "manageCrmContact"],
+  ];
+  for (const separator of [", puis ", " et ", ", mais "]) for (const [order, tool] of actions) {
+    const message = realCrmCountersRequest + separator + order;
+    assert.deepEqual(inrAssistantRequiredTools(message), [tool], separator + order);
+    const plan = inrAssistantObjectives(message);
+    assert.deepEqual(plan.map(x => [x.kind, x.tool]), [["read", "readWorkspaceSection"], ["action", tool]], separator + order);
+  }
+  for (const advice of [
+    "Explique comment lire les compteurs CRM puis confirmer un rendez-vous.",
+    "Comment lire les compteurs CRM puis valider un devis et accepter un rendez-vous ?",
+  ]) assert.deepEqual(inrAssistantRequiredTools(advice), [], advice);
+  assert.deepEqual(inrAssistantRequiredTools("Explique les compteurs CRM, puis confirme le rendez-vous RDV-1."), ["confirmCalendarAppointment"]);
+  for (const later of [
+    "confirme le rendez-vous RDV-1 seulement si Julie valide.",
+    "accepte le devis D-1 après validation de Julie.",
+    "finalise le devis D-1 une fois Julie d’accord.",
+    "ne confirme pas le rendez-vous RDV-1.",
+  ]) {
+    const message = "Donne les compteurs agrégés CRM, puis " + later;
+    assert.deepEqual(inrAssistantRequiredTools(message), [], later);
+    assert.deepEqual(inrAssistantObjectives(message).map(x => x.tool), ["readWorkspaceSection"], later);
+  }
+  assert.deepEqual(inrAssistantRequiredTools("Donne les compteurs CRM, puis confirme le rendez-vous RDV-1, puis finalise le devis D-1 après validation de Julie."), ["confirmCalendarAppointment"]);
+});
+
+test("synthetic conversion arithmetic never requests private estimation assumptions", () => {
+  const message = "Analyse ces données fictives : une page reçoit 100 visites et produit 8 demandes de devis ; 2 demandes deviennent des ventes. Calcule les deux taux de conversion et propose trois améliorations concrètes pour un réparateur de vélos.";
+  assert.deepEqual(inrAssistantObjectives(message), []);
+  assert.deepEqual(inrAssistantRequiredTools(message), []);
+  assert.deepEqual(inrAssistantObjectives(message + " Puis lis les hypothèses des estimations de mon compte.").map(x => x.tool), ["readGeneratorBusinessSettings"]);
+  assert.deepEqual(inrAssistantObjectives("Lis les hypothèses des estimations de mon compte.").map(x => x.tool), ["readGeneratorBusinessSettings"]);
+  assert.deepEqual(inrAssistantObjectives("Analyse les données fictives du fichier joint.").map(x => x.tool), ["readAttachedDocument"]);
+});
+
+test("channel leads and estimated cockpit opportunity questions select statistics without borrowing CRM rights", () => {
+  const message = "Donne-moi les leads enregistrés sur 7 et 30 jours, puis le nombre d’opportunités et leur potentiel commercial estimé. Ne présente pas ce potentiel comme du chiffre d’affaires encaissé. Lecture seule.";
+  assert.deepEqual(inrAssistantObjectives(message).map(x => x.tool), ["readStatsSnapshots"]);
+  assert.deepEqual(inrAssistantRequiredTools(message), []);
+  assert.deepEqual(inrAssistantObjectives("Lis mes opportunités et mon potentiel commercial du cockpit.").map(x => x.tool), ["readStatsSnapshots"]);
+  assert.deepEqual(inrAssistantObjectives("Cherche les prospects et leads du CRM.").map(x => x.tool), ["searchCrmContacts"]);
+  assert.deepEqual(inrAssistantObjectives(message + " Puis lis les coordonnées de la fiche CRM Alice.").map(x => x.tool), ["readStatsSnapshots", "searchCrmContacts", "readCrmContact"]);
 });
 
 test("CRM aggregate counters read only the anonymous CRM workspace facet and never borrow excluded personal fields", () => {

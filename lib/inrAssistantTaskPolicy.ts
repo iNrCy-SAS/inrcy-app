@@ -80,6 +80,12 @@ export function isInrAssistantMediaStatusRequest(message:string):boolean {
   return /\b(?:apercu|creation|generation|preview)\b/.test(text) && /\b(?:statut|etat|suivi|ou en est|status)\b/.test(text)
     && /^(?:quels?|quelles?|verifi\w*|montre\w*|consulte\w*|lis|lire|ou|check|show)\b/.test(text);
 }
+/** Public counter labels name pending states, never native mutations. */
+export function isInrAssistantCrmAggregateReadRequest(message: string): boolean {
+  const text = inrAssistantUnquotedRequest(message);
+  return /^(?:(?:peux|pourrais)[- ]tu\s+|(?:pouvez|pourriez)[- ]vous\s+)?(?:donne\w*(?:-moi)?|lis|lire|consulte\w*|liste\w*|montre\w*|affiche\w*|indique\w*|verifi\w*|quels?|quelles?|combien)\b/.test(text)
+    && /\bcrm\b/.test(text) && /\b(?:compteurs?|agreg\w*|counts?)\b/.test(text);
+}
 /** Business goals, distinct from their prerequisite reads. */
 export function inrAssistantRequiredTools(message: string): string[] {
   return [...new Set(inrAssistantActionObjectives(message).map(objective => objective.tool))];
@@ -128,10 +134,15 @@ export function inrAssistantActionObjectives(message: string): InrAssistantActio
     && (objective.tool !== "acceptMediaGeneration" || isInrAssistantMediaPreviewDecisionRequest(message,"accept"))
     && (objective.tool !== "discardMediaGeneration" || isInrAssistantMediaPreviewDecisionRequest(message,"discard"))).filter(objective => objective.tool === "generateMedia"
     ? permitsInrAssistantMediaAction(message, "generate", "image") || permitsInrAssistantMediaAction(message, "generate", "video")
-    : objective.tool !== "modifyMedia" || permitsInrAssistantMediaAction(message, "modify"));
+    : objective.tool !== "modifyMedia" || permitsInrAssistantMediaAction(message, "modify"))
+    .filter(objective => !["confirmCalendarAppointment", "finalizeCommercialDocument"].includes(objective.tool) || !hasInrAssistantDeferredApproval(objective.instruction));
 }
 function requiredToolsForClause(message: string, mediaContext: boolean): string[] {
   const t = inrAssistantRoutingText(message).replace(/^(?:dans|sur)\s+(?:(?:le|mon|notre)\s+)?crm\s*[:,]?\s*/, ""), result: string[] = [];
+  // Names of pending counters ("RDV à confirmer", "devis à accepter")
+  // describe states to read. They are not orders to perform those operations.
+  // Independent imperatives have already been split into their own clauses.
+  if (isInrAssistantCrmAggregateReadRequest(message)) return result;
   if (isInrAssistantBadgeLogoThemeRequest(message)) return ["refreshBadgeThemeFromLogo"];
   if (isInrAssistantResumePublicationDraftRequest(message)) return ["resumePublicationDraft"];
   if (isInrAssistantNotificationActionRequest(message)) return ["openNotificationAction"];

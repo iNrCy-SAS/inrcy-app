@@ -55,6 +55,8 @@ import * as researchIntent from "../../lib/inrAssistantResearchIntent.ts";
 import * as providerCost from "../../lib/inrAssistantProviderCost.ts";
 import * as toolInputRepair from "../../lib/inrAssistantToolInputRepair.ts";
 import * as verifiedCapabilities from "../../lib/inrAssistantCapabilities.ts";
+import * as mediaQuote from "../../lib/inrAssistantMediaQuote.ts";
+import * as verifiedUiCompletion from "../../lib/inrAssistantVerifiedUiCompletion.ts";
 import { getInrAssistantDocumentPrefillNavigation } from "../../lib/inrAssistantDocumentUiCommands.ts";
 import type * as Gateway from "../../lib/inrAssistantGateway.ts";
 import type * as ToolRegistry from "../../lib/inrAssistantToolRegistry.ts";
@@ -63,6 +65,7 @@ import type { InrAssistantPublicationResult } from "../../lib/inrAssistantPublic
 import type * as Memory from "../../lib/inrAssistantMemory.ts";
 import type * as MemoryTools from "../../lib/inrAssistantMemoryTools.ts";
 import { createCtaToolFixture, CTA_TEST_ACCOUNT_ID } from "./helpers/cta-runtime.mts";
+import { createNativeMediaQuoteFixture } from "./helpers/media-quote-runtime.mts";
 
 function loadClosedModule<T>(file: string, stubs: Record<string, unknown>): T {
   const source = ts.transpileModule(readFileSync(new URL(`../../lib/${file}`, import.meta.url), "utf8"), {
@@ -201,6 +204,8 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
     "./inrAssistantRejectedToolContext.ts": rejectedToolContext,
     "./inrAssistantToolInputRepair.ts": toolInputRepair,
     "./inrAssistantCapabilities.ts": verifiedCapabilities,
+    "./inrAssistantMediaQuote.ts": mediaQuote,
+    "./inrAssistantVerifiedUiCompletion.ts": verifiedUiCompletion,
     "./inrAssistantActionCoverage.ts": actionCoverage,
     "./inrAssistantCommandRegistry.ts": commandRegistry,
     "./inrAssistantUiCommands.ts": uiCommands,
@@ -400,6 +405,116 @@ const studioPromptRequest = "Écris un prompt pour créer une image de flyer pr�
 const studioPrompt = "Crée un flyer professionnel pour mon entreprise, dans un style moderne bleu et violet, avec un titre lisible et une présentation claire de mes services.";
 const studioPromptReply = `Voici le prompt préparé :\n\n> ${studioPrompt}\n\nFormat recommandé : landscape.\n\nVous pouvez l’insérer dans Studio puis vérifier les critères avant de générer.`;
 const toolNames = (params: LanguageModelV3CallOptions) => (params.tools ?? []).filter(tool => tool.type === "function").map(tool => tool.name);
+
+const exactNativeQuoteRequest = "Donne-moi le devis exact en crédits pour une image carrée d’un vélo bleu sans texte, avec FLUX.2 Pro. Ne génère rien, ne réserve aucun crédit, n’enregistre rien et conserve le formulaire Studio ouvert.";
+const nativeQuoteInput = (engine="flux",prompt="Une image carrée d’un vélo bleu sans texte") => ({mediaType:"image",prompt,format:"square",durationSeconds:null,settings:[{field:"imageEngine",valueJson:JSON.stringify(engine)}],resultMode:null});
+
+test("native quote SDK receipts determine price and completion across all editions, independently of creative prose or old Studio context",async()=>{
+  for(const edition of ["basic","standard","premium"] as const) for(const prompt of ["Une image carrée d’un vélo bleu sans texte","Un ancien brief de vidéo de huit secondes pour un atelier rouge"]){
+    const native=createNativeMediaQuoteFixture(exactNativeQuoteRequest,50);
+    const input=nativeQuoteInput("flux",prompt);
+    const h=harness({extraTools:{quoteMediaGeneration:native.tool},plan:[{tool:"quoteMediaGeneration",input}],textReply:"Je n’ai pas encore le devis exact : cette description diffère de votre demande. Il indique 5 crédits mais je ne peux pas confirmer le coût."});
+    const clientContext={source:"untrusted_client" as const,screen:{pathname:"/dashboard/generer-media",tool:"Studio vidéo",selection:{kind:"media" as const,id:"video_editor"},revision:"studio_story_8s"}};
+    const before=JSON.stringify(clientContext);
+    const reply=await h.runtime.generateInrAssistantReply({...basic,edition,clientContext,messages:[{role:"user",content:"Prépare une vidéo verticale de 8 secondes pour mon atelier."},{role:"assistant",content:"Le formulaire vidéo vertical de 8 secondes est prêt."},{role:"user",content:exactNativeQuoteRequest}]});
+    assert.equal(reply.outcome,"completed");assert.equal(reply.taskState?.outcome,"completed");
+    assert.match(reply.message,/5 crédits média/);assert.match(reply.message,/FLUX\.2 Pro/);assert.match(reply.message,/carré/);assert.match(reply.message,/0 images de référence/);assert.match(reply.message,/Crédits disponibles : 50/);
+    assert.doesNotMatch(reply.message,/pas encore|ne peux pas confirmer|description diffère|huit secondes/);
+    assert.equal(h.generations.length,1,"A verified pure quote does not need another provider narrative");
+    assert.equal(reply.taskState?.receipts.filter(receipt=>receipt.tool==="quoteMediaGeneration" && receipt.ok && receipt.status==="read").length,1);
+    assert.deepEqual(native.calls.map(call=>call.stage),["access","quota","quote"]);assert.equal(native.calls[2].body?.freePrompt,prompt);
+    assert.equal(JSON.stringify(clientContext),before);assert.equal(reply.uiActions,undefined);assert.equal(reply.uiCommand,undefined);assert.equal(reply.navigation,undefined);assert.equal(h.mediaExecutions,0);
+  }
+});
+
+test("wrong native quote axes leave the read goal open for one corrected native quote instead of completing on any quoted status",async()=>{
+  const native=createNativeMediaQuoteFixture(exactNativeQuoteRequest);
+  const h=harness({extraTools:{quoteMediaGeneration:native.tool},plan:[{tool:"quoteMediaGeneration",input:nativeQuoteInput("gemini")},{tool:"quoteMediaGeneration",input:nativeQuoteInput()}]});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"basic",messages:[{role:"user",content:exactNativeQuoteRequest}]});
+  assert.equal(native.outputs.length,2);assert.equal(native.outputs[0].quote?.engine,"gemini");assert.equal(native.outputs[1].quote?.engine,"flux");
+  assert.ok(toolNames(h.generations[1].params).includes("quoteMediaGeneration"));assert.equal(reply.outcome,"completed");assert.match(reply.message,/FLUX\.2 Pro/);
+  assert.equal(reply.taskState?.receipts.filter(receipt=>receipt.tool==="quoteMediaGeneration" && receipt.ok && receipt.status==="read").length,1);
+});
+
+test("missing, mismatched or internally inconsistent native quote evidence cannot become a completed requested quote",async()=>{
+  const native=createNativeMediaQuoteFixture(exactNativeQuoteRequest);
+  const result=await native.tool.execute(nativeQuoteInput() as Parameters<typeof native.tool.execute>[0],{toolCallId:"native-proof",messages:[]});
+  for(const changed of [{...result,quote:undefined},{...result,quote:{...result.quote,engine:"gemini",modelLabel:"Gemini Image"}},{...result,creditsUsed:999},{...result,mediaType:"video"}]) {
+    const toolFixture=tool({inputSchema:jsonSchema({type:"object",properties:{}}),execute:async()=>changed});
+    const h=harness({extraTools:{quoteMediaGeneration:toolFixture},plan:[{tool:"quoteMediaGeneration"}],textReply:"Votre devis de 5 crédits est confirmé et la demande est réalisée."});
+    const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"basic",messages:[{role:"user",content:exactNativeQuoteRequest}]});
+    assert.notEqual(reply.outcome,"completed");assert.notEqual(reply.taskState?.outcome,"completed");
+    assert.equal(reply.taskState?.receipts.some(receipt=>receipt.tool==="quoteMediaGeneration" && receipt.ok && receipt.status==="read"),false);
+    assert.match(reply.message,/pas encore de devis natif/);assert.doesNotMatch(reply.message,/demande est réalisée|5 crédits est confirmé/);
+  }
+});
+
+test("a verified quote preserves independent engine advice and excludes a provider denial of its attested cost",async()=>{
+  const instruction=exactNativeQuoteRequest+" Puis explique quel moteur utiliser pour du texte lisible.";
+  const native=createNativeMediaQuoteFixture(instruction);
+  const h=harness({extraTools:{quoteMediaGeneration:native.tool},plan:[{tool:"quoteMediaGeneration",input:nativeQuoteInput()}],textReply:"Je ne peux pas confirmer le devis de 5 crédits. Pour du texte lisible, OpenAI Image est une option à comparer dans Studio."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"standard",messages:[{role:"user",content:instruction}]});
+  assert.equal(reply.outcome,"completed");assert.match(reply.message,/5 crédits média/);assert.match(reply.message,/FLUX\.2 Pro/);assert.match(reply.message,/Pour du texte lisible, OpenAI Image/);
+  assert.doesNotMatch(reply.message,/ne peux pas confirmer/);assert.equal(h.generations.length,2);assert.equal(native.outputs.length,1);assert.equal(h.mediaExecutions,0);
+});
+
+test("an attached source without an attested reference count never completes a zero-reference native quote",async()=>{
+  const instruction=exactNativeQuoteRequest+" À partir de l’image jointe.";
+  const native=createNativeMediaQuoteFixture(instruction);
+  const h=harness({extraTools:{quoteMediaGeneration:native.tool},plan:[{tool:"quoteMediaGeneration",input:nativeQuoteInput()}],textReply:"Le devis est confirmé pour votre image jointe."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"basic",mediaAttachments:[{id:"30000000-0000-4000-8000-000000000001",name:"reference.png",kind:"image",size:10}],messages:[{role:"user",content:instruction}]});
+  assert.equal(native.outputs[0].quote?.referenceImagesCount,0);assert.notEqual(reply.outcome,"completed");assert.notEqual(reply.taskState?.outcome,"completed");
+  assert.match(reply.message,/pas encore de devis natif/);assert.match(reply.message,/références/);assert.doesNotMatch(reply.message,/devis est confirmé/);assert.equal(h.mediaExecutions,0);
+});
+
+test("native quote rendering preserves independent verified business effects instead of implying the whole request was read only",async()=>{
+  const instruction=exactNativeQuoteRequest+" Puis crée un contact CRM nommé Alice.";
+  const native=createNativeMediaQuoteFixture(instruction);
+  const h=harness({extraTools:{quoteMediaGeneration:native.tool},crmIds:["20000000-0000-4000-8000-000000000001"],plan:[{tool:"quoteMediaGeneration",input:nativeQuoteInput()},{tool:"manageCrmContact",input:{action:"create",instructionQuote:"crée un contact CRM nommé Alice",reference:"Alice",contactId:null,fields:{displayName:"Alice"}}}],textReply:"La fiche est prête."});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,edition:"premium",supabase:{} as never,messages:[{role:"user",content:instruction}]});
+  assert.equal(reply.outcome,"completed");assert.equal(h.crmExecutions.length,1);assert.match(reply.message,/5 crédits média/);assert.match(reply.message,/Fiche CRM enregistrée/);
+  assert.match(reply.message,/Ce devis n’a lancé aucune génération/);
+});
+
+function acknowledgedMediaLibraryTask() {
+  const instruction="Ouvre la médiathèque et affiche uniquement les images.";
+  const mounted={pathname:"/dashboard/mediatheque",tool:"Mes médias",selection:{kind:"media" as const,id:"library"},revision:"library_1",availableCommands:["configure_media_library" as const]};
+  const finalScreen={...mounted,revision:"library_2"};
+  let steps=uiTask.inrAssistantUiSteps(instruction,{source:"untrusted_client",screen:{pathname:"/dashboard",tool:"Accueil"}});
+  const navigation:uiActions.InrAssistantUiAction={id:"open_library",type:"navigate",navigation:uiCommands.getInrAssistantNavigation("media")!};
+  steps[0].actions=[navigation];steps=uiTask.bindInrAssistantUiSteps(steps,[navigation],{turnId:"10000000-0000-4000-8000-000000000001",createdAt:"2026-11-11T08:00:00.000Z"});
+  const first:uiTask.InrAssistantUiStepResult={stepId:steps[0].id,status:"applied",postScreen:{pathname:mounted.pathname,selection:mounted.selection,revision:mounted.revision}};
+  steps=uiTask.rebindInrAssistantUiStep(steps,[first],{source:"untrusted_client",screen:mounted});
+  const filter:uiActions.InrAssistantUiAction={id:"filter_library",type:"command",command:{command:"configure_media_library",selection:mounted.selection,revision:mounted.revision,patch:{typeFilter:"image"}}};
+  steps[1].actions=[filter];steps=uiTask.bindInrAssistantUiSteps(steps,[filter],{turnId:"10000000-0000-4000-8000-000000000002",createdAt:"2026-11-11T08:00:00.000Z"});
+  const results=[first,{stepId:steps[1].id,status:"applied" as const,postScreen:{pathname:finalScreen.pathname,selection:finalScreen.selection,revision:finalScreen.revision}}];
+  const task:taskPolicy.InrAssistantTaskState={version:1,instruction,actionRequestId:"original-browser-request",startedAt:"2026-11-11T08:00:00.000Z",expiresAt:"2026-11-11T08:30:00.000Z",outcome:"partial",requiredTools:[],receipts:[],question:"Confirmation navigateur attendue.",uiSteps:steps};
+  return {instruction,results,task,clientContext:{source:"untrusted_client" as const,screen:finalScreen}};
+}
+
+test("a wholly acknowledged library open and Images filter completes with native UI facts before credentials or any provider",async()=>{
+  const fixture=acknowledgedMediaLibraryTask();
+  const h=harness({noCredential:true,productionNoRedis:true,providerError:new Error("No provider may reinterpret verified browser work")});
+  const reply=await h.runtime.generateInrAssistantReply({...basic,...fixture,taskContext:fixture.task,actionInstruction:fixture.instruction,taskIntent:"continue",browserStepResults:fixture.results,messages:[{role:"user",content:"Continuer"}]});
+  assert.equal(reply.message,"La médiathèque est ouverte et le filtre Type : Images est appliqué.");assert.equal(reply.outcome,"completed");assert.equal(reply.taskState?.outcome,"completed");
+  assert.equal(reply.taskState?.actionRequestId,fixture.task.actionRequestId);assert.equal(reply.taskState?.startedAt,fixture.task.startedAt);assert.equal(reply.taskState?.expiresAt,fixture.task.expiresAt);
+  assert.deepEqual([...(reply.taskProgress?.remaining??[])],[]);assert.equal(h.generations.length,0);assert.equal(h.budgetReservations.length,0);assert.equal(reply.uiActions,undefined);
+});
+
+test("incomplete, changed, independent or failed UI work never takes the verified completion fast path",async()=>{
+  for(const change of ["missing-ack","failed-ack","changed-screen","advice","read","file"] as const){
+    const fixture=acknowledgedMediaLibraryTask();
+    if(change==="missing-ack")fixture.results.pop();
+    if(change==="failed-ack")fixture.results[1].status="failed";
+    if(change==="changed-screen")fixture.clientContext.screen.revision="manual_change";
+    if(change==="advice"){fixture.instruction+=" Puis explique ce que tu vois.";fixture.task.instruction=fixture.instruction;}
+    if(change==="read")fixture.task.requiredTools=["readStatsSnapshots"];
+    const h=harness({noCredential:true});
+    const request={...basic,clientContext:fixture.clientContext,taskContext:fixture.task,actionInstruction:fixture.instruction,taskIntent:"continue" as const,browserStepResults:fixture.results,messages:[{role:"user" as const,content:"Continuer"}],...(change==="file"?{fileContexts:[{name:"note.txt",kind:"document",text:"Données indépendantes à lire.",note:"Pièce jointe indépendante."} satisfies AssistantFileContext]}:{})};
+    await assert.rejects(()=>h.runtime.generateInrAssistantReply(request),/momentanément indisponible|confirmation|écran/i,change);
+    assert.equal(h.generations.length,0);
+  }
+});
 
 type AdvertisingRead = {mode:"list"|"details"|"metrics"|"preflight";campaignId:string|null;offset:number};
 const advertisingId = "30000000-0000-4000-8000-000000000003";

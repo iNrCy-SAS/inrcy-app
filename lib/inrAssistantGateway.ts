@@ -37,6 +37,7 @@ import { inrAssistantUiSteps, rebindInrAssistantUiStep, inrAssistantUiStepAccept
 import { compactInrAssistantRejectedToolContext } from "./inrAssistantRejectedToolContext.ts";
 import { repairInrAssistantToolInput } from "./inrAssistantToolInputRepair.ts";
 import { verifiedInrAssistantProductAnswer } from "./inrAssistantCapabilities.ts";
+import { verifiedInrAssistantUiCompletion } from "./inrAssistantVerifiedUiCompletion.ts";
 import { discoverInrAssistantActionCoverage, INR_ASSISTANT_COVERAGE_FAMILIES, inrAssistantToolsOutsideEdition } from "./inrAssistantActionCoverage.ts";
 import { deriveInrAssistantStudioDraft, isInrAssistantStudioDraftRequest, parseInrAssistantStudioDraft, type InrAssistantStudioDraft } from "./inrAssistantStudioDraft.ts";
 import { withInrAssistantToolActivities } from "./inrAssistantActivity.ts";
@@ -45,6 +46,7 @@ import { classifyInrAssistantGatewayFailure, projectInrAssistantGatewayDiagnosti
 import { assistantModelInputBudget } from "./inrAssistantAttachments.ts";
 import { assistantMessagesWithFiles } from "./inrAssistantAttachmentPrompt.ts";
 import { compactInrAssistantGuideContext, fitInrAssistantGuideContext } from "./inrAssistantPromptContext.ts";
+import { hasInrAssistantMediaQuoteAdvice, independentInrAssistantMediaQuoteAdvice, matchInrAssistantMediaQuote, parseInrAssistantMediaQuote, renderInrAssistantMediaQuote, type InrAssistantMediaQuote } from "./inrAssistantMediaQuote.ts";
 import { getInrAssistantProviderCost } from "./inrAssistantProviderCost.ts";
 import { INR_ASSISTANT_COMMANDS, INR_ASSISTANT_PENDING_STATUSES, INR_ASSISTANT_UNCERTAIN_STATUSES } from "./inrAssistantCommandRegistry.ts";
 import { createInrAssistantUiTools } from "./inrAssistantUiTools.ts";
@@ -290,13 +292,6 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     await finalizeInrAssistantRequest(navigationQuota, { success: true });
     return { message: verifiedNavigation };
   }
-  const credential = getAiGatewayCredential();
-  if (!credential) throw new InrAssistantUnavailableError(noteFailure("credential_missing"));
-  // The shared guard permits local development without Redis. Production
-  // Assistant must never silently disable economic limits when Redis is absent.
-  if (process.env.NODE_ENV === "production" && !isUpstashEnabled()) {
-    noteFailure("redis_reserve"); throw new AiGatewayGuardUnavailableError();
-  }
   let system = buildInrAssistantSystemPrompt(args.displayName, args.accountContext, getInrAssistantAppKnowledge(latestRequest, 2_400), args.edition, args.clientContext, Boolean(args.fileContexts?.length));
   // Eager setup facts can be re-read by scoped native tools. Keep a complete
   // bounded record rather than a cut JSON value or several kilobytes of duplicate
@@ -326,8 +321,33 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
     }
   }
   for(const objective of objectives) if(objective.kind==="read" && !requiredTools.includes(objective.tool)) requiredTools.push(objective.tool);
+  const quoteObjectives=objectives.filter(objective=>objective.kind==="read" && objective.tool==="quoteMediaGeneration");
+  const quoteAdviceRequested=quoteObjectives.length>0 && hasInrAssistantMediaQuoteAdvice(latestRequest);
+  const nativeQuoteOnlyRequest=quoteObjectives.length===1 && !quoteAdviceRequested && requiredTools.every(name=>name==="quoteMediaGeneration")
+    && !uiSteps.length && !args.fileContexts?.length && !args.mediaAttachments?.length && !args.taskContext && !args.actionInstruction;
   if (navigationRequested) requiredTools.push("navigateApplication");
   for (const step of uiSteps) if (!requiredTools.includes(inrAssistantUiStepTool(step))) requiredTools.push(inrAssistantUiStepTool(step));
+  // Project only immutable browser results already scoped by the controller.
+  // A wholly acknowledged UI task needs no provider interpretation or new action.
+  const verifiedUi = uiResumeRequested && args.taskContext && !statusOnly ? verifiedInrAssistantUiCompletion({
+    instruction: args.taskContext.instruction, uiSteps, verifiedResults: args.browserStepResults ?? [], clientContext: args.clientContext,
+    requiredTools, objectives, receipts: args.taskContext.receipts,
+    hasIndependentWork: Boolean(draftOnly || draftAdviceRequested || humanSupportRequested || args.fileContexts?.length || args.mediaAttachments?.length),
+  }) : null;
+  if (verifiedUi && args.taskContext) {
+    args.signal?.throwIfAborted();
+    return { message: verifiedUi.message, outcome: "completed",
+      taskProgress: { outcome: "completed", completed: verifiedUi.completed, remaining: [] },
+      taskState: { ...args.taskContext, uiSteps, outcome: "completed", question: verifiedUi.message },
+    };
+  }
+  const credential = getAiGatewayCredential();
+  if (!credential) throw new InrAssistantUnavailableError(noteFailure("credential_missing"));
+  // The shared guard permits local development without Redis. Production
+  // Assistant must never silently disable economic limits when Redis is absent.
+  if (process.env.NODE_ENV === "production" && !isUpstashEnabled()) {
+    noteFailure("redis_reserve"); throw new AiGatewayGuardUnavailableError();
+  }
   const requiredCalls = { ...inrAssistantRequiredCalls(latestRequest), ...args.taskContext?.requiredCalls };
   if (uiSteps.length) for (const name of Object.keys(requiredCalls)) {
     if (!requiredTools.includes(name)) delete requiredCalls[name];
@@ -374,6 +394,8 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
   const verifiedCrmContactIds = new Set<string>();
   const unknownWorkspaceSections = new Set<string>();
   const excludedWorkspaceSections = new Set<string>();
+  const verifiedMediaQuotes = new Map<string,InrAssistantMediaQuote>();
+  const unmatchedMediaQuotes = new Map<string,string[]>();
   let limitedCalendarRead=false, unverifiedStatsRead=false;
   let hadInvalidToolInput=false, hadReadResult=false, hadOutputLimit=false;
   let outputLimitAtCall=-1;
@@ -492,7 +514,15 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
                   const workspaceRead=result.toolName === "readWorkspaceSection" && output.source === "active_account_database" && output.readOnly === true && output.access === "allowed" && typeof output.known === "boolean" && typeof output.section === "string" && output.section === (result.input as {section?:unknown}|undefined)?.section;
                   if(result.toolName === "readWorkspaceSection" && output.source === "active_account_database" && output.readOnly === true && output.access === "not_included" && output.section === (result.input as {section?:unknown}|undefined)?.section) excludedWorkspaceSections.add(String(output.section));
                   if(workspaceRead && output.known === false) unknownWorkspaceSections.add(String(output.section));
-                  const verified=(workspaceRead || preflightRead || (output.ok===true || output.available===true || output.found===true) && output.ok!==false) && output.available!==false
+                  const parsedQuote=result.toolName==="quoteMediaGeneration" && output.ok===true && output.status==="quoted"?parseInrAssistantMediaQuote(output.quote):null;
+                  const quoteEvidence=parsedQuote && output.mediaType===parsedQuote.mediaType && output.creditsUsed===parsedQuote.totalCredits?parsedQuote:null;
+                  const quoteCoverage=quoteEvidence?matchInrAssistantMediaQuote(quoteEvidence,quoteObjectives.length===1?latestRequest:objective.instruction):null;
+                  const quoteRead=Boolean(quoteEvidence && quoteCoverage?.matches);
+                  if(result.toolName==="quoteMediaGeneration") {
+                    if(quoteRead && quoteEvidence){verifiedMediaQuotes.set(objective.id,quoteEvidence);unmatchedMediaQuotes.delete(objective.id);}
+                    else unmatchedMediaQuotes.set(objective.id,quoteCoverage?.missingAxes.length?quoteCoverage.missingAxes:["critères tarifaires non attestés"]);
+                  }
+                  const verified=(result.toolName==="quoteMediaGeneration"?quoteRead:workspaceRead || preflightRead || (output.ok===true || output.available===true || output.found===true) && output.ok!==false) && output.available!==false
                     && !(result.toolName === "getAccountDiagnostics" && output.complete === false) && !(result.toolName === "readAccountServices" && (result.input as {view?:string} | undefined)?.view === "credits" && output.quotaKnown === false);
                   const input=result.input && typeof result.input === "object"?result.input as Record<string,unknown>:{};
                   const period=output.period && typeof output.period === "object"?output.period as Record<string,unknown>:{};
@@ -504,6 +534,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
                   if(calendarList && objective.exhaustive && more) limitedCalendarRead=true;
                   receipts.push({tool:objective.tool,recordId:objective.id,ok:verified,status:verified && !(objective.exhaustive && more)?"read":"partial",message:verified?`${inrAssistantObjectiveLabel(objective.tool,objective.readMode)}${workspaceRead && output.known === false ? " : données inconnues ; aucun compteur confirmé." : preflightRead && output.ready === false ? " : les prérequis natifs ne sont pas validés." : objective.exhaustive && more?" : recherche encore partielle.":" : lecture effectuée."}`:"La lecture demandée n’a pas pu être vérifiée."});
                   receiptsChanged=true;
+                  if(quoteRead && quoteEvidence) receipts[receipts.length-1].message=renderInrAssistantMediaQuote(quoteEvidence);
                 }
                 if (statusOnly && typeof output.status === "string" && typeof output.message === "string") {
                   const pending=receipts.filter(receipt=>INR_ASSISTANT_COMMANDS[receipt.tool]?.statusReader===result.toolName && INR_ASSISTANT_PENDING_STATUSES.has(receipt.status));
@@ -882,6 +913,25 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
         : "L’étape d’écran n’a pas été transmise. Vérifiez le formulaire et les étapes précédentes avant de demander de continuer. Les actions suivantes n’ont pas été lancées.";
       message = [factual || savedActionReply(), browserMessage].filter(Boolean).join("\n\n");
     }
+    if(!pendingUi.length && quoteObjectives.length && !excludedGoals.includes("quoteMediaGeneration")) {
+      const summaries=quoteObjectives.flatMap(objective=>{const quote=verifiedMediaQuotes.get(objective.id);return quote?[renderInrAssistantMediaQuote(quote)]:[];});
+      const otherNativeFacts=[...new Set(receipts.filter(receipt=>receipt.ok && receipt.tool!=="quoteMediaGeneration").map(receipt=>receipt.message))].join("\n\n");
+      const allQuotesVerified=quoteObjectives.every(objective=>verifiedMediaQuotes.has(objective.id));
+      if(allQuotesVerified) {
+        const nativeSummary=summaries.join("\n\n");
+        if(nativeQuoteOnlyRequest) message=nativeSummary;
+        else {
+          const advice=independentInrAssistantMediaQuoteAdvice(message.replace(nativeSummary,""));
+          message=[nativeSummary,otherNativeFacts,advice].filter(Boolean).join("\n\n");
+          if(quoteAdviceRequested && !advice){message+="\n\nLe devis est vérifié, mais le conseil supplémentaire n’a pas pu être confirmé.";if(outcome==="completed")outcome="partial";success=false;}
+        }
+      } else {
+        const missing=[...new Set([...unmatchedMediaQuotes.values()].flat())].join(", ");
+        const advice=quoteAdviceRequested?independentInrAssistantMediaQuoteAdvice(reply.message):"";
+        message=[...summaries,otherNativeFacts,"Je n’ai pas encore de devis natif dont les critères tarifaires couvrent votre demande"+(missing?" ("+missing+")":"")+". Aucun coût demandé ne peut être confirmé à partir des critères obtenus. La consultation du devis n’a lancé aucune génération, réservation ni sauvegarde.",advice].filter(Boolean).join("\n\n");
+        if(outcome==="completed")outcome="partial";success=false;
+      }
+    }
     if (reply.outcome === "partial" && outcome === "completed") {outcome="partial";success=false;}
     return {...reply,...(navigation?{navigation}:{}),...(uiCommand?{uiCommand}:{}),...(uiActions.length?{uiActions}:{}),...(verifiedHandoffMessage && outcome !== "completed" ? {needsHuman:true,handoffSummary:verifiedHandoffMessage}:{}),message,outcome,taskProgress:{outcome,completed:completed.map(label),remaining:[...unfinished.map(label),...pendingUi.map(()=>"confirmer l’étape d’écran dans le navigateur")]},taskState:taskState(outcome,message)};
   };
@@ -1010,7 +1060,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
         const model = guardedModel(attempt);
         const result = await generateText({
           model, system: continuingSystem, messages: attemptMessages, maxOutputTokens, tools,
-          stopWhen: [({ steps }) => steps.length >= maxCalls, () => checkpointFailed || llmCalls >= maxCalls || Boolean(studioDraftState.value) && !draftAdviceRequested || Boolean(mediaState.result) && !followupAfterMedia],
+          stopWhen: [({ steps }) => steps.length >= maxCalls, () => checkpointFailed || llmCalls >= maxCalls || Boolean(studioDraftState.value) && !draftAdviceRequested || nativeQuoteOnlyRequest && quoteObjectives.every(objective=>verifiedMediaQuotes.has(objective.id)) || Boolean(mediaState.result) && !followupAfterMedia],
           onStepFinish: async ({ toolResults, toolCalls, response, finishReason, text }) => {
             // A model fallback keeps every completed call/result pair. Only
             // repeated/oversized guide prose is compacted, never native receipts.
@@ -1100,6 +1150,7 @@ export async function generateInrAssistantReply(args: InrAssistantGatewayArgs): 
         });
         reply = result.text.trim();
          if (studioDraftState.value && !draftAdviceRequested) return finishReply(studioDraftReply(studioDraftState.value));
+         if(nativeQuoteOnlyRequest && quoteObjectives.every(objective=>verifiedMediaQuotes.has(objective.id))) return finishReply({message:renderInrAssistantMediaQuote(verifiedMediaQuotes.get(quoteObjectives[0].id)!),outcome:"completed"});
         for (const call of result.steps.flatMap((step) => step.toolCalls)) {
           const input = call?.input && typeof call.input === "object" ? call.input as Record<string, unknown> : {};
           if (humanSupportRequested && call?.toolName === "proposeHumanSupport" && !call.dynamic && typeof input.message === "string" && typeof input.summary === "string") {

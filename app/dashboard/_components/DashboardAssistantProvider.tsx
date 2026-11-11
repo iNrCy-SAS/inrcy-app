@@ -12,6 +12,8 @@ import { runInrAssistantUiActions, type InrAssistantUiAction, type InrAssistantU
 import { useInrAssistantNativeChannelLinks } from "../_hooks/useInrAssistantNativeChannelLinks";
 import { useInrAssistantCookieOptions } from "../_hooks/useInrAssistantCookieOptions";
 import { runInrAssistantContentReportCommand } from "@/lib/inrAssistantContentReport";
+import { openInrAssistantAgentSettingsAfterNavigation } from '@/lib/inrAssistantAgentSettingsNavigation';
+import { inrAssistantAgentSettingsTarget } from '@/lib/inrAssistantAgentSettingsUi';
 import { runInrAssistantLocalInterface } from "@/lib/inrAssistantLocalInterface";
 import { applyNativeInrAssistantApplicationPreference } from "@/lib/inrAssistantApplicationPreferences";
 import { downloadInrAssistantAccountDocument } from "@/lib/inrAssistantAccountDocuments";
@@ -303,7 +305,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
       return Boolean(screen?.selection?.kind === form.kind && screen.revision && form.commands.some(command =>
         screen.availableCommands?.includes(command as NonNullable<InrAssistantClientScreen["availableCommands"]>[number]) && [...screenHandlers.current.values()].filter(entry => entry.actorUserId === actorUserId && entry.activeAccountId === activeAccountId && entry.handler.command === command && entry.handler.selection.id === screen.selection!.id && entry.handler.selection.kind === form.kind && "revision" in entry.handler && entry.handler.revision === screen.revision).length === 1));
     };
-    const navigate = async (navigation: InrAssistantNavigation) => {
+    const navigatePage = async (navigation: InrAssistantNavigation) => {
       if (!isCurrent()) return false;
       if (navigation.notificationMenuRevision) {
         const closed = await runInrAssistantLocalInterface({ command: "control_local_interface", selection: { kind: "account_document", id: "notification_menu" }, revision: navigation.notificationMenuRevision, operation: "close", value: null }, { actorUserId, accountId: activeAccountId, pathname: screenRef.current.pathname }, isCurrent);
@@ -337,6 +339,14 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
         const timer = setTimeout(() => finish(false), 30_000);
         uiTargetWaiters.current.add(check); check();
       });
+    };
+    const navigate = async (navigation: InrAssistantNavigation) => {
+      if (!await navigatePage(navigation)) return false;
+      const settings = inrAssistantAgentSettingsTarget(navigation.destination);
+      if (!settings) return true;
+      const committed = await openInrAssistantAgentSettingsAfterNavigation(navigation.destination, { actorUserId, accountId: activeAccountId, pathname: settings.pathname }, () => screenRef.current.screen, () => isCurrent() && screenRef.current.pathname === settings.pathname);
+      if (!committed || !isCurrent()) return false;
+      committedNavigations.set(navigation, committed); return true;
     };
     const command = (value: InrAssistantUiCommand) => {
       const revision = value.command === "export_document_pdf" ? value.revision ?? mountedRevisions.get(`${value.selection.kind}:${value.selection.id}`) : undefined;

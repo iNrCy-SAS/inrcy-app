@@ -12,7 +12,7 @@ import { requireUser } from "./requireUser";
 import type { InrAssistantClientContext } from "./inrAssistantClientContext.ts";
 import { resolveInrAssistantMailAttachments } from "./inrAssistantMailAttachments.ts";
 import { INR_ASSISTANT_MAIL_LIFECYCLE, type InrAssistantMailLifecycleName } from "./inrAssistantMailLifecycle.ts";
-import { parseInrAssistantUiCommand, isInrAssistantScreenCommandRequest, INR_ASSISTANT_ADS_STEPS, inrAssistantMailPatchRequested } from "./inrAssistantUiCommands.ts";
+import { getDirectInrAssistantNavigationRequest, parseInrAssistantUiCommand, isInrAssistantScreenCommandRequest, INR_ASSISTANT_ADS_STEPS, inrAssistantMailPatchRequested } from "./inrAssistantUiCommands.ts";
 import { getInrAssistantNavigation, INR_ASSISTANT_NAVIGATION_DESTINATIONS, isInrAssistantNavigationRequest } from "./inrAssistantUiCommands.ts";
 import { isDashboardDestinationAllowedForEdition, type DashboardEdition } from "./dashboardEdition.ts";
 import { isInrAssistantScreenCommandAllowed } from "./inrAssistantScreenCommandPolicy.ts";
@@ -158,13 +158,13 @@ export function createInrAssistantUiTools(options: { accountId: string; actorUse
       strict: true,
       description: "Ouvrir l’écran iNrCy demandé sans clic sur un lien. Choisir une destination du catalogue. documentId null pour un module ; pour ouvrir un devis/facture précis, choisir quotes/invoices et son ID obtenu par readCommercialDocuments, vérifié dans le compte actif. Aucun envoi, réglage, paiement ou OAuth. Le navigateur protège les modifications non enregistrées. Ne pas annoncer l’écran ouvert avant son ouverture.",
       inputSchema: jsonSchema<{ destination: string; documentId?: string | null; instructionQuote: string }>({ type: "object", properties: {
-        destination: { type: "string", enum: INR_ASSISTANT_NAVIGATION_DESTINATIONS.filter(destination => { const target = getInrAssistantNavigation(destination); return target && isDashboardDestinationAllowedForEdition(target.href, options.edition); }) },
+        destination: { type: "string", enum: INR_ASSISTANT_NAVIGATION_DESTINATIONS.filter(destination => { const target = getInrAssistantNavigation(destination); return target && !(options.edition === 'basic' && ['publication_agent_settings', 'stats_agent_settings'].includes(destination)) && isDashboardDestinationAllowedForEdition(target.href, options.edition); }) },
         documentId: { type: ["string", "null"], format: "uuid" },
         instructionQuote: { type: "string", minLength: 1, maxLength: 1200 },
       }, required: ["destination", "documentId", "instructionQuote"], additionalProperties: false }),
       execute: async input => {
         const target = getInrAssistantNavigation(input.destination, input.documentId);
-        if (!target || !isDashboardDestinationAllowedForEdition(target.href, options.edition) || typeof input.instructionQuote !== "string" || !input.instructionQuote.trim() ||
+        if (!target || ['publication_agent_settings', 'stats_agent_settings'].includes(input.destination) && (options.edition === 'basic' || typeof input.instructionQuote !== 'string' || getDirectInrAssistantNavigationRequest(input.instructionQuote)?.destination !== input.destination || getDirectInrAssistantNavigationRequest(options.currentUserMessage)?.destination !== input.destination) || !isDashboardDestinationAllowedForEdition(target.href, options.edition) || typeof input.instructionQuote !== "string" || !input.instructionQuote.trim() ||
           !options.currentUserMessage.includes(input.instructionQuote) || !isInrAssistantNavigationRequest(input.instructionQuote) ||
           !isInrAssistantNavigationRequest(options.currentUserMessage) || options.canStartWork?.() === false) {
           return { ok: false, status: "needs_instruction", message: "Indiquez l’écran que vous souhaitez ouvrir. Aucune navigation n’a été lancée." };

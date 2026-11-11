@@ -10,6 +10,8 @@ import * as catalogue from "../../lib/aiMediaModelCatalog.ts";
 import * as mediaIntent from "../../lib/inrAssistantMediaIntent.ts";
 import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import * as mediaPreview from "../../lib/inrAssistantMediaPreview.ts";
+import * as mediaQuote from "../../lib/inrAssistantMediaQuote.ts";
+import { quoteAiMediaCredits, type AiMediaCreditsQuoteInput } from "../../lib/aiMediaCreditsPricing.ts";
 import { repairInrAssistantToolInput } from "../../lib/inrAssistantToolInputRepair.ts";
 import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as videoClientOptions from "../../lib/aiMediaVideoClientOptions.ts";
@@ -21,7 +23,7 @@ const imageInput = { mediaType: "image", prompt: "Une photo réaliste de mon ate
 const sourceMediaId = "30000000-0000-4000-8000-000000000001";
 const sourceReference = { reference: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jlpQAAAAASUVORK5CYII=", role: "inspiration", usage: "required" }, width: 1080, height: 1350, format: "portrait" };
 
-type HarnessOptions = { realSdk?: boolean; currentUserMessage?: string; statusReadOnly?: boolean; saveAuthorizedRequestIds?: string[]; previewTarget?: { requestId: string; mediaId: string }; accepted?: boolean; sourceUnavailable?: boolean; subscriptionActive?: boolean; canStartWork?: boolean; creditsReady?: boolean; remaining?: number; maxDuration?: number; generateError?: boolean; generateBroken?: boolean; acceptError?: boolean; acceptBroken?: boolean; discardBroken?: boolean; discardWrongReadback?: boolean; status?: string; statusResponse?: number; statusCode?: string; statusBroken?: boolean };
+type HarnessOptions = { realSdk?: boolean; nativePricing?: boolean; currentUserMessage?: string; statusReadOnly?: boolean; saveAuthorizedRequestIds?: string[]; previewTarget?: { requestId: string; mediaId: string }; accepted?: boolean; sourceUnavailable?: boolean; subscriptionActive?: boolean; canStartWork?: boolean; creditsReady?: boolean; remaining?: number; maxDuration?: number; generateError?: boolean; generateBroken?: boolean; acceptError?: boolean; acceptBroken?: boolean; discardBroken?: boolean; discardWrongReadback?: boolean; status?: string; statusResponse?: number; statusCode?: string; statusBroken?: boolean };
 function harness(options: HarnessOptions = {}) {
   const calls: { stage: string; body?: Record<string, unknown>; request?: Request; id?: string }[] = [];
   const callbacks: string[] = [];
@@ -40,6 +42,7 @@ function harness(options: HarnessOptions = {}) {
     "./inrAssistantMediaIntent.ts": mediaIntent,
     "./inrAssistantRequestClauses.ts": requestClauses,
     "./inrAssistantMediaPreview.ts": mediaPreview,
+    "./inrAssistantMediaQuote.ts": mediaQuote,
     "./inrAssistantMediaSource.ts": { loadInrAssistantImageReference: async (id: string) => {
       calls.push({ stage: "source", id });
       if (options.sourceUnavailable) throw new Error("Private Storage path users/other-account/secret.png unavailable");
@@ -58,7 +61,8 @@ function harness(options: HarnessOptions = {}) {
     "@/app/api/media-generation/cancel/route": { POST: async (request: Request) => { const body = await request.json(); calls.push({ stage: "cancel", body, request }); assert.equal(storedStatus, "missing"); storedStatus = "failed"; return json({ ok: true, status: "failed", cancellationPreventedReservation: true }); } },
     "@/app/api/media-generation/quote/route": { POST: async (request: Request) => {
       const body = await request.json(); calls.push({ stage: "quote", body, request });
-      return json({ ok: true, quote: { totalCredits: 5, quoteId: "account-scoped-synthetic-quote", tariffVersion: "studio-test" }, credits: { remaining: options.remaining ?? 50 } });
+      const nativeQuote=quoteAiMediaCredits(body as AiMediaCreditsQuoteInput);
+      return json({ ok: true, quote: { ...nativeQuote, tariffVersion:options.nativePricing?nativeQuote.tariffVersion:"studio-test", totalCredits: options.nativePricing?nativeQuote.totalCredits:5, quoteId: "account-scoped-synthetic-quote" }, credits: { remaining: options.remaining ?? 50 } });
     } },
     "@/app/api/media-generation/generate/route": { POST: async (request: Request) => {
       const body = await request.json(); calls.push({ stage: "generate", body, request });
@@ -259,7 +263,7 @@ test("the real SDK repairs serialized quote arguments once and revalidates befor
   const h=harness({realSdk:true,currentUserMessage:"Donne le devis d’une image carrée avec FLUX.2 Pro. Ne génère ni n’enregistre rien."});
   const input={...imageInput,resultMode:null,durationSeconds:"None",settings:JSON.stringify([{field:"imageEngine",valueJson:JSON.stringify(JSON.stringify("FLUX.2 Pro"))}])};
   let repaired=0;
-  const model:LanguageModelV3={specificationVersion:"v3",provider:"local-repair-test",modelId:"synthetic",supportedUrls:{},doGenerate:async()=>({content:[{type:"tool-call",toolCallId:"quote-repair",toolName:"quoteMediaGeneration",input:JSON.stringify(input)}],finishReason:{unified:"tool-calls",raw:"fixture"},usage:{inputTokens:{total:1},outputTokens:{total:1}},warnings:[]}),doStream:async()=>{throw Error("No network");}};
+  const model:LanguageModelV3={specificationVersion:"v3",provider:"local-repair-test",modelId:"synthetic",supportedUrls:{},doGenerate:async()=>({content:[{type:"tool-call",toolCallId:"quote-repair",toolName:"quoteMediaGeneration",input:JSON.stringify(input)}],finishReason:{unified:"tool-calls",raw:"fixture"},usage:{inputTokens:{total:1,noCache:1,cacheRead:0,cacheWrite:0},outputTokens:{total:1,text:1,reasoning:0}},warnings:[]}),doStream:async()=>{throw Error("No network");}};
   const result=await sdk.generateText({model,prompt:"Devis seulement",tools:{quoteMediaGeneration:h.sdkTools.quoteMediaGeneration},experimental_repairToolCall:async({toolCall})=>{repaired++;return repairInrAssistantToolInput(toolCall);}});
   assert.equal(repaired,1);assert.ok(result.toolResults.length);assert.equal(h.calls.filter(c=>c.stage==="quote").length,1);
   assert.equal(h.calls.find(c=>c.stage==="quote")?.body?.imageEngine,"flux");
@@ -274,7 +278,7 @@ for (const [label, durationSeconds, resultMode, engine] of [
   const input = { ...imageInput, durationSeconds, resultMode, settings: [{ field: "imageEngine", valueJson: JSON.stringify(engine) }] };
   let repairs = 0;
   const model: LanguageModelV3 = { specificationVersion: "v3", provider: "offline-quote-repair", modelId: label, supportedUrls: {},
-    doGenerate: async () => ({ content: [{ type: "tool-call", toolCallId: "quote-finite-repair", toolName: "quoteMediaGeneration", input: JSON.stringify(input) }], finishReason: { unified: "tool-calls", raw: "fixture" }, usage: { inputTokens: { total: 0 }, outputTokens: { total: 0 } }, warnings: [] }),
+    doGenerate: async () => ({ content: [{ type: "tool-call", toolCallId: "quote-finite-repair", toolName: "quoteMediaGeneration", input: JSON.stringify(input) }], finishReason: { unified: "tool-calls", raw: "fixture" }, usage: { inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 0, text: 0, reasoning: 0 } }, warnings: [] }),
     doStream: async () => { throw new Error("No transport"); },
   };
   const result = await sdk.generateText({ model, prompt: "Devis seulement", tools: { quoteMediaGeneration: h.sdkTools.quoteMediaGeneration }, experimental_repairToolCall: async ({ toolCall }) => { repairs += 1; return repairInrAssistantToolInput(toolCall); } });
@@ -298,7 +302,7 @@ test("SDK revalidation rejects an unknown engine and a blank generation mode aft
     if (name === "quoteMediaGeneration") assert.equal(fixed.settings[0].valueJson, JSON.stringify(engine), "an unknown alias is never approximated");
     else assert.equal(fixed.resultMode, "", "blank generation mode is not permission to save or preview");
     const model: LanguageModelV3 = { specificationVersion: "v3", provider: "offline-quote-repair", modelId: name, supportedUrls: {},
-      doGenerate: async () => ({ content: [{ type: "tool-call", toolCallId: "rejected-finite-repair", toolName: name, input: JSON.stringify(input) }], finishReason: { unified: "tool-calls", raw: "fixture" }, usage: { inputTokens: { total: 0 }, outputTokens: { total: 0 } }, warnings: [] }),
+      doGenerate: async () => ({ content: [{ type: "tool-call", toolCallId: "rejected-finite-repair", toolName: name, input: JSON.stringify(input) }], finishReason: { unified: "tool-calls", raw: "fixture" }, usage: { inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 0, text: 0, reasoning: 0 } }, warnings: [] }),
       doStream: async () => { throw new Error("No transport"); },
     };
     const result = await sdk.generateText({ model, prompt: "Respecter le contrat natif", tools: { [name]: h.sdkTools[name] }, experimental_repairToolCall: async ({ toolCall }) => repairInrAssistantToolInput(toolCall) });

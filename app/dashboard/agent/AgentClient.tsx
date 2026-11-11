@@ -1,4 +1,5 @@
 "use client";
+import { useInrAssistantAgentSettingsControls } from '../_hooks/useInrAssistantAgentSettingsControls';
 import { useInrAssistantPlanningWorkspaceControls } from "../_hooks/useInrAssistantPlanningWorkspaceControls";
 
 import AgentPublicationIdeasEditor from "./_components/AgentPublicationIdeasEditor";
@@ -4020,6 +4021,21 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
   useInrAssistantPlanningWorkspaceControls({ enabled: workspace === "publications", calendarOpen: scheduleOpen, helpOpen,
     stateKey: JSON.stringify([selected.key, scheduledEditSession?.scheduledAction.id, scheduledEditSession?.scheduledAction.updatedAt]),
     busy: scheduleMutationState === "saving" || publishSaveState === "saving" || Boolean(agentConfirmDialog), open: requestPlanningWorkspace, closeHelp: () => setHelpOpen(false) });
+
+  function requestAgentSettings(open: boolean, canContinue: () => boolean): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (manualPlanningOnly || (workspace !== 'publications' && workspace !== 'stats') || !canContinue()) { reject(new Error('agent_settings_unavailable')); return; }
+      let applied = false;
+      exitScheduledEditSession({ silent: true, canContinue, onAfterExit: () => {
+        if (!canContinue()) return;
+        setPublicationIdeasOpen(false); setSettingsKey(open ? selected.key : null); applied = true;
+      }, onDecision: () => { if (applied) resolve(); else reject(new Error('agent_settings_cancelled_or_changed')); } });
+    });
+  }
+  useInrAssistantAgentSettingsControls({ enabled: !manualPlanningOnly && (workspace === 'publications' || workspace === 'stats'),
+    agent: selected.key === 'publish' || selected.key === 'stats' ? selected.key : null, open: Boolean(settingsAutomation && settingsConfig && settingsKey === selected.key && !publicationIdeasOpen),
+    busy: loadState === 'loading' || saveState === 'saving' || agentReferenceBusy || settingsPublicationIdeaVoiceBusy || publicationIdeasSaveState === 'saving' || Boolean(agentConfirmDialog),
+    stateKey: JSON.stringify([selected.key, scheduledEditSession?.scheduledAction.id, scheduledEditSession?.scheduledAction.updatedAt]), request: requestAgentSettings });
 
   function openScheduledActionEditor(actionId: string | null | undefined, canContinue: () => boolean = () => true) {
     if (!actionId || !canContinue()) return;

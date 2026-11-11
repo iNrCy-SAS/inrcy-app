@@ -14,6 +14,7 @@ export type InrAssistantClientScreen = {
   pathname: string; tool: string; action?: string; panel?: string; channel?: string; step?: string;
   selection?: { kind: "contact" | "publication" | "campaign" | "event" | "quote" | "invoice" | "media" | "mail" | "stats" | "channel" | "business_form"; id: string };
   pendingChanges?: boolean;
+  agentSettings?: 'publish' | 'stats';
   revision?: string;
   documentVersion?: string;
   documentPrefill?: InrAssistantDocumentPrefill;
@@ -75,11 +76,13 @@ export function parseInrAssistantClientContext(value: unknown, now = Date.now())
     const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
     const selectedMediaIds = rawScreen.pathname === "/dashboard/mediatheque" && Array.isArray(rawScreen.selectedMediaIds) && rawScreen.selectedMediaIds.length > 0 && rawScreen.selectedMediaIds.length <= 25 && rawScreen.selectedMediaIds.every(id => typeof id === "string" && uuid.test(id)) && new Set(rawScreen.selectedMediaIds).size === rawScreen.selectedMediaIds.length ? [...rawScreen.selectedMediaIds] as string[] : undefined;
     const selectionOverflow = rawScreen.pathname === "/dashboard/mediatheque" && rawScreen.selectionOverflow === true;
+    const agentSettings = rawScreen.agentSettings === 'publish' && rawScreen.pathname === '/dashboard/agent/publications' && selection?.kind === 'publication' && selection.id === 'agent_publish' ? 'publish' as const
+      : rawScreen.agentSettings === 'stats' && rawScreen.pathname === '/dashboard/agent/stats' && selection?.kind === 'stats' && selection.id === 'agent_stats' ? 'stats' as const : undefined;
     const revision = typeof rawScreen.revision === "string" && /^[a-zA-Z0-9_-]{1,100}$/.test(rawScreen.revision) ? rawScreen.revision : undefined;
     const documentVersion = selection && ["quote", "invoice"].includes(selection.kind) && typeof rawScreen.documentVersion === "string" && rawScreen.documentVersion.length <= 40 && Number.isFinite(Date.parse(rawScreen.documentVersion)) ? rawScreen.documentVersion : undefined;
     const prefill = parseInrAssistantDocumentPrefill(rawScreen.documentPrefill);
     const documentPrefill = prefill && selection?.kind === prefill.kind && rawScreen.pathname === `/dashboard/${prefill.kind === "quote" ? "devis" : "factures"}/new` ? prefill : undefined;
-    if (destination) screen = { pathname: rawScreen.pathname, tool: destination.label, ...(action ? { action } : {}), ...(panel ? { panel } : {}), ...(channel ? { channel } : {}), ...(step ? { step } : {}), ...(selection ? { selection } : {}), ...(revision ? { revision } : {}), ...(documentVersion ? { documentVersion } : {}), ...(documentPrefill ? { documentPrefill } : {}), ...(typeof rawScreen.pendingChanges === "boolean" ? { pendingChanges: rawScreen.pendingChanges } : {}), ...(availableCommands?.length ? { availableCommands } : {}), ...(selectedMediaIds && !selectionOverflow ? { selectedMediaIds } : {}), ...(selectionOverflow ? { selectionOverflow: true } : {}) };
+    if (destination) screen = { pathname: rawScreen.pathname, tool: destination.label, ...(action ? { action } : {}), ...(panel ? { panel } : {}), ...(channel ? { channel } : {}), ...(step ? { step } : {}), ...(selection ? { selection } : {}), ...(agentSettings ? { agentSettings } : {}), ...(revision ? { revision } : {}), ...(documentVersion ? { documentVersion } : {}), ...(documentPrefill ? { documentPrefill } : {}), ...(typeof rawScreen.pendingChanges === "boolean" ? { pendingChanges: rawScreen.pendingChanges } : {}), ...(availableCommands?.length ? { availableCommands } : {}), ...(selectedMediaIds && !selectionOverflow ? { selectedMediaIds } : {}), ...(selectionOverflow ? { selectionOverflow: true } : {}) };
   }
   const rawError = record(input.visibleError);
   const requestId = parseInrAssistantRequestId(rawError.requestId);

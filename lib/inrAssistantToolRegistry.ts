@@ -206,7 +206,7 @@ export function createInrAssistantToolRegistry(context: InrAssistantToolRegistry
     if (!args.supabase) return {};
     const available = createInrAssistantInsightsTools({ request: args.request, accountId: args.accountId, supabase: args.supabase, actorUserId: args.actorUserId, currentUserMessage: latestRequest, currentApprovalMessage: spokenRequest, resolvePreview, canStartWork: () => remainingTimeMs() > 15000 });
     return {
-      ...(/(?:stats|statisti|resultat|impression|performan)/.test(topic) ? { readStatsSnapshots: available.readStatsSnapshots } : {}),
+      ...(requiredTools.includes("readStatsSnapshots") || /(?:stats|statisti|resultat|impression|performan)|\bleads?\b|\bopportunites?\b|\bpotentiel commercial\b/.test(topic) ? { readStatsSnapshots: available.readStatsSnapshots } : {}),
       ...(/(?:reputation|\bavis\b|review)/.test(topic) ? { readGoogleReviews: available.readGoogleReviews, listGoogleReviews: available.listGoogleReviews, ...(canExecute ? {generateGoogleReviewReplyDraft: available.generateGoogleReviewReplyDraft, replyToGoogleReview: available.replyToGoogleReview, previewGoogleReviewReplyAction: available.previewGoogleReviewReplyAction, ...(/\bia-[a-f0-9]{12}\b/i.test(spokenRequest)?{applyGoogleReviewReplyAction:available.applyGoogleReviewReplyAction}:{})} : {}) } : {}),
     };
   })();

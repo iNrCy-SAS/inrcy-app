@@ -1,3 +1,4 @@
+import { getInrAssistantAgentSettingsNavigationRequest } from './inrAssistantAgentSettingsUi.ts';
 import { isInrAssistantBusinessRichTextRequest, parseInrAssistantBusinessRichTextEdit, INR_ASSISTANT_BUSINESS_RICH_TEXT_INTERFACES, type InrAssistantBusinessRichTextField } from "./inrAssistantBusinessRichText.ts";
 import { isInrAssistantLocalInterfaceRequest } from "./inrAssistantLocalInterface.ts";
 import { INR_ASSISTANT_ACCOUNT_UI_COMMANDS, type InrAssistantAccountUiCommandName } from "./inrAssistantAccountUiIntent.ts";
@@ -93,6 +94,7 @@ export function inrAssistantUiStepAcceptsAction(step: InrAssistantUiStep, action
 /** Capabilities are parsed before matching; adding a native form command to the
  * context/parser and its detector also makes it eligible for ordered tracking. */
 export function inrAssistantUiSteps(message: string, context?: InrAssistantClientContext | null): InrAssistantUiStep[] {
+  if (getInrAssistantAgentSettingsNavigationRequest(message)?.pure) return [{ id: "ui_0", instruction: message, command: "navigateApplication" }];
   let screen = parseInrAssistantClientContext(context)?.screen;
   const commands = new Set<ScreenCommand>(["export_document_pdf", ...INR_ASSISTANT_ACCOUNT_UI_COMMANDS]);
   let afterStepId: string | undefined;
@@ -100,6 +102,7 @@ export function inrAssistantUiSteps(message: string, context?: InrAssistantClien
   const clauses = inrAssistantRequestClauses(message), originals = originalUiClauses(message, clauses);
   return clauses.flatMap((instruction, index): InrAssistantUiStep[] => {
     const exactInstruction = originals[index] ?? instruction;
+    if (getInrAssistantAgentSettingsNavigationRequest(exactInstruction)) return [{ id: `ui_${index}`, instruction: exactInstruction, command: 'navigateApplication' }];
     if (isInrAssistantNotificationActionRequest(exactInstruction)) return [{ id: `ui_${index}`, instruction: exactInstruction, command: "openNotificationAction" }];
     if (isInrAssistantResumePublicationDraftRequest(exactInstruction)) return [{ id: `ui_${index}`, instruction: exactInstruction, command: "navigateApplication" }];
     if (isInrAssistantBusinessRichTextRequest(instruction)) return [{ id: `ui_${index}`, instruction: exactInstruction, command: "control_local_interface" }];

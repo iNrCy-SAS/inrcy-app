@@ -8,6 +8,7 @@ import { getAutomaticMediaVideoDurationOptions } from "./aiMediaVideoClientOptio
 import { permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
 import { inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
 import { isInrAssistantMediaPreviewDecisionRequest } from "./inrAssistantMediaPreview.ts";
+import { createInrAssistantMediaQuote, renderInrAssistantMediaQuote, type InrAssistantMediaQuote } from "./inrAssistantMediaQuote.ts";
 export { permitsInrAssistantMediaAction } from "./inrAssistantMediaIntent.ts";
 
 type JsonRecord = Record<string, unknown>;
@@ -33,6 +34,7 @@ export type InrAssistantMediaResult = {
   creditsUsed?: number;
   draft?: boolean;
   resultMode?: "save" | "preview";
+  quote?: InrAssistantMediaQuote;
   media?: {
     id: string;
     title: string;
@@ -248,6 +250,7 @@ function modelOutput(output: InrAssistantMediaResult) {
   return { type: "json" as const, value: {
     ok: output.ok, status: output.status, requestId: output.requestId, message: output.message,
     libraryUrl: output.libraryUrl, media, creditsUsed: output.creditsUsed ?? null,
+    ...(output.quote ? { quote: output.quote } : {}),
     ...(output.draft === undefined ? {} : { draft: output.draft }), ...(output.resultMode ? { resultMode: output.resultMode } : {}),
   } };
 }
@@ -378,16 +381,22 @@ export function createInrAssistantMediaTools(options: {
       };
       const normalized = normalizeAiMediaGenerationRequest(payload);
       const { POST: quotePOST } = await import("@/app/api/media-generation/quote/route");
-      const quoted = await responseData(await quotePOST(makeRequest(options.request, "/api/media-generation/quote", {
+      const quotePayload = {
         ...normalized, inspirationImagesCount: source ? 1 : references.length,
-      })));
+      };
+      const quoted = await responseData(await quotePOST(makeRequest(options.request, "/api/media-generation/quote", quotePayload)));
       const quote = record(quoted.quote);
       creditsUsed = Number(quote.totalCredits);
       if (!Number.isSafeInteger(creditsUsed) || creditsUsed <= 0 || typeof quote.quoteId !== "string" || typeof quote.tariffVersion !== "string") {
         throw new MediaToolError("Le coût du média n’a pas pu être confirmé. Réessayez dans quelques instants.");
       }
       const remaining = record(quoted.credits).remaining;
-      if (quoteOnly) return { ok: true, status: "quoted", requestId: mediaRequestId, mediaType: input.mediaType, creditsUsed, libraryUrl: "/dashboard/mediatheque", message: `Devis Studio natif : ${creditsUsed} crédits média${typeof remaining === "number" ? ` ; ${remaining} disponibles` : ""}. Aucune génération, réservation de crédits ni sauvegarde lancée. Le devis sera revérifié lors de la création.` };
+      if (quoteOnly) {
+        const evidence = createInrAssistantMediaQuote(quote, quotePayload, remaining);
+        if (!evidence) throw new MediaToolError("Les critères tarifaires du devis natif n’ont pas pu être vérifiés. Aucune génération, réservation ni sauvegarde lancée.");
+        return { ok: true, status: "quoted", requestId: mediaRequestId, mediaType: input.mediaType, creditsUsed,
+          quote: evidence, libraryUrl: "/dashboard/mediatheque", message: renderInrAssistantMediaQuote(evidence) };
+      }
       if (typeof remaining === "number" && remaining < creditsUsed) {
         throw new MediaToolError(`Crédits média insuffisants : ${remaining} disponibles, ${creditsUsed} nécessaires.`);
       }

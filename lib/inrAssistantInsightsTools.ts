@@ -50,12 +50,41 @@ const STATS_PROJECTION = ["source", "range_key", "expires_at", "totals:payload->
   `${channel}_range:payload->sources->${channel}->metrics->range`, `${channel}_error:payload->sources->${channel}->metrics->>error`,
   `${channel}_reconnect:payload->sources->${channel}->metrics->needs_reconnect`,
 ])].join(",");
+const COCKPIT_PROJECTION = ["source", "range_key", "expires_at", "leads_week:payload->leads->week", "leads_month:payload->leads->month",
+  "opportunities_month:payload->details->opportunities->month", "estimated_value:payload->estimatedValue",
+  "generated:payload->meta->>generatedAt", "snapshot_date:payload->meta->>snapshotDate", "live:payload->meta->live", "summary_source:payload->meta->>source"].join(",");
+function cockpitSnapshot(values: unknown[], days: number | null): Row {
+  const compatible = values.map(row).filter(item => item.source === "metrics_summary" && item.summary_source === "api/metrics/summary"
+    && typeof item.range_key === "string" && /^metaPilot=[01]\|month=30\|week=7\|today=2\|snapshot=(?:live|\d{4}-\d{2}-\d{2})\|conn=[^|\r\n]{1,1600}$/.test(item.range_key))
+    .sort((left, right) => (Date.parse(String(right.generated)) || 0) - (Date.parse(String(left.generated)) || 0));
+  const item = compatible[0] ?? {};
+  const generatedAt = typeof item.generated === "string" && /^\d{4}-\d{2}-\d{2}T/.test(item.generated) ? iso(item.generated) : null;
+  const snapshotDate = typeof item.snapshot_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(item.snapshot_date) && iso(item.snapshot_date)?.slice(0, 10) === item.snapshot_date ? item.snapshot_date : null;
+  const live = typeof item.live === "boolean" ? item.live : null;
+  const keySnapshot = typeof item.range_key === "string" ? item.range_key.match(/\|snapshot=([^|]+)\|/)?.[1] : undefined;
+  const dated = generatedAt !== null && Date.parse(generatedAt) <= Date.now() && live !== null
+    && (live ? keySnapshot === "live" && item.snapshot_date == null : snapshotDate !== null && keySnapshot === snapshotDate && snapshotDate <= new Date().toISOString().slice(0, 10));
+  const expiresAt = iso(item.expires_at);
+  const expiredCache = !expiresAt || Date.parse(expiresAt) <= Date.now();
+  const metrics = {
+    capturedLeadsWeek: dated && (days === null || days === 7) ? number(item.leads_week) : null,
+    capturedLeadsMonth: dated && (days === null || days === 30) ? number(item.leads_month) : null,
+    opportunitiesEstimatedMonth: dated && (days === null || days === 30) ? number(item.opportunities_month) : null,
+    potentialCommercialEstimatedMonth: dated && (days === null || days === 30) ? number(item.estimated_value) : null,
+    revenueCollected: null,
+  };
+  const known = Object.values(metrics).some(value => value !== null);
+  return { source: "metrics_summary", requestedDays: days, window: { weekDays: 7, monthDays: 30 }, generatedAt, snapshotDate, live, expiresAt, expiredCache,
+    currentVerified: false, currentDataKnown: dated && !expiredCache && live === true && known, status: !known ? "unknown" : expiredCache || !live ? "historical" : "cached",
+    metrics, message: "Compteurs numériques sauvegardés du cockpit, sans actualisation. Leads distincts sur 7 et 30 jours ; opportunités et potentiel commercial estimés sur 30 jours seulement, jamais du chiffre d’affaires encaissé. Une date invalide ou une valeur manquante reste inconnue ; un cache ancien est historique." };
+}
 function boundedStats(value: Row): Row {
   const snapshots = value.snapshots as Row[];
-  while (JSON.stringify(value).length > 6000 && snapshots.length > 1) { snapshots.pop(); value.truncated = true; }
+  const bytes = () => Buffer.byteLength(JSON.stringify(value), "utf8");
+  while (bytes() > 6000 && snapshots.length > 1) { snapshots.pop(); value.truncated = true; }
   const snapshot = snapshots[0];
-  while (snapshot && JSON.stringify(value).length > 6000 && (snapshot.channels as unknown[]).length) { (snapshot.channels as unknown[]).pop(); value.truncated = true; }
-  while (snapshot && JSON.stringify(value).length > 6000 && (snapshot.sources as unknown[]).length) { (snapshot.sources as unknown[]).pop(); value.truncated = true; }
+  while (snapshot && bytes() > 6000 && (snapshot.channels as unknown[]).length) { (snapshot.channels as unknown[]).pop(); value.truncated = true; }
+  while (snapshot && bytes() > 6000 && (snapshot.sources as unknown[]).length) { (snapshot.sources as unknown[]).pop(); value.truncated = true; }
   return value;
 }
 function localRequest(source: Request, path: string, body?: unknown) {
@@ -88,19 +117,24 @@ export function createInrAssistantInsightsTools(options: { request: Request; acc
   return {
     ...createInrAssistantGoogleReviewTools({ ...options, observedReviews }),
     readStatsSnapshots: tool({
-      description: "Lire les vraies statistiques numériques enregistrées des canaux de cet établissement : utilisateurs, sessions, pages vues, clics et impressions. Données datées et en cache, pas une nouvelle requête aux réseaux sociaux. Une métrique absente reste inconnue ; les fenêtres et les canaux peuvent différer et ne doivent pas être additionnés aveuglément.",
-      inputSchema: schema({ type: "object", properties: { days: { type: ["integer", "null"], enum: [7, 30, 60, 90, null] } }, required: ["days"], additionalProperties: false }, statsInput),
+      description: "Lire les statistiques numériques sauvegardées du compte actif : trafic/clics/impressions et compteurs cockpit leads7/30jours, opportunités et potentiel commercial estimés30jours. Le potentiel n’est jamais du CA encaissé. Données datées/en cache, aucune requête aux réseaux ni actualisation. Périodes exactes et sources séparées ; absent/ancien reste inconnu ou historique. days=7 ne renvoie aucun montant30jours. Ces agrégats ne sont pas les fiches CRM Premium.",
+      inputSchema: schema({ type: "object", properties: { days: { type: ["integer", "null"], enum: [7, 30, 60, 90, null], description: "null pour une demande portant sur 7 ET 30 jours ou tous les compteurs cockpit ; 7 pour les leads 7 jours seulement, 30 pour les leads/opportunités/potentiel 30 jours. 60/90 concernent seulement les instantanés de trafic disponibles." } }, required: ["days"], additionalProperties: false }, statsInput),
       strict: true,
       execute: async (value) => {
         const input = statsInput(value);
         try {
           if (!await activeScope()) throw new Error("stats_scope_unavailable");
-          const result = await options.supabase.from("stats_cache")
+          const reads = await Promise.allSettled([options.supabase.from("stats_cache")
             .select(STATS_PROJECTION)
             .eq("user_id", options.accountId).in("source", ["overview", "overview_last_good"])
-            .order("expires_at", { ascending: false }).limit(24).abortSignal(AbortSignal.any([options.request.signal, AbortSignal.timeout(5_000)]));
-          if (result.error || !Array.isArray(result.data)) throw new Error("stats_unavailable");
-          const snapshots = (result.data as unknown[]).map(row).filter(item => input.days == null || String(item.range_key).includes(`days=${input.days}|`)).slice(0, 4).map(item => {
+            .order("expires_at", { ascending: false }).limit(24).abortSignal(AbortSignal.any([options.request.signal, AbortSignal.timeout(5_000)])),
+          input.days === null || input.days === 7 || input.days === 30 ? options.supabase.from("stats_cache").select(COCKPIT_PROJECTION)
+            .eq("user_id", options.accountId).eq("source", "metrics_summary").order("expires_at", { ascending: false }).limit(4)
+            .abortSignal(AbortSignal.any([options.request.signal, AbortSignal.timeout(5_000)])) : Promise.resolve({ data: [], error: null })]);
+          const saved = reads[0].status === "fulfilled" ? reads[0].value : null;
+          const cockpit = reads[1].status === "fulfilled" ? reads[1].value : null;
+          if ((!saved || saved.error || !Array.isArray(saved.data)) && (![null, 7, 30].includes(input.days) || !cockpit || cockpit.error || !Array.isArray(cockpit.data))) throw new Error("stats_unavailable");
+          const snapshots = (saved && !saved.error && Array.isArray(saved.data) ? saved.data : []).map(row).filter(item => input.days == null || String(item.range_key).includes(`days=${input.days}|`)).slice(0, 4).map(item => {
             const channels = Array.isArray(item.channels) ? item.channels.map(row).slice(0, 13).map(channel => ({
               label: prose(channel.label ?? channel.name ?? channel.channel, 60), ...numeric(channel),
             })) : [];
@@ -120,7 +154,8 @@ export function createInrAssistantInsightsTools(options: { request: Request; acc
           });
           if (!await activeScope()) throw new Error("stats_scope_changed");
           return boundedStats({ ok: true, source: "saved_account_statistics", liveVerified: false, snapshots,
-            message: snapshots.length ? "Instantanés enregistrés : vérifier les dates et la couverture avant comparaison. Un cache expiré ou non daté ne confirme pas la situation actuelle ; une valeur absente reste inconnue." : "Aucun instantané correspondant dans cet échantillon ; cela ne signifie pas zéro résultat.",
+            ...(input.days === null || input.days === 7 || input.days === 30 ? { cockpitSnapshot: cockpitSnapshot(cockpit && !cockpit.error && Array.isArray(cockpit.data) ? cockpit.data : [], input.days) } : {}),
+            message: snapshots.length ? "Instantanés de trafic enregistrés : vérifier leurs dates et leur couverture. Les compteurs cockpit sont séparés dans cockpitSnapshot. Un cache expiré ou non daté ne confirme pas la situation actuelle ; absent reste inconnu." : "Aucun instantané de trafic correspondant ; cela ne signifie pas zéro résultat. Les compteurs sauvegardés du cockpit sont présentés séparément dans cockpitSnapshot lorsqu’ils sont disponibles.",
             nextAction: { label: "iNr’Stats", href: "/dashboard/stats" } });
         } catch { return { ok: false, snapshots: [], message: "Ces statistiques enregistrées sont momentanément indisponibles.", nextAction: { label: "iNr’Stats", href: "/dashboard/stats" } }; }
       },
