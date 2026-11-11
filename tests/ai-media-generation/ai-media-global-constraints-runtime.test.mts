@@ -93,6 +93,7 @@ function harness(activeProfile = profile(), failVideo = false, allowGeneratedFra
   const modules = new Map<string, Row>([
     ["@/lib/aiMediaNativeDialogueQa", nativeQa],
     ["@/lib/aiMediaSensitiveText", sensitive],
+    ["@/lib/aiMediaBusinessDna", real.load<Row>("lib/aiMediaBusinessDna.ts")],
     ["server-only", {}], ["sharp", (() => ({ png() { return this; }, toBuffer: async () => Buffer.from("overlay") })) as unknown as Row],
     ["./aiMediaGlobalConstraints.ts", globals],
     ["./aiMediaImageProviderGateway.ts", {}],
@@ -174,14 +175,15 @@ for (const useBusinessDna of [false, true]) for (const kind of ["image", "video"
   });
 }
 
-for (const kind of ["image", "video"] as const) test(`iNrAgent custom ${kind}: global rules survive the independent subject path`, async () => {
+for (const kind of ["image", "video"] as const) test(`iNrAgent publication ${kind}: global rules and ADN profession reach the provider`, async () => {
   const mix = resolveInrAgentMediaMix({ kind, theme: "services", studioMediaPreferencePercent: 0, seed: "agent-global-rules" });
   const input = buildInrAgentMediaGenerationRequest({ requestId: `agent-global-${kind}`, idea: "Un produit sur une table.", theme: "services", kind, mediaMix: mix });
   const env = harness();
   await env.generate({ ...input, kind, withText: false, withNarration: false, withSubtitles: false, withMusic: false, videoEngine: "grok-lite", durationSeconds: 8 });
   const payload = kind === "image" ? env.imageCalls.at(-1)!.prompt : env.videoCalls[0].body.prompt;
   assertCompleteRules(typeof payload === "string" ? payload : payload.text);
-  assert.equal(input.subjectSource, "custom");
+  assert.match(typeof payload === "string" ? payload : payload.text, /PRIVATE_PROFESSION/);
+  assert.equal(input.subjectSource, "publication");
 });
 
 test("account rules remain complete after character160 and at the UI1200 limit", () => {

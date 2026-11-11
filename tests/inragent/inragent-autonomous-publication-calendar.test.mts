@@ -397,7 +397,7 @@ test("iNrAgent construit seul une publication contextualisée et utilise les quo
   assert.match(mediaGeneration, /buildInrAgentMediaGenerationRequest/);
   assert.match(mediaRequest, /normalizeAiMediaGenerationRequest/);
   assert.match(mediaRequest, /inputMode: "essential"/);
-  assert.match(mediaRequest, /subjectSource: "custom"/);
+  assert.match(mediaRequest, /subjectSource: "publication"/);
   assert.match(mediaGeneration, /idea: args\.idea/);
   assert.match(mediaRequest, /textMode: "none"/);
   assert.match(mediaRequest, /withText: false/);

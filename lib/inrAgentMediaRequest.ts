@@ -83,7 +83,10 @@ export function buildInrAgentMediaGenerationRequest(args: {
     peopleCriterion,
     settingCriterion: "auto",
     focusCriterion: "auto",
-    subjectSource: "custom",
+    // The publication focus stays authoritative, with the same factual ADN
+    // context as its text. Studio's custom source deliberately excludes that
+    // context and would turn a broad focus into an unrelated generic trade.
+    subjectSource: "publication",
     idea: args.idea,
     aiInstruction: inspirationImages.length
       ? "Créer une nouvelle mise en scène adaptée au sujet de cette publication. Conserver les personnes, produits et décors marqués obligatoires, tout en variant naturellement le cadrage, l’action et la composition. Ne pas simplement recopier la photo de référence. Les médias marqués inspiration guident uniquement l’ambiance."
