@@ -144,10 +144,11 @@ test("iNrSend ne nettoie les nouveaux uploads qu'avant toute mutation susceptibl
   const guardedPersist = persistFunction.slice(0, lookupStart);
   const legacyPersist = persistFunction.slice(lookupStart);
   const guardedMarkIndex = guardedPersist.indexOf("onPayloadMayReferenceAssets?.();");
-  const guardedUpdateIndex = guardedPersist.indexOf('.from("app_events").update({ payload: nextPayload })');
+  const guardedUpdateIndex = guardedPersist.indexOf('.rpc("inrsend_compare_and_swap_event_payload"');
   assert.ok(guardedMarkIndex >= 0 && guardedUpdateIndex > guardedMarkIndex, "le CAS doit lui aussi désarmer le rollback avant toute écriture ambiguë");
-  assert.match(guardedPersist, /\.eq\("payload", JSON\.stringify\(expectedEvent\.payload\)\)/);
-  assert.match(guardedPersist, /if \(saved\.error \|\| !saved\.data\) throw new PublicationEditSourceChangedError\(\)/);
+  assert.match(guardedPersist, /p_expected_payload: expectedEvent\.payload/);
+  assert.match(guardedPersist, /p_next_payload: nextPayload/);
+  assert.match(guardedPersist, /if \(saved\.error \|\| saved\.data !== true\) throw new PublicationEditSourceChangedError\(\)/);
   const noEventReturnIndex = legacyPersist.indexOf("if (!ids.length) return;");
   const persistDispatchMarkIndex = legacyPersist.indexOf(
     "onPayloadMayReferenceAssets?.();",

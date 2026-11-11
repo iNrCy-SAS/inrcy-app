@@ -90,6 +90,10 @@ function runtime(options: Fixture = {}) {
     "crypto": { createHash, randomUUID },
   };
   const source = readFileSync(new URL("../../lib/inrsend/publicationChannelActions.ts", import.meta.url), "utf8");
+  const facebookExports: Record<string,unknown> = {};
+  const facebookCode = ts.transpileModule(readFileSync(new URL("../../lib/facebookPostActions.ts",import.meta.url),"utf8"),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+  new Function("exports","require",facebookCode)(facebookExports,(name:string) => {assert.equal(name,"@/lib/metaGraphApi");return mocks[name];});
+  mocks["@/lib/facebookPostActions"] = facebookExports;
   const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   const exported: any = {};
   new Function("exports", "require", code)(exported, (name: string) => mocks[name] ?? unused);

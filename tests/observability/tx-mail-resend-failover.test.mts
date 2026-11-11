@@ -8,6 +8,7 @@ import type { TxMail } from "../../lib/txMailer.ts";
 type Receipt = {messageId:string; accepted:string[]; rejected:string[]};
 function runtime(options: {smtpError?: unknown; circuitError?: unknown; noKey?: boolean; provider?: (url: URL, init: RequestInit) => Promise<Response>} = {}) {
   const requests: Array<{url: URL; init: RequestInit; payload: Record<string, unknown>}> = [];
+  const waits: number[] = [];
   let smtpSends = 0;
   const env: Record<string, string> = {NODE_ENV:"production", TX_SMTP_HOST:"smtp.example.test", TX_SMTP_PORT:"587", TX_SMTP_USER:"sender@example.test", TX_SMTP_PASS:"fixture-password", TX_MAIL_FROM:"iNrCy <sender@example.test>", ...(options.noKey ? {} : {RESEND_API_KEY:"re_fixture_only"})};
   const record = (e: unknown) => e as {code?: string; responseCode?: number};
@@ -28,7 +29,7 @@ function runtime(options: {smtpError?: unknown; circuitError?: unknown; noKey?: 
   function load(file: string) {
     const exports: Record<string, unknown> = {};
     const code = ts.transpileModule(readFileSync(new URL(`../../${file}`, import.meta.url),"utf8"),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText;
-    new Function("exports","require","process","fetch",code)(exports,(id: string) => {assert.ok(id in dependencies,id); return dependencies[id];},{env},fetch);
+    new Function("exports","require","process","fetch","setTimeout",code)(exports,(id: string) => {assert.ok(id in dependencies,id); return dependencies[id];},{env},fetch,(callback: () => void, ms: number) => {waits.push(ms); callback(); return 0;});
     return exports;
   }
   dependencies["@/lib/txResend"] = load("lib/txResend.ts");
@@ -50,7 +51,7 @@ function runtime(options: {smtpError?: unknown; circuitError?: unknown; noKey?: 
   (dependencies.nodemailer as {createTransport: () => unknown}).createTransport = () => ({
     sendMail:async () => {smtpSends++; if(options.smtpError) throw options.smtpError; return {messageId:"smtp-accepted",accepted:[mail.to],rejected:[]};},verify:async () => {},close() {},
   });
-  return {requests,env,send:mailer.sendTxMail,verify:provider.verifyTxResendFallback,health,smtpSends:() => smtpSends};
+  return {requests,waits,env,send:mailer.sendTxMail,verify:provider.verifyTxResendFallback,health,smtpSends:() => smtpSends};
 }
 const mail: TxMail = {to:"recipient@example.test",subject:"Fictitious reminder",text:"Synthetic content only",idempotencyKey:"trial/fixture/end/marker"};
 const authError = {code:"EAUTH",responseCode:535,command:"AUTH PLAIN"};
@@ -86,7 +87,21 @@ test("inline logos and attached files retain their content and CID",async () => 
 });
 for (const status of [401,429,500]) test(`a Resend ${status} response is a failure, never a delivery receipt`,async () => {
   const h = runtime({smtpError:authError,provider:async () => Response.json({message:"Provider refused"},{status})});
-  await assert.rejects(h.send(mail),/Provider refused/); assert.equal(h.requests.length,1);
+  await assert.rejects(h.send(mail),/Provider refused/); assert.equal(h.requests.length,status === 429 ? 3 : 1);
+});
+test("a provider rate limit waits before retrying the same idempotency key and confirms one acceptance",async () => {
+  let calls = 0;
+  const h = runtime({smtpError:authError,provider:async () => ++calls === 1
+    ? Response.json({message:"Too many requests"},{status:429,headers:{"Retry-After":"2"}})
+    : Response.json({id:"accepted-after-wait"})});
+  assert.equal((await h.send(mail)).messageId,"accepted-after-wait");
+  assert.deepEqual(h.waits,[2_000]); assert.equal(h.smtpSends(),1);
+  assert.equal(new Headers(h.requests[0].init.headers).get("Idempotency-Key"),new Headers(h.requests[1].init.headers).get("Idempotency-Key"));
+  assert.equal(h.requests[0].init.body,h.requests[1].init.body);
+});
+test("persistent rate limiting is bounded and leaves the email pending rather than claiming success",async () => {
+  const h = runtime({smtpError:authError,provider:async () => Response.json({message:"Still limited"},{status:429,headers:{"Retry-After":"9999"}})});
+  await assert.rejects(h.send(mail),/Still limited/); assert.equal(h.requests.length,3); assert.deepEqual(h.waits,[5_000,5_000]);
 });
 test("a successful response without a provider message ID cannot confirm delivery",async () => {
   const h = runtime({smtpError:authError,provider:async () => Response.json({})}); await assert.rejects(h.send(mail),/pas confirmée/);

@@ -153,7 +153,14 @@ export function createInrAssistantWorkspaceTools(options: {
             count("app_events", b => b.eq("module", "inr_search").eq("type", "page_view").gte("created_at", since).lt("created_at", asOf)),
             count("app_events", b => b.eq("module", "inr_search").eq("type", "action_click").gte("created_at", since).lt("created_at", asOf)),
           ]);
-          const snapshots = await read(() => query("inrstats_visibility_snapshots", "observed_on,score").eq("channel_key", "all").eq("model_version", VISIBILITY_INDEX_MODEL.version).order("observed_on", { ascending: false }).limit(8));
+          const snapshots = await read(async () => {
+            const { GET: readVisibilityIndex } = await import("@/app/api/inrstats/visibility-index/route");
+            const response = await readVisibilityIndex(new Request(new URL("/api/inrstats/visibility-index?summary=1", options.request.url), { headers: options.request.headers }));
+            if (!response.ok) return { error: true };
+            const summary = record(await response.json());
+            if (summary.scope !== accountId || summary.modelVersion !== VISIBILITY_INDEX_MODEL.version || !Array.isArray(summary.records)) return { error: true };
+            return { data: summary.records.slice(0, 8).map(value => { const row = record(value); return { observed_on: row.date, score: row.value }; }) };
+          });
           known = counts.every(result => !result.error && result.count !== null) && !snapshots.error && Array.isArray(snapshots.data);
           data = { period: { from: since, to: asOf }, measuredInternalEvents: { inrbadge: { views: counts[0].count, clicks: counts[1].count }, inrSearch: { views: counts[2].count, clicks: counts[3].count } }, visibilityIndex: rows(snapshots).map(row => ({ observedAt: date(row.observed_on), score: number(row.score) })) };
           limitations.push("Les compteurs couvrent uniquement Badge/Search sur les 30 derniers jours, pas les vues de tous les réseaux ni une comparaison par mois civil. L’indice enregistré est un calcul, pas une mesure de vues ; les statistiques sociales, opportunités et CA potentiel ne sont pas lus ici.");

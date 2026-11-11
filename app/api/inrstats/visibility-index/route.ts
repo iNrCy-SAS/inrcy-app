@@ -12,6 +12,17 @@ export async function GET(req: Request) {
   const channel = new URL(req.url).searchParams.get("channel") || "all";
   if (channel !== "all" && !VISIBILITY_INDEX_CHANNELS.includes(channel as typeof VISIBILITY_INDEX_CHANNELS[number])) return NextResponse.json({ error: "invalid_channel" }, { status: 400, headers });
   try {
+    // Assistant reads must not register tracking or reconcile rewards. Keep the
+    // private table behind the same authenticated, active-account server gate.
+    if (new URL(req.url).searchParams.get("summary") === "1") {
+      const result = await supabaseAdmin.from("inrstats_visibility_snapshots")
+        .select("observed_on,score")
+        .eq("user_id", activeUserId).eq("channel_key", channel).eq("model_version", VISIBILITY_INDEX_MODEL.version)
+        .order("observed_on", { ascending: false }).limit(8);
+      if (result.error) throw new Error("visibility_history_unavailable");
+      return NextResponse.json({ scope: activeUserId, asOf: new Date().toISOString(), modelVersion: VISIBILITY_INDEX_MODEL.version,
+        records: (result.data || []).map(row => ({ date: row.observed_on, value: row.score })) }, { headers });
+    }
     const { data: account, error: accountError } = await supabaseAdmin.from("inrcy_accounts").select("created_at").eq("id", activeUserId).maybeSingle();
     const createdAt = accountError ? null : account?.created_at;
     if (!createdAt || !Number.isFinite(Date.parse(createdAt))) throw new Error("visibility_account_date_unavailable");

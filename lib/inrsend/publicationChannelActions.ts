@@ -1162,8 +1162,15 @@ async function persistEventPayload(
 ) {
   if (expectedEvent) {
     onPayloadMayReferenceAssets?.();
-    const saved = await supabaseAdmin.from("app_events").update({ payload: nextPayload }).eq("id", expectedEvent.id).eq("user_id", userId).eq("module", "booster").eq("type", "publish").eq("payload", JSON.stringify(expectedEvent.payload)).select("id").maybeSingle();
-    if (saved.error || !saved.data) throw new PublicationEditSourceChangedError();
+    // RPC parameters travel in the body: media metadata can exceed URL limits.
+    const saved = await supabaseAdmin.rpc("inrsend_compare_and_swap_event_payload", {
+      p_user_id: userId,
+      p_event_id: expectedEvent.id,
+      p_publication_id: publicationId,
+      p_expected_payload: expectedEvent.payload,
+      p_next_payload: nextPayload,
+    });
+    if (saved.error || saved.data !== true) throw new PublicationEditSourceChangedError();
     return;
   }
   const { data: events, error } = await supabaseAdmin

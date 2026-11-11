@@ -18,9 +18,10 @@ const now = Date.now();
 const recent = new Date(now - 3_600_000).toISOString();
 const next = new Date(now + 3_600_000).toISOString();
 
-function harness(options: { edition?: "basic" | "standard" | "premium" | "founder"; overrides?: Record<string, Row[]>; errors?: string[]; scope?: string; blockedTables?: string[];
+function harness(options: { edition?: "basic" | "standard" | "premium" | "founder"; overrides?: Record<string, Row[]>; errors?: string[]; scope?: string; visibilityScope?: string; blockedTables?: string[];
   clock?: { schedule: (callback: () => void, delay: number) => unknown; cancel: (timer: unknown) => void } } = {}) {
   const queries: Query[] = [];
+  const visibilityReads: Request[] = [];
   const tables: Record<string, Row[]> = {
     subscriptions: [{ user_id: a, status: "trialing", billing_provider: "stripe", trial_end_at: next, stripe_customer_id: "PRIVATE_STRIPE", contract_price: 987654, email: "private@example.test" }],
     crm_contacts: [{ id: 1, user_id: a, contact_type: "client", email: "private@example.test", last_name: "PRIVATE CLIENT" }, { id: 2, user_id: a, contact_type: "prospect" }, { id: 3, user_id: b, contact_type: "prospect" }],
@@ -62,14 +63,24 @@ function harness(options: { edition?: "basic" | "standard" | "premium" | "founde
     return builder;
   } };
   const dependencies: Record<string, unknown> = { "server-only": {}, ai: { jsonSchema, tool }, "./dashboardEdition.ts": editionPolicy, "./subscriptionOffers.ts": { currentSubscriptionOffer }, "./inrstats/visibilityIndexModel.ts": { VISIBILITY_INDEX_MODEL }, "./productNavigation.ts": productNavigation };
+  dependencies["@/app/api/inrstats/visibility-index/route"] = { GET: async (request: Request) => {
+    visibilityReads.push(request);
+    assert.equal(new URL(request.url).pathname,"/api/inrstats/visibility-index");
+    assert.equal(new URL(request.url).search,"?summary=1");
+    if (options.errors?.includes("inrstats_visibility_snapshots")) return Response.json({error:"unavailable"},{status:503});
+    const records = (tables.inrstats_visibility_snapshots || []).filter(row => row.user_id === a && row.channel_key === "all" && row.model_version === VISIBILITY_INDEX_MODEL.version)
+      .sort((left,right) => String(right.observed_on).localeCompare(String(left.observed_on))).slice(0,8)
+      .map(row => ({date:row.observed_on,value:row.score,inputs:row.inputs}));
+    return Response.json({scope:options.visibilityScope || a,modelVersion:VISIBILITY_INDEX_MODEL.version,records});
+  } };
   const compiled = ts.transpileModule(readFileSync(new URL("../../lib/inrAssistantWorkspaceTools.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const mod = { exports: {} };
-  vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, { Date, setTimeout: options.clock?.schedule ?? setTimeout, clearTimeout: options.clock?.cancel ?? clearTimeout,
+  vm.runInNewContext(`(function(require,module,exports){${compiled}\n})`, { Date, Request, URL, setTimeout: options.clock?.schedule ?? setTimeout, clearTimeout: options.clock?.cancel ?? clearTimeout,
     fetch: () => assert.fail("No provider or arbitrary URL may be called") })((name: string) => { assert.ok(name in dependencies, `Unexpected dependency ${name}`); return dependencies[name]; }, mod, mod.exports);
   const runtime = mod.exports as typeof Workspace;
   const definition = runtime.createInrAssistantWorkspaceTools({ accountId: options.scope ?? a, edition: options.edition ?? "premium", supabase: supabase as never, request: new Request("https://app.inrcy.com/api/assistant/chat", { headers: { cookie: "SECRET SESSION" } }) }).readWorkspaceSection;
   const execute = async (section: string): Promise<Row> => await definition.execute!({ section } as never, { toolCallId: "test", messages: [] }) as unknown as Row;
-  return { execute, definition, queries };
+  return { execute, definition, queries, visibilityReads };
 }
 
 test("all workspace reads stay scoped and return no identities, content, contracts or secrets", async () => {
@@ -126,6 +137,20 @@ test("precise aggregates ignore foreign accounts, old messages and non-mail bill
   assert.equal(((stats.measuredInternalEvents as Row).inrbadge as Row).views, 1);
   assert.equal(((stats.measuredInternalEvents as Row).inrbadge as Row).clicks, 0, "An exact successful count may truthfully be zero");
   assert.equal((stats.visibilityIndex as Row[])[0].score, 325.5, "The product visibility index is not a percentage capped at 100");
+});
+
+test("visibility reads use the authenticated native summary instead of the denied browser table", async () => {
+  const h = harness();
+  const response = await h.execute("stats");
+  assert.equal(response.known,true); assert.equal(h.visibilityReads.length,1);
+  assert.equal(h.queries.some(query => query.table === "inrstats_visibility_snapshots"),false);
+  assert.doesNotMatch(JSON.stringify(response),/PRIVATE TOKEN|inputs/);
+});
+test("a foreign or unavailable native visibility summary stays unknown", async () => {
+  for (const options of [{visibilityScope:b},{errors:["inrstats_visibility_snapshots"]}]) {
+    const h = harness(options); const response = await h.execute("stats");
+    assert.equal(response.known,false); assert.deepEqual(JSON.parse(JSON.stringify((response.data as Row).visibilityIndex)),[]);
+  }
 });
 
 test("database errors are unknown rather than false zero or leaked provider diagnostics", async () => {
