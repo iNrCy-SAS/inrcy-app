@@ -40,7 +40,7 @@ test("SDK argument repair consumes no source read for empty query and only one f
       const content = steps <= 2
         ? [{ type: "tool-call" as const, toolCallId: `read-${steps}`, toolName: "readAttachedDocument", input: JSON.stringify({ documentIndex: 1, offset: 0, query: steps === 1 ? "" : "paiement délai avenant" }) }]
         : [{ type: "text" as const, text: "L’avenant indique 45 jours." }];
-      return { content, finishReason: { unified: steps <= 2 ? "tool-calls" as const : "stop" as const, raw: "fixture" }, usage: { inputTokens: { total: 0 }, outputTokens: { total: 0 } }, warnings: [] };
+      return { content, finishReason: { unified: steps <= 2 ? "tool-calls" as const : "stop" as const, raw: "fixture" }, usage: { inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 0, text: 0, reasoning: 0 } }, warnings: [] };
     },
   };
   const result = await generateText({ model, maxRetries: 0, stopWhen: stepCountIs(3), prompt: "Lis le délai actuel dans l’avenant.", tools: {

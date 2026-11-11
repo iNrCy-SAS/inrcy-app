@@ -56,7 +56,7 @@ test("real SDK revalidates a repaired Studio duration through the native draft p
   let repairs = 0;
   const model: LanguageModelV3 = {
     specificationVersion: "v3", provider: "offline-repair", modelId: "draft", supportedUrls: {},
-    doGenerate: async () => ({ content: [call("prepareStudioPrompt", draft)], finishReason: { unified: "tool-calls", raw: "fixture" }, usage: { inputTokens: { total: 0 }, outputTokens: { total: 0 } }, warnings: [] }),
+    doGenerate: async () => ({ content: [call("prepareStudioPrompt", draft)], finishReason: { unified: "tool-calls", raw: "fixture" }, usage: { inputTokens: { total: 0, noCache: 0, cacheRead: 0, cacheWrite: 0 }, outputTokens: { total: 0, text: 0, reasoning: 0 } }, warnings: [] }),
     doStream: async () => { throw new Error("No transport"); },
   };
   const result = await generateText({ model, prompt: "Prépare uniquement un prompt vidéo vertical de8secondes.", tools: {
