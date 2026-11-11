@@ -64,6 +64,34 @@ test("the native bridge waits for the real settings callback and committed panel
   } finally { registerInrAssistantLocalInterface("settings_bridge", null); }
 });
 
+test("the bridge can await a scoped native control before any screen override exists and ACK only its committed settings panel", async () => {
+  let screen: InrAssistantClientScreen | undefined, calls = 0;
+  const native: InrAssistantLocalInterfaceRegistration = { ...scope, id: "agent_settings", revision: "closed_without_screen", snapshot: { open: false }, handlers: { open: {
+    invoke: (_value, valid) => { if (!valid()) throw new Error("scope_changed"); calls++; screen = visible; registerInrAssistantLocalInterface("settings_without_screen", { ...native, revision: "settings_open_2", snapshot: { open: true }, handlers: { close: { invoke() {}, matches: () => false } } }); },
+    matches: snapshot => snapshot !== null && typeof snapshot === "object" && "open" in snapshot && snapshot.open === true,
+  } } };
+  const pending = openInrAssistantAgentSettingsAfterNavigation("publication_agent_settings", scope, () => screen, () => true);
+  const mount = setTimeout(() => registerInrAssistantLocalInterface("settings_without_screen", native), 0);
+  try {
+    const proof = await pending;
+    assert.equal(calls, 1); assert.ok(proof); assert.equal(proof.pathname, scope.pathname); assert.equal(proof.agentSettings, "publish");
+    assert.equal(proof.selection.id, "agent_publish"); assert.equal(proof.revision, visible.revision);
+  } finally { clearTimeout(mount); registerInrAssistantLocalInterface("settings_without_screen", null); }
+});
+
+test("a changed account during native confirmation still forbids applying or acknowledging settings without a screen override", async () => {
+  let active = true, invoked = false, screen: InrAssistantClientScreen | undefined, release: () => void = () => {};
+  const native: InrAssistantLocalInterfaceRegistration = { ...scope, id: "agent_settings", revision: "closed_1", snapshot: { open: false }, handlers: { open: {
+    invoke: async (_value, valid) => { invoked = true; await new Promise<void>(resolve => { release = resolve; }); if (!valid()) throw new Error("account_changed"); screen = visible; }, matches: () => false,
+  } } };
+  registerInrAssistantLocalInterface("settings_account_change", native);
+  try {
+    const pending = openInrAssistantAgentSettingsAfterNavigation("publication_agent_settings", scope, () => screen, () => active);
+    await Promise.resolve(); assert.equal(invoked, true); active = false; release();
+    assert.equal(await pending, null); assert.equal(screen, undefined);
+  } finally { registerInrAssistantLocalInterface("settings_account_change", null); }
+});
+
 test("an unavailable control, foreign scope, stale revision or page-only callback cannot produce a settings ACK", async () => {
   assert.equal(await openInrAssistantAgentSettingsAfterNavigation("publication_agent_settings", scope, () => base, () => true, 0), null);
   let calls = 0;
@@ -71,6 +99,7 @@ test("an unavailable control, foreign scope, stale revision or page-only callbac
   registerInrAssistantLocalInterface("settings_refusal", native);
   try {
     assert.equal(await openInrAssistantAgentSettingsAfterNavigation("publication_agent_settings", { ...scope, accountId: "foreign" }, () => base, () => true, 0), null);
+    assert.equal(await openInrAssistantAgentSettingsAfterNavigation("publication_agent_settings", scope, () => ({ ...base, pathname: "/dashboard/agent/stats" }), () => true, 0), null);
     assert.equal(await openInrAssistantAgentSettingsAfterNavigation("stats_agent_settings", scope, () => base, () => true, 0), null);
     assert.equal(await openInrAssistantAgentSettingsAfterNavigation("publication_agent_settings", scope, () => base, () => false, 0), null);
     assert.equal(calls, 0);

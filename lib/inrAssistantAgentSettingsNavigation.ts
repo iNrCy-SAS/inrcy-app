@@ -8,7 +8,13 @@ import { parseInrAssistantUiPostScreen, type InrAssistantUiPostScreen } from "./
 export async function openInrAssistantAgentSettingsAfterNavigation(destination: string, scope: { accountId: string; actorUserId: string; pathname: string }, screen: () => InrAssistantClientScreen | undefined, stillCurrent: () => boolean, timeoutMs = 5000): Promise<InrAssistantUiPostScreen | null> {
   const target = inrAssistantAgentSettingsTarget(destination);
   if (!target || target.pathname !== scope.pathname || !stillCurrent()) return null;
-  const current = () => stillCurrent() && screen()?.pathname === target.pathname;
+  // The caller guards the live route as well as actor/account. A closed panel
+  // may have no screen override yet; only the final ACK needs that proof.
+  const current = () => {
+    if (!stillCurrent()) return false;
+    const contextual = screen();
+    return contextual === undefined || contextual.pathname === target.pathname;
+  };
   const deadline = Date.now() + timeoutMs;
   let hint = getInrAssistantLocalInterfaceHints(scope)?.find(hint => hint.id === "agent_settings");
   while (!hint && current() && Date.now() < deadline) {
