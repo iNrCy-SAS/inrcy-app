@@ -288,7 +288,7 @@
       }
     },
     "basic-studio-create": {
-      "guideDigest": "48ca2452db72ff29025101e6035cd65b316c79cba3c544e6d113b406b89de0f0",
+      "guideDigest": "d25ec3ca1216e9f992a559a4367118fc5591677d34db504439a5a6f80d0540ce",
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e7160cc23a5837f21d3c341501e6b213bf2cd63cd2c315aa7a1c5f85b0284d98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
