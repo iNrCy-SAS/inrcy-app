@@ -6731,12 +6731,18 @@ async function publishNowHandler(req: Request) {
 
           let gmbWarning: { code: string; message: string } | null = null;
           let gmbMediaRepaired = false;
-          const expectedGmbImageCount =
+          const selectedGmbImageCount =
             mediaModeByChannel[ch] === "images"
-              ? getExpectedChannelImageCount(ch)
+              ? Math.max(
+                  getExpectedChannelImageCount(ch),
+                  Array.isArray(imagesByChannel?.[ch])
+                    ? (imagesByChannel[ch] as ImagePayload[]).length
+                    : images.length,
+                )
               : 0;
-
-          const rawGmbChannelImages =
+          // Resolve the complete ordered selection before taking image 1.
+          // A partial derivative list could otherwise substitute image 2.
+          const preparedGmbChannelImages =
             mediaModeByChannel[ch] === "images"
               ? pickCompleteChannelImageUrls({
                   channel: ch,
@@ -6747,8 +6753,15 @@ async function publishNowHandler(req: Request) {
                   ],
                   legacyFallback: gmbImageUrls,
                   limit: 5,
-                  allowPartial: true,
                 })
+              : [];
+          const expectedGmbImageCount = Math.min(
+            Math.max(selectedGmbImageCount, preparedGmbChannelImages.length),
+            1,
+          );
+          const rawGmbChannelImages =
+            preparedGmbChannelImages.length >= selectedGmbImageCount
+              ? preparedGmbChannelImages.slice(0, 1)
               : [];
           let probedGmbImages = rawGmbChannelImages.length
             ? await filterGoogleBusinessMediaUrls({
@@ -6756,7 +6769,7 @@ async function publishNowHandler(req: Request) {
                 kind: "image",
               })
             : { acceptedUrls: [] as string[], rejected: [], probes: [] };
-          let gmbChannelImages = probedGmbImages.acceptedUrls.slice(0, 5);
+          let gmbChannelImages = probedGmbImages.acceptedUrls.slice(0, 1);
           const channelGmbSourceImages = Array.isArray(imagesByChannel?.[ch])
             ? (imagesByChannel[ch] as ImagePayload[]).slice(0, 5)
             : [];
@@ -6773,7 +6786,7 @@ async function publishNowHandler(req: Request) {
                     type: "image/jpeg",
                     publicUrl,
                   }))
-          ).slice(0, 5);
+          ).slice(0, 1);
           const gmbRepairErrors: Array<{
             name: string;
             reason: string;
@@ -6795,23 +6808,21 @@ async function publishNowHandler(req: Request) {
             uploadErrors.push(...scopedErrors);
 
             if (repaired.imageSet.gmbPublishableUrls.length) {
-              const existingImageSet = channelImageSets[ch];
-              channelImageSets[ch] = existingImageSet
-                ? {
-                    ...existingImageSet,
-                    gmbPublishableUrls:
-                      repaired.imageSet.gmbPublishableUrls.slice(0, 5),
-                  }
-                : repaired.imageSet;
+              const existingImageSet = getChannelImageSet(ch);
+              channelImageSets[ch] = {
+                ...existingImageSet,
+                gmbPublishableUrls:
+                  repaired.imageSet.gmbPublishableUrls.slice(0, 1),
+              };
             }
 
             probedGmbImages = repaired.imageSet.gmbPublishableUrls.length
               ? await filterGoogleBusinessMediaUrls({
-                  urls: repaired.imageSet.gmbPublishableUrls.slice(0, 5),
+                  urls: repaired.imageSet.gmbPublishableUrls.slice(0, 1),
                   kind: "image",
                 })
               : { acceptedUrls: [] as string[], rejected: [], probes: [] };
-            return probedGmbImages.acceptedUrls.slice(0, 5);
+            return probedGmbImages.acceptedUrls.slice(0, 1);
           };
 
           if (
@@ -6854,16 +6865,6 @@ async function publishNowHandler(req: Request) {
               },
             };
             continue;
-          }
-
-          if (
-            expectedGmbImageCount > 0 &&
-            gmbChannelImages.length < expectedGmbImageCount
-          ) {
-            gmbWarning = {
-              code: "published_with_partial_images",
-              message: `Google Business a publié ${gmbChannelImages.length} image(s) conforme(s) sur ${expectedGmbImageCount}. Les autres images ont été reconverties mais sont restées inaccessibles ou non conformes.`,
-            };
           }
 
           const rawGmbChannelVideos =

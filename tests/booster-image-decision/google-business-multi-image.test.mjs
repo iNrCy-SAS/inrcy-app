@@ -5,7 +5,7 @@ import test from "node:test";
 const read = (path) =>
   readFile(new URL(`../../${path}`, import.meta.url), "utf8");
 
-test("Google Business keeps up to five images through Booster publication", async () => {
+test("Google Business preserves five selected images but sends only image 1 to the API", async () => {
   const [controller, serverPreparation, publishRoute, googleBusiness] =
     await Promise.all([
       read("app/dashboard/booster/publier/usePublishImageController.ts"),
@@ -20,7 +20,8 @@ test("Google Business keeps up to five images through Booster publication", asyn
   assert.match(serverPreparation, /channel === "gmb" \? exactChannelSources\.slice\(0, 5\)/);
   assert.match(publishRoute, /legacyFallback: gmbImageUrls,[\s\S]{0,80}limit: 5/);
   assert.doesNotMatch(publishRoute, /channel === "gmb" \? raw(?:ChannelImages)?\.slice\(0, 1\)/);
-  assert.match(googleBusiness, /imageUrls[^\n]*slice\(0, 10\)/);
+  assert.match(publishRoute, /preparedGmbChannelImages\.slice\(0, 1\)/);
+  assert.match(googleBusiness, /imageUrls[^\n]*slice\(0, 1\)/);
   assert.match(googleBusiness, /videoUrls[^\n]*slice\(0, 1\)/);
 });
 
@@ -61,5 +62,6 @@ test("iNrSend can retain five Google Business images during an edit", async () =
 
   assert.doesNotMatch(client, /channel === "gmb" \|\| channel === "pinterest"/);
   assert.doesNotMatch(details, /activePublicationEditChannelKey === "gmb" \|\|/);
-  assert.match(actions, /gmbImageUrls[\s\S]{0,180}\.slice\(0, 5\)/);
+  assert.match(actions, /gmbImageUrls[\s\S]{0,300}\.slice\(0, 1\)/);
+  assert.match(actions, /Maximum 5 images par publication/);
 });

@@ -354,7 +354,12 @@ export async function gmbCreateLocalPost(args: {
     topicType: "STANDARD",
   };
 
-  const imageUrls = (args.imageUrls || []).filter(Boolean).slice(0, 10);
+  // Local Posts created through Google's public API accept one photo. Keep
+  // the caller's ordered selection intact and send only its first image.
+  const imageUrls = (args.imageUrls || []).slice(0, 1).filter(Boolean);
+  if (args.imageUrls?.length && !imageUrls.length) {
+    throw new Error("La première image Google Business est introuvable. La publication n’a pas été envoyée sans image.");
+  }
   const videoUrls = (args.videoUrls || []).filter(Boolean).slice(0, 1);
   const media = [
     ...imageUrls.map((sourceUrl) => ({ mediaFormat: "PHOTO", sourceUrl })),

@@ -107,10 +107,6 @@ const X_INRSEND_EDIT_UNSUPPORTED_MESSAGE =
 const GMB_WITHOUT_CTA_WARNING_MESSAGE =
   "Google Business a publié le média sans bouton CTA.";
 
-function gmbAcceptedImageCount(accepted: number, expected: number) {
-  return `Google Business a publié ${accepted} image(s) conforme(s) sur ${expected}.`;
-}
-
 export type ChannelKey = "site_web" | "inr_search" | "gmb" | "facebook" | "instagram" | "threads" | "linkedin" | "x" | "tiktok" | "pinterest";
 type JsonRecord = Record<string, unknown>;
 
@@ -1305,9 +1301,14 @@ async function replaceChannelDelivery(params: {
       };
   const instagramImageUrls = instagramImageSelection.urls;
   const siteCardImageUrls = resolvedImageSet.siteCardPublishableUrls.length ? resolvedImageSet.siteCardPublishableUrls : socialFeedImageUrls;
-  const gmbImageUrls = (resolvedImageSet.gmbPublishableUrls.length ? resolvedImageSet.gmbPublishableUrls : socialFeedImageUrls)
-    .filter(Boolean)
-    .slice(0, 5);
+  // A partial derivative list can start at image 2 if image 1 failed to
+  // prepare. Only trust a complete ordered list, otherwise repair source 1.
+  const gmbImageUrls = (
+    resolvedImageSet.gmbPublishableUrls.length &&
+    (!images.length || resolvedImageSet.gmbPublishableUrls.length === images.length)
+      ? resolvedImageSet.gmbPublishableUrls
+      : images
+  ).slice(0, 1).filter(Boolean);
 
   const { websiteUrl, phone, siteWebUrl, proSettings } = params.ctaContext ?? await loadPublicationCtaContext(userId, channel);
 
@@ -1967,7 +1968,7 @@ async function replaceChannelDelivery(params: {
       const mediaChanged = currentMediaType !== mediaType || (
         isVideoPublication
           ? currentVideoUrl !== videoUrl
-          : !areImageListsEqual(currentImageSet.images, resolvedImageSet.images)
+          : !areImageListsEqual(currentImageSet.images.slice(0, 1), resolvedImageSet.images.slice(0, 1))
       );
       const mustRestorePreviousMedia =
         previousPostMissedMedia &&
@@ -2010,14 +2011,14 @@ async function replaceChannelDelivery(params: {
       const checkedVideos = isVideoPublication && rawGmbVideoUrls.length
         ? await filterGoogleBusinessMediaUrls({ urls: rawGmbVideoUrls, kind: "video" })
         : { acceptedUrls: [] as string[], rejected: [], probes: [] };
-      let safeGmbImageUrls = checkedImages.acceptedUrls.slice(0, 5);
+      let safeGmbImageUrls = checkedImages.acceptedUrls.slice(0, 1);
       const gmbVideoUrls = checkedVideos.acceptedUrls.slice(0, 1);
       const gmbRepairErrors: Array<{ index: number; reason: string }> = [];
 
       const rebuildGmbImages = async () => {
         const rebuilt = await rebuildGoogleBusinessImagesFromSources(
           userId,
-          resolvedImageSet.images,
+          resolvedImageSet.images.slice(0, 1),
         );
         gmbRepairErrors.push(...rebuilt.errors);
         checkedImages = rebuilt.urls.length
@@ -2026,13 +2027,13 @@ async function replaceChannelDelivery(params: {
               kind: "image",
             })
           : { acceptedUrls: [] as string[], rejected: [], probes: [] };
-        return checkedImages.acceptedUrls.slice(0, 5);
+        return checkedImages.acceptedUrls.slice(0, 1);
       };
 
       if (
         !isVideoPublication &&
         resolvedImageSet.images.length > 0 &&
-        safeGmbImageUrls.length < resolvedImageSet.images.length
+        !safeGmbImageUrls.length
       ) {
         const rebuiltUrls = await rebuildGmbImages();
         if (rebuiltUrls.length >= safeGmbImageUrls.length) {
@@ -2066,20 +2067,6 @@ async function replaceChannelDelivery(params: {
           "La vidéo Google Business n’est plus accessible ou conforme. La publication texte n’a pas été envoyée à la place.",
         );
       }
-      if (
-        !isVideoPublication &&
-        safeGmbImageUrls.length > 0 &&
-        safeGmbImageUrls.length < resolvedImageSet.images.length
-      ) {
-        gmbWarning = {
-          code: "published_with_partial_images",
-          message: gmbAcceptedImageCount(
-            safeGmbImageUrls.length,
-            resolvedImageSet.images.length,
-          ),
-        };
-      }
-
       let resp: unknown = null;
       const publishGmb = (options?: { imageUrls?: string[]; withoutCta?: boolean }) => {
         markAssetsMayBeInUse();
