@@ -31,6 +31,7 @@ export type ChannelBubbleConnection = {
   onCreateResource?: (name: string) => boolean | Promise<boolean>;
   connectLabel?: string;
   disconnectLabel?: string;
+  disconnectHelp?: { title: string; content: ReactNode };
   onConnect?: () => unknown | Promise<unknown>;
   connectOptions?: { label: string; onConnect: () => unknown | Promise<unknown>; href?: string; menu?: string; menuInfo?: string; primary?: boolean }[];
   connectNotice?: string;

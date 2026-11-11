@@ -924,6 +924,14 @@
     }
   },
   "channelBubble": {
+    "linkedinDisconnectHelpTitle": "iNrCy-Zugriff in LinkedIn entfernen",
+    "linkedinDisconnectHelpIntro": "Das Trennen in iNrCy trennt den Kanal. So entfernen Sie auch die LinkedIn-Berechtigung für iNrCy:",
+    "linkedinDisconnectHelpStep1": "Öffnen Sie in LinkedIn Ich und dann Einstellungen & Datenschutz.",
+    "linkedinDisconnectHelpStep2": "Wählen Sie Datenschutz → Andere Anwendungen → Zulässige Dienste.",
+    "linkedinDisconnectHelpStep3": "Suchen Sie iNrCy und klicken Sie auf Entfernen, um den Zugriff zu entziehen.",
+    "linkedinDisconnectHelpMobile": "Mobil: Profilfoto → Einstellungen → Datenschutz → Zulässige Dienste.",
+    "linkedinDisconnectHelpReturn": "Kehren Sie zu iNrCy zurück, um LinkedIn erneut zu verbinden. Melden Sie sich für einen Profilwechsel zuerst mit dem gewünschten LinkedIn-Konto an.",
+    "linkedinDisconnectHelpLink": "Zulässige LinkedIn-Dienste öffnen",
     "instagramFacebookAssociationRequired": "Ihr professionelles Instagram-Konto muss mit der geschäftlichen Facebook-Seite verknüpft sein, die mit iNrCy verbunden ist.",
     "instagramProfessionalRequired": "Zum Verbinden ist ein Instagram Business- oder Creator-Konto erforderlich.",
     "facebookPageRequired": "Verbinde eine professionelle Facebook-Seite über das persönliche Konto, das sie verwaltet. Beiträge werden auf der Seite veröffentlicht.",

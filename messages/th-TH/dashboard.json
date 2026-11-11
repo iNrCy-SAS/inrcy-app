@@ -924,6 +924,14 @@
     }
   },
   "channelBubble": {
+    "linkedinDisconnectHelpTitle": "ยกเลิกสิทธิ์การเข้าถึงของ iNrCy ใน LinkedIn",
+    "linkedinDisconnectHelpIntro": "การตัดการเชื่อมต่อใน iNrCy จะตัดการเชื่อมต่อช่องทาง หากต้องการยกเลิกสิทธิ์ที่ให้ iNrCy ใน LinkedIn ด้วย:",
+    "linkedinDisconnectHelpStep1": "ใน LinkedIn เปิด ฉัน จากนั้นเลือก การตั้งค่าและความเป็นส่วนตัว",
+    "linkedinDisconnectHelpStep2": "เลือก ความเป็นส่วนตัวของข้อมูล → แอปพลิเคชันอื่น → บริการที่ได้รับอนุญาต",
+    "linkedinDisconnectHelpStep3": "ค้นหา iNrCy แล้วกด ลบ เพื่อยกเลิกสิทธิ์การเข้าถึง",
+    "linkedinDisconnectHelpMobile": "บนมือถือ: รูปโปรไฟล์ → การตั้งค่า → ความเป็นส่วนตัวของข้อมูล → บริการที่ได้รับอนุญาต",
+    "linkedinDisconnectHelpReturn": "กลับมาที่ iNrCy เพื่อเชื่อมต่อ LinkedIn อีกครั้ง หากต้องการเปลี่ยนโปรไฟล์ ให้เข้าสู่ระบบบัญชี LinkedIn ที่ต้องการก่อน",
+    "linkedinDisconnectHelpLink": "เปิดบริการที่ได้รับอนุญาตใน LinkedIn",
     "instagramFacebookAssociationRequired": "บัญชี Instagram แบบมืออาชีพของคุณต้องเชื่อมโยงกับเพจ Facebook ของธุรกิจที่เชื่อมต่อกับ iNrCy",
     "instagramProfessionalRequired": "ต้องใช้บัญชี Instagram แบบมืออาชีพ (Business) หรือ Creator เพื่อเชื่อมต่อ",
     "facebookPageRequired": "เชื่อมต่อเพจ Facebook สำหรับธุรกิจผ่านบัญชีส่วนตัวที่ดูแลเพจ โพสต์จะเผยแพร่บนเพจ",

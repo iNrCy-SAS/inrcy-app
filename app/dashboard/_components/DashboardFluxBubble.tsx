@@ -48,6 +48,7 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const [parametersOpen, setParametersOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
+  const [disconnectHelpOpen, setDisconnectHelpOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const actionRef = useRef(false);
@@ -101,6 +102,7 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
   const loadingInResource = Boolean(!item.premiumLocked && !connection?.mailboxes && !connection?.resourceContent && !showConnect && (
     connection?.onSelect ? !value && (busy || connection.loading) : !hasResource && !disabled && connection?.loading
   ));
+  const disconnectButton = showDisconnect ? <button type="button" className={`${bubbleStyles.iconAction} ${bubbleStyles.disconnectIcon}`} aria-label={`${disconnectLabel} — ${connection?.accountLabel || connection?.resourceLabel || item.name}`} title={disconnectLabel} disabled={Boolean(busy || disabled)} aria-busy={Boolean(busy)} onClick={() => void run(disconnect)}><ChannelBubbleIcon kind="disconnect" /><span className={bubbleStyles.actionText} aria-hidden="true">{disconnectLabel}</span></button> : null;
 
   return <>
     <article key={itemKey ?? item.key} data-channel-bubble={item.key} aria-label={`${item.name} — ${item.bubbleStatusText}`} className={`${bubbleStyles.card} ${bubbleStyles.workspaceCard} ${styles[`accent_${item.accent}`]} ${item.bubbleStatus === "coming" ? bubbleStyles.comingSoon : ""} ${item.bubbleStatus === "reconnect" ? bubbleStyles.reconnectCard : ""}`}>
@@ -128,7 +130,10 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
           </div>}
           <div className={bubbleStyles.iconActions}>
             {canView ? connection?.publicView?.disabled ? <button type="button" className={bubbleStyles.iconAction} title={viewLabel} aria-label={viewLabel} disabled><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></button> : viewCallback ? <button type="button" className={bubbleStyles.iconAction} title={viewLabel} aria-label={viewLabel} onClick={viewCallback}><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></button> : <a ref={publicAnchor} className={bubbleStyles.iconAction} href={viewHref} aria-label={viewLabel} title={viewLabel} target={/^https?:/.test(viewHref || "") ? "_blank" : undefined} rel="noreferrer"><ChannelBubbleIcon kind="eye" /><span className={bubbleStyles.actionText} aria-hidden="true">{t("viewShort")}</span></a> : null}
-            {showDisconnect ? <button type="button" className={`${bubbleStyles.iconAction} ${bubbleStyles.disconnectIcon}`} aria-label={`${disconnectLabel} — ${connection?.accountLabel || connection?.resourceLabel || item.name}`} title={disconnectLabel} disabled={Boolean(busy || disabled)} aria-busy={Boolean(busy)} onClick={() => void run(disconnect)}><ChannelBubbleIcon kind="disconnect" /><span className={bubbleStyles.actionText} aria-hidden="true">{disconnectLabel}</span></button> : null}
+            {showDisconnect && connection?.disconnectHelp ? <div className={bubbleStyles.disconnectWithHelp}>
+              {disconnectButton}
+              <button type="button" className={bubbleStyles.disconnectHelpBadge} aria-label={connection.disconnectHelp.title} title={connection.disconnectHelp.title} onClick={() => setDisconnectHelpOpen(true)}><span aria-hidden="true">i</span></button>
+            </div> : disconnectButton}
             {connection?.publicationTypes && hasResource ? <ChannelPublicationTypes name={item.name} channel={item.key} settings={connection.publicationTypes} disabled={Boolean(disabled || busy)} /> : null}
             {connection?.extraActions}
             {showParameters ? <button type="button" className={bubbleStyles.iconAction} title={parametersLabel} aria-label={`${parametersLabel} — ${item.name}`} disabled={disabled || pending} onClick={() => setParametersOpen(true)}><ChannelBubbleIcon kind={connection?.parametersIcon || "settings"} /><span className={bubbleStyles.actionText} aria-hidden="true">{connection?.parametersLabel || item.key === "mails" || item.key === "pinterest" ? parametersLabel : t("settingsShort")}</span></button> : null}
@@ -139,6 +144,7 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
       </div>
     </article>
     {connection?.afterContent}
+    {disconnectHelpOpen && connection?.disconnectHelp ? <ChannelParametersDialog name={item.name} title={connection.disconnectHelp.title} onClose={() => setDisconnectHelpOpen(false)}><div className={bubbleStyles.disconnectHelpText}>{connection.disconnectHelp.content}</div></ChannelParametersDialog> : null}
     {feedback ? <div data-channel-feedback="error" className={`${bubbleStyles.channelFeedback} ${bubbleStyles.channelFeedbackError}`} role="alert">
       <svg className={bubbleStyles.channelFeedbackIcon} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7v6m0 3v1" /></svg>
       <p>{feedback}</p>

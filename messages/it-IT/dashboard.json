@@ -924,6 +924,14 @@
     }
   },
   "channelBubble": {
+    "linkedinDisconnectHelpTitle": "Rimuovere l’accesso di iNrCy su LinkedIn",
+    "linkedinDisconnectHelpIntro": "La disconnessione in iNrCy scollega il canale. Per rimuovere anche l’autorizzazione concessa a iNrCy su LinkedIn:",
+    "linkedinDisconnectHelpStep1": "Su LinkedIn, apri Tu e poi Impostazioni e privacy.",
+    "linkedinDisconnectHelpStep2": "Scegli Privacy dei dati → Altre applicazioni → Servizi consentiti.",
+    "linkedinDisconnectHelpStep3": "Trova iNrCy e fai clic su Rimuovi per revocarne l’accesso.",
+    "linkedinDisconnectHelpMobile": "Da dispositivo mobile: foto del profilo → Impostazioni → Privacy dei dati → Servizi consentiti.",
+    "linkedinDisconnectHelpReturn": "Torna in iNrCy per riconnettere LinkedIn. Per cambiare profilo, accedi prima all’account desiderato su LinkedIn.",
+    "linkedinDisconnectHelpLink": "Apri i servizi consentiti di LinkedIn",
     "instagramFacebookAssociationRequired": "Il suo account Instagram professionale deve essere collegato alla Pagina Facebook aziendale connessa a iNrCy.",
     "instagramProfessionalRequired": "Per connetterti è necessario un account Instagram professionale (Business) o Creator.",
     "facebookPageRequired": "Collega una Pagina Facebook professionale con l’account personale che la gestisce. I post saranno pubblicati sulla Pagina.",

@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import ts from "typescript";
+import { PGlite } from "@electric-sql/pglite";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 import { publicationEditSourceVersion } from "../../lib/inrsend/publicationEditVersion.ts";
 
@@ -55,12 +56,41 @@ function actualFunction(file: string, name: string, deps: Row) {
 }
 
 test("the actual native published event write uses exact payload CAS and cannot overwrite a concurrent channel result", async () => {
-  let persisted: Row = { facebook: "old", instagram: "preserved" }, writes = 0;
-  const query = () => { const filters = new Map<string, unknown>(); const api = { eq: (key: string, value: unknown) => { filters.set(key, value); return api; }, select: () => api, maybeSingle: async () => { if (filters.get("payload") !== JSON.stringify(persisted)) return { data: null, error: null }; writes++; return { data: { id: "event" }, error: null }; } }; return api; };
+  const account = "00000000-0000-4000-8000-000000000001", eventId = "00000000-0000-4000-8000-000000000002";
+  const original = { publication_id: "publication", facebook: "old", instagram: "preserved" };
+  const next = { ...original, facebook: "new" };
+  let writes = 0;
   const { PublicationEditSourceChangedError } = runtimeModules()<typeof import("../../lib/inrsend/publicationEditGuard.ts")>("lib/inrsend/publicationEditGuard.ts");
-  const native = actualFunction("lib/inrsend/publicationChannelActions.ts", "persistEventPayload", { supabaseAdmin: { from: () => ({ update: () => query() }) }, PublicationEditSourceChangedError }) as (account: string, publication: string, next: Row, signal: undefined, expected: { id: string; payload: Row }) => Promise<void>;
-  const snapshot = structuredClone(persisted); await native("account", "publication", { facebook: "new", instagram: "preserved" }, undefined, { id: "event", payload: snapshot }); assert.equal(writes, 1);
-  persisted = { ...persisted, instagram: "changed concurrently" }; await assert.rejects(() => native("account", "publication", { facebook: "new", instagram: "preserved" }, undefined, { id: "event", payload: snapshot }), PublicationEditSourceChangedError); assert.equal(writes, 1);
+  const db = new PGlite();
+  try {
+    await db.exec("create role anon; create role authenticated; create role service_role; create table public.app_events(id uuid primary key,user_id uuid,module text,type text,payload jsonb);");
+    await db.exec(readFileSync(new URL("../../supabase/migrations/20261111195022_inrsend_event_payload_compare_and_swap.sql", import.meta.url), "utf8"));
+    await db.query("insert into public.app_events values($1,$2,'booster','publish',$3)", [eventId,account,original]);
+    const supabaseAdmin = {
+      from() { assert.fail("The guarded snapshot must use RPC body parameters rather than a JSON URL filter"); },
+      async rpc(name: string, params: Row) {
+        assert.equal(name, "inrsend_compare_and_swap_event_payload");
+        assert.equal(params.p_user_id, account);
+        assert.equal(params.p_event_id, eventId);
+        assert.equal(params.p_publication_id, "publication");
+        const result = await db.query<{saved: boolean}>("select public.inrsend_compare_and_swap_event_payload($1,$2,$3,$4,$5) as saved", [params.p_user_id,params.p_event_id,params.p_publication_id,params.p_expected_payload,params.p_next_payload]);
+        if (result.rows[0].saved) writes++;
+        return {data: result.rows[0].saved, error: null};
+      },
+    };
+    const native = actualFunction("lib/inrsend/publicationChannelActions.ts", "persistEventPayload", { supabaseAdmin, PublicationEditSourceChangedError }) as (account: string, publication: string, next: Row, signal: undefined, expected: { id: string; payload: Row }) => Promise<void>;
+    await native(account, "publication", next, undefined, {id: eventId, payload: original});
+    assert.equal(writes, 1);
+    const saved = await db.query<{payload: Row}>("select payload from public.app_events where id=$1", [eventId]);
+    assert.deepEqual(saved.rows[0].payload, next);
+    const reviewedSnapshot = structuredClone(saved.rows[0].payload);
+    const concurrent = {...reviewedSnapshot, instagram: "changed concurrently"};
+    await db.query("update public.app_events set payload=$1 where id=$2", [concurrent,eventId]);
+    await assert.rejects(() => native(account, "publication", {...next,facebook: "another change"}, undefined, {id: eventId,payload: reviewedSnapshot}), PublicationEditSourceChangedError);
+    assert.equal(writes, 1);
+    const retained = await db.query<{payload: Row}>("select payload from public.app_events where id=$1", [eventId]);
+    assert.deepEqual(retained.rows[0].payload, concurrent);
+  } finally { await db.close(); }
 });
 
 test("the actual native media edit preserves another channel and its shared original fallback", () => {

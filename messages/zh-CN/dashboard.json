@@ -924,6 +924,14 @@
     }
   },
   "channelBubble": {
+    "linkedinDisconnectHelpTitle": "在 LinkedIn 中移除 iNrCy 的访问权限",
+    "linkedinDisconnectHelpIntro": "在 iNrCy 中断开连接会断开该渠道。如需同时撤销在 LinkedIn 中授予 iNrCy 的权限：",
+    "linkedinDisconnectHelpStep1": "在 LinkedIn 中打开“我”，然后选择“设置与隐私”。",
+    "linkedinDisconnectHelpStep2": "选择“数据隐私”→“其他应用程序”→“允许的服务”。",
+    "linkedinDisconnectHelpStep3": "找到 iNrCy，点击“移除”以撤销其访问权限。",
+    "linkedinDisconnectHelpMobile": "手机端：个人头像→设置→数据隐私→允许的服务。",
+    "linkedinDisconnectHelpReturn": "随后返回 iNrCy 重新连接 LinkedIn。如需切换个人资料，请先在 LinkedIn 中登录所需账户。",
+    "linkedinDisconnectHelpLink": "打开 LinkedIn 允许的服务",
     "instagramFacebookAssociationRequired": "您的 Instagram 专业账户必须关联到已连接至 iNrCy 的 Facebook 商业主页。",
     "instagramProfessionalRequired": "连接需要 Instagram 专业账户（Business）或创作者账户（Creator）。",
     "facebookPageRequired": "请使用管理该主页的个人账户连接 Facebook 专业主页。内容将发布到该主页。",

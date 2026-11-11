@@ -17254,5 +17254,88 @@
     "coverageStatus": "server_equivalent",
     "status": "native_private_read_contract",
     "notes": "Surface de lecture privée supplémentaire ; ne compte pas comme clic de bouton. Mêmes tables que les vues natives, privilège utilisateur, acteur/compte avant et après, pagination20 avec sentinelle, champs retenus sans emails/métadonnées. UI et crédits médias distincts, montants/date inconnus=null, aucun achat/ledgerwrite/réparation ; solde absent jamais changé en zéro."
+  },
+  {
+    "id": "account-linkedin-disconnect-help",
+    "label": "LinkedIn : pastille d’information sur Déconnecter",
+    "domain": "channels",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardFluxBubble.tsx"
+    ],
+    "sourceAnchor": "onClick={() => setDisconnectHelpOpen(true)}",
+    "controlIds": [
+      "app/dashboard/_components/DashboardFluxBubble.tsx#button:d78f8b3752c2a454:1"
+    ],
+    "capabilityId": "channels.oauth",
+    "toolNames": [
+      "guideChannelConnection",
+      "navigateApplication"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/dashboard/channel-bubble-workspace-runtime.test.mts"
+    ],
+    "testAnchor": "LinkedIn's information badge opens the removal instructions without disconnecting the account",
+    "handoffReason": "Le pro ouvre et confirme lui-même le retrait de l’autorisation dans LinkedIn. Le guide explique ce parcours sans identifiants ni révocation par le modèle.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "related_domain_contract",
+      "browser": "not_demonstrated_for_this_control",
+      "provider": "not_tested"
+    },
+    "coverageStatus": "human_required",
+    "status": "intentional_handoff",
+    "notes": "Aide informative disponible pour les accès natifs du canal. Le test vérifie que la pastille ouvre seulement les instructions et le lien officiel ; la déconnexion et le retrait OAuth restent distincts. Aucun clic distant ni révocation fournisseur n’est certifié par cette preuve.",
+    "uiConditions": [
+      "showDisconnect",
+      "connection?.disconnectHelp"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/basic-account-surface-handoffs.test.mts",
+        "testAnchor": "Basic personal credentials OAuth grants and paid transactions stay in their native personal handoffs"
+      }
+    ]
+  },
+  {
+    "id": "account-linkedin-permitted-services",
+    "label": "LinkedIn : ouvrir les services autorisés",
+    "domain": "channels",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "sourceAnchor": "href=\"https://www.linkedin.com/psettings/permitted-services\"",
+    "controlIds": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx#a:f15e4a5e9564e244:1"
+    ],
+    "capabilityId": "channels.oauth",
+    "toolNames": [
+      "guideChannelConnection",
+      "navigateApplication"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/dashboard/channel-bubble-workspace-runtime.test.mts"
+    ],
+    "testAnchor": "LinkedIn's information badge opens the removal instructions without disconnecting the account",
+    "handoffReason": "Le pro ouvre et confirme lui-même le retrait de l’autorisation dans LinkedIn. Le guide explique ce parcours sans identifiants ni révocation par le modèle.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "related_domain_contract",
+      "browser": "not_demonstrated_for_this_control",
+      "provider": "not_tested"
+    },
+    "coverageStatus": "human_required",
+    "status": "intentional_handoff",
+    "notes": "Aide informative disponible pour les accès natifs du canal. Le test vérifie que la pastille ouvre seulement les instructions et le lien officiel ; la déconnexion et le retrait OAuth restent distincts. Aucun clic distant ni révocation fournisseur n’est certifié par cette preuve.",
+    "uiConditions": [
+      "case \"linkedin\""
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/basic-account-surface-handoffs.test.mts",
+        "testAnchor": "Basic personal credentials OAuth grants and paid transactions stay in their native personal handoffs"
+      }
+    ]
   }
 ]

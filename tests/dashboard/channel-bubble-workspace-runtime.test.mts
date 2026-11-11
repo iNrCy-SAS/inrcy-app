@@ -779,6 +779,53 @@ test("LinkedIn keeps both public destinations, separate organization and account
   assert.deepEqual(calls, [["profile-url", "https://linkedin.com/in/new"], ["organization-url", "https://linkedin.com/company/new"], ["personal-sharing", false], "organization", "account"]);
 });
 
+test("LinkedIn's information badge opens the removal instructions without disconnecting the account", async () => {
+  const calls: string[] = [];
+  const workspace = runtime("app/dashboard/_components/DashboardChannelWorkspace.tsx");
+  const workspaceTree = workspace.render("default", { item: { ...item, key: "linkedin", name: "LinkedIn" }, linkedinPanelProps: {
+    linkedinAccountConnected: true, linkedinDisplayName: "Fixture profile", linkedinOrganizations: [],
+    disconnectLinkedinAccount: () => calls.push("account"),
+  } });
+  const connection = nodes(workspaceTree).find(node => node.props.item?.connection)!.props.item.connection;
+  const props = { item: { ...item, key: "linkedin", name: "LinkedIn", connection } };
+  const h = runtime("app/dashboard/_components/DashboardFluxBubble.tsx");
+  let tree = h.render("default", props);
+  const group = nodes(tree).find(node => node.props.className === "disconnectWithHelp")!;
+  assert.ok(group, "the badge and disconnect action share the same positioned button frame");
+  const buttons = nodes(group).filter(node => node.type === "button");
+  assert.equal(buttons.length, 2);
+  assert.ok(buttons.every(button => !nodes(button.props.children).some(child => child.type === "button")), "interactive buttons must remain siblings");
+  const badge = buttons.find(button => button.props.className === "disconnectHelpBadge")!;
+  assert.equal(badge.props["aria-label"], labels.linkedinDisconnectHelpTitle);
+  badge.props.onClick();
+  tree = h.render("default", props);
+  assert.deepEqual(calls, [], "reading help must not invoke an account mutation");
+  const dialog = nodes(tree).find(node => node.props.title === labels.linkedinDisconnectHelpTitle && node.props.onClose)!;
+  assert.ok(dialog);
+  const html = renderToStaticMarkup(dialog.props.children);
+  assert.match(html, /Services autorisés/);
+  assert.match(html, /Supprimer/);
+  const link = nodes(dialog).find(node => node.type === "a")!;
+  assert.equal(link.props.href, "https://www.linkedin.com/psettings/permitted-services");
+  assert.equal(link.props.target, "_blank");
+  assert.equal(link.props.rel, "noopener noreferrer");
+  dialog.props.onClose();
+  tree = h.render("default", props);
+  assert.ok(!nodes(tree).some(node => node.props.title === labels.linkedinDisconnectHelpTitle && node.props.onClose));
+  await nodes(tree).find(node => node.props["aria-label"] === "Déconnecter — Fixture profile")!.props.onClick();
+  assert.deepEqual(calls, ["account"], "the original disconnect action remains separate");
+  const disconnected = h.render("default", { item: { ...props.item, connection: { ...connection, accountConnected: false } } });
+  assert.ok(!nodes(disconnected).some(node => node.props.className === "disconnectHelpBadge"));
+});
+
+test("LinkedIn's removal help has complete translations without a missing-key fallback", () => {
+  const keys = ["Title", "Intro", "Step1", "Step2", "Step3", "Mobile", "Return", "Link"];
+  for (const locale of ["fr-FR", "en-GB", "de-DE", "es-ES", "it-IT", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
+    const messages = JSON.parse(read(`messages/${locale}/dashboard.json`)).channelBubble;
+    for (const key of keys) assert.ok(typeof messages[`linkedinDisconnectHelp${key}`] === "string" && messages[`linkedinDisconnectHelp${key}`].trim(), `${locale}:${key}`);
+  }
+});
+
 test("a connected account awaiting a resource keeps board creation without showing another account-creation link", () => {
   const h = runtime("app/dashboard/_components/DashboardFluxBubble.tsx");
   const createBoard = async () => true;

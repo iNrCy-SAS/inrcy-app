@@ -631,6 +631,16 @@
 .connectAction.actionMainReconnect { background: linear-gradient(100deg,#b85d1c,#a64745 65%,#893f8d); border-color: #ffd08db3; }
 .disconnectIcon { color: #ff718f; border-color: #ff718f99; background: radial-gradient(circle at 25% 15%,#ff9cbd30,transparent 65%),linear-gradient(130deg,#8f224a77,#67296c99); box-shadow: inset 0 1px 2px #ffd4e850,0 0 15px #ed416a24; }
 .disconnectIcon:hover { color: #ffbdc8; border-color: #ff9eb2; background-color: #b62b566e; }
+.disconnectWithHelp { position: relative; display: inline-flex; flex-shrink: 0; }
+.disconnectHelpBadge { position: absolute; z-index: 1; top: -6px; right: -6px; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; color: #10244b; background: transparent; font: 800 13px/1 Georgia,serif; cursor: pointer; }
+.disconnectHelpBadge::before { content: ""; position: absolute; inset: 3px; border: 1px solid #243d71; border-radius: 50%; background: #b4e6ff; box-shadow: 0 2px 6px #071f4766; }
+.disconnectHelpBadge span { position: relative; }
+.disconnectHelpBadge:hover::before { background: #e1f5ff; }
+.disconnectHelpBadge:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.disconnectHelpText { text-align: left; line-height: 1.6; }
+.disconnectHelpText ol { padding-left: 24px; }
+.disconnectHelpText li + li { margin-top: 8px; }
+.disconnectHelpText a { display: inline-flex; align-items: center; min-height: 44px; color: #b4e6ff; text-decoration: underline; text-underline-offset: 3px; }
 .iconAction:disabled,.iconAction[aria-disabled="true"] { opacity: .4; cursor: default; transform: none; }
 .channelFeedback { box-sizing: border-box; display: flex; align-items: flex-start; gap: 10px; width: 100%; min-width: 0; margin: 20px 0 0; padding: 13px 16px; border: 1px solid #64d9c859; border-radius: 16px; background: linear-gradient(120deg,#0e3047f5,#152844f5); box-shadow: 0 8px 25px #020a202e; color: #d8f6ee; text-align: left; }
 .channelFeedbackError { border-color: #f7b16770; background: linear-gradient(120deg,#33283ff5,#24243ff5); color: #ffe7d3; }

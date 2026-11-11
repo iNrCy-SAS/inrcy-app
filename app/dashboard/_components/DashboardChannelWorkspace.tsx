@@ -173,6 +173,13 @@ export default function DashboardChannelWorkspace(props: Props) {
         connectOptions: [{ label: "Connexion LinkedIn", onConnect: li.connectLinkedinAccount }, { label: "Connexion Business", onConnect: li.connectLinkedinBusinessAccount }],
         onDisconnect: li.linkedinSelectedOrganizationId ? li.disconnectLinkedinOrganization : li.disconnectLinkedinAccount,
         onDisconnectAccount: li.linkedinSelectedOrganizationId ? li.disconnectLinkedinAccount : undefined,
+        disconnectHelp: { title: t("linkedinDisconnectHelpTitle"), content: <>
+          <p>{t("linkedinDisconnectHelpIntro")}</p>
+          <ol><li>{t("linkedinDisconnectHelpStep1")}</li><li>{t("linkedinDisconnectHelpStep2")}</li><li>{t("linkedinDisconnectHelpStep3")}</li></ol>
+          <p>{t("linkedinDisconnectHelpMobile")}</p>
+          <p>{t("linkedinDisconnectHelpReturn")}</p>
+          <a href="https://www.linkedin.com/psettings/permitted-services" target="_blank" rel="noopener noreferrer">{t("linkedinDisconnectHelpLink")}</a>
+        </> },
         publicLinks: <><div><strong>{shell("profil_personnel_8e5d4316")}</strong>{publicLink("linkedin", li.linkedinProfileUrl, li.setLinkedinProfileUrl, li.linkedinAccountConnected, "profile")}</div>{li.linkedinSelectedOrganizationId ? <div><strong>{shell("page_entreprise_a6ed751d")}</strong>{publicLink("linkedin", li.linkedinOrganizationUrl, li.setLinkedinOrganizationUrl, true, "organization")}</div> : null}</>,
         loading: li.linkedinOrganizationsLoading, busy: li.linkedinAccountBusy || li.linkedinOrganizationBusy,
         error: li.linkedinUrlError, notice: li.linkedinUrlNotice,

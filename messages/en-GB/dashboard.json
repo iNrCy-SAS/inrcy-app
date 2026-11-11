@@ -924,6 +924,14 @@
     }
   },
   "channelBubble": {
+    "linkedinDisconnectHelpTitle": "Remove iNrCy access in LinkedIn",
+    "linkedinDisconnectHelpIntro": "Disconnecting in iNrCy disconnects the channel. To also remove the permission granted to iNrCy in LinkedIn:",
+    "linkedinDisconnectHelpStep1": "In LinkedIn, open Me, then Settings & Privacy.",
+    "linkedinDisconnectHelpStep2": "Choose Data privacy → Other applications → Permitted Services.",
+    "linkedinDisconnectHelpStep3": "Find iNrCy, then click Remove to withdraw its access.",
+    "linkedinDisconnectHelpMobile": "On mobile: profile photo → Settings → Data privacy → Permitted Services.",
+    "linkedinDisconnectHelpReturn": "Return to iNrCy to reconnect LinkedIn. To switch profiles, first sign in to the intended account on LinkedIn.",
+    "linkedinDisconnectHelpLink": "Open LinkedIn permitted services",
     "instagramFacebookAssociationRequired": "Your professional Instagram account must be linked to the business Facebook Page connected to iNrCy.",
     "instagramProfessionalRequired": "An Instagram Business or Creator account is required to connect.",
     "facebookPageRequired": "Connect a professional Facebook Page using the personal account that manages it. Posts will be published on the Page.",

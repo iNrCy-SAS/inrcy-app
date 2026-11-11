@@ -924,6 +924,14 @@
     }
   },
   "channelBubble": {
+    "linkedinDisconnectHelpTitle": "iNrCy-toegang in LinkedIn verwijderen",
+    "linkedinDisconnectHelpIntro": "Verbinding verbreken in iNrCy koppelt het kanaal los. Zo verwijder je ook de toestemming voor iNrCy in LinkedIn:",
+    "linkedinDisconnectHelpStep1": "Open in LinkedIn Ik en vervolgens Instellingen en privacy.",
+    "linkedinDisconnectHelpStep2": "Kies Gegevensprivacy → Andere applicaties → Toegestane services.",
+    "linkedinDisconnectHelpStep3": "Zoek iNrCy en klik op Verwijderen om de toegang in te trekken.",
+    "linkedinDisconnectHelpMobile": "Op mobiel: profielfoto → Instellingen → Gegevensprivacy → Toegestane services.",
+    "linkedinDisconnectHelpReturn": "Keer terug naar iNrCy om LinkedIn opnieuw te verbinden. Meld je eerst aan bij het gewenste LinkedIn-account om van profiel te wisselen.",
+    "linkedinDisconnectHelpLink": "Toegestane LinkedIn-services openen",
     "instagramFacebookAssociationRequired": "Uw professionele Instagram-account moet zijn gekoppeld aan de zakelijke Facebook-pagina die met iNrCy is verbonden.",
     "instagramProfessionalRequired": "Je hebt een professioneel Instagram-account (Business) of Creator-account nodig om te verbinden.",
     "facebookPageRequired": "Verbind een professionele Facebook-pagina via het persoonlijke account dat de pagina beheert. Berichten worden op de pagina gepubliceerd.",
