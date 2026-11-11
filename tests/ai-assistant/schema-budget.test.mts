@@ -12,6 +12,8 @@ import * as videoClientOptions from "../../lib/aiMediaVideoClientOptions.ts";
 import * as mediaModelCatalog from "../../lib/aiMediaModelCatalog.ts";
 import { fitPromptPayloadToJsonBudget } from "../../lib/aiPromptBudget.ts";
 import { getAssistantInternalDestination } from "../../lib/inrAssistantNavigation.ts";
+import * as assistantNavigation from "../../lib/inrAssistantNavigation.ts";
+import * as snapshotWindow from "../../lib/stats/snapshotWindow.ts";
 import { getInrAssistantNavigation } from "../../lib/inrAssistantUiCommands.ts";
 import * as editionPolicy from "../../lib/dashboardEdition.ts";
 import { assistantModelInputBudget } from "../../lib/inrAssistantAttachments.ts";
@@ -42,6 +44,8 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
   let actionExecutions = 0, navigationPreparations = 0;
   const untouched = () => { assert.fail("Schema budget matrix must not execute a private operation or provider request"); };
   const common: Record<string, unknown> = {
+    "./stats/snapshotWindow.ts": snapshotWindow,
+    "./inrAssistantNavigation.ts": assistantNavigation,
     "server-only": {}, "node:crypto": { createHash, createHmac, timingSafeEqual, randomUUID },
     "@/lib/requireUser": { requireUser: untouched }, "./requireUser": { requireUser: untouched },
     "@/lib/aiGatewayConfig": { getAiGatewayCredential: () => "synthetic-no-network" },
