@@ -17,6 +17,8 @@ import { captureApiException } from "@/lib/observability/sentry";
 import { deleteUserAccountEverywhere } from "@/lib/deleteUserAccount";
 import { sendAdminTrialFollowupNotifications } from "@/lib/adminTrialFollowupNotifications";
 import { adminTrialFollowupOffset, calendarDaysUntil } from "@/lib/trialFollowup";
+import { createBillingMailFailureTracker } from "@/lib/billingMailFailures";
+import { log } from "@/lib/observability/logger";
 
 export const runtime = "nodejs";
 
@@ -163,7 +165,9 @@ export async function GET(req: Request) {
 
   const now = new Date();
   const reminderOffsets = [...TRIAL_REMINDER_OFFSETS];
-  let mailFailures = 0;
+  const mailFailures = createBillingMailFailureTracker((error, context) => {
+    captureApiException(req, error, { area: "billing", ...context, statusCode: 502 });
+  });
 
   async function deliverReminderSafely(
     operation: "trial_reminder" | "annual_renewal_reminder",
@@ -174,13 +178,7 @@ export async function GET(req: Request) {
       await deliver();
       return true;
     } catch (error) {
-      mailFailures += 1;
-      captureApiException(req, error, {
-        area: "billing",
-        operation,
-        userId,
-        statusCode: 502,
-      });
+      mailFailures.record(error, { operation, userId });
       return false;
     }
   }
@@ -273,13 +271,7 @@ export async function GET(req: Request) {
         adminTrialNotifications += result.notificationsInserted;
         if (result.emailSent) adminTrialEmails += 1;
       } catch (error) {
-        mailFailures += 1;
-        captureApiException(req, error, {
-          area: "billing",
-          operation: "admin_trial_followup",
-          userId: s.user_id,
-          statusCode: 502,
-        });
+        mailFailures.record(error, { operation: "admin_trial_followup", userId: s.user_id });
       }
     }
 
@@ -326,6 +318,7 @@ export async function GET(req: Request) {
           subject,
           text,
           html,
+          idempotencyKey: `trial-reminder/${s.user_id}/${trialEndAt}/${reminderMarker}`,
           attachments: await getInrcyBrandInlineAttachments(),
         });
       },
@@ -544,6 +537,7 @@ export async function GET(req: Request) {
             subject,
             text,
             html,
+            idempotencyKey: `annual-renewal/${s.user_id}/${ymd(renewalDate)}/${reminderMarker}`,
             attachments: await getInrcyBrandInlineAttachments(),
           });
         },
@@ -698,6 +692,11 @@ export async function GET(req: Request) {
       .eq("id", deletion.id);
   }
 
+  const mailSummary = mailFailures.summary();
+  if (mailSummary.smtp_auth_blocked) {
+    log.warn("billing_mail_auth_blocked", { area: "billing", ...mailSummary });
+  }
+
   return NextResponse.json({
     ok: true,
     sent,
@@ -714,7 +713,6 @@ export async function GET(req: Request) {
     expired_annual_accesses: expiredAnnualAccesses,
     failed_scheduled_deletions: failedScheduledDeletions,
     deletion_workflow_unavailable: deletionWorkflowUnavailable,
-    mail_failures: mailFailures,
-    degraded: mailFailures > 0,
+    ...mailSummary,
   });
 }

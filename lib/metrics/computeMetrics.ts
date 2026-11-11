@@ -9,6 +9,7 @@ import {
 import { isMetaChannelPilotEnabledForAccount } from '@/lib/metaChannelRolloutServer';
 import { withoutThreadsData } from '@/lib/stats/metaPilotData';
 import { INRCY_STATS_CACHE_SCHEMA_VERSION } from '@/lib/stats/cacheSchema';
+import { createStatsOverviewRequestContext, type StatsOverviewRequestContext } from '@/lib/stats/overviewRequestContext';
 
 export type Period = 7 | 30 | 60 | 90;
 export type CubeKey = 'site_web' | 'gmb' | 'facebook' | 'instagram' | 'threads' | 'linkedin' | 'x' | 'tiktok' | 'youtube_shorts' | 'pinterest';
@@ -694,13 +695,17 @@ export async function fetchCubeOverviews(args: {
   snapshotDate?: string | null;
   inrcyPublishedActivityLoader?: InrcyPublishedActivityLoader;
   metaPilotEnabled?: boolean;
+  overviewContext?: StatsOverviewRequestContext;
 }): Promise<Partial<Record<CubeKey, Overview>>> {
   const { origin, days, getHeaders, extraParams, bypassCache = false, supabase, userId, snapshotDate } = args;
+  const overviewContext = supabase && userId ? args.overviewContext || createStatsOverviewRequestContext({ supabase, userId }) : undefined;
   const inrcyPublishedActivityLoader =
     supabase && userId
       ? args.inrcyPublishedActivityLoader || createInrcyPublishedActivityLoader({ supabase, userId })
       : undefined;
-  const metaPilotEnabled = args.metaPilotEnabled !== false && (supabase && userId ? await isMetaChannelPilotEnabledForAccount(supabase, userId) : args.metaPilotEnabled === true);
+  const metaPilotEnabled = args.metaPilotEnabled !== false && (supabase && userId
+    ? await overviewContext!.read(supabase, userId, "metaPilot", () => isMetaChannelPilotEnabledForAccount(supabase, userId))
+    : args.metaPilotEnabled === true);
   const entries = await Promise.all(
     CUBES.filter((cube) => cube !== "threads" || metaPilotEnabled).map(async (cube) => {
       const includeRaw = INCLUDE_BY_CUBE[cube];
@@ -718,6 +723,7 @@ export async function fetchCubeOverviews(args: {
               snapshotDate,
               inrcyPublishedActivityLoader,
               metaPilotEnabled,
+              overviewContext,
             })) as OverviewPayload,
           bypassCache,
         );

@@ -387,8 +387,9 @@ test("une panne SMTP ne coupe plus les expirations et réconciliations du cron",
   assert.match(cron, /catch \(error\) \{/);
   assert.match(cron, /captureApiException\(req, error/);
   assert.match(cron, /if \(!delivered\) continue;/);
-  assert.match(cron, /mail_failures: mailFailures/);
-  assert.match(cron, /degraded: mailFailures > 0/);
+  assert.match(cron, /mailFailures\.record\(error, \{ operation, userId \}\)/);
+  assert.match(cron, /const mailSummary = mailFailures\.summary\(\)/);
+  assert.match(cron, /\.\.\.mailSummary/);
   assert.match(cron, /expired_trial_accounts: expiredTrialAccounts/);
   assert.match(cron, /reconciled_cancelled_accesses: reconciledCancelledAccesses/);
 });

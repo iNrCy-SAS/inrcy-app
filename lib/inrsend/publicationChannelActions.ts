@@ -58,6 +58,7 @@ import {
 } from "@/lib/boosterCtaPreferences";
 import { log } from "@/lib/observability/logger";
 import { captureApiException } from "@/lib/observability/sentry";
+import { deleteFacebookPost } from "@/lib/facebookPostActions";
 import { getLinkedInAccessToken } from "@/lib/linkedinOAuth";
 import { getPinterestAccessToken } from "@/lib/pinterestOAuth";
 import {
@@ -1096,19 +1097,6 @@ export async function readInrSendPublicationEditState(userId: string, publicatio
     post: getChannelPost(current.eventPayload, current.publication, channel), images: { ...getChannelImageSet(current.eventPayload, current.publication, channel), editableAttachments: getChannelEditableAttachments(current.eventPayload, current.publication, channel) }, video: getEventPublicationMediaType(current.eventPayload, current.publication, channel) === "video" ? getPublicationVideo(current.eventPayload, current.publication, channel) : null };
 }
 
-async function deleteFacebookPost(externalId: string, pageAccessToken: string) {
-  if (!externalId) return;
-  const qs = new URLSearchParams({ access_token: pageAccessToken });
-  const res = await fetch(`${buildMetaGraphUrl(encodeURIComponent(externalId))}?${qs.toString()}`, {
-    method: "DELETE",
-    cache: "no-store",
-  });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok || json?.success === false) {
-    throw new Error(json?.error?.message || `Suppression Facebook impossible (${res.status})`);
-  }
-}
-
 async function updateFacebookPost(externalId: string, pageAccessToken: string, message: string) {
   if (!externalId) throw new Error("Publication Facebook introuvable.");
   const body = new URLSearchParams({ access_token: pageAccessToken, message });
@@ -1500,7 +1488,7 @@ async function replaceChannelDelivery(params: {
         throw new Error(facebookUserError);
       }
       if (previousExternalId && previousExternalId !== resp.postId) {
-        await deleteFacebookPost(previousExternalId, pageToken).catch((error) => {
+        await deleteFacebookPost(previousExternalId, pageToken, pageId).catch((error) => {
           console.warn("[inrsend] previous Facebook post cleanup failed", {
             previousExternalId,
             message: error instanceof Error ? error.message : String(error || ""),
@@ -1546,7 +1534,7 @@ async function replaceChannelDelivery(params: {
       throw new Error(facebookUserError);
     }
     if (previousExternalId && previousExternalId !== resp.postId) {
-      await deleteFacebookPost(previousExternalId, pageToken).catch((error) => {
+      await deleteFacebookPost(previousExternalId, pageToken, pageId).catch((error) => {
         console.warn("[inrsend] previous Facebook post cleanup failed", {
           previousExternalId,
           message: error instanceof Error ? error.message : String(error || ""),
@@ -2520,7 +2508,7 @@ async function removeChannelDelivery(params: {
   if (channel === "facebook") {
     const token = tryDecryptToken(String(asRecord(fbRow).access_token_enc ?? "")) || "";
     if (!token) throw new Error("Votre compte Facebook n’est pas encore correctement relié.");
-    if (previousExternalId) await deleteFacebookPost(previousExternalId, token);
+    if (previousExternalId) await deleteFacebookPost(previousExternalId, token, String(asRecord(fbRow).resource_id || ""));
     return;
   }
 

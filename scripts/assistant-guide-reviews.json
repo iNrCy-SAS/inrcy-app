@@ -744,15 +744,16 @@
       }
     },
     "send": {
-      "guideDigest": "678a954f9af87fc7b7f14d161c842bc204f890b96a5b24eb30391a9aa07eb537",
+      "guideDigest": "6ff2e0889463a6d6c9285e380ee427d3fc4bed93c4e0d1ec96defef108003794",
       "sources": {
         "app/dashboard/mails/MailboxClient.tsx": "3ed6d3d3521580914c5591e73f6d2fc38dd8d89eb17db8ffb80584bb7644c622",
         "app/dashboard/mails/_components/FolderTabs.tsx": "9c8e69bc79595e5abcc0bf8cf6a82cb82d6a312a14d5dbb7acf77510c21dfe1c",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx": "0f1b3c2574d0d2610083b75293b6bad01e9fde40fdbf378693a7814291302fdd",
         "app/dashboard/mails/_components/MailboxToolbar.tsx": "79398ed35be4f76caf208a750056b75070e53fffb571f9d9534cd7196e8ba949",
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
+        "lib/facebookPostActions.ts": "49b67246698a1aa9d30302e3ad8176e488c8c143c147332a1e68161d0ff71e42",
         "lib/inrsend/instagramCapabilities.ts": "0046f1b02ecd7670ccf6f2890c45772be148292aba4e935590ccf68c48b53989",
-        "lib/inrsend/publicationChannelActions.ts": "343d809daec340d415130bab9d873561b6b0592c3d3ffba7c9cf0b27c0036a48",
+        "lib/inrsend/publicationChannelActions.ts": "8939df4e34b4cb7d9ac47c50b8dc61f8d5ac8e02c5182a0e6a2f10e334fb417c",
         "lib/inrsend/threadsCapabilities.ts": "f951094e52aac3b9f2398082a4771e98d57f6ded0873c94314e03f2dac0a7b02",
         "lib/inrsendRetention.ts": "02aa112a30464577739b85a08ba4bd81d461c770bbbcfaa20cb2ce91b5afad37",
         "lib/pinterestTextLimits.ts": "28771bd0581ee73e9ed2a19ad93a0e40a8a8a0456ea81cf9b2a84e6b56f35089",
@@ -896,7 +897,7 @@
       "sources": {
         "lib/boosterChannelRules.ts": "0be4639f6e27732c83e715142e2f6855f6e48a898490588325875331aa0baaeb",
         "lib/boosterCta.ts": "9683b397f86cee0cbc0de6b1f160479138a08a8b05c175016f5d6838d4f9523e",
-        "lib/inrsend/publicationChannelActions.ts": "343d809daec340d415130bab9d873561b6b0592c3d3ffba7c9cf0b27c0036a48",
+        "lib/inrsend/publicationChannelActions.ts": "8939df4e34b4cb7d9ac47c50b8dc61f8d5ac8e02c5182a0e6a2f10e334fb417c",
         "lib/instagramCaptionLimits.ts": "d7025f500b05ad93f5dddf20131b1d8f8589b97ce264ddd0bb8616f6250e0e27",
         "lib/instagramGeneratedCaption.ts": "dc78163fafd88fb521a5666d5848be4a1ea0ece800113c8662d33214dbd53e66",
         "lib/pinterestTextLimits.ts": "28771bd0581ee73e9ed2a19ad93a0e40a8a8a0456ea81cf9b2a84e6b56f35089",

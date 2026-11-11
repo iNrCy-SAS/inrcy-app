@@ -7,8 +7,11 @@ import {
   assertTxSmtpCircuitClosed,
   clearTxSmtpCircuit,
   openTxSmtpCircuit,
+  isTxSmtpAuthenticationFailure,
+  isTxSmtpCircuitOpenError,
   type TxSmtpCircuitIdentity,
 } from "@/lib/txSmtpCircuit";
+import { canUseTxResendFallback, sendTxResendMail } from "@/lib/txResend";
 
 export type TxMailAttachment = {
   filename: string;
@@ -25,6 +28,8 @@ export type TxMail = {
   html?: string;
   /** Stable RFC Message-ID used by durable, at-least-once delivery flows. */
   messageId?: string;
+  /** Stable business event key, preserved across retries by API mail providers. */
+  idempotencyKey?: string;
   attachments?: TxMailAttachment[];
 };
 
@@ -153,7 +158,17 @@ async function sendSmtpMail(mail: TxMail, config: TxSmtpConfig) {
 }
 
 export async function sendTxMail(mail: TxMail) {
-  return sendSmtpMail(mail, loadSmtpConfig("transactional"));
+  const config = loadSmtpConfig("transactional");
+  try {
+    return await sendSmtpMail(mail, config);
+  } catch (error) {
+    const failure = error as { command?: unknown; code?: unknown } | null;
+    const command = String(failure?.command || "").trim().toUpperCase();
+    const authRejected = isTxSmtpAuthenticationFailure(error) &&
+      (command.startsWith("AUTH") || (!command && failure?.code === "EAUTH"));
+    if (!canUseTxResendFallback() || (!authRejected && !isTxSmtpCircuitOpenError(error))) throw error;
+    return sendTxResendMail(mail, config.from);
+  }
 }
 
 /** Low-volume internal alerts, isolated from user-facing notifications. */

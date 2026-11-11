@@ -10,12 +10,18 @@ type JsonRecord = Record<string, unknown>;
 const record = (value: unknown): JsonRecord => value && typeof value === "object" && !Array.isArray(value) ? value as JsonRecord : {};
 const numeric = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
 
+class ThreadsInsightsError extends Error {
+  constructor(message: string, readonly status: number, readonly providerCode?: number) {
+    super(message);
+  }
+}
+
 async function fetchThreadsJson(path: string, accessToken: string, params: Record<string, string>) {
   const response = await fetch(`${buildThreadsGraphUrl(path)}?${new URLSearchParams(params)}`, {
     cache: "no-store", headers: { Authorization: `Bearer ${accessToken}` }, signal: AbortSignal.timeout(15_000),
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload?.error) throw new Error(String(payload?.error?.message || `Threads HTTP ${response.status}`));
+  if (!response.ok || payload?.error) throw new ThreadsInsightsError(String(payload?.error?.message || `Threads HTTP ${response.status}`), response.status, Number(payload?.error?.code) || undefined);
   return record(payload);
 }
 
@@ -67,16 +73,36 @@ export async function fetchThreadsAccountInsights(accessToken: string, userId: s
   const unavailableMetrics: string[] = [];
   const metricErrors: Record<string, string> = {};
   const params = { since: String(Math.floor(start.getTime() / 1000)), until: String(Math.floor(end.getTime() / 1000)) };
-  // Independent calls preserve supported metrics when one permission or
-  // account-specific metric is unavailable. No lifetime fallback for a range.
-  await Promise.all(THREADS_ACCOUNT_METRICS.map(async (metric) => {
+  const path = `${encodeURIComponent(userId)}/threads_insights`;
+  let pendingMetrics: readonly string[] = THREADS_ACCOUNT_METRICS;
+  try {
+    // Meta supports comma-separated metrics. Normal accounts need one request
+    // per period instead of seven; never replace period data with lifetime data.
+    const payload = await fetchThreadsJson(path, accessToken, { ...params, metric: THREADS_ACCOUNT_METRICS.join(",") });
+    const rows = Array.isArray(payload.data) ? payload.data : [];
+    collected.push(...rows);
+    pendingMetrics = THREADS_ACCOUNT_METRICS.filter(metric => !rows.some(row => record(row).name === metric));
+  } catch (error) {
+    // A metric-specific rejection may hide the other available metrics. Token,
+    // quota, network and service failures affect the whole batch: no fan-out.
+    const metricRejected = error instanceof ThreadsInsightsError && error.status === 400 &&
+      error.providerCode !== 190 && /metric|insight.*(?:unsupported|not supported)/i.test(error.message);
+    if (!metricRejected) {
+      pendingMetrics = [];
+      for (const metric of THREADS_ACCOUNT_METRICS) {
+        unavailableMetrics.push(metric);
+        metricErrors[metric] = error instanceof Error ? error.message : "Statistique Threads indisponible.";
+      }
+    }
+  }
+  await Promise.all(pendingMetrics.map(async (metric) => {
     try {
-      const payload = await fetchThreadsJson(`${encodeURIComponent(userId)}/threads_insights`, accessToken, { ...params, metric });
+      const payload = await fetchThreadsJson(path, accessToken, { ...params, metric });
       const rows = Array.isArray(payload.data) ? payload.data : [];
       if (!rows.some((row) => record(row).name === metric)) {
         unavailableMetrics.push(metric);
         metricErrors[metric] = "Métrique non disponible pour ce compte ou cette période.";
-      } else collected.push(...rows);
+      } else collected.push(...rows.filter(row => record(row).name === metric));
     } catch (error) {
       unavailableMetrics.push(metric);
       metricErrors[metric] = error instanceof Error ? error.message : "Statistique Threads indisponible.";

@@ -10,6 +10,7 @@ import { getDefaultSnapshotDate } from "@/lib/stats/snapshotWindow";
 import { buildMetricsSummary } from "@/lib/metrics/summary";
 import { buildStatsConnectionSignature } from "@/lib/stats/connectionSignature";
 import { createInrcyPublishedActivityLoader } from "@/lib/stats/buildOverview.activity";
+import { createStatsOverviewRequestContext } from "@/lib/stats/overviewRequestContext";
 import { applyLinkedInFallbackToStatsRecords, readLastGoodLinkedInGeneratorBlock, type LinkedInStatsFallback } from "@/lib/linkedinStatsFallback";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
 import { buildChannelBlocks, type InrstatsChannelBlocksByChannel } from "@/lib/inrstats/channelBlocks";
@@ -242,6 +243,7 @@ async function handler(req: Request) {
         supabase,
         userId: activeUserId,
       });
+      const overviewContext = createStatsOverviewRequestContext({ supabase, userId: activeUserId });
       const profileStarted = nowMs();
       const profilePromise = fetchProfileMetrics(supabase, activeUserId);
       const monthStarted = nowMs();
@@ -254,7 +256,7 @@ async function handler(req: Request) {
         userId: activeUserId,
         snapshotDate,
         inrcyPublishedActivityLoader,
-
+        overviewContext,
         metaPilotEnabled,
       });
       const weekStarted = nowMs();
@@ -267,7 +269,7 @@ async function handler(req: Request) {
         userId: activeUserId,
         snapshotDate,
         inrcyPublishedActivityLoader,
-
+        overviewContext,
         metaPilotEnabled,
       });
 
@@ -277,7 +279,7 @@ async function handler(req: Request) {
         weekPromise,
         buildStatsConnectionSignature(supabase, activeUserId),
       ]);
-      const channelStates = await getChannelConnectionStates(supabase, activeUserId, undefined, { metaPilotEnabled });
+      const channelStates = await overviewContext.read(supabase, activeUserId, metaPilotEnabled ? "channelStates:1" : "channelStates:0", () => getChannelConnectionStates(supabase, activeUserId, undefined, { metaPilotEnabled }));
       const linkedInFallback = await readLastGoodLinkedInGeneratorBlock({
         supabase,
         userId: activeUserId,

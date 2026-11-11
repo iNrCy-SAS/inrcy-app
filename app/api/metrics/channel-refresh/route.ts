@@ -18,6 +18,8 @@ import {
   type Overview,
 } from '@/lib/metrics/computeMetrics';
 import { buildStatsOverview } from '@/lib/stats/buildOverview';
+import { createStatsOverviewRequestContext, type StatsOverviewRequestContext } from '@/lib/stats/overviewRequestContext';
+import { createInrcyPublishedActivityLoader, type InrcyPublishedActivityLoader } from '@/lib/stats/buildOverview.activity';
 
 type ProfileMetrics = {
   lead_conversion_rate: number;
@@ -76,6 +78,8 @@ async function fetchChannelOverview(args: {
   days: 7 | 30;
   snapshotDate: string;
   metaPilotEnabled?: boolean;
+  overviewContext: StatsOverviewRequestContext;
+  inrcyPublishedActivityLoader: InrcyPublishedActivityLoader;
 }): Promise<Overview> {
   const { supabase, userId, channel, days, snapshotDate } = args;
   return await buildStatsOverview({
@@ -86,6 +90,8 @@ async function fetchChannelOverview(args: {
     fresh: true,
     metaPilotEnabled: args.metaPilotEnabled,
     snapshotDate,
+    overviewContext: args.overviewContext,
+    inrcyPublishedActivityLoader: args.inrcyPublishedActivityLoader,
   }) as Overview;
 }
 
@@ -106,10 +112,12 @@ export async function POST(req: Request) {
     const metaPilotEnabled = await isMetaChannelPilotEnabledForActorAndAccount(supabase, activeUserId);
     if (channel === "threads" && !metaPilotEnabled) return metaChannelPilotDeniedResponse();
     const snapshotDate = getDefaultSnapshotDate();
+    const overviewContext = createStatsOverviewRequestContext({ supabase, userId: activeUserId });
+    const inrcyPublishedActivityLoader = createInrcyPublishedActivityLoader({ supabase, userId: activeUserId });
     const [profile, monthOverview, weekOverview, connectionSignature] = await Promise.all([
       fetchProfileMetrics(supabase, activeUserId),
-      fetchChannelOverview({ supabase, userId: activeUserId, channel, days: 30, snapshotDate, metaPilotEnabled }),
-      fetchChannelOverview({ supabase, userId: activeUserId, channel, days: 7, snapshotDate, metaPilotEnabled }),
+      fetchChannelOverview({ supabase, userId: activeUserId, channel, days: 30, snapshotDate, metaPilotEnabled, overviewContext, inrcyPublishedActivityLoader }),
+      fetchChannelOverview({ supabase, userId: activeUserId, channel, days: 7, snapshotDate, metaPilotEnabled, overviewContext, inrcyPublishedActivityLoader }),
       buildStatsConnectionSignature(supabase, activeUserId),
     ]);
 

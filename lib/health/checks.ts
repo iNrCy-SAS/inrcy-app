@@ -12,7 +12,10 @@ import {
   assertTxSmtpCircuitClosed,
   clearTxSmtpCircuit,
   openTxSmtpCircuit,
+  isTxSmtpAuthenticationFailure,
+  isTxSmtpCircuitOpenError,
 } from "@/lib/txSmtpCircuit";
+import { canUseTxResendFallback, verifyTxResendFallback } from "@/lib/txResend";
 
 export type HealthCheckName =
   | "supabase"
@@ -256,7 +259,8 @@ async function checkSmtp(): Promise<HealthCheckResult> {
     };
   }
 
-  return timeCheck(async () => {
+  let authBlocked = false;
+  const result = await timeCheck(async () => {
     const host = requireEnv("TX_SMTP_HOST");
     const port = Number(requireEnv("TX_SMTP_PORT"));
     const user = requireEnv("TX_SMTP_USER");
@@ -269,9 +273,8 @@ async function checkSmtp(): Promise<HealthCheckResult> {
       secureEnv === "true" ? true : secureEnv === "false" ? false : port === 465;
     const identity = { host, port, user, pass, secure };
 
-    await assertTxSmtpCircuitClosed(identity);
-
     try {
+      await assertTxSmtpCircuitClosed(identity);
       await verifySmtpWithHandshakeRetry(async (attempt) => {
         // The retry is only for the fast, pre-authentication OpenSSL protocol
         // alert observed from OVH. Bound its second connection to five seconds
@@ -293,10 +296,19 @@ async function checkSmtp(): Promise<HealthCheckResult> {
       });
       await clearTxSmtpCircuit(identity);
     } catch (error) {
+      authBlocked = isTxSmtpAuthenticationFailure(error) || isTxSmtpCircuitOpenError(error);
       await openTxSmtpCircuit(error, identity);
       throw error;
     }
   });
+  if (result.ok || !authBlocked || !canUseTxResendFallback()) return result;
+  const fallback = await timeCheck(() => verifyTxResendFallback(optionalEnv("TX_MAIL_FROM", process.env.TX_SMTP_USER || "")));
+  return {
+    ...fallback,
+    ms: (result.ms || 0) + (fallback.ms || 0),
+    warning: "Authentification SMTP refusée ; secours transactionnel Resend utilisé.",
+    details: { provider: "resend", smtp_auth_blocked: true },
+  };
 }
 
 export async function runPublicHealthCheck() {

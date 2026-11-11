@@ -10,6 +10,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import * as crypto from "node:crypto";
 import ts from "typescript";
+import { createStatsOverviewRequestContext } from "../../lib/stats/overviewRequestContext.ts";
 
 function load<T = Record<string, any>>(file: string, dependencies: Record<string, unknown> = {}): T {
   const code = ts.transpileModule(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), {
@@ -213,6 +214,7 @@ test("USER requests never fetch a Threads cube; ADMIN-to-USER does not reuse the
     "@/lib/stats/buildOverview": { buildStatsOverview: async (args: any) => { calls.push(args.includeRaw); return { days: args.days, sources: { [args.includeRaw]: { connected: true, metrics: { totals: { views: 100 } } } } }; } },
     "@/lib/stats/buildOverview.activity": { createInrcyPublishedActivityLoader: () => async () => ({}) },
     "@/lib/stats/cacheSchema": { INRCY_STATS_CACHE_SCHEMA_VERSION: "fixture" },
+    "@/lib/stats/overviewRequestContext": { createStatsOverviewRequestContext },
     "@/lib/metaChannelRolloutServer": { isMetaChannelPilotEnabledForAccount: async () => enabled },
     "@/lib/stats/metaPilotData": pilotData,
   });
