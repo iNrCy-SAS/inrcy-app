@@ -11,6 +11,8 @@ import * as productNavigation from "../../lib/productNavigation.ts";
 import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import { googleReviewStateFingerprint } from "../../lib/googleReviewStateFingerprint.ts";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
+import * as snapshotWindow from "../../lib/stats/snapshotWindow.ts";
+import * as assistantNavigation from "../../lib/inrAssistantNavigation.ts";
 
 type Row = Record<string, unknown>;
 type Query = { fields: string; filters: Array<[string, unknown]>; maximum: number };
@@ -31,8 +33,9 @@ function load<T>(file: string, dependencies: Record<string, unknown>, fastTimeou
 }
 const { sanitizeInrAssistantMemoryText } = load<typeof Memory>("../../lib/inrAssistantMemory.ts", { "server-only": {}, "node:crypto": { randomUUID } });
 
-function fixture(options: { current?: string; stats?: Row[]; statsError?: boolean; statsErrorSource?: string; switchDuringStatsRead?: boolean; reviews?: Row[]; disconnected?: boolean; replyError?: boolean; nextPage?: boolean; foreignAuth?: boolean; hangRead?: boolean; hangReply?: boolean; nativeReply?: boolean; actorScoped?: boolean } = {}) {
+function fixture(options: { current?: string; stats?: Row[]; statsError?: boolean; statsErrorSource?: string; switchDuringStatsRead?: boolean; summary?: Row; summaryError?: boolean; hangSummary?: boolean; switchDuringSummary?: boolean; requestOrigin?: string; reviews?: Row[]; disconnected?: boolean; replyError?: boolean; nextPage?: boolean; foreignAuth?: boolean; hangRead?: boolean; hangReply?: boolean; nativeReply?: boolean; actorScoped?: boolean } = {}) {
   const queries: Query[] = []; const apiCalls: Array<{ method: string; request: Request; body?: Row }> = [];
+  const summaryCalls: Request[] = [];
   const providerWrites: string[] = []; let nativeReviewRace = false;
   let currentAccount = options.foreignAuth ? foreignId : accountId;
   let currentActor = "verified-server-actor", workAllowed = true;
@@ -69,6 +72,14 @@ function fixture(options: { current?: string; stats?: Row[]; statsError?: boolea
     }; return builder;
   } };
   const dependencies: Record<string, unknown> = {
+    "./stats/snapshotWindow.ts": snapshotWindow,
+    "./inrAssistantNavigation.ts": assistantNavigation,
+    "@/app/api/metrics/summary/route": { GET: async (request: Request) => {
+      summaryCalls.push(request);
+      if (options.hangSummary) return new Promise<Response>(() => {});
+      if (options.switchDuringSummary) currentAccount = foreignId;
+      return options.summary && !options.summaryError ? Response.json(options.summary) : Response.json({ error: "PRIVATE SUMMARY ERROR" }, { status: 503 });
+    } },
     "./googleReviewStateFingerprint.ts": { googleReviewStateFingerprint },
     "./inrAssistantRequestClauses.ts": requestClauses,
     "./inrAssistantGoogleReviewTools.ts": { createInrAssistantGoogleReviewTools: () => ({}) },
@@ -105,10 +116,10 @@ function fixture(options: { current?: string; stats?: Row[]; statsError?: boolea
       } })<typeof import("../../app/api/e-reputation/google/reply/route.ts")>("app/api/e-reputation/google/reply/route.ts");
     dependencies["@/app/api/e-reputation/google/reply/route"] = { POST: async (request: Request) => { const body = await request.clone().json() as Row; apiCalls.push({ method: "POST", request, body }); return native.POST(request); } };
   }
-  const runtime = load<typeof Insights>("../../lib/inrAssistantInsightsTools.ts", dependencies, options.hangRead || options.hangReply);
-  const tools = runtime.createInrAssistantInsightsTools({ request: new Request("https://app.inrcy.test/api/assistant/chat", { headers: { cookie: "session=synthetic", authorization: "Bearer synthetic", "x-cron-secret": "NEVER FORWARD" } }), accountId, actorUserId: options.actorScoped ? "verified-server-actor" : undefined, canStartWork: () => workAllowed, supabase: supabase as never, currentUserMessage: options.current ?? instruction });
+  const runtime = load<typeof Insights>("../../lib/inrAssistantInsightsTools.ts", dependencies, options.hangRead || options.hangReply || options.hangSummary);
+  const tools = runtime.createInrAssistantInsightsTools({ request: new Request(`${options.requestOrigin ?? "https://app.inrcy.test"}/api/assistant/chat`, { headers: { cookie: "session=synthetic", authorization: "Bearer synthetic", "x-cron-secret": "NEVER FORWARD" } }), accountId, actorUserId: options.actorScoped ? "verified-server-actor" : undefined, canStartWork: () => workAllowed, supabase: supabase as never, currentUserMessage: options.current ?? instruction });
   const execute = async (name: keyof typeof tools, input: unknown) => await tools[name].execute!(input as never, { toolCallId: "test", messages: [] }) as unknown as Row;
-  return { tools, execute, queries, apiCalls, providerWrites, setActor: () => { currentActor = "different-server-actor"; }, stopWork: () => { workAllowed = false; }, setReviewReply: (comment: string) => { reviews[0].reply = { comment }; }, raceNativeReply: () => { nativeReviewRace = true; }, setAccount: (value: string) => { currentAccount = value; } };
+  return { tools, execute, queries, apiCalls, summaryCalls, providerWrites, setActor: () => { currentActor = "different-server-actor"; }, stopWork: () => { workAllowed = false; }, setReviewReply: (comment: string) => { reviews[0].reply = { comment }; }, raceNativeReply: () => { nativeReviewRace = true; }, setAccount: (value: string) => { currentAccount = value; } };
 }
 
 test("saved stats use real direct-payload aliases and only numeric scoped projections", async () => {
@@ -207,6 +218,60 @@ test("traffic with Unicode labels and cockpit counters share one six-kilobyte ou
   assert.equal(result.truncated, true); assert.ok(Buffer.byteLength(JSON.stringify(result), "utf8") <= 6000);
   assert.equal((((result.cockpitSnapshot as Row).metrics as Row).capturedLeadsWeek), 69);
   assert.equal((result.cockpitSnapshot as Row).currentVerified, false);
+});
+
+function nativeSummary(): Row {
+  return { leads: { week: 69, month: 255 }, details: { opportunities: { month: 210 }, profile: { email: "private@example.test", name: "PRIVATE CLIENT" } }, estimatedValue: 10500,
+    meta: { source: "api/metrics/summary", generatedAt: "2026-10-26T10:00:00Z", snapshotDate: "2026-10-25", live: false }, debug: { token: "PRIVATE TOKEN" } };
+}
+test("empty cockpit cache falls back to the native home snapshot with scoped session and four projected counters", async () => {
+  const h = fixture({ stats: [], summary: nativeSummary(), actorScoped: true });
+  const result = await h.execute("readStatsSnapshots", { days: null }), snapshot = result.cockpitSnapshot as Row;
+  assert.equal(h.queries.length, 2); assert.equal(h.summaryCalls.length, 1);
+  assert.equal(snapshot.source, "native_metrics_summary"); assert.equal(snapshot.status, "native_snapshot"); assert.equal(snapshot.currentVerified, false);
+  assert.equal(snapshot.snapshotDate, "2026-10-25"); assert.equal(snapshot.generatedAt, "2026-10-26T10:00:00.000Z"); assert.equal(snapshot.expiredCache, null);
+  assert.deepEqual(JSON.parse(JSON.stringify(snapshot.metrics)), { capturedLeadsWeek: 69, capturedLeadsMonth: 255, opportunitiesEstimatedMonth: 210, potentialCommercialEstimatedMonth: 10500, revenueCollected: null });
+  const request = h.summaryCalls[0], url = new URL(request.url);
+  assert.equal(url.origin, "https://app.inrcy.com"); assert.equal(url.pathname, "/api/metrics/summary"); assert.equal(request.method, "GET");
+  assert.equal(url.searchParams.get("snapshotDate"), "2026-10-25"); assert.equal(url.searchParams.get("fresh"), null);
+  assert.equal(url.searchParams.get("monthDays"), "30"); assert.equal(url.searchParams.get("weekDays"), "7"); assert.equal(url.searchParams.get("todayDays"), "2");
+  assert.equal(request.headers.get("cookie"), "session=synthetic"); assert.equal(request.headers.get("authorization"), "Bearer synthetic"); assert.equal(request.headers.has("x-cron-secret"), false);
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE|private@|profile|token|debug/); assert.ok(Buffer.byteLength(JSON.stringify(result)) <= 6000);
+});
+test("native home fallback keeps week and month axes separate and cannot inherit an arbitrary request origin", async () => {
+  const h = fixture({ stats: [], summary: nativeSummary(), requestOrigin: "https://attacker.invalid" });
+  const week = (await h.execute("readStatsSnapshots", { days: 7 })).cockpitSnapshot as Row;
+  assert.equal((week.metrics as Row).capturedLeadsWeek, 69); assert.equal((week.metrics as Row).capturedLeadsMonth, null); assert.equal((week.metrics as Row).potentialCommercialEstimatedMonth, null);
+  assert.equal(new URL(h.summaryCalls[0].url).origin, "https://app.inrcy.com");
+  const cached = fixture({ stats: [cockpitCache()], summary: nativeSummary() }); await cached.execute("readStatsSnapshots", { days: null });
+  assert.equal(cached.summaryCalls.length, 0, "a valid saved cockpit snapshot does not run the fallback");
+});
+test("native home fallback refusals timeouts wrong dates and scope drift leave unknown values instead of fabricated zeros", async () => {
+  const expected = nativeSummary(), meta = expected.meta as Row;
+  for (const options of [
+    { summaryError: true }, { hangSummary: true }, { switchDuringSummary: true },
+    { summary: { ...expected, meta: { ...meta, snapshotDate: "2026-10-24" } } },
+    { summary: { ...expected, meta: { ...meta, generatedAt: "2026-10-27T10:00:00Z" } } },
+    { summary: { ...expected, meta: { ...meta, source: "untrusted" } } },
+  ]) {
+    const h = fixture({ stats: [], summary: expected, actorScoped: true, ...options });
+    const result = await h.execute("readStatsSnapshots", { days: null });
+    assert.equal(h.summaryCalls.length, 1);
+    if (options.switchDuringSummary) assert.equal(result.ok, false);
+    else assert.ok(Object.values(((result.cockpitSnapshot as Row).metrics as Row)).every(value => value === null));
+    assert.doesNotMatch(JSON.stringify(result), /PRIVATE|10500|255|69/);
+  }
+});
+test("absent or undated cockpit expiry never invents an expired cache diagnosis", async () => {
+  const unavailable = fixture({ stats: [] });
+  const absent = (await unavailable.execute("readStatsSnapshots", { days: null })).cockpitSnapshot as Row;
+  assert.equal(absent.status, "unknown"); assert.equal(absent.expiredCache, null); assert.equal(absent.currentDataKnown, false);
+  assert.equal(absent.nativeReadUnavailable, true); assert.ok(Object.values(absent.metrics as Row).every(value => value === null));
+  for (const expires_at of [null, "invalid"]) {
+    const saved = (await fixture({ stats: [cockpitCache({ expires_at })] }).execute("readStatsSnapshots", { days: null })).cockpitSnapshot as Row;
+    assert.equal(saved.expiredCache, null); assert.equal(saved.currentDataKnown, false); assert.equal(saved.currentVerified, false);
+    assert.equal(saved.status, "historical"); assert.equal((saved.metrics as Row).capturedLeadsMonth, 255);
+  }
 });
 
 test("expired or invalid cache dates never become current verified stats and missing values stay unknown", async () => {

@@ -9,6 +9,8 @@ import { PRODUCT_GOOGLE_REVIEWS_HREF } from "./productNavigation.ts";
 import { createInrAssistantGoogleReviewTools } from "./inrAssistantGoogleReviewTools.ts";
 import { inrAssistantMaskQuotedText } from "./inrAssistantRequestClauses.ts";
 import { googleReviewStateFingerprint } from "./googleReviewStateFingerprint.ts";
+import { getDefaultSnapshotDate } from "./stats/snapshotWindow.ts";
+import { getAssistantAppPath, INR_ASSISTANT_APP_ORIGIN } from "./inrAssistantNavigation.ts";
 
 type Row = Record<string, unknown>;
 const row = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
@@ -65,7 +67,7 @@ function cockpitSnapshot(values: unknown[], days: number | null): Row {
   const dated = generatedAt !== null && Date.parse(generatedAt) <= Date.now() && live !== null
     && (live ? keySnapshot === "live" && item.snapshot_date == null : snapshotDate !== null && keySnapshot === snapshotDate && snapshotDate <= new Date().toISOString().slice(0, 10));
   const expiresAt = iso(item.expires_at);
-  const expiredCache = !expiresAt || Date.parse(expiresAt) <= Date.now();
+  const expiredCache = expiresAt ? Date.parse(expiresAt) <= Date.now() : null;
   const metrics = {
     capturedLeadsWeek: dated && (days === null || days === 7) ? number(item.leads_week) : null,
     capturedLeadsMonth: dated && (days === null || days === 30) ? number(item.leads_month) : null,
@@ -75,8 +77,19 @@ function cockpitSnapshot(values: unknown[], days: number | null): Row {
   };
   const known = Object.values(metrics).some(value => value !== null);
   return { source: "metrics_summary", requestedDays: days, window: { weekDays: 7, monthDays: 30 }, generatedAt, snapshotDate, live, expiresAt, expiredCache,
-    currentVerified: false, currentDataKnown: dated && !expiredCache && live === true && known, status: !known ? "unknown" : expiredCache || !live ? "historical" : "cached",
+    currentVerified: false, currentDataKnown: dated && expiresAt !== null && expiredCache === false && live === true && known, status: !known ? "unknown" : expiredCache !== false || !live ? "historical" : "cached",
     metrics, message: "Compteurs numériques sauvegardés du cockpit, sans actualisation. Leads distincts sur 7 et 30 jours ; opportunités et potentiel commercial estimés sur 30 jours seulement, jamais du chiffre d’affaires encaissé. Une date invalide ou une valeur manquante reste inconnue ; un cache ancien est historique." };
+}
+function nativeCockpitSnapshot(value: Row, days: number | null, snapshotDate: string): Row {
+  const meta = row(value.meta), leads = row(value.leads), opportunities = row(row(value.details).opportunities);
+  const snapshot = cockpitSnapshot(meta.source === "api/metrics/summary" && meta.snapshotDate === snapshotDate && meta.live === false ? [{
+    source: "metrics_summary", summary_source: meta.source, range_key: `metaPilot=0|month=30|week=7|today=2|snapshot=${snapshotDate}|conn=native-read`,
+    generated: meta.generatedAt, snapshot_date: meta.snapshotDate, live: meta.live, leads_week: leads.week, leads_month: leads.month,
+    opportunities_month: opportunities.month, estimated_value: value.estimatedValue,
+  }] : [], days);
+  return { ...snapshot, source: "native_metrics_summary", requestedSnapshotDate: snapshotDate, retrievedAt: new Date().toISOString(), expiresAt: null, expiredCache: null,
+    status: snapshot.status === "unknown" ? "unknown" : "native_snapshot", currentVerified: false, currentDataKnown: false,
+    message: "Lecture native de l’Accueil pour la date indiquée, sans rafraîchissement forcé. Ce GET peut entretenir son cache interne. Leads sur 7/30 jours ; opportunités et potentiel estimés sur 30 jours, jamais du CA encaissé. Valeur ou date invalide reste inconnue." };
 }
 function boundedStats(value: Row): Row {
   const snapshots = value.snapshots as Row[];
@@ -87,14 +100,14 @@ function boundedStats(value: Row): Row {
   while (snapshot && bytes() > 6000 && (snapshot.sources as unknown[]).length) { (snapshot.sources as unknown[]).pop(); value.truncated = true; }
   return value;
 }
-function localRequest(source: Request, path: string, body?: unknown) {
+function localRequest(source: Request, path: string, body?: unknown, origin = "https://inrcy.local") {
   const headers = new Headers({ accept: "application/json" });
   for (const key of ["cookie", "authorization"]) { const value = source.headers.get(key); if (value) headers.set(key, value); }
   if (body !== undefined) headers.set("content-type", "application/json");
-  return new Request(new URL(path, "https://inrcy.local"), { method: body === undefined ? "GET" : "POST", headers,
+  return new Request(new URL(path, origin), { method: body === undefined ? "GET" : "POST", headers,
     ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.any([source.signal, AbortSignal.timeout(12_000)]) });
 }
-async function nativeCall(operation: () => Promise<Response>): Promise<Response> {
+async function nativeCall<T>(operation: () => Promise<T>): Promise<T> {
   // Native route handlers do not necessarily forward request.signal to their
   // provider fetch. Bound our wait as well, without retrying an uncertain POST.
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -117,7 +130,7 @@ export function createInrAssistantInsightsTools(options: { request: Request; acc
   return {
     ...createInrAssistantGoogleReviewTools({ ...options, observedReviews }),
     readStatsSnapshots: tool({
-      description: "Lire les statistiques numériques sauvegardées du compte actif : trafic/clics/impressions et compteurs cockpit leads7/30jours, opportunités et potentiel commercial estimés30jours. Le potentiel n’est jamais du CA encaissé. Données datées/en cache, aucune requête aux réseaux ni actualisation. Périodes exactes et sources séparées ; absent/ancien reste inconnu ou historique. days=7 ne renvoie aucun montant30jours. Ces agrégats ne sont pas les fiches CRM Premium.",
+      description: "Lire les statistiques numériques du compte actif : cache trafic et compteurs cockpit leads7/30jours, opportunités/potentiel estimés30jours, jamais du CA encaissé. Si le cache cockpit est absent/invalide, relire le GET natif de l’Accueil sur une date Paris fixe, sans rafraîchissement forcé ; ce lecteur peut entretenir son cache interne. Sources/dates explicites, absent/ancien reste inconnu ou daté. days7 ne renvoie aucun montant30jours. Agrégats distincts des fiches CRM Premium.",
       inputSchema: schema({ type: "object", properties: { days: { type: ["integer", "null"], enum: [7, 30, 60, 90, null], description: "null pour une demande portant sur 7 ET 30 jours ou tous les compteurs cockpit ; 7 pour les leads 7 jours seulement, 30 pour les leads/opportunités/potentiel 30 jours. 60/90 concernent seulement les instantanés de trafic disponibles." } }, required: ["days"], additionalProperties: false }, statsInput),
       strict: true,
       execute: async (value) => {
@@ -133,7 +146,6 @@ export function createInrAssistantInsightsTools(options: { request: Request; acc
             .abortSignal(AbortSignal.any([options.request.signal, AbortSignal.timeout(5_000)])) : Promise.resolve({ data: [], error: null })]);
           const saved = reads[0].status === "fulfilled" ? reads[0].value : null;
           const cockpit = reads[1].status === "fulfilled" ? reads[1].value : null;
-          if ((!saved || saved.error || !Array.isArray(saved.data)) && (![null, 7, 30].includes(input.days) || !cockpit || cockpit.error || !Array.isArray(cockpit.data))) throw new Error("stats_unavailable");
           const snapshots = (saved && !saved.error && Array.isArray(saved.data) ? saved.data : []).map(row).filter(item => input.days == null || String(item.range_key).includes(`days=${input.days}|`)).slice(0, 4).map(item => {
             const channels = Array.isArray(item.channels) ? item.channels.map(row).slice(0, 13).map(channel => ({
               label: prose(channel.label ?? channel.name ?? channel.channel, 60), ...numeric(channel),
@@ -153,9 +165,28 @@ export function createInrAssistantInsightsTools(options: { request: Request; acc
               currentDataKnown: !expiredCache && (Object.values(totals).some(value => value !== null) || sources.some(source => source.dataKnown)), totals, channels, sources };
           });
           if (!await activeScope()) throw new Error("stats_scope_changed");
-          return boundedStats({ ok: true, source: "saved_account_statistics", liveVerified: false, snapshots,
-            ...(input.days === null || input.days === 7 || input.days === 30 ? { cockpitSnapshot: cockpitSnapshot(cockpit && !cockpit.error && Array.isArray(cockpit.data) ? cockpit.data : [], input.days) } : {}),
-            message: snapshots.length ? "Instantanés de trafic enregistrés : vérifier leurs dates et leur couverture. Les compteurs cockpit sont séparés dans cockpitSnapshot. Un cache expiré ou non daté ne confirme pas la situation actuelle ; absent reste inconnu." : "Aucun instantané de trafic correspondant ; cela ne signifie pas zéro résultat. Les compteurs sauvegardés du cockpit sont présentés séparément dans cockpitSnapshot lorsqu’ils sont disponibles.",
+          let cockpitView = [null, 7, 30].includes(input.days) ? cockpitSnapshot(cockpit && !cockpit.error && Array.isArray(cockpit.data) ? cockpit.data : [], input.days) : null;
+          if (cockpitView?.status === "unknown") {
+            try {
+              if (!await activeScope()) throw new Error("stats_scope_changed");
+              const snapshotDate = getDefaultSnapshotDate(new Date());
+              const origin = getAssistantAppPath(options.request.url) ? new URL(options.request.url).origin : INR_ASSISTANT_APP_ORIGIN;
+              const path = `/api/metrics/summary?monthDays=30&weekDays=7&todayDays=2&snapshotDate=${snapshotDate}`;
+              const { GET } = await import("@/app/api/metrics/summary/route");
+              const payload = await nativeCall(async () => { const response = await GET(localRequest(options.request, path, undefined, origin)); if (!response.ok) throw new Error("summary_unavailable"); return row(await response.json()); });
+              if (!await activeScope()) throw new Error("stats_scope_changed");
+              cockpitView = nativeCockpitSnapshot(payload, input.days, snapshotDate);
+            } catch {
+              if (!await activeScope()) throw new Error("stats_scope_changed");
+              cockpitView = { ...cockpitView, nativeReadUnavailable: true };
+            }
+          }
+          if (!await activeScope()) throw new Error("stats_scope_changed");
+          if ((!saved || saved.error || !Array.isArray(saved.data)) && (!cockpitView || cockpitView.status === "unknown")) throw new Error("stats_unavailable");
+          const nativeHomeRead = cockpitView?.source === "native_metrics_summary";
+          return boundedStats({ ok: true, source: nativeHomeRead ? "account_statistics_with_native_home" : "saved_account_statistics", liveVerified: false, snapshots,
+            ...(cockpitView ? { cockpitSnapshot: cockpitView } : {}),
+            message: nativeHomeRead ? "Le trafic sauvegardé et la lecture native de l’Accueil sont séparés. Le cockpit a été relu sur une date fixe, sans rafraîchissement forcé ; ce GET peut entretenir son cache interne. Les limites et dates de chaque source restent explicites." : snapshots.length ? "Instantanés de trafic enregistrés : vérifier leurs dates et leur couverture. Les compteurs cockpit sont séparés dans cockpitSnapshot. Un cache expiré ou non daté ne confirme pas la situation actuelle ; absent reste inconnu." : "Aucun instantané de trafic correspondant ; cela ne signifie pas zéro résultat. Les compteurs sauvegardés du cockpit sont présentés séparément dans cockpitSnapshot lorsqu’ils sont disponibles.",
             nextAction: { label: "iNr’Stats", href: "/dashboard/stats" } });
         } catch { return { ok: false, snapshots: [], message: "Ces statistiques enregistrées sont momentanément indisponibles.", nextAction: { label: "iNr’Stats", href: "/dashboard/stats" } }; }
       },
