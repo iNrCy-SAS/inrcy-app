@@ -130,13 +130,14 @@ export async function GET(req: Request) {
     }
 
     if (err || !code) {
+      const cancelled = err === "access_denied" || err === "user_cancelled_login";
       oauthCallbackEvent(req, {
         provider: "linkedin",
-        outcome: err === "access_denied" ? "cancelled" : "failed",
+        outcome: cancelled ? "cancelled" : "failed",
         error: err || "missing_code",
         message: errDesc || undefined,
         return_to: returnTo,
-        capture_in_sentry: err !== "access_denied",
+        capture_in_sentry: !cancelled,
       });
       const finalUrl = new URL(returnTo, siteUrl);
       finalUrl.searchParams.set("linked", "linkedin");

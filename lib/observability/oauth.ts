@@ -36,6 +36,7 @@ function isUserResolvableOAuthException(message: string): boolean {
     'aucune propriete search console ne correspond',
     'access_denied',
     'user_denied',
+    'user_cancelled_login',
     'invalid_state',
     'state invalid',
     'authorization code has been used',
@@ -59,6 +60,7 @@ function isExpectedHandledOAuthMessage(message: string): boolean {
   return [
     'access_denied',
     'user_denied',
+    'user_cancelled_login',
     'plusieurs propriétés ga4 correspondent à ce domaine',
     'plusieurs proprietes ga4 correspondent a ce domaine',
   ].some((needle) => raw.includes(needle));
