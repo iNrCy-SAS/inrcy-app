@@ -47,6 +47,22 @@ test("nested causes outrank generic wrappers, including timeouts over AbortError
   assert.equal(explain(new Error("ai_media_generation_cancelled")).code, "AI_MEDIA_GENERATION_CANCELLED");
 });
 
+test("unsafe image logo placement has one actionable private-safe explanation in live and persisted failures", () => {
+  for (const error of [
+    new Error("ai_media_logo_no_safe_placement"),
+    new Error("ai_image_exact_contact_composition_failed", { cause: new Error("ai_media_logo_no_safe_placement:PRIVATE_LAYOUT 0.8 https://private.invalid/?token=secret") }),
+    { code: "AI_MEDIA_LOGO_NO_SAFE_PLACEMENT", message: "PRIVATE_LAYOUT" },
+  ]) {
+    const result = explain(error);
+    assert.equal(result.code, "AI_MEDIA_LOGO_NO_SAFE_PLACEMENT");
+    assert.equal(result.status, 422);
+    assert.equal(result.message, "L’image ne laisse pas d’espace assez libre pour votre logo. Essayez une composition plus aérée.");
+    assert.equal(result.retryAfterSeconds, undefined);
+    assert.doesNotMatch(result.message, /PRIVATE|https:|token|secret|OCR|seuil|0\.8|rembours|crédit/);
+  }
+  assert.notEqual(explain({ message: "unknown", metadata: { prompt: "ai_media_logo_no_safe_placement" } }).code, "AI_MEDIA_LOGO_NO_SAFE_PLACEMENT");
+});
+
 test("cloned narrator failures remain human-readable in generation and recovery without leaking provider diagnostics", () => {
   const cases = [
     ["ai_media_voice_clone_reference_invalid", "AI_MEDIA_NARRATION_VOICE_INVALID"],

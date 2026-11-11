@@ -396,6 +396,33 @@ test("a previously valid HeyGen quote cannot reserve credits or start generation
   assert.equal(route.failureCalls.length, 0, "no reservation was created to refund");
 });
 
+test("unsafe logo placement releases the image reservation once in JSON and streaming without a new generation", async () => {
+  for (const streamed of [false, true]) {
+    const error = new Error("ai_media_logo_no_safe_placement");
+    const route = loadRoute({ providerError: error });
+    const raw = await route.post(body({ freePrompt: "Une affiche pour notre atelier.", useBusinessDna: true }), streamed ? {
+      headers: { "Content-Type": "application/json", Accept: generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE },
+    } : {});
+    const response = await generationTransport.readAiMediaGenerationResponse(raw, () => {});
+    const payload = response.payload as Record<string, unknown>;
+    const publicError = publicErrors.getAiMediaGenerationPublicError(error);
+    assert.equal(response.status, publicError.status);
+    assert.equal(payload.code, publicError.code);
+    assert.equal(payload.ok, false);
+    assert.equal(payload.item, undefined);
+    assert.equal(route.reservationCalls.length, 1);
+    assert.equal(route.generationCalls.length, 1);
+    assert.equal(route.paidCalls(), 1, "the already-returned image is not regenerated");
+    assert.equal(route.completionCalls.length, 0);
+    assert.equal(route.failureCalls.length, 1, "the existing failure/refund API settles the single reservation");
+    const release = route.failureCalls[0] as { accountId: string; jobId: string; errorCode: string };
+    assert.equal(release.accountId, "active-account-test");
+    assert.equal(release.jobId, route.generationCalls[0].jobId);
+    assert.equal(release.errorCode, publicError.code);
+    assert.equal(route.releasedCheckpoints.length, 0, "image rejection has no recoverable video checkpoint");
+  }
+});
+
 test("generation persists the same safe actionable cause that status recovery will return", async () => {
   for (const [error, code] of [
     [new Error("ai_media_narration_unavailable:La voix off est trop longue pour cette durée."), "AI_MEDIA_NARRATION_TOO_LONG"],

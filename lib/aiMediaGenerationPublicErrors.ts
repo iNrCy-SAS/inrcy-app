@@ -24,6 +24,11 @@ export const AI_MEDIA_PUBLIC_ERROR_CATALOG = {
     reason: "Le logo enregistré dans votre Profil est absent ou illisible.",
     action: "Ajoutez-le à nouveau dans votre Profil, puis relancez la création. Aucun logo de remplacement ne sera inventé.",
   },
+  AI_MEDIA_LOGO_NO_SAFE_PLACEMENT: {
+    status: 422,
+    reason: "L’image ne laisse pas d’espace assez libre pour votre logo.",
+    action: "Essayez une composition plus aérée.",
+  },
   AI_MEDIA_CHARACTER_VOICE_INVALID: {
     status: 400,
     reason: "Un vocal de personnage est manquant, invalide ou expiré.",
@@ -442,6 +447,7 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
   const result = (code: AiMediaPublicErrorCode) => explanation(code);
   if (match(/\bai_media_native_visual_layout_invalid\b/)) return result("AI_MEDIA_VIDEO_VISUAL_LAYOUT_INVALID");
   if (match(/\bai_media_native_visual_verification_unavailable\b/)) return result("AI_MEDIA_VIDEO_VISUAL_VERIFICATION_UNAVAILABLE");
+  if (match(/\bai_media_logo_no_safe_placement\b/)) return result("AI_MEDIA_LOGO_NO_SAFE_PLACEMENT");
   if (match(/\bai_media_voice_clone_consent_required\b/)) return result("AI_MEDIA_NARRATION_VOICE_CONSENT_REQUIRED");
   if (match(/\bai_media_voice_clone_(?:reference_(?:invalid|duration_invalid|missing)|video_duration_invalid)\b/)) return result("AI_MEDIA_NARRATION_VOICE_INVALID");
   if (match(/\bai_media_voice_clone_language_unsupported\b/)) return result("AI_MEDIA_NARRATION_VOICE_LANGUAGE_UNSUPPORTED");

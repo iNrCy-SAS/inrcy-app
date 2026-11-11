@@ -88,13 +88,72 @@ test("placement follows quiet image regions instead of always using the upper ri
 });
 
 test("explicit position and size override background preference without cropping the logo", async () => {
-  const common = args(await detailedBackground("top-left"), await logo(600, 140), { logoPlacement: { horizontal: "right", vertical: "bottom", size: "small" } });
+  const common = args(await solid(), await logo(600, 140), { logoPlacement: { horizontal: "right", vertical: "bottom", size: "small" } });
   const small = await coloredLogoBounds(await runtime.exports.composeAiMediaBrandedImage(common));
   const large = await coloredLogoBounds(await runtime.exports.composeAiMediaBrandedImage({ ...common, logoPlacement: { horizontal: "right", vertical: "bottom", size: "large" } }));
   assert.ok(small.minX > 800 && small.minY > 680, JSON.stringify(small));
   assert.ok(large.minX > 550 && large.minY > 630, JSON.stringify(large));
   assert.ok(large.count > small.count * 5);
   for (const bounds of [small, large]) assert.ok(bounds.maxX < 965 && bounds.maxY < 770);
+});
+
+async function providerTextInReservedCorner(fontSize = 36) {
+  return sharp(await solid(1000, 800, "#ffffff")).composite([{ input: Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800"><text x="700" y="85" font-family="Arial" font-weight="bold" font-size="${fontSize}" fill="black">OFFRE TAXI</text></svg>`
+  ) }]).png().toBuffer();
+}
+
+test("a provider's text in the reserved corner is preserved by moving the official logo to a quiet corner", async () => {
+  for (const fontSize of [14, 36]) {
+    const input = await providerTextInReservedCorner(fontSize);
+    const reservation = resolveAiMediaImageLogoReservation({ width: 1000, height: 800 });
+    const output = await runtime.exports.composeAiMediaBrandedImage(args(input, await logo(600, 140), { imageLogoReservation: reservation }));
+    const bounds = await coloredLogoBounds(output);
+    assert.ok(bounds.maxX < 685, JSON.stringify(bounds));
+    assert.ok(bounds.width >= 260 && bounds.width <= 275, "the logo stays readable instead of shrinking to bypass the occupied region");
+    const before = await sharp(input).removeAlpha().raw().toBuffer();
+    const after = await sharp(output).removeAlpha().raw().toBuffer();
+    let darkText = 0, preserved = 0;
+    for (let y = 36; y < 100; y++) for (let x = 685; x < 955; x++) {
+      const offset = (y * 1000 + x) * 3;
+      if (Math.max(...before.subarray(offset, offset + 3)) < 60) {
+        darkText++;
+        if (Math.max(...after.subarray(offset, offset + 3)) < 90) preserved++;
+      }
+    }
+    assert.ok(darkText > 50);
+    assert.ok(preserved / darkText > 0.98, `${preserved}/${darkText} original text pixels preserved`);
+  }
+});
+
+test("an explicitly requested occupied corner is refused instead of silently moving the logo", async () => {
+  const placement = { horizontal: "right", vertical: "top" } as const;
+  await assert.rejects(runtime.exports.composeAiMediaBrandedImage(args(
+    await providerTextInReservedCorner(), await logo(600, 140), {
+      logoPlacement: placement,
+      imageLogoReservation: resolveAiMediaImageLogoReservation({ width: 1000, height: 800, placement }),
+    }
+  )), /ai_media_logo_no_safe_placement/);
+});
+
+test("busy regions in all four corners fail safely even when the centre is empty", async () => {
+  const checker = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800"><defs><pattern id="busy" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="white"/><rect width="8" height="8" fill="black"/><rect x="8" y="8" width="8" height="8" fill="black"/></pattern></defs><rect width="1000" height="800" fill="white"/><rect width="1000" height="240" fill="url(#busy)"/><rect y="560" width="1000" height="240" fill="url(#busy)"/></svg>')).png().toBuffer();
+  const text = await sharp(await solid(1000, 800, "#ffffff")).composite([{ input: Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800">${[55, 700].flatMap(x => [85, 750].map(y => `<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="36" fill="black">OFFRE TAXI</text>`)).join("")}</svg>`
+  ) }]).png().toBuffer();
+  for (const input of [checker, text]) {
+    for (const imageLogoReservation of [undefined, resolveAiMediaImageLogoReservation({ width: 1000, height: 800 })]) {
+      await assert.rejects(runtime.exports.composeAiMediaBrandedImage(args(input, await logo(600, 140), { imageLogoReservation })), /ai_media_logo_no_safe_placement/);
+    }
+  }
+});
+
+test("smooth background variation remains usable with the reserved logo at its original readable size", async () => {
+  const input = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800"><defs><linearGradient id="calm"><stop stop-color="#17304e"/><stop offset="1" stop-color="#a7c4d2"/></linearGradient></defs><rect width="1000" height="800" fill="url(#calm)"/></svg>')).png().toBuffer();
+  const reservation = resolveAiMediaImageLogoReservation({ width: 1000, height: 800 });
+  const bounds = await coloredLogoBounds(await runtime.exports.composeAiMediaBrandedImage(args(input, await logo(600, 140), { imageLogoReservation: reservation })));
+  assert.ok(bounds.minX >= 680 && bounds.minY >= 30, JSON.stringify(bounds));
+  assert.ok(bounds.width >= 260 && bounds.height >= 60);
 });
 
 test("an unavoidable matching background receives an alpha halo, not a solid branding badge", async () => {

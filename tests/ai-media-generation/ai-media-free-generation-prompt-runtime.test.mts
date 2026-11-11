@@ -135,21 +135,27 @@ test("the creative director has a neutral role while explicit customer brands re
   assert.equal(JSON.parse(runtime.calls[0].input).brief, brief);
 });
 
-test("Studio free images use the real profile logo by default independently of ADN, with explicit exceptions", () => {
+test("Studio free images use an automatic profile logo only with checked ADN, respecting explicit exceptions", () => {
   for (const useBusinessDna of [false, true]) {
-    assert.equal(freePrompts.usesAiMediaAutomaticImageLogo(request({ freePrompt: "Une équipe nettoie des bureaux lumineux.", useBusinessDna }), "Atelier Test"), true);
+    assert.equal(freePrompts.usesAiMediaAutomaticImageLogo(request({ freePrompt: "Une équipe nettoie des bureaux lumineux.", useBusinessDna }), "Atelier Test"), useBusinessDna);
     for (const freePrompt of [
       "Une photo sans logo.", "Une photo sans notre logo.", "Une photo sans identité de marque.",
       "Une affiche avec le logo de mon client.", "Une affiche avec le logo de Carrefour.",
       "Créer un nouveau logo.", "Créer un logo pour ma boutique.",
     ]) assert.equal(freePrompts.usesAiMediaAutomaticImageLogo(request({ freePrompt, useBusinessDna }), "Atelier Test"), false, freePrompt);
-    assert.equal(freePrompts.usesAiMediaAutomaticImageLogo(request({ freePrompt: "Ne crée pas un nouveau logo, utilise celui du profil.", useBusinessDna }), "Atelier Test"), true);
+    assert.equal(freePrompts.usesAiMediaAutomaticImageLogo(request({ freePrompt: "Ne crée pas un nouveau logo, utilise celui du profil.", useBusinessDna }), "Atelier Test"), useBusinessDna);
+    assert.equal(freePrompts.getAiMediaFreeBrandPolicy("Ne crée pas un nouveau logo, utilise celui du profil.", "Atelier Test", useBusinessDna).useLogo, true, "an explicit profile-logo request remains separate from automatic ADN branding");
   }
   assert.equal(freePrompts.usesAiMediaAutomaticImageLogo(request({ kind: "video", videoEngine: "omni", durationSeconds: 8 })), false);
   const image = request();
   assert.equal(freePrompts.usesAiMediaAutomaticImageLogo({ ...image, operation: "modify" }), false);
   assert.equal(freePrompts.usesAiMediaAutomaticImageLogo({ ...image, creationMode: "guided", logoMode: "none" }), false);
   assert.equal(freePrompts.usesAiMediaAutomaticImageLogo({ ...image, source: "booster" }), false);
+  for (const object of ["portrait", "numéro"]) {
+    const brief = `Ne crée pas un nouveau ${object}, utilise celui du profil.`;
+    assert.deepEqual(freePrompts.getAiMediaFreeBrandPolicy(brief, "Atelier Test", false), { useCompanyContext: false, useLogo: false, useBrandColors: false });
+    assert.equal(freePrompts.usesAiMediaAutomaticImageLogo(request({ freePrompt: brief, useBusinessDna: false }), "Atelier Test"), false);
+  }
 });
 
 /** Execute the real Gateway fallback orchestration with in-memory provider responses. */

@@ -17,7 +17,7 @@ import { buildAiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import { chooseAiMediaCastingVariation } from "@/lib/aiMediaCastingVariation";
 import { writeAiMediaHeadline } from "@/lib/aiMediaCopywriter";
 import { buildAiMediaFreeBasePlan, prepareAiMediaFreeCreativePlan, writeAiMediaFreeNarration } from "@/lib/aiMediaFreeGenerationPlan";
-import { AI_MEDIA_FREE_PROMPT_VERSION, buildAiMediaFreeSceneFramePrompt, buildAiMediaFreeVideoBusinessDnaDirection, getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, getAiMediaFreeImageSize, isAiMediaProfileLogoApplicationRequested, usesAiMediaAutomaticImageLogo, resolveAiMediaFreeDialogueSequence, resolveAiMediaFreeSpeechLanguage, splitAiMediaFreeNarrationByScene } from "@/lib/aiMediaFreeGenerationPrompt";
+import { AI_MEDIA_FREE_PROMPT_VERSION, AI_MEDIA_IMAGE_BRANDING_POLICY_VERSION, buildAiMediaFreeSceneFramePrompt, buildAiMediaFreeVideoBusinessDnaDirection, getAiMediaFreeBrandPolicy, getAiMediaFreeLogoPlacement, getAiMediaFreeImageSize, isAiMediaProfileLogoApplicationRequested, usesAiMediaAutomaticImageLogo, resolveAiMediaFreeDialogueSequence, resolveAiMediaFreeSpeechLanguage, splitAiMediaFreeNarrationByScene } from "@/lib/aiMediaFreeGenerationPrompt";
 import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover } from "@/lib/aiMediaFreeVoiceoverPolicy";
 import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
 import { buildAiMediaLocalLogoCompositionPrompt, resolveAiMediaImageLogoReservation } from "./aiMediaLocalLogoCompositionPrompt.ts";
@@ -2212,6 +2212,8 @@ export async function generateAndSaveAiMedia(args: {
           people_mode: providerRequest.peopleMode,
           creativity: providerRequest.creativity,
           use_brand_colors: providerRequest.useBrandColors,
+          ...(providerRequest.kind === "image" ? { branding_policy_version: AI_MEDIA_IMAGE_BRANDING_POLICY_VERSION } : {}),
+          ...(isFreeCreation ? { business_dna_requested: providerRequest.useBusinessDna === true } : {}),
           ...(useFreeDna ? { business_dna_used: true, business_dna_contacts_policy: "only-when-requested", business_dna_identity_policy: "prompt-overrides-defaults" } : {}),
           logo_mode: providerRequest.logoMode,
           effective_logo_mode: effectiveLogoMode,

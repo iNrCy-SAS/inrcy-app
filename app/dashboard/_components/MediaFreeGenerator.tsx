@@ -222,7 +222,7 @@ export default function MediaFreeGenerator({
   const [spokenScript, setSpokenScript] = useState("");
   const [spokenScriptOpen, setSpokenScriptOpen] = useState(false);
   const explicitlyEmptySpokenScript = kind === "video" && spokenScriptOpen && !spokenScript.trim();
-  const [useBusinessDna, setUseBusinessDna] = useState(false);
+  const [useBusinessDna, setUseBusinessDna] = useState(true);
   const [format, setFormat] = useState<MediaGenerationFormat>(
     fixedFormat || (kind === "video" ? "story" : "square")
   );
@@ -573,7 +573,7 @@ export default function MediaFreeGenerator({
       setRecoveryAccountChecked(null);
       setSpokenScript("");
       setSpokenScriptOpen(false);
-      setUseBusinessDna(false);
+      setUseBusinessDna(true);
       setReferences([]);
       setPendingReferenceRole(null);
       setSelectedReferenceId(null);

@@ -128,7 +128,7 @@ test("un changement de compte invalide aussi les formulaires Libre masqués", ()
   assert.match(modal, /<div key=\{generationSession\}/);
   const localReset = source.slice(source.indexOf("const clearAccountState"), source.indexOf("const resetConsent"));
   assert.match(localReset, /sequence\.current \+= 1/);
-  for (const call of ['setPrompt("")', "setUseBusinessDna(false)", "setReferences([])", "setIdentityConsent(false)", "setTeamConsent(false)", 'setSpeechMode("voiceover")']) {
+  for (const call of ['setPrompt("")', "setUseBusinessDna(true)", "setReferences([])", "setIdentityConsent(false)", "setTeamConsent(false)", 'setSpeechMode("voiceover")']) {
     assert.ok(localReset.includes(call), `Le changement de compte doit effacer ${call}`);
   }
   assert.match(localReset, /return \(\) => \{\s*sequence\.current \+= 1/);

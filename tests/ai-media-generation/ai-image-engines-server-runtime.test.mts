@@ -47,7 +47,7 @@ function realCapabilityGate() {
   ])).assertAiMediaGatewayImageInputs;
 }
 
-function serverHarness(providerFailure: boolean | Error = false, options: { logo?: Buffer | null; composerFailure?: boolean; phone?: string; normalizedCanvas?: { width: number; height: number } } = {}) {
+function serverHarness(providerFailure: boolean | Error = false, options: { logo?: Buffer | null; composerFailure?: boolean | Error; phone?: string; normalizedCanvas?: { width: number; height: number } } = {}) {
   const counts = { creative: 0, headline: 0, provider: 0, fallback: 0, branded: 0, saved: 0 };
   const providerCalls: RecordValue[] = [];
   const composerCalls: RecordValue[] = [];
@@ -86,7 +86,7 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
     ["@/lib/aiGenerationProfile", { buildNormalizedAiGenerationProfile: () => profile }],
     ["@/lib/aiMediaBrandKit", { loadAiMediaBrandKit: async () => ({ colors: ["#112233", "#445566", "#778899"], hasOfficialPalette: true, logo, logoVersion: "test" }) }],
     ["@/lib/aiMediaFreeDnaContextServer", { loadAiMediaFreeDnaContext: async () => ({ coordonnees: { telephone: "01 23 45 67 89" }, liens: { site_web: "https://atelier.example/" }, informations_demandees: [] }) }],
-    ["@/lib/aiMediaBrandRenderer", { composeAiMediaBrandedImage: async (args: RecordValue) => { counts.branded += 1; composerCalls.push(args); if (options.composerFailure) throw new Error("ai_media_required_logo_not_composed"); return Buffer.from("locally-branded-output"); } }],
+    ["@/lib/aiMediaBrandRenderer", { composeAiMediaBrandedImage: async (args: RecordValue) => { counts.branded += 1; composerCalls.push(args); if (options.composerFailure) throw options.composerFailure instanceof Error ? options.composerFailure : new Error("ai_media_required_logo_not_composed"); return Buffer.from("locally-branded-output"); } }],
     ["@/lib/aiMediaImageContactComposer", { composeAiMediaContactImage: async (args: RecordValue) => { contactCalls.push(args); return Buffer.from("locally-contacted-output"); } }],
     ["@/lib/aiMediaCreativePlan", { buildAiMediaCreativePlan: () => plan }],
     ["@/lib/aiMediaCastingVariation", { chooseAiMediaCastingVariation: () => null }],
@@ -159,6 +159,7 @@ for (const engine of ["flux", "grok", "recraft"] as const) {
         assert.equal(metadata.gateway.model, catalog.getAiMediaImageModel(engine).modelId);
         assert.equal(metadata.gateway.reference_images_count, 0);
         assert.equal(metadata.provenance.local_logo_composition_applied, true);
+        assert.equal(metadata.provenance.branding_policy_version, freePrompt.AI_MEDIA_IMAGE_BRANDING_POLICY_VERSION);
         assert.equal(harness.counts.fallback, 0);
       });
     });
@@ -190,6 +191,8 @@ test("free official logo is composed only when explicitly requested, without hid
       assert.equal(harness.composerCalls.length, useLogo ? 1 : 0);
       const metadata = harness.saved[0].metadata as { provenance: RecordValue };
       assert.equal(metadata.provenance.local_logo_composition_applied, useLogo);
+      assert.equal(metadata.provenance.business_dna_requested, false);
+      assert.equal(metadata.provenance.business_dna_used, undefined, "an explicit logo request does not claim ADN enrichment");
     }
   });
 });
@@ -214,6 +217,11 @@ test("checked ADN preserves the free request and selected engine while composing
       const context = harness.promptCalls[0].businessDnaContext as { coordonnees: RecordValue; liens: RecordValue };
       assert.equal(context.coordonnees.telephone, "01 23 45 67 89");
       assert.equal(context.liens.site_web, "https://atelier.example/");
+      assert.deepEqual(harness.promptCalls[0].brandColors, ["#112233", "#445566", "#778899"]);
+      const provenance = (harness.saved[0].metadata as { provenance: RecordValue }).provenance;
+      assert.equal(provenance.business_dna_requested, true);
+      assert.equal(provenance.branding_policy_version, freePrompt.AI_MEDIA_IMAGE_BRANDING_POLICY_VERSION);
+      assert.equal(provenance.business_dna_used, true);
     }
   });
 });
@@ -248,6 +256,53 @@ test("checked ADN respects a request without a logo", async () => {
   });
 });
 
+test("explicit exclusions, new logos and attached client logos cannot be replaced by the profile asset", async () => {
+  await withCredentials(async () => {
+    for (const useBusinessDna of [false, true]) {
+      for (const freePrompt of [
+        "Une photographie sans notre logo.",
+        "Une photographie sans identité de marque.",
+        "Crée un nouveau logo pour mon entreprise.",
+        "Une affiche avec le logo de mon client.",
+        "Une affiche avec le logo joint de mon client.",
+      ]) {
+        const attached = freePrompt.includes("joint");
+        const h = serverHarness();
+        await h.generate(request("gemini", { creationMode: "free", useBusinessDna, freePrompt,
+          inspirationImages: attached ? [ref()] : [] }));
+        assert.equal(h.providerCalls.length, 1, freePrompt);
+        assert.equal(h.providerCalls[0].officialLogo, null, freePrompt);
+        assert.equal((h.providerCalls[0].identityReferences as Buffer[]).length, attached ? 1 : 0);
+        assert.equal(h.composerCalls.length, 0, freePrompt);
+        assert.doesNotMatch(String(h.providerCalls[0].prompt), /ZONE RÉSERVÉE AU LOGO FINAL/);
+        const provenance = (h.saved[0].metadata as { provenance: RecordValue }).provenance;
+        assert.equal(provenance.business_dna_requested, useBusinessDna);
+        assert.equal(provenance.exact_logo_applied, false);
+        assert.equal(provenance.official_logo_source, undefined);
+        assert.equal(h.counts.fallback, 0);
+        assert.equal(h.counts.saved, 1);
+      }
+    }
+  });
+});
+
+test("an unsafe logo placement rejects after one image call without fallback or saved success", async () => {
+  await withCredentials(async () => {
+    const noSafePlacement = new Error("ai_media_logo_no_safe_placement");
+    for (const explicitEngine of [true, false]) {
+      const h = serverHarness(false, { composerFailure: noSafePlacement });
+      const input = request("gemini", { creationMode: "free", useBusinessDna: true,
+        freePrompt: "Une affiche pour notre atelier." });
+      if (!explicitEngine) input.imageEngine = undefined;
+      await assert.rejects(h.generate(input), value => value === noSafePlacement);
+      assert.equal(h.counts.provider, 1);
+      assert.equal(h.composerCalls.length, 1);
+      assert.equal(h.counts.fallback, 0, "a composition refusal cannot trigger another model");
+      assert.equal(h.counts.saved, 0);
+    }
+  });
+});
+
 test("the saved profile logo is composed from its real bytes, with or without the ADN toggle", async () => {
   await withCredentials(async () => {
     for (const useBusinessDna of [false, true]) {
@@ -264,6 +319,40 @@ test("the saved profile logo is composed from its real bytes, with or without th
         assert.equal(metadata.provenance.official_logo_source, "account_profile");
         assert.match(String(metadata.provenance.official_logo_sha256), /^[a-f0-9]{64}$/);
       }
+    }
+  });
+});
+
+test("an unchecked ADN still permits an explicit selection of the existing profile logo instead of a redesign", async () => {
+  await withCredentials(async () => {
+    for (const externalOwner of [false, true]) {
+      const h = serverHarness();
+      await h.generate(request("flux", { creationMode: "free", useBusinessDna: false,
+        freePrompt: `Ne crée pas un nouveau logo, utilise celui du profil${externalOwner ? " de mon client" : ""}.` }));
+      assert.equal(h.providerCalls.length, 1);
+      assert.equal(h.composerCalls.length, externalOwner ? 0 : 1);
+      if (!externalOwner) assert.equal(h.composerCalls[0].logo, h.logo);
+      const provenance = (h.saved[0].metadata as { provenance: RecordValue }).provenance;
+      assert.equal(provenance.business_dna_requested, false);
+      assert.equal(provenance.exact_logo_applied, !externalOwner);
+      assert.equal(provenance.business_dna_used, undefined);
+    }
+  });
+});
+
+test("an unchecked ADN profile portrait or phone selection never authorizes account-logo composition", async () => {
+  await withCredentials(async () => {
+    for (const object of ["portrait", "numéro"]) {
+      const h = serverHarness();
+      await h.generate(request("flux", { creationMode: "free", useBusinessDna: false,
+        freePrompt: `Ne crée pas un nouveau ${object}, utilise celui du profil.` }));
+      assert.equal(h.providerCalls.length, 1);
+      assert.equal(h.providerCalls[0].officialLogo, null);
+      assert.deepEqual(h.providerCalls[0].identityReferences, []);
+      assert.equal(h.composerCalls.length, 0);
+      assert.deepEqual(h.promptCalls[0].brandColors, []);
+      assert.equal(h.promptCalls[0].businessDnaContext, undefined);
+      assert.equal((h.saved[0].metadata as { provenance: RecordValue }).provenance.exact_logo_applied, false);
     }
   });
 });
@@ -354,23 +443,40 @@ test("Modify does not insert account branding for unrelated edits, exclusions, p
   });
 });
 
-test("Studio free images compose the actual profile logo even when ADN enrichment is unchecked", async () => {
+test("unchecked ADN keeps Studio images free of automatic account logo, reservation, palette and context on every engine", async () => {
   await withCredentials(async () => {
     for (const engine of ["openai", "gemini", "flux", "grok", "recraft"] as const) {
       const h = serverHarness();
-      await h.generate(request(engine, { creationMode: "free", useBusinessDna: false,
-        freePrompt: "Une équipe de nettoyage au travail dans un bureau lumineux." }));
+      const input = request(engine, { creationMode: "free", useBusinessDna: false, useBrandColors: true, logoMode: "visible",
+        freePrompt: "Une équipe de nettoyage au travail dans un bureau lumineux." });
+      assert.equal(input.logoMode, "none", "free mode cannot inherit a saved guided logo control");
+      assert.equal(input.useBrandColors, false);
+      const original = structuredClone(input);
+      await h.generate(input);
+      assert.deepEqual(input, original);
       assert.equal(h.counts.provider, 1, engine);
+      assert.equal(h.counts.creative, 1);
+      assert.equal(h.counts.headline, 0);
+      assert.equal(h.counts.fallback, 0);
       assert.equal(h.providerCalls[0].officialLogo, null, "the model must not redraw the profile logo");
-      assert.equal(h.composerCalls.length, 1, engine);
-      assert.equal(h.composerCalls[0].logo, h.logo);
-      assert.equal(h.composerCalls[0].requireLogo, true);
-      assert.equal(h.composerCalls[0].logoMode, "visible");
-      assert.equal(h.composerCalls[0].logoPlacement, undefined, "no forced upper-right placement");
+      assert.deepEqual(h.providerCalls[0].identityReferences, []);
+      assert.equal(h.composerCalls.length, 0, engine);
+      assert.doesNotMatch(String(h.providerCalls[0].prompt), /ZONE RÉSERVÉE AU LOGO FINAL|Le logo officiel de l'entreprise sera ajouté/);
+      assert.deepEqual(h.promptCalls[0].brandColors, []);
+      assert.equal(h.promptCalls[0].businessDnaContext, undefined);
+      assert.equal(h.promptCalls[0].hasLogo, false);
+      assert.equal(h.promptCalls[0].logoComposedLocally, false);
       const provenance = (h.saved[0].metadata as { provenance: RecordValue }).provenance;
-      assert.equal(provenance.exact_logo_applied, true);
-      assert.equal(provenance.effective_logo_mode, "visible");
-      assert.equal(provenance.official_logo_source, "account_profile");
+      assert.equal(provenance.business_dna_requested, false, "an explicitly unchecked choice is persisted as a boolean");
+      assert.equal(provenance.branding_policy_version, freePrompt.AI_MEDIA_IMAGE_BRANDING_POLICY_VERSION);
+      assert.equal(provenance.business_dna_used, undefined, "absence of historic usage is not rewritten as false");
+      assert.equal(provenance.exact_logo_applied, false);
+      assert.equal(provenance.local_logo_composition_applied, false);
+      assert.equal(provenance.effective_logo_mode, "none");
+      assert.equal(provenance.official_logo_source, undefined);
+      assert.equal(provenance.official_logo_sha256, undefined);
+      assert.deepEqual(provenance.brand_palette_applied, []);
+      assert.equal(h.counts.saved, 1);
     }
   });
 });
@@ -378,7 +484,7 @@ test("Studio free images compose the actual profile logo even when ADN enrichmen
 test("an image without a saved logo does not fabricate a replacement", async () => {
   await withCredentials(async () => {
     const h = serverHarness(false, { logo: null });
-    await h.generate(request("gemini", { creationMode: "free", useBusinessDna: false,
+    await h.generate(request("gemini", { creationMode: "free", useBusinessDna: true,
       freePrompt: "Une photographie d’un jardin fleuri." }));
     assert.equal(h.composerCalls.length, 0);
     assert.equal(h.providerCalls[0].officialLogo, null);

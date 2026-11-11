@@ -16,6 +16,7 @@ import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
 import { buildAiMediaVideoProviderContract } from "./aiMediaVideoProviderContract.ts";
 
 export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v17-editorial-subject-logo-space";
+export const AI_MEDIA_IMAGE_BRANDING_POLICY_VERSION = "image-branding-v2-dna-control-safe-placement";
 // Recraft also receives the exact-logo reservation and provider identity rules.
 const AI_MEDIA_FREE_RECRAFT_PROMPT_MAX_CHARS = 8_600;
 
@@ -248,7 +249,8 @@ export function getAiMediaFreeBrandPolicy(prompt: string, companyName = "", useB
   const normalized = prompt.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const company = companyName.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
   const companyNamed = company.length > 2 && new RegExp(`(?:^|[^a-z0-9])${company.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:$|[^a-z0-9])`).test(normalized);
-  const profileLogoNamed = /\blogo\b[^.!?\n,]{0,100}\b(?:profil|profile|adn)\b|\b(?:profil|profile)\b[^.!?\n,]{0,45}\blogo\b|\blogo\s+(?:officiel|enregistre|sauvegarde)\b|\b(?:official|saved|registered)\s+logo\b/.test(normalized);
+  const profileLogoNamed = /\blogo\b[^.!?\n,]{0,100}\b(?:profil|profile|adn)\b|\b(?:profil|profile)\b[^.!?\n,]{0,45}\blogo\b|\blogo\s+(?:officiel|enregistre|sauvegarde)\b|\b(?:official|saved|registered)\s+logo\b/.test(normalized)
+    || /\blogo\b\s*[,;:.!?]\s*(?:utilise[rz]?|reprends?|reprendre)\s+celui\s+(?:du|de mon|de notre)\s+(?:profil|compte|adn)\b/.test(normalized);
   const useCompanyContext = useBusinessDna === true || companyNamed || profileLogoNamed || /\b(?:mon|notre|ma|mes|nos)\s+(?:entreprise|marque|activite|societe|commerce|logo|charte|couleurs|site)\b|\b(?:my|our)\s+(?:company|business|brand|logo|colors|website)\b|\badn\b/.test(normalized);
   // Negations attach to the named object, not every later word in the clause:
   // “sans texte, avec notre logo” and “ne pas oublier le logo” are requests.
@@ -271,12 +273,13 @@ export function getAiMediaFreeBrandPolicy(prompt: string, companyName = "", useB
   return { useCompanyContext, useLogo, useBrandColors };
 }
 
-/** The saved profile logo is an image default independent of ADN enrichment.
+/** The saved profile logo is an image default only with checked ADN.
  * Explicit exclusions, a different client's logo or a logo-design brief still
  * take precedence. Film branding and source-image modifications stay opt-in. */
 export function usesAiMediaAutomaticImageLogo(request: AiMediaGenerationRequest, companyName = "") {
   return request.kind === "image" && request.operation !== "modify" &&
     request.source === "studio" && request.creationMode === "free" &&
+    request.useBusinessDna === true &&
     getAiMediaFreeBrandPolicy(request.freePrompt || "", companyName, true).useLogo;
 }
 

@@ -29,6 +29,7 @@ const find = (tree: unknown, predicate: (node: Element) => boolean) => {
   const node = elements(tree).find(predicate); assert.ok(node, "Expected rendered element"); return node;
 };
 const text = (tree: unknown): string => Array.isArray(tree) ? tree.map(text).join("") : typeof tree === "string" || typeof tree === "number" ? String(tree) : tree && typeof tree === "object" && "props" in tree ? text((tree as Element).props.children) : "";
+const dnaCheckbox = (tree: unknown) => find(find(tree, node => node.type === "label" && text(node).includes("ai_generator_use_business_dna_label")), node => node.type === "input");
 
 /** Separate hook slots for each real component/Activity; no provider or browser requests. */
 function runtime(file: string, dependencies: Map<string, unknown>) {
@@ -220,21 +221,26 @@ test("a shared generation brief follows Image/Video Activities and dictation whi
   let modalTree = f.render(); const image = f.createPanel();
   let imageTree = image.render(f.panel(modalTree).props);
   assert.equal(find(imageTree, node => node.type === "textarea").props.value, "Brief de départ");
+  assert.equal(dnaCheckbox(imageTree).props.checked, true, "an assistant-prefilled image starts with DNA selected");
+  (dnaCheckbox(imageTree).props.onChange as (event: unknown) => void)({ target: { checked: false } });
   (find(imageTree, node => node.type === "textarea").props.onChange as (event: unknown) => void)({ target: { value: "Un flyer pour mon atelier" } });
   modalTree = f.render(); assert.deepEqual(f.state, { busy: false, hasDraft: true });
   click(mediaRadio(modalTree, "video")); modalTree = f.render();
   const video = f.createPanel(); let videoTree = video.render(f.panel(modalTree).props);
+  assert.equal(dnaCheckbox(videoTree).props.checked, true, "a newly visited video form has its own selected default");
   assert.equal(find(videoTree, node => node.type === "textarea").props.value, "Un flyer pour mon atelier");
   assert.equal(find(videoTree, node => node.type === "select" && String(node.props.id).endsWith("-media-format")).props.value, "story");
   (find(videoTree, node => node.type === "./MediaSubjectVoiceButton").props.onChange as (value: string) => void)("Un flyer dicté pour mon atelier");
   modalTree = f.render(); click(mediaRadio(modalTree, "image")); modalTree = f.render();
   imageTree = image.render(f.panel(modalTree).props);
+  assert.equal(dnaCheckbox(imageTree).props.checked, false, "returning to the image Activity preserves the explicit unchecked choice");
   assert.equal(find(imageTree, node => node.type === "textarea").props.value, "Un flyer dicté pour mon atelier");
   assert.equal(find(imageTree, node => node.type === "select" && String(node.props.id).endsWith("-media-format")).props.value, "square");
   (find(imageTree, node => node.type === "select" && String(node.props.id).endsWith("-media-format")).props.onChange as (event: unknown) => void)({ target: { value: "landscape" } });
   imageTree = image.render(f.panel(modalTree).props);
   assert.equal(find(imageTree, node => node.type === "select" && String(node.props.id).endsWith("-media-format")).props.value, "landscape");
   click(mediaRadio(f.render(), "video")); modalTree = f.render(); videoTree = video.render(f.panel(modalTree).props);
+  assert.equal(dnaCheckbox(videoTree).props.checked, true, "the image choice cannot silently override the video form");
   assert.equal(find(videoTree, node => node.type === "select" && String(node.props.id).endsWith("-media-format")).props.value, "story");
   assert.equal(f.generations, 0); f.dispose();
 });
@@ -242,12 +248,19 @@ test("a shared generation brief follows Image/Video Activities and dictation whi
 test("only explicit reset clears the shared brief and old dictation callbacks cannot restore it", async () => {
   const f = fixture({ initialFreePrompt: "Mon brief", initialMediaType: "video" });
   let tree = ready(f); const oldPromptChange = f.panel(tree).props.onSharedPromptChange as (value: string) => void;
+  const panel = f.createPanel();
+  let formTree = panel.render(f.panel(tree).props);
+  (dnaCheckbox(formTree).props.onChange as (event: unknown) => void)({ target: { checked: false } });
   (f.panel(tree).props.onReset as () => void)(); tree = f.render();
   click(resetAction(tree, "ai_generator_workspace_reset_cancel")); tree = f.render();
   assert.equal(f.panel(tree).props.sharedPrompt, "Mon brief");
+  formTree = panel.render(f.panel(tree).props);
+  assert.equal(dnaCheckbox(formTree).props.checked, false, "cancelling Reset preserves the draft's explicit DNA setting");
   (f.panel(tree).props.onReset as () => void)(); tree = f.render();
   click(resetAction(tree, "ai_generator_workspace_reset_action")); await settle(); tree = f.render();
   assert.equal(f.panel(tree).props.sharedPrompt, "");
+  const newPanel = f.createPanel();
+  assert.equal(dnaCheckbox(newPanel.render(f.panel(tree).props)).props.checked, true, "the reset generationSession mounts a new creation with DNA selected");
   oldPromptChange("Une dictée terminée après Réinitialiser"); tree = f.render();
   assert.equal(f.panel(tree).props.sharedPrompt, "");
   (f.panel(tree).props.onSharedPromptChange as (value: string) => void)("Nouveau brief");

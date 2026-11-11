@@ -308,6 +308,88 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   };
 }
 
+function businessDnaCheckbox(h: ReturnType<typeof harness>) {
+  const label = find(h.tree(), node => node.type === "label" && text(node).includes("ai_generator_use_business_dna_label"));
+  return find(label, node => node.type === "input" && node.props.type === "checkbox");
+}
+
+test("new Studio image and video creations visibly select business DNA and submit the selected default", async () => {
+  for (const kind of ["image", "video"] as const) {
+    const h = harness(kind);
+    try {
+      assert.equal(businessDnaCheckbox(h).props.checked, true);
+      assert.equal(h.formNative().snapshot.useBusinessDna, true);
+      h.enterPrompt("Une scène de montagne au lever du soleil.");
+      await h.generate();
+      assert.equal(h.requests.length, 1);
+      assert.equal(h.requests[0].useBusinessDna, true);
+    } finally { h.dispose(); }
+  }
+});
+
+test("an explicit unchecked business DNA choice survives prompt changes, native prefills and recovered draft editing", async () => {
+  for (const kind of ["image", "video"] as const) {
+    const h = harness(kind);
+    try {
+      (businessDnaCheckbox(h).props.onChange as (event: unknown) => void)({ target: { checked: false } });
+      h.render();
+      h.enterPrompt("Une scène de montagne au lever du soleil.");
+      h.setLocked(true); h.setLocked(false);
+      const entry = h.formNative();
+      const encoded = JSON.stringify({ field: "prompt", value: "Une scène libre au bord de la mer." });
+      entry.handlers.select.invoke(encoded); h.render();
+      assert.equal(entry.handlers.select.matches(h.formNative().snapshot, encoded), true);
+      assert.equal(businessDnaCheckbox(h).props.checked, false);
+      assert.equal(h.formNative().snapshot.useBusinessDna, false);
+      h.failNextGenerationForRecovery();
+      await h.generate();
+      assert.equal(h.requests.length, 1);
+      assert.equal(h.requests[0].useBusinessDna, false);
+      await h.generate(); h.editRecovered();
+      assert.equal(h.requests.length, 1, "recovery resumes the original request instead of changing its DNA choice");
+      assert.equal(businessDnaCheckbox(h).props.checked, false);
+      assert.equal(h.formNative().snapshot.useBusinessDna, false);
+    } finally { h.dispose(); }
+  }
+});
+
+test("native Studio prefills preserve the current DNA choice unless that exact checkbox is explicitly selected", () => {
+  for (const kind of ["image", "video"] as const) {
+    const h = harness(kind);
+    try {
+      const prefill = JSON.stringify({ field: "prompt", value: "Un paysage sous la neige." });
+      h.formNative().handlers.select.invoke(prefill); h.render();
+      assert.equal(businessDnaCheckbox(h).props.checked, true, "an unrelated field cannot supply an absent false default");
+      const off = JSON.stringify({ field: "useBusinessDna", value: false });
+      const select = h.formNative().handlers.select;
+      select.invoke(off); h.render();
+      assert.equal(select.matches(h.formNative().snapshot, off), true);
+      h.formNative().handlers.select.invoke(prefill); h.render();
+      assert.equal(businessDnaCheckbox(h).props.checked, false, "an explicit restored/native value remains authoritative");
+    } finally { h.dispose(); }
+  }
+});
+
+test("a new account or a newly mounted creation resets DNA to checked while the current creation keeps its explicit choice", () => {
+  for (const kind of ["image", "video"] as const) {
+    const h = harness(kind);
+    try {
+      (businessDnaCheckbox(h).props.onChange as (event: unknown) => void)({ target: { checked: false } }); h.render();
+      h.render();
+      assert.equal(businessDnaCheckbox(h).props.checked, false);
+      const nextCreation = harness(kind);
+      try {
+        assert.equal(businessDnaCheckbox(nextCreation).props.checked, true);
+        assert.equal(businessDnaCheckbox(h).props.checked, false);
+      } finally { nextCreation.dispose(); }
+      h.changeAccount();
+      assert.equal(businessDnaCheckbox(h).props.checked, true);
+      assert.equal(h.formNative().snapshot.useBusinessDna, true);
+      assert.equal(h.requests.length, 0);
+    } finally { h.dispose(); }
+  }
+});
+
 test("the real Studio music library binds catalogue choices, confirms preview and preserves Auto Off and account scope without generation", async () => {
   const h = harness();
   try {

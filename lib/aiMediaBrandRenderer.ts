@@ -415,9 +415,9 @@ type ImageLogoOverlay = { input: Buffer; left: number; top: number };
 
 /**
  * Choose a quiet, contrasting edge of this image, not a fixed corner. This
- * bounded pixel analysis detects detail and contrast, not faces or objects;
- * leaving the centre out of the default candidates protects the usual subject.
- * User-specified axes and size remain authoritative.
+ * bounded pixel analysis rejects busy edges; it does not recognize text,
+ * faces or objects. A provider reservation is a preference, never evidence
+ * that the received pixels are clear. Explicit user axes remain authoritative.
  */
 async function buildImageBrandOverlays(
   args: RenderBaseArgs & { input: Buffer; withText: boolean }
@@ -432,28 +432,56 @@ async function buildImageBrandOverlays(
     return [];
   }
   const [background, logoSample] = await Promise.all([
-    sharp(args.input).resize({ width: 256, height: 256, fit: "inside", withoutEnlargement: true }).toColourspace("srgb").removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+    sharp(args.input).resize({ width: 512, height: 512, fit: "inside", withoutEnlargement: true }).toColourspace("srgb").removeAlpha().raw().toBuffer({ resolveWithObject: true }),
     sharp(logo.buffer).resize(32, 32, { fit: "fill" }).toColourspace("srgb").ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
   ]);
   const marginX = Math.min(Math.round(args.width * 0.045), Math.floor((args.width - logo.width) / 2));
   const marginY = Math.min(Math.round(args.height * 0.045), Math.floor((args.height - logo.height) / 2));
   const reservation = args.imageLogoReservation;
-  const axesX = reservation ? [reservation.horizontal] : args.logoPlacement?.horizontal ? [args.logoPlacement.horizontal] : ["left", "right"] as const;
-  const axesY = reservation ? [reservation.vertical] : args.logoPlacement?.vertical ? [args.logoPlacement.vertical] : ["top", "bottom"] as const;
+  const axesX = args.logoPlacement?.horizontal ? [args.logoPlacement.horizontal] : ["left", "right"] as const;
+  const axesY = args.logoPlacement?.vertical ? [args.logoPlacement.vertical] : ["top", "bottom"] as const;
   const luminance = (red: number, green: number, blue: number) => (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
-  const backgroundPixel = (x: number, y: number) => {
+  const backgroundOffset = (x: number, y: number) => {
     const sampleX = Math.max(0, Math.min(background.info.width - 1, Math.round(x * background.info.width / args.width)));
     const sampleY = Math.max(0, Math.min(background.info.height - 1, Math.round(y * background.info.height / args.height)));
-    const offset = (sampleY * background.info.width + sampleX) * background.info.channels;
+    return (sampleY * background.info.width + sampleX) * background.info.channels;
+  };
+  const backgroundPixel = (x: number, y: number) => {
+    const offset = backgroundOffset(x, y);
     return luminance(background.data[offset], background.data[offset + 1], background.data[offset + 2]);
   };
+  const colorDifference = (x: number, y: number, nextX: number, nextY: number) => {
+    const from = backgroundOffset(x, y), to = backgroundOffset(nextX, nextY);
+    return Math.max(...[0, 1, 2].map(channel => Math.abs(background.data[from + channel] - background.data[to + channel]) / 255));
+  };
   const candidates = axesY.flatMap(vertical => axesX.map(horizontal => {
-    const left = reservation
+    const preferred = reservation?.horizontal === horizontal && reservation.vertical === vertical;
+    const left = preferred && reservation
       ? Math.round(reservation.left * args.width + (reservation.width * args.width - logo.width) * (horizontal === "left" ? 0 : horizontal === "center" ? 0.5 : 1))
       : horizontal === "left" ? marginX : horizontal === "center" ? Math.round((args.width - logo.width) / 2) : args.width - marginX - logo.width;
-    const top = reservation
+    const top = preferred && reservation
       ? Math.round(reservation.top * args.height + (reservation.height * args.height - logo.height) * (vertical === "top" ? 0 : vertical === "center" ? 0.5 : 1))
       : vertical === "top" ? marginY : vertical === "center" ? Math.round((args.height - logo.height) / 2) : args.height - marginY - logo.height;
+    // Inspect the real, alpha-trimmed logo rectangle plus breathing room. The
+    // small tiles prevent sparse lettering from disappearing in a whole-box
+    // average. These conservative texture limits are deliberately not OCR.
+    const padding = Math.max(4, Math.round(Math.min(args.width, args.height) * 0.012));
+    const sampleLeft = Math.max(0, left - padding), sampleTop = Math.max(0, top - padding);
+    const sampleWidth = Math.min(args.width, left + logo.width + padding) - sampleLeft;
+    const sampleHeight = Math.min(args.height, top + logo.height + padding) - sampleTop;
+    const tileEdges = new Array<number>(64).fill(0);
+    let edgeCount = 0, colorDetail = 0;
+    for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+      const sampleX = sampleLeft + (x + 0.5) * sampleWidth / 64;
+      const sampleY = sampleTop + (y + 0.5) * sampleHeight / 64;
+      const dx = colorDifference(sampleX, sampleY, sampleX + args.width / background.info.width, sampleY);
+      const dy = colorDifference(sampleX, sampleY, sampleX, sampleY + args.height / background.info.height);
+      const edges = Number(dx > 0.12) + Number(dy > 0.12);
+      edgeCount += edges; colorDetail += dx + dy;
+      tileEdges[Math.floor(y / 8) * 8 + Math.floor(x / 8)] += edges;
+    }
+    const clearEnough = colorDetail / 8192 <= 0.03 && edgeCount / 8192 <= 0.04
+      && Math.max(...tileEdges) / 128 <= 0.12;
     let sum = 0, squared = 0, detail = 0, contrast = 0, opacity = 0, logoLuminance = 0;
     for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
       const sampleX = left + (x + 0.5) * logo.width / 32;
@@ -474,10 +502,13 @@ async function buildImageBrandOverlays(
     // Editorial copy is rendered first and also appears in the detail sample.
     // Prefer its upper counterpart when no vertical position was requested.
     const copyPenalty = args.withText && !args.logoPlacement?.vertical && vertical === "bottom" ? 0.4 : 0;
-    return { left, top, contrast: meanContrast, logoLuminance: opacity ? logoLuminance / opacity : 0,
+    return { left, top, preferred, clearEnough, contrast: meanContrast, logoLuminance: opacity ? logoLuminance / opacity : 0,
       score: detail / 1024 * 2 + variance * 0.7 + Math.max(0, 0.35 - meanContrast) * 1.5 + copyPenalty };
   }));
-  const chosen = candidates.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
+  const acceptable = candidates.filter(candidate => candidate.clearEnough);
+  if (!acceptable.length) throw new Error("ai_media_logo_no_safe_placement");
+  const chosen = acceptable.find(candidate => candidate.preferred)
+    || acceptable.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
   const overlays: ImageLogoOverlay[] = [];
   if (chosen.contrast < 0.2) {
     // A small alpha-shaped halo improves separation on an unavoidable matching
