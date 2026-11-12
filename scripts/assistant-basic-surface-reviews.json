@@ -1182,7 +1182,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "aea0b8991929fd29697f584eb7c821e58a4a80f397a95915ea154a82cc7491e7",
+    "lib/inrAssistantCodeIndex.generated.ts": "88ab5d13b9393eae9b8d753c057b6b775bde25a6228321f27e67efa1da3c3595",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
