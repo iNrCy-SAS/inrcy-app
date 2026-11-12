@@ -472,11 +472,20 @@ export function getPublishMediaRecords(
   if (!action) return [];
   if (channelKey === "threads" && readInrAgentThreadsPublicationSettings(action.payload).mode === "ghost") return [];
   const mode = publishChannelMediaMode(action, channelKey);
+  if (mode === "none") return [];
   const channelImages = publishChannelImages(action, channelKey);
   const video = publishChannelVideo(action, channelKey);
 
   if (mode === "video" && video) return [video];
   if (mode === "images" && channelImages.length) return channelImages;
+
+  // An explicit channel selection (including an empty one) overrides shared workspace media.
+  const canonicalChannel = channelKey === "siteWeb" ? "site_web" : channelKey === "inrSearch" ? "inr_search" : channelKey === "youtube" ? "youtube_shorts" : channelKey || "";
+  const channelSelection = (field: string) => {
+    const byChannel = asRecord(publishPayloadValue(action, field)) || {};
+    return Object.hasOwn(byChannel, canonicalChannel) ? byChannel[canonicalChannel] : byChannel[channelKey || ""];
+  };
+  if (mode === "images" && channelSelection("imagesByChannel") !== undefined) return channelImages;
   if (channelImages.length) return channelImages;
   if (video) return [video];
 

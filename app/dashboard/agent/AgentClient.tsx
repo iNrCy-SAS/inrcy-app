@@ -11,6 +11,8 @@ import AgentPublicationChannelList from "./_components/AgentPublicationChannelLi
 import AgentMediaReferences from "./_components/AgentMediaReferences";
 import AgentMediaImage from "./_components/AgentMediaImage";
 import { recoverAgentMediaPreviewUrl } from "./_lib/agent.media-preview-recovery";
+import { loadMediaPublicationWorkspace } from "@/lib/mediaWorkspaceClient";
+import { scheduledPublicationPreviewWorkspaceId, withScheduledPublicationWorkspacePreview } from "@/lib/scheduledPublicationWorkspacePreview";
 import AgentSettingsMultiSelect from "./_components/AgentSettingsMultiSelect";
 import { INR_AGENT_VIDEO_ENGINE } from "@/lib/inrAgentVideoPolicy";
 import { apiChannelToUi } from "./_lib/agent.config";
@@ -639,6 +641,8 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     useState<ScheduledActionEditSession | null>(null);
   const scheduledEditorScopeRef = useRef({ activeAccountId, actorUserId, session: scheduledEditSession });
   useLayoutEffect(() => { scheduledEditorScopeRef.current = { activeAccountId, actorUserId, session: scheduledEditSession }; }, [activeAccountId, actorUserId, scheduledEditSession]);
+  const scheduledEditorOpenVersion = useRef(0);
+  useLayoutEffect(() => () => { scheduledEditorOpenVersion.current += 1; }, [activeAccountId, actorUserId, scheduleOpen]);
   const [scheduleOnlyEdit, setScheduleOnlyEdit] =
     useState<ScheduleOnlyEditState | null>(null);
   const [scheduleOnlyEditError, setScheduleOnlyEditError] = useState<
@@ -2203,8 +2207,12 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     }
   }
 
-  const manualStudioCredits = useScheduledStudioCredits({ enabled: manualPlanningOnly && Boolean(scheduledEditSession), accountId: activeAccountId,
-    kind: publishMediaPreview?.kind === "video" ? "video" : "image" });
+  const manualStudioCredits = useScheduledStudioCredits({ enabled: Boolean(scheduledEditSession), accountId: activeAccountId,
+    kind: publishMediaPreview?.kind === "video" || activePreviewChannel === "youtube" ? "video" : "image" });
+  const publishMediaGenerationLabel = publishHasUsableMedia ? i18nT("regenerate_media") : mediaT("ai_generator_generate_media");
+  const canGeneratePublishMedia = scheduledEditSession
+    ? canEditSelectedPublication && manualStudioCredits.generateAllowed
+    : canRegenerateSelectedPublication;
   const manualStudioCreditHelp = manualStudioCredits.generate.insufficient || manualStudioCredits.modify.insufficient
     ? mediaT("ai_generator_video_credit_insufficient")
     : manualStudioCredits.unavailable || manualStudioCredits.generate.error || manualStudioCredits.modify.error
@@ -2213,7 +2221,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     onReturned: (result) => {
       void applyInrStudioReturn(result);
     },
-    onClosed: () => { if (manualPlanningOnly) void manualStudioCredits.refresh(); },
+    onClosed: () => { if (scheduledEditSession) void manualStudioCredits.refresh(); },
   });
   const historicalStudioReturnHandledRef = useRef(false);
   const onHistoricalStudioReturn = useEffectEvent((result: ReturnType<typeof consumeInrStudioReturn>) => {
@@ -2544,13 +2552,13 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
 
   async function openScheduledMediaGeneration(stillCurrent: () => boolean = () => true) {
     if (!stillCurrent()) return;
-    if (!manualPlanningOnly || !scheduledEditSession || !selectedPreparedAction || !activePreviewChannel) return;
+    if (!scheduledEditSession || !selectedPreparedAction || !activePreviewChannel) return;
     if (!manualStudioCredits.generateAllowed) { showNotice(manualStudioCreditHelp); return; }
     try {
       const { href, handoff } = await createInrStudioHandoff({ tab: "generate", origin: "booster",
         publicationBrief: preparedChannelPreview?.body || selectedPreparedAction.summary || selectedPreparedAction.title,
         context: { actionId: selectedPreparedAction.id, channel: activePreviewChannel, mediaIndex: publishMediaActiveIndex,
-          mediaType: publishMediaPreview?.kind === "video" ? "video" : "image", scheduledEdit: true, mediaMutation: "replace" },
+          mediaType: publishMediaPreview?.kind === "video" || activePreviewChannel === "youtube" ? "video" : "image", scheduledEdit: true, mediaMutation: "replace" },
       });
       if (!stillCurrent()) { await clearInrStudioHandoff(handoff.key); return; }
       openStudio(href);
@@ -4037,8 +4045,9 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     busy: loadState === 'loading' || saveState === 'saving' || agentReferenceBusy || settingsPublicationIdeaVoiceBusy || publicationIdeasSaveState === 'saving' || Boolean(agentConfirmDialog),
     stateKey: JSON.stringify([selected.key, scheduledEditSession?.scheduledAction.id, scheduledEditSession?.scheduledAction.updatedAt]), request: requestAgentSettings });
 
-  function openScheduledActionEditor(actionId: string | null | undefined, canContinue: () => boolean = () => true) {
+  async function openScheduledActionEditor(actionId: string | null | undefined, canContinue: () => boolean = () => true) {
     if (!actionId || !canContinue()) return;
+    const openVersion = ++scheduledEditorOpenVersion.current;
     if (scheduledEditSession) {
       if (scheduledEditSession.scheduledAction.id === actionId) return;
       if (
@@ -4094,7 +4103,24 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       return;
     }
 
-    const action = scheduledActionToPreparedAction(scheduledAction);
+    const accountAtOpen = activeAccountId, actorAtOpen = actorUserId;
+    const stillCurrent = () => canContinue() && openVersion === scheduledEditorOpenVersion.current
+      && scheduledEditorScopeRef.current.activeAccountId === accountAtOpen
+      && scheduledEditorScopeRef.current.actorUserId === actorAtOpen;
+    let previewAction = scheduledAction;
+    const workspaceId = scheduledPublicationPreviewWorkspaceId(scheduledAction.payload);
+    if (workspaceId) {
+      try {
+        const workspace = await loadMediaPublicationWorkspace({ workspaceId });
+        if (!stillCurrent()) return;
+        previewAction = { ...scheduledAction, payload: withScheduledPublicationWorkspacePreview(scheduledAction.payload, workspace, scheduledAction.channels) };
+      } catch (error) {
+        if (stillCurrent()) showNotice(error instanceof Error ? error.message : i18nT("scheduled_action_not_openable"));
+        return;
+      }
+    }
+    if (!stillCurrent()) return;
+    const action = scheduledActionToPreparedAction(previewAction);
     if (!action) {
       showNotice(i18nT("scheduled_action_not_openable"));
       return;
@@ -5990,21 +6016,21 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                           type="button"
                           className={styles.publishRegenerateButton}
                           onClick={() =>
-                            manualPlanningOnly ? void openScheduledMediaGeneration() : requestPublishChannelRegeneration("media")
+                            scheduledEditSession ? void openScheduledMediaGeneration() : requestPublishChannelRegeneration("media")
                           }
                           disabled={
                             activeThreadsGhost ||
                             !selectedPreparedAction ||
-                            (manualPlanningOnly ? !manualStudioCredits.generateAllowed : !canRegenerateSelectedPublication) ||
+                            !canGeneratePublishMedia ||
                             actionMutationState === "saving" ||
                             Boolean(publishRegeneration)
                           }
-                          aria-label={i18nT("regenerate_media")}
-                          title={manualPlanningOnly && !manualStudioCredits.generateAllowed ? manualStudioCreditHelp : i18nT("regenerate_media")}
+                          aria-label={publishMediaGenerationLabel}
+                          title={scheduledEditSession && !manualStudioCredits.generateAllowed ? manualStudioCreditHelp : publishMediaGenerationLabel}
                           aria-busy={publishRegeneration?.kind === "media"}
                           data-busy={publishRegeneration?.kind === "media"}
                         >
-                          <span aria-hidden>↻</span>
+                          <span aria-hidden>{publishHasUsableMedia ? "↻" : "✦"}</span>
                         </button>}
                       </div>
                       <article className={`${styles.campaignInfoCard} ${styles.publicationFormatCard}`}>
@@ -7639,14 +7665,14 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                     )
                   ) : null}
                   <button type="button" className={styles.publishMediaRegenerateButton}
-                    onClick={() => { if (manualPlanningOnly) void openScheduledMediaGeneration(); else { setPublishMediaPreviewOpen(false); requestPublishChannelRegeneration("media"); } }}
-                    disabled={(manualPlanningOnly ? !manualStudioCredits.generateAllowed : !canRegenerateSelectedPublication) || publishMediaUploadState === "saving" || Boolean(publishRegeneration) || activeThreadsGhost}
-                    title={manualPlanningOnly && !manualStudioCredits.generateAllowed ? manualStudioCreditHelp : undefined}
-                    aria-label={i18nT("regenerate_media")}>
-                    <span aria-hidden>↻</span>{mediaT("ai_generator_regenerate")}
+                    onClick={() => { if (scheduledEditSession) void openScheduledMediaGeneration(); else { setPublishMediaPreviewOpen(false); requestPublishChannelRegeneration("media"); } }}
+                    disabled={!canGeneratePublishMedia || publishMediaUploadState === "saving" || Boolean(publishRegeneration) || activeThreadsGhost}
+                    title={scheduledEditSession && !manualStudioCredits.generateAllowed ? manualStudioCreditHelp : undefined}
+                    aria-label={publishMediaGenerationLabel}>
+                    <span aria-hidden>{publishHasUsableMedia ? "↻" : "✦"}</span>{publishHasUsableMedia ? mediaT("ai_generator_regenerate") : mediaT("ai_generator_generate_media")}
                   </button>
                 </div>
-                {manualPlanningOnly && (!manualStudioCredits.generateAllowed || publishMediaPreview?.kind === "image" && !manualStudioCredits.modifyAllowed)
+                {scheduledEditSession && (!manualStudioCredits.generateAllowed || publishMediaPreview?.kind === "image" && !manualStudioCredits.modifyAllowed)
                   ? <p role="status">{manualStudioCreditHelp}</p> : null}
 
             <div className={styles.publishMediaSourcePanel}>

@@ -221,6 +221,7 @@ Pour les campagnes récurrentes, ouvrir [Agent Emailings](/dashboard/agent/campa
 Standard/essai : automatisations Publications et Stats. Premium : ajoute Emailings, avec deux modes « Prospection » et « Fidélisation ». Standard ne peut pas préparer une campagne mails automatisée ; les rubriques mails de Stats sont aussi restreintes.
 Basique : Planning de Booster ouvre « Publications programmées », avec le robot et « Gérez vos publications programmées depuis Booster ». Consulter, modifier, reprogrammer, annuler et publier maintenant ses programmations manuelles reste possible ; les commandes éditoriales Idées/Générer/Réglages/activation sont absentes. Générer/modifier un média passe par iNrStudio, son devis et ses crédits. Un solde insuffisant bloque les commandes IA média ; texte, import et retouche manuelle restent utilisables.
 Header Agent Publications : « Idées », « Générer », « Planning », « Réglages », interrupteur « Automatisation activée »/« Automatisation en pause ». Idées sert à préparer les sujets ; Générer prépare une publication, ce n’est pas une confirmation de publication immédiate.
+Dans Planning, le crayon ouvre le texte et les médias enregistrés de la publication sélectionnée. Leur chargement doit aboutir avant l’ouverture de l’édition ; une erreur de chargement ne signifie pas que le professionnel n’avait pas ajouté de média. Sans média, le bouton propose « Générer un média » ; avec un média, « Régénérer le média ». Pour une programmation manuelle, il ouvre iNrStudio avec son devis et ses crédits, sur chaque offre disposant de ces droits. L’import depuis la médiathèque reste disponible. Consulter puis quitter l’édition ne modifie ni les médias ni la programmation.
 Dans Réglages Publications, les sous-onglets sont « Planning », « Canaux », « Création », « Références ». Planning règle fréquence, jours/heures et contenus préparés à l’avance (7 jours, 15 jours — recommandé, 1 mois). Canaux choisit les connexions utilisables. Création règle les sources/types de médias ; Références ajoute les personnes/décors/produits et les autorisations nécessaires. Terminer par « Enregistrer les réglages ». L’application peut demander quand appliquer le changement au planning existant.
 Emailings : choisir Prospection ou Fidélisation, « Préparer », « Planning », « Réglages ». Une boîte mail connectée et des destinataires sont requis avant envoi. Stats : « Envoyer un bilan », « Planning », « Réglages » ; cette action peut envoyer un PDF au professionnel, ce n’est pas seulement un aperçu.
 Relire les actions préparées et leurs statuts. « Valider » et « Refuser » ont des effets réels sur l’action. La publication automatique sans validation est un réglage explicite avec confirmation ; ne pas la présumer activée. Les générations ponctuelles restent soumises aux crédits/quotas affichés.`,
@@ -229,6 +230,9 @@ Relire les actions préparées et leurs statuts. « Valider » et « Refuser » 
       "lib/standardAgentPolicy.ts",
       "lib/dashboardEdition.ts",
       "app/dashboard/agent/AgentClient.tsx",
+      "app/dashboard/agent/_lib/agent.schedule.ts",
+      "app/dashboard/agent/_lib/agent.publish-preview.ts",
+      "lib/scheduledPublicationWorkspacePreview.ts",
       "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
       "app/dashboard/agent/_components/AgentCampaignAccess.tsx",
       "messages/fr-FR/agent.json",

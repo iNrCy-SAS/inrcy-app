@@ -1033,6 +1033,21 @@ export function scheduledEditUpdateFromAction(
   } = {},
 ): Record<string, unknown> {
   const payload = jsonClone(action.payload || {});
+  const previewOriginal = Object.hasOwn(payload, "scheduledMediaPreviewOriginal") ? asRecord(payload.scheduledMediaPreviewOriginal) : null;
+  if (previewOriginal) {
+    delete payload.scheduledMediaPreviewOriginal;
+    if (payload.scheduledMediaRevisionRequested !== true) {
+      const originalRoot = asRecord(previewOriginal.root) || {};
+      const originalPublish = asRecord(previewOriginal.publish) || {};
+      const publish = asRecord(payload.publishPayload) || {};
+      // Preview URLs must never become a media revision when saving text or a date.
+      for (const key of ["images", "video", "imagesByChannel", "videoByChannel", "media", "mediaAsset", "image", "imageAsset", "videoAsset"]) {
+        if (Object.hasOwn(originalRoot, key)) payload[key] = originalRoot[key]; else delete payload[key];
+        if (Object.hasOwn(originalPublish, key)) publish[key] = originalPublish[key]; else delete publish[key];
+      }
+      payload.publishPayload = publish;
+    }
+  }
   const scheduledAt = options.scheduledAt || action.scheduledFor || null;
 
   if (
