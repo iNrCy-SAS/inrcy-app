@@ -116,12 +116,12 @@
   },
   {
     "id": "history-plan-e84bd9b2d6feb745",
-    "label": "Régénérer le média",
+    "label": "Générer ou régénérer le média",
     "domain": "navigation",
     "sourceFiles": [
       "app/dashboard/agent/AgentClient.tsx"
     ],
-    "sourceAnchor": "<button\n                          type=\"button\"\n                          className={styles.publishRegenerateButton}\n                          onClick={() =>\n                            manualPlanningOnly ? void openScheduledMediaGeneration",
+    "sourceAnchor": "<button\n                          type=\"button\"\n                          className={styles.publishRegenerateButton}\n                          onClick={() =>\n                            scheduledEditSession ? void openSc",
     "capabilityId": "navigation.local-controls",
     "toolNames": [
       "controlLocalInterface"
@@ -133,7 +133,7 @@
     ],
     "testAnchor": "the actual scheduled Studio handoffs clean a stale prepared transfer before opening any source in another scope",
     "controlIds": [
-      "app/dashboard/agent/AgentClient.tsx#button:7ff20e6ae940b9ef:1"
+      "app/dashboard/agent/AgentClient.tsx#button:c37272118c09d1b1:1"
     ],
     "notes": "UI locale Basic uniquement sous scheduledEditSession et droits natifs. select studio_generate/studio_modify/studio_retouch ouvre uniquement la bonne session Studio et son média exact ; garde crédits/compatibilité, nettoie un transfert tardif hors compte/source. Aucun job généré, quota consommé ou consentement déduit par cette ouverture. Compte/acteur/source/canal/révision et rendu contrôlés ; ne publie ni ne persiste un Agent. Contrôle natif AgentWorkspaceClient ; restrictions du compte et de l’offre conservées."
   },
@@ -1236,12 +1236,12 @@
   },
   {
     "id": "history-plan-2646e8f1fc3b2662",
-    "label": "Régénérer le média",
+    "label": "Générer ou régénérer le média",
     "domain": "navigation",
     "sourceFiles": [
       "app/dashboard/agent/AgentClient.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={styles.publishMediaRegenerateButton}\n                    onClick={() => { if (manualPlanningOnly) void openScheduledMediaGeneration(); else { setPublishMediaPreviewOpen(false); requestPublishChannelRegenerat",
+    "sourceAnchor": "<button type=\"button\" className={styles.publishMediaRegenerateButton}\n                    onClick={() => { if (scheduledEditSession) void openScheduledMediaGeneration(); else { setPublishMediaPreviewOpen(false); requestP",
     "capabilityId": "navigation.local-controls",
     "toolNames": [
       "controlLocalInterface"
@@ -1253,7 +1253,7 @@
     ],
     "testAnchor": "the actual scheduled Studio handoffs clean a stale prepared transfer before opening any source in another scope",
     "controlIds": [
-      "app/dashboard/agent/AgentClient.tsx#button:aebf9ade6511b7b4:1"
+      "app/dashboard/agent/AgentClient.tsx#button:c056bb902ec52f21:1"
     ],
     "notes": "UI locale Basic uniquement sous scheduledEditSession et droits natifs. select studio_generate/studio_modify/studio_retouch ouvre uniquement la bonne session Studio et son média exact ; garde crédits/compatibilité, nettoie un transfert tardif hors compte/source. Aucun job généré, quota consommé ou consentement déduit par cette ouverture. Compte/acteur/source/canal/révision et rendu contrôlés ; ne publie ni ne persiste un Agent. Contrôle natif AgentWorkspaceClient ; restrictions du compte et de l’offre conservées."
   },

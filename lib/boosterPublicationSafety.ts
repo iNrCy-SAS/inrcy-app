@@ -31,7 +31,7 @@ const CONTACT_REMOVAL_MARKER = "\uFFF0";
 
 function normalizeSpaces(input: string) {
   return String(input || "")
-    .replace(/\r/g, "")
+    .replace(/\r\n?/g, "\n")
     .replace(/[\t\f\v]+/g, " ")
     .replace(/ {2,}/g, " ")
     .replace(/ +([,.;!?])/g, "$1")
@@ -150,7 +150,7 @@ function sanitizeTextLines(
   preserveContactCue = false,
 ) {
   const lines = String(input || "")
-    .replace(/\r/g, "")
+    .replace(/\r\n?/g, "\n")
     .split("\n")
     .map((line) => {
       const transformed = transformLine(line);
