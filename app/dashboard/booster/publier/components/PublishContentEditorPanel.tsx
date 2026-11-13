@@ -715,7 +715,7 @@ export default function PublishContentEditorPanel({
                   data-content-state={xUrlBlocked ? "blocked" : hasText ? "ready" : "empty"}
                   title={
                     xUrlBlocked
-                      ? "X est bloqué : corrigez le format de lien détecté."
+                      ? i18nT("editor_x_link_format_blocked")
                       : hasText
                         ? i18nT("content_text_present")
                         : i18nT("content_text_to_review")
@@ -966,8 +966,7 @@ export default function PublishContentEditorPanel({
                       flex: "0 0 auto",
                     }}
                   >
-                    Retirer le lien du CTA
-                  </button>
+                    {i18nT("retirer_le_lien_du_cta_754fb2a5")}{" "}</button>
                 ) : null}
               </div>
             ) : null}
@@ -1151,10 +1150,10 @@ export default function PublishContentEditorPanel({
                             }}
                           >
                             {activeCard === "x"
-                              ? "CTA intégré au texte"
+                              ? i18nT("cta_integre_au_texte_1b1df839")
                               : i18nT("bouton_fd5aea71")}{" "}</div>
                           <select
-                            aria-label={activeCard === "x" ? "CTA intégré au texte" : i18nT("bouton_fd5aea71")}
+                            aria-label={activeCard === "x" ? i18nT("cta_integre_au_texte_1b1df839") : i18nT("bouton_fd5aea71")}
                             value={ctaChoice}
                             disabled={voiceBusy}
                             onChange={(e) =>
@@ -1213,7 +1212,7 @@ export default function PublishContentEditorPanel({
                                 }}
                               >
                                 {activeCard === "x"
-                                  ? "Texte du CTA"
+                                  ? i18nT("texte_du_cta_f158373f")
                                   : i18nT("texte_du_bouton_5bc213b4")}{" "}
                               </div>
                               <input
@@ -1327,7 +1326,7 @@ export default function PublishContentEditorPanel({
                                 }}
                               >
                                 {activeCard === "x"
-                                  ? "Texte du CTA"
+                                  ? i18nT("texte_du_cta_f158373f")
                                   : i18nT("texte_du_bouton_5bc213b4")}{" "}
                               </div>
                               <input
@@ -1493,8 +1492,7 @@ export default function PublishContentEditorPanel({
                     }}
                   >
                     <div style={{ fontSize: 12, opacity: 0.85 }}>
-                      {i18nT("hashtags_338da6e1")} — 2 maximum
-                    </div>
+                      {i18nT("value_2_maximum_d33b1e0f", { value0: i18nT("hashtags_338da6e1") })}</div>
                     {creationMode === "manual" ? (
                       <MediaSubjectVoiceButton
                         key="manual-voice:x:hashtags"

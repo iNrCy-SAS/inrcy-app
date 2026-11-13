@@ -595,9 +595,10 @@
     ],
     "testAnchor": "rescheduling and cancellation change only native scheduling fields after exact approval and recover without duplication",
     "controlIds": [
-      "app/dashboard/agent/AgentClient.tsx#button:596960f0ab69418d:1"
+      "app/dashboard/agent/AgentClient.tsx#button:596960f0ab69418d:1",
+      "app/dashboard/agent/AgentClient.tsx#button:95687cc511e647b5:1"
     ],
-    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Le déplacement d’une programmation manuelle exige ID/snapshot inchangés et confirmation signée ; ouvrir son calendrier reste un effet UI distinct. Contrôle natif AgentWorkspaceClient ; restrictions du compte et de l’offre conservées."
+    "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Le déplacement d’une programmation manuelle exige ID/snapshot inchangés et confirmation signée ; ouvrir son calendrier reste un effet UI distinct. Contrôle natif AgentWorkspaceClient ; restrictions du compte et de l’offre conservées. L’icône calendrier et le crayon à droite de la date ouvrent le même éditeur avec le même garde d’enregistrement ; ouvrir l’éditeur ne déplace pas la programmation. Les confirmations serveur restent inchangées."
   },
   {
     "id": "history-plan-eb4cc726ce42a1e8",
@@ -1786,7 +1787,7 @@
     "sourceFiles": [
       "app/dashboard/agent/_components/AgentActionModals.tsx"
     ],
-    "sourceAnchor": "<summary>\n                                          {i18nT(\"planning_actions_menu\")}\n                                        </summary>",
+    "sourceAnchor": "<summary>{i18nT(\"planning_actions_menu\")}</summary>",
     "capabilityId": "navigation.local-controls",
     "toolNames": [
       "controlLocalInterface"
@@ -2240,7 +2241,7 @@
     ],
     "testAnchor": "Basic Send native links click only an exact rendered owned-detail target and expose no URL in hints",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#a:ec64658389866242:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#a:90e5a10b0ff44063:1"
     ],
     "notes": "send_links cible une ref native effectivement rendue pour le détail Publication owned : compte/post/vidéo ou pièce jointe ordinale. URL jamais fournie par le modèle, protocole et href courant revérifiés ; ACK handed_to_browser, ni page externe chargée ni fichier reçu présumés. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées.",
     "handoffReason": "Le lien public exact du compte ou de la publication est transmis au navigateur par sa référence native. La page du fournisseur et son éventuelle connexion restent dans cet onglet externe ; l’assistant ne peut pas en confirmer le chargement ni franchir son authentification."
@@ -2264,7 +2265,7 @@
     ],
     "testAnchor": "Basic Send native links click only an exact rendered owned-detail target and expose no URL in hints",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#a:a15da78c0059657e:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#a:5f6440bf43f9b00e:1"
     ],
     "notes": "send_links cible une ref native effectivement rendue pour le détail Publication owned : compte/post/vidéo ou pièce jointe ordinale. URL jamais fournie par le modèle, protocole et href courant revérifiés ; ACK handed_to_browser, ni page externe chargée ni fichier reçu présumés. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées.",
     "handoffReason": "Le lien public exact du compte ou de la publication est transmis au navigateur par sa référence native. La page du fournisseur et son éventuelle connexion restent dans cet onglet externe ; l’assistant ne peut pas en confirmer le chargement ni franchir son authentification."
@@ -2290,7 +2291,7 @@
     ],
     "testAnchor": "a status-only publication follow-up selects the native read-only projection",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:ccd4c6482b18636f:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:901b7e8eba9699cb:1"
     ],
     "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Suivi fournisseur natif du canal/publication exact, résultat processing/partial distingué de published ; aucune republication. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées."
   },
@@ -2314,7 +2315,7 @@
     ],
     "testAnchor": "TikTok retry in Basic requires signed approval and reuses only a confirmed failed native publication",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:811036d6b642815d:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:e3a20472b89e62f4:1"
     ],
     "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Retry TikTok seulement sur échec confirmé, consentements natifs inchangés, aperçu signé ; état pending/unknown/incertain interdit. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées."
   },
@@ -2739,7 +2740,7 @@
     "sourceFiles": [
       "app/dashboard/mails/_components/MailboxDetailsModal.tsx"
     ],
-    "sourceAnchor": "<option key={option.value} value={option.value} style={darkOptionStyle}>\n                                                          {option.label}\n                                                        </option>",
+    "sourceAnchor": "<option key={option.value} value={option.value} style={darkOptionStyle}>\n                                                          {getLocalizedPreferredCtaLabel(option.value, boosterT)}\n                                 ",
     "capabilityId": "publication.published-edit",
     "toolNames": [
       "readPublishedPublicationForEdit",
@@ -2778,7 +2779,7 @@
     ],
     "testAnchor": "Basic published edits read an owned delivered channel and require the exact signed CTA/media preview before any external work",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#input:156f38ce4f1598b8:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#input:e8f0a7bccbf891af:1"
     ],
     "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. CTA/URL/téléphone et texte/média publié disposent du workflow owned/versionné et de son aperçu signé. La sauvegarde distante vérifiée ne prétend pas remplir le formulaire local ; risques de remplacement et limites de canaux natifs conservés. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées."
   },
@@ -2828,7 +2829,7 @@
     ],
     "testAnchor": "Basic published edits read an owned delivered channel and require the exact signed CTA/media preview before any external work",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#input:87dd92302e8e04c8:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#input:129af740ab674ccd:1"
     ],
     "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. CTA/URL/téléphone et texte/média publié disposent du workflow owned/versionné et de son aperçu signé. La sauvegarde distante vérifiée ne prétend pas remplir le formulaire local ; risques de remplacement et limites de canaux natifs conservés. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées."
   },
@@ -2853,7 +2854,7 @@
     ],
     "testAnchor": "Basic published edits read an owned delivered channel and require the exact signed CTA/media preview before any external work",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#input:bb86a0200a3b3530:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#input:bc9f419784d66f29:1"
     ],
     "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. CTA/URL/téléphone et texte/média publié disposent du workflow owned/versionné et de son aperçu signé. La sauvegarde distante vérifiée ne prétend pas remplir le formulaire local ; risques de remplacement et limites de canaux natifs conservés. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées."
   },
@@ -3061,7 +3062,7 @@
     ],
     "testAnchor": "Basic Send editor controls require visible buttons real native commits and reject a late Studio handoff",
     "controlIds": [
-      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:d73d59a754a0e500:1"
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:929826fdbbc41276:1"
     ],
     "notes": "send_editor exige le bouton natif monté et activé. Bibliothèque/édition/Studio réel relu après commit, clés compte/canal/détail et guard après préparation ; transfert tardif nettoyé sans ouvrir le mauvais détail. Close ne concerne que la bibliothèque. Contrôle natif MailboxDetailsModal ; restrictions du compte et de l’offre conservées."
   },

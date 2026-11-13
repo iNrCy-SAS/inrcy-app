@@ -94,6 +94,7 @@ export function ChannelImageAdapterModal({
   sidebarItems,
 }: ModalProps) {
   const i18nT = useTranslations("shell");
+  const localizedFitLabel = (value: string) => value === "Plein cadre" ? i18nT("plein_cadre_96d0dd78") : value === "Image entière" ? i18nT("image_entiere_76cd8175") : value === "Adaptée" ? i18nT("adapter_fit_adapted") : value === "Personnalisée" ? i18nT("adapter_fit_custom") : value;
   const [viewportWidth, setViewportWidth] = useState<number>(typeof window === "undefined" ? 1440 : window.innerWidth);
   const [containerWidth, setContainerWidth] = useState(0);
   const [showBefore, setShowBefore] = useState(false);
@@ -224,7 +225,7 @@ export function ChannelImageAdapterModal({
   ) => {
     const current = overlayItems[index] || {
       id: createOverlayId(),
-      text: "Nouveau texte",
+      text: i18nT("nouveau_texte_ece4eff8"),
       x: 50,
       y: 50,
       width: 68,
@@ -251,7 +252,7 @@ export function ChannelImageAdapterModal({
       ...overlayItems,
       {
         id: createOverlayId(),
-        text: `Texte ${nextIndex + 1}`,
+        text: i18nT("texte_value_7b74730f", { value0: nextIndex + 1 }),
         x: 50,
         y: clamp(28 + nextIndex * 11, 18, 82),
         width: 68,
@@ -560,7 +561,7 @@ export function ChannelImageAdapterModal({
     ...(previewInfoPlacement === "overlay" ? { position: "absolute", left: 12, right: 12, bottom: 12, pointerEvents: "none" } as React.CSSProperties : { marginBottom: 8 }),
     display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center", flexWrap: "wrap",
   }}>
-    <div style={{ fontSize: 12, padding: "6px 10px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>{showBefore ? i18nT("image_source_bbdaeab9") : `${fitLabel} • ${zoomLabel}`}</div>
+    <div style={{ fontSize: 12, padding: "6px 10px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>{showBefore ? i18nT("image_source_bbdaeab9") : `${localizedFitLabel(fitLabel)} • ${zoomLabel}`}</div>
     {!isMobile ? <div style={{ fontSize: 11, padding: "6px 10px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>{i18nT("glisser_molette_double_clic_292d179a")}</div> : null}
   </div>;
   return (
@@ -646,7 +647,7 @@ export function ChannelImageAdapterModal({
             <div style={{ fontSize: 12, opacity: 0.74, marginTop: 4, overflowWrap: "anywhere", paddingLeft: isMobile ? 2 : 0 }}>{subtitle}</div>
           </div>
           <div style={{ display: "flex", alignItems: "stretch", gap: isMobile ? 6 : 8, flexShrink: 1, flexWrap: "wrap", justifyContent: isMobile ? "stretch" : "flex-end", width: isMobile ? "100%" : undefined, minWidth: 0, overflow: "visible", boxSizing: "border-box" }}>
-            <button type="button" className={buttonClassName} onClick={onApplyToChannelImages} disabled={!onApplyToChannelImages} title={onApplyToChannelImages ? "Appliquer ce cadrage à toutes les images de ce canal" : "Disponible avec au moins 2 images sur ce canal"} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "1 1 0" : undefined, maxWidth: isMobile ? "none" : undefined, justifyContent: "center", alignItems: "center", fontSize: isMobile ? 11 : undefined, lineHeight: 1.1, padding: isMobile ? "0 6px" : "0 16px", whiteSpace: "normal", textAlign: "center", boxSizing: "border-box", opacity: onApplyToChannelImages ? 1 : 0.48, cursor: onApplyToChannelImages ? "pointer" : "not-allowed" }}>{i18nT("appliquer_partout_1c738082")}</button>
+            <button type="button" className={buttonClassName} onClick={onApplyToChannelImages} disabled={!onApplyToChannelImages} title={onApplyToChannelImages ? i18nT("adapter_apply_channel_images") : i18nT("adapter_apply_channel_images_unavailable")} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "1 1 0" : undefined, maxWidth: isMobile ? "none" : undefined, justifyContent: "center", alignItems: "center", fontSize: isMobile ? 11 : undefined, lineHeight: 1.1, padding: isMobile ? "0 6px" : "0 16px", whiteSpace: "normal", textAlign: "center", boxSizing: "border-box", opacity: onApplyToChannelImages ? 1 : 0.48, cursor: onApplyToChannelImages ? "pointer" : "not-allowed" }}>{i18nT("appliquer_partout_1c738082")}</button>
             {onApplyToSelectedChannels ? <button type="button" className={buttonClassName} onClick={onApplyToSelectedChannels} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "1 1 0" : undefined, justifyContent: "center", alignItems: "center", fontSize: isMobile ? 11 : undefined, lineHeight: 1.1, padding: isMobile ? "0 6px" : "0 16px", whiteSpace: "normal", textAlign: "center", boxSizing: "border-box" }}>{i18nT("appliquer_aux_canaux_03aeae7e")}</button> : null}
             {onResetChannel ? <button type="button" className={buttonClassName} onClick={onResetChannel} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "1 1 0" : undefined, justifyContent: "center", alignItems: "center", fontSize: isMobile ? 11 : undefined, lineHeight: 1.1, padding: isMobile ? "0 6px" : "0 16px", whiteSpace: "nowrap", textAlign: "center", boxSizing: "border-box" }}>{i18nT("reinit_canal_bae403c5")}</button> : null}
             <button type="button" className={primaryButtonClassName || buttonClassName} onClick={onSave} disabled={saving} aria-busy={saving} aria-label={saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")} title={saving ? i18nT("enregistrement_e7d5f232") : i18nT("enregistrer_f7c8bcd8")} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? "0 0 42px" : undefined, width: isMobile ? 42 : undefined, padding: isMobile ? 0 : "0 16px", justifyContent: "center", alignItems: "center", fontSize: isMobile ? 18 : undefined, boxSizing: "border-box", cursor: saving ? "wait" : undefined, opacity: saving ? 0.68 : 1 }}>{saving ? (isMobile ? "…" : i18nT("enregistrement_e7d5f232")) : isMobile ? "💾" : i18nT("enregistrer_f7c8bcd8")}</button>
@@ -692,7 +693,7 @@ export function ChannelImageAdapterModal({
                       data-active={isActive ? "true" : "false"}
                       role="group"
                       tabIndex={0}
-                      aria-label={`Bloc texte ${overlayIndex + 1} : ${overlayItem.text}`}
+                      aria-label={i18nT("bloc_texte_value_value_7c8bad8b", { value0: overlayIndex + 1, value1: overlayItem.text })}
                       aria-describedby={overlayKeyboardInstructionsId}
                       onKeyDown={(event) =>
                         handleOverlayKeyDown(event, overlayIndex)
@@ -750,8 +751,8 @@ export function ChannelImageAdapterModal({
                       {isActive ? (
                         <button
                           type="button"
-                          aria-label="Redimensionner ce texte"
-                          title="Redimensionner ce texte"
+                          aria-label={i18nT("redimensionner_ce_texte_fdff7ea7")}
+                          title={i18nT("redimensionner_ce_texte_fdff7ea7")}
                           onClick={(event) => event.stopPropagation()}
                           onPointerDown={(event) =>
                             beginOverlayGesture(event, "resize", overlayIndex)
@@ -797,23 +798,20 @@ export function ChannelImageAdapterModal({
                     border: 0,
                   }}
                 >
-                  Utilisez les flèches pour déplacer ce texte. Maintenez Maj et
-                  utilisez les flèches pour le redimensionner. Maintenez Alt
-                  pour un réglage précis.
-                </span>
+                  {i18nT("utilisez_les_fleches_pour_deplacer_ce_99b6faeb")}{" "}</span>
                 <div style={{ position: "absolute", inset: 12, borderRadius: 16, border: "1px solid rgba(255,255,255,0.14)", boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.14)", pointerEvents: "none" }} />
                 {previewInfoPlacement === "overlay" ? previewInformation : null}
               </div>
             </div>
             <div style={{ fontSize: 12, padding: isMobile ? "12px 10px 0" : "10px 2px 0", lineHeight: 1.55, width: "100%", maxWidth: "100%", boxSizing: "border-box", overflowWrap: "break-word", wordBreak: "normal" }}>
               {previewInfoPlacement === "below" ? previewInformation : null}
-              <div style={{ opacity: 0.72 }}>{i18nT("deplacez_l_image_ajustez_le_zoom_b7f704f4")}{embedded ? " Les blocs de texte se déplacent et se redimensionnent directement sur le visuel." : ` ${isolationNote || i18nT("ces_reglages_concernent_uniquement_ce_canal_c0d2ebf2")}`}</div>
+              <div style={{ opacity: 0.72 }}>{i18nT("deplacez_l_image_ajustez_le_zoom_b7f704f4")}{" "}{embedded ? i18nT("les_blocs_de_texte_se_deplacent_36445c66") : ` ${isolationNote || i18nT("ces_reglages_concernent_uniquement_ce_canal_c0d2ebf2")}`}</div>
             </div>
           </div>
 
           <div style={{ minWidth: 0, minHeight: 0, height: isCompact ? "auto" : "100%", display: isMobile ? "flex" : "grid", gridTemplateColumns: settingsGridColumns, gridTemplateRows: settingsGridColumns ? "auto minmax(0, 1fr)" : undefined, flexDirection: isMobile ? "column" : undefined, alignContent: "stretch", alignItems: "stretch", gap: 12, order: isMobile ? 2 : 1, flex: isMobile ? "0 0 auto" : undefined }}>
             <div style={{ display: "grid", gap: 8, padding: isMobile ? 12 : 14, borderRadius: 20, minWidth: 0, width: "100%", boxSizing: "border-box", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", gridColumn: settingsGridColumns ? "1" : undefined, gridRow: settingsGridColumns ? "1" : undefined }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}><div style={{ fontSize: 12, opacity: 0.82 }}>{i18nT("cadrage_4e72389f")}</div><div style={{ fontSize: 11, opacity: 0.55 }}>{fitLabel} • {zoomLabel}</div></div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}><div style={{ fontSize: 12, opacity: 0.82 }}>{i18nT("cadrage_4e72389f")}</div><div style={{ fontSize: 11, opacity: 0.55 }}>{localizedFitLabel(fitLabel)} • {zoomLabel}</div></div>
               <div style={{ display: "grid", gridTemplateColumns: controlsGridColumns, gap: 8 }}>
                 <button type="button" className={buttonClassName} onClick={onZoomOut} style={{ justifyContent: "center" }}>−</button>
                 <button type="button" className={buttonClassName} onClick={onZoomIn} style={{ justifyContent: "center" }}>+</button>
@@ -825,7 +823,7 @@ export function ChannelImageAdapterModal({
             </div>
 
             <div style={{ display: "grid", alignContent: "start", gap: 10, padding: isMobile ? 12 : 14, borderRadius: 20, minWidth: 0, width: "100%", height: settingsGridColumns ? "fit-content" : undefined, boxSizing: "border-box", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", gridColumn: settingsGridColumns ? "1" : undefined, gridRow: settingsGridColumns ? "2" : undefined }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12, opacity: 0.82 }}><span>{i18nT("arriere_plan_d45252c1")}</span><small style={{ opacity: 0.7 }}>Fond du canevas</small></div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontSize: 12, opacity: 0.82 }}><span>{i18nT("arriere_plan_d45252c1")}</span><small style={{ opacity: 0.7 }}>{i18nT("fond_du_canevas_906f234f")}</small></div>
               <select value={bgMode} onChange={(e) => onBackgroundModeChange(e.target.value as BackgroundMode)} style={{ ...studioSelectStyle, minHeight: 40 }}>
                 <option value="transparent" style={studioOptionStyle}>{i18nT("transparent_0491f7bd")}</option>
                 <option value="white" style={studioOptionStyle}>{i18nT("blanc_f03e5122")}</option>
@@ -843,8 +841,8 @@ export function ChannelImageAdapterModal({
             {onOverlayChange ? (
               <div style={{ display: "grid", gridTemplateRows: "auto auto minmax(0, 1fr)", alignContent: "start", gap: 9, padding: isMobile ? 12 : 14, borderRadius: 20, minWidth: 0, minHeight: 0, width: "100%", height: settingsGridColumns ? "100%" : undefined, boxSizing: "border-box", border: "1px solid rgba(192,132,252,0.22)", background: "rgba(192,132,252,0.06)", gridColumn: settingsGridColumns ? "2" : undefined, gridRow: settingsGridColumns ? "1 / 3" : undefined, overflow: isCompact ? "visible" : "hidden" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8, alignItems: "center" }}>
-                  <div style={{ fontSize: 12, opacity: 0.9, fontWeight: 850 }}>Textes et liens</div>
-                  {overlayItems.length ? <button type="button" className={buttonClassName} onClick={addOverlay} disabled={overlayItems.length >= MAX_IMAGE_OVERLAY_ITEMS} style={{ minHeight: 32, padding: "0 10px", fontSize: 11, opacity: overlayItems.length >= MAX_IMAGE_OVERLAY_ITEMS ? 0.5 : 1 }}>＋ Ajouter un texte</button> : null}
+                  <div style={{ fontSize: 12, opacity: 0.9, fontWeight: 850 }}>{i18nT("textes_et_liens_8c9d0ac3")}</div>
+                  {overlayItems.length ? <button type="button" className={buttonClassName} onClick={addOverlay} disabled={overlayItems.length >= MAX_IMAGE_OVERLAY_ITEMS} style={{ minHeight: 32, padding: "0 10px", fontSize: 11, opacity: overlayItems.length >= MAX_IMAGE_OVERLAY_ITEMS ? 0.5 : 1 }}>{i18nT("ajouter_un_texte_bb9e5a1f")}</button> : null}
                 </div>
                 {overlayItems.length ? (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 6 }}>
@@ -857,18 +855,18 @@ export function ChannelImageAdapterModal({
                         onClick={() => setActiveOverlayIndex(index)}
                         style={{ minWidth: 0, minHeight: 30, padding: "0 7px", justifyContent: "center", overflow: "hidden", borderColor: index === activeOverlayIndex ? "rgba(76,195,255,0.6)" : undefined, background: index === activeOverlayIndex ? "rgba(76,195,255,0.13)" : undefined, fontSize: 10, textOverflow: "ellipsis", whiteSpace: "nowrap" }}
                       >
-                        {item.text || `Texte ${index + 1}`}
+                        {item.text || i18nT("texte_value_7b74730f", { value0: index + 1 })}
                       </button>
                     ))}
                   </div>
                 ) : (
-                  <button type="button" className={buttonClassName} onClick={addOverlay} style={{ width: "100%", minHeight: 56, justifyContent: "center", borderStyle: "dashed" }}>＋ Ajouter le premier texte</button>
+                  <button type="button" className={buttonClassName} onClick={addOverlay} style={{ width: "100%", minHeight: 56, justifyContent: "center", borderStyle: "dashed" }}>{i18nT("ajouter_le_premier_texte_a8b4d549")}</button>
                 )}
                 {activeOverlay ? (
                   <div style={{ minHeight: 0, display: "grid", alignContent: "start", gap: 8, overflow: isCompact ? "visible" : "hidden" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                      <small style={{ opacity: 0.68 }}>Bloc {activeOverlayIndex + 1} · déplaçable sur l’image</small>
-                      <button type="button" className={buttonClassName} onClick={() => removeOverlay()} style={{ minHeight: 28, padding: "0 8px", fontSize: 10 }}>Supprimer</button>
+                      <small style={{ opacity: 0.68 }}>{i18nT("adapter_movable_text_block", { index: activeOverlayIndex + 1 })}</small>
+                      <button type="button" className={buttonClassName} onClick={() => removeOverlay()} style={{ minHeight: 28, padding: "0 8px", fontSize: 10 }}>{i18nT("supprimer_1acfc1c7")}</button>
                     </div>
                     <textarea
                       value={activeOverlay.text || ""}
@@ -879,7 +877,7 @@ export function ChannelImageAdapterModal({
                       style={{ width: "100%", minHeight: 58, resize: "none", borderRadius: 12, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(2,6,23,0.72)", color: "#fff", padding: "9px 10px", boxSizing: "border-box", font: "inherit" }}
                     />
                     <label style={{ display: "grid", gap: 4, fontSize: 11, opacity: 0.88 }}>
-                      <span>Lien de ce texte <small style={{ opacity: 0.65 }}>(facultatif)</small></span>
+                      <span>{i18nT("lien_de_ce_texte_d7919d22")}{" "}<small style={{ opacity: 0.65 }}>{i18nT("facultatif_6d7d6db4")}</small></span>
                       <input
                         type="url"
                         value={activeOverlay.linkUrl || ""}
@@ -890,7 +888,7 @@ export function ChannelImageAdapterModal({
                     </label>
                     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8 }}>
                       <label style={{ display: "grid", gap: 4, fontSize: 11, opacity: 0.88 }}>
-                        <span>Police</span>
+                        <span>{i18nT("police_a5dfc157")}</span>
                         <select value={activeOverlay.fontFamily || "inter"} onChange={(event) => updateOverlay({ fontFamily: event.target.value as ImageOverlayFontFamily })} style={studioSelectStyle}>
                           <option value="inter" style={studioOptionStyle}>Inter</option>
                           <option value="arial" style={studioOptionStyle}>Arial</option>
@@ -899,34 +897,33 @@ export function ChannelImageAdapterModal({
                         </select>
                       </label>
                       <label style={{ display: "grid", gap: 4, fontSize: 11, opacity: 0.88 }}>
-                        <span>Taille · {(activeOverlay.fontSize || 4.6).toFixed(1)}</span>
+                        <span>{i18nT("taille_value_4d1f1925", { value0: (activeOverlay.fontSize || 4.6).toFixed(1) })}</span>
                         <input type="range" min="1.5" max="10" step="0.25" value={activeOverlay.fontSize || 4.6} onChange={(event) => updateOverlay({ fontSize: Number(event.target.value) })} style={{ width: "100%", minHeight: 36, accentColor: "#4cc3ff" }} />
                       </label>
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 44px", gap: 8 }}>
-                      <select value={activeOverlay.style || "solid"} onChange={(event) => updateOverlay({ style: event.target.value as ImageOverlay["style"] })} aria-label="Style du bandeau" style={studioSelectStyle}>
-                        <option value="solid" style={studioOptionStyle}>Panneau sombre</option>
-                        <option value="glass" style={studioOptionStyle}>Verre translucide</option>
+                      <select value={activeOverlay.style || "solid"} onChange={(event) => updateOverlay({ style: event.target.value as ImageOverlay["style"] })} aria-label={i18nT("style_du_bandeau_e996ddab")} style={studioSelectStyle}>
+                        <option value="solid" style={studioOptionStyle}>{i18nT("panneau_sombre_62c7e0f1")}</option>
+                        <option value="glass" style={studioOptionStyle}>{i18nT("verre_translucide_4e637a72")}</option>
                       </select>
-                      <input type="color" value={activeOverlay.color || "#ffffff"} onChange={(event) => updateOverlay({ color: event.target.value })} aria-label="Couleur du texte" title="Couleur du texte" style={{ width: 44, height: 36, padding: 2, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent" }} />
+                      <input type="color" value={activeOverlay.color || "#ffffff"} onChange={(event) => updateOverlay({ color: event.target.value })} aria-label={i18nT("couleur_du_texte_37e78173")} title={i18nT("couleur_du_texte_37e78173")} style={{ width: 44, height: 36, padding: 2, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent" }} />
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) 44px", gap: 8 }}>
-                      <select value={activeOverlay.borderWidth ?? 0} onChange={(event) => updateOverlay({ borderWidth: Number(event.target.value) })} aria-label="Épaisseur de la bordure" style={studioSelectStyle}>
-                        <option value="0" style={studioOptionStyle}>Bordure transparente</option>
-                        <option value="1" style={studioOptionStyle}>Bordure fine</option>
-                        <option value="2" style={studioOptionStyle}>Bordure standard</option>
-                        <option value="4" style={studioOptionStyle}>Bordure épaisse</option>
+                      <select value={activeOverlay.borderWidth ?? 0} onChange={(event) => updateOverlay({ borderWidth: Number(event.target.value) })} aria-label={i18nT("epaisseur_de_la_bordure_a843eaa2")} style={studioSelectStyle}>
+                        <option value="0" style={studioOptionStyle}>{i18nT("bordure_transparente_8e745ecb")}</option>
+                        <option value="1" style={studioOptionStyle}>{i18nT("bordure_fine_ac9b31c1")}</option>
+                        <option value="2" style={studioOptionStyle}>{i18nT("bordure_standard_20d5654f")}</option>
+                        <option value="4" style={studioOptionStyle}>{i18nT("bordure_epaisse_fb368457")}</option>
                       </select>
-                      <input type="color" value={activeOverlay.borderColor || "#38bdf8"} disabled={(activeOverlay.borderWidth ?? 0) === 0} onChange={(event) => updateOverlay({ borderColor: event.target.value })} aria-label="Couleur de la bordure" title={(activeOverlay.borderWidth ?? 0) === 0 ? "Activez une bordure pour choisir sa couleur" : "Couleur de la bordure"} style={{ width: 44, height: 36, padding: 2, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", opacity: (activeOverlay.borderWidth ?? 0) === 0 ? 0.4 : 1 }} />
+                      <input type="color" value={activeOverlay.borderColor || "#38bdf8"} disabled={(activeOverlay.borderWidth ?? 0) === 0} onChange={(event) => updateOverlay({ borderColor: event.target.value })} aria-label={i18nT("couleur_de_la_bordure_92b9907a")} title={(activeOverlay.borderWidth ?? 0) === 0 ? i18nT("adapter_border_color_disabled") : i18nT("couleur_de_la_bordure_92b9907a")} style={{ width: 44, height: 36, padding: 2, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "transparent", opacity: (activeOverlay.borderWidth ?? 0) === 0 ? 0.4 : 1 }} />
                     </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 7 }}>
-                      <button type="button" className={buttonClassName} aria-pressed={activeOverlay.bold !== false} onClick={() => updateOverlay({ bold: activeOverlay.bold === false })} style={{ minHeight: 34, justifyContent: "center", fontWeight: 900, borderColor: activeOverlay.bold !== false ? "rgba(76,195,255,0.55)" : undefined }}>B</button>
-                      <button type="button" className={buttonClassName} aria-pressed={Boolean(activeOverlay.italic)} onClick={() => updateOverlay({ italic: !activeOverlay.italic })} style={{ minHeight: 34, justifyContent: "center", fontStyle: "italic", borderColor: activeOverlay.italic ? "rgba(76,195,255,0.55)" : undefined }}>I</button>
-                      <button type="button" className={buttonClassName} aria-pressed={Boolean(activeOverlay.underline)} onClick={() => updateOverlay({ underline: !activeOverlay.underline })} style={{ minHeight: 34, justifyContent: "center", textDecoration: "underline", borderColor: activeOverlay.underline ? "rgba(76,195,255,0.55)" : undefined }}>U</button>
+                      <button type="button" className={buttonClassName} aria-label={i18nT("adapter_bold")} title={i18nT("adapter_bold")} aria-pressed={activeOverlay.bold !== false} onClick={() => updateOverlay({ bold: activeOverlay.bold === false })} style={{ minHeight: 34, justifyContent: "center", fontWeight: 900, borderColor: activeOverlay.bold !== false ? "rgba(76,195,255,0.55)" : undefined }}>B</button>
+                      <button type="button" className={buttonClassName} aria-label={i18nT("adapter_italic")} title={i18nT("adapter_italic")} aria-pressed={Boolean(activeOverlay.italic)} onClick={() => updateOverlay({ italic: !activeOverlay.italic })} style={{ minHeight: 34, justifyContent: "center", fontStyle: "italic", borderColor: activeOverlay.italic ? "rgba(76,195,255,0.55)" : undefined }}>I</button>
+                      <button type="button" className={buttonClassName} aria-label={i18nT("adapter_underline")} title={i18nT("adapter_underline")} aria-pressed={Boolean(activeOverlay.underline)} onClick={() => updateOverlay({ underline: !activeOverlay.underline })} style={{ minHeight: 34, justifyContent: "center", textDecoration: "underline", borderColor: activeOverlay.underline ? "rgba(76,195,255,0.55)" : undefined }}>U</button>
                     </div>
                     <small style={{ opacity: 0.68, lineHeight: 1.35 }}>
-                      Sur iNrCy et Site web, ce bloc reste cliquable à cet emplacement. Sur les réseaux qui acceptent une destination, le premier lien du média devient le lien de la publication. Instagram, TikTok, X et YouTube Shorts ne rendent pas ce lien cliquable dans ce parcours API.
-                    </small>
+                      {i18nT("sur_inrcy_et_site_web_ce_830ff74d")}{" "}</small>
                   </div>
                 ) : null}
               </div>
@@ -959,7 +956,7 @@ export function ChannelImageAdapterModal({
                           <div style={{ fontSize: 12, fontWeight: 800, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title}</div>
                           {item.fitLabel ? (
                             <span style={{ flex: "0 0 auto", fontSize: 9.5, fontWeight: 900, padding: "3px 6px", borderRadius: 999, background: item.fitLabel === "Plein cadre" ? "rgba(76,195,255,0.14)" : "rgba(255,255,255,0.08)", color: item.fitLabel === "Plein cadre" ? "#bae6fd" : "rgba(255,255,255,0.72)", border: item.fitLabel === "Plein cadre" ? "1px solid rgba(76,195,255,0.24)" : "1px solid rgba(255,255,255,0.10)", whiteSpace: "nowrap" }}>
-                              {item.fitLabel}
+                              {localizedFitLabel(item.fitLabel)}
                             </span>
                           ) : null}
                         </div>

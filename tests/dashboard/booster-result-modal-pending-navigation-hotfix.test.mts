@@ -26,9 +26,9 @@ test("queued and processing channels are displayed as pending before the ok flag
   );
   assert.match(
     resultModal,
-    /const accessibleStatusLabel = entryIsSkipped[\s\S]*?: entryIsPending[\s\S]*?\? "En attente"[\s\S]*?: entryIsFailed/,
+    /const accessibleStatusLabel = entryIsSkipped[\s\S]*?: entryIsPending[\s\S]*?\? i18nT\("execution_result_pending"\) : statusLabel/,
   );
-  assert.match(resultModal, /const visibleError = !entryIsPending && entry\.error/);
+  assert.match(resultModal, /const errorInput = status !== "pending" \? entry\.error/);
 });
 
 test("opening iNrSend does not call the dashboard close handler that resets the URL", () => {

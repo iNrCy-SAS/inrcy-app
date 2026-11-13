@@ -28,6 +28,7 @@ export function ChannelImageAdapterCardsPanel({
   publicationPreview,
 }: CardsPanelProps) {
   const i18nT = useTranslations("shell");
+  const localizedFitLabel = (value: string) => value === "Plein cadre" ? i18nT("plein_cadre_96d0dd78") : value === "Image entière" ? i18nT("image_entiere_76cd8175") : value === "Adaptée" ? i18nT("adapter_fit_adapted") : value === "Personnalisée" ? i18nT("adapter_fit_custom") : value;
   const viewportWidth = useViewportWidth();
   const [draggedImageKey, setDraggedImageKey] = React.useState<string | null>(null);
   const [dragTargetImageKey, setDragTargetImageKey] = React.useState<string | null>(null);
@@ -86,7 +87,7 @@ export function ChannelImageAdapterCardsPanel({
                 key={tab.key}
                 type="button"
                 onClick={() => onActiveChannelChange(tab.key)}
-                title={tab.tone === "blocked" ? "Correction requise" : tab.tone === "warning" ? "À vérifier" : tab.tone === "ready" ? "Prêt" : undefined}
+                title={tab.tone === "blocked" ? i18nT("adapter_correction_required") : tab.tone === "warning" ? i18nT("adapter_check_required") : tab.tone === "ready" ? i18nT("adapter_ready") : undefined}
                 style={{
                   ...pillButtonStyle,
                   ...(statusStyle || {}),
@@ -302,7 +303,7 @@ export function ChannelImageAdapterCardsPanel({
                         fontWeight: 800,
                       }}
                     >
-                      {item.title || `Image ${index + 1}`}
+                      {item.title || i18nT("image_value_5907a7ef", { value0: index + 1 })}
                     </span>
                     {canDrag ? (
                       <span
@@ -379,7 +380,7 @@ export function ChannelImageAdapterCardsPanel({
                       whiteSpace: "nowrap",
                     }}
                   >
-                    {item.fitLabel}
+                    {localizedFitLabel(item.fitLabel)}
                   </span>
                   <span style={{ fontSize: 10, fontWeight: 900, padding: "4px 7px", borderRadius: 999, background: item.included ? "rgba(34,197,94,0.13)" : "rgba(255,255,255,0.06)", color: item.included ? "#bbf7d0" : "rgba(255,255,255,0.62)", border: item.included ? "1px solid rgba(34,197,94,0.22)" : "1px solid rgba(255,255,255,0.08)" }}>
                     {item.included ? i18nT("incluse_8c79d3a2") : i18nT("ignoree_2b9acddb")}

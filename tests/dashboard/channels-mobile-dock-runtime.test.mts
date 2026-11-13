@@ -16,12 +16,13 @@ function clientLibSources(entry: string, output: Record<string, string> = {}) {
  const key='@/lib/'+entry;if(output[key])return output;const file='lib/'+entry+'.ts',raw=read(file);output[key]=compile(raw);const ast=ts.createSourceFile(file,raw,ts.ScriptTarget.Latest,true);
  for(const node of ast.statements)if(ts.isImportDeclaration(node)&&!node.importClause?.isTypeOnly&&ts.isStringLiteral(node.moduleSpecifier)){const name=node.moduleSpecifier.text;if(name.startsWith('./')&&name.endsWith('.ts'))clientLibSources(name.slice(2,-3),output)}return output;
 }
-const modules={react:packageSource("react","react.production.js"),"react/jsx-runtime":packageSource("react","react-jsx-runtime.production.js"),"react-dom":packageSource("react-dom","react-dom.production.js"),"react-dom/client":packageSource("react-dom","react-dom-client.production.js"),scheduler:packageSource("scheduler","scheduler.production.js"),channels:compile(read("app/dashboard/_components/DashboardChannelsModal.tsx")),nav:compile(`export default function Dock(){const ${toggleMenu.getText(source)};return (${nav!.getText(source)});}`),"../_hooks/useInrAssistantLocalInterface":compile(read("app/dashboard/_hooks/useInrAssistantLocalInterface.ts")),...clientLibSources('inrAssistantLocalInterface')};
+const modules={react:packageSource("react","react.production.js"),"react/jsx-runtime":packageSource("react","react-jsx-runtime.production.js"),"react-dom":packageSource("react-dom","react-dom.production.js"),"react-dom/client":packageSource("react-dom","react-dom-client.production.js"),scheduler:packageSource("scheduler","scheduler.production.js"),channels:compile(read("app/dashboard/_components/DashboardChannelsModal.tsx")),nav:compile(`export default function Dock(){const ${toggleMenu.getText(source)};return (${nav!.getText(source)});}`),"../_hooks/useInrAssistantLocalInterface":compile(read("app/dashboard/_hooks/useInrAssistantLocalInterface.ts")),...clientLibSources('inrAssistantLocalInterface'),...clientLibSources('elementStyleLock')};
 const fixture=`
-const sources=${JSON.stringify(modules)},loaded={};window.fixtureError=null;window.addEventListener("error",event=>window.fixtureError=String(event.error?.stack||event.message));
+const sources=${JSON.stringify(modules)},messages=${JSON.stringify(JSON.parse(read("messages/fr-FR/dashboard.json")))},loaded={};window.fixtureError=null;window.addEventListener("error",event=>window.fixtureError=String(event.error?.stack||event.message));
 function require(name){
  if(name.startsWith('./')&&name.endsWith('.ts'))name='@/lib/'+name.slice(2,-3);
  if(loaded[name])return loaded[name].exports;
+ if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:()=> (key,values={})=>String(messages[key]??key).replace(/\\{(\\w+)\\}/g,(_,variable)=>String(values[variable]??''))};
  if(name.endsWith('.css'))return {__esModule:true,default:new Proxy({},{get:(_,key)=>'channels-'+String(key)})};
  if(name==='next/image')return {__esModule:true,default:({unoptimized,...props})=>React.createElement('img',props)};
  if(name==='./DashboardAssistantTrigger')return {__esModule:true,default:()=>React.createElement('span',null)};

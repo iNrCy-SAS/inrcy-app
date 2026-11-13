@@ -21,6 +21,7 @@ const frames = read(
 );
 const clientRenderer = read("lib/mediaRetoucherRenderClient.ts");
 const serverRenderer = read("lib/boosterImageServerPreparation.ts");
+const shellMessages = JSON.parse(read("messages/fr-FR/shell.json"));
 
 test("ImageOverlay conserve les anciennes positions et borne la géométrie libre", () => {
   assert.deepEqual(resolveImageOverlayCoordinates({ text: "Avant", position: "top" }), {
@@ -88,7 +89,8 @@ test("l'atelier déplace et redimensionne le bandeau à la souris comme au tacti
   assert.match(modal, /beginOverlayGesture\(event, "resize", overlayIndex\)/);
   assert.match(modal, /setPointerCapture\?\.\(event\.pointerId\)/);
   assert.match(modal, /touchAction:\s*"none"/);
-  assert.match(modal, /aria-label="Redimensionner ce texte"/);
+  assert.match(modal, /aria-label=\{i18nT\("redimensionner_ce_texte_fdff7ea7"\)\}/);
+  assert.equal(shellMessages.redimensionner_ce_texte_fdff7ea7, "Redimensionner ce texte");
   assert.match(modal, /right:\s*-14/);
   assert.match(modal, /bottom:\s*-14/);
   assert.doesNotMatch(modal, /retoucher_position_top/);
@@ -102,7 +104,8 @@ test("les blocs texte restent déplaçables et redimensionnables au clavier", ()
   assert.match(modal, /if \(event\.target !== event\.currentTarget\) return/);
   assert.match(modal, /event\.key !== "ArrowLeft"/);
   assert.match(modal, /if \(event\.shiftKey\)/);
-  assert.match(modal, /Utilisez les flèches pour déplacer ce texte/);
+  assert.match(modal, /i18nT\("utilisez_les_fleches_pour_deplacer_ce_99b6faeb"\)/);
+  assert.match(shellMessages.utilisez_les_fleches_pour_deplacer_ce_99b6faeb, /Utilisez les flèches pour déplacer ce texte/);
   assert.match(
     modal,
     /onChange=\{\(event\) => updateOverlay\(\{ text: event\.target\.value \}\)\}/,

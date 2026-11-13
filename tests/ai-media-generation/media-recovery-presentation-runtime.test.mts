@@ -14,6 +14,8 @@ import * as rules from "../../lib/mediaRules.ts";
 import * as policy from "../../lib/inrStudioModalPolicy.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 import * as characterVoiceRules from "../../lib/aiMediaCharacterVoices.ts";
+import * as elementStyleLock from "../../lib/elementStyleLock.ts";
+import { inlineStyle } from "../helpers/inline-style.mts";
 
 type Props = Record<string, unknown>;
 type Element = { type: unknown; props: Props };
@@ -49,6 +51,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
   modules.set("../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface() {} });
   modules.set("./DashboardUnsavedNavigationProvider", { useDashboardUnsavedNavigation: () => ({ registerGuard: () => () => {} }) });
   modules.set("@/lib/inrAssistantStudioFormSelection", studioForm);
+  modules.set("@/lib/elementStyleLock", elementStyleLock);
   modules.set("@/lib/browserAccountCache", { getActiveBrowserUserId: () => null });
   modules.set("next-intl", { useLocale: () => "fr-FR", useTranslations: () => (key: string, values?: Props) => `${key}${values ? JSON.stringify(values) : ""}` });
   modules.set("@/lib/multicompte/constants", { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" });
@@ -59,7 +62,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
     if (name === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy;
     if (name === "@/lib/aiMediaVideoSpeechBudget") return speechBudget;
     assert.ok(modules.has(name), `Unexpected UI dependency: ${name}`); return modules.get(name);
-  }, { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }), addEventListener() {}, removeEventListener() {}, requestAnimationFrame: () => 1, cancelAnimationFrame() {} }, { activeElement: null, body: { style: {}, children: [] }, documentElement: { style: {} } }, class {}, class { observe() {} disconnect() {} });
+  }, { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }), addEventListener() {}, removeEventListener() {}, requestAnimationFrame: () => 1, cancelAnimationFrame() {} }, { activeElement: null, body: { style: inlineStyle(), children: [] }, documentElement: { style: inlineStyle() } }, class {}, class { observe() {} disconnect() {} });
   return {
     render(props: Props, name = "default") { let tree: unknown; let count = 0; do { assert.ok(++count < 20, "UI effects settle"); dirty = false; cursor = 0; tree = (record.exports[name] as (props: Props) => unknown)(props); for (const effect of effects.splice(0)) effect(); } while (dirty); return tree; },
     dispose() { for (const slot of slots) slot.cleanup?.(); },

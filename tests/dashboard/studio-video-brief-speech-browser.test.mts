@@ -45,8 +45,9 @@ add("app/dashboard/_components/MediaLibraryPickerModal.tsx");
 const messages = JSON.parse(read("messages/fr-FR/media.json"));
 const catalogs = Object.fromEntries(["fr-FR", "en-GB", "de-DE", "es-ES", "it-IT", "nl-NL", "pt-PT", "th-TH", "zh-CN"].map(locale => [locale, JSON.parse(read(`messages/${locale}/media.json`))]));
 const boosterCatalogs = Object.fromEntries(Object.keys(catalogs).map(locale => [locale, JSON.parse(read(`messages/${locale}/booster.json`))]));
+const shellCatalogs = Object.fromEntries(Object.keys(catalogs).map(locale => [locale, JSON.parse(read(`messages/${locale}/shell.json`))]));
 const fixture = `
-const sources=${JSON.stringify(sources)},catalogs=${JSON.stringify(catalogs)},boosterCatalogs=${JSON.stringify(boosterCatalogs)},loaded={};
+const sources=${JSON.stringify(sources)},catalogs=${JSON.stringify(catalogs)},boosterCatalogs=${JSON.stringify(boosterCatalogs)},shellCatalogs=${JSON.stringify(shellCatalogs)},loaded={};
 window.studioRequests=[];window.studioQuotes=[];window.networkCalls=0;window.fixtureLocale='fr-FR';
 window.fixtureUseRealWorkspace=false;window.fixtureRecovery={pending:false,checking:false,cancelling:false};window.recoveryOperations={reads:0,pauses:0,cancels:0};
 window.fixtureStudioInterfaces={};window.parentEscapes=0;
@@ -59,7 +60,7 @@ window.fetch=(url,init)=>{if(url==='/api/media-generation/voice-reference'&&wind
 const noOp=()=>{};
 function require(name){
  if(loaded[name])return loaded[name].exports;
- if(name==='next-intl')return {useLocale:()=>window.fixtureLocale,useTranslations:namespace=> (key,values={})=>((namespace==='booster'?boosterCatalogs:catalogs)[window.fixtureLocale][key]||key).replace(/\\{(\\w+)\\}/g,(_,key)=>String(values[key]??'{'+key+'}'))};
+ if(name==='next-intl')return {useLocale:()=>window.fixtureLocale,useTranslations:namespace=> (key,values={})=>((namespace==='booster'?boosterCatalogs:namespace==='shell'?shellCatalogs:catalogs)[window.fixtureLocale][key]||key).replace(/\\{(\\w+)\\}/g,(_,key)=>String(values[key]??'{'+key+'}'))};
  if(name.endsWith('useMediaGeneration'))return {__esModule:true,default:()=>{
   const[,refresh]=React.useState(0);window.refreshRecovery=()=>refresh(value=>value+1);const state=window.fixtureRecovery;
   return {quota:{accountId:'fixture',creditsReady:true,unlimited:true,studioEnabled:true,credits:{remaining:10000},videoMaxDurationSeconds:30},quotaLoading:false,busy:state.checking,progress:79,error:'',result:null,canRecover:state.pending,recovering:state.checking,canPauseRecovery:state.checking&&!state.cancelling,cancellationPending:state.cancelling,recoveryContext:state.pending?{kind:'video',format:'story'}:null,loadQuota:noOp,

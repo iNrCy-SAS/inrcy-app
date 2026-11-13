@@ -16,7 +16,8 @@ const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RuntimeValue = any;
 type Props = Record<string, RuntimeValue>;
-const labels = JSON.parse(read("messages/fr-FR/dashboard.json")).channelBubble;
+const dashboardLabels = JSON.parse(read("messages/fr-FR/dashboard.json"));
+const labels = { ...dashboardLabels, ...dashboardLabels.channelBubble };
 const css = { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
 const stub = (props: Props) => React.createElement("div", {}, props.children);
 const urlFieldStub = (props: Props) => React.createElement("div", {}, props.children);
@@ -63,14 +64,14 @@ function runtime(path: string, overrides: Props = {}) {
     if (specifier.endsWith("EditableChannelUrlField")) return { __esModule: true, default: urlFieldStub };
     if (specifier.endsWith("channel-popover-position")) return require("../../app/dashboard/_components/channel-popover-position.ts");
     if (specifier.endsWith("channel-workspace-snapshot")) return { readChannelWorkspaceSnapshot: (_channel: string, fallback: unknown) => fallback, writeChannelWorkspaceSnapshot() {} };
-    if (specifier === "next-intl") return { useTranslations: () => (key: string, values: Props = {}) => String(labels[key] || key).replace(/\{(\w+)\}/g, (match, name) => String(values[name] ?? match)) };
+    if (specifier === "next-intl") return { useLocale: () => "fr-FR", useTranslations: () => (key: string, values: Props = {}) => String(labels[key] || key).replace(/\{(\w+)\}/g, (match, name) => String(values[name] ?? match)) };
     if (specifier === "next/dynamic") return { __esModule: true, default: () => stub };
     if (specifier === "next/navigation") return { usePathname: () => "/dashboard", useRouter: () => ({ replace() {} }), useSearchParams: () => new URLSearchParams() };
     if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: false }) };
     if (specifier.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (specifier.endsWith("useUnsavedExitGuard")) return { useUnsavedExitGuard() {} };
     if (specifier.endsWith("DashboardUnsavedNavigationProvider")) return { useDashboardUnsavedNavigation: () => ({ requestNavigation: async (fn: () => void) => { fn(); return true; } }) };
-    if (specifier.endsWith("userFacingErrors")) return { getClientUserFacingApiError: async () => "API error", getClientUserFacingErrorMessage: (_: unknown, fallback: string) => fallback };
+    if (specifier.endsWith("userFacingErrors")) return { getClientUserFacingApiError: async () => "API error", getClientUserFacingErrorMessage: (_: unknown, fallback: string) => fallback, getLocalizedApiError: async () => "API error", getLocalizedErrorMessage: (_: unknown, _locale: string, fallback: string) => fallback, getSimpleFrenchErrorMessage: (_: unknown, fallback: string) => fallback };
     if (specifier === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => "fixture", resolveActiveBrowserUserId: (id: string) => id };
     if (specifier === "@/lib/facebookPublicationPreferences") return require("../../lib/facebookPublicationPreferences.ts");
     if (specifier === "@/lib/instagramPublicationPreferences") return require("../../lib/instagramPublicationPreferences.ts");

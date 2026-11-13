@@ -14,6 +14,8 @@ import * as rules from "../../lib/mediaRules.ts";
 import * as policy from "../../lib/inrStudioModalPolicy.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 import * as characterVoiceRules from "../../lib/aiMediaCharacterVoices.ts";
+import * as elementStyleLock from "../../lib/elementStyleLock.ts";
+import { inlineStyle } from "../helpers/inline-style.mts";
 
 type Props = Record<string, unknown>;
 type Element = { type: unknown; props: Props };
@@ -51,6 +53,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
   modules.set("../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface() {} });
   modules.set("./DashboardUnsavedNavigationProvider", { useDashboardUnsavedNavigation: () => ({ registerGuard: () => () => {} }) });
   modules.set("@/lib/inrAssistantStudioFormSelection", studioForm);
+  modules.set("@/lib/elementStyleLock", elementStyleLock);
   modules.set("@/lib/browserAccountCache", { getActiveBrowserUserId: () => null });
   modules.set("next-intl", { useLocale: () => "fr-FR", useTranslations: () => (key: string) => key });
   modules.set("@/lib/multicompte/constants", { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" });
@@ -66,7 +69,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
     addEventListener(name: string, listener: () => void) { const list = listeners.get(name) || new Set(); list.add(listener); listeners.set(name, list); },
     removeEventListener(name: string, listener: () => void) { listeners.get(name)?.delete(listener); },
     requestAnimationFrame: () => 1, cancelAnimationFrame() {},
-  }, { activeElement: null, body: { style: {}, children: [] }, documentElement: { style: {} } }, class {}, class { observe() {} disconnect() {} });
+  }, { activeElement: null, body: { style: inlineStyle(), children: [] }, documentElement: { style: inlineStyle() } }, class {}, class { observe() {} disconnect() {} });
   return {
     render(props: Props) { let tree: unknown; let count = 0; do { assert.ok(++count < 20, "UI effects settle"); dirty = false; cursor = 0; tree = (record.exports.default as (props: Props) => unknown)(props); for (const effect of effects.splice(0)) effect(); } while (dirty); return tree; },
     emit(name: string) { for (const listener of [...listeners.get(name) || []]) listener(); },

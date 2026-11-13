@@ -96,8 +96,8 @@ export default function PropulserPage() {
   const requestCloseActiveModal = useCallback(async () => {
     if (activeHasUnsavedWork) {
       const ok = await confirmInrcy({
-        eyebrow: active === "valorize" ? "Valorisation en cours" : "Modèle en cours",
-        title: active === "valorize" ? "Quitter la valorisation ?" : "Quitter ce modèle ?",
+        eyebrow: active === "valorize" ? i18nT("valorize_in_progress") : i18nT("modele_en_cours_12d87956"),
+        title: active === "valorize" ? i18nT("leave_valorize") : i18nT("quitter_ce_modele_a8a7d73a"),
         message: i18nT("vous_avez_un_modele_en_cours_6354a6c4"),
         cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
         confirmLabel: i18nT("quitter_3e4126f5"),
@@ -112,8 +112,8 @@ export default function PropulserPage() {
     active: Boolean(active),
     shouldBlock: Boolean(activeHasUnsavedWork),
     onConfirmExit: closeActiveModal,
-    eyebrow: active === "valorize" ? "Valorisation en cours" : "Modèle en cours",
-    title: active === "valorize" ? "Quitter la valorisation ?" : "Quitter ce modèle ?",
+    eyebrow: active === "valorize" ? i18nT("valorize_in_progress") : i18nT("modele_en_cours_12d87956"),
+    title: active === "valorize" ? i18nT("leave_valorize") : i18nT("quitter_ce_modele_a8a7d73a"),
     message: i18nT("vous_avez_un_modele_en_cours_6354a6c4"),
     cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
     confirmLabel: i18nT("quitter_3e4126f5"),
@@ -216,36 +216,36 @@ export default function PropulserPage() {
 
     const buildMissionReward = (doneThisCard: number, missionDone: boolean, projected: number, gained: number) => {
       if (missionDone) {
-        if (doneThisCard > 0) return `${gained} UI gagnés`;
-        return "Mission UI déjà sécurisée";
+        if (doneThisCard > 0) return i18nT("mission_earned_ui", { count: gained });
+        return i18nT("mission_already_secured");
       }
-      return `+${projected} UI × multiplicateur`;
+      return i18nT("mission_projected_multiplier", { count: projected });
     };
 
     const buildMissionHelper = (doneThisCard: number, missionDone: boolean, fallback: string) => {
-      if (missionDone && doneThisCard <= 0) return "Cette action reste utile, mais ne rapporte plus d’UI cette semaine.";
+      if (missionDone && doneThisCard <= 0) return i18nT("action_no_more_ui");
       return fallback;
     };
 
     const missionStatus = buildStatus(totalWeek, PROPULSER_GOAL);
     const campaignRows = (item: any) => [
-      { name: "Envoyées cette semaine", value: n(item.week) },
-      { name: "Envoyées ce mois-ci", value: n(item.month) },
-      { name: "Destinataires touchés", value: n(item.sent) },
-      { name: "Dernier envoi", value: formatLastSend(item.last_sent_at) },
+      { name: i18nT("sent_this_week"), value: n(item.week) },
+      { name: i18nT("sent_this_month"), value: n(item.month) },
+      { name: i18nT("recipients_reached"), value: n(item.sent) },
+      { name: i18nT("last_sent"), value: formatLastSend(item.last_sent_at) },
     ];
     const valorizeRows = (item: any) => [
-      { name: "Envoyées cette semaine", value: n(item.week) },
-      { name: "Envoyées ce mois-ci", value: n(item.month) },
-      { name: "Destinataires touchés", value: n(item.sent) },
-      { name: "Dernier envoi", value: formatLastSend(item.last_sent_at) },
+      { name: i18nT("sent_this_week"), value: n(item.week) },
+      { name: i18nT("sent_this_month"), value: n(item.month) },
+      { name: i18nT("recipients_reached"), value: n(item.sent) },
+      { name: i18nT("last_sent"), value: formatLastSend(item.last_sent_at) },
     ];
 
     const actions = [
       {
         key: "valorize" as const,
         title: i18nT("valoriser_0859943f"),
-        desc: "Mettez en avant vos avis, réalisations, coulisses, savoir-faire ou preuves de confiance.",
+        desc: i18nT("valorize_action_description"),
         accent: "cyan" as const,
         cta: i18nT("lancer_6a009498"),
         status: { ...missionStatus, helper: buildMissionHelper(valorizeWeek, featureMissionDone, missionStatus.helper) },
@@ -254,7 +254,7 @@ export default function PropulserPage() {
       {
         key: "reviews" as const,
         title: i18nT("recolter_1d0f06aa"),
-        desc: "Demandez des avis ou des retours clients via un email prêt à envoyer.",
+        desc: i18nT("reviews_action_description"),
         accent: "purple" as const,
         cta: i18nT("lancer_6a009498"),
         status: { ...missionStatus, helper: buildMissionHelper(reviewWeek, featureMissionDone, missionStatus.helper) },
@@ -263,7 +263,7 @@ export default function PropulserPage() {
       {
         key: "promo" as const,
         title: i18nT("offrir_48d9d533"),
-        desc: "Mettez en avant une offre commerciale auprès des bons contacts.",
+        desc: i18nT("offer_action_description"),
         accent: "pink" as const,
         cta: i18nT("lancer_6a009498"),
         status: { ...missionStatus, helper: buildMissionHelper(promoWeek, featureMissionDone, missionStatus.helper) },
@@ -288,9 +288,9 @@ export default function PropulserPage() {
         { title: i18nT("offres_1b2f74c2"), variant: "campaign", month: n(promo.month), week: promoWeek, goal: PROPULSER_GOAL, status: buildStatus(promoWeek, PROPULSER_GOAL), channels: campaignRows(promo) },
       ],
       tips: [
-        { title: i18nT("pour_mieux_valoriser_aa7c0476"), lines: [{ left: "Avis client", right: "Confiance" }, { left: "Avant / après", right: "Preuve" }, { left: "Photo réelle", right: "Crédible" }] },
-        { title: i18nT("pour_mieux_recolter_b17edf36"), lines: [{ left: "Envoyer à J+1", right: "Meilleur taux" }, { left: "10 contacts ciblés", right: "Plus d’avis" }, { left: "1 relance simple", right: "x1.4" }] },
-        { title: i18nT("pour_mieux_offrir_1bf173fe"), lines: [{ left: "Offre courte 7 jours", right: "Décision rapide" }, { left: "1 CTA clair", right: "Plus de clics" }, { left: "Segmenter la liste", right: "Plus pertinent" }] },
+        { title: i18nT("pour_mieux_valoriser_aa7c0476"), lines: [{ left: i18nT("tip_customer_review"), right: i18nT("tip_trust") }, { left: i18nT("tip_before_after"), right: i18nT("tip_proof") }, { left: i18nT("tip_real_photo"), right: i18nT("tip_credible") }] },
+        { title: i18nT("pour_mieux_recolter_b17edf36"), lines: [{ left: i18nT("tip_send_next_day"), right: i18nT("tip_better_rate") }, { left: i18nT("tip_targeted_contacts"), right: i18nT("tip_more_reviews") }, { left: i18nT("tip_simple_follow_up"), right: "x1.4" }] },
+        { title: i18nT("pour_mieux_offrir_1bf173fe"), lines: [{ left: i18nT("tip_seven_day_offer"), right: i18nT("tip_fast_decision") }, { left: i18nT("tip_clear_cta"), right: i18nT("tip_more_clicks") }, { left: i18nT("tip_segment_list"), right: i18nT("tip_more_relevant") }] },
       ],
     };
   }, [i18nT, locale, metrics, weeklySummary]);
@@ -310,11 +310,11 @@ export default function PropulserPage() {
     if (workflowDraftLoading) return;
     if (active) {
       const confirmed = await confirmInrcy({
-        eyebrow: "Brouillon enregistré",
-        title: "Ouvrir ce brouillon ?",
-        message: "L’état actuellement affiché sera remplacé par celui du brouillon sélectionné.",
+        eyebrow: i18nT("saved_draft"),
+        title: i18nT("open_this_draft"),
+        message: i18nT("replace_current_state_with_draft"),
         cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
-        confirmLabel: "Ouvrir le brouillon",
+        confirmLabel: i18nT("open_draft"),
         variant: "warning",
       });
       if (!confirmed) return;
@@ -323,7 +323,7 @@ export default function PropulserPage() {
     setWorkflowDraftMessage("");
     try {
       const draft = await loadWorkflowCampaignDraft(draftId);
-      if (draft.kind !== "propulser") throw new Error("Ce brouillon n’appartient pas à Propulser.");
+      if (draft.kind !== "propulser") throw new Error(i18nT("draft_wrong_module", { module: i18nT("propulser_2de43942") }));
       const restoreKey = saveWorkflowCampaignState(draft);
       workflowDraftActionRef.current = null;
       if (draft.stage === "compose") {
@@ -348,7 +348,7 @@ export default function PropulserPage() {
         { scroll: false },
       );
     } catch (error) {
-      setWorkflowDraftMessage(error instanceof Error ? error.message : "Impossible d’ouvrir le brouillon.");
+      setWorkflowDraftMessage(error instanceof Error ? error.message : i18nT("draft_open_failed"));
     } finally {
       setWorkflowDraftLoading(false);
     }
@@ -468,7 +468,7 @@ export default function PropulserPage() {
 
       {active && (
         <BaseModal
-          title={active === "valorize" ? "Valoriser" : active === "reviews" ? "Récolter" : "Offrir"}
+          title={active === "valorize" ? i18nT("valoriser_0859943f") : active === "reviews" ? i18nT("recolter_1d0f06aa") : i18nT("offrir_48d9d533")}
           moduleLabel={i18nT("module_propulser_08eded54")}
           onClose={requestCloseActiveModal}
           headerHidden={false}
@@ -491,10 +491,10 @@ export default function PropulserPage() {
               <PublishDraftHeaderMenu
                 buttonClassName={styles.secondaryBtn}
                 disabled={workflowDraftLoading}
-                emptyScopeLabel="Propulser"
+                emptyScopeLabel={i18nT("propulser_2de43942")}
                 endpoint="/api/mails/workflow-draft?view=drafts&kind=propulser&limit=20"
-                fallbackBadge="Propulser"
-                moduleLabel="Propulser"
+                fallbackBadge={i18nT("propulser_2de43942")}
+                moduleLabel={i18nT("propulser_2de43942")}
                 onSelect={openWorkflowDraftFromHeader}
               />
               <button type="button" className={styles.secondaryBtn} onClick={() => void saveWorkflowDraftFromHeader()} disabled={workflowDraftSaving} title={i18nT("enregistrer_le_brouillon_6a319595")} aria-label={i18nT("enregistrer_le_brouillon_6a319595")} style={{ width: isMobileHeader ? 32 : 38, minWidth: isMobileHeader ? 32 : 38, minHeight: isMobileHeader ? 32 : 36, padding: 0, display: "inline-grid", placeItems: "center", fontSize: isMobileHeader ? 15 : 18, borderRadius: 999, opacity: workflowDraftSaving ? 0.64 : 1, cursor: workflowDraftSaving ? "wait" : "pointer" }}>

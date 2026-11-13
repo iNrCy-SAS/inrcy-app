@@ -6,6 +6,7 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import { IntlMessageFormat } from "intl-messageformat";
 
 const nodeRequire = createRequire(import.meta.url);
 const load = (path: string, dependencies: Record<string, any>) => {
@@ -21,8 +22,9 @@ const load = (path: string, dependencies: Record<string, any>) => {
   new Function("require", "exports", code)(require, exports);
   return exports;
 };
+const messages = JSON.parse(readFileSync(new URL("../../messages/fr-FR/booster.json", import.meta.url), "utf8"));
 const subject = load("app/dashboard/_components/PublishExecutionProgress.tsx", {
-  "next-intl": { useTranslations: () => (key: string) => key },
+  "next-intl": { useLocale: () => "fr-FR", useTranslations: () => (key: string, values = {}) => new IntlMessageFormat(messages[key] || key, "fr-FR").format(values) },
   "./PublishExecutionProgress.module.css": { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) },
   "@/lib/boosterPublicationStatus": load("lib/boosterPublicationStatus.ts", {}),
 });

@@ -139,7 +139,8 @@ test("default help preserves the legacy div, mobile dock spacing and Escape list
 
 test("channel help callbacks leave the bubble dialog open and the native surface is viewport-safe", () => {
   assert.match(channels, /data-dashboard-channels-dialog="true"/);
-  assert.match(channels, /aria-label="Aide sur les canaux" onClick=\{onOpenHelp\}/);
+  assert.match(channels, /aria-label=\{i18nT\("aide_sur_les_canaux_72b7439d"\)\} onClick=\{onOpenHelp\}/);
+  assert.equal(JSON.parse(read("messages/fr-FR/dashboard.json")).aide_sur_les_canaux_72b7439d, "Aide sur les canaux");
   assert.doesNotMatch(channels, /siteHelp|onHelpSiteWeb|Comprendre le canal/);
   assert.doesNotMatch(channels, /closeDialog\(\);\s*(?:onOpenHelp|\(selected\.helpKind)/);
   assert.match(css, /\.nativeLayer\s*\{[^}]*width: 100vw;[^}]*height: 100dvh;[^}]*overflow: hidden/);

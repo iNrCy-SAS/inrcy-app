@@ -42,21 +42,21 @@ test("the publication balance highlights successes and keeps independent process
   assert.match(modal, /const hasPublishedChannels = publishedCount > 0/);
   assert.match(modal, /<PublicationVisualHub/);
   assert.match(modal, /progress=\{100\}/);
-  assert.match(modal, /centerLabel="Bilan prêt"/);
-  assert.match(modal, /publishedCount[\s\S]*?publié/);
-  assert.match(modal, /pendingCount[\s\S]*?en traitement/);
-  assert.match(modal, /failedOrSkippedCount[\s\S]*?à revoir/);
+  assert.match(modal, /centerLabel=\{i18nT\("execution_result_ready"\)\}/);
+  assert.match(modal, /execution_result_online", \{ count: publishedCount \}/);
+  assert.match(modal, /pendingCount[\s\S]*?execution_result_processing/);
+  assert.match(modal, /failedOrSkippedCount[\s\S]*?execution_result_review/);
   assert.match(resultCss, /\.channelGrid \{ grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(modal, /CHANNEL_LOGO_BY_KEY/);
   assert.match(resultCss, /\.channelLogo img \{[^}]*border-radius: 50%[^}]*object-fit: cover/);
   assert.match(modal, /loading="eager" decoding="sync"/);
-  assert.match(modal, /Afficher le détail de l’échec/);
+  assert.match(modal, /execution_result_show_failure_details/);
   assert.match(modal, /expandedEntryDetails/);
   assert.match(modal, /const orderedEntries = entries/);
   assert.match(modal, /\.\.\.destinationsByChannel\.keys\(\), \.\.\.entriesByChannel\.keys\(\)/);
   assert.match(modal, /i18nT\("voir_8a754f1f"\)/);
   assert.match(modal, /i18nT\("voir_dans_inr_send_a74cc9ea"\)/);
-  assert.match(modal, /i18nT\("retenter_value_value_en_echec_b7d1f934"/);
+  assert.match(modal, /i18nT\("execution_result_retry"/);
 });
 
 test("Pinterest derives its account URL for settings, the immediate balance and iNrSend", () => {

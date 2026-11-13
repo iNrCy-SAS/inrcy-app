@@ -100,8 +100,8 @@ test("mobile channel selection keeps both arrows below the bubble with a clear g
   const modal = read("app/dashboard/_components/DashboardChannelsModal.tsx");
   const css = read("app/dashboard/_components/DashboardChannelsModal.module.css");
 
-  assert.match(modal, /aria-label="Canal précédent"[^\n]*selectAdjacentChannel\(-1\)/);
-  assert.match(modal, /aria-label="Canal suivant"[^\n]*selectAdjacentChannel\(1\)/);
+  assert.match(modal, /aria-label=\{i18nT\("canal_precedent_e644dfdf"\)\}[^\n]*selectAdjacentChannel\(-1\)/);
+  assert.match(modal, /aria-label=\{i18nT\("canal_suivant_d20db274"\)\}[^\n]*selectAdjacentChannel\(1\)/);
   assert.match(modal, /disabled=\{filteredItems\.length < 2\}/);
   assert.doesNotMatch(modal + css, /channelDetails|channelExplanation/);
   assert.match(css, /@media \(max-width: 720px\)[\s\S]*?\.selectedArea\s*\{[^}]*width:\s*min\(320px,100%\)/);

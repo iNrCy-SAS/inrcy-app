@@ -31,11 +31,11 @@ const CHANNEL_LOGOS: Readonly<Record<string, string>> = {
 const DESTINATION_COLORS = ["#57d7ff", "#9e91ff", "#ee8bda", "#ffc28a"];
 
 const DESTINATION_STATUS = {
-  published: { label: "Publié", icon: "✓", color: "#6ee2ae" },
-  pending: { label: "En attente", icon: "◷", color: "#f3ce71" },
-  failed: { label: "Échec", icon: "!", color: "#f58397" },
-  warning: { label: "Publié avec avertissement", icon: "!", color: "#f3ce71" },
-  skipped: { label: "Non envoyé", icon: "−", color: "#f58397" },
+  published: { labelKey: "execution_progress_published", icon: "✓", color: "#6ee2ae" },
+  pending: { labelKey: "execution_progress_pending", icon: "◷", color: "#f3ce71" },
+  failed: { labelKey: "execution_progress_failed", icon: "!", color: "#f58397" },
+  warning: { labelKey: "execution_progress_warning", icon: "!", color: "#f3ce71" },
+  skipped: { labelKey: "execution_progress_skipped", icon: "−", color: "#f58397" },
 } as const;
 
 export function getPublicationDestinationStatus(entry: {
@@ -60,7 +60,7 @@ export function PublicationVisualHub({
   completed = false,
   outcome = "neutral",
   centerLabel,
-  progressLabel = "Traitement de la publication",
+  progressLabel,
   phaseSummary,
 }: {
   progress: number;
@@ -71,6 +71,7 @@ export function PublicationVisualHub({
   progressLabel?: string;
   phaseSummary?: ReactNode;
 }) {
+  const i18nT = useTranslations("booster");
   const progressId = useId();
   const safeProgress = Math.max(0, Math.min(100, Math.round(Number(progress) || 0)));
   const targets = destinations.map((destination, index) => ({
@@ -79,7 +80,7 @@ export function PublicationVisualHub({
   }));
   return (
     <div className={css.scene} data-publication-visual-hub data-complete={completed} data-outcome={outcome}>
-      <div className={css.core} role="progressbar" aria-label={progressLabel} aria-valuemin={0} aria-valuemax={100} aria-valuenow={safeProgress} aria-valuetext={centerLabel ? `${safeProgress} % — ${centerLabel}` : `${safeProgress} %`}>
+      <div className={css.core} role="progressbar" aria-label={progressLabel || i18nT("execution_progress_processing")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={safeProgress} aria-valuetext={centerLabel ? `${safeProgress} % — ${centerLabel}` : `${safeProgress} %`}>
         <div className={css.halo} />
         <svg className={css.ring} viewBox="0 0 240 240" focusable="false" aria-hidden="true">
           <defs>
@@ -101,9 +102,10 @@ export function PublicationVisualHub({
         </div>
       </div>
       {phaseSummary}
-      <ul className={css.destinations} aria-label={destinations.some((destination) => destination.status) ? "Résultat par canal" : "Destinations sélectionnées"}>
+      <ul className={css.destinations} aria-label={destinations.some((destination) => destination.status) ? i18nT("execution_progress_channel_results") : i18nT("execution_progress_selected_destinations")}>
         {targets.map((destination, index) => {
-          const status = destination.status ? DESTINATION_STATUS[destination.status] : null;
+          const statusConfig = destination.status ? DESTINATION_STATUS[destination.status] : null;
+          const status = statusConfig ? { ...statusConfig, label: i18nT(statusConfig.labelKey) } : null;
           const hasDetails = Boolean(status && destination.details);
           const identity = <>
             {CHANNEL_LOGOS[destination.key] ? <img src={CHANNEL_LOGOS[destination.key]} alt="" width={38} height={38} /> : <span>{destination.label.slice(0, 1)}</span>}
@@ -114,13 +116,13 @@ export function PublicationVisualHub({
             <li key={destination.key} className={css.destination} data-channel={destination.key} data-status={destination.status} data-feeding={(!completed && !destination.status) || destination.status === "pending"} data-linked={Boolean(destination.href)} style={{ "--destination-color": destination.color, "--pulse-delay": `${index * -.37}s` } as CSSProperties}>
               <span className={css.destinationTrigger} aria-label={(status ? `${destination.label} — ${status.label}` : destination.label) + (destination.storyProgressLabel ? ` · ${destination.storyProgressLabel}` : "")}>{identity}</span>
               {hasDetails && status ? <details className={css.destinationDetails} name={`${progressId}-channel-details`} onKeyDown={(event) => { if (event.key === "Escape" && event.currentTarget.open) { event.currentTarget.open = false; event.currentTarget.querySelector<HTMLElement>("summary")?.focus(); event.stopPropagation(); } }}>
-                <summary className={css.destinationInfo} aria-label={`${destination.label} — ${status.label} : détails`} title="Voir le détail"><span className={css.destinationInfoGlyph} aria-hidden="true">i</span><span className={css.destinationCloseGlyph} aria-hidden="true">×</span></summary>
-                <div className={css.destinationPopover} tabIndex={0} role="region" aria-label={`Détail ${destination.label}`}>
+                <summary className={css.destinationInfo} aria-label={i18nT("execution_progress_status_details", { channel: destination.label, status: status.label })} title={i18nT("execution_progress_show_details")}><span className={css.destinationInfoGlyph} aria-hidden="true">i</span><span className={css.destinationCloseGlyph} aria-hidden="true">×</span></summary>
+                <div className={css.destinationPopover} tabIndex={0} role="region" aria-label={i18nT("execution_progress_channel_details", { channel: destination.label })}>
                   <strong>{destination.label}</strong><span>{status.label}</span>
                   <p>{destination.details}</p>
                 </div>
               </details> : null}
-              {destination.href ? <a className={css.destinationLink} href={destination.href} aria-label={`Voir ${destination.label}`} target="_blank" rel="noopener noreferrer">Voir <span aria-hidden="true">↗</span></a> : null}
+              {destination.href ? <a className={css.destinationLink} href={destination.href} aria-label={i18nT("execution_progress_view_channel", { channel: destination.label })} target="_blank" rel="noopener noreferrer">{i18nT("voir_8a754f1f")} <span aria-hidden="true">↗</span></a> : null}
               {destination.details ? <p className={css.inlineDetails}>{destination.details}</p> : null}
             </li>
           );
@@ -166,7 +168,7 @@ export default function PublishExecutionProgress({
   if (variant === "immersive" && !scheduling) {
     return (
       <div className={css.immersive} data-publication-progress="immersive" data-complete={safeProgress === 100}>
-        <PublicationVisualHub progress={safeProgress} progressLabel={publishProgressLabel || "Progression de la publication"} destinations={destinations} completed={safeProgress === 100} phaseSummary={<div className={css.details} data-publication-hub-summary aria-live="polite">
+        <PublicationVisualHub progress={safeProgress} progressLabel={publishProgressLabel || i18nT("execution_progress_progression")} destinations={destinations} completed={safeProgress === 100} phaseSummary={<div className={css.details} data-publication-hub-summary aria-live="polite">
           <div className={css.heading}>
             <h2>{i18nT("publication_en_cours_58f34b8e")}</h2>
           </div>
@@ -205,7 +207,7 @@ export default function PublishExecutionProgress({
       <div
         className={styles.publishProgressTrack}
         role="progressbar"
-        aria-label={publishProgressLabel || "Progression de la publication"}
+        aria-label={publishProgressLabel || i18nT("execution_progress_progression")}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={safeProgress}

@@ -1384,16 +1384,16 @@ export function getLocalizedCtaModeHelp(
       return translate("cta_help_whatsapp_caption");
     }
     if (channel === "x")
-      return "Le lien WhatsApp sera ajouté au texte du post X.";
+      return translate("cta_help_x_whatsapp");
     return translate("cta_help_whatsapp");
   }
   if (mode === "none") return translate("cta_help_none");
   if (channel === "x") {
     if (mode === "website" || mode === "custom")
-      return "Le lien sera ajouté au post X et comptera dans sa limite de 280 caractères pondérés.";
+      return translate("cta_help_x_link");
     if (mode === "call")
-      return "X n’affiche pas de bouton natif : le libellé et le numéro seront ajoutés proprement dans le texte du post.";
-    return "Une phrase naturelle d’invitation au message privé sera ajoutée au texte du post.";
+      return translate("cta_help_x_call");
+    return translate("cta_help_x_message");
   }
   if (mode === "website") {
     return translate(channel === "gmb" ? "cta_help_gmb_website" : "cta_help_website");
@@ -1486,7 +1486,7 @@ export function getLocalizedChannelTotalLabel(
   channel: DisplayKey,
   translate: (key: string) => string,
 ) {
-  if (channel === "x") return "Post X final";
+  if (channel === "x") return translate("channel_total_x");
   const key = CHANNEL_TOTAL_LABEL_MESSAGE_KEYS[channel];
   return key ? translate(key) : "";
 }

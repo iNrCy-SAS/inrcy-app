@@ -2934,7 +2934,7 @@ export default function MailboxClient({
       normalizedChannel
     ]?.assets.find((candidate) => candidate.key === imageKey);
     if (!asset?.previewUrl && !asset?.file) {
-      setDetailsActionError("Cette image n’est plus disponible pour cette action.");
+      setDetailsActionError(i18nT("cette_image_n_est_plus_disponible_5dd0b440"));
       return;
     }
     setDetailsActionError(null);
@@ -2985,7 +2985,7 @@ export default function MailboxClient({
     ).trim();
 
     if (!channel || !video || video.removed || (!video.file && !sourceUrl)) {
-      setDetailsActionError("Cette vidéo n’est plus disponible pour cette action.");
+      setDetailsActionError(i18nT("cette_video_n_est_plus_disponible_2d410e11"));
       return;
     }
 
@@ -3057,7 +3057,7 @@ export default function MailboxClient({
         } else {
           setFailedStudioEditorSnapshotKey(snapshotKey);
           setDetailsActionError(
-            "Le brouillon local iNrSend n’a pas pu être restauré.",
+            i18nT("le_brouillon_local_inrsend_n_a_d34f8f0a"),
           );
         }
       })
@@ -3078,7 +3078,7 @@ export default function MailboxClient({
           { scroll: false },
         );
       });
-  }, [router, searchParams]);
+  }, [i18nT, router, searchParams]);
 
   useEffect(() => {
     if (!pendingStudioEditorSnapshot) return;
@@ -3127,7 +3127,7 @@ export default function MailboxClient({
       String(pendingStudioReturn.context.channel || ""),
     );
     if (!itemId || !channel) {
-      setDetailsActionError("Le retour iNrStudio ne contient plus sa publication d’origine.");
+      setDetailsActionError(i18nT("le_retour_inrstudio_ne_contient_plus_10c05760"));
       setPendingStudioReturn(null);
       setPendingStudioReturnStage("restore");
       completeEmbeddedStudioReturn();
@@ -3197,7 +3197,7 @@ export default function MailboxClient({
           (asset) => asset.key === imageKey,
         ))
     ) {
-      setDetailsActionError("L’image source de cette action n’est plus disponible.");
+      setDetailsActionError(i18nT("l_image_source_de_cette_action_13d33d71"));
       setPendingStudioReturn(null);
       setPendingStudioReturnStage("restore");
       completeEmbeddedStudioReturn();
@@ -3209,6 +3209,7 @@ export default function MailboxClient({
     completeEmbeddedStudioReturn,
     detailsItem?.id,
     detailsOpen,
+    i18nT,
     items,
     pendingStudioReturn,
     pendingStudioReturnStage,
@@ -3246,7 +3247,7 @@ export default function MailboxClient({
     const normalizedChannel = normalizeChannelKey(channel);
     const baseline = publicationEditBaselineRef.current;
     if (!baseline || baseline.identity !== `${activeAccountId}:${publicationId}:${normalizedChannel}`) {
-      setDetailsActionError("Rouvrez le détail de cette publication avant de l’enregistrer : sa version d’origine doit être vérifiée.");
+      setDetailsActionError(i18nT("rouvrez_le_detail_de_cette_publication_32ee1e34"));
       return;
     }
     if (

@@ -3,6 +3,7 @@ const submission = readSubmissionSource(new URL("../../app/dashboard/booster/pub
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { IntlMessageFormat } from "intl-messageformat";
 
 function read(path: string) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -32,8 +33,10 @@ test("partial publishing retries only retryable failed channels and keeps the wo
 
 test("the result modal exposes a dedicated retry for failed channels", () => {
   assert.match(modalLayer, /publishRetryFailedRef/);
-  assert.match(resultModal, /i18nT\("retenter_value_value_en_echec_b7d1f934"/);
-  assert.match(resultModal, /retryableFailureCount > 1 \? "canaux" : "canal"/);
+  assert.match(resultModal, /i18nT\("execution_result_retry", \{ count: retryableFailureCount \}\)/);
+  const message = JSON.parse(read("messages/fr-FR/booster.json")).execution_result_retry;
+  assert.equal(new IntlMessageFormat(message, "fr-FR").format({ count: 1 }), "Retenter 1 canal en échec");
+  assert.equal(new IntlMessageFormat(message, "fr-FR").format({ count: 2 }), "Retenter 2 canaux en échec");
   assert.match(resultModal, /onRetryFailed/);
 });
 

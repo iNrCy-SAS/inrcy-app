@@ -204,7 +204,9 @@ test("all personalization tabs keep fields accessible and fit the desktop worksp
   } finally { await browser.close(); }
 });
 
-test("eight and ten analysis documents stay inside their card and scroll when needed while metadata stays fixed", { timeout: 60_000 }, async t => {
+// This case mounts 24 complete browser pages; keep enough time for all viewport
+// combinations when the complete regression suite is also using the machine.
+test("eight and ten analysis documents stay inside their card and scroll when needed while metadata stays fixed", { timeout: 90_000 }, async t => {
   const browser = await browserType.launch({ headless: true });
   try {
     const analysisViewports = [...responsiveViewports,

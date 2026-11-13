@@ -1,6 +1,7 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { createTranslator, useTranslations } from "next-intl";
+import { normalizeAppLocale } from "@/i18n/config";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
@@ -77,7 +78,6 @@ type ShareSettings = InrBadgeShareSettings;
 type AppointmentSettings = InrBadgeAppointmentSettings;
 type ThemeSettings = InrBadgeThemeSettings;
 
-const INRBADGE_HEADER_LINE = "iNr'Badge : mon entreprise en QR Code";
 export function InrBadgeAutoSaveStatus() {
   const i18nT = useTranslations("settings");
 
@@ -132,7 +132,7 @@ function canShareChannel(channel: InrBadgeChannelStatus) {
   return Boolean(channel.connected && trim(channel.url));
 }
 
-function providerLabel(provider: unknown, fallback = "Mail") {
+function providerLabel(provider: unknown, fallback: string) {
   const value = trim(provider).toLowerCase();
   if (value === "microsoft") return "Microsoft";
   if (value === "gmail" || value === "google") return "Gmail";
@@ -145,7 +145,7 @@ function isUsableMailAccount(account: MailAccountOption): boolean {
 }
 
 function getDisplayName(profile: InrBadgeProfileSummary) {
-  return [profile.firstName, profile.lastName].map(trim).filter(Boolean).join(" ") || "Votre nom";
+  return [profile.firstName, profile.lastName].map(trim).filter(Boolean).join(" ");
 }
 
 function getStorageKey(profile: InrBadgeProfileSummary, publicUrl: string) {
@@ -288,117 +288,75 @@ function drawQrOnCanvas(ctx: CanvasRenderingContext2D, matrix: boolean[][], x: n
   });
 }
 
-async function downloadQrPng(publicUrl: string, profile: InrBadgeProfileSummary, canDownload: () => boolean) {
+type BadgeQrCopy = { header: string; company: string; name: string };
+
+async function loadBadgeQrCopy(): Promise<BadgeQrCopy> {
+  const locale = normalizeAppLocale(typeof document === "undefined" ? "fr-FR" : document.documentElement.lang);
+  const loaders = {
+    "fr-FR": () => import("@/messages/fr-FR/settings.json"),
+    "en-GB": () => import("@/messages/en-GB/settings.json"),
+    "es-ES": () => import("@/messages/es-ES/settings.json"),
+    "it-IT": () => import("@/messages/it-IT/settings.json"),
+    "de-DE": () => import("@/messages/de-DE/settings.json"),
+    "nl-NL": () => import("@/messages/nl-NL/settings.json"),
+    "pt-PT": () => import("@/messages/pt-PT/settings.json"),
+    "th-TH": () => import("@/messages/th-TH/settings.json"),
+    "zh-CN": () => import("@/messages/zh-CN/settings.json"),
+  };
+  const { default: messages } = await loaders[locale]();
+  const t = createTranslator({ locale, messages });
+  return { header: t("badge_qr_header"), company: t("votre_entreprise_c001322f"), name: t("badge_your_name") };
+}
+
+function createQrCanvas(publicUrl: string, profile: InrBadgeProfileSummary, copy: BadgeQrCopy) {
   const matrix = createInrBadgeQrMatrix(publicUrl);
   const canvas = document.createElement("canvas");
   canvas.width = 1200;
   canvas.height = 1500;
   const ctx = canvas.getContext("2d");
-  if (!ctx) return false;
-
+  if (!ctx) return null;
   ctx.fillStyle = "#f8fafc";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-
   ctx.fillStyle = "#111827";
   ctx.font = "700 54px Arial, sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(INRBADGE_HEADER_LINE, canvas.width / 2, 155);
-
+  ctx.fillText(copy.header, canvas.width / 2, 155, 1080);
   drawQrOnCanvas(ctx, matrix, 220, 300, 760);
-
-  ctx.fillStyle = "#111827";
   ctx.font = "700 46px Arial, sans-serif";
-  ctx.fillText(trim(profile.companyLegalName) || "Votre entreprise", canvas.width / 2, 1165);
-
+  ctx.fillText(trim(profile.companyLegalName) || copy.company, canvas.width / 2, 1165, 1080);
   ctx.fillStyle = "#4b5563";
   ctx.font = "400 32px Arial, sans-serif";
-  ctx.fillText(getDisplayName(profile), canvas.width / 2, 1220);
-
+  ctx.fillText(getDisplayName(profile) || copy.name, canvas.width / 2, 1220, 1080);
   ctx.font = "400 28px Arial, sans-serif";
-  const urlText = publicUrl.length > 52 ? `${publicUrl.slice(0, 49)}...` : publicUrl;
-  ctx.fillText(urlText, canvas.width / 2, 1295);
-
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-  if (!blob || !canDownload()) return false;
-  downloadBlob(blob, `${safeFilename(trim(profile.companyLegalName) || getDisplayName(profile))}-inrbadge.png`);
-  return true;
+  const urlText = publicUrl.length > 52 ? publicUrl.slice(0, 49) + "..." : publicUrl;
+  ctx.fillText(urlText, canvas.width / 2, 1295, 1080);
+  return canvas;
 }
 
 export async function downloadInrBadgeQr(publicUrl: string, profile: InrBadgeProfileSummary, format: "png" | "pdf", canDownload: () => boolean = () => true) {
   if (!publicUrl || !canDownload()) return false;
-  const trackingUrl = createInrBadgeQrTrackingUrl(publicUrl);
-  if (format === "png") return downloadQrPng(trackingUrl, profile, canDownload);
+  const copy = await loadBadgeQrCopy();
   if (!canDownload()) return false;
-  downloadBlob(createPdfBlob(trackingUrl, profile), `${safeFilename(trim(profile.companyLegalName) || getDisplayName(profile))}-inrbadge.pdf`);
+  const canvas = createQrCanvas(createInrBadgeQrTrackingUrl(publicUrl), profile, copy);
+  if (!canvas) return false;
+  const filename = safeFilename(trim(profile.companyLegalName) || getDisplayName(profile));
+  if (format === "png") {
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob || !canDownload()) return false;
+    downloadBlob(blob, filename + "-inrbadge.png");
+    return true;
+  }
+  // A canvas-backed PDF keeps all scripts, including Thai and Chinese, instead
+  // of dropping non-ASCII captions through the former Helvetica text stream.
+  const { jsPDF } = await import("jspdf");
+  if (!canDownload()) return false;
+  const pdf = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+  const width = pdf.internal.pageSize.getWidth() - 40;
+  const height = width * canvas.height / canvas.width;
+  pdf.addImage(canvas.toDataURL("image/png"), "PNG", 20, (pdf.internal.pageSize.getHeight() - height) / 2, width, height);
+  if (!canDownload()) return false;
+  downloadBlob(pdf.output("blob"), filename + "-inrbadge.pdf");
   return true;
-}
-
-function escapePdfText(value: string) {
-  return trim(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^\x20-\x7E]/g, "")
-    .replace(/\\/g, "\\\\")
-    .replace(/\(/g, "\\(")
-    .replace(/\)/g, "\\)");
-}
-
-function createPdfBlob(publicUrl: string, profile: InrBadgeProfileSummary) {
-  const matrix = createInrBadgeQrMatrix(publicUrl);
-  const pageWidth = 595;
-  const pageHeight = 842;
-  const qrSize = 330;
-  const qrX = (pageWidth - qrSize) / 2;
-  const qrY = 245;
-  const moduleSize = qrSize / matrix.length;
-  const company = escapePdfText(trim(profile.companyLegalName) || "Votre entreprise");
-  const name = escapePdfText(getDisplayName(profile));
-  const url = escapePdfText(publicUrl);
-
-  const rects = matrix.flatMap((row, rowIndex) => row.map((dark, colIndex) => {
-    if (!dark) return "";
-    const x = qrX + colIndex * moduleSize;
-    const y = qrY + (matrix.length - rowIndex - 1) * moduleSize;
-    return `${x.toFixed(2)} ${y.toFixed(2)} ${Math.ceil(moduleSize).toFixed(2)} ${Math.ceil(moduleSize).toFixed(2)} re f`;
-  })).filter(Boolean).join("\n");
-
-  const stream = [
-    "1 1 1 rg 0 0 595 842 re f",
-    "0.07 0.09 0.16 rg",
-    "BT /F1 17 Tf 126 752 Td (iNr'Badge : mon entreprise en QR Code) Tj ET",
-    "1 1 1 rg",
-    `${(qrX - 18).toFixed(2)} ${(qrY - 18).toFixed(2)} ${(qrSize + 36).toFixed(2)} ${(qrSize + 36).toFixed(2)} re f`,
-    "0.07 0.09 0.16 rg",
-    rects,
-    "0.07 0.09 0.16 rg",
-    `BT /F1 20 Tf 70 190 Td (${company}) Tj ET`,
-    "0.29 0.33 0.42 rg",
-    `BT /F1 13 Tf 70 166 Td (${name}) Tj ET`,
-    `BT /F1 10 Tf 70 140 Td (${url}) Tj ET`,
-  ].join("\n");
-
-  const objects = [
-    "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-    "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-    `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n`,
-    "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-    `5 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`,
-  ];
-
-  let pdf = "%PDF-1.4\n";
-  const offsets = [0];
-  objects.forEach((obj) => {
-    offsets.push(pdf.length);
-    pdf += obj;
-  });
-  const xrefOffset = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n`;
-  pdf += "0000000000 65535 f \n";
-  offsets.slice(1).forEach((offset) => {
-    pdf += `${String(offset).padStart(10, "0")} 00000 n \n`;
-  });
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-  return new Blob([pdf], { type: "application/pdf" });
 }
 
 function FieldToggle({
@@ -457,6 +415,7 @@ function ThemeChoice({
   busy?: boolean;
   onSelect: (id: InrBadgeThemeId) => void;
 }) {
+  const i18nT = useTranslations("settings");
   return (
     <button
       type="button"
@@ -476,7 +435,7 @@ function ThemeChoice({
         ))}
       </span>
       <span style={{ minWidth: 0, textAlign: "left" }}>
-        <strong style={themeChoiceTitleStyle}>{busy ? "Analyse du logo…" : label}</strong>
+        <strong style={themeChoiceTitleStyle}>{busy ? i18nT("badge_analysing") : label}</strong>
         <small style={themeChoiceHelperStyle}>{description}</small>
       </span>
       <span aria-hidden="true" style={selected ? themeRadioActiveStyle : themeRadioStyle}>
@@ -611,8 +570,8 @@ export default function InrBadgeSettingsContent({
     window.setTimeout(() => setNotice(null), 1800);
   };
 
-  const company = trim(profile.companyLegalName) || "Votre entreprise";
-  const displayName = getDisplayName(profile);
+  const company = trim(profile.companyLegalName) || i18nT("votre_entreprise_c001322f");
+  const displayName = getDisplayName(profile) || i18nT("badge_your_name");
   const phone = trim(profile.phone);
   const email = trim(profile.contactEmail);
   const themePalette = resolveInrBadgeThemePalette(theme);
@@ -626,7 +585,7 @@ export default function InrBadgeSettingsContent({
       await trackSave(() => persistBadgeTheme(nextTheme));
       setNotice(successMessage);
     } catch {
-      setNotice("Impossible d’enregistrer le thème pour le moment.");
+      setNotice(i18nT("badge_theme_save_failed"));
     }
     window.setTimeout(() => setNotice(null), 2200);
   };
@@ -635,14 +594,14 @@ export default function InrBadgeSettingsContent({
     if (id !== "identity") {
       await saveSelectedTheme(
         normalizeInrBadgeThemeSettings({ id, identityColors: theme.identityColors }),
-        "Thème du badge enregistré.",
+        i18nT("badge_theme_saved"),
       );
       return;
     }
 
     const logoAnalysisUrl = getLogoAnalysisUrl(publicUrl, profile.logoUrl);
     if (!hasCompanyLogo || !logoAnalysisUrl) {
-      setNotice("Ajoutez d’abord le logo de l’entreprise dans votre ADN.");
+      setNotice(i18nT("badge_logo_required"));
       window.setTimeout(() => setNotice(null), 2400);
       return;
     }
@@ -653,10 +612,10 @@ export default function InrBadgeSettingsContent({
       const identityColors = await extractInrBadgeThemeColorsFromLogo(logoAnalysisUrl);
       await saveSelectedTheme(
         normalizeInrBadgeThemeSettings({ id: "identity", identityColors }),
-        "Couleurs du logo appliquées au badge.",
+        i18nT("badge_logo_applied"),
       );
     } catch {
-      setNotice("Le logo n’a pas pu être analysé. Réessayez dans quelques secondes.");
+      setNotice(i18nT("badge_logo_failed"));
       window.setTimeout(() => setNotice(null), 2600);
     } finally {
       setExtractingLogoTheme(false);
@@ -689,8 +648,8 @@ export default function InrBadgeSettingsContent({
       }
       const savedTheme = await readNativeTheme();
       if (!current() || JSON.stringify(savedTheme) !== JSON.stringify(next)) throw new Error("Badge theme readback failed");
-      setTheme(savedTheme); saveThemeSettings(storageKey, savedTheme); setCompletedLogoTheme(value => value + 1); setNotice("Couleurs du logo appliquées au badge.");
-    } catch (error) { if (current()) setNotice("Impossible de confirmer l’enregistrement des couleurs du logo."); throw error; }
+      setTheme(savedTheme); saveThemeSettings(storageKey, savedTheme); setCompletedLogoTheme(value => value + 1); setNotice(i18nT("badge_logo_applied"));
+    } catch (error) { if (current()) setNotice(i18nT("badge_logo_save_unconfirmed")); throw error; }
     finally { if (nativeThemeMounted.current) setExtractingLogoTheme(false); }
   };
   useInrAssistantLocalInterface("badge_identity_theme", { theme, completedLogoTheme, logo: profile.logoUrl, loadingSettings, extractingLogoTheme }, {
@@ -735,13 +694,13 @@ export default function InrBadgeSettingsContent({
   const canShowMailButton = standardMode ? Boolean(email) : Boolean(email || mailAccounts.length > 0);
   const mailHelper = standardMode
     ? email
-      ? "Le bouton Mail utilise toujours l'adresse renseignée dans votre ADN."
-      : "Ajoutez une adresse dans votre ADN pour afficher le bouton Mail."
+      ? i18nT("badge_mail_standard")
+      : i18nT("badge_mail_add_profile")
     : !canShowMailButton
-      ? "Ajoutez un email dans votre ADN ou connectez une boîte dans Mails."
+      ? i18nT("badge_mail_missing")
       : selectedMailValue
-        ? "Le bouton Mail utilisera cette boîte connectée."
-        : "Le bouton Mail utilisera l'email du profil.";
+        ? i18nT("badge_mail_connected")
+        : i18nT("badge_mail_profile");
 
   const updateSelectedMailAccount = (value: string) => {
     const nextId = trim(value);
@@ -774,8 +733,8 @@ export default function InrBadgeSettingsContent({
       <div style={stepCardStyle("#8b5cf6")}>
         <InrBadgeStepHeader
           step={2}
-          title="Apparence du badge"
-          description="Choisissez une ambiance ou reprenez automatiquement les couleurs du logo de l’entreprise."
+          title={i18nT("badge_appearance")}
+          description={i18nT("badge_appearance_help")}
           accent="#8b5cf6"
         />
         <div style={themeGridStyle}>
@@ -783,8 +742,8 @@ export default function InrBadgeSettingsContent({
             <ThemeChoice
               key={preset.id}
               id={preset.id}
-              label={preset.label}
-              description={preset.description}
+              label={i18nT(`badge_theme_${preset.id}_label`)}
+              description={i18nT(`badge_theme_${preset.id}_description`)}
               colors={preset.palette}
               selected={theme.id === preset.id}
               onSelect={(id) => void selectTheme(id)}
@@ -792,8 +751,8 @@ export default function InrBadgeSettingsContent({
           ))}
           <ThemeChoice
             id="identity"
-            label="Identité entreprise"
-            description={hasCompanyLogo ? "Couleurs détectées depuis votre logo" : "Ajoutez un logo dans votre ADN"}
+            label={i18nT("badge_identity")}
+            description={hasCompanyLogo ? i18nT("badge_identity_detected") : i18nT("badge_identity_add_logo")}
             colors={identityPalette}
             selected={theme.id === "identity"}
             disabled={!hasCompanyLogo}
@@ -809,7 +768,7 @@ export default function InrBadgeSettingsContent({
             disabled={extractingLogoTheme}
             onClick={() => void selectTheme("identity")}
           >
-            {extractingLogoTheme ? "Analyse du logo…" : "Actualiser depuis le logo"}
+            {extractingLogoTheme ? i18nT("badge_analysing") : i18nT("badge_refresh_logo")}
           </button>
         ) : null}
 
@@ -819,7 +778,7 @@ export default function InrBadgeSettingsContent({
             background: `radial-gradient(circle at 12% 8%, ${themePalette.primary}33, transparent 34%), radial-gradient(circle at 88% 18%, ${themePalette.secondary}35, transparent 36%), linear-gradient(145deg, ${themePalette.pageStart}, ${themePalette.pageEnd})`,
             borderColor: `${themePalette.primary}55`,
           }}
-          aria-label="Aperçu des couleurs du badge"
+          aria-label={i18nT("badge_colour_preview")}
         >
           <span style={{ ...themePreviewLogoStyle, boxShadow: `0 0 22px ${themePalette.primary}55` }} aria-hidden="true">
             {company.slice(0, 2).toUpperCase()}
@@ -829,8 +788,7 @@ export default function InrBadgeSettingsContent({
             <small>{displayName}</small>
           </span>
           <span style={{ ...themePreviewButtonStyle, background: `linear-gradient(135deg, ${themePalette.primary}, ${themePalette.secondary}, ${themePalette.accent})` }}>
-            Contacter
-          </span>
+            {i18nT("badge_contact")}</span>
         </div>
       </div>
 
@@ -838,11 +796,11 @@ export default function InrBadgeSettingsContent({
         <InrBadgeStepHeader
           step={3}
           title={i18nT("informations_partagees_cbea91ba")}
-          description="Choisissez les informations d’identité visibles sur votre badge."
+          description={i18nT("badge_identity_help")}
           accent="#a78bfa"
         />
         <div style={twoColumnsGridStyle}>
-          <FieldToggle label={i18nT("logo_83fce832")} checked={Boolean(settings.logo)} helper={profile.logoUrl ? "Affiché en haut du badge." : "Logo iNr’Badge utilisé par défaut."} onChange={(value) => updateSetting("logo", value)} />
+          <FieldToggle label={i18nT("logo_83fce832")} checked={Boolean(settings.logo)} helper={profile.logoUrl ? i18nT("badge_logo_top") : i18nT("badge_default_logo")} onChange={(value) => updateSetting("logo", value)} />
           <FieldToggle label={i18nT("nom_du_professionnel_421772e3")} checked={Boolean(settings.name)} onChange={(value) => updateSetting("name", value)} />
           <FieldToggle label={i18nT("entreprise_d03e74b6")} checked={Boolean(settings.company)} onChange={(value) => updateSetting("company", value)} />
         </div>
@@ -852,12 +810,12 @@ export default function InrBadgeSettingsContent({
         <InrBadgeStepHeader
           step={4}
           title={i18nT("actions_rapides_abe69a9c")}
-          description="Activez les raccourcis qui permettent à vos visiteurs de vous contacter immédiatement."
+          description={i18nT("badge_shortcuts_help")}
           accent="#ec4899"
         />
         <div style={twoColumnsGridStyle}>
-          <FieldToggle label={i18nT("telephone_d3b023ea")} checked={Boolean(settings.phone)} disabled={!phone} helper={!phone ? "À compléter dans votre ADN." : undefined} onChange={(value) => updateSetting("phone", value)} />
-          <FieldToggle label={i18nT("enregistrer_le_contact_fac37051")} checked={Boolean(settings.saveContact)} helper="Prépare la fiche contact vCard pour l'étape publique." onChange={(value) => updateSetting("saveContact", value)} />
+          <FieldToggle label={i18nT("telephone_d3b023ea")} checked={Boolean(settings.phone)} disabled={!phone} helper={!phone ? i18nT("badge_complete_dna") : undefined} onChange={(value) => updateSetting("phone", value)} />
+          <FieldToggle label={i18nT("enregistrer_le_contact_fac37051")} checked={Boolean(settings.saveContact)} helper={i18nT("badge_vcard_help")} onChange={(value) => updateSetting("saveContact", value)} />
 
           <div style={fullWidthGridItemStyle}>
             <div style={{ ...mailActionCardStyle, opacity: canShowMailButton ? 1 : 0.55 }}>
@@ -895,7 +853,7 @@ export default function InrBadgeSettingsContent({
         <InrBadgeStepHeader
           step={5}
           title={i18nT("canaux_disponibles_au_partage_ef3028d3")}
-          description="Sélectionnez les canaux connectés que vos visiteurs pourront ouvrir depuis le badge."
+          description={i18nT("badge_channels_help")}
           accent="#f97316"
         />
         <div style={twoColumnsGridStyle}>
@@ -905,7 +863,7 @@ export default function InrBadgeSettingsContent({
               label={item.label}
               checked={Boolean(settings[item.key])}
               disabled={!item.connected}
-              helper={item.connected ? "Activé sur votre badge si coché." : item.helper}
+              helper={item.connected ? i18nT("badge_checked_help") : item.helper}
               onChange={(value) => updateSetting(item.key, value)}
             />
           ))}
@@ -917,12 +875,12 @@ export default function InrBadgeSettingsContent({
           <InrBadgeStepHeader
             step={6}
             title={i18nT("prise_de_rdv_d4e3d750")}
-            description="Ajoutez un accès direct à votre agenda pour transformer les visites en rendez-vous."
+            description={i18nT("badge_appointments_help")}
             accent="#22c55e"
           />
           <div style={appointmentActionRowStyle}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <FieldToggle label={i18nT("afficher_prendre_rdv_a0d7cb8f")} checked={Boolean(settings.appointment)} helper="Ajoute le bouton sur la fiche publique." onChange={(value) => updateSetting("appointment", value)} />
+              <FieldToggle label={i18nT("afficher_prendre_rdv_a0d7cb8f")} checked={Boolean(settings.appointment)} helper={i18nT("badge_appointment_button_help")} onChange={(value) => updateSetting("appointment", value)} />
             </div>
             <button
               type="button"

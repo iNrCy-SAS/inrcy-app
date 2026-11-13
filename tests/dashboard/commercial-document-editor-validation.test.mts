@@ -3,11 +3,19 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import { IntlMessageFormat } from "intl-messageformat";
 import {
   commercialDocumentCompletionError,
   commercialDocumentLinesForEditor,
   commercialDocumentMissingFields,
 } from "../../lib/commercialDocumentValidation.ts";
+
+const documentLocales = ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"];
+const documentCatalogs = Object.fromEntries(documentLocales.map(locale => [locale, JSON.parse(readFileSync(new URL(`../../messages/${locale}/documents.json`, import.meta.url), "utf8")) as Record<string, string>]));
+const documentTranslate = (locale = "fr-FR") => (key: string, values: Record<string, string | number> = {}) => {
+  assert.ok(documentCatalogs[locale][key], `${locale}: missing document message ${key}`);
+  return String(new IntlMessageFormat(documentCatalogs[locale][key], locale).format(values));
+};
 
 const rawLines = [
   { id: "l_1", label: "Entretien du jardin", qty: 1, unitPrice: 120, vatRate: 20 },
@@ -109,7 +117,7 @@ test("native draft save waits for the business profile instead of assuming the d
     const end = source.indexOf("    const nowISO", start);
     const compiled = ts.transpileModule(`${source.slice(start, end)} return "ready"; }; result = saveDraft();`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
     const messages: unknown[] = [];
-    const context: Record<string, unknown> = { profile: null, setFormMessage: (message: unknown) => messages.push(message) };
+    const context: Record<string, unknown> = { profile: null, i18nT: documentTranslate(), setFormMessage: (message: unknown) => messages.push(message) };
     vm.runInNewContext(compiled, context);
     assert.equal(await context.result, null);
     assert.equal(messages.length, 1);
@@ -124,6 +132,7 @@ test("the actual invoice finalization handler presents returned missing fields w
   const messages: Array<{ type: string; text: string }> = [];
   const currentVersion = { documentId: "doc-1" };
   const context: Record<string, unknown> = {
+    i18nT: documentTranslate(),
     documentEdits: {
       captureSave: () => currentVersion,
       isCurrentSave: (version: unknown) => { assert.equal(version, currentVersion); return true; },
@@ -136,4 +145,46 @@ test("the actual invoice finalization handler presents returned missing fields w
   vm.runInNewContext(compiled, context);
   assert.equal(await context.result, null);
   assert.equal(messages[0].text, "À compléter : Code postal · Ville.");
+});
+
+test("the actual quote and invoice validators keep incomplete documents blocked with localized field errors in all nine languages", () => {
+  for (const domain of ["devis", "factures"]) {
+    const source = readFileSync(new URL(`../../app/dashboard/${domain}/new/page.tsx`, import.meta.url), "utf8");
+    const name = domain === "devis" ? "validateQuoteAction" : "validateInvoiceAction";
+    const start = source.indexOf(`  const ${name} =`);
+    const end = source.indexOf("  const saveDraft =", start);
+    assert.ok(start > 0 && end > start, "actual validation handler located");
+    const compiled = ts.transpileModule(`${source.slice(start, end)} result = ${name}({ requireEmail: true });`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None } }).outputText;
+    for (const locale of documentLocales) {
+      const i18nT = documentTranslate(locale);
+      for (const clientType of ["", "professionnel"]) {
+        let errors: Record<string, string> = {};
+        const context: Record<string, unknown> = {
+          i18nT, lines: [], clientType, clientName: "", clientEmail: "", clientSiren: "", number: "",
+          billingAddress: "", billingPostalCode: "", billingCity: "", docDateISO: "", validityDays: 0,
+          invoiceDate: "", dueDate: "", operationCategory: "", isValidEmail: () => false,
+          setAdvancedOpen: () => undefined, setFormMessage: () => undefined,
+          setFieldErrors: (next: Record<string, string>) => { errors = next; },
+        };
+        vm.runInNewContext(compiled, context);
+        assert.equal(context.result, false, `${domain}/${locale}: invalid data never passes validation`);
+        assert.equal(errors.clientName, i18nT("validation_client_name"));
+        assert.equal(errors.billingCity, i18nT("validation_city"));
+        assert.equal(errors.clientEmail, i18nT("validation_email_required"));
+        assert.equal(errors.lines, i18nT("validation_valid_line"));
+        assert.equal(clientType ? errors.clientSiren : errors.clientType, i18nT(clientType ? "validation_client_siren" : "validation_client_type"));
+        assert.ok(Object.values(errors).every(error => Object.values(documentCatalogs[locale]).includes(error)), `${domain}/${locale}: every field message comes from the selected language`);
+      }
+    }
+  }
+});
+
+test("server completion details localize known native field names in all nine languages while preserving unknown details and source data", () => {
+  const response = { missingFields: ["Code postal", "Ville", "Ville", "Détail fournisseur XYZ"] };
+  const original = JSON.stringify(response);
+  for (const locale of documentLocales) {
+    const i18nT = documentTranslate(locale);
+    assert.equal(commercialDocumentCompletionError(response, "fallback", i18nT), i18nT("completion_missing_fields", { fields: `${i18nT("code_postal_74779109")} · ${i18nT("ville_97217611")} · Détail fournisseur XYZ` }));
+  }
+  assert.equal(JSON.stringify(response), original);
 });

@@ -1270,7 +1270,7 @@
     ],
     "sourceAnchor": "onClick={() => setReviewsOpen(true)}",
     "controlIds": [
-      "app/dashboard/_components/DashboardChannelWorkspace.tsx#button:1a2a76c00106d5c3:1"
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx#button:864fabaf9500784a:1"
     ],
     "capabilityId": "navigation.screen",
     "toolNames": [
@@ -1357,7 +1357,21 @@
     },
     "coverageStatus": "implemented",
     "status": "native_component_runtime",
-    "notes": "Commande locale finie, montage/compte/acteur/révision vérifiés. Le composant relit son état après rendu ; cette preuve ne certifie pas un appel fournisseur réel."
+    "notes": "Commande locale finie, montage/compte/acteur/révision vérifiés. Le composant relit son état après rendu ; cette preuve ne certifie pas un appel fournisseur réel.",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/channel-actions-hover-browser.test.mts",
+        "testAnchor": "the selected interactive channel stays fixed while its decoration floats"
+      },
+      {
+        "file": "tests/dashboard/channel-actions-hover-browser.test.mts",
+        "testAnchor": "all four Pinterest actions keep their lower-edge hit area for repeated 300ms hovers"
+      },
+      {
+        "file": "tests/dashboard/channel-actions-hover-browser.test.mts",
+        "testAnchor": "keyboard focus and the public-link popover preserve the stable action row"
+      }
+    ]
   },
   {
     "id": "account-44c3717f37f6ef74",
@@ -1398,7 +1412,7 @@
     ],
     "sourceAnchor": "onClick={() => setMotionPaused((paused) => !paused)}",
     "controlIds": [
-      "app/dashboard/_components/DashboardChannelsModal.tsx#button:42a831eb293d837e:1"
+      "app/dashboard/_components/DashboardChannelsModal.tsx#button:7bae665f295a26fc:1"
     ],
     "capabilityId": "navigation.local-controls",
     "toolNames": [
@@ -1428,7 +1442,7 @@
     ],
     "sourceAnchor": "onClick={onOpenHelp}",
     "controlIds": [
-      "app/dashboard/_components/DashboardChannelsModal.tsx#button:60ea1b8a84c85706:1"
+      "app/dashboard/_components/DashboardChannelsModal.tsx#button:e77fc4648f195160:1"
     ],
     "capabilityId": "navigation.screen",
     "toolNames": [
@@ -1461,7 +1475,7 @@
     ],
     "sourceAnchor": "onClick={closeDialog}",
     "controlIds": [
-      "app/dashboard/_components/DashboardChannelsModal.tsx#button:8e90020121f141fd:1"
+      "app/dashboard/_components/DashboardChannelsModal.tsx#button:57deefefb712a818:1"
     ],
     "capabilityId": "navigation.local-controls",
     "toolNames": [
@@ -1480,7 +1494,21 @@
     },
     "coverageStatus": "implemented",
     "status": "native_component_runtime",
-    "notes": "Commande locale finie, montage/compte/acteur/révision vérifiés. Le composant relit son état après rendu ; cette preuve ne certifie pas un appel fournisseur réel."
+    "notes": "Commande locale finie, montage/compte/acteur/révision vérifiés. Le composant relit son état après rendu ; cette preuve ne certifie pas un appel fournisseur réel.",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/overlay-scroll-lock-runtime.test.mts",
+        "testAnchor": "actual overlapping channels, settings and studio effects retain scrolling ownership in every close order"
+      },
+      {
+        "file": "tests/dashboard/overlay-scroll-lock-runtime.test.mts",
+        "testAnchor": "actual mobile assistant and confirmation effects keep their ownership after the parent closes"
+      },
+      {
+        "file": "tests/dashboard/overlay-scroll-lock-runtime.test.mts",
+        "testAnchor": "style ownership preserves original values and priorities, external edits and StrictMode cleanup"
+      }
+    ]
   },
   {
     "id": "account-c0544dcb16654e8b",
@@ -1491,7 +1519,7 @@
     ],
     "sourceAnchor": "onClick={() => selectAdjacentChannel(-1)}",
     "controlIds": [
-      "app/dashboard/_components/DashboardChannelsModal.tsx#button:2f2e578135cf632d:1"
+      "app/dashboard/_components/DashboardChannelsModal.tsx#button:e1015b47cc2712ee:1"
     ],
     "capabilityId": "navigation.local-controls",
     "toolNames": [
@@ -1524,7 +1552,7 @@
     ],
     "sourceAnchor": "onClick={() => selectAdjacentChannel(1)}",
     "controlIds": [
-      "app/dashboard/_components/DashboardChannelsModal.tsx#button:1a268bb8833d7815:1"
+      "app/dashboard/_components/DashboardChannelsModal.tsx#button:0c85634dd75992b3:1"
     ],
     "capabilityId": "navigation.local-controls",
     "toolNames": [
@@ -1557,7 +1585,7 @@
     ],
     "sourceAnchor": "onClick={() => setFilter(\"all\")}",
     "controlIds": [
-      "app/dashboard/_components/DashboardChannelsModal.tsx#button:ca302fa45396385a:1"
+      "app/dashboard/_components/DashboardChannelsModal.tsx#button:dd532ccbb8b20663:1"
     ],
     "capabilityId": "navigation.local-controls",
     "toolNames": [
@@ -1618,9 +1646,9 @@
     "sourceFiles": [
       "app/dashboard/_components/DashboardChannelsModal.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={`${styles.satellite} ${styles[tone]}`} onClick={() => {\n                    void requestNavigation(() => {\n                      setSelectedKey(item.key);\n                      // The chosen satellite leaves the ring; retain a useful keyboard focus.\n                      requestAnimationFrame(() => selectedAreaRef.current?.focus());\n                    });\n                  }} aria-label={`${item.name} — ${item.bubbleStatusText}. Sélectionner ce canal.`} title={`${item.name} · ${item.bubbleStatusText}`}>\n                    <span className={styles.satelliteStatus} aria-hidden=\"true\" />\n                    <span className={styles.channelLogoMedallion}><Image src={item.logoSrc} alt=\"\" width={58} height={58} unoptimized loading=\"eager\" decoding=\"sync\" className={styles.channelLogo} /></span>\n                    <span className={styles.channelName}>{item.name}</span>\n                    <span className={styles.channelStatusText}>{item.bubbleStatusText}</span>\n                  </button>",
+    "sourceAnchor": "<button type=\"button\" className={`${styles.satellite} ${styles[tone]}`} onClick={() => {\n                    void requestNavigation(() => {\n                      setSelectedKey(item.key);\n                      // The cho",
     "controlIds": [
-      "app/dashboard/_components/DashboardChannelsModal.tsx#button:80d9d34d4ce79777:1"
+      "app/dashboard/_components/DashboardChannelsModal.tsx#button:b09f6970d10d1dd8:1"
     ],
     "capabilityId": "navigation.local-controls",
     "toolNames": [
@@ -14092,7 +14120,7 @@
     ],
     "sourceAnchor": "onSelect={(id) => void selectTheme(id)}",
     "controlIds": [
-      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#ThemeChoice:2dfeefc3476fdfbc:1"
+      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#ThemeChoice:b191e5e654c261e2:1"
     ],
     "capabilityId": "channels.presentation",
     "toolNames": [
@@ -14123,7 +14151,7 @@
     ],
     "sourceAnchor": "onSelect={(id) => void selectTheme(id)}",
     "controlIds": [
-      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#ThemeChoice:2b2206cfdc5f54c6:1"
+      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#ThemeChoice:c4aebe3f0f5183c1:1"
     ],
     "capabilityId": "channels.presentation",
     "toolNames": [
@@ -14187,7 +14215,7 @@
     ],
     "sourceAnchor": "onChange={(value) => updateSetting(\"logo\", value)}",
     "controlIds": [
-      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#FieldToggle:fd63d3c4a241dd0b:1"
+      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#FieldToggle:e15e156a0bcbac96:1"
     ],
     "capabilityId": "channels.presentation",
     "toolNames": [
@@ -14286,7 +14314,7 @@
     ],
     "sourceAnchor": "onChange={(value) => updateSetting(\"phone\", value)}",
     "controlIds": [
-      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#FieldToggle:e02d7a7940d032e4:1"
+      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#FieldToggle:2aa7a7c3cab7221d:1"
     ],
     "capabilityId": "channels.presentation",
     "toolNames": [
@@ -14319,7 +14347,7 @@
     ],
     "sourceAnchor": "onChange={(value) => updateSetting(\"saveContact\", value)}",
     "controlIds": [
-      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#FieldToggle:a3a5b5fb2b7ca08d:1"
+      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#FieldToggle:6b13bc14326b7971:1"
     ],
     "capabilityId": "channels.presentation",
     "toolNames": [
@@ -14450,7 +14478,7 @@
     ],
     "sourceAnchor": "onChange={(value) => updateSetting(item.key, value)}",
     "controlIds": [
-      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#FieldToggle:46335c2278dffb91:1"
+      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#FieldToggle:7a9b2e69b5858652:1"
     ],
     "capabilityId": "channels.presentation",
     "toolNames": [

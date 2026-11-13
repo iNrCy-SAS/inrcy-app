@@ -135,26 +135,26 @@ const IMAGE_STYLES: MediaGenerationImageStyle[] = [
 const LOGO_MODES: MediaGenerationLogoMode[] = ["discreet", "visible", "none"];
 const MAX_TEXT_KEYWORDS = 6;
 const MAX_INSPIRATION_IMAGES = AI_MEDIA_INSPIRATION_MAX_COUNT;
-const IMAGE_PURPOSES: Array<{ id: StudioImagePurpose; label: string }> = [
-  { id: "auto", label: "Déduit de ma consigne" },
-  { id: "simple", label: "Image simple" },
-  { id: "social", label: "Publication sociale" },
-  { id: "flyer", label: "Flyer" },
-  { id: "product_sheet", label: "Fiche produit" },
-  { id: "poster", label: "Affiche" },
-  { id: "banner", label: "Bannière" },
-  { id: "infographic", label: "Infographie" },
+const IMAGE_PURPOSES: Array<{ id: StudioImagePurpose; labelKey: string }> = [
+  { id: "auto", labelKey: "deduit_de_ma_consigne_0a6e237f" },
+  { id: "simple", labelKey: "image_simple_4491727d" },
+  { id: "social", labelKey: "publication_sociale_03d64863" },
+  { id: "flyer", labelKey: "flyer_89459096" },
+  { id: "product_sheet", labelKey: "fiche_produit_540d04df" },
+  { id: "poster", labelKey: "affiche_793f04b8" },
+  { id: "banner", labelKey: "banniere_21c9e919" },
+  { id: "infographic", labelKey: "infographie_baa8636e" },
 ];
 const VISUAL_DIRECTIONS: Array<{
   id: StudioVisualDirection;
-  label: string;
+  labelKey: string;
 }> = [
-  { id: "auto", label: "Déduite de ma consigne" },
-  { id: "clean", label: "Épurée" },
-  { id: "premium", label: "Premium" },
-  { id: "warm", label: "Chaleureuse" },
-  { id: "dynamic", label: "Dynamique" },
-  { id: "bold", label: "Audacieuse" },
+  { id: "auto", labelKey: "deduite_de_ma_consigne_ee7ef0aa" },
+  { id: "clean", labelKey: "epuree_a042bf10" },
+  { id: "premium", labelKey: "premium_6c2f2888" },
+  { id: "warm", labelKey: "chaleureuse_3d14cabd" },
+  { id: "dynamic", labelKey: "dynamique_8773c690" },
+  { id: "bold", labelKey: "audacieuse_9b70805e" },
 ];
 const AI_PEOPLE_CRITERIA: StudioAiPeopleCriterion[] = [
   "auto",
@@ -179,11 +179,11 @@ const AI_FOCUS_CRITERIA: StudioAiFocusCriterion[] = [
 ];
 const REFERENCE_ROLE_OPTIONS: Array<{
   id: StudioRequiredReferenceRole;
-  label: string;
+  labelKey: string;
 }> = [
-  { id: "character", label: "Personne" },
-  { id: "environment", label: "Décor" },
-  { id: "product", label: "Produit" },
+  { id: "character", labelKey: "personne_6691d67a" },
+  { id: "environment", labelKey: "decor_97d1aaca" },
+  { id: "product", labelKey: "produit_ff673dc2" },
 ];
 const INSPIRATION_IMAGE_ACCEPT = [
   ...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES,
@@ -267,6 +267,7 @@ export default function MediaGenerator({
   onResultChange,
   onBusyChange,
 }: MediaGeneratorProps) {
+  const i18nT = useTranslations("shell");
   const t = useTranslations("media");
   const locale = useLocale();
   const instanceId = useId();
@@ -649,13 +650,13 @@ export default function MediaGenerator({
     mediaSourceMode === "real" && !transformMode
       ? inspirationImages.filter((image) => image.role === "character")
             .length > 3
-        ? "Trois références Personne maximum. Classez les autres en Décor ou Produit, ou retirez-les."
+        ? i18nT("media_ui_3c28fb2837")
         : inspirationImages.filter((image) => image.role === "environment")
               .length > 1
-        ? "Un seul Décor est possible. Changez le type des autres références."
+        ? i18nT("media_ui_4ec94eaacf")
         : inspirationImages.filter((image) => image.role === "product")
               .length > 1
-        ? "Un seul Produit est possible. Changez le type des autres références."
+        ? i18nT("media_ui_6e4101a0bd")
         : ""
       : "";
   const effectiveCharacterCount = transformMode
@@ -1699,9 +1700,7 @@ export default function MediaGenerator({
             <div>
               <h3>{t("ai_generator_redesign_subject_title")}</h3>
               <p>
-                Parlez à l’IA comme à un créatif : expliquez librement le
-                résultat que vous souhaitez.
-              </p>
+                {i18nT("parlez_a_l_ia_comme_a_8bb63bb9")}{" "}</p>
             </div>
           </header>
 
@@ -1739,11 +1738,11 @@ export default function MediaGenerator({
             className={`${styles.essentialTextareaField} ${styles.creativeBriefField}`}
           >
             <span>
-              {kind === "video" ? t("ai_generator_video_visual_brief_title") : "Votre consigne à l’IA"}
+              {kind === "video" ? t("ai_generator_video_visual_brief_title") : i18nT("votre_consigne_a_l_ia_40fff219")}
               <small>
                 {subjectSource === "custom"
-                  ? "Obligatoire"
-                  : "Facultative, mais fortement recommandée"}
+                  ? i18nT("obligatoire_389b678a")
+                  : i18nT("facultative_mais_fortement_recommandee_38ca6748")}
               </small>
               {kind === "video" ? <small id={`${instanceId}-visual-brief-count`} aria-live="polite">{creativeBrief.length} / {creativeBriefMaximum}</small> : null}
             </span>
@@ -1768,8 +1767,8 @@ export default function MediaGenerator({
                 }}
                 placeholder={
                   kind === "image"
-                    ? "Ex. Crée un flyer premium pour notre journée portes ouvertes, avec notre produit au centre, une lumière chaleureuse et une zone claire pour la date…"
-                    : "Ex. Filme notre équipe préparant la commande, commence par un plan large puis rapproche-toi du produit, avec une ambiance énergique…"
+                    ? i18nT("media_ui_5d6382ea93")
+                    : i18nT("media_ui_5354ed161e")
                 }
                 maxLength={kind === "video" ? undefined : creativeBriefMaximum}
                 disabled={busy || finishing}
@@ -1800,14 +1799,10 @@ export default function MediaGenerator({
                 className={styles.fieldAlert}
                 role="alert"
               >
-                Décrivez ce que vous souhaitez créer en quelques mots.
-              </small>
+                {i18nT("decrivez_ce_que_vous_souhaitez_creer_8ba4b5c4")}{" "}</small>
             ) : (
               <small>
-                Décrivez le sujet, l’action, l’ambiance, le résultat attendu et
-                tout élément à respecter. Les réglages suivants préciseront ce
-                brief sans le remplacer.
-              </small>
+                {i18nT("decrivez_le_sujet_l_action_l_090a3b54")}{" "}</small>
             )}
           </label>
         </section>
@@ -2006,15 +2001,15 @@ export default function MediaGenerator({
                 <label
                   className={styles.referenceDropzoneIcon}
                   htmlFor="ai-media-reference-multiple"
-                  aria-label="Ajouter une référence"
+                  aria-label={i18nT("ajouter_une_reference_ccaa720f")}
                 >
                   +
                 </label>
                 <div className={styles.referenceDropzoneCopy}>
                   <div className={styles.referenceDropzoneHeading}>
-                    <strong>Déposez vos références ici</strong>
+                    <strong>{i18nT("deposez_vos_references_ici_189a62d7")}</strong>
                     <details className={styles.referenceInfo} open={referenceInformationOpen} onToggle={event => setReferenceInformationOpen(event.currentTarget.open)}>
-                      <summary aria-label="Information sur les références">i</summary>
+                      <summary aria-label={i18nT("information_sur_les_references_e3afbda1")}>i</summary>
                       <p>
                         {t(
                           kind === "video"
@@ -2025,14 +2020,13 @@ export default function MediaGenerator({
                     </details>
                   </div>
                   <small>
-                    Personnages, produits, lieux ou inspirations ·{" "}
+                    {i18nT("personnages_produits_lieux_ou_inspirations_2f3d7fe4")}{" "}
                     {inspirationImages.length}/{MAX_INSPIRATION_IMAGES}
                   </small>
                 </div>
                 <span className={styles.referenceDropzoneActions}>
                   <label htmlFor="ai-media-reference-multiple">
-                    Choisir sur mon appareil
-                  </label>
+                    {i18nT("choisir_sur_mon_appareil_b5f2c497")}{" "}</label>
                   <input
                     id="ai-media-reference-multiple"
                     type="file"
@@ -2058,15 +2052,14 @@ export default function MediaGenerator({
                     }
                     onClick={() => setLibraryPickerOpen(true)}
                   >
-                    Choisir dans ma médiathèque
-                  </button>
+                    {i18nT("choisir_dans_ma_mediatheque_dc58b0e0")}{" "}</button>
                 </span>
               </div>
 
               {inspirationImages.length ? (
                 <div
                   className={styles.referenceCollection}
-                  aria-label="Références ajoutées"
+                  aria-label={i18nT("references_ajoutees_5578a199")}
                   data-character-voices={kind === "video" ? "true" : undefined}
                 >
                   {inspirationImages.map((reference, index) => {
@@ -2084,17 +2077,17 @@ export default function MediaGenerator({
                             alt=""
                           />
                           <span className={styles.referenceTileCopy}>
-                            <strong>Référence {index + 1}</strong>
+                            <strong>{i18nT("reference_f8130bb0")}{" "}{index + 1}</strong>
                             <small>
-                              {reference.name || `Référence ${index + 1}`}
+                              {reference.name || i18nT("reference_value_f75cdfb7", { value0: index + 1 })}
                             </small>
                           </span>
                         </div>
                         <button
                           type="button"
                           className={styles.referenceTileRemove}
-                          aria-label={`Retirer la référence ${index + 1}`}
-                          title="Retirer cette référence"
+                          aria-label={i18nT("retirer_la_reference_value_c5e6ba04", { value0: index + 1 })}
+                          title={i18nT("retirer_cette_reference_11c8c343")}
                           disabled={operationLocked}
                           onClick={() => removeReferenceAt(index)}
                         >
@@ -2103,7 +2096,7 @@ export default function MediaGenerator({
                         <div className={styles.referenceTileControls}>
                           <select
                             className={styles.studioSelect}
-                            aria-label={`Type de la référence ${index + 1}`}
+                            aria-label={i18nT("type_de_la_reference_value_eae7d30a", { value0: index + 1 })}
                             value={reference.role === "inspiration" || !reference.role ? "character" : reference.role}
                             disabled={operationLocked}
                             onChange={(event) =>
@@ -2112,21 +2105,21 @@ export default function MediaGenerator({
                           >
                             {REFERENCE_ROLE_OPTIONS.map((role) => (
                               <option key={role.id} value={role.id}>
-                                {role.label}
+                                {i18nT(role.labelKey)}
                               </option>
                             ))}
                           </select>
                           <select
                             className={styles.studioSelect}
-                            aria-label={`Utilisation de la référence ${index + 1}`}
+                            aria-label={i18nT("utilisation_de_la_reference_value_41ca8a07", { value0: index + 1 })}
                             value={reference.usage}
                             disabled={operationLocked}
                             onChange={(event) =>
                               setReferenceUsage(index, event.target.value as "required" | "inspiration")
                             }
                           >
-                            <option value="required">Obligatoire</option>
-                            <option value="inspiration">Inspiration</option>
+                            <option value="required">{i18nT("obligatoire_389b678a")}</option>
+                            <option value="inspiration">{i18nT("inspiration_2868202f")}</option>
                           </select>
                         </div>
                         {kind === "video" && reference.role === "character" ? <MediaCharacterVoiceInput
@@ -2158,9 +2151,7 @@ export default function MediaGenerator({
                 <div className={styles.identityContinuityNotice} role="note">
                   <span aria-hidden="true">✓</span>
                   <p>
-                    Identité conservée entre les scènes pour chaque personnage
-                    utilisé impérativement.
-                  </p>
+                    {i18nT("identite_conservee_entre_les_scenes_pour_4512c3b8")}{" "}</p>
                 </div>
               ) : null}
             </>
@@ -2171,9 +2162,7 @@ export default function MediaGenerator({
               <span aria-hidden="true">✓</span>
               <p>
                 {mediaSourceMode === "ai"
-                  ? `L’IA crée ${
-                      kind === "video" ? "une vidéo" : "une image"
-                    } entièrement nouvelle à partir de votre brief.`
+                  ? i18nT(kind === "video" ? "media_ui_f1e44cd0d9" : "media_ui_bfbe8f9e28")
                   : t(
                       kind === "video"
                         ? "ai_generator_redesign_criteria_result_video"
@@ -2209,8 +2198,8 @@ export default function MediaGenerator({
               </h3>
               <p>
                 {kind === "image"
-                  ? "Cadrez la création, son format et l’identité visuelle de l’entreprise."
-                  : "Cadrez le film, son rythme et l’identité visuelle de l’entreprise."}
+                  ? i18nT("cadrez_la_creation_son_format_et_0ca92bf3")
+                  : i18nT("cadrez_le_film_son_rythme_et_4c411421")}
               </p>
             </div>
             <RememberPreferenceControl
@@ -2233,7 +2222,7 @@ export default function MediaGenerator({
           <div className={styles.directionSettings}>
             {kind === "image" ? (
               <label className={styles.essentialSelectField} data-direction-control="duration">
-                <span>Type de création</span>
+                <span>{i18nT("type_de_creation_0e332577")}</span>
                 <select
                   className={styles.studioSelect}
                   value={imagePurpose}
@@ -2244,7 +2233,7 @@ export default function MediaGenerator({
                 >
                   {IMAGE_PURPOSES.map((option) => (
                     <option key={option.id} value={option.id}>
-                      {option.label}
+                      {i18nT(option.labelKey)}
                     </option>
                   ))}
                 </select>
@@ -2270,7 +2259,7 @@ export default function MediaGenerator({
             </label>
 
             <label className={styles.essentialSelectField} data-direction-control="render">
-              <span>{kind === "video" ? "Réalisation" : "Rendu visuel"}</span>
+              <span>{kind === "video" ? i18nT("realisation_3c113b14") : i18nT("rendu_visuel_f9490b0f")}</span>
               <select
                 className={styles.studioSelect}
                 value={imageStyle}
@@ -2292,7 +2281,7 @@ export default function MediaGenerator({
             </label>
 
             <label className={styles.essentialSelectField} data-direction-control="visual-direction">
-              <span>Direction visuelle</span>
+              <span>{i18nT("direction_visuelle_66315741")}</span>
               <select
                 className={styles.studioSelect}
                 value={visualDirection}
@@ -2305,7 +2294,7 @@ export default function MediaGenerator({
               >
                 {VISUAL_DIRECTIONS.map((option) => (
                   <option key={option.id} value={option.id}>
-                    {option.label}
+                    {i18nT(option.labelKey)}
                   </option>
                 ))}
               </select>
@@ -2367,8 +2356,8 @@ export default function MediaGenerator({
               </h3>
               <p>
                 {kind === "image"
-                  ? "Décidez exactement ce qui doit être écrit sur le visuel."
-                  : "Pilotez le texte, les voix et l’univers sonore de la vidéo."}
+                  ? i18nT("decidez_exactement_ce_qui_doit_etre_295177df")
+                  : i18nT("pilotez_le_texte_les_voix_et_88f80869")}
               </p>
             </div>
             <RememberPreferenceControl
@@ -2390,11 +2379,9 @@ export default function MediaGenerator({
 
           <div className={styles.textModePanel}>
             <div className={styles.textModeHeading}>
-              <span>Texte visible</span>
+              <span>{i18nT("texte_visible_ab4defe6")}</span>
               <small>
-                Aucun slogan automatique n’est ajouté si vous choisissez « Aucun
-                texte ».
-              </small>
+                {i18nT("aucun_slogan_automatique_n_est_ajoute_1c048f89")}{" "}</small>
             </div>
             <div className={styles.textModeChoices} role="radiogroup">
               {(
@@ -2423,9 +2410,7 @@ export default function MediaGenerator({
 
             {visibleTextModeConflict ? (
               <small className={styles.fieldAlert} role="alert">
-                Votre brief demande du texte visible. Choisissez « Texte rédigé
-                par l’IA » ou « Texte exact » avant de générer.
-              </small>
+                {i18nT("votre_brief_demande_du_texte_visible_077ac35b")}{" "}</small>
             ) : null}
 
             {textMode === "exact" ? (
@@ -2433,8 +2418,7 @@ export default function MediaGenerator({
                 className={`${styles.essentialTextareaField} ${styles.exactTextField}`}
               >
                 <span>
-                  Texte à reproduire fidèlement
-                  <small>{exactText.length}/600</small>
+                  {i18nT("texte_a_reproduire_fidelement_3b38eb09")}{" "}<small>{exactText.length}/600</small>
                 </span>
                 <textarea
                   value={exactText}
@@ -2444,13 +2428,12 @@ export default function MediaGenerator({
                   aria-invalid={exactText.trim().length < 2}
                   onChange={(event) => setExactText(event.target.value)}
                   placeholder={
-                    "Titre\nSous-titre\nPrix, date ou lieu\nAppel à l’action\nMentions utiles…"
+                    i18nT("titre_sous_titre_prix_date_ou_f8cd3cd5")
                   }
                 />
                 {exactText.trim().length < 2 ? (
                   <small className={styles.fieldAlert} role="alert">
-                    Ajoutez le texte qui doit apparaître sur le média.
-                  </small>
+                    {i18nT("ajoutez_le_texte_qui_doit_apparaitre_74661beb")}{" "}</small>
                 ) : null}
               </label>
             ) : null}
@@ -2458,7 +2441,7 @@ export default function MediaGenerator({
             {textMode === "ai" ? (
               <div className={styles.textKeywordsGroup}>
                 <div className={styles.textKeywordsHeader}>
-                  <span>Mots ou informations à évoquer</span>
+                  <span>{i18nT("mots_ou_informations_a_evoquer_7c18216e")}</span>
                   <small>
                     {t("ai_generator_text_keywords_counter", {
                       count: resolvedTextKeywords.length,
@@ -2509,7 +2492,7 @@ export default function MediaGenerator({
                         addTextKeywords(textKeywordDraft);
                       }
                     }}
-                    placeholder="Ex. nouveauté, fabrication locale, 20 septembre…"
+                    placeholder={i18nT("ex_nouveaute_fabrication_locale_20_septembre_ba9bc1a2")}
                     disabled={
                       operationLocked ||
                       textKeywords.length >= MAX_TEXT_KEYWORDS
@@ -2525,8 +2508,7 @@ export default function MediaGenerator({
                       textKeywords.length >= MAX_TEXT_KEYWORDS
                     }
                   >
-                    Ajouter
-                  </button>
+                    {i18nT("ajouter_87c57ed1")}{" "}</button>
                 </div>
               </div>
             ) : null}

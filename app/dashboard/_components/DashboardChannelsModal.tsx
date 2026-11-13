@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import Image from "next/image";
 import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
@@ -11,6 +14,7 @@ import GoogleOAuthConsentBanner from "./GoogleOAuthConsentBanner";
 import MetaOAuthCallbackNotice from "./MetaOAuthCallbackNotice";
 import { useInrAssistantScreen } from "./DashboardAssistantScreenContext";
 import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import { acquireElementStyleLock } from "@/lib/elementStyleLock";
 
 type Props = {
   items: DashboardFluxBubbleData[];
@@ -29,6 +33,7 @@ function ChannelsIcon() {
 }
 
 export default function DashboardChannelsModal({ items, onClose, onOpenHelp, summary, initialSelectedKey = "gmb", renderSelected }: Props) {
+  const i18nT = useTranslations("dashboard");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const selectedAreaRef = useRef<HTMLDivElement>(null);
@@ -52,8 +57,6 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
     if (!dialog) return;
     const mobile = window.matchMedia("(max-width: 1100px)");
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    const previousHtmlOverflow = document.documentElement.style.overflow;
     const syncPresentation = () => {
       // A phone channel cockpit is a workspace above the shared navigation.
       // showModal would put the dock (and its Assistant) behind an inert layer.
@@ -69,8 +72,8 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
     };
     const nestedClosed = (event: Event) => { if (event.target !== dialog) syncPresentation(); };
     syncPresentation();
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
+    const releaseBodyLock = acquireElementStyleLock(document.body, { overflow: "hidden" });
+    const releaseRootLock = acquireElementStyleLock(document.documentElement, { overflow: "hidden" });
     closeButtonRef.current?.focus({ preventScroll: true });
     mobile.addEventListener("change", syncPresentation);
     document.addEventListener("close", nestedClosed, true);
@@ -78,8 +81,8 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
       mobile.removeEventListener("change", syncPresentation);
       document.removeEventListener("close", nestedClosed, true);
       dialog.close();
-      document.body.style.overflow = previousOverflow;
-      document.documentElement.style.overflow = previousHtmlOverflow;
+      releaseBodyLock();
+      releaseRootLock();
       if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
   }, []);
@@ -189,13 +192,13 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
         <header className={styles.headerPanel}>
           <div className={styles.heading}>
             <span className={styles.headingIcon}><ChannelsIcon /></span>
-            <h2 id={titleId}>Mes canaux<DashboardAssistantTrigger /></h2>
-            <p id={descriptionId} className={styles.srOnly}>Votre écosystème de visibilité. Sélectionnez une bulle pour explorer un canal.</p>
+            <h2 id={titleId}>{i18nT("mes_canaux_8cb37240")}<DashboardAssistantTrigger /></h2>
+            <p id={descriptionId} className={styles.srOnly}>{i18nT("votre_ecosysteme_de_visibilite_selectionnez_une_a16599f1")}</p>
           </div>
           <div className={styles.headerInfo}>
-            <span className={styles.connectionCount}><span aria-hidden="true" /><strong>{connectedCount} connectés</strong><span className={styles.countTotal}>/ {totalCount}</span></span>
-          <div className={styles.filters} role="group" aria-label="Filtrer les canaux">
-            {([{ value: "all", label: "Tous" }, { value: "connected", label: "Connectés" }, { value: "configure", label: "À configurer" }] as const).map(({ value, label }) => (
+            <span className={styles.connectionCount}><span aria-hidden="true" /><strong>{i18nT("value_connectes_d1e3af7a", { value0: connectedCount })}</strong><span className={styles.countTotal}>/ {totalCount}</span></span>
+          <div className={styles.filters} role="group" aria-label={i18nT("filtrer_les_canaux_415bac44")}>
+            {([{ value: "all", label: i18nT("tous_b97ae3b4") }, { value: "connected", label: i18nT("connectes_d8583f36") }, { value: "configure", label: i18nT("a_configurer_bde8227a") }] as const).map(({ value, label }) => (
               <button key={value} type="button" aria-pressed={filter === value} className={`${styles.filter} ${filter === value ? styles.filterActive : ""}`} onClick={() => { void requestNavigation(() => setFilter(value)); }}>
                 {value !== "all" ? <span className={value === "connected" ? styles.greenDot : styles.amberDot} aria-hidden="true" /> : null}{label}
               </button>
@@ -203,11 +206,11 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
           </div>
           </div>
           <div className={styles.toolbarActions}>
-            <button type="button" className={styles.motionButton} aria-pressed={motionPaused} onClick={() => setMotionPaused((paused) => !paused)} title={motionPaused ? "Reprendre l’animation" : "Mettre en pause l’animation"}>
-              <svg viewBox="0 0 20 20" aria-hidden="true">{motionPaused ? <path d="m7 4 9 6-9 6Z" /> : <><path d="M6 4v12M14 4v12" /></>}</svg><span>{motionPaused ? "Reprendre" : "Pause"}</span>
+            <button type="button" className={styles.motionButton} aria-pressed={motionPaused} onClick={() => setMotionPaused((paused) => !paused)} title={motionPaused ? i18nT("channels_resume_motion") : i18nT("channels_pause_motion")}>
+              <svg viewBox="0 0 20 20" aria-hidden="true">{motionPaused ? <path d="m7 4 9 6-9 6Z" /> : <><path d="M6 4v12M14 4v12" /></>}</svg><span>{motionPaused ? i18nT("reprendre_1c56710b") : i18nT("pause_781961bc")}</span>
             </button>
-            {onOpenHelp ? <button type="button" className={styles.helpButton} aria-label="Aide sur les canaux" onClick={onOpenHelp}>?</button> : null}
-            <button ref={closeButtonRef} type="button" className={styles.close} onClick={closeDialog} aria-label="Fermer les canaux">Fermer</button>
+            {onOpenHelp ? <button type="button" className={styles.helpButton} aria-label={i18nT("aide_sur_les_canaux_72b7439d")} onClick={onOpenHelp}>?</button> : null}
+            <button ref={closeButtonRef} type="button" className={styles.close} onClick={closeDialog} aria-label={i18nT("fermer_les_canaux_44584981")}>{i18nT("fermer_5ab4ec64")}</button>
           </div>
         </header>
         <GoogleOAuthConsentBanner panel={selected?.key ?? null} errorsOnly />
@@ -242,19 +245,19 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
                 {/* eslint-disable-next-line react-hooks/refs */}
                 {renderSelected ? renderSelected(selectedItem!) : <DashboardFluxBubble key={selected.key} item={selectedItem!} />}
               </div>
-              <button type="button" className={`${styles.channelArrow} ${styles.arrowPrevious}`} aria-label="Canal précédent" disabled={filteredItems.length < 2} onClick={() => selectAdjacentChannel(-1)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg></button>
-              <button type="button" className={`${styles.channelArrow} ${styles.arrowNext}`} aria-label="Canal suivant" disabled={filteredItems.length < 2} onClick={() => selectAdjacentChannel(1)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg></button>
+              <button type="button" className={`${styles.channelArrow} ${styles.arrowPrevious}`} aria-label={i18nT("canal_precedent_e644dfdf")} disabled={filteredItems.length < 2} onClick={() => selectAdjacentChannel(-1)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg></button>
+              <button type="button" className={`${styles.channelArrow} ${styles.arrowNext}`} aria-label={i18nT("canal_suivant_d20db274")} disabled={filteredItems.length < 2} onClick={() => selectAdjacentChannel(1)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6" /></svg></button>
               <span className={styles.srOnly} aria-live="polite" aria-atomic="true">{selected.name} — {selected.bubbleStatusText}</span>
             </div>
-          ) : <div className={styles.empty}><ChannelsIcon /><h3>{filter === "configure" ? "Tout est prêt à rayonner." : "Aucun canal dans cette vue."}</h3><p>{filter === "configure" ? "Aucun canal disponible ne nécessite de configuration." : "Retrouvez l’ensemble de vos canaux dans la vue Tous."}</p><button type="button" onClick={() => setFilter("all")}>Voir tous les canaux</button></div>}
+          ) : <div className={styles.empty}><ChannelsIcon /><h3>{filter === "configure" ? i18nT("tout_est_pret_a_rayonner_2efb4961") : i18nT("aucun_canal_dans_cette_vue_15a825ef")}</h3><p>{filter === "configure" ? i18nT("aucun_canal_disponible_ne_necessite_de_50b143d2") : i18nT("retrouvez_l_ensemble_de_vos_canaux_12f55a02")}</p><button type="button" onClick={() => setFilter("all")}>{i18nT("voir_tous_les_canaux_022069d0")}</button></div>}
 
-          <nav className={styles.mobileChannelGrid} aria-label="Choisir un canal">
+          <nav className={styles.mobileChannelGrid} aria-label={i18nT("choisir_un_canal_a980bcb9")}>
             {filteredItems.map(item => <button type="button" key={item.key} data-channel-mini={item.key} className={styles.mobileChannelButton} data-tone={getChannelTone(item)} aria-pressed={selected?.key === item.key} aria-label={`${item.name} — ${item.bubbleStatusText}`} title={item.name} onClick={() => { void requestNavigation(() => setSelectedKey(item.key)); }}>
               <Image src={item.logoSrc} alt="" width={32} height={32} unoptimized loading="eager" decoding="sync" />
               <span className={styles.miniStatus} aria-hidden="true" />
             </button>)}
           </nav>
-          <div className={styles.satellites} role="group" aria-label="Choisir un canal">
+          <div className={styles.satellites} role="group" aria-label={i18nT("choisir_un_canal_a980bcb9")}>
             {satellites.map((item, index) => {
               const { x, y, size } = sceneLayout.slots[index % sceneLayout.slots.length];
               const tone = getChannelTone(item);
@@ -266,7 +269,7 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
                       // The chosen satellite leaves the ring; retain a useful keyboard focus.
                       requestAnimationFrame(() => selectedAreaRef.current?.focus());
                     });
-                  }} aria-label={`${item.name} — ${item.bubbleStatusText}. Sélectionner ce canal.`} title={`${item.name} · ${item.bubbleStatusText}`}>
+                  }} aria-label={i18nT("value_value_selectionner_ce_canal_5977eebe", { value0: item.name, value1: item.bubbleStatusText })} title={`${item.name} · ${item.bubbleStatusText}`}>
                     <span className={styles.satelliteStatus} aria-hidden="true" />
                     <span className={styles.channelLogoMedallion}><Image src={item.logoSrc} alt="" width={58} height={58} unoptimized loading="eager" decoding="sync" className={styles.channelLogo} /></span>
                     <span className={styles.channelName}>{item.name}</span>

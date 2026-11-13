@@ -48,6 +48,35 @@ export type PersistentWorkspaceMediaState = {
   error: string;
 };
 
+export type PersistentWorkspaceTranslator = (key: string, values?: Record<string, string | number>) => string;
+
+// Standalone consumers retain the French defaults; the publication UI supplies its locale.
+const DEFAULT_WORKSPACE_MESSAGES: Record<string, string> = {
+  "persistent_immediate_upload_failed": "L’envoi immédiat du média a échoué.",
+  "persistent_sync_failed": "Impossible de synchroniser l’espace média.",
+  "persistent_disabled": "Le workspace média persistant n’est pas activé.",
+  "persistent_prepare_failed": "Impossible de préparer l’espace média.",
+  "persistent_ai_mode_required": "La préparation IA est disponible uniquement dans le mode Créer avec iNrCy.",
+  "persistent_image_prepare_action_failed": "Une image n’a pas pu être préparée. Ouvrez « Modifier Média » pour créer une nouvelle version ou remplacez-la.",
+  "persistent_image_prepare_retry_failed": "La préparation de l’image a échoué. Réessayez en remplaçant l’image ou utilisez « Modifier Média ».",
+  "persistent_clear_failed": "Impossible de vider l'espace média.",
+  "persistent_media_prepare_failed": "Échec de préparation d’un média.",
+  "persistent_initializing_many": "Initialisation des médias…",
+  "persistent_initializing_one": "Initialisation du média…",
+  "persistent_upload_many": "Envoi des médias {progress}%",
+  "persistent_upload_one": "Envoi du média {progress}%",
+  "persistent_uploaded_many": "Médias envoyés",
+  "persistent_uploaded_one": "Média envoyé",
+  "persistent_upload_failed": "L’envoi du média a échoué.",
+  "persistent_verify_failed": "Impossible de vérifier l'espace média.",
+  "persistent_changed_during_verify": "Les médias ont changé pendant leur vérification. Merci de relancer.",
+  "persistent_source_upload_failed": "L'envoi d'un média a échoué.",
+  "persistent_sources_not_ready": "Les médias ne sont pas encore tous disponibles sur le serveur.",
+  "persistent_source_not_ready": "Le média n'est pas encore disponible sur le serveur."
+};
+const defaultWorkspaceTranslate: PersistentWorkspaceTranslator = (key, values = {}) =>
+  (DEFAULT_WORKSPACE_MESSAGES[key] || key).replace(/\{(\w+)\}/g, (token, name: string) => String(values[name] ?? token));
+
 type UsePersistentMediaWorkspaceParams = {
   draftId?: string | null;
   creationMode: BoosterCreationMode | null;
@@ -56,6 +85,7 @@ type UsePersistentMediaWorkspaceParams = {
   imageSettingsByChannel?: Record<string, unknown>;
   onError?: (message: string) => void;
   onPreparedMedia?: (media: readonly MediaWorkspaceMediaSummary[]) => void;
+  translate?: PersistentWorkspaceTranslator;
 };
 
 type PublicationPreparationSettings = {
@@ -102,6 +132,7 @@ export default function usePersistentMediaWorkspace({
   imageSettingsByChannel,
   onError,
   onPreparedMedia,
+  translate = defaultWorkspaceTranslate,
 }: UsePersistentMediaWorkspaceParams) {
   const enabled = isUniversalMediaWorkspaceEnabled();
   const [reference, setReference] = useState<MediaWorkspaceReference | null>(
@@ -435,7 +466,7 @@ export default function usePersistentMediaWorkspace({
               const message =
                 error instanceof Error
                   ? error.message
-                  : "L’envoi immédiat du média a échoué.";
+                  : translate("persistent_immediate_upload_failed");
               activeUploadFailureRef.current[mediaType] = message;
               setMediaStates((current) => {
                 if (!isCurrentOperation()) return current;
@@ -510,7 +541,7 @@ export default function usePersistentMediaWorkspace({
             onError?.(
               error instanceof Error
                 ? error.message
-                : "Impossible de synchroniser l’espace média.",
+                : translate("persistent_sync_failed"),
             );
           }
         })
@@ -541,6 +572,7 @@ export default function usePersistentMediaWorkspace({
       refreshActiveTaskAggregate,
       refreshPreparedMedia,
       resetMissionReadiness,
+      translate,
     ],
   );
 
@@ -563,7 +595,7 @@ export default function usePersistentMediaWorkspace({
       mission: "ai_preparation" | "publication_preparation",
     ): Promise<MediaWorkspacePreparationResult> => {
       if (!enabled) {
-        throw new Error("Le workspace média persistant n’est pas activé.");
+        throw new Error(translate("persistent_disabled"));
       }
       await activeTaskRef.current;
       const uploadFailure = getWorkspaceMediaFamilyFailure(
@@ -574,7 +606,7 @@ export default function usePersistentMediaWorkspace({
       }
       const workspace = await ensureWorkspace();
       if (!workspace) {
-        throw new Error("Impossible de préparer l’espace média.");
+        throw new Error(translate("persistent_prepare_failed"));
       }
 
       const existing = activePreparationRef.current[mission];
@@ -672,17 +704,17 @@ export default function usePersistentMediaWorkspace({
       activePreparationRef.current[mission] = task;
       return await task;
     },
-    [enabled, ensureWorkspace, refreshPreparedMedia],
+    [enabled, ensureWorkspace, refreshPreparedMedia, translate],
   );
 
   const prepareAiMedia = useCallback(async () => {
     if (creationModeRef.current !== "ai") {
       throw new Error(
-        "La préparation IA est disponible uniquement dans le mode Créer avec iNrCy.",
+        translate("persistent_ai_mode_required"),
       );
     }
     return await runPreparationMission("ai_preparation");
-  }, [runPreparationMission]);
+  }, [runPreparationMission, translate]);
 
   useEffect(() => {
     if (!enabled || creationMode !== "ai") return;
@@ -737,17 +769,17 @@ export default function usePersistentMediaWorkspace({
         );
         if (failedImage) {
           setImagePreparationError(
-            "Une image n’a pas pu être préparée. Ouvrez « Modifier Média » pour créer une nouvelle version ou remplacez-la.",
+            translate("persistent_image_prepare_action_failed"),
           );
         }
       })
       .catch((error) => {
         console.warn("[media-pipeline] early image preparation failed", error);
         setImagePreparationError(
-          "La préparation de l’image a échoué. Réessayez en remplaçant l’image ou utilisez « Modifier Média ».",
+          translate("persistent_image_prepare_retry_failed"),
         );
       });
-  }, [eagerImagePreparation, enabled, mediaStates, preparePublicationMedia]);
+  }, [eagerImagePreparation, enabled, mediaStates, preparePublicationMedia, translate]);
 
   const preparePublicationVariants = useCallback(
     async (settings?: PublicationPreparationSettings) => {
@@ -831,7 +863,7 @@ export default function usePersistentMediaWorkspace({
           onError?.(
             error instanceof Error
               ? error.message
-              : "Impossible de vider l'espace média.",
+              : translate("persistent_clear_failed"),
           );
         }
       })
@@ -862,6 +894,7 @@ export default function usePersistentMediaWorkspace({
     onError,
     refreshActiveTaskAggregate,
     resetMissionReadiness,
+    translate,
   ]);
 
   const linkDraft = useCallback(
@@ -939,26 +972,26 @@ export default function usePersistentMediaWorkspace({
           if (failedCount > 0) {
             onProgress(
               averageProgress,
-              "Échec de préparation d’un média.",
+              translate("persistent_media_prepare_failed"),
             );
           } else if (queuedCount > 0 && uploadingCount === 0) {
             onProgress(
               averageProgress,
               total > 1
-                ? "Initialisation des médias…"
-                : "Initialisation du média…",
+                ? translate("persistent_initializing_many")
+                : translate("persistent_initializing_one"),
             );
           } else if (uploadingCount > 0 || queuedCount > 0) {
             onProgress(
               averageProgress,
               total > 1
-                ? `Envoi des médias ${averageProgress}%`
-                : `Envoi du média ${averageProgress}%`,
+                ? translate("persistent_upload_many", { progress: averageProgress })
+                : translate("persistent_upload_one", { progress: averageProgress }),
             );
           } else if (total > 0) {
             onProgress(
               100,
-              total > 1 ? "Médias envoyés" : "Média envoyé",
+              total > 1 ? translate("persistent_uploaded_many") : translate("persistent_uploaded_one"),
             );
           }
         }
@@ -988,11 +1021,11 @@ export default function usePersistentMediaWorkspace({
           includesFamily(item.mediaType) && item.status === "failed",
       );
       if (failedMedia && !options?.tolerateFailures) {
-        throw new Error(failedMedia.error || "L’envoi du média a échoué.");
+        throw new Error(failedMedia.error || translate("persistent_upload_failed"));
       }
       return settledStates;
     },
-    [],
+    [translate],
   );
 
   const verifyReadySources = useCallback(
@@ -1018,7 +1051,7 @@ export default function usePersistentMediaWorkspace({
       const operationVersion = operationVersionRef.current;
       const workspace = await ensureWorkspace();
       if (!workspace) {
-        throw new Error("Impossible de vérifier l'espace média.");
+        throw new Error(translate("persistent_verify_failed"));
       }
 
       // Une seule lecture serveur après waitForIdle : l'état local de l'XHR
@@ -1033,7 +1066,7 @@ export default function usePersistentMediaWorkspace({
         referenceRef.current?.workspaceId !== workspace.workspaceId
       ) {
         throw new Error(
-          "Les médias ont changé pendant leur vérification. Merci de relancer.",
+          translate("persistent_changed_during_verify"),
         );
       }
 
@@ -1047,7 +1080,7 @@ export default function usePersistentMediaWorkspace({
         if (failedSource) {
           throw new Error(
             failedSource.processingErrorMessage ||
-              "L'envoi d'un média a échoué.",
+              translate("persistent_source_upload_failed"),
           );
         }
 
@@ -1072,15 +1105,15 @@ export default function usePersistentMediaWorkspace({
         if (!everyExpectedSourceIsReady) {
           throw new Error(
             expectation.count > 1
-              ? "Les médias ne sont pas encore tous disponibles sur le serveur."
-              : "Le média n'est pas encore disponible sur le serveur.",
+              ? translate("persistent_sources_not_ready")
+              : translate("persistent_source_not_ready"),
           );
         }
       }
 
       return snapshot;
     },
-    [enabled, ensureWorkspace],
+    [enabled, ensureWorkspace, translate],
   );
 
   const archiveWorkspace = useCallback(async () => {

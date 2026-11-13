@@ -147,7 +147,21 @@
       "browser": "see_named_test",
       "provider": "not_certified"
     },
-    "coverageStatus": "implemented"
+    "coverageStatus": "implemented",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/overlay-scroll-lock-runtime.test.mts",
+        "testAnchor": "actual overlapping channels, settings and studio effects retain scrolling ownership in every close order"
+      },
+      {
+        "file": "tests/dashboard/overlay-scroll-lock-runtime.test.mts",
+        "testAnchor": "actual mobile assistant and confirmation effects keep their ownership after the parent closes"
+      },
+      {
+        "file": "tests/dashboard/overlay-scroll-lock-runtime.test.mts",
+        "testAnchor": "style ownership preserves original values and priorities, external edits and StrictMode cleanup"
+      }
+    ]
   },
   {
     "id": "shell-faf4fa58f29a4e5e",

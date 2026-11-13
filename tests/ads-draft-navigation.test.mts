@@ -283,10 +283,10 @@ test("iNr’Send expose une vue ADS Brouillons et un accès direct au studio", (
 
   assert.match(mailbox, /draftOnly=\{searchParams\?\.get\("boxView"\) === "drafts"\}/);
   assert.match(folder, /params\.set\("status", "draft"\)/);
-  assert.match(folder, /draftOnly \? "Brouillons ADS" : "ADS"/);
+  assert.match(folder, /draftOnly \? i18nT\("brouillons_ads_6d7765ff"\) : "ADS"/);
   assert.match(folder, /editCampaign=\$\{encodeURIComponent\(campaign\.id\)\}/);
   assert.match(details, /channel=\$\{encodeURIComponent\(campaign\.provider\)\}&editCampaign=/);
-  assert.match(folder, /Toutes les campagnes/);
+  assert.match(folder, /i18nT\("toutes_les_campagnes_7fb3d8e3"\)/);
 });
 
 

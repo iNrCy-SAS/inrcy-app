@@ -200,14 +200,14 @@ export default function FideliserPage() {
 
     const buildMissionReward = (doneThisCard: number, missionDone: boolean, projected: number, gained: number) => {
       if (missionDone) {
-        if (doneThisCard > 0) return `${gained} UI gagnés`;
-        return `Mission UI déjà sécurisée`;
+        if (doneThisCard > 0) return i18nT("mission_earned_ui", { count: gained });
+        return i18nT("mission_already_secured");
       }
-      return `+${projected} UI × multiplicateur`;
+      return i18nT("mission_projected_multiplier", { count: projected });
     };
 
     const buildMissionHelper = (doneThisCard: number, missionDone: boolean, fallback: string) => {
-      if (missionDone && doneThisCard <= 0) return "Cette action reste utile, mais ne rapporte plus d’UI cette semaine.";
+      if (missionDone && doneThisCard <= 0) return i18nT("action_no_more_ui");
       return fallback;
     };
 
@@ -238,7 +238,7 @@ export default function FideliserPage() {
         {
           key: "inform" as const,
           title: i18nT("informer_570ee22d"),
-          desc: "Newsletter, actualités, nouveautés. Sélectionnez vos contacts CRM puis envoyez.",
+          desc: i18nT("inform_action_description"),
           accent: "cyan" as const,
           cta: i18nT("envoyer_e9ce243b"),
           status: { ...missionStatus, helper: buildMissionHelper(informWeek, featureMissionDone, missionStatus.helper) },
@@ -247,7 +247,7 @@ export default function FideliserPage() {
         {
           key: "thanks" as const,
           title: i18nT("suivre_7cca6c92"),
-          desc: "Un mail simple après intervention. Sélectionnez des contacts CRM. Lancez.",
+          desc: i18nT("follow_action_description"),
           accent: "purple" as const,
           cta: i18nT("envoyer_e9ce243b"),
           status: { ...missionStatus, helper: buildMissionHelper(thanksWeek, featureMissionDone, missionStatus.helper) },
@@ -256,7 +256,7 @@ export default function FideliserPage() {
         {
           key: "satisfaction" as const,
           title: i18nT("enqueter_4fd8cc8c"),
-          desc: "Enquête de satisfaction ou demande d’avis. Envoyez aux bons clients.",
+          desc: i18nT("survey_action_description"),
           accent: "pink" as const,
           cta: i18nT("envoyer_e9ce243b"),
           status: { ...missionStatus, helper: buildMissionHelper(satisfactionWeek, featureMissionDone, missionStatus.helper) },
@@ -272,10 +272,10 @@ export default function FideliserPage() {
           goal: WEEKLY_GOALS.fideliser.inform,
           status: buildStatus(informWeek, WEEKLY_GOALS.fideliser.inform),
           channels: [
-            { name: "Envoyées cette semaine", value: informWeek },
-            { name: "Envoyées ce mois-ci", value: n(newsletter.month) },
-            { name: "Destinataires touchés", value: n(newsletter.sent) },
-            { name: "Dernier envoi", value: formatLastSend(newsletter.last_sent_at) },
+            { name: i18nT("sent_this_week"), value: informWeek },
+            { name: i18nT("sent_this_month"), value: n(newsletter.month) },
+            { name: i18nT("recipients_reached"), value: n(newsletter.sent) },
+            { name: i18nT("last_sent"), value: formatLastSend(newsletter.last_sent_at) },
           ],
         },
         {
@@ -286,10 +286,10 @@ export default function FideliserPage() {
           goal: WEEKLY_GOALS.fideliser.thanks,
           status: buildStatus(thanksWeek, WEEKLY_GOALS.fideliser.thanks),
           channels: [
-            { name: "Envoyées cette semaine", value: thanksWeek },
-            { name: "Envoyées ce mois-ci", value: n(thanks.month) },
-            { name: "Destinataires touchés", value: n(thanks.sent) },
-            { name: "Dernier envoi", value: formatLastSend(thanks.last_sent_at) },
+            { name: i18nT("sent_this_week"), value: thanksWeek },
+            { name: i18nT("sent_this_month"), value: n(thanks.month) },
+            { name: i18nT("recipients_reached"), value: n(thanks.sent) },
+            { name: i18nT("last_sent"), value: formatLastSend(thanks.last_sent_at) },
           ],
         },
         {
@@ -300,10 +300,10 @@ export default function FideliserPage() {
           goal: WEEKLY_GOALS.fideliser.satisfaction,
           status: buildStatus(satisfactionWeek, WEEKLY_GOALS.fideliser.satisfaction),
           channels: [
-            { name: "Envoyées cette semaine", value: satisfactionWeek },
-            { name: "Envoyées ce mois-ci", value: n(satisfaction.month) },
-            { name: "Destinataires touchés", value: n(satisfaction.sent) },
-            { name: "Dernier envoi", value: formatLastSend(satisfaction.last_sent_at) },
+            { name: i18nT("sent_this_week"), value: satisfactionWeek },
+            { name: i18nT("sent_this_month"), value: n(satisfaction.month) },
+            { name: i18nT("recipients_reached"), value: n(satisfaction.sent) },
+            { name: i18nT("last_sent"), value: formatLastSend(satisfaction.last_sent_at) },
           ],
         },
       ],
@@ -311,25 +311,25 @@ export default function FideliserPage() {
         {
           title: i18nT("pour_mieux_informer_dae2682a"),
           lines: [
-            { left: "1 newsletter / mois", right: "Top rappel" },
-            { left: "Sujet clair", right: "Plus d’ouvertures" },
-            { left: "1 CTA max", right: "Plus de clics" },
+            { left: i18nT("tip_monthly_newsletter"), right: i18nT("tip_reminder") },
+            { left: i18nT("tip_clear_subject"), right: i18nT("tip_more_opens") },
+            { left: i18nT("tip_one_cta"), right: i18nT("tip_more_clicks") },
           ],
         },
         {
           title: i18nT("pour_mieux_suivre_4879e325"),
           lines: [
-            { left: "Envoyer à J+1", right: "Meilleur timing" },
-            { left: "Message court", right: "Lecture rapide" },
-            { left: "Prochain pas clair", right: "Récurrence" },
+            { left: i18nT("tip_send_next_day"), right: i18nT("tip_better_timing") },
+            { left: i18nT("tip_short_message"), right: i18nT("tip_quick_read") },
+            { left: i18nT("tip_clear_next_step"), right: i18nT("tip_repeat_business") },
           ],
         },
         {
           title: i18nT("pour_mieux_enqueter_d1a88772"),
           lines: [
-            { left: "3 questions max", right: "Plus de réponses" },
-            { left: "Demande d’avis ciblée", right: "Plus d’avis" },
-            { left: "1 relance", right: "x1.4" },
+            { left: i18nT("tip_three_questions"), right: i18nT("tip_more_responses") },
+            { left: i18nT("tip_targeted_review_request"), right: i18nT("tip_more_reviews") },
+            { left: i18nT("tip_one_follow_up"), right: "x1.4" },
           ],
         },
       ],
@@ -351,11 +351,11 @@ export default function FideliserPage() {
     if (workflowDraftLoading) return;
     if (active) {
       const confirmed = await confirmInrcy({
-        eyebrow: "Brouillon enregistré",
-        title: "Ouvrir ce brouillon ?",
-        message: "L’état actuellement affiché sera remplacé par celui du brouillon sélectionné.",
+        eyebrow: i18nT("saved_draft"),
+        title: i18nT("open_this_draft"),
+        message: i18nT("replace_current_state_with_draft"),
         cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
-        confirmLabel: "Ouvrir le brouillon",
+        confirmLabel: i18nT("open_draft"),
         variant: "warning",
       });
       if (!confirmed) return;
@@ -364,7 +364,7 @@ export default function FideliserPage() {
     setWorkflowDraftMessage("");
     try {
       const draft = await loadWorkflowCampaignDraft(draftId);
-      if (draft.kind !== "fideliser") throw new Error("Ce brouillon n’appartient pas à Fidéliser.");
+      if (draft.kind !== "fideliser") throw new Error(i18nT("draft_wrong_module", { module: i18nT("fideliser_8fa9e4f1") }));
       const restoreKey = saveWorkflowCampaignState(draft);
       workflowDraftActionRef.current = null;
       if (draft.stage === "compose") {
@@ -389,7 +389,7 @@ export default function FideliserPage() {
         { scroll: false },
       );
     } catch (error) {
-      setWorkflowDraftMessage(error instanceof Error ? error.message : "Impossible d’ouvrir le brouillon.");
+      setWorkflowDraftMessage(error instanceof Error ? error.message : i18nT("draft_open_failed"));
     } finally {
       setWorkflowDraftLoading(false);
     }
@@ -503,7 +503,7 @@ export default function FideliserPage() {
 
       {active && (
         <BaseModal
-          title={active === "inform" ? "Informer" : active === "thanks" ? "Suivre" : "Enquêter"}
+          title={active === "inform" ? i18nT("informer_570ee22d") : active === "thanks" ? i18nT("suivre_7cca6c92") : i18nT("enqueter_4fd8cc8c")}
           moduleLabel={i18nT("module_fideliser_b309c73d")}
           onClose={requestCloseActiveModal}
           titleOnLeftOnMobile
@@ -525,10 +525,10 @@ export default function FideliserPage() {
               <PublishDraftHeaderMenu
                 buttonClassName={styles.secondaryBtn}
                 disabled={workflowDraftLoading}
-                emptyScopeLabel="Fidéliser"
+                emptyScopeLabel={i18nT("fideliser_8fa9e4f1")}
                 endpoint="/api/mails/workflow-draft?view=drafts&kind=fideliser&limit=20"
-                fallbackBadge="Fidéliser"
-                moduleLabel="Fidéliser"
+                fallbackBadge={i18nT("fideliser_8fa9e4f1")}
+                moduleLabel={i18nT("fideliser_8fa9e4f1")}
                 onSelect={openWorkflowDraftFromHeader}
               />
               <button type="button" className={styles.secondaryBtn} onClick={() => void saveWorkflowDraftFromHeader()} disabled={workflowDraftSaving} title={i18nT("enregistrer_le_brouillon_6a319595")} aria-label={i18nT("enregistrer_le_brouillon_6a319595")} style={{ width: isMobileHeader ? 32 : 38, minWidth: isMobileHeader ? 32 : 38, minHeight: isMobileHeader ? 32 : 36, padding: 0, display: "inline-grid", placeItems: "center", fontSize: isMobileHeader ? 15 : 18, borderRadius: 999, opacity: workflowDraftSaving ? 0.64 : 1, cursor: workflowDraftSaving ? "wait" : "pointer" }}>

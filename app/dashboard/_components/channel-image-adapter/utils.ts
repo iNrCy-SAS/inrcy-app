@@ -93,8 +93,14 @@ export function formatPreviewVideoSeconds(seconds?: number | null) {
   return `${minutes}:${String(rest).padStart(2, "0")}`;
 }
 
-export function formatPreviewVideoBytes(bytes?: number | null) {
+export function formatPreviewVideoBytes(bytes?: number | null, locale = "fr-FR") {
   const numeric = Number(bytes);
   if (!Number.isFinite(numeric) || numeric <= 0) return "";
-  return `${(numeric / (1024 * 1024)).toFixed(numeric >= 10 * 1024 * 1024 ? 0 : 1)} Mo`;
+  return new Intl.NumberFormat(locale, {
+    style: "unit",
+    unit: "megabyte",
+    unitDisplay: "short",
+    minimumFractionDigits: numeric >= 10 * 1024 * 1024 ? 0 : 1,
+    maximumFractionDigits: numeric >= 10 * 1024 * 1024 ? 0 : 1,
+  }).format(numeric / (1024 * 1024));
 }

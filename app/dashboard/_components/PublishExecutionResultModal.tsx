@@ -3,7 +3,7 @@
 import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import { isMetaPilotChannelVisible } from "@/lib/metaChannelUiAccess";
 import { isRetryablePublicationEntry, publicationStorySequenceCounts } from "@/lib/publicationStorySequenceRetry";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import PublishWizardFrame, { PublishWizardScreen } from "../booster/publier/components/PublishWizardFrame";
 import type { PublishWizardStep } from "../booster/publier/components/publishWizard";
 
@@ -20,6 +20,7 @@ import {
   ensureFrenchPublicationErrorMessage,
   getFrenchPublicationErrorMessage,
 } from "@/lib/publicationErrorFrench";
+import { getLocalizedErrorMessage, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import resultCss from "./PublishExecutionResultModal.module.css";
 import { getPublicationDestinationStatus, PublicationVisualHub, type PublicationProgressDestination } from "./PublishExecutionProgress";
 import progressCss from "./PublishExecutionProgress.module.css";
@@ -170,38 +171,39 @@ function PublicationResultSummary({ summary, publicationDestinations, compact = 
   compact?: boolean;
   titleId?: string;
 }) {
+  const i18nT = useTranslations("booster");
   const { publishedCount, totalCount, pendingCount, failedOrSkippedCount, warningCount, hasPublishedChannels } = getPublicationResultCounts(summary, publicationDestinations);
-  const overallTitle = hasPublishedChannels ? `${publishedCount} publication${publishedCount > 1 ? "s" : ""} en ligne` : "Bilan de publication";
+  const overallTitle = hasPublishedChannels ? i18nT("execution_result_online", { count: publishedCount }) : i18nT("execution_result_title");
   return (
     <div className={resultCss.overview} data-publication-hub-summary={compact || undefined} role="status" aria-live="polite" aria-atomic="true">
       <header className={resultCss.hero}>
         <div className={resultCss.headline} data-success={hasPublishedChannels || undefined}>
           {hasPublishedChannels ? <span className={resultCss.overallSuccess} aria-hidden="true">🎉</span> : null}
-          <h2 id={titleId}>{compact ? `${publishedCount}/${totalCount} publié${publishedCount > 1 ? "s" : ""}` : overallTitle}</h2>
+          <h2 id={titleId}>{compact ? i18nT("execution_result_compact_count", { count: publishedCount, total: totalCount }) : overallTitle}</h2>
         </div>
       </header>
 
-      {pendingCount > 0 || failedOrSkippedCount > 0 || warningCount > 0 || !publishedCount ? <div className={resultCss.summary} aria-label="État des publications">
+      {pendingCount > 0 || failedOrSkippedCount > 0 || warningCount > 0 || !publishedCount ? <div className={resultCss.summary} aria-label={i18nT("execution_result_state")}>
         <div className={resultCss.summaryCounts}>
           {pendingCount > 0 ? (
             <div className={resultCss.metric} data-tone="pending">
               <span className={resultCss.metricIcon} aria-hidden="true">◷</span>
-              <strong>{pendingCount}</strong><span>en traitement</span>
+              <strong>{pendingCount}</strong><span>{i18nT("execution_result_processing")}</span>
             </div>
           ) : null}
           {failedOrSkippedCount > 0 ? (
             <div className={resultCss.metric} data-tone="failed">
               <span className={resultCss.metricIcon} aria-hidden="true">!</span>
-              <strong>{failedOrSkippedCount}</strong><span>à revoir</span>
+              <strong>{failedOrSkippedCount}</strong><span>{i18nT("execution_result_review")}</span>
             </div>
           ) : null}
           {warningCount > 0 ? (
             <div className={resultCss.metric} data-tone="warning">
               <span className={resultCss.metricIcon} aria-hidden="true">!</span>
-              <strong>{warningCount}</strong><span>avertissement{warningCount > 1 ? "s" : ""}</span>
+              <strong>{warningCount}</strong><span>{i18nT("execution_result_warnings", { count: warningCount })}</span>
             </div>
           ) : null}
-          {!publishedCount && !pendingCount && !failedOrSkippedCount ? <p className={resultCss.emptySummary}>Consultez le suivi détaillé dans iNrSend.</p> : null}
+          {!publishedCount && !pendingCount && !failedOrSkippedCount ? <p className={resultCss.emptySummary}>{i18nT("execution_result_tracking_note")}</p> : null}
         </div>
       </div> : null}
     </div>
@@ -237,13 +239,13 @@ export function PublishExecutionResultActions({
           onClick={() => void onRetryFailed()}
           disabled={retrying}
           aria-busy={retrying}
-          aria-label={retrying ? i18nT("relance_en_cours_82dfaae8") : i18nT("retenter_value_value_en_echec_b7d1f934", { value0: retryableFailureCount, value1: retryableFailureCount > 1 ? "canaux" : "canal" })}
+          aria-label={retrying ? i18nT("relance_en_cours_82dfaae8") : i18nT("execution_result_retry", { count: retryableFailureCount })}
         >
           <span aria-hidden="true">↻</span>
           <span className={resultCss.actionFullLabel}>{retrying
             ? i18nT("relance_en_cours_82dfaae8")
-            : i18nT("retenter_value_value_en_echec_b7d1f934", { value0: retryableFailureCount, value1: retryableFailureCount > 1 ? "canaux" : "canal" })}</span>
-          {compact ? <span className={resultCss.actionCompactLabel} aria-hidden="true">{retrying ? "Relance…" : `${retryableFailureCount} échec${retryableFailureCount > 1 ? "s" : ""}`}</span> : null}
+            : i18nT("execution_result_retry", { count: retryableFailureCount })}</span>
+          {compact ? <span className={resultCss.actionCompactLabel} aria-hidden="true">{retrying ? i18nT("execution_result_retrying_short") : i18nT("execution_result_failures", { count: retryableFailureCount })}</span> : null}
         </button>
       ) : null}
       <button type="button" onClick={onOpenInrSend} className={resultCss.inrSendButton}>
@@ -288,6 +290,7 @@ export default function PublishExecutionResultModal({
   onSummaryChange?: (summary: PublishExecutionSummary) => void;
 }) {
   const { metaPilotEnabled } = useDashboardViewerAccess();
+  const locale = useLocale();
   const i18nT = useTranslations("booster");
   const titleId = useId();
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -509,8 +512,8 @@ export default function PublishExecutionResultModal({
         const message = String(
           json?.message ||
             (failed
-              ? "TikTok n'a pas pu finaliser la publication."
-              : "TikTok traite encore la publication."),
+              ? "publication_failed"
+              : "pending"),
         ).trim();
         shouldContinue = !complete && !failed;
 
@@ -618,27 +621,53 @@ export default function PublishExecutionResultModal({
         ? "warning"
         : hasPublishedChannels ? "published" : "neutral";
 
+  const channelLabel = (channel: string, label: string) => publicationChannelKey(channel) === "site_web"
+    ? i18nT("site_web_7e78af33") : label;
+
+  // Provider diagnostics can be free text. Translate recognized error classes,
+  // and retain an unrecognized original behind the technical-details disclosure.
+  const diagnostic = (input: string, frenchMessage: string, fallback: string, code?: string | null) => {
+    if (["publication_failed", "pending"].includes(input)) return { message: fallback, original: "" };
+    if (locale.startsWith("fr")) return { message: frenchMessage, original: "" };
+    const source = code || input;
+    const translated = getLocalizedErrorMessage(source, locale.slice(0, 2), fallback);
+    const structured = translated !== getSimpleFrenchErrorMessage(source, fallback);
+    const original = !structured && input && input !== fallback
+      ? input.replace(/<[^>]*>/g, "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 1500)
+      : "";
+    return { message: structured ? translated : fallback, original };
+  };
+
+  const entryDiagnostics = (entry: PublishExecutionEntry) => {
+    const label = channelLabel(entry.channel, entry.label);
+    const status = getPublicationDestinationStatus(entry);
+    const errorFallback = i18nT("execution_result_failed_message", { channel: label });
+    const errorInput = status !== "pending" ? entry.error || (status === "failed" ? "publication_failed" : "") : "";
+    const error = errorInput ? diagnostic(errorInput, getFrenchPublicationErrorMessage(entry.channel, errorInput, errorFallback), errorFallback, entry.code) : null;
+    const rawWarning = String(entry.warning_message || (entry.warning !== "pending" ? entry.warning || "" : "")).trim();
+    const warningFallback = i18nT(status === "pending" ? "execution_result_pending_message" : "execution_result_warning_message", { channel: label });
+    const warning = rawWarning ? diagnostic(rawWarning, ensureFrenchPublicationErrorMessage(rawWarning, warningFallback), warningFallback) : null;
+    const blockerFallback = i18nT("execution_result_blocker_message", { channel: label });
+    const blockers = (entry.blockers || []).map((blocker) => diagnostic(blocker, ensureFrenchPublicationErrorMessage(blocker, blockerFallback), blockerFallback));
+    return {
+      error: error?.message || "", warning: warning?.message || "", blockers: blockers.map((blocker) => blocker.message),
+      originals: [...new Set([error?.original, warning?.original, ...blockers.map((blocker) => blocker.original)].filter((value): value is string => Boolean(value)))],
+    };
+  };
+
   const visualDestinations: PublicationProgressDestination[] = destinationKeys.map((key) => {
     const entry = entriesByChannel.get(key);
-    if (!entry) return { key, label: destinationsByChannel.get(key)?.label || key, status: "pending", details: "En attente du résultat de ce canal." };
+    if (!entry) return { key, label: channelLabel(key, destinationsByChannel.get(key)?.label || key), status: "pending", details: i18nT("execution_result_waiting_channel") };
     const status = getPublicationDestinationStatus(entry);
-    const pending = status === "pending";
-    const failed = status === "failed";
-    const rawWarning = String(entry.warning_message || (entry.warning !== "pending" ? entry.warning || "" : "")).trim();
-    const errorMessage = !pending && entry.error
-      ? getFrenchPublicationErrorMessage(entry.channel, entry.error, entry.label + " n’a pas pu publier. Merci de réessayer.")
-      : failed ? getFrenchPublicationErrorMessage(entry.channel, "publication_failed", entry.label + " n’a pas pu publier. Merci de réessayer.") : "";
-    const warningMessage = rawWarning ? ensureFrenchPublicationErrorMessage(rawWarning,
-      pending ? entry.label + " est encore en attente de finalisation." : entry.label + " a publié avec un avertissement.") : "";
-    const blockers = (entry.blockers || []).map((blocker) => ensureFrenchPublicationErrorMessage(blocker, entry.label + " n’est pas prêt pour la publication."));
+    const details = entryDiagnostics(entry);
     const storyCounts = publicationStorySequenceCounts(entry);
     return {
       key,
-      label: entry.label,
+      label: channelLabel(entry.channel, entry.label),
       status,
       storyProgressLabel: storyCounts ? i18nT("publication_stories_confirmed_count", { confirmed: storyCounts.confirmed, expected: storyCounts.expected }) : undefined,
       href: String(effectiveSummary?.channelLinks?.[entry.channel] || effectiveSummary?.channelLinks?.[key] || "").trim() || undefined,
-      details: [errorMessage, warningMessage, ...blockers].filter(Boolean).join("\n") || undefined,
+      details: [details.error, details.warning, ...details.blockers, details.originals.length ? `${i18nT("execution_result_technical_details")}\n${details.originals.join("\n")}` : ""].filter(Boolean).join("\n") || undefined,
     };
   });
 
@@ -669,7 +698,7 @@ export default function PublishExecutionResultModal({
           destinations={visualDestinations}
           completed={pendingCount === 0 && visualDestinations.every((destination) => Boolean(destination.status))}
           outcome={resultTone}
-          centerLabel="Bilan prêt"
+          centerLabel={i18nT("execution_result_ready")}
         />
       ) : null}
       {!embedded ? <PublicationResultSummary summary={effectiveSummary} publicationDestinations={publicationDestinations} titleId={titleId} /> : null}
@@ -680,8 +709,8 @@ export default function PublishExecutionResultModal({
         </div> : null}
 
       {!embedded && entries.length ? (
-        <section className={resultCss.channelsSection} aria-label="Résultat par canal">
-          {pendingCount > 0 ? <div className={resultCss.sectionHeading}><span className={resultCss.liveIndicator}><span aria-hidden="true" />Suivi en direct</span></div> : null}
+        <section className={resultCss.channelsSection} aria-label={i18nT("execution_result_by_channel")}>
+          {pendingCount > 0 ? <div className={resultCss.sectionHeading}><span className={resultCss.liveIndicator}><span aria-hidden="true" />{i18nT("execution_result_live_tracking")}</span></div> : null}
           <div className={resultCss.channelGrid}>
             {orderedEntries.map((entry) => {
               const storyCounts = publicationStorySequenceCounts(entry);
@@ -692,38 +721,15 @@ export default function PublishExecutionResultModal({
               const entryHasWarning = entryStatus === "warning";
               const channelHref = String(effectiveSummary?.channelLinks?.[entry.channel] || "").trim();
               const channelLogo = CHANNEL_LOGO_BY_KEY[entry.channel];
-              const visibleError = !entryIsPending && entry.error
-                ? getFrenchPublicationErrorMessage(
-                    entry.channel, entry.error,
-                    entry.label + " n'a pas pu publier. Merci de réessayer.",
-                  )
-                : entryIsFailed
-                  ? getFrenchPublicationErrorMessage(
-                      entry.channel, "publication_failed",
-                      entry.label + " n'a pas pu publier. Merci de réessayer.",
-                    )
-                  : "";
-              const rawWarning = String(
-                entry.warning_message || (entry.warning !== "pending" ? entry.warning || "" : ""),
-              ).trim();
-              const visibleWarning = rawWarning
-                ? ensureFrenchPublicationErrorMessage(
-                    rawWarning,
-                    entryIsPending
-                      ? entry.label + " est encore en attente de finalisation."
-                      : entry.label + " a publié avec un avertissement.",
-                  )
-                : "";
-              const visibleBlockers = (entry.blockers || []).map((blocker) =>
-                ensureFrenchPublicationErrorMessage(blocker, entry.label + " n'est pas prêt pour la publication."),
-              );
+              const label = channelLabel(entry.channel, entry.label);
+              const { error: visibleError, warning: visibleWarning, blockers: visibleBlockers, originals } = entryDiagnostics(entry);
               const tone = entryIsPending ? "pending"
                 : entryIsFailed || entryIsSkipped ? "failed"
                   : entryHasWarning ? "warning" : "published";
-              const statusLabel = entryIsSkipped ? "Non envoyé"
-                : entryIsPending ? "En traitement"
-                  : entryIsFailed ? "Échec"
-                    : entryHasWarning ? "Publié avec avertissement" : "Publié";
+              const statusLabel = i18nT(entryIsSkipped ? "execution_result_not_sent"
+                : entryIsPending ? "execution_result_processing_status"
+                  : entryIsFailed ? "execution_result_failed"
+                    : entryHasWarning ? "execution_result_published_warning" : "execution_result_published");
               // Pending is evaluated before ok: an accepted job is not a published post.
               const semanticStatusIcon = entryIsSkipped
                 ? "⏭"
@@ -731,10 +737,8 @@ export default function PublishExecutionResultModal({
                   ? "⏳"
                   : entryIsFailed ? "×" : entryHasWarning ? "!" : "✓";
               const accessibleStatusLabel = entryIsSkipped
-                ? "Ignoré avant envoi"
-                : entryIsPending
-                  ? "En attente"
-                  : entryIsFailed ? "Échec" : entryHasWarning ? "Publié avec avertissement" : "Publié";
+                ? i18nT("execution_result_skipped_before_sending")
+                : entryIsPending ? i18nT("execution_result_pending") : statusLabel;
               const hasFailureDetails = (entryIsFailed || entryIsSkipped) && Boolean(visibleError || visibleBlockers.length);
               const failureDetailsOpen = Boolean(expandedEntryDetails[entry.channel]);
               const detailsId = titleId + "-details-" + entry.channel;
@@ -743,11 +747,11 @@ export default function PublishExecutionResultModal({
                 <article key={entry.channel} className={resultCss.channelCard} data-tone={tone} data-channel={entry.channel}>
                   <div className={resultCss.channelMain}>
                     <span className={resultCss.channelLogo} aria-hidden="true">
-                      {channelLogo ? <img src={channelLogo} alt="" width={34} height={34} loading="eager" decoding="sync" /> : <span>{entry.label.slice(0, 1)}</span>}
+                      {channelLogo ? <img src={channelLogo} alt="" width={34} height={34} loading="eager" decoding="sync" /> : <span>{label.slice(0, 1)}</span>}
                     </span>
                     <div className={resultCss.channelIdentity}>
-                      <strong title={entry.label}>{entry.label}</strong>
-                      <span className={resultCss.channelStatus} aria-label={entry.label + " — " + accessibleStatusLabel} data-status-icon={semanticStatusIcon}>
+                      <strong title={label}>{label}</strong>
+                      <span className={resultCss.channelStatus} aria-label={label + " — " + accessibleStatusLabel} data-status-icon={semanticStatusIcon}>
                         <span className={resultCss.statusMark} aria-hidden="true">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                             {entryIsPending ? <><circle cx="12" cy="12" r="8" /><path d="M12 7v5l3 2" /></> : entryIsFailed || entryIsSkipped || entryHasWarning ? <><path d="m12 3 10 18H2L12 3Z" /><path d="M12 9v4m0 4h.01" /></> : <path d="m5 12 4 4L19 6" />}
@@ -761,14 +765,14 @@ export default function PublishExecutionResultModal({
                         <button
                           type="button"
                           className={resultCss.detailsButton}
-                          aria-label={(failureDetailsOpen ? "Masquer le détail de l’échec " : "Afficher le détail de l’échec ") + entry.label}
+                          aria-label={i18nT(failureDetailsOpen ? "execution_result_hide_failure_details" : "execution_result_show_failure_details", { channel: label })}
                           aria-expanded={failureDetailsOpen}
                           aria-controls={detailsId}
                           onClick={() => setExpandedEntryDetails((current) => ({ ...current, [entry.channel]: !current[entry.channel] }))}
                         ><span aria-hidden="true">i</span></button>
                       ) : null}
                       {channelHref ? (
-                        <a href={channelHref} target="_blank" rel="noopener noreferrer" className={resultCss.channelLink} aria-label={i18nT("voir_8a754f1f") + " · " + entry.label}>
+                        <a href={channelHref} target="_blank" rel="noopener noreferrer" className={resultCss.channelLink} aria-label={i18nT("voir_8a754f1f") + " · " + label}>
                           {i18nT("voir_8a754f1f")}<span aria-hidden="true">↗</span>
                         </a>
                       ) : null}
@@ -782,6 +786,10 @@ export default function PublishExecutionResultModal({
                     </div>
                   ) : visibleError ? <p className={resultCss.entryMessage} data-tone="failed">{visibleError}</p> : null}
                   {visibleWarning ? <p className={resultCss.entryMessage} data-tone={entryIsPending ? "pending" : "warning"}>{visibleWarning}</p> : null}
+                  {originals.length ? <details className={resultCss.entryMessage}>
+                    <summary>{i18nT("execution_result_technical_details")}</summary>
+                    <p>{originals.join("\n")}</p>
+                  </details> : null}
                 </article>
               );
             })}

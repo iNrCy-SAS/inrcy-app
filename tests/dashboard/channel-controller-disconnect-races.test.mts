@@ -66,12 +66,12 @@ function controller(file: string, initial: unknown, fetch: (url: string, init?: 
     if (specifier === "next/navigation") return { usePathname: () => "/dashboard" };
     if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "actor-1", activeAccountId: "account-1", metaPilotEnabled: false }) };
     if (specifier.endsWith(".css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
-    if (specifier === "next-intl") return { useTranslations: () => (key: string) => key };
+    if (specifier === "next-intl") return { useLocale: () => "fr-FR", useTranslations: () => (key: string) => key };
     if (specifier.endsWith("channel-workspace-snapshot")) return { readChannelWorkspaceSnapshot: () => initial, writeChannelWorkspaceSnapshot: (_key: string, value: unknown) => snapshots.push(value) };
     if (specifier === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => "account-1", readAccountCacheValue: () => JSON.stringify({ pinterestConnected: true }), resolveActiveBrowserUserId: (id: string) => id };
     if (specifier === "@/lib/dashboardCacheKeys") return { DASHBOARD_CACHE_KEYS: { channelState: "channel-state" } };
     if (specifier === "@/lib/pinterestUiSessionCache") return { readPinterestBoardUiCache: () => ({ boards: [{ id: "board-1", name: "Board" }], defaultBoardId: "board-1" }), writePinterestBoardUiCache() {} };
-    if (specifier.endsWith("userFacingErrors")) return { getSimpleFrenchApiError: async () => "Disconnect failed", getSimpleFrenchErrorMessage: (_error: unknown, fallback: string) => fallback };
+    if (specifier.endsWith("userFacingErrors")) return { getLocalizedApiError: async () => "Disconnect failed", getLocalizedErrorMessage: (_error: unknown, _locale: string, fallback: string) => fallback, getSimpleFrenchApiError: async () => "Disconnect failed", getSimpleFrenchErrorMessage: (_error: unknown, fallback: string) => fallback };
     return { __esModule: true, default: stub };
   };
   const nativeHooks = createNativeLocalHookLoader(localRequire);

@@ -1214,10 +1214,10 @@ export default function AgendaClient({
     }
   }
 
-  async function loadEventsForMonth(
+  const loadEventsForMonth = useCallback(async (
     monthDate: Date,
     options?: { silent?: boolean; refreshGoogle?: boolean },
-  ) {
+  ) => {
     const snapshotKey = MODULE_SNAPSHOT_KEYS.agendaMonth(monthDate.getFullYear(), monthDate.getMonth());
     const cached = readModuleSnapshot<AgendaMonthSnapshot>(snapshotKey)?.data ?? null;
     if (cached) {
@@ -1259,14 +1259,14 @@ export default function AgendaClient({
       setAppointmentRequests(nextAppointmentRequests);
       writeModuleSnapshot(snapshotKey, { ok: true, events: nextEvents, appointmentRequests: nextAppointmentRequests });
       if (options?.refreshGoogle && json.googleSyncOk === false) {
-        setError("La synchronisation Google Agenda n’a pas abouti. Réessayez dans quelques instants.");
+        setError(i18nT("google_calendar_sync_failed"));
       }
     } catch (e: any) {
       setError(getSimpleFrenchErrorMessage(e, "Impossible de charger l’agenda."));
     } finally {
       setLoading(false);
     }
-  }
+  }, [i18nT]);
 
   useEffect(() => {
     void loadContacts({ silent: Boolean(initialContactsSnapshot) });
@@ -1284,7 +1284,7 @@ export default function AgendaClient({
 
   useEffect(() => {
     void loadEventsForMonth(cursorMonth, { silent: Boolean(readInitialAgendaMonthSnapshot(cursorMonth)) });
-  }, [cursorMonth]);
+  }, [cursorMonth, loadEventsForMonth]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -1293,7 +1293,7 @@ export default function AgendaClient({
       }
     }, 15_000);
     return () => window.clearInterval(interval);
-  }, [cursorMonth]);
+  }, [cursorMonth, loadEventsForMonth]);
 
   const monthStart = useMemo(() => startOfMonth(cursorMonth), [cursorMonth]);
   const monthEnd = useMemo(() => endOfMonth(cursorMonth), [cursorMonth]);

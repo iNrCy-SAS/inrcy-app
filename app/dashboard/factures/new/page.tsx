@@ -771,7 +771,7 @@ export default function NewFacturePage() {
         setNotes(
           devis.notes ||
             documentsSettings.common.notes ||
-            `Facture créée depuis le devis ${devis.number || devisSaveId}.`,
+            i18nT("invoice_created_from_quote", { number: devis.number || devisSaveId }),
         );
         setInvoiceMention(documentsSettings.invoice.mention);
         setLines(
@@ -795,7 +795,7 @@ export default function NewFacturePage() {
         setDiscountDetails(devis.discountDetails || "");
         setFormMessage({
           type: "success",
-          text: i18nT("facture_preremplie_depuis_le_devis_value_dbbc57b2", { value0: devis.number || "sélectionné" }),
+          text: i18nT("facture_preremplie_depuis_le_devis_value_dbbc57b2", { value0: devis.number || i18nT("selected_quote") }),
         });
   };
   const onDevisConversionLoaded = useEffectEvent((devis: DevisSnapshot, devisSaveId: string, invoiceDateISO: string, dueDateISO: string) => {
@@ -873,44 +873,44 @@ export default function NewFacturePage() {
         Number(line.unitPrice) >= 0,
     );
 
-    if (!clientType) nextErrors.clientType = "Type de client obligatoire.";
+    if (!clientType) nextErrors.clientType = i18nT("validation_client_type");
     if (!(clientName || "").trim())
-      nextErrors.clientName = "Nom client obligatoire.";
+      nextErrors.clientName = i18nT("validation_client_name");
     if (!billingAddress.trim())
-      nextErrors.billingAddress = "Adresse obligatoire.";
+      nextErrors.billingAddress = i18nT("validation_address");
     if (!billingPostalCode.trim())
-      nextErrors.billingPostalCode = "Code postal obligatoire.";
-    if (!billingCity.trim()) nextErrors.billingCity = "Ville obligatoire.";
+      nextErrors.billingPostalCode = i18nT("validation_postal_code");
+    if (!billingCity.trim()) nextErrors.billingCity = i18nT("validation_city");
     if (
       clientType &&
       clientType !== "particulier" &&
       !(clientSiren || "").trim()
     )
       nextErrors.clientSiren =
-        "SIREN client obligatoire pour ce type de client.";
+        i18nT("validation_client_siren");
     if (!(number || "").trim())
-      nextErrors.number = "Numéro de facture obligatoire.";
+      nextErrors.number = i18nT("validation_invoice_number");
     if (!(invoiceDate || "").trim())
-      nextErrors.invoiceDate = "Date de facture obligatoire.";
-    if (!(dueDate || "").trim()) nextErrors.dueDate = "Échéance obligatoire.";
+      nextErrors.invoiceDate = i18nT("validation_invoice_date");
+    if (!(dueDate || "").trim()) nextErrors.dueDate = i18nT("validation_due_date");
     if (clientType && clientType !== "particulier" && !operationCategory) {
       nextErrors.operationCategory =
-        "Catégorie d’opération obligatoire pour ce type de client.";
+        i18nT("validation_operation_category");
       setAdvancedOpen(true);
     }
     if (!hasValidLine)
       nextErrors.lines =
-        "Ajoutez au moins une prestation valide (libellé, quantité et prix HT).";
+        i18nT("validation_valid_line");
 
     const normalizedEmail = (clientEmail || "").trim();
     if (requireEmail) {
       if (!normalizedEmail)
         nextErrors.clientEmail =
-          "Email client obligatoire pour envoyer par mail.";
+          i18nT("validation_email_required");
       else if (!isValidEmail(normalizedEmail))
-        nextErrors.clientEmail = "Email client invalide.";
+        nextErrors.clientEmail = i18nT("validation_email_invalid");
     } else if (normalizedEmail && !isValidEmail(normalizedEmail)) {
-      nextErrors.clientEmail = "Email client invalide.";
+      nextErrors.clientEmail = i18nT("validation_email_invalid");
     }
 
     setFieldErrors(nextErrors);
@@ -923,7 +923,7 @@ export default function NewFacturePage() {
 
   const saveDraft = async (options?: { silent?: boolean; onSavedVersion?: (version: DocumentSaveVersion) => void }) => {
     if (!profile) {
-      setFormMessage({ type: "error", text: "Les informations de votre entreprise ne sont pas encore disponibles. Réessayez dans un instant." });
+      setFormMessage({ type: "error", text: i18nT("company_information_not_ready") });
       return null;
     }
     const nowISO = new Date().toISOString();
@@ -935,7 +935,7 @@ export default function NewFacturePage() {
     if (normalizedEmail && !isValidEmail(normalizedEmail)) {
       setFieldErrors((prev) => ({
         ...prev,
-        clientEmail: "Email client invalide.",
+        clientEmail: i18nT("validation_email_invalid"),
       }));
       setFormMessage(null);
       return null;
@@ -1014,7 +1014,7 @@ export default function NewFacturePage() {
       (clientName || "").trim() ||
       (clientEmail || "").trim() ||
       snapshot.number ||
-      "Sauvegarde";
+      i18nT("save_name_fallback");
 
     const saveMutation = currentSaveId
       ? supabase
@@ -1062,7 +1062,7 @@ export default function NewFacturePage() {
       setDraftsOpen(true);
       setFormMessage({
         type: "success",
-        text: currentSaveId ? "Facture mise à jour." : "Facture enregistrée.",
+        text: currentSaveId ? i18nT("invoice_updated") : i18nT("invoice_saved"),
       });
     }
 
@@ -1078,7 +1078,7 @@ export default function NewFacturePage() {
       setFieldErrors((prev) => ({
         ...prev,
         lines:
-          "Ajoutez au moins une prestation valide avant d’enregistrer un modèle.",
+          i18nT("validation_template_line"),
       }));
       setFormMessage(null);
       return false;
@@ -1091,14 +1091,14 @@ export default function NewFacturePage() {
       title: i18nT("creer_un_modele_082a9b78"),
       message:
         i18nT("donnez_un_nom_a_ce_modele_df1c6b74"),
-      defaultValue: "Modèle facture",
+      defaultValue: i18nT("invoice_template"),
       placeholder: i18nT("nom_du_modele_68d49f67"),
       confirmLabel: i18nT("creer_modele_386adb21"),
       required: false,
     });
     if (templateName === null || !valid()) return false;
 
-    const cleanName = templateName.trim() || "Modèle facture";
+    const cleanName = templateName.trim() || i18nT("invoice_template");
     const savedServiceDate = serviceDateMode === "single" ? serviceDate : "";
     const savedServicePeriodStart =
       serviceDateMode === "period" ? servicePeriodStart : "";
@@ -1275,7 +1275,7 @@ export default function NewFacturePage() {
           contact_type: "client",
           category: clientType || "particulier",
           notes: [
-            `Ajouté depuis Factures`,
+            i18nT("crm_added_from_invoices"),
             purchaseOrderReference ? `PO: ${purchaseOrderReference}` : "",
           ]
             .filter(Boolean)
@@ -1288,7 +1288,7 @@ export default function NewFacturePage() {
         throw new Error(
           getSimpleFrenchErrorMessage(
             json?.error,
-            "Impossible d’ajouter ce client au CRM.",
+            i18nT("crm_add_client_failed"),
           ),
         );
       }
@@ -1299,7 +1299,7 @@ export default function NewFacturePage() {
         type: "error",
         text: getSimpleFrenchErrorMessage(
           error,
-          "Impossible d’ajouter ce client au CRM.",
+          i18nT("crm_add_client_failed"),
         ),
       });
     } finally {
@@ -1328,8 +1328,8 @@ export default function NewFacturePage() {
       if (!res.ok) {
         throw new Error(
           getSimpleFrenchErrorMessage(
-            commercialDocumentCompletionError(json, "Impossible de figer cette facture pour le moment."),
-            "Impossible de figer cette facture pour le moment.",
+            commercialDocumentCompletionError(json, i18nT("invoice_finalize_failed"), i18nT),
+            i18nT("invoice_finalize_failed"),
           ),
         );
       }
@@ -1363,7 +1363,7 @@ export default function NewFacturePage() {
     } catch (error) {
       const text = getSimpleFrenchErrorMessage(
         error,
-        "Impossible de figer cette facture pour le moment.",
+        i18nT("invoice_finalize_failed"),
       );
       setFormMessage({ type: "error", text });
       return null;
@@ -1813,7 +1813,7 @@ export default function NewFacturePage() {
                       }}
                     >
                       {drafts.map((d) => {
-                        const label = d.snapshot.number || "(Sans numéro)";
+                        const label = d.snapshot.number || i18nT("without_number");
                         const who = d.snapshot.clientName?.trim()
                           ? ` — ${d.snapshot.clientName.trim()}`
                           : "";
@@ -1899,7 +1899,7 @@ export default function NewFacturePage() {
                   >
                     {templates.map((d) => {
                       const label =
-                        d.snapshot.templateName || d.name || "Modèle facture";
+                        d.snapshot.templateName || d.name || i18nT("invoice_template");
                       return (
                         <div
                           key={d.id}
@@ -1975,8 +1975,8 @@ export default function NewFacturePage() {
             crmButtonText={
               selectedCrmLabel ||
               (crmLoading
-                ? "Chargement..."
-                : "Importer / Rechercher un contact CRM")
+                ? i18nT("chargement_01cba1df")
+                : i18nT("importer_ou_rechercher_un_contact_crm_c07daf05"))
             }
             crmQuery={crmQuery}
             onCrmQueryChange={setCrmQuery}
@@ -2395,7 +2395,7 @@ export default function NewFacturePage() {
                 type="button"
                 disabled={finalizing || addingToCrm || isFinalized}
                 title={
-                  isFinalized ? "Cette facture est déjà figée." : undefined
+                  isFinalized ? i18nT("invoice_already_finalized") : undefined
                 }
                 onClick={async () => {
                   if (!validateInvoiceAction()) return;

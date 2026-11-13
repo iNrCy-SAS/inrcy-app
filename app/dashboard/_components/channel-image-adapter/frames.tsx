@@ -1,4 +1,4 @@
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useInrAssistantLocalClose } from "../../_hooks/useInrAssistantLocalClose";
@@ -28,6 +28,7 @@ export function FinalImageFrame({
   badge?: string;
 }) {
   const i18nT = useTranslations("shell");
+  const localizedFitLabel = (value: string) => value === "Plein cadre" ? i18nT("plein_cadre_96d0dd78") : value === "Image entière" ? i18nT("image_entiere_76cd8175") : value === "Adaptée" ? i18nT("adapter_fit_adapted") : value === "Personnalisée" ? i18nT("adapter_fit_custom") : value;
   const src = image?.previewUrl || "";
   const transform = image?.transform || {};
   const preset = image?.preset || { width: 1000, height: 1000 };
@@ -66,9 +67,9 @@ export function FinalImageFrame({
   return (
     <div style={{ position: "relative", borderRadius: "inherit", overflow: "hidden", aspectRatio, ...previewBackgroundStyle(mode, backgroundColor), border: "1px solid rgba(255,255,255,0.08)" }}>
       {src && layout ? (
-        <img src={src} alt="preview" draggable={false} style={{ position: "absolute", ...layout, objectFit: "fill", display: "block", maxWidth: "none", userSelect: "none", pointerEvents: "none" }} />
+        <img src={src} alt={i18nT("preview_image_alt")} draggable={false} style={{ position: "absolute", ...layout, objectFit: "fill", display: "block", maxWidth: "none", userSelect: "none", pointerEvents: "none" }} />
       ) : src ? (
-        <img src={src} alt="preview" style={{ width: "100%", height: "100%", objectFit: fit, display: "block" }} />
+        <img src={src} alt={i18nT("preview_image_alt")} style={{ width: "100%", height: "100%", objectFit: fit, display: "block" }} />
       ) : (
         <div style={{ width: "100%", height: "100%", display: "grid", placeItems: "center", color: "rgba(255,255,255,0.55)", fontSize: 12 }}>{i18nT("aucune_image_768c8a5c")}</div>
       )}
@@ -125,7 +126,7 @@ export function FinalImageFrame({
       })}
       {fitLabel ? (
         <div style={{ position: "absolute", left: 8, bottom: 8, fontSize: 11, padding: "5px 8px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff" }}>
-          {fitLabel}
+          {localizedFitLabel(fitLabel)}
         </div>
       ) : null}
       {badge ? (
@@ -140,7 +141,7 @@ export function FinalImageFrame({
 export function VideoPreviewFrame({
   video,
   aspectRatio,
-  badge = "Vidéo",
+  badge,
   dark = false,
   showMetadata = true,
 }: {
@@ -151,9 +152,11 @@ export function VideoPreviewFrame({
   showMetadata?: boolean;
 }) {
   const i18nT = useTranslations("shell");
+  const locale = useLocale();
+  const resolvedBadge = badge ?? i18nT("preview_video");
   const src = String(video?.previewUrl || "").trim();
   const duration = formatPreviewVideoSeconds(video?.duration);
-  const size = formatPreviewVideoBytes(video?.size);
+  const size = formatPreviewVideoBytes(video?.size, locale);
   const meta = [duration, size].filter(Boolean).join(" · ");
 
   return (
@@ -186,9 +189,9 @@ export function VideoPreviewFrame({
       ) : (
         <div style={{ color: "rgba(255,255,255,0.68)", fontSize: 12 }}>{i18nT("aucune_video_c4607a21")}</div>
       )}
-      {badge ? (
+      {resolvedBadge ? (
         <div style={{ position: "absolute", left: 8, bottom: 8, fontSize: 11, padding: "5px 8px", borderRadius: 999, background: "rgba(6,10,20,0.72)", border: "1px solid rgba(255,255,255,0.12)", color: "#fff", pointerEvents: "none" }}>
-          {badge}
+          {resolvedBadge}
         </div>
       ) : null}
       {showMetadata && meta ? (

@@ -181,6 +181,7 @@ export default function MediaFreeGenerator({
   onRecoveryKind,
   onReset,
 }: Props) {
+  const i18nT = useTranslations("shell");
   const t = useTranslations("media");
   const locale = useLocale();
   const instanceId = useId();
@@ -1637,7 +1638,7 @@ export default function MediaFreeGenerator({
               </div>
             </div>
           </div> : <p id={`${instanceId}-prompt-help`} className={styles.srOnly}>
-            {requiredPromptSuffix ? "Les critères du canal sont ajoutés automatiquement à votre consigne." : t("ai_generator_free_prompt_help")}
+            {requiredPromptSuffix ? i18nT("les_criteres_du_canal_sont_ajoutes_eb227fa2") : t("ai_generator_free_prompt_help")}
           </p>}
         </section>
           </div>
@@ -1670,8 +1671,7 @@ export default function MediaFreeGenerator({
             </label>
           </div> : null}
           {recoveryIncompatible ? <a className={styles.secondaryButton} href="/dashboard/generer-media" data-media-recovery-studio-link>
-            {t("ai_generator_editor_recover")} · iNrStudio
-          </a> : canRecover && !busy ? <div className={styles.recoveryActions} data-media-recovery-actions>
+            {i18nT("value_inrstudio_872d053d", { value0: t("ai_generator_editor_recover") })}</a> : canRecover && !busy ? <div className={styles.recoveryActions} data-media-recovery-actions>
             {generationAction}
             <button type="button" className={styles.recoveryStop} disabled={operationLocked}
               aria-label={t("ai_generator_recovery_cancel")} title={t("ai_generator_editor_abandon")}

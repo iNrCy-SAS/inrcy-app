@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { chromium } from "@playwright/test";
 import ts from "typescript";
 import { createNativeLocalHookLoader } from "../helpers/assistant-native-local-hooks.mts";
+import { acquireElementStyleLock } from "../../lib/elementStyleLock.ts";
 
 const require = createRequire(import.meta.url);
 type Props = Record<string, unknown>;
@@ -24,6 +25,7 @@ function drawerMarkup(title: string, width: number, customHeader: boolean) {
   const contexts = Object.fromEntries(["DrawerHeaderTabsContext", "DrawerHeaderActionsContext", "DrawerHeaderDetailsContext"].map(name => [name, React.createContext(null)]));
   const record = { exports: {} as { default: (props: Props) => React.ReactNode } };
   const dependency = (name: string): unknown => {
+    if (name === "@/lib/elementStyleLock") return { acquireElementStyleLock };
     if (name === "react") return react;
     if (name === "react/jsx-runtime") return require(name);
     if (name === "react-dom") return { createPortal: (children: React.ReactNode) => children };

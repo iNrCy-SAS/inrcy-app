@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import IntlMessageFormat from "intl-messageformat";
 import * as metrics from "../lib/adsCampaignMetrics.ts";
+import * as adsLabels from "../app/dashboard/mails/_components/adsCampaignsFolder.shared.ts";
 
 type Element = { type: unknown; props: Record<string, unknown> };
 type Campaign = Record<string, unknown> & { id: string; provider: string; status: string };
@@ -46,7 +48,7 @@ function text(value: unknown): string {
 }
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 
-function runtime(kind: Component, campaigns = [campaign()]) {
+function runtime(kind: Component, campaigns = [campaign()], locale = "fr-FR") {
   const slots: unknown[] = [];
   const effects = new Map<number, { deps?: unknown[]; cleanup?: () => void }>();
   const callbacks = new Map<number, { deps: unknown[]; callback: unknown }>();
@@ -85,11 +87,16 @@ function runtime(kind: Component, campaigns = [campaign()]) {
     },
   };
   const css = { default: new Proxy({}, { get: (_target, key) => String(key) }) };
-  const labels = { google: "Google Ads", meta: "Meta Ads", linkedin: "LinkedIn Ads", openai: "ChatGPT Ads", pinterest: "Pinterest Ads", x: "X Ads", tiktok: "TikTok Ads" };
+  const messages = JSON.parse(readFileSync(new URL(`../messages/${locale}/mails.json`, import.meta.url), "utf8"));
+  const translate = (key: string, values: Record<string, string | number> = {}) => {
+    assert.equal(typeof messages[key], "string", `Missing translated mails label ${locale}/${key}`);
+    return String(new IntlMessageFormat(messages[key], locale).format(values));
+  };
   const modules: Record<string, unknown> = {
     react,
     "react/jsx-runtime": { jsx: (type: unknown, props: Record<string, unknown>) => ({ type, props }), jsxs: (type: unknown, props: Record<string, unknown>) => ({ type, props }), Fragment: Symbol("Fragment") },
     "react-dom": { createPortal: (node: unknown) => node },
+    "next-intl": { useLocale: () => locale, useTranslations: () => translate },
     "next/navigation": { useRouter: () => ({ push: () => assert.fail("Stats must not navigate or mutate") }) },
     "next/image": { default: () => null },
     "../../_components/DashboardMobileSelect": { default: "mobile-select" },
@@ -101,7 +108,7 @@ function runtime(kind: Component, campaigns = [campaign()]) {
       canRecoverInterruptedAdsCampaign: () => false,
       ADS_LOCAL_RECOVERY_DISCARD_CONFIRMATION: "UNUSED", ADS_OPENAI_REMOTE_RESUME_CONFIRMATION: "UNUSED", ADS_REMOTE_DELETE_CONFIRMATION: "UNUSED",
     },
-    "./adsCampaignsFolder.shared": { adsChannelLabels: labels, adsStatusLabels: { paused: "En pause" }, adsDate: String, adsDateTime: String },
+    "./adsCampaignsFolder.shared": adsLabels,
     "../mails.module.css": css, "./AdsCampaignsFolder.module.css": css, "./AdsCampaignTracking.module.css": css,
   };
   const exported: { default?: (props: Record<string, unknown>) => unknown } = {};
@@ -137,7 +144,7 @@ function runtime(kind: Component, campaigns = [campaign()]) {
     (button.props.onClick as () => void)();
     render();
   }
-  function openStats() { click(kind === "details" ? "Stats" : "Voir les statistiques"); }
+  function openStats() { click(kind === "details" ? translate("stats_be763e9a") : "Voir les statistiques"); }
   async function finish(at: number, body: unknown, status = 200) {
     assert.ok(requests[at]);
     requests[at].resolve(Response.json(body, { status }));
@@ -265,3 +272,24 @@ test("iNrSend campaign navigation keeps asynchronous LinkedIn reports with their
   assert.equal(h.metricValues().Clics, "17");
   assert.equal(h.requests.length, 2);
 });
+
+for (const locale of ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
+  test(`iNrSend renders campaign details and measured statistics in ${locale}`, async () => {
+    const messages = JSON.parse(readFileSync(new URL(`../messages/${locale}/mails.json`, import.meta.url), "utf8"));
+    const destinationUrl = "https://example.test/campaign";
+    const current = campaign("linkedin", { name: "Fixture", draft: { destinationUrl, urlExpansion: true } });
+    const h = runtime("details", [current], locale);
+    h.render();
+    assert.ok(h.text().includes(messages.informations_generales_be6ba6e5));
+    assert.ok(h.text().includes(messages.ads_status_paused));
+    assert.ok(h.elements().some(node => node.type === "button" && node.props["aria-label"] === messages.campagne_precedente_6037d157));
+    assert.equal(h.metricValues()[messages.expansion_des_url_34768c70], messages.oui_eaa02f3f);
+    assert.ok(h.elements().some(node => node.type === "a" && node.props.href === destinationUrl), "destination links remain functional in every locale");
+    if (locale !== "fr-FR") assert.doesNotMatch(h.text(), /Informations générales|Compte annonceur|Campagne sans titre|Non associé/);
+    h.openStats();
+    await h.finish(0, { metrics: report() });
+    assert.equal(h.metricValues()[messages.depenses_fb667434], new Intl.NumberFormat(locale, { style: "currency", currency: "EUR" }).format(22.5));
+    assert.equal(h.metricValues()[messages.clics_6e92c5b0], "17");
+    assert.equal(h.requests.length, 1, "localisation only performs the existing metrics read");
+  });
+}

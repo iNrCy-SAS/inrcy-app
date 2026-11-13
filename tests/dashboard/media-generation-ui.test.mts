@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = (path: string) => readFileSync(path, "utf8");
+const shellFr = JSON.parse(read("messages/fr-FR/shell.json"));
 
 function sourceSection(source: string, startToken: string, endToken: string) {
   const start = source.indexOf(startToken);
@@ -210,7 +211,8 @@ test("iNrStudio conserve ses quatre réglages en onglets avec l'aperçu sur la m
   assert.match(generator, /AI_PEOPLE_CRITERIA\.map/);
   assert.match(generator, /AI_SETTING_CRITERIA\.map/);
   assert.match(generator, /AI_FOCUS_CRITERIA\.map/);
-  assert.match(generator, /kind === "image" \? \([\s\S]*?<span>Type de création<\/span>/);
+  assert.match(generator, /kind === "image" \? \([\s\S]*?<span>\{i18nT\("type_de_creation_0e332577"\)\}<\/span>/);
+  assert.equal(shellFr.type_de_creation_0e332577, "Type de création");
   assert.match(generator, /value=\{imagePurpose\}[\s\S]*?IMAGE_PURPOSES\.map/);
   assert.match(generator, /getMediaVideoDurationChoices\(videoMaxDurationSeconds\)/);
   assert.match(generator, /onDurationSceneChange=\{\(seconds, mode\) => \{ setDurationSeconds\(seconds\); setVideoSceneMode\(mode\); \}\}/);
@@ -277,12 +279,14 @@ test("les références s’ajoutent immédiatement avec leur rôle, leur utilisa
   assertOrdered(generator, [
     "className={styles.referenceTileHeader}",
     "className={styles.referenceTileControls}",
-    "Type de la référence",
-    "Utilisation de la référence",
+    "type_de_la_reference_value_eae7d30a",
+    "utilisation_de_la_reference_value_41ca8a07",
   ]);
-  for (const label of ["Personne", "Décor", "Produit", "Obligatoire", "Inspiration"]) {
-    assert.match(generator, new RegExp(label));
+  for (const [key, label] of [["personne_6691d67a", "Personne"], ["decor_97d1aaca", "Décor"], ["produit_ff673dc2", "Produit"], ["obligatoire_389b678a", "Obligatoire"], ["inspiration_2868202f", "Inspiration"]]) {
+    assert.ok(generator.includes(key), key);
+    assert.equal(shellFr[key], label);
   }
+  assert.match(generator, /i18nT\(role\.labelKey\)/);
   assert.match(generator, /className=\{styles\.referenceInfo\}/);
   assert.match(styles, /\.referenceInfo p \{[\s\S]*?position: absolute/);
   assert.doesNotMatch(generator, /className=\{styles\.referenceEditor\}/);
@@ -456,8 +460,9 @@ test("un handoff iNrStudio protège la sortie et utilise un CTA média unique", 
   assert.match(modal, /ai_studio_origin_return/);
   assert.match(modal, /ai_studio_origin_abandon/);
   assert.match(modal, /onAbandonHandoff/);
-  assert.match(imageRetoucher, /\? "Utiliser ce média"/);
-  assert.match(videoRetoucher, /\? "Utiliser ce média"/);
+  assert.match(imageRetoucher, /\? i18nT\("utiliser_ce_media_5cc61021"\)/);
+  assert.match(videoRetoucher, /\? i18nT\("utiliser_ce_media_5cc61021"\)/);
+  assert.equal(shellFr.utiliser_ce_media_5cc61021, "Utiliser ce média");
   assert.match(navigation, /buildInrStudioAbandonHref/);
   assert.match(navigation, /getInrStudioOriginLabel/);
 });

@@ -45,6 +45,7 @@ const handlers = {
 };
 const packageSource = (name: string, file: string) => readFileSync(path.join(path.dirname(require.resolve(`${name}/package.json`)), "cjs", file), "utf8");
 const sources = {
+  "@/lib/elementStyleLock": compile("lib/elementStyleLock.ts"),
   react: packageSource("react", "react.production.js"), "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   "react-dom": packageSource("react-dom", "react-dom.production.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.production.js"), scheduler: packageSource("scheduler", "scheduler.production.js"),
   pool: compile("app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx"),

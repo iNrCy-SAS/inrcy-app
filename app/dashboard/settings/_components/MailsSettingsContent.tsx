@@ -1,12 +1,12 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 
 import React from "react";
 import type { ChannelBubbleRenderer } from "../../_components/channel-bubble.types";
 import { readChannelWorkspaceSnapshot, writeChannelWorkspaceSnapshot } from "../../_components/channel-workspace-snapshot";
 import ChannelParametersDialog from "../../_components/ChannelParametersDialog";
-import { getSimpleFrenchApiError, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getLocalizedApiError, getLocalizedErrorMessage, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import styles from "./MailsSettingsContent.module.css";
@@ -63,7 +63,7 @@ function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Impossible de lire l’image."));
+    reader.onerror = () => reject(new Error("signature_image_read_failed"));
     reader.readAsDataURL(file);
   });
 }
@@ -72,7 +72,7 @@ function loadImageFromDataUrl(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error("Impossible de charger l’image."));
+    img.onerror = () => reject(new Error("signature_image_load_failed"));
     img.src = dataUrl;
   });
 }
@@ -80,11 +80,11 @@ function loadImageFromDataUrl(dataUrl: string): Promise<HTMLImageElement> {
 async function prepareSignatureImage(file: File): Promise<string> {
   const allowed = ["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"];
   if (!allowed.includes(file.type)) {
-    throw new Error("Format d’image non pris en charge. Utilisez PNG, JPG, WEBP, GIF ou SVG.");
+    throw new Error("signature_image_format_invalid");
   }
 
   if (file.size > 5 * 1024 * 1024) {
-    throw new Error("Image trop lourde. Choisissez un fichier inférieur à 5 Mo.");
+    throw new Error("signature_image_too_large");
   }
 
   const sourceDataUrl = await readFileAsDataUrl(file);
@@ -102,7 +102,7 @@ async function prepareSignatureImage(file: File): Promise<string> {
   canvas.width = targetWidth;
   canvas.height = targetHeight;
   const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Impossible de préparer l’image.");
+  if (!ctx) throw new Error("signature_image_prepare_failed");
   ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
   const preferredType = file.type === "image/png" ? "image/png" : "image/jpeg";
@@ -110,7 +110,7 @@ async function prepareSignatureImage(file: File): Promise<string> {
   const output = canvas.toDataURL(preferredType, quality);
 
   if (output.length > 950000) {
-    throw new Error("Image encore trop lourde après optimisation. Choisissez une image plus légère.");
+    throw new Error("signature_image_optimized_too_large");
   }
 
   return output;
@@ -124,14 +124,25 @@ async function dataUrlToFile(dataUrl: string, fallbackName: string): Promise<Fil
 }
 
 const SIGNATURE_WIDTH_OPTIONS = [
-  { value: 300, label: "Petit (300 px)" },
-  { value: 400, label: "Normal (400 px)" },
-  { value: 500, label: "Grand (500 px)" },
-  { value: 600, label: "Très grand (600 px)" },
+  { value: 300, labelKey: "signature_width_small" },
+  { value: 400, labelKey: "signature_width_normal" },
+  { value: 500, labelKey: "signature_width_large" },
+  { value: 600, labelKey: "signature_width_extra_large" },
 ];
 
 function useMailsSettingsController({ onUnsavedChange }: SignatureSettingsProps) {
   const i18nT = useTranslations("mails");
+  const locale = useLocale();
+  const localizedError = React.useCallback((input: unknown, fallback: string) => {
+    const code = input instanceof Error ? input.message : String(input || "");
+    const imageErrorKeys = ["signature_image_read_failed", "signature_image_load_failed", "signature_image_format_invalid", "signature_image_too_large", "signature_image_prepare_failed", "signature_image_optimized_too_large"];
+    if (imageErrorKeys.includes(code)) return i18nT(code);
+    const translated = getLocalizedErrorMessage(input, locale.slice(0, 2), fallback);
+    return !locale.startsWith("fr") && translated === getSimpleFrenchErrorMessage(input, fallback) ? fallback : translated;
+  }, [i18nT, locale]);
+  const localizedApiError = React.useCallback(async (response: Response, fallback: string) =>
+    localizedError(await getLocalizedApiError(response, locale.slice(0, 2), fallback), fallback), [locale, localizedError]);
+  const defaultSignatureTemplate = React.useMemo(() => ["{{nom_complet}}", "{{nom_entreprise}}", i18nT("signature_phone_prefix") + " : {{telephone}}", i18nT("signature_email_prefix") + " : {{email}}"].join("\n"), [i18nT]);
 
   function ProviderLabel(p: MailAccount["provider"]) {
     return p === "gmail" ? i18nT("gmail_eabdf94e") : p === "imap" ? "IMAP" : i18nT("microsoft_11f32421");
@@ -172,11 +183,11 @@ function useMailsSettingsController({ onUnsavedChange }: SignatureSettingsProps)
     const res = await fetch("/api/integrations/status", { cache: "no-store" });
     const data = await res.json().catch(() => ({}));
     if (!mountedRef.current || revision !== mailAccountsRevisionRef.current || snapshotAccountId !== getActiveBrowserUserId()) return mailAccountsRef.current;
-    if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible de charger les boîtes mail."));
+    if (!res.ok) throw new Error(await localizedApiError(res, i18nT("mail_settings_load_accounts_failed")));
     applyMailAccounts(data.mailAccounts || [], snapshotAccountId);
     if (notify) dispatchMailAccountsUpdated(data.mailAccounts || [], true);
     return data.mailAccounts || [];
-  }, [applyMailAccounts]);
+  }, [applyMailAccounts, i18nT, localizedApiError]);
 
   React.useEffect(() => {
     const mailAccountsRevision = mailAccountsRevisionRef;
@@ -185,10 +196,7 @@ function useMailsSettingsController({ onUnsavedChange }: SignatureSettingsProps)
   }, []);
 
   const [signatureEnabled, setSignatureEnabled] = React.useState(true);
-  const [signatureTemplate, setSignatureTemplate] = React.useState(`{{nom_complet}}
-{{nom_entreprise}}
-Tél : {{telephone}}
-Email : {{email}}`);
+  const [signatureTemplate, setSignatureTemplate] = React.useState(defaultSignatureTemplate);
   const [signaturePreview, setSignaturePreview] = React.useState("");
   const [signatureImageUrl, setSignatureImageUrl] = React.useState("");
   const [signatureImagePath, setSignatureImagePath] = React.useState("");
@@ -331,10 +339,10 @@ Email : {{email}}`);
     });
     setImapAssistMessage(
       key === "other"
-        ? "Autre fournisseur sélectionné : renseignez vos paramètres librement."
-        : `Réglages recommandés chargés pour ${IMAP_PRESETS[key].label}. Vous pouvez les modifier.`
+        ? i18nT("imap_other_selected")
+        : i18nT("imap_recommended_loaded", { provider: IMAP_PRESETS[key].label })
     );
-  }, [IMAP_PRESETS]);
+  }, [IMAP_PRESETS, i18nT]);
 
   function openImapModal(account: MailAccount | null) {
     const settings: ImapSettings = account?.imap_settings
@@ -433,10 +441,7 @@ React.useEffect(() => {
 
         if (sigRes?.ok) {
           setSignatureEnabled(sigData?.enabled !== false);
-          setSignatureTemplate(String(sigData?.template || `{{nom_complet}}
-{{nom_entreprise}}
-Tél : {{telephone}}
-Email : {{email}}`));
+          setSignatureTemplate(String(sigData?.template || defaultSignatureTemplate));
           setSignaturePreview(String(sigData?.preview || ""));
           setSignatureImagePath(String(sigData?.imagePath || ""));
           setSignatureImageUrl(String(sigData?.imageUrl || ""));
@@ -445,7 +450,7 @@ Email : {{email}}`));
         setError(null);
       } catch (e: any) {
         if (!alive) return;
-        setError(getSimpleFrenchErrorMessage(e, "Impossible de charger les réglages mail."));
+        setError(localizedError(e, i18nT("mail_settings_load_failed")));
       } finally {
         if (!alive) return;
         setLoading(false);
@@ -455,7 +460,7 @@ Email : {{email}}`));
     return () => {
       alive = false;
     };
-  }, [refreshMailAccounts]);
+  }, [defaultSignatureTemplate, i18nT, localizedError, refreshMailAccounts]);
 
   const slots = [0, 1, 2, 3];
   const oauthAccounts = mailAccounts.filter((a) => a.provider !== "imap");
@@ -483,7 +488,7 @@ Email : {{email}}`));
         body: JSON.stringify({ accountId: acc.id }),
       });
       if (!r.ok) {
-        throw new Error(await getSimpleFrenchApiError(r, "Impossible de déconnecter cette boîte mail."));
+        throw new Error(await localizedApiError(r, i18nT("mail_settings_disconnect_failed")));
       }
       if (snapshotAccountId !== getActiveBrowserUserId()) return;
       applyMailAccounts(mailAccountsRef.current.filter(account => account.id !== acc.id), snapshotAccountId);
@@ -492,7 +497,7 @@ Email : {{email}}`));
       setLoading(false);
       setToast(acc.provider === "gmail" ? "gmail_disconnected" : acc.provider === "microsoft" ? "outlook_disconnected" : "imap_disconnected");
     } catch (e: any) {
-      if (mountedRef.current && snapshotAccountId === getActiveBrowserUserId()) setError(getSimpleFrenchErrorMessage(e, "Impossible de déconnecter cette boîte mail."));
+      if (mountedRef.current && snapshotAccountId === getActiveBrowserUserId()) setError(localizedError(e, i18nT("mail_settings_disconnect_failed")));
     } finally {
       disconnectInFlightRef.current = false;
       if (mountedRef.current) setBusyDisconnect(null);
@@ -539,7 +544,7 @@ Email : {{email}}`));
             <div style={{ fontSize: 12, opacity: 0.75, lineHeight: 1.5 }}>
                   {imapEditingAccountId
                     ? i18nT("imap_settings_intro")
-                    : <>{i18nT("choisissez_un_fournisseur_prerempli_saisissez_vo_9888b1f7")}{" "}<b>identifiant</b> {" "}{i18nT("et_votre_1db8b8ca")}{" "}<b>{i18nT("mot_de_passe_b47ea832")}</b>{i18nT("puis_cliquez_sur_cfcbb581")}{" "}<b>{i18nT("connecter_ca28e250")}</b>.</>}
+                    : <>{i18nT("choisissez_un_fournisseur_prerempli_saisissez_vo_9888b1f7")}{" "}<b>{i18nT("imap_login")}</b> {" "}{i18nT("et_votre_1db8b8ca")}{" "}<b>{i18nT("mot_de_passe_b47ea832")}</b>{i18nT("puis_cliquez_sur_cfcbb581")}{" "}<b>{i18nT("connecter_ca28e250")}</b>.</>}
             </div>
 
             <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
@@ -585,8 +590,8 @@ Email : {{email}}`));
                   <button
                     type="button"
                     onClick={() => setImapShowPassword((v) => !v)}
-                    aria-label={imapShowPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
-                    title={imapShowPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                    aria-label={imapShowPassword ? i18nT("password_hide") : i18nT("password_show")}
+                    title={imapShowPassword ? i18nT("password_hide") : i18nT("password_show")}
                     style={{
                       position: "absolute",
                       right: 8,
@@ -680,10 +685,10 @@ Email : {{email}}`));
                             setImapCustom((p) => applySmtpSecurityMode(p, mode));
                             setImapAssistMessage(
                               mode === "ssl"
-                                ? "Sécurité SMTP réglée sur SSL/TLS. Recommandé le plus souvent avec le port 465."
+                                ? i18nT("smtp_ssl_help")
                                 : mode === "starttls"
-                                ? "Sécurité SMTP réglée sur STARTTLS. Recommandé le plus souvent avec le port 587."
-                                : "Sécurité SMTP personnalisée : aucun chiffrement sélectionné."
+                                ? i18nT("smtp_starttls_help")
+                                : i18nT("smtp_none_help")
                             );
                           }}
                           style={{ ...imapSelectStyle, minWidth: 0 }}
@@ -754,10 +759,10 @@ Email : {{email}}`));
                           setImapCustom((p) => applySmtpSecurityMode(p, mode));
                           setImapAssistMessage(
                             mode === "ssl"
-                              ? "Sécurité SMTP réglée sur SSL/TLS. Recommandé le plus souvent avec le port 465."
+                              ? i18nT("smtp_ssl_help")
                               : mode === "starttls"
-                              ? "Sécurité SMTP réglée sur STARTTLS. Recommandé le plus souvent avec le port 587."
-                              : "Sécurité SMTP personnalisée : aucun chiffrement sélectionné."
+                              ? i18nT("smtp_starttls_help")
+                              : i18nT("smtp_none_help")
                           );
                         }}
                         style={{ ...imapSelectStyle, minWidth: 0 }}
@@ -799,14 +804,14 @@ Email : {{email}}`));
                         }),
                       });
                       await r.json().catch(() => ({}));
-                      if (!r.ok) throw new Error(await getSimpleFrenchApiError(r, "Connexion impossible"));
+                      if (!r.ok) throw new Error(await localizedApiError(r, i18nT("mail_settings_connect_failed")));
                       imapModalBaselineSignatureRef.current = "";
                       setImapModalOpen(false);
                       await refreshMailAccounts(true);
                       setToast(imapEditingAccountId ? "imap_updated" : "imap_connected");
                       setImapEditingAccountId(null);
                     } catch (e: any) {
-                      setImapFormError(getSimpleFrenchErrorMessage(e, "Connexion impossible pour le moment."));
+                      setImapFormError(localizedError(e, i18nT("mail_settings_connect_retry")));
                     } finally {
                       setImapConnectBusy(false);
                     }
@@ -835,7 +840,7 @@ Email : {{email}}`));
   const parameters = (
     <div className={styles.settings}>
       <section className={signatureStyles.panel} data-mail-signature>
-        <header className={signatureStyles.heading}><div><h3>{i18nT("signature_automatique_77745712")}</h3><p>Personnalisez le texte et l’image ajoutés à la fin de vos mails iNr’Send.</p></div></header>
+        <header className={signatureStyles.heading}><div><h3>{i18nT("signature_automatique_77745712")}</h3><p>{i18nT("signature_intro")}</p></div></header>
         <div className={signatureStyles.signatureShell}>
           <label className={`${signatureStyles.toggleCard} ${signatureEnabled ? signatureStyles.toggleCardSelected : ""}`}>
             <input
@@ -848,7 +853,7 @@ Email : {{email}}`));
             <span className={signatureStyles.checkIndicator} aria-hidden="true" />
             <span className={signatureStyles.toggleCopy}>
               <strong>{i18nT("activer_la_signature_automatique_d826254a")}</strong>
-              <small>Ajoutée automatiquement à chaque message envoyé.</small>
+              <small>{i18nT("signature_auto_help")}</small>
             </span>
           </label>
 
@@ -860,7 +865,7 @@ Email : {{email}}`));
 
           <div className={signatureStyles.signatureGrid}>
             <div className={signatureStyles.editorPanel}>
-              <label className={signatureStyles.fieldLabel} htmlFor="mails-signature-template">Texte de la signature</label>
+              <label className={signatureStyles.fieldLabel} htmlFor="mails-signature-template">{i18nT("signature_text_label")}</label>
               <textarea
                 id="mails-signature-template"
                 className={signatureStyles.signatureTextarea}
@@ -870,7 +875,7 @@ Email : {{email}}`));
                 disabled={signatureBusy}
               />
               <p className={signatureStyles.variablesHelp}>
-                Variables : {"{{nom_complet}}"}, {"{{nom_entreprise}}"}, {"{{telephone}}"}, {"{{email}}"}, {"{{ville}}"}…
+                {i18nT("signature_variables", { tokens: "{{nom_complet}}, {{nom_entreprise}}, {{telephone}}, {{email}}, {{ville}}…" })}
               </p>
 
               <div className={signatureStyles.mediaTools}>
@@ -897,12 +902,12 @@ Email : {{email}}`));
                       formData.append("file", preparedFile);
                       const res = await fetch("/api/inrsend/signature-image", { method: "POST", body: formData });
                       const data = await res.json().catch(() => ({}));
-                      if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible d’importer cette image."));
+                      if (!res.ok) throw new Error(await localizedApiError(res, i18nT("signature_import_failed")));
                       setSignatureImagePath(String(data?.imagePath || ""));
                       setSignatureImageUrl(String(data?.imageUrl || ""));
                       setSignatureToast(i18nT("image_inseree_pensez_a_sauvegarder_la_77ab6eef"));
                     } catch (err: any) {
-                      setSignatureToast(`⚠️ ${getSimpleFrenchErrorMessage(err, "Impossible d’importer cette image.")}`);
+                      setSignatureToast(`⚠️ ${localizedError(err, i18nT("signature_import_failed"))}`);
                     } finally {
                       if (input) input.value = "";
                       setSignatureBusy(false);
@@ -923,13 +928,13 @@ Email : {{email}}`));
                           headers: { "Content-Type": "application/json" },
                           body: JSON.stringify({ imagePath: signatureImagePath }),
                         });
-                        if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible de retirer cette image."));
+                        if (!res.ok) throw new Error(await localizedApiError(res, i18nT("signature_remove_failed")));
                       }
                       setSignatureImagePath("");
                       setSignatureImageUrl("");
                       setSignatureToast(i18nT("image_retiree_99769015"));
                     } catch (err: any) {
-                      setSignatureToast(`⚠️ ${getSimpleFrenchErrorMessage(err, "Impossible de retirer cette image.")}`);
+                      setSignatureToast(`⚠️ ${localizedError(err, i18nT("signature_remove_failed"))}`);
                     } finally {
                       setSignatureBusy(false);
                     }
@@ -950,7 +955,7 @@ Email : {{email}}`));
               >
                 {SIGNATURE_WIDTH_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value} style={{ background: "#10213f", color: "#f4f8ff" }}>
-                    {opt.label}
+                    {i18nT(opt.labelKey, { width: opt.value })}
                   </option>
                 ))}
               </select>
@@ -989,7 +994,7 @@ Email : {{email}}`));
                     body: JSON.stringify({ enabled: signatureEnabled, template: signatureTemplate, imagePath: signatureImagePath, imageUrl: signatureImageUrl, imageWidth: signatureImageWidth }),
                   });
                   const data = await res.json().catch(() => ({}));
-                  if (!res.ok) throw new Error(await getSimpleFrenchApiError(res, "Impossible d’enregistrer la signature."));
+                  if (!res.ok) throw new Error(await localizedApiError(res, i18nT("signature_save_failed")));
                   const nextSignatureEnabled = data?.enabled !== false;
                   const nextSignatureTemplate = String(data?.template || signatureTemplate);
                   const nextSignatureImagePath = String(data?.imagePath || signatureImagePath);
@@ -1014,12 +1019,12 @@ Email : {{email}}`));
                     window.dispatchEvent(new CustomEvent("inrsend:signature-updated"));
                   }
                 } catch (e: any) {
-                  setSignatureToast(`⚠️ ${getSimpleFrenchErrorMessage(e, "Impossible d’enregistrer la signature.")}`);
+                  setSignatureToast(`⚠️ ${localizedError(e, i18nT("signature_save_failed"))}`);
                 } finally {
                   setSignatureBusy(false);
                 }
               }}
-            >{signatureBusy ? "Enregistrement…" : "Sauvegarder la signature"}</button>
+            >{signatureBusy ? i18nT("enregistrement_e7d5f232") : i18nT("signature_save")}</button>
           </div>
         </div>
       </section>

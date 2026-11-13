@@ -32,12 +32,12 @@ test("the iNrSearch information panel remains readable and has no directory sett
   const css = read("app/dashboard/_components/ChannelParametersDialog.module.css");
   const information = source.slice(source.indexOf("  const parameters = "), source.indexOf("  return <>"));
 
-  assert.match(source, /parametersLabel: "Informations"/);
+  assert.match(source, /parametersLabel: i18nT\("search_information"\)/);
   assert.match(source, /parametersIcon: "info"/);
   assert.match(source, /parametersAlwaysVisible: true/);
-  assert.match(information, /À quoi sert iNr’Search/);
-  assert.match(information, /site automatisé/);
-  assert.match(information, /moteurs de recherche et les assistants IA/);
+  assert.match(information, /i18nT\("a_quoi_sert_inr_apos_search_c32318a6"\)/);
+  assert.match(information, /i18nT\("search_intro"\)/);
+  assert.match(information, /i18nT\("search_explainer"\)/);
   assert.match(information, /lineHeight: 1\.7/);
   assert.doesNotMatch(information, /<(?:button|input|select|form)\b|directoryButton|whiteSpace: "nowrap"/);
   assert.match(css, /\.content\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto/);

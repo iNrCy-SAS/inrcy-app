@@ -608,7 +608,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
       <MediaLibraryPickerModal
         open={mediaLibraryOpen}
         title={i18nT("joindre_depuis_la_mediatheque_132a0a6b")}
-        subtitle="Ajoutez un média déjà stocké dans iNrCy · format adapté si nécessaire · 20 Mo max."
+        subtitle={i18nT("ajoutez_un_media_deja_stocke_dans_2600ccd5")}
         accept="all"
         multiple
         maxSelection={10}
@@ -739,7 +739,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
                     >
                       {(a.display_name ? `${a.display_name} — ` : "") +
                         a.email_address +
-                        ` (${a.provider}${needsUpdate ? " — à actualiser" : ""})`}
+                        ` (${a.provider}${needsUpdate ? i18nT("a_actualiser_2fb8a064") : ""})`}
                     </option>
                   );
                 })}

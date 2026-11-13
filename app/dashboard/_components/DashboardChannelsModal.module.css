@@ -51,12 +51,12 @@
 .nebula::after { transform: rotate(31deg); border-color: #a47ef52b; box-shadow: 0 6px 28px #984dff20; }
 .starfield { position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .6; background-image: radial-gradient(circle at 4% 33%,#9ad8ff 0 1px,transparent 2px),radial-gradient(circle at 39% 22%,#9fb7fa 0 1px,transparent 2px),radial-gradient(circle at 57% 80%,#abbeff 0 1px,transparent 2px),radial-gradient(circle at 79% 63%,#a8b8ff 0 1.5px,transparent 3px),radial-gradient(circle at 60% 19%,#a096fe 0 1.5px,transparent 3px),radial-gradient(circle at 17% 91%,#4eb7ff 0 1px,transparent 2px),radial-gradient(circle at 37% 58%,#f1c8ff 0 1px,transparent 3px),radial-gradient(circle at 94% 15%,#84d5ff 0 1px,transparent 2px); }
 .selectedArea { position: absolute; z-index: 2; left: 50%; top: calc(var(--center-y,260px) - var(--center-size,340px) / 2); width: var(--center-size,340px); transform: translateX(-50%); }
-.selectedHalo { position: absolute; top: calc(var(--center-size,340px) * -.04); left: -4%; width: 108%; aspect-ratio: 1; border-radius: 50%; border: 1px solid #69c8ff38; box-shadow: 0 0 80px #157cfe3b,inset 0 0 45px #823fee1f; }
+.selectedHalo { position: absolute; top: calc(var(--center-size,340px) * -.04); left: -4%; width: 108%; aspect-ratio: 1; border-radius: 50%; border: 1px solid #69c8ff38; box-shadow: 0 0 80px #157cfe3b,inset 0 0 45px #823fee1f; pointer-events: none; animation: selectedFloat 9s ease-in-out infinite; }
 .selectedHalo::after { content: ""; position: absolute; inset: -6%; border: 1px solid #879bf119; border-radius: 50%; }
 .selectedBubble { position: relative; width: 100%; filter: drop-shadow(0 0 17px #7954fd2b); }
-.selectedBubble > article { animation: selectedFloat 9s ease-in-out infinite; }
+/* Keep the workspace and its hit areas fixed; only the decorative halo floats. */
 .scene:has([data-channel-feedback]) { min-height: max(550px,calc(var(--center-size,340px) + 300px)); }
-.selectedBubble:has([popover]:popover-open) > article { animation-play-state: paused; }
+.selectedArea:has([popover]:popover-open) .selectedHalo { animation-play-state: paused; }
 .selectedBubble > article { width: 100%; max-width: none; border: 2px solid #98dfffbd; background: radial-gradient(ellipse at 25% 10%,#9cddff80,transparent 28%),radial-gradient(ellipse at 87% 70%,#b226ed5e,transparent 50%),radial-gradient(ellipse at 16% 73%,#0876fc75,transparent 52%),linear-gradient(130deg,#0c3f89,#16184c 54%,#35226c); box-shadow: inset 3px 3px 8px #77eaff, inset -4px -3px 9px #a665ff, inset 0 0 44px #426dfca6,0 0 8px #1bceffb3,0 0 30px #2a73ff52,0 22px 55px #02082080; }
 .selectedBubble > article:hover { transform: none; }
 .selectedBubble[data-tone="warning"] > article { border-color: #f8ce84; box-shadow: inset 3px 3px 8px #ffd08799,inset -4px -3px 9px #a665ff99,inset 0 0 44px #92523480,0 0 24px #f5b55655,0 22px 55px #02082080; }

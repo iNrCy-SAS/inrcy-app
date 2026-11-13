@@ -76,6 +76,7 @@ const html = `<html><head><meta charset="utf-8"><meta name="viewport" content="w
 type FixtureWindow = Window & { studioFixture: { start(kind?: string): void; progress(): void; complete(kind?: string, id?: string, account?: string): void; save(): void; switchAccount(account: string): void; reset(): void }; revealCalls: ScrollIntoViewOptions[]; activeAccount: string };
 
 const nativeSources = {
+  "@/lib/elementStyleLock": compile(read("lib/elementStyleLock.ts")),
   ...modules,
   studio: compile(read("app/dashboard/generer-media/MediaGeneratorStudioClient.tsx")),
   "@/lib/studioVideoRetouchPersistence": compile(read("lib/studioVideoRetouchPersistence.ts")),

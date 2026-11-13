@@ -54,7 +54,8 @@ function runtime(fetch: any, initialConnected = true, cached?: Dict, controller:
   const localRequire = (name: string): any => {
     if (name === "react") return react;
     if (name === "react/jsx-runtime") return require(name);
-    if (name === "next-intl") return { useTranslations: () => (key: string) => key };
+    if (name === "next-intl") return { useLocale: () => "fr-FR", useTranslations: () => (key: string) => key };
+    if (name === "@/lib/userFacingErrors") return { getLocalizedErrorMessage: (input: unknown, _locale: string, fallback: string) => input instanceof Error ? input.message : String(input || fallback), getSimpleFrenchErrorMessage: (input: unknown, fallback: string) => input instanceof Error ? input.message : String(input || fallback) };
     if (name === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => accountId };
     if (name.endsWith(".module.css")) return new Proxy({}, { get: (_target, key) => String(key) });
     if (name.endsWith("ChannelParametersDialog") || name.endsWith("StatusMessage")) return (props: any) => props.children;

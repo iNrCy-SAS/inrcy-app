@@ -77,9 +77,9 @@ test("the dashboard extracts logo colors and the public badge consumes the saved
   const publicBadge = read("app/badge/[slug]/page.tsx");
   const stylesheet = read("app/badge/[slug]/badge.module.css");
 
-  assert.match(settings, /Identité entreprise/);
+  assert.match(settings, /i18nT\("badge_identity"\)/);
   assert.match(settings, /extractInrBadgeThemeColorsFromLogo/);
-  assert.match(settings, /Actualiser depuis le logo/);
+  assert.match(settings, /i18nT\("badge_refresh_logo"\)/);
   assert.match(publicBadge, /normalizeInrBadgeThemeSettings\(toolSettings\.inrBadgeTheme\)/);
   assert.match(publicBadge, /getInrBadgeThemeCssVariables\(badgeTheme\)/);
   assert.match(publicBadge, /style=\{badgeThemeStyle\}/);

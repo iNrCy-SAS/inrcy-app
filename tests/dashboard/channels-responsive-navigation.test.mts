@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
 import { createNativeLocalHookLoader } from "../helpers/assistant-native-local-hooks.mts";
+import { acquireElementStyleLock } from "../../lib/elementStyleLock.ts";
 
 // Run real event closures with isolated hooks; never call live account services.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -15,6 +16,7 @@ const sourceRoot = process.env.INRCY_CHANNEL_TEST_SOURCE_ROOT || process.cwd();
 const source = readFileSync(path.join(sourceRoot, "app/dashboard/_components/DashboardChannelsModal.tsx"), "utf8");
 const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
 const items = Array.from({ length: 14 }, (_, index) => ({ key: index === 0 ? "gmb" : `channel-${index}`, name: `Canal ${index}`, logoSrc: "/test.svg", bubbleStatus: "connected", bubbleStatusText: "Connecté", onConfigure() {} }));
+const messages = JSON.parse(readFileSync(path.join(sourceRoot, "messages/fr-FR/dashboard.json"), "utf8"));
 
 function fixture() {
   let cursor = 0;
@@ -29,8 +31,10 @@ function fixture() {
     useId: () => `channels-test-${cursor++}`, useEffect() {}, useLayoutEffect: (effect: () => unknown) => { layoutEffects.push(effect); }, useMemo: (fn: Value) => fn(), useCallback: (fn: Value) => fn,
   };
   const localRequire = (name: string): Value => {
+    if (name === "@/lib/elementStyleLock") return { acquireElementStyleLock };
     if (name === "react") return hooks;
     if (name === "react/jsx-runtime") return require(name);
+    if (name === "next-intl") return { useLocale: () => "fr-FR", useTranslations: () => (key: string, values: Record<string, unknown> = {}) => String(messages[key] ?? key).replace(/\{(\w+)\}/g, (_match, variable: string) => String(values[variable] ?? "")) };
     const native = nativeHooks(name);
     if (native !== undefined) return native;
     if (name === "next/navigation") return { usePathname: () => "/dashboard" };

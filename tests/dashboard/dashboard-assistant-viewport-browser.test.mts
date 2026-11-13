@@ -47,6 +47,7 @@ function browserLibSources(entry: string, output: Record<string, string> = {}) {
   return output;
 }
 const sources = {
+  "@/lib/elementStyleLock": compile("lib/elementStyleLock.ts"),
   react: packageSource("react", "react.production.js"),
   "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   "react-dom": packageSource("react-dom", "react-dom.production.js"),

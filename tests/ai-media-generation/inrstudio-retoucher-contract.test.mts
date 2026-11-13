@@ -27,6 +27,7 @@ const videoRetoucher = read(
 );
 const modal = read("app/dashboard/_components/MediaGeneratorModal.tsx");
 const generator = read("app/dashboard/_components/MediaGenerator.tsx");
+const shellMessages = JSON.parse(read("messages/fr-FR/shell.json"));
 const modalStyles = read(
   "app/dashboard/_components/MediaGeneratorModal.module.css"
 );
@@ -254,9 +255,10 @@ test("Retoucher vidéo réutilise le moteur d'adaptation existant dans iNrStudio
   assert.match(videoRetoucher, /UNIVERSAL_MEDIA_VIDEO_EXTENSIONS/);
   assert.match(videoRetoucher, /BoosterVideoFormatManager/);
   assert.match(videoRetoucher, /accept="video"/);
-  assert.match(videoRetoucher, /Utiliser ce média/);
-  assert.match(videoRetoucher, /Enregistrer dans la Médiathèque/);
-  assert.match(videoRetoucher, /Ajoutez une vidéo pour commencer/);
+  for (const [key, text] of [["utiliser_ce_media_5cc61021", "Utiliser ce média"], ["enregistrer_dans_la_mediatheque_113a0c12", "Enregistrer dans la Médiathèque"], ["ajoutez_une_video_pour_commencer_88960f0e", "Ajoutez une vidéo pour commencer"]]) {
+    assert.ok(videoRetoucher.includes(`i18nT("${key}")`));
+    assert.equal(shellMessages[key], text);
+  }
   assert.match(videoRetoucher, /disabled=\{!source \|\| saving \|\| saved\}/);
   assert.match(
     videoRetoucherStyles,

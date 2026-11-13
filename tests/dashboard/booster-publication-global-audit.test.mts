@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { isRetryablePublicationEntry } from "../../lib/publicationStorySequenceRetry.ts";
+import { IntlMessageFormat } from "intl-messageformat";
 
 function read(path: string) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -16,6 +17,7 @@ const tiktokPublish = read("lib/tiktokPublish.ts");
 const resultModal = read("app/dashboard/_components/PublishExecutionResultModal.tsx");
 const bottomNav = read("app/dashboard/_components/ResponsiveBottomNav.tsx");
 const cron = read("app/api/cron/booster-publications/route.ts");
+const boosterMessages = JSON.parse(read("messages/fr-FR/booster.json"));
 
 test("stage 1 generation protections remain active", () => {
   assert.match(generationRoute, /BOOSTER_GENERATION_BURST_LIMIT = 20/);
@@ -42,14 +44,16 @@ test("stage 3 keeps TikTok video transfer on file upload and exposes real status
 
 test("stage 4 keeps partial results, retry scope and mobile modal state", () => {
   assert.match(resultModal, /failureCount/);
-  assert.match(resultModal, /\$\{publishedCount\}\/\$\{totalCount\} publié/);
-  assert.match(resultModal, /<strong>\{failedOrSkippedCount\}<\/strong><span>à revoir<\/span>/);
+  assert.match(resultModal, /i18nT\("execution_result_compact_count", \{ count: publishedCount, total: totalCount \}\)/);
+  assert.equal(new IntlMessageFormat(boosterMessages.execution_result_compact_count, "fr-FR").format({ count: 2, total: 3 }), "2/3 publiés");
+  assert.match(resultModal, /<strong>\{failedOrSkippedCount\}<\/strong><span>\{i18nT\("execution_result_review"\)\}<\/span>/);
+  assert.equal(boosterMessages.execution_result_review, "à revoir");
   assert.match(resultModal, /entries\.filter\(isRetryablePublicationEntry\)/);
   assert.equal(isRetryablePublicationEntry({ channel: "facebook", ok: false, status: "failed", retryable: true }), true);
   assert.equal(isRetryablePublicationEntry({ channel: "facebook", ok: false, status: "failed", retryable: false }), false);
   assert.equal(isRetryablePublicationEntry({ channel: "facebook", ok: true, status: "processing" }), false);
   assert.equal(isRetryablePublicationEntry({ channel: "facebook", ok: true, status: "published" }), false);
-  assert.match(resultModal, /i18nT\("retenter_value_value_en_echec_b7d1f934"/);
+  assert.match(resultModal, /i18nT\("execution_result_retry"/);
   assert.match(bottomNav, /publishModalOpen/);
   assert.match(publishRoute, /idempotencyKey/);
 });

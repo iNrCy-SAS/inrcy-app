@@ -199,7 +199,7 @@ export default function NewDevisPage() {
         setDeliveryPostalCode,
         setDeliveryCity,
       },
-      "(Sans nom)",
+      i18nT("sans_nom_1f7c630b"),
     );
 
   const {  filteredCrmContacts, selectedCrmContact } =
@@ -501,42 +501,42 @@ export default function NewDevisPage() {
         Number(line.unitPrice) >= 0,
     );
 
-    if (!clientType) nextErrors.clientType = "Type de client obligatoire.";
+    if (!clientType) nextErrors.clientType = i18nT("validation_client_type");
     if (!(clientName || "").trim())
-      nextErrors.clientName = "Nom client obligatoire.";
+      nextErrors.clientName = i18nT("validation_client_name");
     if (!billingAddress.trim())
-      nextErrors.billingAddress = "Adresse obligatoire.";
+      nextErrors.billingAddress = i18nT("validation_address");
     if (!billingPostalCode.trim())
-      nextErrors.billingPostalCode = "Code postal obligatoire.";
-    if (!billingCity.trim()) nextErrors.billingCity = "Ville obligatoire.";
+      nextErrors.billingPostalCode = i18nT("validation_postal_code");
+    if (!billingCity.trim()) nextErrors.billingCity = i18nT("validation_city");
     if (
       clientType &&
       clientType !== "particulier" &&
       !(clientSiren || "").trim()
     )
       nextErrors.clientSiren =
-        "SIREN client obligatoire pour ce type de client.";
+        i18nT("validation_client_siren");
     if (!(number || "").trim())
-      nextErrors.number = "Numéro de devis obligatoire.";
+      nextErrors.number = i18nT("validation_quote_number");
     if (!(docDateISO || "").trim())
-      nextErrors.docDateISO = "Date du devis obligatoire.";
+      nextErrors.docDateISO = i18nT("validation_quote_date");
     if (!Number(validityDays) || Number(validityDays) < 1) {
-      nextErrors.validityDays = "Durée de validité obligatoire.";
+      nextErrors.validityDays = i18nT("validation_quote_validity");
       setAdvancedOpen(true);
     }
     if (!hasValidLine)
       nextErrors.lines =
-        "Ajoutez au moins une prestation valide (libellé, quantité et prix HT).";
+        i18nT("validation_valid_line");
 
     const normalizedEmail = (clientEmail || "").trim();
     if (requireEmail) {
       if (!normalizedEmail)
         nextErrors.clientEmail =
-          "Email client obligatoire pour envoyer par mail.";
+          i18nT("validation_email_required");
       else if (!isValidEmail(normalizedEmail))
-        nextErrors.clientEmail = "Email client invalide.";
+        nextErrors.clientEmail = i18nT("validation_email_invalid");
     } else if (normalizedEmail && !isValidEmail(normalizedEmail)) {
-      nextErrors.clientEmail = "Email client invalide.";
+      nextErrors.clientEmail = i18nT("validation_email_invalid");
     }
 
     setFieldErrors(nextErrors);
@@ -554,7 +554,7 @@ export default function NewDevisPage() {
     onSavedVersion?: (version: DocumentSaveVersion) => void;
   }) => {
     if (!profile) {
-      setFormMessage({ type: "error", text: "Les informations de votre entreprise ne sont pas encore disponibles. Réessayez dans un instant." });
+      setFormMessage({ type: "error", text: i18nT("company_information_not_ready") });
       return null;
     }
     const nowISO = new Date().toISOString();
@@ -566,7 +566,7 @@ export default function NewDevisPage() {
     if (normalizedEmail && !isValidEmail(normalizedEmail)) {
       setFieldErrors((prev) => ({
         ...prev,
-        clientEmail: "Email client invalide.",
+        clientEmail: i18nT("validation_email_invalid"),
       }));
       setFormMessage(null);
       return null;
@@ -640,7 +640,7 @@ export default function NewDevisPage() {
       (clientName || "").trim() ||
       (clientEmail || "").trim() ||
       snapshot.number ||
-      "Sauvegarde";
+      i18nT("save_name_fallback");
 
     const saveMutation = currentSaveId
       ? supabase
@@ -690,7 +690,7 @@ export default function NewDevisPage() {
       }).catch(() => null);
       const result = response ? await response.json().catch(() => null) : null;
       if (!response?.ok || !result?.ok) {
-        setFormMessage({ type: "error", text: commercialDocumentCompletionError(result, "La finalisation du devis ne peut pas être confirmée. Vérifiez sa sauvegarde avant de réessayer.") });
+        setFormMessage({ type: "error", text: commercialDocumentCompletionError(result, i18nT("quote_completion_unconfirmed"), i18nT) });
         return;
       }
       if (!documentEdits.markPersistedFields(finalizeVersion, {}, { documentId: savedId, accountId: resolveActiveBrowserUserId(user.id), updatedAt: result.updatedAt })) return null;
@@ -705,7 +705,7 @@ export default function NewDevisPage() {
       setDraftsOpen(true);
       setFormMessage({
         type: "success",
-        text: currentSaveId ? "Devis mis à jour." : "Devis enregistré.",
+        text: currentSaveId ? i18nT("quote_updated") : i18nT("quote_saved"),
       });
     }
 
@@ -845,7 +845,7 @@ export default function NewDevisPage() {
       setFieldErrors((prev) => ({
         ...prev,
         lines:
-          "Ajoutez au moins une prestation valide avant d’enregistrer un modèle.",
+          i18nT("validation_template_line"),
       }));
       setFormMessage(null);
       return false;
@@ -858,14 +858,14 @@ export default function NewDevisPage() {
       title: i18nT("creer_un_modele_082a9b78"),
       message:
         i18nT("donnez_un_nom_a_ce_modele_d68e69b1"),
-      defaultValue: "Modèle devis",
+      defaultValue: i18nT("quote_template"),
       placeholder: i18nT("nom_du_modele_68d49f67"),
       confirmLabel: i18nT("creer_modele_386adb21"),
       required: false,
     });
     if (templateName === null || !valid()) return false;
 
-    const cleanName = templateName.trim() || "Modèle devis";
+    const cleanName = templateName.trim() || i18nT("quote_template");
     const savedServiceDate = serviceDateMode === "single" ? serviceDate : "";
     const savedServicePeriodStart =
       serviceDateMode === "period" ? servicePeriodStart : "";
@@ -1127,7 +1127,7 @@ export default function NewDevisPage() {
           contact_type: "client",
           category: clientType || "particulier",
           notes: [
-            `Ajouté depuis Devis`,
+            i18nT("crm_added_from_quotes"),
             purchaseOrderReference ? `PO: ${purchaseOrderReference}` : "",
           ]
             .filter(Boolean)
@@ -1140,7 +1140,7 @@ export default function NewDevisPage() {
         throw new Error(
           getSimpleFrenchErrorMessage(
             json?.error,
-            "Impossible d’ajouter ce client au CRM.",
+            i18nT("crm_add_client_failed"),
           ),
         );
       }
@@ -1151,7 +1151,7 @@ export default function NewDevisPage() {
         type: "error",
         text: getSimpleFrenchErrorMessage(
           error,
-          "Impossible d’ajouter ce client au CRM.",
+          i18nT("crm_add_client_failed"),
         ),
       });
     } finally {
@@ -1160,15 +1160,15 @@ export default function NewDevisPage() {
   };
 
   const crmButtonText = useMemo(() => {
-    if (crmLoading) return "Chargement...";
+    if (crmLoading) return i18nT("chargement_01cba1df");
     if (selectedCrmContact) {
       const name = getDocumentCrmContactLabel(selectedCrmContact);
       return selectedCrmContact.email
         ? `${name} — ${selectedCrmContact.email}`
         : name;
     }
-    return "Importer / Rechercher un contact CRM";
-  }, [crmLoading, selectedCrmContact]);
+    return i18nT("importer_ou_rechercher_un_contact_crm_c07daf05");
+  }, [crmLoading, i18nT, selectedCrmContact]);
 
   const paymentLabel = useMemo(
     () => getDocumentPaymentLabel(clientExchangePreferences.clientLanguage, paymentMethod),
@@ -1440,7 +1440,7 @@ export default function NewDevisPage() {
                     >
                       {drafts.map((d) => {
                         const s = d.snapshot;
-                        const label = `${s.number || "(sans numéro)"} — ${s.clientName || "Client"}`;
+                        const label = `${s.number || i18nT("without_number")} — ${s.clientName || i18nT("client_1bdd79b1")}`;
                         return (
                           <div
                             key={d.id}
@@ -1529,7 +1529,7 @@ export default function NewDevisPage() {
                   >
                     {templates.map((d) => {
                       const label =
-                        d.snapshot.templateName || d.name || "Modèle devis";
+                        d.snapshot.templateName || d.name || i18nT("quote_template");
                       return (
                         <div
                           key={d.id}

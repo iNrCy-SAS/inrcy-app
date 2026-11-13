@@ -2,9 +2,10 @@
 import type { ChannelBubbleRenderer } from "../../_components/channel-bubble.types";
 import ChannelParametersDialog from "../../_components/ChannelParametersDialog";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { getLocalizedErrorMessage, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import styles from "../../dashboard.module.css";
 
 const INR_SEARCH_PUBLIC_ORIGIN = ((process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, "") === "https://inrcy.com" ? "https://app.inrcy.com" : (process.env.NEXT_PUBLIC_INRSEARCH_PUBLIC_ORIGIN || "https://app.inrcy.com").replace(/\/$/, ""));
@@ -188,6 +189,11 @@ export default function InrSearchSettingsContent({
   initialDirectoryEnabled = null,
 }: InrSearchSettingsContentProps) {
   const i18nT = useTranslations("settings");
+  const locale = useLocale();
+  const localizedError = useCallback((input: unknown, fallback: string) => {
+    const translated = getLocalizedErrorMessage(input, locale.slice(0, 2), fallback);
+    return !locale.startsWith("fr") && translated === getSimpleFrenchErrorMessage(input, fallback) ? fallback : translated;
+  }, [locale]);
   const [initialSnapshot] = useState(() => readPanelSnapshot(initialPublicUrl, initialConnected, initialDirectoryEnabled));
   const [settings, setSettings] = useState<InrSearchSettings>(() => initialSnapshot?.settings || EMPTY_SETTINGS);
   const [publication, setPublication] = useState<InrSearchPublicationState>(() => initialSnapshot?.publication || {
@@ -233,13 +239,13 @@ export default function InrSearchSettingsContent({
       try {
         const response = await fetch("/api/inr-search/settings", { cache: "no-store", credentials: "include" });
         const payload = await response.json().catch(() => null);
-        if (!response.ok || !payload?.ok) throw new Error(payload?.error || "Chargement impossible.");
+        if (!response.ok || !payload?.ok) throw new Error(payload?.error || i18nT("search_load_failed"));
 
         if (!isCurrent()) return;
         applySnapshot(payload, false);
       } catch (err) {
         if (isCurrent()) {
-          setError(err instanceof Error ? err.message : "Chargement de la page iNr'Search impossible.");
+          setError(localizedError(err, i18nT("search_page_load_failed")));
         }
       } finally {
         if (isCurrent()) setLoading(false);
@@ -251,7 +257,7 @@ export default function InrSearchSettingsContent({
       if (loadInFlightRef.current === request) loadInFlightRef.current = null;
     });
     return request;
-  }, [applySnapshot]);
+  }, [applySnapshot, i18nT, localizedError]);
 
   useEffect(() => {
     const requestSequence = requestSeqRef;
@@ -306,26 +312,26 @@ export default function InrSearchSettingsContent({
         body: JSON.stringify({ action, ...(action === "directory" ? { enabled } : {}) }),
       });
       const payload = await response.json().catch(() => null);
-      if (!response.ok || !payload?.ok) throw new Error(payload?.error || "Mise à jour impossible.");
+      if (!response.ok || !payload?.ok) throw new Error(payload?.error || i18nT("search_update_failed"));
       if (!isCurrent()) return;
       // POST returns the persisted state; reusing a GET started before this
       // action would restore the previous connection or directory setting.
       applySnapshot(payload, true);
       const directoryWarning = payload?.directoryCache?.ok === false
-        ? String(payload.directoryCache.warning || "L’annuaire public n’a pas pu être actualisé immédiatement.")
+        ? i18nT("search_directory_delayed")
         : "";
       setSuccess(
         action === "connect"
-          ? "Votre page iNr’Search est maintenant connectée."
+          ? i18nT("search_connected")
           : action === "disconnect"
-            ? "Votre page iNr’Search est déconnectée."
+            ? i18nT("search_disconnected")
             : enabled
-              ? "Votre page est maintenant visible dans l’annuaire iNrCy."
-              : "Votre page reste publique, mais elle n’est plus proposée dans l’annuaire.",
+              ? i18nT("search_directory_visible")
+              : i18nT("search_directory_hidden"),
       );
       if (directoryWarning) setError(directoryWarning);
     } catch (err) {
-      if (isCurrent()) setError(err instanceof Error ? err.message : "Mise à jour iNr’Search impossible.");
+      if (isCurrent()) setError(localizedError(err, i18nT("search_page_update_failed")));
     } finally {
       if (isCurrent()) {
         setActionLoading(false);
@@ -333,36 +339,36 @@ export default function InrSearchSettingsContent({
       }
       if (mutationRef.current === mutation) mutationRef.current = null;
     }
-  }, [applySnapshot]);
+  }, [applySnapshot, i18nT, localizedError]);
 
   const publicationLabel = loading
-    ? "Synchronisation…"
+    ? i18nT("synchronisation_cc8ad3ae")
     : isPublished
-      ? "Page publiée"
+      ? i18nT("search_published")
       : hasPage && settings.enabled
-        ? "Page en attente"
-        : "Page déconnectée";
+        ? i18nT("search_pending")
+        : i18nT("search_disconnected_status");
   const publicationMessage = !settings.enabled && hasPage
-    ? "La page iNr’Search est déconnectée : elle n’est plus accessible publiquement."
+    ? i18nT("search_not_public")
     : publication.reason === "subscription_inactive"
-    ? "La page est temporairement retirée du web tant que l’abonnement iNrCy n’est pas actif."
+    ? i18nT("search_subscription_inactive")
     : publication.reason === "bubble_disabled"
-      ? "La page est désactivée à distance par iNrCy."
+      ? i18nT("search_disabled")
       : publication.reason === "profile_missing"
-        ? "La page attend la synchronisation du profil principal."
+        ? i18nT("search_profile_pending")
         : publication.reason === "slug_missing" || publication.reason === "config_missing"
-          ? "La page est en cours de création automatique."
+          ? i18nT("search_creating")
           : publication.reason === "data_unavailable"
-            ? "La page est en cours de synchronisation. Actualisez dans quelques secondes."
+            ? i18nT("search_sync_retry")
             : isPublished
-              ? "La page est publiée, mise à jour automatiquement et signalée aux moteurs lors des nouvelles publications."
-              : "La page est en cours de synchronisation automatique.";
+              ? i18nT("search_live_explainer")
+              : i18nT("search_auto_sync");
 
   const parameters = <section style={{ display: "grid", gap: 16, color: "#d4e0f5", lineHeight: 1.7 }}>
-    <h2 style={{ margin: 0, color: "white", fontSize: 25 }}>À quoi sert iNr’Search ?</h2>
-    <p style={{ margin: 0 }}><strong>Votre site automatisé, conçu pour travailler votre visibilité sur les moteurs de recherche et les assistants IA.</strong></p>
-    <p style={{ margin: 0 }}>iNr’Search rassemble les informations de votre profil, votre ADN et vos publications dans un site professionnel structuré. Votre activité, vos services, votre zone d’intervention et vos coordonnées deviennent plus faciles à comprendre pour les internautes et les moteurs IA.</p>
-    <p style={{ margin: 0 }}>Votre site évolue automatiquement avec les informations et les contenus que vous ajoutez dans iNrCy. Utilisez « Voir » pour le consulter.</p>
+    <h2 style={{ margin: 0, color: "white", fontSize: 25 }}>{i18nT("a_quoi_sert_inr_apos_search_c32318a6")}</h2>
+    <p style={{ margin: 0 }}><strong>{i18nT("search_intro")}</strong></p>
+    <p style={{ margin: 0 }}>{i18nT("search_explainer")}</p>
+    <p style={{ margin: 0 }}>{i18nT("search_evolves")}</p>
     <p style={{ margin: 0, fontSize: 13, color: "#aebed8" }}>{publicationLabel} — {publicationMessage}</p>
   </section>;
   return <>
@@ -377,13 +383,13 @@ export default function InrSearchSettingsContent({
       notice: success,
       parameters,
       parametersOwnHeading: true,
-      parametersLabel: "Informations",
+      parametersLabel: i18nT("search_information"),
       parametersIcon: "info",
       parametersAlwaysVisible: true,
     })}
     {disconnectConfirmOpen ? (
       <ChannelParametersDialog name="iNr’Search" onClose={() => setDisconnectConfirmOpen(false)}>
-        <p>Votre page iNr’Search ne sera plus accessible publiquement. Vous pourrez la reconnecter à tout moment.</p>
+        <p>{i18nT("search_disconnect_confirm")}</p>
         <button type="button" className={styles.actionBtn} onClick={() => {
           setDisconnectConfirmOpen(false);
           void performAction("disconnect");

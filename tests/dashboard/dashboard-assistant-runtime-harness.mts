@@ -33,6 +33,7 @@ const compiled = ts.transpileModule(`${source}\nexport { AssistantSession as Tes
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
 }).outputText;
 const extractedSources: Record<string, string> = Object.fromEntries([
+  ["@/lib/elementStyleLock", "lib/elementStyleLock.ts"],
   ["./DashboardAssistantSession", "app/dashboard/_components/DashboardAssistantSession.tsx"],
   ["./dashboardAssistantSessionState", "app/dashboard/_components/dashboardAssistantSessionState.ts"],
   ["../_hooks/useAssistantDialogViewport", "app/dashboard/_hooks/useAssistantDialogViewport.ts"],

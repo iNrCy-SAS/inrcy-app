@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, type RefObject } from "react";
+import { acquireElementStyleLock } from "@/lib/elementStyleLock";
 
 /** Owns only the open dialog's viewport, focus and mobile scroll lifecycle. */
 export function useAssistantDialogViewport({ open, portalTarget, dialogRef, composerRef }: {
@@ -14,10 +15,9 @@ export function useAssistantDialogViewport({ open, portalTarget, dialogRef, comp
     const dialog = dialogRef.current;
     if (!dialog) return;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
     dialog.show();
     const ownsScrollLock = window.matchMedia("(max-width: 1100px)").matches;
-    if (ownsScrollLock) document.body.style.overflow = "hidden";
+    const releaseBodyLock = ownsScrollLock ? acquireElementStyleLock(document.body, { overflow: "hidden" }) : undefined;
     const viewport = window.visualViewport;
     const syncViewport = () => {
       dialog.style.setProperty("--assistant-viewport-height", `${viewport?.height || window.innerHeight}px`);
@@ -36,7 +36,7 @@ export function useAssistantDialogViewport({ open, portalTarget, dialogRef, comp
       viewport?.removeEventListener("scroll", syncViewport);
       window.removeEventListener("resize", syncViewport);
       dialog.close();
-      if (ownsScrollLock) document.body.style.overflow = previousOverflow;
+      releaseBodyLock?.();
       if (opener?.isConnected) opener.focus({ preventScroll: true });
     };
   }, [open, portalTarget, dialogRef, composerRef]);

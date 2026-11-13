@@ -16,6 +16,7 @@ const modalCss = read("app/dashboard/_components/DashboardChannelsModal.module.c
 const toolsCss = read("app/dashboard/_components/DashboardSignatureTools.module.css");
 const hubCss = read("app/dashboard/_components/DashboardExperience.module.css");
 const heroCss = read("app/dashboard/_components/DashboardHeroPremium.module.css");
+const dashboardMessages = JSON.parse(read("messages/fr-FR/dashboard.json"));
 
 function assertOrdered(source: string, ...markers: string[]) {
   let last = -1;
@@ -154,7 +155,8 @@ test("la grande fenêtre réutilise les actions et protections des bulles exista
   assert.match(bubble, /item\.premiumLocked/);
   assert.doesNotMatch(modal, /onClickCapture/);
   assert.match(modal, /renderSelected\(selectedItem!\)/);
-  assert.match(modal, /aria-label="Aide sur les canaux" onClick=\{onOpenHelp\}/);
+  assert.match(modal, /aria-label=\{i18nT\("aide_sur_les_canaux_72b7439d"\)\} onClick=\{onOpenHelp\}/);
+  assert.equal(dashboardMessages.aide_sur_les_canaux_72b7439d, "Aide sur les canaux");
   assert.doesNotMatch(modal, /closeDialog\(\); onOpenHelp\(\)/);
 });
 
@@ -165,9 +167,9 @@ test("les canaux gardent une fenêtre modale sur PC et un espace non modal au-de
   assert.match(modal, /dialog\.setAttribute\("aria-modal", String\(shouldBeModal\)\)/);
   assert.match(modal, /if \(shouldBeModal\) dialog\.showModal\(\); else dialog\.show\(\);/);
   assert.match(modal, /closeButtonRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
-  assert.match(modal, /const previousOverflow = document\.body\.style\.overflow/);
-  assert.match(modal, /document\.body\.style\.overflow = "hidden"/);
-  assert.match(modal, /return \(\) => \{\s*mobile\.removeEventListener\("change", syncPresentation\);\s*document\.removeEventListener\("close", nestedClosed, true\);\s*dialog\.close\(\);\s*document\.body\.style\.overflow = previousOverflow;\s*document\.documentElement\.style\.overflow = previousHtmlOverflow;\s*if \(opener\?\.isConnected\) opener\.focus\(\{ preventScroll: true \}\);/);
+  assert.match(modal, /acquireElementStyleLock\(document\.body, \{ overflow: "hidden" \}\)/);
+  assert.match(modal, /acquireElementStyleLock\(document\.documentElement, \{ overflow: "hidden" \}\)/);
+  assert.match(modal, /return \(\) => \{\s*mobile\.removeEventListener\("change", syncPresentation\);\s*document\.removeEventListener\("close", nestedClosed, true\);\s*dialog\.close\(\);\s*releaseBodyLock\(\);\s*releaseRootLock\(\);\s*if \(opener\?\.isConnected\) opener\.focus\(\{ preventScroll: true \}\);/);
   assert.match(modal, /onCancel=\{\(event\) => \{ event\.preventDefault\(\); closeDialog\(\); \}\}/);
   assert.match(modal, /event\.target !== event\.currentTarget/);
   assert.match(modal, /event\.clientX < bounds\.left[\s\S]*?closeDialog\(\)/);
@@ -228,7 +230,9 @@ test("le header est fin avec les informations au centre, les logos sont ronds et
 });
 
 test("les flèches entourent la bulle centrale sans bloc dessous ni ouverture de fenêtre", () => {
-  assertOrdered(modal, "styles.selectedArea", "<DashboardFluxBubble", "styles.arrowPrevious", 'aria-label="Canal précédent"', "styles.arrowNext", 'aria-label="Canal suivant"', "styles.satellites");
+  assertOrdered(modal, "styles.selectedArea", "<DashboardFluxBubble", "styles.arrowPrevious", 'aria-label={i18nT("canal_precedent_e644dfdf")}', "styles.arrowNext", 'aria-label={i18nT("canal_suivant_d20db274")}', "styles.satellites");
+  assert.equal(dashboardMessages.canal_precedent_e644dfdf, "Canal précédent");
+  assert.equal(dashboardMessages.canal_suivant_d20db274, "Canal suivant");
   assert.match(modal, /"--center-y": `\$\{sceneLayout\.centerY\}px`/);
   assert.doesNotMatch(modal, /channel-details|styles\.channelDetails|styles\.channelExplanation|--info-top/);
   assert.match(modalCss, /\.channelArrow\s*\{[^}]*top: calc\(var\(--center-size,340px\) \/ 2\);[^}]*width: 44px; height: 44px/);
@@ -252,7 +256,9 @@ test("les informations du header sont lisibles et Fermer ne contient plus de cro
   assert.match(modalCss, /\.connectionCount\s*\{[^}]*font-size: 14px/);
   assert.match(modalCss, /\.filter\s*\{[^}]*min-height: 40px;[^}]*font-size: 14px/);
   assert.match(modalCss, /\.close\s*\{[^}]*font-size: 14px/);
-  assert.match(modal, /ref=\{closeButtonRef\}[^\n]*aria-label="Fermer les canaux">Fermer<\/button>/);
+  assert.match(modal, /ref=\{closeButtonRef\}[^\n]*aria-label=\{i18nT\("fermer_les_canaux_44584981"\)\}>\{i18nT\("fermer_5ab4ec64"\)\}<\/button>/);
+  assert.equal(dashboardMessages.fermer_les_canaux_44584981, "Fermer les canaux");
+  assert.equal(dashboardMessages.fermer_5ab4ec64, "Fermer");
   assert.doesNotMatch(modalCss, /\.close\s*\{[^}]*font-size: 0/);
 });
 

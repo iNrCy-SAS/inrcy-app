@@ -7,6 +7,7 @@ import { DrawerHeaderActionsContext, DrawerHeaderDetailsContext, DrawerHeaderTab
 import headerTabsStyles from "./DrawerHeaderTabs.module.css";
 import { useDashboardI18n } from "./_hooks/useDashboardI18n";
 import DashboardAssistantTrigger from "./_components/DashboardAssistantTrigger";
+import { acquireElementStyleLock } from "@/lib/elementStyleLock";
 
 type Props = {
   title: string;
@@ -156,17 +157,12 @@ export default function SettingsDrawer({
   useEffect(() => {
     if (!isOpen) return;
 
-    const previousBodyOverflow = document.body.style.overflow;
-    const previousRootOverflow = document.documentElement.style.overflow;
-    const previousRootOverscroll = document.documentElement.style.overscrollBehavior;
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
-    document.documentElement.style.overscrollBehavior = "none";
+    const releaseBodyLock = acquireElementStyleLock(document.body, { overflow: "hidden" });
+    const releaseRootLock = acquireElementStyleLock(document.documentElement, { overflow: "hidden", "overscroll-behavior": "none" });
 
     return () => {
-      document.body.style.overflow = previousBodyOverflow;
-      document.documentElement.style.overflow = previousRootOverflow;
-      document.documentElement.style.overscrollBehavior = previousRootOverscroll;
+      releaseBodyLock();
+      releaseRootLock();
     };
   }, [isOpen]);
 

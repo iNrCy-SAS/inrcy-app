@@ -44,6 +44,7 @@ type Props = ReturnType<typeof buildDashboardPanelProps> & {
 };
 
 export default function DashboardChannelWorkspace(props: Props) {
+  const i18nT = useTranslations("dashboard");
   const { item, siteWebPanelProps: site, gmbPanelProps: gmb, facebookPanelProps: fb, instagramPanelProps: ig, linkedinPanelProps: li, tiktokPanelProps: tik, threadsChannel: threads } = props;
   const t = useTranslations("dashboard.channelBubble");
   const shell = useTranslations("shell");
@@ -116,7 +117,7 @@ export default function DashboardChannelWorkspace(props: Props) {
         publicLinks: publicLink("gmb", gmb.gmbUrl, gmb.setGmbUrl, gmb.gmbConfigured),
         loading: gmb.gmbLoadingList, busy: gmb.gmbLocationBusy || gmb.gmbAccountBusy || gmb.gmbLocationsPhase === "connecting",
         error: gmb.gmbUrlError || gmb.gmbListError,
-        extraActions: gmb.gmbConfigured ? <button type="button" className={`${bubbleStyles.iconAction} ${bubbleStyles.googleReviewsAction}`} title={t("googleReviews")} aria-label={`${t("googleReviews")} — Google Business`} onClick={() => setReviewsOpen(true)}><ChannelBubbleIcon kind="reviews" /></button> : undefined,
+        extraActions: gmb.gmbConfigured ? <button type="button" className={`${bubbleStyles.iconAction} ${bubbleStyles.googleReviewsAction}`} title={t("googleReviews")} aria-label={i18nT("value_google_business_060ec891", { value0: t("googleReviews") })} onClick={() => setReviewsOpen(true)}><ChannelBubbleIcon kind="reviews" /></button> : undefined,
         parameters: gmb.gmbConfigured ? <GoogleBusinessProfileEditor key={gmb.gmbLocationName} locationName={gmb.gmbLocationName} onDirtyChange={setDirty} /> : undefined,
         parametersLabel: t("manageGoogleProfile"),
         parametersIcon: "businessProfile",
@@ -130,7 +131,7 @@ export default function DashboardChannelWorkspace(props: Props) {
         value: fb.facebookPageConnected ? fb.fbSelectedPageId : "",
         options: fb.fbPages.map((page: { id: string; name?: string }) => ({ value: page.id, label: page.name || page.id })),
         onSelect: fb.saveFacebookPage, onLoad: () => fb.loadFacebookPages({ autoSelect: !fb.facebookPageConnected }),
-        connectOptions: [{ label: "Connexion Facebook", href: "/api/integrations/facebook/start?returnTo=%2Fdashboard%3Fpanel%3Dfacebook&mode=standard", onConnect: fb.connectFacebookAccount }, { label: "Connexion Business", href: "/api/integrations/facebook/start?returnTo=%2Fdashboard%3Fpanel%3Dfacebook&mode=business", onConnect: fb.connectFacebookBusinessAccount }],
+        connectOptions: [{ label: i18nT("connexion_facebook_9d2d340c"), href: "/api/integrations/facebook/start?returnTo=%2Fdashboard%3Fpanel%3Dfacebook&mode=standard", onConnect: fb.connectFacebookAccount }, { label: i18nT("connexion_business_6845d40b"), href: "/api/integrations/facebook/start?returnTo=%2Fdashboard%3Fpanel%3Dfacebook&mode=business", onConnect: fb.connectFacebookBusinessAccount }],
         connectNotice: t("facebookPageRequired"),
         onDisconnect: fb.facebookPageConnected ? fb.disconnectFacebookPage : fb.disconnectFacebookAccount,
         onDisconnectAccount: fb.facebookPageConnected ? fb.disconnectFacebookAccount : undefined,
@@ -167,10 +168,10 @@ export default function DashboardChannelWorkspace(props: Props) {
         accountLabel: li.linkedinSelectedOrganizationId ? li.linkedinDisplayName || undefined : undefined,
         resourceLabel: li.linkedinSelectedOrganizationName || li.linkedinDisplayName,
         value: li.linkedinAccountConnected ? li.linkedinSelectedOrganizationId || "profile" : "",
-        options: [{ value: "profile", label: li.linkedinDisplayName || "Profil personnel" }, ...li.linkedinOrganizations.map((org: { id: string; name: string }) => ({ value: org.id, label: org.name }))],
+        options: [{ value: "profile", label: li.linkedinDisplayName || shell("profil_personnel_8e5d4316") }, ...li.linkedinOrganizations.map((org: { id: string; name: string }) => ({ value: org.id, label: org.name }))],
         onSelect: value => value === "profile" ? li.useLinkedinPersonalProfile() : li.selectLinkedinOrganization(value),
         onLoad: () => li.loadLinkedinOrganizations({ autoSelect: false }),
-        connectOptions: [{ label: "Connexion LinkedIn", onConnect: li.connectLinkedinAccount }, { label: "Connexion Business", onConnect: li.connectLinkedinBusinessAccount }],
+        connectOptions: [{ label: i18nT("connexion_linkedin_6dfadcbe"), onConnect: li.connectLinkedinAccount }, { label: i18nT("connexion_business_6845d40b"), onConnect: li.connectLinkedinBusinessAccount }],
         onDisconnect: li.linkedinSelectedOrganizationId ? li.disconnectLinkedinOrganization : li.disconnectLinkedinAccount,
         onDisconnectAccount: li.linkedinSelectedOrganizationId ? li.disconnectLinkedinAccount : undefined,
         disconnectHelp: { title: t("linkedinDisconnectHelpTitle"), content: <>
@@ -183,7 +184,7 @@ export default function DashboardChannelWorkspace(props: Props) {
         publicLinks: <><div><strong>{shell("profil_personnel_8e5d4316")}</strong>{publicLink("linkedin", li.linkedinProfileUrl, li.setLinkedinProfileUrl, li.linkedinAccountConnected, "profile")}</div>{li.linkedinSelectedOrganizationId ? <div><strong>{shell("page_entreprise_a6ed751d")}</strong>{publicLink("linkedin", li.linkedinOrganizationUrl, li.setLinkedinOrganizationUrl, true, "organization")}</div> : null}</>,
         loading: li.linkedinOrganizationsLoading, busy: li.linkedinAccountBusy || li.linkedinOrganizationBusy,
         error: li.linkedinUrlError, notice: li.linkedinUrlNotice,
-        parameters: li.linkedinSelectedOrganizationId ? <label style={{ display: "flex", gap: 12, alignItems: "center" }}><input type="checkbox" checked={li.linkedinShareToPersonalProfile} disabled={li.linkedinShareToPersonalProfileBusy} onChange={event => void li.updateLinkedinShareToPersonalProfile(event.target.checked)} />Publier aussi sur mon profil personnel</label> : undefined,
+        parameters: li.linkedinSelectedOrganizationId ? <label style={{ display: "flex", gap: 12, alignItems: "center" }}><input type="checkbox" checked={li.linkedinShareToPersonalProfile} disabled={li.linkedinShareToPersonalProfileBusy} onChange={event => void li.updateLinkedinShareToPersonalProfile(event.target.checked)} />{i18nT("publier_aussi_sur_mon_profil_personnel_b07dae20")}</label> : undefined,
       }; break;
     case "threads":
       connection = {

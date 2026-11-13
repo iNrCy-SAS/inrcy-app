@@ -272,13 +272,13 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
           </DashboardToolHeading>
         </div>
 
-        <div className={`${styles.desktopCalendarNav} ${styles.desktopOnly}`} aria-label="Navigation du calendrier">
+        <div className={`${styles.desktopCalendarNav} ${styles.desktopOnly}`} aria-label={i18nT("calendar_navigation")}>
           <button className={styles.btnIcon} onClick={onPrev} aria-label={i18nT("mois_precedent_535707c7")} title={i18nT("mois_precedent_535707c7")}>
             ‹
           </button>
           <div className={styles.desktopMonthBlock}>
             <span className={styles.desktopMonthLabel}>{formatMonthLabel(cursorMonth, locale)}</span>
-            <span className={styles.desktopMonthHint}>Vue mensuelle</span>
+            <span className={styles.desktopMonthHint}>{i18nT("monthly_view")}</span>
           </div>
           <button className={styles.btnIcon} onClick={onToday} aria-label={i18nT("aujourd_hui_ba0603b4")} title={i18nT("aujourd_hui_ba0603b4")}>
             ●
@@ -314,8 +314,8 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
                   type="button"
                   className={`${styles.btnGhost} ${styles.iconOnlyBtn}`}
                   onClick={onOpenGoogleAgenda}
-                  title="Ouvrir Google Agenda"
-                  aria-label="Ouvrir Google Agenda"
+                  title={i18nT("open_google_calendar")}
+                  aria-label={i18nT("open_google_calendar")}
                 >
                   <span className={styles.googleAgendaIcon} aria-hidden>G</span>
                 </button>
@@ -325,8 +325,8 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
                   type="button"
                   className={`${styles.btnGhost} ${styles.iconOnlyBtn}`}
                   onClick={onOpenTeamAppointments}
-                  title="Admin — Attribution des rendez-vous"
-                  aria-label="Ouvrir l’attribution des rendez-vous"
+                  title={i18nT("admin_appointment_assignment")}
+                  aria-label={i18nT("open_appointment_assignment")}
                 >
                   <span className={styles.headerActionIcon} aria-hidden>👥</span>
                 </button>
@@ -336,8 +336,8 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
                 className={`${styles.btnGhost} ${styles.iconOnlyBtn} ${styles.requestAgendaBtn}`}
                 onClick={onOpenAppointmentRequests}
                 disabled={!hasRequests}
-                aria-label={hasRequests ? `${appointmentRequestsCount} demande(s) de rendez-vous à valider` : "Aucune demande de rendez-vous"}
-                title={hasRequests ? `${appointmentRequestsCount} demande(s) de RDV à valider` : "Aucune demande"}
+                aria-label={hasRequests ? i18nT("value_demande_s_de_rendez_vous_cd011605", { value0: appointmentRequestsCount }) : i18nT("no_appointment_requests")}
+                title={hasRequests ? i18nT("value_demande_s_de_rdv_a_3211149a", { value0: appointmentRequestsCount }) : i18nT("no_appointment_requests")}
               >
                 <span className={styles.requestAgendaIcon} aria-hidden>📅</span>
                 {hasRequests ? <span className={styles.requestBellBadge}>{appointmentRequestsCount}</span> : null}
@@ -371,18 +371,18 @@ export function AgendaHeader({ helpOpen, setHelpOpen, settingsOpen, onOpenSettin
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               {canOpenGoogleAgenda ? (
                 <ResponsiveActionButton
-                  desktopLabel="Google Agenda"
+                  desktopLabel={i18nT("google_calendar")}
                   mobileIcon="🗓️"
                   onClick={onOpenGoogleAgenda}
-                  title="Ouvrir Google Agenda"
+                  title={i18nT("open_google_calendar")}
                 />
               ) : null}
               {canManageTeamAppointments ? (
                 <ResponsiveActionButton
-                  desktopLabel="Attribution équipe"
+                  desktopLabel={i18nT("team_assignment")}
                   mobileIcon="👥"
                   onClick={onOpenTeamAppointments}
-                  title="Attribuer les rendez-vous à l’équipe iNrCy"
+                  title={i18nT("assign_appointments_to_inrcy_team")}
                 />
               ) : null}
               {hasRequests ? (
@@ -748,13 +748,13 @@ export function AgendaSidebar({
         </div>
 
         {activeEvents.length > desktopPageSize ? (
-          <div className={styles.desktopEventPager} aria-label="Navigation des rendez-vous">
+          <div className={styles.desktopEventPager} aria-label={i18nT("appointment_navigation")}>
             <button
               type="button"
               className={styles.btnIcon}
               onClick={() => setDesktopPage((current) => Math.max(0, current - 1))}
               disabled={desktopPage === 0}
-              aria-label="Rendez-vous précédents"
+              aria-label={i18nT("previous_appointments")}
             >
               ‹
             </button>
@@ -764,7 +764,7 @@ export function AgendaSidebar({
               className={styles.btnIcon}
               onClick={() => setDesktopPage((current) => Math.min(desktopPageCount - 1, current + 1))}
               disabled={desktopPage >= desktopPageCount - 1}
-              aria-label="Rendez-vous suivants"
+              aria-label={i18nT("next_appointments")}
             >
               ›
             </button>

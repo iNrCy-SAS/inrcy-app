@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import { createPortal } from "react-dom";
 import styles from "../dashboard/dashboard.module.css";
 import { INRCY_DIALOG_EVENT, type InrcyDialogRequest } from "@/lib/inrcyDialog";
+import { acquireElementStyleLock } from "@/lib/elementStyleLock";
 
 type DialogState = InrcyDialogRequest;
 
@@ -75,18 +76,8 @@ export default function InrcyDialogProvider() {
 
     const html = document.documentElement;
     const body = document.body;
-    const prevHtmlOverflow = html.style.overflow;
-    const prevBodyOverflow = body.style.overflow;
-    const ownsHtmlLock = prevHtmlOverflow !== "hidden";
-    const ownsBodyLock = prevBodyOverflow !== "hidden";
-    const bodyStyle = body.style as CSSStyleDeclaration & { overscrollBehavior?: string };
-    const prevBodyTouchAction = bodyStyle.touchAction;
-    const prevBodyOverscroll = bodyStyle.overscrollBehavior;
-
-    if (ownsHtmlLock) html.style.overflow = "hidden";
-    if (ownsBodyLock) bodyStyle.overflow = "hidden";
-    bodyStyle.touchAction = "none";
-    bodyStyle.overscrollBehavior = "none";
+    const releaseRootLock = acquireElementStyleLock(html, { overflow: "hidden" });
+    const releaseBodyLock = acquireElementStyleLock(body, { overflow: "hidden", "touch-action": "none", "overscroll-behavior": "none" });
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -116,10 +107,8 @@ export default function InrcyDialogProvider() {
 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      if (ownsHtmlLock) html.style.overflow = prevHtmlOverflow;
-      if (ownsBodyLock) bodyStyle.overflow = prevBodyOverflow;
-      bodyStyle.touchAction = prevBodyTouchAction;
-      bodyStyle.overscrollBehavior = prevBodyOverscroll;
+      releaseRootLock();
+      releaseBodyLock();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialog]);

@@ -7,6 +7,7 @@ import * as React from "react";
 import ts from "typescript";
 import * as driver from "../../lib/inrAssistantLocalInterface.ts";
 import * as reports from "../../lib/inrAssistantContentReport.ts";
+import { inlineStyle } from "../helpers/inline-style.mts";
 
 type Row = Record<string, unknown>;
 type Element = React.ReactElement<Row>;
@@ -58,7 +59,7 @@ function harness(file: string, props: Row = {}, passive = false, initialFetch?: 
     matches() { return this.disabled; }
     click() { this.clicks++; }
   }
-  const browserDocument = { body: { style: {} }, documentElement: { style: {} }, activeElement: null, querySelectorAll: () => [], addEventListener() {}, removeEventListener() {} };
+  const browserDocument = { body: { style: inlineStyle() }, documentElement: { style: inlineStyle() }, activeElement: null, querySelectorAll: () => [], addEventListener() {}, removeEventListener() {} };
   const browserWindow = { innerWidth: 1280, innerHeight: 1000, location: { origin: "https://app.inrcy.com", href: "https://app.inrcy.com/dashboard?private=local" }, addEventListener() {}, removeEventListener() {}, setTimeout: () => 1, clearTimeout() {}, localStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value) } };
   const react = {
     ...React,

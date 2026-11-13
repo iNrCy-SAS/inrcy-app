@@ -26,12 +26,9 @@ test("the shared settings drawer keeps every configuration panel inside the resp
 
 test("fullscreen settings lock page scrolling and restore it when closed", () => {
   const drawer = read("app/dashboard/SettingsDrawer.tsx");
-  assert.match(drawer, /document\.body\.style\.overflow = "hidden"/);
-  assert.match(drawer, /document\.documentElement\.style\.overflow = "hidden"/);
-  assert.match(drawer, /document\.documentElement\.style\.overscrollBehavior = "none"/);
-  assert.match(drawer, /document\.body\.style\.overflow = previousBodyOverflow/);
-  assert.match(drawer, /document\.documentElement\.style\.overflow = previousRootOverflow/);
-  assert.match(drawer, /document\.documentElement\.style\.overscrollBehavior = previousRootOverscroll/);
+  assert.match(drawer, /acquireElementStyleLock\(document\.body, \{ overflow: "hidden" \}\)/);
+  assert.match(drawer, /acquireElementStyleLock\(document\.documentElement, \{ overflow: "hidden", "overscroll-behavior": "none" \}\)/);
+  assert.match(drawer, /return \(\) => \{\s*releaseBodyLock\(\);\s*releaseRootLock\(\);/);
 });
 
 test("settings keep keyboard focus inside the active dialogue and restore their trigger", () => {

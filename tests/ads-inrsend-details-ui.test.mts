@@ -10,6 +10,7 @@ const styles = readFileSync(
   new URL("../app/dashboard/mails/_components/AdsCampaignsFolder.module.css", import.meta.url),
   "utf8",
 );
+const messages = JSON.parse(readFileSync(new URL("../messages/fr-FR/mails.json", import.meta.url), "utf8"));
 
 test("les détails Ads reprennent la fenêtre iNrSend en plein écran", () => {
   assert.match(component, /mailboxStyles\.detailsModalCard/);
@@ -20,8 +21,10 @@ test("les détails Ads reprennent la fenêtre iNrSend en plein écran", () => {
 
 test("les informations et statistiques sont séparées dans deux onglets accessibles", () => {
   assert.match(component, /role="tablist"/);
-  assert.match(component, />Infos campagne<\/button>/);
-  assert.match(component, />Stats<\/button>/);
+  assert.match(component, /i18nT\("infos_campagne_be358616"\)/);
+  assert.match(component, /i18nT\("stats_be763e9a"\)/);
+  assert.equal(messages.infos_campagne_be358616, "Infos campagne");
+  assert.equal(messages.stats_be763e9a, "Stats");
   assert.match(component, /role="tabpanel"/);
   assert.match(component, /activeTab === "info"/);
 });
@@ -44,13 +47,14 @@ test("le statut précède les actions dans la ligne du titre sur desktop", () =>
 
 test("ChatGPT Ads récupère une interruption et confirme explicitement toute reprise payante", () => {
   assert.match(component, /const isInterruptedRemoteOperation = canRecoverInterruptedAdsCampaign\(campaign\)/);
-  assert.match(component, /isInterruptedRemoteOperation \? <button[\s\S]*?runRemoteAction\(campaign, "reconcile"\)[\s\S]*?Contrôler l’opération interrompue/);
+  assert.match(component, /isInterruptedRemoteOperation \? <button[\s\S]*?runRemoteAction\(campaign, "reconcile"\)[\s\S]*?i18nT\("controler_l_operation_interrompue_48cf1237"\)/);
   assert.match(component, /const canToggleRemote = canManageRemote && \(campaign\.status === "active" \|\| campaign\.status === "paused"\)/);
   assert.match(component, /campaign\.provider === "openai" \? setResumeId\(campaign\.id\)/);
   assert.match(component, /ADS_OPENAI_REMOTE_RESUME_CONFIRMATION/);
   assert.match(component, /billingConfirmed: true/);
-  assert.match(component, /Activer la diffusion payante ChatGPT Ads/);
-  assert.match(component, /peut générer des dépenses selon son budget/);
+  assert.match(component, /i18nT\("activer_la_diffusion_payante_chatgpt_ads_a2f0187d"\)/);
+  assert.match(messages.activer_la_diffusion_payante_chatgpt_ads_a2f0187d, /Activer la diffusion payante ChatGPT Ads/);
+  assert.match(messages.cette_action_reprend_la_campagne_et_6ed67c1d, /peut générer des dépenses selon son budget/);
   assert.doesNotMatch(component, /l’activation depuis iNrSend n’est pas disponible/);
   assert.match(component, /const canDeleteRemote = canManageRemote && \(campaign\.provider === "google" \|\| campaign\.provider === "meta"\)/);
 });

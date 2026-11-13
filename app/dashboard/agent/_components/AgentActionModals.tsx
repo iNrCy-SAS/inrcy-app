@@ -1456,25 +1456,6 @@ export function AgentScheduleModal({
                                       >
                                         {renderCalendarActions()}
                                       </span>
-                                      {inspectionOnly || item.source === "history" ? null : <details
-                                        open={disclosures[item.scheduledActionId || item.id]?.actions ?? false}
-                                        onToggle={event => { const expanded = event.currentTarget.open; setDisclosures(previous => ({ ...previous, [item.scheduledActionId || item.id]: { ...previous[item.scheduledActionId || item.id], actions: expanded } })); }}
-                                        className={
-                                          styles.scheduleCalendarCardMobileActions
-                                        }
-                                      >
-                                        <summary>
-                                          {i18nT("planning_actions_menu")}
-                                        </summary>
-                                        <div
-                                          role="group"
-                                          aria-label={i18nT(
-                                            "planning_actions_menu"
-                                          )}
-                                        >
-                                          {renderCalendarActions()}
-                                        </div>
-                                      </details>}
                                       {item.source !== "history" || item.approvalState ? (
                                         <span
                                           className={styles.scheduleApprovalIndicator}
@@ -1552,6 +1533,23 @@ export function AgentScheduleModal({
                                       </strong>
                                     ) : null}
                                   </div>
+                                  {inspectionOnly || item.source === "history" ? null : <details
+                                    open={disclosures[item.scheduledActionId || item.id]?.actions ?? false}
+                                    onToggle={event => { const expanded = event.currentTarget.open; setDisclosures(previous => ({ ...previous, [item.scheduledActionId || item.id]: { ...previous[item.scheduledActionId || item.id], actions: expanded } })); }}
+                                    onKeyDown={event => {
+                                      if (event.key !== "Escape") return;
+                                      event.preventDefault();
+                                      event.stopPropagation();
+                                      setDisclosures(previous => ({ ...previous, [item.scheduledActionId || item.id]: { ...previous[item.scheduledActionId || item.id], actions: false } }));
+                                      event.currentTarget.querySelector("summary")?.focus();
+                                    }}
+                                    className={styles.scheduleCalendarCardMobileActions}
+                                  >
+                                    <summary>{i18nT("planning_actions_menu")}</summary>
+                                    <div role="group" aria-label={i18nT("planning_actions_menu")}>
+                                      {renderCalendarActions()}
+                                    </div>
+                                  </details>}
                                 </article>
                               );
                               })}

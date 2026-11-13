@@ -2250,7 +2250,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<a className={styles.secondaryButton} href=\"/dashboard/generer-media\" data-media-recovery-studio-link>\n            {t(\"ai_generator_editor_recover\")} · iNrStudio\n          </a>",
+    "sourceAnchor": "<a className={styles.secondaryButton} href=\"/dashboard/generer-media\" data-media-recovery-studio-link>\n            {i18nT(\"value_inrstudio_872d053d\", { value0: t(\"ai_generator_editor_recover\") })}</a>",
     "capabilityId": "navigation.screen",
     "toolNames": [
       "navigateApplication"
@@ -2263,7 +2263,7 @@
     "testAnchor": "navigation validates current instruction and active account before emitting a UI command",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#a:c8817a70266e4715:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#a:e0292cf9862e1fce:1"
     ]
   },
   {
@@ -2923,7 +2923,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<textarea\n                value={creativeBrief}\n                aria-invalid={\n                  creativeBriefTooLong || subjectSource === \"custom\" && creativeBrief.trim().length < 3\n                }\n                aria-describedby={\n                  creativeBriefTooLong ? `${instanceId}-visual-brief-error` : subjectSource === \"custom\" && creativeBrief.trim().length < 3\n                    ? \"ai-media-creative-brief-alert\"\n                    : undefined\n                }\n                onChange={(event) => {\n                  if (subjectSource === \"custom\") {\n                    setCustomIdea(event.target.value);\n                  } else {\n                    setAiInstruction(event.target.value);\n                  }\n                  if (actionError || error) clearTransientState();\n                }}\n                placeholder={\n                  kind === \"image\"\n                    ? \"Ex. Crée un flyer premium pour notre journée portes ouvertes, avec notre produit au centre, une lumière chaleureuse et une zone claire pour la date…\"\n                    : \"Ex. Filme notre équipe préparant la commande, commence par un plan large puis rapproche-toi du produit, avec une ambiance énergique…\"\n                }\n                maxLength={kind === \"video\" ? undefined : creativeBriefMaximum}\n                disabled={busy || finishing}\n                readOnly={voiceBusy}\n                rows={6}\n              />",
+    "sourceAnchor": "<textarea\n                value={creativeBrief}\n                aria-invalid={\n                  creativeBriefTooLong || subjectSource === \"custom\" && creativeBrief.trim().length < 3\n                }\n                ari",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -2936,7 +2936,7 @@
     "testAnchor": "the actual guided Studio callbacks apply native setters and acknowledge only committed target criteria",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#textarea:8e822771948d58bb:1"
+      "app/dashboard/_components/MediaGenerator.tsx#textarea:8a5374ed407dba78:1"
     ]
   },
   {
@@ -3156,7 +3156,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<summary aria-label=\"Information sur les références\">i</summary>",
+    "sourceAnchor": "<summary aria-label={i18nT(\"information_sur_les_references_e3afbda1\")}>i</summary>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -3169,7 +3169,7 @@
     "testAnchor": "the actual Studio library and reference information controls preserve native visibility, capacity and operation locks",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#summary:692c5182386a04aa:1"
+      "app/dashboard/_components/MediaGenerator.tsx#summary:e15a87de5e60fc2c:1"
     ]
   },
   {
@@ -3213,7 +3213,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<button\n                    type=\"button\"\n                    disabled={\n                      operationLocked ||\n                      inspirationImages.length >= MAX_INSPIRATION_IMAGES\n                    }\n                    onClick={() => setLibraryPickerOpen(true)}\n                  >\n                    Choisir dans ma médiathèque\n                  </button>",
+    "sourceAnchor": "<button\n                    type=\"button\"\n                    disabled={\n                      operationLocked ||\n                      inspirationImages.length >= MAX_INSPIRATION_IMAGES\n                    }\n           ",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -3226,7 +3226,7 @@
     "testAnchor": "the actual Studio library and reference information controls preserve native visibility, capacity and operation locks",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#button:e9aa65ffe98e3481:1"
+      "app/dashboard/_components/MediaGenerator.tsx#button:f10f481b3c6c6c3a:1"
     ]
   },
   {
@@ -3236,7 +3236,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<button\n                          type=\"button\"\n                          className={styles.referenceTileRemove}\n                          aria-label={`Retirer la référence ${index + 1}`}\n                          title=\"Retirer cette référence\"\n                          disabled={operationLocked}\n                          onClick={() => removeReferenceAt(index)}\n                        >\n                          ×\n                        </button>",
+    "sourceAnchor": "<button\n                          type=\"button\"\n                          className={styles.referenceTileRemove}\n                          aria-label={i18nT(\"retirer_la_reference_value_c5e6ba04\", { value0: index + 1 })}\n",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
@@ -3249,7 +3249,7 @@
     "testAnchor": "Studio image references are resolved by owned IDs and included in native quote and generation",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#button:8bc0493256fc0c83:1"
+      "app/dashboard/_components/MediaGenerator.tsx#button:e410979a2ca69338:1"
     ]
   },
   {
@@ -3259,7 +3259,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<select\n                            className={styles.studioSelect}\n                            aria-label={`Type de la référence ${index + 1}`}\n                            value={reference.role === \"inspiration\" || !reference.role ? \"character\" : reference.role}\n                            disabled={operationLocked}\n                            onChange={(event) =>\n                              setReferenceRole(index, event.target.value as StudioRequiredReferenceRole)\n                            }\n                          >\n                            {REFERENCE_ROLE_OPTIONS.map((role) => (\n                              <option key={role.id} value={role.id}>\n                                {role.label}\n                              </option>\n                            ))}\n                          </select>",
+    "sourceAnchor": "<select\n                            className={styles.studioSelect}\n                            aria-label={i18nT(\"type_de_la_reference_value_eae7d30a\", { value0: index + 1 })}\n                            value={referenc",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
@@ -3272,7 +3272,7 @@
     "testAnchor": "Studio image references are resolved by owned IDs and included in native quote and generation",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#select:40bd491554dc4d1f:1"
+      "app/dashboard/_components/MediaGenerator.tsx#select:2ed28e816cf96586:1"
     ]
   },
   {
@@ -3282,7 +3282,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<option key={role.id} value={role.id}>\n                                {role.label}\n                              </option>",
+    "sourceAnchor": "<option key={role.id} value={role.id}>\n                                {i18nT(role.labelKey)}\n                              </option>",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
@@ -3305,7 +3305,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<select\n                            className={styles.studioSelect}\n                            aria-label={`Utilisation de la référence ${index + 1}`}\n                            value={reference.usage}\n                            disabled={operationLocked}\n                            onChange={(event) =>\n                              setReferenceUsage(index, event.target.value as \"required\" | \"inspiration\")\n                            }\n                          >\n                            <option value=\"required\">Obligatoire</option>\n                            <option value=\"inspiration\">Inspiration</option>\n                          </select>",
+    "sourceAnchor": "<select\n                            className={styles.studioSelect}\n                            aria-label={i18nT(\"utilisation_de_la_reference_value_41ca8a07\", { value0: index + 1 })}\n                            value={r",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
@@ -3318,7 +3318,7 @@
     "testAnchor": "Studio image references are resolved by owned IDs and included in native quote and generation",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#select:350d75db0881499e:1"
+      "app/dashboard/_components/MediaGenerator.tsx#select:2447c85b9c24123c:1"
     ]
   },
   {
@@ -3328,7 +3328,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<option value=\"required\">Obligatoire</option>",
+    "sourceAnchor": "<option value=\"required\">{i18nT(\"obligatoire_389b678a\")}</option>",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
@@ -3341,7 +3341,7 @@
     "testAnchor": "Studio image references are resolved by owned IDs and included in native quote and generation",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#option:061a6bfcde292a3f:1"
+      "app/dashboard/_components/MediaGenerator.tsx#option:5b2ab52b3863ebae:1"
     ]
   },
   {
@@ -3351,7 +3351,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<option value=\"inspiration\">Inspiration</option>",
+    "sourceAnchor": "<option value=\"inspiration\">{i18nT(\"inspiration_2868202f\")}</option>",
     "capabilityId": "studio.generate",
     "toolNames": [
       "generateMedia"
@@ -3364,7 +3364,7 @@
     "testAnchor": "Studio image references are resolved by owned IDs and included in native quote and generation",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#option:ed0d45e0bf97709a:1"
+      "app/dashboard/_components/MediaGenerator.tsx#option:4c6589b52a701feb:1"
     ]
   },
   {
@@ -3422,7 +3422,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<select\n                  className={styles.studioSelect}\n                  value={imagePurpose}\n                  disabled={operationLocked}\n                  onChange={(event) =>\n                    setImagePurpose(event.target.value as StudioImagePurpose)\n                  }\n                >\n                  {IMAGE_PURPOSES.map((option) => (\n                    <option key={option.id} value={option.id}>\n                      {option.label}\n                    </option>\n                  ))}\n                </select>",
+    "sourceAnchor": "<select\n                  className={styles.studioSelect}\n                  value={imagePurpose}\n                  disabled={operationLocked}\n                  onChange={(event) =>\n                    setImagePurpose(eve",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -3445,7 +3445,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<option key={option.id} value={option.id}>\n                      {option.label}\n                    </option>",
+    "sourceAnchor": "<option key={option.id} value={option.id}>\n                      {i18nT(option.labelKey)}\n                    </option>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -3560,7 +3560,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<select\n                className={styles.studioSelect}\n                value={visualDirection}\n                disabled={operationLocked}\n                onChange={(event) =>\n                  setVisualDirection(\n                    event.target.value as StudioVisualDirection\n                  )\n                }\n              >\n                {VISUAL_DIRECTIONS.map((option) => (\n                  <option key={option.id} value={option.id}>\n                    {option.label}\n                  </option>\n                ))}\n              </select>",
+    "sourceAnchor": "<select\n                className={styles.studioSelect}\n                value={visualDirection}\n                disabled={operationLocked}\n                onChange={(event) =>\n                  setVisualDirection(\n      ",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -3583,7 +3583,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<option key={option.id} value={option.id}>\n                    {option.label}\n                  </option>",
+    "sourceAnchor": "<option key={option.id} value={option.id}>\n                    {i18nT(option.labelKey)}\n                  </option>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -3700,7 +3700,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<textarea\n                  value={exactText}\n                  maxLength={600}\n                  rows={5}\n                  disabled={operationLocked}\n                  aria-invalid={exactText.trim().length < 2}\n                  onChange={(event) => setExactText(event.target.value)}\n                  placeholder={\n                    \"Titre\\nSous-titre\\nPrix, date ou lieu\\nAppel à l’action\\nMentions utiles…\"\n                  }\n                />",
+    "sourceAnchor": "<textarea\n                  value={exactText}\n                  maxLength={600}\n                  rows={5}\n                  disabled={operationLocked}\n                  aria-invalid={exactText.trim().length < 2}\n       ",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -3713,7 +3713,7 @@
     "testAnchor": "the actual guided Studio callbacks apply native setters and acknowledge only committed target criteria",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#textarea:3a1fc614643078e8:1"
+      "app/dashboard/_components/MediaGenerator.tsx#textarea:01dab2220db1250c:1"
     ]
   },
   {
@@ -3746,7 +3746,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<input\n                    type=\"text\"\n                    value={textKeywordDraft}\n                    onChange={(event) =>\n                      setTextKeywordDraft(event.target.value.slice(0, 160))\n                    }\n                    onKeyDown={(event) => {\n                      if ([\"Enter\", \",\", \";\"].includes(event.key)) {\n                        event.preventDefault();\n                        if (textKeywordDraft.trim()) {\n                          addTextKeywords(textKeywordDraft);\n                        }\n                      }\n                    }}\n                    onBlur={() => {\n                      if (textKeywordDraft.trim()) {\n                        addTextKeywords(textKeywordDraft);\n                      }\n                    }}\n                    placeholder=\"Ex. nouveauté, fabrication locale, 20 septembre…\"\n                    disabled={\n                      operationLocked ||\n                      textKeywords.length >= MAX_TEXT_KEYWORDS\n                    }\n                  />",
+    "sourceAnchor": "<input\n                    type=\"text\"\n                    value={textKeywordDraft}\n                    onChange={(event) =>\n                      setTextKeywordDraft(event.target.value.slice(0, 160))\n                   ",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -3759,7 +3759,7 @@
     "testAnchor": "the actual guided Studio callbacks apply native setters and acknowledge only committed target criteria",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#input:59f61a505abecadc:1"
+      "app/dashboard/_components/MediaGenerator.tsx#input:4f581b94ebf16059:1"
     ]
   },
   {
@@ -3769,7 +3769,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaGenerator.tsx"
     ],
-    "sourceAnchor": "<button\n                    type=\"button\"\n                    onMouseDown={(event) => event.preventDefault()}\n                    onClick={() => addTextKeywords(textKeywordDraft)}\n                    disabled={\n                      operationLocked ||\n                      !textKeywordDraft.trim() ||\n                      textKeywords.length >= MAX_TEXT_KEYWORDS\n                    }\n                  >\n                    Ajouter\n                  </button>",
+    "sourceAnchor": "<button\n                    type=\"button\"\n                    onMouseDown={(event) => event.preventDefault()}\n                    onClick={() => addTextKeywords(textKeywordDraft)}\n                    disabled={\n         ",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -3782,7 +3782,7 @@
     "testAnchor": "the actual guided Studio callbacks apply native setters and acknowledge only committed target criteria",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaGenerator.tsx#button:07563ed91484bf34:1"
+      "app/dashboard/_components/MediaGenerator.tsx#button:50b5df50cec8f7d1:1"
     ]
   },
   {
@@ -4084,6 +4084,20 @@
     "coverageStatus": "implemented",
     "controlIds": [
       "app/dashboard/_components/MediaGeneratorModal.tsx#button:38cee82964ff96d7:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/overlay-scroll-lock-runtime.test.mts",
+        "testAnchor": "actual overlapping channels, settings and studio effects retain scrolling ownership in every close order"
+      },
+      {
+        "file": "tests/dashboard/overlay-scroll-lock-runtime.test.mts",
+        "testAnchor": "actual mobile assistant and confirmation effects keep their ownership after the parent closes"
+      },
+      {
+        "file": "tests/dashboard/overlay-scroll-lock-runtime.test.mts",
+        "testAnchor": "style ownership preserves original values and priorities, external edits and StrictMode cleanup"
+      }
     ]
   },
   {
@@ -5262,7 +5276,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaRetoucher.tsx"
     ],
-    "sourceAnchor": "<button\n                  type=\"button\"\n                  onClick={() => fileInputRef.current?.click()}\n                  disabled={sourcePreparing || saving}\n                >\n                  Remplacer depuis mon appareil\n                </button>",
+    "sourceAnchor": "<button\n                  type=\"button\"\n                  onClick={() => fileInputRef.current?.click()}\n                  disabled={sourcePreparing || saving}\n                >\n                  {i18nT(\"remplacer_depuis_",
     "capabilityId": "media.import",
     "toolNames": [
       "importMediaAttachment"
@@ -5276,7 +5290,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié.",
     "controlIds": [
-      "app/dashboard/_components/MediaRetoucher.tsx#button:1177961a2417393c:1"
+      "app/dashboard/_components/MediaRetoucher.tsx#button:c3c9de19a330c7a6:1"
     ]
   },
   {
@@ -5286,7 +5300,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaRetoucher.tsx"
     ],
-    "sourceAnchor": "<button\n                  type=\"button\"\n                  onClick={() => setLibraryOpen(true)}\n                  disabled={sourcePreparing || saving}\n                >\n                  Choisir dans ma médiathèque\n                </button>",
+    "sourceAnchor": "<button\n                  type=\"button\"\n                  onClick={() => setLibraryOpen(true)}\n                  disabled={sourcePreparing || saving}\n                >\n                  {i18nT(\"choisir_dans_ma_mediathequ",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -5299,7 +5313,7 @@
     "testAnchor": "the actual Studio library and reference information controls preserve native visibility, capacity and operation locks",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaRetoucher.tsx#button:d7866846b961fdc1:1"
+      "app/dashboard/_components/MediaRetoucher.tsx#button:74c140e63c2b7ad1:1"
     ]
   },
   {
@@ -5332,7 +5346,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaRetoucher.tsx"
     ],
-    "sourceAnchor": "<button\n              type=\"button\"\n              onClick={() => fileInputRef.current?.click()}\n              disabled={sourcePreparing || saving}\n            >\n              {source ? \"Remplacer depuis mon appareil\" : \"Choisir sur mon appareil\"}\n            </button>",
+    "sourceAnchor": "<button\n              type=\"button\"\n              onClick={() => fileInputRef.current?.click()}\n              disabled={sourcePreparing || saving}\n            >\n              {source ? i18nT(\"remplacer_depuis_mon_apparei",
     "capabilityId": "media.import",
     "toolNames": [
       "importMediaAttachment"
@@ -5346,7 +5360,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié.",
     "controlIds": [
-      "app/dashboard/_components/MediaRetoucher.tsx#button:c3c9de19a330c7a6:1"
+      "app/dashboard/_components/MediaRetoucher.tsx#button:c3c9de19a330c7a6:2"
     ]
   },
   {
@@ -5356,7 +5370,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaRetoucher.tsx"
     ],
-    "sourceAnchor": "<button\n              type=\"button\"\n              onClick={() => setLibraryOpen(true)}\n              disabled={sourcePreparing || saving}\n            >\n              Choisir dans ma médiathèque\n            </button>",
+    "sourceAnchor": "<button\n              type=\"button\"\n              onClick={() => setLibraryOpen(true)}\n              disabled={sourcePreparing || saving}\n            >\n              {i18nT(\"choisir_dans_ma_mediatheque_dc58b0e0\")}{\" \"}</",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -5369,7 +5383,7 @@
     "testAnchor": "the actual Studio library and reference information controls preserve native visibility, capacity and operation locks",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaRetoucher.tsx#button:d7866846b961fdc1:2"
+      "app/dashboard/_components/MediaRetoucher.tsx#button:74c140e63c2b7ad1:2"
     ]
   },
   {
@@ -5402,7 +5416,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaRetoucher.tsx"
     ],
-    "sourceAnchor": "<button\n          type=\"button\"\n          className={styles.primaryButton}\n          onClick={() => {\n            if (source) void saveEditor();\n          }}\n          disabled={!source || sourcePreparing || saving}\n        >\n          <span aria-hidden=\"true\">✎</span>\n          {saving\n            ? acceptMode === \"insert\"\n              ? \"Utilisation du média…\"\n              : \"Enregistrement…\"\n            : acceptMode === \"insert\"\n              ? \"Utiliser ce média\"\n              : \"Enregistrer dans la Médiathèque\"}\n        </button>",
+    "sourceAnchor": "<button\n          type=\"button\"\n          className={styles.primaryButton}\n          onClick={() => {\n            if (source) void saveEditor();\n          }}\n          disabled={!source || sourcePreparing || saving}\n    ",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -5657,7 +5671,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaVideoRetoucher.tsx"
     ],
-    "sourceAnchor": "<button\n              type=\"button\"\n              className={styles.dropzone}\n              data-dragging={dragging ? \"true\" : \"false\"}\n              aria-label=\"Choisir une vidéo à retoucher\"\n              disabled={initialSourceLoading}\n              onClick={() => fileInputRef.current?.click()}\n              onDragEnter={(event) => {\n                event.preventDefault();\n                setDragging(true);\n              }}\n              onDragOver={(event) => event.preventDefault()}\n              onDragLeave={() => setDragging(false)}\n              onDrop={onDrop}\n            >",
+    "sourceAnchor": "<button\n              type=\"button\"\n              className={styles.dropzone}\n              data-dragging={dragging ? \"true\" : \"false\"}\n              aria-label={i18nT(\"choisir_une_video_a_retoucher_bd2734b6\")}\n         ",
     "capabilityId": "media.import",
     "toolNames": [
       "importMediaAttachment"
@@ -5671,7 +5685,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié.",
     "controlIds": [
-      "app/dashboard/_components/MediaVideoRetoucher.tsx#button:9ae605ab72f079b4:1"
+      "app/dashboard/_components/MediaVideoRetoucher.tsx#button:2363630515690a88:1"
     ]
   },
   {
@@ -5681,7 +5695,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaVideoRetoucher.tsx"
     ],
-    "sourceAnchor": "<button\n                type=\"button\"\n                onClick={() => fileInputRef.current?.click()}\n              >\n                Choisir sur mon appareil\n              </button>",
+    "sourceAnchor": "<button\n                type=\"button\"\n                onClick={() => fileInputRef.current?.click()}\n              >\n                {i18nT(\"choisir_sur_mon_appareil_b5f2c497\")}{\" \"}</button>",
     "capabilityId": "media.import",
     "toolNames": [
       "importMediaAttachment"
@@ -5695,7 +5709,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié.",
     "controlIds": [
-      "app/dashboard/_components/MediaVideoRetoucher.tsx#button:7d26bab4422d92b6:1"
+      "app/dashboard/_components/MediaVideoRetoucher.tsx#button:a56942a0e33ea4d4:1"
     ]
   },
   {
@@ -5705,7 +5719,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaVideoRetoucher.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" onClick={() => setLibraryOpen(true)}>\n                Choisir dans ma médiathèque\n              </button>",
+    "sourceAnchor": "<button type=\"button\" onClick={() => setLibraryOpen(true)}>\n                {i18nT(\"choisir_dans_ma_mediatheque_dc58b0e0\")}{\" \"}</button>",
     "capabilityId": "studio.video-source",
     "toolNames": [
       "searchMedia",
@@ -5719,7 +5733,7 @@
     "testAnchor": "media surface inventory preserves native anchors and distinguishes local forms from executed tools",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaVideoRetoucher.tsx#button:8f099898f64cd73f:1"
+      "app/dashboard/_components/MediaVideoRetoucher.tsx#button:ff200221a92d7b68:1"
     ]
   },
   {
@@ -5729,7 +5743,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaVideoRetoucher.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" onClick={() => fileInputRef.current?.click()}>\n              Remplacer la vidéo\n            </button>",
+    "sourceAnchor": "<button type=\"button\" onClick={() => fileInputRef.current?.click()}>\n              {i18nT(\"remplacer_la_video_f6f7fbb3\")}{\" \"}</button>",
     "capabilityId": "media.import",
     "toolNames": [
       "importMediaAttachment"
@@ -5743,7 +5757,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié.",
     "controlIds": [
-      "app/dashboard/_components/MediaVideoRetoucher.tsx#button:f641149e34965811:1"
+      "app/dashboard/_components/MediaVideoRetoucher.tsx#button:641c71d24fee0b6b:1"
     ]
   },
   {
@@ -5753,7 +5767,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaVideoRetoucher.tsx"
     ],
-    "sourceAnchor": "<button\n          type=\"button\"\n          onClick={() => void save()}\n          disabled={!source || saving || saved}\n        >\n          {saving\n            ? acceptMode === \"insert\"\n              ? \"Utilisation du média…\"\n              : \"Enregistrement…\"\n            : acceptMode === \"insert\"\n              ? \"Utiliser ce média\"\n              : \"Enregistrer dans la Médiathèque\"}\n        </button>",
+    "sourceAnchor": "<button\n          type=\"button\"\n          onClick={() => void save()}\n          disabled={!source || saving || saved}\n        >\n          {saving\n            ? acceptMode === \"insert\"\n              ? i18nT(\"utilisation_d",
     "capabilityId": "studio.video-save",
     "toolNames": [
       "runScreenCommand"
@@ -5776,7 +5790,7 @@
     "sourceFiles": [
       "app/dashboard/_components/PublishExecutionProgress.tsx"
     ],
-    "sourceAnchor": "<summary className={css.destinationInfo} aria-label={`${destination.label} — ${status.label} : détails`} title=\"Voir le détail\"><span className={css.destinationInfoGlyph} aria-hidden=\"true\">i</span><span className={css.destinationCloseGlyph} aria-hidden=\"true\">×</span></summary>",
+    "sourceAnchor": "<summary className={css.destinationInfo} aria-label={i18nT(\"execution_progress_status_details\", { channel: destination.label, status: status.label })} title={i18nT(\"execution_progress_show_details\")}><span className={css",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
@@ -5790,7 +5804,7 @@
     "testAnchor": "per-publication CTA uses native modes and destinations, survives execution and never replaces the global preference",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/PublishExecutionProgress.tsx#summary:8c8eb16f4521660e:1"
+      "app/dashboard/_components/PublishExecutionProgress.tsx#summary:eba63e4ea84da66a:1"
     ]
   },
   {
@@ -5800,7 +5814,7 @@
     "sourceFiles": [
       "app/dashboard/_components/PublishExecutionProgress.tsx"
     ],
-    "sourceAnchor": "<a className={css.destinationLink} href={destination.href} aria-label={`Voir ${destination.label}`} target=\"_blank\" rel=\"noopener noreferrer\">Voir <span aria-hidden=\"true\">↗</span></a>",
+    "sourceAnchor": "<a className={css.destinationLink} href={destination.href} aria-label={i18nT(\"execution_progress_view_channel\", { channel: destination.label })} target=\"_blank\" rel=\"noopener noreferrer\">{i18nT(\"voir_8a754f1f\")} <span ar",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
@@ -5814,7 +5828,7 @@
     "testAnchor": "per-publication CTA uses native modes and destinations, survives execution and never replaces the global preference",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/PublishExecutionProgress.tsx#a:b687631dbf0d0f07:1"
+      "app/dashboard/_components/PublishExecutionProgress.tsx#a:4f5bb9297874a4f1:1"
     ]
   },
   {
@@ -5824,7 +5838,7 @@
     "sourceFiles": [
       "app/dashboard/_components/PublishExecutionResultModal.tsx"
     ],
-    "sourceAnchor": "<button\n          type=\"button\"\n          className={resultCss.retryButton}\n          onClick={() => void onRetryFailed()}\n          disabled={retrying}\n          aria-busy={retrying}\n          aria-label={retrying ? i18nT(\"relance_en_cours_82dfaae8\") : i18nT(\"retenter_value_value_en_echec_b7d1f934\", { value0: retryableFailureCount, value1: retryableFailureCount > 1 ? \"canaux\" : \"canal\" })}\n        >",
+    "sourceAnchor": "<button\n          type=\"button\"\n          className={resultCss.retryButton}\n          onClick={() => void onRetryFailed()}\n          disabled={retrying}\n          aria-busy={retrying}\n          aria-label={retrying ? i18",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
@@ -5838,7 +5852,7 @@
     "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/PublishExecutionResultModal.tsx#button:607d7ebb1d44244a:1"
+      "app/dashboard/_components/PublishExecutionResultModal.tsx#button:8342d94ef9179fb5:1"
     ]
   },
   {
@@ -5896,21 +5910,28 @@
     "sourceFiles": [
       "app/dashboard/_components/PublishExecutionResultModal.tsx"
     ],
-    "sourceAnchor": "<button\n                          type=\"button\"\n                          className={resultCss.detailsButton}\n                          aria-label={(failureDetailsOpen ? \"Masquer le détail de l’échec \" : \"Afficher le détail de l’échec \") + entry.label}\n                          aria-expanded={failureDetailsOpen}\n                          aria-controls={detailsId}\n                          onClick={() => setExpandedEntryDetails((current) => ({ ...current, [entry.channel]: !current[entry.channel] }))}\n                        ><span aria-hidden=\"true\">i</span></button>",
+    "sourceAnchor": "<button\n                          type=\"button\"\n                          className={resultCss.detailsButton}\n                          aria-label={i18nT(failureDetailsOpen ? \"execution_result_hide_failure_details\" : \"ex",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
       "editPublication"
     ],
     "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : hasFailureDetails ; !embedded && entries.length.",
+    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : hasFailureDetails ; !embedded && entries.length. Le volet natif de détails techniques conserve le diagnostic fournisseur original inconnu ; il ne modifie ni ne relance une publication. Cette liaison n’ajoute aucun droit ni preuve de clic par l’assistant.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/PublishExecutionResultModal.tsx#button:4219fd8bd4ca03bf:1"
+      "app/dashboard/_components/PublishExecutionResultModal.tsx#button:9ce1a80d770d6367:1",
+      "app/dashboard/_components/PublishExecutionResultModal.tsx#summary:08db2a479a92c9ea:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/booster-result-render-runtime.test.mts",
+        "testAnchor": "English failure details localize known error classes and preserve unknown actionable provider responses in a disclosure"
+      }
     ]
   },
   {
@@ -5920,7 +5941,7 @@
     "sourceFiles": [
       "app/dashboard/_components/PublishExecutionResultModal.tsx"
     ],
-    "sourceAnchor": "<a href={channelHref} target=\"_blank\" rel=\"noopener noreferrer\" className={resultCss.channelLink} aria-label={i18nT(\"voir_8a754f1f\") + \" · \" + entry.label}>\n                          {i18nT(\"voir_8a754f1f\")}<span aria-hidden=\"true\">↗</span>\n                        </a>",
+    "sourceAnchor": "<a href={channelHref} target=\"_blank\" rel=\"noopener noreferrer\" className={resultCss.channelLink} aria-label={i18nT(\"voir_8a754f1f\") + \" · \" + label}>\n                          {i18nT(\"voir_8a754f1f\")}<span aria-hidden=\"",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
@@ -5934,7 +5955,7 @@
     "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/PublishExecutionResultModal.tsx#a:937e5e3565ab6579:1"
+      "app/dashboard/_components/PublishExecutionResultModal.tsx#a:5c5b61b7acfc3a5f:1"
     ]
   },
   {
@@ -6272,7 +6293,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/cards-panel.tsx"
     ],
-    "sourceAnchor": "<button\n                key={tab.key}\n                type=\"button\"\n                onClick={() => onActiveChannelChange(tab.key)}\n                title={tab.tone === \"blocked\" ? \"Correction requise\" : tab.tone === \"warning\" ? \"À vérifier\" : tab.tone === \"ready\" ? \"Prêt\" : undefined}\n                style={{\n                  ...pillButtonStyle,\n                  ...(statusStyle || {}),\n                  ...(isActive\n                    ? statusStyle\n                      ? {\n                          boxShadow:\n                            \"0 0 0 1px rgba(76,195,255,0.25) inset, 0 0 14px rgba(76,195,255,0.16)\",\n                        }\n                      : pillButtonActiveStyle\n                    : {}),\n                  display: \"inline-flex\",\n                  alignItems: \"center\",\n                  justifyContent: \"center\",\n                  gap: isNarrow ? 4 : 7,\n                  whiteSpace: \"nowrap\",\n                  width: isNarrow ? \"100%\" : undefined,\n                  minWidth: 0,\n                  maxWidth: \"100%\",\n                  minHeight: isNarrow ? 34 : undefined,\n                  padding: isNarrow ? \"0 6px\" : pillButtonStyle?.padding,\n                  fontSize: isNarrow ? 12 : pillButtonStyle?.fontSize,\n                  lineHeight: isNarrow ? 1 : pillButtonStyle?.lineHeight,\n                  boxSizing: \"border-box\",\n                  overflow: \"hidden\",\n                }}\n              >",
+    "sourceAnchor": "<button\n                key={tab.key}\n                type=\"button\"\n                onClick={() => onActiveChannelChange(tab.key)}\n                title={tab.tone === \"blocked\" ? i18nT(\"adapter_correction_required\") : ta",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -6285,7 +6306,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/cards-panel.tsx#button:74ada84a721fb704:1"
+      "app/dashboard/_components/channel-image-adapter/cards-panel.tsx#button:3b011c0558dc5612:1"
     ]
   },
   {
@@ -6571,7 +6592,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={buttonClassName} onClick={onApplyToChannelImages} disabled={!onApplyToChannelImages} title={onApplyToChannelImages ? \"Appliquer ce cadrage à toutes les images de ce canal\" : \"Disponible avec au moins 2 images sur ce canal\"} style={{ minWidth: 0, minHeight: isMobile ? 42 : 44, height: isMobile ? 42 : 44, flex: isMobile ? \"1 1 0\" : undefined, maxWidth: isMobile ? \"none\" : undefined, justifyContent: \"center\", alignItems: \"center\", fontSize: isMobile ? 11 : undefined, lineHeight: 1.1, padding: isMobile ? \"0 6px\" : \"0 16px\", whiteSpace: \"normal\", textAlign: \"center\", boxSizing: \"border-box\", opacity: onApplyToChannelImages ? 1 : 0.48, cursor: onApplyToChannelImages ? \"pointer\" : \"not-allowed\" }}>{i18nT(\"appliquer_partout_1c738082\")}</button>",
+    "sourceAnchor": "<button type=\"button\" className={buttonClassName} onClick={onApplyToChannelImages} disabled={!onApplyToChannelImages} title={onApplyToChannelImages ? i18nT(\"adapter_apply_channel_images\") : i18nT(\"adapter_apply_channel_i",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -6584,7 +6605,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:a50009783925149a:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:be0b7e4b1c9acf64:1"
     ]
   },
   {
@@ -6686,7 +6707,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<div\n                      key={overlayItem.id || `overlay-${overlayIndex}`}\n                      data-image-overlay=\"true\"\n                      data-active={isActive ? \"true\" : \"false\"}\n                      role=\"group\"\n                      tabIndex={0}\n                      aria-label={`Bloc texte ${overlayIndex + 1} : ${overlayItem.text}`}\n                      aria-describedby={overlayKeyboardInstructionsId}\n                      onKeyDown={(event) =>\n                        handleOverlayKeyDown(event, overlayIndex)\n                      }\n                      onClick={(event) => {\n                        event.stopPropagation();\n                        setActiveOverlayIndex(overlayIndex);\n                      }}\n                      onPointerDown={(event) => {\n                        setActiveOverlayIndex(overlayIndex);\n                        beginOverlayGesture(event, \"move\", overlayIndex);\n                      }}\n                      onPointerMove={moveOverlayGesture}\n                      onPointerUp={finishOverlayGesture}\n                      onPointerCancel={finishOverlayGesture}\n                      onLostPointerCapture={() => {\n                        overlayGestureRef.current = null;\n                      }}\n                      onDoubleClick={(event) => event.stopPropagation()}\n                      style={{\n                        position: \"absolute\",\n                        left: `${textLayout.x / 10}%`,\n                        top: `${textLayout.y / (1000 / canvasRatio) * 100}%`,\n                        width: `${textLayout.width / 10}%`,\n                        height: `${textLayout.height / (1000 / canvasRatio) * 100}%`,\n                        boxSizing: \"border-box\",\n                        outline: isActive\n                          ? \"1px dashed rgba(255,255,255,0.88)\"\n                          : undefined,\n                        outlineOffset: isActive ? 3 : undefined,\n                        color: overlayItem.color || \"#ffffff\",\n                        fontFamily: imageOverlayFontFamily(overlayItem.fontFamily),\n                        fontWeight: overlayItem.bold === false ? 400 : 800,\n                        fontStyle: overlayItem.italic ? \"italic\" : \"normal\",\n                        textDecoration: overlayItem.underline\n                          ? \"underline\"\n                          : \"none\",\n                        overflow: \"visible\",\n                        userSelect: \"none\",\n                        touchAction: \"none\",\n                        cursor: \"move\",\n                        zIndex: isActive ? 4 : 2,\n                      }}\n                    >",
+    "sourceAnchor": "<div\n                      key={overlayItem.id || `overlay-${overlayIndex}`}\n                      data-image-overlay=\"true\"\n                      data-active={isActive ? \"true\" : \"false\"}\n                      role=\"gro",
     "capabilityId": "navigation.local-controls",
     "toolNames": [
       "controlLocalInterface"
@@ -6699,7 +6720,7 @@
     "testAnchor": "the actual image dialog selects only a currently existing overlay and preserves its guarded native close callback",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#div:9e6e74a299b4f7a9:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#div:2013d5e872fd7ea7:1"
     ]
   },
   {
@@ -6709,7 +6730,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<button\n                          type=\"button\"\n                          aria-label=\"Redimensionner ce texte\"\n                          title=\"Redimensionner ce texte\"\n                          onClick={(event) => event.stopPropagation()}\n                          onPointerDown={(event) =>\n                            beginOverlayGesture(event, \"resize\", overlayIndex)\n                          }\n                          style={{\n                            position: \"absolute\",\n                            right: -14,\n                            bottom: -14,\n                            width: 28,\n                            height: 28,\n                            display: \"grid\",\n                            placeItems: \"center\",\n                            padding: 0,\n                            border: 0,\n                            borderRadius: 999,\n                            color: \"transparent\",\n                            background: \"transparent\",\n                            boxShadow: \"none\",\n                            font: \"inherit\",\n                            fontSize: 0,\n                            lineHeight: 1,\n                            cursor: \"nwse-resize\",\n                            touchAction: \"none\",\n                          }}\n                        >",
+    "sourceAnchor": "<button\n                          type=\"button\"\n                          aria-label={i18nT(\"redimensionner_ce_texte_fdff7ea7\")}\n                          title={i18nT(\"redimensionner_ce_texte_fdff7ea7\")}\n               ",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -6722,7 +6743,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:bcba89443c424120:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:8cb941d81ee752f7:1"
     ]
   },
   {
@@ -7008,7 +7029,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={buttonClassName} onClick={addOverlay} disabled={overlayItems.length >= MAX_IMAGE_OVERLAY_ITEMS} style={{ minHeight: 32, padding: \"0 10px\", fontSize: 11, opacity: overlayItems.length >= MAX_IMAGE_OVERLAY_ITEMS ? 0.5 : 1 }}>＋ Ajouter un texte</button>",
+    "sourceAnchor": "<button type=\"button\" className={buttonClassName} onClick={addOverlay} disabled={overlayItems.length >= MAX_IMAGE_OVERLAY_ITEMS} style={{ minHeight: 32, padding: \"0 10px\", fontSize: 11, opacity: overlayItems.length >= MA",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7021,7 +7042,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:ef49e6a4a4d12caa:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:e6162fca85e9fc26:1"
     ]
   },
   {
@@ -7031,7 +7052,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<button\n                        key={item.id || `text-tab-${index}`}\n                        type=\"button\"\n                        className={buttonClassName}\n                        aria-pressed={index === activeOverlayIndex}\n                        onClick={() => setActiveOverlayIndex(index)}\n                        style={{ minWidth: 0, minHeight: 30, padding: \"0 7px\", justifyContent: \"center\", overflow: \"hidden\", borderColor: index === activeOverlayIndex ? \"rgba(76,195,255,0.6)\" : undefined, background: index === activeOverlayIndex ? \"rgba(76,195,255,0.13)\" : undefined, fontSize: 10, textOverflow: \"ellipsis\", whiteSpace: \"nowrap\" }}\n                      >\n                        {item.text || `Texte ${index + 1}`}\n                      </button>",
+    "sourceAnchor": "<button\n                        key={item.id || `text-tab-${index}`}\n                        type=\"button\"\n                        className={buttonClassName}\n                        aria-pressed={index === activeOverlay",
     "capabilityId": "navigation.local-controls",
     "toolNames": [
       "controlLocalInterface"
@@ -7054,7 +7075,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={buttonClassName} onClick={addOverlay} style={{ width: \"100%\", minHeight: 56, justifyContent: \"center\", borderStyle: \"dashed\" }}>＋ Ajouter le premier texte</button>",
+    "sourceAnchor": "<button type=\"button\" className={buttonClassName} onClick={addOverlay} style={{ width: \"100%\", minHeight: 56, justifyContent: \"center\", borderStyle: \"dashed\" }}>{i18nT(\"ajouter_le_premier_texte_a8b4d549\")}</button>",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7067,7 +7088,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:8ee73b18c7a1a842:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:c97d09737d99bfbe:1"
     ]
   },
   {
@@ -7077,7 +7098,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={buttonClassName} onClick={() => removeOverlay()} style={{ minHeight: 28, padding: \"0 8px\", fontSize: 10 }}>Supprimer</button>",
+    "sourceAnchor": "<button type=\"button\" className={buttonClassName} onClick={() => removeOverlay()} style={{ minHeight: 28, padding: \"0 8px\", fontSize: 10 }}>{i18nT(\"supprimer_1acfc1c7\")}</button>",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7090,7 +7111,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:c8d2576db289a610:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:6ee68572bf45d22f:1"
     ]
   },
   {
@@ -7284,7 +7305,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<select value={activeOverlay.style || \"solid\"} onChange={(event) => updateOverlay({ style: event.target.value as ImageOverlay[\"style\"] })} aria-label=\"Style du bandeau\" style={studioSelectStyle}>\n                        <option value=\"solid\" style={studioOptionStyle}>Panneau sombre</option>\n                        <option value=\"glass\" style={studioOptionStyle}>Verre translucide</option>\n                      </select>",
+    "sourceAnchor": "<select value={activeOverlay.style || \"solid\"} onChange={(event) => updateOverlay({ style: event.target.value as ImageOverlay[\"style\"] })} aria-label={i18nT(\"style_du_bandeau_e996ddab\")} style={studioSelectStyle}>\n      ",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7297,7 +7318,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#select:27c031db81c94ba2:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#select:ff00e1cf96262609:1"
     ]
   },
   {
@@ -7307,7 +7328,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<option value=\"solid\" style={studioOptionStyle}>Panneau sombre</option>",
+    "sourceAnchor": "<option value=\"solid\" style={studioOptionStyle}>{i18nT(\"panneau_sombre_62c7e0f1\")}</option>",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7320,7 +7341,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#option:ec9478b00bcc073c:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#option:b263c629ceae4010:1"
     ]
   },
   {
@@ -7330,7 +7351,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<option value=\"glass\" style={studioOptionStyle}>Verre translucide</option>",
+    "sourceAnchor": "<option value=\"glass\" style={studioOptionStyle}>{i18nT(\"verre_translucide_4e637a72\")}</option>",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7343,7 +7364,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#option:1bb73527980bd940:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#option:8fb4de615b23e2a9:1"
     ]
   },
   {
@@ -7353,7 +7374,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<input type=\"color\" value={activeOverlay.color || \"#ffffff\"} onChange={(event) => updateOverlay({ color: event.target.value })} aria-label=\"Couleur du texte\" title=\"Couleur du texte\" style={{ width: 44, height: 36, padding: 2, borderRadius: 10, border: \"1px solid rgba(255,255,255,0.12)\", background: \"transparent\" }} />",
+    "sourceAnchor": "<input type=\"color\" value={activeOverlay.color || \"#ffffff\"} onChange={(event) => updateOverlay({ color: event.target.value })} aria-label={i18nT(\"couleur_du_texte_37e78173\")} title={i18nT(\"couleur_du_texte_37e78173\")} s",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7366,7 +7387,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#input:2337a36088462a3a:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#input:a418be20891e03e9:1"
     ]
   },
   {
@@ -7376,7 +7397,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<select value={activeOverlay.borderWidth ?? 0} onChange={(event) => updateOverlay({ borderWidth: Number(event.target.value) })} aria-label=\"Épaisseur de la bordure\" style={studioSelectStyle}>\n                        <option value=\"0\" style={studioOptionStyle}>Bordure transparente</option>\n                        <option value=\"1\" style={studioOptionStyle}>Bordure fine</option>\n                        <option value=\"2\" style={studioOptionStyle}>Bordure standard</option>\n                        <option value=\"4\" style={studioOptionStyle}>Bordure épaisse</option>\n                      </select>",
+    "sourceAnchor": "<select value={activeOverlay.borderWidth ?? 0} onChange={(event) => updateOverlay({ borderWidth: Number(event.target.value) })} aria-label={i18nT(\"epaisseur_de_la_bordure_a843eaa2\")} style={studioSelectStyle}>\n          ",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7389,7 +7410,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#select:60c44ff290f8812f:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#select:8d57491f35454501:1"
     ]
   },
   {
@@ -7399,7 +7420,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<option value=\"0\" style={studioOptionStyle}>Bordure transparente</option>",
+    "sourceAnchor": "<option value=\"0\" style={studioOptionStyle}>{i18nT(\"bordure_transparente_8e745ecb\")}</option>",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7412,7 +7433,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#option:c4cb91da00f17ee4:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#option:937350ded716429b:1"
     ]
   },
   {
@@ -7422,7 +7443,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<option value=\"1\" style={studioOptionStyle}>Bordure fine</option>",
+    "sourceAnchor": "<option value=\"1\" style={studioOptionStyle}>{i18nT(\"bordure_fine_ac9b31c1\")}</option>",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7435,7 +7456,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#option:04e8215e483e3d5c:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#option:326586b5e622744b:1"
     ]
   },
   {
@@ -7445,7 +7466,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<option value=\"2\" style={studioOptionStyle}>Bordure standard</option>",
+    "sourceAnchor": "<option value=\"2\" style={studioOptionStyle}>{i18nT(\"bordure_standard_20d5654f\")}</option>",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7458,7 +7479,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#option:bd070f3f46b3af3e:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#option:d8c546ff3c7d56c0:1"
     ]
   },
   {
@@ -7468,7 +7489,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<option value=\"4\" style={studioOptionStyle}>Bordure épaisse</option>",
+    "sourceAnchor": "<option value=\"4\" style={studioOptionStyle}>{i18nT(\"bordure_epaisse_fb368457\")}</option>",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7481,7 +7502,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#option:c81de0b35eb3273f:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#option:5e7ec8485870325c:1"
     ]
   },
   {
@@ -7491,7 +7512,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<input type=\"color\" value={activeOverlay.borderColor || \"#38bdf8\"} disabled={(activeOverlay.borderWidth ?? 0) === 0} onChange={(event) => updateOverlay({ borderColor: event.target.value })} aria-label=\"Couleur de la bordure\" title={(activeOverlay.borderWidth ?? 0) === 0 ? \"Activez une bordure pour choisir sa couleur\" : \"Couleur de la bordure\"} style={{ width: 44, height: 36, padding: 2, borderRadius: 10, border: \"1px solid rgba(255,255,255,0.12)\", background: \"transparent\", opacity: (activeOverlay.borderWidth ?? 0) === 0 ? 0.4 : 1 }} />",
+    "sourceAnchor": "<input type=\"color\" value={activeOverlay.borderColor || \"#38bdf8\"} disabled={(activeOverlay.borderWidth ?? 0) === 0} onChange={(event) => updateOverlay({ borderColor: event.target.value })} aria-label={i18nT(\"couleur_de_",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7504,7 +7525,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#input:a57677d015c35c93:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#input:c8eb0779a6a96bbe:1"
     ]
   },
   {
@@ -7514,7 +7535,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={buttonClassName} aria-pressed={activeOverlay.bold !== false} onClick={() => updateOverlay({ bold: activeOverlay.bold === false })} style={{ minHeight: 34, justifyContent: \"center\", fontWeight: 900, borderColor: activeOverlay.bold !== false ? \"rgba(76,195,255,0.55)\" : undefined }}>B</button>",
+    "sourceAnchor": "<button type=\"button\" className={buttonClassName} aria-label={i18nT(\"adapter_bold\")} title={i18nT(\"adapter_bold\")} aria-pressed={activeOverlay.bold !== false} onClick={() => updateOverlay({ bold: activeOverlay.bold === f",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7527,7 +7548,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:0729c221f284cf15:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:eae6c5c4472f8434:1"
     ]
   },
   {
@@ -7537,7 +7558,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={buttonClassName} aria-pressed={Boolean(activeOverlay.italic)} onClick={() => updateOverlay({ italic: !activeOverlay.italic })} style={{ minHeight: 34, justifyContent: \"center\", fontStyle: \"italic\", borderColor: activeOverlay.italic ? \"rgba(76,195,255,0.55)\" : undefined }}>I</button>",
+    "sourceAnchor": "<button type=\"button\" className={buttonClassName} aria-label={i18nT(\"adapter_italic\")} title={i18nT(\"adapter_italic\")} aria-pressed={Boolean(activeOverlay.italic)} onClick={() => updateOverlay({ italic: !activeOverlay.it",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7550,7 +7571,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:059c686fbb2e6961:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:4139ceb2dbb639a3:1"
     ]
   },
   {
@@ -7560,7 +7581,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/modal.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" className={buttonClassName} aria-pressed={Boolean(activeOverlay.underline)} onClick={() => updateOverlay({ underline: !activeOverlay.underline })} style={{ minHeight: 34, justifyContent: \"center\", textDecoration: \"underline\", borderColor: activeOverlay.underline ? \"rgba(76,195,255,0.55)\" : undefined }}>U</button>",
+    "sourceAnchor": "<button type=\"button\" className={buttonClassName} aria-label={i18nT(\"adapter_underline\")} title={i18nT(\"adapter_underline\")} aria-pressed={Boolean(activeOverlay.underline)} onClick={() => updateOverlay({ underline: !acti",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7573,7 +7594,7 @@
     "testAnchor": "image retouch commands validate every native bound and reject unknown fields/unsafe overlays",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:5f5bc1e413449f42:1"
+      "app/dashboard/_components/channel-image-adapter/modal.tsx#button:387dc8570b4edbc1:1"
     ]
   },
   {
@@ -7882,7 +7903,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/publication-preview.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" onClick={() => onOpen(index)} style={{ display: \"block\", width: \"100%\", border: 0, padding: 0, background: \"transparent\", cursor: \"pointer\" }}>\n        <FinalImageFrame image={current} aspectRatio={aspectRatio} fallbackMode={fallbackMode} badge={safeImages.length > 1 ? `Carousel ${index + 1} / ${safeImages.length}` : \"Cliquez\"} />\n      </button>",
+    "sourceAnchor": "<button type=\"button\" onClick={() => onOpen(index)} style={{ display: \"block\", width: \"100%\", border: 0, padding: 0, background: \"transparent\", cursor: \"pointer\" }}>\n        <FinalImageFrame image={current} aspectRatio={",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -7974,7 +7995,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/publication-preview.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" onClick={() => onOpen(0)} style={{ display: \"block\", width: \"100%\", border: 0, padding: 0, background: \"transparent\", cursor: \"pointer\" }}>\n          <FinalImageFrame image={safeImages[0]} aspectRatio={aspectRatio} fallbackMode={fallbackMode} badge=\"Cliquez\" />\n        </button>",
+    "sourceAnchor": "<button type=\"button\" onClick={() => onOpen(0)} style={{ display: \"block\", width: \"100%\", border: 0, padding: 0, background: \"transparent\", cursor: \"pointer\" }}>\n          <FinalImageFrame image={safeImages[0]} aspectRat",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -8020,7 +8041,7 @@
     "sourceFiles": [
       "app/dashboard/_components/channel-image-adapter/publication-preview.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" onClick={() => onOpen(0)} style={{ display: \"block\", width: \"100%\", border: 0, padding: 0, background: \"transparent\", cursor: safeImages[0] ? \"pointer\" : \"default\" }}>\n              <FinalImageFrame image={safeImages[0] || null} aspectRatio={mediaAspectRatio} fallbackMode=\"color\" badge={safeImages[0] ? \"Cliquez\" : undefined} />\n            </button>",
+    "sourceAnchor": "<button type=\"button\" onClick={() => onOpen(0)} style={{ display: \"block\", width: \"100%\", border: 0, padding: 0, background: \"transparent\", cursor: safeImages[0] ? \"pointer\" : \"default\" }}>\n              <FinalImageFrame",
     "capabilityId": "studio.image-native",
     "toolNames": [
       "runScreenCommand"
@@ -9323,7 +9344,7 @@
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
     ],
-    "sourceAnchor": "<button\n                  key={key}\n                  type=\"button\"\n                  onClick={() => setSynchronizedActiveChannel(key)}\n                  disabled={voiceBusy}\n                  className={css.channelButton}\n                  aria-pressed={activeCard === key}\n                  data-active={activeCard === key}\n                  data-content-state={xUrlBlocked ? \"blocked\" : hasText ? \"ready\" : \"empty\"}\n                  title={\n                    xUrlBlocked\n                      ? \"X est bloqué : corrigez le format de lien détecté.\"\n                      : hasText\n                        ? i18nT(\"content_text_present\")\n                        : i18nT(\"content_text_to_review\")\n                  }\n                  style={{\n                    ...({ \"--channel-accent\": PUBLISH_CHANNEL_IDENTITY[key].color, \"--channel-rgb\": PUBLISH_CHANNEL_IDENTITY[key].rgb } as CSSProperties),\n                    ...pillBtn,\n                    ...statusStyle,\n                    ...(activeCard === key\n                      ? {\n                          border: xUrlBlocked\n                            ? \"2px solid rgba(248,113,113,0.92)\"\n                            : hasText\n                              ? \"2px solid rgba(74,222,128,0.90)\"\n                              : \"2px solid rgba(250,204,21,0.92)\",\n                          boxShadow: xUrlBlocked\n                            ? \"0 0 0 1px rgba(248,113,113,0.28) inset, 0 0 0 1px rgba(248,113,113,0.22), 0 0 18px rgba(248,113,113,0.20)\"\n                            : hasText\n                              ? \"0 0 0 1px rgba(74,222,128,0.26) inset, 0 0 0 1px rgba(74,222,128,0.20), 0 0 18px rgba(74,222,128,0.20)\"\n                              : \"0 0 0 1px rgba(250,204,21,0.26) inset, 0 0 0 1px rgba(250,204,21,0.20), 0 0 18px rgba(250,204,21,0.16)\",\n                        }\n                      : {}),\n                    width: \"100%\",\n                    minWidth: 0,\n                    minHeight: isMobile ? 43 : 36,\n                    boxSizing: \"border-box\",\n                    padding: isMobile ? \"4px 6px\" : \"0 6px\",\n                    display: \"inline-flex\",\n                    alignItems: \"center\",\n                    justifyContent: \"center\",\n                    overflow: isMobile ? \"visible\" : \"hidden\",\n                    whiteSpace: isMobile ? \"normal\" : \"nowrap\",\n                    textOverflow: isMobile ? \"clip\" : \"ellipsis\",\n                    fontSize: isMobile ? \"clamp(10px, 3.1vw, 13px)\" : \"clamp(8px, 0.78vw, 13px)\",\n                    lineHeight: isMobile ? 1.18 : 1.1,\n                    cursor: voiceBusy ? \"not-allowed\" : \"pointer\",\n                    opacity: voiceBusy && activeCard !== key ? 0.58 : 1,\n                  }}\n                >",
+    "sourceAnchor": "<button\n                  key={key}\n                  type=\"button\"\n                  onClick={() => setSynchronizedActiveChannel(key)}\n                  disabled={voiceBusy}\n                  className={css.channelButto",
     "capabilityId": "publication.options",
     "toolNames": [
       "readPublicationOptions",
@@ -9337,7 +9358,7 @@
     "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:641c214eb232b614:1"
+      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:bda0103dfda54eea:1"
     ]
   },
   {
@@ -9505,7 +9526,7 @@
     "testAnchor": "per-publication CTA uses native modes and destinations, survives execution and never replaces the global preference",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:804f89d941173f43:1"
+      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:89df1316cfcb1c25:1"
     ]
   },
   {
@@ -9611,7 +9632,7 @@
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
     ],
-    "sourceAnchor": "<select\n                            aria-label={activeCard === \"x\" ? \"CTA intégré au texte\" : i18nT(\"bouton_fd5aea71\")}\n                            value={ctaChoice}\n                            disabled={voiceBusy}\n                            onChange={(e) =>\n                              applyPreferredCtaPrefill(\n                                activeCard,\n                                e.target.value as BoosterPreferredCta,\n                              )\n                            }\n                            style={darkSelectStyle}\n                          >",
+    "sourceAnchor": "<select\n                            aria-label={activeCard === \"x\" ? i18nT(\"cta_integre_au_texte_1b1df839\") : i18nT(\"bouton_fd5aea71\")}\n                            value={ctaChoice}\n                            disabled={",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
@@ -9625,7 +9646,7 @@
     "testAnchor": "per-publication CTA uses native modes and destinations, survives execution and never replaces the global preference",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#select:6cf7fce810064231:1"
+      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#select:7213e7b49248accd:1"
     ]
   },
   {

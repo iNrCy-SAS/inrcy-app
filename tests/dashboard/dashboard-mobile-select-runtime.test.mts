@@ -128,6 +128,7 @@ test("Ads mobile details selector opens the matching Info and Stats panels witho
   const hooks = statefulHooks(true);
   const details = load("app/dashboard/mails/_components/AdsCampaignDetailsModal.tsx", {
     react: hooks.react,
+    "next-intl": { useLocale: () => "fr-FR", useTranslations: () => (key: string) => key },
     "react-dom": { createPortal: (node: unknown) => node },
     "next/navigation": { useRouter: () => ({ push() { assert.fail("Navigation is not a tab switch"); } }) },
     "../../_components/DashboardMobileSelect": mobile,

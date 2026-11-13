@@ -38,20 +38,21 @@ import {
   BOOSTER_MAX_VIDEO_BYTES,
   BOOSTER_VIDEO_ACCEPT,
   CHANNEL_TEXT_GUIDELINES,
-  getChannelDefaultCtaLabel,
-  getCtaModeHelp,
+  getLocalizedChannelDefaultCtaLabel,
+  getLocalizedCtaModeHelp,
+  getLocalizedPreferredCtaLabel,
+  getLocalizedWebsiteSourceLabelForChannel,
   getPreferredCtaChoiceFromPost,
   getCtaModeForPreferredChoice,
   getPreferredCtaOptionsForChannel,
-  getVideoFormatLabel,
+  getLocalizedVideoAdaptationModeLabel,
+  getLocalizedVideoFormatLabel,
   getVideoPreviewAspectRatio,
   getVideoPreviewFitMode,
-  getWebsiteSourceLabelForChannel,
   getWebsiteUrlForChannel,
   isSiteDisplayKey,
   normalizeBoosterAiLanguage,
   normalizeBoosterPreferredCta,
-  VIDEO_ADAPTATION_MODE_LABELS,
   type BoosterCtaDefaults,
   type BoosterCtaMode,
   type BoosterPreferredCta,
@@ -65,7 +66,6 @@ import { detectUniversalUploadMediaType } from "@/lib/mediaUploadPolicy";
 import { getMediaLibraryOptimizationRequirements } from "@/lib/mediaLibraryOptimizationPolicy";
 import {
   containsForbiddenXUrl,
-  X_FORBIDDEN_URL_ERROR,
 } from "@/lib/xChannel";
 import {
   MAILBOX_RECIPIENTS_PAGE_SIZE,
@@ -89,6 +89,7 @@ import {
   isRetryableCampaignItem,
   isVideoAttachment,
   orderChannelKeys,
+  normalizeChannelKey,
   pill,
   splitList,
 } from "../_lib/mailboxPhase1";
@@ -105,8 +106,12 @@ import {
 
 type MailsTranslator = (
   key: string,
-  values?: Record<string, string | number | boolean>,
+  values?: Record<string, string | number | Date>,
 ) => string;
+
+function localizedPublicationChannelLabel(channel: string, translate: MailsTranslator) {
+  return normalizeChannelKey(channel) === "site_web" ? translate("site_web_7e78af33") : formatChannelLabel(channel);
+}
 
 function formatTiktokBytes(bytes: number, locale: string) {
   if (!Number.isFinite(bytes) || bytes <= 0) return "";
@@ -480,6 +485,7 @@ function isAccountingDashboardHref(value: unknown) {
 export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
   const i18nT = useTranslations("mails");
+  const boosterT = useTranslations("booster");
   const mediaT = useTranslations("media");
   const locale = useLocale();
   const runtimeT = i18nT as unknown as MailsTranslator;
@@ -741,7 +747,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                   label: String(
                     pinterestStatus.accountName ||
                       username ||
-                      "Compte Pinterest connecté",
+                      i18nT("compte_pinterest_connecte_47271e52"),
                   ).trim(),
                   href,
                 },
@@ -757,7 +763,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     return () => {
       cancelled = true;
     };
-  }, [detailsItem?.source, open]);
+  }, [detailsItem?.source, i18nT, open]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -1323,14 +1329,14 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     const phone = String(form.ctaPhone || "").trim();
     if (mode === "none") return "";
     if (mode === "call") {
-      const label = explicit || getChannelDefaultCtaLabel(channel, "call") || "Appeler";
+      const label = explicit || getLocalizedChannelDefaultCtaLabel("call", boosterT) || i18nT("appeler_de49ee03");
       return phone ? `${label} · ${phone}` : label;
     }
     if (explicit) return explicit;
-    if (mode === "website") return getChannelDefaultCtaLabel(channel, mode);
-    if (mode === "message") return channel === "instagram" ? "Message privé" : "Envoyer un message";
+    if (mode === "website") return getLocalizedChannelDefaultCtaLabel(mode, boosterT);
+    if (mode === "message") return channel === "instagram" ? i18nT("message_prive_10ddc36e") : i18nT("envoyer_un_message_c211810b");
     return "";
-  }, []);
+  }, [boosterT, i18nT]);
 
   React.useEffect(() => {
     if (!open || !detailsEditMode) {
@@ -1417,10 +1423,10 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
   }, [activePublicationEditChannelKey, confirmDiscardPublicationEdit, setDetailsActionError, setDetailsActionSuccess, setDetailsChannelKey, setDetailsEditMode]);
 
   const localPublicationPayload = detailsItem?.source === "app_events" ? filterMetaPilotPayload(projectInstagramDeletionStatus(normalizeSiteWebPublicationPayload(detailsItem.raw?.payload || null)), metaPilotEnabled) : null;
-  const localExtractedChannels = detailsItem?.source === "app_events" ? extractChannelPublications(localPublicationPayload) : [];
+  const localExtractedChannels = detailsItem?.source === "app_events" ? extractChannelPublications(localPublicationPayload).map(entry => ({ ...entry, label: localizedPublicationChannelLabel(entry.key, i18nT) })) : [];
   const localPublicationEntries = detailsItem?.source !== "app_events" ? [] : localExtractedChannels.length ? localExtractedChannels
     : orderChannelKeys((detailsItem.channels?.length ? detailsItem.channels : [detailsItem.target]).filter(Boolean).map((channel: unknown) => String(channel)))
-      .map(key => ({ key, label: formatChannelLabel(key), parts: extractPublicationParts(localPublicationPayload) }));
+      .map(key => ({ key, label: localizedPublicationChannelLabel(key, i18nT), parts: extractPublicationParts(localPublicationPayload) }));
   const localActiveEntry = localPublicationEntries.find(entry => entry.key === detailsChannelKey) || localPublicationEntries[0] || null;
   const beginPublicationEdit = () => { setPublicationEditDirty(false); setDetailsEditMode(true); setDetailsActionError(null); setDetailsActionSuccess(null); };
   const bindNativeEditor = useInrAssistantSendEditorControls({ enabled: open && detailsItem?.folder === "publications" && detailsItem.source === "app_events",
@@ -1744,7 +1750,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                     ? payload.imageDrafts
                         .map((image: any) => ({
                           url: String(image?.originalPublicUrl || image?.originalUrl || image?.publicUrl || image?.url || image?.dataUrl || "").trim(),
-                          name: String(image?.originalName || image?.name || "Image brouillon"),
+                          name: String(image?.originalName || image?.name || i18nT("image_brouillon_162963b1")),
                           type: String(image?.originalType || image?.type || "image/jpeg"),
                           size: Number(image?.originalSize || image?.size || 0) || undefined,
                         }))
@@ -1776,10 +1782,10 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                   );
                   const activeVideoSettings = isVideoPublication ? activeParts.videoSettings || null : null;
                   const activeVideoFormatLabel = activeVideoSettings && activePublicationEntry
-                    ? getVideoFormatLabel(activePublicationEntry.key as any, activeVideoSettings.format as any, activeVideoSourceMetadata as any)
+                    ? getLocalizedVideoFormatLabel(activePublicationEntry.key as any, activeVideoSettings.format as any, activeVideoSourceMetadata as any, boosterT)
                     : null;
                   const activeVideoAdaptationLabel = activeVideoSettings
-                    ? VIDEO_ADAPTATION_MODE_LABELS[activeVideoSettings.adaptationMode]
+                    ? getLocalizedVideoAdaptationModeLabel(activeVideoSettings.adaptationMode, boosterT)
                     : null;
                   const fileAttachments = dedupedAttachments.filter((att) => !imageAttachments.includes(att) && !videoAttachments.includes(att));
                   const showFallbackMessage = (() => {
@@ -1833,7 +1839,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                       video: isVideoPublication && activeVideoDisplayAttachment?.url
                         ? {
                             previewUrl: activeVideoDisplayAttachment.url,
-                            name: activeVideoDisplayAttachment.name || "Vidéo iNrCy",
+                            name: activeVideoDisplayAttachment.name || i18nT("video_inrcy_a77021b5"),
                             type: activeVideoDisplayAttachment.type || "video/mp4",
                             size: activeVideoDisplayAttachment.size || null,
                             duration: (activeVideoDisplayAttachment as any).duration || null,
@@ -1845,9 +1851,9 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                         : null,
                       formatLabel: isVideoPublication
                         ? activeVideoFormatLabel && activeVideoAdaptationLabel
-                          ? `Vidéo ${activeVideoFormatLabel} · ${activeVideoAdaptationLabel}`
-                          : "Vidéo finale"
-                        : activePublicationEntry.key === "site_web" ? "Rendu site / iframe" : `Image finale : ${activePublicationEditPreset.width}×${activePublicationEditPreset.height}`,
+                          ? i18nT("video_value_value_62cd224c", { value0: activeVideoFormatLabel, value1: activeVideoAdaptationLabel })
+                          : i18nT("video_finale_8cccc8c8")
+                        : activePublicationEntry.key === "site_web" ? i18nT("rendu_site_iframe_02460ffa") : i18nT("image_finale_value_value_285144c7", { value0: activePublicationEditPreset.width, value1: activePublicationEditPreset.height }),
                       image: firstAsset
                         ? {
                             previewUrl: firstAsset.previewUrl,
@@ -2187,7 +2193,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       ref={bindNativeHistoryLink("account", activeChannelAccountHref)}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      title={activeConnectedChannelDetail?.label || `Ouvrir ${activePublicationEntry.label}`}
+                                      title={activeConnectedChannelDetail?.label || i18nT("ouvrir_value_b62c18f4", { value0: activePublicationEntry.label })}
                                       style={{ textDecoration: "none" }}
                                     >
                                       {activeChannelAccountActionLabel}
@@ -2201,7 +2207,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                         ref={bindNativeHistoryLink("publication", xDirectPublicationHref)}
                                         target="_blank"
                                         rel="noopener noreferrer"
-                                        title="Ouvrir la publication X"
+                                        title={i18nT("ouvrir_la_publication_x_ef5d155d")}
                                         style={{ textDecoration: "none" }}
                                       >
                                         {i18nT("voir_la_publication_d6d6819f")}
@@ -2215,7 +2221,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                           className={styles.btnGhost}
                                           onClick={() => void checkTiktokPublicationStatus(publicationId)}
                                           disabled={detailsActionBusy || tiktokStatusChecking || tiktokRetrying || tiktokCancelling || !tiktokPublishId}
-                                          title={tiktokPublishId ? "Vérifier le statut réel auprès de TikTok" : "Identifiant TikTok introuvable"}
+                                          title={tiktokPublishId ? i18nT("verifier_le_statut_reel_aupres_de_41268039") : i18nT("identifiant_tiktok_introuvable_5a7b87c4")}
                                         >
                                           {tiktokStatusChecking ? i18nT("verification_30a67937") : i18nT("verifier_le_statut_06793362")}
                                         </button>
@@ -2226,7 +2232,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                           className={tiktokStatusMeta?.failed ? styles.btnPrimary : styles.btnGhost}
                                           onClick={() => void retryTiktokPublication(publicationId, tiktokStatusMeta)}
                                           disabled={detailsActionBusy || tiktokStatusChecking || tiktokRetrying || tiktokCancelling}
-                                          title={tiktokStatusMeta?.pending ? "Retenter avec confirmation pour éviter les doublons" : "Retenter l’envoi TikTok"}
+                                          title={tiktokStatusMeta?.pending ? i18nT("retenter_avec_confirmation_pour_eviter_les_da7baec2") : i18nT("retenter_l_envoi_tiktok_a2580c30")}
                                         >
                                           {tiktokRetrying ? i18nT("relance_428b7ac0") : i18nT("retenter_l_envoi_d90d38d2")}
                                         </button>
@@ -2547,9 +2553,9 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                             {isSitePublication ? (
                                               <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                                 {([
-                                                  ["bold", "B", "Gras"],
-                                                  ["italic", "I", "Italique"],
-                                                  ["underline", "U", "Souligné"],
+                                                  ["bold", "B", i18nT("gras_bd63d1e9")],
+                                                  ["italic", "I", i18nT("italique_023eb97e")],
+                                                  ["underline", "U", i18nT("souligne_591b8563")],
                                                 ] as const).map(([kind, label, title]) => (
                                                   <button
                                                     key={kind}
@@ -2638,7 +2644,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                             const ctaChoice = getPreferredCtaChoiceFromPost(publicationDisplayKey, publicationCtaPost);
                                             const ctaMode = getCtaModeForPreferredChoice(ctaChoice);
                                             const activeWebsiteUrl = getWebsiteUrlForChannel(publicationDisplayKey, publicationCtaDefaults);
-                                            const activeWebsiteSourceLabel = getWebsiteSourceLabelForChannel(publicationDisplayKey, publicationCtaDefaults);
+                                            const activeWebsiteSourceLabel = getLocalizedWebsiteSourceLabelForChannel(publicationDisplayKey, publicationCtaDefaults, boosterT);
                                             const websiteChoices = [
                                               publicationCtaDefaults?.siteWebUrl
                                                 ? { label: i18nT("site_web_7e78af33"), url: publicationCtaDefaults.siteWebUrl }
@@ -2664,7 +2670,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                                     >
                                                       {getPreferredCtaOptionsForChannel(publicationDisplayKey).map((option) => (
                                                         <option key={option.value} value={option.value} style={darkOptionStyle}>
-                                                          {option.label}
+                                                          {getLocalizedPreferredCtaLabel(option.value, boosterT)}
                                                         </option>
                                                       ))}
                                                     </select>
@@ -2680,10 +2686,10 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                                           style={lightFieldStyle}
                                                           placeholder={
                                                             activeWebsiteUrl
-                                                              ? `URL du site préremplie (${activeWebsiteSourceLabel})`
+                                                              ? i18nT("url_du_site_preremplie_value_0d4184d4", { value0: activeWebsiteSourceLabel })
                                                               : websiteChoices.length > 1
-                                                                ? "Choisissez Site Web ou Site web"
-                                                                : "URL du site (optionnel)"
+                                                                ? i18nT("choisissez_site_web_ou_site_web_b14d435b")
+                                                                : i18nT("url_du_site_optionnel_8117daf9")
                                                           }
                                                           disabled={detailsActionBusy}
                                                         />
@@ -2723,7 +2729,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                                           value={publicationEditForm.cta}
                                                           onChange={(e) => updatePublicationEdit({ cta: e.target.value })}
                                                           style={lightFieldStyle}
-                                                          placeholder={i18nT("texte_du_bouton_ex_value_872ff84c", { value0: getChannelDefaultCtaLabel(publicationDisplayKey, "website") || "Voir le site" })}
+                                                          placeholder={i18nT("texte_du_bouton_ex_value_872ff84c", { value0: getLocalizedChannelDefaultCtaLabel("website", boosterT) || i18nT("voir_le_site_5bf01317") })}
                                                           disabled={detailsActionBusy}
                                                         />
                                                       </div>
@@ -2739,8 +2745,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                                         style={lightFieldStyle}
                                                         placeholder={
                                                           publicationCtaDefaults?.phone
-                                                            ? "Téléphone prérempli depuis Mon profil"
-                                                            : "Téléphone (optionnel)"
+                                                            ? i18nT("telephone_prerempli_depuis_mon_profil_3751307d")
+                                                            : i18nT("telephone_optionnel_23768a3e")
                                                         }
                                                         disabled={detailsActionBusy}
                                                       />
@@ -2795,7 +2801,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                                   ) : null}
                                                 </div>
                                                 <div style={{ fontSize: 11, marginTop: 6, color: "rgba(255,255,255,0.62)", lineHeight: 1.45 }}>
-                                                  {getCtaModeHelp(publicationDisplayKey, ctaMode, ctaChoice)}
+                                                  {getLocalizedCtaModeHelp(publicationDisplayKey, ctaMode, boosterT, ctaChoice)}
                                                 </div>
                                                 {ctaMode === "website" && activeWebsiteUrl ? (
                                                   <div style={{ fontSize: 11, marginTop: 8, color: "rgba(255,255,255,0.62)", lineHeight: 1.45 }}>
@@ -2836,7 +2842,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                             role="alert"
                                             className={styles.detailsError}
                                           >
-                                            {X_FORBIDDEN_URL_ERROR}
+                                            {i18nT("x_forbidden_url")}
                                           </div>
                                         ) : null}
                                       </>
@@ -2967,7 +2973,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                 <MediaLibraryPickerModal
                                   open={publicationMediaLibraryOpen}
                                   title={i18nT("ajouter_depuis_la_mediatheque_d0f700b2")}
-                                  subtitle="Sélectionnez une image ou une vidéo pour remplacer le média de cette publication."
+                                  subtitle={i18nT("selectionnez_une_image_ou_une_video_470b88e8")}
                                   accept="all"
                                   multiple
                                   maxSelection={5}
@@ -3015,7 +3021,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                           onSelect: () =>
                                             document.getElementById(publicationEditFileInputId)?.click(),
                                           disabled: activePublicationEditAssets.length >= 5,
-                                          disabledReason: "5 images maximum",
+                                          disabledReason: i18nT("5_images_maximum_9dbf4291"),
                                           maxSelection: Math.max(
                                             0,
                                             5 - activePublicationEditAssets.length,
@@ -3085,8 +3091,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                         />
                                       ) : (
                                         <span style={{ color: "rgba(255,255,255,0.62)", fontWeight: 750 }}>
-                                          Ajoutez une vidéo pour la préparer.
-                                        </span>
+                                          {i18nT("ajoutez_une_video_pour_la_preparer_03c33940")}{" "}</span>
                                       )}
                                     </div>
 
@@ -3105,15 +3110,13 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                     >
                                       <div style={{ display: "grid", gap: 8 }}>
                                         <strong style={{ color: "#fff", fontSize: 18 }}>
-                                          Retoucher dans iNrStudio
-                                        </strong>
+                                          {i18nT("retoucher_dans_inrstudio_66bbc07c")}{" "}</strong>
                                         <span style={{ color: "rgba(255,255,255,0.7)", lineHeight: 1.55 }}>
-                                          Le format, le cadrage et l’adaptation de la vidéo sont maintenant centralisés dans iNrStudio.
-                                        </span>
+                                          {i18nT("le_format_le_cadrage_et_l_e85d8444")}{" "}</span>
                                         <span style={{ color: "rgba(255,255,255,0.58)", fontSize: 12 }}>
                                           {detailsEditMode
-                                            ? activePublicationEditVideo?.name || activeVideoDisplayAttachment?.name || "Vidéo iNrCy"
-                                            : activeVideoDisplayAttachment?.name || "Vidéo iNrCy"}
+                                            ? activePublicationEditVideo?.name || activeVideoDisplayAttachment?.name || i18nT("video_inrcy_a77021b5")
+                                            : activeVideoDisplayAttachment?.name || i18nT("video_inrcy_a77021b5")}
                                         </span>
                                       </div>
                                       {detailsEditMode ? (
@@ -3137,8 +3140,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                               color: "white",
                                             }}
                                           >
-                                            🎞️ Retoucher
-                                          </button>
+                                            {i18nT("retoucher_45c6e9eb")}{" "}</button>
                                           <button
                                             type="button"
                                             className={styles.btnGhost}
@@ -3184,7 +3186,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       onSelect: () =>
                                         document.getElementById(publicationEditFileInputId)?.click(),
                                       disabled: activePublicationEditAssets.length >= 5,
-                                      disabledReason: "5 images maximum",
+                                      disabledReason: i18nT("5_images_maximum_9dbf4291"),
                                       maxSelection: Math.max(
                                         0,
                                         5 - activePublicationEditAssets.length,
@@ -3208,9 +3210,9 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                     title={
                                       isMobileViewport
                                         ? activePublicationEditAssets.length >= 5
-                                          ? "5 images maximum"
-                                          : "Prendre une photo dans iNrCy"
-                                        : "Utilisable en version mobile"
+                                          ? i18nT("5_images_maximum_9dbf4291")
+                                          : i18nT("prendre_une_photo_dans_inrcy_329a46d5")
+                                        : i18nT("utilisable_en_version_mobile_e02c32d6")
                                     }
                                     style={{ display: "inline-flex" }}
                                   >
@@ -3241,7 +3243,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                   activeChannel={activePublicationEditChannelKey}
                                   onActiveChannelChange={() => {}}
                                   channelTitle={activePublicationEntry?.label || formatChannelLabel(activePublicationEditChannelKey)}
-                                  formatLabel={activePublicationEditChannelKey === "site_web" ? "Rendu site / iframe" : `Rendu final : ${activePublicationEditPreset.width}×${activePublicationEditPreset.height}`}
+                                  formatLabel={activePublicationEditChannelKey === "site_web" ? i18nT("rendu_site_iframe_02460ffa") : i18nT("rendu_final_value_value_64312a70", { value0: activePublicationEditPreset.width, value1: activePublicationEditPreset.height })}
                                   aspectRatio={`${activePublicationEditPreset.width} / ${activePublicationEditPreset.height}`}
                                   items={activePublicationEditAssets.map((asset, index) => {
                                     const selectedAssets = activePublicationEditAssets.filter((candidate) => candidate.selected);
@@ -3255,16 +3257,16 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       disabled: disabledBySingleImageLimit,
                                       title: i18nT("image_value_5907a7ef", { value0: index + 1 }),
                                       subtitle: disabledBySingleImageLimit
-                                        ? "Une seule image par épingle Pinterest"
+                                        ? i18nT("une_seule_image_par_epingle_pinterest_2e26ba12")
                                         : asset.selected
-                                          ? "Publiée sur ce canal"
-                                          : "Non publiée sur ce canal",
+                                          ? i18nT("publiee_sur_ce_canal_fc389c89")
+                                          : i18nT("non_publiee_sur_ce_canal_e39434a7"),
                                       fitLabel:
                                         asset.originalUrl &&
                                         asset.savedTransform &&
                                         arePublicationTransformsEquivalent(asset.transform, asset.savedTransform)
-                                          ? "Originale"
-                                          : "Personnalisée",
+                                          ? i18nT("originale_5ab39fc4")
+                                          : i18nT("personnalisee_babc3417"),
                                       backgroundMode: getPublicationBackgroundMode(asset.transform),
                                       backgroundColor: asset.transform.backgroundColor,
                                       transform: asset.transform,
@@ -3486,7 +3488,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       target="_blank"
                                       rel="noreferrer"
                                     >
-                                      <img src={a.url || ""} alt={a.name || `Pièce jointe ${idx + 1}`} className={styles.attachmentPreviewImage} />
+                                      <img src={a.url || ""} alt={a.name || i18nT("piece_jointe_value_43103e26", { value0: idx + 1 })} className={styles.attachmentPreviewImage} />
                                       <div className={styles.attachmentPreviewCaption}>{a.name}</div>
                                       {a.url ? <span className={styles.attachmentDownloadHint}>{i18nT("telecharger_b332d06d")}</span> : null}
                                     </a>

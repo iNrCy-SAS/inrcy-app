@@ -451,7 +451,7 @@
     ],
     "gateAnchor": "if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === \"coming\") return <DashboardFluxBubble item={item} />;",
     "exclusions": {
-      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#FieldToggle:1b60eaf9c7db987b:1": {
+      "app/dashboard/settings/_components/InrBadgeSettingsContent.tsx#FieldToggle:89c01c46cb65e811:1": {
         "reason": "Prise de rendez-vous / devis masquée en Basique par standardMode ; le Basique est inclus dans ce mode.",
         "gateAnchor": "!standardMode"
       },

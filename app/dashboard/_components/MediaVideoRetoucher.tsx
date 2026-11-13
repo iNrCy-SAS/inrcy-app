@@ -202,6 +202,7 @@ export default function MediaVideoRetoucher({
   onSaved,
   acceptMode = "library",
 }: MediaVideoRetoucherProps) {
+  const i18nT = useTranslations("shell");
   const mediaT = useTranslations("media");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const ownedUrlRef = useRef<string | null>(null);
@@ -372,11 +373,11 @@ export default function MediaVideoRetoucher({
         mimeType: file.type,
       }) !== "video"
     ) {
-      setError("Choisissez un fichier vidéo pris en charge par iNrCy.");
+      setError(i18nT("choisissez_un_fichier_video_pris_en_7f07cb40"));
       return;
     }
     if (file.size > UNIVERSAL_MEDIA_VIDEO_HARD_MAX_BYTES) {
-      setError("Cette vidéo dépasse la limite technique d’import.");
+      setError(i18nT("cette_video_depasse_la_limite_technique_dbb1ddaa"));
       return;
     }
     clearOwnedUrl();
@@ -449,7 +450,7 @@ export default function MediaVideoRetoucher({
       setError(
         caught instanceof Error
           ? caught.message
-          : "Impossible d’enregistrer cette retouche vidéo."
+          : i18nT("media_ui_e2056e9248")
       );
       return false;
     } finally {
@@ -465,7 +466,7 @@ export default function MediaVideoRetoucher({
   };
 
   return (
-    <section className={styles.root} aria-label="Retoucher une vidéo">
+    <section className={styles.root} aria-label={i18nT("retoucher_une_video_825a9ac9")}>
       <input
         ref={fileInputRef}
         className={styles.hiddenInput}
@@ -483,15 +484,15 @@ export default function MediaVideoRetoucher({
             <header className={styles.panelHeader}>
               <span>1</span>
               <div>
-                <h2>Vidéo à retoucher</h2>
-                <p>Cette vidéo reste la base de votre retouche.</p>
+                <h2>{i18nT("video_a_retoucher_b53296ac")}</h2>
+                <p>{i18nT("cette_video_reste_la_base_de_65337e6d")}</p>
               </div>
             </header>
             <button
               type="button"
               className={styles.dropzone}
               data-dragging={dragging ? "true" : "false"}
-              aria-label="Choisir une vidéo à retoucher"
+              aria-label={i18nT("choisir_une_video_a_retoucher_bd2734b6")}
               disabled={initialSourceLoading}
               onClick={() => fileInputRef.current?.click()}
               onDragEnter={(event) => {
@@ -505,23 +506,20 @@ export default function MediaVideoRetoucher({
               <span className={styles.dropIcon}>＋</span>
               <strong>
                 {initialSourceLoading
-                  ? "Préparation de la vidéo…"
-                  : "Déposez votre vidéo ici"}
+                  ? i18nT("preparation_de_la_video_1cabc807")
+                  : i18nT("deposez_votre_video_ici_bc82d5bc")}
               </strong>
               <small>
-                MP4, MOV, WebM, MPEG, AVI, MKV, 3GP, TS, WMV, FLV ou OGV
-              </small>
+                {i18nT("mp4_mov_webm_mpeg_avi_mkv_0bb3a20c")}{" "}</small>
             </button>
             <div className={styles.sourceActions}>
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
               >
-                Choisir sur mon appareil
-              </button>
+                {i18nT("choisir_sur_mon_appareil_b5f2c497")}{" "}</button>
               <button type="button" onClick={() => setLibraryOpen(true)}>
-                Choisir dans ma médiathèque
-              </button>
+                {i18nT("choisir_dans_ma_mediatheque_dc58b0e0")}{" "}</button>
             </div>
           </article>
 
@@ -529,35 +527,33 @@ export default function MediaVideoRetoucher({
             <header className={styles.panelHeader}>
               <span>2</span>
               <div>
-                <h2>Outils vidéo</h2>
-                <p>Choisissez le format et le cadrage adaptés au canal.</p>
+                <h2>{i18nT("outils_video_1374a8dc")}</h2>
+                <p>{i18nT("choisissez_le_format_et_le_cadrage_001dc6b9")}</p>
               </div>
             </header>
             <div className={styles.disabledTools}>
               <div>
                 <b>▣</b>
-                <strong>Changer le format</strong>
+                <strong>{i18nT("changer_le_format_30fa902d")}</strong>
               </div>
               <div>
                 <b>◫</b>
-                <strong>Adapter le cadrage</strong>
+                <strong>{i18nT("adapter_le_cadrage_d7ea3906")}</strong>
               </div>
             </div>
             <p className={styles.hint}>
-              Ajoutez d’abord une vidéo pour activer les outils.
-            </p>
+              {i18nT("ajoutez_d_abord_une_video_pour_5663d5f0")}{" "}</p>
           </article>
         </div>
       ) : (
         <div className={styles.editorWorkspace}>
           <div className={styles.editorHeading}>
             <div>
-              <span>RETOUCHE MANUELLE · VIDÉO</span>
-              <h2>Retoucher une vidéo</h2>
+              <span>{i18nT("retouche_manuelle_video_69991bf0")}</span>
+              <h2>{i18nT("retoucher_une_video_825a9ac9")}</h2>
             </div>
             <button type="button" onClick={() => fileInputRef.current?.click()}>
-              Remplacer la vidéo
-            </button>
+              {i18nT("remplacer_la_video_f6f7fbb3")}{" "}</button>
           </div>
           <div className={styles.videoManager}>
             <BoosterVideoFormatManager
@@ -598,13 +594,13 @@ export default function MediaVideoRetoucher({
         <div>
           <strong>
             {source
-              ? "Prêt à retoucher cette vidéo ?"
-              : "Ajoutez une vidéo pour commencer"}
+              ? i18nT("pret_a_retoucher_cette_video_d47aaa2f")
+              : i18nT("ajoutez_une_video_pour_commencer_88960f0e")}
           </strong>
           <span>
             {source
-              ? "Le format choisi sera rattaché au média et au canal d’origine."
-              : "Choisissez une vidéo pour activer les outils de retouche."}
+              ? i18nT("le_format_choisi_sera_rattache_au_2641f8e5")
+              : i18nT("choisissez_une_video_pour_activer_les_b6b583ae")}
           </span>
         </div>
         <button
@@ -614,27 +610,27 @@ export default function MediaVideoRetoucher({
         >
           {saving
             ? acceptMode === "insert"
-              ? "Utilisation du média…"
-              : "Enregistrement…"
+              ? i18nT("utilisation_du_media_4e6bf473")
+              : i18nT("enregistrement_e7d5f232")
             : acceptMode === "insert"
-              ? "Utiliser ce média"
-              : "Enregistrer dans la Médiathèque"}
+              ? i18nT("utiliser_ce_media_5cc61021")
+              : i18nT("enregistrer_dans_la_mediatheque_113a0c12")}
         </button>
       </footer>
 
       <MediaLibraryPickerModal
         open={libraryOpen}
-        title="Choisir une vidéo à retoucher"
+        title={i18nT("choisir_une_video_a_retoucher_bd2734b6")}
         subtitle={mediaT("vos_images_et_videos_inrcy_58912437")}
         accept="video"
         multiple={false}
         maxSelection={1}
-        confirmLabel="Utiliser cette vidéo"
+        confirmLabel={i18nT("utiliser_cette_video_c25f20cc")}
         onClose={() => setLibraryOpen(false)}
         onConfirm={(items) => {
           const next = items[0] ? sourceFromLibraryItem(items[0]) : null;
           if (!next) {
-            setError("Cette vidéo n’est plus disponible.");
+            setError(i18nT("cette_video_n_est_plus_disponible_fbe55a2a"));
             return;
           }
           clearOwnedUrl();

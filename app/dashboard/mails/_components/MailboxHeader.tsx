@@ -94,7 +94,7 @@ export default function MailboxHeader({
                 closeOnBackdrop={false}
                 closeOnEscape={false}
               >
-                <a href="/dashboard?panel=mails" className={styles.ghostBtn}>Gérer mes boîtes mail dans Mes canaux</a>
+                <a href="/dashboard?panel=mails" className={styles.ghostBtn}>{i18nT("gerer_mes_boites_mail_dans_mes_8693ce13")}</a>
                 <MailSignatureSettingsContent onUnsavedChange={setSettingsHasUnsavedChanges} />
               </SettingsDrawer>
             </>

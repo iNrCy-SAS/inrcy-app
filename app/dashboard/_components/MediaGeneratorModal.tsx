@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { acquireElementStyleLock } from "@/lib/elementStyleLock";
 import { Activity, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 
@@ -476,17 +477,15 @@ export default function MediaGeneratorModal({
       document.activeElement instanceof HTMLElement
         ? document.activeElement
         : null;
-    const previousOverflow = document.body.style.overflow;
-    const previousDocumentOverflow = document.documentElement.style.overflow;
-    document.body.style.overflow = "hidden";
-    document.documentElement.style.overflow = "hidden";
+    const releaseBodyLock = acquireElementStyleLock(document.body, { overflow: "hidden" });
+    const releaseRootLock = acquireElementStyleLock(document.documentElement, { overflow: "hidden" });
     const frame = window.requestAnimationFrame(() => {
       closeButtonRef.current?.focus({ preventScroll: true });
     });
     return () => {
       window.cancelAnimationFrame(frame);
-      document.body.style.overflow = previousOverflow;
-      document.documentElement.style.overflow = previousDocumentOverflow;
+      releaseBodyLock();
+      releaseRootLock();
       previousFocusRef.current?.focus?.({ preventScroll: true });
     };
   }, [mounted, open]);

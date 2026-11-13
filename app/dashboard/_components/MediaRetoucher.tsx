@@ -197,7 +197,7 @@ export default function MediaRetoucher({
   acceptMode = "library",
 }: MediaRetoucherProps) {
   const t = useTranslations("media");
-  const shellT = useTranslations("shell");
+  const i18nT = useTranslations("shell");
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const previewRef = useRef<HTMLDivElement | null>(null);
@@ -306,12 +306,12 @@ export default function MediaRetoucher({
 
     if (!isInrMediaImageFile(file)) {
       setLoadingSource(false);
-      setError(`Formats image acceptés : ${INR_MEDIA_IMAGE_FORMATS_LABEL}.`);
+      setError(i18nT("formats_image_acceptes_value_3bc372c6", { value0: INR_MEDIA_IMAGE_FORMATS_LABEL }));
       return;
     }
     if (!file.size || file.size > INR_MEDIA_IMAGE_MAX_BYTES) {
       setLoadingSource(false);
-      setError(`Cette image dépasse ${INR_MEDIA_IMAGE_MAX_MB_LABEL}.`);
+      setError(i18nT("cette_image_depasse_value_96655927", { value0: INR_MEDIA_IMAGE_MAX_MB_LABEL }));
       return;
     }
 
@@ -372,15 +372,15 @@ export default function MediaRetoucher({
           previewError instanceof Error &&
             previewError.message !== "image_preview_unreadable"
             ? previewError.message
-            : `Cette image ne peut pas être prévisualisée. Formats acceptés : ${INR_MEDIA_IMAGE_FORMATS_LABEL}.`,
+            : i18nT("media_ui_df3c0e9f28", { formats: INR_MEDIA_IMAGE_FORMATS_LABEL }),
         );
       }
     })();
-  }, []);
+  }, [i18nT]);
 
   const importLibraryImage = async (item: MediaLibraryPickerItem, stillCurrent: () => boolean = () => true) => {
     if (!item.signed_url) {
-      throw new Error("Cette image n’est pas disponible dans la médiathèque.");
+      throw new Error(i18nT("media_ui_7c3b3d1b46"));
     }
 
     setError("");
@@ -388,7 +388,7 @@ export default function MediaRetoucher({
     try {
       const response = await fetch(item.signed_url, { cache: "no-store" });
       if (!response.ok) {
-        throw new Error("Impossible de charger cette image de la médiathèque.");
+        throw new Error(i18nT("media_ui_a2c06199f6"));
       }
       const blob = await response.blob();
       if (!stillCurrent()) return false;
@@ -406,7 +406,7 @@ export default function MediaRetoucher({
       const message =
         libraryError instanceof Error
           ? libraryError.message
-          : "Impossible de charger cette image de la médiathèque.";
+          : i18nT("media_ui_a2c06199f6");
       setError(message);
       throw libraryError;
     }
@@ -445,7 +445,7 @@ export default function MediaRetoucher({
     })
       .then(async (response) => {
         if (!response.ok) {
-          throw new Error("Impossible de charger cette image source.");
+          throw new Error(i18nT("media_ui_275d4d5578"));
         }
         const blob = await response.blob();
         if (!mountedRef.current || sourceRequestRef.current !== requestId) return;
@@ -488,7 +488,7 @@ export default function MediaRetoucher({
         setError(
           loadError instanceof Error
             ? loadError.message
-            : "Impossible de charger cette image source.",
+            : i18nT("media_ui_275d4d5578"),
         );
       })
       .finally(() => {
@@ -496,7 +496,7 @@ export default function MediaRetoucher({
           sourceAbortRef.current = null;
         }
       });
-  }, [initialSource, openEditorOnInitialSource, selectSource]);
+  }, [i18nT, initialSource, openEditorOnInitialSource, selectSource]);
 
   const removeSource = () => {
     sourceAbortRef.current?.abort();
@@ -534,7 +534,7 @@ export default function MediaRetoucher({
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Impossible d’enregistrer cette retouche.",
+          : i18nT("media_ui_157738c871"),
       );
       return false;
     } finally {
@@ -651,7 +651,7 @@ export default function MediaRetoucher({
       open
       embedded
       previewInfoPlacement="below"
-      title="Retoucher une image"
+      title={i18nT("retoucher_une_image_75a69232")}
       subtitle={source.file.name}
       aspectRatio={`${source.width} / ${source.height}`}
       backgroundMode={transform.backgroundMode}
@@ -659,8 +659,8 @@ export default function MediaRetoucher({
       overlay={transform.overlay}
       fitLabel={
         transform.fit === "cover"
-          ? shellT("plein_cadre_96d0dd78")
-          : shellT("image_entiere_76cd8175")
+          ? i18nT("plein_cadre_96d0dd78")
+          : i18nT("image_entiere_76cd8175")
       }
       zoomLabel={`${transform.zoom.toFixed(2)}×`}
       previewSrc={source.previewUrl}
@@ -744,19 +744,17 @@ export default function MediaRetoucher({
         {source && embeddedEditor ? (
           <section
             className={styles.inlineEditorPanel}
-            aria-label="Atelier de retouche"
+            aria-label={i18nT("atelier_de_retouche_f2787f17")}
           >
             <div className={styles.inlineEditorToolbar}>
               <div className={styles.inlineEditorIdentity}>
                 <strong>{source.file.name}</strong>
                 <span>
-                  {source.width} × {source.height}px ·{" "}
-                  {Math.max(1, Math.round(source.file.size / 1024))} Ko
-                </span>
+                  {source.width} × {source.height}{i18nT("px_98bb7667")}{" "}
+                  {Math.max(1, Math.round(source.file.size / 1024))} {" "}{i18nT("ko_d7f41e28")}{" "}</span>
                 {saved ? (
                   <em>
-                    <i aria-hidden="true">✓</i> Retouche enregistrée
-                  </em>
+                    <i aria-hidden="true">✓</i> {" "}{i18nT("retouche_enregistree_86d5280f")}{" "}</em>
                 ) : null}
               </div>
               <div className={styles.inlineEditorActions}>
@@ -765,15 +763,13 @@ export default function MediaRetoucher({
                   onClick={() => fileInputRef.current?.click()}
                   disabled={sourcePreparing || saving}
                 >
-                  Remplacer depuis mon appareil
-                </button>
+                  {i18nT("remplacer_depuis_mon_appareil_96ca8626")}{" "}</button>
                 <button
                   type="button"
                   onClick={() => setLibraryOpen(true)}
                   disabled={sourcePreparing || saving}
                 >
-                  Choisir dans ma médiathèque
-                </button>
+                  {i18nT("choisir_dans_ma_mediatheque_dc58b0e0")}{" "}</button>
                 <button
                   type="button"
                   className={styles.removeButton}
@@ -795,8 +791,8 @@ export default function MediaRetoucher({
           <header className={styles.panelHeader}>
             <span aria-hidden="true">1</span>
             <div>
-              <h2 id="media-retoucher-source-title">Image à retoucher</h2>
-              <p>Cette image reste la base de votre retouche.</p>
+              <h2 id="media-retoucher-source-title">{i18nT("image_a_retoucher_9a08f28d")}</h2>
+              <p>{i18nT("cette_image_reste_la_base_de_3f9fbb24")}</p>
             </div>
           </header>
 
@@ -831,33 +827,31 @@ export default function MediaRetoucher({
               <div className={styles.sourcePreview}>
                 <img
                   src={source.previewUrl}
-                  alt={`Aperçu de ${source.file.name}`}
+                  alt={i18nT("apercu_de_value_11d346cb", { value0: source.file.name })}
                   draggable={false}
                 />
                 <div className={styles.sourceMeta}>
                   <strong>{source.file.name}</strong>
                   <span>
-                    {source.width} × {source.height}px ·{" "}
-                    {Math.max(1, Math.round(source.file.size / 1024))} Ko
-                  </span>
+                    {source.width} × {source.height}{i18nT("px_98bb7667")}{" "}
+                    {Math.max(1, Math.round(source.file.size / 1024))} {" "}{i18nT("ko_d7f41e28")}{" "}</span>
                 </div>
                 {saved ? (
                   <span className={styles.savedBadge}>
                     <i aria-hidden="true">✓</i>
-                    Retouche enregistrée
-                  </span>
+                    {i18nT("retouche_enregistree_86d5280f")}{" "}</span>
                 ) : null}
               </div>
             ) : initialPreview?.url ? (
               <div className={styles.sourcePreview} data-preparing="true">
                 <img
                   src={initialPreview.url}
-                  alt={`Aperçu de ${initialPreview.name}`}
+                  alt={i18nT("apercu_de_value_11d346cb", { value0: initialPreview.name })}
                   draggable={false}
                 />
                 <div className={styles.sourceMeta}>
                   <strong>{initialPreview.name}</strong>
-                  <span>Préparation des outils de retouche…</span>
+                  <span>{i18nT("preparation_des_outils_de_retouche_586484d1")}</span>
                 </div>
               </div>
             ) : (
@@ -867,10 +861,10 @@ export default function MediaRetoucher({
                 </span>
                 <strong>
                   {sourcePreparing
-                    ? "Préparation de l’image…"
-                    : "Déposez votre image ici"}
+                    ? i18nT("preparation_de_l_image_de911ede")
+                    : i18nT("deposez_votre_image_ici_365e72e8")}
                 </strong>
-                <p>ou choisissez-la sur votre appareil</p>
+                <p>{i18nT("ou_choisissez_la_sur_votre_appareil_6bc348d2")}</p>
                 <span className={styles.formatHint}>
                   {INR_MEDIA_IMAGE_FORMATS_LABEL} ·{" "}
                   {INR_MEDIA_IMAGE_MAX_MB_LABEL} max.
@@ -885,15 +879,14 @@ export default function MediaRetoucher({
               onClick={() => fileInputRef.current?.click()}
               disabled={sourcePreparing || saving}
             >
-              {source ? "Remplacer depuis mon appareil" : "Choisir sur mon appareil"}
+              {source ? i18nT("remplacer_depuis_mon_appareil_96ca8626") : i18nT("choisir_sur_mon_appareil_b5f2c497")}
             </button>
             <button
               type="button"
               onClick={() => setLibraryOpen(true)}
               disabled={sourcePreparing || saving}
             >
-              Choisir dans ma médiathèque
-            </button>
+              {i18nT("choisir_dans_ma_mediatheque_dc58b0e0")}{" "}</button>
             {source ? (
               <button
                 type="button"
@@ -914,25 +907,22 @@ export default function MediaRetoucher({
           <header className={styles.panelHeader}>
             <span aria-hidden="true">2</span>
             <div>
-              <h2 id="media-retoucher-tools-title">Outils de retouche</h2>
-              <p>Choisissez ce que vous souhaitez modifier sur l’image.</p>
+              <h2 id="media-retoucher-tools-title">{i18nT("outils_de_retouche_9dfbe4d6")}</h2>
+              <p>{i18nT("choisissez_ce_que_vous_souhaitez_modifier_2ed9c58d")}</p>
             </div>
           </header>
 
-          <div className={styles.toolsEmpty} aria-label="Outils disponibles">
+          <div className={styles.toolsEmpty} aria-label={i18nT("outils_disponibles_ed64a2bd")}>
             <span aria-hidden="true">✦</span>
-            <strong>Un seul atelier, tous les réglages</strong>
+            <strong>{i18nT("un_seul_atelier_tous_les_reglages_9f8e1c1d")}</strong>
             <p>
-              Ajoutez une image : elle apparaîtra directement à gauche, avec
-              le cadrage, le fond et les textes à droite.
-            </p>
+              {i18nT("ajoutez_une_image_elle_apparaitra_directement_100a305c")}{" "}</p>
           </div>
 
           <div className={styles.toolsNote}>
             <span aria-hidden="true">◎</span>
             <p>
-              Ajoutez d’abord une image pour activer l’atelier de retouche.
-            </p>
+              {i18nT("ajoutez_d_abord_une_image_pour_9ffd2135")}{" "}</p>
           </div>
         </section>
           </>
@@ -949,15 +939,15 @@ export default function MediaRetoucher({
         <div aria-live="polite">
           <strong>
             {saved
-              ? "Votre retouche est enregistrée"
+              ? i18nT("votre_retouche_est_enregistree_8c4af837")
               : source
-                ? "Prêt à retoucher votre image ?"
-                : "Ajoutez une image pour commencer"}
+                ? i18nT("pret_a_retoucher_votre_image_e15fceae")
+                : i18nT("ajoutez_une_image_pour_commencer_42a4eb6b")}
           </strong>
           <span>
             {saved
-              ? "Vous pouvez poursuivre les ajustements dans l’atelier."
-              : "Ajustez votre image dans l’atelier puis enregistrez le rendu."}
+              ? i18nT("vous_pouvez_poursuivre_les_ajustements_dans_66d4397f")
+              : i18nT("ajustez_votre_image_dans_l_atelier_e0fa80a5")}
           </span>
         </div>
         <button
@@ -971,26 +961,26 @@ export default function MediaRetoucher({
           <span aria-hidden="true">✎</span>
           {saving
             ? acceptMode === "insert"
-              ? "Utilisation du média…"
-              : "Enregistrement…"
+              ? i18nT("utilisation_du_media_4e6bf473")
+              : i18nT("enregistrement_e7d5f232")
             : acceptMode === "insert"
-              ? "Utiliser ce média"
-              : "Enregistrer dans la Médiathèque"}
+              ? i18nT("utiliser_ce_media_5cc61021")
+              : i18nT("enregistrer_dans_la_mediatheque_113a0c12")}
         </button>
       </footer>
 
       <MediaLibraryPickerModal
         open={libraryOpen}
-        title="Choisir l’image à retoucher"
-        subtitle={`Tous les formats image iNrCy sont acceptés · ${INR_MEDIA_IMAGE_MAX_MB_LABEL} max.`}
+        title={i18nT("choisir_l_image_a_retoucher_fee2a339")}
+        subtitle={i18nT("media_ui_5b6db67881", { size: INR_MEDIA_IMAGE_MAX_MB_LABEL })}
         accept="image"
         multiple={false}
         maxSelection={1}
         maxImageBytes={INR_MEDIA_IMAGE_MAX_BYTES}
           confirmLabel={
             acceptMode === "insert"
-              ? "Utiliser ce média"
-              : "Enregistrer dans la Médiathèque"
+              ? i18nT("utiliser_ce_media_5cc61021")
+              : i18nT("enregistrer_dans_la_mediatheque_113a0c12")
           }
         onClose={() => setLibraryOpen(false)}
         onConfirm={async (items) => {

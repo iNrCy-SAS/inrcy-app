@@ -1,10 +1,12 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type CountState = { accountId: string; count: number | null; error: string };
 
 export function useAdsCampaignCount(enabled: boolean, accountId: string) {
+  const i18nT = useTranslations("mails");
   const [state, setState] = useState<CountState>({ accountId: "", count: null, error: "" });
   const requestRef = useRef<AbortController | null>(null);
   const fetchedAtRef = useRef(0);
@@ -21,17 +23,17 @@ export function useAdsCampaignCount(enabled: boolean, accountId: string) {
       });
       const result = await response.json().catch(() => null) as { total?: unknown } | null;
       if (!response.ok || typeof result?.total !== "number" || !Number.isInteger(result.total) || result.total < 0) {
-        throw new Error("Compteur ADS indisponible. Ouvrez ADS pour réessayer.");
+        throw new Error(i18nT("compteur_ads_indisponible_ouvrez_ads_pour_25e3cda6"));
       }
       if (controller.signal.aborted) return;
       fetchedAtRef.current = Date.now();
       setState({ accountId, count: result.total, error: "" });
     } catch {
       if (!controller.signal.aborted) {
-        setState({ accountId, count: null, error: "Compteur ADS indisponible. Ouvrez ADS pour réessayer." });
+        setState({ accountId, count: null, error: i18nT("compteur_ads_indisponible_ouvrez_ads_pour_25e3cda6") });
       }
     }
-  }, [enabled, accountId]);
+  }, [enabled, accountId, i18nT]);
 
   useEffect(() => {
     fetchedAtRef.current = 0;

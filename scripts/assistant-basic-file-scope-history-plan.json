@@ -1160,7 +1160,7 @@
           "app/dashboard/mails/_components/MailboxHeader.tsx"
         ]
       },
-      "app/dashboard/mails/_components/MailboxHeader.tsx#a:37e9fa8293b960ae:1": {
+      "app/dashboard/mails/_components/MailboxHeader.tsx#a:84ecb1a3b063acca:1": {
         "reason": "Réglages de boîte et signature mail masqués en Basic/Standard, historique Publications indépendant.",
         "gateAnchor": "{!standardMode ? (",
         "gateFiles": [

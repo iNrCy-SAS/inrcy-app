@@ -6751,10 +6751,23 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                       <CalendarMetaIcon />
                     </span>
                   )}
-                  <span>
+                  <span className={styles.scheduledDateLabel}>
                     {isPublishView ? <small>{i18nT("scheduled_date")}</small> : null}
                     <strong>{footerDateLabel}</strong>
                   </span>
+                  {displayedPublicationScheduleItem ? (
+                    <button
+                      type="button"
+                      className={`${styles.dateEditButton} ${styles.scheduleDateEditButton}`}
+                      data-schedule-action="edit-date"
+                      onClick={() => handleScheduleRowReschedule(displayedPublicationScheduleItem)}
+                      disabled={scheduleMutationState === "saving"}
+                      aria-label={i18nT("modifier_la_programmation_2bdd7cdc")}
+                      title={i18nT("modifier_la_programmation_2bdd7cdc")}
+                    >
+                      <PencilActionIcon />
+                    </button>
+                  ) : null}
                 </div> : null}
                 {selected.key === "stats" ? (
                   <div className={styles.statsFooterNote}>

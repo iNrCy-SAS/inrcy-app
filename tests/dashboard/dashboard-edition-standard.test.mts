@@ -524,11 +524,11 @@ test("le cockpit reflète le parcours communication et les bilans utilisent le b
     /Production de prospects et de clients dès qu.un module est connecté/,
   );
   assert.doesNotMatch(publicationResultModalSource, /canal\$\{[^\n]*"aux/);
-  assert.match(publicationResultModalSource, /\$\{publishedCount\} publication\$\{publishedCount > 1 \? "s" : ""\} en ligne/);
-  assert.match(publicationResultModalSource, /\$\{publishedCount\}\/\$\{totalCount\} publié\$\{publishedCount > 1 \? "s" : ""\}/);
+  assert.match(publicationResultModalSource, /i18nT\("execution_result_online", \{ count: publishedCount \}\)/);
+  assert.match(publicationResultModalSource, /i18nT\("execution_result_compact_count", \{ count: publishedCount, total: totalCount \}\)/);
   assert.match(publicationResultModalSource, /data-publication-result-footer>[\s\S]*<PublicationResultSummary summary=\{summary\} publicationDestinations=\{publicationDestinations\} compact/);
   assert.match(publicationResultModalSource, /!embedded \? <PublicationResultSummary/);
-  assert.match(publicationResultModalSource, /retryableFailureCount > 1 \? "canaux" : "canal"/);
+  assert.match(publicationResultModalSource, /i18nT\("execution_result_retry", \{ count: retryableFailureCount \}\)/);
 });
 
 test("les cartes Premium conservent leurs couleurs propres sans assombrissement global final", () => {

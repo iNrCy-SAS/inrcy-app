@@ -6,13 +6,15 @@ import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
+import { IntlMessageFormat } from "intl-messageformat";
 import * as storyRetry from "../../lib/publicationStorySequenceRetry.ts";
 import { classifyBoosterPublicationResult } from "../../lib/boosterPublicationOutcome.ts";
 import { isBoosterPublishFailureRetryable } from "../../lib/boosterPublicationPolicy.ts";
 
 const nodeRequire = createRequire(import.meta.url);
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
-const messages = JSON.parse(read("messages/fr-FR/booster.json")) as Record<string, string>;
+let activeLocale = "fr-FR";
+const catalogs = Object.fromEntries(["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"].map((locale) => [locale, JSON.parse(read(`messages/${locale}/booster.json`)) as Record<string, string>]));
 const load = (path: string, dependencies: Record<string, any>, globals: Record<string, unknown> = {}) => {
   const exports: Record<string, any> = {};
   const code = ts.transpileModule(read(path), { compilerOptions: {
@@ -32,7 +34,12 @@ const wizard = {
   PublishWizardScreen: ({ children }: any) => createElement("section", { "data-wizard-screen": "results" }, children),
 };
 const cssModule = { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
-const intl = { useTranslations: () => (key: string, values: Record<string, unknown> = {}) => (messages[key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values[name] ?? "")) };
+const intl = { useLocale: () => activeLocale, useTranslations: () => (key: string, values: Record<string, string | number> = {}) => new IntlMessageFormat(catalogs[activeLocale][key] || key, activeLocale).format(values) };
+const userFacingErrors = load("lib/userFacingErrors.ts", {
+  "@/lib/appLanguage": load("lib/appLanguage.ts", {}),
+  "@/lib/publicationErrorFrench": load("lib/publicationErrorFrench.ts", {}),
+  "@/lib/metaGraphErrorClassification": load("lib/metaGraphErrorClassification.ts", {}),
+});
 const resultDependencies = {
   "@/lib/publicationStorySequenceRetry": storyRetry,
   "./DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ metaPilotEnabled: true }) },
@@ -40,6 +47,7 @@ const resultDependencies = {
   "next-intl": intl,
   "../booster/publier/components/PublishWizardFrame": wizard,
   "@/lib/publicationErrorFrench": load("lib/publicationErrorFrench.ts", {}),
+  "@/lib/userFacingErrors": userFacingErrors,
   "@/lib/boosterPublicationStatus": load("lib/boosterPublicationStatus.ts", {}),
   "./PublishExecutionResultModal.module.css": cssModule,
   "./PublishExecutionProgress.module.css": cssModule,
@@ -372,4 +380,53 @@ test("standalone results retain their scroll lock and restore prior focus on unm
   assert.equal(document.documentElement.style.overflow, "auto");
   assert.equal(document.body.style.overflow, "scroll");
   assert.deepEqual(focusCalls, [{ preventScroll: true }]);
+});
+
+test("standalone, embedded and compact results render localized copy and real ICU plurals in all nine languages", () => {
+  const summary = { entries: [
+    { channel: "site_web", label: "Site Web", status: "published", ok: true },
+    { channel: "facebook", label: "Facebook", status: "published_with_warning", ok: true },
+    { channel: "tiktok", label: "TikTok", status: "processing", ok: true },
+    { channel: "x", label: "X", status: "failed", ok: false, retryable: true },
+    { channel: "youtube", label: "YouTube", status: "skipped", ok: false },
+  ] };
+  try {
+    for (const locale of Object.keys(catalogs)) {
+      activeLocale = locale;
+      const format = (key: string, values: Record<string, string | number> = {}) => new IntlMessageFormat(catalogs[locale][key], locale).format(values) as string;
+      const html = render(summary, { onRetryFailed() {} });
+      const embedded = render(summary, { embedded: true });
+      const footer = renderCompactActions(summary);
+      assert.ok(html.includes(format("execution_result_online", { count: 2 })), locale);
+      assert.ok(footer.includes(format("execution_result_compact_count", { count: 2, total: 5 })), locale);
+      assert.ok(html.includes(format("execution_result_published_warning")), locale);
+      assert.ok(html.includes(format("execution_result_not_sent")), locale);
+      assert.ok(embedded.includes(format("execution_result_ready")), locale);
+      assert.ok(footer.includes(format("execution_result_retry", { count: 1 })), locale);
+      for (const output of [html, embedded, footer]) {
+        assert.doesNotMatch(output, /execution_(?:result|progress)_|\{count[,}]|\{channel\}/, locale);
+        if (locale !== "fr-FR") assert.doesNotMatch(output, /Bilan prêt|en traitement|à revoir|Retenter|canaux en échec|Publié avec avertissement|Site Web/, locale);
+      }
+    }
+    activeLocale = "en-GB";
+    assert.match(renderCompactActions({ retryableFailureCount: 2 }), /Retry 2 failed channels/);
+    assert.match(render({ entries: [{ channel: "facebook", label: "Facebook", status: "published", ok: true }] }), /1 post live/);
+  } finally {
+    activeLocale = "fr-FR";
+  }
+});
+
+test("English failure details localize known error classes and preserve unknown actionable provider responses in a disclosure", () => {
+  activeLocale = "en-GB";
+  try {
+    const known = render({ entries: [{ channel: "facebook", label: "Facebook", status: "failed", ok: false, error: "rate limit exceeded" }] });
+    assert.match(known, /The service is busy right now/);
+    assert.doesNotMatch(known, /Le service est|Merci de/);
+    const unknown = render({ entries: [{ channel: "youtube", label: "YouTube", status: "skipped", ok: false, blockers: ["Vidéo obligatoire, format vertical 9:16"] }] });
+    assert.match(unknown, /YouTube is not ready to publish/);
+    assert.match(unknown, /<details[^>]*><summary>Technical details · original response<\/summary><p>Vidéo obligatoire, format vertical 9:16<\/p><\/details>/);
+    assert.doesNotMatch(unknown, /<details[^>]*\bopen\b/);
+  } finally {
+    activeLocale = "fr-FR";
+  }
 });

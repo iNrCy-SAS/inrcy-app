@@ -1899,6 +1899,7 @@ export default function PublishModal({
     imageSettingsByChannel: channelImageEditors as Record<string, unknown>,
     onError: setImgError,
     onPreparedMedia: handlePreparedWorkspaceMedia,
+    translate: runtimeT,
   });
   const legacyMediaCutoverClientAvailable =
     persistentMediaWorkspaceEnabled &&
@@ -5046,7 +5047,7 @@ export default function PublishModal({
       videoStorageContext?.publicUrl || videoStorageContext?.url || "",
     ).trim();
     if (!videoFile && !currentDurableSourceUrl && !videoPreviewUrl) {
-      setImgError("Cette vidéo n’est plus disponible pour cette action.");
+      setImgError(runtimeT("persistent_video_unavailable"));
       return;
     }
 
