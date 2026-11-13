@@ -2036,7 +2036,7 @@
     "tests/dashboard/account-local-controls-browser.test.mts": "a1b4d0ac2a4086cab2c8fe6e60bbc38f067187fd32a4def65b4682c7523e9372",
     "tests/dashboard/badge-logo-theme-browser.test.mts": "fda7a92273e9b859739d361806e07f2585b6c388b1f28914b00ef08262b49d40",
     "tests/dashboard/booster-result-render-runtime.test.mts": "25247906ed4fd89b9953a5dcb1e98cad535e09810aaa3ffafa84b5995644574b",
-    "tests/dashboard/channel-actions-hover-browser.test.mts": "5d417f5a272957c91b36e4ac31a2d6ce679202aadc55f939a3594e9378d6f674",
+    "tests/dashboard/channel-actions-hover-browser.test.mts": "94de8666974201834ec13aca15f9d08fc271879d54b2522de32af5e617813075",
     "tests/dashboard/channel-bubble-workspace-runtime.test.mts": "2d8759d71db1471bb8f96bf179feac589da3e583061d53d207d3a37576f8a88f",
     "tests/dashboard/channels-mobile-dock-runtime.test.mts": "fcb4361157634d58a4418c31bdfc8a70683b94db0800553836123fc2d86a806b",
     "tests/dashboard/dashboard-assistant-chat-runtime.test.mts": "61ca967aa6e70afd2ecdcf710932de711315602af0f02135f8e7482fc24dbab9",

@@ -70,11 +70,11 @@ const bubbleClasses = classes["app/dashboard/_components/DashboardChannelBubble.
 const modalClasses = classes["app/dashboard/_components/DashboardChannelsModal.module.css"];
 const messages = { dashboard: JSON.parse(read("messages/fr-FR/dashboard.json")), shell: JSON.parse(read("messages/fr-FR/shell.json")) };
 
-async function setup(page: Page) {
+async function setup(page: Page, arrivalDurationMs?: number) {
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/*", route => route.abort());
-  await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${read("app/globals.css").replace(/^@import[^;]+;/gm, "")}\n${styleTexts.join("\n")}</style></head><body><div id="root"></div></body></html>`);
+  await page.setContent(`<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>${read("app/globals.css").replace(/^@import[^;]+;/gm, "")}\n${styleTexts.join("\n")}\n${arrivalDurationMs ? `.${modalClasses.dialog} { animation-duration: ${arrivalDurationMs}ms; }` : ""}</style></head><body><div id="root"></div></body></html>`);
   await page.addScriptTag({ content: `
     const sources=${JSON.stringify(sources)},aliases=${JSON.stringify(aliases)},classes=${JSON.stringify(classes)},messages=${JSON.stringify(messages)},cache={},process={env:{NODE_ENV:'development'}};
     function require(name){
@@ -98,8 +98,17 @@ async function setup(page: Page) {
     const item={key:'pinterest',name:'Pinterest',description:'Inspire vos clients',accent:'pink',logoSrc:'/pinterest.png',logoAlt:'Pinterest',bubbleStatus:'connected',bubbleStatusText:'Connecté',onConfigure(){},viewAction:{label:'Voir',onClick(){window.fixtureCalls.view++}},connection:{accountConnected:true,accountLabel:'marilyndintrieur',resourceLabel:'actualité',value:'board',options:[{value:'board',label:'actualité'}],onSelect(){},onDisconnect(){window.fixtureCalls.disconnect++},parameters:React.createElement('div',null,'Tableaux'),publicLinks:React.createElement('input',{'aria-label':'Lien Pinterest',defaultValue:'https://pinterest.com/example'})}};
     require('react-dom/client').createRoot(document.getElementById('root')).render(React.createElement(Modal,{items:[item],initialSelectedKey:'pinterest',onClose(){window.fixtureCalls.close++}}));
   ` });
-  await page.locator("dialog[open]").waitFor();
-  await page.waitForTimeout(500); // Complete the modal entrance before measuring hit areas.
+  const dialog = page.locator("dialog[open]");
+  await dialog.waitFor();
+  await dialog.evaluate(async element => {
+    await document.fonts.ready;
+    // A wall-clock delay does not establish the animation's start frame under
+    // CI load. Wait for the real finite entrance, leaving the halo and every
+    // hover/focus effect running for the stability assertions below.
+    const entrance = element.getAnimations().filter(animation => animation instanceof CSSAnimation && animation.animationName === "modalArrival");
+    await Promise.all(entrance.map(animation => animation.finished));
+    await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  });
   assert.deepEqual(errors, []);
   const article = page.locator('[data-channel-bubble="pinterest"]');
   const actions = article.locator(`.${bubbleClasses.iconActions} > .${bubbleClasses.iconAction}`);
@@ -170,19 +179,27 @@ test("keyboard focus and the public-link popover preserve the stable action row"
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage({ viewport: { width: 1366, height: 700 } });
-    const { actions, errors } = await setup(page);
+    // Reproduce a delayed entrance deterministically: the former 500ms setup
+    // sampled its ancestor's scale mid-animation and falsely blamed focus.
+    const { actions, errors } = await setup(page, 2400);
     await page.mouse.move(5, 5);
     for (let index = 0; index < 4; index++) {
       const action = actions.nth(index);
       await action.focus();
-      const before = await action.boundingBox();
+      const sample = () => action.evaluate(element => {
+        const rect = element.getBoundingClientRect(), dialog = element.closest("dialog")!;
+        return { rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+          fontStatus: document.fonts.status, dialogTransform: getComputedStyle(dialog).transform,
+          entrance: dialog.getAnimations().filter(animation => animation instanceof CSSAnimation && animation.animationName === "modalArrival").map(animation => ({ playState: animation.playState, currentTime: animation.currentTime, progress: animation.effect?.getComputedTiming().progress })) };
+      });
+      const before = await sample();
       await page.waitForTimeout(300);
-      const after = await action.boundingBox();
-      assert.ok(before && after, "the focused action remains rendered");
-      // Chromium can quantize a transformed ancestor by a fraction of a CSS
-      // pixel across platforms. This still rejects the former 1.5–7px jumps.
+      const after = await sample();
+      // Keep the same subpixel bound; the setup must finish the entrance rather
+      // than hide a real 1.5–7px hover/focus regression behind a wider tolerance.
       for (const coordinate of ["x", "y", "width", "height"] as const) {
-        assert.ok(Math.abs(after[coordinate] - before[coordinate]) < .1, `keyboard focus cannot move the action ${coordinate}`);
+        const delta = Math.abs(after.rect[coordinate] - before.rect[coordinate]);
+        assert.ok(delta < .1, `keyboard focus cannot move the action ${coordinate}: ${JSON.stringify({ action: index, coordinate, delta, before, after })}`);
       }
       assert.equal(await action.evaluate(element => element === document.activeElement), true);
     }
