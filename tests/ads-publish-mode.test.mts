@@ -1,3 +1,5 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
+import { withUiCopy } from "./helpers/localized-ui-source.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -74,12 +76,12 @@ test("le serveur refuse les formats que les connecteurs Google, Meta et Pinteres
   } as Parameters<typeof unsupportedAdsConnectorReason>[0];
 
   assert.equal(unsupportedAdsConnectorReason({ ...meta, provider: "google", campaignType: "search" }), null);
-  assert.match(unsupportedAdsConnectorReason({ ...meta, provider: "google", campaignType: "performance_max" }) || "", /Réseau de recherche/);
-  assert.match(unsupportedAdsConnectorReason({ ...meta, provider: "google", campaignType: "search", bidStrategy: "target_roas" }) || "", /CPA\/ROAS/);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({ ...meta, provider: "google", campaignType: "performance_max" }) || ""), /Réseau de recherche/);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({ ...meta, provider: "google", campaignType: "search", bidStrategy: "target_roas" }) || ""), /CPA\/ROAS/);
   assert.equal(unsupportedAdsConnectorReason(meta), null);
-  assert.match(unsupportedAdsConnectorReason({ ...meta, campaignType: "meta_leads" }) || "", /Trafic/);
-  assert.match(unsupportedAdsConnectorReason({ ...meta, conversionLocation: "instant_form" }) || "", /site web/);
-  assert.match(unsupportedAdsConnectorReason({ ...meta, conversionGoal: "quote_request" }) || "", /visites/);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({ ...meta, campaignType: "meta_leads" }) || ""), /Trafic/);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({ ...meta, conversionLocation: "instant_form" }) || ""), /site web/);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({ ...meta, conversionGoal: "quote_request" }) || ""), /visites/);
   assert.equal(unsupportedAdsConnectorReason({ ...meta, metaPlacements: ["facebook_feed"] }), null);
   assert.equal(unsupportedAdsConnectorReason({
     ...meta,
@@ -95,25 +97,25 @@ test("le serveur refuse les formats que les connecteurs Google, Meta et Pinteres
       storyReelImageUrl: "https://example.com/meta-story.jpg",
     },
   }), null);
-  assert.match(unsupportedAdsConnectorReason({
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({
     ...meta,
     metaPlacements: ["facebook_feed", "stories"],
-  }) || "", /Story\/Reel 9:16/);
-  assert.match(unsupportedAdsConnectorReason({
+  }) || ""), /Story\/Reel 9:16/);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({
     ...meta,
     metaPlacements: ["facebook_feed"],
     imageUrl: "",
     metaCreativeAssets: { feedImageUrl: "", storyReelImageUrl: "" },
-  }) || "", /Feed 4:5/);
-  assert.match(unsupportedAdsConnectorReason({ ...meta, metaPlacements: ["messenger"] }) || "", /pas Messenger/);
-  assert.match(unsupportedAdsConnectorReason({ ...meta, metaPlacements: [] }) || "", /au moins un placement/);
+  }) || ""), /Feed 4:5/);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({ ...meta, metaPlacements: ["messenger"] }) || ""), /pas Messenger/);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({ ...meta, metaPlacements: [] }) || ""), /au moins un placement/);
   assert.equal(unsupportedAdsConnectorReason({
     ...meta,
     metaCreativeAssets: undefined,
   }), null, "un ancien brouillon Feed garde imageUrl comme repli");
-  assert.match(unsupportedAdsConnectorReason({ ...meta, callToAction: "" }) || "", /En savoir plus/);
-  assert.match(unsupportedAdsConnectorReason({ ...meta, callToAction: "Demander un devis" }) || "", /En savoir plus/);
-  assert.match(unsupportedAdsConnectorReason({ ...meta, mediaStrategy: "video" }) || "", /image/);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({ ...meta, callToAction: "" }) || ""), /En savoir plus/);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({ ...meta, callToAction: "Demander un devis" }) || ""), /En savoir plus/);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({ ...meta, mediaStrategy: "video" }) || ""), /image/);
   const pinterest = {
     ...meta,
     provider: "pinterest",
@@ -130,8 +132,8 @@ test("le serveur refuse les formats que les connecteurs Google, Meta et Pinteres
     },
   } as Parameters<typeof unsupportedAdsConnectorReason>[0];
   assert.equal(unsupportedAdsConnectorReason(pinterest), null);
-  assert.match(unsupportedAdsConnectorReason({ ...pinterest, keywords: ["idée cadeau"] }) || "", /mots-clés/i);
-  assert.match(unsupportedAdsConnectorReason({
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({ ...pinterest, keywords: ["idée cadeau"] }) || ""), /mots-clés/i);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason({
     ...pinterest,
     channelSettings: {
       schemaVersion: 1,
@@ -142,7 +144,7 @@ test("le serveur refuse les formats que les connecteurs Google, Meta et Pinteres
       targetingMode: "keywords",
       conversionEvent: null,
     },
-  } as Parameters<typeof unsupportedAdsConnectorReason>[0]) || "", /mots-clés/);
+  } as Parameters<typeof unsupportedAdsConnectorReason>[0]) || ""), /mots-clés/);
   const unsupportedPinterest = {
     ...pinterest,
     channelSettings: {
@@ -155,10 +157,10 @@ test("le serveur refuse les formats que les connecteurs Google, Meta et Pinteres
       conversionEvent: "CHECKOUT",
     },
   } as Parameters<typeof unsupportedAdsConnectorReason>[0];
-  assert.match(unsupportedAdsConnectorReason(unsupportedPinterest) || "", /Notoriété et Considération/);
+  assert.match(withUiCopy(unsupportedAdsConnectorReason(unsupportedPinterest) || ""), /Notoriété et Considération/);
 
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
-  assert.match(route, /code: "ADS_CONNECTOR_UNSUPPORTED_CONFIGURATION"[\s\S]*?status: 422/);
+  assert.match(withUiCopy(route), /code: "ADS_CONNECTOR_UNSUPPORTED_CONFIGURATION"[\s\S]*?status: 422/);
   assert.ok(route.indexOf("unsupportedAdsConnectorReason(draft)") < route.indexOf("listAdsAccounts(user.activeUserId, draft.provider)"));
   assert.ok(route.indexOf("unsupportedAdsConnectorReason(draft)") < route.indexOf('supabaseAdmin.rpc("inrcy_claim_ads_draft_for_publish"'));
   assert.ok(route.indexOf("listAdsAccounts(user.activeUserId, draft.provider)") < route.indexOf('supabaseAdmin.rpc("inrcy_claim_ads_draft_for_publish"'));
@@ -180,24 +182,24 @@ test("les adaptateurs Google, Meta et Pinterest s’arrêtent avant toute activa
   const pinterest = readFileSync(new URL("../lib/adsPinterestCampaignPublish.ts", import.meta.url), "utf8");
   const pinterestContract = readFileSync(new URL("../lib/adsPinterestPublish.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
-  assert.match(google, /if \(options\.activate === false\) return paused;/);
-  assert.match(meta, /prepareMetaAdsPublication\(userId, draft, options\.activate !== false\)/);
-  assert.match(metaCore, /if \(!input\.activate\) \{/);
-  assert.match(pinterest, /if \(options\.activate !== false\)/);
-  assert.match(pinterest, /stage: "paused"/);
-  assert.match(pinterest, /buildPinterestActivationSteps/);
+  assert.match(withUiCopy(google), /if \(options\.activate === false\) return paused;/);
+  assert.match(withUiCopy(meta), /prepareMetaAdsPublication\(userId, draft, options\.activate !== false\)/);
+  assert.match(withUiCopy(metaCore), /if \(!input\.activate\) \{/);
+  assert.match(withUiCopy(pinterest), /if \(options\.activate !== false\)/);
+  assert.match(withUiCopy(pinterest), /stage: "paused"/);
+  assert.match(withUiCopy(pinterest), /buildPinterestActivationSteps/);
   assert.ok(pinterestContract.indexOf('stage: "ad_activated"') < pinterestContract.indexOf('stage: "ad_group_activated"'));
   assert.ok(pinterestContract.indexOf('stage: "ad_group_activated"') < pinterestContract.indexOf('stage: "active"'));
-  assert.match(pinterest, /buildPinterestAdOnlyPinBody/);
-  assert.match(route, /const completedStatus = pausedDemo \? "demo_paused" : pausedLaunch \? "paused" : "active"/);
-  assert.match(route, /activate: !createPaused/);
-  assert.match(route, /\.eq\("status", "publishing"\)\s*\.select\("id"\)\.maybeSingle\(\)/);
-  assert.match(route, /if \(error \|\| !data\) throw new Error\("Impossible d’enregistrer les identifiants de la plateforme publicitaire\."\)/);
+  assert.match(withUiCopy(pinterest), /buildPinterestAdOnlyPinBody/);
+  assert.match(withUiCopy(route), /const completedStatus = pausedDemo \? "demo_paused" : pausedLaunch \? "paused" : "active"/);
+  assert.match(withUiCopy(route), /activate: !createPaused/);
+  assert.match(withUiCopy(route), /\.eq\("status", "publishing"\)\s*\.select\("id"\)\.maybeSingle\(\)/);
+  assert.match(withUiCopy(route), /if \(error \|\| !data\) throw new Error\("Impossible d’enregistrer les identifiants de la plateforme publicitaire\."\)/);
   const progressStart = route.indexOf("const persistProgress = async");
   const progressHandler = route.slice(progressStart, route.indexOf("  try {", progressStart));
   assert.ok(progressHandler.indexOf("progress = resources;") >= 0);
   assert.ok(progressHandler.indexOf("progress = resources;") < progressHandler.indexOf('supabaseAdmin.from("ads_campaigns").update('));
-  assert.match(route, /error instanceof MetaAdsPublishError \|\| error instanceof PinterestAdsPublishError[\s\S]*?error\.progress : progress/);
+  assert.match(withUiCopy(route), /error instanceof MetaAdsPublishError \|\| error instanceof PinterestAdsPublishError[\s\S]*?error\.progress : progress/);
 });
 
 test("un préflight Meta, Pinterest ou LinkedIn refusé reste corrigeable sans autoriser un doublon après mutation", () => {
@@ -205,56 +207,56 @@ test("un préflight Meta, Pinterest ou LinkedIn refusé reste corrigeable sans a
   const pinterest = readFileSync(new URL("../lib/adsPinterestCampaignPublish.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
 
-  assert.match(meta, /onProviderMutationStart\?: \(\) => void/);
+  assert.match(withUiCopy(meta), /onProviderMutationStart\?: \(\) => void/);
   assert.ok(
     meta.indexOf("options.onProviderMutationStart?.();") < meta.indexOf("return executeMetaAdsGraphPublish(input,"),
     "la frontière doit être signalée juste avant la séquence de mutations Graph",
   );
-  assert.match(route, /let metaProviderMutationStarted = false/);
-  assert.match(route, /onProviderMutationStart: \(\) => \{ metaProviderMutationStarted = true; \}/);
-  assert.match(route, /const metaRejectedBeforeCreate = draft\.provider === "meta" && !metaProviderMutationStarted[\s\S]*?Object\.keys\(resources\)\.length === 0/);
-  assert.match(route, /status: rejectedBeforeCreate \? "draft" : "needs_review"/);
-  assert.match(route, /provider_resources: rejectedBeforeCreate \? \{\} : withInitialPublishRecovery\(resources, mode\)/);
-  assert.match(pinterest, /onProviderMutationStart\?: \(\) => void/);
+  assert.match(withUiCopy(route), /let metaProviderMutationStarted = false/);
+  assert.match(withUiCopy(route), /onProviderMutationStart: \(\) => \{ metaProviderMutationStarted = true; \}/);
+  assert.match(withUiCopy(route), /const metaRejectedBeforeCreate = draft\.provider === "meta" && !metaProviderMutationStarted[\s\S]*?Object\.keys\(resources\)\.length === 0/);
+  assert.match(withUiCopy(route), /status: rejectedBeforeCreate \? "draft" : "needs_review"/);
+  assert.match(withUiCopy(route), /provider_resources: rejectedBeforeCreate \? \{\} : withInitialPublishRecovery\(resources, mode\)/);
+  assert.match(withUiCopy(pinterest), /onProviderMutationStart\?: \(\) => void/);
   assert.ok(
     pinterest.indexOf("options.onProviderMutationStart?.();") < pinterest.indexOf("return pinterestAdsRequest(accessToken, path, method, body);"),
     "la frontière Pinterest doit être signalée juste avant la première mutation fournisseur",
   );
-  assert.match(route, /let pinterestProviderMutationStarted = false/);
-  assert.match(route, /onProviderMutationStart: \(\) => \{ pinterestProviderMutationStarted = true; \}/);
-  assert.match(route, /const pinterestRejectedBeforeCreate = draft\.provider === "pinterest"[\s\S]*?Object\.keys\(resources\)\.length === 0/);
-  assert.match(route, /const linkedinRejectedBeforeCreate = draft\.provider === "linkedin"\s*&& \(error instanceof LinkedInAdsPublishError \? error\.retrySafe : !linkedinProviderMutationStarted\)\s*&& !hasLinkedInAdsPublicationResources\(resources\)/);
-  assert.match(route, /const openaiRejectedBeforeCreate = draft\.provider === "openai" && openaiDraftRetrySafe/);
-  assert.match(route, /const rejectedBeforeCreate = googleRejectedBeforeCreate \|\| metaRejectedBeforeCreate\s*\|\| pinterestRejectedBeforeCreate \|\| linkedinRejectedBeforeCreate \|\| openaiRejectedBeforeCreate;/);
+  assert.match(withUiCopy(route), /let pinterestProviderMutationStarted = false/);
+  assert.match(withUiCopy(route), /onProviderMutationStart: \(\) => \{ pinterestProviderMutationStarted = true; \}/);
+  assert.match(withUiCopy(route), /const pinterestRejectedBeforeCreate = draft\.provider === "pinterest"[\s\S]*?Object\.keys\(resources\)\.length === 0/);
+  assert.match(withUiCopy(route), /const linkedinRejectedBeforeCreate = draft\.provider === "linkedin"\s*&& \(error instanceof LinkedInAdsPublishError \? error\.retrySafe : !linkedinProviderMutationStarted\)\s*&& !hasLinkedInAdsPublicationResources\(resources\)/);
+  assert.match(withUiCopy(route), /const openaiRejectedBeforeCreate = draft\.provider === "openai" && openaiDraftRetrySafe/);
+  assert.match(withUiCopy(route), /const rejectedBeforeCreate = googleRejectedBeforeCreate \|\| metaRejectedBeforeCreate\s*\|\| pinterestRejectedBeforeCreate \|\| linkedinRejectedBeforeCreate \|\| openaiRejectedBeforeCreate;/);
 });
 
 test("le connecteur Search transmet les réseaux Google choisis dans le studio", () => {
   const google = readFileSync(new URL("../lib/adsGooglePublish.ts", import.meta.url), "utf8");
-  assert.match(google, /targetSearchNetwork: draft\.googleSearchPartners/);
-  assert.doesNotMatch(google, /targetPartnerSearchNetwork:\s*draft\.googleSearchPartners/);
-  assert.match(google, /targetContentNetwork: draft\.googleDisplayExpansion/);
+  assert.match(withUiCopy(google), /targetSearchNetwork: draft\.googleSearchPartners/);
+  assert.doesNotMatch(withUiCopy(google), /targetPartnerSearchNetwork:\s*draft\.googleSearchPartners/);
+  assert.match(withUiCopy(google), /targetContentNetwork: draft\.googleDisplayExpansion/);
 });
 
 test("le connecteur Search vérifie les zones saisies avant toute mutation", () => {
   const google = readFileSync(new URL("../lib/adsGooglePublish.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
-  assert.match(google, /geo_target_constant\.canonical_name/);
-  assert.match(google, /draft\.targetLocations/);
-  assert.match(google, /locationCriterionResourceNames/);
-  assert.match(google, /resolveGoogleTargetLocations\(/);
-  assert.match(google, /countryCode: "FR"/);
-  assert.match(google, /coveredByFrance/);
-  assert.match(route, /code: error\.code, error: error\.message \}, \{ status: 422 \}/);
+  assert.match(withUiCopy(google), /geo_target_constant\.canonical_name/);
+  assert.match(withUiCopy(google), /draft\.targetLocations/);
+  assert.match(withUiCopy(google), /locationCriterionResourceNames/);
+  assert.match(withUiCopy(google), /resolveGoogleTargetLocations\(/);
+  assert.match(withUiCopy(google), /countryCode: "FR"/);
+  assert.match(withUiCopy(google), /coveredByFrance/);
+  assert.match(withUiCopy(route), /code: error\.code, error: error\.message \}, \{ status: 422 \}/);
   assert.ok(route.indexOf("preparedGoogleTargetLocations = await resolveGoogleTargetLocations(") < route.indexOf('supabaseAdmin.rpc("inrcy_claim_ads_draft_for_publish"'));
-  assert.match(route, /preparedTargetLocations: preparedGoogleTargetLocations/);
+  assert.match(withUiCopy(route), /preparedTargetLocations: preparedGoogleTargetLocations/);
 });
 
 test("la confirmation finale impose la déclaration, un statut disponible et la validation avant de réenregistrer ou publier", async () => {
   const dialog = readFileSync(new URL("../app/dashboard/ads/AdsCampaignDemoDialog.tsx", import.meta.url), "utf8");
   const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
-  assert.match(dialog, /checked=\{declarationChecked\}/);
-  assert.match(dialog, /disabled=\{busy \|\| !declarationChecked \|\| \(launchStatus === "active" \? !activeEnabled : !pausedEnabled\)\}/);
-  assert.match(dialog, /Statut au lancement/);
+  assert.match(withUiCopy(dialog), /checked=\{declarationChecked\}/);
+  assert.match(withUiCopy(dialog), /disabled=\{busy \|\| !declarationChecked \|\| \(launchStatus === "active" \? !activeEnabled : !pausedEnabled\)\}/);
+  assert.match(withUiCopy(dialog), /Statut au lancement/);
   const source = ts.createSourceFile("AdsClient.tsx", client, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const findHandler = (node: ts.Node): ts.FunctionDeclaration | undefined => {
     if (ts.isFunctionDeclaration(node) && node.name?.text === "confirmCampaignLaunch") return node;
@@ -283,7 +285,7 @@ test("la confirmation finale impose la déclaration, un statut disponible et la 
     readJson: async (value: unknown) => value,
   };
   const compiled = ts.transpileModule(confirmSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-  const confirm = new Function(...Object.keys(scope), `${compiled}; return confirmCampaignLaunch;`)(...Object.values(scope));
+  const confirm = new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}; return confirmCampaignLaunch;`)(...Object.values(withAdsRuntime(scope)));
   await confirm();
   assert.deepEqual(calls, ["validation"], "invalid drafts must not be saved or published after confirmation");
 });
@@ -310,7 +312,7 @@ test("une modale sans déclaration ou dont le brouillon préparé a changé ne p
       fetch: () => { calls += 1; throw new Error("Aucune requête autorisée"); },
       parseAdsCampaignInput: () => { calls += 1; throw new Error("Le garde doit précéder la validation"); },
     };
-    await new Function(...Object.keys(scope), `${compiled}; return confirmCampaignLaunch;`)(...Object.values(scope))();
+    await new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}; return confirmCampaignLaunch;`)(...Object.values(withAdsRuntime(scope)))();
     assert.equal(calls, 0);
   }
 });
@@ -322,32 +324,32 @@ test("les validations bloquantes restent près des actions, les descriptions ali
   const navigation = client.slice(client.indexOf("{creationPath !== \"choice\" && <div className={styles.wizardNavigation}"));
   const finalActions = client.slice(client.indexOf("<div className={styles.studioFinalActions}"), client.indexOf("</section>", client.indexOf("<div className={styles.studioFinalActions}")));
 
-  assert.doesNotMatch(destinationReview, /type="checkbox"/);
-  assert.match(navigation, /wizardNextGroup[\s\S]*?wizardRequiredCheck[\s\S]*?Je confirme ce lien[\s\S]*?Suivant →/);
-  assert.match(finalActions, /studioRequiredCheck[\s\S]*?Obligatoire avant création sur Google Ads[\s\S]*?studioFinalActionButtons[\s\S]*?Enregistrer en brouillon[\s\S]*?studioLaunchGuard[\s\S]*?Lancer la campagne/);
-  assert.match(finalActions, /data-tooltip=\{launchBlocked \? launchBlockingMessage : undefined\}/);
-  assert.match(finalActions, /studioLaunchWarning[\s\S]*?⚠/);
-  assert.match(css, /\.googleAdCopyField\{[^}]*align-self:start;align-content:start/);
-  assert.match(css, /\.studioFinalActions \.studioRequiredCheck\{[^}]*width:100%;max-width:none/);
-  assert.match(css, /\.studioLaunchGuard\[data-blocked\]::after\{content:attr\(data-tooltip\)/);
+  assert.doesNotMatch(withUiCopy(destinationReview), /type="checkbox"/);
+  assert.match(withUiCopy(navigation), /wizardNextGroup[\s\S]*?wizardRequiredCheck[\s\S]*?Je confirme ce lien[\s\S]*?Suivant →/);
+  assert.match(withUiCopy(finalActions), /studioRequiredCheck[\s\S]*?Obligatoire avant création sur Google Ads[\s\S]*?studioFinalActionButtons[\s\S]*?Enregistrer en brouillon[\s\S]*?studioLaunchGuard[\s\S]*?Lancer la campagne/);
+  assert.match(withUiCopy(finalActions), /data-tooltip=\{launchBlocked \? adsUiText\(i18nT, launchBlockingMessage\) : undefined\}/);
+  assert.match(withUiCopy(finalActions), /studioLaunchWarning[\s\S]*?⚠/);
+  assert.match(withUiCopy(css), /\.googleAdCopyField\{[^}]*align-self:start;align-content:start/);
+  assert.match(withUiCopy(css), /\.studioFinalActions \.studioRequiredCheck\{[^}]*width:100%;max-width:none/);
+  assert.match(withUiCopy(css), /\.studioLaunchGuard\[data-blocked\]::after\{content:attr\(data-tooltip\)/);
 });
 
 test("le connecteur Search n'ajoute plus de ciblage linguistique manuel mais garde les exclusions", () => {
   const google = readFileSync(new URL("../lib/adsGooglePublish.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(google, /language_constant\.code/);
-  assert.doesNotMatch(google, /resolveGoogleTargetLanguages\(/);
-  assert.doesNotMatch(google, /language: \{ languageConstant:/);
-  assert.match(google, /languageCriterionResourceNames: \[\]/);
-  assert.match(google, /negative: true,[\s\S]*?keyword: googleSearchKeyword\(keyword, deliverySettings\?\.negativeKeywordMatchType \|\| "BROAD"\)/);
-  assert.match(google, /negativeKeywordCriterionResourceNames/);
-  assert.match(google, /const adGroupOffset = 2 \+ targetLocations\.length \+ draft\.negativeKeywords\.length/);
-  assert.match(google, /resourceNameAt\(created, 2 \+ targetLocations\.length \+ index, "campaignCriterionResult"/);
+  assert.doesNotMatch(withUiCopy(google), /language_constant\.code/);
+  assert.doesNotMatch(withUiCopy(google), /resolveGoogleTargetLanguages\(/);
+  assert.doesNotMatch(withUiCopy(google), /language: \{ languageConstant:/);
+  assert.match(withUiCopy(google), /languageCriterionResourceNames: \[\]/);
+  assert.match(withUiCopy(google), /negative: true,[\s\S]*?keyword: googleSearchKeyword\(keyword, deliverySettings\?\.negativeKeywordMatchType \|\| "BROAD"\)/);
+  assert.match(withUiCopy(google), /negativeKeywordCriterionResourceNames/);
+  assert.match(withUiCopy(google), /const adGroupOffset = 2 \+ targetLocations\.length \+ draft\.negativeKeywords\.length/);
+  assert.match(withUiCopy(google), /resourceNameAt\(created, 2 \+ targetLocations\.length \+ index, "campaignCriterionResult"/);
 });
 
 test("les balises de suivi Google sont transmises comme suffixe d’URL, jamais ignorées", () => {
   const google = readFileSync(new URL("../lib/adsGooglePublish.ts", import.meta.url), "utf8");
-  assert.match(google, /googleFinalUrlSuffix\(draft\.trackingParameters\)/);
-  assert.match(google, /\.\.\.\(finalUrlSuffix \? \{ finalUrlSuffix \} : \{\}\)/);
+  assert.match(withUiCopy(google), /googleFinalUrlSuffix\(draft\.trackingParameters\)/);
+  assert.match(withUiCopy(google), /\.\.\.\(finalUrlSuffix \? \{ finalUrlSuffix \} : \{\}\)/);
 });
 
 test("le parcours iNrCy génère réellement le média de campagne via iNr’Studio", () => {
@@ -358,23 +360,23 @@ test("le parcours iNrCy génère réellement le média de campagne via iNr’Stu
   const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
   const mediaPolicy = readFileSync(new URL("../lib/adsCampaignMediaPolicy.ts", import.meta.url), "utf8");
 
-  assert.match(generator, /useMediaGeneration/);
-  assert.match(generator, /source: "studio"/);
-  assert.match(generator, /acceptDraft\(generated\)/);
-  assert.match(generator, /cancelGeneration\(\)/);
-  assert.match(generator, /search_text/);
-  assert.match(mediaPolicy, /product_feed/);
-  assert.match(client, /<AdsCampaignAutoMediaGenerator/);
-  assert.match(client, /iNr’Studio a généré et associé le média de cette campagne/);
+  assert.match(withUiCopy(generator), /useMediaGeneration/);
+  assert.match(withUiCopy(generator), /source: "studio"/);
+  assert.match(withUiCopy(generator), /acceptDraft\(generated\)/);
+  assert.match(withUiCopy(generator), /cancelGeneration\(\)/);
+  assert.match(withUiCopy(generator), /search_text/);
+  assert.match(withUiCopy(mediaPolicy), /product_feed/);
+  assert.match(withUiCopy(client), /<AdsCampaignAutoMediaGenerator/);
+  assert.match(withUiCopy(client), /iNr’Studio a généré et associé le média de cette campagne/);
 });
 
 test("un média privé iNrCy est transformé côté serveur en URL temporaire lisible par Meta", () => {
   const meta = readFileSync(new URL("../lib/adsMetaPublish.ts", import.meta.url), "utf8");
   const core = readFileSync(new URL("../lib/adsMetaPublishCore.ts", import.meta.url), "utf8");
-  assert.match(meta, /verifyMediaLibraryContentToken/);
-  assert.match(meta, /createSafeStorageSignedUrl/);
-  assert.match(meta, /resolveMetaImageUrl/);
-  assert.match(meta, /downloadMetaImageBytes/);
-  assert.match(core, /\/adimages/);
-  assert.match(core, /asset_feed_spec/);
+  assert.match(withUiCopy(meta), /verifyMediaLibraryContentToken/);
+  assert.match(withUiCopy(meta), /createSafeStorageSignedUrl/);
+  assert.match(withUiCopy(meta), /resolveMetaImageUrl/);
+  assert.match(withUiCopy(meta), /downloadMetaImageBytes/);
+  assert.match(withUiCopy(core), /\/adimages/);
+  assert.match(withUiCopy(core), /asset_feed_spec/);
 });

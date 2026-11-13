@@ -1,3 +1,5 @@
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
+import { catalogTranslator } from "../helpers/catalog-translator.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -329,20 +331,21 @@ function clientCallbacks(options: { checkoutResult?: unknown; response?: Respons
   const ast = ts.createSourceFile("BlockedBillingActions.tsx", source("app/compte-bloque/BlockedBillingActions.tsx"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const wanted = new Map<string, string>();
   const visit = (node: ts.Node) => {
-    if (ts.isFunctionDeclaration(node) && node.name && ["apiError", "startCheckout", "openPortal"].includes(node.name.text)) wanted.set(node.name.text, node.getText(ast));
+    if (ts.isFunctionDeclaration(node) && node.name && ["startCheckout", "openPortal"].includes(node.name.text)) wanted.set(node.name.text, node.getText(ast));
     ts.forEachChild(node, visit);
   }; visit(ast);
-  assert.equal(wanted.size, 3);
+  assert.equal(wanted.size, 2);
   const emitted = ts.transpileModule([...wanted.values()].join("\n"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   const busy: boolean[] = [], errors: string[] = [], missing: boolean[] = [], assigned: string[] = [];
   let refreshes = 0;
-  const handlers = new Function("setBusy", "setError", "setSubscriptionNotFound", "router", "cycles", "i18nT", "startSubscriptionCheckout", "fetch", "window",
+  const handlers = new Function("setBusy", "setError", "setSubscriptionNotFound", "router", "cycles", "i18nT", "startSubscriptionCheckout", "fetch", "window", "locale", "getLocalizedApiError", "getLocalizedErrorMessage",
     emitted + "; return {startCheckout,openPortal};")(
     (value: boolean) => busy.push(value), (value: string) => errors.push(value), (value: boolean) => missing.push(value),
-    { refresh() { refreshes++; } }, { Standard: "monthly" }, (key: string) => key,
+    { refresh() { refreshes++; } }, { Standard: "monthly" }, catalogTranslator("public"),
     async () => options.checkoutResult ?? { platform: "web", provider: "stripe" },
     async (path: string, init: RequestInit) => { assert.equal(path, "/api/billing/portal"); assert.equal(init.method, "POST"); return options.response!; },
     { location: { assign(url: string) { assigned.push(url); } } },
+    "fr-FR", userFacingErrorsFixture.getLocalizedApiError, userFacingErrorsFixture.getLocalizedErrorMessage,
   ) as { startCheckout(plan: string): Promise<void>; openPortal(): Promise<void> };
   return { handlers, busy, errors, missing, assigned, get refreshes() { return refreshes; } };
 }
@@ -361,7 +364,7 @@ test("the real blocked-page callback offers resubscription only after the server
 
 test("blocked API errors stay human-readable and a normal portal response redirects without unlocking access", async () => {
   const failed = clientCallbacks({ response: Response.json({ error: "ACCOUNT_BLOCKED", code: "ACCOUNT_BLOCKED" }, { status: 403 }) });
-  await failed.handlers.openPortal(); assert.match(failed.errors.at(-1)!, /Votre accès est suspendu/); assert.deepEqual(failed.missing, []);
+  await failed.handlers.openPortal(); assert.equal(failed.errors.at(-1), userFacingErrorsFixture.getLocalizedErrorMessage({ code: "ACCOUNT_BLOCKED", status: 403 }, "fr-FR")); assert.doesNotMatch(failed.errors.at(-1)!, /ACCOUNT_BLOCKED/); assert.deepEqual(failed.missing, []);
   const opened = clientCallbacks({ response: Response.json({ url: "https://billing.stripe.invalid/session" }) });
   await opened.handlers.openPortal(); assert.deepEqual(opened.assigned, ["https://billing.stripe.invalid/session"]);
   assert.equal(opened.refreshes, 0); assert.deepEqual(opened.missing, []);

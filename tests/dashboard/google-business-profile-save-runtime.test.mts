@@ -9,6 +9,17 @@ import type { InrcyConfirmOptions } from "../../lib/inrcyDialog.ts";
 import * as nativeInterfaces from "../../lib/inrAssistantLocalInterface.ts";
 
 const require = createRequire(import.meta.url);
+function loadErrorDependency(file: string, dependencies: Record<string, unknown> = {}) {
+  const exports: Record<string, unknown> = {};
+  const code = ts.transpileModule(readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+  new Function("require", "exports", code)((name: string) => { assert.ok(name in dependencies, name); return dependencies[name]; }, exports);
+  return exports;
+}
+const userFacingErrors = loadErrorDependency("lib/userFacingErrors.ts", {
+  "@/lib/appLanguage": loadErrorDependency("lib/appLanguage.ts"),
+  "@/lib/publicationErrorFrench": loadErrorDependency("lib/publicationErrorFrench.ts"),
+  "@/lib/metaGraphErrorClassification": loadErrorDependency("lib/metaGraphErrorClassification.ts"),
+});
 type Props = Record<string, unknown>;
 type Element = React.ReactElement<Props>;
 const copy = JSON.parse(readFileSync("messages/fr-FR/dashboard.json", "utf8")).googleBusinessProfile;
@@ -55,7 +66,8 @@ async function fixture(initial: profile.GoogleBusinessProfile = original, failed
   };
   const modules: Record<string, unknown> = {
     react: hooks, "react/jsx-runtime": require("react/jsx-runtime"),
-    "next-intl": { useTranslations: () => translate },
+    "next-intl": { useTranslations: () => translate, useLocale: () => "fr-FR" },
+    "@/lib/userFacingErrors": userFacingErrors,
     "next/navigation": { usePathname: () => "/dashboard" },
     "./DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ actorUserId, activeAccountId: activeAccount }) },
     "../_components/DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ actorUserId, activeAccountId: activeAccount }) },
@@ -134,7 +146,7 @@ test("Basic Google native retry acknowledges a completed scoped profile read and
       h.render(); let settled = false; const retry = h.runLocal("google_profile_reload", "retry").then(ok => { settled = true; return ok; }); await tick(); assert.equal(settled, false);
       h.render(); await tick(); h.render();
       if (failedLoads === 1) assert.equal(await retry, true);
-      else { assert.equal(settled, false); assert.ok(h.render().some(node => node.props.role === "alert" && node.props.children === "Temporary native read failure")); h.switchActor(); assert.equal(await retry, false); }
+      else { assert.equal(settled, false); assert.ok(h.render().some(node => node.props.role === "alert" && /Le service est.*indisponible/.test(String(node.props.children)))); h.switchActor(); assert.equal(await retry, false); }
       assert.equal(h.writes.length, 0); assert.equal(h.confirmations.length, 0);
     } finally { h.unmount(); }
   }
@@ -209,7 +221,7 @@ test("Confirm sends one scoped update and reports success only after Google conf
 test("a failed save retains the draft and shows the error without claiming success", async () => {
   const h = await fixture(); h.edit(); h.submit(); await h.choose(true); await h.respond(false);
   assert.equal(h.save().props.disabled, false);
-  assert.ok(h.render().some(node => node.props.role === "alert" && node.props.children === "Google refused the change"));
+  assert.ok(h.render().some(node => node.props.role === "alert" && node.props.children !== "Google refused the change" && Boolean(node.props.children)));
   assert.equal(h.render().some(node => node.props.role === "status"), false);
 });
 

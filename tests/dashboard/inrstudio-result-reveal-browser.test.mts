@@ -10,7 +10,17 @@ const require = createRequire(import.meta.url);
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
 const compile = (source: string) => ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
 const packageSource = (name: string, file: string) => readFileSync(path.join(path.dirname(require.resolve(`${name}/package.json`)), "cjs", file), "utf8");
+const catalogs = Object.fromEntries(["media", "shell"].map(namespace => [namespace, JSON.parse(read(`messages/fr-FR/${namespace}.json`))]));
+const intlFixture = `
+const formatters=new Map(),translators=new Map();
+function translate(namespace=''){
+ if(translators.has(namespace))return translators.get(namespace);
+ const translator=(key,values={})=>{const fullKey=(namespace?namespace+'.':'')+key,message=fullKey.split('.').reduce((value,part)=>value?.[part],messages);if(typeof message!=='string')throw Error('Missing Studio catalogue message '+fullKey);if(!formatters.has(fullKey))formatters.set(fullKey,new(require('intl-messageformat').IntlMessageFormat)(message,'fr-FR'));return formatters.get(fullKey).format(values)};
+ translators.set(namespace,translator);return translator;
+}
+`;
 const modules = {
+  "intl-messageformat": compile(readFileSync(path.join(path.dirname(require.resolve("intl-messageformat")), "intl-messageformat.iife.js"), "utf8")),
   react: packageSource("react", "react.production.js"), "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   "react-dom": packageSource("react-dom", "react-dom.production.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.production.js"), scheduler: packageSource("scheduler", "scheduler.production.js"),
   workspace: compile(read("app/dashboard/_components/MediaGenerationCreationWorkspace.tsx")),
@@ -21,9 +31,11 @@ const modules = {
   "./DashboardAssistantScreenContext": compile(read("app/dashboard/_components/DashboardAssistantScreenContext.tsx")),
   "./DashboardUnsavedNavigationProvider": compile(read("app/dashboard/_components/DashboardUnsavedNavigationProvider.tsx")),
   ...Object.fromEntries(["inrAssistantLocalInterface", "inrAssistantNativeChannelLinks", "inrAssistantRequestClauses", "inrAssistantAgentSettingsUi", "inrAssistantActionClause"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
+  ...Object.fromEntries(["userFacingErrors", "appLanguage", "publicationErrorFrench", "metaGraphErrorClassification", "aiMediaGenerationPublicErrorI18n", "aiMediaGenerationPublicErrorCopy"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
 };
 const fixture = `
-const sources=${JSON.stringify(modules)},loaded={},messages=${JSON.stringify(JSON.parse(read("messages/fr-FR/media.json")))};
+const sources=${JSON.stringify(modules)},loaded={},messages=${JSON.stringify(catalogs)};
+${intlFixture}
 window.activeAccount='account-a';window.revealCalls=[];
 const originalScroll=Element.prototype.scrollIntoView;
 Element.prototype.scrollIntoView=function(options){if(this.hasAttribute('data-media-review'))window.revealCalls.push(options);return originalScroll.call(this,options)};
@@ -36,7 +48,7 @@ function require(name){
  if(loaded[name])return loaded[name].exports;
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.activeAccount};
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
- if(name==='next-intl')return {useTranslations:()=>key=>messages[key]||key};
+ if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:translate};
  if(name==='next/image')return {__esModule:true,default:({fill,unoptimized,...props})=>React.createElement('img',props)};
  if(name==='@/lib/aiMediaGenerationContracts')return {resolveAiMediaPreviewFormat:({fallback})=>fallback};
  if(name==='@/lib/aiMediaModelCatalog')return {AI_MEDIA_VIDEO_MODELS:[]};
@@ -89,7 +101,8 @@ const nativeSources = {
   ...Object.fromEntries(["aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoSpeechBudget", "aiMediaSpokenScript", "studioInspirationImagePolicy", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices", "aiMediaSoundtrackDefinitions", "inrAssistantStudioFormSelection", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy"].map(name => ["@/lib/" + name, compile(read("lib/" + name + ".ts"))])),
 };
 const nativeFixture = `
-const sources=${JSON.stringify(nativeSources)},loaded={},messages=${JSON.stringify(JSON.parse(read("messages/fr-FR/media.json")))};
+const sources=${JSON.stringify(nativeSources)},loaded={},messages=${JSON.stringify(catalogs)};
+${intlFixture}
 window.activeAccount='account-a';window.revealCalls=[];window.networkCalls=0;
 const noOp=()=>{},originalScroll=Element.prototype.scrollIntoView;
 Element.prototype.scrollIntoView=function(options){if(this.hasAttribute('data-media-review'))window.revealCalls.push(options);return originalScroll.call(this,options)};
@@ -114,7 +127,7 @@ function require(name){
  if(name.endsWith('useInrAssistantLocalClose'))name='localClose';
  if(name.endsWith('.css')){const prefix=name.includes('MobileSelect')?'select-':name.includes('Modal')?'modal-':name.includes('CreationWorkspace')?'editor-':name.includes('ResultViewer')?'viewer-':name.includes('FreeGenerator')?'free-':name.includes('Modifier')?'modifier-':name.includes('Studio')?'studio-':'generator-';return {__esModule:true,default:new Proxy({},{get:(_,key)=>prefix+String(key)})};}
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
- if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:()=> (key,values={})=>String(messages[key]||key).replace(/\\{(\\w+)\\}/g,(_,name)=>String(values[name]??name))};
+ if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:translate};
  if(name==='next/image')return {__esModule:true,default:({fill,unoptimized,...props})=>React.createElement('img',props)};
  if(name==='next/navigation')return {usePathname:()=>location.pathname,useRouter:()=>({replace:noOp,push:noOp}),useSearchParams:()=>new URLSearchParams(location.search)};
  if(name.endsWith('DashboardViewerAccessProvider'))return {useDashboardViewerAccess:()=>({actorUserId:'actor-a',activeAccountId:window.activeAccount})};
@@ -306,11 +319,11 @@ test("native Studio image/video/Modifier remain touch scrollable after completio
       if (kind !== 'video') {
         const canvas = page.locator('[data-media-expanded-canvas]');
         const width = (await canvas.boundingBox())!.width;
-        await page.getByRole('button', { name: 'Zoom +', exact: true }).click();
+        await page.getByRole('button', { name: catalogs.media.viewer_zoom_in, exact: true }).click();
         assert.ok((await canvas.boundingBox())!.width > width * 1.4);
         await swipe(page, 550, 300);
         assert.ok(await page.locator('[data-media-expanded-viewport]').evaluate(element => element.scrollTop) > 30, 'The enlarged image can be panned');
-        await page.getByRole('button', { name: 'Zoom 100 %', exact: true }).click();
+        await page.getByRole('button', { name: catalogs.media.viewer_zoom_reset, exact: true }).click();
         assert.equal((await canvas.boundingBox())!.width, width);
       } else {
         assert.equal(await enlarged.locator('video').getAttribute('controls'), '');

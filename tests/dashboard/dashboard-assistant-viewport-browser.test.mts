@@ -5,6 +5,9 @@ import path from "node:path";
 import test from "node:test";
 import { chromium, type Page } from "@playwright/test";
 import ts from "typescript";
+import { browserCatalogRuntime } from "../helpers/browser-catalog-runtime.mts";
+import { catalogTranslator } from "../helpers/catalog-translator.mts";
+const mediaT = catalogTranslator("media");
 
 const require = createRequire(import.meta.url);
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
@@ -86,6 +89,7 @@ const sources = {
   ...Object.assign({}, ...["inrAssistantUiCommands", "inrAssistantUiActions", "inrAssistantAttachments", "inrAssistantClientContext", "inrAssistantStudioDraft", "inrAssistantStudioHandoff", "inrAssistantAutoContinuation", "inrAssistantAccountDocuments", "inrAssistantNavigationForm", "inrAssistantMediaPreview", "inrAssistantCookieOptions", "inrAssistantNativeChannelLinks", "inrAssistantContentReport", "inrAssistantAgentSettingsNavigation"].map(entry => browserLibSources(entry))),
 };
 const fixture = `
+${browserCatalogRuntime(["dashboard", "shell", "booster", "media", "settings"])}
 window.viewportFixtureError=null;
 window.addEventListener('error',event=>{window.viewportFixtureError=event.error?.message||event.message});
 const sources=${JSON.stringify(sources)}, loaded={};
@@ -94,7 +98,7 @@ function require(name) {
   if(name==='./inrAssistantStudioDraft.ts') return require('@/lib/inrAssistantStudioDraft');
   if(name==='./inrAssistantClientContext.ts') return require('@/lib/inrAssistantClientContext');
   if(name==='./inrAssistantUiCommands.ts') return require('@/lib/inrAssistantUiCommands');
-  if(name==='next-intl') return {useLocale:()=> 'fr-FR'};
+  if(name==='next-intl') return fixtureIntl;
   if(name==='next/image') return {__esModule:true,default:props=>require('react').createElement('img',props)};
   if(name==='next/dynamic') return {__esModule:true,default:()=>()=>null};
   if(name==='next/navigation') return {usePathname:()=>'/dashboard',useSearchParams:()=>new URLSearchParams(),useRouter:()=>({push(){}})};
@@ -131,6 +135,7 @@ require('react-dom/client').createRoot(document.getElementById('root')).render(R
 const css = read("app/dashboard/_components/DashboardAssistantProvider.module.css");
 const studioSources = {
   ...sources,
+  ...browserLibSources("userFacingErrors"),
   studio: compile("app/dashboard/generer-media/MediaGeneratorStudioClient.tsx"),
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaFreeGenerator": compile("app/dashboard/_components/MediaFreeGenerator.tsx"),
@@ -138,6 +143,7 @@ const studioSources = {
   ...Object.fromEntries(["studioVideoRetouchPersistence", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoSpeechBudget", "aiMediaSpokenScript", "studioInspirationImagePolicy", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices", "aiMediaSoundtrackDefinitions", "inrAssistantStudioFormSelection"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
 };
 const studioFixture = `
+${browserCatalogRuntime(["dashboard", "shell", "booster", "media", "settings"])}
 const sources=${JSON.stringify(studioSources)}, loaded={};
 window.fixtureAccount='account-fixture';window.generationCalls=0;window.networkCalls=0;window.transferResult=null;
 const hook={quota:{accountId:'account-fixture',creditsReady:true,credits:{remaining:697},videoMaxDurationSeconds:30},quotaLoading:false,canRecover:false,recoveryContext:null,result:null,busy:false,progress:0,loadQuota(){},reset(){},generate(){window.generationCalls++;throw Error('A free prompt transfer must not generate')}};
@@ -151,7 +157,7 @@ function require(name){
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
  if(name==='./inrAssistantStudioDraft.ts')return require('@/lib/inrAssistantStudioDraft');
  if(name==='next/navigation')return {usePathname:()=>'/dashboard/generer-media',useSearchParams:()=>new URLSearchParams(location.search),useRouter:()=>({replace(){},push(){}})};
- if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:()=>key=>key};
+ if(name==='next-intl')return fixtureIntl;
  if(name==='@/app/dashboard/_components/DashboardViewerAccessProvider')return {useDashboardViewerAccess:()=>({actorUserId:'actor-fixture',activeAccountId:window.fixtureAccount})};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.fixtureAccount};
  if(name==='@/lib/inrStudioNavigation')return {readInrStudioHandoff:()=>null,getInrStudioOriginLabel:()=>null};
@@ -313,30 +319,30 @@ test("free assistant insertion fills the actual Studio prompt and video tab whil
     await begin("video", "Vidéo de mon atelier avec lumière naturelle et une caméra lente.");
     await page.waitForFunction(() => (window as unknown as { transferResult: unknown }).transferResult !== null);
     assert.equal(await page.evaluate(() => (window as unknown as { transferResult: unknown }).transferResult), true, errors.join("\n"));
-    assert.equal(await page.getByRole("radio", { name: "video_304f6ca4" }).getAttribute("aria-checked"), "true");
-    assert.equal(await page.getByRole("textbox", { name: "ai_generator_video_visual_brief_title", exact: true }).inputValue(), "Vidéo de mon atelier avec lumière naturelle et une caméra lente.");
-    await page.getByRole("textbox", { name: "ai_generator_video_visual_brief_title", exact: true }).fill("Mon brouillon à conserver");
-    await page.getByRole("radio", { name: "image_50e19fda" }).click();
-    assert.equal(await page.getByRole("textbox", { name: "ai_generator_free_prompt_label", exact: true }).inputValue(), "Mon brouillon à conserver");
-    await page.getByRole("radio", { name: "video_304f6ca4" }).click();
-    assert.equal(await page.getByRole("textbox", { name: "ai_generator_video_visual_brief_title", exact: true }).inputValue(), "Mon brouillon à conserver");
+    assert.equal(await page.getByRole("radio", { name: mediaT("video_304f6ca4") }).getAttribute("aria-checked"), "true");
+    assert.equal(await page.getByRole("textbox", { name: mediaT("ai_generator_video_visual_brief_title"), exact: true }).inputValue(), "Vidéo de mon atelier avec lumière naturelle et une caméra lente.");
+    await page.getByRole("textbox", { name: mediaT("ai_generator_video_visual_brief_title"), exact: true }).fill("Mon brouillon à conserver");
+    await page.getByRole("radio", { name: mediaT("image_50e19fda") }).click();
+    assert.equal(await page.getByRole("textbox", { name: mediaT("ai_generator_free_prompt_label"), exact: true }).inputValue(), "Mon brouillon à conserver");
+    await page.getByRole("radio", { name: mediaT("video_304f6ca4") }).click();
+    assert.equal(await page.getByRole("textbox", { name: mediaT("ai_generator_video_visual_brief_title"), exact: true }).inputValue(), "Mon brouillon à conserver");
     await begin("image", "Un chat rouge sur fond blanc");
     await page.getByRole("alertdialog").waitFor();
-    await page.getByRole("button", { name: "ai_generator_workspace_reset_cancel", exact: true }).click();
+    await page.getByRole("button", { name: mediaT("ai_generator_workspace_reset_cancel"), exact: true }).click();
     await page.waitForFunction(() => (window as unknown as { transferResult: unknown }).transferResult === false);
-    assert.equal(await page.getByRole("radio", { name: "video_304f6ca4" }).getAttribute("aria-checked"), "true");
-    assert.equal(await page.getByRole("textbox", { name: "ai_generator_video_visual_brief_title", exact: true }).inputValue(), "Mon brouillon à conserver");
+    assert.equal(await page.getByRole("radio", { name: mediaT("video_304f6ca4") }).getAttribute("aria-checked"), "true");
+    assert.equal(await page.getByRole("textbox", { name: mediaT("ai_generator_video_visual_brief_title"), exact: true }).inputValue(), "Mon brouillon à conserver");
     await begin("image", "Un chat rouge sur fond blanc");
     await page.getByRole("alertdialog").waitFor();
-    await page.getByRole("button", { name: "ai_generator_workspace_reset_action", exact: true }).click();
+    await page.getByRole("button", { name: mediaT("ai_generator_workspace_reset_action"), exact: true }).click();
     await page.waitForFunction(() => (window as unknown as { transferResult: unknown }).transferResult === true);
-    assert.equal(await page.getByRole("radio", { name: "image_50e19fda" }).getAttribute("aria-checked"), "true");
-    assert.equal(await page.getByRole("textbox", { name: "ai_generator_free_prompt_label" }).inputValue(), "Un chat rouge sur fond blanc");
+    assert.equal(await page.getByRole("radio", { name: mediaT("image_50e19fda") }).getAttribute("aria-checked"), "true");
+    assert.equal(await page.getByRole("textbox", { name: mediaT("ai_generator_free_prompt_label") }).inputValue(), "Un chat rouge sur fond blanc");
     await begin("video", "Vidéo qui appartient au compte précédent");
     await page.getByRole("alertdialog").waitFor();
     await page.evaluate(() => { (window as unknown as { fixtureAccount: string }).fixtureAccount = "account-other"; window.dispatchEvent(new Event("fixture-account-change")); });
     await page.waitForFunction(() => (window as unknown as { transferResult: unknown }).transferResult === false);
-    assert.notEqual(await page.getByRole("textbox", { name: "ai_generator_free_prompt_label" }).inputValue(), "Vidéo qui appartient au compte précédent");
+    assert.notEqual(await page.getByRole("textbox", { name: mediaT("ai_generator_free_prompt_label") }).inputValue(), "Vidéo qui appartient au compte précédent");
     assert.deepEqual(await page.evaluate(() => ({ generations: (window as unknown as { generationCalls: number }).generationCalls, network: (window as unknown as { networkCalls: number }).networkCalls })), { generations: 0, network: 0 });
     assert.deepEqual(errors, []);
     await page.close();
@@ -348,8 +354,8 @@ test("free assistant insertion fills the actual Studio prompt and video tab whil
     await navigation.goto("https://fixture.invalid/dashboard/generer-media?prefillVideo");
     await navigation.addScriptTag({ content: studioFixture });
     await navigation.waitForFunction(() => document.querySelector<HTMLTextAreaElement>('textarea')?.value === "Vidéo préparée depuis une autre page");
-    assert.equal(await navigation.getByRole("radio", { name: "video_304f6ca4" }).getAttribute("aria-checked"), "true");
-    assert.equal(await navigation.getByRole("textbox", { name: "ai_generator_video_visual_brief_title", exact: true }).inputValue(), "Vidéo préparée depuis une autre page");
+    assert.equal(await navigation.getByRole("radio", { name: mediaT("video_304f6ca4") }).getAttribute("aria-checked"), "true");
+    assert.equal(await navigation.getByRole("textbox", { name: mediaT("ai_generator_video_visual_brief_title"), exact: true }).inputValue(), "Vidéo préparée depuis une autre page");
     assert.match(navigation.url(), /\?assistant_draft=[\da-f-]{36}$/);
     assert.equal(await navigation.getByRole("alertdialog").count(), 0, "An empty Studio needs no draft replacement confirmation");
     assert.deepEqual(await navigation.evaluate(() => ({ generations: (window as unknown as { generationCalls: number }).generationCalls, network: (window as unknown as { networkCalls: number }).networkCalls })), { generations: 0, network: 0 });

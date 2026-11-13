@@ -550,5 +550,6 @@
   "visibility_index_tracking_hint": "De eerste grafiek wordt na één maand vastgelegde waarden ontgrendeld.",
   "visibility_index_recording_method": "Dagelijks wordt een waarde opgeslagen met de gegevens die op die datum beschikbaar zijn. Oude waarden worden nooit herberekend met huidige cijfers. Dagen zonder metingen blijven leeg. Elke periode vereist voldoende recente historie.",
   "visibility_index_rewards_method": "Elke mijlpaal geeft eenmalig Inertia-eenheden om in de winkel te besteden. Basisbonussen: 50 / 100 / 200 / 500 UI. Factor bij ontgrendeling: Basis ×0,5, Standard ×1, Premium ×1,5. Een ander abonnement beloont een behaalde mijlpaal niet opnieuw.",
-  "visibility_index_rewards_history_method": "Beschikbare historische statistieken kunnen mijlpalen met terugwerkende kracht valideren voor oudere accounts. Ze reconstrueren geen eerdere indexwaarden."
+  "visibility_index_rewards_history_method": "Beschikbare historische statistieken kunnen mijlpalen met terugwerkende kracht valideren voor oudere accounts. Ze reconstrueren geen eerdere indexwaarden.",
+  "stats_connect_x": "X koppelen"
 }

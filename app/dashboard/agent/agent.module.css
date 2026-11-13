@@ -1236,6 +1236,16 @@
   backdrop-filter: blur(10px);
 }
 
+.scheduleEditLayer {
+  position: relative;
+  z-index: 10070;
+}
+
+.scheduleEditLayer button[aria-label] {
+  min-width: 44px;
+  min-height: 44px;
+}
+
 .settingsModal {
   position: relative;
   width: min(720px, 100%);
@@ -19222,7 +19232,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 8px;
 }
 
 .scheduleCalendarMetaBadges > * {
@@ -19305,6 +19315,23 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   font-weight: 850;
   line-height: 1;
   white-space: nowrap;
+}
+
+.scheduleCalendarOriginBadge {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 7px;
+  border: 1px solid rgba(125, 211, 252, 0.3);
+  border-radius: 999px;
+  color: #d8f4ff;
+  background: rgba(14, 116, 144, 0.18);
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .scheduleCalendarMediaBadge[data-media="video"] {
@@ -19477,15 +19504,21 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     width: 100%;
     min-width: 0;
     margin: 0;
-    text-align: right;
+    text-align: center;
   }
 
   .scheduleCalendarCardMobileActions summary {
-    min-width: 44px;
-    min-height: 44px;
+    box-sizing: border-box;
+    width: 48px;
+    min-width: 48px;
+    max-width: 48px;
+    height: 48px;
+    min-height: 48px;
+    max-height: 48px;
+    aspect-ratio: 1;
     display: inline-grid;
     place-items: center;
-    padding: 0 14px;
+    padding: 0 2px;
     border: 1px solid rgba(125, 211, 252, 0.46);
     border-radius: 999px;
     color: #f8fbff;
@@ -19496,10 +19529,50 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     );
     box-shadow: inset 0 0 12px rgba(255, 255, 255, 0.08);
     cursor: pointer;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 950;
     line-height: 1;
     list-style: none;
+  }
+
+  .scheduleCalendarCardMobileActions summary > span {
+    max-width: 44px;
+    overflow-wrap: anywhere;
+    line-height: 1.15;
+  }
+
+  .scheduleCalendarMetaBadges > * {
+    height: auto;
+    min-height: 28px;
+  }
+
+  .scheduleCalendarMetaBadges > small,
+  .scheduleCalendarMediaBadge,
+  .scheduleCalendarOriginBadge {
+    min-width: 0;
+    max-width: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 9px;
+    font-size: 11px;
+    line-height: 1.25;
+    text-align: center;
+  }
+
+  .scheduleCalendarMetaBadges > small {
+    border: 1px solid rgba(103, 232, 249, 0.24);
+    border-radius: 999px;
+    color: #cffafe;
+    background: rgba(8, 145, 178, 0.17);
+  }
+
+  .scheduleCalendarChannels summary {
+    min-height: 44px;
+    height: auto;
+    padding: 0 9px;
+    font-size: 11px;
+    line-height: 1.25;
   }
 
   .scheduleCalendarCardMobileActions summary::-webkit-details-marker {
@@ -19525,13 +19598,13 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     min-width: 0;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
+    gap: 2px;
     margin-top: 8px;
-    padding: 8px;
-    border: 1px solid rgba(125, 211, 252, 0.36);
+    padding: 4px;
+    border: 1px solid rgba(125, 211, 252, 0.24);
     border-radius: 12px;
     background: rgba(5, 14, 40, 0.98);
-    box-shadow: 0 16px 32px rgba(2, 6, 23, 0.52);
+    box-shadow: 0 8px 20px rgba(2, 6, 23, 0.32);
   }
 
   .scheduleCalendarCardTopline > .scheduleCalendarCardControls .scheduleIconButton {
@@ -19563,11 +19636,20 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
     align-items: center;
     justify-content: flex-start;
     gap: 10px;
-    padding: 10px;
-    border-radius: 9px;
+    padding: 6px 8px;
+    border-color: transparent;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
     aspect-ratio: auto;
     white-space: normal;
     text-align: left;
+  }
+
+  .scheduleCalendarCardMobileActions > div .scheduleIconButton:hover,
+  .scheduleCalendarCardMobileActions > div .scheduleIconButton:focus-visible {
+    border-color: rgba(125, 211, 252, 0.25);
+    background: rgba(56, 189, 248, 0.1);
   }
 
   .scheduleCalendarCardMobileActions .scheduleIconButton svg {
@@ -19605,7 +19687,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .scheduleCalendarCardMobileActions .scheduleIconButtonLabel {
     display: block;
     min-width: 0;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.3;
     overflow-wrap: anywhere;
     white-space: normal;

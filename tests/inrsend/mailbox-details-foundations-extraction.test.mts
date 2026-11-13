@@ -29,7 +29,8 @@ test("TikTok pending status is shown as processing instead of published with war
   assert.match(foundations, /tiktok_status_check_count/);
   assert.match(foundations, /tiktok_processing_duration_seconds/);
   assert.match(modal, /i18nT\("dernier_controle_value_4a972550"/);
-  assert.match(modal, /i18nT\("code_tiktok_8230f144"\)/);
+  assert.match(modal, /localizedTiktokStatusMessage\(tiktokStatusMeta, runtimeT\)/);
+  assert.doesNotMatch(modal, /\{tiktokStatusMeta\.(?:failReason|providerErrorCode)\}/);
   assert.match(phase1, /normalizedChannel === "tiktok"/);
   assert.match(phase1, /!tiktokTerminal/);
   assert.match(modal, /isWarningChannelResult\([\s\S]*activePublicationEntry\?\.key/);

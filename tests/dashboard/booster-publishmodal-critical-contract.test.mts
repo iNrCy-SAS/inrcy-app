@@ -1,3 +1,4 @@
+import { withUiCopy } from "../helpers/localized-ui-source.mjs";
 import { readFileSync as readSubmissionSource } from "node:fs";
 const submission = readSubmissionSource(new URL("../../app/dashboard/booster/publier/publicationSubmission.ts", import.meta.url), "utf8");
 import { readFileSync as readDraftSessionSource } from "node:fs";
@@ -43,218 +44,218 @@ const tiktokSettingsModal = read(
 );
 
 test("PublishModal keeps the three dedicated media controllers", () => {
-  assert.match(publishModal, /usePersistentMediaWorkspace\(/);
-  assert.match(publishModal, /usePublishImageController\(/);
-  assert.match(publishModal, /usePublishVideoController\(/);
-  assert.match(publishModal, /isUnifiedMediaConsumptionClientEnabled\(\)/);
-  assert.match(publishModal, /isLegacyMediaTransportCutoverClientEnabled\(\)/);
+  assert.match(withUiCopy(publishModal), /usePersistentMediaWorkspace\(/);
+  assert.match(withUiCopy(publishModal), /usePublishImageController\(/);
+  assert.match(withUiCopy(publishModal), /usePublishVideoController\(/);
+  assert.match(withUiCopy(publishModal), /isUnifiedMediaConsumptionClientEnabled\(\)/);
+  assert.match(withUiCopy(publishModal), /isLegacyMediaTransportCutoverClientEnabled\(\)/);
 });
 
 test("generation secures only selected AI sources while publication and scheduling secure their required sources", () => {
-  assert.match(generation, /const shouldPrepareMediaForAi =/);
+  assert.match(withUiCopy(generation), /const shouldPrepareMediaForAi =/);
   assert.match(
-    generation,
+    withUiCopy(generation),
     /shouldPrepareMediaForAi[\s\S]*waitForPersistentWorkspaceReadiness\([\s\S]*"generate"/,
   );
   assert.match(
-    submission,
+    withUiCopy(submission),
     /waitForPersistentWorkspaceReadiness\(\s*"publish"/,
   );
   assert.match(
-    submission,
+    withUiCopy(submission),
     /waitForPersistentWorkspaceReadiness\(\s*"schedule"/,
   );
-  assert.match(draftSession, /loadMediaPublicationWorkspace\(/);
-  assert.match(persistentWorkspace, /prepareMediaPublicationWorkspace\(/);
+  assert.match(withUiCopy(draftSession), /loadMediaPublicationWorkspace\(/);
+  assert.match(withUiCopy(persistentWorkspace), /prepareMediaPublicationWorkspace\(/);
 });
 
 test("strict cutover sends workspace references instead of browser media binaries", () => {
-  assert.match(submission, /mediaWorkspaceId:/);
-  assert.match(submission, /mediaWorkspaceClientKey:/);
-  assert.match(submission, /mediaPipelineCutoverV1:\s*mediaPipelineCutoverEnabled/);
+  assert.match(withUiCopy(submission), /mediaWorkspaceId:/);
+  assert.match(withUiCopy(submission), /mediaWorkspaceClientKey:/);
+  assert.match(withUiCopy(submission), /mediaPipelineCutoverV1:\s*mediaPipelineCutoverEnabled/);
   assert.match(
-    generation,
+    withUiCopy(generation),
     /imagesForAI:\s*mediaPipelineCutoverEnabled\s*\?\s*\[\]\s*:\s*imagesForAI/,
   );
-  assert.match(generation, /imageCount:\s*mediaPipelineCutoverEnabled\s*\?\s*0/);
+  assert.match(withUiCopy(generation), /imageCount:\s*mediaPipelineCutoverEnabled\s*\?\s*0/);
   assert.ok(
     ([publishModal, submission].join("\n").match(/images:\s*\[\]/g) || []).length >= 3,
     "publish, schedule and preview payloads must keep the base binary image array empty",
   );
-  assert.match(generationRoute, /strictMediaCutover/);
-  assert.match(generationRoute, /mediaWorkspaceExpected/);
-  assert.match(publishRoute, /strictMediaCutover/);
+  assert.match(withUiCopy(generationRoute), /strictMediaCutover/);
+  assert.match(withUiCopy(generationRoute), /mediaWorkspaceExpected/);
+  assert.match(withUiCopy(publishRoute), /strictMediaCutover/);
 });
 
 test("legacy uploads stay disabled unless a mixed publication needs the media type absent from the workspace", () => {
   assert.match(
-    submission,
+    withUiCopy(submission),
     /shouldBuildImageFallbackPayload\s*=\s*hasAnyImagePublish\s*&&\s*!workspaceCarriesImagesForPublish/,
   );
   assert.match(
-    submission,
+    withUiCopy(submission),
     /shouldBuildVideoFallbackPayload\s*=\s*hasAnyVideoPublish\s*&&\s*!workspaceCarriesVideoForPublish/,
   );
-  assert.match(submission, /if \(shouldBuildImageFallbackPayload\)/);
-  assert.match(submission, /if \(shouldBuildVideoFallbackPayload\)/);
-  assert.match(submission, /uploadPublicationVideoForPublish\(\)/);
-  assert.match(submission, /uploadOriginalImagesForPublication\(/);
+  assert.match(withUiCopy(submission), /if \(shouldBuildImageFallbackPayload\)/);
+  assert.match(withUiCopy(submission), /if \(shouldBuildVideoFallbackPayload\)/);
+  assert.match(withUiCopy(submission), /uploadPublicationVideoForPublish\(\)/);
+  assert.match(withUiCopy(submission), /uploadOriginalImagesForPublication\(/);
 });
 
 test("cutover delegates video retouching to iNrStudio and keeps server preparation strict", () => {
-  assert.doesNotMatch([publishModal, submission].join("\n"), /directOriginalAvailable/);
-  assert.match(persistentWorkspace, /preparePublicationMedia/);
-  assert.doesNotMatch([publishModal, submission].join("\n"), /prepareCutoverVideoVariants/);
-  assert.doesNotMatch(submission, /ensureCutoverVideoVariantsReady/);
-  assert.match(publishRoute, /if \(strictMediaCutover && hasAnyVideoChannel && publicationVideo\)/);
-  assert.match(publishRoute, /requireCodecProof:\s*true/);
-  assert.match(publishRoute, /prepareBoosterVideoVariantsOnServer\(/);
-  assert.match(publishRoute, /transformedVariants: strictMediaCutover/);
-  assert.match(publishModal, /const openInrStudioVideoRetoucher = async/);
+  assert.doesNotMatch(withUiCopy([publishModal, submission].join("\n")), /directOriginalAvailable/);
+  assert.match(withUiCopy(persistentWorkspace), /preparePublicationMedia/);
+  assert.doesNotMatch(withUiCopy([publishModal, submission].join("\n")), /prepareCutoverVideoVariants/);
+  assert.doesNotMatch(withUiCopy(submission), /ensureCutoverVideoVariantsReady/);
+  assert.match(withUiCopy(publishRoute), /if \(strictMediaCutover && hasAnyVideoChannel && publicationVideo\)/);
+  assert.match(withUiCopy(publishRoute), /requireCodecProof:\s*true/);
+  assert.match(withUiCopy(publishRoute), /prepareBoosterVideoVariantsOnServer\(/);
+  assert.match(withUiCopy(publishRoute), /transformedVariants: strictMediaCutover/);
+  assert.match(withUiCopy(publishModal), /const openInrStudioVideoRetoucher = async/);
   assert.match(
-    publishModal,
+    withUiCopy(publishModal),
     /tab: "retouch",[\s\S]{0,220}origin: "booster-publish"/,
   );
-  assert.match(publishModal, /mediaType: "video"/);
+  assert.match(withUiCopy(publishModal), /mediaType: "video"/);
   assert.match(
-    publishModal,
+    withUiCopy(publishModal),
     /deferVideoPreparation: mediaPipelineCutoverEnabled/,
   );
-  assert.match(publishModal, /onRetouchVideo=\{\(\) => void openInrStudioVideoRetoucher\(activeImageChannel\)\}/);
-  assert.match(videoPanel, /onRetouchVideo\(activeChannel\)/);
-  assert.doesNotMatch(videoPanel, /BoosterVideoFormatManager/);
+  assert.match(withUiCopy(publishModal), /onRetouchVideo=\{\(\) => void openInrStudioVideoRetoucher\(activeImageChannel\)\}/);
+  assert.match(withUiCopy(videoPanel), /onRetouchVideo\(activeChannel\)/);
+  assert.doesNotMatch(withUiCopy(videoPanel), /BoosterVideoFormatManager/);
   assert.match(
-    publishModal,
+    withUiCopy(publishModal),
     /const hasVideoPreparationBlocker =[\s\S]*!mediaPipelineCutoverEnabled/,
   );
   assert.match(
-    videoFormatManager,
+    withUiCopy(videoFormatManager),
     /const appliedFormat = deferTechnicalPreparationUntilPublish[\s\S]*\? currentFormat/,
   );
   assert.match(
-    videoFormatManager,
+    withUiCopy(videoFormatManager),
     /!deferTechnicalPreparationUntilPublish && preparationState/,
   );
   assert.match(
-    videoFormatManager,
+    withUiCopy(videoFormatManager),
     /!deferTechnicalPreparationUntilPublish && onApplyFormat/,
   );
   assert.match(
-    videoFormatManager,
+    withUiCopy(videoFormatManager),
     /!deferTechnicalPreparationUntilPublish &&[\s\S]{0,100}\(onApplyFormat \|\|/,
   );
 });
 
 test("Booster consumes the video settings and variants returned by iNrStudio", () => {
-  assert.match(publishModal, /returnedRecord\.studio_video_retouch === true/);
-  assert.match(publishModal, /returnedRecord\.video_format/);
-  assert.match(publishModal, /returnedRecord\.video_adaptation_mode/);
-  assert.match(publishModal, /returnedRecord\.transformed_variants/);
-  assert.match(publishModal, /setVideoFormatByChannel/);
-  assert.match(publishModal, /setVideoAdaptationModeByChannel/);
-  assert.match(publishModal, /setVideoTransformedVariants\(mergedVariants\)/);
-  assert.match(publishModal, /setVideoStorageContext/);
-  assert.match(intentPanel, /onRetouchVideo/);
-  assert.match(intentPanel, /ai_generator_studio_tab_retouch/);
-  assert.match(publishModal, /onRetouchVideo=\{\(\) =>[\s\S]{0,100}openInrStudioVideoRetoucher\("tiktok"\)/);
-  assert.match(tiktokSettingsModal, /onRetouchVideo\?: \(\) => void/);
-  assert.match(tiktokSettingsModal, /mediaType === "video" && onRetouchVideo/);
+  assert.match(withUiCopy(publishModal), /returnedRecord\.studio_video_retouch === true/);
+  assert.match(withUiCopy(publishModal), /returnedRecord\.video_format/);
+  assert.match(withUiCopy(publishModal), /returnedRecord\.video_adaptation_mode/);
+  assert.match(withUiCopy(publishModal), /returnedRecord\.transformed_variants/);
+  assert.match(withUiCopy(publishModal), /setVideoFormatByChannel/);
+  assert.match(withUiCopy(publishModal), /setVideoAdaptationModeByChannel/);
+  assert.match(withUiCopy(publishModal), /setVideoTransformedVariants\(mergedVariants\)/);
+  assert.match(withUiCopy(publishModal), /setVideoStorageContext/);
+  assert.match(withUiCopy(intentPanel), /onRetouchVideo/);
+  assert.match(withUiCopy(intentPanel), /ai_generator_studio_tab_retouch/);
+  assert.match(withUiCopy(publishModal), /onRetouchVideo=\{\(\) =>[\s\S]{0,100}openInrStudioVideoRetoucher\("tiktok"\)/);
+  assert.match(withUiCopy(tiktokSettingsModal), /onRetouchVideo\?: \(\) => void/);
+  assert.match(withUiCopy(tiktokSettingsModal), /mediaType === "video" && onRetouchVideo/);
 });
 
 test("workspace uploads are serialized, abortable and bounded", () => {
-  assert.match(persistentWorkspace, /operationVersionRef/);
+  assert.match(withUiCopy(persistentWorkspace), /operationVersionRef/);
   assert.match(
-    persistentWorkspace,
+    withUiCopy(persistentWorkspace),
     /operationAbortRef\.current\[mediaType\]\?\.abort\(\)/,
   );
-  assert.match(persistentWorkspace, /beginWorkspaceFamilyMutation/);
-  assert.match(persistentWorkspace, /beginWorkspaceGlobalClear/);
-  assert.match(persistentWorkspace, /replaceWorkspaceMediaFamilyStates/);
-  assert.match(persistentWorkspace, /await previousTask\.catch/);
+  assert.match(withUiCopy(persistentWorkspace), /beginWorkspaceFamilyMutation/);
+  assert.match(withUiCopy(persistentWorkspace), /beginWorkspaceGlobalClear/);
+  assert.match(withUiCopy(persistentWorkspace), /replaceWorkspaceMediaFamilyStates/);
+  assert.match(withUiCopy(persistentWorkspace), /await previousTask\.catch/);
   assert.match(
-    persistentWorkspace,
+    withUiCopy(persistentWorkspace),
     /mediaType === "video"\s*\?\s*1\s*:\s*3/,
   );
-  assert.match(persistentWorkspace, /activeUploadFailureRef/);
+  assert.match(withUiCopy(persistentWorkspace), /activeUploadFailureRef/);
 });
 
 test("image and video source limits stay centralized", () => {
-  assert.match(imageController, /BOOSTER_MAX_IMAGE_COUNT/);
-  assert.match(imageController, /BOOSTER_MAX_IMAGE_BYTES/);
-  assert.match(imageController, /BOOSTER_MAX_MEDIA_BYTES/);
-  assert.match(shared, /INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT/);
-  assert.match(shared, /INR_MEDIA_VIDEO_SOURCE_MAX_BYTES/);
-  assert.match(publishModal, /BOOSTER_MAX_VIDEO_BYTES/);
+  assert.match(withUiCopy(imageController), /BOOSTER_MAX_IMAGE_COUNT/);
+  assert.match(withUiCopy(imageController), /BOOSTER_MAX_IMAGE_BYTES/);
+  assert.match(withUiCopy(imageController), /BOOSTER_MAX_MEDIA_BYTES/);
+  assert.match(withUiCopy(shared), /INR_MEDIA_PUBLICATION_MAX_IMAGE_COUNT/);
+  assert.match(withUiCopy(shared), /INR_MEDIA_VIDEO_SOURCE_MAX_BYTES/);
+  assert.match(withUiCopy(publishModal), /BOOSTER_MAX_VIDEO_BYTES/);
 });
 
 test("final review excludes invalid channels without blocking the ready subset", () => {
-  assert.match(publishModal, /buildFinalReviewItems\(/);
-  assert.match(publishModal, /getChannelPublicationRequirements\(/);
-  assert.match(submission, /const preflightFailedChannels = reviewItems/);
+  assert.match(withUiCopy(publishModal), /buildFinalReviewItems\(/);
+  assert.match(withUiCopy(publishModal), /getChannelPublicationRequirements\(/);
+  assert.match(withUiCopy(submission), /const preflightFailedChannels = reviewItems/);
   assert.match(
-    submission,
+    withUiCopy(submission),
     /const publishableChannels = reviewItems[\s\S]*item\.blockers\.length === 0/,
   );
-  assert.match(submission, /preflightFailedChannels,/);
-  assert.match(modalLayer, /mergePreflightFailuresIntoPublicationSummary/);
-  assert.match(submission, /i18nT\("instagram_necessite_une_video_ou_au_dc42bf8d"\)/);
-  assert.match(submission, /i18nT\("choisissez_un_tableau_pinterest_avant_de_60a6ce70"\)/);
-  assert.match(submission, /i18nT\("pinterest_necessite_une_image_ou_une_e2a7f196"\)/);
+  assert.match(withUiCopy(submission), /preflightFailedChannels,/);
+  assert.match(withUiCopy(modalLayer), /mergePreflightFailuresIntoPublicationSummary/);
+  assert.match(withUiCopy(submission), /i18nT\("instagram_necessite_une_video_ou_au_dc42bf8d"\)/);
+  assert.match(withUiCopy(submission), /i18nT\("choisissez_un_tableau_pinterest_avant_de_60a6ce70"\)/);
+  assert.match(withUiCopy(submission), /i18nT\("pinterest_necessite_une_image_ou_une_e2a7f196"\)/);
 });
 
 test("manual publication remains idempotent, asynchronous and partially retryable", () => {
-  assert.match(modalLayer, /postBoosterPublication\(/);
-  assert.match(publishClient, /idempotencyKey/);
-  assert.match(publishClient, /execution_already_running/);
-  assert.match(publishRoute, /BOOSTER_ASYNC_CHANNEL_EVENT_TYPE/);
-  assert.match(publishRoute, /\{ status: 202 \}/);
-  assert.match(statusRoute, /publicationId/);
-  assert.match(submission, /const retryFailedChannels = resultEntries/);
-  assert.match(submission, /isRetryablePublicationEntry\(entry\)/);
-  assert.match(submission, /storySequenceResumeByChannel: options\?\.retryPreviousSummary\s*\? buildStorySequenceResumeByChannel\(options\.retryPreviousSummary, publishTargetChannels\)\s*: undefined/);
+  assert.match(withUiCopy(modalLayer), /postBoosterPublication\(/);
+  assert.match(withUiCopy(publishClient), /idempotencyKey/);
+  assert.match(withUiCopy(publishClient), /execution_already_running/);
+  assert.match(withUiCopy(publishRoute), /BOOSTER_ASYNC_CHANNEL_EVENT_TYPE/);
+  assert.match(withUiCopy(publishRoute), /\{ status: 202 \}/);
+  assert.match(withUiCopy(statusRoute), /publicationId/);
+  assert.match(withUiCopy(submission), /const retryFailedChannels = resultEntries/);
+  assert.match(withUiCopy(submission), /isRetryablePublicationEntry\(entry\)/);
+  assert.match(withUiCopy(submission), /storySequenceResumeByChannel: options\?\.retryPreviousSummary\s*\? buildStorySequenceResumeByChannel\(options\.retryPreviousSummary, publishTargetChannels\)\s*: undefined/);
   assert.match(
-    submission,
+    withUiCopy(submission),
     /if \(publicationComplete\) \{[\s\S]*archivePersistentMediaWorkspace/,
   );
   assert.match(
-    submission,
+    withUiCopy(submission),
     /options\?\.closeOnSuccess !== false && publicationAccepted/,
   );
 });
 
 test("scheduling preserves the workspace and separates immediate channels", () => {
-  assert.match(submission, /postBoosterScheduledAction\(/);
-  assert.match(scheduleClient, /\/api\/agent\/scheduled-actions/);
-  assert.match(scheduleClient, /scheduleRequestId/);
-  assert.match(submission, /timezone:\s*"Europe\/Paris"/);
-  assert.match(submission, /scheduleGroups/);
-  assert.match(submission, /immediateChannelsToPublish/);
-  assert.match(publishModal, /publishImmediateChannelsAfterSchedule/);
-  assert.match(submission, /source:\s*"booster_scheduled"/);
-  assert.match(submission, /mediaWorkspaceId:/);
+  assert.match(withUiCopy(submission), /postBoosterScheduledAction\(/);
+  assert.match(withUiCopy(scheduleClient), /\/api\/agent\/scheduled-actions/);
+  assert.match(withUiCopy(scheduleClient), /scheduleRequestId/);
+  assert.match(withUiCopy(submission), /timezone:\s*"Europe\/Paris"/);
+  assert.match(withUiCopy(submission), /scheduleGroups/);
+  assert.match(withUiCopy(submission), /immediateChannelsToPublish/);
+  assert.match(withUiCopy(publishModal), /publishImmediateChannelsAfterSchedule/);
+  assert.match(withUiCopy(submission), /source:\s*"booster_scheduled"/);
+  assert.match(withUiCopy(submission), /mediaWorkspaceId:/);
 });
 
 test("drafts reuse and restore the persistent workspace", () => {
-  assert.match(draftSession, /adoptMediaWorkspace\(/);
-  assert.match(draftSession, /linkPersistentWorkspaceDraft\(/);
-  assert.match(draftSession, /loadMediaPublicationWorkspace\(/);
+  assert.match(withUiCopy(draftSession), /adoptMediaWorkspace\(/);
+  assert.match(withUiCopy(draftSession), /linkPersistentWorkspaceDraft\(/);
+  assert.match(withUiCopy(draftSession), /loadMediaPublicationWorkspace\(/);
   assert.match(
-    draftSession,
+    withUiCopy(draftSession),
     /images\.length && !\(mediaPipelineCutoverEnabled && mediaWorkspaceId\)/,
   );
   assert.match(
-    draftSession,
+    withUiCopy(draftSession),
     /mediaPipelineCutoverEnabled && mediaWorkspaceId\s*\?\s*null/,
   );
 });
 
 test("network uncertainty never encourages an unsafe blind retry", () => {
   assert.match(
-    submission,
+    withUiCopy(submission),
     /L’envoi peut encore être en cours : vérifiez iNr’Send avant de relancer/,
   );
   assert.match(
-    publishClient,
+    withUiCopy(publishClient),
     /vérifiez iNr’Send avant de relancer/,
   );
 });

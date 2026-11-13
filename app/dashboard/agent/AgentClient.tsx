@@ -23,6 +23,7 @@ import { CLASSIC_ONLY_THREADS_PUBLICATION_PREFERENCES, normalizeThreadsPublicati
 import { readInrAgentThreadsPublicationSettings, applyInrAgentThreadsPublicationSettings } from "@/lib/inrAgentThreadsPublication";
 import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
 import { useLocale, useTranslations } from "next-intl";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 
 import {
   useEffect,
@@ -1261,7 +1262,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         error?: string;
       } | null;
       if (!response.ok || !payload?.publicationIdeas || !payload.states) {
-        throw new Error(payload?.error || i18nT("publication_ideas_save_failed"));
+        throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("publication_ideas_save_failed")));
       }
       const savedIdeas = payload.publicationIdeas;
       setPublicationIdeasDraft(savedIdeas);
@@ -1285,7 +1286,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       await refreshActions(true);
       showNotice(i18nT("publication_ideas_saved"));
     } catch (error) {
-      showNotice(error instanceof Error ? error.message : i18nT("publication_ideas_save_failed"));
+      showNotice(getLocalizedErrorMessage(error, locale, i18nT("publication_ideas_save_failed")));
     } finally {
       setPublicationIdeasSaveState("idle");
     }
@@ -1383,7 +1384,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       }));
       await refreshActions(true);
     } catch (error) {
-      showNotice(error instanceof Error ? error.message : i18nT("publication_idea_update_failed"));
+      showNotice(getLocalizedErrorMessage(error, locale, i18nT("publication_idea_update_failed")));
     } finally {
       setPublicationIdeaToggleBusy(null);
     }
@@ -1407,7 +1408,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         payload.states.map((state) => [state.idea_text, state]),
       ));
     } catch (error) {
-      showNotice(error instanceof Error ? error.message : i18nT("publication_idea_reorder_failed"));
+      showNotice(getLocalizedErrorMessage(error, locale, i18nT("publication_idea_reorder_failed")));
     } finally {
       setPublicationIdeaToggleBusy(null);
       setDraggedPublicationIdea(null);
@@ -1672,9 +1673,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       .catch((error) => {
         if (!cancelled) {
           setPinterestBoardsError(
-            error instanceof Error
-              ? error.message
-              : boosterRuntimeT("pinterest_boards_load_failed")
+            getLocalizedErrorMessage(error, locale, boosterRuntimeT("pinterest_boards_load_failed"))
           );
         }
       })
@@ -1684,7 +1683,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     return () => {
       cancelled = true;
     };
-  }, [activePreviewChannel, boosterRuntimeT, isPublishView]);
+  }, [activePreviewChannel, boosterRuntimeT, isPublishView, locale]);
   const publishHasUsableMedia = Boolean(
     publishMediaPreview?.kind === "image" ||
       publishMediaPreview?.kind === "video"
@@ -2770,7 +2769,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       !payload?.action ||
       payload.action.id !== targetActionId
     ) {
-      throw new Error(payload?.error || i18nT("publish_media_update_failed"));
+      throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("publish_media_update_failed")));
     }
 
     const updatedAction = payload.action;
@@ -2834,7 +2833,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         } | null;
         if (!response.ok || !payload?.action) {
           throw new Error(
-            payload?.error || i18nT("publication_mode_update_failed")
+            getLocalizedErrorMessage(payload, locale, i18nT("publication_mode_update_failed"))
           );
         }
         const updatedAction = payload.action;
@@ -2859,9 +2858,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       );
     } catch (error) {
       showNotice(
-        error instanceof Error
-          ? error.message
-          : i18nT("publication_mode_update_failed")
+        getLocalizedErrorMessage(error, locale, i18nT("publication_mode_update_failed"))
       );
     } finally {
       setPublishPlacementSaveState("idle");
@@ -2909,7 +2906,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         });
         const payload = await response.json().catch(() => null) as { action?: AgentPreparedAction; error?: string } | null;
         if (!response.ok || !payload?.action || payload.action.id !== targetActionId) {
-          throw new Error(payload?.error || i18nT("publication_mode_update_failed"));
+          throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("publication_mode_update_failed")));
         }
         const updatedAction = payload.action;
         publishSoundtrackSavedActionsRef.current.set(targetActionId, updatedAction);
@@ -2919,7 +2916,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       if (publishSoundtrackVersionsRef.current.get(draftKey) !== version) return;
       clearCurrentDraft();
       saveQueue.acknowledgeFailure(targetChannel);
-      showNotice(error instanceof Error ? error.message : i18nT("publication_mode_update_failed"));
+      showNotice(getLocalizedErrorMessage(error, locale, i18nT("publication_mode_update_failed")));
     });
   }
 
@@ -2933,11 +2930,11 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         body: JSON.stringify({ actionId: selectedPreparedAction.id, editType: "publish_photo_format", channel: "tiktok", fullScreen }),
       });
       const payload = await response.json().catch(() => null) as { action?: AgentPreparedAction; error?: string } | null;
-      if (!response.ok || !payload?.action) throw new Error(payload?.error || i18nT("publication_mode_update_failed"));
+      if (!response.ok || !payload?.action) throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("publication_mode_update_failed")));
       const updatedAction = payload.action;
       setActions((current) => current.map((action) => action.id === updatedAction.id ? updatedAction : action));
       showNotice(i18nT(fullScreen ? "media_photo_fullscreen_format" : "media_photo_shared_format"));
-    } catch (error) { showNotice(error instanceof Error ? error.message : i18nT("publication_mode_update_failed")); }
+    } catch (error) { showNotice(getLocalizedErrorMessage(error, locale, i18nT("publication_mode_update_failed"))); }
     finally { setPublishPlacementSaveState("idle"); }
   }
 
@@ -2951,12 +2948,12 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       } else {
         const response = await fetch("/api/agent/actions", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ actionId: selectedPreparedAction.id, editType: "publish_threads_mode", channel: "threads", mode }) });
         const payload = await response.json().catch(() => null) as { action?: AgentPreparedAction; error?: string } | null;
-        if (!response.ok || !payload?.action) throw new Error(payload?.error || i18nT("publication_mode_update_failed"));
+        if (!response.ok || !payload?.action) throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("publication_mode_update_failed")));
         const updatedAction = payload.action;
         setActions((current) => current.map((action) => action.id === updatedAction.id ? updatedAction : action));
       }
       showNotice(i18nT(mode === "ghost" ? "threads_mode_ghost" : "publication_mode_classic"));
-    } catch (error) { showNotice(error instanceof Error ? error.message : i18nT("publication_mode_update_failed")); }
+    } catch (error) { showNotice(getLocalizedErrorMessage(error, locale, i18nT("publication_mode_update_failed"))); }
     finally { setThreadsModeSaveState("idle"); }
   }
 
@@ -3001,7 +2998,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         } | null;
         if (!response.ok || !payload?.action) {
           throw new Error(
-            payload?.error || "Modification du tableau Pinterest impossible."
+            getLocalizedErrorMessage(payload, locale, i18nT("publication_mode_update_failed"))
           );
         }
         const updatedAction = payload.action;
@@ -3013,9 +3010,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       }
     } catch (error) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "Modification du tableau Pinterest impossible.";
+        getLocalizedErrorMessage(error, locale, i18nT("publication_mode_update_failed"));
       setPinterestBoardsError(message);
       showNotice(message);
     } finally {
@@ -3094,7 +3089,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       );
       if (!prepareResponse.ok)
         throw new Error(
-          preparePayload?.error || i18nT("publish_media_update_failed")
+          getLocalizedErrorMessage(preparePayload, locale, i18nT("publish_media_update_failed"))
         );
       const prepared = Array.isArray(preparePayload?.items)
         ? preparePayload.items[0]
@@ -3142,7 +3137,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       );
       if (!finalizeResponse.ok || !finalizePayload?.ok) {
         throw new Error(
-          finalizePayload?.error || i18nT("publish_media_update_failed")
+          getLocalizedErrorMessage(finalizePayload, locale, i18nT("publish_media_update_failed"))
         );
       }
       const result = Array.isArray(finalizePayload?.results)
@@ -3269,9 +3264,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       showNotice(i18nT("publish_media_applied_everywhere"));
     } catch (error) {
       showNotice(
-        error instanceof Error
-          ? error.message
-          : i18nT("publish_media_update_failed")
+        getLocalizedErrorMessage(error, locale, i18nT("publish_media_update_failed"))
       );
     } finally {
       setPublishMediaUploadState("idle");
@@ -3392,8 +3385,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
 
       if (!response.ok || !payload?.action) {
         throw new Error(
-          payload?.error ||
-            i18nT("modification_de_la_publication_impossible_e4568d66")
+          getLocalizedErrorMessage(payload, locale, i18nT("modification_de_la_publication_impossible_e4568d66"))
         );
       }
 
@@ -3412,9 +3404,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       );
     } catch (error) {
       showNotice(
-        error instanceof Error && error.message
-          ? error.message
-          : i18nT("modification_de_la_publication_impossible_e4568d66")
+        getLocalizedErrorMessage(error, locale, i18nT("modification_de_la_publication_impossible_e4568d66"))
       );
     } finally {
       setPublishSaveState("idle");
@@ -3452,7 +3442,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     } | null;
 
     if (!response.ok || !payload?.action) {
-      throw new Error(payload?.error || payload?.detail || fallbackError);
+      throw new Error(getLocalizedErrorMessage(payload, locale, fallbackError));
     }
 
     const updatedAction = payload.action;
@@ -3476,7 +3466,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         error?: string;
       } | null;
       if (!response.ok)
-        throw new Error(payload?.error || i18nT("mailboxes_unavailable"));
+        throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("mailboxes_unavailable")));
       const accounts = Array.isArray(payload?.mailAccounts)
         ? payload.mailAccounts
         : Array.isArray(payload?.accounts)
@@ -3731,7 +3721,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       } | null;
 
       if (!response.ok || !payload?.action) {
-        throw new Error(payload?.error || i18nT("draft_save_failed"));
+        throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("draft_save_failed")));
       }
 
       const updatedAction = payload.action;
@@ -3777,7 +3767,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       } | null;
 
       if (!response.ok || !payload?.action) {
-        throw new Error(payload?.error || i18nT("draft_save_failed"));
+        throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("draft_save_failed")));
       }
 
       const updatedAction = payload.action;
@@ -3812,7 +3802,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         body: JSON.stringify({ actionId: scheduledEditSession ? undefined : action.id, editType: "publish_channel_selection", channels: nextChannels.map(boosterChannelKeyFromAgentChannel), expectedUpdatedAt: scheduledEditSession?.scheduledAction.updatedAt || action.updatedAt || null, confirmPending, ...(tiktokPublicationSettings ? { tiktokPublicationSettings } : {}) }),
       });
       const result = await response.json().catch(() => null) as { action?: AgentPreparedAction; scheduledActions?: AgentScheduledAction[]; error?: string } | null;
-      if (!response.ok || !result || (!result.action && !result.scheduledActions?.length)) throw new Error(result?.error || i18nT("publication_channel_selection_failed"));
+      if (!response.ok || !result || (!result.action && !result.scheduledActions?.length)) throw new Error(getLocalizedErrorMessage(result, locale, i18nT("publication_channel_selection_failed")));
       const saved = result.action;
       if (saved) setActions(current => current.map(item => item.id === saved.id ? saved : item));
       if (scheduledEditSession) {
@@ -3834,7 +3824,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         showNotice(i18nT(nextChannels.length ? "publication_channel_content_retained" : "publication_channel_selection_required"));
       }
     } catch (error) {
-      showNotice(error instanceof Error ? error.message : i18nT("publication_channel_selection_failed"));
+      showNotice(getLocalizedErrorMessage(error, locale, i18nT("publication_channel_selection_failed")));
       await refreshActions(true);
     } finally {
       publishChannelSelectionBusy.current = false;
@@ -3858,7 +3848,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         body: JSON.stringify({ actionId: sourceId, channel: boosterChannelKeyFromAgentChannel(channel), kind: "content", scope: "channel", prepareMissingChannel: true }),
       });
       const result = await response.json().catch(() => null) as { action?: AgentPreparedAction; scheduledActions?: AgentScheduledAction[]; error?: string } | null;
-      if (!response.ok || !result?.action) throw new Error(result?.error || i18nT("publication_channel_selection_failed"));
+      if (!response.ok || !result?.action) throw new Error(getLocalizedErrorMessage(result, locale, i18nT("publication_channel_selection_failed")));
       const saved = result.action;
       setActions(current => current.map(item => item.id === saved.id ? saved : item));
       if (scheduledEditSession) {
@@ -3878,7 +3868,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       if (["scheduled", "validated"].includes(saved.status)) await refreshScheduledActions(true);
       showNotice(i18nT("publication_new_channel_ready"));
     } catch (error) {
-      showNotice(error instanceof Error ? error.message : i18nT("publication_channel_selection_failed"));
+      showNotice(getLocalizedErrorMessage(error, locale, i18nT("publication_channel_selection_failed")));
     } finally {
       publishChannelSelectionBusy.current = false;
       setPublicationChannelPreparing(null);
@@ -4115,7 +4105,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         if (!stillCurrent()) return;
         previewAction = { ...scheduledAction, payload: withScheduledPublicationWorkspacePreview(scheduledAction.payload, workspace, scheduledAction.channels) };
       } catch (error) {
-        if (stillCurrent()) showNotice(error instanceof Error ? error.message : i18nT("scheduled_action_not_openable"));
+        if (stillCurrent()) showNotice(getLocalizedErrorMessage(error, locale, i18nT("scheduled_action_not_openable")));
         return;
       }
     }
@@ -4160,7 +4150,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     };
     if (!response.ok || !payload?.scheduledAction) {
       if (payload?.tableMissing) setScheduledActionsTableMissing(true);
-      throw new Error(payload?.error || i18nT("schedule_update_failed"));
+      throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("schedule_update_failed")));
     }
     return payload.scheduledAction;
   }
@@ -4185,7 +4175,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     };
     if (!response.ok || !payload?.scheduledAction) {
       if (payload?.tableMissing) setScheduledActionsTableMissing(true);
-      throw new Error(payload?.error || i18nT("schedule_update_failed"));
+      throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("schedule_update_failed")));
     }
     return payload.scheduledAction;
   }
@@ -4303,7 +4293,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       } | null;
       if (!response.ok) {
         throw new Error(
-          payload?.error || i18nT("scheduled_action_delete_failed")
+          getLocalizedErrorMessage(payload, locale, i18nT("scheduled_action_delete_failed"))
         );
       }
       exitScheduledEditSession({ silent: true, force: true });
@@ -4387,7 +4377,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       } | null;
 
       if (!response.ok) {
-        throw new Error(payload?.error || i18nT("schedule_update_failed"));
+        throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("schedule_update_failed")));
       }
 
       const savedSettings = sanitizeInrAgentSettings(
@@ -4429,7 +4419,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
           error?: string;
         } | null;
         if (!response.ok || !payload?.action) {
-          throw new Error(payload?.error || i18nT("schedule_update_failed"));
+          throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("schedule_update_failed")));
         }
         const savedAction = payload.action;
         setActions((current) =>
@@ -4467,7 +4457,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       } | null;
       if (!response.ok)
         throw new Error(
-          payload?.error || i18nT("scheduled_action_delete_failed")
+          getLocalizedErrorMessage(payload, locale, i18nT("scheduled_action_delete_failed"))
         );
       showNotice(i18nT("scheduled_action_deleted"));
       await refreshScheduledActions(true);
@@ -4504,7 +4494,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       } | null;
       if (!response.ok || !payload?.action) {
         throw new Error(
-          payload?.error || i18nT("scheduled_action_delete_failed")
+          getLocalizedErrorMessage(payload, locale, i18nT("scheduled_action_delete_failed"))
         );
       }
       const cancelledAction = payload.action;
@@ -4552,7 +4542,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         error?: string;
       } | null;
       if (!response.ok)
-        throw new Error(payload?.error || i18nT("automation_disable_failed"));
+        throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("automation_disable_failed")));
       const savedSettings = sanitizeInrAgentSettings(
         payload?.settings ?? nextSettings
       );
@@ -4764,7 +4754,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
 
     if (!response.ok) {
       if (payload?.tableMissing) setScheduledActionsTableMissing(true);
-      throw new Error(payload?.error || i18nT("schedule_update_failed"));
+      throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("schedule_update_failed")));
     }
 
     if (payload?.action) {
@@ -4925,9 +4915,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     } catch (error) {
       await refreshActions(true);
       showNotice(
-        error instanceof Error
-          ? error.message
-          : i18nT("publication_schedule_failed")
+        getLocalizedErrorMessage(error, locale, i18nT("publication_schedule_failed"))
       );
     } finally {
       setValidationScheduleState("idle");
@@ -4988,11 +4976,9 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       );
     } catch (error) {
       showNotice(
-        error instanceof Error
-          ? error.message
-          : isPublication
+        getLocalizedErrorMessage(error, locale, isPublication
           ? i18nT("scheduled_publication_update_failed")
-          : i18nT("scheduled_campaign_update_failed")
+          : i18nT("scheduled_campaign_update_failed"))
       );
     } finally {
       setValidationScheduleState("idle");
@@ -5125,9 +5111,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       );
     } catch (error) {
       const message =
-        error instanceof Error && error.message.trim()
-          ? error.message
-          : i18nT("publication_schedule_failed");
+        getLocalizedErrorMessage(error, locale, i18nT("publication_schedule_failed"));
       showNotice(message);
       throw new Error(message);
     } finally {
@@ -5299,7 +5283,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         error?: string;
       } | null;
       if (!response.ok || !payload?.action) {
-        throw new Error(payload?.error || i18nT("regenerate_failed"));
+        throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("regenerate_failed")));
       }
 
       const updatedAction = payload.action;
@@ -5321,9 +5305,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       );
     } catch (error) {
       showNotice(
-        error instanceof Error && error.message
-          ? error.message
-          : i18nT("regenerate_failed")
+        getLocalizedErrorMessage(error, locale, i18nT("regenerate_failed"))
       );
     } finally {
       setPublishRegeneration(null);
@@ -5343,7 +5325,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         body: JSON.stringify({ actionId: action.id, editType: action.status === "refused" ? "restore_refused_publication" : "restore_validated_publication", expectedUpdatedAt: action.updatedAt }),
       });
       const payload = await response.json().catch(() => null) as { action?: AgentPreparedAction; error?: string } | null;
-      if (!response.ok || !payload?.action) throw new Error(payload?.error || i18nT("publication_review_restore_failed"));
+      if (!response.ok || !payload?.action) throw new Error(getLocalizedErrorMessage(payload, locale, i18nT("publication_review_restore_failed")));
       const restored = payload.action;
       setActions(current => current.map(item => item.id === restored.id ? restored : item));
       setPublicationStatusFilters(current => ({ ...current, pending: true }));
@@ -5357,7 +5339,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       showNotice(i18nT("publication_refusal_restored"));
       await refreshScheduledActions(true);
     } catch (error) {
-      showNotice(error instanceof Error && error.message ? error.message : i18nT("publication_review_restore_failed"));
+      showNotice(getLocalizedErrorMessage(error, locale, i18nT("publication_review_restore_failed")));
       void refreshActions(true);
     } finally {
       publicationRestoreInFlightRef.current = false;
@@ -7901,6 +7883,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
 
       <AgentScheduleModal
         open={scheduleOpen}
+        suspended={Boolean(scheduleOnlyEdit || automationScheduleEdit)}
         items={upcomingScheduleItems}
         mutationState={scheduleMutationState}
         showCampaigns={workspace === "campaigns"}
@@ -8021,6 +8004,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         )}
 
       {automationScheduleEdit && (
+        <div className={styles.scheduleEditLayer}>
         <CampaignScheduleModal
           open={Boolean(automationScheduleEdit)}
           title={i18nT("modifier_la_programmation_2bdd7cdc")}
@@ -8055,9 +8039,11 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
             setAutomationScheduleEditError(null);
           }}
         />
+        </div>
       )}
 
       {scheduleOnlyEdit && (
+        <div className={styles.scheduleEditLayer}>
         <CampaignScheduleModal
           open={Boolean(scheduleOnlyEdit)}
           title={i18nT("modifier_la_programmation_2bdd7cdc")}
@@ -8090,6 +8076,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
             setScheduleOnlyEditError(null);
           }}
         />
+        </div>
       )}
 
       {helpOpen && (
@@ -9086,15 +9073,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
             </h2>
             <p className={styles.settingsImpactLead}>
               {settingsPlanImpact.affectedPublications > 0 ? (
-                <>
-                  {settingsPlanImpact.affectedPublications} publication
-                  {settingsPlanImpact.affectedPublications > 1 ? "s" : ""}{" "}
-                  {i18nT("du_planning_actuel_6acc08e6")}{" "}
-                  {settingsPlanImpact.affectedPublications > 1 ? "sont" : "est"}{" "}
-                  {i18nT("concernee_584be571")}{" "}
-                  {settingsPlanImpact.affectedPublications > 1 ? "s" : ""}
-                  {i18nT("vous_gardez_toujours_le_dernier_mot_78c8ad8c")}{" "}
-                </>
+                i18nT("settings_impact_affected_count", { count: settingsPlanImpact.affectedPublications })
               ) : (
                 <>
                   {i18nT("le_nouvel_horizon_ajoute_des_publications_037c1053")}{" "}
@@ -9107,38 +9086,23 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                 <span>{i18nT("deja_preparees_478c2ec6")}</span>
                 <strong>{settingsPlanImpact.generatedPublications}</strong>
                 <small>
-                  publication
-                  {settingsPlanImpact.generatedPublications > 1 ? "s" : ""}
+                  {i18nT("settings_impact_publications_count", { count: settingsPlanImpact.generatedPublications })}
                 </small>
               </article>
               <article>
                 <span>{i18nT("a_regenerer_maintenant_257ca76b")}</span>
                 <strong>
-                  {settingsPlanImpact.requiredImages} image
-                  {settingsPlanImpact.requiredImages > 1 ? "s" : ""} ·{" "}
-                  {settingsPlanImpact.requiredVideos} {i18nT("video_c4277d8b")}{" "}
-                  {settingsPlanImpact.requiredVideos > 1 ? "s" : ""}{" "}
-                  ({settingsPlanImpact.requiredVideoSeconds} s)
+                  {i18nT("settings_impact_media_count", { images: settingsPlanImpact.requiredImages, videos: settingsPlanImpact.requiredVideos, seconds: settingsPlanImpact.requiredVideoSeconds })}
                 </strong>
                 <small>
-                  sur{" "}
-                  {settingsPlanImpact.horizonDays === 30
-                    ? i18nT("1_mois_e5493c85")
-                    : `${settingsPlanImpact.horizonDays} jours`}
+                  {i18nT("settings_impact_horizon", { days: settingsPlanImpact.horizonDays })}
                 </small>
               </article>
               <article>
                 <span>{i18nT("quotas_disponibles_2b1fca3c")}</span>
                 <strong>
                   {settingsPlanImpact.quotaAvailable
-                    ? i18nT("value_image_value_value_video_value_ad45ea3e", {
-                        value0:
-                          settingsPlanImpact.availableImages ?? "Illimité",
-                        value2:
-                          settingsPlanImpact.availableVideoSeconds === null
-                            ? "Illimité"
-                            : `${settingsPlanImpact.availableVideoSeconds} s`,
-                      })
+                    ? `${i18nT("settings_impact_available_images", { count: settingsPlanImpact.availableImages ?? -1 })} · ${i18nT("settings_impact_available_video_seconds", { count: settingsPlanImpact.availableVideoSeconds ?? -1 })}`
                     : i18nT("verification_indisponible_83dd6d8c")}
                 </strong>
                 <small>{i18nT("verifies_avant_application_e042ab70")}</small>
@@ -9148,18 +9112,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
             {settingsPlanImpact.lostImages > 0 ||
             settingsPlanImpact.lostVideos > 0 ? (
               <p className={styles.settingsImpactWarning}>
-                {i18nT("en_appliquant_maintenant_58293c56")}{" "}
-                {settingsPlanImpact.lostImages} quota
-                {settingsPlanImpact.lostImages > 1 ? "s" : ""}{" "}
-                {i18nT("image_et_2d6d27c0")} {settingsPlanImpact.lostVideos}{" "}
-                quota
-                {settingsPlanImpact.lostVideos > 1 ? "s" : ""}{" "}
-                {i18nT("video_deja_consomme_b57d39ac")}{" "}
-                {settingsPlanImpact.lostImages + settingsPlanImpact.lostVideos >
-                1
-                  ? "s"
-                  : ""}{" "}
-                {i18nT("seraient_perdus_c2df5aef")}{" "}
+                {i18nT("settings_impact_lost_quotas", { images: settingsPlanImpact.lostImages, videos: settingsPlanImpact.lostVideos })}
               </p>
             ) : (
               <p className={styles.settingsImpactSafe}>

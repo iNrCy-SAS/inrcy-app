@@ -1,3 +1,4 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -35,7 +36,7 @@ function variable(name: string) {
 }
 
 function expression(node: ts.Node, scope: Record<string, unknown>) {
-  return new Function(...Object.keys(scope), `return (${node.getText(source)});`)(...Object.values(scope));
+  return new Function(...Object.keys(withAdsRuntime(scope)), `return (${node.getText(source)});`)(...Object.values(withAdsRuntime(scope)));
 }
 
 function dialogGate(name: string, scope: Record<string, unknown>): boolean {
@@ -51,7 +52,7 @@ function actualFunction(name: string, scope: Record<string, unknown>) {
   const declaration = findAll((node) => ts.isFunctionDeclaration(node) && node.name?.text === name)[0];
   assert.ok(declaration, `${name} must exist`);
   const compiled = ts.transpileModule(declaration.getText(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-  return new Function(...Object.keys(scope), `${compiled}\nreturn ${name};`)(...Object.values(scope));
+  return new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn ${name};`)(...Object.values(withAdsRuntime(scope)));
 }
 
 function gateScope(channelId: string, metaPublishingEnabled: boolean, publicationEnabled: unknown, load = "ready", googlePublishingEnabled = true, pinterestPublishingEnabled = true) {

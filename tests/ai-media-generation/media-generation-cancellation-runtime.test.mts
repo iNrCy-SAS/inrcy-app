@@ -1,3 +1,4 @@
+import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import * as nativeRefresh from "../../lib/inrAssistantRefresh.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -63,6 +64,8 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
   const refreshHook = { exports: {} as typeof import("../../app/dashboard/_hooks/useInrAssistantRefresh.ts") };
   const refreshCode = ts.transpileModule(readFileSync(new URL("../../app/dashboard/_hooks/useInrAssistantRefresh.ts", import.meta.url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   new Function("module", "exports", "require", refreshCode)(refreshHook, refreshHook.exports, (id: string) => {
+    if (id === "@/lib/userFacingErrors") return userFacingErrorsFixture;
+    if (id === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
     if (id === "react") return react;
     if (id === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => account };
     if (id === "@/lib/inrAssistantRefresh") return { ...nativeRefresh, subscribeInrAssistantRefresh: (options: Parameters<typeof nativeRefresh.subscribeInrAssistantRefresh>[0]) => nativeRefresh.subscribeInrAssistantRefresh({ ...options, target: browser as unknown as EventTarget }) };
@@ -96,6 +99,8 @@ function harness(sessionStorage?: Pick<Storage, "getItem" | "setItem" | "removeI
   }).outputText;
   const record = { exports: {} as { default: () => Hook } };
   new Function("module", "exports", "require", "window", "fetch", output)(record, record.exports, (id: string) => {
+    if (id === "@/lib/userFacingErrors") return userFacingErrorsFixture;
+    if (id === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
     if (id === "react") return react;
     if (id === "./useInrAssistantRefresh") return refreshHook.exports;
     if (id === "@/lib/multicompte/constants") return { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" };
@@ -243,8 +248,10 @@ test("a recovered failure keeps its actionable server explanation without postin
   const stream = h.startStream(0); stream.send({ type: "billing_locked" }); stream.close(); await h.flush();
   const message = "La voix off préparée est trop longue pour la durée choisie. Choisissez une durée plus longue.";
   h.recoveries[0].resolve(Response.json({ ok: true, status: "failed", code: "AI_MEDIA_NARRATION_TOO_LONG", error: message }));
-  assert.equal((await task as Error).message, message); await h.flush();
-  assert.equal(h.status().error, message); assert.equal(h.status().busy, false);
+  const publicMessage = aiMediaPublicErrorsFixture.getLocalizedAiMediaGenerationErrorMessage({ code: "AI_MEDIA_NARRATION_TOO_LONG" }, "fr");
+  assert.match(publicMessage, /durée plus longue.*narration plus courte/);
+  assert.equal((await task as Error).message, publicMessage); await h.flush();
+  assert.equal(h.status().error, publicMessage); assert.equal(h.status().busy, false);
   assert.equal(h.attempts.length, 1); assert.equal(h.status().canRecover, false); h.dispose();
 });
 
@@ -504,7 +511,7 @@ test("an authoritative failed job remains a failure after one reconciliation", a
   stream.send({ type: "result", status: 502, payload: { ok: false, error: "Erreur de génération." } }); stream.close();
   await h.flush();
   h.recoveries[0].resolve(Response.json({ ok: true, status: "failed", code: "AI_MEDIA_PREPARATION_OUTPUT_INVALID", error: "Les dialogues n'ont pas pu être préparés." }));
-  assert.match((await task as Error).message, /dialogues/); await h.flush();
+  assert.match((await task as Error).message, /préparer votre création.*Réessayez/); await h.flush();
   assert.equal(h.status().result, null); assert.equal(h.status().canRecover, false);
   assert.equal(h.recoveries.length, 1); assert.equal(h.attempts.length, 1); h.dispose();
 });

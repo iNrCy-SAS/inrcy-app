@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { assertUiCopy } from "../helpers/ui-copy-contract.mjs";
 
 const source = readFileSync(
   "app/dashboard/settings/_components/PinterestSettingsContent.tsx",
@@ -44,8 +45,11 @@ test("le compte Pinterest et son tableau prêt ont deux états distincts", () =>
 
 test("le bloc Tableaux n'est prêt qu'avec un tableau par défaut existant", () => {
   assert.match(source, /connected=\{pinterestBoardReady\}/);
-  assert.match(source, /pinterestBoardReady[\s\S]*?"Prêt"/);
-  assert.match(source, /boardOptions\.length > 0[\s\S]*?"À sélectionner"[\s\S]*?"À créer"/);
+  assert.match(source, /const i18nT = useTranslations\("settings"\)/);
+  assert.match(source, /: pinterestBoardReady\s*\? i18nT\("pinterest_ready"\)\s*:\s*boardOptions\.length > 0\s*\? i18nT\("pinterest_select_board"\)\s*:\s*i18nT\("pinterest_create_board"\)/);
+  assertUiCopy("settings", "pinterest_ready", "Prêt");
+  assertUiCopy("settings", "pinterest_select_board", "À sélectionner");
+  assertUiCopy("settings", "pinterest_create_board", "À créer");
 });
 
 test("Pinterest reste absent de Booster tant qu'aucun tableau n'est prêt", () => {

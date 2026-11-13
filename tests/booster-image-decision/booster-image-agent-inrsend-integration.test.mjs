@@ -2,6 +2,7 @@ import { readAgentScheduleSource } from "../inragent/schedule-sources.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { assertUiCopy } from "../helpers/ui-copy-contract.mjs";
 
 const read = (path) => readFile(new URL(`../../${path}`, import.meta.url), "utf8");
 
@@ -36,7 +37,10 @@ test("iNrSend edit restarts from the preserved original without cumulative crop"
   assert.match(client, /const initialTransform = originalUrl\s*\? \{ \.\.\.defaultTransform \}/);
   assert.match(publishRoute, /originalSourceUrlByKey/);
   assert.match(publishFoundations, /mappedOriginalUrl/);
-  assert.match(details, /\? "Originale"\s*:\s*"Personnalisée"/);
+  assert.match(details, /\? i18nT\("originale_5ab39fc4"\)\s*:\s*i18nT\("personnalisee_babc3417"\)/);
+  assert.match(details, /const i18nT = useTranslations\("mails"\)/);
+  assertUiCopy("mails", "originale_5ab39fc4", "Originale");
+  assertUiCopy("mails", "personnalisee_babc3417", "Personnalisée");
 });
 
 test("iNrAgent scheduled publication keeps Pinterest image parity and includes video pins", async () => {

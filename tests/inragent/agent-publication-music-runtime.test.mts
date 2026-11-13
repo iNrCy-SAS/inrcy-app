@@ -6,6 +6,7 @@ import test from "node:test";
 import { chromium, type Page } from "@playwright/test";
 import ts from "typescript";
 import { runtimeModules } from "./runtime-module-loader.mts";
+import { browserCatalogRuntime, browserPublicErrorSources } from "../helpers/browser-catalog-runtime.mts";
 
 const require = createRequire(import.meta.url);
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
@@ -36,6 +37,7 @@ function agentExpression(name: string) {
 
 function fixture() {
   const sources = {
+    ...browserPublicErrorSources(),
     react: packageSource("react", "react.production.js"), "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
     "react-dom": packageSource("react-dom", "react-dom.production.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.production.js"), scheduler: packageSource("scheduler", "scheduler.production.js"),
     selector: compileText(read("app/dashboard/_components/MediaSoundtrackSelector.tsx")), "@/lib/mediaSoundtrackSelection": compileText(read("lib/mediaSoundtrackSelection.ts")),
@@ -67,13 +69,13 @@ function fixture() {
       window.actionGates={canReviewSelectedAction,canEditSelectedPublication,canRegenerateSelectedPublication,agentWorking};
       const saveTiktokPhotoFormat=()=>{},metaPilotEnabled=false,activeThreadsPublicationMode='classic',threadsModeEnabled=true,threadsModeSaveState='idle',threadsPublicationPreferences={},getEnabledThreadsPublicationModes=()=>['classic'],saveThreadsPublicationMode=()=>{};
       const activePinterestBoardId='board-one',savePublishPinterestBoard=()=>{},pinterestBoardsLoading=false,pinterestBoardSaveState='idle',pinterestBoards=[{id:'board-one',name:'Mon tableau'}],pinterestBoardsError='';
-      const i18nT=key=>messages.agent[key]||key,boosterRuntimeT=key=>messages.booster[key]||key,boosterT=boosterRuntimeT,runtimeT=i18nT,agentChannelLabel=key=>({facebook:'Facebook',instagram:'Instagram'}[key]||key);
+      const i18nT=fixtureIntl.useTranslations('agent'),boosterRuntimeT=fixtureIntl.useTranslations('booster'),boosterT=boosterRuntimeT,runtimeT=i18nT,agentChannelLabel=key=>({facebook:'Facebook',instagram:'Instagram'}[key]||key),locale=fixtureIntl.useLocale(),getLocalizedErrorMessage=require('@/lib/userFacingErrors').getLocalizedErrorMessage;
       const setNotice=value=>window.notice=value,showNotice=value=>window.notice=value,setActions=updater=>setSelection(current=>updater([{...selectedPreparedAction,payload:{soundtrackByChannel:current}}])[0].payload.soundtrackByChannel),inrAgentPublicationNeedsRevisionReview=()=>false,refreshScheduledActions=async()=>{};
       ${saveFunction()}
       return ${optionsJsx()};
     };`);
-  return `const sources=${JSON.stringify({ ...sources, options: compiled })},messages=${JSON.stringify({ agent: JSON.parse(read("messages/fr-FR/agent.json")), booster: JSON.parse(read("messages/fr-FR/booster.json")) })},catalogue=${JSON.stringify(catalogue)},loaded={};
-    function require(name){if(name.endsWith('useInrAssistantLocalInterface'))return {useInrAssistantLocalInterface(){}};if(name.endsWith('.css'))return{__esModule:true,default:new Proxy({},{get:(_,key)=>'music-'+String(key)})};if(name==='next-intl')return{useTranslations:namespace=>(key,args={})=>Object.entries(args).reduce((text,[name,value])=>text.replaceAll('{'+name+'}',String(value)),messages[namespace][key]||key)};if(loaded[name])return loaded[name].exports;if(!sources[name])throw Error('Unexpected Agent music fixture import '+name);const module=loaded[name]={exports:{}};new Function('require','module','exports',sources[name])(require,module,module.exports);return module.exports;}
+  return browserCatalogRuntime(["agent", "booster"]) + `const sources=${JSON.stringify({ ...sources, options: compiled })},catalogue=${JSON.stringify(catalogue)},loaded={};
+    function require(name){if(name.endsWith('useInrAssistantLocalInterface'))return {useInrAssistantLocalInterface(){}};if(name.endsWith('.css'))return{__esModule:true,default:new Proxy({},{get:(_,key)=>'music-'+String(key)})};if(name==='next-intl')return fixtureIntl;if(loaded[name])return loaded[name].exports;if(!sources[name])throw Error('Unexpected Agent music fixture import '+name);const module=loaded[name]={exports:{}};new Function('require','module','exports',sources[name])(require,module,module.exports);return module.exports;}
     const React=require('react'),Options=require('options').default,root=require('react-dom/client').createRoot(document.getElementById('root'));let config={locked:false,busy:false};window.configure=patch=>{config={...config,...patch};root.render(React.createElement(Options,config))};window.activeAudio=new Set();window.catalogueCalls=0;window.otherCalls=[];window.patchCalls=[];window.placementCalls=[];window.serverMusic={facebook:null,instagram:null};const pendingSaves=[];let responseVersion=0;
     HTMLMediaElement.prototype.play=function(){window.activeAudio.add(this);return Promise.resolve()};HTMLMediaElement.prototype.pause=function(){window.activeAudio.delete(this)};HTMLMediaElement.prototype.load=function(){};
     window.completeSave=ok=>{const pending=pendingSaves.shift();if(!pending)throw Error('No pending mocked save');const {body,resolve}=pending;if(ok)window.serverMusic={...window.serverMusic,[body.channel]:body.soundtrackId};resolve(Response.json(ok?{action:{id:body.actionId,updatedAt:new Date(++responseVersion*1000).toISOString(),payload:{soundtrackByChannel:{...window.serverMusic}}}}:{error:'Synthetic soundtrack update failure'},{status:ok?200:503}))};
@@ -174,7 +176,10 @@ test("the actual Agent callback selects optimistically, coalesces rapid choices,
     await page.evaluate(() => (window as unknown as State).completeSave(true)); await page.evaluate(() => (window as unknown as State).flushMusic()); await page.waitForFunction(() => (window as unknown as State).confirmedMusic.facebook === null);
     await field.getByRole('option', { name: catalogue[3].label, exact: true }).click(); await page.waitForFunction(() => (window as unknown as State).patchCalls.length === 4);
     assert.equal((await trigger.textContent())?.trim(), catalogue[3].label); await preview.click(); assert.equal(await page.evaluate(() => (window as unknown as State).activeAudio.size), 1);
-    await page.evaluate(() => (window as unknown as State).completeSave(false)); await page.waitForFunction(() => (window as unknown as State).notice === 'Synthetic soundtrack update failure');
+    await page.evaluate(() => (window as unknown as State).completeSave(false));
+    await page.waitForFunction(() => Boolean((window as unknown as State).notice));
+    assert.match(await page.evaluate(() => String((window as unknown as State).notice)), /réessay|modifi|mettre à jour|enregistr|indisponible/i);
+    assert.doesNotMatch(await page.evaluate(() => String((window as unknown as State).notice)), /Synthetic soundtrack update failure/);
     await page.waitForFunction(() => (window as unknown as State).currentMusic.facebook === null); await page.evaluate(() => (window as unknown as State).flushMusic());
     assert.equal((await trigger.textContent())?.trim(), 'Auto', 'An unsuccessful newest choice rolls back to the confirmed Auto value');
     assert.equal(await page.evaluate(() => (window as unknown as State).serverMusic.facebook), null); assert.equal(await list.isVisible(), true); assert.equal(await format.isEnabled(), true); assert.equal(await trigger.isEnabled(), true);

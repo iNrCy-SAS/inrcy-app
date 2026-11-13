@@ -1,3 +1,4 @@
+import { adsComponentModules } from "./helpers/ads-component-runtime.mts";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import * as crypto from "node:crypto";
@@ -31,6 +32,7 @@ test("le générateur Pinterest transmet le portrait au pipeline partagé et acc
   const generated = { url: "https://example.test/portrait.png", width: 1080, height: 1350, kind: "image", format: "portrait" };
   const exports = {};
   new Function("exports", "require", "fetch", compiled)(exports, (name) => {
+    if (Object.hasOwn(adsComponentModules(), name)) return adsComponentModules()[name];
     if (name === "react") return { useEffect: (callback) => effects.push(callback), useRef: (current) => ({ current }) };
     if (name === "@/lib/adsCampaignMediaPolicy") return mediaPolicy;
     if (name === "@/app/dashboard/_hooks/useMediaGeneration") return { default: () => ({

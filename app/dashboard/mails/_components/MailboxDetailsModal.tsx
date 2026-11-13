@@ -1,3 +1,4 @@
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
 import { THREADS_PUBLICATION_CAPABILITIES } from "@/lib/inrsend/threadsCapabilities";
@@ -619,7 +620,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       );
       const json = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(json?.error || "publication_status_refresh_failed");
+        throw new Error(getSafeClientErrorMessage(json, "publication_status_refresh_failed"));
       }
       if (activePublicationIdRef.current !== requestedPublicationId) return null;
       setPublicationLiveStatus(json);
@@ -933,7 +934,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
         headers: { "Content-Type": "application/json" },
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error || "tiktok_status_check_failed");
+      if (!res.ok) throw new Error(getSafeClientErrorMessage(json, "tiktok_status_check_failed"));
       const statusLabel = localizedTiktokStatusLabel(getTiktokStatusMeta(json), runtimeT);
       if (json?.ok === false) {
         setDetailsActionError(i18nT("tiktok_status_result", { status: statusLabel }));
@@ -972,7 +973,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
         headers: { "Content-Type": "application/json" },
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok || json?.ok === false) throw new Error(json?.error || json?.message || "tiktok_retry_failed");
+      if (!res.ok || json?.ok === false) throw new Error(getSafeClientErrorMessage(json, "tiktok_retry_failed"));
       setDetailsActionSuccess(i18nT("tiktok_retry_started"));
       await refreshHistory?.();
     } catch {
@@ -1010,7 +1011,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json?.ok === false) {
-        throw new Error(json?.error || json?.message || "tiktok_cancel_failed");
+        throw new Error(getSafeClientErrorMessage(json, "tiktok_cancel_failed"));
       }
       setDetailsActionSuccess(i18nT("publication_annulee_dans_inrsend_le_suivi_f4a9fbdb"));
       await refreshHistory?.();
@@ -1233,9 +1234,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
     )
       .catch((error) => {
         setDetailsActionError(
-          error instanceof Error && error.message
-            ? error.message
-            : i18nT("publication_update_failed"),
+          getSafeClientErrorMessage(error, i18nT("publication_update_failed")),
         );
       })
       .finally(onStudioReturnHandled);
@@ -1671,12 +1670,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                   const activePublicationDeleted = isDeletedChannelResult(activePublicationResult);
                   const activePublicationFailed = isFailedChannelResult(activePublicationResult);
                   const activePublicationFailureMessage = activePublicationFailed
-                    ? String(
-                        activePublicationResult?.user_message ||
-                          activePublicationResult?.error ||
-                          activePublicationResult?.raw_error ||
-                          i18nT("la_publication_n_a_pas_abouti_9368e2ed"),
-                      ).trim()
+                    ? getSafeClientErrorMessage(activePublicationResult, i18nT("la_publication_n_a_pas_abouti_9368e2ed"), { allowUnknownMessage: false })
                     : "";
                   const activePublicationWarning = isWarningChannelResult(
                     activePublicationResult,
@@ -1685,11 +1679,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                   const activePublicationWarningMessage = activeInstagramDeletionUnconfirmed
                     ? i18nT("instagram_deletion_unconfirmed_help")
                     : activePublicationWarning
-                    ? String(
-                        activePublicationResult?.warning_message ||
-                          activePublicationResult?.warningMessage ||
-                          i18nT("publication_finalisee_avec_avertissement_b3f02094"),
-                      ).trim()
+                    ? getSafeClientErrorMessage(activePublicationResult?.warning_message || activePublicationResult?.warningMessage, i18nT("publication_finalisee_avec_avertissement_b3f02094"), { allowUnknownMessage: false })
                     : "";
                   const visiblePublicationItemError =
                     detailsItem.source === "app_events" && detailsItem.error
@@ -2421,16 +2411,6 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                               <div style={{ marginTop: 6, color: tiktokStatusMeta?.failed ? "#fecaca" : tiktokStatusMeta?.cancelled ? "#e9d5ff" : tiktokStatusMeta?.pending ? "#fde68a" : "rgba(225,245,255,0.88)" }}>
                                 {localizedTiktokStatusMessage(tiktokStatusMeta, runtimeT)}
                               </div>
-                              {tiktokStatusMeta?.failReason ? (
-                                <div style={{ marginTop: 5, opacity: 0.8 }}>
-                                  {i18nT("motif_technique_tiktok_4641189f")}{" "}<code>{tiktokStatusMeta.failReason}</code>
-                                </div>
-                              ) : null}
-                              {tiktokStatusMeta?.providerErrorCode ? (
-                                <div style={{ marginTop: 5, opacity: 0.8 }}>
-                                  {i18nT("code_tiktok_8230f144")}{" "}<code>{tiktokStatusMeta.providerErrorCode}</code>
-                                </div>
-                              ) : null}
                             </div>
                           ) : null}
 

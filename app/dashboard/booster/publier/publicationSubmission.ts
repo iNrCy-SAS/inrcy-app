@@ -1078,15 +1078,15 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
       resetPublicationProgressPhases();
       const baseMessage = getSimpleFrenchErrorMessage(
         e,
-        "La publication n'a pas pu être envoyée. Merci de réessayer.",
+        i18nT("publication_send_failed"),
       );
       const networkLike = /connexion au serveur impossible|connexion interrompue|failed to fetch|networkerror|network request failed/i.test(
         `${e instanceof Error ? e.message : String(e || "")} ${baseMessage}`,
       );
       const message = networkLike
         ? publishDispatchStarted
-          ? "Connexion interrompue pendant la publication. L’envoi peut encore être en cours : vérifiez iNr’Send avant de relancer."
-          : "Connexion interrompue pendant la préparation des médias. Aucun envoi n’a été confirmé : réessayez dans quelques instants."
+          ? i18nT("publication_connection_lost_after_dispatch")
+          : i18nT("publication_connection_lost_during_preparation")
         : baseMessage;
       setPublishError(message);
       if (options?.throwOnError) {
@@ -1658,7 +1658,7 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
     } catch (e) {
       const message = getSimpleFrenchErrorMessage(
         e,
-        "Programmation de la publication impossible.",
+        i18nT("publication_schedule_failed"),
       );
       setScheduleError(message);
       setPublishError(message);

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { chromium, type Page } from "@playwright/test";
 import ts from "typescript";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 
 const require = createRequire(import.meta.url), repo = fileURLToPath(new URL("../../", import.meta.url));
 const read = (file: string) => readFileSync(resolve(repo, file), "utf8");
@@ -28,6 +29,7 @@ function add(file: string) {
 const components = Object.fromEntries(["InertiaContent", "BoutiqueContent", "SubscriptionInvoicesPanel", "SubscriptionWorkspace"].map(name => [name, add(resolve(repo, `app/dashboard/settings/_components/${name}.tsx`))]));
 const nativeModule = add(resolve(repo, "lib/inrAssistantLocalInterface.ts"));
 const messages = { settings: JSON.parse(read("messages/fr-FR/settings.json")), shell: JSON.parse(read("messages/fr-FR/shell.json")) };
+const unavailableInvoicesMessage = userFacingErrorsFixture.getLocalizedErrorMessage({ error: "Synthetic invoice read unavailable" }, "fr-FR", messages.settings.factures_stripe_erreur_7e2a5c11);
 const fixture = `
 const sources=${JSON.stringify(sources)},links=${JSON.stringify(links)},components=${JSON.stringify(components)},messages=${JSON.stringify(messages)},nativeModule=${JSON.stringify(nativeModule)},loaded={},process={env:{}};
 window.account='account-a';window.actor='actor-a';window.ordersReads=0;window.failOrders=false;window.routes=[];window.errors=[];window.addEventListener('error',event=>window.errors.push(String(event.error?.stack||event.message)));
@@ -81,5 +83,5 @@ test("Basic actual account views help billing dialog invoice pages and order ref
 });
 
 test("Basic actual subscription invoice retry refuses an unavailable native response and acknowledges only loaded invoices after rendering", async () => {
-  const browser = await chromium.launch({ headless: true }); try { for (const failures of [1, 2]) { const page = await browser.newPage(), h = await mount(page, failures); await page.getByRole("alert").filter({ hasText: "Synthetic invoice read unavailable" }).waitFor(); assert.equal(await page.evaluate("window.runNative('subscription_invoices','retry')"), failures === 1); if (failures === 1) assert.equal(await page.locator('[data-part="invoices"] tbody tr').count(), 5); assert.deepEqual(h.mutations, []); assert.deepEqual(await page.evaluate("window.errors"), []); await page.close(); } } finally { await browser.close(); }
+  const browser = await chromium.launch({ headless: true }); try { for (const failures of [1, 2]) { const page = await browser.newPage(), h = await mount(page, failures); const alert = page.getByRole("alert").filter({ hasText: unavailableInvoicesMessage }); await alert.waitFor(); assert.ok(!(await alert.innerText()).includes("Synthetic invoice read unavailable"), "raw backend diagnostics stay out of the customer message"); assert.equal(await page.evaluate("window.runNative('subscription_invoices','retry')"), failures === 1); if (failures === 1) assert.equal(await page.locator('[data-part="invoices"] tbody tr').count(), 5); assert.deepEqual(h.mutations, []); assert.deepEqual(await page.evaluate("window.errors"), []); await page.close(); } } finally { await browser.close(); }
 });

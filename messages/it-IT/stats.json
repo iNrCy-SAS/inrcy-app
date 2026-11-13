@@ -550,5 +550,6 @@
   "visibility_index_tracking_hint": "Il primo grafico si sblocca dopo un mese di valori registrati.",
   "visibility_index_recording_method": "Ogni giorno viene salvato un valore con i dati disponibili in quella data. I valori passati non vengono mai ricalcolati con le cifre attuali. I giorni senza raccolta restano assenti. Ogni periodo richiede una cronologia recente sufficiente.",
   "visibility_index_rewards_method": "Ogni traguardo assegna una sola volta Unità di Inerzia spendibili nel negozio. Bonus base: 50 / 100 / 200 / 500 UI. Coefficiente allo sblocco: Base ×0,5, Standard ×1, Premium ×1,5. Cambiare piano non accredita nuovamente un traguardo già ottenuto.",
-  "visibility_index_rewards_history_method": "Le statistiche storiche disponibili possono convalidare retroattivamente i traguardi degli account sufficientemente anziani. Non ricostruiscono i valori passati dell’indice."
+  "visibility_index_rewards_history_method": "Le statistiche storiche disponibili possono convalidare retroattivamente i traguardi degli account sufficientemente anziani. Non ricostruiscono i valori passati dell’indice.",
+  "stats_connect_x": "Collega X"
 }

@@ -1,3 +1,4 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -25,7 +26,7 @@ function variable(name: string) {
 }
 function evaluate(name: string, scope: Record<string, unknown>) {
   const compiled = ts.transpileModule(`return (${variable(name).initializer!.getText(source)});`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-  return new Function(...Object.keys(scope), compiled)(...Object.values(scope));
+  return new Function(...Object.keys(withAdsRuntime(scope)), compiled)(...Object.values(withAdsRuntime(scope)));
 }
 const warningStatements = sourceText.slice(variable("stepWarningMessages").parent.parent.getStart(source), variable("preparedNativeReady").parent.parent.getStart(source));
 const warningsBody = ts.transpileModule(warningStatements + "\nreturn stepWarningMessages;", { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
@@ -37,7 +38,7 @@ function warningMap(scope: Record<string, unknown> = {}): Map<number, string> {
     openaiLaunchReadinessIssue: null, preparedReviewDetails: [], displayedStepKeys: [], preparedOnlyChannel: false,
     preparedNativeCheck: null, channelId: "meta", preparedNativeBlockerLabel, preparedNativeBlockerStep, ...scope,
   };
-  return new Function(...Object.keys(complete), warningsBody)(...Object.values(complete));
+  return new Function(...Object.keys(withAdsRuntime(complete)), warningsBody)(...Object.values(withAdsRuntime(complete)));
 }
 const stepper = find((node) => ts.isJsxElement(node) && node.openingElement.tagName.getText(source) === "nav"
   && node.openingElement.attributes.getText(source).includes("styles.stepper"));
@@ -54,7 +55,8 @@ exports.Stepper=function Stepper(props) {
 };`;
 const compiled = ts.transpileModule(fixtureSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
 const fixture: { Stepper?: (props: Record<string, unknown>) => ReturnType<typeof createElement> } = {};
-new Function("exports", "require", compiled)(fixture, require);
+const uiScope = withAdsRuntime();
+new Function("exports", "require", ...Object.keys(uiScope), compiled)(fixture, require, ...Object.values(uiScope));
 function render(props: Record<string, unknown>) { return renderToStaticMarkup(createElement(fixture.Stepper!, props)); }
 
 for (const provider of ["google", "meta", "linkedin", "pinterest", "openai", "tiktok", "x"] as const) {

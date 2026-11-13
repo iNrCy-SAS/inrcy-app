@@ -908,5 +908,12 @@
   "automation_enable_confirm_yes": "Ja",
   "automation_enable_confirm_verify": "Einstellungen prüfen",
   "automation_enabled_notice": "Automatisierung aktiviert.",
-  "automation_enable_unavailable": "Prüfen Sie Kanäle und Einstellungen, bevor Sie die Automatisierung aktivieren."
+  "automation_enable_unavailable": "Prüfen Sie Kanäle und Einstellungen, bevor Sie die Automatisierung aktivieren.",
+  "settings_impact_affected_count": "{count, plural, one {# Beitrag im aktuellen Zeitplan ist betroffen. Du hast immer das letzte Wort.} other {# Beiträge im aktuellen Zeitplan sind betroffen. Du hast immer das letzte Wort.}}",
+  "settings_impact_available_images": "{count, plural, =-1 {Unbegrenzte Bilder} one {# Bild} other {# Bilder}}",
+  "settings_impact_available_video_seconds": "{count, plural, =-1 {Unbegrenztes Video} other {# s Video}}",
+  "settings_impact_horizon": "{days, plural, =30 {über einen Monat} one {über # Tag} other {über # Tage}}",
+  "settings_impact_lost_quotas": "Beim sofortigen Anwenden geht das bereits verbrauchte Kontingent verloren: {images, plural, one {# Bildeinheit} other {# Bildeinheiten}} und {videos, plural, one {# Videoeinheit} other {# Videoeinheiten}}.",
+  "settings_impact_media_count": "{images, plural, one {# Bild} other {# Bilder}} · {videos, plural, one {# Video} other {# Videos}} ({seconds} s)",
+  "settings_impact_publications_count": "{count, plural, one {Beitrag} other {Beiträge}}"
 }

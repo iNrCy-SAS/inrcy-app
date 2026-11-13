@@ -21,6 +21,8 @@ const APP_LANGUAGE_VALUES = new Set<string>(APP_LANGUAGE_OPTIONS.map((option) =>
 export function normalizeAppLanguage(value: unknown): AppLanguageCode {
   const raw = String(value || "").trim().toLowerCase();
   if (APP_LANGUAGE_VALUES.has(raw)) return raw as AppLanguageCode;
+  const localeLanguage = /^([a-z]{2})(?:[-_][a-z0-9]{2,8})+$/.exec(raw)?.[1];
+  if (localeLanguage && APP_LANGUAGE_VALUES.has(localeLanguage)) return localeLanguage as AppLanguageCode;
   if (["french", "francais", "français"].includes(raw)) return "fr";
   if (["english", "anglais"].includes(raw)) return "en";
   if (["spanish", "espagnol"].includes(raw)) return "es";

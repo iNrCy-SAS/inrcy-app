@@ -208,7 +208,7 @@ export default function CRMContactModal({
                 className={styles.starToggle}
                 onClick={onToggleImportant}
                 aria-pressed={draft.important ? "true" : "false"}
-                title={draft.important ? "Contact important" : "Marquer comme important"}
+                title={draft.important ? i18nT("contact_important_2949497c") : i18nT("marquer_comme_important_c0cc7947")}
               >
                 {draft.important ? "★" : "☆"}
               </button>
@@ -340,7 +340,7 @@ export default function CRMContactModal({
                 className={styles.starToggle}
                 onClick={onToggleImportant}
                 aria-pressed={draft.important ? "true" : "false"}
-                title={draft.important ? "Contact important" : "Marquer comme important"}
+                title={draft.important ? i18nT("contact_important_2949497c") : i18nT("marquer_comme_important_c0cc7947")}
               >
                 {draft.important ? "★" : "☆"}
               </button>

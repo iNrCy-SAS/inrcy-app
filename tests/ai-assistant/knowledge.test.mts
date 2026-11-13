@@ -8,6 +8,7 @@ import ts from "typescript";
 import type * as Knowledge from "../../lib/inrAssistantKnowledge.ts";
 import type * as AccountGuides from "../../lib/inrAssistantGuidesAccount.ts";
 import { currentSubscriptionOffer, subscriptionChargeLabel } from "../../lib/subscriptionOffers.ts";
+import { catalogTranslator } from "../helpers/catalog-translator.mts";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const cache = new Map<string, { exports: unknown }>();
@@ -69,8 +70,10 @@ test("Facebook support reuses the actual channel helper and official Page creati
 
 test("current channel guidance overrides obsolete GPS commands for every connection family", () => {
   const workspace = readFileSync(resolve(root, "app/dashboard/_components/DashboardChannelWorkspace.tsx"), "utf8");
-  for (const label of ["Connexion Facebook", "Connexion Business", "Connexion LinkedIn"]) {
-    assert.ok(workspace.includes(`label: "${label}"`), `Current UI option: ${label}`);
+  const translate = catalogTranslator("dashboard");
+  for (const [key, label] of [["connexion_facebook_9d2d340c", "Connexion Facebook"], ["connexion_business_6845d40b", "Connexion Business"], ["connexion_linkedin_6dfadcbe", "Connexion LinkedIn"]]) {
+    assert.ok(workspace.includes(`label: i18nT("${key}")`), `Current UI catalogue binding: ${label}`);
+    assert.equal(translate(key), label, `Current UI option: ${label}`);
   }
   for (const key of ["directConnection", "facebookConnection", "classicConnection", "businessConnection"]) assert.ok(workspace.includes(`t("${key}")`));
   for (const prompt of ["Connecter Facebook", "Connecter Instagram", "Connecter LinkedIn", "Connecter Google Business", "Connecter TikTok", "Connecter YouTube", "Connecter Pinterest", "Connecter mes mails", "Connecter GA4 au Site Web", "Je n’ai pas de bouton Configurer"]) {

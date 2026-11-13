@@ -908,5 +908,12 @@
   "automation_enable_confirm_yes": "Sì",
   "automation_enable_confirm_verify": "Verifica le mie impostazioni",
   "automation_enabled_notice": "Automazione attivata.",
-  "automation_enable_unavailable": "Verifica i canali e le impostazioni prima di attivare l’automazione."
+  "automation_enable_unavailable": "Verifica i canali e le impostazioni prima di attivare l’automazione.",
+  "settings_impact_affected_count": "{count, plural, one {È interessata # pubblicazione della programmazione attuale. Hai sempre tu l’ultima parola.} other {Sono interessate # pubblicazioni della programmazione attuale. Hai sempre tu l’ultima parola.}}",
+  "settings_impact_available_images": "{count, plural, =-1 {Immagini illimitate} one {# immagine} other {# immagini}}",
+  "settings_impact_available_video_seconds": "{count, plural, =-1 {Video illimitati} other {# s di video}}",
+  "settings_impact_horizon": "{days, plural, =30 {in un mese} one {in # giorno} other {in # giorni}}",
+  "settings_impact_lost_quotas": "Applicando ora, perdi la quota già utilizzata: {images, plural, one {# unità immagine} other {# unità immagine}} e {videos, plural, one {# unità video} other {# unità video}}.",
+  "settings_impact_media_count": "{images, plural, one {# immagine} other {# immagini}} · {videos, plural, one {# video} other {# video}} ({seconds} s)",
+  "settings_impact_publications_count": "{count, plural, one {pubblicazione} other {pubblicazioni}}"
 }

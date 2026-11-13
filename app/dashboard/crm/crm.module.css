@@ -3256,3 +3256,24 @@
     border-radius:11px;
   }
 }
+
+/* The checkbox glyph stays compact inside a full contact-selection target. */
+@media (max-width: 1100px) {
+  .mobileCheckboxWrap,
+  .mobileExpandBtn {
+    flex: 0 0 44px;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+  }
+
+  .mobileListMain,
+  .mobileDetailActions .smallBtn { min-height: 44px; }
+  .mobileDetailActions .smallBtn { min-width: 44px; }
+
+  .modalClose {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+  }
+}

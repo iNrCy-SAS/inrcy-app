@@ -13,6 +13,7 @@ import {
   type CommercialPlan,
 } from "@/lib/subscriptionOffers";
 import { detectClientBillingPlatform, startSubscriptionCheckout } from "@/lib/clientSubscriptionBilling";
+import { getLocalizedApiError, getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 import styles from "./compte-bloque.module.css";
 
 type Props = {
@@ -22,14 +23,6 @@ type Props = {
   contactHref: string;
   checkoutPending?: boolean;
 };
-
-async function apiError(response: Response, fallback: string): Promise<string> {
-  const body = (await response.json().catch(() => null)) as { error?: string; message?: string; code?: string } | null;
-  if (body?.code === "ACCOUNT_BLOCKED" || body?.error === "ACCOUNT_BLOCKED") {
-    return "Votre accès est suspendu. Réessayez la régularisation de votre paiement ou contactez iNrCy.";
-  }
-  return body?.error || fallback;
-}
 
 export default function BlockedBillingActions({ status, edition, contactHref, checkoutPending = false }: Props) {
   const i18nT = useTranslations("public");
@@ -83,7 +76,7 @@ export default function BlockedBillingActions({ status, edition, contactHref, ch
         setBusy(false);
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Le paiement est indisponible.");
+      setError(getLocalizedErrorMessage(caught, locale, i18nT("billing_checkout_unavailable")));
       setBusy(false);
     }
   }
@@ -100,13 +93,13 @@ export default function BlockedBillingActions({ status, edition, contactHref, ch
           setBusy(false);
           return;
         }
-        throw new Error(await apiError(response, i18nT("l_operation_n_a_pas_pu_2eda8de6")));
+        throw new Error(await getLocalizedApiError(response, locale, i18nT("billing_portal_unavailable")));
       }
       const body = (await response.json()) as { url?: string };
-      if (!body.url) throw new Error("Le portail de facturation n’a pas pu être ouvert.");
+      if (!body.url) throw new Error(i18nT("billing_portal_unavailable"));
       window.location.assign(body.url);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Le portail de facturation est indisponible.");
+      setError(getLocalizedErrorMessage(caught, locale, i18nT("billing_portal_unavailable")));
       setBusy(false);
     }
   }

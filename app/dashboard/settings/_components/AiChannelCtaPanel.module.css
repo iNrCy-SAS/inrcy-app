@@ -625,3 +625,30 @@
     transform: none;
   }
 }
+
+@media (max-width: 1100px) {
+  .editorCarousel,
+  :global([data-personalization-configuration="true"]) .editorCarousel {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+
+  .navArrow,
+  :global([data-personalization-configuration="true"]) .navArrow {
+    width: 44px;
+    min-height: 44px;
+  }
+}
+
+/* On phones, navigation gets its own row so the editor keeps the full width. */
+@media (max-width: 560px) {
+  .editorCarousel,
+  :global([data-personalization-configuration="true"]) .editorCarousel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .framePair { grid-column: 1 / -1; grid-row: 2; }
+  .navArrow { grid-row: 1; }
+  .navArrow:first-child { grid-column: 1; justify-self: start; }
+  .navArrow:last-child { grid-column: 2; justify-self: end; }
+}

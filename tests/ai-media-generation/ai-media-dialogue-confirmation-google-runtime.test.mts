@@ -25,6 +25,8 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
   pronunciationAliases?: readonly AiMediaPronunciationAlias[];
   expectedContinuation?: boolean;
   thirdTranscript?: string;
+  responseTranscripts?: readonly string[];
+  deadlineOnRead?: number;
   pronunciationStatus?: "verified" | "rejected" | "unavailable" | "invalid" | "deadline";
   automaticDialogueContext?: string;
   automaticStatus?: "passed" | "rejected" | "unavailable" | "invalid" | "deadline";
@@ -60,7 +62,7 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
         calls.push({ body, options });
         if (overrides.firstReadDeadline && calls.length === 1) { qaDeadline.abort(); throw new DOMException("QA deadline", "AbortError"); }
         if (overrides.firstReadThrows && calls.length === 1) throw new TypeError("PRIVATE_TRANSPORT_ERROR");
-        assert.ok(calls.filter(call => (call.body.input as Array<{ type: string }>).some(part => part.type === "audio")).length <= 3, "At most three bounded audio checks are allowed.");
+        assert.ok(calls.filter(call => (call.body.input as Array<{ type: string }>).some(part => part.type === "audio")).length <= (overrides.responseTranscripts?.length ?? 3), "The existing three-check paths and explicit four-check consensus stay bounded.");
         const prompt = (body.input as Array<{ type: string; text?: string }>).filter((part) => part.type === "text").map(part => part.text).join("\n");
         const schema = (body.response_format as { schema: { properties: Record<string, unknown> } }).schema;
         if (schema.properties.status && !(body.input as Array<{ type: string }>).some(part => part.type === "audio")) {
@@ -82,12 +84,13 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
         }
         assert.ok(!prompt.includes(expectedLine), "ASR never receives the expected script as a hint.");
         assert.ok(!prompt.includes(firstTranscript), "Confirmation never receives the first transcript as a hint.");
+        if (overrides.deadlineOnRead === calls.length) { qaDeadline.abort(); throw new DOMException("Shared QA deadline", "AbortError"); }
         if (calls.length === 2 && outcome === "deadline") {
           qaDeadline.abort(); throw new DOMException("QA deadline", "AbortError");
         }
-        const transcript = calls.length === 3 ? overrides.thirdTranscript ?? firstTranscript : firstComplete ? expectedLine : calls.length === 2
+        const transcript = overrides.responseTranscripts?.[calls.length - 1] ?? (calls.length === 3 ? overrides.thirdTranscript ?? firstTranscript : firstComplete ? expectedLine : calls.length === 2
           ? overrides.secondTranscript ?? (outcome === "complete" ? expectedLine : firstTranscript)
-          : firstTranscript;
+          : firstTranscript);
         return { output_text: JSON.stringify({ transcript, ...(schema.properties.final_frame_layout ? { final_frame_layout: overrides.finalFrameLayout ?? "passed", final_frame_issue: overrides.finalFrameIssue ?? (overrides.finalFrameLayout === "rejected" ? "unexpected_partial_transition" : overrides.finalFrameLayout && overrides.finalFrameLayout !== "passed" ? "unavailable" : "none") } : {}) }), usage: { total_input_tokens: 10, total_output_tokens: 20, total_tokens: 30 } };
       } };
     } }],
@@ -206,11 +209,12 @@ test("Google confirms a real wrong amount but leaves two contradictory amounts i
       expectedLine,
       firstTranscript: expectedLine.replace("50", "500"),
       secondTranscript: expectedLine.replace("50", secondAmount),
+      thirdTranscript: expectedLine.replace("50", "50000"),
     });
     const result = await h.audit();
     assert.equal(result.status, secondAmount === "500" ? "rejected" : "unavailable");
     assert.deepEqual(result.clips[0].issues, [secondAmount === "500" ? "spoken_critical_value_mismatch" : "transcription_inconclusive"]);
-    assert.equal(h.calls.length, 2);
+    assert.equal(h.calls.length, secondAmount === "500" ? 2 : 3);
     assert.equal(h.extractions(), 1);
     assert.equal(h.cleaned(), 1);
   }
@@ -222,12 +226,39 @@ test("longer transcripts receive a bounded output allowance included in the acco
   assert.deepEqual(h.calls[0].body.generation_config, { max_output_tokens: 360 });
 });
 
+test("Google resolves contradictory reads only with two fresh passing audio responses, using one extraction and the existing budget", async () => {
+  const expectedLine = "Notre société NovaDesk ne comprend pas la livraison et propose cette offre à 50 euros seulement.";
+  const responses = [expectedLine.replace("50", "500"), expectedLine.replace("50", "5000"), expectedLine, expectedLine];
+  const h = adapter("still-cut", false, { expectedLine, firstTranscript: responses[0], responseTranscripts: responses });
+  const result = await h.audit();
+  assert.equal(result.status, "passed"); assert.equal(result.clips[0].confirmationDecision, "conflicting_reads_confirmed_pass");
+  assert.equal(h.calls.length, 4); assert.equal(h.extractions(), 1); assert.equal(h.cleaned(), 1);
+  assert.equal(h.reservations.length, 4); assert.equal(h.costs.length, 4, "Each actual Google request keeps its own cost guard");
+  const audios = h.calls.map(call => (call.body.input as Array<{ type: string; data?: string }>).find(part => part.type === "audio")?.data);
+  assert.equal(new Set(audios).size, 1, "Every independent response checks exactly the same extracted audio");
+  for (const call of h.calls) { assert.equal(call.options.maxRetries, 0); assert.ok(call.options.timeout <= 8000); }
+  assert.doesNotMatch(JSON.stringify(result), /NovaDesk|livraison|500|synthetic/);
+});
+
+test("the fourth Google listen cannot turn its deadline or a changed amount into consent to deliver", async () => {
+  const expectedLine = "Notre offre ne comprend pas la livraison et coûte 50 euros seulement.";
+  for (const last of [expectedLine.replace("50", "50000"), expectedLine]) {
+    const responses = [expectedLine.replace("50", "500"), expectedLine.replace("50", "5000"), expectedLine, last];
+    const h = adapter("still-cut", false, { expectedLine, firstTranscript: responses[0], responseTranscripts: responses, ...(last === expectedLine ? { deadlineOnRead: 4 } : {}) });
+    const result = await h.audit();
+    assert.equal(result.status, "unavailable"); assert.equal(h.calls.length, 4); assert.equal(h.extractions(), 1);
+    assert.equal(result.clips[0].confirmation, "unavailable"); assert.equal(result.clips[0].audioCheckCount, 4);
+    assert.equal(h.cleaned(), 1); assert.doesNotMatch(JSON.stringify(result), /livraison|500|deadline/);
+  }
+});
+
 test("isolated brand verification reuses the audio, never seeds ASR, and has a finite shared budget", async () => {
   const expectedLine = "Notre module iNrSearch augmente votre visibilité sur les moteurs intelligents.";
   const heard = expectedLine.replace("iNrSearch", "Inner Search");
   const h = adapter("still-cut", false, { expectedLine, firstTranscript: heard, secondTranscript: heard, pronunciationStatus: "verified" });
   const result = await h.audit(15);
   assert.equal(result.status, "passed");
+  assert.equal(result.clips[0].confirmationDecision, "confirmed_pass");
   assert.equal(result.clips[0].pronunciationVerification, "verified");
   assert.equal(h.calls.length, 3); assert.equal(h.extractions(), 1); assert.equal(h.cleaned(), 1);
   assert.ok(h.calls.every((call) => call.options.maxRetries === 0 && call.options.timeout <= 8_000 && call.body.store === false));

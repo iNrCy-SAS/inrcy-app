@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import { catalogTranslator } from "../helpers/catalog-translator.mts";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
+const translate = catalogTranslator("booster");
 
 const path = "app/dashboard/_components/PublishScheduleModal.tsx";
 const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
@@ -29,7 +32,7 @@ function harness(overrides: Record<string, unknown> = {}) {
     toLocalIso: compile("toLocalIso", {}),
     enableImmediateUnselectedWarning: true,
     confirmInrcy: async (request: unknown) => { result.warnings.push(request); return true; },
-    i18nT: (key: string) => key,
+    i18nT: translate, getSafeClientErrorMessage: userFacingErrorsFixture.getClientUserFacingErrorMessage,
     setLocalError: (message: string) => result.errors.push(message),
     setSubmitting: (value: boolean) => result.busy.push(value),
     setDoneMessage: (message: string) => result.success.push(message), resolvedSuccessMessage: "scheduled",
@@ -70,11 +73,11 @@ test("per-channel scheduling preserves individual slots and confirms channels le
 test("past dates, an empty selection and a declined immediate-publication confirmation never dispatch", async () => {
   const past = harness({ generalDate: "2000-01-01" });
   await past.submit();
-  assert.deepEqual(past.result.errors, ["schedule_future_datetime_error"]);
+  assert.deepEqual(past.result.errors, [translate("schedule_future_datetime_error")]);
   assert.deepEqual(past.result.submissions, []);
   const empty = harness({ scheduleMode: "channel", isSelected: () => false });
   await empty.submit();
-  assert.deepEqual(empty.result.errors, ["schedule_select_channel_error"]);
+  assert.deepEqual(empty.result.errors, [translate("schedule_select_channel_error")]);
   assert.deepEqual(empty.result.submissions, []);
   const declined = harness({ scheduleMode: "channel", isSelected: (channel: string) => channel === "facebook", confirmInrcy: async () => false });
   await declined.submit();
@@ -86,7 +89,9 @@ test("a scheduling failure leaves the form retryable and never reports success",
   const h = harness({ onConfirm: async () => { throw new Error("Connection unavailable"); } });
   await h.submit();
   assert.deepEqual(h.result.busy, [true, false]);
-  assert.deepEqual(h.result.errors, ["", "Connection unavailable"]);
+  assert.equal(h.result.errors[0], "");
+  assert.match(h.result.errors.at(-1) || "", /réessay|connexion|indisponible/i);
+  assert.doesNotMatch(h.result.errors.at(-1) || "", /Connection unavailable/);
   assert.deepEqual(h.result.success, []);
   const busy = harness({ busy: true });
   await busy.submit();

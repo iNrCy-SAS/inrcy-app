@@ -5,6 +5,7 @@ import ts from "typescript";
 import { emptyAdsConnectionSnapshots } from "../lib/adsConnectionSnapshot.ts";
 import * as http from "../app/dashboard/ads/adsClientHttp.ts";
 import type useAdsExternalConnections from "../app/dashboard/ads/useAdsExternalConnections.ts";
+import { adsErrorRuntime } from "./helpers/ads-error-message-runtime.mts";
 
 type State = ReturnType<typeof useAdsExternalConnections>;
 function harness() {
@@ -24,6 +25,7 @@ function harness() {
   new Function("module", "exports", "require", "fetch", output)(record, record.exports, (name: string) => {
     if (name === "react") return react;
     if (name === "./adsClientHttp") return http;
+    if (name === "./useAdsErrorMessage") return adsErrorRuntime();
     throw new Error(`Unexpected connection dependency: ${name}`);
   }, (url: string, init: RequestInit) => new Promise<Response>((resolve) => calls.push({ url, init, reply: (body, status = 200) => resolve(Response.json(body, { status })) })));
   const setConnectionSnapshots = (update: Parameters<typeof record.exports.default>[0]["setConnectionSnapshots"] extends (update: infer T) => void ? T : never) => { snapshots = typeof update === "function" ? update(snapshots) : update; };
@@ -101,5 +103,5 @@ test("association posts the selected account then rereads status, while failed d
   h.calls[2].reply({ error: "Try again" }, 503); await disconnect;
   assert.equal(h.render().externalAccountChoice, "chosen");
   assert.equal(h.render().externalStatuses.linkedin.connected, true);
-  assert.equal(h.render().externalError, "Try again");
+  assert.equal(h.render().externalError, "Le service est momentanément indisponible. Merci de réessayer dans quelques minutes.");
 });

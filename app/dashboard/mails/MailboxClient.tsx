@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useMailboxHistory } from "./_hooks/useMailboxHistory";
 import { useInrAssistantSendHistoryControls } from "../_hooks/useInrAssistantSendHistoryControls";
@@ -641,7 +642,7 @@ export default function MailboxClient({
     } | null;
     if (!response.ok || !data?.scheduledAction) {
       throw new Error(
-        data?.error || i18nT("scheduled_mail_save_failed"),
+        getSafeClientErrorMessage(data, i18nT("scheduled_mail_save_failed")),
       );
     }
     return {
@@ -689,7 +690,7 @@ export default function MailboxClient({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(
-          data?.error || i18nT("scheduled_mail_send_now_failed"),
+          getSafeClientErrorMessage(data, i18nT("scheduled_mail_send_now_failed")),
         );
       }
       setToast(i18nT("mail_lance_maintenant_la_programmation_future_73010184"));
@@ -1121,7 +1122,7 @@ export default function MailboxClient({
         );
         const data = await response.json().catch(() => ({}));
         if (!response.ok || !data?.report) {
-          throw new Error(data?.error || "Suivi de campagne indisponible.");
+          throw new Error(getSafeClientErrorMessage(data, "Suivi de campagne indisponible."));
         }
         const report = data.report as CampaignExperienceReport;
         setCampaignReport(report);
@@ -2145,7 +2146,7 @@ export default function MailboxClient({
           error?: string;
         } | null;
         if (!response.ok || !data?.scheduledAction) {
-          throw new Error(data?.error || onScheduledMailEditMissing());
+          throw new Error(getSafeClientErrorMessage(data, onScheduledMailEditMissing()));
         }
         onScheduledMailEditLoaded(editId, data.scheduledAction);
       } catch (error) {
@@ -2565,9 +2566,7 @@ export default function MailboxClient({
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(
-          data?.user_message ||
-            data?.error ||
-            i18nT("campaign_schedule_failed"),
+          getSafeClientErrorMessage(data, i18nT("campaign_schedule_failed")),
         );
       }
 
@@ -2916,9 +2915,7 @@ export default function MailboxClient({
     } catch (error) {
       if (!stillCurrent()) return;
       const message =
-        error instanceof Error
-          ? error.message
-          : "Impossible d’ouvrir iNrStudio.";
+        getSafeClientErrorMessage(error, "Impossible d’ouvrir iNrStudio.");
       setDetailsActionError(message);
       throw error instanceof Error ? error : new Error(message);
     }
@@ -2958,9 +2955,7 @@ export default function MailboxClient({
       openStudio(href);
     } catch (error) {
       setDetailsActionError(
-        error instanceof Error
-          ? error.message
-          : "Impossible d’ouvrir iNrStudio.",
+        getSafeClientErrorMessage(error, "Impossible d’ouvrir iNrStudio."),
       );
     }
   }
@@ -3032,9 +3027,7 @@ export default function MailboxClient({
     } catch (error) {
       if (!stillCurrent()) return;
       setDetailsActionError(
-        error instanceof Error
-          ? error.message
-          : "Impossible d’ouvrir iNrStudio.",
+        getSafeClientErrorMessage(error, "Impossible d’ouvrir iNrStudio."),
       );
     }
   }
@@ -3064,9 +3057,7 @@ export default function MailboxClient({
       .catch((error) => {
         setFailedStudioEditorSnapshotKey(snapshotKey);
         setDetailsActionError(
-          error instanceof Error
-            ? error.message
-            : "Le brouillon local iNrSend n’a pas pu être restauré.",
+          getSafeClientErrorMessage(error, "Le brouillon local iNrSend n’a pas pu être restauré."),
         );
       })
       .finally(() => {
@@ -3460,7 +3451,7 @@ export default function MailboxClient({
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(json?.error || i18nT("publication_update_failed"));
+        throw new Error(getSafeClientErrorMessage(json, i18nT("publication_update_failed")));
       }
       setDetailsActionSuccess(
         i18nT("publication_value_modifiee_acf7a96f", {
@@ -3520,7 +3511,7 @@ export default function MailboxClient({
       );
       const json = await res.json().catch(() => ({}));
       if (!res.ok || json?.ok !== true || json?.deleted !== true) {
-        throw new Error(json?.error || i18nT("publication_delete_failed"));
+        throw new Error(getSafeClientErrorMessage(json, i18nT("publication_delete_failed")));
       }
 
       // The API returns the authoritative app_events payload after the remote

@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 import { useInrAssistantLibraryOptimization } from "../_hooks/useInrAssistantLibraryOptimization";
 import { useInrAssistantMediaLibraryCommands } from "../_hooks/useInrAssistantMediaLibraryCommands";
 import { useInrAssistantScreen } from "../_components/DashboardAssistantScreenContext";
@@ -476,7 +477,7 @@ export default function MediaLibraryClient() {
         i18nT("library_load_failed"),
       );
       if (!response.ok)
-        throw new Error(json?.error || i18nT("library_load_failed"));
+        throw new Error(getSafeClientErrorMessage(json, i18nT("library_load_failed")));
 
       // A GET started before a successful edit must never restore the old metadata.
       if (!isCurrentRequest() || revision !== metadataRevisionRef.current || options?.canApply?.() === false) return false;
@@ -607,7 +608,7 @@ export default function MediaLibraryClient() {
         method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ id, ...patch }),
       });
       const json = await readApiJson(response, i18nT("library_edit_failed"));
-      if (!response.ok || json?.ok !== true) throw new Error(json?.error || i18nT("library_edit_failed"));
+      if (!response.ok || json?.ok !== true) throw new Error(getSafeClientErrorMessage(json, i18nT("library_edit_failed")));
       if (!mountedRef.current || getActiveBrowserUserId() !== accountId) return;
       metadataRevisionRef.current += 1;
       setItems((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item));
@@ -642,7 +643,7 @@ export default function MediaLibraryClient() {
         body: JSON.stringify({ ids: selectedItems.map((item) => item.id) }), signal: controller.signal,
       });
       const json = await readApiJson(response, i18nT("library_bulk_download_failed"));
-      if (!response.ok || json?.ok !== true || typeof json.downloadUrl !== "string") throw new Error(json?.error || i18nT("library_bulk_download_failed"));
+      if (!response.ok || json?.ok !== true || typeof json.downloadUrl !== "string") throw new Error(getSafeClientErrorMessage(json, i18nT("library_bulk_download_failed")));
       if (!mountedRef.current || getActiveBrowserUserId() !== accountId || controller.signal.aborted) return;
       const downloadUrl = new URL(json.downloadUrl, window.location.origin);
       if (downloadUrl.origin !== window.location.origin || downloadUrl.pathname !== "/api/media-library/download") throw new Error(i18nT("library_bulk_download_failed"));
@@ -757,7 +758,7 @@ export default function MediaLibraryClient() {
         );
         if (!prepareResponse.ok)
           throw new Error(
-            prepareJson?.error || i18nT("upload_prepare_failed"),
+            getSafeClientErrorMessage(prepareJson, i18nT("upload_prepare_failed")),
           );
 
         const preparedItems = (
@@ -921,7 +922,7 @@ export default function MediaLibraryClient() {
           );
           if (!finalizeResponse.ok)
             throw new Error(
-              finalizeJson?.error || i18nT("upload_finalize_failed"),
+              getSafeClientErrorMessage(finalizeJson, i18nT("upload_finalize_failed")),
             );
           uploaded += Number(finalizeJson?.uploaded || 0);
           failed += Number(finalizeJson?.failed || 0);
@@ -1064,7 +1065,7 @@ export default function MediaLibraryClient() {
       if (!ok) return { ok: false, cancelled: true };
       return await requestMediaDelete(ids, true);
     }
-    if (!response.ok) throw new Error(json?.error || "Suppression impossible.");
+    if (!response.ok) throw new Error(getSafeClientErrorMessage(json, "Suppression impossible."));
     return json;
   }
 

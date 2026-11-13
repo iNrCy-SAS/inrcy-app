@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { IntlMessageFormat } from "intl-messageformat";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const read = (path: string) => readFileSync(resolve(ROOT, path), "utf8");
+const message = (locale: string, key: string) => new IntlMessageFormat(JSON.parse(read(`messages/${locale}/dashboard.json`)).aiMemory[key], locale).format();
 
 test("iNrADN provides a confirmed reset at the bottom of every tab", () => {
   const ui = read("app/dashboard/settings/_components/AiMemoryContent.tsx");
@@ -12,7 +14,9 @@ test("iNrADN provides a confirmed reset at the bottom of every tab", () => {
   assert.match(ui, /data-ai-memory-tab-reset/);
   assert.match(ui, /justifyContent: "flex-end"/);
   assert.match(ui, /const resetCurrentTab = async/);
-  assert.match(ui, /Cette action efface uniquement les informations de cet onglet/);
+  assert.match(ui, /message: isGlobalReset\s*\? t\("irreversibleResetAllMessage"\)\s*: t\("irreversibleResetTabMessage"\)/);
+  assert.match(String(message("fr-FR", "irreversibleResetTabMessage")), /efface uniquement les informations de cet onglet.*définitive/);
+  assert.match(String(message("en-GB", "irreversibleResetTabMessage")), /only.*(?:information|data).*tab/i);
   assert.match(ui, /body: JSON\.stringify\(\{ tab: tabToReset, preserveVocabulary: hideNavigation && tabToReset === "identity", expectedAccountId, expectedActorUserId \}\)/);
   assert.match(ui, /if \(!confirmed \|\| !current\(\)\) return false/);
   assert.match(ui, /activeTab !== "analysis"/);
@@ -26,7 +30,9 @@ test("the analysis tab keeps only the confirmed global iNrADN reset below the mo
   assert.equal((footer.match(/onClick=\{onReset\}/g) || []).length, 1);
   assert.match(footer, /analysisQuota[\s\S]*?className=\{styles\.actions\}[\s\S]*?className=\{styles\.footerMeta\}[\s\S]*?t\("analysisResetButton"\)/);
   assert.doesNotMatch(analysis, /Réinitialiser l’analyse|analysisPrivacyStyle/);
-  assert.match(ui, /toutes les informations iNr’ADN, y compris les documents importés et leurs fichiers/);
+  assert.match(ui, /confirmLabel: isGlobalReset \? t\("irreversibleResetAllConfirm"\) : t\("reset"\)/);
+  assert.match(String(message("fr-FR", "irreversibleResetAllMessage")), /toutes les informations iNr’ADN, y compris les documents importés et leurs fichiers.*définitive/);
+  assert.match(String(message("en-GB", "irreversibleResetAllMessage")), /all.*iNr[’']ADN.*imported documents.*files.*permanent/i);
 });
 
 test("the reset API is authenticated, account-scoped, and restricts document deletion to owned paths", () => {

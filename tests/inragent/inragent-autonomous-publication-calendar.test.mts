@@ -251,7 +251,10 @@ test("les boutons du planning conservent l'identité de chaque publication", () 
   const modal = read("app/dashboard/agent/_components/AgentActionModals.tsx");
 
   assert.match(modal, /onClick=\{\(\) => onOpenContent\(item\)\}/);
-  assert.match(modal, /onClick=\{\(\) => onReschedule\(item\)\}/);
+  const rescheduleStart = modal.indexOf('data-schedule-action="reschedule"');
+  const rescheduleButton = modal.slice(rescheduleStart, modal.indexOf("</button>", rescheduleStart));
+  assert.match(rescheduleButton, /onClick=\{[\s\S]*?\bonReschedule\(item\);?[\s\S]*?\}/, "rescheduling keeps the exact selected item when a focus-restoration handler wraps the click");
+  assert.match(rescheduleButton, /disabled=\{\s*!item\.editable\s*\|\|\s*mutationState === "saving"/, "the existing editability and save lock still apply");
   assert.match(modal, /onClick=\{\(\) => onDelete\(item\)\}/);
   assert.match(
     client,

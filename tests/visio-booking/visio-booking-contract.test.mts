@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { IntlMessageFormat } from "intl-messageformat";
 
 function read(path: string) {
   return readFileSync(path, "utf8");
@@ -498,8 +499,15 @@ test("le compte admin ouvre Google Agenda et les copies Google restent en lectur
   const eventsRoute = read("app/api/calendar/events/route.ts");
 
   assert.match(page, /canOpenGoogleAgenda=\{role\.isAdmin\}/);
-  assert.match(ui, /desktopLabel="Google Agenda"/);
-  assert.match(ui, /Admin — Attribution des rendez-vous/);
+  assert.match(ui, /canOpenGoogleAgenda\s*\?\s*\(\s*<ResponsiveActionButton\s+desktopLabel=\{i18nT\("google_calendar"\)\}/);
+  assert.match(ui, /title=\{i18nT\("open_google_calendar"\)\}/);
+  for (const [locale, expectedLabel, expectedTitle, expectedAdminTitle] of [["fr-FR", "Google Agenda", "Ouvrir Google Agenda", "Admin — Attribution des rendez-vous"], ["en-GB", "Google Calendar", "Open Google Calendar", "Admin — Appointment assignment"]]) {
+    const messages = JSON.parse(read(`messages/${locale}/agenda.json`));
+    assert.equal(new IntlMessageFormat(messages.google_calendar, locale).format(), expectedLabel);
+    assert.equal(new IntlMessageFormat(messages.open_google_calendar, locale).format(), expectedTitle);
+    assert.equal(new IntlMessageFormat(messages.admin_appointment_assignment, locale).format(), expectedAdminTitle);
+  }
+  assert.match(ui, /canManageTeamAppointments\s*\?\s*\(\s*<button[\s\S]{0,300}?onClick=\{onOpenTeamAppointments\}\s+title=\{i18nT\("admin_appointment_assignment"\)\}/);
   assert.match(ui, /onClick=\{onOpenTeamAppointments\}/);
   assert.match(client, /https:\/\/calendar\.google\.com\/calendar\/u\/0\/r/);
   assert.match(client, /refreshGoogle/);

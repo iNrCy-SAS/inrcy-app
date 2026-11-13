@@ -1,3 +1,4 @@
+import { withUiCopy } from "./helpers/localized-ui-source.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -208,7 +209,7 @@ test("LinkedIn rattache les critères professionnels et la langue invalides à A
   assert.deepEqual(readiness(), [linkedInSteps.targeting]);
   draft.channelSettings.locale.language = "fr";
   assert.deepEqual(readiness(), []);
-  assert.doesNotMatch(adsIncompleteLaunchMessage([linkedInSteps.targeting], "linkedin", linkedInSteps.geography), /zone exacte|libellé affiché/);
+  assert.doesNotMatch(withUiCopy(adsIncompleteLaunchMessage([linkedInSteps.targeting], "linkedin", linkedInSteps.geography)), /zone exacte|libellé affiché/);
 });
 
 test("LinkedIn peut signaler simultanément les deux étapes sans les confondre", () => {
@@ -352,7 +353,7 @@ test("Pinterest rattache la géographie séparée, le média et le lien final à
   assert.deepEqual(assess(pinterestAssistedSteps), [pinterestAssistedSteps.geography]);
   assert.deepEqual(assess(pinterestManualSteps), [pinterestManualSteps.geography]);
   assert.deepEqual(assess(steps), [steps.targeting]);
-  assert.doesNotMatch(adsIncompleteLaunchMessage([pinterestAssistedSteps.geography!], "pinterest", pinterestAssistedSteps.geography), /LinkedIn|URN/);
+  assert.doesNotMatch(withUiCopy(adsIncompleteLaunchMessage([pinterestAssistedSteps.geography!], "pinterest", pinterestAssistedSteps.geography)), /LinkedIn|URN/);
 });
 test("Pinterest distingue une enchère invalide du budget CBO et du calendrier", () => {
   const draft = completePinterestCampaign();
@@ -418,10 +419,10 @@ test("le studio garde la navigation et le brouillon disponibles, puis avertit se
   const client = readFileSync(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
   const css = readFileSync(new URL("../app/dashboard/ads/ads.module.css", import.meta.url), "utf8");
 
-  assert.doesNotMatch(client, /if \(dx < 0 && current === deliveryStep && !destinationReview\.canContinue\) return current/);
-  assert.doesNotMatch(client, /disabled=\{busy === "plan"[^}]*destinationReview\.canContinue/);
-  assert.match(client, /studioFinalActionButtons[\s\S]*?Enregistrer en brouillon[\s\S]*?studioLaunchGuard/);
-  assert.match(client, /adsIncompleteLaunchMessage\([\s\S]*?incompleteLaunchSteps,[\s\S]*?draft\.provider,[\s\S]*?geographyStep >= 0 \? geographyStep \+ 1 : targetingStep \+ 1/);
+  assert.doesNotMatch(withUiCopy(client), /if \(dx < 0 && current === deliveryStep && !destinationReview\.canContinue\) return current/);
+  assert.doesNotMatch(withUiCopy(client), /disabled=\{busy === "plan"[^}]*destinationReview\.canContinue/);
+  assert.match(withUiCopy(client), /studioFinalActionButtons[\s\S]*?Enregistrer en brouillon[\s\S]*?studioLaunchGuard/);
+  assert.match(withUiCopy(client), /adsIncompleteLaunchMessage\([\s\S]*?incompleteLaunchSteps,[\s\S]*?draft\.provider,[\s\S]*?geographyStep >= 0 \? geographyStep \+ 1 : targetingStep \+ 1/);
   const source = ts.createSourceFile("AdsClient.tsx", client, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let disabled: ts.Expression | undefined;
   function visit(node: ts.Node) {
@@ -453,8 +454,8 @@ test("le studio garde la navigation et le brouillon disponibles, puis avertit se
       }
     }
   }
-  assert.match(client, /studioLaunchWarning[\s\S]*?⚠/);
-  assert.match(css, /\.studioLaunchWarning\{[^}]*#ffd760/);
+  assert.match(withUiCopy(client), /studioLaunchWarning[\s\S]*?⚠/);
+  assert.match(withUiCopy(css), /\.studioLaunchWarning\{[^}]*#ffd760/);
 });
 
 test("LinkedIn conserve le défaut historique sans réglages natifs et bloque un choix explicite incompatible", () => {
@@ -496,7 +497,7 @@ test("Google sépare une géographie manquante des paramètres et garde le repli
   assert.deepEqual(assess(googleAssistedSteps), [googleAssistedSteps.geography]);
   assert.deepEqual(assess(googleManualSteps), [googleManualSteps.geography]);
   assert.deepEqual(assess(steps), [steps.targeting]);
-  assert.doesNotMatch(adsIncompleteLaunchMessage([googleAssistedSteps.geography!], "google", googleAssistedSteps.geography), /LinkedIn|URN/);
+  assert.doesNotMatch(withUiCopy(adsIncompleteLaunchMessage([googleAssistedSteps.geography!], "google", googleAssistedSteps.geography)), /LinkedIn|URN/);
 });
 
 test("Google rattache l’enchère manuelle incomplète à Enchères, sans déplacer le budget", () => {

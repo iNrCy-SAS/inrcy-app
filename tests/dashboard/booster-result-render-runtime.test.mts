@@ -170,7 +170,7 @@ test("failed, skipped and warning outcomes remain distinct and an absent summary
   const skipped = render({ skippedCount: 1, entries: [{ channel: "youtube", label: "YouTube", status: "skipped", ok: false, blockers: ["Vidéo obligatoire"] }] });
   assert.match(skipped, /Non envoyé/);
   assert.match(skipped, /YouTube — Ignoré avant envoi/);
-  assert.match(skipped, /Vidéo obligatoire/);
+  assert.match(skipped, /Ajoutez une vidéo avant de publier/);
   const warning = render({ successCount: 1, warningCount: 1, entries: [{ channel: "pinterest", label: "Pinterest", status: "published_with_warning", ok: true, warning_message: "Un média n’a pas été publié." }] });
   assert.match(warning, /1 publication en ligne/);
   assert.match(warning, /Publié avec avertissement/);
@@ -192,7 +192,7 @@ test("embedded results leave the single publication recap to the compact footer 
   assert.equal((footer.match(/1\/1 publié/g) || []).length, 1);
   assert.equal((footer.match(/data-publication-hub-summary/g) || []).length, 1);
   assert.match(footer, /data-publication-result-footer/);
-  assert.match(html, /Site Web — Publié/);
+  assert.match(html, /Site web — Publié/);
   assert.equal((html.match(/data-publication-visual-hub/g) || []).length, 1);
   assert.doesNotMatch(html, /class="channelGrid"|class="channelCard"/);
   assert.doesNotMatch(html, /role="dialog"|aria-modal=|data-publish-wizard|data-wizard-screen|publish-result-close/);
@@ -220,7 +220,7 @@ test("the shared result hub keeps all eleven destinations in their initial order
   assert.equal((html.match(/<li\b[^>]+data-status="published"/g) || []).length, 10);
   assert.equal((html.match(/<li\b[^>]+data-status="failed"/g) || []).length, 1);
   assert.match(html, /Google Business — Échec/);
-  assert.match(html, /Une erreur empêche la publication/);
+  assert.match(html, /Google Business n’a pas pu publier/);
   assert.match(html, /aria-label="Voir Facebook"/);
   assert.match(html, /class="corePercent">100<span>%/);
   assert.doesNotMatch(html, /11\/11 publiés|Tout est en ligne/);
@@ -416,17 +416,37 @@ test("standalone, embedded and compact results render localized copy and real IC
   }
 });
 
-test("English failure details localize known error classes and preserve unknown actionable provider responses in a disclosure", () => {
+test("English failure details localize known error classes and video requirements without showing provider diagnostics", () => {
   activeLocale = "en-GB";
   try {
     const known = render({ entries: [{ channel: "facebook", label: "Facebook", status: "failed", ok: false, error: "rate limit exceeded" }] });
     assert.match(known, /The service is busy right now/);
     assert.doesNotMatch(known, /Le service est|Merci de/);
     const unknown = render({ entries: [{ channel: "youtube", label: "YouTube", status: "skipped", ok: false, blockers: ["Vidéo obligatoire, format vertical 9:16"] }] });
-    assert.match(unknown, /YouTube is not ready to publish/);
-    assert.match(unknown, /<details[^>]*><summary>Technical details · original response<\/summary><p>Vidéo obligatoire, format vertical 9:16<\/p><\/details>/);
-    assert.doesNotMatch(unknown, /<details[^>]*\bopen\b/);
+    assert.match(unknown, /Add a vertical video in 9:16 format/);
+    assert.doesNotMatch(unknown, /Vidéo obligatoire|<details\b|Technical details/);
   } finally {
     activeLocale = "fr-FR";
   }
+});
+
+test("all nine result locales keep raw errors, warnings and blockers out of markup and tooltips while preserving internal payloads", () => {
+  const summary = { entries: [
+    { channel: "facebook", label: "Facebook", status: "failed", ok: false, retryable: true, error: "TypeError: private-response client_secret=sensitive-example at /var/app/private.ts:45:9" },
+    { channel: "youtube", label: "YouTube", status: "skipped", ok: false, blockers: ["Réponse privée du fournisseur à diagnostiquer", "opaque_provider_failure_reason"] },
+    { channel: "pinterest", label: "Pinterest", status: "published_with_warning", ok: true, warning: "private provider response not intended for customers" },
+  ] };
+  const snapshot = structuredClone(summary);
+  try {
+    for (const locale of Object.keys(catalogs)) {
+      activeLocale = locale;
+      for (const options of [{}, { embedded: true, publicationDestinations: [{ key: "facebook", label: "Facebook" }, { key: "youtube", label: "YouTube" }, { key: "pinterest", label: "Pinterest" }] }]) {
+        const html = render(summary, options);
+        assert.doesNotMatch(html, /sensitive-example|private-response|TypeError|client_secret|opaque_provider|Réponse privée|not intended for customers|\/var\/app/, locale);
+        const fallback = new IntlMessageFormat(catalogs[locale].execution_result_blocker_message, locale).format({ channel: "YouTube" }) as string;
+        assert.ok(html.includes(fallback), locale);
+      }
+      assert.deepEqual(summary, snapshot, "diagnostic payload remains available internally");
+    }
+  } finally { activeLocale = "fr-FR"; }
 });

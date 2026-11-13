@@ -1,3 +1,4 @@
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 import { useTranslations } from "next-intl";
 import React from "react";
 import MediaLibraryPickerModal, {
@@ -433,9 +434,7 @@ export default function MailboxComposeModal(props: MailboxComposeModalProps) {
       );
     } catch (error) {
       setAiError(
-        error instanceof Error
-          ? error.message
-          : i18nT("ai_generation_failed"),
+        getSafeClientErrorMessage(error, i18nT("ai_generation_failed")),
       );
     } finally {
       setAiGenerating(false);

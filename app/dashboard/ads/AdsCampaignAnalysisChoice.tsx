@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+
+
 import { useId, type ChangeEvent } from "react";
 
 export type AdsCampaignAnalysisMode = "free" | "guided";
@@ -32,6 +35,7 @@ export default function AdsCampaignAnalysisChoice({
   className,
   id: providedId,
 }: AdsCampaignAnalysisChoiceProps) {
+  const i18nT = useTranslations("booster");
   const generatedId = useId();
   const id = providedId ?? `ads-analysis-choice-${generatedId}`;
   const descriptionId = `${id}-description`;
@@ -50,12 +54,11 @@ export default function AdsCampaignAnalysisChoice({
       aria-describedby={descriptionId}
       disabled={disabled}
     >
-      <legend>Mode d’analyse</legend>
+      <legend>{i18nT("mode_d_analyse_40afc8bd")}</legend>
       <p id={descriptionId}>
-        Votre iNrADN guide les deux parcours. Laissez iNrCy choisir le cap ou indiquez un objectif précis.
-      </p>
+        {i18nT("votre_inradn_guide_les_deux_parcours_12289081")}{" "}</p>
 
-      <div role="radiogroup" aria-label="Mode d&apos;analyse iNrCy">
+      <div role="radiogroup" aria-label={i18nT("mode_d_apos_analyse_inrcy_336a6b99")}>
         <label data-selected={value === "free" || undefined}>
           <input
             type="radio"
@@ -65,11 +68,10 @@ export default function AdsCampaignAnalysisChoice({
             onChange={handleModeChange}
           />
           <span>
-            <strong>Analyse libre iNrADN</strong>
+            <strong>{i18nT("analyse_libre_inradn_5b755ba2")}</strong>
             <small>
-              iNrCy étudie votre activité, vos clients et votre historique pour choisir la stratégie la plus pertinente.
-            </small>
-            <b>iNrCy choisit le cap</b>
+              {i18nT("inrcy_etudie_votre_activite_vos_clients_49f021cf")}{" "}</small>
+            <b>{i18nT("inrcy_choisit_le_cap_6618168b")}</b>
           </span>
         </label>
 
@@ -82,28 +84,27 @@ export default function AdsCampaignAnalysisChoice({
             onChange={handleModeChange}
           />
           <span>
-            <strong>Analyse par objectif précis</strong>
+            <strong>{i18nT("analyse_par_objectif_precis_e15b62fb")}</strong>
             <small>
-              Vous indiquez le résultat attendu&nbsp;; iNrCy adapte le ciblage et les messages.
-            </small>
-            <b>Je fixe le cap</b>
+              {i18nT("vous_indiquez_le_resultat_attendu_nbsp_6b96558f")}{" "}</small>
+            <b>{i18nT("je_fixe_le_cap_c8104bf8")}</b>
           </span>
         </label>
       </div>
 
       {value === "guided" ? (
         <div data-analysis-objective>
-          <label htmlFor={objectiveId}>Résultat recherché</label>
+          <label htmlFor={objectiveId}>{i18nT("resultat_recherche_f2008ae5")}</label>
           <textarea
             id={objectiveId}
             value={objective}
             onChange={(event) => onObjectiveChange(event.currentTarget.value)}
-            placeholder="Ex. Plus de demandes de devis à Lyon."
+            placeholder={i18nT("ex_plus_de_demandes_de_devis_ce094567")}
             aria-describedby={objectiveHintId}
             required
             rows={3}
           />
-          <small id={objectiveHintId}>Décrivez votre objectif avec vos mots. iNrCy le confrontera à votre iNrADN.</small>
+          <small id={objectiveHintId}>{i18nT("decrivez_votre_objectif_avec_vos_mots_f5d66ebd")}</small>
         </div>
       ) : null}
     </fieldset>

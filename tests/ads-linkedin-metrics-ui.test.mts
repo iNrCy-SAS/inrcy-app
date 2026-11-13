@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
-import IntlMessageFormat from "intl-messageformat";
+import type { AppLocale } from "../i18n/config.ts";
+import { createTranslator } from "next-intl";
+import { createAdsApiRequestError } from "../app/dashboard/ads/adsClientHttp.ts";
+import { adsErrorRuntime, getClientUserFacingErrorMessage } from "./helpers/ads-error-message-runtime.mts";
 import * as metrics from "../lib/adsCampaignMetrics.ts";
 import * as adsLabels from "../app/dashboard/mails/_components/adsCampaignsFolder.shared.ts";
 
@@ -48,7 +51,7 @@ function text(value: unknown): string {
 }
 const tick = () => new Promise<void>((resolve) => setImmediate(resolve));
 
-function runtime(kind: Component, campaigns = [campaign()], locale = "fr-FR") {
+function runtime(kind: Component, campaigns = [campaign()], locale: AppLocale = "fr-FR") {
   const slots: unknown[] = [];
   const effects = new Map<number, { deps?: unknown[]; cleanup?: () => void }>();
   const callbacks = new Map<number, { deps: unknown[]; callback: unknown }>();
@@ -61,6 +64,7 @@ function runtime(kind: Component, campaigns = [campaign()], locale = "fr-FR") {
     onSelect: (id: string) => { props = { ...props, selectedId: id }; dirty = true; },
   };
   const react = {
+    useMemo: (compute: () => unknown) => compute(),
     useState: (value: unknown) => {
       const at = index++;
       if (!(at in slots)) slots[at] = typeof value === "function" ? value() : value;
@@ -87,16 +91,18 @@ function runtime(kind: Component, campaigns = [campaign()], locale = "fr-FR") {
     },
   };
   const css = { default: new Proxy({}, { get: (_target, key) => String(key) }) };
-  const messages = JSON.parse(readFileSync(new URL(`../messages/${locale}/mails.json`, import.meta.url), "utf8"));
-  const translate = (key: string, values: Record<string, string | number> = {}) => {
-    assert.equal(typeof messages[key], "string", `Missing translated mails label ${locale}/${key}`);
-    return String(new IntlMessageFormat(messages[key], locale).format(values));
-  };
+  const catalogs = Object.fromEntries(["mails", "booster", "shell"].map(namespace => [namespace, JSON.parse(readFileSync(new URL(`../messages/${locale}/${namespace}.json`, import.meta.url), "utf8"))]));
+  const translator = (namespace?: string) => createTranslator({ locale, messages: catalogs, ...(namespace ? { namespace } : {}), onError: error => { throw error; } });
+  const translate = translator("mails");
+  const boosterT = translator("booster");
   const modules: Record<string, unknown> = {
     react,
     "react/jsx-runtime": { jsx: (type: unknown, props: Record<string, unknown>) => ({ type, props }), jsxs: (type: unknown, props: Record<string, unknown>) => ({ type, props }), Fragment: Symbol("Fragment") },
     "react-dom": { createPortal: (node: unknown) => node },
-    "next-intl": { useLocale: () => locale, useTranslations: () => translate },
+    "next-intl": { useLocale: () => locale, useTranslations: translator },
+    "@/lib/userFacingErrors": { getClientUserFacingErrorMessage },
+    "./adsClientHttp": { createAdsApiRequestError },
+    "./useAdsErrorMessage": adsErrorRuntime(locale),
     "next/navigation": { useRouter: () => ({ push: () => assert.fail("Stats must not navigate or mutate") }) },
     "next/image": { default: () => null },
     "../../_components/DashboardMobileSelect": { default: "mobile-select" },
@@ -144,7 +150,7 @@ function runtime(kind: Component, campaigns = [campaign()], locale = "fr-FR") {
     (button.props.onClick as () => void)();
     render();
   }
-  function openStats() { click(kind === "details" ? translate("stats_be763e9a") : "Voir les statistiques"); }
+  function openStats() { click(kind === "details" ? translate("stats_be763e9a") : boosterT("voir_les_statistiques_89baaf5c")); }
   async function finish(at: number, body: unknown, status = 200) {
     assert.ok(requests[at]);
     requests[at].resolve(Response.json(body, { status }));
@@ -161,7 +167,7 @@ function runtime(kind: Component, campaigns = [campaign()], locale = "fr-FR") {
     }
     return result;
   }
-  return { render, click, openStats, finish, requests, metricValues, text: () => text(tree), elements: () => descendants(tree) };
+  return { render, click, openStats, finish, requests, metricValues, translate, boosterT, text: () => text(tree), elements: () => descendants(tree) };
 }
 
 for (const kind of Object.keys(componentPaths) as Component[]) {
@@ -227,7 +233,7 @@ for (const kind of Object.keys(componentPaths) as Component[]) {
       { metrics: { source: "linkedin", period: "last_30_days" } },
     ]) {
       const h = runtime(kind); h.render(); h.openStats(); await h.finish(0, body);
-      assert.match(h.text(), /pas retourné de statistiques exploitables/);
+      assert.equal(text(h.elements().find(node => node.props.role === "alert")), kind === "details" ? h.translate("la_plateforme_n_a_pas_retourne_c609e1bc") : h.boosterT("ads_public_error_f39c08d0f9"));
       assert.equal(h.metricValues().Impressions, undefined);
       assert.ok(h.elements().some((node) => node.props.role === "alert"));
     }
@@ -235,8 +241,10 @@ for (const kind of Object.keys(componentPaths) as Component[]) {
 
   test(`${kind}: backend authorization errors remain actionable and can be retried`, async () => {
     const h = runtime(kind); h.render(); h.openStats();
-    await h.finish(0, { error: "Reconnectez LinkedIn Ads avec l’autorisation de statistiques." }, 403);
-    assert.match(h.text(), /Reconnectez LinkedIn Ads/);
+    await h.finish(0, { error: "PRIVATE_PROVIDER_DIAGNOSTIC" }, 403);
+    assert.doesNotMatch(h.text(), /PRIVATE_PROVIDER_DIAGNOSTIC/);
+    assert.ok(h.elements().some(node => node.props.role === "alert"));
+    if (kind === "tracking") assert.equal(text(h.elements().find(node => node.props.role === "alert")), adsErrorRuntime().useAdsErrorMessage()(createAdsApiRequestError({ error: "PRIVATE_PROVIDER_DIAGNOSTIC" }, 403), "mails.statistiques_indisponibles_d182d329"));
     assert.equal(h.metricValues().Impressions, undefined);
     h.click(kind === "details" ? "Actualiser" : "Actualiser les statistiques");
     assert.equal(h.requests.length, 2);
@@ -273,7 +281,7 @@ test("iNrSend campaign navigation keeps asynchronous LinkedIn reports with their
   assert.equal(h.requests.length, 2);
 });
 
-for (const locale of ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
+for (const locale of ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"] as const) {
   test(`iNrSend renders campaign details and measured statistics in ${locale}`, async () => {
     const messages = JSON.parse(readFileSync(new URL(`../messages/${locale}/mails.json`, import.meta.url), "utf8"));
     const destinationUrl = "https://example.test/campaign";
@@ -291,5 +299,29 @@ for (const locale of ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-
     assert.equal(h.metricValues()[messages.depenses_fb667434], new Intl.NumberFormat(locale, { style: "currency", currency: "EUR" }).format(22.5));
     assert.equal(h.metricValues()[messages.clics_6e92c5b0], "17");
     assert.equal(h.requests.length, 1, "localisation only performs the existing metrics read");
+  });
+}
+
+for (const locale of ["fr-FR", "en-GB", "es-ES", "it-IT", "de-DE", "nl-NL", "pt-PT", "th-TH", "zh-CN"] as const) {
+  test(`ADS tracking statuses, configuration, pagination and real reporting use ${locale} without changing campaign content`, async () => {
+    const statuses = ["draft", "publishing", "active", "paused", "needs_review", "demo_paused"];
+    const expectedKeys = ["mails.ads_status_draft", "booster.ads_tracking_status_publishing", "booster.ads_tracking_status_active", "booster.ads_tracking_status_paused", "mails.ads_status_needs_review", "booster.ads_tracking_status_demo_paused"];
+    const allT = createTranslator({ locale, messages: Object.fromEntries(["mails", "booster"].map(namespace => [namespace, JSON.parse(readFileSync(new URL(`../messages/${locale}/${namespace}.json`, import.meta.url), "utf8"))])), onError: error => { throw error; } });
+    for (const [at, status] of statuses.entries()) {
+      const current = campaign("linkedin", { status, name: "USER TITLE · 你好", draft: { offer: "USER OFFER · Bonjour", primaryText: "USER BODY · Français", targetLocations: ["Personal City"], linkedinDeliverySettings: { budget: { endAt: "2026-12-01T12:30:00Z" } } } });
+      const h = runtime("tracking", [current], locale); h.render({ hasMore: true, total: 7 });
+      assert.ok(h.text().includes(allT(expectedKeys[at])), status);
+      assert.ok(h.text().includes("USER OFFER · Bonjour")); assert.ok(h.text().includes("USER BODY · Français"));
+      assert.ok(h.text().includes(h.boosterT("ads_tracking_pagination", { count: 1, total: 7 })));
+      assert.ok(h.text().includes(new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(current.created_at as string))));
+      assert.ok(h.text().includes(new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date("2026-12-01T12:30:00Z"))));
+      assert.ok(h.text().includes(new Intl.NumberFormat(locale, { style: "currency", currency: "EUR" }).format(10)));
+      assert.equal(h.requests.length, 0, "Rendering never loads or changes a campaign");
+      if (locale !== "fr-FR") assert.doesNotMatch(h.text(), /Création en cours sur la plateforme|Activée à la publication|En pause sur la plateforme|Compte annonceur|Mots-clés à exclure|campagne affichée sur/);
+    }
+    const h = runtime("tracking", [campaign()], locale); h.render(); h.openStats(); await h.finish(0, { metrics: report() });
+    assert.equal(h.metricValues()[h.boosterT("impressions_b5fb66f6")], new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(1234));
+    assert.equal(h.metricValues()[h.boosterT("depenses_fb667434")], new Intl.NumberFormat(locale, { style: "currency", currency: "EUR" }).format(22.5));
+    assert.equal(h.requests.length, 1, "Only the explicit existing metrics read is performed");
   });
 }

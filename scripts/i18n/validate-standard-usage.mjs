@@ -20,6 +20,7 @@ function walkFiles(target) {
 }
 
 function literalText(node) {
+  if (!node) return null;
   return ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)
     ? node.text
     : null;

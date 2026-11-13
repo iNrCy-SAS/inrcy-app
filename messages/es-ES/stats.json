@@ -550,5 +550,6 @@
   "visibility_index_tracking_hint": "El primer gráfico se desbloquea tras un mes de valores registrados.",
   "visibility_index_recording_method": "Se guarda un valor diario con los datos disponibles en esa fecha. Los valores pasados nunca se recalculan con cifras actuales. Los días sin recogida quedan vacíos. Cada periodo requiere un historial reciente suficiente.",
   "visibility_index_rewards_method": "Cada hito concede una sola vez Unidades de Inercia utilizables en la tienda. Bonos base: 50 / 100 / 200 / 500 UI. Coeficiente al desbloquear: Básico ×0,5, Standard ×1, Premium ×1,5. Cambiar de plan no vuelve a abonar un hito ya ganado.",
-  "visibility_index_rewards_history_method": "Las estadísticas históricas disponibles pueden validar hitos retroactivamente en cuentas con suficiente antigüedad. No reconstruyen valores anteriores del índice."
+  "visibility_index_rewards_history_method": "Las estadísticas históricas disponibles pueden validar hitos retroactivamente en cuentas con suficiente antigüedad. No reconstruyen valores anteriores del índice.",
+  "stats_connect_x": "Conectar X"
 }

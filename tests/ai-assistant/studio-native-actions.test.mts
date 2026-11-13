@@ -9,6 +9,8 @@ import { loadInrAssistantLibraryImage } from "../../lib/inrAssistantMediaUiClien
 import { inrAssistantUiSteps } from "../../lib/inrAssistantUiTask.ts";
 import { parseInrAssistantClientContext } from "../../lib/inrAssistantClientContext.ts";
 import type { MediaRetoucherTransform, MediaRetoucherSavedValue, MediaRetoucherSaveOptions, MediaRetoucherSaveReceipt } from "../../app/dashboard/_components/MediaRetoucher.tsx";
+import { catalogTranslator } from "../helpers/catalog-translator.mts";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 
 const MEDIA = "10000000-0000-4000-8000-000000000001", SAVED = "20000000-0000-4000-8000-000000000002";
 type Row = Record<string, unknown>;
@@ -27,7 +29,12 @@ function expression(file: string, name: string, hook = false): string {
   const visit = (node: ts.Node) => { if (hook && ts.isCallExpression(node) && node.expression.getText(ast) === name) found = node.arguments[0]; else if (!hook && ts.isVariableDeclaration(node) && node.name.getText(ast) === name) found = node.initializer; ts.forEachChild(node, visit); }; visit(ast); assert.ok(found, name);
   return ts.transpileModule(`const selected = ${found.getText(ast)};`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText.replace("const selected = ", "").trim().replace(/;$/, "");
 }
-function bind<Result>(source: string, deps: Row): Result { return vm.runInNewContext(`(function(deps){with(deps){return (${source});}})`, { File, Blob, URL, Request, Response, AbortSignal })(deps) as Result; }
+const shellTranslator = catalogTranslator("shell");
+function bind<Result>(source: string, deps: Row): Result {
+  const defaults: Row = { i18nT: shellTranslator, getSafeClientErrorMessage: (input: unknown, fallback?: string) => userFacingErrorsFixture.getLocalizedErrorMessage(input, "fr-FR", fallback, { allowUnknownMessage: false }) };
+  for (const [key, value] of Object.entries(defaults)) if (!Object.hasOwn(deps, key)) deps[key] = value;
+  return vm.runInNewContext(`(function(deps){with(deps){return (${source});}})`, { File, Blob, URL, Request, Response, AbortSignal })(deps) as Result;
+}
 const component = "app/dashboard/_components/MediaRetoucher.tsx", studio = "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx";
 const saveSource = expression(component, "saveEditor"), importSource = expression(component, "importLibraryImage"), bridgeSource = expression(component, "useInrAssistantImageCommands", true), persistenceSource = expression(studio, "saveRetouchedMedia");
 const libraryBridgeSource = expression("app/dashboard/mediatheque/MediaLibraryClient.tsx", "useInrAssistantMediaLibraryCommands", true);

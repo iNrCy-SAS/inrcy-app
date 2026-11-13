@@ -266,9 +266,10 @@ test("real pitch ASR: divergent wrong brand readings remain inconclusive and nev
   const expectedLine = "Environ cent utilisateurs paient déjà pour iNrCy. Notre fiche Google affiche soixante-cinq avis, avec une note moyenne de cinq sur cinq. Leurs retours soulignent simplicité et temps gagné.";
   const first = "Environ 100 utilisateurs payent déjà pour In Reci. Notre fiche Google affiche 65 avis avec une note moyenne de 5 sur 5. Leurs retours soulignent simplicité et engagné.";
   const second = "Environ 100 utilisateurs paient déjà pour une récit. Notre fiche Google affiche 65 avis, avec une note moyenne de 5 sur 5. Le retour souligne simplicité et en gagné.";
+  let confirmations = 0;
   const result = await auditAiMediaNativeDialogueClips({
     clips: [fakeClip({ expectedLine })], pronunciationAliases: extractAiMediaPronunciationAliases("iNrCy se prononce « inertie »."),
-    transcribe: async () => ({ text: first }), confirm: async () => ({ text: second }),
+    transcribe: async () => ({ text: first }), confirm: async () => ({ text: ++confirmations === 1 ? second : "Un tout autre service accompagne maintenant plusieurs clients différents." }),
   });
   assert.equal(result.status, "unavailable");
   assert.deepEqual(result.clips[0].issues, ["transcription_inconclusive"]);
@@ -755,9 +756,10 @@ test("two rejected but contradictory transcripts are inconclusive instead of con
   ]) {
     assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript: first }).status, "rejected");
     assert.equal(evaluateAiMediaNativeDialogue({ sceneIndex: 0, expectedLine, transcript: second }).status, "rejected");
+    let confirmations = 0;
     const result = await auditAiMediaNativeDialogueClips({
       clips: [fakeClip({ expectedLine })],
-      transcribe: async () => ({ text: first }), confirm: async () => ({ text: second }),
+      transcribe: async () => ({ text: first }), confirm: async () => ({ text: ++confirmations === 1 ? second : "Encore une nouvelle phrase sans aucun rapport avec votre demande." }),
     });
     assert.equal(result.status, "unavailable");
     assert.deepEqual(result.clips[0].issues, ["transcription_inconclusive"]);

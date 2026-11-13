@@ -19,7 +19,11 @@ const browserSources = Object.fromEntries([
   "app/dashboard/agent/_lib/agent.utils.ts",
   "lib/aiMediaModelCatalog.ts", "lib/aiMediaCreditsPricing.ts", "lib/aiMediaVideoTimeline.ts", "lib/aiMediaCharacterVoices.ts",
   "lib/inrAgentSettings.ts", "lib/siteWebChannel.ts", "lib/standardAgentPolicy.ts", "lib/metaChannelUiAccess.ts", "lib/inrAgentPublicationHistory.ts",
+  "lib/userFacingErrors.ts", "lib/appLanguage.ts", "lib/publicationErrorFrench.ts", "lib/metaGraphErrorClassification.ts",
+  "lib/aiMediaGenerationPublicErrorI18n.ts", "lib/aiMediaGenerationPublicErrorCopy.ts",
 ].map(file => [file, compile(file)]));
+browserSources["intl-messageformat"] = ts.transpileModule(readFileSync(join(dirname(require.resolve("intl-messageformat")), "intl-messageformat.iife.js"), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
+const agentMessages = JSON.parse(readFileSync(new URL("../../messages/fr-FR/agent.json", import.meta.url), "utf8"));
 
 async function setup(page: Page) {
   const networkRequests: string[] = [], errors: string[] = [];
@@ -34,10 +38,10 @@ async function setup(page: Page) {
     scheduler: packageSource("scheduler", "scheduler.development.js"),
   };
   await page.addScriptTag({ content: `
-    const sources=${JSON.stringify(sources)},cache={},process={env:{NODE_ENV:'development'}},accountCache=new Map();
+    const sources=${JSON.stringify(sources)},cache={},process={env:{NODE_ENV:'development'}},accountCache=new Map(),messages=${JSON.stringify(agentMessages)},formats=new Map();
     window.account='account-a';window.requests=[];window.unexpected=[];window.clicks={generate:0,modify:0,import:0,retouch:0};
     const modules={
-      'next-intl':{useTranslations:()=>key=>key},
+      'next-intl':{useTranslations:namespace=>{if(namespace!=='agent')throw Error('Unexpected Basic catalogue '+namespace);return(key,values)=>{const message=key.split('.').reduce((value,part)=>value?.[part],messages);if(typeof message!=='string')throw Error('Missing Basic catalogue message '+key);if(!formats.has(key))formats.set(key,new (require('intl-messageformat').IntlMessageFormat)(message,'fr-FR'));return formats.get(key).format(values)}}},
       'app/dashboard/_components/DashboardViewerAccessProvider':{useDashboardViewerAccess:()=>({metaPilotEnabled:true})},
       'lib/multicompte/constants':{ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'},
       'lib/browserAccountCache':{

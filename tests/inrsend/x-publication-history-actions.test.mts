@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { assertUiCopy } from "../helpers/ui-copy-contract.mjs";
 
 const read = (path: string) =>
   readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -41,7 +42,9 @@ test("iNrSend refuses X URLs before saving while keeping the error user-facing",
   assert.match(client, /normalizedChannel === "x"[\s\S]*?containsForbiddenXUrl/);
   assert.match(client, /setDetailsActionError\(X_FORBIDDEN_URL_ERROR\)/);
   assert.match(details, /publicationEditHasForbiddenXUrl/);
-  assert.match(details, /role="alert"[\s\S]*?X_FORBIDDEN_URL_ERROR/);
+  assert.match(details, /publicationEditHasForbiddenXUrl \? \([\s\S]*?role="alert"[\s\S]*?\{i18nT\("x_forbidden_url"\)\}/);
+  assert.match(details, /const i18nT = useTranslations\("mails"\)/);
+  assertUiCopy("mails", "x_forbidden_url", "Ce format de lien n’est pas pris en charge sur X. Utilisez un lien HTTP ou HTTPS.");
   assert.match(
     details,
     /detailsActionBusy \|\|\s*publicationEditHasForbiddenXUrl/,
@@ -53,5 +56,6 @@ test("iNrSend links X accounts and delivered posts", () => {
   assert.match(details, /channel === "x"[^\n]+https:\/\/x\.com/);
   assert.match(details, /const xDirectPublicationHref = isXPublicationEntry/);
   assert.match(details, /activePublicationResult\?\.external_url/);
-  assert.match(details, /title="Ouvrir la publication X"/);
+  assert.match(details, /href=\{xDirectPublicationHref\}[\s\S]*?title=\{i18nT\("ouvrir_la_publication_x_ef5d155d"\)\}/);
+  assertUiCopy("mails", "ouvrir_la_publication_x_ef5d155d", "Ouvrir la publication X");
 });

@@ -69,7 +69,7 @@ export default function FolderTabs({ folders = ALL_FOLDERS, folder, counts, coun
         onClick={adsTab.onSelect}
         type="button"
         title={adsTab.countError || "ADS"}
-        aria-label={adsTab.countError ? `ADS : ${adsTab.countError}` : undefined}
+        aria-label={adsTab.countError ? t("ads_value_c083f645", { value0: adsTab.countError }) : undefined}
       ><span className={styles.folderTabLabel}>ADS</span><span className={styles.badgeCount}>{adsTab.countError ? "—" : adsTab.count ?? "…"}</span></button>}
     </div>
     </>

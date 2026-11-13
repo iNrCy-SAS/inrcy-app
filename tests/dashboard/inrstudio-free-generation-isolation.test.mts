@@ -1,3 +1,5 @@
+import { catalogTranslator } from "../helpers/catalog-translator.mts";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -28,6 +30,7 @@ function initializer(name: string) {
 }
 
 function evaluate(expression: ts.Expression, context: Record<string, unknown>) {
+  context.getSafeClientErrorMessage ??= userFacingErrorsFixture.getClientUserFacingErrorMessage;
   const code = ts.transpileModule(`const run = ${expression.getText(parsed)};`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   }).outputText;
@@ -98,7 +101,7 @@ function resultContext() {
     onAccepted: async () => { events.push("accepted-parent"); },
     reset: () => { events.push("reset"); },
     MediaGenerationAccountChangedError: class extends Error {},
-    t: (key: string) => key,
+    t: catalogTranslator("media"),
   };
 }
 
@@ -534,7 +537,10 @@ test("un échec Libre conserve l'autorisation de la même demande, un succès la
     await run();
     assert.equal(context.operationInFlight.current, false);
     assert.deepEqual(consentChanges, shouldFail ? [] : ["identity:false", "team:false"]);
-    if (shouldFail) assert.ok(context.events.includes("error:Contrôle audio refusé"));
+    if (shouldFail) {
+      assert.ok(context.events.includes("error:" + userFacingErrorsFixture.getClientUserFacingErrorMessage(new Error("Contrôle audio refusé"), catalogTranslator("media")("ai_generator_error"))));
+      assert.ok(!context.events.includes("error:Contrôle audio refusé"), "unknown backend wording stays private");
+    }
   }
 });
 

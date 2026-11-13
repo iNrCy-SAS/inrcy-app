@@ -109,7 +109,7 @@ test("Basic planning only counts publications and preserves their edit, reschedu
   for (const name of ["edit", "reschedule", "delete"] as const) {
     const node = control(nodes, node => node.props["data-schedule-action"] === name);
     assert.notEqual(node.props.disabled, true);
-    (node.props.onClick as () => void)();
+    (node.props.onClick as (event: unknown) => void)({ currentTarget: { closest: () => null }, stopPropagation() {}, preventDefault() {} });
     assert.deepEqual(h.calls[name], ["publication-from-booster"]);
   }
 });

@@ -1,4 +1,6 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
+import { useTranslations } from "next-intl";
 
 import type { ChannelBubbleRenderer } from "../../_components/channel-bubble.types";
 import { readChannelWorkspaceSnapshot, writeChannelWorkspaceSnapshot } from "../../_components/channel-workspace-snapshot";
@@ -72,6 +74,7 @@ export default function XSettingsContent({
   renderBubble: ChannelBubbleRenderer;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
 }) {
+  const t = useTranslations("settings");
   const mountedRef = useRef(true);
   const connectionRevisionRef = useRef(0);
   const disconnectInFlightRef = useRef(false);
@@ -92,7 +95,7 @@ export default function XSettingsContent({
       const response = await fetch("/api/integrations/x/status", { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(String(payload?.error || "Impossible de charger la connexion X."));
+        throw new Error(getSafeClientErrorMessage({ ...payload, status: response.status }, t("errors_x_load")));
       }
       const next = normalizeStatus(payload);
       if (!isCurrent()) return;
@@ -100,12 +103,12 @@ export default function XSettingsContent({
       emitDashboardUpdate(next);
     } catch (caught) {
       if (isCurrent()) {
-        setError(caught instanceof Error ? caught.message : "Impossible de charger la connexion X.");
+        setError(getSafeClientErrorMessage(caught, t("errors_x_load")));
       }
     } finally {
       if (isCurrent()) setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const connectionRevision = connectionRevisionRef;
@@ -125,14 +128,14 @@ export default function XSettingsContent({
     const params = new URLSearchParams(window.location.search);
     if (params.get("linked") !== "x") return;
     if (params.get("ok") === "1") {
-      setNotice("Compte X connecté.");
+      setNotice(t("x_connected_notice"));
       void loadStatus();
       return;
     }
     if (params.get("ok") === "0") {
-      setError(params.get("message") || "La connexion X n'a pas pu être finalisée.");
+      setError(getSafeClientErrorMessage(params.get("message"), t("errors_x_load")));
     }
-  }, [loadStatus]);
+  }, [loadStatus, t]);
 
   const connectX = useCallback(() => {
     setNotice(null);
@@ -154,28 +157,28 @@ export default function XSettingsContent({
       const response = await fetch("/api/integrations/x/disconnect", { method: "POST" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok || payload?.ok === false) {
-        throw new Error(String(payload?.error || "Impossible de déconnecter X."));
+        throw new Error(getSafeClientErrorMessage({ ...payload, status: response.status }, t("errors_x_disconnect")));
       }
       if (accountId !== getActiveBrowserUserId()) return;
       emitDashboardUpdate(EMPTY_STATE, true);
       if (!mountedRef.current) return;
       setConnection(EMPTY_STATE);
-      setNotice("Compte X déconnecté.");
+      setNotice(t("x_disconnected_notice"));
     } catch (caught) {
       if (mountedRef.current) {
-        setError(caught instanceof Error ? caught.message : "Impossible de déconnecter X.");
+        setError(getSafeClientErrorMessage(caught, t("errors_x_disconnect")));
       }
     } finally {
       disconnectInFlightRef.current = false;
       if (mountedRef.current) { setBusy(false); setLoading(false); }
     }
-  }, []);
+  }, [t]);
 
   const accountLabel = useMemo(() => {
     const handle = connection.username ? `@${connection.username}` : "";
     if (connection.displayName && handle) return `${connection.displayName} · ${handle}`;
-    return connection.displayName || handle || "Compte X connecté";
-  }, [connection.displayName, connection.username]);
+    return connection.displayName || handle || t("x_connected_account");
+  }, [connection.displayName, connection.username, t]);
 
   const publicLinks = connection.connected ? (
     <EditableChannelUrlField
@@ -187,13 +190,13 @@ export default function XSettingsContent({
         const next = { ...connection, profileUrl: url };
         setConnection(next);
         emitDashboardUpdate(next, true);
-        setNotice("Lien public X enregistré.");
+        setNotice(t("x_public_link_saved"));
         setError(null);
       }}
       onDirtyChange={onUnsavedChange}
-      ariaLabel="Lien public du profil X"
+      ariaLabel={t("x_public_profile_link")}
       placeholder="https://x.com/moncompte"
-      viewLabel="Voir le profil"
+      viewLabel={t("x_view_profile")}
       disabled={loading || busy}
       inputClassName={guideStyles.control}
       inputStyle={{

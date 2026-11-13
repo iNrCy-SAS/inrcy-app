@@ -1,3 +1,4 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -21,7 +22,8 @@ function declaration(name: string) {
 const compiledState = ts.transpileModule([
   declaration("preparedNativeCheck"), declaration("preparedNativeReady"), declaration("tikTokPausedNotice"),
 ].join("\n"), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-const actualNotice = new Function("draft", "channelId", "preparedNativeReadiness", `${compiledState}\nreturn { notice: tikTokPausedNotice, ready: preparedNativeReady };`) as (
+const uiScope = withAdsRuntime();
+const actualNotice = new Function(...Object.keys(uiScope), `return function(draft, channelId, preparedNativeReadiness) { ${compiledState}\nreturn { notice: tikTokPausedNotice, ready: preparedNativeReady }; };`)(...Object.values(uiScope)) as (
   draft: Record<string, unknown>, channel: string, state: State,
 ) => { notice: { title: string; message: string } | null; ready: boolean };
 
@@ -46,10 +48,10 @@ function render(node: ts.JsxElement, scope: Record<string, unknown>): Element {
   }).outputText;
   const loaded: { rendered?: Element } = {};
   const jsx = (type: unknown, props: Record<string, unknown>) => ({ type, props });
-  new Function("exports", "require", ...Object.keys(scope), compiled)(loaded, (specifier: string) => {
+  new Function("exports", "require", ...Object.keys(withAdsRuntime(scope)), compiled)(loaded, (specifier: string) => {
     assert.equal(specifier, "react/jsx-runtime");
     return { jsx, jsxs: jsx };
-  }, ...Object.values(scope));
+  }, ...Object.values(withAdsRuntime(scope)));
   assert.ok(loaded.rendered);
   return loaded.rendered;
 }

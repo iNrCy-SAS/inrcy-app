@@ -27,6 +27,14 @@ type UserFacingErrorKey =
   | "service_unavailable"
   | "cancelled"
   | "expired"
+  | "credits"
+  | "period_limit"
+  | "email_unconfirmed"
+  | "video_required"
+  | "vertical_video_required"
+  | "file_too_large"
+  | "file_format"
+  | "media_missing"
   | "facebook_reconnect"
   | "instagram_reconnect"
   | "linkedin_reconnect"
@@ -50,6 +58,14 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     service_unavailable: "Le service est momentanément indisponible. Merci de réessayer dans quelques minutes.",
     cancelled: "La connexion a été annulée.",
     expired: "Le lien ou l’accès a expiré. Merci de recommencer.",
+    credits: "Vous n’avez pas assez de crédits pour cette action. Consultez votre solde et les options de recharge dans votre compte.",
+    period_limit: "La limite de votre offre est atteinte pour cette période. Consultez votre offre et sa date de renouvellement dans votre compte.",
+    email_unconfirmed: "Confirmez votre adresse e-mail avec le lien reçu avant de vous connecter.",
+    video_required: "Ajoutez une vidéo avant de publier sur ce canal.",
+    vertical_video_required: "Ajoutez une vidéo verticale au format 9:16 avant de publier sur ce canal.",
+    file_too_large: "Ce fichier est trop volumineux. Choisissez un fichier plus léger ou réduisez sa taille avant de réessayer.",
+    file_format: "Ce format de fichier n’est pas accepté. Choisissez l’un des formats indiqués dans l’application.",
+    media_missing: "Le média enregistré n’est plus disponible. Choisissez un autre média ou lancez une nouvelle création.",
     facebook_reconnect: FACEBOOK_RECONNECT_USER_MESSAGE,
     instagram_reconnect: INSTAGRAM_RECONNECT_USER_MESSAGE,
     linkedin_reconnect: LINKEDIN_RECONNECT_USER_MESSAGE,
@@ -72,6 +88,14 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     service_unavailable: "The service is temporarily unavailable. Please try again in a few minutes.",
     cancelled: "The connection was cancelled.",
     expired: "The link or access has expired. Please start again.",
+    credits: "You don’t have enough credits for this action. Check your balance and top-up options in your account.",
+    period_limit: "You’ve reached your plan’s limit for this period. Check your plan and renewal date in your account.",
+    email_unconfirmed: "Confirm your email address using the link you received before signing in.",
+    video_required: "Add a video before publishing to this channel.",
+    vertical_video_required: "Add a vertical video in 9:16 format before publishing to this channel.",
+    file_too_large: "This file is too large. Choose a smaller file or reduce its size before trying again.",
+    file_format: "This file format is not supported. Choose one of the formats listed in the application.",
+    media_missing: "The saved media is no longer available. Choose another media item or start a new creation.",
     facebook_reconnect: "Facebook needs to be reconnected. Go to Channels.",
     instagram_reconnect: "Instagram needs to be reconnected. Go to Channels.",
     linkedin_reconnect: "LinkedIn needs to be reconnected. Go to Channels.",
@@ -94,6 +118,14 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     service_unavailable: "El servicio no está disponible temporalmente. Inténtalo de nuevo en unos minutos.",
     cancelled: "La conexión se ha cancelado.",
     expired: "El enlace o el acceso ha caducado. Vuelve a empezar.",
+    credits: "No tienes suficientes créditos para esta acción. Consulta tu saldo y las opciones de recarga en tu cuenta.",
+    period_limit: "Has alcanzado el límite de tu plan para este período. Consulta tu plan y su fecha de renovación en tu cuenta.",
+    email_unconfirmed: "Confirma tu dirección de correo con el enlace recibido antes de iniciar sesión.",
+    video_required: "Añade un vídeo antes de publicar en este canal.",
+    vertical_video_required: "Añade un vídeo vertical en formato 9:16 antes de publicar en este canal.",
+    file_too_large: "Este archivo es demasiado grande. Elige uno más pequeño o reduce su tamaño antes de volver a intentarlo.",
+    file_format: "Este formato de archivo no es compatible. Elige uno de los formatos indicados en la aplicación.",
+    media_missing: "El archivo guardado ya no está disponible. Elige otro archivo multimedia o inicia una nueva creación.",
     facebook_reconnect: "Hay que volver a conectar Facebook. Ve a Canales.",
     instagram_reconnect: "Hay que volver a conectar Instagram. Ve a Canales.",
     linkedin_reconnect: "Hay que volver a conectar LinkedIn. Ve a Canales.",
@@ -116,6 +148,14 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     service_unavailable: "Il servizio è temporaneamente indisponibile. Riprova tra qualche minuto.",
     cancelled: "La connessione è stata annullata.",
     expired: "Il link o l’accesso è scaduto. Ricomincia.",
+    credits: "Non hai abbastanza crediti per questa azione. Controlla il saldo e le opzioni di ricarica nel tuo account.",
+    period_limit: "Hai raggiunto il limite del tuo piano per questo periodo. Controlla il piano e la data di rinnovo nel tuo account.",
+    email_unconfirmed: "Conferma il tuo indirizzo email con il link ricevuto prima di accedere.",
+    video_required: "Aggiungi un video prima di pubblicare su questo canale.",
+    vertical_video_required: "Aggiungi un video verticale in formato 9:16 prima di pubblicare su questo canale.",
+    file_too_large: "Il file è troppo grande. Scegli un file più piccolo o riducine le dimensioni prima di riprovare.",
+    file_format: "Questo formato di file non è supportato. Scegli uno dei formati indicati nell’applicazione.",
+    media_missing: "Il contenuto multimediale salvato non è più disponibile. Scegline un altro o avvia una nuova creazione.",
     facebook_reconnect: "Facebook deve essere ricollegato. Vai su Canali.",
     instagram_reconnect: "Instagram deve essere ricollegato. Vai su Canali.",
     linkedin_reconnect: "LinkedIn deve essere ricollegato. Vai su Canali.",
@@ -138,6 +178,14 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     service_unavailable: "Der Dienst ist vorübergehend nicht verfügbar. Bitte versuchen Sie es in einigen Minuten erneut.",
     cancelled: "Die Verbindung wurde abgebrochen.",
     expired: "Der Link oder Zugriff ist abgelaufen. Bitte beginnen Sie erneut.",
+    credits: "Sie haben nicht genügend Guthaben für diese Aktion. Prüfen Sie Ihr Guthaben und die Aufladeoptionen in Ihrem Konto.",
+    period_limit: "Das Limit Ihres Tarifs für diesen Zeitraum ist erreicht. Prüfen Sie Ihren Tarif und das Verlängerungsdatum in Ihrem Konto.",
+    email_unconfirmed: "Bestätigen Sie Ihre E-Mail-Adresse über den erhaltenen Link, bevor Sie sich anmelden.",
+    video_required: "Fügen Sie ein Video hinzu, bevor Sie auf diesem Kanal veröffentlichen.",
+    vertical_video_required: "Fügen Sie ein vertikales Video im Format 9:16 hinzu, bevor Sie auf diesem Kanal veröffentlichen.",
+    file_too_large: "Diese Datei ist zu groß. Wählen Sie eine kleinere Datei oder verkleinern Sie sie, bevor Sie es erneut versuchen.",
+    file_format: "Dieses Dateiformat wird nicht unterstützt. Wählen Sie eines der in der Anwendung angegebenen Formate.",
+    media_missing: "Das gespeicherte Medium ist nicht mehr verfügbar. Wählen Sie ein anderes Medium oder starten Sie eine neue Erstellung.",
     facebook_reconnect: "Facebook muss erneut verbunden werden. Öffnen Sie Kanäle.",
     instagram_reconnect: "Instagram muss erneut verbunden werden. Öffnen Sie Kanäle.",
     linkedin_reconnect: "LinkedIn muss erneut verbunden werden. Öffnen Sie Kanäle.",
@@ -160,6 +208,14 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     service_unavailable: "De dienst is tijdelijk niet beschikbaar. Probeer het over enkele minuten opnieuw.",
     cancelled: "De verbinding is geannuleerd.",
     expired: "De link of toegang is verlopen. Begin opnieuw.",
+    credits: "U heeft niet genoeg credits voor deze actie. Bekijk uw saldo en opwaardeeropties in uw account.",
+    period_limit: "U heeft de limiet van uw abonnement voor deze periode bereikt. Bekijk uw abonnement en de verlengdatum in uw account.",
+    email_unconfirmed: "Bevestig uw e-mailadres via de ontvangen link voordat u zich aanmeldt.",
+    video_required: "Voeg een video toe voordat u op dit kanaal publiceert.",
+    vertical_video_required: "Voeg een verticale video in 9:16-formaat toe voordat u op dit kanaal publiceert.",
+    file_too_large: "Dit bestand is te groot. Kies een kleiner bestand of verklein het voordat u het opnieuw probeert.",
+    file_format: "Dit bestandsformaat wordt niet ondersteund. Kies een van de formaten die in de app staan.",
+    media_missing: "Het opgeslagen mediabestand is niet meer beschikbaar. Kies een ander mediabestand of start een nieuwe creatie.",
     facebook_reconnect: "Facebook moet opnieuw worden verbonden. Ga naar Kanalen.",
     instagram_reconnect: "Instagram moet opnieuw worden verbonden. Ga naar Kanalen.",
     linkedin_reconnect: "LinkedIn moet opnieuw worden verbonden. Ga naar Kanalen.",
@@ -182,6 +238,14 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     service_unavailable: "O serviço está temporariamente indisponível. Tente novamente dentro de alguns minutos.",
     cancelled: "A ligação foi cancelada.",
     expired: "A ligação ou o acesso expirou. Comece novamente.",
+    credits: "Não tem créditos suficientes para esta ação. Consulte o saldo e as opções de recarga na sua conta.",
+    period_limit: "Atingiu o limite do seu plano para este período. Consulte o plano e a data de renovação na sua conta.",
+    email_unconfirmed: "Confirme o seu endereço de email através da ligação recebida antes de iniciar sessão.",
+    video_required: "Adicione um vídeo antes de publicar neste canal.",
+    vertical_video_required: "Adicione um vídeo vertical no formato 9:16 antes de publicar neste canal.",
+    file_too_large: "Este ficheiro é demasiado grande. Escolha um mais pequeno ou reduza o tamanho antes de tentar novamente.",
+    file_format: "Este formato de ficheiro não é suportado. Escolha um dos formatos indicados na aplicação.",
+    media_missing: "O ficheiro multimédia guardado já não está disponível. Escolha outro ficheiro ou inicie uma nova criação.",
     facebook_reconnect: "É necessário ligar novamente o Facebook. Aceda a Canais.",
     instagram_reconnect: "É necessário ligar novamente o Instagram. Aceda a Canais.",
     linkedin_reconnect: "É necessário ligar novamente o LinkedIn. Aceda a Canais.",
@@ -204,6 +268,14 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     service_unavailable: "บริการไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้งในอีกไม่กี่นาที",
     cancelled: "การเชื่อมต่อถูกยกเลิกแล้ว",
     expired: "ลิงก์หรือสิทธิ์เข้าถึงหมดอายุแล้ว โปรดเริ่มใหม่อีกครั้ง",
+    credits: "คุณมีเครดิตไม่เพียงพอสำหรับการดำเนินการนี้ โปรดตรวจสอบยอดคงเหลือและตัวเลือกเติมเครดิตในบัญชีของคุณ",
+    period_limit: "คุณใช้ครบขีดจำกัดของแพ็กเกจสำหรับรอบนี้แล้ว โปรดตรวจสอบแพ็กเกจและวันต่ออายุในบัญชีของคุณ",
+    email_unconfirmed: "โปรดยืนยันอีเมลผ่านลิงก์ที่ได้รับก่อนเข้าสู่ระบบ",
+    video_required: "โปรดเพิ่มวิดีโอก่อนเผยแพร่ในช่องทางนี้",
+    vertical_video_required: "โปรดเพิ่มวิดีโอแนวตั้งในรูปแบบ 9:16 ก่อนเผยแพร่ในช่องทางนี้",
+    file_too_large: "ไฟล์นี้มีขนาดใหญ่เกินไป โปรดเลือกไฟล์ที่เล็กกว่าหรือลดขนาดไฟล์ก่อนลองอีกครั้ง",
+    file_format: "ไม่รองรับไฟล์รูปแบบนี้ โปรดเลือกรูปแบบที่ระบุไว้ในแอปพลิเคชัน",
+    media_missing: "สื่อที่บันทึกไว้ไม่พร้อมใช้งานแล้ว โปรดเลือกสื่ออื่นหรือเริ่มสร้างใหม่",
     facebook_reconnect: "ต้องเชื่อมต่อ Facebook ใหม่ ไปที่เมนูช่องทาง",
     instagram_reconnect: "ต้องเชื่อมต่อ Instagram ใหม่ ไปที่เมนูช่องทาง",
     linkedin_reconnect: "ต้องเชื่อมต่อ LinkedIn ใหม่ ไปที่เมนูช่องทาง",
@@ -226,6 +298,14 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     service_unavailable: "服务暂时不可用，请几分钟后重试。",
     cancelled: "连接已取消。",
     expired: "链接或访问权限已过期，请重新开始。",
+    credits: "您的积分不足以执行此操作。请在账户中查看余额和充值选项。",
+    period_limit: "您已达到本期套餐限额。请在账户中查看套餐和续期日期。",
+    email_unconfirmed: "请先通过收到的链接验证电子邮件地址，然后再登录。",
+    video_required: "请先添加视频，再发布到此渠道。",
+    vertical_video_required: "请先添加9:16格式的竖屏视频，再发布到此渠道。",
+    file_too_large: "此文件过大。请更换较小的文件，或缩小文件后重试。",
+    file_format: "不支持此文件格式。请选择应用中列出的格式。",
+    media_missing: "已保存的媒体不再可用。请选择其他媒体或重新创建。",
     facebook_reconnect: "需要重新连接 Facebook。请前往“渠道”。",
     instagram_reconnect: "需要重新连接 Instagram。请前往“渠道”。",
     linkedin_reconnect: "需要重新连接 LinkedIn。请前往“渠道”。",
@@ -297,8 +377,14 @@ export function isGoogleBusinessAuthorizationLikeMessage(input: unknown): boolea
 }
 
 export function getSimpleFrenchErrorMessage(input: unknown, fallback = "Cette action n'a pas pu aboutir. Merci de réessayer."): string {
+  fallback = safeFallback(fallback, "fr");
+  const explicitCodeKey = resolveExplicitErrorCodeKey(input);
+  if (explicitCodeKey) return LOCALIZED_ERROR_COPY.fr[explicitCodeKey];
   const raw = normalizeRawMessage(input);
+  const knownKey = resolveStructuredErrorKey(input);
+  if (knownKey) return LOCALIZED_ERROR_COPY.fr[knownKey];
   if (!raw) return fallback;
+  if (looksLikeFrenchMessage(raw) && !looksTechnical(raw) && !looksLikeEnglishErrorMessage(raw)) return sanitizeSentence(raw);
 
   const message = raw.toLowerCase();
 
@@ -472,31 +558,60 @@ export function getSimpleFrenchErrorMessage(input: unknown, fallback = "Cette ac
     return fallback;
   }
 
-  return sanitizeSentence(raw);
+  return looksLikeFrenchMessage(raw) ? sanitizeSentence(raw) : fallback;
 }
 
 export function getLocalizedErrorMessage(
   input: unknown,
   language: AppLanguageCode | string | null | undefined,
   fallback?: string,
+  options: { allowUnknownMessage?: boolean } = {},
 ): string {
   const normalizedLanguage = normalizeAppLanguage(language);
-  const frenchMessage = getSimpleFrenchErrorMessage(input, fallback);
+  const raw = normalizeRawMessage(input);
+  const localizedFallback = safeFallback(fallback, normalizedLanguage);
+  const explicitCodeKey = resolveExplicitErrorCodeKey(input);
+  if (explicitCodeKey) return LOCALIZED_ERROR_COPY[normalizedLanguage][explicitCodeKey];
+  if (raw === localizedFallback) return localizedFallback;
+  if ((Object.values(LOCALIZED_ERROR_COPY[normalizedLanguage]) as string[]).includes(raw)) return raw;
+  const existingCopyKey = (Object.keys(LOCALIZED_ERROR_COPY.fr) as UserFacingErrorKey[])
+    .find(key => LOCALIZED_ERROR_COPY.fr[key] === raw);
+  if (existingCopyKey) return LOCALIZED_ERROR_COPY[normalizedLanguage][existingCopyKey];
+  const structuredKey = resolveStructuredErrorKey(input, options.allowUnknownMessage !== false);
+  if (structuredKey) return LOCALIZED_ERROR_COPY[normalizedLanguage][structuredKey];
+  if (looksTechnical(raw) && resolveUserFacingErrorKey(input, "") === "generic") return localizedFallback;
+  const frenchMessage = getSimpleFrenchErrorMessage(input);
   const key = resolveUserFacingErrorKey(input, frenchMessage);
-  if (!key) return frenchMessage;
-  return LOCALIZED_ERROR_COPY[normalizedLanguage][key];
+  if (key === "generic") {
+    if (options.allowUnknownMessage === false) return localizedFallback;
+    if (normalizedLanguage === "fr" && frenchMessage !== LOCALIZED_ERROR_COPY.fr.generic && frenchMessage !== getSimpleFrenchErrorMessage(null)) return frenchMessage;
+    if (normalizedLanguage === "en" && raw && !looksTechnical(raw) && looksLikeEnglishErrorMessage(raw)) return sanitizeSentence(raw);
+    return localizedFallback;
+  }
+  if (key) return LOCALIZED_ERROR_COPY[normalizedLanguage][key];
+  if (options.allowUnknownMessage === false) return localizedFallback;
+  if (!raw || looksTechnical(raw) || looksLikeEnglishErrorMessage(raw)) return localizedFallback;
+  // A translated caller fallback keeps the action context when an unknown
+  // server sentence is written in another language. Never display diagnostics.
+  if (normalizedLanguage !== "fr" && fallback && looksLikeFrenchMessage(raw)) return localizedFallback;
+  if (normalizedLanguage !== "fr" && looksLikeFrenchMessage(raw)) return LOCALIZED_ERROR_COPY[normalizedLanguage].generic;
+  return normalizedLanguage === "fr" ? frenchMessage : sanitizeSentence(raw);
 }
 
-export function getClientUserFacingErrorMessage(input: unknown, fallback?: string): string {
-  let language: AppLanguageCode = "fr";
+export function getClientErrorLanguage(): AppLanguageCode {
   if (typeof window !== "undefined") {
     try {
-      language = normalizeAppLanguage(window.localStorage.getItem("inrcy_app_language_v1"));
+      const stored = window.localStorage.getItem("inrcy_app_language_v1");
+      if (stored) return normalizeAppLanguage(stored);
     } catch {
-      language = "fr";
+      // The page locale remains available when browser storage is blocked.
     }
   }
-  return getLocalizedErrorMessage(input, language, fallback);
+  return typeof document !== "undefined" ? normalizeAppLanguage(document.documentElement.lang) : "fr";
+}
+
+export function getClientUserFacingErrorMessage(input: unknown, fallback?: string, options: { allowUnknownMessage?: boolean } = {}): string {
+  return getLocalizedErrorMessage(input, getClientErrorLanguage(), fallback, options);
 }
 
 export async function getLocalizedApiError(
@@ -507,37 +622,30 @@ export async function getLocalizedApiError(
   try {
     const contentType = res.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
-      const json = await res.clone().json().catch(() => null) as any;
+      const json: unknown = await res.clone().json().catch(() => null);
       return getLocalizedErrorMessage(
-        json?.user_message || json?.error || json?.message || `${res.status}`,
+        errorWithResponseStatus(json, res.status),
         language,
-        fallbackForStatus(res.status, fallback),
+        fallback,
       );
     }
     const text = await res.clone().text().catch(() => "");
-    return getLocalizedErrorMessage(text || `${res.status}`, language, fallbackForStatus(res.status, fallback));
+    return getLocalizedErrorMessage(errorWithResponseStatus(text, res.status), language, fallback);
   } catch {
-    return getLocalizedErrorMessage(fallbackForStatus(res.status, fallback), language, fallbackForStatus(res.status, fallback));
+    return getLocalizedErrorMessage({ status: res.status }, language, fallback);
   }
 }
 
 export async function getClientUserFacingApiError(res: Response, fallback?: string): Promise<string> {
-  let language: AppLanguageCode = "fr";
-  if (typeof window !== "undefined") {
-    try {
-      language = normalizeAppLanguage(window.localStorage.getItem("inrcy_app_language_v1"));
-    } catch {
-      language = "fr";
-    }
-  }
-  return getLocalizedApiError(res, language, fallback);
+  return getLocalizedApiError(res, getClientErrorLanguage(), fallback);
 }
 
 function resolveUserFacingErrorKey(input: unknown, frenchMessage: string): UserFacingErrorKey | null {
   const raw = normalizeRawMessage(input).toLowerCase();
   const message = `${raw} ${frenchMessage.toLowerCase()}`;
 
-  if (matches(message, ["rate limit", "rate-limit", "too many requests", "quota", "429", "resource_exhausted", "application request limit", "user request limit"])) return "rate_limit";
+  if (matches(message, ["quota backend unavailable", "quota unavailable", "rate limiter unavailable", "quota indisponible"])) return "service_unavailable";
+  if (matches(message, ["rate limit", "rate-limit", "too many requests", "quotas atteints", "429", "resource_exhausted", "application request limit", "user request limit"])) return "rate_limit";
   if (isFacebookAuthorizationLikeMessage(input)) return "facebook_reconnect";
   if (isInstagramAuthorizationLikeMessage(input)) return "instagram_reconnect";
   if (isLinkedInAuthorizationLikeMessage(input)) return "linkedin_reconnect";
@@ -554,28 +662,18 @@ function resolveUserFacingErrorKey(input: unknown, frenchMessage: string): UserF
   if (matches(message, ["400", "422", "unprocessable", "bad request", "missing ", "invalid", "incorrect", "incomplète", "incomplete"])) return "invalid";
   if (matches(message, ["access_denied", "user_denied", "consent denied", "connexion a été annulée", "connexion a ete annulee"])) return "cancelled";
   if (matches(message, ["expired link", "expired access", "accès a expiré", "acces a expire", "jeton expiré", "jeton expire"])) return "expired";
-  if (matches(message, ["500", "502", "503", "504", "server error", "internal server error", "service unavailable", "temporanément indisponible", "momentanément indisponible"])) return "service_unavailable";
+  if (matches(message, ["500", "502", "503", "504", "server error", "internal server error", "service unavailable", "temporairement indisponible", "temporanément indisponible", "momentanément indisponible"])) return "service_unavailable";
   if (matches(message, ["l'action demandée n'a pas pu être finalisée", "l’action demandée n’a pas pu être finalisée", "action requested could not be completed"])) return "action_failed";
-  if (looksTechnical(raw)) return "generic";
+  if (looksTechnical(raw) || looksLikeEnglishErrorMessage(raw)) return "generic";
   return null;
 }
 
 export async function getSimpleFrenchApiError(res: Response, fallback?: string): Promise<string> {
-  try {
-    const contentType = res.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      const json = await res.clone().json().catch(() => null) as any;
-      return getSimpleFrenchErrorMessage(json?.user_message || json?.error || json?.message || `${res.status}`, fallbackForStatus(res.status, fallback));
-    }
-    const text = await res.clone().text().catch(() => "");
-    return getSimpleFrenchErrorMessage(text || `${res.status}`, fallbackForStatus(res.status, fallback));
-  } catch {
-    return fallbackForStatus(res.status, fallback);
-  }
+  return getLocalizedApiError(res, "fr", fallback);
 }
 
 export function fallbackForStatus(status?: number, fallback?: string): string {
-  if (fallback) return fallback;
+  if (fallback) return safeFallback(fallback, "fr");
   if (status === 429) return "Quotas atteints, merci de réessayer dans quelques minutes.";
   if (status === 501) return "Cette action n'est pas encore disponible.";
   if (status === 401) return "Votre session a expiré. Merci de vous reconnecter.";
@@ -586,13 +684,7 @@ export function fallbackForStatus(status?: number, fallback?: string): string {
 }
 
 function normalizeRawMessage(input: unknown): string {
-  if (typeof input === "string") return input.trim();
-  if (input instanceof Error) return String(input.message || "").trim();
-  if (input && typeof input === "object") {
-    const msg = (input as any).message || (input as any).error || (input as any).statusText;
-    if (typeof msg === "string") return msg.trim();
-  }
-  return "";
+  return extractMessage(input, new Set(), 0);
 }
 
 function sanitizeSentence(value: string): string {
@@ -608,9 +700,100 @@ function sanitizeSentence(value: string): string {
 }
 
 function matches(message: string, needles: string[]) {
-  return needles.some((needle) => message.includes(needle));
+  return needles.some((needle) => /^\d{3}$/.test(needle)
+    ? new RegExp(`^(?:http(?: status)?[ :_-]*)?${needle}(?:\\b|$)`, "i").test(message)
+    : message.includes(needle));
 }
 
 function looksTechnical(raw: string) {
-  return /(^http\s?\d+$)|(<!doctype|<html|stack|trace|sql|sqlstate|postgres|postgrest|pgrst|supabase|graphql|prisma|drizzle|oauth|jwt|token|unexpected token|syntaxerror|typeerror|referenceerror|filereader|openai_api_key|ai_gateway_api_key|vercel_oidc_token|access token|client_secret|client_id|node:|errno|econn|violates|constraint|relation .* does not exist|column .* does not exist|permission denied for table|invalid input syntax|unhandled rejection|\{.*\}|\[object object\])/i.test(raw);
+  if (/^[a-z\d]+(?:[_.:-][a-z\d]+)+$/i.test(raw)) return true;
+  return raw.length > 800 || /(^http\s?\d+$)|(^[\s]*[\[{])|(^[a-z\d]+(?:[_.][a-z\d]+){2,}$)|(<!doctype|<html|<script|stack|trace|sql|sqlstate|postgres|postgrest|pgrst|supabase|graphql|prisma|drizzle|oauth|jwt|token|unexpected token|syntaxerror|typeerror|referenceerror|filereader|api[_ -]?key|authorization|bearer\s|client_secret|client_id|secret\s*[:=]|password\s*[:=]|node:|errno|\beconn|violates|constraint|relation .* does not exist|column .* does not exist|permission denied for table|invalid input syntax|unhandled rejection|\{.*\}|\[object object\]|https?:\/\/[^\s]*[?&](?:sig|signature|key|credential|x-amz-|x-goog-)|\bat \S+.*:\d+:\d+|[A-Z]:\\|\/var\/|\/home\/)/i.test(raw);
+}
+
+function safeFallback(fallback: string | undefined, language: AppLanguageCode): string {
+  if (!fallback?.trim() || looksTechnical(fallback)) return LOCALIZED_ERROR_COPY[language].generic;
+  if (language !== "fr" && looksLikeFrenchMessage(fallback)) {
+    const key = (Object.keys(LOCALIZED_ERROR_COPY.fr) as UserFacingErrorKey[]).find(key => LOCALIZED_ERROR_COPY.fr[key] === fallback.trim());
+    return key ? LOCALIZED_ERROR_COPY[language][key] : LOCALIZED_ERROR_COPY[language].generic;
+  }
+  return fallback.trim();
+}
+
+function extractMessage(input: unknown, visited: Set<unknown>, depth: number): string {
+  if (typeof input === "string") return input.trim();
+  if (!input || typeof input !== "object" || depth > 3 || visited.has(input)) return "";
+  visited.add(input);
+  const record = input as Record<string, unknown>;
+  for (const field of ["user_message", "userMessage", "message", "error", "statusText"]) {
+    const message = extractMessage(record[field], visited, depth + 1);
+    if (message) return message;
+  }
+  return "";
+}
+
+function errorWithResponseStatus(input: unknown, status: number): Record<string, unknown> {
+  return input && typeof input === "object" && !Array.isArray(input)
+    ? { ...(input as Record<string, unknown>), status }
+    : { message: typeof input === "string" ? input : "", status };
+}
+
+function looksLikeFrenchMessage(raw: string): boolean {
+  return /(?:^|[^\p{L}])(?:votre|vous|veuillez|merci|réessayez|reessayez|réessayer|reessayer|renseignez|connexion|chargement|enregistrement|enregistrer|fichier|compte|données|donnees|crédits|erreur|échec|echec|cet|cette|aucun|paiement|facturation|abonnement|charger|déconnecter|deconnecter|pour|doit|doivent|être|avec|au moins|pas pu|ajoutez|saisissez|sélectionnez|taille|valeur|titre|texte|mot de passe|déjà|en cours|autorisation|impossible|vérifiez|incorrect)(?=$|[^\p{L}])/iu.test(raw);
+}
+
+/** Codes/statuses are classification inputs only. They are never UI copy. */
+function resolveExplicitErrorCodeKey(input: unknown): UserFacingErrorKey | null {
+  const record = input && typeof input === "object" ? input as Record<string, unknown> : {};
+  const nested = record.error && typeof record.error === "object" ? record.error as Record<string, unknown> : {};
+  const code = record.error_code || record.code || record.errorCode || nested.error_code || nested.code || nested.errorCode
+    || (typeof input === "string" && /^[a-z][a-z\d_.-]+$/i.test(input.trim()) ? input.trim() : "");
+  // Isolate machine context from any reused public copy or provider sentence.
+  // HTTP-only field validation and channel reconnect heuristics retain their
+  // existing paths when no explicit known code is present.
+  return typeof code === "string" && code ? resolveStructuredErrorKey({ code }) : null;
+}
+
+function resolveStructuredErrorKey(input: unknown, preserveReadableMessage = true): UserFacingErrorKey | null {
+  const record = input && typeof input === "object" ? input as Record<string, unknown> : {};
+  const nested = record.error && typeof record.error === "object" ? record.error as Record<string, unknown> : {};
+  const codeValue = record.error_code || record.code || nested.code || (typeof input === "string" && /^[a-z][a-z\d_.-]+$/i.test(input.trim()) ? input.trim() : "");
+  const code = typeof codeValue === "string" ? codeValue.toLowerCase() : "";
+  const raw = normalizeRawMessage(input).toLowerCase();
+  const signal = `${code} ${raw}`;
+  if (/^(?:invalid_client|invalid_client_id|invalid_client_secret|oauth_config_missing|ai_gateway_auth)$/.test(code) || /client authentication failed|invalid[_ ]client(?:[_ ]secret|[_ ]id)?|missing .*(?:api[_ -]?key|client_secret|client_id)|configuration serveur incompl/.test(raw)) return "service_unavailable";
+  if (code === "ai_media_result_unavailable" || /média enregistré n[’']est plus disponible|saved media is no longer available/.test(raw)) return "media_missing";
+  if (/^(?:file_too_large|payload_too_large|entity_too_large)$/.test(code) || /(?:file|image|video|payload|entity) (?:is )?too large/.test(raw) || Number(record.status) === 413) return "file_too_large";
+  if (/^(?:unsupported_media_type|unsupported_file_format|file_format_invalid)$/.test(code) || /unsupported (?:media type|file format|image format)|invalid mime type/.test(raw) || Number(record.status) === 415) return "file_format";
+  if (/vid[ée]o (?:est )?obligatoire|video (?:is )?required/.test(raw)) return /vertical.*9:16|9:16.*vertical/.test(raw) ? "vertical_video_required" : "video_required";
+  if (/\b(?:ai_media_quota_reached|insufficient_credits|credits_insufficient|credit_balance_insufficient)\b/.test(code) || /(?:not enough|insufficient) credits|cr[ée]dits? (?:disponibles? )?insuffisant|solde (?:de cr[ée]dits? )?insuffisant/.test(raw)) return "credits";
+  if (/^(?:ai_quota_reached|quota_reached|plan_limit_reached|monthly_limit_reached)$/.test(code) || /quota (?:mensuel|de votre offre|de la p[ée]riode).*(?:atteint|[ée]puis[ée])/.test(raw)) return "period_limit";
+  if (code === "email_not_confirmed" || raw.includes("email not confirmed")) return "email_unconfirmed";
+  if (/quota.*unavailable|rate_limiter_unavailable|guard_unavailable|quota_invariant/.test(signal)) return "service_unavailable";
+  if (/^(?:rate_limit_burst|booster_generation_burst_limit|ai_gateway_rate_limit|over_request_rate_limit|over_email_send_rate_limit|resource_exhausted|too_many_requests)$/.test(code)) return "rate_limit";
+  if (/^(?:invalid_credentials|invalid_login_credentials)$/.test(code)) return "credentials";
+  if (/^(?:session_not_found|session_expired|refresh_token_not_found|bad_jwt|not_authenticated|unauthorized|unauthenticated)$/.test(code)) return "session";
+  if (/^(?:forbidden|permission_denied|access_forbidden)$/.test(code)) return "forbidden";
+  if (/^(?:not_found|resource_not_found)$/.test(code)) return "not_found";
+  if (/^(?:bad gateway|internal server error|service unavailable)$/i.test(raw)) return "service_unavailable";
+  if (/^(?:gateway timeout|request timeout)$/i.test(raw)) return "timeout";
+  if (/^(?:access_denied|user_denied|consent_denied)$/.test(code)) return "cancelled";
+  if (/^(?:otp_expired|flow_state_expired|link_expired)$/.test(code)) return "expired";
+  if (isFacebookAuthorizationLikeMessage(input)) return "facebook_reconnect";
+  if (isInstagramAuthorizationLikeMessage(input)) return "instagram_reconnect";
+  if (isLinkedInAuthorizationLikeMessage(input)) return "linkedin_reconnect";
+  if (isGoogleBusinessAuthorizationLikeMessage(input)) return "google_business_reconnect";
+  const status = Number(record.status);
+  // Keep a readable application validation sentence rather than replacing its
+  // useful field names/limits with an HTTP summary. Unsafe text stays private.
+  if (preserveReadableMessage && raw && looksLikeFrenchMessage(raw) && !looksTechnical(raw) && !looksLikeEnglishErrorMessage(raw)) return null;
+  if (status === 401) return "session";
+  if (status === 403) return "forbidden";
+  if (status === 404) return "not_found";
+  if (status === 409) return "conflict";
+  if (status === 429) return "rate_limit";
+  if (status === 501) return "not_available";
+  if (status === 408 || status === 504) return "timeout";
+  if (status >= 500 && status <= 599) return "service_unavailable";
+  if (status === 400 || status === 422) return "invalid";
+  return null;
 }

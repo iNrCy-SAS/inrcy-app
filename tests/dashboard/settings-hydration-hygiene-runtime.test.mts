@@ -54,7 +54,7 @@ function modules(component: string) {
       const specifier = statement.moduleSpecifier.text;
       if (mocked.has(specifier) || specifier.endsWith(".css") || specifier.endsWith("channel-workspace-snapshot")) continue;
       const base = specifier.startsWith("@/") ? resolve(repo, specifier.slice(2)) : specifier.startsWith(".") ? resolve(dirname(file), specifier) : null;
-      if (!base || !base.replaceAll("\\", "/").includes("/lib/") && !/\/_hooks\/useInrAssistant|DashboardAssistant(?:Screen|Command)Context/.test(base.replaceAll("\\", "/"))) continue;
+      if (!base || !base.replaceAll("\\", "/").includes("/lib/") && !/\/_hooks\/useInrAssistant|DashboardAssistant(?:Screen|Command)Context|\/_components\/aiEnginePresentation$/.test(base.replaceAll("\\", "/"))) continue;
       links[id][specifier] = add(base);
     }
     return id;

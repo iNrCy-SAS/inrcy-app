@@ -221,7 +221,7 @@ export default function TemplateAttachmentPicker({
       <MediaLibraryPickerModal
         open={mediaLibraryOpen}
         title={i18nT("joindre_depuis_la_mediatheque_132a0a6b")}
-        subtitle="Ajoutez un média déjà stocké dans iNrCy · format adapté si nécessaire · 20 Mo max."
+        subtitle={i18nT("template_library_attachment_description")}
         accept="all"
         multiple
         maxSelection={10}

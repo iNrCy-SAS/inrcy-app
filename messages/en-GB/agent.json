@@ -908,5 +908,12 @@
   "automation_enable_confirm_yes": "Yes",
   "automation_enable_confirm_verify": "Check my settings",
   "automation_enabled_notice": "Automation enabled.",
-  "automation_enable_unavailable": "Check the channels and settings before enabling automation."
+  "automation_enable_unavailable": "Check the channels and settings before enabling automation.",
+  "settings_impact_affected_count": "{count, plural, one {# post in the current schedule is affected. You always have the final say.} other {# posts in the current schedule are affected. You always have the final say.}}",
+  "settings_impact_available_images": "{count, plural, =-1 {Unlimited images} one {# image} other {# images}}",
+  "settings_impact_available_video_seconds": "{count, plural, =-1 {Unlimited video} other {# s of video}}",
+  "settings_impact_horizon": "{days, plural, =30 {over one month} one {over # day} other {over # days}}",
+  "settings_impact_lost_quotas": "Applying now loses the quota already used: {images, plural, one {# image quota unit} other {# image quota units}} and {videos, plural, one {# video quota unit} other {# video quota units}}.",
+  "settings_impact_media_count": "{images, plural, one {# image} other {# images}} · {videos, plural, one {# video} other {# videos}} ({seconds} s)",
+  "settings_impact_publications_count": "{count, plural, one {post} other {posts}}"
 }

@@ -1,3 +1,4 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -78,7 +79,7 @@ const pinterestPlacementLabels = pinterestControlsParsed.statements.find((node) 
 assert.ok(pinterestDistributionComponent && pinterestPlacementLabels, "Placements natifs Pinterest absents");
 
 const fixtureSource = `
-const { useCallback, useEffect, useId, useRef, useState } = require("react");
+const { useCallback, useEffect, useId, useMemo, useRef, useState } = require("react");
 const styles = new Proxy({}, { get: (_, key) => String(key) });
 function MediaSubjectVoiceButton({ contextLabel }) {
   return <span style={{display:"inline-flex",flex:"0 0 auto"}}><button type="button" aria-label={"Micro : " + contextLabel} style={{minWidth:34,height:32,padding:"0 8px"}}>🎙️</button></span>;
@@ -110,7 +111,8 @@ export function TargetingFixture({channelId, stage}) {
 }`;
 const compiled = ts.transpileModule(fixtureSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
 const moduleExports = {};
-new Function("exports", "require", compiled)(moduleExports, require);
+const uiScope = withAdsRuntime();
+new Function("exports", "require", ...Object.keys(uiScope), compiled)(moduleExports, require, ...Object.values(uiScope));
 
 function fixture(channelId, mobile, stage = "geography") {
   const markup = renderToStaticMarkup(createElement(moduleExports.TargetingFixture, { channelId, stage }));

@@ -1,4 +1,6 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
+import { getClientAiMediaGenerationErrorMessage } from "@/lib/aiMediaGenerationPublicErrorI18n";
 
 import { useEffect, useRef, useState } from "react";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
@@ -53,12 +55,12 @@ export default function useMediaCreditQuote(input: MediaCreditQuoteInput, quota:
       }).then(async (response) => {
         const data = await response.json().catch(() => null);
         if (!response.ok || !data?.quote || typeof data.quote.totalCredits !== "number" || !data.quote.quoteId) {
-          throw new Error(data?.userMessage || data?.message || data?.error || "");
+          throw new Error(getClientAiMediaGenerationErrorMessage({ ...data, status: response.status }));
         }
         if (!controller.signal.aborted) setState({ key, quote: data.quote, error: "", loading: false, remaining: typeof data.credits?.remaining === "number" ? data.credits.remaining : undefined });
       }).catch((error: unknown) => {
         if (controller.signal.aborted) return;
-        setState({ key, quote: null, error: error instanceof Error ? error.message : "", loading: false });
+        setState({ key, quote: null, error: getSafeClientErrorMessage(error, ""), loading: false });
       });
     }, 180);
     return () => { window.clearTimeout(timer); controller.abort(); };

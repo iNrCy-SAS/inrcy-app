@@ -1,3 +1,4 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -58,7 +59,7 @@ function launchHarness(outcome: "success" | "error" | "unconfirmed") {
       return { campaign: { status: outcome === "success" ? "active" : "publishing" } };
     },
   };
-  const launch = new Function(...Object.keys(scope), `${compiled}\nreturn confirmCampaignLaunch;`)(...Object.values(scope)) as () => Promise<void>;
+  const launch = new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn confirmCampaignLaunch;`)(...Object.values(withAdsRuntime(scope))) as () => Promise<void>;
   return { launch, started, release: () => releasePublish(), phases, dialogs, events, state: () => ({ busy, notice, inFlight: demoSubmissionRef.current }) };
 }
 

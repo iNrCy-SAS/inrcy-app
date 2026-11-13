@@ -56,7 +56,7 @@ function request(engine: contracts.AiMediaVideoEngine, overrides: Row = {}) {
     withMusic: false, freePrompt: `Une céramiste façonne un vase. Voix off exacte : « ${script} »`, ...overrides });
 }
 
-function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string; videoError?: Error; fallbackVideoError?: Error; primaryVideoFailureOnly?: boolean; nativeQaStatus?: "passed" | "rejected" | "unavailable" | "inconclusive"; nativeQaStatuses?: Array<"passed" | "rejected" | "unavailable">; nativeQaError?: Error; nativeVoiceover?: boolean; nativeVideoProvider?: string; finalFrameLayout?: "passed" | "rejected" | "unavailable" } = {}) {
+function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed" | "video" | "composition", withOfficialIdentity = false, options: { qaAdvisories?: string[]; narrationLanguage?: string; videoError?: Error; fallbackVideoError?: Error; primaryVideoFailureOnly?: boolean; nativeQaStatus?: "passed" | "rejected" | "unavailable" | "inconclusive"; nativeQaStatuses?: Array<"passed" | "rejected" | "unavailable">; nativeQaAudit?: (args: Row) => Promise<nativeQa.AiMediaNativeDialogueQaResult>; nativeQaError?: Error; nativeVoiceover?: boolean; nativeVideoProvider?: string; finalFrameLayout?: "passed" | "rejected" | "unavailable" } = {}) {
   const events: string[] = [], videoCalls: Row[] = [], ttsCalls: Row[] = [], narrationCalls: Row[] = [], soundtrackCalls: Row[] = [], composeCalls: Row[] = [], saved: Row[] = [], contractCalls: Row[] = [], seedCalls: Row[] = [], googleFallbackCalls: Row[] = [];
   const voicePreflightCalls: Row[] = [], localFallbackCalls: Row[] = [], nativeQaCalls: Row[] = [];
   const warnings: unknown[][] = [];
@@ -137,6 +137,7 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
       nativeQaCalls.push(args);
       events.push("native-qa");
       if (options.nativeQaError) throw options.nativeQaError;
+      if (options.nativeQaAudit) return options.nativeQaAudit(args);
       const status = options.nativeQaStatuses?.[Math.min(nativeQaCalls.length - 1, options.nativeQaStatuses.length - 1)] || options.nativeQaStatus || "passed";
       return { version: 1, status, clips: options.finalFrameLayout ? [{ sceneIndex: 0, status: "passed", finalFrameLayout: options.finalFrameLayout, issues: [] }] : status === "passed" ? [] : [{ sceneIndex: 0, status,
         issues: status === "rejected" ? ["spoken_critical_value_mismatch"] : ["qa_unavailable"],
@@ -276,6 +277,26 @@ for (const statuses of [["unavailable", "passed", "unavailable"], ["unavailable"
     assert.equal(env.ttsCalls.length, 0);
   });
 }
+
+test("Wan delivers only a real fresh passing consensus and never regenerates or replaces the native character voice", async () => {
+  let reads = 0;
+  const env = harness(undefined, false, { nativeVideoProvider: "vercel-ai-gateway:alibaba", nativeQaAudit: async args => {
+    const clips = args.clips as nativeQa.AiMediaNativeDialogueQaClip[];
+    const listen: nativeQa.AiMediaNativeDialogueTranscriber = async clip => {
+      reads++;
+      return { text: reads === 1 ? "Une tout autre histoire commence ici." : reads === 2 ? "Les paroles changent pour un voyage différent." : clip.expectedLine };
+    };
+    return nativeQa.auditAiMediaNativeDialogueClips({ clips, transcribe: listen, confirm: listen, signal: args.signal as AbortSignal | undefined });
+  } });
+  await env.generate(request("wan27", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false, spokenScript: "Bonjour, je façonne un vase." }));
+  assert.equal(reads, 4); assert.equal(env.nativeQaCalls.length, 1); assert.equal(env.videoCalls.length, 1);
+  assert.equal(env.ttsCalls.length, 0); assert.equal(env.localFallbackCalls.length, 0);
+  assert.equal(env.composeCalls.length, 1); assert.equal(env.composeCalls[0].nativeAudioMode, "dialogue");
+  assert.equal(env.saved.length, 1);
+  const savedQa = ((env.saved[0].metadata as Row).gateway as Row).quality_assurance as { native_dialogue: nativeQa.AiMediaNativeDialogueQaResult };
+  assert.equal(savedQa.native_dialogue.clips[0].audioCheckCount, 4);
+  assert.equal(savedQa.native_dialogue.clips[0].confirmationDecision, "conflicting_reads_confirmed_pass");
+});
 
 for (const engine of ["wan27", "heygen"] as const) {
   for (const characterCount of [1, 2]) test(`${engine}: real Free server preserves ${characterCount} original character references and their own supplied voices without precomposition or fallback`, async () => {

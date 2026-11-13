@@ -289,5 +289,22 @@
   "ville_livraison_54612c4a": "Ville livraison",
   "virement_bancaire_8306f08e": "Virement bancaire",
   "vous_devez_etre_connecte_pour_envoyer_0bc75018": "Vous devez être connecté pour envoyer par mail.",
-  "without_number": "(sans numéro)"
+  "without_number": "(sans numéro)",
+  "color_blue": "Bleu",
+  "color_gold": "Or",
+  "color_green": "Vert",
+  "color_orange": "Orange",
+  "color_professional_gray": "Gris pro",
+  "color_rose": "Rose",
+  "color_teal": "Turquoise",
+  "color_violet": "Violet",
+  "common_settings_description": "Ce qui sert aux devis et aux factures.",
+  "default_line_description": "La première ligne proposée dans le document.",
+  "design_framed": "Encadré",
+  "design_settings_description": "Donnez un peu de vie aux devis et factures sans perdre le côté professionnel.",
+  "example_value": "Ex. : {value}",
+  "invoice_settings_description": "Réglages appliqués uniquement aux nouvelles factures.",
+  "locked_invoice_delete_unavailable": "Une facture finalisée ne peut pas être supprimée.",
+  "payment_settings_description": "Conditions de règlement reprises sur les documents.",
+  "quote_settings_description": "Réglages appliqués uniquement aux nouveaux devis."
 }

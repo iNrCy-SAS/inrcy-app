@@ -1,3 +1,4 @@
+import { adsComponentModules } from "./helpers/ads-component-runtime.mts";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -40,7 +41,7 @@ async function component(name, seedPicker = false) {
   }
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const exports = {};
-  new Function("exports", "require", compiled)(exports, (path) => aliases[path] || (path === "./ads.module.css" ? { default: new Proxy({}, { get: (_, key) => String(key) }) } : require(path)));
+  new Function("exports", "require", compiled)(exports, (path) => aliases[path] || (path === "./ads.module.css" ? { default: new Proxy({}, { get: (_, key) => String(key) }) } : Object.hasOwn(adsComponentModules(), path) ? adsComponentModules()[path] : require(path)));
   return exports;
 }
 const meta = await component("MetaAdsCampaignControls");

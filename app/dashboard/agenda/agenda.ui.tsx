@@ -554,7 +554,7 @@ export function AgendaCalendarCard({
                       ? styles.accentDraft
                       : getEventAccentClass(eventAccentFor(ev), styles);
                     const time = !ev.allDay && ev.startDate ? formatTime(ev.startDate, locale) : "";
-                    const title = draft ? `Brouillon · ${ev.summary}` : ev.summary;
+                    const title = draft ? i18nT("calendar_draft_title", { title: ev.summary }) : ev.summary;
                     const label = ev.allDay ? title : `${time} — ${title}`;
 
                     return (
@@ -568,7 +568,7 @@ export function AgendaCalendarCard({
                       </div>
                     );
                   })}
-                  {more > 0 && <div className={styles.chipMore}>+{more} autre{more > 1 ? "s" : ""}</div>}
+                  {more > 0 && <div className={styles.chipMore}>{i18nT("calendar_more_events", { count: more })}</div>}
                 </div>
               </div>
             );
@@ -933,8 +933,8 @@ export function AgendaEventModal(props: AgendaEventModalProps) {
                 className={`${styles.btnGhost} ${styles.modalDraftButton}`}
                 onClick={props.onSaveDraft}
                 disabled={props.rdvSaving}
-                aria-label={props.rdvSaving ? "Enregistrement en cours" : "Enregistrer en brouillon"}
-                title={props.rdvSaving ? "Enregistrement en cours" : "Enregistrer en brouillon"}
+                aria-label={props.rdvSaving ? i18nT("draft_saving") : i18nT("save_as_draft")}
+                title={props.rdvSaving ? i18nT("draft_saving") : i18nT("save_as_draft")}
                 aria-busy={props.rdvSaving}
               >
                 {props.rdvSaving ? "…" : "💾"}
@@ -1180,7 +1180,7 @@ export function AgendaEventModal(props: AgendaEventModalProps) {
 
         <div className={styles.modalFooter}>
           <div className={styles.modalFooterInner}>
-            <label className={`${styles.reminderToggle} ${!props.rdvRemindersAvailable ? styles.reminderToggleDisabled : ""}`} title={props.rdvRemindersAvailable ? "Désactiver les rappels uniquement pour ce RDV." : "Aucun créneau de rappel n’est activé dans les réglages."}>
+            <label className={`${styles.reminderToggle} ${!props.rdvRemindersAvailable ? styles.reminderToggleDisabled : ""}`} title={props.rdvRemindersAvailable ? i18nT("disable_reminders_this_event") : i18nT("no_reminder_slots_enabled")}>
               <input
                 type="checkbox"
                 checked={props.rdvRemindersAvailable && props.rdvRemindersEnabled}

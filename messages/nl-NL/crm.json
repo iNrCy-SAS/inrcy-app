@@ -114,5 +114,19 @@
   "uniquement_les_importants_00983567": "Alleen belangrijk",
   "utiliser_l_adresse_principale_fbbcc33b": "Primair adres gebruiken",
   "value_contact_value_selectionne_value_76477fae": "{value0} contact{value1} geselecteerd{value2}",
-  "ville_97217611": "Plaats"
+  "ville_97217611": "Plaats",
+  "actions_sur_ce_contact_87b37a84": "Acties voor dit contact",
+  "actions_sur_la_selection_e69d1a0b": "Acties voor geselecteerde contacten",
+  "afficher_le_detail_3b75c3b3": "Details tonen",
+  "aucun_contact_a_exporter_bf5a9807": "Geen contacten om te exporteren",
+  "aucun_contact_selectionne_19a9944c": "Geen contacten geselecteerd",
+  "chargement_des_contacts_558c9dc1": "Contacten laden",
+  "choisir_le_format_d_export_cb81d35a": "Exportformaat kiezen",
+  "contact_important_2949497c": "Belangrijk contact",
+  "marquer_comme_important_c0cc7947": "Markeren als belangrijk",
+  "reduire_le_detail_a42a9c5a": "Details inklappen",
+  "selectionne_1_ou_plusieurs_contacts_7059cd05": "Selecteer een of meer contacten",
+  "selectionnez_un_contact_eff0c23e": "Selecteer een contact",
+  "supprimer_value_contact_s_9252c4bd": "{value0, plural, one {# contact verwijderen} other {# contacten verwijderen}}",
+  "vider_la_selection_834a3e51": "Selectie wissen"
 }

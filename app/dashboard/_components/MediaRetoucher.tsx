@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useTranslations } from "next-intl";
 import {
@@ -369,10 +370,7 @@ export default function MediaRetoucher({
         if (!mountedRef.current || sourceRequestRef.current !== requestId) return;
         setLoadingSource(false);
         setError(
-          previewError instanceof Error &&
-            previewError.message !== "image_preview_unreadable"
-            ? previewError.message
-            : i18nT("media_ui_df3c0e9f28", { formats: INR_MEDIA_IMAGE_FORMATS_LABEL }),
+          getSafeClientErrorMessage(previewError, i18nT("media_ui_df3c0e9f28", { formats: INR_MEDIA_IMAGE_FORMATS_LABEL })),
         );
       }
     })();
@@ -404,9 +402,7 @@ export default function MediaRetoucher({
     } catch (libraryError) {
       setLoadingSource(false);
       const message =
-        libraryError instanceof Error
-          ? libraryError.message
-          : i18nT("media_ui_a2c06199f6");
+        getSafeClientErrorMessage(libraryError, i18nT("media_ui_a2c06199f6"));
       setError(message);
       throw libraryError;
     }
@@ -486,9 +482,7 @@ export default function MediaRetoucher({
         }
         setLoadingSource(false);
         setError(
-          loadError instanceof Error
-            ? loadError.message
-            : i18nT("media_ui_275d4d5578"),
+          getSafeClientErrorMessage(loadError, i18nT("media_ui_275d4d5578")),
         );
       })
       .finally(() => {
@@ -532,9 +526,7 @@ export default function MediaRetoucher({
       return true;
     } catch (saveError) {
       setError(
-        saveError instanceof Error
-          ? saveError.message
-          : i18nT("media_ui_157738c871"),
+        getSafeClientErrorMessage(saveError, i18nT("media_ui_157738c871")),
       );
       return false;
     } finally {

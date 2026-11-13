@@ -1,3 +1,4 @@
+import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -36,6 +37,8 @@ function harness() {
   const refreshTarget = new EventTarget(), refreshModule = { exports: {} };
   const refreshSource = ts.transpileModule(readFileSync(new URL("../../app/dashboard/_hooks/useInrAssistantRefresh.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   new Function("module", "exports", "require", refreshSource)(refreshModule, refreshModule.exports, (name: string) => {
+    if (name === "@/lib/userFacingErrors") return userFacingErrorsFixture;
+    if (name === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
     if (name === "react") return { ...react, useLayoutEffect: react.useEffect };
     if (name === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => "account-a" };
     if (name === "@/lib/inrAssistantRefresh") return { ...assistantRefresh, subscribeInrAssistantRefresh: (options: Parameters<typeof assistantRefresh.subscribeInrAssistantRefresh>[0]) => assistantRefresh.subscribeInrAssistantRefresh({ ...options, target: refreshTarget }) };
@@ -52,6 +55,8 @@ function harness() {
   ]);
   const record = { exports: {} as { default: () => Hook; discardMediaGenerationDraft: (mediaId: string, scope?: Scope) => Promise<boolean> } };
   new Function("module", "exports", "require", "window", "fetch", output)(record, record.exports, (name: string) => {
+    if (name === "@/lib/userFacingErrors") return userFacingErrorsFixture;
+    if (name === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
     assert.ok(modules.has(name), `Unexpected hook dependency: ${name}`); return modules.get(name);
   }, {
     localStorage: storage, sessionStorage: session,
@@ -125,7 +130,7 @@ test("failure, malformed or unconfirmed responses preserve the paid pointer", as
   }
   const h = harness(); const discarded = h.discard();
   h.respond(Response.json({ error: "Suppression indisponible" }, { status: 503 }));
-  await assert.rejects(discarded, /Suppression indisponible/); assert.deepEqual(h.saved(), pointer);
+  await assert.rejects(discarded, /service.*indisponible/); assert.deepEqual(h.saved(), pointer);
 });
 
 test("wrong kind, missing account/media scope and unscoped legacy callers cannot clear a pointer", async () => {

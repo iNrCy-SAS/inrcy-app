@@ -526,7 +526,7 @@ export default function InrSearchExperience({
             type="button"
             aria-expanded={menuOpen}
             aria-controls="inrsearch-page-navigation"
-            aria-label={menuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+            aria-label={menuOpen ? i18nT("close_menu") : i18nT("open_menu")}
             onClick={() => setMenuOpen((value) => !value)}
           >
             <span />
@@ -582,8 +582,8 @@ export default function InrSearchExperience({
                 aria-current={activeIndex === index ? "step" : undefined}
                 aria-label={
                   item
-                    ? `Aller à ${item.label}`
-                    : `Aller à la rubrique ${index + 1}`
+                    ? i18nT("go_to_label", { label: item.label })
+                    : i18nT("go_to_section", { section: index + 1 })
                 }
                 onClick={() =>
                   item ? navigateTo(item.href) : goRelative(index - activeIndex)

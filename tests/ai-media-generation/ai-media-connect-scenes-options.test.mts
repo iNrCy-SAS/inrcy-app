@@ -11,6 +11,7 @@ import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 import * as mediaContracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as assistantRefresh from "../../lib/inrAssistantRefresh.ts";
+import { aiMediaPublicErrorsFixture, userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
 import {
@@ -52,6 +53,20 @@ type HookRuntime = {
   fingerprintForTest: (request: MediaGenerationRequest, idea: string) => string;
 };
 
+const serializationFailure = {
+  ok: false,
+  code: "AI_MEDIA_REQUEST_INVALID",
+  message: "Fixture serialization validated",
+};
+function assertSerializationRejected(error: unknown) {
+  assert.ok(error instanceof Error);
+  assert.equal(error.message, aiMediaPublicErrorsFixture.getClientAiMediaGenerationErrorMessage(
+    { error: serializationFailure, status: 422 }, "La génération du média a échoué.",
+  ));
+  assert.notEqual(error.message, serializationFailure.message, "the fixture diagnostic stays outside the public error boundary");
+  return true;
+}
+
 /** Execute the real serializer and retry path without React effects or network. */
 function hookRuntime() {
   const source = readFileSync(
@@ -85,6 +100,8 @@ function hookRuntime() {
     if (specifier === "@/lib/aiMediaGenerationRecovery") return mediaRecovery;
     if (specifier === "@/lib/aiMediaCharacterVoiceClient") return characterVoices;
     if (specifier === "@/lib/inrAssistantRefresh") return assistantRefresh;
+    if (specifier === "@/lib/userFacingErrors") return userFacingErrorsFixture;
+    if (specifier === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
     if (specifier === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => null };
     if (specifier === "./useInrAssistantRefresh") {
       const refreshModule = { exports: {} }, refreshSource = ts.transpileModule(readFileSync(new URL("../../app/dashboard/_hooks/useInrAssistantRefresh.ts", import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -101,11 +118,7 @@ function hookRuntime() {
     requests.push(JSON.parse(options.body as string));
     // This fixture validates serialization and then ends the attempt. Pending
     // paid-job recovery is verified separately through the real GET protocol.
-    return new Response(JSON.stringify({
-      ok: false,
-      code: "AI_MEDIA_REQUEST_INVALID",
-      message: "Fixture serialization validated",
-    }), { status: 422, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify(serializationFailure), { status: 422, headers: { "content-type": "application/json" } });
   };
   new Function("module", "exports", "require", "fetch", output)(
     moduleRecord, moduleRecord.exports, runtimeRequire, fixtureFetch,
@@ -197,7 +210,7 @@ test("le vrai payload transmet le mode et chaque tentative terminée possède so
   for (const sceneMode of ["multi", "multi", "single", "single", "multi"] as const) {
     await assert.rejects(
       hook.generate(clientRequest({ sceneMode })),
-      { message: "Fixture serialization validated" },
+      assertSerializationRejected,
     );
   }
   assert.deepEqual(requests.map((body) => body.connectScenes), [false, false, true, true, false]);
@@ -233,7 +246,7 @@ test("payload et empreinte utilisent la même applicabilité pour les options sa
     const key = runtime.fingerprintForTest(request, request.idea);
     assert.equal(JSON.parse(key).connectScenes, false);
     assert.equal(key, runtime.fingerprintForTest({ ...request, connectScenes: false }, request.idea));
-    await assert.rejects(hook.generate(request), { message: "Fixture serialization validated" });
+    await assert.rejects(hook.generate(request), assertSerializationRejected);
     const body = requests.at(-1)!;
     assert.equal(body.connectScenes, false);
     assert.equal(normalizeAiMediaGenerationRequest(body).connectScenes, false);
@@ -251,14 +264,14 @@ test("character voice serialization preserves only the selected sample and its c
   const initialKey = runtime.fingerprintForTest(request, request.idea);
   const replacement = { ...voiceSample, path: voiceSample.path.replace(/1\.wav$/, "2.wav") };
   assert.notEqual(initialKey, runtime.fingerprintForTest({ ...request, inspirationImages: [{ ...reference, voiceSample: replacement }] }, request.idea), "a replacement vocal is a new idempotent request");
-  await assert.rejects(hook.generate(request), { message: "Fixture serialization validated" });
+  await assert.rejects(hook.generate(request), assertSerializationRejected);
   assert.equal(requests[0].videoEngine, "wan27");
   assert.equal(requests[0].identityConsent, true);
   assert.deepEqual((requests[0].inspirationImages as Array<Record<string, unknown>>)[0].voiceSample, voiceSample);
   assert.doesNotMatch(JSON.stringify(requests[0]), /blob:|audio\/webm|data:audio/);
-  await assert.rejects(hook.generate({ ...request, inspirationImages: [{ ...reference, voiceMode: "ai" }] }), { message: "Fixture serialization validated" });
+  await assert.rejects(hook.generate({ ...request, inspirationImages: [{ ...reference, voiceMode: "ai" }] }), assertSerializationRejected);
   assert.equal((requests[1].inspirationImages as Array<Record<string, unknown>>)[0].voiceSample, undefined);
-  await assert.rejects(hook.generate({ ...request, kind: "image" }), { message: "Fixture serialization validated" });
+  await assert.rejects(hook.generate({ ...request, kind: "image" }), assertSerializationRejected);
   assert.equal((requests[2].inspirationImages as Array<Record<string, unknown>>)[0].voiceSample, undefined);
 });
 
@@ -280,14 +293,14 @@ test("available supplied voices reach serialization while retired Wan3 is blocke
   const sample = { path: "opaque-owned-path.wav", name: "voice.wav", mimeType: "audio/wav" as const, durationSeconds: 5, sizeBytes: 160_044 };
   const reference = { mimeType: "image/jpeg" as const, data: Buffer.alloc(96, 1).toString("base64"), name: "portrait.jpg", role: "character" as const, usage: "inspiration" as const, characterIndex: 1 as const, voiceMode: "provided" as const, voiceSample: sample };
   for (const videoEngine of ["wan27"] as const) {
-    await assert.rejects(hook.generate(clientRequest({ videoEngine, inputMode: "essential", durationSeconds: 8, identityMode: "auto", identityConsent: true, teamVideoSpeechMode: "characters", inspirationImages: [reference] })), { message: "Fixture serialization validated" });
+    await assert.rejects(hook.generate(clientRequest({ videoEngine, inputMode: "essential", durationSeconds: 8, identityMode: "auto", identityConsent: true, teamVideoSpeechMode: "characters", inspirationImages: [reference] })), assertSerializationRejected);
     assert.equal(requests.at(-1)?.videoEngine, videoEngine);
     assert.deepEqual((requests.at(-1)?.inspirationImages as Array<Record<string, unknown>>)[0].voiceSample, sample);
     assert.equal(requests.at(-1)?.identityConsent, true);
   }
   const references = [1, 2, 3].map((index) => ({ ...reference, characterIndex: index as 1 | 2 | 3 }));
   const allowed = clientRequest({ videoEngine: "wan27", durationSeconds: 8, teamVideoSpeechMode: "characters", inspirationImages: references });
-  await assert.rejects(hook.generate(allowed), { message: "Fixture serialization validated" });
+  await assert.rejects(hook.generate(allowed), assertSerializationRejected);
   const sent = requests.length;
   const excessive = references.map((image, index) => index === 2 ? { ...image, voiceSample: { ...image.voiceSample, durationSeconds: 5.1 } } : image);
   for (const inspirationImages of [references, excessive]) {

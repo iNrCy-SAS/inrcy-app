@@ -16,11 +16,8 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 
-import {
-  ensureFrenchPublicationErrorMessage,
-  getFrenchPublicationErrorMessage,
-} from "@/lib/publicationErrorFrench";
-import { getLocalizedErrorMessage, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getProviderPublicationErrorMessage, type PublicationErrorProvider } from "@/lib/publicationErrorFrench";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 import resultCss from "./PublishExecutionResultModal.module.css";
 import { getPublicationDestinationStatus, PublicationVisualHub, type PublicationProgressDestination } from "./PublishExecutionProgress";
 import progressCss from "./PublishExecutionProgress.module.css";
@@ -624,18 +621,15 @@ export default function PublishExecutionResultModal({
   const channelLabel = (channel: string, label: string) => publicationChannelKey(channel) === "site_web"
     ? i18nT("site_web_7e78af33") : label;
 
-  // Provider diagnostics can be free text. Translate recognized error classes,
-  // and retain an unrecognized original behind the technical-details disclosure.
-  const diagnostic = (input: string, frenchMessage: string, fallback: string, code?: string | null) => {
-    if (["publication_failed", "pending"].includes(input)) return { message: fallback, original: "" };
-    if (locale.startsWith("fr")) return { message: frenchMessage, original: "" };
-    const source = code || input;
-    const translated = getLocalizedErrorMessage(source, locale.slice(0, 2), fallback);
-    const structured = translated !== getSimpleFrenchErrorMessage(source, fallback);
-    const original = !structured && input && input !== fallback
-      ? input.replace(/<[^>]*>/g, "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 1500)
-      : "";
-    return { message: structured ? translated : fallback, original };
+  // Raw provider diagnostics stay in the result payload for internal diagnosis.
+  // Render known public guidance or a localized next step, including in tooltips.
+  const diagnostic = (input: string, fallback: string, code?: string | null, provider?: string) => {
+    if (["publication_failed", "pending"].includes(input)) return fallback;
+    const knownMessage = getLocalizedErrorMessage({ message: input, code }, locale, fallback, { allowUnknownMessage: false });
+    if (knownMessage !== fallback) return knownMessage;
+    const providerMessage = provider ? getProviderPublicationErrorMessage(publicationChannelKey(provider) as PublicationErrorProvider, input) : null;
+    if (providerMessage) return getLocalizedErrorMessage(providerMessage, locale, fallback);
+    return fallback;
   };
 
   const entryDiagnostics = (entry: PublishExecutionEntry) => {
@@ -643,15 +637,14 @@ export default function PublishExecutionResultModal({
     const status = getPublicationDestinationStatus(entry);
     const errorFallback = i18nT("execution_result_failed_message", { channel: label });
     const errorInput = status !== "pending" ? entry.error || (status === "failed" ? "publication_failed" : "") : "";
-    const error = errorInput ? diagnostic(errorInput, getFrenchPublicationErrorMessage(entry.channel, errorInput, errorFallback), errorFallback, entry.code) : null;
+    const error = errorInput ? diagnostic(errorInput, errorFallback, entry.code, entry.channel) : "";
     const rawWarning = String(entry.warning_message || (entry.warning !== "pending" ? entry.warning || "" : "")).trim();
     const warningFallback = i18nT(status === "pending" ? "execution_result_pending_message" : "execution_result_warning_message", { channel: label });
-    const warning = rawWarning ? diagnostic(rawWarning, ensureFrenchPublicationErrorMessage(rawWarning, warningFallback), warningFallback) : null;
+    const warning = rawWarning ? diagnostic(rawWarning, warningFallback) : "";
     const blockerFallback = i18nT("execution_result_blocker_message", { channel: label });
-    const blockers = (entry.blockers || []).map((blocker) => diagnostic(blocker, ensureFrenchPublicationErrorMessage(blocker, blockerFallback), blockerFallback));
+    const blockers = (entry.blockers || []).map((blocker) => diagnostic(blocker, blockerFallback));
     return {
-      error: error?.message || "", warning: warning?.message || "", blockers: blockers.map((blocker) => blocker.message),
-      originals: [...new Set([error?.original, warning?.original, ...blockers.map((blocker) => blocker.original)].filter((value): value is string => Boolean(value)))],
+      error, warning, blockers,
     };
   };
 
@@ -667,7 +660,7 @@ export default function PublishExecutionResultModal({
       status,
       storyProgressLabel: storyCounts ? i18nT("publication_stories_confirmed_count", { confirmed: storyCounts.confirmed, expected: storyCounts.expected }) : undefined,
       href: String(effectiveSummary?.channelLinks?.[entry.channel] || effectiveSummary?.channelLinks?.[key] || "").trim() || undefined,
-      details: [details.error, details.warning, ...details.blockers, details.originals.length ? `${i18nT("execution_result_technical_details")}\n${details.originals.join("\n")}` : ""].filter(Boolean).join("\n") || undefined,
+      details: [details.error, details.warning, ...details.blockers].filter(Boolean).join("\n") || undefined,
     };
   });
 
@@ -722,7 +715,7 @@ export default function PublishExecutionResultModal({
               const channelHref = String(effectiveSummary?.channelLinks?.[entry.channel] || "").trim();
               const channelLogo = CHANNEL_LOGO_BY_KEY[entry.channel];
               const label = channelLabel(entry.channel, entry.label);
-              const { error: visibleError, warning: visibleWarning, blockers: visibleBlockers, originals } = entryDiagnostics(entry);
+              const { error: visibleError, warning: visibleWarning, blockers: visibleBlockers } = entryDiagnostics(entry);
               const tone = entryIsPending ? "pending"
                 : entryIsFailed || entryIsSkipped ? "failed"
                   : entryHasWarning ? "warning" : "published";
@@ -786,10 +779,6 @@ export default function PublishExecutionResultModal({
                     </div>
                   ) : visibleError ? <p className={resultCss.entryMessage} data-tone="failed">{visibleError}</p> : null}
                   {visibleWarning ? <p className={resultCss.entryMessage} data-tone={entryIsPending ? "pending" : "warning"}>{visibleWarning}</p> : null}
-                  {originals.length ? <details className={resultCss.entryMessage}>
-                    <summary>{i18nT("execution_result_technical_details")}</summary>
-                    <p>{originals.join("\n")}</p>
-                  </details> : null}
                 </article>
               );
             })}

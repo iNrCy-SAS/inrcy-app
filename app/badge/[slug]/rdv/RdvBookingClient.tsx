@@ -8,6 +8,7 @@ import inrCalendarLogo from "@/public/inrcalendar-logo.png";
 import { useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { getInrBadgeAppointmentDaySlots, type InrBadgeAppointmentSettings } from "@/lib/inrBadgeSettings";
 import { getInrBadgeLocale, getInrBadgeTexts, normalizeInrBadgeLanguage, type InrBadgeLanguageCode } from "@/lib/inrBadgeLanguage";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 import styles from "../badge.module.css";
 
 type BusyEvent = { id: string; start: string; end: string };
@@ -169,7 +170,7 @@ export default function RdvBookingClient({
       setPhone("");
       setMessage("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : badgeText.rdvGenericError);
+      setError(getLocalizedErrorMessage(err, badgeLanguage, badgeText.rdvGenericError));
     } finally {
       setSubmitting(false);
     }

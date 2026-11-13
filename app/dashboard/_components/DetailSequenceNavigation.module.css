@@ -87,3 +87,13 @@
     font-size: 11px;
   }
 }
+
+@media (max-width: 1100px) {
+  .root {
+    grid-template-columns: 44px minmax(56px, auto) 44px;
+    min-width: 156px;
+    gap: 6px;
+  }
+
+  .button { width: 44px; min-width: 44px; height: 44px; }
+}

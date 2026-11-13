@@ -1,3 +1,4 @@
+import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -98,6 +99,8 @@ function tab(storage: ReturnType<typeof memory>, backend: ReturnType<typeof serv
   ]);
   const record = { exports: {} as { default: typeof useMediaGeneration } };
   new Function("module", "exports", "require", "window", "fetch", source)(record, record.exports, (name: string) => {
+    if (name === "@/lib/userFacingErrors") return userFacingErrorsFixture;
+    if (name === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
     assert.ok(modules.has(name), `Unexpected hook dependency: ${name}`); return modules.get(name);
   }, browser, fetch);
   const render = () => {

@@ -1053,5 +1053,10 @@
   "x_forbidden_url": "This link format is not supported on X. Use an HTTP or HTTPS link.",
   "youtube_3f8b5798": "YouTube:",
   "youtube_558865a1": "YouTube",
-  "zones_ciblees_09e322f6": "Target areas"
+  "zones_ciblees_09e322f6": "Target areas",
+  "editor_expand": "Expand",
+  "editor_expand_label": "Expand editor",
+  "editor_fullscreen_label": "Full-screen message editor",
+  "editor_shrink": "Reduce",
+  "editor_shrink_label": "Reduce editor"
 }

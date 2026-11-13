@@ -562,7 +562,7 @@
     "sourceFiles": [
       "app/dashboard/_components/AiEngineInfoModal.tsx"
     ],
-    "sourceAnchor": "<button\n            type=\"button\"\n            onClick={onClose}\n            aria-label={i18nT(\"fermer_les_informations_sur_les_moteurs_a6165e55\")}\n            style={{\n              width: 34,\n              height: 34,\n ",
+    "sourceAnchor": "<button\n            type=\"button\"\n            onClick={onClose}\n            aria-label={i18nT(\"fermer_les_informations_sur_les_moteurs_a6165e55\")}\n            style={{\n              width: 44,\n              height: 44,\n ",
     "capabilityId": "navigation.local-controls",
     "toolNames": [
       "controlLocalInterface"
@@ -573,7 +573,7 @@
     ],
     "testAnchor": "Basic engine info closes through the native parent and waits for its committed state",
     "controlIds": [
-      "app/dashboard/_components/AiEngineInfoModal.tsx#button:fff179ca1a8ff01f:1"
+      "app/dashboard/_components/AiEngineInfoModal.tsx#button:e6d0c5032b0a9a0d:1"
     ],
     "status": "implemented",
     "notes": "Port engine_info prioritaire seulement lorsque cette fenêtre est ouverte, callback natif parent et fermeture committée.",

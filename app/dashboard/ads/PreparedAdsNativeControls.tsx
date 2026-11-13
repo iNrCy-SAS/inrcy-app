@@ -1,4 +1,10 @@
 "use client";
+import { adsUiText } from "./adsUiCopy";
+
+import { useTranslations } from "next-intl";
+
+import { createAdsApiRequestError } from "./adsClientHttp";
+import { useAdsErrorMessage } from "./useAdsErrorMessage";
 import { useEffect, useId, useRef, useState } from "react";
 import type { AdsCampaignInput } from "@/lib/adsValidation";
 import { automaticTikTokNativeSelections, automaticXNativeSelections, ownedPreparedVideoId, preparedNativeBlockerLabel, preparedNativeCheck, type PreparedNativeCheck, PREPARED_TIKTOK_CTA_LABELS } from "@/lib/adsPreparedNativeClient";
@@ -18,10 +24,12 @@ type Props = {
 };
 async function read(response: Response): Promise<Record<string, unknown>> {
   const body = await response.json();
-  if (!response.ok) throw new Error(typeof body?.error === "string" ? body.error : "Le contrôle natif est indisponible.");
+  if (!response.ok) throw createAdsApiRequestError(body, response.status);
   return body;
 }
 export default function PreparedAdsNativeControls(props: Props) {
+  const i18nT = useTranslations("booster");
+  const errorMessage = useAdsErrorMessage();
   const { draft, active, connected, selectedAccountId, tikTokResources, mode } = props;
   const callbacks = useRef(props);
   useEffect(() => { callbacks.current = props; });
@@ -48,9 +56,9 @@ export default function PreparedAdsNativeControls(props: Props) {
       if (resources.selectedAccountId !== selectedAccountId || resources.account?.id !== selectedAccountId || resources.publicationEnabled !== false || !Array.isArray(resources.fundingInstruments) || !Array.isArray(resources.promotableUsers) || !Array.isArray(resources.posts)) throw new Error("Le compte X a changé. Revérifiez la connexion.");
       if (abort.signal.aborted) return;
       setXState({ key: contextKey, resources, error: "" }); callbacks.current.onXResources(resources);
-    }).catch((error) => { if (!abort.signal.aborted) setXState({ key: contextKey, resources: null, error: error instanceof Error ? error.message : "Les ressources X sont indisponibles." }); });
+    }).catch((error) => { if (!abort.signal.aborted) setXState({ key: contextKey, resources: null, error: errorMessage(error, "shell.ads_error_fee82edd9f") }); });
     return () => abort.abort();
-  }, [active, connected, provider, selectedAccountId, contextKey, revision]);
+  }, [active, connected, provider, selectedAccountId, contextKey, revision, errorMessage]);
   useEffect(() => {
     if (!active || !connected || !selectedAccountId) return;
     const current = callbacks.current.draft;
@@ -73,9 +81,9 @@ export default function PreparedAdsNativeControls(props: Props) {
       if (value.selectedAccountId !== selectedAccountId || value.complete !== true || value.publicationEnabled !== false || !Array.isArray(value.resolutions)
         || value.resolutions.length !== requestedLocations.length || value.resolutions.some((row, index) => row.query !== requestedLocations[index] || !normalizeXAdsGeoTargets(row.options))) throw new Error("Les zones X doivent être revérifiées.");
       if (!abort.signal.aborted) setGeo({ key: geoKey, value, error: "" });
-    }).catch((error) => { if (!abort.signal.aborted) setGeo({ key: geoKey, value: null, error: error instanceof Error ? error.message : "Les zones X sont indisponibles." }); });
+    }).catch((error) => { if (!abort.signal.aborted) setGeo({ key: geoKey, value: null, error: errorMessage(error, "shell.ads_error_97ef260f78") }); });
     return () => abort.abort();
-  }, [active, connected, provider, selectedAccountId, locationKey, geoKey, revision]);
+  }, [active, connected, provider, selectedAccountId, locationKey, geoKey, revision, errorMessage]);
   useEffect(() => {
     if (!active || provider !== "x" || geo.key !== geoKey || !geo.value || !xResources || !draft.xNativeSelections) return;
     const targets = geo.value.resolutions.map((row) => {
@@ -112,9 +120,9 @@ export default function PreparedAdsNativeControls(props: Props) {
       if (current.provider === "tiktok" && current.creativeUrl === videoUrl && current.tiktokNativeSelections?.advertiserId === selectedAccountId)
         callbacks.current.onChange({ tiktokNativeSelections: { ...current.tiktokNativeSelections, thumbnailMediaId: mediaId } });
       setThumbnailState({ url: videoUrl, loading: false, error: "" });
-    }).catch((error) => { if (!abort.signal.aborted) setThumbnailState({ url: videoUrl, loading: false, error: error instanceof Error ? error.message : "La miniature n’a pas pu être préparée." }); });
+    }).catch((error) => { if (!abort.signal.aborted) setThumbnailState({ url: videoUrl, loading: false, error: errorMessage(error, "shell.ads_error_ff089c1f01") }); });
     return () => abort.abort();
-  }, [active, connected, provider, selectedAccountId, videoUrl, thumbnailMediaId, hasTikTokNativeSelections, revision]);
+  }, [active, connected, provider, selectedAccountId, videoUrl, thumbnailMediaId, hasTikTokNativeSelections, revision, errorMessage]);
   useEffect(() => {
     const state = { draftKey, check: null, error: "" };
     setCheckState(state); callbacks.current.onReadiness(state);
@@ -125,29 +133,29 @@ export default function PreparedAdsNativeControls(props: Props) {
         if (abort.signal.aborted) return;
         const check = preparedNativeCheck(body, provider, selectedAccountId);
         const value = { draftKey, check, error: "" }; setCheckState(value); callbacks.current.onReadiness(value);
-      }).catch((error) => { if (!abort.signal.aborted) { const value = { draftKey, check: null, error: error instanceof Error ? error.message : "La vérification native est indisponible." }; setCheckState(value); callbacks.current.onReadiness(value); } });
+      }).catch((error) => { if (!abort.signal.aborted) { const value = { draftKey, check: null, error: errorMessage(error, "shell.ads_error_cef3c20e46") }; setCheckState(value); callbacks.current.onReadiness(value); } });
     }, 700);
     return () => { clearTimeout(timer); abort.abort(); };
-  }, [active, connected, resourcesKey, mode, provider, selectedAccountId, draftKey, revision]);
+  }, [active, connected, resourcesKey, mode, provider, selectedAccountId, draftKey, revision, errorMessage]);
   if (!active || mode === "hidden") return null;
   const check = checkState.draftKey === draftKey ? checkState.check : null;
   const tt = draft.tiktokNativeSelections, x = draft.xNativeSelections;
   const geography = geo.key === geoKey ? geo.value : null;
   return <div className={styles.panel} data-prepared-native-controls={provider}>
-    <div className={styles.heading}><div><strong>{mode === "geography" ? "Zones exactes proposées par X" : mode === "final" ? "Vérification native du compte" : "Identité publicitaire proposée"}</strong>
-      <p>{provider === "tiktok" ? "L’identité, les zones et la vidéo sont revérifiées dans votre compte TikTok." : "Un nouveau post publicitaire privé est préparé à partir de votre annonce, avec une source de financement autorisée."}</p></div></div>
-    {!connected && <small role="status">Connectez votre compte pour vérifier automatiquement les ressources. Le brouillon reste enregistrable.</small>}
+    <div className={styles.heading}><div><strong>{mode === "geography" ? i18nT("zones_exactes_proposees_par_x_e3673aba") : mode === "final" ? i18nT("verification_native_du_compte_89c51df7") : i18nT("identite_publicitaire_proposee_381f9249")}</strong>
+      <p>{provider === "tiktok" ? i18nT("l_identite_les_zones_et_la_ab080145") : i18nT("un_nouveau_post_publicitaire_prive_est_1407b43e")}</p></div></div>
+    {!connected && <small role="status">{i18nT("connectez_votre_compte_pour_verifier_automatique_6b0a18a3")}</small>}
     {(mode === "campaign" || mode === "final") && provider === "tiktok" && tikTokResources && <>
-      {tikTokResources.identities.length === 1 ? <p>Identité retenue : <b>{tikTokResources.identities[0].displayName}</b></p> : <label className={styles.field} htmlFor={`${id}-identity`}>Identité TikTok<select id={`${id}-identity`} value={tt?.identity ? JSON.stringify([tt.identity.type, tt.identity.id, tt.identity.authorizedBusinessCenterId || ""]) : ""} onChange={(event) => {
+      {tikTokResources.identities.length === 1 ? <p>{i18nT("identite_retenue_f095b483")}{" "}<b>{tikTokResources.identities[0].displayName}</b></p> : <label className={styles.field} htmlFor={`${id}-identity`}>{i18nT("identite_tiktok_4cfe7054")}<select id={`${id}-identity`} value={tt?.identity ? JSON.stringify([tt.identity.type, tt.identity.id, tt.identity.authorizedBusinessCenterId || ""]) : ""} onChange={(event) => {
         const identity = tikTokResources.identities.find((item) => JSON.stringify([item.type, item.id, item.authorizedBusinessCenterId || ""]) === event.target.value);
         if (identity && tt) callbacks.current.onChange({ tiktokNativeSelections: { ...tt, identity: { id: identity.id, type: identity.type, ...(identity.authorizedBusinessCenterId ? { authorizedBusinessCenterId: identity.authorizedBusinessCenterId } : {}) } } });
-      }}><option value="">Choisir une identité autorisée</option>{tikTokResources.identities.map((item) => <option key={JSON.stringify([item.type, item.id, item.authorizedBusinessCenterId || ""])} value={JSON.stringify([item.type, item.id, item.authorizedBusinessCenterId || ""])}>{item.displayName || item.type}</option>)}</select></label>}
-      <small>Bouton proposé : {PREPARED_TIKTOK_CTA_LABELS[tt?.callToAction || "LEARN_MORE"] || "À vérifier"}. Sa disponibilité sera contrôlée avant la création.</small>
+      }}><option value="">{i18nT("choisir_une_identite_autorisee_04253611")}</option>{tikTokResources.identities.map((item) => <option key={JSON.stringify([item.type, item.id, item.authorizedBusinessCenterId || ""])} value={JSON.stringify([item.type, item.id, item.authorizedBusinessCenterId || ""])}>{item.displayName || item.type}</option>)}</select></label>}
+      <small>{i18nT("bouton_propose_4d4aad2b")}{" "}{adsUiText(i18nT, PREPARED_TIKTOK_CTA_LABELS[tt?.callToAction || "LEARN_MORE"]) || i18nT("a_verifier_8f5f7255")}{i18nT("sa_disponibilite_sera_controlee_avant_la_97c32e31")}</small>
     </>}
     {(mode === "campaign" || mode === "final") && provider === "x" && xResources && x && <>
-      <label className={styles.field} htmlFor={`${id}-funding`}>Financement du compte<select id={`${id}-funding`} value={x.fundingInstrumentId || ""} onChange={(event) => callbacks.current.onChange({ xNativeSelections: { ...x, fundingInstrumentId: event.target.value || null } })}><option value="">Choisir une source disponible</option>{xResources.fundingInstruments.filter((item) => item.currency === "EUR" && item.ableToFund && !item.deleted && !item.cancelled).map((item) => <option key={item.id} value={item.id}>Source {item.id} · EUR</option>)}</select></label>
-      <label className={styles.field} htmlFor={`${id}-x-user`}>Identité X autorisée<select id={`${id}-x-user`} value={x.promotableUserId || ""} onChange={(event) => callbacks.current.onChange({ xNativeSelections: { ...x, promotableUserId: event.target.value || null, postId: null } })}><option value="">Choisir une identité</option>{xResources.promotableUsers.filter((item) => item.type === "FULL").map((item) => <option key={item.id} value={item.id}>Compte X {item.userId}</option>)}</select></label>
-      <small>Les choix sont automatiques quand une seule ressource compatible existe. Le post reste absent du fil organique.</small>
+      <label className={styles.field} htmlFor={`${id}-funding`}>{i18nT("financement_du_compte_83c64701")}<select id={`${id}-funding`} value={x.fundingInstrumentId || ""} onChange={(event) => callbacks.current.onChange({ xNativeSelections: { ...x, fundingInstrumentId: event.target.value || null } })}><option value="">{i18nT("choisir_une_source_disponible_99f0cfd8")}</option>{xResources.fundingInstruments.filter((item) => item.currency === "EUR" && item.ableToFund && !item.deleted && !item.cancelled).map((item) => <option key={item.id} value={item.id}>{i18nT("source_value_eur_b5c63d1c", { value0: item.id })}</option>)}</select></label>
+      <label className={styles.field} htmlFor={`${id}-x-user`}>{i18nT("identite_x_autorisee_9747cbea")}<select id={`${id}-x-user`} value={x.promotableUserId || ""} onChange={(event) => callbacks.current.onChange({ xNativeSelections: { ...x, promotableUserId: event.target.value || null, postId: null } })}><option value="">{i18nT("choisir_une_identite_9fa974c3")}</option>{xResources.promotableUsers.filter((item) => item.type === "FULL").map((item) => <option key={item.id} value={item.id}>{i18nT("compte_x_value_9f1c0cf1", { value0: item.userId })}</option>)}</select></label>
+      <small>{i18nT("les_choix_sont_automatiques_quand_une_fc085643")}</small>
     </>}
     {mode === "geography" && provider === "x" && <div className={styles.locationRows}>{geography?.resolutions.map((row, index) => {
       const chosen = x?.geoTargets.find((target) => target.name === row.query);
@@ -157,14 +165,14 @@ export default function PreparedAdsNativeControls(props: Props) {
         const complete = targets.every(Boolean);
         callbacks.current.onChange({ targetLocations: draft.targetLocations.map((name, position) => position === index ? target.name : name),
           xNativeSelections: { ...x, geoTargets: complete ? targets as NonNullable<typeof x>["geoTargets"] : [...x.geoTargets.filter((item) => item.name !== row.query), target] } });
-      }}><option value="">Choisir la bonne zone</option>{row.options.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.countryCode}</option>)}</select><span className={styles.status}>{chosen ? "Vérifiée" : "À préciser"}</span></div>;
+      }}><option value="">{i18nT("choisir_la_bonne_zone_3c1b48dc")}</option>{row.options.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.countryCode}</option>)}</select><span className={styles.status}>{chosen ? i18nT("verifiee_3fd06024") : i18nT("a_preciser_f65d0dc7")}</span></div>;
     })}</div>}
     {mode === "final" && provider === "tiktok" && tt && <>
-      <p>{thumbnailState.url === videoUrl && thumbnailState.loading ? "Préparation automatique de la miniature vidéo…" : tt.thumbnailMediaId ? "Miniature vidéo enregistrée dans votre médiathèque." : "La miniature sera préparée automatiquement à partir de votre vidéo."}</p>
-      <fieldset><legend>Déclaration de la vidéo</legend><label className={styles.toggle}><input type="radio" name={`${id}-aigc`} checked={tt.isAiGenerated === true} onChange={() => callbacks.current.onChange({ tiktokNativeSelections: { ...tt, isAiGenerated: true } })} /> Cette vidéo a été générée ou modifiée par l’IA.</label><label className={styles.toggle}><input type="radio" name={`${id}-aigc`} checked={tt.isAiGenerated === false} onChange={() => callbacks.current.onChange({ tiktokNativeSelections: { ...tt, isAiGenerated: false } })} /> Cette vidéo ne contient pas de contenu généré par l’IA.</label></fieldset>
+      <p>{thumbnailState.url === videoUrl && thumbnailState.loading ? i18nT("preparation_automatique_de_la_miniature_video_b11730f8") : tt.thumbnailMediaId ? i18nT("miniature_video_enregistree_dans_votre_mediatheq_fa3a774a") : i18nT("la_miniature_sera_preparee_automatiquement_a_c1fff5f8")}</p>
+      <fieldset><legend>{i18nT("declaration_de_la_video_d274479f")}</legend><label className={styles.toggle}><input type="radio" name={`${id}-aigc`} checked={tt.isAiGenerated === true} onChange={() => callbacks.current.onChange({ tiktokNativeSelections: { ...tt, isAiGenerated: true } })} /> {" "}{i18nT("cette_video_a_ete_generee_ou_707a3e7b")}</label><label className={styles.toggle}><input type="radio" name={`${id}-aigc`} checked={tt.isAiGenerated === false} onChange={() => callbacks.current.onChange({ tiktokNativeSelections: { ...tt, isAiGenerated: false } })} /> {" "}{i18nT("cette_video_ne_contient_pas_de_154724d5")}</label></fieldset>
     </>}
-    {mode === "final" && connected && <div role="status"><strong>{check?.ready ? "Création native en pause prête" : "Contrôles avant création"}</strong>{check && !check.ready && <ul>{[...new Set(check.blockers.map(preparedNativeBlockerLabel))].map((label) => <li key={label}>{label}</li>)}</ul>}{!check && !checkState.error && <p>Vérification du compte et de la proposition…</p>}<small>La création se fait en pause. La diffusion payante reste désactivée dans ce parcours.</small></div>}
+    {mode === "final" && connected && <div role="status"><strong>{check?.ready ? i18nT("creation_native_en_pause_prete_415f56fa") : i18nT("controles_avant_creation_7eb104f0")}</strong>{check && !check.ready && <ul>{[...new Set(check.blockers.map(preparedNativeBlockerLabel))].map((label) => <li key={label}>{label}</li>)}</ul>}{!check && !checkState.error && <p>{i18nT("verification_du_compte_et_de_la_b5af146d")}</p>}<small>{i18nT("la_creation_se_fait_en_pause_22ee8a11")}</small></div>}
     {(xState.key === contextKey && xState.error || geo.key === geoKey && geo.error || thumbnailState.url === videoUrl && thumbnailState.error || checkState.draftKey === draftKey && checkState.error) && <p className={styles.error} role="alert">{checkState.error || thumbnailState.error || geo.error || xState.error}</p>}
-    {connected && <div className={styles.actions}><button type="button" onClick={() => setRevision((value) => value + 1)}>Revérifier le compte</button></div>}
+    {connected && <div className={styles.actions}><button type="button" onClick={() => setRevision((value) => value + 1)}>{i18nT("reverifier_le_compte_39ef192e")}</button></div>}
   </div>;
 }

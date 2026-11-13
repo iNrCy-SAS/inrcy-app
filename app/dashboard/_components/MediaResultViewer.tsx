@@ -76,9 +76,9 @@ export default function MediaResultViewer({ accountId, title, video, children, o
     {video ? <span className={styles.focusBoundary} tabIndex={0} aria-hidden="true"
       onFocus={() => dialogRef.current?.querySelector<HTMLButtonElement>("button")?.focus()} /> : null}
     {!video ? <div className={styles.controls}>
-      <button type="button" aria-label="Zoom −" disabled={zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - 0.5))}>−</button>
-      <button type="button" aria-label="Zoom 100 %" onClick={() => { setZoom(1); viewportRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" }); }}><output aria-live="polite">{Math.round(zoom * 100)} %</output></button>
-      <button type="button" aria-label="Zoom +" disabled={zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + 0.5))}>+</button>
+      <button type="button" aria-label={t("viewer_zoom_out")} disabled={zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - 0.5))}>−</button>
+      <button type="button" aria-label={t("viewer_zoom_reset")} onClick={() => { setZoom(1); viewportRef.current?.scrollTo({ top: 0, left: 0, behavior: "instant" }); }}><output aria-live="polite">{Math.round(zoom * 100)} %</output></button>
+      <button type="button" aria-label={t("viewer_zoom_in")} disabled={zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + 0.5))}>+</button>
     </div> : null}
   </dialog>, document.body);
 }

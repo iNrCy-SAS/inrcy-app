@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -23,7 +24,7 @@ async function loadCampaignPage(offset: number, draftOnly: boolean, translate: M
   if (draftOnly) params.set("status", "draft");
   const response = await fetch(`/api/ads/campaigns?${params.toString()}`, { cache: "no-store" });
   const result = await response.json().catch(() => null) as AdsCampaignsResponse | null;
-  if (!response.ok) throw new Error(result?.error || translate("impossible_de_charger_les_campagnes_ads_af10c644"));
+  if (!response.ok) throw new Error(getSafeClientErrorMessage(result, translate("impossible_de_charger_les_campagnes_ads_af10c644")));
   return result || {};
 }
 
@@ -57,7 +58,7 @@ export default function AdsCampaignsFolder({ onCountChange, draftOnly = false }:
       onCountChange(count);
       return true;
     } catch (error) {
-      if (mounted.current) setLoadError(error instanceof Error ? error.message : i18nT("campagnes_indisponibles_7e03ff61"));
+      if (mounted.current) setLoadError(getSafeClientErrorMessage(error, i18nT("campagnes_indisponibles_7e03ff61")));
       return false;
     } finally {
       if (mounted.current) setLoading(false);
@@ -88,7 +89,7 @@ export default function AdsCampaignsFolder({ onCountChange, draftOnly = false }:
       setPage((current) => current + 1);
       onCountChange(count);
     } catch (error) {
-      if (mounted.current) setLoadError(error instanceof Error ? error.message : i18nT("campagnes_suivantes_indisponibles_c3625613"));
+      if (mounted.current) setLoadError(getSafeClientErrorMessage(error, i18nT("campagnes_suivantes_indisponibles_c3625613")));
     } finally {
       if (mounted.current) setLoadingMore(false);
     }

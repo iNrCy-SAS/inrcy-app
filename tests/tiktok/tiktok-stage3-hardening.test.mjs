@@ -73,7 +73,8 @@ test("iNrSend automatically polls pending TikTok publications", () => {
   assert.match(detailsModal, /tiktokAutoPollInFlightRef/);
   assert.match(detailsModal, /20_000/);
   assert.match(detailsModal, /60_000/);
-  assert.match(detailsModal, /i18nT\("motif_technique_tiktok_4641189f"\)/);
+  assert.match(detailsModal, /localizedTiktokStatusMessage\(tiktokStatusMeta, runtimeT\)/);
+  assert.doesNotMatch(detailsModal, /\{tiktokStatusMeta\.(?:failReason|providerErrorCode)\}/);
 });
 
 test("iNrSend can cancel a pending TikTok publication locally", () => {

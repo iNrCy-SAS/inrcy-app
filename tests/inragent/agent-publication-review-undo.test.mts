@@ -6,6 +6,8 @@ import { isInrAgentActionId } from "../../lib/inrAgentActionId.ts";
 import { canReopenPublicationValidation } from "../../app/dashboard/agent/_lib/agent.publication-visibility.ts";
 import type { InrAgentAction } from "../../lib/inrAgentActions.ts";
 import { runtimeModules } from "./runtime-module-loader.mts";
+import { catalogTranslator } from "../helpers/catalog-translator.mts";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 
 const editorialId = "46266e80-becd-b284-ba88-17d00b58c20f";
 const future = new Date(Date.now() + 86_400_000).toISOString();
@@ -185,7 +187,7 @@ function clientUndoHarness(response: { ok: boolean; action?: unknown; error?: st
     tiktokSessionCheckInFlightRef: { current: false }, publishRegeneration: null, canReopenPublicationValidation,
     setPublicationRestoreState: () => {},
     fetch: async (_url: string, args: { body: string }) => { requests.push(JSON.parse(args.body)); return { ok: response.ok, json: async () => response }; },
-    i18nT: (key: string) => key, setActions: (fn: (current: unknown) => typeof state.actions) => { state.actions = fn(state.actions); },
+    i18nT: catalogTranslator("agent"), locale: "fr-FR", getLocalizedErrorMessage: userFacingErrorsFixture.getLocalizedErrorMessage, setActions: (fn: (current: unknown) => typeof state.actions) => { state.actions = fn(state.actions); },
     setPublicationStatusFilters: (fn: (current: unknown) => typeof state.filters) => { state.filters = fn(state.filters); },
     setSelectedPreparedActionId: (id: string) => { state.selected = id; }, setTiktokValidationSession: (session: unknown) => { state.session = session; },
     setTiktokPublicationReviews: (fn: (current: unknown) => typeof state.reviews) => { state.reviews = fn(state.reviews); },

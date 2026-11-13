@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -89,14 +90,14 @@ export default function SubscriptionInvoicesPanel() {
         const payload = (await response.json().catch(() => ({}))) as InvoiceResponse;
         if (!current()) return;
         if (!response.ok) {
-          throw new Error(payload.error || i18nT("factures_stripe_erreur_7e2a5c11"));
+          throw new Error(getSafeClientErrorMessage(payload, i18nT("factures_stripe_erreur_7e2a5c11")));
         }
         setInvoices(Array.isArray(payload.invoices) ? payload.invoices : []);
         setCompletedReload(reloadToken);
       } catch (cause: unknown) {
         if (!current()) return;
         if (cause instanceof DOMException && cause.name === "AbortError") return;
-        setError(cause instanceof Error ? cause.message : i18nT("factures_stripe_erreur_7e2a5c11"));
+        setError(getSafeClientErrorMessage(cause, i18nT("factures_stripe_erreur_7e2a5c11")));
       } finally {
         if (current()) setLoading(false);
       }

@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -846,7 +847,7 @@ export default function MediaGenerator({
       resetReferenceConsent();
     } catch (caught) {
       setActionError(
-        caught instanceof StudioInspirationImageOnlyError ? t("ai_generator_inspiration_images_only") : caught instanceof Error ? caught.message : t("ai_generator_error")
+        caught instanceof StudioInspirationImageOnlyError ? t("ai_generator_inspiration_images_only") : getSafeClientErrorMessage(caught, t("ai_generator_error"))
       );
     } finally {
       if (manageBusy) setInspirationBusy(false);
@@ -893,7 +894,7 @@ export default function MediaGenerator({
       }
     } catch (caught) {
       setActionError(
-        caught instanceof Error ? caught.message : t("ai_generator_error")
+        getSafeClientErrorMessage(caught, t("ai_generator_error"))
       );
     } finally {
       setInspirationBusy(false);
@@ -919,7 +920,7 @@ export default function MediaGenerator({
         );
       }
     } catch (caught) {
-      setActionError(caught instanceof StudioInspirationImageOnlyError ? t("ai_generator_inspiration_images_only") : caught instanceof Error ? caught.message : t("ai_generator_error"));
+      setActionError(caught instanceof StudioInspirationImageOnlyError ? t("ai_generator_inspiration_images_only") : getSafeClientErrorMessage(caught, t("ai_generator_error")));
     } finally {
       setInspirationBusy(false);
     }
@@ -1110,7 +1111,7 @@ export default function MediaGenerator({
           return;
         }
         setActionError(
-          caught instanceof Error ? caught.message : t("ai_generator_error")
+          getSafeClientErrorMessage(caught, t("ai_generator_error"))
         );
         setTeamVideoVeoConsent(false);
         setTeamVideoConsentOpen(false);
@@ -1205,7 +1206,7 @@ export default function MediaGenerator({
         return;
       }
       setActionError(
-        caught instanceof Error ? caught.message : t("ai_generator_error")
+        getSafeClientErrorMessage(caught, t("ai_generator_error"))
       );
     } finally {
       // L'accord porte sur un essai de génération précis. Une nouvelle
@@ -1269,7 +1270,7 @@ export default function MediaGenerator({
       await retryRecovery();
     } catch (caught) {
       if (sequence === generationSequenceRef.current && !(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
-        setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+        setActionError(getSafeClientErrorMessage(caught, t("ai_generator_error")));
       }
     } finally {
       if (sequence === generationSequenceRef.current) recoveryInFlightRef.current = false;
@@ -1286,7 +1287,7 @@ export default function MediaGenerator({
       if (sequence === generationSequenceRef.current && !recovered) setCreationScreen(false);
     } catch (caught) {
       if (sequence === generationSequenceRef.current && !(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
-        setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+        setActionError(getSafeClientErrorMessage(caught, t("ai_generator_error")));
       }
     } finally {
       if (sequence === generationSequenceRef.current) recoveryInFlightRef.current = false;
@@ -1309,7 +1310,7 @@ export default function MediaGenerator({
         return;
       }
       setActionError(
-        caught instanceof Error ? caught.message : t("ai_generator_error")
+        getSafeClientErrorMessage(caught, t("ai_generator_error"))
       );
     } finally {
       acceptInFlightRef.current = false;
@@ -1339,7 +1340,7 @@ export default function MediaGenerator({
         return;
       }
       setActionError(
-        caught instanceof Error ? caught.message : t("ai_generator_error")
+        getSafeClientErrorMessage(caught, t("ai_generator_error"))
       );
     } finally {
       acceptInFlightRef.current = false;

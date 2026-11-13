@@ -21,7 +21,7 @@ function actualEffect(declarations: string[], marker: string) {
 }
 
 async function setup(page: Page, declarations: string[], marker: string, bindings: string[], fixture: string) {
-  const code = `import React, {useEffect,useEffectEvent} from 'react';export default function Harness(props){const {${bindings.join(",")}}=props;${actualEffect(declarations,marker)}return null;}`;
+  const code = `import React, {useEffect,useEffectEvent} from 'react';const fixtureErrorMessage=(_error,key)=>key;export default function Harness(props){const errorMessage=fixtureErrorMessage;const {${bindings.join(",")}}=props;${actualEffect(declarations,marker)}return null;}`;
   const sources = {
     react: packageSource("react", "react.development.js"),
     "react-dom": packageSource("react-dom", "react-dom.development.js"),

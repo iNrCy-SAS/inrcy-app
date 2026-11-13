@@ -2237,7 +2237,7 @@ export default function NewFacturePage() {
                         value={depositValue}
                         onChange={(e) => setDepositValue(e.target.value)}
                         placeholder={
-                          depositKind === "amount" ? "Ex : 300" : "Ex : 30"
+                          depositKind === "amount" ? i18nT("example_value", { value: 300 }) : i18nT("example_value", { value: 30 })
                         }
                         disabled={coreEditingLocked || !depositKind}
                       />
@@ -2832,7 +2832,7 @@ export default function NewFacturePage() {
                       setDiscountValue(Number(e.target.value) || 0)
                     }
                     placeholder={
-                      discountKind === "percent" ? "Ex: 10" : "Ex: 50"
+                      discountKind === "percent" ? i18nT("example_value", { value: 10 }) : i18nT("example_value", { value: 50 })
                     }
                     disabled={!discountKind || coreEditingLocked}
                     style={{

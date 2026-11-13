@@ -5,6 +5,8 @@ import test from "node:test";
 import * as React from "react";
 import ts from "typescript";
 import { createNativeLocalHookLoader } from "../helpers/assistant-native-local-hooks.mts";
+import { catalogTranslator } from "../helpers/catalog-translator.mts";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 
 const require = createRequire(import.meta.url);
 // Transpiled modules and mocked React slots have heterogeneous runtime shapes.
@@ -25,6 +27,7 @@ function controller(file: string, initial: unknown, fetch: (url: string, init?: 
   const effects: Array<() => void> = [];
   const events: Array<{ type: string; detail?: Model }> = [];
   const snapshots: unknown[] = [];
+  const translators = new Map<string, ReturnType<typeof catalogTranslator>>();
   let cursor = 0;
   let model: Model;
   const changed = (before: unknown[] | undefined, after: unknown[] | undefined) => !before || !after || before.length !== after.length || before.some((value, index) => !Object.is(value, after[index]));
@@ -66,12 +69,12 @@ function controller(file: string, initial: unknown, fetch: (url: string, init?: 
     if (specifier === "next/navigation") return { usePathname: () => "/dashboard" };
     if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "actor-1", activeAccountId: "account-1", metaPilotEnabled: false }) };
     if (specifier.endsWith(".css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
-    if (specifier === "next-intl") return { useLocale: () => "fr-FR", useTranslations: () => (key: string) => key };
+    if (specifier === "next-intl") return { useLocale: () => "fr-FR", useTranslations: (namespace: string) => { if (!translators.has(namespace)) translators.set(namespace, catalogTranslator(namespace)); return translators.get(namespace)!; } };
     if (specifier.endsWith("channel-workspace-snapshot")) return { readChannelWorkspaceSnapshot: () => initial, writeChannelWorkspaceSnapshot: (_key: string, value: unknown) => snapshots.push(value) };
     if (specifier === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => "account-1", readAccountCacheValue: () => JSON.stringify({ pinterestConnected: true }), resolveActiveBrowserUserId: (id: string) => id };
     if (specifier === "@/lib/dashboardCacheKeys") return { DASHBOARD_CACHE_KEYS: { channelState: "channel-state" } };
     if (specifier === "@/lib/pinterestUiSessionCache") return { readPinterestBoardUiCache: () => ({ boards: [{ id: "board-1", name: "Board" }], defaultBoardId: "board-1" }), writePinterestBoardUiCache() {} };
-    if (specifier.endsWith("userFacingErrors")) return { getLocalizedApiError: async () => "Disconnect failed", getLocalizedErrorMessage: (_error: unknown, _locale: string, fallback: string) => fallback, getSimpleFrenchApiError: async () => "Disconnect failed", getSimpleFrenchErrorMessage: (_error: unknown, fallback: string) => fallback };
+    if (specifier.endsWith("userFacingErrors")) return userFacingErrorsFixture;
     return { __esModule: true, default: stub };
   };
   const nativeHooks = createNativeLocalHookLoader(localRequire);

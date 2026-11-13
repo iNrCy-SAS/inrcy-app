@@ -11,7 +11,7 @@ import {
   type InrBadgeAppointmentSettings,
   type InrBadgeAppointmentSlot,
 } from "@/lib/inrBadgeSettings";
-import { getSimpleFrenchApiError, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getClientUserFacingApiError as getSimpleFrenchApiError, getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { providerLabel, type MailAccountOption } from "../../agenda/agenda.shared";
 
 const INRCALENDAR_SETTINGS_UPDATED_EVENT = "inrcalendar:settings-updated";
@@ -560,7 +560,7 @@ export default function AgendaSettingsContent() {
       {notice ? <Notice tone="success">{notice}</Notice> : null}
       {error ? <Notice tone="error">{error}</Notice> : null}
 
-      <GlassCard title={i18nT("boite_d_envoi_des_rappels_f512176e")} subtitle="Les mails de rappel partiront de cette boîte mail iNr’Send.">
+      <GlassCard title={i18nT("boite_d_envoi_des_rappels_f512176e")} subtitle={i18nT("reminder_sender_description")}>
         <select
           className="agendaSettings_select"
           style={fieldStyle}
@@ -618,7 +618,7 @@ export default function AgendaSettingsContent() {
 
       <GlassCard
         title={i18nT("prise_de_rdv_d4e3d750")}
-        subtitle="Ces réglages concernent les créneaux proposés aux clients depuis votre fiche publique. L’ajout manuel d’un RDV dans iNr’Calendar reste libre."
+        subtitle={i18nT("public_booking_settings_description")}
       >
         <div className="agendaSettings_responsiveTwo" style={globalGridStyle}>
           <SelectField

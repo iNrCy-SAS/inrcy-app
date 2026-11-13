@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import sectionStyles from "./SettingsSections.module.css";
 import layoutStyles from "./settingsContentLayout.module.css";
 import DrawerHeaderTabs from "../../DrawerHeaderTabs";
@@ -35,8 +35,15 @@ const PREMIUM_INERTIA_ACTION_KEYS = new Set([
   "weekly_fideliser_use",
 ]);
 
+const SYSTEM_HISTORY_LABELS = new Set([
+  "ouverture du compte", "profil complete", "activite complete", "activite completee",
+  "actu creee", "utilisation booster", "ancienne mission commune", "action hebdomadaire",
+  "action propulser", "action fideliser", "anciennete",
+]);
+
 export default function InertiaContent({ edition = "premium", snapshot, onOpenBoutique }: Props) {
   const i18nT = useTranslations("settings");
+  const locale = useLocale();
   const [view, setView] = useState<"overview" | "history">("overview");
   const [uiBalance, setUiBalance] = useState<number>(0);
   const [events, setEvents] = useState<LoyaltyEvent[]>([]);
@@ -148,16 +155,16 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
 
   const labelFromAction = useMemo(() => {
     return {
-      account_open: "Ouverture du compte",
-      profile_complete: "Profil complété",
-      activity_complete: "Activité complétée",
-      create_actu: "Utilisation Booster",
-      weekly_feature_use: "Ancienne mission commune",
-      weekly_propulser_use: "Action Propulser",
-      weekly_fideliser_use: "Action Fidéliser",
-      monthly_seniority: "Ancienneté",
+      account_open: i18nT("inertia_account_opened"),
+      profile_complete: i18nT("profil_complete_daaeced5"),
+      activity_complete: i18nT("inertia_activity_completed"),
+      create_actu: i18nT("inertia_booster_used"),
+      weekly_feature_use: i18nT("inertia_legacy_shared_mission"),
+      weekly_propulser_use: i18nT("inertia_propulser_action"),
+      weekly_fideliser_use: i18nT("inertia_fideliser_action"),
+      monthly_seniority: i18nT("inertia_membership_duration"),
     } as Record<string, string>;
-  }, []);
+  }, [i18nT]);
 
   return (
     <div className={layoutStyles.workspace}>
@@ -181,7 +188,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
             <div style={{ color: "rgba(255,255,255,0.92)", fontWeight: 800, fontSize: 16 }}>
               {i18nT("unites_d_apos_inertie_a9f73b8d")}{" "}</div>
             <div style={{ color: "rgba(255,255,255,0.64)", fontSize: 13, marginTop: 6 }}>
-              {i18nT("turbo_ui_62a2f457")}{" "}<b>×{snapshot.multiplier}</b> — {snapshot.connectedCount}/{snapshot.totalChannels} canaux
+              {i18nT("turbo_ui_62a2f457")}{" "}<b>×{snapshot.multiplier}</b> — {i18nT("inertia_connected_channels", { count: snapshot.connectedCount, total: snapshot.totalChannels })}
             </div>
           </div>
 
@@ -274,7 +281,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
               }}
             >
               <div style={{ color: "rgba(255,255,255,0.88)", fontWeight: 650 }}>
-                {b.label}
+                {b.key === "site_web" ? i18nT("inertia_website") : b.label}
               </div>
               <div style={{ color: "rgba(255,255,255,0.72)", fontWeight: 750 }}>
                 <span style={{ opacity: b.connected ? 1 : 0.5 }}>{`+${b.bonus}`}</span>
@@ -394,6 +401,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
             {events.map((e) => {
               const premiumHistory =
                 isStandardDashboardEdition(edition) && PREMIUM_INERTIA_ACTION_KEYS.has(e.action_key);
+              const hasSystemLabel = !e.label || SYSTEM_HISTORY_LABELS.has(e.label.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase());
               return (
                 <div
                   key={e.id}
@@ -412,7 +420,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
                 >
                   <div style={{ color: "rgba(255,255,255,0.82)" }}>
                     <div style={{ fontWeight: 650 }}>
-                      {e.label ?? labelFromAction[e.action_key] ?? i18nT("inertie_0c1116ac")}
+                      {hasSystemLabel ? labelFromAction[e.action_key] ?? e.label ?? i18nT("inertie_0c1116ac") : e.label}
                       {premiumHistory ? (
                         <span
                           style={{
@@ -426,7 +434,7 @@ export default function InertiaContent({ edition = "premium", snapshot, onOpenBo
                       ) : null}
                     </div>
                     <div style={{ fontSize: 12, color: "rgba(255,255,255,0.55)" }}>
-                      {new Date(e.created_at).toLocaleString()}
+                      {new Date(e.created_at).toLocaleString(locale)}
                     </div>
                   </div>
                   <div style={{ color: "rgba(255,255,255,0.88)", fontWeight: 850 }}>

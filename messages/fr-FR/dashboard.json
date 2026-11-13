@@ -286,7 +286,11 @@
     "documentsDropHint": "PDF, images ou documents · 20 Mo par fichier",
     "presentationTitle": "Présentation",
     "discardDraftMessage": "Les modifications non enregistrées de ce formulaire seront abandonnées. Les informations déjà enregistrées restent conservées.",
-    "resetPreferencesMessage": "Les préférences affichées seront remises aux valeurs par défaut. Cette action ne valide aucun achat ni changement de compte."
+    "resetPreferencesMessage": "Les préférences affichées seront remises aux valeurs par défaut. Cette action ne valide aucun achat ni changement de compte.",
+    "irreversibleResetAllConfirm": "Réinitialiser tout l’ADN",
+    "irreversibleResetAllMessage": "Cette action efface toutes les informations iNr’ADN, y compris les documents importés et leurs fichiers. Elle est définitive.",
+    "irreversibleResetTabMessage": "Cette action efface uniquement les informations de cet onglet. Elle est définitive.",
+    "irreversibleResetTabTitle": "Réinitialiser « {tab} » ?"
   },
   "aucun_canal_dans_cette_vue_15a825ef": "Aucun canal dans cette vue.",
   "aucun_canal_disponible_ne_necessite_de_50b143d2": "Aucun canal disponible ne nécessite de configuration.",

@@ -316,7 +316,7 @@ export function useSiteWebChannel({
     }).catch(() => null);
     const payload = await response?.json().catch(() => ({}));
     if (!response?.ok || payload?.ok === false) {
-      setSiteWebSettingsError(String(payload?.error || "Impossible d’enregistrer ce lien pour le moment."));
+      setSiteWebSettingsError(getSimpleFrenchErrorMessage(payload, "Impossible d’enregistrer ce lien pour le moment."));
       return;
     }
 

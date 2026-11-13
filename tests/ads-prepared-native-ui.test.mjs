@@ -1,3 +1,4 @@
+import { adsComponentModules } from "./helpers/ads-component-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -32,6 +33,7 @@ function harness(component, initial) {
     useEffect: (effect, deps) => { const at = index++, old = effects.get(at); if (!old || !deps || !old.deps || deps.some((value, position) => !Object.is(value, old.deps[position]))) pending.push(() => { old?.cleanup?.(); effects.set(at, { deps, cleanup: effect() }); }); },
   };
   const modules = new Map([
+    ...Object.entries(adsComponentModules()),
     ["react", react], ["react/jsx-runtime", { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }), Fragment: Symbol("fragment") }],
     ["@/lib/adsPreparedNativeClient", client], ["@/lib/adsXResources", xResources], ["@/lib/adsTikTokResources", ttResources], ["@/lib/adsTikTokLocationSelection", ttLocation],
     ["@/lib/adsTikTokThumbnailClient", { prepareOwnedTikTokThumbnail: (url, signal) => new Promise((resolve, reject) => frames.push({ url, signal, resolve, reject })) }],

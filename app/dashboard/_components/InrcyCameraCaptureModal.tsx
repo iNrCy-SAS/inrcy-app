@@ -110,7 +110,7 @@ function getPointerDistance(points: PointerPoint[]) {
 
 export default function InrcyCameraCaptureModal({
   open,
-  title = "Prendre une photo",
+  title: suppliedTitle,
   onClose,
   onCapture,
   allowVideo = true,
@@ -119,6 +119,7 @@ export default function InrcyCameraCaptureModal({
   maxVideoSeconds = null,
 }: InrcyCameraCaptureModalProps) {
   const i18nT = useTranslations("media");
+  const title = suppliedTitle ?? i18nT("camera_photo_title");
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -880,10 +881,10 @@ export default function InrcyCameraCaptureModal({
       disabled={controlsLocked}
       aria-label={
         facingMode === "environment"
-          ? "Passer en caméra avant"
-          : "Passer en caméra arrière"
+          ? i18nT("camera_switch_to_front")
+          : i18nT("camera_switch_to_rear")
       }
-      title={facingMode === "environment" ? "Caméra avant" : "Caméra arrière"}
+      title={facingMode === "environment" ? i18nT("camera_front") : i18nT("camera_rear")}
       style={iconButtonBase}
     >
       ⇄
@@ -915,16 +916,16 @@ export default function InrcyCameraCaptureModal({
       aria-label={
         torchSupported
           ? torchOn
-            ? "Désactiver le flash"
-            : "Activer le flash"
-          : "Flash indisponible sur cet appareil"
+            ? i18nT("camera_disable_flash")
+            : i18nT("camera_enable_flash")
+          : i18nT("flash_indisponible_sur_cet_appareil_9eac5eab")
       }
       title={
         torchSupported
           ? torchOn
-            ? "Flash activé"
-            : "Flash"
-          : "Flash indisponible sur cet appareil"
+            ? i18nT("camera_flash_on")
+            : i18nT("camera_flash")
+          : i18nT("flash_indisponible_sur_cet_appareil_9eac5eab")
       }
       style={{
         ...iconButtonBase,
@@ -979,7 +980,7 @@ export default function InrcyCameraCaptureModal({
             aria-current={active ? "true" : undefined}
             title={
               mode === "video" && !allowVideo
-                ? "Vidéo indisponible ici"
+                ? i18nT("camera_video_unavailable_here")
                 : undefined
             }
             onClick={() => {

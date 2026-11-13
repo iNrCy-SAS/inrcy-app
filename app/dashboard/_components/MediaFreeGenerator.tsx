@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -673,9 +674,7 @@ export default function MediaFreeGenerator({
         setActionError(
           caught instanceof StudioInspirationImageOnlyError
             ? t("ai_generator_inspiration_images_only")
-            : caught instanceof Error
-            ? caught.message
-            : t("ai_generator_free_refs_error")
+            : getSafeClientErrorMessage(caught, t("ai_generator_free_refs_error"))
         );
       return false;
     } finally {
@@ -712,9 +711,7 @@ export default function MediaFreeGenerator({
         setActionError(
           caught instanceof StudioInspirationImageOnlyError
             ? t("ai_generator_inspiration_images_only")
-            : caught instanceof Error
-            ? caught.message
-            : t("ai_generator_free_refs_error")
+            : getSafeClientErrorMessage(caught, t("ai_generator_free_refs_error"))
         );
     } finally {
       if (sequence.current === currentSequence) {
@@ -856,7 +853,7 @@ export default function MediaFreeGenerator({
       ) {
         retryableFailure = true;
         setActionError(
-          caught instanceof Error ? caught.message : t("ai_generator_error")
+          getSafeClientErrorMessage(caught, t("ai_generator_error"))
         );
       }
     } finally {
@@ -894,7 +891,7 @@ export default function MediaFreeGenerator({
       }
     } catch (caught) {
       if (sequence.current === currentSequence && !(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
-        setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+        setActionError(getSafeClientErrorMessage(caught, t("ai_generator_error")));
       }
     } finally {
       if (sequence.current === currentSequence) operationInFlight.current = false;
@@ -915,7 +912,7 @@ export default function MediaFreeGenerator({
       }
     } catch (caught) {
       if (sequence.current === currentSequence && !(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
-        setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+        setActionError(getSafeClientErrorMessage(caught, t("ai_generator_error")));
       }
     } finally {
       if (sequence.current === currentSequence) operationInFlight.current = false;
@@ -937,7 +934,7 @@ export default function MediaFreeGenerator({
       if (sequence.current !== currentSequence) return;
       if (!(caught instanceof MediaGenerationAccountChangedError))
         setActionError(
-          caught instanceof Error ? caught.message : t("ai_generator_error")
+          getSafeClientErrorMessage(caught, t("ai_generator_error"))
         );
     } finally {
       if (sequence.current === currentSequence) {
@@ -969,7 +966,7 @@ export default function MediaFreeGenerator({
       if (sequence.current !== currentSequence) return;
       if (!(caught instanceof MediaGenerationAccountChangedError)) {
         setActionError(
-          caught instanceof Error ? caught.message : t("ai_generator_error")
+          getSafeClientErrorMessage(caught, t("ai_generator_error"))
         );
       }
     } finally {

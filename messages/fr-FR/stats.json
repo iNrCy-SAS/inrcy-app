@@ -550,5 +550,6 @@
   "visibility_index_tracking_hint": "Le premier graphique se débloque après un mois de valeurs enregistrées.",
   "visibility_index_recording_method": "Une valeur est conservée chaque jour avec les données disponibles à cette date. Les valeurs passées ne sont jamais recalculées avec les chiffres actuels. Les jours sans collecte restent absents. Une période nécessite un historique suffisant et récent.",
   "visibility_index_rewards_method": "Chaque palier offre une seule fois des Unités d’Inertie utilisables dans la boutique. Bonus de base : 50 / 100 / 200 / 500 UI. Coefficient au déblocage : Basique ×0,5, Standard ×1, Premium ×1,5. Un changement d’abonnement ne recrédite pas un palier déjà gagné.",
-  "visibility_index_rewards_history_method": "Les statistiques historiques disponibles peuvent valider rétroactivement un palier pour un compte suffisamment ancien. Cela ne reconstitue pas les anciennes valeurs de l’indice."
+  "visibility_index_rewards_history_method": "Les statistiques historiques disponibles peuvent valider rétroactivement un palier pour un compte suffisamment ancien. Cela ne reconstitue pas les anciennes valeurs de l’indice.",
+  "stats_connect_x": "Connecter X"
 }

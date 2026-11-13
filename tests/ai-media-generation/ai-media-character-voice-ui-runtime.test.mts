@@ -5,6 +5,7 @@ import ts from "typescript";
 import * as voiceRules from "../../lib/aiMediaCharacterVoices.ts";
 import * as client from "../../lib/aiMediaCharacterVoiceClient.ts";
 import type { CharacterVoiceRecording } from "../../lib/aiMediaCharacterVoiceRecorderClient.ts";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 
 type Element = { type: string; props: Record<string, unknown> };
 type Slot = { value?: unknown; deps?: unknown[]; cleanup?: () => void };
@@ -40,6 +41,7 @@ function harness() {
     if (id === "next-intl") return { useTranslations: () => (key: string) => key };
     if (id === "./MediaCharacterVoiceLibraryPicker") return { default: "library-picker" };
     if (id === "@/lib/aiMediaCharacterVoices") return voiceRules;
+    if (id === "@/lib/userFacingErrors") return userFacingErrorsFixture;
     if (id === "@/lib/aiMediaCharacterVoiceClient") return { ...client, deleteCharacterVoiceSample: async (value: { path: string }) => { deleted.push(value.path); } };
     if (id === "@/lib/multicompte/constants") return { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" };
     if (id === "@/lib/aiMediaCharacterVoiceRecorderClient") return {

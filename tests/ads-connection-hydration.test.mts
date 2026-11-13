@@ -1,3 +1,4 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -24,7 +25,7 @@ function actual(name: string, scope: Record<string, unknown>, file = source) {
   const compiled = ts.transpileModule(declaration ? expression : `const actual = ${expression};`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  return new Function(...Object.keys(scope), `${compiled}\nreturn ${declaration ? name : "actual"};`)(...Object.values(scope));
+  return new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn ${declaration ? name : "actual"};`)(...Object.values(withAdsRuntime(scope)));
 }
 
 test("une association connue reste verte avant la liste et pendant un refresh, jamais après un refus confirmé", () => {
@@ -71,7 +72,7 @@ for (const provider of ["google", "meta"]) test(`${provider} : échec temporaire
   assert.equal(run.state.connected, true);
   assert.equal((run.state.accounts as unknown[]).length, 2);
   assert.equal((run.state.draft as { adAccountId: string }).adAccountId, "local");
-  assert.match(String(run.state.notice), /temporairement/);
+  assert.match(String(run.state.notice), /service.*indisponible/i);
   run.apply(provider, { connected: false, connectionStatus: "needs_update", accounts: [], selectedAccountId: "saved", selectedAccountAvailable: false }, true);
   assert.equal(run.state.connected, false);
   assert.equal(run.state.connectionStatus, "needs_update");

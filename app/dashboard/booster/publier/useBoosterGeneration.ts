@@ -178,7 +178,7 @@ export function useBoosterGeneration({ i18nT, runtimeT, readContext }: {
       try {
         contentAdjustment = normalizeBoosterContentAdjustment({ previousIdea: adjustmentInput.previousIdea, previousInstruction: adjustmentInput.previousInstruction,
           versions: Object.fromEntries(generationChannels.map(channel => [channel, { ...getDisplayPost(channel), ...(channel === "instagram" ? { hashtags: getLiveInstagramHashtags() } : channel === "x" ? { hashtags: parseInstagramHashtagsInput(xHashtagsInput) } : {}) }])) }, generationChannels);
-      } catch (error) { setGenError(error instanceof Error ? error.message : i18nT("generation_failed_retry")); return; }
+      } catch (error) { setGenError(getSimpleFrenchErrorMessage(error, i18nT("generation_failed_retry"))); return; }
     }
     if (!selectedChannels.length) {
       setGenError(i18nT("veuillez_selectionner_au_moins_1_canal_0e52243b"));
@@ -696,7 +696,7 @@ export function useBoosterGeneration({ i18nT, runtimeT, readContext }: {
           retryAfterHeader: res.headers.get("Retry-After"),
         });
         setGenError(
-          specialMessage || getSimpleFrenchErrorMessage(json?.user_message || json?.error, i18nT("generation_failed_retry")),
+          getSimpleFrenchErrorMessage({ ...json, user_message: specialMessage || json?.user_message, status: res.status }, i18nT("generation_failed_retry")),
         );
         return;
       }
@@ -786,14 +786,7 @@ export function useBoosterGeneration({ i18nT, runtimeT, readContext }: {
     } catch (error) {
       // Toute analyse média optionnelle a déjà été isolée ci-dessus. Une
       // erreur rouge correspond donc uniquement à l'échec de la génération.
-      const fallback =
-        "La génération n'a pas pu aboutir pour le moment. Merci de réessayer.";
-      setGenError(
-        getSimpleFrenchErrorMessage(
-          error instanceof Error ? error.message : error,
-          fallback,
-        ),
-      );
+      setGenError(getSimpleFrenchErrorMessage(error, i18nT("generation_failed_retry"), { allowUnknownMessage: false }));
     } finally {
       if (temporaryDocumentReferences.length) {
         try {

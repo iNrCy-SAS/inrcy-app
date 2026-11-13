@@ -301,7 +301,7 @@
   "creer_la_facture_d28b4fd5": "Maak de Factuur",
   "creer_une_campagne_e8dbeefe": "Campagne maken",
   "cta_11441d32": "CTA",
-  "date_de_fin_716a6d8d": "End date",
+  "date_de_fin_716a6d8d": "Einddatum",
   "date_eb9a4bc1": "Datum",
   "date_heure_12c2d703": "Datum / tijd",
   "deconnectee_0f5dae32": "Verbinding verbroken",
@@ -979,7 +979,7 @@
   "tres_grand_600_px_c870fb51": "Zeer groot (600 px)",
   "type_3deb7456": "Soort",
   "type_de_campagne_70f9fad7": "Campagnetype",
-  "type_de_media_f54aeeae": "Media type",
+  "type_de_media_f54aeeae": "Mediatype",
   "typologie_3b7e8267": "Typologie",
   "typologie_du_mail_09972fbd": "E-mailtype",
   "une_confirmation_sera_demandee_avant_l_5e7f4ea1": "Er wordt om bevestiging gevraagd voordat de e-mail wordt verzonden. Beveiligingsmaatregelen, quota's en automatische ophaalprocessen blijven actief.",
@@ -1053,5 +1053,10 @@
   "x_forbidden_url": "Deze linkopmaak wordt niet ondersteund op X. Gebruik een HTTP- of HTTPS-link.",
   "youtube_3f8b5798": "YouTube:",
   "youtube_558865a1": "YouTube",
-  "zones_ciblees_09e322f6": "Doelgebieden"
+  "zones_ciblees_09e322f6": "Doelgebieden",
+  "editor_expand": "Vergroten",
+  "editor_expand_label": "Editor vergroten",
+  "editor_fullscreen_label": "Berichteditor op volledig scherm",
+  "editor_shrink": "Verkleinen",
+  "editor_shrink_label": "Editor verkleinen"
 }

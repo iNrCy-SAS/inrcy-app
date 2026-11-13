@@ -48,7 +48,7 @@ for (const [name, file] of Object.entries({ react: "react.production.js", "react
   sources[name] = readFileSync(path.join(path.dirname(nodeRequire.resolve(`${packageName}/package.json`)), "cjs", file), "utf8");
 }
 bundle("app/dashboard/personnalisation/page.tsx");
-const catalogues = Object.fromEntries(["dashboard", "settings"].map(name => [name, JSON.parse(read(`messages/fr-FR/${name}.json`))]));
+const catalogues = Object.fromEntries(["dashboard", "settings", "booster"].map(name => [name, JSON.parse(read(`messages/fr-FR/${name}.json`))]));
 export const fixture = `window.sources=${JSON.stringify(sources)};window.cssExports=${JSON.stringify(cssExports)};window.catalogues=${JSON.stringify(catalogues)};\n` + read("tests/dashboard/fixtures/personalization-layout.js");
 export const html = `<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>
 *,*::before,*::after{box-sizing:border-box}html,body{margin:0;min-width:0;background:#071027;color:#f5f6ff;font:14px Arial,sans-serif}button,input,textarea,select{font-family:inherit}button{font-size:inherit}button:disabled{cursor:default}[hidden]{display:none!important}h1,h2,h3,p{margin-top:0}${styles.join("\n")}

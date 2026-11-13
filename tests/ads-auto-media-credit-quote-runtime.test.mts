@@ -1,3 +1,4 @@
+import { adsComponentModules } from "./helpers/ads-component-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -7,6 +8,8 @@ import * as characterVoices from "../lib/aiMediaCharacterVoices.ts";
 import * as models from "../lib/aiMediaModelCatalog.ts";
 import * as pricing from "../lib/aiMediaCreditsPricing.ts";
 import * as policy from "../lib/adsCampaignMediaPolicy.ts";
+import { adsErrorRuntime } from "./helpers/ads-error-message-runtime.mts";
+import * as http from "../app/dashboard/ads/adsClientHttp.ts";
 
 type Input = Record<string, unknown>;
 type Quote = ReturnType<typeof pricing.quoteAiMediaCredits> & { quoteId: string };
@@ -56,7 +59,10 @@ function harness(provider = "tiktok", overrides: Input = {}) {
     useEffect: (effect: () => (() => void) | void) => effects.push(effect),
   };
   const modules = {
+    ...adsComponentModules(),
     react,
+    "./useAdsErrorMessage": adsErrorRuntime(),
+    "./adsClientHttp": http,
     "@/lib/adsCampaignMediaPolicy": policy,
     "@/app/dashboard/_hooks/useMediaGeneration": { __esModule: true, default: () => ({
       progress: 0,
@@ -221,7 +227,7 @@ test("un devis refusé sur le second format Meta conserve le premier média acce
   assert.equal(h.accepted.length, 1);
   assert.equal(h.packs.length, 1);
   assert.deepEqual(Object.keys(h.packs[0].result), ["feed"]);
-  assert.equal(h.packs[0].error, "Crédits indisponibles");
+  assert.equal(h.packs[0].error, "Le service est momentanément indisponible. Merci de réessayer dans quelques minutes.");
   assert.deepEqual(h.errors, []);
   h.dispose();
 });

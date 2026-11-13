@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { DASHBOARD_CACHE_KEYS } from "@/lib/dashboardCacheKeys";
 
@@ -452,9 +453,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
       } catch (err) {
         console.warn("[pinterest-settings] boards sync failed", err);
         if (current()) setError(
-          err instanceof Error
-            ? err.message
-            : "Synchronisation des tableaux Pinterest impossible.",
+          getSafeClientErrorMessage(err, "Synchronisation des tableaux Pinterest impossible."),
         );
         return [];
       } finally {
@@ -555,9 +554,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
       console.warn("[pinterest-settings] board create failed", err);
       if (mountedRef.current) {
         setError(
-          err instanceof Error
-            ? err.message
-            : "Création du tableau Pinterest impossible.",
+          getSafeClientErrorMessage(err, "Création du tableau Pinterest impossible."),
         );
       }
       return false;
@@ -629,9 +626,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
         console.warn("[pinterest-settings] board rename failed", err);
         if (mountedRef.current) {
           setError(
-            err instanceof Error
-              ? err.message
-              : "Modification du tableau Pinterest impossible.",
+            getSafeClientErrorMessage(err, "Modification du tableau Pinterest impossible."),
           );
         }
       } finally {
@@ -693,9 +688,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
         console.warn("[pinterest-settings] board delete failed", err);
         if (mountedRef.current) {
           setError(
-            err instanceof Error
-              ? err.message
-              : "Suppression du tableau Pinterest impossible.",
+            getSafeClientErrorMessage(err, "Suppression du tableau Pinterest impossible."),
           );
         }
       } finally {
@@ -733,9 +726,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
       console.warn("[pinterest-settings] default board failed", err);
       if (mountedRef.current) {
         setError(
-          err instanceof Error
-            ? err.message
-            : "Enregistrement du tableau par défaut impossible.",
+          getSafeClientErrorMessage(err, "Enregistrement du tableau par défaut impossible."),
         );
       }
     } finally {
@@ -811,7 +802,7 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
           cachePinterestSettings(next);
           return next;
         });
-        setNotice("Lien public Pinterest enregistré.");
+        setNotice(i18nT("pinterest_public_link_saved"));
         setError(null);
       }}
       onDirtyChange={setProfileLinkDirty}
@@ -854,12 +845,12 @@ export default function PinterestSettingsContent({ onUnsavedChange, renderBubble
                 connected={pinterestBoardReady}
                 label={
                   syncing || loading
-                    ? "Synchronisation…"
+                    ? i18nT("synchronisation_cc8ad3ae")
                     : pinterestBoardReady
-                      ? "Prêt"
+                      ? i18nT("pinterest_ready")
                       : boardOptions.length > 0
-                        ? "À sélectionner"
-                        : "À créer"
+                        ? i18nT("pinterest_select_board")
+                        : i18nT("pinterest_create_board")
                 }
               />
             </div>

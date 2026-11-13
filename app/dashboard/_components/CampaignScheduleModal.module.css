@@ -133,12 +133,16 @@
   filter: invert(1) brightness(2);
 }
 
+.nativeField:has(> .pickerBtn) .nativeInput::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
 .pickerBtn {
   position: absolute;
   top: 50%;
-  right: 8px;
-  width: 32px;
-  height: 32px;
+  right: 1px;
+  width: 44px;
+  height: 44px;
   transform: translateY(-50%);
   display: inline-grid;
   place-items: center;

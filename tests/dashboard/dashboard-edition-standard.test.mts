@@ -472,7 +472,10 @@ test("le planning conserve Modifier et Reprogrammer dans la vue de consultation"
     /data-schedule-action="edit"[\s\S]*?data-schedule-action="reschedule"[\s\S]*?\{!readOnly \? \([\s\S]*?data-schedule-action="delete"/,
   );
   assert.match(agentActionModalsSource, /onClick=\{\(\) => onOpenContent\(item\)\}/);
-  assert.match(agentActionModalsSource, /onClick=\{\(\) => onReschedule\(item\)\}/);
+  const rescheduleStart = agentActionModalsSource.indexOf('data-schedule-action="reschedule"');
+  const rescheduleButton = agentActionModalsSource.slice(rescheduleStart, agentActionModalsSource.indexOf("</button>", rescheduleStart));
+  assert.match(rescheduleButton, /onClick=\{[\s\S]*?\bonReschedule\(item\);?[\s\S]*?\}/, "the reschedule control passes its own scheduled item through the event handler");
+  assert.match(rescheduleButton, /disabled=\{\s*!item\.editable\s*\|\|\s*mutationState === "saving"/, "non-editable items and an ongoing save still block rescheduling");
 });
 
 test("le CTA Booster Standard reste accessible quel que soit l'état du profil", () => {

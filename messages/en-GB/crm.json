@@ -114,5 +114,19 @@
   "uniquement_les_importants_00983567": "Only the important ones",
   "utiliser_l_adresse_principale_fbbcc33b": "Use Primary Address",
   "value_contact_value_selectionne_value_76477fae": "{value0} contact{value1} selected{value2}",
-  "ville_97217611": "City"
+  "ville_97217611": "City",
+  "actions_sur_ce_contact_87b37a84": "Actions for this contact",
+  "actions_sur_la_selection_e69d1a0b": "Actions for selected contacts",
+  "afficher_le_detail_3b75c3b3": "Show details",
+  "aucun_contact_a_exporter_bf5a9807": "No contacts to export",
+  "aucun_contact_selectionne_19a9944c": "No contacts selected",
+  "chargement_des_contacts_558c9dc1": "Loading contacts",
+  "choisir_le_format_d_export_cb81d35a": "Choose export format",
+  "contact_important_2949497c": "Important contact",
+  "marquer_comme_important_c0cc7947": "Mark as important",
+  "reduire_le_detail_a42a9c5a": "Collapse details",
+  "selectionne_1_ou_plusieurs_contacts_7059cd05": "Select one or more contacts",
+  "selectionnez_un_contact_eff0c23e": "Select a contact",
+  "supprimer_value_contact_s_9252c4bd": "{value0, plural, one {Delete # contact} other {Delete # contacts}}",
+  "vider_la_selection_834a3e51": "Clear selection"
 }

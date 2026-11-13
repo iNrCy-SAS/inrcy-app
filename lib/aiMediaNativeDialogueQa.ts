@@ -71,6 +71,13 @@ export type AiMediaNativeDialogueQaClipResult = {
   /** Verdict only; private candidate names and audio never leave the callback. */
   pronunciationVerification?: "verified" | "rejected" | "unavailable";
   automaticDialogueVerification?: "passed" | "rejected" | "unavailable";
+  /** Bounded audio requests; includes a specialized pronunciation check. */
+  audioCheckCount?: number;
+  /** Machine categories only: neither scripts nor private ASR text may escape. */
+  readOutcomes?: Array<{ status: AiMediaNativeDialogueQaStatus; issues: AiMediaNativeDialogueQaIssue[] }>;
+  confirmationDecision?: "confirmed_pass" | "confirmed_defect" | "critical_conflict_unresolved" |
+    "conflicting_reads_confirmed_pass" | "conflicting_reads_confirmed_defect" |
+    "conflicting_reads_unresolved" | "confirmation_unavailable";
 };
 
 export type AiMediaNativeDialogueQaResult = {
@@ -702,7 +709,7 @@ export async function auditAiMediaNativeDialogueClips(args: {
   language?: string;
   pronunciationAliases?: readonly AiMediaPronunciationAlias[];
   transcribe: AiMediaNativeDialogueTranscriber;
-  /** Script-blind confirmation; one further listen adjudicates conflicting critical values. */
+  /** Script-blind confirmation; a fresh passing pair can resolve conflicting reads, with at most four audio checks. */
   confirm?: AiMediaNativeDialogueTranscriber;
   /** Optional audio proof for one isolated, undeclared camel-case brand only. */
   verifyPronunciation?: AiMediaNativeDialoguePronunciationVerifier;
@@ -764,21 +771,35 @@ export async function auditAiMediaNativeDialogueClips(args: {
     return result;
   };
   const results = await Promise.all(args.clips.map(async (clip) => {
+    let audioCheckCount = 0;
+    const readOutcomes: NonNullable<AiMediaNativeDialogueQaClipResult["readOutcomes"]> = [];
+    let confirmationDecision: AiMediaNativeDialogueQaClipResult["confirmationDecision"];
+    const observed = (result: AiMediaNativeDialogueQaClipResult) => ({
+      ...result, audioCheckCount, readOutcomes,
+      ...(confirmationDecision ? { confirmationDecision } : {}),
+    });
+    const listen = async (transcriber: AiMediaNativeDialogueTranscriber) => {
+      args.signal?.throwIfAborted();
+      if (audioCheckCount >= 4) throw new Error("ai_media_dialogue_qa_read_limit");
+      audioCheckCount += 1;
+      const transcription = await transcriber(clip, { language, signal: args.signal });
+      args.signal?.throwIfAborted();
+      const result = await evaluate(clip, transcription.text);
+      readOutcomes.push({ status: result.status, issues: [...result.issues] });
+      return { transcription, result };
+    };
     try {
       args.signal?.throwIfAborted();
-      let transcription = await args.transcribe(clip, {
-        language,
-        signal: args.signal,
-      });
-      args.signal?.throwIfAborted();
-      let result = await evaluate(clip, transcription.text);
+      const first = await listen(args.transcribe);
+      let transcription = first.transcription;
+      let result = first.result;
       const finalFrameIssue = clip.checkFinalFrameLayout ? transcription.finalFrameIssue ?? "unavailable" : undefined;
       const finalFrameLayout: AiMediaNativeDialogueQaStatus | undefined = !clip.checkFinalFrameLayout ? undefined
         : transcription.finalFrameLayout === "passed" && finalFrameIssue === "none" ? "passed"
         : transcription.finalFrameLayout === "rejected" && finalFrameIssue === "unexpected_partial_transition" ? "rejected" : "unavailable";
       if (finalFrameLayout && finalFrameLayout !== "passed") {
-        return { result: { ...result, status: finalFrameLayout, finalFrameLayout, finalFrameIssue,
-          issues: [finalFrameLayout === "rejected" ? "unexpected_visual_fragmentation" : "final_frame_unverified"] } as AiMediaNativeDialogueQaClipResult,
+        return { result: observed({ ...result, status: finalFrameLayout, finalFrameLayout, finalFrameIssue,
+          issues: [finalFrameLayout === "rejected" ? "unexpected_visual_fragmentation" : "final_frame_unverified"] }),
           model: transcription.model };
       }
       const initialText = transcription.text;
@@ -787,27 +808,30 @@ export async function auditAiMediaNativeDialogueClips(args: {
         // The adapter sends audio only. No expected script or first transcript
         // biases the fresh listen, and no video/voice generation is retried.
         try {
-          const confirmed = await args.confirm(clip, { language, signal: args.signal });
-          args.signal?.throwIfAborted();
-          const checked = await evaluate(clip, confirmed.text);
+          const confirmation = await listen(args.confirm);
+          const confirmed = confirmation.transcription;
+          const checked = confirmation.result;
           if (checked.status === "passed") {
             if (result.issues.includes("spoken_critical_value_mismatch")) {
               // A changed amount, negation or name cannot be cleared by choosing
               // the nicer of two contradictory reads. One last blind listen must
               // support the conforming read. This branch cannot request phonetic
-              // proof afterwards: at most three audio reads are made per clip.
-              const adjudicated = await args.confirm(clip, { language, signal: args.signal });
-              args.signal?.throwIfAborted();
-              const adjudicatedResult = await evaluate(clip, adjudicated.text);
+              // proof afterwards: this path makes at most three audio reads.
+              const adjudication = await listen(args.confirm);
+              const adjudicated = adjudication.transcription;
+              const adjudicatedResult = adjudication.result;
               if (adjudicatedResult.status === "passed") {
                 result = { ...adjudicatedResult, confirmation: "passed" };
                 transcription = adjudicated;
+                confirmationDecision = "confirmed_pass";
               } else {
                 result = { ...result, status: "unavailable", issues: ["transcription_inconclusive"], confirmation: "unavailable" };
+                confirmationDecision = "critical_conflict_unresolved";
               }
             } else {
               result = { ...checked, confirmation: "passed" };
               transcription = confirmed;
+              confirmationDecision = "confirmed_pass";
             }
           } else if (rejectedTranscriptsAgree({
             initial: result, confirmed: checked,
@@ -815,17 +839,48 @@ export async function auditAiMediaNativeDialogueClips(args: {
           })) {
             result = { ...checked, confirmation: "rejected" };
             transcription = confirmed;
+            confirmationDecision = "confirmed_defect";
+          } else if (checked.status === "rejected") {
+            // Two different rejected guesses prove neither a defect nor conformity.
+            // Resolve only with new audio evidence, never by relaxing comparison.
+            const adjudication = await listen(args.confirm);
+            if (adjudication.result.status === "passed") {
+              // One favorable read cannot override two conflicting ones. Only a
+              // second fresh conforming read completes this four-check path.
+              const consensus = await listen(args.confirm);
+              if (consensus.result.status === "passed") {
+                result = { ...consensus.result, confirmation: "passed" };
+                transcription = consensus.transcription;
+                confirmationDecision = "conflicting_reads_confirmed_pass";
+              } else {
+                result = { ...result, status: "unavailable", issues: ["transcription_inconclusive"], confirmation: "unavailable" };
+                confirmationDecision = "conflicting_reads_unresolved";
+              }
+            } else if ([{ result, transcription }, { result: checked, transcription: confirmed }].some(previous => rejectedTranscriptsAgree({
+              initial: previous.result, confirmed: adjudication.result,
+              initialText: previous.transcription.text, confirmedText: adjudication.transcription.text,
+              language, pronunciationAliases: args.pronunciationAliases,
+            }))) {
+              result = { ...adjudication.result, confirmation: "rejected" };
+              transcription = adjudication.transcription;
+              confirmationDecision = "conflicting_reads_confirmed_defect";
+            } else {
+              result = { ...result, status: "unavailable", issues: ["transcription_inconclusive"], confirmation: "unavailable" };
+              confirmationDecision = "conflicting_reads_unresolved";
+            }
           } else {
             result = { ...result, status: "unavailable", issues: ["transcription_inconclusive"], confirmation: "unavailable" };
+            confirmationDecision = "confirmation_unavailable";
           }
         } catch (error) {
           if (args.signal?.aborted) throw error;
           result = { ...result, status: "unavailable", issues: ["transcription_unavailable"], confirmation: "unavailable" };
+          confirmationDecision = "confirmation_unavailable";
         }
       } else if (result.status === "rejected") {
         result = { ...result, status: "unavailable", issues: ["transcription_unavailable"], confirmation: "unavailable" };
       }
-      if (args.verifyPronunciation && result.status === "rejected" && result.confirmation === "rejected" &&
+      if (audioCheckCount === 2 && args.verifyPronunciation && result.status === "rejected" && result.confirmation === "rejected" &&
         result.issues.length === 1 && result.issues[0] === "spoken_critical_value_mismatch") {
         const initialCandidate = pronunciationCandidate({ expectedLine: clip.expectedLine, transcript: initialText, language, pronunciationAliases: args.pronunciationAliases });
         const confirmedCandidate = pronunciationCandidate({ expectedLine: clip.expectedLine, transcript: transcription.text, language, pronunciationAliases: args.pronunciationAliases });
@@ -834,6 +889,7 @@ export async function auditAiMediaNativeDialogueClips(args: {
         if (initialCandidate && confirmedCandidate && initialCandidate.expectedName === confirmedCandidate.expectedName &&
           initialCandidate.transcribedName === confirmedCandidate.transcribedName) {
           try {
+            audioCheckCount += 1;
             const verification = await args.verifyPronunciation(clip, { language, candidate: { ...confirmedCandidate }, signal: args.signal });
             args.signal?.throwIfAborted();
             pronunciationModel = verification.model;
@@ -845,26 +901,31 @@ export async function auditAiMediaNativeDialogueClips(args: {
                   spelling: confirmedCandidate.expectedName, pronunciation: confirmedCandidate.transcribedName,
                 }],
               });
-              if (checked.status === "passed") result = { ...checked, confirmation: "passed", pronunciationVerification: "verified" };
+              if (checked.status === "passed") {
+                result = { ...checked, confirmation: "passed", pronunciationVerification: "verified" };
+                confirmationDecision = "confirmed_pass";
+              }
             } else if (verification.status === "rejected") {
               result = { ...result, pronunciationVerification: "rejected" };
             } else {
               result = { ...result, status: "unavailable", issues: ["transcription_inconclusive"], confirmation: "unavailable", pronunciationVerification: "unavailable" };
+              confirmationDecision = "critical_conflict_unresolved";
             }
           } catch (error) {
             if (args.signal?.aborted) throw error;
             result = { ...result, status: "unavailable", issues: ["transcription_unavailable"], confirmation: "unavailable", pronunciationVerification: "unavailable" };
+            confirmationDecision = "confirmation_unavailable";
           }
         }
       }
       return {
-        result: { ...result, ...(finalFrameLayout ? { finalFrameLayout, finalFrameIssue } : {}) },
+        result: observed({ ...result, ...(finalFrameLayout ? { finalFrameLayout, finalFrameIssue } : {}) }),
         model: [transcription.model, pronunciationModel].filter(Boolean).join(",") || undefined,
       };
     } catch (error) {
       if (args.signal?.aborted) throw error;
       return {
-        result: unavailableClipResult(clip),
+        result: observed(unavailableClipResult(clip)),
         model: undefined,
       };
     }

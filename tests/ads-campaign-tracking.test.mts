@@ -129,17 +129,22 @@ test("la migration additive corrige les fonctions déjà installées sans élarg
 
 test("le suivi distingue le budget prévu des statistiques réelles indisponibles", () => {
   const component = readFileSync(new URL("../app/dashboard/ads/AdsCampaignTracking.tsx", import.meta.url), "utf8");
-  assert.match(component, /Budget\/jour prévu/);
-  assert.match(component, /Performances réelles/);
-  assert.match(component, /Les performances Google Ads, Meta Ads et LinkedIn Ads sont consultées à la demande/);
-  assert.match(component, /Voir les statistiques/);
+  assert.match(component, /i18nT\("budget_jour_prevu_d93cc5d7"\)/);
+  assert.match(component, /i18nT\("performances_reelles_0ef4d2d1"\)/);
+  assert.match(component, /i18nT\("les_statuts_ci_dessous_sont_ceux_57bddd42"\)/);
+  assert.match(component, /i18nT\("voir_les_statistiques_89baaf5c"\)/);
   assert.match(component, /\/metrics[\s\S]*cache: "no-store"/);
-  assert.match(component, /metricsState\.metrics\.conversions === null \? "Non harmonisées"/);
-  assert.match(component, /canReadMetrics \? "À consulter" : "Indisponibles"/);
-  assert.match(component, /Modification, prolongation et suppression indisponibles ici après le lancement/);
+  assert.match(component, /metricsState\.metrics\.conversions === null \? i18nT\("non_harmonisees_46e60bc9"\)/);
+  assert.match(component, /canReadMetrics \? i18nT\("a_consulter_d523bdb4"\) : i18nT\("indisponibles_a9fbd066"\)/);
+  assert.match(component, /i18nT\("modification_prolongation_et_suppression_indispo_3f63c5e0"\)/);
   assert.match(component, /method: "DELETE"/);
   assert.match(component, /method: "PATCH"/);
-  assert.match(component, /Afficher les campagnes suivantes/);
+  assert.match(component, /i18nT\("afficher_les_campagnes_suivantes_70247e67"\)/);
+  const labels = JSON.parse(readFileSync(new URL("../messages/fr-FR/booster.json", import.meta.url), "utf8"));
+  assert.equal(labels.budget_jour_prevu_d93cc5d7, "Budget/jour prévu");
+  assert.equal(labels.performances_reelles_0ef4d2d1, "Performances réelles");
+  assert.match(labels.les_statuts_ci_dessous_sont_ceux_57bddd42, /Les performances Google Ads, Meta Ads et LinkedIn Ads sont consultées à la demande/);
+  assert.match(labels.modification_prolongation_et_suppression_indispo_3f63c5e0, /Modification, prolongation et suppression indisponibles ici après le lancement/);
   const listing = readFileSync(new URL("../app/api/ads/campaigns/route.ts", import.meta.url), "utf8");
   assert.match(listing, /count: "exact"/);
   assert.match(listing, /\.order\("id", \{ ascending: false \}\)/);

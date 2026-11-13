@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
@@ -95,11 +96,11 @@ export default function MediaCharacterVoiceInput({ context = "character", active
         if (body?.ok && body.sample?.path) void deleteCharacterVoiceSample(body.sample);
         return;
       }
-      if (!response.ok || body?.ok !== true || !body.sample?.path) throw new Error(body?.message || body?.error || t("ai_generator_character_voice_upload_error"));
+      if (!response.ok || body?.ok !== true || !body.sample?.path) throw new Error(getSafeClientErrorMessage(body, t("ai_generator_character_voice_upload_error")));
       onSampleChange(body.sample as AiMediaCharacterVoiceSample);
       clearPreview(); setRecordingState("closed");
     } catch (caught) {
-      if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : t("ai_generator_character_voice_upload_error"));
+      if (!controller.signal.aborted) setError(getSafeClientErrorMessage(caught, t("ai_generator_character_voice_upload_error")));
     } finally {
       if (uploadRef.current === controller) {
         uploadRef.current = null; setUploading(false);
@@ -120,10 +121,10 @@ export default function MediaCharacterVoiceInput({ context = "character", active
       });
       const body = await response.json().catch(() => null);
       if (controller.signal.aborted) { if (body?.ok && body.sample?.path) void deleteCharacterVoiceSample(body.sample); return; }
-      if (!response.ok || body?.ok !== true || !body.sample?.path) throw new Error(body?.error || t("ai_generator_character_voice_library_unavailable"));
+      if (!response.ok || body?.ok !== true || !body.sample?.path) throw new Error(getSafeClientErrorMessage(body, t("ai_generator_character_voice_library_unavailable")));
       onSampleChange(body.sample as AiMediaCharacterVoiceSample);
     } catch (caught) {
-      if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : t("ai_generator_character_voice_library_unavailable"));
+      if (!controller.signal.aborted) setError(getSafeClientErrorMessage(caught, t("ai_generator_character_voice_library_unavailable")));
     } finally {
       if (uploadRef.current === controller) { uploadRef.current = null; setUploading(false); setBusy(false); }
     }

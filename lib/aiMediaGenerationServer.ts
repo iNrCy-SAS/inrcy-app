@@ -1748,6 +1748,7 @@ export async function generateAndSaveAiMedia(args: {
           status: clip.status,
           issues: clip.issues,
           metrics: clip.metrics,
+          audioCheckCount: clip.audioCheckCount, readOutcomes: clip.readOutcomes, confirmationDecision: clip.confirmationDecision,
         })) || [],
       }));
       throw new Error(
@@ -1764,6 +1765,7 @@ export async function generateAndSaveAiMedia(args: {
         clips: nativeDialogueQa?.clips.map(clip => ({
           sceneIndex: clip.sceneIndex, status: clip.status, issues: clip.issues,
           confirmation: clip.confirmation, pronunciationVerification: clip.pronunciationVerification,
+          audioCheckCount: clip.audioCheckCount, readOutcomes: clip.readOutcomes, confirmationDecision: clip.confirmationDecision,
         })) || [],
       }));
       throw new Error("ai_media_native_speech_verification_unavailable");
@@ -1806,6 +1808,7 @@ export async function generateAndSaveAiMedia(args: {
         clips: nativeVoiceoverQa?.clips.map(clip => ({
           sceneIndex: clip.sceneIndex, status: clip.status, issues: clip.issues,
           confirmation: clip.confirmation, pronunciationVerification: clip.pronunciationVerification,
+          audioCheckCount: clip.audioCheckCount, readOutcomes: clip.readOutcomes, confirmationDecision: clip.confirmationDecision,
         })) || [],
       }));
       throw new Error("ai_media_native_speech_verification_unavailable");

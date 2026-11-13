@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 
 import React from "react";
 import BusinessLegalSettingsCard from "./BusinessLegalSettingsCard";
-import { getSimpleFrenchApiError, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getClientUserFacingApiError as getSimpleFrenchApiError, getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import {
   DEFAULT_INRDOCUMENTS_SETTINGS,
   DOCUMENT_ACCENT_COLORS,
@@ -21,51 +21,50 @@ import {
 } from "@/lib/inrdocumentsSettings";
 
 const operationLabels: Record<string, string> = {
-  "": "—",
-  vente: "Vente",
-  prestation: "Prestation de services",
-  mixte: "Vente + prestation",
+  "": "",
+  vente: "vente_9e7753e0",
+  prestation: "prestation_de_services_700b1a5a",
+  mixte: "vente_prestation_c004923b",
 };
 
 const paymentLabels: Record<string, string> = {
-  "": "—",
-  virement: "Virement bancaire",
-  cb: "Carte bancaire",
-  cheque: "Chèque",
-  especes: "Espèces",
-  abonnement: "Abonnement",
+  "": "",
+  virement: "virement_bancaire_8306f08e",
+  cb: "carte_bancaire_9e3d9bfa",
+  cheque: "cheque_8bbb89a9",
+  especes: "especes_b7679d62",
+  abonnement: "abonnement_96422751",
 };
 
 const documentKindLabels: Record<string, string> = {
-  invoice: "Facture",
-  deposit: "Facture d’acompte",
-  credit_note: "Avoir",
+  invoice: "facture_3953b9f5",
+  deposit: "facture_d_acompte_ce9f9da4",
+  credit_note: "avoir_8ee24717",
 };
 
 const statusLabels: Record<string, string> = {
-  "": "—",
-  brouillon: "Brouillon",
-  en_attente_paiement: "En attente de paiement",
-  envoye: "Envoyé",
-  paye: "Payé",
+  "": "",
+  brouillon: "brouillon_57d2d7a7",
+  en_attente_paiement: "en_attente_de_paiement_9b68eb63",
+  envoye: "envoye_7b0a810d",
+  paye: "paye_fa02fd68",
 };
 
 const designPresetLabels: Record<string, string> = {
   standard: "Standard",
   business: "Business",
-  encadre: "Encadré",
   signature: "Signature",
 };
 
 const accentColorLabels: Record<string, string> = {
-  blue: "Bleu",
-  violet: "Violet",
-  orange: "Orange",
-  green: "Vert",
-  gray: "Gris pro",
-  rose: "Rose",
-  teal: "Turquoise",
-  gold: "Or",
+  blue: "color_blue",
+  violet: "color_violet",
+  orange: "color_orange",
+  green: "color_green",
+  gray: "color_professional_gray",
+  rose: "color_rose",
+  teal: "color_teal",
+  gold: "color_gold",
 };
 
 const fieldStyle: React.CSSProperties = {
@@ -172,6 +171,7 @@ type Props = {
 
 export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
   const i18nT = useTranslations("documents");
+  const optionLabel = (labels: Record<string, string>, key: string) => labels[key] ? i18nT(labels[key]) : "—";
   const [settings, setSettings] = React.useState<InrDocumentsSettings>(DEFAULT_INRDOCUMENTS_SETTINGS);
   const [loading, setLoading] = React.useState(true);
   const [saving, setSaving] = React.useState(false);
@@ -275,11 +275,11 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
 
       {loading ? <Notice>{i18nT("chargement_des_reglages_d3437d0f")}</Notice> : null}
 
-      <GlassCard icon="⚙️" title={i18nT("commun_f5f06977")} subtitle="Ce qui sert aux devis et aux factures.">
+      <GlassCard icon="⚙️" title={i18nT("commun_f5f06977")} subtitle={i18nT("common_settings_description")}>
         <Grid2>
           <Field label={i18nT("categorie_d_operation_298de450")}>
             <select style={fieldStyle} value={settings.common.operationCategory} onChange={(e) => updateLocal({ common: { ...settings.common, operationCategory: e.target.value as any } })}>
-              {DOCUMENT_OPERATION_CATEGORIES.map((key) => <option key={key} value={key}>{operationLabels[key]}</option>)}
+              {DOCUMENT_OPERATION_CATEGORIES.map((key) => <option key={key} value={key}>{optionLabel(operationLabels, key)}</option>)}
             </select>
           </Field>
           <Field label={i18nT("acompte_79f9f101")}>
@@ -305,7 +305,7 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
               value={settings.common.depositValue}
               disabled={!settings.common.depositKind}
               onChange={(e) => updateLocal({ common: { ...settings.common, depositValue: e.target.value } })}
-              placeholder={settings.common.depositKind === "amount" ? "Ex : 300" : "Ex : 30"}
+              placeholder={settings.common.depositKind === "amount" ? i18nT("example_value", { value: 300 }) : i18nT("example_value", { value: 30 })}
             />
           </Field>
           <Field label={i18nT("notes_70440046")}>
@@ -314,7 +314,7 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
         </Grid2>
       </GlassCard>
 
-      <GlassCard icon="🧾" title={i18nT("prestation_b51f479f")} subtitle="La première ligne proposée dans le document.">
+      <GlassCard icon="🧾" title={i18nT("prestation_b51f479f")} subtitle={i18nT("default_line_description")}>
         <Grid2>
           <Field label={i18nT("libelle_f5485bba")}>
             <input style={fieldStyle} value={settings.common.defaultLine.label} onChange={(e) => updateLocal({ common: { ...settings.common, defaultLine: { ...settings.common.defaultLine, label: e.target.value } } })} placeholder={i18nT("prestation_b51f479f")} />
@@ -335,11 +335,11 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
         </Grid2>
       </GlassCard>
 
-      <GlassCard icon="💳" title={i18nT("paiement_0564e9ba")} subtitle="Conditions de règlement reprises sur les documents.">
+      <GlassCard icon="💳" title={i18nT("paiement_0564e9ba")} subtitle={i18nT("payment_settings_description")}>
         <Grid2>
           <Field label={i18nT("mode_de_paiement_71aed79c")}>
             <select style={fieldStyle} value={settings.common.paymentMethod} onChange={(e) => updateLocal({ common: { ...settings.common, paymentMethod: e.target.value as any } })}>
-              {DOCUMENT_PAYMENT_METHODS.map((key) => <option key={key} value={key}>{paymentLabels[key]}</option>)}
+              {DOCUMENT_PAYMENT_METHODS.map((key) => <option key={key} value={key}>{optionLabel(paymentLabels, key)}</option>)}
             </select>
           </Field>
           <Field label="IBAN">
@@ -363,7 +363,7 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
         </label>
       </GlassCard>
 
-      <GlassCard icon="✍️" title={i18nT("devis_f7622f90")} subtitle="Réglages appliqués uniquement aux nouveaux devis.">
+      <GlassCard icon="✍️" title={i18nT("devis_f7622f90")} subtitle={i18nT("quote_settings_description")}>
         <Field label={i18nT("duree_de_validite_jours_f911e91b")}>
           <input style={fieldStyle} type="number" min="1" value={settings.quote.validityDays} onChange={(e) => updateLocal({ quote: { ...settings.quote, validityDays: Number(e.target.value) || 1 } })} />
         </Field>
@@ -372,16 +372,16 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
         </Field>
       </GlassCard>
 
-      <GlassCard icon="€" title={i18nT("factures_da35e4f2")} subtitle="Réglages appliqués uniquement aux nouvelles factures.">
+      <GlassCard icon="€" title={i18nT("factures_da35e4f2")} subtitle={i18nT("invoice_settings_description")}>
         <Grid2>
           <Field label={i18nT("type_de_document_69938df4")}>
             <select style={fieldStyle} value={settings.invoice.documentKind} onChange={(e) => updateLocal({ invoice: { ...settings.invoice, documentKind: e.target.value as any } })}>
-              {DOCUMENT_KINDS.map((key) => <option key={key} value={key}>{documentKindLabels[key]}</option>)}
+              {DOCUMENT_KINDS.map((key) => <option key={key} value={key}>{optionLabel(documentKindLabels, key)}</option>)}
             </select>
           </Field>
           <Field label={i18nT("statut_659499f3")}>
             <select style={fieldStyle} value={settings.invoice.status} onChange={(e) => updateLocal({ invoice: { ...settings.invoice, status: e.target.value as any } })}>
-              {DOCUMENT_STATUSES.map((key) => <option key={key} value={key}>{statusLabels[key]}</option>)}
+              {DOCUMENT_STATUSES.map((key) => <option key={key} value={key}>{optionLabel(statusLabels, key)}</option>)}
             </select>
           </Field>
         </Grid2>
@@ -397,7 +397,7 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
         </Field>
       </GlassCard>
 
-      <GlassCard icon="🎨" title={i18nT("design_du_document_a7dcf5f8")} subtitle="Donnez un peu de vie aux devis et factures sans perdre le côté professionnel.">
+      <GlassCard icon="🎨" title={i18nT("design_du_document_a7dcf5f8")} subtitle={i18nT("design_settings_description")}>
         <Grid2>
           <Field label={i18nT("style_99a0efc6")}>
             <select
@@ -405,7 +405,7 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
               value={settings.common.design.preset}
               onChange={(e) => updateLocal({ common: { ...settings.common, design: { ...settings.common.design, preset: e.target.value as any } } })}
             >
-              {DOCUMENT_DESIGN_PRESETS.map((key) => <option key={key} value={key}>{designPresetLabels[key]}</option>)}
+              {DOCUMENT_DESIGN_PRESETS.map((key) => <option key={key} value={key}>{key === "encadre" ? i18nT("design_framed") : designPresetLabels[key]}</option>)}
             </select>
           </Field>
           <Field label={i18nT("couleur_145c4326")}>
@@ -414,7 +414,7 @@ export default function DocumentsSettingsContent({ onUnsavedChange }: Props) {
               value={settings.common.design.accentColor}
               onChange={(e) => updateLocal({ common: { ...settings.common, design: { ...settings.common.design, accentColor: e.target.value as any } } })}
             >
-              {DOCUMENT_ACCENT_COLORS.map((key) => <option key={key} value={key}>{accentColorLabels[key]}</option>)}
+              {DOCUMENT_ACCENT_COLORS.map((key) => <option key={key} value={key}>{optionLabel(accentColorLabels, key)}</option>)}
             </select>
           </Field>
         </Grid2>

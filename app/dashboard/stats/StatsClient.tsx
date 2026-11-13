@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from "next-intl";
 import { isStandardDashboardEdition } from "@/lib/dashboardEdition";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { planInrAssistantStatsViewPatch, isInrAssistantStatsViewPatchApplied, selectedStatsVisibilityIndexRange, type InrAssistantStatsIndexHistory } from "@/lib/inrAssistantStatsViewState";
@@ -508,11 +509,7 @@ export default function StatsClient({ initialInrSearch }: StatsClientProps) {
       }));
       setTimeout(() => setReportNotice(null), 4500);
     } catch (error) {
-      setReportNotice(
-        error instanceof Error
-          ? error.message
-          : i18nT("report_generation_failed"),
-      );
+      setReportNotice(getLocalizedErrorMessage(error, locale, i18nT("report_generation_failed")));
     } finally {
       setIsGeneratingReport(false);
     }

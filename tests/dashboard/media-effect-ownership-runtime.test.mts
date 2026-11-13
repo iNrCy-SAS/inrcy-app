@@ -23,6 +23,7 @@ async function setup(page: Page, componentFile: string, fixture: string, mocks =
     "./useInrAssistantRefresh": compile("app/dashboard/_hooks/useInrAssistantRefresh.ts"),
     "../_hooks/useInrAssistantRefresh": compile("app/dashboard/_hooks/useInrAssistantRefresh.ts"),
     "@/lib/inrAssistantRefresh": compile("lib/inrAssistantRefresh.ts"),
+    ...Object.fromEntries(["userFacingErrors", "appLanguage", "publicationErrorFrench", "metaGraphErrorClassification"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
   };
   await page.route("**/*", route => route.abort());
   await page.setContent('<!doctype html><html><body><div id="root"></div><button id="outside">Outside</button></body></html>');
@@ -406,13 +407,15 @@ test("dictation rerenders keep recording alive and unmount restores the draft th
       window.recognitions=[];window.stops=0;window.changes=[];window.busy=[];
       window.SpeechRecognition=class{constructor(){window.recognitions.push(this)}start(){}stop(){window.stops++}abort(){window.stops++}};
       window.config={value:'Texte initial',onChange:value=>window.changes.push(['initial',value]),onBusyChange:value=>window.busy.push(['initial',value])};
-      window.configure=patch=>{window.config={...window.config,...patch};root.render(React.createElement(Subject,window.config))};window.unmount=()=>root.unmount();window.configure({});
+      function Harness(props){React.useLayoutEffect(()=>{window.committedConfig=props});return React.createElement(Subject,props)}
+      window.configure=patch=>{window.config={...window.config,...patch};root.render(React.createElement(Harness,window.config))};window.unmount=()=>root.unmount();window.configure({});
     `);
     await page.getByRole("button", { name: "voice_subject_title" }).click();
     await page.waitForFunction("window.recognitions.length === 1 && document.querySelector('button').getAttribute('data-recording') === 'true'");
     await page.evaluate("window.recognitions[0].onresult({results:[[{transcript:'Bonjour'}]]})");
     await page.waitForFunction("window.changes.length === 1");
     await page.evaluate("window.configure({value:'Texte initial Bonjour',onChange:value=>window.changes.push(['current',value]),onBusyChange:value=>window.busy.push(['current',value])})");
+    await page.waitForFunction("window.committedConfig.onChange === window.config.onChange && window.committedConfig.onBusyChange === window.config.onBusyChange");
     assert.equal(await page.locator("#root button").getAttribute("data-recording"), "true");
     assert.equal(await page.evaluate("window.stops"), 0);
     await page.evaluate("window.unmount()");

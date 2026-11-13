@@ -2094,6 +2094,10 @@
   min-width: 0 !important;
 }
 
+@media (max-width: 1100px) {
+  .checkboxLabel { min-height: 44px; }
+}
+
 .pdfExportStaging .previewBottomGrid > *,
 .pdfExportStaging .previewSignatureGrid > * {
   min-width: 0 !important;

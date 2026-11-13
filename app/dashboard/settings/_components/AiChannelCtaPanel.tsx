@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
-import { useLocale } from "next-intl";
+import { useTranslations } from "next-intl";
 import {
   AI_CTA_CHANNELS as ALL_AI_CTA_CHANNELS,
   isAiChannelCtaComplete,
@@ -27,114 +27,7 @@ type Props = {
   assistantActive?: boolean;
 };
 
-const COPY = {
-  fr: {
-    title: "Un CTA adapté à chaque canal",
-    description: "Par défaut : Voir le site sur les canaux compatibles, sinon Appeler si un numéro est renseigné. Vos choix restent prioritaires.",
-    progress: "canaux configurés",
-    select: "Action à proposer",
-    empty: "Aucun CTA",
-    site: "Voir le site",
-    devis: "Demander un devis",
-    appeler: "Appeler",
-    message: "Envoyer un message",
-    whatsapp: "Écrire sur WhatsApp",
-    custom: "Lien personnalisé",
-    reserver: "Réserver",
-    commander: "Commander",
-    acheter: "Acheter",
-    inscrire: "S’inscrire",
-    label: "Texte du CTA",
-    url: "Lien de destination · vide = site du profil",
-    customUrl: "Lien personnalisé",
-    phone: "Téléphone · vide = numéro du profil",
-    automatic: "Destination automatique",
-    missingDestination: "Ajoutez d’abord un site ou un numéro au profil, ou renseignez-le ici.",
-    configured: "Configuré",
-    default: "Par défaut",
-    incomplete: "À compléter",
-    notConfigured: "Sans CTA",
-    native: "Bouton cliquable quand le canal le permet",
-    text: "Invitation ajoutée au texte du canal",
-    callText: "« Appeler : numéro » sera ajouté au texte, sans bouton natif.",
-    googleCall: "Google affiche un bouton Appeler avec le numéro vérifié de votre fiche, pas avec un numéro saisi uniquement ici.",
-    storyCall: "Les Stories Facebook et Instagram n’affichent pas ce texte.",
-    noLinks: "Les liens de légende ne sont pas cliquables sur ce canal.",
-    shortsLinks: "Les liens de description ne sont pas cliquables sur les Shorts. Ils peuvent l’être sur les vidéos YouTube classiques.",
-    preview: "APERÇU DU CTA",
-    settings: "RÉGLAGES DU CTA",
-    previewEmpty: "Choisissez une action à gauche pour visualiser ce qui sera proposé sur ce canal.",
-    previewDestination: "Destination",
-    settingsEmpty: "Choisissez une action ci-dessus. Les réglages utiles apparaîtront ici, sans étape inutile.",
-    actionUrl: "Lien de l’action · à renseigner",
-    choiceHints: {
-      reserver: "Lien de réservation à renseigner",
-      commander: "Lien de commande à renseigner",
-      acheter: "Lien de boutique ou de produit à renseigner",
-      inscrire: "Lien d’inscription à renseigner",
-      none: "Ne rien ajouter à ce canal",
-      site: "Vers le site de votre profil",
-      devis: "Pour recevoir une demande de devis",
-      appeler: "Utilise votre numéro de téléphone",
-      message: "Invite le client à vous écrire",
-      whatsapp: "Ouvre une conversation WhatsApp",
-      custom: "Vers l’adresse de votre choix",
-    },
-  },
-  en: {
-    title: "A CTA for each channel",
-    description: "Default: Visit website on compatible channels, otherwise Call when a phone number is available. Your choices take priority.",
-    progress: "channels configured",
-    select: "Action to offer",
-    empty: "No CTA",
-    site: "Visit website",
-    devis: "Request a quote",
-    appeler: "Call",
-    message: "Send a message",
-    whatsapp: "Message on WhatsApp",
-    custom: "Custom link",
-    reserver: "Book now",
-    commander: "Order now",
-    acheter: "Shop now",
-    inscrire: "Sign up",
-    label: "CTA text",
-    url: "Destination URL · blank = profile website",
-    customUrl: "Custom link",
-    phone: "Phone · blank = profile number",
-    automatic: "Automatic destination",
-    missingDestination: "Add a website or phone to the profile, or enter one here.",
-    configured: "Configured",
-    default: "Default",
-    incomplete: "Complete details",
-    notConfigured: "No CTA",
-    native: "Clickable button where supported",
-    text: "Invitation added to the channel text",
-    callText: "“Call: phone number” is added to the text, without a native button.",
-    googleCall: "Google shows a Call button using your verified Business Profile number, not a number entered only here.",
-    storyCall: "Facebook and Instagram Stories do not display this text.",
-    noLinks: "Caption links are not clickable on this channel.",
-    shortsLinks: "Description links are not clickable on Shorts. They can be clickable on regular YouTube videos.",
-    preview: "CTA PREVIEW",
-    settings: "CTA SETTINGS",
-    previewEmpty: "Choose an action on the left to preview what this channel will offer.",
-    previewDestination: "Destination",
-    settingsEmpty: "Choose an action above. The relevant settings will appear here, with no unnecessary steps.",
-    actionUrl: "Action URL · required",
-    choiceHints: {
-      reserver: "Enter your booking link",
-      commander: "Enter your ordering link",
-      acheter: "Enter your shop or product link",
-      inscrire: "Enter your signup link",
-      none: "Add nothing to this channel",
-      site: "To your profile website",
-      devis: "Collect a quote request",
-      appeler: "Uses your phone number",
-      message: "Invite customers to contact you",
-      whatsapp: "Opens a WhatsApp conversation",
-      custom: "To an address of your choice",
-    },
-  },
-} as const;
+
 
 const CHOICE_ICONS: Record<AiCtaChoice | "none", string> = {
   none: "—",
@@ -172,10 +65,63 @@ function automaticWebsite(channel: AiCtaChannel, destinations: AiChannelCtaDesti
 }
 
 export default function AiChannelCtaPanel({ value, onChange, disabled = false, assistantActive = true }: Props) {
+  const channelT = useTranslations("dashboard");
   const { metaPilotEnabled, actorUserId, activeAccountId } = useDashboardViewerAccess();
-  const AI_CTA_CHANNELS = ALL_AI_CTA_CHANNELS.filter(({ key }) => key !== "threads" || metaPilotEnabled);
-  const language = useLocale().split("-")[0];
-  const copy = language === "fr" ? COPY.fr : COPY.en;
+  const AI_CTA_CHANNELS = ALL_AI_CTA_CHANNELS.filter(({ key }) => key !== "threads" || metaPilotEnabled)
+    .map(channel => channel.key === "site_web" ? { ...channel, label: channelT("inrSearchPresentation.website") } : channel);
+  const i18nT = useTranslations();
+  const copy = {
+    title: i18nT("settings.cta_title"),
+    description: i18nT("settings.cta_description"),
+    select: i18nT("settings.cta_select"),
+    empty: i18nT("settings.cta_empty"),
+    site: i18nT("booster.voir_le_site_5bf01317"),
+    devis: i18nT("booster.demander_un_devis_8a1f1c6c"),
+    appeler: i18nT("booster.appeler_de49ee03"),
+    message: i18nT("booster.envoyer_un_message_c211810b"),
+    whatsapp: i18nT("settings.ecrire_sur_whatsapp_c86e042a"),
+    custom: i18nT("booster.lien_personnalise_d1d21cea"),
+    reserver: i18nT("booster.cta_action_reserver"),
+    commander: i18nT("settings.commander_79056c7a"),
+    acheter: i18nT("settings.video_credit_buy"),
+    inscrire: i18nT("booster.cta_action_inscrire"),
+    label: i18nT("booster.texte_du_cta_f158373f"),
+    url: i18nT("settings.cta_url"),
+    customUrl: i18nT("booster.lien_personnalise_d1d21cea"),
+    phone: i18nT("settings.cta_phone"),
+    automatic: i18nT("settings.cta_automatic"),
+    missingDestination: i18nT("settings.cta_missing_destination"),
+    configured: i18nT("settings.cta_configured"),
+    default: i18nT("settings.cta_default"),
+    incomplete: i18nT("booster.wizard_to_complete"),
+    notConfigured: i18nT("settings.cta_not_configured"),
+    native: i18nT("settings.cta_native"),
+    text: i18nT("settings.cta_text"),
+    callText: i18nT("settings.cta_call_text"),
+    googleCall: i18nT("settings.cta_google_call"),
+    storyCall: i18nT("settings.cta_story_call"),
+    noLinks: i18nT("settings.cta_no_links"),
+    shortsLinks: i18nT("settings.cta_shorts_links"),
+    preview: i18nT("settings.cta_preview"),
+    settings: i18nT("settings.cta_settings"),
+    previewEmpty: i18nT("settings.cta_preview_empty"),
+    previewDestination: i18nT("mails.destination_d4271349"),
+    settingsEmpty: i18nT("settings.cta_settings_empty"),
+    actionUrl: i18nT("settings.cta_action_url"),
+    choiceHints: {
+      reserver: i18nT("settings.cta_choice_hints_reserver"),
+      commander: i18nT("settings.cta_choice_hints_commander"),
+      acheter: i18nT("settings.cta_choice_hints_acheter"),
+      inscrire: i18nT("settings.cta_choice_hints_inscrire"),
+      none: i18nT("settings.cta_choice_hints_none"),
+      site: i18nT("settings.cta_choice_hints_site"),
+      devis: i18nT("settings.cta_choice_hints_devis"),
+      appeler: i18nT("settings.cta_choice_hints_appeler"),
+      message: i18nT("settings.cta_choice_hints_message"),
+      whatsapp: i18nT("settings.cta_choice_hints_whatsapp"),
+      custom: i18nT("settings.cta_choice_hints_custom"),
+    },
+  };
   const [selectedActiveChannel, setActiveChannel] = useState<AiCtaChannel>("site_web");
   const activeChannel = selectedActiveChannel === "threads" && !metaPilotEnabled ? "site_web" : selectedActiveChannel;
   const [menuOpen, setMenuOpen] = useState(false);
@@ -228,6 +174,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false, a
     isAiChannelCtaComplete(key, activeSelection(key), destinations),
   ).length;
   const configuredPercent = Math.round((configuredCount / AI_CTA_CHANNELS.length) * 100);
+  const progressLabel = i18nT("settings.cta_configured_count", { configured: configuredCount, total: AI_CTA_CHANNELS.length });
   const activeMeta = AI_CTA_CHANNELS.find(({ key }) => key === activeChannel)!;
   const activeIndex = AI_CTA_CHANNELS.findIndex(({ key }) => key === activeChannel);
   const navigate = (direction: -1 | 1) => {
@@ -329,9 +276,9 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false, a
           <h2>{copy.title}</h2>
           <p>{copy.description}</p>
         </div>
-        <div className={styles.progress} aria-label={`${configuredPercent} %, ${configuredCount}/${AI_CTA_CHANNELS.length} ${copy.progress}`}>
+        <div className={styles.progress} aria-label={`${configuredPercent} %, ${progressLabel}`}>
           <strong>{configuredPercent}<small> %</small></strong>
-          <span>{configuredCount}/{AI_CTA_CHANNELS.length} {copy.progress}</span>
+          <span>{progressLabel}</span>
         </div>
       </div>
 
@@ -360,7 +307,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false, a
           if (event.key === "ArrowRight") { event.preventDefault(); navigate(1); }
         }}
       >
-        <button type="button" className={styles.navArrow} aria-label="Canal précédent" onClick={() => navigate(-1)}>‹</button>
+        <button type="button" className={styles.navArrow} aria-label={channelT("canal_precedent_e644dfdf")} onClick={() => navigate(-1)}>‹</button>
         <div className={styles.framePair} data-cta-channel={activeChannel} role="tabpanel">
         <article className={styles.card}>
           <div className={styles.cardHeading}>
@@ -503,7 +450,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false, a
           ) : null}
         </aside>
         </div>
-        <button type="button" className={styles.navArrow} aria-label="Canal suivant" onClick={() => navigate(1)}>›</button>
+        <button type="button" className={styles.navArrow} aria-label={channelT("canal_suivant_d20db274")} onClick={() => navigate(1)}>›</button>
       </div>
     </section>
   );

@@ -6,6 +6,8 @@ import ts from "typescript";
 import { PGlite } from "@electric-sql/pglite";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 import { publicationEditSourceVersion } from "../../lib/inrsend/publicationEditVersion.ts";
+import { catalogTranslator } from "../helpers/catalog-translator.mts";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 
 type Row = Record<string, unknown>;
 const { guardPublishedPublicationEdit } = runtimeModules()<typeof import("../../lib/inrsend/publicationEditGuard.ts")>("lib/inrsend/publicationEditGuard.ts");
@@ -106,10 +108,10 @@ test("the actual native media edit preserves another channel and its shared orig
 test("the actual iNrSend save caller transmits the observed source version and a stable key without upgrading an edited baseline", async () => {
   const calls: Row[] = [], errors: string[] = [], sourceVersion = "c".repeat(64);
   const deps: Row = { detailsItem: { source: "app_events" }, detailsPayload: { publication_id: "publication" }, activeDetailsChannelEntry: { key: "facebook" }, activeDetailsChannelResult: { external_id: "current-native" }, normalizeChannelKey: (value: string) => value, activeAccountId: "account", publicationEditBaselineRef: { current: { identity: "account:publication:facebook", expectedState: Promise.resolve(sourceVersion), operationKey: "native-stable-key" } }, publicationEditForm: { title: "Titre", content: "Contenu", hashtags: "", cta: "", ctaMode: "none" }, publicationEditVideoByChannel: {}, publicationEditImagesByChannel: {},
-    setDetailsActionSuccess: () => {}, setDetailsActionError: (value: string) => { if (value) errors.push(value); }, setDetailsActionBusy: () => {}, setDetailsEditMode: () => {}, loadHistory: async () => {}, i18nT: (value: string) => value, formatChannelLabel: (value: string) => value, channelApiPath: (value: string) => value,
-    fetch: async (_url: string, options: { body: string }) => { calls.push(JSON.parse(options.body)); return Response.json({ ok: true }); }, getClientUserFacingErrorMessage: (error: unknown) => { throw error; },
+    setDetailsActionSuccess: () => {}, setDetailsActionError: (value: string) => { if (value) errors.push(value); }, setDetailsActionBusy: () => {}, setDetailsEditMode: () => {}, loadHistory: async () => {}, i18nT: catalogTranslator("mails"), formatChannelLabel: (value: string) => value, channelApiPath: (value: string) => value,
+    fetch: async (_url: string, options: { body: string }) => { calls.push(JSON.parse(options.body)); return Response.json({ ok: true }); }, getClientUserFacingErrorMessage: userFacingErrorsFixture.getClientUserFacingErrorMessage,
   };
   const save = actualFunction("app/dashboard/mails/MailboxClient.tsx", "saveChannelPublication", deps) as () => Promise<void>;
-  await save(); await save(); assert.equal(calls.length, 2); assert.equal(calls[0].expectedState, sourceVersion); assert.equal(calls[0].operationKey, calls[1].operationKey);
+  await save(); await save(); assert.equal(calls.length, 2); assert.equal(calls[0].expectedState, sourceVersion); assert.equal(calls[0].operationKey, calls[1].operationKey); assert.deepEqual(errors, []);
   (deps.publicationEditBaselineRef as { current: unknown }).current = null; await save(); assert.equal(calls.length, 2); assert.match(errors.at(-1)!, /version d’origine/);
 });

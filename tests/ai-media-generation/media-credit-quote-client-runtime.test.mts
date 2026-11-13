@@ -1,3 +1,4 @@
+import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -43,6 +44,8 @@ function harness(initialInput = input(), initialQuota = quota()) {
   const output = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   const record = { exports: {} as { default: (input: MediaCreditQuoteInput, quota: MediaGenerationQuota, eligible: boolean) => Status } };
   const require = (specifier: string) => {
+    if (specifier === "@/lib/userFacingErrors") return userFacingErrorsFixture;
+    if (specifier === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
     if (specifier === "react") return react;
     if (specifier === "@/lib/aiMediaCreditsPricing") return pricing;
     if (specifier === "@/lib/multicompte/constants") return { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" };

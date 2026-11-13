@@ -1,4 +1,5 @@
 "use client";
+import { useAdsErrorMessage } from "./useAdsErrorMessage";
 import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { AdsChannelId } from "@/lib/adsValidation";
 import type { AdsConnectionSnapshot, AdsConnectionSnapshots } from "@/lib/adsConnectionSnapshot";
@@ -58,6 +59,7 @@ export default function useAdsExternalConnections({ initialChannel, initialConne
   initialConnections: AdsConnectionSnapshots;
   setConnectionSnapshots: Dispatch<SetStateAction<AdsConnectionSnapshots>>;
 }) {
+  const errorMessage = useAdsErrorMessage();
   const [externalStatuses, setExternalStatuses] = useState<Record<ExternalChannelId, ExternalConnectorStatus>>({
     linkedin: externalStatusFromSnapshot(initialConnections.linkedin), tiktok: externalStatusFromSnapshot(initialConnections.tiktok),
     pinterest: externalStatusFromSnapshot(initialConnections.pinterest), x: externalStatusFromSnapshot(initialConnections.x),
@@ -128,10 +130,10 @@ export default function useAdsExternalConnections({ initialChannel, initialConne
         return;
       setExternalStatuses((current) => ({
         ...current,
-        [channel]: { ...current[channel], load: "error", error: error instanceof Error ? error.message : "État indisponible." },
+        [channel]: { ...current[channel], load: "error", error: errorMessage(error, "shell.ads_error_2de57b4247") },
       }));
     }
-  }, [setConnectionSnapshots]);
+  }, [setConnectionSnapshots, errorMessage]);
   const loadExternalAccounts = useCallback(async (channel: ExternalChannelId, persistedAccountId: string, force = false) => {
     const cached = externalAccountsCache.current[channel];
     if (cached.loaded && !force) {
@@ -175,7 +177,7 @@ export default function useAdsExternalConnections({ initialChannel, initialConne
       if (requestId === externalAccountsRequest.current) {
         externalAccountsCache.current[channel] = { ...cached, failed: true };
         setExternalAccountsLoadFailed(true);
-        setExternalError(error instanceof Error ? error.message : "Comptes indisponibles.");
+        setExternalError(errorMessage(error, "shell.ads_error_9c5547eeca"));
         void refreshExternalStatus(channel, { silent: true });
       }
     }
@@ -183,7 +185,7 @@ export default function useAdsExternalConnections({ initialChannel, initialConne
       if (requestId === externalAccountsRequest.current)
         setExternalAccountsLoading(false);
     }
-  }, [refreshExternalStatus]);
+  }, [refreshExternalStatus, errorMessage]);
   async function associateExternalAccount(channelId: AdsChannelId) {
     if (!isExternalChannel(channelId) || !externalAccountChoice || externalAction)
       return;
@@ -200,7 +202,7 @@ export default function useAdsExternalConnections({ initialChannel, initialConne
       await refreshExternalStatus(channelId);
     }
     catch (error) {
-      setExternalError(error instanceof Error ? error.message : "Association impossible.");
+      setExternalError(errorMessage(error, "shell.ads_error_b5458c4d71"));
     }
     finally {
       setExternalAction(null);
@@ -219,7 +221,7 @@ export default function useAdsExternalConnections({ initialChannel, initialConne
       await refreshExternalStatus(channelId);
     }
     catch (error) {
-      setExternalError(error instanceof Error ? error.message : "Déconnexion impossible.");
+      setExternalError(errorMessage(error, "shell.ads_error_0cce4ced23"));
     }
     finally {
       setExternalAction(null);

@@ -1,3 +1,4 @@
+import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -91,6 +92,8 @@ function transpileModule(relative: string, modules: Map<string, unknown>) {
   const record = { exports: {} as Record<string, unknown> };
   const nativeRequire = createRequire(import.meta.url);
   new Function("module", "exports", "require", output)(record, record.exports, (specifier: string) => {
+    if (specifier === "@/lib/userFacingErrors") return userFacingErrorsFixture;
+    if (specifier === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
     if (specifier.startsWith("node:")) return nativeRequire(specifier);
     if (specifier === "./aiMediaGlobalConstraints.ts") return globalConstraints;
     if (specifier === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy;

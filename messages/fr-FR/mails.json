@@ -1053,5 +1053,10 @@
   "x_forbidden_url": "Ce format de lien n’est pas pris en charge sur X. Utilisez un lien HTTP ou HTTPS.",
   "youtube_3f8b5798": "YouTube :",
   "youtube_558865a1": "YouTube",
-  "zones_ciblees_09e322f6": "Zones ciblées"
+  "zones_ciblees_09e322f6": "Zones ciblées",
+  "editor_expand": "Agrandir",
+  "editor_expand_label": "Agrandir l’éditeur",
+  "editor_fullscreen_label": "Éditeur de message en plein écran",
+  "editor_shrink": "Réduire",
+  "editor_shrink_label": "Réduire l’éditeur"
 }

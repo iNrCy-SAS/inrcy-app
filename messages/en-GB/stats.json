@@ -550,5 +550,6 @@
   "visibility_index_tracking_hint": "The first chart unlocks after one month of recorded values.",
   "visibility_index_recording_method": "A daily value is saved with the data available on that date. Past values are never recalculated with current figures. Missing collection days remain absent. Each period requires sufficient recent history.",
   "visibility_index_rewards_method": "Each milestone awards shop-spendable Inertia Units once. Base bonuses: 50 / 100 / 200 / 500 UI. Plan multiplier at unlock: Basic ×0.5, Standard ×1, Premium ×1.5. Changing plans does not award an earned milestone again.",
-  "visibility_index_rewards_history_method": "Available historical statistics can retroactively qualify a sufficiently old account for a milestone. They do not recreate past index values."
+  "visibility_index_rewards_history_method": "Available historical statistics can retroactively qualify a sufficiently old account for a milestone. They do not recreate past index values.",
+  "stats_connect_x": "Connect X"
 }

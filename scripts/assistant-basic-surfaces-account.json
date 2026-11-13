@@ -6716,7 +6716,7 @@
     ],
     "sourceAnchor": "onClick={() => navigate(-1)}",
     "controlIds": [
-      "app/dashboard/settings/_components/AiChannelCtaPanel.tsx#button:081f4bf36e3f4499:1"
+      "app/dashboard/settings/_components/AiChannelCtaPanel.tsx#button:e9928f01c79274ab:1"
     ],
     "capabilityId": "navigation.local-controls",
     "toolNames": [
@@ -6910,7 +6910,7 @@
     ],
     "sourceAnchor": "onClick={() => navigate(1)}",
     "controlIds": [
-      "app/dashboard/settings/_components/AiChannelCtaPanel.tsx#button:31dfe315ba7aa597:1"
+      "app/dashboard/settings/_components/AiChannelCtaPanel.tsx#button:fb8f0108be14f8e3:1"
     ],
     "capabilityId": "navigation.local-controls",
     "toolNames": [
@@ -10369,7 +10369,7 @@
     ],
     "sourceAnchor": "onClick={() => void resetCurrentTab()}",
     "controlIds": [
-      "app/dashboard/settings/_components/AiMemoryContent.tsx#button:3a3354cf88b84785:1"
+      "app/dashboard/settings/_components/AiMemoryContent.tsx#button:c55a859d752d0504:1"
     ],
     "capabilityId": "business.forms",
     "toolNames": [
@@ -11136,7 +11136,7 @@
     ],
     "sourceAnchor": "onClick={() => placeOrder(p, \"UI\")}",
     "controlIds": [
-      "app/dashboard/settings/_components/BoutiqueContent.tsx#button:dd5e96caeb362189:1"
+      "app/dashboard/settings/_components/BoutiqueContent.tsx#button:41772a83f39be1d8:1"
     ],
     "capabilityId": "account.subscription",
     "toolNames": [
@@ -15047,7 +15047,7 @@
     ],
     "sourceAnchor": "onChange={(checked) => updatePrefs({ ...prefs, in_app_enabled: checked })}",
     "controlIds": [
-      "app/dashboard/settings/_components/NotificationsSettingsContent.tsx#ToggleRow:5bff9b1a5e6db0b0:1"
+      "app/dashboard/settings/_components/NotificationsSettingsContent.tsx#ToggleRow:4534cf55028c9f4e:1"
     ],
     "capabilityId": "account.settings",
     "toolNames": [
@@ -15078,7 +15078,7 @@
     ],
     "sourceAnchor": "onChange={(checked) => updatePrefs({ ...prefs, email_enabled: checked })}",
     "controlIds": [
-      "app/dashboard/settings/_components/NotificationsSettingsContent.tsx#ToggleRow:815cd79d7853fc28:1"
+      "app/dashboard/settings/_components/NotificationsSettingsContent.tsx#ToggleRow:6baaa59d3e45569d:1"
     ],
     "capabilityId": "account.settings",
     "toolNames": [
@@ -15109,7 +15109,7 @@
     ],
     "sourceAnchor": "onChange={(checked) => updatePrefs({ ...prefs, performance_enabled: checked })}",
     "controlIds": [
-      "app/dashboard/settings/_components/NotificationsSettingsContent.tsx#ToggleRow:f3209e4803f5f47c:1"
+      "app/dashboard/settings/_components/NotificationsSettingsContent.tsx#ToggleRow:07d7aaac850cc1a4:1"
     ],
     "capabilityId": "account.settings",
     "toolNames": [
@@ -15140,7 +15140,7 @@
     ],
     "sourceAnchor": "onChange={(checked) => updatePrefs({ ...prefs, action_enabled: checked })}",
     "controlIds": [
-      "app/dashboard/settings/_components/NotificationsSettingsContent.tsx#ToggleRow:1e91c3cf911bf9ad:1"
+      "app/dashboard/settings/_components/NotificationsSettingsContent.tsx#ToggleRow:0b30207caa4fb857:1"
     ],
     "capabilityId": "account.settings",
     "toolNames": [
@@ -15171,7 +15171,7 @@
     ],
     "sourceAnchor": "onChange={(checked) => updatePrefs({ ...prefs, information_enabled: checked })}",
     "controlIds": [
-      "app/dashboard/settings/_components/NotificationsSettingsContent.tsx#ToggleRow:646c5cd2217c75a5:1"
+      "app/dashboard/settings/_components/NotificationsSettingsContent.tsx#ToggleRow:36843945c6014ecd:1"
     ],
     "capabilityId": "account.settings",
     "toolNames": [

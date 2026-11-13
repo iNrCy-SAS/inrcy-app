@@ -289,5 +289,22 @@
   "ville_livraison_54612c4a": "Delivery city",
   "virement_bancaire_8306f08e": "Bank transfer",
   "vous_devez_etre_connecte_pour_envoyer_0bc75018": "You must be logged in to send via email.",
-  "without_number": "(no number)"
+  "without_number": "(no number)",
+  "color_blue": "Blue",
+  "color_gold": "Gold",
+  "color_green": "Green",
+  "color_orange": "Orange",
+  "color_professional_gray": "Professional grey",
+  "color_rose": "Pink",
+  "color_teal": "Turquoise",
+  "color_violet": "Purple",
+  "common_settings_description": "Settings shared by quotes and invoices.",
+  "default_line_description": "The first line suggested in the document.",
+  "design_framed": "Framed",
+  "design_settings_description": "Give quotes and invoices some character while keeping a professional look.",
+  "example_value": "E.g. {value}",
+  "invoice_settings_description": "Settings applied only to new invoices.",
+  "locked_invoice_delete_unavailable": "A finalised invoice cannot be deleted.",
+  "payment_settings_description": "Payment terms included on your documents.",
+  "quote_settings_description": "Settings applied only to new quotes."
 }

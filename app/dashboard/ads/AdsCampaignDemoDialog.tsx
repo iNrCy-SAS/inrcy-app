@@ -1,5 +1,8 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+
+
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { nextAdsPublicationProgress, type AdsPublicationPhase } from "@/lib/adsPublicationProgress";
@@ -40,12 +43,14 @@ type Props = {
 };
 
 export default function AdsCampaignDemoDialog({ mode, details, busy, publicationPhase, declarationLabel, declarationChecked, launchStatus, activeEnabled, pausedEnabled, activeDisabledReason, onDeclarationChange, onLaunchStatusChange, onCancel, onConfirm, onReturnHome }: Props) {
+  const i18nT = useTranslations("booster");
+  const locale = useLocale();
   const nativeBudget = details.nativeBudget || details.linkedinBudget || details.googleBudget || details.pinterestBudget;
   const nativeCalendar = details.nativeBudget;
   const googleBudget = details.googleBudget;
   const linkedinBudget = details.linkedinBudget;
   const pinterestBudget = details.pinterestBudget;
-  const formatInstant = (value: string) => new Date(value).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" });
+  const formatInstant = (value: string) => new Date(value).toLocaleString(locale, { dateStyle: "medium", timeStyle: "short" });
   const dialogRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
   const declarationRef = useRef<HTMLInputElement>(null);
@@ -54,7 +59,7 @@ export default function AdsCampaignDemoDialog({ mode, details, busy, publication
   const progress = mode === "success" && publicationPhase === "success"
     ? 100
     : Math.max(publicationPhase === "sending" ? 12 : 1, Math.min(99, waitingProgress));
-  const progressLabel = publicationPhase === "saving" ? "Préparation" : "Envoi";
+  const progressLabel = publicationPhase === "saving" ? i18nT("wizard_step_channels") : i18nT("ads_sending");
 
   useEffect(() => {
     if (!busy || (publicationPhase !== "saving" && publicationPhase !== "sending")) return;
@@ -128,45 +133,45 @@ export default function AdsCampaignDemoDialog({ mode, details, busy, publication
       <div ref={dialogRef} className={styles.dialog} role="dialog" aria-modal="true" aria-labelledby="ads-launch-dialog-title" aria-describedby="ads-launch-dialog-description" tabIndex={-1}>
         <div className={styles.header}>
           <span className={styles.brandMark} aria-hidden="true">✦</span>
-          <div className={styles.brand}>iNr’<span>ADS</span><small>STUDIO DE CAMPAGNE</small></div>
-          {mode === "confirm" && <button type="button" className={styles.close} onClick={onCancel} disabled={busy} aria-label="Annuler le lancement de la campagne">×</button>}
+          <div className={styles.brand}>{i18nT("inr_cb7c9950")}<span>{i18nT("ads_ui_0d1c315edb")}</span><small>{i18nT("studio_de_campagne_e15f8c54")}</small></div>
+          {mode === "confirm" && <button type="button" className={styles.close} onClick={onCancel} disabled={busy} aria-label={i18nT("annuler_le_lancement_de_la_campagne_3a0d1b92")}>×</button>}
         </div>
         <div className={styles.content}>
-          <span className={styles.eyebrow}>{mode === "confirm" ? "VALIDATION FINALE" : "CAMPAGNE CRÉÉE"}</span>
-          <h2 id="ads-launch-dialog-title">{mode === "confirm" ? "Lancer cette campagne ?" : launchStatus === "active" ? "Votre campagne est lancée." : "Votre campagne est créée en pause."}</h2>
+          <span className={styles.eyebrow}>{mode === "confirm" ? i18nT("validation_finale_3d6f0309") : i18nT("campagne_creee_df2af619")}</span>
+          <h2 id="ads-launch-dialog-title">{mode === "confirm" ? i18nT("lancer_cette_campagne_8d9bbce4") : launchStatus === "active" ? i18nT("votre_campagne_est_lancee_076a0840") : i18nT("votre_campagne_est_creee_en_pause_68ec4c5c")}</h2>
           <p id="ads-launch-dialog-description">{mode === "confirm"
-            ? "Vérifiez le compte et choisissez le statut appliqué au moment de la création sur la plateforme publicitaire."
+            ? i18nT("verifiez_le_compte_et_choisissez_le_2f54398b")
             : launchStatus === "active"
-              ? "La campagne a été créée et activée sur la plateforme. Sa diffusion reste soumise à la validation de la régie."
-              : "La campagne a été créée en pause sur la plateforme. Aucune diffusion ni dépense n’a été lancée."}</p>
+              ? i18nT("la_campagne_a_ete_creee_et_c7f9b905")
+              : i18nT("la_campagne_a_ete_creee_en_5e53dd36")}</p>
           <dl className={styles.summary}>
-            <div><dt>Campagne</dt><dd>{details.campaignName}</dd></div>
-            <div><dt>Canal</dt><dd>{details.channelLabel}</dd></div>
-            <div><dt>Compte annonceur</dt><dd>{details.accountName}<small>{details.accountId}</small></dd></div>
-            <div><dt>Budget autorisé</dt><dd>{(nativeBudget?.type === "total" ? nativeBudget.totalEuros || 0 : details.dailyBudgetEuros).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}{nativeBudget?.type === "total" ? " au total" : " / jour"}<small>{nativeCalendar ? `${nativeCalendar.startAt ? new Date(nativeCalendar.startAt).toLocaleString("fr-FR", { timeZone: nativeCalendar.timeZone }) : "Dès validation de la plateforme"} → ${new Date(nativeCalendar.endAt).toLocaleString("fr-FR", { timeZone: nativeCalendar.timeZone })} · ${nativeCalendar.timeZone}` : googleBudget ? `${googleBudget.startDate || "Dès la validation de Google"} → ${details.endDate} · ${googleBudget.timeZone || "fuseau du compte"}${googleBudget.type === "daily" ? " · budget moyen" : ""}` : linkedinBudget ? `${linkedinBudget.startAt ? formatInstant(linkedinBudget.startAt) : "Dès la validation de LinkedIn"} → ${formatInstant(linkedinBudget.endAt)}` : pinterestBudget ? `${pinterestBudget.startAt ? new Date(pinterestBudget.startAt).toLocaleString("fr-FR", { timeZone: pinterestBudget.timeZone }) : "Dès la validation de Pinterest"} → ${new Date(pinterestBudget.endAt).toLocaleString("fr-FR", { timeZone: pinterestBudget.timeZone })} · ${pinterestBudget.timeZone}${pinterestBudget.type === "daily" ? pinterestBudget.flexibleDaily ? " · budget moyen" : " · limite quotidienne" : ""}` : `Jusqu’au ${new Date(`${details.endDate}T12:00:00`).toLocaleDateString("fr-FR")}`}</small></dd></div>
-            {mode === "success" && <div><dt>Statut</dt><dd className={launchStatus === "active" ? styles.active : styles.paused}>{launchStatus === "active" ? "Active · diffusion autorisée" : "En pause · aucune diffusion"}</dd></div>}
+            <div><dt>{i18nT("campagne_53c2fc2a")}</dt><dd>{details.campaignName}</dd></div>
+            <div><dt>{i18nT("canal_61f21e6f")}</dt><dd>{details.channelLabel}</dd></div>
+            <div><dt>{i18nT("compte_annonceur_87bebaad")}</dt><dd>{details.accountName}<small>{details.accountId}</small></dd></div>
+            <div><dt>{i18nT("budget_autorise_296950fc")}</dt><dd>{(nativeBudget?.type === "total" ? nativeBudget.totalEuros || 0 : details.dailyBudgetEuros).toLocaleString(locale, { style: "currency", currency: "EUR" })}{nativeBudget?.type === "total" ? i18nT("au_total_c8d2e40b") : i18nT("ads_ui_892bcf22ec")}<small>{nativeCalendar ? `${nativeCalendar.startAt ? new Date(nativeCalendar.startAt).toLocaleString(locale, { timeZone: nativeCalendar.timeZone }) : i18nT("ads_ui_899122fb1e")} → ${new Date(nativeCalendar.endAt).toLocaleString(locale, { timeZone: nativeCalendar.timeZone })} · ${nativeCalendar.timeZone}` : googleBudget ? `${googleBudget.startDate || i18nT("ads_ui_d5ac9b1a0c")} → ${details.endDate} · ${googleBudget.timeZone || i18nT("ads_ui_8c0f75415e")}${googleBudget.type === "daily" ? i18nT("ads_ui_c13aa3f32b") : ""}` : linkedinBudget ? `${linkedinBudget.startAt ? formatInstant(linkedinBudget.startAt) : i18nT("des_la_validation_de_linkedin_1f84bd29")} → ${formatInstant(linkedinBudget.endAt)}` : pinterestBudget ? `${pinterestBudget.startAt ? new Date(pinterestBudget.startAt).toLocaleString(locale, { timeZone: pinterestBudget.timeZone }) : i18nT("des_la_validation_de_pinterest_8f570560")} → ${new Date(pinterestBudget.endAt).toLocaleString(locale, { timeZone: pinterestBudget.timeZone })} · ${pinterestBudget.timeZone}${pinterestBudget.type === "daily" ? pinterestBudget.flexibleDaily ? i18nT("ads_ui_c13aa3f32b") : i18nT("ads_ui_242783fa36") : ""}` : i18nT("jusqu_au_value_bba1acea", { value0: new Date(`${details.endDate}T12:00:00`).toLocaleDateString(locale) })}</small></dd></div>
+            {mode === "success" && <div><dt>{i18nT("statut_659499f3")}</dt><dd className={launchStatus === "active" ? styles.active : styles.paused}>{launchStatus === "active" ? i18nT("active_diffusion_autorisee_a77a019e") : i18nT("en_pause_aucune_diffusion_620f8f84")}</dd></div>}
           </dl>
           {mode === "confirm" && <fieldset className={styles.statusChoice}>
-            <legend>Statut au lancement</legend>
+            <legend>{i18nT("statut_au_lancement_7489710b")}</legend>
             <label data-selected={launchStatus === "active" || undefined} data-disabled={!activeEnabled || undefined}>
               <input type="radio" name="ads-launch-status" value="active" checked={launchStatus === "active"} disabled={busy || !activeEnabled} onChange={() => onLaunchStatusChange("active")} />
-              <span><strong>Active</strong><small>{activeEnabled ? "La campagne pourra être diffusée et engager des dépenses dès qu’elle aura été validée par la plateforme." : activeDisabledReason || "Ce compte n’est pas encore autorisé à lancer une diffusion active."}</small></span>
+              <span><strong>{i18nT("active_a733b809")}</strong><small>{activeEnabled ? i18nT("la_campagne_pourra_etre_diffusee_et_ce7f55b0") : activeDisabledReason || i18nT("ce_compte_n_est_pas_encore_c16c1342")}</small></span>
             </label>
             <label data-selected={launchStatus === "paused" || undefined} data-disabled={!pausedEnabled || undefined}>
               <input type="radio" name="ads-launch-status" value="paused" checked={launchStatus === "paused"} disabled={busy || !pausedEnabled} onChange={() => onLaunchStatusChange("paused")} />
-              <span><strong>En pause</strong><small>La campagne est créée sans diffusion ni dépense et pourra être activée plus tard.</small></span>
+              <span><strong>{i18nT("en_pause_3a366de4")}</strong><small>{i18nT("la_campagne_est_creee_sans_diffusion_e7e312b4")}</small></span>
             </label>
           </fieldset>}
           {mode === "confirm" && <label className={styles.declaration}>
             <input ref={declarationRef} type="checkbox" checked={declarationChecked} onChange={(event) => onDeclarationChange(event.target.checked)} disabled={busy} />
-            <span>{declarationLabel}<small>Cette déclaration est requise avant la création sur la plateforme.</small></span>
+            <span>{declarationLabel}<small>{i18nT("cette_declaration_est_requise_avant_la_5cfc0496")}</small></span>
           </label>}
         </div>
         <div className={styles.actions}>
             {mode === "confirm" ? <>
-              <button type="button" className={styles.secondary} onClick={onCancel} disabled={busy}>Annuler</button>
-              <button ref={primaryRef} type="button" className={styles.primary} onClick={onConfirm} aria-busy={busy} aria-label={busy ? `${progressLabel} en cours, progression indicative : ${progress} pour cent` : undefined} disabled={busy || !declarationChecked || (launchStatus === "active" ? !activeEnabled : !pausedEnabled)}>{busy ? <>{progressLabel}… <span className={styles.progress}>{progress} %</span></> : launchStatus === "active" ? "Confirmer et lancer" : "Confirmer en pause"}</button>
-            </> : <button ref={primaryRef} type="button" className={styles.primary} onClick={onReturnHome}><span className={styles.progress}>{progress} %</span> Retour à l’accueil iNr’ADS <span aria-hidden="true">→</span></button>}
+              <button type="button" className={styles.secondary} onClick={onCancel} disabled={busy}>{i18nT("annuler_49ba3292")}</button>
+              <button ref={primaryRef} type="button" className={styles.primary} onClick={onConfirm} aria-busy={busy} aria-label={busy ? i18nT("value_en_cours_progression_indicative_value_12676698", { value0: progressLabel, value1: progress }) : undefined} disabled={busy || !declarationChecked || (launchStatus === "active" ? !activeEnabled : !pausedEnabled)}>{busy ? <>{progressLabel}… <span className={styles.progress}>{progress} %</span></> : launchStatus === "active" ? i18nT("confirmer_et_lancer_c0456e6e") : i18nT("confirmer_en_pause_2ca8c5ba")}</button>
+            </> : <button ref={primaryRef} type="button" className={styles.primary} onClick={onReturnHome}><span className={styles.progress}>{progress} %</span> {" "}{i18nT("retour_a_l_accueil_inr_ads_a2d24c46")}{" "}<span aria-hidden="true">→</span></button>}
         </div>
       </div>
     </div>,

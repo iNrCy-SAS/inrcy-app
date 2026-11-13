@@ -1,3 +1,4 @@
+import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
 import assert from "node:assert/strict";
@@ -58,6 +59,8 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
   const output = ts.transpileModule(read(file), { fileName: file, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const record = { exports: {} as Props };
   new Function("module", "exports", "require", "window", "document", "HTMLElement", "ResizeObserver", output)(record, record.exports, (name: string) => {
+    if (name === "@/lib/userFacingErrors") return userFacingErrorsFixture;
+    if (name === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
     if (name.endsWith(".module.css")) return styles;
     if (name === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy;
     if (name === "@/lib/aiMediaVideoSpeechBudget") return speechBudget;

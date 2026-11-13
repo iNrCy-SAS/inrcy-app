@@ -1,3 +1,4 @@
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import styles from "./CampaignScheduleModal.module.css";
@@ -171,7 +172,7 @@ export default function CampaignScheduleModal({
         void onSuccess?.();
       }, 850);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "";
+      const message = getSafeClientErrorMessage(error, "");
       if (message) {
         setLocalError(message);
       }
@@ -283,7 +284,7 @@ export default function CampaignScheduleModal({
         {showSummary ? (
           <div className={styles.summary}>
             <strong>
-              {recipientCount} destinataire{recipientCount > 1 ? "s" : ""}
+              {i18nT("schedule_recipient_count", { count: recipientCount })}
             </strong>
             <span>{i18nT("objet_89673541")}{" "}{subject.trim() || i18nT("sans_objet_e5ad6a39")}</span>
           </div>

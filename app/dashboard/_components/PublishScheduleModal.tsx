@@ -1,3 +1,4 @@
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 import { useEffect, useEffectEvent, useId, useMemo, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
@@ -455,7 +456,7 @@ export default function PublishScheduleModal({
         void onSuccess?.();
       }, 850);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "";
+      const message = getSafeClientErrorMessage(error, "");
       if (message) {
         setLocalError(message);
       }

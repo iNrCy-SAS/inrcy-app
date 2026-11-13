@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { chromium } from "@playwright/test";
 import ts from "typescript";
 import { adsDraftHasKeywordsStep, adsDraftHasMediaStep, adsDraftStepKeys } from "../lib/adsDraftNavigation.ts";
+import { adsComponentModules } from "./helpers/ads-component-runtime.mts";
 
 const require = createRequire(import.meta.url);
 const source = await readFile(new URL("../app/dashboard/ads/AdsClient.tsx", import.meta.url), "utf8");
@@ -28,7 +29,7 @@ function inspect(node) {
   if (ts.isJsxElement(node)) {
     const attrs = node.openingElement.attributes.getText(parsed);
     if (node.openingElement.tagName.getText(parsed) === "section" && attrs.includes("studioPureMediaCard")) mediaSection = node;
-    if (attrs.includes("className={styles.stepper}") && attrs.includes('aria-label="Étapes de création"')) stepper = node;
+    if (attrs.includes("className={styles.stepper}") && attrs.includes('aria-label={i18nT("etapes_de_creation_8c0acff9")}')) stepper = node;
     if (attrs.includes("className={styles.wizardNavigation}")) footer = node;
   }
   if (ts.isVariableDeclaration(node) && stepVariableNames.has(node.name.getText(parsed))) stepVariables.push(node.parent.parent);
@@ -64,7 +65,8 @@ export function PinterestMediaFixture({shortScreen,compactScreen,warnings=false}
 }`;
 const compiled = ts.transpileModule(fixtureSource, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
 const moduleExports = {};
-new Function("exports", "require", "adsDraftStepKeys", "adsDraftHasKeywordsStep", "adsDraftHasMediaStep", compiled)(moduleExports, require, adsDraftStepKeys, adsDraftHasKeywordsStep, adsDraftHasMediaStep);
+const context = adsComponentModules();
+new Function("exports", "require", "adsDraftStepKeys", "adsDraftHasKeywordsStep", "adsDraftHasMediaStep", "i18nT", "useTranslations", "adsUiText", compiled)(moduleExports, require, adsDraftStepKeys, adsDraftHasKeywordsStep, adsDraftHasMediaStep, context["next-intl"].useTranslations("booster"), context["next-intl"].useTranslations, context["./adsUiCopy"].adsUiText);
 
 function fixture(width, height, warnings=false) {
   const markup = renderToStaticMarkup(createElement(moduleExports.PinterestMediaFixture, { compactScreen: width < 1000 || height < 660, shortScreen: height <= 600, warnings }));

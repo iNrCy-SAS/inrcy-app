@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
@@ -424,7 +425,7 @@ export default function MediaSubjectVoiceButton({
       applyVoiceText(baseTextRef.current, correctedText, sessionId);
     } catch (caught) {
       if (abortController.signal.aborted || !isCurrentVoiceSession(sessionId)) return;
-      const message = caught instanceof Error ? caught.message : "";
+      const message = getSafeClientErrorMessage(caught, "");
       setError(message || t("voice_correction_failed_live_kept"));
     } finally {
       if (transcriptionAbortRef.current === abortController) {
@@ -479,7 +480,7 @@ export default function MediaSubjectVoiceButton({
     } catch (caught) {
       if (abortController.signal.aborted || !isCurrentVoiceSession(sessionId)) return;
       const liveDraftKept = hasLiveDraftRef.current && liveTextRef.current.trim();
-      const message = caught instanceof Error ? caught.message : "";
+      const message = getSafeClientErrorMessage(caught, "");
       setError(
         liveDraftKept
           ? t("voice_transcription_failed_live_kept")

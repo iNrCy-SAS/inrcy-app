@@ -45,6 +45,7 @@ const handlers = {
 };
 const packageSource = (name: string, file: string) => readFileSync(path.join(path.dirname(require.resolve(`${name}/package.json`)), "cjs", file), "utf8");
 const sources = {
+  "intl-messageformat": ts.transpileModule(readFileSync(path.join(path.dirname(require.resolve("intl-messageformat")), "intl-messageformat.iife.js"), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText,
   "@/lib/elementStyleLock": compile("lib/elementStyleLock.ts"),
   react: packageSource("react", "react.production.js"), "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   "react-dom": packageSource("react-dom", "react-dom.production.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.production.js"), scheduler: packageSource("scheduler", "scheduler.production.js"),
@@ -54,13 +55,19 @@ const sources = {
   session: compile("app/dashboard/_hooks/useInrStudioSession.tsx"),
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaModifier": compile("app/dashboard/_components/MediaModifier.tsx"),
-  ...Object.fromEntries(["inrStudioNavigation", "inrStudioViewport", "inrStudioModalPolicy", "inrAssistantStudioHandoff", "inrAssistantStudioDraft", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaSoundtrackDefinitions", "aiMediaVideoSpeechBudget", "aiMediaSpokenScript", "aiMediaVideoTimeline", "studioInspirationImagePolicy", "aiMediaNarrationVoices", "mediaRules", "aiMediaCharacterVoices", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
+  ...Object.fromEntries(["inrStudioNavigation", "inrStudioViewport", "inrStudioModalPolicy", "inrAssistantStudioHandoff", "inrAssistantStudioDraft", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaSoundtrackDefinitions", "aiMediaVideoSpeechBudget", "aiMediaSpokenScript", "aiMediaVideoTimeline", "studioInspirationImagePolicy", "aiMediaNarrationVoices", "mediaRules", "aiMediaCharacterVoices", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy", "userFacingErrors", "appLanguage", "publicationErrorFrench", "metaGraphErrorClassification"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
 };
 const dictionaries = { booster: JSON.parse(read("messages/fr-FR/booster.json")), media: JSON.parse(read("messages/fr-FR/media.json")), shell: JSON.parse(read("messages/fr-FR/shell.json")) };
 const fixture = `
 const sources=${JSON.stringify(sources)},handlers=${JSON.stringify(handlers)},dict=${JSON.stringify(dictionaries)},loaded={};
 window.generationCalls=0;window.publicationCalls=0;window.handoffs=[];window.errors=[];window.saves=0;
-const translate=namespace=>(key,values={})=>String(dict[namespace]?.[key]||key).replace(/\\{(\\w+)\\}/g,(_,name)=>String(values[name]??name));
+const messageFormats=new Map();
+const translate=namespace=>(key,values={})=>{
+ const id=namespace+'.'+key,message=dict[namespace]?.[key];
+ if(typeof message!=='string')throw Error('Missing modify fixture translation '+id);
+ if(!messageFormats.has(id))messageFormats.set(id,new(require('intl-messageformat').IntlMessageFormat)(message,'fr-FR'));
+ return messageFormats.get(id).format(values);
+};
 const noOp=()=>{};let injectResult;
 function useGeneration(){const React=require('react');const[result,setResult]=React.useState(null);injectResult=setResult;return {quota:{accountId:'account-a',creditsReady:true,credits:{remaining:697}},quotaLoading:false,busy:false,progress:0,result,status:result?'ready':'idle',canRecover:false,loadQuota:noOp,reset:noOp,acceptDraft:async value=>value,generate(){window.generationCalls++;throw Error('No paid generation is allowed in this test')}};}
 const preference={imageEngine:'openai',videoEngine:'omni',videoResolution:'720p',update:noOp};
@@ -141,6 +148,8 @@ test("Booster Modify opens the actual Studio Modifier with the selected source, 
     const details = await page.evaluate(() => (window as unknown as { handoffs: Array<{ tab: string; source: { name: string }; context: { imageKey: string; channel: string; draftId: string } }> }).handoffs[0]);
     assert.equal(details.tab, "modify"); assert.equal(details.source.name, "source-3.png"); assert.equal(details.context.channel, "facebook"); assert.equal(details.context.draftId, "draft-test");
     await page.evaluate(() => (window as unknown as { injectCompletedMedia: () => void }).injectCompletedMedia());
+    await page.getByTestId("accept-tested-media").waitFor();
+    assert.deepEqual(await page.evaluate(() => (window as unknown as { snapshot: () => { names: string[] } }).snapshot().names), ["source-1.png", "source-2.png", "source-3.png", "source-4.png", "source-5.png"], "A ready preview does not adopt the result without confirmation");
     await page.getByTestId("accept-tested-media").click();
     await page.waitForFunction(() => document.querySelector('[data-testid="pool-count"]')?.textContent === "5" && !document.querySelector('[data-studio-tab="modify"]'));
     const snapshot = await page.evaluate(() => (window as unknown as { snapshot: () => { names: string[]; keys: string[]; editors: Record<string, { imageKeys: string[] }>; active: Record<string, string> } }).snapshot());

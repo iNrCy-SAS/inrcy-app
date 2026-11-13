@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import { catalogTranslator } from "../helpers/catalog-translator.mts";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 
 function nodes(file: string) {
   const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, file.endsWith("tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
@@ -10,6 +12,7 @@ function nodes(file: string) {
   return { source, ast, calls };
 }
 function actual<T>(node: ts.Node, ast: ts.SourceFile, deps: Record<string, unknown>): T {
+  if (!Object.hasOwn(deps, "getSafeClientErrorMessage")) deps.getSafeClientErrorMessage = userFacingErrorsFixture.getClientUserFacingErrorMessage;
   const compiled = ts.transpileModule(`(${node.getText(ast)})`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText.trim().replace(/;$/, "");
   return vm.runInNewContext(`(function(deps){with(deps){return ${compiled};}})`)(deps) as T;
 }
@@ -47,7 +50,7 @@ test("the actual credit balance refresh confirms a fresh native counter without 
 test("the actual credit catalogue refresh reads confirmed order history with scope and purchase guards only", async () => {
   const load = component.calls.find(call => call.expression.getText(component.ast) === "useCallback" && call.parent.getText(component.ast).startsWith("load =")); assert.ok(load);
   const updates: unknown[] = [], replies: Array<(value: unknown) => void> = [];
-  const deps = { epoch: { current: 1 }, sequence: { current: 0 }, options: { endpoint: "/api/boutique/video-credits", unavailable: "unavailable" }, fetch: async (url: string) => { assert.equal(url, "/api/boutique/video-credits"); return new Promise(resolve => replies.push(resolve)); }, setCatalogue: (value: unknown) => updates.push(value), setNotice: () => {}, t: (value: string) => value, checkoutToRefresh: { current: false }, requests: { current: new Map() }, mediaKind: "video", storageKey: () => "key", sessionStorage: { getItem: () => null } };
+  const deps = { epoch: { current: 1 }, sequence: { current: 0 }, options: { endpoint: "/api/boutique/video-credits", unavailable: "video_credit_unavailable" }, fetch: async (url: string) => { assert.equal(url, "/api/boutique/video-credits"); return new Promise(resolve => replies.push(resolve)); }, setCatalogue: (value: unknown) => updates.push(value), setNotice: () => {}, t: catalogTranslator("settings"), checkoutToRefresh: { current: false }, requests: { current: new Map() }, mediaKind: "video", storageKey: () => "key", sessionStorage: { getItem: () => null } };
   const native = actual<(options?: { canApply?: () => boolean; expectedAccountId?: string }) => Promise<boolean>>(load.arguments[0], component.ast, deps);
   const response = (accountId: string) => ({ ok: true, json: async () => ({ accountId, packs: [], orders: [{ id: "confirmed-order", status: "paid", granted_at: "2026-11-05" }] }) });
   const confirmed = native({ expectedAccountId: "account-a" }); replies[0](response("account-a")); assert.equal(await confirmed, true); assert.equal(updates.length, 1);

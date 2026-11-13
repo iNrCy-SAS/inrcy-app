@@ -458,7 +458,7 @@ export default function DashboardHelpModals({
             }}
           >
             {i18nT("pour_connecter_instagram_a_inrcy_votre_27670a2a")}{" "}
-            <strong>professionnel</strong> {" "}{i18nT("business_ou_creator_il_doit_ensuite_4a6daae0")}{" "}
+            <strong>{i18nT("instagram_professional_account_label")}</strong> {" "}{i18nT("business_ou_creator_il_doit_ensuite_4a6daae0")}{" "}
             <strong>{i18nT("page_facebook_professionnelle_bc97c28e")}</strong> {" "}{i18nT("accessible_par_votre_compte_facebook_ou_1bd82c63")}{" "}</p>
 
           <div style={{ display: "grid", gap: 16 }}>
@@ -483,7 +483,7 @@ export default function DashboardHelpModals({
                 }}
               >
                 <li>
-                  {i18nT("ouvrez_instagram_puis_allez_sur_votre_bf9f7ed4")}{" "}<strong>profil</strong>
+                  {i18nT("ouvrez_instagram_puis_allez_sur_votre_bf9f7ed4")}{" "}<strong>{i18nT("instagram_profile_label")}</strong>
                   .
                 </li>
                 <li>
@@ -491,14 +491,14 @@ export default function DashboardHelpModals({
                   <strong>{i18nT("parametres_et_activite_f117985c")}</strong>.
                 </li>
                 <li>
-                  {i18nT("cherchez_c01086b1")}{" "}<strong>{i18nT("type_de_compte_et_outils_3d938170")}</strong> ou{" "}
+                  {i18nT("cherchez_c01086b1")}{" "}<strong>{i18nT("type_de_compte_et_outils_3d938170")}</strong> {i18nT("instagram_or")} {" "}
                   <strong>{i18nT("outils_professionnels_e062d9d5")}</strong>.
                 </li>
                 <li>
                   {i18nT("cliquez_sur_487bfa49")}{" "}<strong>{i18nT("passer_a_un_compte_professionnel_bc02e3cd")}</strong>.
                 </li>
                 <li>
-                  {i18nT("choisissez_ebefc7d8")}{" "}<strong>{i18nT("business_d6663dda")}</strong> ou{" "}
+                  {i18nT("choisissez_ebefc7d8")}{" "}<strong>{i18nT("business_d6663dda")}</strong> {i18nT("instagram_or")} {" "}
                   <strong>{i18nT("creator_817b79b0")}</strong>.
                 </li>
               </ol>

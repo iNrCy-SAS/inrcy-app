@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 import { useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { runInrAssistantNativeMediaOptimization } from "@/lib/inrAssistantNativeMediaOptimization";
@@ -58,7 +59,7 @@ export function useInrAssistantLibraryOptimization(options: { target: Target | n
         });
         return true;
       } catch (error) {
-        if (isCurrent()) setMessage(error instanceof Error ? error.message : "La copie optimisée n’a pas pu être vérifiée.");
+        if (isCurrent()) setMessage(getSafeClientErrorMessage(error, "La copie optimisée n’a pas pu être vérifiée."));
         return false;
       } finally { pending.current = false; if (mounted.current) setBusy(false); }
     } });

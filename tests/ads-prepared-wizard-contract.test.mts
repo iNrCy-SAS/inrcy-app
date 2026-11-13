@@ -1,3 +1,4 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -11,7 +12,7 @@ function actualFunction(name: string, scope: Record<string, unknown>) {
   const visit = (node: ts.Node) => { if (ts.isFunctionDeclaration(node) && node.name?.text === name) declaration = node; ts.forEachChild(node, visit); }; visit(source);
   assert.ok(declaration, name);
   const compiled = ts.transpileModule(declaration.getText(source), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  return new Function(...Object.keys(scope), `${compiled}\nreturn ${name};`)(...Object.values(scope));
+  return new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn ${name};`)(...Object.values(withAdsRuntime(scope)));
 }
 
 test("X et TikTok ouvrent la même modale finale sans création avant confirmation", async () => {
@@ -68,7 +69,7 @@ function actualCheckbox(marker: string, scope: Record<string, unknown>) {
     const attribute = input!.attributes.properties.find((value) => ts.isJsxAttribute(value) && value.name.getText(source) === name) as ts.JsxAttribute;
     assert.ok(attribute && attribute.initializer && ts.isJsxExpression(attribute.initializer) && attribute.initializer.expression, `${marker}/${name}`);
     const compiled = ts.transpileModule(`const value = (${attribute.initializer.expression.getText(source)});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-    return new Function(...Object.keys(scope), `${compiled}\nreturn value;`)(...Object.values(scope));
+    return new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn value;`)(...Object.values(withAdsRuntime(scope)));
   };
   return { disabled: evaluate("disabled"), change: evaluate("onChange") as (event: unknown) => void };
 }
@@ -97,7 +98,7 @@ test("Actual X and TikTok visible labels stay aligned with semantic navigation f
     for (const name of ["keywordStepName", "hasMediaStep", "hasKeywordsStep", "mediaStepName", "automatedChannelStepNames", "manualStepNames", "inrcyStepNames", "linkedInStepLabels", "googleStepLabels", "channelStepLabels", "stepNames", "budgetStep", "geographyStep", "targetingStep", "biddingStep", "creativeStep", "identityStep", "mediaStep", "deliveryStep", "validationStep"]) {
       const expression = variables.get(name); assert.ok(expression, name);
       const compiled = ts.transpileModule(`const value = (${expression.getText(source)});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-      scope[name] = new Function(...Object.keys(scope), `${compiled}\nreturn value;`)(...Object.values(scope));
+      scope[name] = new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn value;`)(...Object.values(withAdsRuntime(scope)));
     }
     assert.deepEqual(scope.stepNames, ["Votre projet", ...(creationPath === "inrcy" ? ["Analyse iNrCy"] : []), "Campagne", "Budget et calendrier", "Zones géographiques", "Audience et placements", "Enchères et optimisation", "Format et annonce", ...(channelId === "tiktok" ? ["Identité TikTok", "Vidéo"] : []), "Destination et suivi", "Vérifier et valider"]);
     for (const key of ["budget", "geography", "targeting", "bidding", "creative", "identity", "media", "delivery", "validation"] as const) assert.equal(scope[key + "Step"], adsDraftStepKeys(draft).indexOf(key));
@@ -129,7 +130,7 @@ test("Prepared confirmations belong to the final review, whose sole validation w
   assert.ok(disabled.initializer && ts.isJsxExpression(disabled.initializer) && disabled.initializer.expression);
   const compiled = ts.transpileModule(`const disabled = (${disabled.initializer.expression.getText(source)});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const base = { busy: null, preparedReviewIssues: [], preparedBudgetApprovalKey: "exact", preparedContentApprovalKey: "exact", preparedDraftKey: "exact", destinationReview: { required: true, confirmed: true } };
-  const check = (patch: Record<string, unknown>) => { const scope = { ...base, ...patch }; return new Function(...Object.keys(scope), `${compiled}\nreturn disabled;`)(...Object.values(scope)); };
+  const check = (patch: Record<string, unknown>) => { const scope = { ...base, ...patch }; return new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn disabled;`)(...Object.values(withAdsRuntime(scope))); };
   assert.equal(check({}), false);
   for (const patch of [{ busy: "save" }, { preparedReviewIssues: ["Média à vérifier"] }, { preparedBudgetApprovalKey: "older" }, { preparedContentApprovalKey: "older" }, { destinationReview: { required: true, confirmed: false } }]) assert.equal(check(patch), true);
   const paidButtons: ts.JsxElement[] = [];

@@ -1,3 +1,4 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 /* eslint-disable @typescript-eslint/no-explicit-any -- Execute the actual channel controls and authorization functions with bounded fixtures. */
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
@@ -31,7 +32,7 @@ function actualFunction(path: string, name: string, scope: Record<string, unknow
   const output = ts.transpileModule(node.getText(file).replace(/^export\s+/, ""), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   }).outputText;
-  return new Function(...Object.keys(scope), `${output}\nreturn ${name};`)(...Object.values(scope));
+  return new Function(...Object.keys(withAdsRuntime(scope)), `${output}\nreturn ${name};`)(...Object.values(withAdsRuntime(scope)));
 }
 
 const client = source("app/dashboard/ads/AdsClient.tsx");
@@ -71,10 +72,10 @@ function controls(channelId: AdsChannelId, pilotChannelsEnabled = false) {
     startNewCampaign: () => actions.push("launch"),
   };
   const exports: { renderControls?: () => unknown } = {};
-  new Function("exports", "require", ...Object.keys(scope), controlsCode)(exports, (name: string) => {
+  new Function("exports", "require", ...Object.keys(withAdsRuntime(scope)), controlsCode)(exports, (name: string) => {
     assert.equal(name, "react/jsx-runtime");
     return jsxRuntime;
-  }, ...Object.values(scope));
+  }, ...Object.values(withAdsRuntime(scope)));
   const elements: any[] = [];
   function visit(value: unknown) {
     if (Array.isArray(value)) value.forEach(visit);

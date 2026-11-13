@@ -1216,7 +1216,7 @@ export default function PublishContentEditorPanel({
                                   : i18nT("texte_du_bouton_5bc213b4")}{" "}
                               </div>
                               <input
-                                aria-label={activeCard === "x" ? "Texte du CTA" : i18nT("texte_du_bouton_5bc213b4")}
+                                aria-label={activeCard === "x" ? i18nT("texte_du_cta_f158373f") : i18nT("texte_du_bouton_5bc213b4")}
                                 value={currentPost.cta}
                                 readOnly={voiceBusy}
                                 onChange={(e) =>

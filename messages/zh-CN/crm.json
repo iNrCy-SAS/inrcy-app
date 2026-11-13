@@ -114,5 +114,19 @@
   "uniquement_les_importants_00983567": "只有重要的",
   "utiliser_l_adresse_principale_fbbcc33b": "使用主要地址",
   "value_contact_value_selectionne_value_76477fae": "{value0} 联系 {value1} 已选择 {value2}",
-  "ville_97217611": "城市"
+  "ville_97217611": "城市",
+  "actions_sur_ce_contact_87b37a84": "对此联系人的操作",
+  "actions_sur_la_selection_e69d1a0b": "对所选联系人的操作",
+  "afficher_le_detail_3b75c3b3": "显示详情",
+  "aucun_contact_a_exporter_bf5a9807": "没有可导出的联系人",
+  "aucun_contact_selectionne_19a9944c": "未选择联系人",
+  "chargement_des_contacts_558c9dc1": "正在加载联系人",
+  "choisir_le_format_d_export_cb81d35a": "选择导出格式",
+  "contact_important_2949497c": "重要联系人",
+  "marquer_comme_important_c0cc7947": "标记为重要",
+  "reduire_le_detail_a42a9c5a": "收起详情",
+  "selectionne_1_ou_plusieurs_contacts_7059cd05": "请选择一个或多个联系人",
+  "selectionnez_un_contact_eff0c23e": "请选择联系人",
+  "supprimer_value_contact_s_9252c4bd": "删除 {value0} 位联系人",
+  "vider_la_selection_834a3e51": "清除选择"
 }

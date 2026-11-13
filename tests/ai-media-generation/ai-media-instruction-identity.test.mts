@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { getAiMediaVisualBriefMaxChars } from "../../lib/aiMediaVideoSpeechBudget.ts";
+import { assertUiCopy } from "../helpers/ui-copy-contract.mjs";
 
 const read = (path: string) => readFileSync(path, "utf8");
 const readPromptArchitecture = () =>
@@ -64,12 +65,16 @@ test("l'identité vidéo est consentie, auditée et indépendante du rendu", () 
   assert.match(generator, /type StudioCharacterCount = 0 \| 1 \| 2 \| 3/);
   assert.match(generator, /characterReferenceMissing/);
   assert.match(generator, /renderReferenceSlot/);
-  assert.match(
-    generator,
-    /\{ id: "character", label: "Personne" \}/
-  );
-  assert.match(generator, /\{ id: "environment", label: "Décor" \}/);
-  assert.match(generator, /\{ id: "product", label: "Produit" \}/);
+  for (const [id, key, french] of [
+    ["character", "personne_6691d67a", "Personne"],
+    ["environment", "decor_97d1aaca", "Décor"],
+    ["product", "produit_ff673dc2", "Produit"],
+  ]) {
+    assert.ok(generator.includes(`{ id: "${id}", labelKey: "${key}" }`));
+    assertUiCopy("shell", key, french);
+  }
+  assert.match(generator, /const i18nT = useTranslations\("shell"\)/);
+  assert.match(generator, /REFERENCE_ROLE_OPTIONS\.map\(\(role\) => \([\s\S]*?<option key=\{role\.id\} value=\{role\.id\}>\s*\{i18nT\(role\.labelKey\)\}/);
   assert.match(generator, /role: proposedRole/);
   assert.match(generator, /setReferenceRole/);
   assert.match(generator, /setIdentityConsent\(false\)/);

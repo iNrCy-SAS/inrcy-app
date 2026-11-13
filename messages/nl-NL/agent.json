@@ -908,5 +908,12 @@
   "automation_enable_confirm_yes": "Ja",
   "automation_enable_confirm_verify": "Mijn instellingen controleren",
   "automation_enabled_notice": "Automatisering ingeschakeld.",
-  "automation_enable_unavailable": "Controleer de kanalen en instellingen voordat je de automatisering inschakelt."
+  "automation_enable_unavailable": "Controleer de kanalen en instellingen voordat je de automatisering inschakelt.",
+  "settings_impact_affected_count": "{count, plural, one {# bericht in de huidige planning wordt beïnvloed. Jij houdt altijd het laatste woord.} other {# berichten in de huidige planning worden beïnvloed. Jij houdt altijd het laatste woord.}}",
+  "settings_impact_available_images": "{count, plural, =-1 {Onbeperkt afbeeldingen} one {# afbeelding} other {# afbeeldingen}}",
+  "settings_impact_available_video_seconds": "{count, plural, =-1 {Onbeperkt video} other {# s video}}",
+  "settings_impact_horizon": "{days, plural, =30 {over één maand} one {over # dag} other {over # dagen}}",
+  "settings_impact_lost_quotas": "Als je dit nu toepast, gaat het al verbruikte tegoed verloren: {images, plural, one {# afbeeldingseenheid} other {# afbeeldingseenheden}} en {videos, plural, one {# video-eenheid} other {# video-eenheden}}.",
+  "settings_impact_media_count": "{images, plural, one {# afbeelding} other {# afbeeldingen}} · {videos, plural, one {# video} other {# video’s}} ({seconds} s)",
+  "settings_impact_publications_count": "{count, plural, one {bericht} other {berichten}}"
 }

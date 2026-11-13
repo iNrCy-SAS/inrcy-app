@@ -114,6 +114,7 @@ test("inbox pagination and refresh stay fully reachable above the tablet dock",{
         for(const button of measurements.buttons){
           assert.ok(button.top>=0&&button.bottom<=measurements.dockTop+1,`${viewport.width}px: ${button.label} is fully above the dock`);
           assert.ok(button.left>=0&&button.right<=viewport.width+1);
+          if(viewport.width<=1100) assert.ok(button.right-button.left>=44&&button.bottom-button.top>=44,`${viewport.width}px: ${button.label} keeps a usable touch target`);
           assert.equal(button.hit,true,`${viewport.width}px: ${button.label} receives the touch target`);
         }
         assert.ok(measurements.footerBottom<=measurements.dockTop+1,"the entire footer stays above the dock");

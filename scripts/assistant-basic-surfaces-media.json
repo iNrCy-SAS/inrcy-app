@@ -339,7 +339,7 @@
     "sourceFiles": [
       "app/dashboard/_components/InrcyCameraCaptureModal.tsx"
     ],
-    "sourceAnchor": "<button\n      type=\"button\"\n      onClick={() => {\n        setFacingMode((value) =>\n          value === \"environment\" ? \"user\" : \"environment\",\n        );\n      }}\n      disabled={controlsLocked}\n      aria-label={\n        facingMode === \"environment\"\n          ? \"Passer en caméra avant\"\n          : \"Passer en caméra arrière\"\n      }\n      title={facingMode === \"environment\" ? \"Caméra avant\" : \"Caméra arrière\"}\n      style={iconButtonBase}\n    >\n      ⇄\n    </button>",
+    "sourceAnchor": "<button\n      type=\"button\"\n      onClick={() => {\n        setFacingMode((value) =>\n          value === \"environment\" ? \"user\" : \"environment\",\n        );\n      }}\n      disabled={controlsLocked}\n      aria-label={\n     ",
     "capabilityId": "media.import",
     "toolNames": [
       "importMediaAttachment"
@@ -353,7 +353,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié.",
     "controlIds": [
-      "app/dashboard/_components/InrcyCameraCaptureModal.tsx#button:b5c3f15b708b6284:1"
+      "app/dashboard/_components/InrcyCameraCaptureModal.tsx#button:f36b786e3f6baa83:1"
     ]
   },
   {
@@ -363,7 +363,7 @@
     "sourceFiles": [
       "app/dashboard/_components/InrcyCameraCaptureModal.tsx"
     ],
-    "sourceAnchor": "<button\n      type=\"button\"\n      onClick={() => {\n        if (controlsLocked) return;\n        if (!torchSupported) {\n          setFlashUnavailable(true);\n          window.setTimeout(() => setFlashUnavailable(false), 1800);\n          return;\n        }\n        void applyTorch(!torchOn);\n      }}\n      disabled={controlsLocked}\n      aria-disabled={!torchSupported}\n      aria-label={\n        torchSupported\n          ? torchOn\n            ? \"Désactiver le flash\"\n            : \"Activer le flash\"\n          : \"Flash indisponible sur cet appareil\"\n      }\n      title={\n        torchSupported\n          ? torchOn\n            ? \"Flash activé\"\n            : \"Flash\"\n          : \"Flash indisponible sur cet appareil\"\n      }\n      style={{\n        ...iconButtonBase,\n        background: torchSupported\n          ? torchOn\n            ? \"linear-gradient(135deg, #f59e0b, #ff4fd8)\"\n            : iconButtonBase.background\n          : \"rgba(15,23,42,0.72)\",\n        color: torchSupported ? \"#fff\" : \"rgba(255,255,255,0.78)\",\n        borderColor: torchSupported\n          ? \"rgba(255,255,255,0.26)\"\n          : \"rgba(255,255,255,0.34)\",\n        cursor: torchSupported && !controlsLocked ? \"pointer\" : \"not-allowed\",\n        opacity: controlsLocked ? 0.55 : 1,\n        boxShadow: torchSupported\n          ? iconButtonBase.boxShadow\n          : \"0 12px 28px rgba(0,0,0,0.24)\",\n      }}\n    >",
+    "sourceAnchor": "<button\n      type=\"button\"\n      onClick={() => {\n        if (controlsLocked) return;\n        if (!torchSupported) {\n          setFlashUnavailable(true);\n          window.setTimeout(() => setFlashUnavailable(false), 180",
     "capabilityId": "media.import",
     "toolNames": [
       "importMediaAttachment"
@@ -377,7 +377,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié.",
     "controlIds": [
-      "app/dashboard/_components/InrcyCameraCaptureModal.tsx#button:e58edced8534e470:1"
+      "app/dashboard/_components/InrcyCameraCaptureModal.tsx#button:e0806d2ac10b23f1:1"
     ]
   },
   {
@@ -387,7 +387,7 @@
     "sourceFiles": [
       "app/dashboard/_components/InrcyCameraCaptureModal.tsx"
     ],
-    "sourceAnchor": "<button\n            key={mode}\n            type=\"button\"\n            disabled={disabled}\n            aria-current={active ? \"true\" : undefined}\n            title={\n              mode === \"video\" && !allowVideo\n                ? \"Vidéo indisponible ici\"\n                : undefined\n            }\n            onClick={() => {\n              if (disabled || active) return;\n              setCameraMode(mode);\n            }}\n            style={{\n              minHeight: 30,\n              border: \"none\",\n              borderRadius: 999,\n              padding: \"6px 12px\",\n              background: active\n                ? \"linear-gradient(135deg, #48c6ef, #7c3aed)\"\n                : \"rgba(255,255,255,0.08)\",\n              color: active ? \"#fff\" : \"rgba(255,255,255,0.78)\",\n              fontSize: 12,\n              fontWeight: active ? 950 : 900,\n              cursor: disabled || active ? \"default\" : \"pointer\",\n              opacity: disabled && !active ? 0.58 : 1,\n            }}\n          >",
+    "sourceAnchor": "<button\n            key={mode}\n            type=\"button\"\n            disabled={disabled}\n            aria-current={active ? \"true\" : undefined}\n            title={\n              mode === \"video\" && !allowVideo\n          ",
     "capabilityId": "media.import",
     "toolNames": [
       "importMediaAttachment"
@@ -401,7 +401,7 @@
     "coverageStatus": "human_required",
     "handoffReason": "Le professionnel choisit le fichier local ou autorise sa caméra dans le sélecteur natif. Un fichier déjà joint au chat peut ensuite être importé par son identifiant vérifié.",
     "controlIds": [
-      "app/dashboard/_components/InrcyCameraCaptureModal.tsx#button:490097ecb32d882a:1"
+      "app/dashboard/_components/InrcyCameraCaptureModal.tsx#button:7365e18ff421f7fe:1"
     ]
   },
   {
@@ -5183,7 +5183,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaResultViewer.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" aria-label=\"Zoom −\" disabled={zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - 0.5))}>−</button>",
+    "sourceAnchor": "<button type=\"button\" aria-label={t(\"viewer_zoom_out\")} disabled={zoom <= 1} onClick={() => setZoom(value => Math.max(1, value - 0.5))}>−</button>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -5196,7 +5196,7 @@
     "testAnchor": "the actual Studio result controls expand the verified preview, continue creation and zoom without changing a media",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaResultViewer.tsx#button:f4e43df3949e485c:1"
+      "app/dashboard/_components/MediaResultViewer.tsx#button:b6a38d3cdb3981bb:1"
     ]
   },
   {
@@ -5206,7 +5206,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaResultViewer.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" aria-label=\"Zoom 100 %\" onClick={() => { setZoom(1); viewportRef.current?.scrollTo({ top: 0, left: 0, behavior: \"instant\" }); }}><output aria-live=\"polite\">{Math.round(zoom * 100)} %</output></button>",
+    "sourceAnchor": "<button type=\"button\" aria-label={t(\"viewer_zoom_reset\")} onClick={() => { setZoom(1); viewportRef.current?.scrollTo({ top: 0, left: 0, behavior: \"instant\" }); }}><output aria-live=\"polite\">{Math.round(zoom * 100)} %</ou",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -5219,7 +5219,7 @@
     "testAnchor": "the actual Studio result controls expand the verified preview, continue creation and zoom without changing a media",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaResultViewer.tsx#button:dd809c14ed5b0071:1"
+      "app/dashboard/_components/MediaResultViewer.tsx#button:48e531e92802a30c:1"
     ]
   },
   {
@@ -5229,7 +5229,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaResultViewer.tsx"
     ],
-    "sourceAnchor": "<button type=\"button\" aria-label=\"Zoom +\" disabled={zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + 0.5))}>+</button>",
+    "sourceAnchor": "<button type=\"button\" aria-label={t(\"viewer_zoom_in\")} disabled={zoom >= 4} onClick={() => setZoom(value => Math.min(4, value + 0.5))}>+</button>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -5242,7 +5242,7 @@
     "testAnchor": "the actual Studio result controls expand the verified preview, continue creation and zoom without changing a media",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaResultViewer.tsx#button:534e0c6aa7cd9584:1"
+      "app/dashboard/_components/MediaResultViewer.tsx#button:ee50c485f805801c:1"
     ]
   },
   {
@@ -5917,20 +5917,19 @@
       "editPublication"
     ],
     "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : hasFailureDetails ; !embedded && entries.length. Le volet natif de détails techniques conserve le diagnostic fournisseur original inconnu ; il ne modifie ni ne relance une publication. Cette liaison n’ajoute aucun droit ni preuve de clic par l’assistant.",
+    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : hasFailureDetails ; !embedded && entries.length. Les détails affichent uniquement des messages publics localisés ; aucun diagnostic fournisseur brut n’est rendu dans le panneau ou ses infobulles.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/PublishExecutionResultModal.tsx#button:9ce1a80d770d6367:1",
-      "app/dashboard/_components/PublishExecutionResultModal.tsx#summary:08db2a479a92c9ea:1"
+      "app/dashboard/_components/PublishExecutionResultModal.tsx#button:9ce1a80d770d6367:1"
     ],
     "additionalProofs": [
       {
         "file": "tests/dashboard/booster-result-render-runtime.test.mts",
-        "testAnchor": "English failure details localize known error classes and preserve unknown actionable provider responses in a disclosure"
+        "testAnchor": "all nine result locales keep raw errors, warnings and blockers out of markup and tooltips while preserving internal payloads"
       }
     ]
   },
@@ -9704,7 +9703,7 @@
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
     ],
-    "sourceAnchor": "<input\n                                aria-label={activeCard === \"x\" ? \"Texte du CTA\" : i18nT(\"texte_du_bouton_5bc213b4\")}\n                                value={currentPost.cta}\n                                readOnly={voiceBusy}\n                                onChange={(e) =>\n                                  updatePost(updateTarget, {\n                                    cta: e.target.value,\n                                  })\n                                }\n                                style={lightFieldStyle}\n                                placeholder={i18nT(\"texte_du_bouton_ex_value_872ff84c\", { value0: getLocalizedChannelDefaultCtaLabel(\"website\", runtimeT) })}\n                              />",
+    "sourceAnchor": "<input\n                                aria-label={activeCard === \"x\" ? i18nT(\"texte_du_cta_f158373f\") : i18nT(\"texte_du_bouton_5bc213b4\")}\n                                value={currentPost.cta}\n                        ",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
@@ -9718,7 +9717,7 @@
     "testAnchor": "per-publication CTA uses native modes and destinations, survives execution and never replaces the global preference",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#input:387072aee2d853ac:1"
+      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#input:37beebaca8e3858c:1"
     ]
   },
   {

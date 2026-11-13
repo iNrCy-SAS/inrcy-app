@@ -301,7 +301,7 @@
   "creer_la_facture_d28b4fd5": "Criar o Fatura",
   "creer_une_campagne_e8dbeefe": "Criar campanha",
   "cta_11441d32": "CTA",
-  "date_de_fin_716a6d8d": "End date",
+  "date_de_fin_716a6d8d": "Data de fim",
   "date_eb9a4bc1": "Data",
   "date_heure_12c2d703": "Data / hora",
   "deconnectee_0f5dae32": "Desligado",
@@ -979,7 +979,7 @@
   "tres_grand_600_px_c870fb51": "Muito grande (600 px)",
   "type_3deb7456": "Tipo",
   "type_de_campagne_70f9fad7": "Tipo de campanha",
-  "type_de_media_f54aeeae": "Media type",
+  "type_de_media_f54aeeae": "Tipo de média",
   "typologie_3b7e8267": "Tipologia",
   "typologie_du_mail_09972fbd": "Tipo de e-mail",
   "une_confirmation_sera_demandee_avant_l_5e7f4ea1": "Uma confirmação será solicitada antes do envio. As guardadaguardas, quotas e novas tentativas automáticas permanecerão ativas.",
@@ -1053,5 +1053,10 @@
   "x_forbidden_url": "Este formato de ligação não é suportado no X. Utilize uma ligação HTTP ou HTTPS.",
   "youtube_3f8b5798": "YouTube:",
   "youtube_558865a1": "YouTube",
-  "zones_ciblees_09e322f6": "Zonas segmentadas"
+  "zones_ciblees_09e322f6": "Zonas segmentadas",
+  "editor_expand": "Ampliar",
+  "editor_expand_label": "Ampliar o editor",
+  "editor_fullscreen_label": "Editor de mensagens em ecrã inteiro",
+  "editor_shrink": "Reduzir",
+  "editor_shrink_label": "Reduzir o editor"
 }

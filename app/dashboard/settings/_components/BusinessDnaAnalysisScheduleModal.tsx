@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -20,9 +21,7 @@ type Props = {
 };
 
 function apiErrorMessage(payload: unknown, fallback: string) {
-  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return fallback;
-  const record = payload as Record<string, unknown>;
-  return String(record.user_message || record.error || fallback);
+  return getSafeClientErrorMessage(payload, fallback);
 }
 
 function parseSchedule(value: unknown): BusinessDnaAutomaticSchedule {
@@ -99,7 +98,7 @@ export default function BusinessDnaAnalysisScheduleModal({ open, onClose, onOpen
       })
       .catch((loadError) => {
         if (controller.signal.aborted) return;
-        setError(loadError instanceof Error ? loadError.message : t("analysisScheduleLoadError"));
+        setError(getSafeClientErrorMessage(loadError, t("analysisScheduleLoadError")));
       })
       .finally(() => {
         if (!controller.signal.aborted) { setCompletedLoadAttempt(loadAttempt); setLoading(false); }
@@ -189,7 +188,7 @@ export default function BusinessDnaAnalysisScheduleModal({ open, onClose, onOpen
       setSchedule(parseSchedule(payload.schedule));
       onClose();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : t("analysisScheduleSaveError"));
+      setError(getSafeClientErrorMessage(saveError, t("analysisScheduleSaveError")));
     } finally {
       setSaving(false);
     }

@@ -1,3 +1,4 @@
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -16,6 +17,7 @@ function load<T>(path: string, modules: Record<string, unknown>, browser?: Row):
   }).outputText;
   const runtime = { exports: {} as T };
   new Function("module", "exports", "require", "window", output)(runtime, runtime.exports, (name: string) => {
+    if (name === "@/lib/userFacingErrors") return userFacingErrorsFixture;
     assert.ok(Object.hasOwn(modules, name), `Unexpected dependency ${name}`);
     return modules[name];
   }, browser);

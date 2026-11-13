@@ -301,7 +301,7 @@
   "creer_la_facture_d28b4fd5": "Crear la factura",
   "creer_une_campagne_e8dbeefe": "Crear una campaña",
   "cta_11441d32": "llamada a la acción",
-  "date_de_fin_716a6d8d": "End date",
+  "date_de_fin_716a6d8d": "Fecha de finalización",
   "date_eb9a4bc1": "Fecha",
   "date_heure_12c2d703": "Fecha / hora",
   "deconnectee_0f5dae32": "Desconectado",
@@ -979,7 +979,7 @@
   "tres_grand_600_px_c870fb51": "Muy grande (600 px)",
   "type_3deb7456": "Tipo",
   "type_de_campagne_70f9fad7": "Tipo de campaña",
-  "type_de_media_f54aeeae": "Media type",
+  "type_de_media_f54aeeae": "Tipo de medio",
   "typologie_3b7e8267": "tipología",
   "typologie_du_mail_09972fbd": "Tipología de correo electrónico",
   "une_confirmation_sera_demandee_avant_l_5e7f4ea1": "Se solicitará confirmación antes del envío. Las salvaguardas, las cuotas y la recuperación automática permanecerán activas.",
@@ -1053,5 +1053,10 @@
   "x_forbidden_url": "Este formato de enlace no es compatible con X. Utiliza un enlace HTTP o HTTPS.",
   "youtube_3f8b5798": "YouTube:",
   "youtube_558865a1": "YouTube",
-  "zones_ciblees_09e322f6": "Zonas objetivo"
+  "zones_ciblees_09e322f6": "Zonas objetivo",
+  "editor_expand": "Ampliar",
+  "editor_expand_label": "Ampliar el editor",
+  "editor_fullscreen_label": "Editor de mensajes a pantalla completa",
+  "editor_shrink": "Reducir",
+  "editor_shrink_label": "Reducir el editor"
 }

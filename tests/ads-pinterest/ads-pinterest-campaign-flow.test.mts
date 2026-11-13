@@ -1,3 +1,4 @@
+import { withUiCopy } from "../helpers/localized-ui-source.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -70,13 +71,13 @@ test("TikTok draft accounts require valid local identifiers and never permit pub
     assert.equal(parsed.draft?.adAccountId, adAccountId);
     const publication = parseAdsCampaignInput(input, { purpose: "publish" });
     assert.equal(publication.draft, null);
-    assert.match(publication.error || "", /connexion et la publication.*pas encore disponibles/);
+    assert.match(withUiCopy(publication.error || ""), /connexion et la publication.*pas encore disponibles/);
   }
   for (const adAccountId of ["1234", "1".repeat(31), "account_123456", "https://example.com/123456", "123%456"]) {
     const input = campaign("tiktok", adAccountId);
     delete (input as { channelSettings?: unknown }).channelSettings;
     assert.equal(parseAdsCampaignInput(input, { purpose: "draft" }).draft, null);
-    assert.match(parseAdsCampaignInput(input, { purpose: "draft" }).error || "", /identifiant du compte publicitaire est invalide/);
+    assert.match(withUiCopy(parseAdsCampaignInput(input, { purpose: "draft" }).error || ""), /identifiant du compte publicitaire est invalide/);
   }
 });
 
@@ -96,53 +97,53 @@ test("Pinterest preserves draft alternatives but requires an explicit single tit
   assert.deepEqual(parseAdsCampaignInput(input, { purpose: "draft" }).draft?.headlines, input.headlines);
   const published = parseAdsCampaignInput(input, { purpose: "publish" });
   assert.equal(published.draft, null);
-  assert.match(published.error || "", /un seul titre/);
+  assert.match(withUiCopy(published.error || ""), /un seul titre/);
 });
 
 test("the Pinterest OAuth return opens Pinterest and the proposal exposes native review steps", () => {
   const page = readFileSync(path.join(root, "app/dashboard/ads/page.tsx"), "utf8");
   const client = readFileSync(path.join(root, "app/dashboard/ads/AdsClient.tsx"), "utf8");
-  assert.match(page, /isAdsChannelId\(requestedChannel\)/);
-  assert.match(client, /Objectif Pinterest/);
-  assert.match(client, /Audience Pinterest/);
-  assert.match(client, /Découverte Pinterest/);
-  assert.match(client, /Épingle sponsorisée/);
-  assert.match(client, /Format du Pin/);
-  assert.match(client, /Pur média/);
-  assert.match(client, /pinterestFormatStep/);
-  assert.match(client, /Votre média, visible en entier/);
-  assert.match(client, /Destination & mesure/);
-  assert.match(client, /Voir ma proposition Pinterest/);
+  assert.match(withUiCopy(page), /isAdsChannelId\(requestedChannel\)/);
+  assert.match(withUiCopy(client), /Objectif Pinterest/);
+  assert.match(withUiCopy(client), /Audience Pinterest/);
+  assert.match(withUiCopy(client), /Découverte Pinterest/);
+  assert.match(withUiCopy(client), /Épingle sponsorisée/);
+  assert.match(withUiCopy(client), /Format du Pin/);
+  assert.match(withUiCopy(client), /Pur média/);
+  assert.match(withUiCopy(client), /pinterestFormatStep/);
+  assert.match(withUiCopy(client), /Votre média, visible en entier/);
+  assert.match(withUiCopy(client), /Destination & mesure/);
+  assert.match(withUiCopy(client), /Voir ma proposition Pinterest/);
 });
 
 test("Pinterest sépare le format du fichier média et conserve tout le cadrage", () => {
   const client = readFileSync(path.join(root, "app/dashboard/ads/AdsClient.tsx"), "utf8");
   const css = readFileSync(path.join(root, "app/dashboard/ads/ads.module.css"), "utf8");
-  assert.match(client, /hidden=\{step !== pinterestFormatStep\}/);
-  assert.match(client, /hidden=\{step !== mediaStep\}/);
-  assert.match(client, /<CampaignMediaPreview key=/);
-  assert.match(css, /\.studioDedicatedMediaCard \.campaignMediaPreview\{[^}]*height:clamp\(/);
-  assert.match(css, /\.studioDedicatedMediaCard \.campaignMediaPreviewImage[^}]*object-fit:contain/);
-  assert.match(css, /\.studioDedicatedMediaCard \.campaignMediaPreview video\{[^}]*object-fit:contain/);
+  assert.match(withUiCopy(client), /hidden=\{step !== pinterestFormatStep\}/);
+  assert.match(withUiCopy(client), /hidden=\{step !== mediaStep\}/);
+  assert.match(withUiCopy(client), /<CampaignMediaPreview key=/);
+  assert.match(withUiCopy(css), /\.studioDedicatedMediaCard \.campaignMediaPreview\{[^}]*height:clamp\(/);
+  assert.match(withUiCopy(css), /\.studioDedicatedMediaCard \.campaignMediaPreviewImage[^}]*object-fit:contain/);
+  assert.match(withUiCopy(css), /\.studioDedicatedMediaCard \.campaignMediaPreview video\{[^}]*object-fit:contain/);
 });
 
 test("saving a Pinterest proposal stays local and defers live advertiser checks to publication", () => {
   const route = readFileSync(path.join(root, "app/api/ads/campaigns/route.ts"), "utf8");
   const publishRoute = readFileSync(path.join(root, "app/api/ads/campaigns/[id]/publish/route.ts"), "utf8");
-  assert.doesNotMatch(route, /readPinterestAdsIntegration|listPinterestAdsAccounts|listAdsAccounts|listMetaPages|listLinkedInAdsAccounts/);
-  assert.match(route, /Saving is deliberately local/);
-  assert.match(route, /draft\.provider === "pinterest"/);
-  assert.match(publishRoute, /readPinterestAdsIntegration|listPinterestAdsAccounts/);
+  assert.doesNotMatch(withUiCopy(route), /readPinterestAdsIntegration|listPinterestAdsAccounts|listAdsAccounts|listMetaPages|listLinkedInAdsAccounts/);
+  assert.match(withUiCopy(route), /Saving is deliberately local/);
+  assert.match(withUiCopy(route), /draft\.provider === "pinterest"/);
+  assert.match(withUiCopy(publishRoute), /readPinterestAdsIntegration|listPinterestAdsAccounts/);
 });
 
 test("Pinterest environment checks cover the dedicated Ads callback and credential pairing", () => {
   const verifier = readFileSync(path.join(root, "scripts/verify-pinterest-env.mjs"), "utf8");
-  assert.match(verifier, /PINTEREST_ADS_REDIRECT_URI/);
-  assert.match(verifier, /\/api\/ads\/pinterest\/callback/);
-  assert.match(verifier, /Boolean\(adsClientId\) !== Boolean\(adsClientSecret\)/);
-  assert.match(verifier, /ads:read/);
-  assert.match(verifier, /ads:write/);
-  assert.match(verifier, /pins:write/);
+  assert.match(withUiCopy(verifier), /PINTEREST_ADS_REDIRECT_URI/);
+  assert.match(withUiCopy(verifier), /\/api\/ads\/pinterest\/callback/);
+  assert.match(withUiCopy(verifier), /Boolean\(adsClientId\) !== Boolean\(adsClientSecret\)/);
+  assert.match(withUiCopy(verifier), /ads:read/);
+  assert.match(withUiCopy(verifier), /ads:write/);
+  assert.match(withUiCopy(verifier), /pins:write/);
 });
 
 test("the final existing modal adds Active by default and Paused as the alternative", () => {
@@ -155,7 +156,7 @@ test("the final existing modal adds Active by default and Paused as the alternat
   };
   const handler = findHandler(source);
   assert.ok(handler);
-  assert.match(handler.getText(source), /let launchStatus: AdsCampaignLaunchStatus = "active"/);
+  assert.match(withUiCopy(handler.getText(source)), /let launchStatus: AdsCampaignLaunchStatus = "active"/);
   const findGuard = (node: ts.Node): ts.IfStatement | undefined => {
     if (ts.isIfStatement(node) && ts.isExpressionStatement(node.thenStatement)
       && ts.isBinaryExpression(node.thenStatement.expression)
@@ -176,14 +177,14 @@ test("the final existing modal adds Active by default and Paused as the alternat
       `the fresh resource response controls ${status}, never the older account response`);
     }
   }
-  assert.match(handler.getText(source), /const confirmation: DemoDialogState = \{\s*mode: "confirm",\s*channelId,\s*pageId,\s*launchStatus,/);
-  assert.match(handler.getText(source), /setDemoDialog\(confirmation\)/);
-  assert.match(client, /"Lancer la campagne"/);
-  assert.match(client, /"Enregistrer en brouillon"/);
-  assert.match(dialog, /Statut au lancement/);
-  assert.match(dialog, /value="active"/);
-  assert.match(dialog, /value="paused"/);
-  assert.match(client, /mode: paused \? "paused" : "live"/);
+  assert.match(withUiCopy(handler.getText(source)), /const confirmation: DemoDialogState = \{\s*mode: "confirm",\s*channelId,\s*pageId,\s*launchStatus,/);
+  assert.match(withUiCopy(handler.getText(source)), /setDemoDialog\(confirmation\)/);
+  assert.match(withUiCopy(client), /"Lancer la campagne"/);
+  assert.match(withUiCopy(client), /"Enregistrer en brouillon"/);
+  assert.match(withUiCopy(dialog), /Statut au lancement/);
+  assert.match(withUiCopy(dialog), /value="active"/);
+  assert.match(withUiCopy(dialog), /value="paused"/);
+  assert.match(withUiCopy(client), /mode: paused \? "paused" : "live"/);
 });
 
 test("Pinterest publication persists the complete hierarchy and the database unlock", () => {
@@ -191,21 +192,21 @@ test("Pinterest publication persists the complete hierarchy and the database unl
   const contract = readFileSync(path.join(root, "lib/adsPinterestPublish.ts"), "utf8");
   const route = readFileSync(path.join(root, "app/api/ads/campaigns/[id]/publish/route.ts"), "utf8");
   const migration = readFileSync(path.join(root, "supabase/migrations/20260929130000_enable_pinterest_ads_publication.sql"), "utf8");
-  for (const resource of ["campaignId", "adGroupId", "pinId", "adId"]) assert.match(publisher, new RegExp(resource));
-  assert.match(contract, /auto_targeting_enabled: true/);
-  assert.match(contract, /is_removable: true/);
+  for (const resource of ["campaignId", "adGroupId", "pinId", "adId"]) assert.match(withUiCopy(publisher), new RegExp(resource));
+  assert.match(withUiCopy(contract), /auto_targeting_enabled: true/);
+  assert.match(withUiCopy(contract), /is_removable: true/);
   assert.ok(contract.indexOf('path: `${accountPath}/ads`') < contract.indexOf('path: `${accountPath}/campaigns`'));
-  assert.match(publisher, /for \(const step of buildPinterestActivationSteps/);
-  assert.match(publisher, /matchPinterestGeographies\(draft\.targetLocations, native\.locationPayload, native\.geoPayload\)/);
-  assert.match(publisher, /LOCALE: matchPinterestTargetLanguages\(draft\.languages, native\.localePayload\)/);
+  assert.match(withUiCopy(publisher), /for \(const step of buildPinterestActivationSteps/);
+  assert.match(withUiCopy(publisher), /matchPinterestGeographies\(draft\.targetLocations, native\.locationPayload, native\.geoPayload\)/);
+  assert.match(withUiCopy(publisher), /LOCALE: matchPinterestTargetLanguages\(draft\.languages, native\.localePayload\)/);
   const targetingIndex = publisher.indexOf("targetingSpec =");
   const createIndex = publisher.indexOf("const campaignId = batchCreatedId");
   assert.ok(targetingIndex >= 0 && createIndex > targetingIndex, "native targeting is verified before the first campaign creation");
-  assert.match(route, /pinterestAccountCountry = selectedAccount\.country/);
-  assert.match(route, /accountCountry: pinterestAccountCountry/);
-  assert.match(route, /PinterestAdsPublishError/);
-  assert.match(route, /Pinterest Ads Manager/);
-  assert.match(migration, /'meta'::text, 'google'::text, 'pinterest'::text/);
+  assert.match(withUiCopy(route), /pinterestAccountCountry = selectedAccount\.country/);
+  assert.match(withUiCopy(route), /accountCountry: pinterestAccountCountry/);
+  assert.match(withUiCopy(route), /PinterestAdsPublishError/);
+  assert.match(withUiCopy(route), /Pinterest Ads Manager/);
+  assert.match(withUiCopy(migration), /'meta'::text, 'google'::text, 'pinterest'::text/);
 });
 
 test("Pinterest keeps legacy MAX_BID1 and sends native AUTOMATIC_BID without a manual amount", () => {

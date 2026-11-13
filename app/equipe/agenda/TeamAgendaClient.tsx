@@ -1,4 +1,6 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
+import { useTranslations } from "next-intl";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -107,6 +109,7 @@ export default function TeamAgendaClient({
 }: {
   initialViewer: TeamViewer;
 }) {
+  const t = useTranslations("agenda");
   const [appointments, setAppointments] = useState<TeamAppointment[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,7 +160,7 @@ export default function TeamAgendaClient({
         credentials: "same-origin",
       });
       const payload = await response.json().catch(() => ({})) as AppointmentsPayload;
-      if (!response.ok) throw new Error(payload.error || "Impossible de charger les rendez-vous.");
+      if (!response.ok) throw new Error(getSafeClientErrorMessage(payload, "Impossible de charger les rendez-vous."));
       if (!shouldApplyVisioTeamAppointmentsResponse({
         startedMutationRevision: mutationRevision,
         currentMutationRevision: appointmentMutationRevision.current,
@@ -176,7 +179,7 @@ export default function TeamAgendaClient({
         mutationRevision === appointmentMutationRevision.current &&
         !appointmentMutationInFlight.current
       ) {
-        setError(loadError instanceof Error ? loadError.message : "Impossible de charger les rendez-vous.");
+        setError(getSafeClientErrorMessage(loadError, "Impossible de charger les rendez-vous."));
       }
     } finally {
       if (!silent) {
@@ -241,7 +244,7 @@ export default function TeamAgendaClient({
         inrCalendarSynced?: boolean;
       };
       if (!response.ok || !payload.appointment) {
-        throw new Error(payload.error || "La réattribution a échoué.");
+        throw new Error(getSafeClientErrorMessage(payload, "La réattribution a échoué."));
       }
       if (payload.appointment.currentMemberId !== target.id) {
         throw new Error("Google Agenda n’a pas confirmé la nouvelle attribution. Actualisez la liste avant de réessayer.");
@@ -255,10 +258,10 @@ export default function TeamAgendaClient({
         `${appointment.title} est maintenant attribué à ${target.name} dans Google Agenda.`,
       );
       if (payload.inrCalendarSynced === false) {
-        setError("La vue iNrCalendar n’a pas encore confirmé cette attribution. Elle sera resynchronisée automatiquement ; utilisez Actualiser pour vérifier.");
+        setError(t("team_assignment_awaiting_confirmation"));
       }
     } catch (assignmentError) {
-      setError(assignmentError instanceof Error ? assignmentError.message : "La réattribution a échoué.");
+      setError(getSafeClientErrorMessage(assignmentError, "La réattribution a échoué."));
     } finally {
       setAssigningId("");
       endAppointmentMutation();
@@ -274,6 +277,7 @@ export default function TeamAgendaClient({
     reschedulingId,
     resendingId,
     statusUpdatingId,
+    t,
   ]);
 
   const beginReschedule = useCallback((appointment: TeamAppointment) => {
@@ -320,7 +324,7 @@ export default function TeamAgendaClient({
         inrCalendarSynced?: boolean;
       };
       if (!response.ok || !payload.appointment) {
-        throw new Error(payload.error || "Le changement de date a échoué.");
+        throw new Error(getSafeClientErrorMessage(payload, "Le changement de date a échoué."));
       }
       const updatedAppointment = payload.appointment;
       setAppointments((current) => current
@@ -335,10 +339,10 @@ export default function TeamAgendaClient({
         `${appointment.title} a été déplacé au ${formatDay(updatedAppointment.start)} à ${formatTime(updatedAppointment.start, false)}.`,
       );
       if (payload.inrCalendarSynced === false) {
-        setError("Google Agenda a été modifié, mais la vue iNrCalendar attend encore sa synchronisation. Utilisez Actualiser pour vérifier.");
+        setError(t("team_change_awaiting_confirmation"));
       }
     } catch (scheduleError) {
-      setError(scheduleError instanceof Error ? scheduleError.message : "Le changement de date a échoué.");
+      setError(getSafeClientErrorMessage(scheduleError, "Le changement de date a échoué."));
     } finally {
       setReschedulingId("");
       endAppointmentMutation();
@@ -351,6 +355,7 @@ export default function TeamAgendaClient({
     reschedulingId,
     resendingId,
     statusUpdatingId,
+    t,
   ]);
 
   const resendBookingLink = useCallback(async (appointment: TeamAppointment) => {
@@ -401,15 +406,13 @@ export default function TeamAgendaClient({
         sent?: boolean;
       };
       if (!response.ok || payload.sent !== true) {
-        throw new Error(payload.error || "Le lien n’a pas pu être renvoyé.");
+        throw new Error(getSafeClientErrorMessage(payload, "Le lien n’a pas pu être renvoyé."));
       }
       resendDeliveryKeys.current.delete(appointment.id);
       setSuccess("Le lien Google Meet a été renvoyé manuellement au professionnel.");
     } catch (resendError) {
       setError(
-        resendError instanceof Error
-          ? resendError.message
-          : "Le lien n’a pas pu être renvoyé.",
+        getSafeClientErrorMessage(resendError, "Le lien n’a pas pu être renvoyé."),
       );
     } finally {
       setResendingId("");
@@ -454,7 +457,7 @@ export default function TeamAgendaClient({
         inrCalendarSynced?: boolean;
       };
       if (!response.ok || !payload.appointment) {
-        throw new Error(payload.error || "Le changement de statut a échoué.");
+        throw new Error(getSafeClientErrorMessage(payload, "Le changement de statut a échoué."));
       }
       const updatedAppointment = payload.appointment;
       setAppointments((current) =>
@@ -470,13 +473,11 @@ export default function TeamAgendaClient({
           : `${appointment.title} : ${updatedAppointment.statusLabel.toLowerCase()}.`,
       );
       if (payload.inrCalendarSynced === false) {
-        setError("Google Agenda a été modifié, mais la vue iNrCalendar attend encore sa synchronisation. Utilisez Actualiser pour vérifier.");
+        setError(t("team_change_awaiting_confirmation"));
       }
     } catch (statusError) {
       setError(
-        statusError instanceof Error
-          ? statusError.message
-          : "Le changement de statut a échoué.",
+        getSafeClientErrorMessage(statusError, "Le changement de statut a échoué."),
       );
     } finally {
       setStatusUpdatingId("");
@@ -489,6 +490,7 @@ export default function TeamAgendaClient({
     reschedulingId,
     resendingId,
     statusUpdatingId,
+    t,
   ]);
 
   const confirmPendingAppointment = useCallback(async (

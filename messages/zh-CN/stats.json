@@ -550,5 +550,6 @@
   "visibility_index_tracking_hint": "记录满一个月后即可解锁首张图表。",
   "visibility_index_recording_method": "每天根据当时可用的数据保存一个数值。不会用当前数字重新计算过去的数值。未采集数据的日期保持空缺。每个时间段都需要足够且近期的历史数据。",
   "visibility_index_rewards_method": "每个里程碑仅奖励一次可在商店消费的惯性单位。基础奖励：50 / 100 / 200 / 500 UI。解锁时按套餐计算：Basic ×0.5、Standard ×1、Premium ×1.5。更换套餐不会重复发放已获得的里程碑奖励。",
-  "visibility_index_rewards_history_method": "已有历史统计可为达到相应账户年限的用户补发阶段奖励，但不会重建过去的指数值。"
+  "visibility_index_rewards_history_method": "已有历史统计可为达到相应账户年限的用户补发阶段奖励，但不会重建过去的指数值。",
+  "stats_connect_x": "连接 X"
 }

@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
 
@@ -785,7 +786,7 @@ export default function EReputationReviewsClient(props: Props) {
       const nextReview = mergedItems[currentIndex + 1];
       if (nextReview) selectReviewFromSequence(nextReview, currentIndex + 1);
     } catch (error) {
-      const message = error instanceof Error ? error.message : i18nT("unable_load_next_review");
+      const message = getSafeClientErrorMessage(error, i18nT("unable_load_next_review"));
       setListNotice({ type: "error", text: message });
     } finally {
       setLoadingMore(false);
@@ -947,7 +948,7 @@ export default function EReputationReviewsClient(props: Props) {
       }
     } catch (error) {
       if (run !== refreshRunRef.current || error instanceof DiscardedReviewPageError) return;
-      const message = error instanceof Error ? error.message : i18nT("unable_refresh_reviews_source", { value0: platformLabel });
+      const message = getSafeClientErrorMessage(error, i18nT("unable_refresh_reviews_source", { value0: platformLabel }));
       if (!silent) setListNotice({ type: "error", text: message });
       updateActivePlatform((platform) => ({ ...platform, reviewsError: message, ...(props.embedded ? { canReply: false } : {}) }));
     } finally {
@@ -1020,7 +1021,7 @@ export default function EReputationReviewsClient(props: Props) {
       updateActivePlatform((platform) => ({ ...platform, totalReviewCount: total }));
       setCurrentPage(Math.min(cleanTarget, Math.max(1, Math.ceil(accumulated.length / REVIEWS_PAGE_SIZE))));
     } catch (error) {
-      const message = error instanceof Error ? error.message : i18nT("unable_load_review_page");
+      const message = getSafeClientErrorMessage(error, i18nT("unable_load_review_page"));
       setListNotice({ type: "error", text: message });
     } finally {
       setLoadingMore(false);
@@ -1058,7 +1059,7 @@ export default function EReputationReviewsClient(props: Props) {
           : i18nT("reponse_generee_relisez_la_puis_publiez_ab165142", { value0: platformLabel }),
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : i18nT("impossible_de_generer_une_reponse_ia_ebc226a1");
+      const message = getSafeClientErrorMessage(error, i18nT("impossible_de_generer_une_reponse_ia_ebc226a1"));
       setNotice({ type: "error", text: message });
     } finally {
       setGenerating(false);
@@ -1091,7 +1092,7 @@ export default function EReputationReviewsClient(props: Props) {
       setReplyText(publishedComment);
       setNotice({ type: "success", text: i18nT("reponse_publiee_sur_value_f848d3da", { value0: platformLabel }) });
     } catch (error) {
-      const message = error instanceof Error ? error.message : i18nT("impossible_de_publier_la_reponse_value_a883eef2", { value0: platformLabel });
+      const message = getSafeClientErrorMessage(error, i18nT("impossible_de_publier_la_reponse_value_a883eef2", { value0: platformLabel }));
       setNotice({ type: "error", text: message });
     } finally {
       setPublishing(false);
@@ -1127,7 +1128,7 @@ export default function EReputationReviewsClient(props: Props) {
       setReplyText(defaultReplyFor({ ...selectedReview, reply: null, status: "À répondre" }, runtimeT));
       setNotice({ type: "success", text: i18nT("reponse_supprimee_de_value_35d48b8f", { value0: platformLabel }) });
     } catch (error) {
-      const message = error instanceof Error ? error.message : i18nT("impossible_de_supprimer_la_reponse_value_9114adb7", { value0: platformLabel });
+      const message = getSafeClientErrorMessage(error, i18nT("impossible_de_supprimer_la_reponse_value_9114adb7", { value0: platformLabel }));
       setNotice({ type: "error", text: message });
     } finally {
       setDeleting(false);

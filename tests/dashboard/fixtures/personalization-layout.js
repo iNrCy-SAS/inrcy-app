@@ -32,10 +32,10 @@ if(window.fixtureStressContent){
   memory[key]=('Nous préparons un accompagnement adapté aux objectifs du client, avec des exemples concrets, un suivi régulier et des résultats documentés.\n\n'.repeat(40)).slice(0,limit-40)+`\nFin du champ ${key}.`;
  }
 }
-function translate(namespace) {
+function translate(namespace = '') {
   if(translations.has(namespace))return translations.get(namespace);
   const translator=(key,args={})=>{
-    let value=namespace.split('.').reduce((result,k)=>result?.[k],window.catalogues);
+    let value=namespace ? namespace.split('.').reduce((result,k)=>result?.[k],window.catalogues) : window.catalogues;
     value=key.split('.').reduce((result,k)=>result?.[k],value);
     return Object.entries(args).reduce((result,[name,arg])=>result.replaceAll('{'+name+'}',String(arg)),typeof value==='string'?value:key);
   };

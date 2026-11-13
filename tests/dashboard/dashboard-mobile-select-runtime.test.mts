@@ -1,3 +1,4 @@
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -23,6 +24,7 @@ function load(file: string, stubs: Record<string, unknown> = {}, localFetch: typ
   const compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
   const loadedModule = { exports: {} as { default: (props: Props) => ReactNode } };
   const dependency = (name: string): unknown => {
+    if (name === "@/lib/userFacingErrors") return userFacingErrorsFixture;
     if (name === "next/navigation") return { usePathname: () => "/dashboard", ...(stubs[name] as object | undefined) };
     if (Object.hasOwn(stubs, name)) return stubs[name];
     if (name.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "mobile-actor", activeAccountId: "reviews-account" }) };

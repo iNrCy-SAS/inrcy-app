@@ -2398,9 +2398,7 @@ export default function PublishModal({
     // préparer ses sources permet d'afficher le même contrôle avant publication.
     void startPersistentPublicationMediaPreparation().catch((error) => {
       setImgError(
-        error instanceof Error
-          ? error.message
-          : "Impossible de vérifier les images de ce brouillon.",
+        getSimpleFrenchErrorMessage(error, "Impossible de vérifier les images de ce brouillon."),
       );
     });
   }, [
@@ -3699,9 +3697,7 @@ export default function PublishModal({
         })
         .catch((error) =>
           setImgError(
-            error instanceof Error
-              ? error.message
-              : mediaT("ai_generator_insert_error"),
+            getSimpleFrenchErrorMessage(error, mediaT("ai_generator_insert_error")),
           ),
         )
         .finally(() => {
@@ -3733,9 +3729,7 @@ export default function PublishModal({
         })
         .catch((error) =>
           setImgError(
-            error instanceof Error
-              ? error.message
-              : mediaT("ai_generator_insert_error"),
+            getSimpleFrenchErrorMessage(error, mediaT("ai_generator_insert_error")),
           ),
         )
         .finally(() => {
@@ -3751,7 +3745,7 @@ export default function PublishModal({
         if (!inserted) setImgError(mediaT("ai_generator_insert_error"));
       },
     ).catch((error) => {
-      setImgError(error instanceof Error ? error.message : mediaT("ai_generator_insert_error"));
+      setImgError(getSimpleFrenchErrorMessage(error, mediaT("ai_generator_insert_error")));
     }).finally(() => {
       setPendingStudioReturn(null);
       studioReturnApplyingKeyRef.current = "";
@@ -4979,7 +4973,7 @@ export default function PublishModal({
         Boolean(item.canonicalUrl),
     );
     if (!sourceFile && !sourceUrl && !recoveredImage?.canonicalUrl) {
-      setImgError("Cette image n’est plus disponible pour cette action.");
+      setImgError(i18nT("publication_image_unavailable"));
       return;
     }
     studioOpeningRef.current = true;
@@ -5596,7 +5590,7 @@ export default function PublishModal({
           <div className={wizardStyles.execution}>{activeWizardStep === "publication" ? publicationActions : null}</div>
         </PublishWizardScreen>
         <PublishWizardScreen active={activeWizardStep === "results"} step="results">
-          {publicationResult?.error ? <p role="alert" className={wizardStyles.resultError}>{publicationResult.error}</p> : null}
+          {publicationResult?.error ? <p role="alert" className={wizardStyles.resultError}>{getSimpleFrenchErrorMessage(publicationResult.error, i18nT("publication_send_failed"))}</p> : null}
           {activeWizardStep === "results" && publicationResult ? <PublishExecutionResultModal embedded styles={styles} {...publicationResult} publicationDestinations={publicationVisualDestinations} onSummaryChange={handlePublicationSummaryChange} onClose={onClose} /> : null}
         </PublishWizardScreen>
       {showContentWorkspace && workflowSteps ? (

@@ -1,3 +1,4 @@
+import { withUiCopy } from "./helpers/localized-ui-source.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -37,11 +38,11 @@ test("Pinterest génère un portrait cohérent avec le format réellement livré
     targetAudiences: ["propriétaires locaux"],
     mediaBrief: "Une cuisine lumineuse, avec des rangements accessibles.",
   });
-  assert.match(prompt, /Pinterest verticale.*4:5.*1080 × 1350/);
-  assert.match(prompt, /Aménagement de cuisines/);
-  assert.match(prompt, /rangements accessibles/);
-  assert.match(prompt, /jamais une réalisation client attestée/);
-  assert.match(prompt, /Aucun texte incrusté/);
+  assert.match(withUiCopy(prompt), /Pinterest verticale.*4:5.*1080 × 1350/);
+  assert.match(withUiCopy(prompt), /Aménagement de cuisines/);
+  assert.match(withUiCopy(prompt), /rangements accessibles/);
+  assert.match(withUiCopy(prompt), /jamais une réalisation client attestée/);
+  assert.match(withUiCopy(prompt), /Aucun texte incrusté/);
   assert.ok(prompt.length <= 1_800);
   const olderDraftPrompt = pinterestAdsImagePrompt({ name: "Cuisine", offer: "Cuisine", targetAudiences: [], mediaBrief: "Ancien format 2:3. " + "Détail ".repeat(500) });
   assert.ok(olderDraftPrompt.length <= 1_800);
@@ -68,9 +69,9 @@ test("ChatGPT Ads prépare un JPG carré et un brief visuel fidèle au commerce 
     mediaBrief: "Un atelier lumineux avec un vélo sur pied de réparation.",
   });
   assert.ok(prompt.startsWith(CHATGPT_ADS_IMAGE_REQUIREMENTS));
-  assert.match(prompt, /Réparation de vélos à Lille/);
-  assert.match(prompt, /Aucun texte incrusté/);
-  assert.match(prompt, /sans inventer.*approbation par ChatGPT ou OpenAI/);
+  assert.match(withUiCopy(prompt), /Réparation de vélos à Lille/);
+  assert.match(withUiCopy(prompt), /Aucun texte incrusté/);
+  assert.match(withUiCopy(prompt), /sans inventer.*approbation par ChatGPT ou OpenAI/);
   assert.ok(prompt.length <= 1_800);
 });
 
@@ -102,12 +103,12 @@ test("les deux prompts Meta verrouillent les formats publicitaires Feed et Story
   assert.deepEqual(META_ADS_CREATIVE_SPECS.storyReel, {
     outputFormat: "story", aspectRatio: "9:16", width: 1080, height: 1920,
   });
-  assert.match(feedPrompt, /Meta Feed.*4:5.*1080 × 1350/);
-  assert.match(storyReelPrompt, /Story\/Reel.*9:16.*1080 × 1920/);
-  assert.match(storyReelPrompt, /zones dégagées en haut et en bas/);
-  assert.match(feedPrompt, /Audit énergétique pour commerces/);
-  assert.match(feedPrompt, /commerçants locaux/);
-  assert.match(feedPrompt, /Aucun texte lisible/);
+  assert.match(withUiCopy(feedPrompt), /Meta Feed.*4:5.*1080 × 1350/);
+  assert.match(withUiCopy(storyReelPrompt), /Story\/Reel.*9:16.*1080 × 1920/);
+  assert.match(withUiCopy(storyReelPrompt), /zones dégagées en haut et en bas/);
+  assert.match(withUiCopy(feedPrompt), /Audit énergétique pour commerces/);
+  assert.match(withUiCopy(feedPrompt), /commerçants locaux/);
+  assert.match(withUiCopy(feedPrompt), /Aucun texte lisible/);
   assert.ok(feedPrompt.length <= 1_800);
   assert.ok(storyReelPrompt.length <= 1_800);
 });
@@ -126,7 +127,7 @@ test("la readiness Meta exige chaque asset correspondant sans recadrage implicit
   });
   assert.equal(missingStory.ready, false);
   assert.deepEqual(missingStory.missingAssets, ["storyReelImageUrl"]);
-  assert.match(metaCreativeAssetReadinessReason(missingStory) || "", /Story\/Reel 9:16/);
+  assert.match(withUiCopy(metaCreativeAssetReadinessReason(missingStory) || ""), /Story\/Reel 9:16/);
 
   const complete = assessMetaCreativeAssetReadiness({
     metaPlacements: ["facebook_feed", "stories", "reels"],
@@ -147,7 +148,7 @@ test("la readiness Meta exige chaque asset correspondant sans recadrage implicit
   });
   assert.equal(duplicated.ready, false);
   assert.equal(duplicated.reusesSameImageAcrossFormats, true);
-  assert.match(metaCreativeAssetReadinessReason(duplicated) || "", /deux images Meta distinctes/);
+  assert.match(withUiCopy(metaCreativeAssetReadinessReason(duplicated) || ""), /deux images Meta distinctes/);
 
   const unsupported = assessMetaCreativeAssetReadiness({
     metaPlacements: ["messenger"],
@@ -155,46 +156,46 @@ test("la readiness Meta exige chaque asset correspondant sans recadrage implicit
   });
   assert.equal(unsupported.ready, false);
   assert.deepEqual(unsupported.unsupportedPlacements, ["messenger"]);
-  assert.match(metaCreativeAssetReadinessReason(unsupported) || "", /pas Messenger/);
+  assert.match(withUiCopy(metaCreativeAssetReadinessReason(unsupported) || ""), /pas Messenger/);
 });
 
 test("Google Search crée la campagne en pause sans liaison d’image rejetée par Google", () => {
   const publisher = readFileSync(new URL("../lib/adsGooglePublish.ts", import.meta.url), "utf8");
   const route = readFileSync(new URL("../app/api/ads/campaigns/[id]/publish/route.ts", import.meta.url), "utf8");
-  assert.match(publisher, /advertisingChannelType: "SEARCH"/);
-  assert.match(publisher, /responsiveSearchAd:/);
-  assert.match(publisher, /partialFailure: false/);
-  assert.doesNotMatch(publisher, /campaignAssetOperation|adGroupAssetOperation|fieldType: "AD_IMAGE"/);
-  assert.doesNotMatch(route, /prepareGoogleSearchImageAsset/);
-  assert.match(route, /rejectedBeforeCreate \? "draft" : "needs_review"/);
+  assert.match(withUiCopy(publisher), /advertisingChannelType: "SEARCH"/);
+  assert.match(withUiCopy(publisher), /responsiveSearchAd:/);
+  assert.match(withUiCopy(publisher), /partialFailure: false/);
+  assert.doesNotMatch(withUiCopy(publisher), /campaignAssetOperation|adGroupAssetOperation|fieldType: "AD_IMAGE"/);
+  assert.doesNotMatch(withUiCopy(route), /prepareGoogleSearchImageAsset/);
+  assert.match(withUiCopy(route), /rejectedBeforeCreate \? "draft" : "needs_review"/);
 });
 
 test("l’UI ne promet pas de média pour les formats sans média et signale l’échec", () => {
   const generator = readFileSync(new URL("../app/dashboard/ads/AdsCampaignAutoMediaGenerator.tsx", import.meta.url), "utf8");
   const client = ["../app/dashboard/ads/AdsClient.tsx", "../lib/adsCampaignPlanClient.ts"].map((file) => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
-  assert.match(generator, /shouldGenerateAdsMedia/);
-  assert.match(generator, /aucun média n’a été généré/);
-  assert.match(client, /iNr’Studio n’a pas pu créer le média/);
-  assert.match(client, /const hasMediaStep = adsDraftHasMediaStep\(draft\)/);
-  assert.match(client, /\.\.\.\(hasMediaStep \? \[mediaStepName\] : \[\]\)/);
-  assert.match(client, /\{hasMediaStep && <section hidden=\{step !== mediaStep\}/);
-  assert.match(client, /mediaBrief: plan\.mediaBrief,/);
+  assert.match(withUiCopy(generator), /shouldGenerateAdsMedia/);
+  assert.match(withUiCopy(generator), /aucun média n’a été généré/);
+  assert.match(withUiCopy(client), /iNr’Studio n’a pas pu créer le média/);
+  assert.match(withUiCopy(client), /const hasMediaStep = adsDraftHasMediaStep\(draft\)/);
+  assert.match(withUiCopy(client), /\.\.\.\(hasMediaStep \? \[mediaStepName\] : \[\]\)/);
+  assert.match(withUiCopy(client), /\{hasMediaStep && <section hidden=\{step !== mediaStep\}/);
+  assert.match(withUiCopy(client), /mediaBrief: plan\.mediaBrief,/);
 });
 
 test("les campagnes visuelles gardent leur aperçu et Google Search n’annonce pas d’image publiée", () => {
   const client = ["../app/dashboard/ads/AdsClient.tsx", "../lib/adsCampaignPlanClient.ts"].map((file) => readFileSync(new URL(file, import.meta.url), "utf8")).join("\n");
   const css = readFileSync(new URL("../app/dashboard/ads/ads.module.css", import.meta.url), "utf8");
-  assert.match(client, /const attachedCampaignMediaUrl = googleSearchMedia \? draft\.imageUrl : draft\.creativeUrl \|\| draft\.imageUrl/);
-  assert.match(client, /<CampaignMediaPreview key=\{/);
-  assert.match(client, /<Image src=\{url\}/);
-  assert.match(client, /fill unoptimized sizes=/);
-  assert.match(client, /<video src=\{url\}/);
-  assert.match(client, /onError=\{\(\) => setFailed\(true\)\}/);
-  assert.match(client, /Aperçu du média indisponible/);
-  assert.match(client, /googleSearchMedia \? "Annonces textuelles"/);
-  assert.match(client, /Image conservée dans iNrCy/);
-  assert.match(client, /Non jointe à la campagne Google Search/);
-  assert.match(css, /\.campaignMediaPreview\{[^}]*height:clamp\(/);
+  assert.match(withUiCopy(client), /const attachedCampaignMediaUrl = googleSearchMedia \? draft\.imageUrl : draft\.creativeUrl \|\| draft\.imageUrl/);
+  assert.match(withUiCopy(client), /<CampaignMediaPreview key=\{/);
+  assert.match(withUiCopy(client), /<Image src=\{url\}/);
+  assert.match(withUiCopy(client), /fill unoptimized sizes=/);
+  assert.match(withUiCopy(client), /<video src=\{url\}/);
+  assert.match(withUiCopy(client), /onError=\{\(\) => setFailed\(true\)\}/);
+  assert.match(withUiCopy(client), /Aperçu du média indisponible/);
+  assert.match(withUiCopy(client), /googleSearchMedia \? i18nT\("annonces_textuelles_1a75ba49"\)/);
+  assert.match(withUiCopy(client), /Image conservée dans iNrCy/);
+  assert.match(withUiCopy(client), /Non jointe à la campagne Google Search/);
+  assert.match(withUiCopy(css), /\.campaignMediaPreview\{[^}]*height:clamp\(/);
 });
 
 test("le brief Google Search garde les règles visuelles et la pertinence commerciale", () => {
@@ -208,17 +209,17 @@ test("le brief Google Search garde les règles visuelles et la pertinence commer
   };
   const prompt = googleSearchImagePrompt(context);
   const subject = googleSearchImageSubjectPrompt(context);
-  assert.match(prompt, /image publicitaire carrée 1:1/);
-  assert.match(prompt, /80 % centraux/);
-  assert.match(prompt, /Aucun texte lisible/);
-  assert.match(prompt, /logo ajouté/);
-  assert.match(prompt, /page de destination/);
-  assert.match(prompt, /agence communication/);
-  assert.match(subject, /artisans/);
+  assert.match(withUiCopy(prompt), /image publicitaire carrée 1:1/);
+  assert.match(withUiCopy(prompt), /80 % centraux/);
+  assert.match(withUiCopy(prompt), /Aucun texte lisible/);
+  assert.match(withUiCopy(prompt), /logo ajouté/);
+  assert.match(withUiCopy(prompt), /page de destination/);
+  assert.match(withUiCopy(prompt), /agence communication/);
+  assert.match(withUiCopy(subject), /artisans/);
   assert.ok(prompt.startsWith(GOOGLE_SEARCH_IMAGE_REQUIREMENTS));
-  assert.match(prompt, /contraintes priment sur toute direction visuelle contradictoire/);
+  assert.match(withUiCopy(prompt), /contraintes priment sur toute direction visuelle contradictoire/);
   assert.ok(prompt.length <= 1_800);
-  assert.match(planRoute, /Pour Google Search : garde mediaStrategy="search_text" et creativeType="image"/);
-  assert.match(planRoute, /Ne promets pas de composant image/);
-  assert.match(planRoute, /Laisse mediaBrief, imageUrl et creativeUrl vides/);
+  assert.match(withUiCopy(planRoute), /Pour Google Search : garde mediaStrategy="search_text" et creativeType="image"/);
+  assert.match(withUiCopy(planRoute), /Ne promets pas de composant image/);
+  assert.match(withUiCopy(planRoute), /Laisse mediaBrief, imageUrl et creativeUrl vides/);
 });

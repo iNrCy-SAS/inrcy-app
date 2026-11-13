@@ -301,7 +301,7 @@
   "creer_la_facture_d28b4fd5": "สร้างใบแจ้งหนี้",
   "creer_une_campagne_e8dbeefe": "สร้างแคมเปญ",
   "cta_11441d32": "ซีทีเอ",
-  "date_de_fin_716a6d8d": "End date",
+  "date_de_fin_716a6d8d": "วันที่สิ้นสุด",
   "date_eb9a4bc1": "วันที่",
   "date_heure_12c2d703": "วันที่ / เวลา",
   "deconnectee_0f5dae32": "ตัดการเชื่อมต่อแล้ว",
@@ -979,7 +979,7 @@
   "tres_grand_600_px_c870fb51": "ใหญ่มาก (600 พิกเซล)",
   "type_3deb7456": "ประเภท",
   "type_de_campagne_70f9fad7": "ประเภทแคมเปญ",
-  "type_de_media_f54aeeae": "Media type",
+  "type_de_media_f54aeeae": "ประเภทสื่อ",
   "typologie_3b7e8267": "ประเภท",
   "typologie_du_mail_09972fbd": "ประเภทของอีเมล",
   "une_confirmation_sera_demandee_avant_l_5e7f4ea1": "จะมีการขอการยืนยันก่อนที่จะส่ง การป้องกัน โควต้า และการกู้คืนอัตโนมัติจะยังคงใช้งานได้",
@@ -1053,5 +1053,10 @@
   "x_forbidden_url": "X ไม่รองรับรูปแบบลิงก์นี้ โปรดใช้ลิงก์ HTTP หรือ HTTPS",
   "youtube_3f8b5798": "YouTube:",
   "youtube_558865a1": "YouTube",
-  "zones_ciblees_09e322f6": "พื้นที่เป้าหมาย"
+  "zones_ciblees_09e322f6": "พื้นที่เป้าหมาย",
+  "editor_expand": "ขยาย",
+  "editor_expand_label": "ขยายเครื่องมือแก้ไข",
+  "editor_fullscreen_label": "เครื่องมือแก้ไขข้อความแบบเต็มหน้าจอ",
+  "editor_shrink": "ย่อ",
+  "editor_shrink_label": "ย่อเครื่องมือแก้ไข"
 }

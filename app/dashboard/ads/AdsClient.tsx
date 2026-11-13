@@ -1,5 +1,7 @@
 "use client";
 
+import { adsUiText, translateAdsUiChoices, type AdsUiTranslator } from "./adsUiCopy";
+import { useAdsErrorMessage } from "./useAdsErrorMessage";
 import { useInrAssistantAdsCommands } from "../_hooks/useInrAssistantAdsCommands";
 import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
@@ -12,7 +14,7 @@ import { useCallback, useEffect, useEffectEvent, useId, useLayoutEffect, useMemo
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import SettingsDrawer from "@/app/dashboard/SettingsDrawer";
 import { useUnsavedExitGuard } from "@/app/dashboard/_hooks/useUnsavedExitGuard";
 import { getChannelSettingsHeaderStyle } from "@/app/dashboard/channel-settings";
@@ -246,21 +248,21 @@ function linkedInCampaignGroupIsCompatible(group: LinkedInCampaignGroupOption, o
     && (!group.allowedCampaignTypes.length || group.allowedCampaignTypes.includes("SPONSORED_UPDATES"));
 }
 
-function linkedInOrganizationLabel(organization: LinkedInOrganizationOption): string {
+function linkedInOrganizationLabel(organization: LinkedInOrganizationOption, i18nT?: AdsUiTranslator): string {
   const id = organization.urn.split(":").at(-1) || organization.urn;
-  const role = organization.role === "ADMINISTRATOR" ? "Administrateur"
-    : organization.role === "CONTENT_ADMINISTRATOR" ? "Administrateur de contenu" : "Sponsor direct autorisé";
-  return `${organization.name?.trim() || "Page LinkedIn"} · ID ${id} · ${role}`;
+  const role = organization.role === "ADMINISTRATOR" ? adsUiText(i18nT, "Administrateur")
+    : organization.role === "CONTENT_ADMINISTRATOR" ? adsUiText(i18nT, "Administrateur de contenu") : adsUiText(i18nT, "Sponsor direct autorisé");
+  return adsUiText(i18nT, "{value0} · ID {value1} · {value2}", { value0: organization.name?.trim() || adsUiText(i18nT, "Page LinkedIn"), value1: id, value2: role });
 }
 
-function externalStatusDisplay(status: ExternalConnectorStatus): { label: string; tone: string } {
+function externalStatusDisplay(status: ExternalConnectorStatus, i18nT?: AdsUiTranslator): { label: string; tone: string } {
   // A remote refresh must not temporarily hide the durable Ads association.
-  if ((status.load === "idle" || status.load === "loading" || status.load === "error") && status.status === "unknown") return { label: "Vérification…", tone: "loading" };
-  if (!status.configured) return { label: "Connexion indisponible", tone: "unavailable" };
-  if (status.status === "needs_update" || status.status === "needs_reconnect") return { label: "Connexion à actualiser", tone: "select-account" };
-  if (status.connected && status.selectedAccountId) return { label: "Compte associé", tone: "connected" };
-  if (status.connected) return { label: "Compte à associer", tone: "select-account" };
-  return { label: "À connecter", tone: "disconnected" };
+  if ((status.load === "idle" || status.load === "loading" || status.load === "error") && status.status === "unknown") return { label: adsUiText(i18nT, "Vérification…"), tone: "loading" };
+  if (!status.configured) return { label: adsUiText(i18nT, "Connexion indisponible"), tone: "unavailable" };
+  if (status.status === "needs_update" || status.status === "needs_reconnect") return { label: adsUiText(i18nT, "Connexion à actualiser"), tone: "select-account" };
+  if (status.connected && status.selectedAccountId) return { label: adsUiText(i18nT, "Compte associé"), tone: "connected" };
+  if (status.connected) return { label: adsUiText(i18nT, "Compte à associer"), tone: "select-account" };
+  return { label: adsUiText(i18nT, "À connecter"), tone: "disconnected" };
 }
 
 // Every channel can be prepared here. Publication is enabled only for the
@@ -364,6 +366,15 @@ const MEDIA_STRATEGY_OPTIONS: { value: AdsCampaignInput["mediaStrategy"]; label:
   { value: "mixed", label: "Images + vidéos" },
   { value: "product_feed", label: "Flux produits" },
 ];
+const RAW_CHANNEL_CATALOG = CHANNEL_CATALOG;
+const RAW_AI_ANALYSIS_STAGES = AI_ANALYSIS_STAGES;
+const RAW_CAMPAIGN_TYPE_OPTIONS = CAMPAIGN_TYPE_OPTIONS;
+const RAW_OBJECTIVE_OPTIONS = OBJECTIVE_OPTIONS;
+const RAW_CONVERSION_OPTIONS = CONVERSION_OPTIONS;
+const RAW_CONVERSION_LOCATION_OPTIONS = CONVERSION_LOCATION_OPTIONS;
+const RAW_META_PLACEMENT_OPTIONS = META_PLACEMENT_OPTIONS;
+const RAW_MEDIA_STRATEGY_OPTIONS = MEDIA_STRATEGY_OPTIONS;
+
 
 function defaultEndDate() {
   const date = new Date();
@@ -452,34 +463,34 @@ const NATIVE_BRIEF_TERMS: Record<string, string> = {
   audiences: "Audiences existantes", conversions: "Conversions", clicks: "Clics", views: "Vues",
 };
 
-function nativeWizardFormat(settings: AdsChannelWizardSettings): string {
+function nativeWizardFormat(settings: AdsChannelWizardSettings, i18nT?: AdsUiTranslator): string {
   return settings.channel === "pinterest"
-    ? settings.intendedPromotionType === "CATALOG" ? "Catalogue" : nativeBriefTerm(settings.creativeType || "REGULAR")
-    : nativeBriefTerm(settings.format);
+    ? settings.intendedPromotionType === "CATALOG" ? adsUiText(i18nT, "Catalogue") : nativeBriefTerm(settings.creativeType || "REGULAR", i18nT)
+    : nativeBriefTerm(settings.format, i18nT);
 }
 
-function nativeBriefTerm(value: string) {
-  return NATIVE_BRIEF_TERMS[value] || value.replaceAll("_", " ").toLowerCase();
+function nativeBriefTerm(value: string, i18nT?: AdsUiTranslator) {
+  return adsUiText(i18nT, NATIVE_BRIEF_TERMS[value]) || value.replaceAll("_", " ").toLowerCase();
 }
 
-function pinterestTargetingLabel(mode: PinterestWizardSettings["targetingMode"]): string {
+function pinterestTargetingLabel(mode: PinterestWizardSettings["targetingMode"], i18nT?: AdsUiTranslator): string {
   switch (mode) {
-    case "automatic": return "Ciblage automatique — recommandé";
-    case "interests": return "Centres d’intérêt";
-    case "keywords": return "Recherches / mots-clés";
-    case "audiences": return "Audiences existantes";
+    case "automatic": return adsUiText(i18nT, "Ciblage automatique — recommandé");
+    case "interests": return adsUiText(i18nT, "Centres d’intérêt");
+    case "keywords": return adsUiText(i18nT, "Recherches / mots-clés");
+    case "audiences": return adsUiText(i18nT, "Audiences existantes");
   }
 }
 
-function pinterestObjectiveLabel(objective: PinterestWizardSettings["objectiveType"]): string {
+function pinterestObjectiveLabel(objective: PinterestWizardSettings["objectiveType"], i18nT?: AdsUiTranslator): string {
   const availability = objective === "AWARENESS" || objective === "CONSIDERATION"
-    ? "publiable aujourd’hui"
-    : "brouillon";
-  return `${nativeBriefTerm(objective)} · ${availability}`;
+    ? adsUiText(i18nT, "publiable aujourd’hui")
+    : adsUiText(i18nT, "brouillon");
+  return `${nativeBriefTerm(objective, i18nT)} · ${availability}`;
 }
 
-function pinterestCreativeLabel(creative: Exclude<PinterestWizardSettings["creativeType"], null>): string {
-  return `${nativeBriefTerm(creative)} · ${creative === "REGULAR" ? "publiable aujourd’hui" : "brouillon"}`;
+function pinterestCreativeLabel(creative: Exclude<PinterestWizardSettings["creativeType"], null>, i18nT?: AdsUiTranslator): string {
+  return `${nativeBriefTerm(creative, i18nT)} · ${creative === "REGULAR" ? adsUiText(i18nT, "publiable aujourd’hui") : adsUiText(i18nT, "brouillon")}`;
 }
 
 function xPostWeightedLength(value: string) {
@@ -487,25 +498,25 @@ function xPostWeightedLength(value: string) {
   return Array.from(value.replace(/https?:\/\/\S+/g, "")).length + urls.length * 23;
 }
 
-function nativeBriefDetails(brief: AdsChannelDraft) {
+function nativeBriefDetails(brief: AdsChannelDraft, i18nT?: AdsUiTranslator) {
   switch (brief.channel) {
     case "linkedin":
-      return { objective: nativeBriefTerm(brief.objectiveType), format: nativeBriefTerm(brief.format),
-        settings: `Langue ${brief.locale.language.toUpperCase()} · Pays ${brief.locale.country}`,
-        complement: brief.creative.leadFormBrief ? `Formulaire à préparer : ${brief.creative.leadFormBrief}` : "Audience professionnelle à confirmer dans le compte" };
+      return { objective: nativeBriefTerm(brief.objectiveType, i18nT), format: nativeBriefTerm(brief.format, i18nT),
+        settings: adsUiText(i18nT, "Langue {value0} · Pays {value1}", { value0: brief.locale.language.toUpperCase(), value1: brief.locale.country }),
+        complement: brief.creative.leadFormBrief ? adsUiText(i18nT, "Formulaire à préparer : {value0}", { value0: brief.creative.leadFormBrief }) : adsUiText(i18nT, "Audience professionnelle à confirmer dans le compte") };
     case "tiktok":
-      return { objective: nativeBriefTerm(brief.objectiveType), format: "Vidéo verticale",
-        settings: `${nativeBriefTerm(brief.placementIntent)} · Optimisation : ${nativeBriefTerm(brief.optimizationIntent)} · Destination : ${nativeBriefTerm(brief.destinationKind)}`,
-        complement: brief.creative.conversionEventBrief ? `Action à mesurer : ${brief.creative.conversionEventBrief}` : "Vidéo et identité publicitaire à choisir" };
+      return { objective: nativeBriefTerm(brief.objectiveType, i18nT), format: adsUiText(i18nT, "Vidéo verticale"),
+        settings: adsUiText(i18nT, "{value0} · Optimisation : {value1} · Destination : {value2}", { value0: nativeBriefTerm(brief.placementIntent, i18nT), value1: nativeBriefTerm(brief.optimizationIntent, i18nT), value2: nativeBriefTerm(brief.destinationKind, i18nT) }),
+        complement: brief.creative.conversionEventBrief ? adsUiText(i18nT, "Action à mesurer : {value0}", { value0: brief.creative.conversionEventBrief }) : adsUiText(i18nT, "Vidéo et identité publicitaire à choisir") };
     case "pinterest":
-      return { objective: nativeBriefTerm(brief.objectiveType),
-        format: `${nativeBriefTerm(brief.intendedPromotionType)}${brief.creativeType ? ` · ${nativeBriefTerm(brief.creativeType)}` : ""}`,
-        settings: `Ciblage : ${pinterestTargetingLabel(brief.targetingMode)}${brief.conversionEvent ? ` · Action : ${nativeBriefTerm(brief.conversionEvent)}` : ""}`,
-        complement: brief.intendedPromotionType === "CATALOG" ? "Catalogue et produits à confirmer dans le compte" : "Épingle et visuel à choisir" };
+      return { objective: nativeBriefTerm(brief.objectiveType, i18nT),
+        format: `${nativeBriefTerm(brief.intendedPromotionType, i18nT)}${brief.creativeType ? ` · ${nativeBriefTerm(brief.creativeType, i18nT)}` : ""}`,
+        settings: adsUiText(i18nT, "Ciblage : {value0}{value1}", { value0: pinterestTargetingLabel(brief.targetingMode, i18nT), value1: brief.conversionEvent ? adsUiText(i18nT, " · Action : {value0}", { value0: nativeBriefTerm(brief.conversionEvent, i18nT) }) : "" }),
+        complement: brief.intendedPromotionType === "CATALOG" ? adsUiText(i18nT, "Catalogue et produits à confirmer dans le compte") : adsUiText(i18nT, "Épingle et visuel à choisir") };
     case "x":
-      return { objective: nativeBriefTerm(brief.objective), format: nativeBriefTerm(brief.format),
-        settings: `Ciblage : ${nativeBriefTerm(brief.targetingMode)}${brief.keywords?.length ? ` · ${brief.keywords.join(", ")}` : ""}`,
-        complement: "Publication et compte de financement à confirmer" };
+      return { objective: nativeBriefTerm(brief.objective, i18nT), format: nativeBriefTerm(brief.format, i18nT),
+        settings: adsUiText(i18nT, "Ciblage : {value0}{value1}", { value0: nativeBriefTerm(brief.targetingMode, i18nT), value1: brief.keywords?.length ? ` · ${brief.keywords.join(", ")}` : "" }),
+        complement: adsUiText(i18nT, "Publication et compte de financement à confirmer") };
   }
 }
 
@@ -692,6 +703,7 @@ function CampaignTextarea({ value, className, ...props }: ComponentPropsWithoutR
 
 /** Reuses iNrCy's established microphone/transcription control in the Ads studio. */
 function VoiceTextarea({ value, onChange, placeholder, purpose, contextLabel, rows = 3, maxLength }: VoiceTextareaProps) {
+  const i18nT = useTranslations("booster");
   const [voiceBusy, setVoiceBusy] = useState(false);
   const lengthHintId = useId();
   const tooLong = maxLength !== undefined && value.length > maxLength;
@@ -715,13 +727,14 @@ function VoiceTextarea({ value, onChange, placeholder, purpose, contextLabel, ro
         onBusyChange={setVoiceBusy}
         onChange={onChange}
       />
-      {tooLong && <small id={lengthHintId} className={styles.copyLengthError} role="status">{value.length} / {maxLength} caractères : reformulez ce texte avant publication. Il est conservé en entier.</small>}
+      {tooLong && <small id={lengthHintId} className={styles.copyLengthError} role="status">{value.length} / {maxLength} {" "}{i18nT("caracteres_reformulez_ce_texte_avant_publication_3dce037e")}</small>}
     </div>
   );
 }
 
 /** A compact, keyboard-friendly editor for campaign choices such as territories. */
 function TagField({ className, label, helper, values, onChange, placeholder, note, wide = false, maxItems, maxItemLength, getTagStatus }: TagFieldProps) {
+  const i18nT = useTranslations("booster");
   const [pendingValue, setPendingValue] = useState("");
   const [tagError, setTagError] = useState("");
 
@@ -733,7 +746,7 @@ function TagField({ className, label, helper, values, onChange, placeholder, not
 
     if (!additions.length) return;
     if (maxItemLength && additions.some((value) => value.length > maxItemLength)) {
-      setTagError(`Chaque expression doit contenir au plus ${maxItemLength} caractères.`);
+      setTagError(i18nT("chaque_expression_doit_contenir_au_plus_1bed6c22", { value0: maxItemLength }));
       return;
     }
 
@@ -747,9 +760,9 @@ function TagField({ className, label, helper, values, onChange, placeholder, not
 
     const remaining = maxItems === undefined ? uniqueAdditions.length : Math.max(0, maxItems - values.length);
     if (remaining) onChange([...values, ...uniqueAdditions.slice(0, remaining)]);
-    setTagError(uniqueAdditions.length > remaining ? `Limite de ${maxItems} expressions atteinte.` : "");
+    setTagError(maxItems !== undefined && uniqueAdditions.length > remaining ? i18nT("ads_tag_limit", { max: maxItems }) : "");
     setPendingValue("");
-  }, [maxItemLength, maxItems, onChange, values]);
+  }, [i18nT, maxItemLength, maxItems, onChange, values]);
 
   return (
     <div className={`${styles.field} ${styles.tagField}${wide ? ` ${styles.studioWide}` : ""}${className ? ` ${className}` : ""}`}>
@@ -766,8 +779,8 @@ function TagField({ className, label, helper, values, onChange, placeholder, not
             data-verified={status?.verified || undefined}
             data-rejected={status?.rejected || undefined}
             onClick={() => onChange(values.filter((_, valueIndex) => valueIndex !== index))}
-            aria-label={`Retirer ${value}${status ? ` · ${status.label}` : ""}`}
-            title={`${value}${status ? ` · ${status.label}` : ""} · Retirer`}
+            aria-label={i18nT("retirer_value_value_0243405c", { value0: value, value1: status ? ` · ${status.label}` : "" })}
+            title={i18nT("value_value_retirer_db4f2de0", { value0: value, value1: status ? ` · ${status.label}` : "" })}
           >
             <span>{value}</span>{status && <small className={styles.tagChipStatus}>{status.label}</small>}<span aria-hidden="true">×</span>
           </button>
@@ -793,8 +806,8 @@ function TagField({ className, label, helper, values, onChange, placeholder, not
           }}
           maxLength={maxItemLength}
           disabled={maxItems !== undefined && values.length >= maxItems}
-          placeholder={values.length ? "Ajouter un choix…" : placeholder}
-          aria-label={`Ajouter : ${label}`}
+          placeholder={values.length ? i18nT("ajouter_un_choix_0c96b67b") : placeholder}
+          aria-label={i18nT("ajouter_value_84c3a399", { value0: label })}
         />
         <MediaSubjectVoiceButton
           placement="inline"
@@ -806,11 +819,10 @@ function TagField({ className, label, helper, values, onChange, placeholder, not
           onChange={addValues}
         />
         <button type="button" className={styles.tagAddButton} onClick={() => addValues(pendingValue)} disabled={!pendingValue.trim() || maxItems !== undefined && values.length >= maxItems}>
-          Ajouter
-        </button>
+          {i18nT("ajouter_87c57ed1")}{" "}</button>
       </div>
       {note ? <small className={styles.tagFieldNote}>{note}</small> : null}
-      {maxItems !== undefined && <small className={styles.tagFieldNote}>{values.length} / {maxItems} expressions{maxItemLength ? ` · ${maxItemLength} caractères par expression` : ""}</small>}
+      {maxItems !== undefined && <small className={styles.tagFieldNote}>{i18nT("ads_tag_count", { count: values.length, max: maxItems })}{maxItemLength ? i18nT("value_caracteres_par_expression_f1ce5aa1", { value0: maxItemLength }) : ""}</small>}
       {tagError && <small className={styles.tagFieldError} role="alert">{tagError}</small>}
     </div>
   );
@@ -822,6 +834,8 @@ function PinterestLocationSearch({ accountId, locations, onChange, catalog }: {
   locations: string[];
   onChange: (locations: string[]) => void;
 }) {
+  const i18nT = useTranslations("booster");
+  const errorMessage = useAdsErrorMessage();
   const inputId = useId();
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<PinterestGeographyOption[]>([]);
@@ -868,28 +882,28 @@ function PinterestLocationSearch({ accountId, locations, onChange, catalog }: {
     } catch (cause) {
       if (requestId !== requestRef.current) return;
       setState("error");
-      setError(cause instanceof Error ? cause.message : "La recherche Pinterest est indisponible. Réessayez.");
+      setError(errorMessage(cause, "shell.ads_error_e56e628680"));
     }
   }
 
   return <div className={styles.pinterestLocationSearch}>
-    <label htmlFor={inputId}>Rechercher une zone Pinterest</label>
-    <p>Si votre ville n’est pas proposée, choisissez une zone adaptée et retirez la ville ci-dessus.</p>
+    <label htmlFor={inputId}>{i18nT("rechercher_une_zone_pinterest_1c4317bf")}</label>
+    <p>{i18nT("si_votre_ville_n_est_pas_43d3b08c")}</p>
     <div className={styles.pinterestLocationSearchActions}>
-      <input id={inputId} value={query} maxLength={100} placeholder="Ex. Hauts-de-France, Bretagne, Belgique" disabled={!accountId} onChange={(event) => { requestRef.current += 1; setQuery(event.target.value); setPageIndex(0); setOptions([]); setState("idle"); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void search(); } }} />
-      <button type="button" className={styles.secondaryButton} disabled={!accountId || query.trim().length < 2 || state === "loading"} onClick={() => void search()}>{state === "loading" ? "Recherche…" : "Rechercher"}</button>
+      <input id={inputId} value={query} maxLength={100} placeholder={i18nT("ex_hauts_de_france_bretagne_belgique_63b06cd5")} disabled={!accountId} onChange={(event) => { requestRef.current += 1; setQuery(event.target.value); setPageIndex(0); setOptions([]); setState("idle"); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void search(); } }} />
+      <button type="button" className={styles.secondaryButton} disabled={!accountId || query.trim().length < 2 || state === "loading"} onClick={() => void search()}>{state === "loading" ? i18nT("recherche_af776274") : i18nT("rechercher_91f7d3e9")}</button>
     </div>
-    {!accountId && <small>Associez votre compte Pinterest dans la configuration du canal pour rechercher les zones disponibles.</small>}
+    {!accountId && <small>{i18nT("associez_votre_compte_pinterest_dans_la_f54dac45")}</small>}
     {state === "error" && <small role="alert" className={styles.copyLengthError}>{error}</small>}
-    {state === "ready" && !options.length && <small role="status">Aucune zone Pinterest ne correspond. Essayez le département ou la région que vous souhaitez réellement couvrir.</small>}
-    {options.length > 0 && <ul aria-label="Zones proposées par Pinterest" className={styles.pinterestLocationOptions}>{options.slice(visiblePage * 3, (visiblePage + 1) * 3).map((option) => {
+    {state === "ready" && !options.length && <small role="status">{i18nT("aucune_zone_pinterest_ne_correspond_essayez_669bbeef")}</small>}
+    {options.length > 0 && <ul aria-label={i18nT("zones_proposees_par_pinterest_6d2eff72")} className={styles.pinterestLocationOptions}>{options.slice(visiblePage * 3, (visiblePage + 1) * 3).map((option) => {
       const selected = locations.some((location) => location.trim().toLocaleLowerCase("fr-FR") === option.name.trim().toLocaleLowerCase("fr-FR"));
-      return <li key={`${option.type}-${option.id}`}><span><strong>{option.name}</strong><small>{option.kind === "country" ? "Pays entier" : option.kind === "region" ? "Région" : "Zone locale Pinterest"}</small></span><button type="button" className={styles.secondaryButton} disabled={selected || locations.length >= 20} aria-label={`${selected ? "Zone ajoutée" : "Ajouter"} : ${option.name}`} onClick={() => onChange([...locations, option.name])}>{selected ? "Ajoutée" : "Ajouter"}</button></li>;
+      return <li key={`${option.type}-${option.id}`}><span><strong>{option.name}</strong><small>{option.kind === "country" ? i18nT("pays_entier_74fc74dd") : option.kind === "region" ? i18nT("region_357f27de") : i18nT("zone_locale_pinterest_0e404710")}</small></span><button type="button" className={styles.secondaryButton} disabled={selected || locations.length >= 20} aria-label={`${selected ? i18nT("ads_ui_2f5cb6b354") : i18nT("ajouter_87c57ed1")} : ${option.name}`} onClick={() => onChange([...locations, option.name])}>{selected ? i18nT("ajoutee_c9e775ef") : i18nT("ajouter_87c57ed1")}</button></li>;
     })}</ul>}
-    {options.length > 3 && <nav className={styles.googleAdCopyPagination} aria-label="Parcourir les zones Pinterest">
-      <button type="button" aria-label="Zones précédentes" disabled={visiblePage === 0} onClick={() => setPageIndex(visiblePage - 1)}>←</button>
-      <span aria-live="polite">Page {visiblePage + 1} / {pageCount}</span>
-      <button type="button" aria-label="Zones suivantes" disabled={visiblePage >= pageCount - 1} onClick={() => setPageIndex(visiblePage + 1)}>→</button>
+    {options.length > 3 && <nav className={styles.googleAdCopyPagination} aria-label={i18nT("parcourir_les_zones_pinterest_515b967e")}>
+      <button type="button" aria-label={i18nT("zones_precedentes_82ebae73")} disabled={visiblePage === 0} onClick={() => setPageIndex(visiblePage - 1)}>←</button>
+      <span aria-live="polite">{i18nT("page_fb06270f")}{" "}{visiblePage + 1} / {pageCount}</span>
+      <button type="button" aria-label={i18nT("zones_suivantes_4eaac66a")} disabled={visiblePage >= pageCount - 1} onClick={() => setPageIndex(visiblePage + 1)}>→</button>
     </nav>}
   </div>;
 }
@@ -899,6 +913,8 @@ function GoogleLocationSearch({ accountId, locations, onChange }: {
   locations: string[];
   onChange: (locations: string[]) => void;
 }) {
+  const i18nT = useTranslations("booster");
+  const errorMessage = useAdsErrorMessage();
   const inputId = useId();
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<GoogleLocationOption[]>([]);
@@ -936,34 +952,35 @@ function GoogleLocationSearch({ accountId, locations, onChange }: {
     } catch (cause) {
       if (requestId !== requestRef.current) return;
       setState("error");
-      setError(cause instanceof Error ? cause.message : "La recherche Google Ads est indisponible. Réessayez.");
+      setError(errorMessage(cause, "shell.ads_error_9ffbae53c0"));
     }
   }
 
   return <div className={styles.pinterestLocationSearch}>
-    <label htmlFor={inputId}>Rechercher une ville ou une région</label>
-    <p>Choisissez le lieu exact. « Préciser » remplace le nom court par la zone choisie.</p>
+    <label htmlFor={inputId}>{i18nT("rechercher_une_ville_ou_une_region_1d41776a")}</label>
+    <p>{i18nT("choisissez_le_lieu_exact_preciser_remplace_bf21864a")}</p>
     <div className={styles.pinterestLocationSearchActions}>
-      <input id={inputId} value={query} maxLength={120} placeholder="Ex. Lille, Arras, Hauts-de-France" disabled={!accountId} onChange={(event) => { requestRef.current += 1; setQuery(event.target.value); setPageIndex(0); setOptions([]); setState("idle"); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void search(); } }} />
-      <button type="button" className={styles.secondaryButton} disabled={!accountId || query.trim().length < 2 || state === "loading"} onClick={() => void search()}>{state === "loading" ? "Recherche…" : "Rechercher"}</button>
+      <input id={inputId} value={query} maxLength={120} placeholder={i18nT("ex_lille_arras_hauts_de_france_09b07e80")} disabled={!accountId} onChange={(event) => { requestRef.current += 1; setQuery(event.target.value); setPageIndex(0); setOptions([]); setState("idle"); setError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void search(); } }} />
+      <button type="button" className={styles.secondaryButton} disabled={!accountId || query.trim().length < 2 || state === "loading"} onClick={() => void search()}>{state === "loading" ? i18nT("recherche_af776274") : i18nT("rechercher_91f7d3e9")}</button>
     </div>
-    {!accountId && <small>Associez votre compte Google Ads dans la configuration du canal pour rechercher les zones disponibles.</small>}
+    {!accountId && <small>{i18nT("associez_votre_compte_google_ads_dans_12aba457")}</small>}
     {state === "error" && <small role="alert" className={styles.copyLengthError}>{error}</small>}
-    {state === "ready" && !options.length && <small role="status">Aucune zone Google ne correspond. Précisez le nom de la ville et son pays, ou recherchez votre région.</small>}
-    {options.length > 0 && <ul aria-label="Zones proposées par Google Ads" className={styles.pinterestLocationOptions}>{options.slice(visiblePage * 3, (visiblePage + 1) * 3).map((option) => {
+    {state === "ready" && !options.length && <small role="status">{i18nT("aucune_zone_google_ne_correspond_precisez_ded09ddc")}</small>}
+    {options.length > 0 && <ul aria-label={i18nT("zones_proposees_par_google_ads_ba270613")} className={styles.pinterestLocationOptions}>{options.slice(visiblePage * 3, (visiblePage + 1) * 3).map((option) => {
       const replacesName = option.name.toLocaleLowerCase("fr-FR") !== option.canonicalName.toLocaleLowerCase("fr-FR") && locations.some((location) => location.trim().toLocaleLowerCase("fr-FR") === option.name.toLocaleLowerCase("fr-FR"));
       const selected = !replacesName && locations.some((location) => location.trim().toLocaleLowerCase("fr-FR") === option.canonicalName.toLocaleLowerCase("fr-FR"));
-      return <li key={option.id}><span><strong>{option.canonicalName}</strong><small>Pays : {option.country}</small></span><button type="button" className={styles.secondaryButton} disabled={selected || !replacesName && locations.length >= 20} aria-label={`${selected ? "Zone ajoutée" : replacesName ? "Préciser la zone" : "Ajouter"} : ${option.canonicalName}`} onClick={() => onChange(selectGoogleTargetLocation(locations, option))}>{selected ? "Ajoutée" : replacesName ? "Préciser" : "Ajouter"}</button></li>;
+      return <li key={option.id}><span><strong>{option.canonicalName}</strong><small>{i18nT("pays_value_14b2a4e7", { value0: option.country })}</small></span><button type="button" className={styles.secondaryButton} disabled={selected || !replacesName && locations.length >= 20} aria-label={`${selected ? i18nT("ads_ui_2f5cb6b354") : replacesName ? i18nT("ads_ui_9c09660f51") : i18nT("ajouter_87c57ed1")} : ${option.canonicalName}`} onClick={() => onChange(selectGoogleTargetLocation(locations, option))}>{selected ? i18nT("ajoutee_c9e775ef") : replacesName ? i18nT("preciser_4ad8dc1a") : i18nT("ajouter_87c57ed1")}</button></li>;
     })}</ul>}
-    {options.length > 3 && <nav className={styles.googleAdCopyPagination} aria-label="Parcourir les zones Google">
-      <button type="button" aria-label="Zones précédentes" disabled={visiblePage === 0} onClick={() => setPageIndex(visiblePage - 1)}>←</button>
-      <span aria-live="polite">Page {visiblePage + 1} / {pageCount}</span>
-      <button type="button" aria-label="Zones suivantes" disabled={visiblePage >= pageCount - 1} onClick={() => setPageIndex(visiblePage + 1)}>→</button>
+    {options.length > 3 && <nav className={styles.googleAdCopyPagination} aria-label={i18nT("parcourir_les_zones_google_dc32b625")}>
+      <button type="button" aria-label={i18nT("zones_precedentes_82ebae73")} disabled={visiblePage === 0} onClick={() => setPageIndex(visiblePage - 1)}>←</button>
+      <span aria-live="polite">{i18nT("page_fb06270f")}{" "}{visiblePage + 1} / {pageCount}</span>
+      <button type="button" aria-label={i18nT("zones_suivantes_4eaac66a")} disabled={visiblePage >= pageCount - 1} onClick={() => setPageIndex(visiblePage + 1)}>→</button>
     </nav>}
   </div>;
 }
 
 function GoogleAdCopyField({ label, singular, values, onChange, minItems, maxItems, maxLength }: GoogleAdCopyFieldProps) {
+  const i18nT = useTranslations("booster");
   const rows = Array.from({ length: Math.max(minItems, values.length) }, (_, index) => values[index] ?? "");
   const fieldId = useId();
   const tooLong = rows.some((value) => value.length > maxLength);
@@ -976,7 +993,7 @@ function GoogleAdCopyField({ label, singular, values, onChange, minItems, maxIte
   return (
     <fieldset className={`${styles.field} ${styles.googleAdCopyField}`}>
       <legend>{label}</legend>
-      <small>{minItems} minimum · {maxItems} maximum · {maxLength} caractères par {singular.toLowerCase()}</small>
+      <small>{i18nT("value_minimum_value_maximum_value_caracteres_44aafcec", { value0: minItems, value1: maxItems, value2: maxLength, value3: singular.toLowerCase() })}</small>
       <div className={styles.googleAdCopyRows} data-copy-kind={maxLength === 30 ? "headline" : "description"}>
         {rows.slice(startIndex, startIndex + pageSize).map((value, offset) => {
           const index = startIndex + offset;
@@ -991,18 +1008,18 @@ function GoogleAdCopyField({ label, singular, values, onChange, minItems, maxIte
               placeholder={`${singular} ${index + 1}`}
               onChange={(event) => onChange(rows.map((entry, rowIndex) => rowIndex === index ? event.target.value.replace(/\r?\n/g, " ") : entry))}
             />
-            <span id={`${fieldId}-${index}-count`} data-invalid={value.length > maxLength || undefined} aria-label={`${value.length} caractères sur ${maxLength}`}>{value.length}/{maxLength}</span>
-            {rows.length > minItems && <button type="button" aria-label={`Retirer ${singular.toLowerCase()} ${index + 1}`} title={`Retirer ${singular.toLowerCase()} ${index + 1}`} onClick={() => onChange(rows.filter((_, rowIndex) => rowIndex !== index))}>×</button>}
+            <span id={`${fieldId}-${index}-count`} data-invalid={value.length > maxLength || undefined} aria-label={i18nT("value_caracteres_sur_value_7aa129ff", { value0: value.length, value1: maxLength })}>{value.length}/{maxLength}</span>
+            {rows.length > minItems && <button type="button" aria-label={i18nT("retirer_value_value_7070f3a7", { value0: singular.toLowerCase(), value1: index + 1 })} title={i18nT("retirer_value_value_7070f3a7", { value0: singular.toLowerCase(), value1: index + 1 })} onClick={() => onChange(rows.filter((_, rowIndex) => rowIndex !== index))}>×</button>}
           </div>;
         })}
       </div>
-      {pageCount > 1 && <nav className={styles.googleAdCopyPagination} aria-label={`Parcourir les ${label.toLowerCase()}`}>
-        <button type="button" aria-label={`${label} précédents`} disabled={visiblePage === 0} onClick={() => setPageIndex(visiblePage - 1)}>←</button>
-        <span aria-live="polite">{startIndex + 1}–{Math.min(startIndex + pageSize, rows.length)} sur {rows.length}</span>
-        <button type="button" aria-label={`${label} suivants`} disabled={visiblePage === pageCount - 1} onClick={() => setPageIndex(visiblePage + 1)}>→</button>
+      {pageCount > 1 && <nav className={styles.googleAdCopyPagination} aria-label={i18nT("parcourir_les_value_fa00ff99", { value0: label.toLowerCase() })}>
+        <button type="button" aria-label={i18nT("value_precedents_391400c5", { value0: label })} disabled={visiblePage === 0} onClick={() => setPageIndex(visiblePage - 1)}>←</button>
+        <span aria-live="polite">{i18nT("ads_copy_pagination", { first: startIndex + 1, last: Math.min(startIndex + pageSize, rows.length), total: rows.length })}</span>
+        <button type="button" aria-label={i18nT("ads_ui_2a0422379f", { value0: label })} disabled={visiblePage === pageCount - 1} onClick={() => setPageIndex(visiblePage + 1)}>→</button>
       </nav>}
-      {tooLong && <small className={styles.copyLengthError} role="status">Reformulez les textes trop longs : aucune phrase ne sera coupée pour respecter la limite.</small>}
-      {rows.length < maxItems && <button type="button" className={styles.googleAdCopyAdd} onClick={() => { onChange([...rows, ""]); setPageIndex(Math.floor(rows.length / pageSize)); }}>+ Ajouter {singular === "Titre" ? "un titre" : "une description"}</button>}
+      {tooLong && <small className={styles.copyLengthError} role="status">{i18nT("reformulez_les_textes_trop_longs_aucune_7e1aec51")}</small>}
+      {rows.length < maxItems && <button type="button" className={styles.googleAdCopyAdd} onClick={() => { onChange([...rows, ""]); setPageIndex(Math.floor(rows.length / pageSize)); }}>{i18nT("ajouter_daff7acf")}{" "}{singular === i18nT("titre_eb97899a") ? i18nT("un_titre_0365c1ba") : i18nT("une_description_da1b7d04")}</button>}
     </fieldset>
   );
 }
@@ -1040,31 +1057,32 @@ function CampaignMediaPreview({
   campaignName: string;
   onChooseMedia: () => void;
 }) {
+  const i18nT = useTranslations("booster");
   const previewable = (url.startsWith("/") && !url.startsWith("//")) || /^https:\/\//i.test(url);
   const [failed, setFailed] = useState(!previewable);
 
   return <div className={styles.campaignMediaPreview} data-type={type}>
     {failed ? <div className={styles.campaignMediaPreviewFallback} role="status">
-      <strong>Aperçu du média indisponible</strong>
-      <p>Vérifiez son lien ou choisissez un autre média dans votre médiathèque.</p>
+      <strong>{i18nT("apercu_du_media_indisponible_7b910c42")}</strong>
+      <p>{i18nT("verifiez_son_lien_ou_choisissez_un_f458f392")}</p>
       <div>
-        {previewable && <button type="button" onClick={() => setFailed(false)}>Réessayer</button>}
-        <button type="button" onClick={onChooseMedia}>Choisir un autre média</button>
+        {previewable && <button type="button" onClick={() => setFailed(false)}>{i18nT("reessayer_895d416b")}</button>}
+        <button type="button" onClick={onChooseMedia}>{i18nT("choisir_un_autre_media_6bb71cd7")}</button>
       </div>
     </div> : type === "video"
-      ? <video src={url} aria-label="Aperçu de la vidéo associée à la campagne" onError={() => setFailed(true)} controls playsInline preload="metadata" />
-      : <Image src={url} alt={`Aperçu de l’image associée à la campagne ${campaignName}`} onError={() => setFailed(true)} fill unoptimized sizes="(max-width: 800px) 100vw, 70vw" className={styles.campaignMediaPreviewImage} />}
+      ? <video src={url} aria-label={i18nT("apercu_de_la_video_associee_a_08842953")} onError={() => setFailed(true)} controls playsInline preload="metadata" />
+      : <Image src={url} alt={i18nT("apercu_de_l_image_associee_a_33b353ce", { value0: campaignName })} onError={() => setFailed(true)} fill unoptimized sizes="(max-width: 800px) 100vw, 70vw" className={styles.campaignMediaPreviewImage} />}
   </div>;
 }
 
-function campaignPromise(channel: AdsChannelId) {
+function campaignPromise(channel: AdsChannelId, i18nT?: AdsUiTranslator) {
   if (channel === "google") {
-    return "Quand une personne recherche précisément votre service, une campagne Google Ads bien pensée vous place au bon moment, devant la bonne intention.";
+    return adsUiText(i18nT, "Quand une personne recherche précisément votre service, une campagne Google Ads bien pensée vous place au bon moment, devant la bonne intention.");
   }
   if (channel === "meta") {
-    return "Une campagne Meta Ads bien pensée transforme votre expertise en une rencontre utile avec les personnes qui peuvent devenir vos clients.";
+    return adsUiText(i18nT, "Une campagne Meta Ads bien pensée transforme votre expertise en une rencontre utile avec les personnes qui peuvent devenir vos clients.");
   }
-  return "Une campagne claire donne à votre expertise la place qu’elle mérite auprès des personnes prêtes à vous découvrir.";
+  return adsUiText(i18nT, "Une campagne claire donne à votre expertise la place qu’elle mérite auprès des personnes prêtes à vous découvrir.");
 }
 
 export default function AdsClient({ initialChannel, initialEditCampaignId, initialConnections, initialConnection, initialReason, metaPublishingEnabled, googlePublishingEnabled, pinterestPublishingEnabled, pilotChannelsEnabled }: {
@@ -1078,6 +1096,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   pinterestPublishingEnabled: boolean;
   pilotChannelsEnabled: boolean;
 }) {
+  const locale = useLocale();
+  const i18nT = useTranslations("booster");
+  const { CHANNEL_CATALOG, AI_ANALYSIS_STAGES, CAMPAIGN_TYPE_OPTIONS, OBJECTIVE_OPTIONS, CONVERSION_OPTIONS, CONVERSION_LOCATION_OPTIONS, META_PLACEMENT_OPTIONS, MEDIA_STRATEGY_OPTIONS } = useMemo(() => ({ CHANNEL_CATALOG: translateAdsUiChoices(RAW_CHANNEL_CATALOG, i18nT), AI_ANALYSIS_STAGES: translateAdsUiChoices(RAW_AI_ANALYSIS_STAGES, i18nT), CAMPAIGN_TYPE_OPTIONS: translateAdsUiChoices(RAW_CAMPAIGN_TYPE_OPTIONS, i18nT), OBJECTIVE_OPTIONS: translateAdsUiChoices(RAW_OBJECTIVE_OPTIONS, i18nT), CONVERSION_OPTIONS: translateAdsUiChoices(RAW_CONVERSION_OPTIONS, i18nT), CONVERSION_LOCATION_OPTIONS: translateAdsUiChoices(RAW_CONVERSION_LOCATION_OPTIONS, i18nT), META_PLACEMENT_OPTIONS: translateAdsUiChoices(RAW_META_PLACEMENT_OPTIONS, i18nT), MEDIA_STRATEGY_OPTIONS: translateAdsUiChoices(RAW_MEDIA_STRATEGY_OPTIONS, i18nT) }), [i18nT]);
+  const errorMessage = useAdsErrorMessage();
   const router = useRouter();
   const channelT = useTranslations("dashboard.signatureTools");
   const comingSoonLabel = channelT("comingSoon");
@@ -1313,10 +1335,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setGoogleResources(resources); setGoogleResourcesLoad("ready");
     }).catch((error) => {
       if (abort.signal.aborted) return;
-      setGoogleResourcesLoad("error"); setGoogleResourcesError(error instanceof Error ? error.message : "Le compte Google Ads n’a pas pu être vérifié.");
+      setGoogleResourcesLoad("error"); setGoogleResourcesError(errorMessage(error, "shell.ads_error_a34ca7af67"));
     });
     return () => abort.abort();
-  }, [creating, channelId, googleResourceAccountId, googleResourcesRevision]);
+  }, [creating, channelId, googleResourceAccountId, googleResourcesRevision, errorMessage]);
 
   const googleLocationsKey = JSON.stringify(draft.targetLocations);
   const googleGeoKey = JSON.stringify({ accountId: googleResourceAccountId, locations: draft.targetLocations });
@@ -1345,10 +1367,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       }
     }).catch((error) => {
       if (abort.signal.aborted) return;
-      setGoogleGeoState({ key: googleGeoKey, status: "error", error: error instanceof Error ? error.message : "Les zones Google Ads n’ont pas pu être vérifiées." });
+      setGoogleGeoState({ key: googleGeoKey, status: "error", error: errorMessage(error, "shell.ads_error_a437df8c28") });
     });
     return () => abort.abort();
-  }, [creating, channelId, draft.campaignType, googleResourceAccountId, googleGeoKey, googleLocationsKey, googleGeoRevision, configuredAccountId]);
+  }, [creating, channelId, draft.campaignType, googleResourceAccountId, googleGeoKey, googleLocationsKey, googleGeoRevision, configuredAccountId, errorMessage]);
 
   const preparedDelivery = draft.preparedDeliverySettings || defaultPreparedDeliverySettings();
   const preparedOnlyChannel = channelId === "x" || channelId === "tiktok";
@@ -1356,11 +1378,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const effectiveTikTokResources = tikTokResources?.selectedAccountId === tikTokAccountId && tikTokResources.account.id === tikTokAccountId ? tikTokResources : null;
   const preparedTimeZone = channelId === "tiktok" ? effectiveTikTokResources?.account.timezone || "Europe/Paris" : preparedXResources?.account.timeZone || "Europe/Paris";
   const tikTokIdentityMessage = effectiveTikTokResources?.identities.length === 1
-    ? `Identité autorisée disponible : ${effectiveTikTokResources.identities[0].displayName}. Son utilisation sera revérifiée avant la publication.`
+    ? i18nT("ads_ui_21e30ba750", { value0: effectiveTikTokResources.identities[0].displayName })
     : effectiveTikTokResources?.identities.length
-      ? `${effectiveTikTokResources.identities.length} identités autorisées disponibles. L’identité et le mode de publication seront confirmés lors du branchement de diffusion.`
-      : tikTokResourcesLoad === "loading" ? "Vérification des identités TikTok en cours."
-        : tikTokResourcesError || "Une identité publicitaire sera vérifiée après connexion de l’application API TikTok.";
+      ? i18nT("ads_ui_a9a2856029", { value0: effectiveTikTokResources.identities.length })
+      : tikTokResourcesLoad === "loading" ? i18nT("ads_ui_915a03a7dd")
+        : tikTokResourcesError || i18nT("ads_ui_58dd743ffd");
   function updatePreparedDelivery(next: Partial<PreparedDeliverySettings>) { updateDraft({ preparedDeliverySettings: { ...preparedDelivery, ...next } }); }
   useEffect(() => {
     if (!creating || channelId !== "tiktok" || !externalStatuses.tiktok.selectedAccountId || !externalStatuses.tiktok.connected) {
@@ -1377,10 +1399,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setTikTokResources(resources); setTikTokResourcesLoad("ready");
     }).catch((error) => {
       if (abort.signal.aborted) return;
-      setTikTokResourcesLoad("error"); setTikTokResourcesError(error instanceof Error ? error.message : "Les ressources TikTok ne sont pas encore accessibles.");
+      setTikTokResourcesLoad("error"); setTikTokResourcesError(errorMessage(error, "shell.ads_error_d377ac66e5"));
     });
     return () => abort.abort();
-  }, [creating, channelId, externalStatuses.tiktok.selectedAccountId, externalStatuses.tiktok.connected, tikTokResourcesRevision]);
+  }, [creating, channelId, externalStatuses.tiktok.selectedAccountId, externalStatuses.tiktok.connected, tikTokResourcesRevision, errorMessage]);
 
   const metaDelivery = draft.metaDeliverySettings || defaultMetaDeliverySettings();
   const metaResourceAccountId = configuredAccountId || draft.adAccountId;
@@ -1408,10 +1430,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setMetaResources(resources); setMetaResourcesLoad("ready");
     }).catch((error) => {
       if (abort.signal.aborted) return;
-      setMetaResourcesLoad("error"); setMetaResourcesError(error instanceof Error ? error.message : "Le compte Meta n’a pas pu être vérifié.");
+      setMetaResourcesLoad("error"); setMetaResourcesError(errorMessage(error, "shell.ads_error_7b0e6d3fbf"));
     });
     return () => abort.abort();
-  }, [creating, channelId, metaResourceAccountId, configuredPageId, metaResourcesRevision]);
+  }, [creating, channelId, metaResourceAccountId, configuredPageId, metaResourcesRevision, errorMessage]);
   useEffect(() => {
     if (!creating || channelId !== "meta" || !effectiveMetaResources) return;
     try {
@@ -1425,9 +1447,9 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const metaGeoKey = JSON.stringify({ accountId: metaResourceAccountId, locations: draft.targetLocations });
   const metaGeoReady = draft.metaDeliverySettings ? metaGeoState.key === metaGeoKey && metaGeoState.ready : draft.targetLocations.length > 0;
   const metaResolvedLanguages = useMemo(() => {
-    try { return { ids: effectiveMetaResources ? resolveMetaAdsLanguages(effectiveMetaResources, draft.languages) : [], error: effectiveMetaResources ? "" : "Vérification des langues Meta en cours." }; }
-    catch (error) { return { ids: [], error: error instanceof Error ? error.message : "Choisissez une langue vérifiée par Meta." }; }
-  }, [effectiveMetaResources, draft.languages]);
+    try { return { ids: effectiveMetaResources ? resolveMetaAdsLanguages(effectiveMetaResources, draft.languages) : [], error: effectiveMetaResources ? "" : i18nT("ads_ui_b189eb1173") }; }
+    catch (error) { return { ids: [], error: errorMessage(error, "shell.ads_error_ea9b7b0211") }; }
+  }, [effectiveMetaResources, draft.languages, errorMessage, i18nT]);
   const openaiDelivery = draft.openaiDeliverySettings || defaultOpenaiDeliverySettings();
   const openaiResourceAccountId = connectionSnapshots.openai.accountId || draft.adAccountId;
   const effectiveOpenaiResources = openaiResources?.selectedAccountId === openaiResourceAccountId ? openaiResources : null;
@@ -1456,11 +1478,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setOpenaiResources(resources); setOpenaiResourcesLoad("ready");
     }).catch((error) => {
       if (abort.signal.aborted) return;
-      setOpenaiResourcesLoad("error"); setOpenaiResourcesError(error instanceof Error ? error.message : "Le compte et les zones ChatGPT Ads n’ont pas pu être vérifiés.");
+      setOpenaiResourcesLoad("error"); setOpenaiResourcesError(errorMessage(error, "shell.ads_error_51c61a39cc"));
     });
     return () => abort.abort();
     // The search text is sent only when the professional requests a search.
-  }, [creating, channelId, openaiResourceAccountId, openaiLocationsKey, openaiResourcesRevision]);
+  }, [creating, channelId, openaiResourceAccountId, openaiLocationsKey, openaiResourcesRevision, errorMessage]);
   const openaiGeoReady = Boolean(effectiveOpenaiResources && draft.targetLocations.length && draft.targetLocations.every((label) => {
     const key = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
     return effectiveOpenaiResources.geographyOptions.some((option) => key(option.name) === key(label) || key(option.canonicalName) === key(label));
@@ -1499,21 +1521,21 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setPinterestResources(resources); setPinterestResourcesLoad("ready");
     }).catch((error) => {
       if (abort.signal.aborted) return;
-      setPinterestResourcesLoad("error"); setPinterestResourcesError(error instanceof Error ? error.message : "Le compte Pinterest Ads n’a pas pu être vérifié.");
+      setPinterestResourcesLoad("error"); setPinterestResourcesError(errorMessage(error, "shell.ads_error_c7ffdb2c41"));
     });
     return () => abort.abort();
-  }, [creating, channelId, pinterestResourceAccountId, pinterestResourcesRevision]);
+  }, [creating, channelId, pinterestResourceAccountId, pinterestResourcesRevision, errorMessage]);
   const pinterestResolvedGeography = useMemo(() => {
-    if (!effectivePinterestResources || pinterestResourcesLoad !== "ready") return { zones: [], error: pinterestResourcesError || "Vérification des zones et des langues Pinterest en cours." };
+    if (!effectivePinterestResources || pinterestResourcesLoad !== "ready") return { zones: [], error: pinterestResourcesError || i18nT("ads_ui_056be3f4d6") };
     try { return { zones: resolvePinterestAdsGeographies(effectivePinterestResources, draft.targetLocations), error: "" }; }
-    catch (error) { return { zones: [], error: error instanceof Error ? error.message : "Les zones Pinterest n’ont pas pu être vérifiées." }; }
-  }, [effectivePinterestResources, pinterestResourcesLoad, pinterestResourcesError, draft.targetLocations]);
+    catch (error) { return { zones: [], error: errorMessage(error, "shell.ads_error_057ad8295d") }; }
+  }, [effectivePinterestResources, pinterestResourcesLoad, pinterestResourcesError, draft.targetLocations, errorMessage, i18nT]);
   const pinterestGeoReady = pinterestResolvedGeography.zones.length > 0 && !pinterestResolvedGeography.error;
   const pinterestResolvedLanguages = useMemo(() => {
-    if (!effectivePinterestResources) return { ids: [], error: "Vérification des langues Pinterest en cours." };
+    if (!effectivePinterestResources) return { ids: [], error: i18nT("verification_des_langues_pinterest_en_cours_a65b0d97") };
     try { return { ids: matchPinterestTargetLanguages(draft.languages, effectivePinterestResources.locales.map((locale) => ({ [locale.id]: locale.name }))), error: "" }; }
-    catch (error) { return { ids: [], error: error instanceof Error ? error.message : "Vérifiez les langues Pinterest." }; }
-  }, [effectivePinterestResources, draft.languages]);
+    catch (error) { return { ids: [], error: errorMessage(error, "shell.ads_error_26cac3b30e") }; }
+  }, [effectivePinterestResources, draft.languages, errorMessage, i18nT]);
 
   function resetStepProgress(nextStep: number, availableStepKeys: AdsDraftStepKey[] = stepKeys) {
     const boundedStep = Math.max(0, Math.min(availableStepKeys.length - 1, nextStep));
@@ -1584,12 +1606,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     shortMedia.addEventListener("change", update);
     return () => { media.removeEventListener("change", update); shortMedia.removeEventListener("change", update); };
   }, []);
-  const [notice, setNotice] = useState(initialConnection === "error" ? /Meta.*HTTPS/i.test(initialReason) ? "Pour connecter Meta Ads, ouvrez iNrCy depuis son adresse sécurisée (HTTPS)." : initialReason || "La connexion publicitaire n’a pas abouti." : "");
+  const [notice, setNotice] = useState(initialConnection === "error" ? errorMessage(initialReason, /Meta.*HTTPS/i.test(initialReason) ? "shell.ads_error_secure_connection" : "shell.ads_error_d82764b915") : "");
 
   const applyProviderAccountsResult = useCallback((channel: AdsProvider, result: AccountResponse, announce: boolean) => {
     if (result.connected && result.error) {
       // A temporary discovery error does not invalidate the stored association.
-      if (announce) setNotice(result.error);
+      if (announce) setNotice(errorMessage(result, channel === "google" ? "shell.ads_error_a34ca7af67" : "shell.ads_error_7b0e6d3fbf"));
       return;
     }
     const nextAccounts = result.accounts || [];
@@ -1636,10 +1658,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
     if (!announce) return;
     if (result.connectionStatus === "needs_update") {
-      setNotice(`La connexion ${channel === "google" ? "Google Ads" : "Meta Ads"} doit être actualisée avant de charger vos comptes.`);
+      setNotice(i18nT("la_connexion_value_doit_etre_actualisee_67b072cc", { value0: channel === "google" ? "Google Ads" : "Meta Ads" }));
     }
-    if (result.error) setNotice(result.error);
-  }, []);
+    if (result.error) setNotice(errorMessage(result, channel === "google" ? "shell.ads_error_a34ca7af67" : "shell.ads_error_7b0e6d3fbf"));
+  }, [errorMessage, i18nT]);
 
   const selectedAccount = isAdsProvider(channelId) ? accounts.find((account) => account.id === draft.adAccountId) : undefined;
   const configuredAdvertiserAccount = isAdsProvider(channelId)
@@ -1651,7 +1673,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     ? pages.find((page) => page.id === configuredPageId)
     : undefined;
   const channelMeta = CHANNEL_CATALOG.find((channel) => channel.id === channelId) || CHANNEL_CATALOG[0];
-  const campaignCreationTitle = `Créer une campagne ${CAMPAIGN_CHANNEL_NAMES[channelId]}`;
+  const campaignCreationTitle = i18nT("ads_ui_4617896f39", { value0: CAMPAIGN_CHANNEL_NAMES[channelId] });
   const externalSettingsChannel: ExternalChannelId = isExternalChannel(channelId) ? channelId : "linkedin";
   const activeExternalStatus = isExternalChannel(channelId) ? externalStatuses[channelId] : null;
   // LinkedIn has its own rollout gate. A durable account snapshot is not a
@@ -1674,26 +1696,26 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       : Boolean(activeExternalStatus?.connected && activeExternalStatus.selectedAccountId);
   const reviewAccountStatusLabel = reviewAccountReady
     ? isExternalChannel(channelId)
-      ? "Compte annonceur associé"
+      ? i18nT("ads_ui_2da62dc8dc")
       : channelId === "meta"
       ? metaNeedsInstagramIdentity
-        ? "Compte, Page et Instagram associés"
-        : "Compte et Page Facebook associés"
-      : "Compte annonceur associé"
+        ? i18nT("ads_ui_bddd5fe438")
+        : i18nT("ads_ui_7c34a19c81")
+      : i18nT("ads_ui_2da62dc8dc")
     : channelId === "openai" && connectionSnapshots.openai.accountId
-      ? "Compte associé · vérification API et revue de marque nécessaires"
+      ? i18nT("ads_ui_78d65de141")
     : channelId === "meta" && draft.pageId && draft.pageId !== configuredPageId
-      ? "Identité Meta sélectionnée · association à confirmer"
+      ? i18nT("ads_ui_3ba2513419")
     : channelId === "meta" && configuredAccountId && configuredPageId && metaNeedsInstagramIdentity
-      ? "Compte et Page associés · Instagram requis pour ces placements"
+      ? i18nT("ads_ui_d8d5a427b6")
       : isExternalChannel(channelId) && activeExternalStatus?.selectedAccountId
-        ? "Compte associé · accès à vérifier"
+        ? i18nT("ads_ui_bad98b961a")
       : configuredAccountId
-        ? "Compte associé · accès à vérifier"
+        ? i18nT("ads_ui_bad98b961a")
         : isExternalChannel(channelId)
-          ? "Compte annonceur à connecter · brouillon enregistrable"
-          : channelId === "openai" ? "Ajoutez la clé Advertiser API du compte ChatGPT Ads"
-          : "Associez un compte pour créer la démo en pause";
+          ? i18nT("ads_ui_893ed8cbcf")
+          : channelId === "openai" ? i18nT("ads_ui_d4d6326460")
+          : i18nT("ads_ui_b99f519026");
 
   const refreshOpenaiStatus = useCallback(async () => {
     try {
@@ -1736,11 +1758,23 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     for (const channel of EXTERNAL_CHANNELS) if (pilotChannelsEnabled || isAdsPublicChannel(channel)) void refreshExternalStatus(channel, { silent: true });
   }, [pilotChannelsEnabled, refreshExternalStatus]);
 
+  const onExternalConnectionError = useEffectEvent((callbackChannel: ExternalChannelId, reason: string | null) => {
+    if (callbackChannel === "linkedin") {
+      setExternalError(adsUiText(i18nT, linkedInAdsConnectionErrorMessage(reason)));
+    } else if (callbackChannel === "tiktok" && reason === "ads_access_missing") {
+      setExternalError(i18nT("ads_external_tiktok_no_account"));
+    } else if (callbackChannel === "tiktok" && reason === "provider_response_invalid") {
+      setExternalError(i18nT("ads_external_tiktok_invalid_accounts"));
+    } else {
+      setExternalError(errorMessage({ code: reason, error: reason }, "shell.ads_error_d82764b915"));
+    }
+  });
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const callbackChannel = params.get("channel");
     if (!isExternalChannel(callbackChannel) || (!pilotChannelsEnabled && !isAdsPublicChannel(callbackChannel))) return;
-    const index = CHANNEL_CATALOG.findIndex((channel) => channel.id === callbackChannel);
+    const index = RAW_CHANNEL_CATALOG.findIndex((channel) => channel.id === callbackChannel);
     setChannelIndex(index);
     setChannelId(callbackChannel);
     setDraft((current) => current.provider === callbackChannel ? current : newDraft(callbackChannel));
@@ -1750,12 +1784,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       clearExternalAccountsCache(callbackChannel);
       void refreshExternalStatus(callbackChannel);
       if (params.get("connection") === "error") {
-        const reason = params.get("reason");
-        setExternalError(callbackChannel === "linkedin" ? linkedInAdsConnectionErrorMessage(reason) : callbackChannel === "tiktok" && reason === "ads_access_missing"
-          ? "Aucun compte annonceur TikTok Ads n’est accessible avec cette connexion. Terminez la création de votre compte dans TikTok Ads Manager, ou reconnectez-vous avec le compte qui gère vos publicités."
-          : callbackChannel === "tiktok" && reason === "provider_response_invalid"
-            ? "TikTok n’a pas renvoyé une liste de comptes valide. Réessayez plus tard."
-            : reason || "La connexion n’a pas abouti. Réessayez.");
+        onExternalConnectionError(callbackChannel, params.get("reason"));
       }
       params.delete("connection");
       params.delete("reason");
@@ -1868,10 +1897,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         }
         applyProviderAccountsResult(activeProvider, result, true);
       })
-      .catch((error) => { if (active) setNotice(error instanceof Error ? error.message : "Connexion publicitaire indisponible."); })
+      .catch((error) => { if (active) setNotice(errorMessage(error, "shell.ads_error_d82764b915")); })
       .finally(() => { if (active) setLoadingAccounts(false); });
     return () => { active = false; };
-  }, [accountsRefreshRevisions, applyProviderAccountsResult, channelId, pilotChannelsEnabled]);
+  }, [accountsRefreshRevisions, applyProviderAccountsResult, channelId, pilotChannelsEnabled, errorMessage]);
 
   function changeProvider(next: AdsProvider) {
     setChannelIndex(CHANNEL_CATALOG.findIndex((channel) => channel.provider === next));
@@ -1941,7 +1970,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       if (channel) {
         if (!pilotChannelsEnabled && !isAdsPublicChannel(channel)) return false;
         if (channel === channelId) return true;
-        if (dirty && !await confirmInrcy({ title: "Changer de canal publicitaire ?", message: "Le formulaire actuel contient des modifications non enregistrées. Le changement de canal ouvre une autre campagne et abandonne cette saisie. Enregistrez d’abord le brouillon pour la conserver.", confirmLabel: "Changer sans enregistrer", cancelLabel: "Conserver ma saisie", variant: "warning" })) return false;
+        if (dirty && !await confirmInrcy({ title: i18nT("changer_de_canal_publicitaire_167032bc"), message: i18nT("le_formulaire_actuel_contient_des_modifications_c8371b7a"), confirmLabel: i18nT("changer_sans_enregistrer_4e7c2f78"), cancelLabel: i18nT("conserver_ma_saisie_f7040665"), variant: "warning" })) return false;
         if (!isCurrent()) return false;
         selectChannel(CHANNEL_CATALOG.findIndex(item => item.id === channel));
         return true;
@@ -2149,7 +2178,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       if (context !== linkedInPreflightContext.current) return;
       if (signature !== linkedInLatestPreflightSignature.current) { setLinkedInPreflightLoad("idle"); return; }
       setLinkedInPreflightLoad("error");
-      setLinkedInPreflightError(error instanceof Error ? error.message : "Ressources LinkedIn Ads indisponibles.");
+      setLinkedInPreflightError(errorMessage(error, "shell.ads_error_1a0b7135ec"));
     }
   }
 
@@ -2213,7 +2242,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       draft.keywords,
     );
     if (transition.requiresConfirmation && !window.confirm(
-      `Passer au ciblage automatique retirera ${transition.removedSignalCount} ${transition.removedSignalCount > 1 ? "signaux manuels" : "signal manuel"} de cette campagne. Continuer ?`,
+      i18nT("ads_remove_manual_signals_confirmation", { count: transition.removedSignalCount }),
     )) return;
     updateNativeSettings({ ...nativeSettings, targetingMode });
     if (targetingMode === "automatic") updateDraft({ keywords: transition.keywords });
@@ -2221,7 +2250,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
   function clearPinterestManualSignals() {
     if (nativeSettings?.channel !== "pinterest" || nativeSettings.targetingMode !== "automatic" || draft.keywords.length === 0) return;
-    if (!window.confirm("Retirer les signaux manuels restants pour rendre le ciblage automatique publiable ?")) return;
+    if (!window.confirm(i18nT("retirer_les_signaux_manuels_restants_pour_c7401285"))) return;
     updateDraft({ keywords: [] });
   }
 
@@ -2232,35 +2261,35 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   ) {
     const url = String(item.signed_url || "").trim();
     if (!url) {
-      setCampaignMediaUploadError("Ce média ne peut pas encore être utilisé : son lien sécurisé est indisponible.");
+      setCampaignMediaUploadError(i18nT("ce_media_ne_peut_pas_encore_9b44cbe3"));
       return;
     }
     const mediaType = item.media_type === "video" ? "video" : "image";
     if (channelId === "openai") {
       if (mediaType !== "image" || !isMediaLibraryContentReference(url)) {
-        setCampaignMediaUploadError("Choisissez une image enregistrée dans votre médiathèque iNrCy pour ChatGPT Ads.");
+        setCampaignMediaUploadError(i18nT("choisissez_une_image_enregistree_dans_votre_bda19ed1"));
         return;
       }
       if (item.mime_type && item.mime_type !== "image/jpeg" && item.mime_type !== "image/png" && item.mime_type !== "image/webp") {
-        setCampaignMediaUploadError("Ce parcours ChatGPT Ads accepte une image JPG, PNG ou WebP.");
+        setCampaignMediaUploadError(i18nT("ce_parcours_chatgpt_ads_accepte_une_0652418f"));
         return;
       }
       if (item.size_bytes && item.size_bytes > CHATGPT_ADS_MAX_IMAGE_BYTES) {
-        setCampaignMediaUploadError("L’image ChatGPT Ads ne doit pas dépasser 20 Mo.");
+        setCampaignMediaUploadError(i18nT("l_image_chatgpt_ads_ne_doit_9b4800e0"));
         return;
       }
       if (item.width && item.height && (item.width !== item.height || item.width < CHATGPT_ADS_MIN_IMAGE_SIDE_PX)) {
-        setCampaignMediaUploadError(`Choisissez une image carrée d’au moins ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} × ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} pixels pour ChatGPT Ads.`);
+        setCampaignMediaUploadError(i18nT("choisissez_une_image_carree_d_au_dc993ac4", { value0: CHATGPT_ADS_MIN_IMAGE_SIDE_PX, value1: CHATGPT_ADS_MIN_IMAGE_SIDE_PX }));
         return;
       }
     }
     if (channelId === "meta") {
       if (mediaType !== "image") {
-        setCampaignMediaUploadError("Le pack Meta Ads utilise ici des images publicitaires. Choisissez une image pour ce format.");
+        setCampaignMediaUploadError(i18nT("le_pack_meta_ads_utilise_ici_a32cac07"));
         return;
       }
       if (!requestedMetaSlot) {
-        setCampaignMediaUploadError("Choisissez d’abord le format Meta Feed ou Story/Reel à compléter.");
+        setCampaignMediaUploadError(i18nT("choisissez_d_abord_le_format_meta_634b5349"));
         return;
       }
       setMetaMediaFormatStatus((current) => ({ ...current, [requestedMetaSlot]: "checking" }));
@@ -2283,7 +2312,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       return;
     }
     if (channelId === "google" && draft.campaignType === "search" && mediaType !== "image") {
-      setCampaignMediaUploadError("Google Search accepte ici une image en complément de l’annonce texte, pas une vidéo. Choisissez une image.");
+      setCampaignMediaUploadError(i18nT("google_search_accepte_ici_une_image_41dd326e"));
       return;
     }
     setDraft((current) => {
@@ -2350,9 +2379,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       });
     } catch (error) {
       setCampaignMediaUploadError(
-        error instanceof Error
-          ? error.message
-          : `Impossible d’ajouter cette ${expectedType === "video" ? "vidéo" : "image"} à la campagne.`,
+        errorMessage(error, expectedType === "video" ? "shell.ads_error_005d9154fe" : "shell.ads_error_58903e47f6"),
       );
     } finally {
       setCampaignMediaUploadBusy(false);
@@ -2366,7 +2393,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
   async function saveAccountSelection() {
     if (!draft.adAccountId) {
-      setNotice("Choisissez d’abord un compte annonceur en euros.");
+      setNotice(i18nT("choisissez_d_abord_un_compte_annonceur_73cb8501"));
       return;
     }
     setConfigAction("save-account");
@@ -2396,7 +2423,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       } }));
       setNotice("");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Impossible de sélectionner ce compte annonceur.");
+      setNotice(errorMessage(error, "shell.ads_error_4d475624c6"));
     } finally {
       setConfigAction(null);
     }
@@ -2404,7 +2431,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
 
   async function savePageSelection() {
     if (!draft.pageId) {
-      setNotice("Choisissez d’abord une identité Facebook ou Instagram.");
+      setNotice(i18nT("choisissez_d_abord_une_identite_facebook_576b61d2"));
       return;
     }
     setConfigAction("save-page");
@@ -2422,7 +2449,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setConnectionSnapshots((current) => ({ ...current, meta: { ...current.meta, pageId: selectedPageId, pageAvailable: true } }));
       setNotice("");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Impossible de sélectionner cette identité publicitaire.");
+      setNotice(errorMessage(error, "shell.ads_error_95635d1113"));
     } finally {
       setConfigAction(null);
     }
@@ -2462,7 +2489,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         setNotice("");
       }
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Impossible de dissocier cette sélection.");
+      setNotice(errorMessage(error, "shell.ads_error_710d90716a"));
     } finally {
       setConfigAction(null);
     }
@@ -2494,7 +2521,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       updateDraft({ adAccountId: "", pageId: provider === "meta" ? "" : draft.pageId });
       setNotice("");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Impossible de déconnecter ce canal publicitaire.");
+      setNotice(errorMessage(error, "shell.ads_error_0d6bc28f5e"));
     } finally {
       setConfigAction(null);
     }
@@ -2589,7 +2616,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       if (generationRevision !== planGenerationRevision.current) return;
       const requestError = error as AdsApiRequestError;
       setPlanRequestId(typeof requestError?.requestId === "string" ? requestError.requestId : "");
-      setPlanError(error instanceof Error ? error.message : "La génération iNrCy a échoué.");
+      setPlanError(errorMessage(error, "shell.ads_error_3fdf998321"));
       stopPlanProgress();
       planProgressTarget.current = 0;
       planProgressValue.current = 0;
@@ -2684,11 +2711,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     shouldBlock: (dirty && creationPath !== "choice") || busy === "plan" || busy === "demo" || busy === "save",
     onConfirmExit: () => closeCampaignCreation(),
     ...(busy === "demo" || busy === "save" ? { onBlockedExit: async () => false } : {}),
-    eyebrow: "CAMPAGNE EN COURS",
-    title: "Quitter cette campagne ?",
-    message: "Votre campagne contient des informations non enregistrées. En quittant maintenant, votre proposition et vos modifications seront perdues.",
-    confirmLabel: "Quitter sans enregistrer",
-    cancelLabel: "Continuer l’édition",
+    eyebrow: i18nT("campagne_en_cours_41143e49"),
+    title: i18nT("quitter_cette_campagne_a4b93470"),
+    message: i18nT("votre_campagne_contient_des_informations_non_1098c262"),
+    confirmLabel: i18nT("quitter_sans_enregistrer_095c1a97"),
+    cancelLabel: i18nT("continuer_l_edition_0f0075bb"),
     variant: "danger",
   });
 
@@ -2738,7 +2765,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       setDraftsRevision(revision => revision + 1); setNotice("");
       return true;
     } catch (error) {
-      if (isCurrent()) setNotice(error instanceof Error ? error.message : "Enregistrement impossible. Vérifiez le suivi avant de recommencer.");
+      if (isCurrent()) setNotice(errorMessage(error, "shell.ads_error_48d4b8f851"));
       return false;
     } finally { nativeSavePending.current = false; if (adsEditor.current.active) setBusy(current => current === "save" ? null : current); }
   }
@@ -2747,7 +2774,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     if (!preparedOnlyChannel || busy !== null) return;
     const key = preparedDraftKey;
     if (preparedBudgetApprovalKey !== key || preparedContentApprovalKey !== key || destinationReview.required && !destinationReview.confirmed || preparedReviewIssues.length) {
-      setNotice("Relisez les réglages préparés et cochez les confirmations de cette dernière page."); return;
+      setNotice(i18nT("relisez_les_reglages_prepares_et_cochez_e37e0223")); return;
     }
     const parsed = parseAdsCampaignInput(draft, { purpose: "draft" });
     if (!parsed.draft || parsed.error) { setNotice(parsed.error || "Le brouillon préparé est incomplet."); return; }
@@ -2767,8 +2794,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       const id = String((result.campaign as { id?: string } | undefined)?.id || "");
       if (!id) throw new Error("L’enregistrement du brouillon n’a pas été confirmé.");
       setSavedId(id); setDirty(false); setDraftsRevision((revision) => revision + 1);
-      setNotice(`Votre brouillon ${channelMeta.label} est validé et enregistré. Les contrôles affichés doivent être terminés avant une création native en pause ; aucune dépense n’a été engagée.`);
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Validation du brouillon impossible."); }
+      setNotice(i18nT("votre_brouillon_value_est_valide_et_34b8eb46", { value0: channelMeta.label }));
+    } catch (error) { setNotice(errorMessage(error, "shell.ads_error_b307c2bd3d")); }
     finally { setBusy(null); }
   }
 
@@ -2776,7 +2803,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     if (!preparedOnlyChannel || busy !== null || demoDialog || !preparedNativeCheck || !preparedNativeReady) return;
     if (preparedBudgetApprovalKey !== preparedDraftKey || preparedContentApprovalKey !== preparedDraftKey
       || destinationReview.required && !destinationReview.confirmed || preparedReviewIssues.length) {
-      setNotice("Relisez les réglages préparés et cochez les confirmations de cette dernière page."); return;
+      setNotice(i18nT("relisez_les_reglages_prepares_et_cochez_e37e0223")); return;
     }
     try {
       const calendar = plannedNativeCalendar(draft, Date.now(), preparedTimeZone);
@@ -2791,7 +2818,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             endAt: calendar.endAt, timeZone: calendar.timeZone },
         },
       });
-    } catch (error) { setNotice(error instanceof Error ? error.message : "Vérifiez le budget et le calendrier de la campagne."); }
+    } catch (error) { setNotice(errorMessage(error, "shell.ads_error_ca994daaf5")); }
   }
 
   async function createPreparedPausedCampaign() {
@@ -2817,8 +2844,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       try { assertUnchanged(); setDirty(false); } catch { setDirty(true); }
       setDemoDialog({ ...confirmation, mode: "success" });
       setConfirmedSpend(false); setPublicationPhase("success");
-      setNotice(`La campagne ${channelMeta.label} est créée en pause et vérifiée. Sa diffusion reste désactivée ; retrouvez ses identifiants dans le suivi.`);
-    } catch (error) { setDemoDialog(null); setPublicationPhase("idle"); setNotice(error instanceof Error ? error.message : "La création doit être contrôlée dans le suivi avant toute nouvelle tentative."); }
+      setNotice(i18nT("la_campagne_value_est_creee_en_9e17ba05", { value0: channelMeta.label }));
+    } catch (error) { setDemoDialog(null); setPublicationPhase("idle"); setNotice(errorMessage(error, "shell.ads_error_b5a7121c04")); }
     finally { demoSubmissionRef.current = false; setBusy(null); }
   }
 
@@ -2826,25 +2853,25 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     const approvedLinkedInCampaign = validatePreparedCampaign ? linkedInLaunchConsent.current : null;
     if (validatePreparedCampaign && (!["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) || !confirmedSpend
       || !approvedLinkedInCampaign || approvedLinkedInCampaign.key !== JSON.stringify(draft))) {
-      setNotice("Cochez la confirmation du budget et de la diffusion avant de valider.");
+      setNotice(i18nT("cochez_la_confirmation_du_budget_et_9cefe2e5"));
       return;
     }
     if (validatePreparedCampaign && destinationReview.required && (!destinationReview.valid || !destinationReview.confirmed)) {
-      setNotice("Confirmez le lien de destination sur la dernière page avant de valider.");
+      setNotice(i18nT("confirmez_le_lien_de_destination_sur_95a15c39"));
       return;
     }
     let preparedCampaignId = "";
     if (!isAdsDraftAccountChannel(channelId)) {
-      setNotice(`La publication ${channelMeta.label} n’est pas encore disponible. Vous pouvez conserver cette campagne en brouillon.`);
+      setNotice(i18nT("la_publication_value_n_est_pas_5ef9177b", { value0: channelMeta.label }));
       return;
     }
     if (busy !== null || demoSubmissionRef.current || demoDialog) return;
     if (channelId === "linkedin" && !linkedInComplianceReady) {
-      setNotice("Confirmez la déclaration NOT_POLITICAL et l’avis de ciblage non discriminatoire avant la validation finale.");
+      setNotice(i18nT("confirmez_la_declaration_not_political_et_e340522e"));
       return;
     }
     if (!channelPublishingEnabled) {
-      setNotice(`Le lancement ${channelMeta.label} est momentanément verrouillé dans cet environnement.`);
+      setNotice(i18nT("le_lancement_value_est_momentanement_verrouille_0e86c256", { value0: channelMeta.label }));
       return;
     }
     const connectorIssue = unsupportedAdsConnectorReason(draft);
@@ -2863,11 +2890,11 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       return;
     }
     if (!livePublisherConversionReady) {
-      setNotice("Le connecteur de lancement actuellement branché nécessite une destination vers votre site web.");
+      setNotice(i18nT("le_connecteur_de_lancement_actuellement_branche_8bc499e3"));
       return;
     }
     if (!metaLivePlacementsSupported) {
-      setNotice("La démo Meta accepte les fils Facebook/Instagram, les Stories et les Reels. Messenger sera ajouté ultérieurement.");
+      setNotice(i18nT("la_demo_meta_accepte_les_fils_63be235b"));
       return;
     }
     if (!livePublisherMediaReady) {
@@ -2889,23 +2916,23 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         if (!approvedResourcesKey || approvedResourcesKey !== resourcesKey || accountId !== launchDraft.adAccountId
           || channelId === "meta" && pageId !== launchDraft.pageId) {
           setConfirmedSpend(false); linkedInLaunchConsent.current = null;
-          throw new Error("Le compte, ses ressources ou son calendrier ont changé. Relisez la proposition puis confirmez à nouveau.");
+          throw new Error(i18nT("le_compte_ses_ressources_ou_son_66e07ca4"));
         }
         const validated = parseAdsCampaignInput(launchDraft, { purpose: "publish" });
-        if (!validated.draft) throw new Error(validated.error || "Vérifiez les réglages de la campagne.");
+        if (!validated.draft) throw new Error(validated.error || i18nT("verifiez_les_reglages_de_la_campagne_7f3cce5b"));
         if (!approvedLinkedInCampaign || linkedInLaunchConsent.current !== approvedLinkedInCampaign
           || approvedLinkedInCampaign.key !== JSON.stringify(launchDraft) || approvedLinkedInCampaign.status !== launchStatus) {
           setConfirmedSpend(false); linkedInLaunchConsent.current = null;
-          throw new Error("Les réglages ou le statut de diffusion ont changé depuis votre confirmation. Relisez puis validez à nouveau.");
+          throw new Error(i18nT("les_reglages_ou_le_statut_de_7f0b4fd2"));
         }
         const saved = await readJson(await fetch("/api/ads/campaigns", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...launchDraft, ...(savedId ? { id: savedId } : {}) }),
         }));
         const id = String((saved.campaign as { id?: string } | undefined)?.id || "");
-        if (!id) throw new Error("Le brouillon n’a pas pu être confirmé.");
+        if (!id) throw new Error(i18nT("le_brouillon_n_a_pas_pu_30eab68c"));
         if (linkedInLaunchConsent.current !== approvedLinkedInCampaign || approvedLinkedInCampaign.key !== JSON.stringify(launchDraft)) {
-          throw new Error("Vos réglages ont changé pendant l’enregistrement. Ils sont conservés, sans publication.");
+          throw new Error(i18nT("vos_reglages_ont_change_pendant_l_d32d8f77"));
         }
         setSavedId(id); setDirty(false);
         const checked = await readJson(await fetch(`/api/ads/campaigns/${encodeURIComponent(id)}/preflight?mode=${launchStatus === "active" ? "live" : "paused"}`, { cache: "no-store" }));
@@ -2916,7 +2943,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         if (checked.ready !== true || checked.selectedAccountId !== accountId || checked.resourcesKey !== (legacyMeta ? "" : resourcesKey)
           || !locationsVerified
           || channelId === "meta" && (checked.selectedPageId !== pageId || checked.verifiedLanguageCount !== verifiedLanguageCount)) {
-          throw new Error("La plateforme n’a pas confirmé toutes les ressources et le média. Le brouillon est conservé, sans publication.");
+          throw new Error(i18nT("la_plateforme_n_a_pas_confirme_2ab031ad"));
         }
         return id;
       }
@@ -3071,7 +3098,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           || approvedLinkedInCampaign.key !== JSON.stringify(launchDraft)
           || approvedLinkedInCampaign.status !== launchStatus)) {
           setConfirmedSpend(false); linkedInLaunchConsent.current = null;
-          setNotice("Les réglages ont changé pendant la vérification. Relisez le récapitulatif et confirmez-les à nouveau.");
+          setNotice(i18nT("les_reglages_ont_change_pendant_la_19f60431"));
           return;
         }
         const saved = await readJson(await fetch("/api/ads/campaigns", {
@@ -3083,7 +3110,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         if (validatePreparedCampaign && linkedInLaunchConsent.current !== approvedLinkedInCampaign) {
           // A request already sent may have saved the prior draft. Never
           // overwrite a newer local edit or mark that edit as saved.
-          setNotice("Vos modifications sont conservées. Vérifiez le récapitulatif et confirmez à nouveau la campagne.");
+          setNotice(i18nT("vos_modifications_sont_conservees_verifiez_le_ce4ef7ba"));
           return;
         }
         setDraft(launchDraft);
@@ -3215,7 +3242,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           || approvedLinkedInCampaign.key !== JSON.stringify(launchDraft)
           || approvedLinkedInCampaign.status !== launchStatus || !preparedCampaignId) {
           setConfirmedSpend(false); linkedInLaunchConsent.current = null;
-          setNotice("Les réglages de la campagne ont été actualisés. Relisez le récapitulatif puis cochez à nouveau la confirmation avant de valider.");
+          setNotice(i18nT("les_reglages_de_la_campagne_ont_f7cbf020"));
           return;
         }
         confirmation.prepared = { draft: launchDraft, savedId: preparedCampaignId };
@@ -3225,9 +3252,9 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     } catch (error) {
       if (channelId === "linkedin") {
         setLinkedInPreflightLoad("error");
-        setLinkedInPreflightError(error instanceof Error ? error.message : "Contrôle LinkedIn Ads indisponible.");
+        setLinkedInPreflightError(errorMessage(error, "shell.ads_error_9dd78ed691"));
       }
-      setNotice(error instanceof Error ? error.message : "Le compte annonceur n’a pas pu être vérifié. Réessayez avant de lancer la campagne.");
+      setNotice(errorMessage(error, "shell.ads_error_93c30c90a5"));
     } finally { demoSubmissionRef.current = false; setBusy(null); }
   }
 
@@ -3242,7 +3269,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     if (prepared && JSON.stringify(prepared.draft) !== JSON.stringify(draft)) {
       setConfirmedSpend(false);
       setDemoDialog(null);
-      setNotice("Les réglages ont changé depuis la vérification. Relisez la campagne puis confirmez à nouveau son lancement.");
+      setNotice(i18nT("les_reglages_ont_change_depuis_la_c0dc415c"));
       return;
     }
     demoSubmissionRef.current = true;
@@ -3306,7 +3333,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     } catch (error) {
       setPublicationPhase("idle");
       setDemoDialog(null);
-      setNotice(error instanceof Error ? error.message : "Le lancement n’a pas pu être confirmé. Vérifiez son statut sur la plateforme avant de réessayer.");
+      setNotice(errorMessage(error, "shell.ads_error_fdf4749e70"));
     } finally { demoSubmissionRef.current = false; setBusy(null); }
   }
 
@@ -3389,8 +3416,8 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         if (!campaign || campaign.status !== "draft") throw new Error("Seuls les brouillons non publiés peuvent être modifiés dans le studio.");
         onRouteDraftLoaded(campaign);
       })
-      .catch((error) => setNotice(error instanceof Error ? error.message : "Impossible d’ouvrir ce brouillon."));
-  }, [initialEditCampaignId]);
+      .catch((error) => setNotice(errorMessage(error, "shell.ads_error_9c1ed5c11b")));
+  }, [initialEditCampaignId, errorMessage]);
 
   const estimate = useMemo(() => {
     const days = Math.max(0, Math.ceil((Date.parse(`${draft.endDate}T23:59:59Z`) - Date.now()) / 86_400_000));
@@ -3468,23 +3495,23 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         && draft.creativeType === "image" && draft.mediaStrategy === "image")
       : true;
   const metaFeedReviewLabel = !metaMediaReadiness.requiresFeedImage
-    ? "Feed non sélectionné"
+    ? i18nT("ads_ui_d21a2a0c7b")
     : !draft.metaCreativeAssets.feedImageUrl
-      ? "Feed 4:5 manquant"
+      ? i18nT("ads_ui_431eebb3fb")
       : metaMediaFormatStatus.feed === "valid"
-        ? "Feed 4:5 conforme"
+        ? i18nT("ads_ui_fc3b046368")
         : metaMediaFormatStatus.feed === "invalid"
-          ? "Feed 4:5 non conforme"
-          : "Feed 4:5 à vérifier";
+          ? i18nT("ads_ui_15db643bb3")
+          : i18nT("ads_ui_7d198007ee");
   const metaStoryReelReviewLabel = !metaMediaReadiness.requiresStoryReelImage
-    ? "Story/Reel non sélectionné"
+    ? i18nT("ads_ui_771f01429e")
     : !draft.metaCreativeAssets.storyReelImageUrl
-      ? "Story/Reel 9:16 manquant"
+      ? i18nT("ads_ui_0c9188075d")
       : metaMediaFormatStatus.story_reel === "valid"
-        ? "Story/Reel 9:16 conforme"
+        ? i18nT("ads_ui_fc687ed96f")
         : metaMediaFormatStatus.story_reel === "invalid"
-          ? "Story/Reel 9:16 non conforme"
-          : "Story/Reel 9:16 à vérifier";
+          ? i18nT("ads_ui_838b36faa4")
+          : i18nT("ads_ui_8d45cef6ae");
   const analysisRequestPending = busy === "plan" && autoMediaState !== "generating" && planProgress < 90 && !planError;
   const analysisProposalReady = creationPath === "inrcy" && step === analysisStep && planProgress === 100 && busy !== "plan";
   const destinationFieldVisible = nativeSettings?.channel !== "tiktok" || nativeSettings.destinationKind === "website";
@@ -3521,15 +3548,15 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const linkedInGeoResolutions = linkedInPreflight?.geoResolutions || [];
   const linkedInBriefGeoStatus = (label: string) => {
     const resolution = linkedInGeoResolutions.find((entry) => linkedInGeoQueryKey(entry.query) === linkedInGeoQueryKey(label));
-    if (!resolution) return { label: linkedInPreflightLoad === "loading" ? "Vérification…" : "Brief seul", verified: false };
+    if (!resolution) return { label: linkedInPreflightLoad === "loading" ? i18nT("verification_30a67937") : i18nT("brief_seul_1bee6f24"), verified: false };
     if (resolution.status === "provider_rejected") {
-      return { label: "Zone refusée par LinkedIn, essayez une autre recherche", verified: false, rejected: true };
+      return { label: i18nT("zone_refusee_par_linkedin_essayez_une_65e61f8f"), verified: false, rejected: true };
     }
     const verified = resolution.suggestions.some((suggestion) =>
       linkedInVerifiedGeoUrns.has(suggestion.urn) && linkedInGeoTargets.some((target) => target.urn === suggestion.urn));
     return verified
-      ? { label: "Vérifiée LinkedIn", verified: true }
-      : { label: resolution.suggestions.length ? "Choix exact requis" : "Non trouvée", verified: false };
+      ? { label: i18nT("verifiee_linkedin_97c52b68"), verified: true }
+      : { label: resolution.suggestions.length ? i18nT("choix_exact_requis_8a1c8274") : i18nT("non_trouvee_a586e5e8"), verified: false };
   };
   const linkedInMissingGeoLocations = draft.targetLocations.filter((label) => !linkedInBriefGeoStatus(label).verified);
   const linkedInBriefGeoReady = linkedInMissingGeoLocations.length === 0;
@@ -3567,39 +3594,39 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const linkedInUnverifiedGeoTargets = linkedInGeoTargets.filter((target) => !linkedInVerifiedGeoUrns.has(target.urn));
   const linkedInReadinessIssue: CampaignReadinessIssue = (() => {
     const issue = (step: number, message: string) => ({ step: step + 1, message });
-    if (linkedInAudiencePending > 0) return issue(targetingStep, "Confirmez ou ignorez les propositions de ciblage professionnel à l’étape Audience.");
+    if (linkedInAudiencePending > 0) return issue(targetingStep, i18nT("ads_ui_10db446517"));
     if (linkedInPreflightLoad === "error") {
-      return issue(foundationsStep, linkedInPreflightError || "La vérification LinkedIn a échoué. Actualisez les ressources à l’étape Campagne.");
+      return issue(foundationsStep, linkedInPreflightError || i18nT("ads_ui_d78f868927"));
     }
     if (linkedInPreflightLoad !== "ready" || !linkedInPreflight || !linkedInPreflightCurrent) {
-      return issue(foundationsStep, "La vérification LinkedIn est en cours. Attendez son résultat avant de lancer.");
+      return issue(foundationsStep, i18nT("ads_ui_4ea3193bfd"));
     }
     if (!draft.linkedinCampaignGroupId || !draft.linkedinOrganizationUrn) {
-      return issue(foundationsStep, "Le groupe ou la Page n’a pas pu être choisi automatiquement. Vérifiez les réglages à l’étape Campagne.");
+      return issue(foundationsStep, i18nT("ads_ui_28cad7a4e4"));
     }
     if (linkedInMissingGeoLocations.length) {
       const names = linkedInMissingGeoLocations.map((label) => `« ${label} »`).join(", ");
       const verified = draft.targetLocations.length - linkedInMissingGeoLocations.length;
-      return issue(geographyStep, `La résolution automatique de LinkedIn n’a pas confirmé ${names}. ${verified}/${draft.targetLocations.length} zones du brief sont vérifiées. Réessayez le contrôle ou choisissez une des propositions LinkedIn.`);
+      return issue(geographyStep, i18nT("ads_ui_2ebc8f39d9", { value0: names, value1: verified, value2: draft.targetLocations.length }));
     }
-    if (!linkedInGeoTargets.length) return issue(geographyStep, "Sélectionnez au moins une zone LinkedIn exacte à l’étape Zones géographiques.");
-    if (linkedInGeoTargets.length > 20) return issue(geographyStep, "LinkedIn accepte au maximum 20 zones exactes. Retirez les zones en trop à l’étape Zones géographiques.");
+    if (!linkedInGeoTargets.length) return issue(geographyStep, i18nT("ads_ui_3682cec5ed"));
+    if (linkedInGeoTargets.length > 20) return issue(geographyStep, i18nT("ads_ui_8d78e0d4e7"));
     if (linkedInUnverifiedGeoTargets.length || linkedInPreflight.blockers?.includes("selected_geo_unverified")) {
       const names = linkedInUnverifiedGeoTargets.map((target) => target.name).join(", ");
-      return issue(geographyStep, `À l’étape Zones géographiques, revérifiez les zones LinkedIn non confirmées${names ? ` : ${names}` : ""}.`);
+      return issue(geographyStep, i18nT("ads_ui_1ed500802b", { value0: names ? ` : ${names}` : "" }));
     }
     if (linkedInPreflight.blockers?.includes("unresolved_geo_queries") || linkedInPreflight.blockers?.includes("geo_query_provider_rejected")) {
-      return issue(geographyStep, "Une zone du brief n’a pas pu être confirmée par LinkedIn. Actualisez les zones à l’étape Zones géographiques.");
+      return issue(geographyStep, i18nT("ads_ui_d48a028c81"));
     }
     if (!linkedInBidPricing || linkedInPreflight.blockers?.includes("budget_pricing_required")) {
-      return issue(budgetStep, "LinkedIn n’a pas confirmé les bornes d’enchère. Vérifiez le budget et réactualisez les ressources à l’étape Budget et calendrier.");
+      return issue(budgetStep, i18nT("ads_ui_eae76787ac"));
     }
     if (linkedInBudgetBelowProviderMinimum) {
-      return issue(budgetStep, `Augmentez le budget quotidien à au moins ${linkedInBidPricing.dailyBudgetMin.toLocaleString("fr-FR")} € à l’étape Budget et calendrier.`);
+      return issue(budgetStep, i18nT("ads_ui_71d3b1ce71", { value0: linkedInBidPricing.dailyBudgetMin.toLocaleString(locale) }));
     }
-    if (linkedInManualBid && (!draft.linkedinBidEuros || draft.linkedinBidEuros <= 0)) return issue(budgetStep, "Renseignez une enchère CPC positive à l’étape Budget et calendrier.");
+    if (linkedInManualBid && (!draft.linkedinBidEuros || draft.linkedinBidEuros <= 0)) return issue(budgetStep, i18nT("ads_ui_f69c8a13d0"));
     if (linkedInBidOutsideVerifiedRange) {
-      return issue(budgetStep, "L’enchère CPC ne respecte plus la plage vérifiée par LinkedIn. Corrigez-la à l’étape Budget et calendrier.");
+      return issue(budgetStep, i18nT("ads_ui_1c289f937c"));
     }
     if (linkedInScheduleIssue) return issue(budgetStep, linkedInScheduleIssue);
     const blockers = linkedInAdsLaunchBlockers(linkedInPreflight.blockers, linkedInPreparedLaunchStatus === "active" ? "ACTIVE" : "PAUSED");
@@ -3608,7 +3635,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       : /conversion/.test(blocker) ? deliveryStep
         : /budget|schedule/.test(blocker) ? budgetStep
           : /political|targeting_notice/.test(blocker) ? validationStep : foundationsStep;
-    return issue(issueStep, linkedInAdsLaunchBlockerMessage(blockers) || "Vérifiez à nouveau les ressources LinkedIn avant de lancer la campagne.");
+    return issue(issueStep, linkedInAdsLaunchBlockerMessage(blockers) || i18nT("ads_ui_a38ca5f495"));
   })();
   const linkedInReadinessDetails = linkedInReadinessIssue.message;
   const linkedInComplianceReady = draft.linkedinPoliticalIntentConfirmed === true
@@ -3642,33 +3669,33 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     geographyStep >= 0 ? geographyStep + 1 : targetingStep + 1,
   );
   const launchUnavailableReason = !isAdsDraftAccountChannel(channelId)
-    ? `La publication ${channelMeta.label} n’est pas encore disponible. Le brouillon reste enregistrable.`
+    ? i18nT("ads_ui_99f038dac8", { value0: channelMeta.label })
     : !channelPublishingEnabled
-      ? `Le lancement ${channelMeta.label} est momentanément verrouillé dans cet environnement.`
+      ? i18nT("le_lancement_value_est_momentanement_verrouille_0e86c256", { value0: channelMeta.label })
       : connectorConfigurationIssue
         ? connectorConfigurationIssue
         : !liveFormatAvailable
-          ? `Le format choisi ne peut pas encore être lancé automatiquement sur ${channelMeta.label}.`
+          ? i18nT("ads_ui_604f2646c5", { value0: channelMeta.label })
           : !livePublisherConversionReady
-            ? "Le connecteur de lancement nécessite une destination vers votre site web."
+            ? i18nT("ads_ui_c9aa0de419")
             : !metaLiveObjectiveSupported
-              ? "Choisissez l’objectif Trafic vers le site web à l’étape Campagne."
+              ? i18nT("ads_ui_1101b93abb")
               : !metaLiveGoalSupported
-                ? "Choisissez la visite d’une page clé à l’étape Diffusion."
+                ? i18nT("ads_ui_28c375fa53")
                 : !metaLivePlacementsSupported
-                  ? "Choisissez un placement Meta compatible à l’étape Diffusion."
+                  ? i18nT("ads_ui_b88cf8817b")
                   : !metaLiveCreativeSupported
-                    ? "Choisissez le format image à l’étape Créations."
+                    ? i18nT("ads_ui_d1ef829c5d")
                     : !metaLiveCtaSupported
-                      ? "Choisissez l’appel à l’action « En savoir plus » à l’étape Créations."
+                      ? i18nT("ads_ui_7ae82bea81")
                       : !livePublisherMediaReady
-                        ? "Ajoutez un média conforme dans l’étape Médias."
+                        ? i18nT("ads_ui_d41d3c2db2")
                         : "";
   const linkedInLaunchReadinessReason = channelId === "linkedin"
     ? !linkedInSelectionsReady
       ? linkedInReadinessDetails
       : !linkedInComplianceReady
-        ? "Confirmez les deux déclarations LinkedIn avant de lancer."
+        ? i18nT("ads_ui_a9b09aa8e3")
         : ""
     : "";
   const googleLaunchReadinessIssue: CampaignReadinessIssue | null = channelId === "google" && draft.campaignType === "search" ? (() => {
@@ -3680,45 +3707,45 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             : /géographique/i.test(localIssue) ? geographyStep : biddingStep;
       return { step: step + 1, message: localIssue };
     }
-    if (!googleGeoReady) return { step: geographyStep + 1, message: googleGeoState.key === googleGeoKey && googleGeoState.status === "error" ? googleGeoState.error : "Vérification automatique des zones Google Ads en cours." };
-    if (!effectiveGoogleResources || googleResourcesLoad !== "ready") return { step: foundationsStep + 1, message: googleResourcesError || "Vérification du compte et des conversions Google Ads en cours." };
-    if (["maximize_conversions", "maximize_value", "target_cpa", "target_roas"].includes(draft.bidStrategy) && !effectiveGoogleResources.hasBiddableConversions) return { step: biddingStep + 1, message: "Aucune conversion principale active : choisissez Maximiser les clics à l’étape Enchères." };
+    if (!googleGeoReady) return { step: geographyStep + 1, message: googleGeoState.key === googleGeoKey && googleGeoState.status === "error" ? googleGeoState.error : i18nT("ads_ui_c212ba54f1") };
+    if (!effectiveGoogleResources || googleResourcesLoad !== "ready") return { step: foundationsStep + 1, message: googleResourcesError || i18nT("ads_ui_ce4c6f598f") };
+    if (["maximize_conversions", "maximize_value", "target_cpa", "target_roas"].includes(draft.bidStrategy) && !effectiveGoogleResources.hasBiddableConversions) return { step: biddingStep + 1, message: i18nT("aucune_conversion_principale_active_choisissez_m_bcc03b96") };
     return null;
   })() : null;
   const googleLaunchReadinessReason = googleLaunchReadinessIssue?.message || "";
   const pinterestLaunchReadinessIssue: CampaignReadinessIssue | null = channelId === "pinterest" ? (() => {
-    if (!effectivePinterestResources || pinterestResourcesLoad !== "ready") return { step: foundationsStep + 1, message: pinterestResourcesError || "Vérification du compte, des zones et des langues Pinterest en cours." };
+    if (!effectivePinterestResources || pinterestResourcesLoad !== "ready") return { step: foundationsStep + 1, message: pinterestResourcesError || i18nT("ads_ui_2733d5f0b3") };
     if (!pinterestGeoReady) return { step: geographyStep + 1, message: pinterestResolvedGeography.error };
     if (pinterestResolvedLanguages.error) return { step: targetingStep + 1, message: pinterestResolvedLanguages.error };
     try { pinterestNativeDelivery(draft); return null; }
     catch (error) {
-      const message = error instanceof Error ? error.message : "Vérifiez le budget et les enchères Pinterest.";
-      return { step: adsNativeDeliveryIssueStep(channelId, message, launchStepMap), message };
+      const message = errorMessage(error, "shell.ads_error_ba394891ec");
+      return { step: adsNativeDeliveryIssueStep(channelId, error instanceof Error ? error.message : "", launchStepMap), message };
     }
   })() : null;
   const pinterestLaunchReadinessReason = pinterestLaunchReadinessIssue?.message || "";
   const metaLaunchReadinessIssue: CampaignReadinessIssue | null = channelId === "meta" ? (() => {
-    if (!effectiveMetaResources || metaResourcesLoad !== "ready") return { step: foundationsStep + 1, message: metaResourcesError || "Vérification du compte et de la Page Meta en cours." };
-    if (!metaGeoReady) return { step: geographyStep + 1, message: metaGeoState.key === metaGeoKey && metaGeoState.error || "Vérification des zones Meta en cours." };
+    if (!effectiveMetaResources || metaResourcesLoad !== "ready") return { step: foundationsStep + 1, message: metaResourcesError || i18nT("ads_ui_8da8c2e3a9") };
+    if (!metaGeoReady) return { step: geographyStep + 1, message: metaGeoState.key === metaGeoKey && metaGeoState.error || i18nT("ads_ui_c6f9b05541") };
     if (draft.metaDeliverySettings && metaResolvedLanguages.error) return { step: targetingStep + 1, message: metaResolvedLanguages.error };
     try { metaNativeDelivery(draft); return null; }
     catch (error) {
-      const message = error instanceof Error ? error.message : "Vérifiez les réglages Meta.";
-      return { step: adsNativeDeliveryIssueStep(channelId, message, launchStepMap), message };
+      const message = errorMessage(error, "shell.ads_error_cfef74f02b");
+      return { step: adsNativeDeliveryIssueStep(channelId, error instanceof Error ? error.message : "", launchStepMap), message };
     }
   })() : null;
   const metaLaunchReadinessReason = metaLaunchReadinessIssue?.message || "";
   const openaiLaunchReadinessIssue: CampaignReadinessIssue | null = channelId === "openai" ? (() => {
-    if (!effectiveOpenaiResources || openaiResourcesLoad !== "ready") return { step: foundationsStep + 1, message: openaiResourcesError || "Vérification du compte ChatGPT Ads en cours." };
-    if (!openaiGeoReady) return { step: geographyStep + 1, message: "Une zone ChatGPT Ads reste à confirmer à l’étape Zones géographiques." };
+    if (!effectiveOpenaiResources || openaiResourcesLoad !== "ready") return { step: foundationsStep + 1, message: openaiResourcesError || i18nT("ads_ui_eeb81d8db2") };
+    if (!openaiGeoReady) return { step: geographyStep + 1, message: i18nT("une_zone_chatgpt_ads_reste_a_12567569") };
     try { openaiNativeDelivery(draft, Date.now(), effectiveOpenaiResources.account.timezone || "UTC"); return null; }
     catch (error) {
-      const message = error instanceof Error ? error.message : "Vérifiez les réglages ChatGPT Ads.";
-      return { step: adsNativeDeliveryIssueStep(channelId, message, launchStepMap), message };
+      const message = errorMessage(error, "shell.ads_error_ee2397f631");
+      return { step: adsNativeDeliveryIssueStep(channelId, error instanceof Error ? error.message : "", launchStepMap), message };
     }
   })() : null;
   const openaiLaunchReadinessReason = openaiLaunchReadinessIssue?.message || "";
-  const metaConsentCalendar = metaAdsCalendarLabels(draft, effectiveMetaResources?.account.timezone || null);
+  const metaConsentCalendar = metaAdsCalendarLabels(draft, effectiveMetaResources?.account.timezone || null, i18nT, locale);
   const launchBlockingMessage = incompleteLaunchMessage || launchUnavailableReason || linkedInLaunchReadinessReason || googleLaunchReadinessReason || pinterestLaunchReadinessReason || metaLaunchReadinessReason || openaiLaunchReadinessReason;
   const launchBlocked = Boolean(launchBlockingMessage);
 
@@ -3726,7 +3753,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   const preparedReviewIssues = preparedReviewDetails.map((issue) => issue.message);
   const preparedNativeCheck = preparedNativeReadiness.draftKey === JSON.stringify(draft) ? preparedNativeReadiness.check : null;
   const stepWarningMessages = new Map<number, string>();
-  for (const number of incompleteLaunchSteps) stepWarningMessages.set(number, "Informations à compléter dans cette étape.");
+  for (const number of incompleteLaunchSteps) stepWarningMessages.set(number, i18nT("ads_ui_d334817672"));
   for (const issue of [
     linkedInLaunchReadinessReason ? !linkedInComplianceReady && linkedInSelectionsReady
       ? { step: validationStep + 1, message: linkedInLaunchReadinessReason } : linkedInReadinessIssue : null,
@@ -3744,23 +3771,22 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
   }
   const preparedNativeReady = preparedNativeCheck?.ready === true && preparedNativeCheck.pausedCreationEnabled;
   const tikTokPausedNotice = channelId === "tiktok" ? {
-    title: preparedNativeReady ? "Création en pause disponible" : "Création en pause à vérifier",
+    title: preparedNativeReady ? i18nT("ads_ui_6653391577") : i18nT("ads_ui_8032dea964"),
     message: preparedNativeReady
-      ? "Après votre confirmation, la campagne sera créée en pause dans TikTok, sans diffusion ni dépense publicitaire."
-      : `${preparedNativeReadiness.draftKey === JSON.stringify(draft) && preparedNativeReadiness.error
+      ? i18nT("ads_ui_37c49ab06c")
+      : i18nT("ads_ui_a1cfc88ca6", { value0: preparedNativeReadiness.draftKey === JSON.stringify(draft) && preparedNativeReadiness.error
         || (preparedNativeCheck?.blockers.includes("paused_creation_disabled")
-          ? "La création de campagnes en pause n’a pas encore été activée dans iNrCy. Connecter votre compte ne suffit pas à l’autoriser."
+          ? i18nT("ads_ui_ed3a6c44aa")
           : preparedNativeCheck?.blockers.includes("native_capabilities_unverified")
-            ? "TikTok doit encore confirmer les autorisations nécessaires à cette création."
-            : "Complétez les vérifications du compte, de l’identité, des zones et de la vidéo indiquées ci-dessus.")}
-        Le brouillon reste enregistrable pendant ces vérifications.`,
+            ? i18nT("ads_ui_67ec23c922")
+            : i18nT("ads_ui_3b2c1cbfae")) }),
   } : null;
   const preparedDraftKey = JSON.stringify({ draft, resources: channelId === "tiktok" ? tikTokAdsResourcesConsentKey(effectiveTikTokResources) : xAdsResourcesConsentKey(preparedXResources), nativeConsent: preparedNativeCheck?.consentKey || "" });
   preparedLatestReview.current = { draftKey: preparedDraftKey, budgetKey: preparedBudgetApprovalKey, contentKey: preparedContentApprovalKey, destination: confirmedDestinationUrl };
   let preparedBudgetError = "";
-  if (preparedOnlyChannel) { try { plannedNativeCalendar(draft, Date.now(), preparedTimeZone); } catch (error) { preparedBudgetError = error instanceof Error ? error.message : "Vérifiez le budget et les dates."; } }
+  if (preparedOnlyChannel) { try { plannedNativeCalendar(draft, Date.now(), preparedTimeZone); } catch (error) { preparedBudgetError = errorMessage(error, "shell.ads_error_12ec2686ed"); } }
 
-  const campaignLocationFields = <div className={`${styles.studioLocationField}${["linkedin", "google", "pinterest", "meta", "openai", "x", "tiktok"].includes(channelId) ? ` ${styles.studioWide}` : ""}`}><TagField label="Zones ciblées" helper="Ajoutez un lieu ou choisissez une zone ci-dessous." values={draft.targetLocations} onChange={(targetLocations) => {
+  const campaignLocationFields = <div className={`${styles.studioLocationField}${["linkedin", "google", "pinterest", "meta", "openai", "x", "tiktok"].includes(channelId) ? ` ${styles.studioWide}` : ""}`}><TagField label={i18nT("zones_ciblees_09e322f6")} helper={i18nT("ads_ui_de6dea1316")} values={draft.targetLocations} onChange={(targetLocations) => {
             const changed = targetLocations.join("\n") !== draft.targetLocations.join("\n");
             if (channelId === "linkedin" && changed) {
               const removed = removeLinkedInBriefGeoTargets(draft.targetLocations, targetLocations, linkedInGeoResolutions, linkedInGeoTargets, linkedInGeoChoices.current);
@@ -3777,10 +3803,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
                 geoResolutions: (current.geoResolutions || []).filter((entry) => retained.has(linkedInGeoQueryKey(entry.query))),
               } : current);
             }
-          }} placeholder={channelId === "pinterest" ? "Choisissez une zone Pinterest ci-dessous" : ["openai", "linkedin", "google", "meta"].includes(channelId) ? "Ex. Lille, Hauts-de-France, France" : "Ex. Lyon, Rhône, France"} note={channelId === "linkedin" ? "iNr’ADS associe automatiquement chaque lieu du brief à une zone LinkedIn exacte. Contrôlez les zones vérifiées ci-dessous avant publication." : channelId === "openai" ? "Zones françaises vérifiées dans ChatGPT Ads. Aucun pays ajouté par défaut." : channelId === "pinterest" ? "Un pays cible le pays entier. Vos zones ne sont jamais élargies automatiquement." : preparedOnlyChannel ? "Zones du brief, à vérifier dans le catalogue du compte avant publication. Aucun rayon fictif n’est appliqué." : undefined} maxItems={channelId === "linkedin" ? 8 : 20} maxItemLength={channelId === "linkedin" ? 80 : ["pinterest", "meta", "x", "tiktok"].includes(channelId) ? 120 : undefined} getTagStatus={channelId === "linkedin" ? linkedInBriefGeoStatus : channelId === "pinterest" ? (label) => {
-            if (!effectivePinterestResources) return { label: pinterestResourcesLoad === "error" ? "À vérifier" : "Vérification…", verified: false };
-            try { resolvePinterestAdsGeographies(effectivePinterestResources, [label]); return { label: "Vérifiée Pinterest", verified: true }; }
-            catch { return { label: "Zone à ajuster", verified: false }; }
+          }} placeholder={channelId === "pinterest" ? i18nT("choisissez_une_zone_pinterest_ci_dessous_9c3e3ab5") : ["openai", "linkedin", "google", "meta"].includes(channelId) ? i18nT("ex_lille_hauts_de_france_france_4eb5ea66") : i18nT("ex_lyon_rhone_france_184207a5")} note={channelId === "linkedin" ? i18nT("ads_ui_e4a4ee3a10") : channelId === "openai" ? i18nT("ads_ui_523e5c7009") : channelId === "pinterest" ? i18nT("ads_ui_45983aeef5") : preparedOnlyChannel ? i18nT("ads_ui_6fa1aa55e2") : undefined} maxItems={channelId === "linkedin" ? 8 : 20} maxItemLength={channelId === "linkedin" ? 80 : ["pinterest", "meta", "x", "tiktok"].includes(channelId) ? 120 : undefined} getTagStatus={channelId === "linkedin" ? linkedInBriefGeoStatus : channelId === "pinterest" ? (label) => {
+            if (!effectivePinterestResources) return { label: pinterestResourcesLoad === "error" ? i18nT("a_verifier_8f5f7255") : i18nT("verification_30a67937"), verified: false };
+            try { resolvePinterestAdsGeographies(effectivePinterestResources, [label]); return { label: i18nT("verifiee_pinterest_366a82d0"), verified: true }; }
+            catch { return { label: i18nT("zone_a_ajuster_56565f50"), verified: false }; }
           } : undefined} />
           {channelId === "pinterest" && <PinterestLocationSearch catalog={effectivePinterestResources?.geographies} accountId={draft.adAccountId || externalStatuses.pinterest.selectedAccountId} locations={draft.targetLocations} onChange={(targetLocations) => updateDraft({ targetLocations })} />}
           {channelId === "google" && <GoogleLocationSearch accountId={draft.adAccountId || configuredAccountId} locations={draft.targetLocations} onChange={(targetLocations) => updateDraft({ targetLocations })} />}</div>;
@@ -3798,23 +3824,23 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
                 <path d="m44 20 8-8m-8 0h8v8" />
               </svg>
             </span>
-            <DashboardToolHeading subtitle="Donnez de l’élan à votre visibilité.">
-              <h1>iNr’<span>ADS</span></h1><span className={styles.premiumBadge}>Premium</span>
+            <DashboardToolHeading subtitle={i18nT("donnez_de_l_elan_a_votre_1bdc69ed")}>
+              <h1>{i18nT("inr_cb7c9950")}<span>{i18nT("ads_ui_0d1c315edb")}</span></h1><span className={styles.premiumBadge}>{i18nT("premium_6c2f2888")}</span>
             </DashboardToolHeading>
           </div>
-          <nav className={styles.headerActions} aria-label="Actions iNr’ADS">
-            <Link href="/dashboard/mails?folder=campagnes-ads" className={styles.trackingButton} aria-label="Voir les campagnes dans iNr’Send" title="Voir les campagnes dans iNr’Send">
+          <nav className={styles.headerActions} aria-label={i18nT("actions_inr_ads_9eb0e08a")}>
+            <Link href="/dashboard/mails?folder=campagnes-ads" className={styles.trackingButton} aria-label={i18nT("voir_les_campagnes_dans_inr_send_d3b02b3f")} title={i18nT("voir_les_campagnes_dans_inr_send_d3b02b3f")}>
               <span className={styles.headerActionIcon} aria-hidden="true"><Image src="/inrsend-logo-seul.png" alt="" width={28} height={28} className={styles.inrsendHeaderLogo} /></span>
-              <span className={styles.headerActionText}>iNr’Send</span>
+              <span className={styles.headerActionText}>{i18nT("inr_send_98e1b891")}</span>
             </Link>
             <AdsDraftsMenu refreshKey={draftsRevision} onOpenDraft={openDraftFromHeader} />
-            <Link href="/dashboard" className={`${styles.back} ${styles.headerCloseButton}`} aria-label="Fermer iNr’ADS" title="Fermer iNr’ADS"><span className={styles.headerActionIcon} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" /></svg></span><span className={styles.headerActionText}>Fermer</span></Link>
+            <Link href="/dashboard" className={`${styles.back} ${styles.headerCloseButton}`} aria-label={i18nT("fermer_inr_ads_bc3e9419")} title={i18nT("fermer_inr_ads_bc3e9419")}><span className={styles.headerActionIcon} aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" /></svg></span><span className={styles.headerActionText}>{i18nT("fermer_5ab4ec64")}</span></Link>
           </nav>
         </div>
       </header>
 
       {notice && !creating && <p className={`${styles.notice} ${styles.cockpitNotice}`} role="alert">{notice}</p>}
-      <section id="ads-channels" className={styles.channelCard} aria-label="Canaux publicitaires">
+      <section id="ads-channels" className={styles.channelCard} aria-label={i18nT("canaux_publicitaires_8d6084df")}>
         <div className={styles.channelAtmosphere} aria-hidden="true">
           <span className={styles.channelCreativeStack}><i /><i /><i /></span>
           <svg className={styles.channelConversionRoutes} viewBox="0 0 1440 560" preserveAspectRatio="xMidYMid slice" focusable="false">
@@ -3837,14 +3863,14 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           <span className={styles.channelCockpitGrid} />
           <span className={styles.channelPerformanceBoard}><i /><i /><i /><b /></span>
         </div>
-        <div className={styles.sectionHeading}><div><span>AMPLIFIEZ VOTRE PORTÉE</span><h2>Choisissez votre terrain de jeu.</h2></div><p>Sélectionnez un canal, puis configurez votre compte.</p></div>
-        <nav className={styles.channelRail} aria-label="Choisir un canal publicitaire">{CHANNEL_CATALOG.map((channel, index) => {
+        <div className={styles.sectionHeading}><div><span>{i18nT("amplifiez_votre_portee_0c7dcc26")}</span><h2>{i18nT("choisissez_votre_terrain_de_jeu_644eb8d9")}</h2></div><p>{i18nT("selectionnez_un_canal_puis_configurez_votre_0e2acdd9")}</p></div>
+        <nav className={styles.channelRail} aria-label={i18nT("choisir_un_canal_publicitaire_514183c7")}>{CHANNEL_CATALOG.map((channel, index) => {
           const locked = !pilotChannelsEnabled && !isAdsPublicChannel(channel.id);
           return <button type="button" key={channel.id} aria-label={`${channel.label}${locked ? ` · ${comingSoonLabel}` : ""}`} title={locked ? `${channel.label} · ${comingSoonLabel}` : channel.label} disabled={locked} data-channel={channel.id} data-locked={locked || undefined} data-near={index === channelIndex || index === (channelIndex + 1) % CHANNEL_CATALOG.length || index === (channelIndex - 1 + CHANNEL_CATALOG.length) % CHANNEL_CATALOG.length || undefined} onClick={() => selectChannel(index)} aria-pressed={index === channelIndex}><span className={styles.channelRailLogo} aria-hidden="true"><Image src={channel.logo} width={40} height={40} alt="" draggable={false} /></span><span className={styles.channelRailLabel}>{channel.label}</span></button>;
         })}</nav>
         <div className={styles.channelCarousel} data-testid="ads-channel-carousel">
-          <button type="button" onClick={() => selectChannel(channelIndex - 1)} aria-label="Canal précédent">‹</button>
-          <div className={styles.cubeStage} tabIndex={0} role="group" aria-label="Carrousel des canaux : flèches gauche et droite pour naviguer" onKeyDown={(event) => { if ((event.target as HTMLElement).closest("input,select,textarea,form")) return; if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); selectChannel(channelIndex + (event.key === "ArrowRight" ? 1 : -1)); } }} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest("button,a,input,select,textarea,form")) channelPointerStart.current = { x: event.clientX, y: event.clientY }; }} onPointerUp={(event) => { const start = channelPointerStart.current; channelPointerStart.current = null; if (!start) return; const dx = event.clientX - start.x; if (Math.abs(dx) >= 58 && Math.abs(dx) > Math.abs(event.clientY - start.y) * 1.5) selectChannel(channelIndex + (dx < 0 ? 1 : -1)); }} onPointerCancel={() => { channelPointerStart.current = null; }}>
+          <button type="button" onClick={() => selectChannel(channelIndex - 1)} aria-label={i18nT("canal_precedent_e644dfdf")}>‹</button>
+          <div className={styles.cubeStage} tabIndex={0} role="group" aria-label={i18nT("carrousel_des_canaux_fleches_gauche_et_c047fc3a")} onKeyDown={(event) => { if ((event.target as HTMLElement).closest("input,select,textarea,form")) return; if (event.key === "ArrowLeft" || event.key === "ArrowRight") { event.preventDefault(); selectChannel(channelIndex + (event.key === "ArrowRight" ? 1 : -1)); } }} onPointerDown={(event) => { if (!(event.target as HTMLElement).closest("button,a,input,select,textarea,form")) channelPointerStart.current = { x: event.clientX, y: event.clientY }; }} onPointerUp={(event) => { const start = channelPointerStart.current; channelPointerStart.current = null; if (!start) return; const dx = event.clientX - start.x; if (Math.abs(dx) >= 58 && Math.abs(dx) > Math.abs(event.clientY - start.y) * 1.5) selectChannel(channelIndex + (dx < 0 ? 1 : -1)); }} onPointerCancel={() => { channelPointerStart.current = null; }}>
           {[-1, 0, 1].map((offset) => {
             const index = (channelIndex + offset + CHANNEL_CATALOG.length) % CHANNEL_CATALOG.length;
             const channel = CHANNEL_CATALOG[index];
@@ -3853,12 +3879,12 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             const display = locked ? { tone: "locked", label: comingSoonLabel }
               : channel.provider ? adsConnectionDisplay(connectionSnapshots[channel.provider])
                 : channel.id === "openai" ? adsConnectionDisplay(connectionSnapshots.openai)
-                  : externalStatusDisplay(externalStatuses[externalChannel!]);
+                  : externalStatusDisplay(externalStatuses[externalChannel!], i18nT);
             return <div key={offset} data-provider={channel.id} data-locked={locked || undefined} className={`${styles.channel} ${offset === 0 ? styles.channelActive : styles.channelMini}`}>
-              {offset !== 0 && <button className={styles.miniSelect} type="button" disabled={locked} aria-label={`Afficher ${channel.label}${locked ? ` · ${comingSoonLabel}` : ""}`} onClick={() => selectChannel(index)} />}
+              {offset !== 0 && <button className={styles.miniSelect} type="button" disabled={locked} aria-label={i18nT("afficher_value_value_cbe2d29a", { value0: channel.label, value1: locked ? ` · ${comingSoonLabel}` : "" })} onClick={() => selectChannel(index)} />}
               <span className={styles.channelLogo}><Image src={channel.logo} width={56} height={56} alt="" draggable={false} /></span>
               <div className={styles.channelIdentity}><strong>{channel.label}</strong><small>{channel.slogan}</small></div>
-              <span className={styles.channelConnectionDot} data-status={display.tone} role="img" aria-label={display.label} title={display.label} />
+              <span className={styles.channelConnectionDot} data-status={display.tone} role="img" aria-label={adsUiText(i18nT, display.label)} title={adsUiText(i18nT, display.label)} />
               {offset === 0 && <div className={styles.connectionWorkspace} data-testid="ads-inline-connection">
     <AdsConnectionSettings
       active={isAdsProvider(channelId)}
@@ -3921,45 +3947,45 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
             </div>;
           })}
           </div>
-          <button type="button" onClick={() => selectChannel(channelIndex + 1)} aria-label="Canal suivant">›</button>
+          <button type="button" onClick={() => selectChannel(channelIndex + 1)} aria-label={i18nT("canal_suivant_d20db274")}>›</button>
         </div>
       </section>
 
       <div className={styles.launchArea}>
-        <button ref={launchButtonRef} type="button" onClick={startNewCampaign} disabled={!pilotChannelsEnabled && !isAdsPublicChannel(channelId)} className={`${styles.headerCta} ${styles.launchButton}`}><span aria-hidden="true">✦</span> {!pilotChannelsEnabled && !isAdsPublicChannel(channelId) ? comingSoonLabel : "Lancer une campagne"} <span aria-hidden="true">↗</span></button>
+        <button ref={launchButtonRef} type="button" onClick={startNewCampaign} disabled={!pilotChannelsEnabled && !isAdsPublicChannel(channelId)} className={`${styles.headerCta} ${styles.launchButton}`}><span aria-hidden="true">✦</span> {!pilotChannelsEnabled && !isAdsPublicChannel(channelId) ? comingSoonLabel : i18nT("lancer_une_campagne_a806e57c")} <span aria-hidden="true">↗</span></button>
       </div>
 
-      <SettingsDrawer title={campaignCreationTitle} isOpen={creating} onClose={() => { if (!demoDialog && busy !== "demo") void confirmCampaignExit(); }} closeOnEscape={!demoDialog && busy !== "demo"} closeOnBackdrop={!demoDialog && busy !== "demo"} presentation="centered" headerStyle={campaignHeaderStyle(channelId)} headerContent={<div className={styles.wizardTitle}><span className={styles.wizardChannelLogo} aria-hidden="true"><Image src={channelMeta.logo} width={34} height={34} alt="" /></span><div>{campaignCreationTitle}<small>{displayedStepNames[step]} · Étape {step + 1} / {displayedStepNames.length}</small></div></div>}>
+      <SettingsDrawer title={campaignCreationTitle} isOpen={creating} onClose={() => { if (!demoDialog && busy !== "demo") void confirmCampaignExit(); }} closeOnEscape={!demoDialog && busy !== "demo"} closeOnBackdrop={!demoDialog && busy !== "demo"} presentation="centered" headerStyle={campaignHeaderStyle(channelId)} headerContent={<div className={styles.wizardTitle}><span className={styles.wizardChannelLogo} aria-hidden="true"><Image src={channelMeta.logo} width={34} height={34} alt="" /></span><div>{campaignCreationTitle}<small>{adsUiText(i18nT, displayedStepNames[step])} {" "}{i18nT("etape_7f143e85")}{" "}{step + 1} / {displayedStepNames.length}</small></div></div>}>
       <div data-channel={channelId} ref={studioWorkspaceRef} inert={busy === "demo" || undefined} className={`${styles.workspace} ${styles.studioWorkspace}`} data-compact={compactScreen || undefined} data-short={shortScreen || undefined} data-stage={step} data-creation-path={creationPath} data-analysis-setup={analysisSetupOpen || undefined} onTouchStart={(event) => { const touch = event.touches[0]; touchStart.current = { x: touch.clientX, y: touch.clientY }; }} onTouchEnd={(event) => { const start = touchStart.current; touchStart.current = null; if (!start || creationPath === "choice" || busy !== null) return; const touch = event.changedTouches[0]; const dx = touch.clientX - start.x; const dy = touch.clientY - start.y; if (Math.abs(dx) > 75 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(event.target instanceof HTMLElement && event.target.closest("input, textarea, select, button"))) { const nextStep = step + (dx < 0 ? 1 : -1); if (dx < 0 && creationPath === "inrcy" && step === analysisStep && planProgress !== 100) return; navigateToStep(nextStep); } }}>
-      <nav className={styles.stepper} aria-label="Étapes de création">{displayedStepNames.map((name, index) => {
+      <nav className={styles.stepper} aria-label={i18nT("etapes_de_creation_8c0acff9")}>{displayedStepNames.map((name, index) => {
         const warning = creationPath !== "choice" && (reachedStepKeys.includes("validation") || reachedStepKeys.includes(displayedStepKeys[index]))
           ? stepWarningMessages.get(index + 1) : undefined;
-        return <button type="button" key={name} disabled={(index !== step && !reachedStepKeys.includes(displayedStepKeys[index])) || busy === "plan" || busy === "demo"} data-incomplete={Boolean(warning) || undefined} title={warning} aria-label={`${index + 1}. ${name}${warning ? ` · ${warning}` : ""}`} aria-current={step === index ? "step" : undefined} onClick={() => navigateToStep(index)}>
+        return <button type="button" key={name} disabled={(index !== step && !reachedStepKeys.includes(displayedStepKeys[index])) || busy === "plan" || busy === "demo"} data-incomplete={Boolean(warning) || undefined} title={adsUiText(i18nT, warning) || undefined} aria-label={`${index + 1}. ${adsUiText(i18nT, name)}${warning ? ` · ${adsUiText(i18nT, warning)}` : ""}`} aria-current={step === index ? "step" : undefined} onClick={() => navigateToStep(index)}>
           <span aria-hidden="true">{index + 1}{warning && <CampaignStepWarning className={styles.studioStepBubbleWarning} />}</span>
-          {!compactScreen && <b className={styles.studioStepName}>{channelId === "pinterest" ? PINTEREST_STEPPER_LABELS[name] || name : name}{warning && <CampaignStepWarning className={styles.studioStepNameWarning} />}</b>}
+          {!compactScreen && <b className={styles.studioStepName}>{adsUiText(i18nT, channelId === "pinterest" ? PINTEREST_STEPPER_LABELS[name] || name : name)}{warning && <CampaignStepWarning className={styles.studioStepNameWarning} />}</b>}
         </button>;
       })}</nav>
       {notice && <p className={styles.notice} role="status" aria-live="polite">{notice}</p>}
       <section hidden={step !== 0} className={`${styles.card} ${styles.studioChoiceCard}`}>
-          <StudioStepHeader number={1} label={analysisSetupOpen ? "LE CAP DE L’ANALYSE" : "VOTRE PROJET"} title={analysisSetupOpen ? "Comment iNrCy doit-il vous guider ?" : "Comment créer ?"} mobileTitle={analysisSetupOpen ? "Quel cap choisir ?" : "Comment créer ?"} channel="Sans diffusion" />
+          <StudioStepHeader number={1} label={analysisSetupOpen ? i18nT("le_cap_de_l_analyse_d0c8c19a") : i18nT("votre_projet_1310b083")} title={analysisSetupOpen ? i18nT("comment_inrcy_doit_il_vous_guider_22a85d0f") : i18nT("comment_creer_4eed607e")} mobileTitle={analysisSetupOpen ? i18nT("quel_cap_choisir_6572bf1b") : i18nT("comment_creer_4eed607e")} channel={i18nT("ads_ui_86a14a1bb9")} />
           {analysisSetupOpen ? <>
             <div className={styles.studioAnalysisSetup}>
               <AdsCampaignAnalysisChoice value={analysisMode} onChange={setAnalysisMode} objective={guidedAnalysisObjective} onObjectiveChange={setGuidedAnalysisObjective} disabled={busy !== null} className={styles.studioAnalysisChoice} />
               <div className={styles.studioAnalysisSetupActions}>
-                <button type="button" className={styles.back} disabled={busy !== null} onClick={() => setAnalysisSetupOpen(false)}>← Choisir un autre parcours</button>
-                <button type="button" className={styles.headerCta} disabled={busy !== null || (analysisMode === "guided" && !guidedAnalysisObjective.trim())} onClick={beginAssistedAnalysis}>Lancer l’analyse iNrCy <span aria-hidden="true">→</span></button>
+                <button type="button" className={styles.back} disabled={busy !== null} onClick={() => setAnalysisSetupOpen(false)}>{i18nT("choisir_un_autre_parcours_43e7c2b7")}</button>
+                <button type="button" className={styles.headerCta} disabled={busy !== null || (analysisMode === "guided" && !guidedAnalysisObjective.trim())} onClick={beginAssistedAnalysis}>{i18nT("lancer_l_analyse_inrcy_1b423f17")}{" "}<span aria-hidden="true">→</span></button>
               </div>
             </div>
           </> : <>
             <div className={styles.studioPathGrid}>
               <button type="button" className={styles.studioPath} onClick={chooseManualCreation} disabled={busy !== null}>
-                <span className={styles.studioPathIcon} aria-hidden="true">✎</span><span><strong>Créer manuellement</strong><small>Vous gardez la main sur chaque étape.</small></span><b>Commencer →</b>
+                <span className={styles.studioPathIcon} aria-hidden="true">✎</span><span><strong>{i18nT("creer_manuellement_89b2d47e")}</strong><small>{i18nT("vous_gardez_la_main_sur_chaque_88453a84")}</small></span><b>{i18nT("commencer_c1037398")}</b>
               </button>
               <button type="button" className={`${styles.studioPath} ${styles.studioPathAi}`} onClick={openAssistedAnalysisSetup} disabled={busy !== null}>
-                <span className={styles.studioPathIcon} aria-hidden="true">✦</span><span><strong>Créer avec iNrCy</strong><small>Votre iNrADN guide une campagne préparée pour vous.</small></span><b>Préparer l’analyse →</b>
+                <span className={styles.studioPathIcon} aria-hidden="true">✦</span><span><strong>{i18nT("creer_avec_inrcy_6abf3922")}</strong><small>{i18nT("votre_inradn_guide_une_campagne_preparee_d835821b")}</small></span><b>{i18nT("preparer_l_analyse_638446ec")}</b>
               </button>
             </div>
-            <p className={styles.studioCampaignPromise}><span aria-hidden="true">✦</span>{campaignPromise(channelId)}</p>
+            <p className={styles.studioCampaignPromise}><span aria-hidden="true">✦</span>{campaignPromise(channelId, i18nT)}</p>
           </>}
       </section>
 
@@ -3973,89 +3999,86 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           <span className={`${styles.adsGenerationSatellite} ${styles.adsGenerationSatelliteLeft}`} aria-hidden="true" />
           <span className={`${styles.adsGenerationSatellite} ${styles.adsGenerationSatelliteRight}`} aria-hidden="true" />
           <div className={styles.adsGenerationEmblem} aria-hidden="true"><span>↗</span></div>
-          <p className={styles.adsGenerationEyebrow}>iNrCY · ANALYSE &amp; GÉNÉRATION</p>
-          <h2>{planProgress === 100 ? "Votre campagne prend forme." : autoMediaState === "generating" ? "iNr’Studio compose votre média." : "iNrCy construit votre campagne."}</h2>
-          <p className={styles.adsGenerationLead}>{planProgress === 100 ? "Votre base est prête. Contrôlez chaque recommandation avant de l’enregistrer ou de la diffuser." : autoMediaState === "generating" ? "Le ciblage et les messages sont prêts : iNrCy fabrique maintenant le média adapté au format choisi." : "Nous relions votre iNrADN, vos priorités et l’historique utile pour vous proposer une campagne cohérente."}</p>
-          <div className={styles.adsGenerationProgress} data-pending={analysisRequestPending || undefined} role="progressbar" aria-label={hasMediaStep ? "Analyse iNrCy et génération du média" : "Analyse iNrCy de la campagne"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={analysisRequestPending ? undefined : planProgress} aria-valuetext={analysisRequestPending ? `Analyse en cours, progression indicative à ${planProgress} %` : undefined}><div><span style={{ width: `${planProgress}%` }} /></div><strong>{analysisRequestPending ? `${planProgress}% estimé` : `${planProgress}%`}</strong></div>
+          <p className={styles.adsGenerationEyebrow}>{i18nT("inrcy_analyse_amp_generation_b869aa5f")}</p>
+          <h2>{planProgress === 100 ? i18nT("votre_campagne_prend_forme_b668b3e7") : autoMediaState === "generating" ? i18nT("inr_studio_compose_votre_media_ead37ed0") : i18nT("inrcy_construit_votre_campagne_2f80e839")}</h2>
+          <p className={styles.adsGenerationLead}>{planProgress === 100 ? i18nT("votre_base_est_prete_controlez_chaque_5b103470") : autoMediaState === "generating" ? i18nT("le_ciblage_et_les_messages_sont_56328b8e") : i18nT("nous_relions_votre_inradn_vos_priorites_574f1742")}</p>
+          <div className={styles.adsGenerationProgress} data-pending={analysisRequestPending || undefined} role="progressbar" aria-label={hasMediaStep ? i18nT("analyse_inrcy_et_generation_du_media_26fd739c") : i18nT("analyse_inrcy_de_la_campagne_9a4fd4b7")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={analysisRequestPending ? undefined : planProgress} aria-valuetext={analysisRequestPending ? i18nT("ads_ui_7c89a3da50", { value0: planProgress }) : undefined}><div><span style={{ width: `${planProgress}%` }} /></div><strong>{analysisRequestPending ? i18nT("value_estime_07c0f54e", { value0: planProgress }) : `${planProgress}%`}</strong></div>
           <ol className={styles.adsGenerationStages}>{AI_ANALYSIS_STAGES.map((stage, index) => {
             const done = planProgress === 100 || index < completedAnalysisStages;
-            return <li key={stage.label} data-state={done ? "done" : index <= activeAnalysisStage ? "active" : "pending"}><span>{done ? "✓" : index + 1}</span><div><strong>{stage.label}</strong><small>{!hasMediaStep && stage.label === "Créations & messages" ? "Arguments, titres et descriptions de l’annonce" : stage.detail}</small></div></li>;
+            return <li key={stage.label} data-state={done ? "done" : index <= activeAnalysisStage ? "active" : "pending"}><span>{done ? "✓" : index + 1}</span><div><strong>{stage.label}</strong><small>{!hasMediaStep && stage.label === i18nT("creations_messages_2ae71f9c") ? i18nT("arguments_titres_et_descriptions_de_l_6e8c19e6") : stage.detail}</small></div></li>;
           })}</ol>
           {autoMediaMessage && <p className={styles.studioMediaGenerationNote} data-state={autoMediaState} role={autoMediaState === "error" ? "alert" : "status"}>{autoMediaMessage}</p>}
-          {planError && <div className={styles.studioPlanError} role="alert"><strong>La proposition n’a pas pu être finalisée.</strong><span>{planError}</span>{planRequestId && <small>Référence technique : {planRequestId}</small>}<div><button type="button" className={styles.secondaryButton} onClick={() => void generateCampaignPlan()}>Réessayer l’analyse</button><button type="button" className={styles.back} onClick={chooseManualCreation}>Passer au mode manuel</button></div></div>}
-          {!planError && planProgress < 100 && <div className={`${styles.studioPlanReady} ${styles.studioPlanPending}`} aria-hidden="true"><strong className={styles.studioPlanHeading}>Bilan de l’analyse</strong><div className={styles.studioPlanPendingLines}><span /><span /><span /></div></div>}
-          {planProgress === 100 && !planError && <div className={styles.studioPlanReady}><strong className={styles.studioPlanHeading}>Bilan de l’analyse</strong><details className={styles.studioPlanDetails}><summary><span className={styles.studioPlanPreview}>{visiblePlanRationale}</span><span className={styles.studioPlanExpandClosed}>Lire le bilan complet ↓</span><span className={styles.studioPlanExpandOpen}>Réduire le bilan ↑</span></summary><p>{visiblePlanRationale}</p></details>{planSources.length > 0 && <div className={styles.studioPlanSources}><span>Analyse basée sur</span><ul>{planSources.map((source) => <li key={source}>{source}</li>)}</ul></div>}</div>}
+          {planError && <div className={styles.studioPlanError} role="alert"><strong>{i18nT("la_proposition_n_a_pas_pu_819cb0fc")}</strong><span>{planError}</span>{planRequestId && <small>{i18nT("reference_technique_value_c614e1e7", { value0: planRequestId })}</small>}<div><button type="button" className={styles.secondaryButton} onClick={() => void generateCampaignPlan()}>{i18nT("reessayer_l_analyse_693b1916")}</button><button type="button" className={styles.back} onClick={chooseManualCreation}>{i18nT("passer_au_mode_manuel_3ab91a17")}</button></div></div>}
+          {!planError && planProgress < 100 && <div className={`${styles.studioPlanReady} ${styles.studioPlanPending}`} aria-hidden="true"><strong className={styles.studioPlanHeading}>{i18nT("bilan_de_l_analyse_e9eaec6a")}</strong><div className={styles.studioPlanPendingLines}><span /><span /><span /></div></div>}
+          {planProgress === 100 && !planError && <div className={styles.studioPlanReady}><strong className={styles.studioPlanHeading}>{i18nT("bilan_de_l_analyse_e9eaec6a")}</strong><details className={styles.studioPlanDetails}><summary><span className={styles.studioPlanPreview}>{visiblePlanRationale}</span><span className={styles.studioPlanExpandClosed}>{i18nT("lire_le_bilan_complet_93a47134")}</span><span className={styles.studioPlanExpandOpen}>{i18nT("reduire_le_bilan_3cd7b1bd")}</span></summary><p>{visiblePlanRationale}</p></details>{planSources.length > 0 && <div className={styles.studioPlanSources}><span>{i18nT("analyse_basee_sur_ea620501")}</span><ul>{planSources.map((source) => <li key={source}>{source}</li>)}</ul></div>}</div>}
         </div>
       </section>
 
       <section hidden={step !== foundationsStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioFoundationsCard}`}>
-        <StudioStepHeader number={foundationsStep + 1} label="CAMPAGNE" title={channelId === "pinterest" ? "Votre campagne et son objectif." : "La direction de votre campagne."} mobileTitle="Votre objectif" channel={channelMeta.label} />
-        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? "Notoriété, considération, vidéo, ventes ou prospects : ce choix structure la proposition Pinterest et les réglages qui suivent." : "Définissez ce que vous voulez obtenir. iNrCy utilise ces choix pour guider les messages, le ciblage et la diffusion."}</p>
+        <StudioStepHeader number={foundationsStep + 1} label={i18nT("ads_ui_3be0fb7aed")} title={channelId === "pinterest" ? i18nT("votre_campagne_et_son_objectif_d1a44bbf") : i18nT("la_direction_de_votre_campagne_c5f38aac")} mobileTitle={i18nT("votre_objectif_6a75871c")} channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? i18nT("notoriete_consideration_video_ventes_ou_prospect_cb5c61b0") : i18nT("definissez_ce_que_vous_voulez_obtenir_48f7bbe0")}</p>
         <div className={styles.studioGrid}>
-          <label className={styles.field}>Nom de la campagne<input value={draft.name} maxLength={100} onChange={(event) => updateDraft({ name: event.target.value })} placeholder="Ex. Demandes de devis locales" /></label>
-          <label className={`${styles.field} ${styles.studioWide}`}>Offre ou service à mettre en lumière<VoiceTextarea value={draft.offer} onChange={(offer) => updateDraft({ offer })} maxLength={500} purpose="subject" contextLabel="Offre à mettre en lumière" placeholder="Ex. installation de panneaux solaires avec étude personnalisée" /></label>
+          <label className={styles.field}>{i18nT("nom_de_la_campagne_9491056a")}<input value={draft.name} maxLength={100} onChange={(event) => updateDraft({ name: event.target.value })} placeholder={i18nT("ex_demandes_de_devis_locales_333c497d")} /></label>
+          <label className={`${styles.field} ${styles.studioWide}`}>{i18nT("offre_ou_service_a_mettre_en_451aaa80")}<VoiceTextarea value={draft.offer} onChange={(offer) => updateDraft({ offer })} maxLength={500} purpose="subject" contextLabel={i18nT("offre_a_mettre_en_lumiere_b4b0ccef")} placeholder={i18nT("ex_installation_de_panneaux_solaires_avec_ac7a9738")} /></label>
           {nativeSettings?.channel === "linkedin" && <>
-            <label className={styles.field}>Objectif LinkedIn<select value={nativeSettings.objectiveType} onChange={(event) => {
+            <label className={styles.field}>{i18nT("objectif_linkedin_19b2aeff")}<select value={nativeSettings.objectiveType} onChange={(event) => {
               const objectiveType = event.target.value as LinkedInWizardSettings["objectiveType"];
               const formats = LINKEDIN_WIZARD_FORMATS[objectiveType] as readonly string[];
               const format = formats.includes(nativeSettings.format) ? nativeSettings.format : formats[0] as LinkedInWizardSettings["format"];
               updateNativeSettings({ ...nativeSettings, objectiveType, format });
-            }}>{Object.keys(LINKEDIN_WIZARD_FORMATS).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>
+            }}>{Object.keys(LINKEDIN_WIZARD_FORMATS).map((value) => <option key={value} value={value}>{nativeBriefTerm(value, i18nT)}</option>)}</select></label>
 
           </>}
           {nativeSettings?.channel === "linkedin" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`} data-linkedin-provider-resources="true">
-            <legend>Compte publicitaire et identité LinkedIn</legend>
-            <p>LinkedIn range chaque nouvelle campagne dans un groupe. iNr’ADS sélectionne automatiquement un groupe compatible et la Page qui signe vos annonces quand une seule Page est disponible. Vous pouvez ajuster ces choix.</p>
+            <legend>{i18nT("compte_publicitaire_et_identite_linkedin_375be96b")}</legend>
+            <p>{i18nT("linkedin_range_chaque_nouvelle_campagne_dans_9b497ca8")}</p>
             <div className={styles.studioControlOptions}>
               <span>{externalStatuses.linkedin.selectedAccountId
-                ? `${externalStatuses.linkedin.selectedAccountName || "Compte LinkedIn Ads"} · ID ${externalStatuses.linkedin.selectedAccountId}`
-                : "Aucun compte LinkedIn Ads associé"}</span>
-              {linkedInPreflightLoad === "loading" && <small role="status">Vérification automatique des ressources LinkedIn…</small>}
+                ? i18nT("value_id_value_b0e8c14b", { value0: externalStatuses.linkedin.selectedAccountName || i18nT("ads_linkedin_account_fallback"), value1: externalStatuses.linkedin.selectedAccountId })
+                : i18nT("aucun_compte_linkedin_ads_associe_e31a3456")}</span>
+              {linkedInPreflightLoad === "loading" && <small role="status">{i18nT("verification_automatique_des_ressources_linkedin_e27ab5d6")}</small>}
               {linkedInPreflightLoad === "error" && <button type="button" className={styles.secondaryButton} disabled={!externalStatuses.linkedin.connected || !externalStatuses.linkedin.selectedAccountId} onClick={() => void loadLinkedInResources(true)}>
-                Actualiser
-              </button>}
+                {i18nT("actualiser_9d3b2a7d")}{" "}</button>}
             </div>
             {linkedInPreflightLoad === "error" && <p className={styles.campaignMediaError} role="alert">{linkedInPreflightError}</p>}
             {linkedInPreflight && <div className={styles.linkedInIdentityChoices}>
               <div className={styles.linkedInGroupChoice}>
-                <span>Rangement dans LinkedIn</span>
-                <strong>{selectedLinkedInCampaignGroup?.name || (draft.linkedinCampaignGroupId ? `Groupe ${draft.linkedinCampaignGroupId}` : linkedInPreflightLoad === "loading" ? "Recherche d’un groupe compatible…" : "Aucun groupe compatible sélectionné")}</strong>
-                <small>Votre nouvelle campagne sera ajoutée à ce groupe.</small>
-                {selectedLinkedInCampaignGroup?.runSchedule.end && <small>Fin du groupe : {new Date(selectedLinkedInCampaignGroup.runSchedule.end).toLocaleString("fr-FR")}. Le calendrier de la campagne doit tenir dans cette période.</small>}
-                {linkedInScheduleIssue && <small role="alert">{linkedInScheduleIssue} <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(budgetStep)}>Vérifier le calendrier</button></small>}
+                <span>{i18nT("rangement_dans_linkedin_b2f146da")}</span>
+                <strong>{selectedLinkedInCampaignGroup?.name || (draft.linkedinCampaignGroupId ? i18nT("groupe_value_095e360a", { value0: draft.linkedinCampaignGroupId }) : linkedInPreflightLoad === "loading" ? i18nT("recherche_d_un_groupe_compatible_0144946b") : i18nT("aucun_groupe_compatible_selectionne_1281afa9"))}</strong>
+                <small>{i18nT("votre_nouvelle_campagne_sera_ajoutee_a_36128fa0")}</small>
+                {selectedLinkedInCampaignGroup?.runSchedule.end && <small>{i18nT("fin_du_groupe_value_le_calendrier_3c4450bf", { value0: new Date(selectedLinkedInCampaignGroup.runSchedule.end).toLocaleString(locale) })}</small>}
+                {adsUiText(i18nT, linkedInScheduleIssue) && <small role="alert">{adsUiText(i18nT, linkedInScheduleIssue)} <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(budgetStep)}>{i18nT("verifier_le_calendrier_2547bf03")}</button></small>}
                 <details open={!draft.linkedinCampaignGroupId || undefined}>
-                  <summary>Changer de groupe</summary>
-                  <label className={styles.field}>Groupe de campagnes
-                <select value={draft.linkedinCampaignGroupId || ""} onChange={(event) => updateDraft({ linkedinCampaignGroupId: event.target.value })}>
-                  <option value="">Sélectionnez un groupe vérifié</option>
-                  {draft.linkedinCampaignGroupId && !linkedInCampaignGroups.some((group) => group.id === draft.linkedinCampaignGroupId) && <option value={draft.linkedinCampaignGroupId} disabled>Choix enregistré indisponible · ID {draft.linkedinCampaignGroupId}</option>}
-                  {linkedInCampaignGroups.map((group) => <option key={group.id} value={group.id}>{group.name} · {group.status} · ID {group.id}</option>)}
+                  <summary>{i18nT("changer_de_groupe_adb9e718")}</summary>
+                  <label className={styles.field}>{i18nT("groupe_de_campagnes_4de7947c")}{" "}<select value={draft.linkedinCampaignGroupId || ""} onChange={(event) => updateDraft({ linkedinCampaignGroupId: event.target.value })}>
+                  <option value="">{i18nT("selectionnez_un_groupe_verifie_f4f95247")}</option>
+                  {draft.linkedinCampaignGroupId && !linkedInCampaignGroups.some((group) => group.id === draft.linkedinCampaignGroupId) && <option value={draft.linkedinCampaignGroupId} disabled>{i18nT("choix_enregistre_indisponible_id_value_c1d57331", { value0: draft.linkedinCampaignGroupId })}</option>}
+                  {linkedInCampaignGroups.map((group) => <option key={group.id} value={group.id}>{i18nT("value_value_id_value_2dce67a1", { value0: group.name, value1: group.status, value2: group.id })}</option>)}
                 </select>
               </label>
                 </details>
               </div>
-              <label className={styles.field}>Page qui signe vos annonces
-                <select value={draft.linkedinOrganizationUrn || ""} onChange={(event) => updateDraft({ linkedinOrganizationUrn: event.target.value })}>
-                  <option value="">Sélectionnez une Page autorisée</option>
-                  {draft.linkedinOrganizationUrn && !linkedInOrganizations.some((organization) => organization.urn === draft.linkedinOrganizationUrn) && <option value={draft.linkedinOrganizationUrn} disabled>Choix enregistré indisponible · {draft.linkedinOrganizationUrn}</option>}
-                  {linkedInOrganizations.map((organization) => <option key={organization.urn} value={organization.urn}>{linkedInOrganizationLabel(organization)}</option>)}
+              <label className={styles.field}>{i18nT("page_qui_signe_vos_annonces_939eb340")}{" "}<select value={draft.linkedinOrganizationUrn || ""} onChange={(event) => updateDraft({ linkedinOrganizationUrn: event.target.value })}>
+                  <option value="">{i18nT("selectionnez_une_page_autorisee_6a16e77f")}</option>
+                  {draft.linkedinOrganizationUrn && !linkedInOrganizations.some((organization) => organization.urn === draft.linkedinOrganizationUrn) && <option value={draft.linkedinOrganizationUrn} disabled>{i18nT("choix_enregistre_indisponible_value_e92d5274", { value0: draft.linkedinOrganizationUrn })}</option>}
+                  {linkedInOrganizations.map((organization) => <option key={organization.urn} value={organization.urn}>{linkedInOrganizationLabel(organization, i18nT)}</option>)}
                 </select>
               </label>
             </div>}
-            {linkedInPreflight && linkedInCampaignGroups.length === 0 && <small role="alert">Aucun groupe LinkedIn compatible avec l’objectif choisi n’est disponible sur ce compte.</small>}
-            {linkedInPreflight && linkedInOrganizations.length === 0 && <small role="alert">Aucune Page avec un rôle Administrateur, Administrateur de contenu ou Sponsor direct autorisé n’est disponible.</small>}
-            {selectedLinkedInCampaignGroup && selectedLinkedInCampaignGroup.status !== "ACTIVE" && <small>Ce groupe est en pause. La nouvelle campagne pourra être créée en pause ; choisissez un groupe actif pour la diffuser immédiatement.</small>}
+            {linkedInPreflight && linkedInCampaignGroups.length === 0 && <small role="alert">{i18nT("aucun_groupe_linkedin_compatible_avec_l_1d1857ec")}</small>}
+            {linkedInPreflight && linkedInOrganizations.length === 0 && <small role="alert">{i18nT("aucune_page_avec_un_role_administrateur_9a818cf0")}</small>}
+            {selectedLinkedInCampaignGroup && selectedLinkedInCampaignGroup.status !== "ACTIVE" && <small>{i18nT("ce_groupe_est_en_pause_la_2d79694e")}</small>}
           </fieldset>}
           {nativeSettings?.channel === "tiktok" && <>
-            <label className={styles.field}>Objectif TikTok<select value={nativeSettings.objectiveType} onChange={(event) => {
+            <label className={styles.field}>{i18nT("objectif_tiktok_0469334e")}<select value={nativeSettings.objectiveType} onChange={(event) => {
               const objectiveType = event.target.value as TikTokWizardSettings["objectiveType"];
               const optimizationIntent = ({ REACH: "reach", VIDEO_VIEWS: "views", TRAFFIC: "clicks", WEB_CONVERSIONS: "conversions", LEAD_GENERATION: "leads", ENGAGEMENT: "engagement" } as const)[objectiveType];
               updateNativeSettings({ ...nativeSettings, objectiveType, optimizationIntent,
                 destinationKind: objectiveType === "LEAD_GENERATION" ? "instant_form" : "website" });
-            }}>{TIKTOK_WIZARD_OBJECTIVES.map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>
+            }}>{TIKTOK_WIZARD_OBJECTIVES.map((value) => <option key={value} value={value}>{nativeBriefTerm(value, i18nT)}</option>)}</select></label>
           </>}
           {nativeSettings?.channel === "pinterest" && <>
-            <label className={styles.field}>Objectif Pinterest<select value={nativeSettings.objectiveType} onChange={(event) => {
+            <label className={styles.field}>{i18nT("objectif_pinterest_7bfa04bd")}<select value={nativeSettings.objectiveType} onChange={(event) => {
               const objectiveType = event.target.value as PinterestWizardSettings["objectiveType"];
               const catalogAllowed = objectiveType === "CONSIDERATION" || objectiveType === "SALES";
               const intendedPromotionType = catalogAllowed ? nativeSettings.intendedPromotionType : "STANDARD_AD";
@@ -4064,98 +4087,98 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
                 creativeType: objectiveType === "VIDEO_COMPLETION" ? "VIDEO" : intendedPromotionType === "CATALOG" ? null : nativeSettings.creativeType || "REGULAR",
                 conversionEvent: objectiveType === "SALES" ? "CHECKOUT" : objectiveType === "LEADS" ? "LEAD" : null });
               updatePinterestDelivery({ optimizationGoal: objectiveType === "AWARENESS" ? "impressions" : "pin_clicks" });
-            }}>{PINTEREST_WIZARD_OBJECTIVES.map((value) => <option key={value} value={value}>{pinterestObjectiveLabel(value)}</option>)}</select><small>Notoriété et Considération peuvent être lancées aujourd’hui avec une image et le ciblage automatique. Les autres objectifs restent entièrement enregistrables en brouillon.</small></label>
+            }}>{PINTEREST_WIZARD_OBJECTIVES.map((value) => <option key={value} value={value}>{pinterestObjectiveLabel(value, i18nT)}</option>)}</select><small>{i18nT("notoriete_et_consideration_peuvent_etre_lancees_3ced0506")}</small></label>
           </>}
           {nativeSettings?.channel === "x" && <>
-            <label className={styles.field}>Objectif X<select value={nativeSettings.objective} onChange={(event) => {
+            <label className={styles.field}>{i18nT("objectif_x_81381f07")}<select value={nativeSettings.objective} onChange={(event) => {
               const objective = event.target.value as XWizardSettings["objective"];
               updateNativeSettings({ ...nativeSettings, objective, format: objective === "video_views" ? "video" : nativeSettings.format });
-            }}>{X_WIZARD_OBJECTIVES.map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select></label>
+            }}>{X_WIZARD_OBJECTIVES.map((value) => <option key={value} value={value}>{nativeBriefTerm(value, i18nT)}</option>)}</select></label>
           </>}
           {!nativeSettings && channelId !== "openai" && channelId !== "google" && <>
-            <label className={styles.field}>Objectif<select value={draft.objective} onChange={(event) => updateDraft({ objective: event.target.value as AdsCampaignInput["objective"] })}>{OBJECTIVE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-            <label className={styles.field}>Action à mesurer<select value={draft.conversionGoal} onChange={(event) => updateDraft({ conversionGoal: event.target.value as AdsCampaignInput["conversionGoal"] })}>{CONVERSION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            <label className={styles.field}>{i18nT("objectif_47d1c260")}<select value={draft.objective} onChange={(event) => updateDraft({ objective: event.target.value as AdsCampaignInput["objective"] })}>{OBJECTIVE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+            <label className={styles.field}>{i18nT("action_a_mesurer_a3cbedda")}<select value={draft.conversionGoal} onChange={(event) => updateDraft({ conversionGoal: event.target.value as AdsCampaignInput["conversionGoal"] })}>{CONVERSION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
           </>}
         </div>
-        {channelId === "google" && <p className={styles.studioTypeHint}>Compte Google Ads : {associatedAccountName || "À associer"}. L’IA prépare une campagne Réseau de recherche avec annonce textuelle responsive. Les autres types restent en brouillon jusqu’à leur intégration dédiée.</p>}
-        {!nativeSettings && <><div className={styles.studioTypeGrid} role="radiogroup" aria-label="Type de campagne">{campaignTypeOptions.map((option) => <button type="button" role="radio" aria-checked={draft.campaignType === option.value} key={option.value} data-selected={draft.campaignType === option.value || undefined} onClick={() => updateDraft({ campaignType: option.value })}><strong>{option.label}</strong><small>{option.detail}{channelId === "google" && option.value !== "search" ? " · Brouillon uniquement" : ""}</small><span>{draft.campaignType === option.value ? "Choisi" : "Choisir"}</span></button>)}</div><p className={styles.studioTypeHint}>Un seul type par campagne : pour tester plusieurs leviers, créez ensuite une campagne dédiée à chacun.</p></>}
-        {nativeSettings && <p className={styles.studioTypeHint}>{channelId === "pinterest" ? "La suite prépare le budget, les zones, l’audience, les enchères puis votre épingle. Toutes les confirmations sont regroupées à la fin." : channelId === "linkedin" ? "Choisissez ensuite les zones géographiques, l’audience, le format de l’annonce et son média." : nativeSettings.channel === "x" && nativeSettings.format === "text" ? "Le format texte ne nécessite aucun média ; le parcours passe directement à la diffusion." : "Le format est défini ; l’étape Médias est consacrée au fichier et à son aperçu."}</p>}
+        {channelId === "google" && <p className={styles.studioTypeHint}>{i18nT("compte_google_ads_016fc70e")}{" "}{associatedAccountName || i18nT("a_associer_98e1fb09")}{i18nT("l_ia_prepare_une_campagne_reseau_993f8ad8")}</p>}
+        {!nativeSettings && <><div className={styles.studioTypeGrid} role="radiogroup" aria-label={i18nT("type_de_campagne_70f9fad7")}>{campaignTypeOptions.map((option) => <button type="button" role="radio" aria-checked={draft.campaignType === option.value} key={option.value} data-selected={draft.campaignType === option.value || undefined} onClick={() => updateDraft({ campaignType: option.value })}><strong>{option.label}</strong><small>{option.detail}{channelId === "google" && option.value !== "search" ? i18nT("brouillon_uniquement_7b60249e") : ""}</small><span>{draft.campaignType === option.value ? i18nT("choisi_6888aab0") : i18nT("choisir_b030d590")}</span></button>)}</div><p className={styles.studioTypeHint}>{i18nT("un_seul_type_par_campagne_pour_7ff241ab")}</p></>}
+        {nativeSettings && <p className={styles.studioTypeHint}>{channelId === "pinterest" ? i18nT("la_suite_prepare_le_budget_les_e44954f1") : channelId === "linkedin" ? i18nT("choisissez_ensuite_les_zones_geographiques_l_1153a791") : nativeSettings.channel === "x" && nativeSettings.format === "text" ? i18nT("le_format_texte_ne_necessite_aucun_cb226def") : i18nT("le_format_est_defini_l_etape_2b0f0ea1")}</p>}
       </section>
 
       {(channelId === "meta" || channelId === "openai") && <>
         <section hidden={step !== geographyStep} data-channel={channelId} data-meta-geography={channelId === "meta" || undefined} data-openai-geography={channelId === "openai" || undefined} className={`${styles.card} ${styles.studioCard} ${styles.studioTargetingCard}`}>
-          <StudioStepHeader number={geographyStep + 1} label="ZONES GÉOGRAPHIQUES" title="Les lieux où trouver vos futurs clients." mobileTitle="Vos zones" channel={channelMeta.label} />
-          <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>Les zones proposées par l’IA sont vérifiées dans {channelMeta.label}. Vous pouvez ajuster une proposition ici avant votre validation finale.</p>
-          {channelId === "meta" ? <><div className={styles.studioGrid}>{campaignLocationFields}</div>{draft.metaDeliverySettings ? <MetaAdsLocationPicker accountId={metaResourceAccountId} locations={draft.targetLocations} targets={draft.metaGeoTargets || []} active={creating && channelId === "meta"} onChange={(metaGeoTargets) => { if (JSON.stringify(metaGeoTargets) !== JSON.stringify(draft.metaGeoTargets || [])) updateDraft({ metaGeoTargets }); }} onReadyChange={(ready, error) => setMetaGeoState((current) => current.key === metaGeoKey && current.ready === ready && current.error === error ? current : { key: metaGeoKey, ready, error })} onAddLocation={(label) => { if (!draft.targetLocations.includes(label)) updateDraft({ targetLocations: [...draft.targetLocations, label] }); }} /> : <div className={styles.studioControlPanel}><strong>Ciblage historique en France</strong><p>Ces lieux seront revérifiés en France avant publication. Pour choisir des zones précises du catalogue mondial et les nouveaux réglages Meta, vous pouvez actualiser cette proposition.</p><button type="button" className={styles.secondaryButton} onClick={() => updateMetaDelivery({})}>Actualiser les réglages Meta</button></div>}</> : <ChatGPTAdsGeography resources={effectiveOpenaiResources} loading={openaiResourcesLoad === "loading"} error={openaiResourcesError} query={openaiGeoQuery} onQueryChange={setOpenaiGeoQuery} onSearch={() => setOpenaiResourcesRevision((value) => value + 1)} locations={draft.targetLocations} onLocationsChange={(targetLocations) => updateDraft({ targetLocations })} />}
+          <StudioStepHeader number={geographyStep + 1} label={i18nT("zones_geographiques_e119269a")} title={i18nT("les_lieux_ou_trouver_vos_futurs_99904931")} mobileTitle={i18nT("vos_zones_d8f5f67a")} channel={channelMeta.label} />
+          <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{i18nT("les_zones_proposees_par_l_ia_0aa5e7cc", { value0: channelMeta.label })}</p>
+          {channelId === "meta" ? <><div className={styles.studioGrid}>{campaignLocationFields}</div>{draft.metaDeliverySettings ? <MetaAdsLocationPicker accountId={metaResourceAccountId} locations={draft.targetLocations} targets={draft.metaGeoTargets || []} active={creating && channelId === "meta"} onChange={(metaGeoTargets) => { if (JSON.stringify(metaGeoTargets) !== JSON.stringify(draft.metaGeoTargets || [])) updateDraft({ metaGeoTargets }); }} onReadyChange={(ready, error) => setMetaGeoState((current) => current.key === metaGeoKey && current.ready === ready && current.error === error ? current : { key: metaGeoKey, ready, error })} onAddLocation={(label) => { if (!draft.targetLocations.includes(label)) updateDraft({ targetLocations: [...draft.targetLocations, label] }); }} /> : <div className={styles.studioControlPanel}><strong>{i18nT("ciblage_historique_en_france_b2406952")}</strong><p>{i18nT("ces_lieux_seront_reverifies_en_france_c11ba62a")}</p><button type="button" className={styles.secondaryButton} onClick={() => updateMetaDelivery({})}>{i18nT("actualiser_les_reglages_meta_f1fb7dd2")}</button></div>}</> : <ChatGPTAdsGeography resources={effectiveOpenaiResources} loading={openaiResourcesLoad === "loading"} error={openaiResourcesError} query={openaiGeoQuery} onQueryChange={setOpenaiGeoQuery} onSearch={() => setOpenaiResourcesRevision((value) => value + 1)} locations={draft.targetLocations} onLocationsChange={(targetLocations) => updateDraft({ targetLocations })} />}
         </section>
         <section hidden={step !== biddingStep} data-channel={channelId} data-meta-bidding={channelId === "meta" || undefined} data-openai-bidding={channelId === "openai" || undefined} className={`${styles.card} ${styles.studioCard}`}>
-          <StudioStepHeader number={biddingStep + 1} label="ENCHÈRES" title="Le résultat visé et son coût." mobileTitle="Vos enchères" channel={channelMeta.label} />
-          <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>La proposition est remplie automatiquement. Cette étape permet de consulter ou d’ajuster les enchères avant de tout valider à la fin.</p>
+          <StudioStepHeader number={biddingStep + 1} label={i18nT("encheres_52ae31a3")} title={i18nT("le_resultat_vise_et_son_cout_c64c789c")} mobileTitle={i18nT("vos_encheres_f6fabfe6")} channel={channelMeta.label} />
+          <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{i18nT("la_proposition_est_remplie_automatiquement_cette_26de75e4")}</p>
           {channelId === "meta" ? <MetaAdsBidding settings={metaDelivery} budgetEuros={metaDelivery.budget.type === "total" ? metaDelivery.budget.totalEuros || 0 : draft.dailyBudgetEuros} onChange={updateMetaDelivery} /> : <ChatGPTAdsBidding bidEuros={draft.openaiBidEuros} budgetEuros={openaiDelivery.budget.type === "total" ? openaiDelivery.budget.totalEuros || 0 : draft.dailyBudgetEuros} onBidChange={(openaiBidEuros) => updateDraft({ openaiBidEuros })} />}
         </section>
       </>}
 
       {channelId === "google" && <>
         <section hidden={step !== biddingStep} data-channel={channelId} data-google-bidding="true" className={`${styles.card} ${styles.studioCard}`}>
-          <StudioStepHeader number={biddingStep + 1} label="ENCHÈRES GOOGLE" title="Quel résultat Google doit privilégier." mobileTitle="Vos enchères" channel={channelMeta.label} />
-          <p className={styles.intro}>L’IA prépare une stratégie compatible. Les objectifs de conversion existants du compte sont vérifiés automatiquement ; aucun suivi n’est inventé.</p>
+          <StudioStepHeader number={biddingStep + 1} label={i18nT("encheres_google_61d863a7")} title={i18nT("quel_resultat_google_doit_privilegier_380fa88f")} mobileTitle={i18nT("vos_encheres_f6fabfe6")} channel={channelMeta.label} />
+          <p className={styles.intro}>{i18nT("l_ia_prepare_une_strategie_compatible_a3390ed8")}</p>
           <GoogleAdsBidding settings={googleDelivery} strategy={draft.bidStrategy} onStrategyChange={(bidStrategy) => updateDraft({ bidStrategy })} onChange={updateGoogleDelivery} conversionsReady={effectiveGoogleResources?.hasBiddableConversions ?? null} />
           <GoogleAdsMeasurement resources={effectiveGoogleResources} loading={googleResourcesLoad === "loading"} error={googleResourcesError} onRefresh={() => setGoogleResourcesRevision((value) => value + 1)} />
         </section>
         <section hidden={step !== geographyStep} data-channel={channelId} data-google-geography="true" className={`${styles.card} ${styles.studioCard} ${styles.studioTargetingCard}`}>
-          <StudioStepHeader number={geographyStep + 1} label="ZONES GÉOGRAPHIQUES" title="Où trouver vos futurs clients." mobileTitle="Vos zones" channel={channelMeta.label} />
-          <p className={styles.intro}>Les zones proposées seront vérifiées dans Google Ads avant la création. Vous pouvez les rechercher et ajuster leur périmètre ici.</p>
+          <StudioStepHeader number={geographyStep + 1} label={i18nT("zones_geographiques_e119269a")} title={i18nT("ou_trouver_vos_futurs_clients_816308ec")} mobileTitle={i18nT("vos_zones_d8f5f67a")} channel={channelMeta.label} />
+          <p className={styles.intro}>{i18nT("les_zones_proposees_seront_verifiees_dans_ed26195f")}</p>
           <div className={styles.studioGrid}>{campaignLocationFields}<GoogleAdsGeography settings={googleDelivery} onChange={updateGoogleDelivery} /></div>
-          <p className={styles.studioTypeHint} role="status">{googleGeoReady ? "✓ Toutes les zones ont été vérifiées dans Google Ads." : googleGeoState.key === googleGeoKey && googleGeoState.status === "error" ? googleGeoState.error : draft.targetLocations.length ? "Vérification automatique des villes et régions…" : "Les zones du brief apparaîtront ici."}</p>
-          {googleGeoState.status === "error" && <button type="button" className={styles.secondaryButton} onClick={() => { googleResolvedGeoKey.current = ""; setGoogleGeoRevision((value) => value + 1); }}>Revérifier les zones</button>}
+          <p className={styles.studioTypeHint} role="status">{googleGeoReady ? i18nT("toutes_les_zones_ont_ete_verifiees_60af7d83") : googleGeoState.key === googleGeoKey && googleGeoState.status === "error" ? googleGeoState.error : draft.targetLocations.length ? i18nT("verification_automatique_des_villes_et_regions_fd17acce") : i18nT("les_zones_du_brief_apparaitront_ici_d428b243")}</p>
+          {googleGeoState.status === "error" && <button type="button" className={styles.secondaryButton} onClick={() => { googleResolvedGeoKey.current = ""; setGoogleGeoRevision((value) => value + 1); }}>{i18nT("reverifier_les_zones_b7fd9197")}</button>}
         </section>
       </>}
 
       {nativeSettings?.channel === "pinterest" && <>
         <section hidden={step !== geographyStep} data-channel={channelId} data-pinterest-geography="true" className={`${styles.card} ${styles.studioCard} ${styles.studioTargetingCard}`}>
-          <StudioStepHeader number={geographyStep + 1} label="ZONES GÉOGRAPHIQUES" title="Les lieux où votre épingle sera diffusée." mobileTitle="Vos zones" channel={channelMeta.label} />
-          <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>Les lieux proposés par l’IA sont vérifiés dans Pinterest. Une zone indisponible reste à corriger ; elle n’est jamais remplacée par le pays entier.</p>
+          <StudioStepHeader number={geographyStep + 1} label={i18nT("zones_geographiques_e119269a")} title={i18nT("les_lieux_ou_votre_epingle_sera_7c261e15")} mobileTitle={i18nT("vos_zones_d8f5f67a")} channel={channelMeta.label} />
+          <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{i18nT("les_lieux_proposes_par_l_ia_07b49a65")}</p>
           <div className={styles.studioGrid}>{campaignLocationFields}</div>
-          <p className={styles.studioTypeHint} role="status">{pinterestGeoReady ? `✓ ${pinterestResolvedGeography.zones.length} zone${pinterestResolvedGeography.zones.length > 1 ? "s" : ""} vérifiée${pinterestResolvedGeography.zones.length > 1 ? "s" : ""} dans Pinterest.` : pinterestResolvedGeography.error}</p>
+          <p className={styles.studioTypeHint} role="status">{pinterestGeoReady ? i18nT("ads_count_pinterest_verified_zones", { count: pinterestResolvedGeography.zones.length }) : pinterestResolvedGeography.error}</p>
           {pinterestGeoReady && <p className={styles.studioTypeHint}>{pinterestResolvedGeography.zones.map((zone) => zone.name).join(" · ")}</p>}
-          {pinterestResourcesLoad === "error" && <button type="button" className={styles.secondaryButton} onClick={() => setPinterestResourcesRevision((value) => value + 1)}>Revérifier les ressources Pinterest</button>}
+          {pinterestResourcesLoad === "error" && <button type="button" className={styles.secondaryButton} onClick={() => setPinterestResourcesRevision((value) => value + 1)}>{i18nT("reverifier_les_ressources_pinterest_0b936856")}</button>}
         </section>
         <section hidden={step !== biddingStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard}`}>
-          <StudioStepHeader number={biddingStep + 1} label="ENCHÈRES PINTEREST" title="Le résultat visé et son coût." mobileTitle="Vos enchères" channel={channelMeta.label} />
-          <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{creationPath === "inrcy" ? "L’IA prépare une stratégie automatique adaptée à votre objectif. Consultez ou ajustez cette proposition si vous le souhaitez." : "Choisissez l’optimisation et les enchères adaptées à votre objectif."}</p>
+          <StudioStepHeader number={biddingStep + 1} label={i18nT("encheres_pinterest_cbc5d4a8")} title={i18nT("le_resultat_vise_et_son_cout_c64c789c")} mobileTitle={i18nT("vos_encheres_f6fabfe6")} channel={channelMeta.label} />
+          <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{creationPath === "inrcy" ? i18nT("l_ia_prepare_une_strategie_automatique_bed74361") : i18nT("choisissez_l_optimisation_et_les_encheres_396a726a")}</p>
           <PinterestAdsBidding settings={pinterestDelivery} objectiveType={nativeSettings.objectiveType} budgetEuros={pinterestDelivery.budget.type === "total" ? Number(pinterestDelivery.budget.totalEuros || 0) : draft.dailyBudgetEuros} onChange={updatePinterestDelivery} />
         </section>
       </>}
 
       {preparedOnlyChannel && <>
         <section hidden={step !== geographyStep} data-channel={channelId} data-x-geography={channelId === "x" || undefined} data-tiktok-geography={channelId === "tiktok" || undefined} className={`${styles.card} ${styles.studioCard} ${styles.studioTargetingCard}`}>
-          <StudioStepHeader number={geographyStep + 1} label="ZONES GÉOGRAPHIQUES" title="Les lieux où trouver vos futurs clients." mobileTitle="Vos zones" channel={channelMeta.label} />
-          <p className={styles.intro}>L’IA reprend vos zones d’activité. Les lieux restent compacts et modifiables ; aucun pays n’est ajouté automatiquement.</p>
+          <StudioStepHeader number={geographyStep + 1} label={i18nT("zones_geographiques_e119269a")} title={i18nT("les_lieux_ou_trouver_vos_futurs_99904931")} mobileTitle={i18nT("vos_zones_d8f5f67a")} channel={channelMeta.label} />
+          <p className={styles.intro}>{i18nT("l_ia_reprend_vos_zones_d_5bdee5a9")}</p>
           <div className={styles.studioGrid}>{campaignLocationFields}</div>
           {channelId === "tiktok" ? <TikTokAdsLocationPicker accountId={tikTokAccountId} locations={draft.targetLocations} active={creating && externalStatuses.tiktok.connected && nativeSettings?.channel === "tiktok" && nativeSettings.objectiveType === "TRAFFIC" && nativeSettings.placementIntent === "tiktok_only"} onChange={(targetLocations) => updateDraft({ targetLocations })} onResolvedTargets={(targets) => { if (draft.provider === "tiktok" && draft.tiktokNativeSelections?.advertiserId === tikTokAccountId && JSON.stringify(draft.tiktokNativeSelections.locationIds) !== JSON.stringify(targets.map((item) => item.id))) updateDraft({ tiktokNativeSelections: { ...draft.tiktokNativeSelections, locationIds: targets.map((item) => item.id) } }); }} /> : <XAdsLocationPicker accountId={externalStatuses.x.selectedAccountId || draft.adAccountId} locations={draft.targetLocations} selections={draft.xNativeSelections} active={creating && externalStatuses.x.connected} onChange={(targetLocations, xNativeSelections) => updateDraft({ targetLocations, xNativeSelections })} />}
         </section>
         <section hidden={step !== biddingStep} data-channel={channelId} data-prepared-bidding="true" className={`${styles.card} ${styles.studioCard}`}>
-          <StudioStepHeader number={biddingStep + 1} label="ENCHÈRES ET OPTIMISATION" title="Le résultat visé et son coût." mobileTitle="Vos enchères" channel={channelMeta.label} />
+          <StudioStepHeader number={biddingStep + 1} label={i18nT("encheres_et_optimisation_a79ddb92")} title={i18nT("le_resultat_vise_et_son_cout_c64c789c")} mobileTitle={i18nT("vos_encheres_f6fabfe6")} channel={channelMeta.label} />
           <PreparedAdsBidding settings={preparedDelivery} channel={channelId} optimizationIntent={nativeSettings?.channel === "tiktok" ? nativeSettings.optimizationIntent : undefined} budgetEuros={preparedDelivery.budget.type === "total" ? preparedDelivery.budget.totalEuros || 0 : draft.dailyBudgetEuros} onChange={updatePreparedDelivery} />
-          {nativeSettings?.channel === "tiktok" && <div className={styles.studioControlPanel}><strong>Résultat préparé : {nativeBriefTerm(nativeSettings.optimizationIntent)}</strong><p>L’optimisation suit l’objectif de votre campagne. Le mode de facturation et l’événement de conversion seront vérifiés dans le compte TikTok ; le brief ne crée aucune balise.</p></div>}
+          {nativeSettings?.channel === "tiktok" && <div className={styles.studioControlPanel}><strong>{i18nT("resultat_prepare_value_8b1dc36d", { value0: nativeBriefTerm(nativeSettings.optimizationIntent, i18nT) })}</strong><p>{i18nT("l_optimisation_suit_l_objectif_de_b855d143")}</p></div>}
         </section>
       </>}
       {nativeSettings?.channel === "tiktok" && <section hidden={step !== identityStep} data-channel={channelId} data-tiktok-identity="true" className={`${styles.card} ${styles.studioCard}`}>
-        <StudioStepHeader number={identityStep + 1} label="IDENTITÉ PUBLICITAIRE" title="Le compte qui signe votre vidéo." mobileTitle="Votre identité" channel={channelMeta.label} />
-        <div className={styles.studioControlPanel}><strong>{effectiveTikTokResources?.account.name || "Compte annonceur à connecter"}</strong><p>{tikTokIdentityMessage}</p>
-          {effectiveTikTokResources?.identities.length === 1 && <small>Cette identité provient d’une lecture du compte autorisé, jamais d’une invention de l’IA.</small>}
-          {effectiveTikTokResources && effectiveTikTokResources.identities.length > 1 && <details><summary>Voir les identités autorisées</summary><ul>{effectiveTikTokResources.identities.map((identity) => <li key={identity.type + identity.id + (identity.authorizedBusinessCenterId || "")}>{identity.displayName}</li>)}</ul></details>}
-          <p>Une vidéo non Spark ou une publication Spark nécessitera les droits correspondants. Le premier parcours préparé vise une vidéo de trafic vers le site ; aucune publication organique n’est autorisée ici.</p>
-          <button type="button" className={styles.secondaryButton} disabled={!externalStatuses.tiktok.connected || tikTokResourcesLoad === "loading" || busy !== null} onClick={() => setTikTokResourcesRevision((value) => value + 1)}>Revérifier le compte et l’identité</button>
+        <StudioStepHeader number={identityStep + 1} label={i18nT("identite_publicitaire_df360e59")} title={i18nT("le_compte_qui_signe_votre_video_1cc538ec")} mobileTitle={i18nT("votre_identite_1d0d455f")} channel={channelMeta.label} />
+        <div className={styles.studioControlPanel}><strong>{effectiveTikTokResources?.account.name || i18nT("compte_annonceur_a_connecter_7d78bd53")}</strong><p>{adsUiText(i18nT, tikTokIdentityMessage)}</p>
+          {effectiveTikTokResources?.identities.length === 1 && <small>{i18nT("cette_identite_provient_d_une_lecture_b1a64aac")}</small>}
+          {effectiveTikTokResources && effectiveTikTokResources.identities.length > 1 && <details><summary>{i18nT("voir_les_identites_autorisees_98d17799")}</summary><ul>{effectiveTikTokResources.identities.map((identity) => <li key={identity.type + identity.id + (identity.authorizedBusinessCenterId || "")}>{identity.displayName}</li>)}</ul></details>}
+          <p>{i18nT("une_video_non_spark_ou_une_c18411f8")}</p>
+          <button type="button" className={styles.secondaryButton} disabled={!externalStatuses.tiktok.connected || tikTokResourcesLoad === "loading" || busy !== null} onClick={() => setTikTokResourcesRevision((value) => value + 1)}>{i18nT("reverifier_le_compte_et_l_identite_41562038")}</button>
         </div>
       </section>}
       {nativeSettings?.channel === "linkedin" && <section hidden={step !== geographyStep} data-channel={channelId} data-linkedin-geography="true" className={`${styles.card} ${styles.studioCard} ${styles.studioTargetingCard}`}>
-        <StudioStepHeader number={geographyStep + 1} label="ZONES GÉOGRAPHIQUES" title="Où diffuser votre campagne." mobileTitle="Vos zones" channel={channelMeta.label} />
-        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>L’IA propose les zones de votre brief. Vérifiez les lieux retenus, puis choisissez si vous visez les résidents ou aussi les personnes récemment présentes.</p>
+        <StudioStepHeader number={geographyStep + 1} label={i18nT("zones_geographiques_e119269a")} title={i18nT("ou_diffuser_votre_campagne_9c5fc62f")} mobileTitle={i18nT("vos_zones_d8f5f67a")} channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{i18nT("l_ia_propose_les_zones_de_223458d1")}</p>
         <div className={styles.studioGrid}>
           {campaignLocationFields}
           <div className={styles.studioWide} data-linkedin-geography-controls="true">
-            <label className={styles.field}>Type de localisation<select value={linkedInDelivery.locationType} onChange={(event) => updateLinkedInDelivery({ ...linkedInDelivery, locationType: event.target.value as LinkedInDeliverySettings["locationType"] })}><option value="recent_or_permanent">Résidence ou présence récente</option><option value="permanent">Résidence permanente uniquement</option></select></label>
+            <label className={styles.field}>{i18nT("type_de_localisation_f144ebf8")}<select value={linkedInDelivery.locationType} onChange={(event) => updateLinkedInDelivery({ ...linkedInDelivery, locationType: event.target.value as LinkedInDeliverySettings["locationType"] })}><option value="recent_or_permanent">{i18nT("residence_ou_presence_recente_350938d6")}</option><option value="permanent">{i18nT("residence_permanente_uniquement_1296c70a")}</option></select></label>
             <LinkedInAdsLocationPicker resolutions={linkedInGeoResolutions} targets={linkedInGeoTargets} verifiedUrns={linkedInVerifiedGeoUrns} busy={linkedInPreflightLoad === "loading"} query={linkedInGeoQuery} onQueryChange={setLinkedInGeoQuery} onChoiceRecorded={(query, urn) => { linkedInGeoChoices.current[linkedInGeoQueryKey(query)] = urn; }} onSearch={() => void loadLinkedInResources(true, linkedInGeoQuery.trim())} onChoose={(previousUrn, target) => {
               if (previousUrn && previousUrn !== target?.urn) linkedInGeoDismissedUrns.current.add(previousUrn);
               if (target) linkedInGeoDismissedUrns.current.delete(target.urn);
@@ -4167,103 +4190,103 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       </section>}
 
       <section hidden={step !== targetingStep} data-linkedin-audience={channelId === "linkedin" || undefined} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioTargetingCard}`}>
-        <StudioStepHeader number={targetingStep + 1} label={channelId === "google" ? "PARAMÈTRES GOOGLE" : channelId === "pinterest" ? "AUDIENCE PINTEREST" : channelId === "linkedin" ? "AUDIENCE LINKEDIN" : channelId === "meta" ? "AUDIENCE META" : channelId === "openai" ? "AUDIENCE ET CONTEXTE" : "CIBLAGE"} title={channelId === "google" ? "Les surfaces et les profils utiles." : channelId === "pinterest" ? "À qui montrer vos idées." : channelId === "linkedin" ? "À quels professionnels parler." : channelId === "meta" ? "Les personnes à qui montrer votre offre." : channelId === "openai" ? "Votre offre, dans les conversations pertinentes." : "Les profils et les surfaces utiles."} mobileTitle="Votre ciblage" channel={channelMeta.label} />
-        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? "L’IA prépare le message pour vos clients. Pinterest utilise le contenu de l’épingle pour trouver les profils intéressés, dans vos zones validées." : channelId === "linkedin" ? "L’IA traduit vos clients prioritaires en critères LinkedIn. Ajustez les profils et leur langue ; les zones se règlent à l’étape précédente." : channelId === "meta" || channelId === "openai" ? "L’IA prépare le message pour vos clients. Les lieux se règlent à l’étape Zones géographiques ; les filtres réellement transmis sont expliqués ici." : "Les profils guident le message ; les zones se règlent séparément. Les critères exacts seront vérifiés dans le compte."}</p>
+        <StudioStepHeader number={targetingStep + 1} label={channelId === "google" ? i18nT("parametres_google_b629a9b9") : channelId === "pinterest" ? i18nT("audience_pinterest_db284bc2") : channelId === "linkedin" ? i18nT("audience_linkedin_b2a8e698") : channelId === "meta" ? i18nT("audience_meta_69ee59e2") : channelId === "openai" ? i18nT("audience_et_contexte_858454f0") : i18nT("ads_ui_c7f1894efa")} title={channelId === "google" ? i18nT("les_surfaces_et_les_profils_utiles_3b74dec5") : channelId === "pinterest" ? i18nT("a_qui_montrer_vos_idees_59e8211e") : channelId === "linkedin" ? i18nT("a_quels_professionnels_parler_87f2a303") : channelId === "meta" ? i18nT("les_personnes_a_qui_montrer_votre_ed426acc") : channelId === "openai" ? i18nT("votre_offre_dans_les_conversations_pertinentes_68ee669e") : i18nT("les_profils_et_les_surfaces_utiles_bf810485")} mobileTitle={i18nT("votre_ciblage_e9cd319d")} channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? i18nT("l_ia_prepare_le_message_pour_ab41a33b") : channelId === "linkedin" ? i18nT("l_ia_traduit_vos_clients_prioritaires_08254eb0") : channelId === "meta" || channelId === "openai" ? i18nT("l_ia_prepare_le_message_pour_5584b7a7") : i18nT("les_profils_guident_le_message_les_4dedfe41")}</p>
         <div className={styles.studioGrid}>
           {!preparedOnlyChannel && channelId !== "linkedin" && channelId !== "google" && channelId !== "pinterest" && channelId !== "meta" && channelId !== "openai" && campaignLocationFields}
-          <TagField className={styles.studioAudienceField} wide label={channelId === "openai" ? "Profils pour guider le message" : "Clients / audiences prioritaires"} helper={channelId === "linkedin" ? "Ce brief guide l’IA. Les critères de diffusion sont sélectionnés ci-dessous." : channelId === "openai" ? "Pour le texte uniquement, sans ciblage d’audience personnalisée." : channelId === "pinterest" ? "Ces profils guident le message. Le ciblage automatique Pinterest s’appuie sur l’épingle et les zones retenues." : channelId === "google" ? "Ces profils guident les messages de l’IA ; ils ne sont pas des filtres d’audience envoyés à Google Ads." : channelId === "meta" ? "Ces profils guident le message de l’IA. Les âges et langues ci-dessous sont les filtres réellement transmis à Meta." : "Ces profils guident le message. Les critères de ciblage exacts seront vérifiés dans le compte annonceur."} values={draft.targetAudiences} onChange={(targetAudiences) => updateDraft({ targetAudiences })} placeholder={channelId === "linkedin" ? "Ex. dirigeants de petites entreprises" : "Ex. Propriétaires de maison"} />
-          {channelId !== "openai" && channelId !== "linkedin" && channelId !== "google" && channelId !== "pinterest" && channelId !== "meta" && <TagField className={styles.studioLanguageField} wide label="Langue du message" helper="Cette langue guide la rédaction de l’IA. Elle ne crée pas de filtre de langue natif sur TikTok ou X." values={draft.languages} onChange={(languages) => updateDraft({ languages })} placeholder="Ex. fr ou en" />}
-          {channelId === "google" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Réseaux Google</legend><p>Choisissez les surfaces envisagées. Ces choix sont transmis à Google Ads. La recherche Google est toujours incluse.</p><div className={styles.studioControlOptions}><label><input type="checkbox" checked={draft.googleSearchPartners} onChange={(event) => updateDraft({ googleSearchPartners: event.target.checked })} />Partenaires du Réseau de Recherche</label><label><input type="checkbox" checked={draft.googleDisplayExpansion} onChange={(event) => updateDraft({ googleDisplayExpansion: event.target.checked })} />Extension Display lorsque pertinente</label></div></fieldset>}
-          {channelId === "google" && <div className={`${styles.studioControlPanel} ${styles.studioWide}`}><strong>Langues automatiques sur Google Search</strong><p>Google adapte les langues à vos annonces, à votre site et à la recherche. Le brief de langue sert à rédiger l’annonce ; aucun filtre de langue obsolète n’est ajouté.</p><small>Segments d’audience : aucun filtre démographique ou segment de compte n’est ajouté. Le ciblage repose sur vos recherches et vos zones.</small></div>}
+          <TagField className={styles.studioAudienceField} wide label={channelId === "openai" ? i18nT("profils_pour_guider_le_message_08ca3311") : i18nT("clients_audiences_prioritaires_fe51bcb0")} helper={channelId === "linkedin" ? i18nT("ads_ui_3a6cafea8d") : channelId === "openai" ? i18nT("ads_ui_a7e6725cc6") : channelId === "pinterest" ? i18nT("ads_ui_e21ab0ab56") : channelId === "google" ? i18nT("ads_ui_0544f70739") : channelId === "meta" ? i18nT("ads_ui_4f7dad98ca") : i18nT("ads_ui_fbead4af23")} values={draft.targetAudiences} onChange={(targetAudiences) => updateDraft({ targetAudiences })} placeholder={channelId === "linkedin" ? i18nT("ex_dirigeants_de_petites_entreprises_35bba36b") : i18nT("ex_proprietaires_de_maison_316692d5")} />
+          {channelId !== "openai" && channelId !== "linkedin" && channelId !== "google" && channelId !== "pinterest" && channelId !== "meta" && <TagField className={styles.studioLanguageField} wide label={i18nT("langue_du_message_1fdab780")} helper={i18nT("ads_ui_1ca6f053ae")} values={draft.languages} onChange={(languages) => updateDraft({ languages })} placeholder={i18nT("ex_fr_ou_en_4e86fb5d")} />}
+          {channelId === "google" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>{i18nT("reseaux_google_ab3638dd")}</legend><p>{i18nT("choisissez_les_surfaces_envisagees_ces_choix_6b40df16")}</p><div className={styles.studioControlOptions}><label><input type="checkbox" checked={draft.googleSearchPartners} onChange={(event) => updateDraft({ googleSearchPartners: event.target.checked })} />{i18nT("partenaires_du_reseau_de_recherche_8165f47e")}</label><label><input type="checkbox" checked={draft.googleDisplayExpansion} onChange={(event) => updateDraft({ googleDisplayExpansion: event.target.checked })} />{i18nT("extension_display_lorsque_pertinente_556ae4b1")}</label></div></fieldset>}
+          {channelId === "google" && <div className={`${styles.studioControlPanel} ${styles.studioWide}`}><strong>{i18nT("langues_automatiques_sur_google_search_5c812ce7")}</strong><p>{i18nT("google_adapte_les_langues_a_vos_3f1db1db")}</p><small>{i18nT("segments_d_audience_aucun_filtre_demographique_ab5cb923")}</small></div>}
           {nativeSettings?.channel === "linkedin" && <div className={styles.studioWide} data-linkedin-targeting="true">
             <div className={styles.linkedInAudienceControls}>
-              <label className={styles.field}>Langue des profils ciblés<select value={nativeSettings.locale.language + "_" + nativeSettings.locale.country} onChange={(event) => { const [language, country] = event.target.value.split("_"); updateNativeSettings({ ...nativeSettings, locale: { language, country } }); updateDraft({ languages: [language] }); }}>{(linkedInPreflight?.supportedLocales?.length ? linkedInPreflight.supportedLocales : [nativeSettings.locale]).map((locale) => <option key={locale.language + "_" + locale.country} value={locale.language + "_" + locale.country}>{new Intl.DisplayNames(["fr"], { type: "language" }).of(locale.language) || locale.language}</option>)}</select><small>Langues réellement disponibles dans LinkedIn.</small></label>
+              <label className={styles.field}>{i18nT("langue_des_profils_cibles_4ebcc963")}<select value={nativeSettings.locale.language + "_" + nativeSettings.locale.country} onChange={(event) => { const [language, country] = event.target.value.split("_"); updateNativeSettings({ ...nativeSettings, locale: { language, country } }); updateDraft({ languages: [language] }); }}>{(linkedInPreflight?.supportedLocales?.length ? linkedInPreflight.supportedLocales : [nativeSettings.locale]).map((locale) => <option key={locale.language + "_" + locale.country} value={locale.language + "_" + locale.country}>{new Intl.DisplayNames(["fr"], { type: "language" }).of(locale.language) || locale.language}</option>)}</select><small>{i18nT("langues_reellement_disponibles_dans_linkedin_19eba354")}</small></label>
 
             </div>
 
             <LinkedInAdsAudience accountId={draft.adAccountId || externalStatuses.linkedin.selectedAccountId} language={nativeSettings.locale.language} country={nativeSettings.locale.country} targeting={linkedInDelivery.professionalTargeting} suggestions={linkedInAudienceSuggestions} active={creating} onChange={(professionalTargeting) => updateLinkedInDelivery({ ...linkedInDelivery, professionalTargeting })} onPendingChange={setLinkedInAudiencePending} />
-            <small role="status">{typeof linkedInPreflight?.selected?.audienceCount === "number" ? `Audience estimée par LinkedIn : ${linkedInPreflight.selected.audienceCount.toLocaleString("fr-FR")} membres. ` : "LinkedIn vérifie la taille de l’audience avant le lancement. "}Minimum requis : 300 membres.</small>
+            <small role="status">{typeof linkedInPreflight?.selected?.audienceCount === "number" ? i18nT("audience_estimee_par_linkedin_value_membres_a1da4678", { value0: linkedInPreflight.selected.audienceCount.toLocaleString(locale) }) : i18nT("linkedin_verifie_la_taille_de_l_2fc1a233")}{i18nT("minimum_requis_300_membres_c6c04288")}</small>
           </div>}
-          {nativeSettings?.channel === "tiktok" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Audience TikTok</legend><div className={styles.studioControlOptions}><label>Approche d’audience<select value={nativeSettings.targetingMode} onChange={(event) => updateNativeSettings({ ...nativeSettings, targetingMode: event.target.value as TikTokWizardSettings["targetingMode"] })}><option value="broad">Audience large</option><option value="interests">Centres d’intérêt</option></select></label></div><small>Les intérêts exacts devront être vérifiés dans le compte annonceur.</small><div className={styles.studioControlOptions}><label className={styles.field}>Emplacements envisagés<select value={nativeSettings.placementIntent} onChange={(event) => updateNativeSettings({ ...nativeSettings, placementIntent: event.target.value as TikTokWizardSettings["placementIntent"] })}><option value="tiktok_only">TikTok uniquement</option><option value="automatic">Placements automatiques</option></select><small>La disponibilité sera vérifiée dans le compte annonceur.</small></label></div></fieldset>}
+          {nativeSettings?.channel === "tiktok" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>{i18nT("audience_tiktok_ecff36f2")}</legend><div className={styles.studioControlOptions}><label>{i18nT("approche_d_audience_48536fca")}<select value={nativeSettings.targetingMode} onChange={(event) => updateNativeSettings({ ...nativeSettings, targetingMode: event.target.value as TikTokWizardSettings["targetingMode"] })}><option value="broad">{i18nT("audience_large_166547d6")}</option><option value="interests">{i18nT("centres_d_interet_479a90c0")}</option></select></label></div><small>{i18nT("les_interets_exacts_devront_etre_verifies_0b01884b")}</small><div className={styles.studioControlOptions}><label className={styles.field}>{i18nT("emplacements_envisages_d6426fb5")}<select value={nativeSettings.placementIntent} onChange={(event) => updateNativeSettings({ ...nativeSettings, placementIntent: event.target.value as TikTokWizardSettings["placementIntent"] })}><option value="tiktok_only">{i18nT("tiktok_uniquement_2f12d7e1")}</option><option value="automatic">{i18nT("placements_automatiques_cc878f66")}</option></select><small>{i18nT("la_disponibilite_sera_verifiee_dans_le_798dc115")}</small></label></div></fieldset>}
           {nativeSettings?.channel === "pinterest" && <>
             <div className={`${styles.field} ${styles.studioWide}`}>
-              <TagField label="Langues des personnes ciblées" helper="Langues proposées par l’IA et vérifiées dans Pinterest." values={draft.languages} onChange={(languages) => updateDraft({ languages })} placeholder="Ex. français" maxItems={10} />
-              <label className={styles.field}>Ajouter une langue Pinterest<select value="" disabled={pinterestResourcesLoad !== "ready"} onChange={(event) => { if (event.target.value && !pinterestResolvedLanguages.ids.includes(event.target.value) && draft.languages.length < 10) updateDraft({ languages: [...draft.languages, event.target.value] }); }}><option value="">Choisir une langue disponible</option>{effectivePinterestResources?.locales.map((locale) => <option key={locale.id} value={locale.id} disabled={pinterestResolvedLanguages.ids.includes(locale.id)}>{locale.name}</option>)}</select></label>
+              <TagField label={i18nT("langues_des_personnes_ciblees_e0b1aa9d")} helper={i18nT("ads_ui_0028e1ed3e")} values={draft.languages} onChange={(languages) => updateDraft({ languages })} placeholder={i18nT("ex_francais_459fc03a")} maxItems={10} />
+              <label className={styles.field}>{i18nT("ajouter_une_langue_pinterest_75673064")}<select value="" disabled={pinterestResourcesLoad !== "ready"} onChange={(event) => { if (event.target.value && !pinterestResolvedLanguages.ids.includes(event.target.value) && draft.languages.length < 10) updateDraft({ languages: [...draft.languages, event.target.value] }); }}><option value="">{i18nT("choisir_une_langue_disponible_fb0f711e")}</option>{effectivePinterestResources?.locales.map((locale) => <option key={locale.id} value={locale.id} disabled={pinterestResolvedLanguages.ids.includes(locale.id)}>{locale.name}</option>)}</select></label>
               {pinterestResolvedLanguages.error && <small role="status">{pinterestResolvedLanguages.error}</small>}
             </div>
             <PinterestAdsDistribution settings={pinterestDelivery} onChange={updatePinterestDelivery} />
           </>}
-          {nativeSettings?.channel === "pinterest" && <label className={`${styles.field} ${styles.studioTargetingMode}`} >Mode de ciblage Pinterest<select value={nativeSettings.targetingMode} onChange={(event) => updatePinterestTargetingMode(event.target.value as PinterestWizardSettings["targetingMode"])}><option value="automatic">Ciblage automatique — recommandé · publiable</option><option value="interests">Centres d’intérêt · brouillon</option><option value="keywords">Recherches / mots-clés · brouillon</option><option value="audiences">Audiences existantes · brouillon</option></select><small>{nativeSettings.targetingMode === "automatic" ? "Pinterest optimise l’audience à partir du contenu de votre Pin, dans les zones choisies." : "Ce mode reste en brouillon jusqu’à la sélection de ses audiences dans Pinterest Ads."}</small>{nativeSettings.targetingMode === "automatic" && draft.keywords.length > 0 && <small role="alert">Retirez les anciens signaux manuels pour utiliser le ciblage automatique. <button type="button" className={styles.secondaryButton} onClick={clearPinterestManualSignals}>Retirer les signaux manuels</button></small>}</label>}
-          {nativeSettings?.channel === "x" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>Audience X</legend><p>Votre choix oriente les signaux à détailler à l’étape suivante.</p><div className={styles.studioControlOptions}><label>Approche de ciblage<select value={nativeSettings.targetingMode} onChange={(event) => { const targetingMode = event.target.value as XWizardSettings["targetingMode"]; updateNativeSettings({ ...nativeSettings, targetingMode }); if (targetingMode !== "keywords") updateDraft({ keywords: [] }); }}><option value="broad">Audience large</option><option value="keywords">Mots-clés</option><option value="interests">Centres d’intérêt</option><option value="follower_lookalikes">Audiences similaires aux abonnés</option></select></label></div></fieldset>}
+          {nativeSettings?.channel === "pinterest" && <label className={`${styles.field} ${styles.studioTargetingMode}`} >{i18nT("mode_de_ciblage_pinterest_9a54a86d")}<select value={nativeSettings.targetingMode} onChange={(event) => updatePinterestTargetingMode(event.target.value as PinterestWizardSettings["targetingMode"])}><option value="automatic">{i18nT("ciblage_automatique_recommande_publiable_cfd36d99")}</option><option value="interests">{i18nT("centres_d_interet_brouillon_91f47e31")}</option><option value="keywords">{i18nT("recherches_mots_cles_brouillon_71fe29e6")}</option><option value="audiences">{i18nT("audiences_existantes_brouillon_9b4d67a6")}</option></select><small>{nativeSettings.targetingMode === "automatic" ? i18nT("pinterest_optimise_l_audience_a_partir_fdd57d52") : i18nT("ce_mode_reste_en_brouillon_jusqu_2ad7697d")}</small>{nativeSettings.targetingMode === "automatic" && draft.keywords.length > 0 && <small role="alert">{i18nT("retirez_les_anciens_signaux_manuels_pour_9b22a8b8")}{" "}<button type="button" className={styles.secondaryButton} onClick={clearPinterestManualSignals}>{i18nT("retirer_les_signaux_manuels_d7d6e282")}</button></small>}</label>}
+          {nativeSettings?.channel === "x" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}><legend>{i18nT("audience_x_6bd69075")}</legend><p>{i18nT("votre_choix_oriente_les_signaux_a_5fa366fd")}</p><div className={styles.studioControlOptions}><label>{i18nT("approche_de_ciblage_a5bf3574")}<select value={nativeSettings.targetingMode} onChange={(event) => { const targetingMode = event.target.value as XWizardSettings["targetingMode"]; updateNativeSettings({ ...nativeSettings, targetingMode }); if (targetingMode !== "keywords") updateDraft({ keywords: [] }); }}><option value="broad">{i18nT("audience_large_166547d6")}</option><option value="keywords">{i18nT("mots_cles_7120109e")}</option><option value="interests">{i18nT("centres_d_interet_479a90c0")}</option><option value="follower_lookalikes">{i18nT("audiences_similaires_aux_abonnes_9dcac389")}</option></select></label></div></fieldset>}
           {channelId === "meta" && draft.metaDeliverySettings && <MetaAdsAudience settings={metaDelivery} languages={metaResolvedLanguages.error ? draft.languages : metaResolvedLanguages.ids.map(String)} locales={effectiveMetaResources?.locales || []} onLanguagesChange={(languages) => updateDraft({ languages })} onChange={updateMetaDelivery} />}
-          {channelId === "meta" && !draft.metaDeliverySettings && <div className={`${styles.studioControlPanel} ${styles.studioWide}`}><strong>Audience du parcours historique</strong><p>Le brief guide le message ; ses langues ne sont pas des filtres transmis à Meta. Les nouveaux réglages d’âge et de langue apparaîtront après actualisation de la proposition.</p></div>}
-          {channelId === "openai" && <div className={`${styles.studioControlPanel} ${styles.studioWide}`}><strong>Contexte de votre carte ChatGPT</strong><p>L’offre de l’étape Campagne aide ChatGPT à rapprocher l’annonce des conversations pertinentes. Les profils du brief servent à rédiger le message ; aucun filtre d’audience personnalisée n’est ajouté.</p></div>}
+          {channelId === "meta" && !draft.metaDeliverySettings && <div className={`${styles.studioControlPanel} ${styles.studioWide}`}><strong>{i18nT("audience_du_parcours_historique_ca0edea4")}</strong><p>{i18nT("le_brief_guide_le_message_ses_f0c60674")}</p></div>}
+          {channelId === "openai" && <div className={`${styles.studioControlPanel} ${styles.studioWide}`}><strong>{i18nT("contexte_de_votre_carte_chatgpt_9e57ddeb")}</strong><p>{i18nT("l_offre_de_l_etape_campagne_dc7f6bc4")}</p></div>}
         </div>
       </section>
 
       <section hidden={step !== keywordsStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioKeywordsCard}`}>
-        {channelId === "linkedin" ? <StudioStepHeader number={keywordsStep + 1} label="FORMAT PUBLICITAIRE" title="Comment présenter votre annonce." mobileTitle="Votre format" channel={channelMeta.label} /> : <StudioStepHeader number={keywordsStep + 1} label={channelId === "google" ? "MOTS-CLÉS" : channelId === "pinterest" ? "DÉCOUVERTE PINTEREST" : "SIGNAUX"} title={channelId === "google" ? "Les recherches à capter." : channelId === "pinterest" ? "Comment votre idée doit être découverte." : "Les signaux qui orientent votre audience."} mobileTitle={channelId === "google" ? "Vos mots-clés" : channelId === "pinterest" ? "Votre découverte" : "Vos signaux"} channel={channelMeta.label} />}
-        {channelId !== "linkedin" && <>        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "google" ? "Cette étape est dédiée aux requêtes de vos futurs clients. Ajoutez les expressions commerciales à viser et celles à écarter." : channelId === "meta" ? "Ajoutez les intérêts, besoins et angles qui aident à orienter votre audience Meta." : `Détaillez les ${nativeSettings?.channel === "x" && nativeSettings.targetingMode === "keywords" || nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "keywords" ? "mots-clés" : "signaux"} prévus pour ${channelMeta.label}. Les valeurs exactes seront confirmées dans le compte Ads.`}</p></>}
-        {nativeSettings?.channel === "linkedin" ? <div className={styles.studioGrid}>            <label className={styles.field}>Format sponsorisé<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as LinkedInWizardSettings["format"] })}>{LINKEDIN_WIZARD_FORMATS[nativeSettings.objectiveType].map((format) => <option key={format} value={format}>{nativeBriefTerm(format)}{format === "STANDARD_UPDATE" || format === "SINGLE_VIDEO" ? " · publiable" : " · brouillon"}</option>)}</select><small>Ce choix fixe les ressources à préparer dans l’étape Médias dédiée.</small></label>
-          <aside className={styles.studioKeywordGuidance}><strong>Un format par groupe de publicités</strong><p>Le choix adapte le texte, le média et les réglages suivants. Les formats qui nécessitent encore une intégration restent identifiés comme brouillons.</p></aside>
+        {channelId === "linkedin" ? <StudioStepHeader number={keywordsStep + 1} label={i18nT("format_publicitaire_9f17c802")} title={i18nT("comment_presenter_votre_annonce_24322b7e")} mobileTitle={i18nT("votre_format_1c07287a")} channel={channelMeta.label} /> : <StudioStepHeader number={keywordsStep + 1} label={channelId === "google" ? i18nT("mots_cles_5cee6748") : channelId === "pinterest" ? i18nT("decouverte_pinterest_4fc27293") : i18nT("ads_ui_451f8d9a52")} title={channelId === "google" ? i18nT("les_recherches_a_capter_a99e7363") : channelId === "pinterest" ? i18nT("comment_votre_idee_doit_etre_decouverte_ea278703") : i18nT("les_signaux_qui_orientent_votre_audience_91e61c63")} mobileTitle={channelId === "google" ? i18nT("vos_mots_cles_ac1103b9") : channelId === "pinterest" ? i18nT("votre_decouverte_291c8691") : i18nT("vos_signaux_60f2da1c")} channel={channelMeta.label} />}
+        {channelId !== "linkedin" && <>        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "google" ? i18nT("cette_etape_est_dediee_aux_requetes_d34901fc") : channelId === "meta" ? i18nT("ajoutez_les_interets_besoins_et_angles_5bc81bb8") : i18nT("ads_detail_targeting", { channel: channelMeta.label })}</p></>}
+        {nativeSettings?.channel === "linkedin" ? <div className={styles.studioGrid}>            <label className={styles.field}>{i18nT("format_sponsorise_b6eadeb5")}<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as LinkedInWizardSettings["format"] })}>{LINKEDIN_WIZARD_FORMATS[nativeSettings.objectiveType].map((format) => <option key={format} value={format}>{nativeBriefTerm(format, i18nT)}{format === "STANDARD_UPDATE" || format === "SINGLE_VIDEO" ? i18nT("publiable_0d3b4509") : i18nT("brouillon_ae6876ea")}</option>)}</select><small>{i18nT("ce_choix_fixe_les_ressources_a_da82ae42")}</small></label>
+          <aside className={styles.studioKeywordGuidance}><strong>{i18nT("un_format_par_groupe_de_publicites_7bf9246f")}</strong><p>{i18nT("le_choix_adapte_le_texte_le_0e12e348")}</p></aside>
         </div> : <>
         <div className={styles.studioGrid}>
-          {channelId === "google" ? <TagField wide label={draft.campaignType === "performance_max" ? "Thèmes de recherche / signaux d’intention" : "Mots-clés recherchés"} helper="Saisissez une expression, puis Entrée. Le micro ajoute vos mots-clés dictés." values={draft.keywords} onChange={(keywords) => updateDraft({ keywords })} placeholder="Ex. installation panneaux solaires" maxItems={20} maxItemLength={80} /> : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" ? <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>La découverte est préparée automatiquement</strong><p>L’IA remplit le profil prioritaire, les zones, le titre, la description et le brief visuel. Pinterest utilise ensuite le contenu du Pin pour optimiser l’audience ; aucun ID d’intérêt ou d’audience n’est inventé.</p>{draft.keywords.length > 0 && <><p role="alert">{draft.keywords.length} signal{draft.keywords.length > 1 ? "aux manuels restent" : " manuel reste"} enregistré{draft.keywords.length > 1 ? "s" : ""}. Retirez-les pour lancer cette campagne en ciblage automatique.</p><button type="button" className={styles.secondaryButton} onClick={clearPinterestManualSignals}>Retirer les signaux manuels</button></>}</aside> : <label className={`${styles.field} ${styles.studioWide}`}>{nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "keywords" || nativeSettings?.channel === "x" && nativeSettings.targetingMode === "keywords" ? "Mots-clés à envisager" : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "audiences" ? "Audiences Pinterest à retrouver dans le compte" : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "interests" ? "Centres d’intérêt Pinterest à vérifier" : nativeSettings?.channel === "x" && nativeSettings.targetingMode === "follower_lookalikes" ? "Comptes ou communautés similaires à étudier" : "Centres d’intérêt, signaux ou angles de ciblage"}<small>Un par ligne</small><CampaignTextarea className={styles.studioAdaptiveContentTextarea} rows={6} value={editableList(draft.keywords)} onChange={(event) => updateDraft({ keywords: parseEditableList(event.target.value.split("\n")) })} placeholder="Ex. rénovation énergétique\nMaison individuelle\nÉconomies d’énergie" /></label>}
+          {channelId === "google" ? <TagField wide label={draft.campaignType === "performance_max" ? i18nT("themes_de_recherche_signaux_d_intention_63655af4") : i18nT("mots_cles_recherches_00138528")} helper={i18nT("ads_ui_2d247aaa70")} values={draft.keywords} onChange={(keywords) => updateDraft({ keywords })} placeholder={i18nT("ex_installation_panneaux_solaires_5a0e535a")} maxItems={20} maxItemLength={80} /> : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" ? <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>{i18nT("la_decouverte_est_preparee_automatiquement_07eb72d9")}</strong><p>{i18nT("l_ia_remplit_le_profil_prioritaire_9161280b")}</p>{draft.keywords.length > 0 && <><p role="alert">{i18nT("ads_count_manual_signals", { count: draft.keywords.length })}</p><button type="button" className={styles.secondaryButton} onClick={clearPinterestManualSignals}>{i18nT("retirer_les_signaux_manuels_d7d6e282")}</button></>}</aside> : <label className={`${styles.field} ${styles.studioWide}`}>{nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "keywords" || nativeSettings?.channel === "x" && nativeSettings.targetingMode === "keywords" ? i18nT("mots_cles_a_envisager_185df768") : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "audiences" ? i18nT("audiences_pinterest_a_retrouver_dans_le_cfcbb193") : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "interests" ? i18nT("centres_d_interet_pinterest_a_verifier_14865b8f") : nativeSettings?.channel === "x" && nativeSettings.targetingMode === "follower_lookalikes" ? i18nT("comptes_ou_communautes_similaires_a_etudier_42167b68") : i18nT("centres_d_interet_signaux_ou_angles_2b90490d")}<small>{i18nT("un_par_ligne_62e71bde")}</small><CampaignTextarea className={styles.studioAdaptiveContentTextarea} rows={6} value={editableList(draft.keywords)} onChange={(event) => updateDraft({ keywords: parseEditableList(event.target.value.split("\n")) })} placeholder={i18nT("ex_renovation_energetique_nmaison_individuelle_n_e694076a")} /></label>}
 
-          {nativeSettings && !(nativeSettings.channel === "pinterest" && nativeSettings.targetingMode === "automatic") && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Des pistes, pas des identifiants publicitaires</strong><p>Ces idées restent dans votre brouillon. iNr’ADS ne les convertit pas automatiquement en audiences ou mots-clés de la plateforme ; vérifiez leur disponibilité avant une création réelle.</p></aside>}
+          {nativeSettings && !(nativeSettings.channel === "pinterest" && nativeSettings.targetingMode === "automatic") && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>{i18nT("des_pistes_pas_des_identifiants_publicitaires_05d7a965")}</strong><p>{i18nT("ces_idees_restent_dans_votre_brouillon_ad5ee76a")}</p></aside>}
           {channelId === "google" && <GoogleAdsKeywords settings={googleDelivery} onChange={updateGoogleDelivery} />}
-          {channelId === "google" && <TagField wide label="Mots-clés à exclure" helper="Écartez les recherches non pertinentes ; ajoutez-les aussi à la voix." values={draft.negativeKeywords} onChange={(negativeKeywords) => updateDraft({ negativeKeywords })} placeholder="Ex. emploi" maxItems={40} maxItemLength={80} />}
-          {channelId === "meta" && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Un signal, pas une contrainte rigide</strong><p>iNrCy les combine à vos zones, à votre offre et au comportement observé par Meta. Vous gardez le contrôle sur les audiences définies à l’étape précédente.</p></aside>}
+          {channelId === "google" && <TagField wide label={i18nT("mots_cles_a_exclure_a97ff5c4")} helper={i18nT("ads_ui_8024b68c05")} values={draft.negativeKeywords} onChange={(negativeKeywords) => updateDraft({ negativeKeywords })} placeholder={i18nT("ex_emploi_91ce5f44")} maxItems={40} maxItemLength={80} />}
+          {channelId === "meta" && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>{i18nT("un_signal_pas_une_contrainte_rigide_00b397c7")}</strong><p>{i18nT("inrcy_les_combine_a_vos_zones_e1b30019")}</p></aside>}
         </div>
         </>}
       </section>
 
       <section hidden={step !== creativeStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioCreativeCard}`}>
-        <StudioStepHeader number={creativeStep + 1} label={channelId === "pinterest" ? "ÉPINGLE SPONSORISÉE" : "CRÉATIONS"} title={channelId === "pinterest" ? "Le titre et la description de votre Pin." : "Des messages qui donnent envie d’agir."} mobileTitle={channelId === "pinterest" ? "Votre épingle" : "Vos messages"} channel={channelMeta.label} />
-        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? creationPath === "inrcy" ? "Le titre, la description et l’image sont préparés par l’IA. Vous pouvez ajuster chaque élément avant la validation finale." : "Préparez le titre et la description de votre épingle avant d’ajouter son image." : "Vous pouvez écrire vous-même, partir de la proposition iNrCy et ajuster chaque mot. Vérifiez les exigences du canal avant une éventuelle publication."}</p>
+        <StudioStepHeader number={creativeStep + 1} label={channelId === "pinterest" ? i18nT("epingle_sponsorisee_b9ffbb19") : i18nT("creations_fcb4954e")} title={channelId === "pinterest" ? i18nT("le_titre_et_la_description_de_eaa8c606") : i18nT("des_messages_qui_donnent_envie_d_68a06d36")} mobileTitle={channelId === "pinterest" ? i18nT("votre_epingle_ab9a10fd") : i18nT("vos_messages_d5765374")} channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? creationPath === "inrcy" ? i18nT("le_titre_la_description_et_l_34c67f43") : i18nT("preparez_le_titre_et_la_description_27cbcf86") : i18nT("vous_pouvez_ecrire_vous_meme_partir_d43d34d6")}</p>
         <div className={styles.studioGrid}>
           {nativeSettings?.channel === "x" && <>
-            <label className={styles.field}>Format du post X Ads<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as XWizardSettings["format"] })}>{(nativeSettings.objective === "video_views" ? ["video"] : ["text", "image", "video"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select><small>{nativeSettings.format === "text" ? "Le post texte est le seul format X Ads sans étape Média." : "Le fichier sera préparé dans l’étape Médias dédiée à X Ads."}</small></label>
+            <label className={styles.field}>{i18nT("format_du_post_x_ads_89c56005")}<select value={nativeSettings.format} onChange={(event) => updateNativeSettings({ ...nativeSettings, format: event.target.value as XWizardSettings["format"] })}>{(nativeSettings.objective === "video_views" ? ["video"] : ["text", "image", "video"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value, i18nT)}</option>)}</select><small>{nativeSettings.format === "text" ? i18nT("le_post_texte_est_le_seul_2431cad4") : i18nT("le_fichier_sera_prepare_dans_l_995d407f")}</small></label>
           </>}
 
-          {channelId !== "google" && <label className={`${styles.field} ${styles.studioWide} ${styles.studioMessageField}`}>{channelId === "x" ? "Texte du post X" : channelId === "tiktok" ? "Texte de l’annonce TikTok" : channelId === "pinterest" ? "Description de l’épingle" : channelId === "linkedin" ? "Introduction de la publication" : channelId === "openai" ? "Texte de la carte ChatGPT · 100 caractères max." : "Message principal"}<VoiceTextarea value={draft.primaryText} onChange={(primaryText) => updateDraft({ primaryText })} rows={2} maxLength={channelId === "linkedin" ? 300 : channelId === "openai" || channelId === "tiktok" ? 100 : channelId === "pinterest" ? 800 : channelId === "x" ? 280 : 500} purpose="content" contextLabel="Message principal de la campagne" placeholder="Présentez l’offre, son bénéfice concret et la prochaine action à réaliser." /></label>}
-          {channelId === "linkedin" ? <label className={styles.field}>Titre de l’annonce<input value={draft.headlines[0] || ""} maxLength={200} onChange={(event) => updateDraft({ headlines: [event.target.value] })} placeholder="Un bénéfice clair pour votre audience" /><small>Un seul titre · 200 caractères maximum.</small></label> : <>          {channelId === "google" ? <GoogleAdCopyField label="Titres" singular="Titre" values={draft.headlines} onChange={(headlines) => updateDraft({ headlines })} minItems={3} maxItems={15} maxLength={30} /> : channelId === "openai" ? <label className={styles.field}>Titre de la carte ChatGPT · 3 à 50 caractères<input type="text" maxLength={50} value={draft.headlines[0] || ""} onChange={(event) => updateDraft({ headlines: event.target.value ? [event.target.value] : [] })} /></label> : channelId === "meta" ? <label className={styles.field}>Titre de l’annonce Meta<input value={draft.headlines[0] || ""} maxLength={30} onChange={(event) => updateDraft({ headlines: event.target.value ? [event.target.value] : [] })} /><small>Un seul titre · 30 caractères maximum dans ce parcours.</small></label> : channelId !== "tiktok" && channelId !== "x" && <label className={styles.field}>{channelId === "pinterest" ? "Titre de l’épingle" : "Titres ou accroches (un par ligne)"}<CampaignTextarea rows={2} value={editableList(draft.headlines)} aria-invalid={channelId === "pinterest" && (draft.headlines.length !== 1 || draft.headlines.some((title) => title.length > 100)) || undefined} onChange={(event) => updateDraft({ headlines: parseEditableList(event.target.value.split("\n")) })} />{channelId === "pinterest" && <small className={draft.headlines.some((title) => title.length > (channelId === "pinterest" ? 100 : 200)) || channelId === "pinterest" && draft.headlines.length !== 1 ? styles.copyLengthError : undefined}>{channelId === "pinterest" ? "Un seul titre · 100 caractères maximum" : "200 caractères maximum par titre ; reformulez tout dépassement."}</small>}{channelId === "pinterest" && draft.headlines.length > 1 && <small className={styles.copyLengthError} role="alert">Choisissez un seul titre pour votre épingle. Vos propositions sont conservées ci-dessus.</small>}</label>}</>}
-          {channelId === "google" ? <GoogleAdCopyField label="Descriptions" singular="Description" values={draft.descriptions} onChange={(descriptions) => updateDraft({ descriptions })} minItems={2} maxItems={4} maxLength={90} /> : channelId === "meta" && <label className={styles.field}>Description de l’annonce · facultatif<input value={draft.descriptions[0] || ""} maxLength={90} onChange={(event) => updateDraft({ descriptions: event.target.value ? [event.target.value] : [] })} /></label>}
-          {channelId === "linkedin" ? <LinkedInAdsCallToAction value={linkedInDelivery.callToAction} onChange={(callToAction) => { updateLinkedInDelivery({ ...linkedInDelivery, callToAction }); updateDraft({ callToAction: LINKEDIN_CTA_LABELS[callToAction] }); }} /> : channelId === "meta" ? <label className={styles.field}>Bouton de votre annonce<select value={metaDelivery.callToAction} onChange={(event) => updateMetaDelivery({ callToAction: event.target.value as MetaDeliverySettings["callToAction"] })}>{META_CALL_TO_ACTIONS.map((value) => <option key={value} value={value}>{META_CALL_TO_ACTION_LABELS[value]}</option>)}</select></label> : <>          {channelId === "tiktok" ? <label className={`${styles.field} ${styles.studioCtaField}`}>Bouton TikTok proposé<select value={draft.tiktokNativeSelections?.callToAction || "LEARN_MORE"} onChange={(event) => {
+          {channelId !== "google" && <label className={`${styles.field} ${styles.studioWide} ${styles.studioMessageField}`}>{channelId === "x" ? i18nT("texte_du_post_x_b39d47c5") : channelId === "tiktok" ? i18nT("texte_de_l_annonce_tiktok_54e536e8") : channelId === "pinterest" ? i18nT("description_de_l_epingle_d71176bd") : channelId === "linkedin" ? i18nT("introduction_de_la_publication_bc069acb") : channelId === "openai" ? i18nT("texte_de_la_carte_chatgpt_100_044cdfea") : i18nT("message_principal_5132e292")}<VoiceTextarea value={draft.primaryText} onChange={(primaryText) => updateDraft({ primaryText })} rows={2} maxLength={channelId === "linkedin" ? 300 : channelId === "openai" || channelId === "tiktok" ? 100 : channelId === "pinterest" ? 800 : channelId === "x" ? 280 : 500} purpose="content" contextLabel={i18nT("message_principal_de_la_campagne_f7fe2e29")} placeholder={i18nT("presentez_l_offre_son_benefice_concret_95356cb7")} /></label>}
+          {channelId === "linkedin" ? <label className={styles.field}>{i18nT("titre_de_l_annonce_e6f42084")}<input value={draft.headlines[0] || ""} maxLength={200} onChange={(event) => updateDraft({ headlines: [event.target.value] })} placeholder={i18nT("un_benefice_clair_pour_votre_audience_30db47c6")} /><small>{i18nT("un_seul_titre_200_caracteres_maximum_ba0db619")}</small></label> : <>          {channelId === "google" ? <GoogleAdCopyField label={i18nT("titres_e8384542")} singular={i18nT("titre_eb97899a")} values={draft.headlines} onChange={(headlines) => updateDraft({ headlines })} minItems={3} maxItems={15} maxLength={30} /> : channelId === "openai" ? <label className={styles.field}>{i18nT("titre_de_la_carte_chatgpt_3_dbaa327d")}<input type="text" maxLength={50} value={draft.headlines[0] || ""} onChange={(event) => updateDraft({ headlines: event.target.value ? [event.target.value] : [] })} /></label> : channelId === "meta" ? <label className={styles.field}>{i18nT("titre_de_l_annonce_meta_2d1c208a")}<input value={draft.headlines[0] || ""} maxLength={30} onChange={(event) => updateDraft({ headlines: event.target.value ? [event.target.value] : [] })} /><small>{i18nT("un_seul_titre_30_caracteres_maximum_9596fa41")}</small></label> : channelId !== "tiktok" && channelId !== "x" && <label className={styles.field}>{channelId === "pinterest" ? i18nT("titre_de_l_epingle_bda42313") : i18nT("titres_ou_accroches_un_par_ligne_0be9785f")}<CampaignTextarea rows={2} value={editableList(draft.headlines)} aria-invalid={channelId === "pinterest" && (draft.headlines.length !== 1 || draft.headlines.some((title) => title.length > 100)) || undefined} onChange={(event) => updateDraft({ headlines: parseEditableList(event.target.value.split("\n")) })} />{channelId === "pinterest" && <small className={draft.headlines.some((title) => title.length > (channelId === "pinterest" ? 100 : 200)) || channelId === "pinterest" && draft.headlines.length !== 1 ? styles.copyLengthError : undefined}>{channelId === "pinterest" ? i18nT("un_seul_titre_100_caracteres_maximum_80b42b96") : i18nT("200_caracteres_maximum_par_titre_reformulez_eb798b9a")}</small>}{channelId === "pinterest" && draft.headlines.length > 1 && <small className={styles.copyLengthError} role="alert">{i18nT("choisissez_un_seul_titre_pour_votre_2493b5aa")}</small>}</label>}</>}
+          {channelId === "google" ? <GoogleAdCopyField label={i18nT("descriptions_72e4c870")} singular={i18nT("ads_ui_526e0087cc")} values={draft.descriptions} onChange={(descriptions) => updateDraft({ descriptions })} minItems={2} maxItems={4} maxLength={90} /> : channelId === "meta" && <label className={styles.field}>{i18nT("description_de_l_annonce_facultatif_38f9a01f")}<input value={draft.descriptions[0] || ""} maxLength={90} onChange={(event) => updateDraft({ descriptions: event.target.value ? [event.target.value] : [] })} /></label>}
+          {channelId === "linkedin" ? <LinkedInAdsCallToAction value={linkedInDelivery.callToAction} onChange={(callToAction) => { updateLinkedInDelivery({ ...linkedInDelivery, callToAction }); updateDraft({ callToAction: LINKEDIN_CTA_LABELS[callToAction] }); }} /> : channelId === "meta" ? <label className={styles.field}>{i18nT("bouton_de_votre_annonce_44025276")}<select value={metaDelivery.callToAction} onChange={(event) => updateMetaDelivery({ callToAction: event.target.value as MetaDeliverySettings["callToAction"] })}>{META_CALL_TO_ACTIONS.map((value) => <option key={value} value={value}>{adsUiText(i18nT, META_CALL_TO_ACTION_LABELS[value])}</option>)}</select></label> : <>          {channelId === "tiktok" ? <label className={`${styles.field} ${styles.studioCtaField}`}>{i18nT("bouton_tiktok_propose_cf119f08")}<select value={draft.tiktokNativeSelections?.callToAction || "LEARN_MORE"} onChange={(event) => {
             const code = event.target.value;
             updateDraft({ callToAction: PREPARED_TIKTOK_CTA_LABELS[code], ...(draft.tiktokNativeSelections ? { tiktokNativeSelections: { ...draft.tiktokNativeSelections, callToAction: code } } : {}) });
-          }}>{Object.entries(PREPARED_TIKTOK_CTA_LABELS).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select><small>Sa disponibilité sera confirmée dans le compte TikTok avant la création.</small></label> : channelId !== "openai" && channelId !== "google" && channelId !== "pinterest" && <label className={`${styles.field} ${styles.studioCtaField}`}>Appel à l’action<input value={draft.callToAction} maxLength={80} onChange={(event) => updateDraft({ callToAction: event.target.value })} placeholder="Ex. Demander un devis" /></label>}</>}
+          }}>{Object.entries(PREPARED_TIKTOK_CTA_LABELS).map(([code, label]) => <option key={code} value={code}>{label}</option>)}</select><small>{i18nT("sa_disponibilite_sera_confirmee_dans_le_033f6045")}</small></label> : channelId !== "openai" && channelId !== "google" && channelId !== "pinterest" && <label className={`${styles.field} ${styles.studioCtaField}`}>{i18nT("appel_a_l_action_024c6142")}<input value={draft.callToAction} maxLength={80} onChange={(event) => updateDraft({ callToAction: event.target.value })} placeholder={i18nT("ex_demander_un_devis_54848d49")} /></label>}</>}
           {channelId === "google" && <GoogleAdsRSAFields settings={googleDelivery} onChange={updateGoogleDelivery} />}
-          {channelId !== "google" && <aside className={`${styles.studioCopyGuidance} ${styles.field}`}><strong>À vérifier</strong><p>{channelId === "openai" ? "La carte publiée utilisera exactement le titre, le texte et l’image vérifiés ici. La personnalisation du texte dans Ads Manager n’est pas pilotée par ce parcours." : nativeSettings?.channel === "linkedin" ? "Le texte doit correspondre au format sponsorisé choisi, notamment si vous préparez un formulaire de prospects." : nativeSettings?.channel === "tiktok" ? "Gardez un texte court qui accompagne la vidéo et une action cohérente avec sa destination." : nativeSettings?.channel === "pinterest" ? "Le titre, la description et le visuel doivent présenter la même idée." : nativeSettings?.channel === "x" ? "Votre post doit être clair sans dépasser 280 caractères ; vérifiez le média si vous avez choisi image ou vidéo." : "Relisez la cohérence entre votre message, votre appel à l’action et le média choisi."}</p></aside>}
+          {channelId !== "google" && <aside className={`${styles.studioCopyGuidance} ${styles.field}`}><strong>{i18nT("a_verifier_8f5f7255")}</strong><p>{channelId === "openai" ? i18nT("la_carte_publiee_utilisera_exactement_le_c8a7f802") : nativeSettings?.channel === "linkedin" ? i18nT("le_texte_doit_correspondre_au_format_9c3f902a") : nativeSettings?.channel === "tiktok" ? i18nT("gardez_un_texte_court_qui_accompagne_9747ec4d") : nativeSettings?.channel === "pinterest" ? i18nT("le_titre_la_description_et_le_abe2adf2") : nativeSettings?.channel === "x" ? i18nT("votre_post_doit_etre_clair_sans_6bf416f3") : i18nT("relisez_la_coherence_entre_votre_message_0c25cb81")}</p></aside>}
         </div>
       </section>
 
       {nativeSettings?.channel === "pinterest" && <section hidden={step !== pinterestFormatStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioMediaCard} ${styles.studioPinterestFormatCard}`}>
-        <StudioStepHeader number={pinterestFormatStep + 1} label="FORMAT DU PIN" title="Le format adapté à votre idée." mobileTitle="Votre format" channel={channelMeta.label} />
-        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>Choisissez la structure publicitaire, le format du Pin et la direction créative. Le texte et le média sont préparés dans les étapes suivantes.</p>
+        <StudioStepHeader number={pinterestFormatStep + 1} label={i18nT("format_du_pin_b412c2b4")} title={i18nT("le_format_adapte_a_votre_idee_cad67815")} mobileTitle={i18nT("votre_format_1c07287a")} channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{i18nT("choisissez_la_structure_publicitaire_le_format_a1cef40d")}</p>
         <div className={styles.studioGrid}>
-          <label className={styles.field}>Type de promotion<select value={nativeSettings.intendedPromotionType} onChange={(event) => {
+          <label className={styles.field}>{i18nT("type_de_promotion_576cb078")}<select value={nativeSettings.intendedPromotionType} onChange={(event) => {
             const intendedPromotionType = event.target.value as PinterestWizardSettings["intendedPromotionType"];
             updateNativeSettings({ ...nativeSettings, intendedPromotionType,
               creativeType: intendedPromotionType === "CATALOG" ? null : nativeSettings.objectiveType === "VIDEO_COMPLETION" ? "VIDEO" : "REGULAR" });
-          }}><option value="STANDARD_AD">Épingle sponsorisée</option>{["CONSIDERATION", "SALES"].includes(nativeSettings.objectiveType) && <option value="CATALOG">Catalogue de produits · brouillon</option>}</select></label>
-          {nativeSettings.intendedPromotionType === "STANDARD_AD" && <label className={styles.field}>Format de l’épingle<select value={nativeSettings.creativeType || "REGULAR"} onChange={(event) => updateNativeSettings({ ...nativeSettings, creativeType: event.target.value as Exclude<PinterestWizardSettings["creativeType"], null> })}>{(nativeSettings.objectiveType === "VIDEO_COMPLETION" ? ["VIDEO", "MAX_VIDEO"] : ["REGULAR", "VIDEO", "MAX_VIDEO", "CAROUSEL"]).map((value) => <option key={value} value={value}>{pinterestCreativeLabel(value as Exclude<PinterestWizardSettings["creativeType"], null>)}</option>)}</select></label>}
-          <div className={`${styles.field} ${styles.studioWide}`}><span>Format prévu : {nativeWizardFormat(nativeSettings)}</span><small>{nativeSettings.intendedPromotionType === "CATALOG" ? "Le catalogue et le groupe de produits seront sélectionnés dans Pinterest Ads." : nativeSettings.creativeType === "REGULAR" ? "L’image simple peut être publiée aujourd’hui. Les droits et le fichier seront contrôlés avant la création." : "Ce format est conservé dans le brouillon jusqu’à l’activation de son connecteur de publication."}</small></div>
-          <label className={`${styles.field} ${styles.studioWide}`}>Direction créative du Pin<VoiceTextarea value={draft.mediaBrief} onChange={(mediaBrief) => updateDraft({ mediaBrief })} maxLength={1000} purpose="instruction" contextLabel="Direction créative du Pin" placeholder="Style, produit, scène, preuves à montrer et composition souhaitée…" /></label>
+          }}><option value="STANDARD_AD">{i18nT("epingle_sponsorisee_bb8e1b62")}</option>{["CONSIDERATION", "SALES"].includes(nativeSettings.objectiveType) && <option value="CATALOG">{i18nT("catalogue_de_produits_brouillon_230a68b7")}</option>}</select></label>
+          {nativeSettings.intendedPromotionType === "STANDARD_AD" && <label className={styles.field}>{i18nT("format_de_l_epingle_bcba2d54")}<select value={nativeSettings.creativeType || "REGULAR"} onChange={(event) => updateNativeSettings({ ...nativeSettings, creativeType: event.target.value as Exclude<PinterestWizardSettings["creativeType"], null> })}>{(nativeSettings.objectiveType === "VIDEO_COMPLETION" ? ["VIDEO", "MAX_VIDEO"] : ["REGULAR", "VIDEO", "MAX_VIDEO", "CAROUSEL"]).map((value) => <option key={value} value={value}>{pinterestCreativeLabel(value as Exclude<PinterestWizardSettings["creativeType"], null>, i18nT)}</option>)}</select></label>}
+          <div className={`${styles.field} ${styles.studioWide}`}><span>{i18nT("format_prevu_value_6b6a70e2", { value0: nativeWizardFormat(nativeSettings, i18nT) })}</span><small>{nativeSettings.intendedPromotionType === "CATALOG" ? i18nT("le_catalogue_et_le_groupe_de_fa918517") : nativeSettings.creativeType === "REGULAR" ? i18nT("l_image_simple_peut_etre_publiee_ace2c48b") : i18nT("ce_format_est_conserve_dans_le_99410bf4")}</small></div>
+          <label className={`${styles.field} ${styles.studioWide}`}>{i18nT("direction_creative_du_pin_619841f2")}<VoiceTextarea value={draft.mediaBrief} onChange={(mediaBrief) => updateDraft({ mediaBrief })} maxLength={1000} purpose="instruction" contextLabel={i18nT("direction_creative_du_pin_619841f2")} placeholder={i18nT("style_produit_scene_preuves_a_montrer_16d39479")} /></label>
         </div>
       </section>}
 
       {hasMediaStep && <section hidden={step !== mediaStep} data-channel={channelId} data-media-step="true" className={`${styles.card} ${styles.studioCard} ${styles.studioMediaCard} ${styles.studioDedicatedMediaCard} ${channelId === "pinterest" ? styles.studioPureMediaCard : ""}`}>
-        <StudioStepHeader number={mediaStep + 1} label={channelId === "pinterest" ? "PUR MÉDIA" : channelId === "linkedin" ? "MÉDIA LINKEDIN" : channelId === "openai" ? "IMAGE CHATGPT" : "MÉDIAS"} title={channelId === "pinterest" ? "Votre média, visible en entier." : channelId === "linkedin" ? "Votre média LinkedIn, visible en entier." : channelId === "openai" ? "Votre image, visible en entier." : "Vos médias, visibles en entier."} mobileTitle={channelId === "pinterest" || channelId === "linkedin" || channelId === "openai" ? "Votre média" : "Vos médias"} channel={channelMeta.label} />
-        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? "Ajoutez l’image de votre Pin et vérifiez son aperçu complet." : channelId === "linkedin" ? draft.mediaStrategy === "video" ? "Importez, générez ou choisissez une vidéo. Vérifiez le son, les sous-titres et le cadrage avant le lancement." : "Importez, générez ou choisissez votre image. L’aperçu conserve le cadrage complet et le fichier sera vérifié avant la création." : channelId === "openai" ? `Choisissez ou créez une image JPG, PNG ou WebP carrée d’au moins ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} × ${CHATGPT_ADS_MIN_IMAGE_SIDE_PX} pixels. Le fichier sera vérifié avant la création de la carte ChatGPT.` : "Importez, générez ou choisissez chaque fichier ici. Les aperçus sont larges, responsives et affichent le média complet sans le rogner."}</p>
+        <StudioStepHeader number={mediaStep + 1} label={channelId === "pinterest" ? i18nT("pur_media_e63ff486") : channelId === "linkedin" ? i18nT("media_linkedin_7e2d9359") : channelId === "openai" ? i18nT("image_chatgpt_b23933a7") : i18nT("medias_38231af1")} title={channelId === "pinterest" ? i18nT("votre_media_visible_en_entier_105dda6c") : channelId === "linkedin" ? i18nT("votre_media_linkedin_visible_en_entier_db8d16b3") : channelId === "openai" ? i18nT("votre_image_visible_en_entier_703eb79a") : i18nT("vos_medias_visibles_en_entier_414ef971")} mobileTitle={channelId === "pinterest" || channelId === "linkedin" || channelId === "openai" ? i18nT("votre_media_e5f9284a") : i18nT("vos_medias_009bb358")} channel={channelMeta.label} />
+        <p className={`${styles.intro} ${styles.studioOptionalIntro}`}>{channelId === "pinterest" ? i18nT("ajoutez_l_image_de_votre_pin_20e10d67") : channelId === "linkedin" ? draft.mediaStrategy === "video" ? i18nT("importez_generez_ou_choisissez_une_video_e315cb3f") : i18nT("importez_generez_ou_choisissez_votre_image_3bb393f7") : channelId === "openai" ? i18nT("choisissez_ou_creez_une_image_jpg_aca3deec", { value0: CHATGPT_ADS_MIN_IMAGE_SIDE_PX, value1: CHATGPT_ADS_MIN_IMAGE_SIDE_PX }) : i18nT("importez_generez_ou_choisissez_chaque_fichier_f2146097")}</p>
         <div className={styles.studioGrid}>
-          {nativeSettings ? <div className={styles.field}><span>{nativeSettings.channel === "pinterest" ? "Média attendu" : "Format prévu"} : {nativeWizardFormat(nativeSettings)}</span><small>{nativeSettings.channel === "tiktok" ? "Une vraie vidéo et une identité autorisée seront nécessaires dans TikTok Ads." : nativeSettings.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" ? "Le catalogue et le groupe de produits seront sélectionnés dans Pinterest Ads ; aucun fichier isolé n’est requis ici." : nativeSettings.channel === "pinterest" ? "Le fichier et ses droits seront vérifiés avant toute publication." : nativeSettings.channel === "x" && nativeSettings.format === "text" ? "Aucun média n’est nécessaire pour le post texte." : "Choisissez un média cohérent ; ses droits et son format seront vérifiés avant toute publication."}</small></div> : googleSearchMedia ? <div className={styles.field}><span>Format publié : annonce Google Search textuelle</span><small>Ce connecteur ne joint pas d’image à Google Ads. Aucun visuel n’est requis ni généré automatiquement.</small></div> : channelId === "meta" ? <div className={styles.field}><span>Pack publicitaire Meta</span><small>iNr’ADS prépare un visuel Feed 4:5 et un visuel plein écran 9:16, puis associe chacun uniquement aux placements compatibles.</small></div> : channelId === "openai" ? <div className={styles.field}><span>Carte ChatGPT avec image carrée</span><small>Ajoutez une image nette et représentative de votre offre. Elle accompagne un titre, un texte court et votre lien.</small></div> : <label className={styles.field}>Média à utiliser<select value={draft.mediaStrategy} onChange={(event) => updateDraft({ mediaStrategy: event.target.value as AdsCampaignInput["mediaStrategy"] })}>{mediaStrategyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
-          {(nativeSettings === null || nativeMediaUpload) && !googleSearchMedia && channelId !== "meta" && channelId !== "openai" && <details className={styles.campaignExternalMedia}><summary>Utiliser un lien externe</summary><label className={styles.field}>Lien HTTPS du média<input type="url" value={draft.creativeUrl || draft.imageUrl} onChange={(event) => updateDraft({ imageUrl: event.target.value, creativeUrl: event.target.value })} placeholder={nativeMediaStrategy === "video" ? "https://votresite.fr/video.mp4" : "https://votresite.fr/media.jpg"} /></label></details>}
-          {nativeMediaStrategy !== "search_text" && channelId !== "pinterest" && <label className={`${styles.field} ${styles.studioWide}`}>Consignes pour vos médias<VoiceTextarea value={draft.mediaBrief} onChange={(mediaBrief) => updateDraft({ mediaBrief })} maxLength={1000} purpose="instruction" contextLabel="Consignes pour le média" placeholder="Style, produit, scène, preuves à montrer, format souhaité…" /></label>}
+          {nativeSettings ? <div className={styles.field}><span>{nativeSettings.channel === "pinterest" ? i18nT("media_attendu_178d03cf") : i18nT("format_prevu_f888ffb1")} : {nativeWizardFormat(nativeSettings, i18nT)}</span><small>{nativeSettings.channel === "tiktok" ? i18nT("une_vraie_video_et_une_identite_ded490b9") : nativeSettings.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" ? i18nT("le_catalogue_et_le_groupe_de_b152f711") : nativeSettings.channel === "pinterest" ? i18nT("le_fichier_et_ses_droits_seront_76561808") : nativeSettings.channel === "x" && nativeSettings.format === "text" ? i18nT("aucun_media_n_est_necessaire_pour_562cdf07") : i18nT("choisissez_un_media_coherent_ses_droits_0dce6126")}</small></div> : googleSearchMedia ? <div className={styles.field}><span>{i18nT("format_publie_annonce_google_search_textuelle_27037241")}</span><small>{i18nT("ce_connecteur_ne_joint_pas_d_f8674153")}</small></div> : channelId === "meta" ? <div className={styles.field}><span>{i18nT("pack_publicitaire_meta_988c48c9")}</span><small>{i18nT("inr_ads_prepare_un_visuel_feed_52855840")}</small></div> : channelId === "openai" ? <div className={styles.field}><span>{i18nT("carte_chatgpt_avec_image_carree_0db4d203")}</span><small>{i18nT("ajoutez_une_image_nette_et_representative_38034fd3")}</small></div> : <label className={styles.field}>{i18nT("media_a_utiliser_8701a2a0")}<select value={draft.mediaStrategy} onChange={(event) => updateDraft({ mediaStrategy: event.target.value as AdsCampaignInput["mediaStrategy"] })}>{mediaStrategyOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
+          {(nativeSettings === null || nativeMediaUpload) && !googleSearchMedia && channelId !== "meta" && channelId !== "openai" && <details className={styles.campaignExternalMedia}><summary>{i18nT("utiliser_un_lien_externe_7760f771")}</summary><label className={styles.field}>{i18nT("lien_https_du_media_ce368ea4")}<input type="url" value={draft.creativeUrl || draft.imageUrl} onChange={(event) => updateDraft({ imageUrl: event.target.value, creativeUrl: event.target.value })} placeholder={nativeMediaStrategy === "video" ? i18nT("ads_ui_9c65fa3aa3") : i18nT("ads_ui_a8af6bc749")} /></label></details>}
+          {nativeMediaStrategy !== "search_text" && channelId !== "pinterest" && <label className={`${styles.field} ${styles.studioWide}`}>{i18nT("consignes_pour_vos_medias_ae6b61ef")}<VoiceTextarea value={draft.mediaBrief} onChange={(mediaBrief) => updateDraft({ mediaBrief })} maxLength={1000} purpose="instruction" contextLabel={i18nT("consignes_pour_le_media_66581037")} placeholder={i18nT("style_produit_scene_preuves_a_montrer_5036989c")} /></label>}
         </div>
         {channelId === "meta" && <fieldset className={`${styles.studioControlPanel} ${styles.studioWide}`}>
-          <legend>Emplacements et formats Meta</legend>
-          <p>Chaque emplacement utilise uniquement le visuel dont le cadrage lui correspond.</p>
+          <legend>{i18nT("emplacements_et_formats_meta_2cafbb94")}</legend>
+          <p>{i18nT("chaque_emplacement_utilise_uniquement_le_visuel_784fa52b")}</p>
           <div className={styles.studioControlOptions}>{META_PLACEMENT_OPTIONS.map((option) => {
             const selected = draft.metaPlacements.includes(option.value);
             // Unsupported legacy placements must remain removable, never selectable.
@@ -4298,33 +4321,33 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         />}
         {nativeSettings?.channel === "pinterest" && nativeSettings.intendedPromotionType === "CATALOG" && <div className={styles.campaignMediaSourceNotice} role="status">
           <span aria-hidden="true">▦</span>
-          <div><strong>Source média : catalogue Pinterest</strong><p>Les images et vidéos proviendront du catalogue et du groupe de produits associés dans Pinterest Ads. Cette étape reste dédiée à la source créative, sans demander un fichier isolé.</p></div>
+          <div><strong>{i18nT("source_media_catalogue_pinterest_f4fee607")}</strong><p>{i18nT("les_images_et_videos_proviendront_du_d86af875")}</p></div>
         </div>}
         {(nativeSettings === null || nativeMediaUpload) && channelId !== "meta" && <div className={styles.campaignMediaWorkspace}>
-          <div className={styles.campaignMediaWorkspaceHeading}><div><span>MÉDIAS DE CAMPAGNE</span><strong>{googleSearchMedia ? attachedCampaignMediaUrl ? "Image conservée dans iNrCy" : "Aucun média à fournir pour Google Search" : attachedCampaignMediaUrl ? "Un média est associé à cette campagne" : "Choisissez ou créez le média adapté"}</strong></div>{attachedCampaignMediaUrl ? <span data-type={draft.creativeType || "image"}>{draft.creativeType === "video" ? "Vidéo" : "Image"} prête</span> : <span>{channelId === "openai" ? "Image obligatoire" : nativeMediaStrategy === "video" ? "Vidéo à fournir" : nativeMediaStrategy === "image" ? "Image à fournir" : "Optionnel selon le format"}</span>}</div>
+          <div className={styles.campaignMediaWorkspaceHeading}><div><span>{i18nT("medias_de_campagne_1ad6a387")}</span><strong>{googleSearchMedia ? attachedCampaignMediaUrl ? i18nT("image_conservee_dans_inrcy_976e553a") : i18nT("aucun_media_a_fournir_pour_google_3c148d58") : attachedCampaignMediaUrl ? i18nT("un_media_est_associe_a_cette_e241b3de") : i18nT("choisissez_ou_creez_le_media_adapte_b819f1f1")}</strong></div>{attachedCampaignMediaUrl ? <span data-type={draft.creativeType || "image"}>{draft.creativeType === "video" ? i18nT("video_304f6ca4") : i18nT("image_50e19fda")} {" "}{i18nT("prete_85536043")}</span> : <span>{channelId === "openai" ? i18nT("image_obligatoire_de1b69f0") : nativeMediaStrategy === "video" ? i18nT("video_a_fournir_9c4f6a70") : nativeMediaStrategy === "image" ? i18nT("image_a_fournir_0f687b87") : i18nT("optionnel_selon_le_format_333fbb4b")}</span>}</div>
           {!googleSearchMedia && <div className={styles.campaignMediaActions} data-three-actions={nativeMediaUpload || undefined}>
             <LocalMediaUploadChoice
               disabled={campaignMediaUploadBusy}
-              triggerLabel={campaignMediaUploadBusy ? "Ajout en cours…" : undefined}
+              triggerLabel={campaignMediaUploadBusy ? i18nT("ajout_en_cours_7935509d") : undefined}
               image={{
                 onSelect: () => campaignImageInputRef.current?.click(),
                 hidden: nativeMediaStrategy === "video",
-                detail: "Sélection unique · image compatible avec le format publicitaire choisi",
+                detail: i18nT("ads_ui_5615f79d7e"),
                 maxSelection: 1,
               }}
               video={{
                 onSelect: () => campaignVideoInputRef.current?.click(),
                 hidden: nativeMediaStrategy === "image" || channelId === "openai",
-                detail: "Sélection unique · une seule vidéo",
+                detail: i18nT("ads_ui_86dd6de890"),
               }}
               testId="ads-local-media-choice"
             />
-            <button type="button" className={styles.campaignMediaGenerate} onClick={() => setCampaignMediaStudioOpen(true)} disabled={campaignMediaUploadBusy}><span aria-hidden="true">✦</span> Générer</button>
-            <button type="button" onClick={() => setCampaignMediaLibraryOpen(true)} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▦</span> Médiathèque</button>
+            <button type="button" className={styles.campaignMediaGenerate} onClick={() => setCampaignMediaStudioOpen(true)} disabled={campaignMediaUploadBusy}><span aria-hidden="true">✦</span> {" "}{i18nT("generer_bd221c07")}</button>
+            <button type="button" onClick={() => setCampaignMediaLibraryOpen(true)} disabled={campaignMediaUploadBusy}><span aria-hidden="true">▦</span> {" "}{i18nT("mediatheque_e4fa8e31")}</button>
           </div>}
-          {googleSearchMedia && <p className={styles.campaignMediaFormatHint}>La démo Google Search publie uniquement les titres et descriptions. Une image enregistrée auparavant reste visible dans iNrCy, mais elle n’est pas jointe à la campagne Google Ads. Aucun crédit média n’est utilisé pour les nouvelles campagnes Search.</p>}
-          {attachedCampaignMediaUrl ? <CampaignMediaPreview key={`${draft.creativeType}:${attachedCampaignMediaUrl}`} url={attachedCampaignMediaUrl} type={draft.creativeType === "video" ? "video" : "image"} campaignName={draft.name || channelMeta.label} onChooseMedia={() => setCampaignMediaLibraryOpen(true)} /> : <div className={styles.campaignMediaPreview} data-empty="true" role="status"><div className={styles.campaignMediaPreviewFallback}><span aria-hidden="true">✦</span><strong>Aperçu complet du média</strong><p>Le fichier choisi ou généré apparaîtra ici en entier, sans recadrage.</p></div></div>}
-          {attachedCampaignMediaUrl && <div className={styles.campaignMediaAttached}><span aria-hidden="true">✓</span><div><strong>{googleSearchMedia ? "Image conservée dans iNrCy" : "Média associé à la campagne"}</strong><small>{googleSearchMedia ? "Non jointe à la campagne Google Search lors de la création en pause." : channelId === "openai" ? "Image de votre médiathèque iNrCy ; le format et les droits seront vérifiés avant l’envoi." : `${draft.creativeType === "video" ? "Vidéo" : "Image"} stockée dans votre médiathèque iNrCy ou liée depuis votre site.`}</small></div><a href={attachedCampaignMediaUrl} target="_blank" rel="noreferrer">Voir ↗</a><button type="button" onClick={() => updateDraft({ creativeUrl: "", imageUrl: "" })}>Retirer</button></div>}
+          {googleSearchMedia && <p className={styles.campaignMediaFormatHint}>{i18nT("la_demo_google_search_publie_uniquement_6402ac10")}</p>}
+          {attachedCampaignMediaUrl ? <CampaignMediaPreview key={`${draft.creativeType}:${attachedCampaignMediaUrl}`} url={attachedCampaignMediaUrl} type={draft.creativeType === "video" ? "video" : "image"} campaignName={draft.name || channelMeta.label} onChooseMedia={() => setCampaignMediaLibraryOpen(true)} /> : <div className={styles.campaignMediaPreview} data-empty="true" role="status"><div className={styles.campaignMediaPreviewFallback}><span aria-hidden="true">✦</span><strong>{i18nT("apercu_complet_du_media_d50f93f9")}</strong><p>{i18nT("le_fichier_choisi_ou_genere_apparaitra_e5784704")}</p></div></div>}
+          {attachedCampaignMediaUrl && <div className={styles.campaignMediaAttached}><span aria-hidden="true">✓</span><div><strong>{googleSearchMedia ? i18nT("image_conservee_dans_inrcy_976e553a") : i18nT("media_associe_a_la_campagne_126df16e")}</strong><small>{googleSearchMedia ? i18nT("non_jointe_a_la_campagne_google_3e26c433") : channelId === "openai" ? i18nT("image_de_votre_mediatheque_inrcy_le_38450c96") : i18nT("value_stockee_dans_votre_mediatheque_inrcy_3c5ddc3e", { value0: draft.creativeType === "video" ? i18nT("video_304f6ca4") : i18nT("wizard_pool_image") })}</small></div><a href={attachedCampaignMediaUrl} target="_blank" rel="noreferrer">{i18nT("voir_cb044503")}</a><button type="button" onClick={() => updateDraft({ creativeUrl: "", imageUrl: "" })}>{i18nT("retirer_54ec24a1")}</button></div>}
           {campaignMediaUploadError && <p className={styles.campaignMediaError} role="alert">{campaignMediaUploadError}</p>}
         </div>}
         {(nativeSettings === null || nativeMediaUpload) && <>
@@ -4335,176 +4358,176 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       </section>}
 
       <section hidden={step !== deliveryStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioDeliveryCard}`}>
-        <StudioStepHeader number={deliveryStep + 1} label={channelId === "pinterest" ? "DESTINATION & MESURE" : "DIFFUSION"} title={channelId === "pinterest" ? "Où mène votre épingle." : "Où envoyer et comment mesurer."} mobileTitle={channelId === "pinterest" ? "Lien & mesure" : "Votre diffusion"} channel={channelMeta.label} />
-        <p className={styles.intro}><span className={styles.studioTitleLong}>Préparez le parcours après le clic : une destination claire, l’action attendue et les paramètres utiles. Rien n’est encore diffusé.</span><span className={styles.studioTitleShort}>Aucune diffusion avant votre validation.</span></p>
+        <StudioStepHeader number={deliveryStep + 1} label={channelId === "pinterest" ? i18nT("destination_mesure_4e5ba149") : i18nT("ads_ui_b4f5f9c82d")} title={channelId === "pinterest" ? i18nT("ou_mene_votre_epingle_b00f5616") : i18nT("ou_envoyer_et_comment_mesurer_a08af463")} mobileTitle={channelId === "pinterest" ? i18nT("lien_mesure_de138a4b") : i18nT("votre_diffusion_0b337437")} channel={channelMeta.label} />
+        <p className={styles.intro}><span className={styles.studioTitleLong}>{i18nT("preparez_le_parcours_apres_le_clic_036fda87")}</span><span className={styles.studioTitleShort}>{i18nT("aucune_diffusion_avant_votre_validation_6a730842")}</span></p>
         <div className={styles.studioGrid}>
-          {destinationFieldVisible && <label className={`${styles.field} ${styles.studioWide}`}>{channelId === "pinterest" ? "URL de destination du Pin" : "Lien de redirection"}<input type="url" value={draft.destinationUrl} onChange={(event) => updateDraft({ destinationUrl: event.target.value })} placeholder="https://votresite.fr/offre" /><small>Une page HTTPS claire et cohérente avec votre annonce.</small></label>}
+          {destinationFieldVisible && <label className={`${styles.field} ${styles.studioWide}`}>{channelId === "pinterest" ? i18nT("url_de_destination_du_pin_3e3a4be3") : i18nT("lien_de_redirection_191a7215")}<input type="url" value={draft.destinationUrl} onChange={(event) => updateDraft({ destinationUrl: event.target.value })} placeholder={i18nT("ads_ui_85f4f6e22f")} /><small>{i18nT("une_page_https_claire_et_coherente_57748213")}</small></label>}
           {destinationReview.required && <div className={`${styles.studioDestinationReview} ${styles.studioWide}`}>
-            <span>{destinationReview.confirmed ? "✓ Destination validée" : "Vérifiez où votre annonce enverra les visiteurs."}</span>
-            {destinationReview.valid && <a href={draft.destinationUrl.trim()} target="_blank" rel="noopener noreferrer">Ouvrir le lien ↗</a>}
-            {!destinationReview.valid && <small role="alert">Indiquez un lien HTTPS valide avant de continuer.</small>}
+            <span>{destinationReview.confirmed ? i18nT("destination_validee_9e371de4") : i18nT("verifiez_ou_votre_annonce_enverra_les_744f31c9")}</span>
+            {destinationReview.valid && <a href={draft.destinationUrl.trim()} target="_blank" rel="noopener noreferrer">{i18nT("ouvrir_le_lien_1fd1e3e2")}</a>}
+            {!destinationReview.valid && <small role="alert">{i18nT("indiquez_un_lien_https_valide_avant_36d6d90b")}</small>}
           </div>}
           {nativeSettings?.channel === "tiktok" && <>
-            <label className={styles.field}>Destination TikTok<select value={nativeSettings.destinationKind} onChange={(event) => updateNativeSettings({ ...nativeSettings, destinationKind: event.target.value as TikTokWizardSettings["destinationKind"] })}><option value="website">Site web</option>{nativeSettings.objectiveType === "LEAD_GENERATION" && <option value="instant_form">Formulaire intégré</option>}{["REACH", "VIDEO_VIEWS", "ENGAGEMENT"].includes(nativeSettings.objectiveType) && <option value="profile">Profil TikTok</option>}</select></label>
-            <div className={styles.field}><span>Optimisation : {nativeBriefTerm(nativeSettings.optimizationIntent)}</span><small>Pour cet objectif, le Pixel ou formulaire devra être confirmé dans TikTok Ads si une conversion est prévue.</small></div>
+            <label className={styles.field}>{i18nT("destination_tiktok_52d52a58")}<select value={nativeSettings.destinationKind} onChange={(event) => updateNativeSettings({ ...nativeSettings, destinationKind: event.target.value as TikTokWizardSettings["destinationKind"] })}><option value="website">{i18nT("site_web_7e78af33")}</option>{nativeSettings.objectiveType === "LEAD_GENERATION" && <option value="instant_form">{i18nT("formulaire_integre_2421b8da")}</option>}{["REACH", "VIDEO_VIEWS", "ENGAGEMENT"].includes(nativeSettings.objectiveType) && <option value="profile">{i18nT("profil_tiktok_77aac6e1")}</option>}</select></label>
+            <div className={styles.field}><span>{i18nT("optimisation_value_bd7a5b3e", { value0: nativeBriefTerm(nativeSettings.optimizationIntent, i18nT) })}</span><small>{i18nT("pour_cet_objectif_le_pixel_ou_d4d6d638")}</small></div>
           </>}
-          {nativeSettings?.channel === "pinterest" && (nativeSettings.objectiveType === "SALES" || nativeSettings.objectiveType === "LEADS") && <label className={styles.field}>Événement Pinterest<select value={nativeSettings.conversionEvent || ""} onChange={(event) => updateNativeSettings({ ...nativeSettings, conversionEvent: event.target.value as Exclude<PinterestWizardSettings["conversionEvent"], null> })}>{(nativeSettings.objectiveType === "SALES" ? ["CHECKOUT", "ADD_TO_CART"] : ["LEAD", "SIGNUP"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value)}</option>)}</select><small>La balise et l’événement réels seront vérifiés dans Pinterest Ads.</small></label>}
-          {nativeSettings && nativeSettings.channel !== "linkedin" && nativeSettings.channel !== "pinterest" && <label className={styles.field}>Action souhaitée<select value={draft.conversionGoal} onChange={(event) => updateDraft({ conversionGoal: event.target.value as AdsCampaignInput["conversionGoal"] })}>{CONVERSION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
-          {!nativeSettings && (channelId === "openai" || channelId === "google" ? <div className={styles.field}><span>Destination après le clic</span><strong>Votre site web</strong><small>{channelId === "google" ? "Les balises de suivi ci-dessous sont ajoutées à vos liens publicitaires dans Google Ads." : "Pour mesurer les visites, ajoutez vos paramètres UTM directement au lien HTTPS ci-dessus."}</small></div> : <label className={styles.field}>Lieu de conversion<select value={draft.conversionLocation} onChange={(event) => updateDraft({ conversionLocation: event.target.value as AdsCampaignInput["conversionLocation"] })}>{CONVERSION_LOCATION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label} — {option.detail}</option>)}</select></label>)}
-          {<label className={styles.field}>Balises de suivi <small>Optionnel</small><input value={draft.trackingParameters} maxLength={500} onChange={(event) => updateDraft({ trackingParameters: event.target.value })} placeholder={channelId === "linkedin" ? "utm_source=linkedin&utm_medium=paid_social&utm_campaign=ma_campagne" : channelId === "pinterest" ? "utm_source=pinterest&utm_campaign=inspiration" : channelId === "meta" ? "utm_source=meta&utm_medium=paid_social&utm_campaign=ma_campagne" : channelId === "openai" ? "utm_source=chatgpt&utm_medium=paid_social&utm_campaign=ma_campagne" : "utm_source=google&utm_campaign=devis"} /></label>}
+          {nativeSettings?.channel === "pinterest" && (nativeSettings.objectiveType === "SALES" || nativeSettings.objectiveType === "LEADS") && <label className={styles.field}>{i18nT("evenement_pinterest_0634524e")}<select value={nativeSettings.conversionEvent || ""} onChange={(event) => updateNativeSettings({ ...nativeSettings, conversionEvent: event.target.value as Exclude<PinterestWizardSettings["conversionEvent"], null> })}>{(nativeSettings.objectiveType === "SALES" ? ["CHECKOUT", "ADD_TO_CART"] : ["LEAD", "SIGNUP"]).map((value) => <option key={value} value={value}>{nativeBriefTerm(value, i18nT)}</option>)}</select><small>{i18nT("la_balise_et_l_evenement_reels_b3ca1c18")}</small></label>}
+          {nativeSettings && nativeSettings.channel !== "linkedin" && nativeSettings.channel !== "pinterest" && <label className={styles.field}>{i18nT("action_souhaitee_0ef3fc57")}<select value={draft.conversionGoal} onChange={(event) => updateDraft({ conversionGoal: event.target.value as AdsCampaignInput["conversionGoal"] })}>{CONVERSION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
+          {!nativeSettings && (channelId === "openai" || channelId === "google" ? <div className={styles.field}><span>{i18nT("destination_apres_le_clic_ea7b1dae")}</span><strong>{i18nT("votre_site_web_635cd879")}</strong><small>{channelId === "google" ? i18nT("les_balises_de_suivi_ci_dessous_71d2d65f") : i18nT("pour_mesurer_les_visites_ajoutez_vos_76faa634")}</small></div> : <label className={styles.field}>{i18nT("lieu_de_conversion_b67785fe")}<select value={draft.conversionLocation} onChange={(event) => updateDraft({ conversionLocation: event.target.value as AdsCampaignInput["conversionLocation"] })}>{CONVERSION_LOCATION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label} — {option.detail}</option>)}</select></label>)}
+          {<label className={styles.field}>{i18nT("balises_de_suivi_cf3a63b8")}{" "}<small>{i18nT("optionnel_879d6b16")}</small><input value={draft.trackingParameters} maxLength={500} onChange={(event) => updateDraft({ trackingParameters: event.target.value })} placeholder={channelId === "linkedin" ? i18nT("utm_source_linkedin_utm_medium_paid_335f9b40") : channelId === "pinterest" ? i18nT("utm_source_pinterest_utm_campaign_inspiration_92a8595e") : channelId === "meta" ? i18nT("utm_source_meta_utm_medium_paid_bf5523c8") : channelId === "openai" ? i18nT("utm_source_chatgpt_utm_medium_paid_2fbdae33") : i18nT("utm_source_google_utm_campaign_devis_4aa60b7e")} /></label>}
           {channelId === "openai" && <ChatGPTAdsDistribution settings={openaiDelivery} onChange={updateOpenaiDelivery} />}
-          {nativeSettings?.channel === "pinterest" && !nativeSettings.conversionEvent && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Mesure des résultats Pinterest</strong><p>Cette campagne mesure les impressions ou les clics sur l’épingle, selon votre objectif. Les paramètres UTM permettent de reconnaître les visites de votre site. Aucun événement de conversion n’est ajouté automatiquement.</p></aside>}
-          {nativeSettings?.channel === "pinterest" && nativeSettings.conversionEvent && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Événement prévu : {nativeBriefTerm(nativeSettings.conversionEvent)}</strong><p>Vérifiez la balise de conversion Pinterest dans votre compte avant de publier cet objectif.</p></aside>}
+          {nativeSettings?.channel === "pinterest" && !nativeSettings.conversionEvent && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>{i18nT("mesure_des_resultats_pinterest_d8068ba0")}</strong><p>{i18nT("cette_campagne_mesure_les_impressions_ou_0f9ecdbd")}</p></aside>}
+          {nativeSettings?.channel === "pinterest" && nativeSettings.conversionEvent && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>{i18nT("evenement_prevu_value_09f95003", { value0: nativeBriefTerm(nativeSettings.conversionEvent, i18nT) })}</strong><p>{i18nT("verifiez_la_balise_de_conversion_pinterest_78a769f5")}</p></aside>}
           {nativeSettings?.channel === "linkedin" && <div className={styles.studioWide}><LinkedInAdsDistribution accountId={draft.adAccountId || externalStatuses.linkedin.selectedAccountId} settings={linkedInDelivery} active={creating && step === deliveryStep} objective={nativeSettings.objectiveType} onChange={updateLinkedInDelivery} /></div>}
           {channelId === "google" && <div className={styles.studioWide}><GoogleAdsMeasurement resources={effectiveGoogleResources} loading={googleResourcesLoad === "loading"} error={googleResourcesError} onRefresh={() => setGoogleResourcesRevision((value) => value + 1)} /></div>}
-          {nativeSettings?.channel === "x" && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>Mesure X à confirmer</strong><p>{nativeSettings.objective === "website_conversions" ? "Une source de conversion X valide devra être reliée au compte publicitaire." : "Les résultats réels ne seront visibles qu’après création et validation dans X Ads."}</p></aside>}
-          {channelId === "google" && draft.campaignType !== "search" && <label className={`${styles.check} ${styles.studioWide}`}><input type="checkbox" checked={draft.urlExpansion} onChange={(event) => updateDraft({ urlExpansion: event.target.checked })} />Autoriser l’utilisation de pages pertinentes de mon site lorsque le format de campagne le permet.</label>}
-          {channelId === "google" && draft.campaignType !== "search" && <label className={`${styles.field} ${styles.studioWide}`}>Pages à exclure <small>Une URL HTTPS par ligne, optionnel</small><CampaignTextarea className={styles.studioAdaptiveContentTextarea} rows={3} value={editableList(draft.urlExclusions)} onChange={(event) => updateDraft({ urlExclusions: parseEditableList(event.target.value.split("\n")) })} placeholder="https://votresite.fr/mentions-legales" /></label>}
+          {nativeSettings?.channel === "x" && <aside className={`${styles.studioKeywordGuidance} ${styles.studioWide}`}><strong>{i18nT("mesure_x_a_confirmer_9965283b")}</strong><p>{nativeSettings.objective === "website_conversions" ? i18nT("une_source_de_conversion_x_valide_527c3c5e") : i18nT("les_resultats_reels_ne_seront_visibles_e75bda67")}</p></aside>}
+          {channelId === "google" && draft.campaignType !== "search" && <label className={`${styles.check} ${styles.studioWide}`}><input type="checkbox" checked={draft.urlExpansion} onChange={(event) => updateDraft({ urlExpansion: event.target.checked })} />{i18nT("autoriser_l_utilisation_de_pages_pertinentes_7e972e9e")}</label>}
+          {channelId === "google" && draft.campaignType !== "search" && <label className={`${styles.field} ${styles.studioWide}`}>{i18nT("pages_a_exclure_28c05b39")}{" "}<small>{i18nT("une_url_https_par_ligne_optionnel_fb41932f")}</small><CampaignTextarea className={styles.studioAdaptiveContentTextarea} rows={3} value={editableList(draft.urlExclusions)} onChange={(event) => updateDraft({ urlExclusions: parseEditableList(event.target.value.split("\n")) })} placeholder={i18nT("ads_ui_8638b26044")} /></label>}
 
         </div>
       </section>
 
       <section hidden={step !== budgetStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioBudgetCard}`}>
-        <StudioStepHeader number={budgetStep + 1} label={channelId === "pinterest" ? "BUDGET PINTEREST" : "BUDGET"} title="Votre investissement, en clair." mobileTitle="Votre budget" channel={channelMeta.label} />
-        <p className={styles.intro}><span className={styles.studioTitleLong}>Choisissez le rythme d’investissement et la durée. Les repères ci-dessous estiment une enveloppe de dépense : ils ne promettent ni clics, ni prospects, ni ventes.</span><span className={styles.studioTitleShort}>Estimation indicative, sans promesse de résultat.</span></p>
-        {creationPath === "inrcy" && planBudgetRationale && <aside className={styles.studioBudgetAdvice}><strong>Pourquoi iNrCy propose ce budget</strong><p>{planBudgetRationale}</p><small>Proposition initiale, à ajuster selon vos moyens et les résultats du test.</small></aside>}
+        <StudioStepHeader number={budgetStep + 1} label={channelId === "pinterest" ? i18nT("budget_pinterest_f9a5a536") : i18nT("ads_ui_fb42ae4ac6")} title={i18nT("votre_investissement_en_clair_5f338345")} mobileTitle={i18nT("votre_budget_db001a35")} channel={channelMeta.label} />
+        <p className={styles.intro}><span className={styles.studioTitleLong}>{i18nT("choisissez_le_rythme_d_investissement_et_832a4592")}</span><span className={styles.studioTitleShort}>{i18nT("estimation_indicative_sans_promesse_de_resultat_dfe9a76f")}</span></p>
+        {creationPath === "inrcy" && planBudgetRationale && <aside className={styles.studioBudgetAdvice}><strong>{i18nT("pourquoi_inrcy_propose_ce_budget_3bbd96da")}</strong><p>{planBudgetRationale}</p><small>{i18nT("proposition_initiale_a_ajuster_selon_vos_ca7b5bea")}</small></aside>}
         {preparedOnlyChannel ? <PreparedAdsBudget settings={preparedDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={preparedTimeZone} onChange={updatePreparedDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "meta" ? <MetaAdsBudget settings={metaDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectiveMetaResources?.account.timezone || null} onChange={updateMetaDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "openai" ? <ChatGPTAdsBudget settings={openaiDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectiveOpenaiResources?.account.timezone || null} onChange={updateOpenaiDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "pinterest" ? <PinterestAdsBudget settings={pinterestDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectivePinterestResources?.account.timezone || null} onChange={updatePinterestDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : channelId === "google" ? <GoogleAdsBudget settings={googleDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} timeZone={effectiveGoogleResources?.timeZone || ""} onChange={updateGoogleDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} /> : nativeSettings?.channel === "linkedin" ? <>
           <LinkedInAdsBudget settings={linkedInDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} bid={draft.linkedinBidEuros} objective={nativeSettings.objectiveType} pricing={linkedInBidPricing} onChange={updateLinkedInDelivery} onDailyChange={(dailyBudgetEuros) => updateDraft({ dailyBudgetEuros })} onEndDateChange={(endDate) => updateDraft({ endDate })} onBidChange={(linkedinBidEuros) => updateDraft({ linkedinBidEuros })} />
-          {selectedLinkedInCampaignGroup?.runSchedule.end && <p className={styles.studioReadiness}>Le groupe « {selectedLinkedInCampaignGroup.name} » termine sa diffusion le {new Date(selectedLinkedInCampaignGroup.runSchedule.end).toLocaleString("fr-FR")}. La campagne doit terminer dans cette période.</p>}
-          {linkedInScheduleIssue && <div className={styles.studioReadiness} role="alert"><strong>Calendrier à adapter</strong>{linkedInScheduleIssue}
-            {linkedInCalendarCanBeRepaired && linkedInCalendarRepair && <button type="button" className={styles.secondaryButton} disabled={busy !== null} onClick={() => updateDraft({ endDate: linkedInCalendarRepair.endDate, linkedinDeliverySettings: linkedInCalendarRepair.linkedinDeliverySettings })}>Adapter la fin au groupe · {new Date(linkedInCalendarRepair.linkedinDeliverySettings!.budget.endAt!).toLocaleString("fr-FR")}</button>}
-            <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(foundationsStep)}>Choisir un autre groupe</button>
+          {selectedLinkedInCampaignGroup?.runSchedule.end && <p className={styles.studioReadiness}>{i18nT("le_groupe_value_termine_sa_diffusion_2734322f", { value0: selectedLinkedInCampaignGroup.name, value1: new Date(selectedLinkedInCampaignGroup.runSchedule.end).toLocaleString(locale) })}</p>}
+          {adsUiText(i18nT, linkedInScheduleIssue) && <div className={styles.studioReadiness} role="alert"><strong>{i18nT("calendrier_a_adapter_bec71c2b")}</strong>{adsUiText(i18nT, linkedInScheduleIssue)}
+            {linkedInCalendarCanBeRepaired && linkedInCalendarRepair && <button type="button" className={styles.secondaryButton} disabled={busy !== null} onClick={() => updateDraft({ endDate: linkedInCalendarRepair.endDate, linkedinDeliverySettings: linkedInCalendarRepair.linkedinDeliverySettings })}>{i18nT("adapter_la_fin_au_groupe_value_bdfe1785", { value0: new Date(linkedInCalendarRepair.linkedinDeliverySettings!.budget.endAt!).toLocaleString(locale) })}</button>}
+            <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(foundationsStep)}>{i18nT("choisir_un_autre_groupe_52ea925a")}</button>
           </div>}
         </> : <>
         <div className={styles.studioGrid}>
-          <label className={styles.field}>Budget quotidien moyen (€)<input type="number" min="5" max="500" step="0.01" value={draft.dailyBudgetEuros} onChange={(event) => updateDraft({ dailyBudgetEuros: Number(event.target.value) })} /></label>
-          <label className={styles.field}>Date de fin<input type="date" value={draft.endDate} onChange={(event) => updateDraft({ endDate: event.target.value })} /></label>
+          <label className={styles.field}>{i18nT("budget_quotidien_moyen_8d3aa62f")}<input type="number" min="5" max="500" step="0.01" value={draft.dailyBudgetEuros} onChange={(event) => updateDraft({ dailyBudgetEuros: Number(event.target.value) })} /></label>
+          <label className={styles.field}>{i18nT("date_de_fin_716a6d8d")}<input type="date" value={draft.endDate} onChange={(event) => updateDraft({ endDate: event.target.value })} /></label>
         </div>
-        <div className={styles.studioBudgetForecast} aria-label="Repères budgétaires">
-          <div className={styles.studioBudgetForecastCard}><span>Budget quotidien</span><strong>{Number(draft.dailyBudgetEuros || 0).toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}</strong><small>moyenne planifiée</small></div>
-          <div className={styles.studioBudgetForecastCard}><span>Durée prévue</span><strong>{estimatedCampaignDays ? `${estimatedCampaignDays} j` : "—"}</strong><small>jusqu’à la date de fin</small></div>
-          <div className={styles.studioBudgetForecastCard}><span>Enveloppe estimée</span><strong>{Number.isFinite(estimate) ? estimate.toLocaleString("fr-FR", { style: "currency", currency: "EUR" }) : "—"}</strong><small>budget × durée</small></div>
+        <div className={styles.studioBudgetForecast} aria-label={i18nT("reperes_budgetaires_29cfb4a5")}>
+          <div className={styles.studioBudgetForecastCard}><span>{i18nT("budget_quotidien_c56e4bf1")}</span><strong>{Number(draft.dailyBudgetEuros || 0).toLocaleString(locale, { style: "currency", currency: "EUR" })}</strong><small>{i18nT("moyenne_planifiee_c5ac00b0")}</small></div>
+          <div className={styles.studioBudgetForecastCard}><span>{i18nT("duree_prevue_e9741840")}</span><strong>{estimatedCampaignDays ? i18nT("ads_ui_be2b63d0db", { value0: estimatedCampaignDays }) : "—"}</strong><small>{i18nT("jusqu_a_la_date_de_fin_f557d508")}</small></div>
+          <div className={styles.studioBudgetForecastCard}><span>{i18nT("enveloppe_estimee_772ebaef")}</span><strong>{Number.isFinite(estimate) ? estimate.toLocaleString(locale, { style: "currency", currency: "EUR" }) : "—"}</strong><small>{i18nT("budget_duree_8e2b96db")}</small></div>
         </div>
-        <div className={styles.studioBudgetPanel}><div><span>À retenir</span><strong>Vous gardez la main.</strong></div><p>Aucune dépense n’est engagée tant que ce canal reste en préparation.</p></div>
+        <div className={styles.studioBudgetPanel}><div><span>{i18nT("a_retenir_2fcd85f2")}</span><strong>{i18nT("vous_gardez_la_main_a619fb85")}</strong></div><p>{i18nT("aucune_depense_n_est_engagee_tant_f905fa2b")}</p></div>
         </>}
       </section>
 
       <section hidden={step !== validationStep} data-channel={channelId} className={`${styles.card} ${styles.studioCard} ${styles.studioValidationCard}`}>
-        <StudioStepHeader number={validationStep + 1} label={channelId === "pinterest" ? "REVUE PINTEREST" : "VOTRE CONTRÔLE"} title={channelId === "pinterest" ? "Votre campagne Pinterest, prête à valider." : "Votre campagne, vos décisions."} mobileTitle="Validation" channel={channelMeta.label} />
-        <p className={styles.intro}><span className={styles.studioTitleLong}>{["linkedin", "google", "pinterest", "meta", "openai", "x", "tiktok"].includes(channelId) && creationPath === "inrcy" ? "Votre campagne est préparée. Relisez le récapitulatif, cochez les confirmations puis validez. Les onglets restent disponibles pour consulter ou ajuster une proposition." : channelId === "pinterest" ? "Relisez l’objectif, l’audience, l’épingle, le format, la destination et le budget. Vous pourrez ensuite lancer la campagne sur Pinterest ou l’enregistrer en brouillon pour plus tard." : "Relisez cette proposition avant tout enregistrement. Une campagne ne peut être diffusée qu’après votre validation explicite et celle de la plateforme."}</span><span className={styles.studioTitleShort}>{channelId === "pinterest" ? "Lancez maintenant ou gardez le brouillon." : "Diffusion après votre accord et celui de la plateforme."}</span></p>
+        <StudioStepHeader number={validationStep + 1} label={channelId === "pinterest" ? i18nT("revue_pinterest_fcb24cf3") : i18nT("votre_controle_95386e61")} title={channelId === "pinterest" ? i18nT("votre_campagne_pinterest_prete_a_valider_7bd9c828") : i18nT("votre_campagne_vos_decisions_e3618575")} mobileTitle={i18nT("validation_dd74d182")} channel={channelMeta.label} />
+        <p className={styles.intro}><span className={styles.studioTitleLong}>{["linkedin", "google", "pinterest", "meta", "openai", "x", "tiktok"].includes(channelId) && creationPath === "inrcy" ? i18nT("votre_campagne_est_preparee_relisez_le_12d22228") : channelId === "pinterest" ? i18nT("relisez_l_objectif_l_audience_l_cfe08c31") : i18nT("relisez_cette_proposition_avant_tout_enregistrem_02f0842c")}</span><span className={styles.studioTitleShort}>{channelId === "pinterest" ? i18nT("lancez_maintenant_ou_gardez_le_brouillon_7cf49fee") : i18nT("diffusion_apres_votre_accord_et_celui_f22e7a02")}</span></p>
         {preparedOnlyChannel && <PreparedAdsNativeControls draft={draft} active={creating} connected={channelId === "tiktok" ? externalStatuses.tiktok.connected : externalStatuses.x.connected}
           selectedAccountId={channelId === "tiktok" ? tikTokAccountId : externalStatuses.x.selectedAccountId || draft.adAccountId}
           tikTokResources={effectiveTikTokResources} mode={step === validationStep ? "final" : "hidden"}
           onChange={updateDraft} onReadiness={setPreparedNativeReadiness} onXResources={setPreparedXResources} />}
-        {preparedOnlyChannel && <PreparedAdsEffectiveSummary draft={draft} timeZone={preparedTimeZone} identityMessage={channelId === "tiktok" ? tikTokIdentityMessage : "Le compte, sa source de financement et le post à promouvoir seront vérifiés avant toute publication."} />}
-        {preparedOnlyChannel && preparedReviewIssues.length > 0 && <div className={styles.studioReadiness} role="status"><strong>Réglages à compléter dans le brouillon</strong><ul>{preparedReviewIssues.map((issue) => <li key={issue}>{issue}</li>)}</ul></div>}
+        {preparedOnlyChannel && <PreparedAdsEffectiveSummary draft={draft} timeZone={preparedTimeZone} identityMessage={channelId === "tiktok" ? adsUiText(i18nT, tikTokIdentityMessage) : i18nT("le_compte_sa_source_de_financement_1c15af4d")} />}
+        {preparedOnlyChannel && preparedReviewIssues.length > 0 && <div className={styles.studioReadiness} role="status"><strong>{i18nT("reglages_a_completer_dans_le_brouillon_c616c5d5")}</strong><ul>{preparedReviewIssues.map((issue) => <li key={issue}>{adsUiText(i18nT, issue)}</li>)}</ul></div>}
         {channelId === "meta" && <MetaAdsEffectiveSummary draft={draft} resources={effectiveMetaResources} />}
         {channelId === "openai" && <ChatGPTAdsEffectiveSummary draft={draft} resources={effectiveOpenaiResources} />}
-        {channelId === "meta" && metaLaunchReadinessReason && <p className={styles.studioReadiness} role="status"><strong>Contrôle Meta Ads</strong>{metaLaunchReadinessReason}{metaResourcesLoad === "error" && <button type="button" className={styles.secondaryButton} onClick={() => setMetaResourcesRevision((value) => value + 1)}>Revérifier le compte et la Page</button>}</p>}
-        {channelId === "openai" && openaiLaunchReadinessReason && <p className={styles.studioReadiness} role="status"><strong>Contrôle ChatGPT Ads</strong>{openaiLaunchReadinessReason}{openaiResourcesLoad === "error" && <button type="button" className={styles.secondaryButton} onClick={() => setOpenaiResourcesRevision((value) => value + 1)}>Revérifier le compte et les zones</button>}</p>}
+        {channelId === "meta" && adsUiText(i18nT, metaLaunchReadinessReason) && <p className={styles.studioReadiness} role="status"><strong>{i18nT("controle_meta_ads_279080fc")}</strong>{adsUiText(i18nT, metaLaunchReadinessReason)}{metaResourcesLoad === "error" && <button type="button" className={styles.secondaryButton} onClick={() => setMetaResourcesRevision((value) => value + 1)}>{i18nT("reverifier_le_compte_et_la_page_e4ca505c")}</button>}</p>}
+        {channelId === "openai" && adsUiText(i18nT, openaiLaunchReadinessReason) && <p className={styles.studioReadiness} role="status"><strong>{i18nT("controle_chatgpt_ads_2f6bbeb5")}</strong>{adsUiText(i18nT, openaiLaunchReadinessReason)}{openaiResourcesLoad === "error" && <button type="button" className={styles.secondaryButton} onClick={() => setOpenaiResourcesRevision((value) => value + 1)}>{i18nT("reverifier_le_compte_et_les_zones_5df2434d")}</button>}</p>}
         {channelId === "google" && <GoogleAdsEffectiveSummary draft={draft} resources={effectiveGoogleResources} />}
         {channelId === "pinterest" && <PinterestAdsEffectiveSummary draft={draft} timeZone={effectivePinterestResources?.account.timezone || null} resources={effectivePinterestResources ? { geographyOptions: effectivePinterestResources.geographies, languageOptions: effectivePinterestResources.locales } : null} />}
-        {channelId === "pinterest" && pinterestLaunchReadinessReason && <p className={styles.studioReadiness} role="status"><strong>Contrôle Pinterest Ads</strong>{pinterestLaunchReadinessReason}<button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(pinterestGeoReady ? budgetStep : geographyStep)}>Voir les réglages concernés</button>{pinterestResourcesLoad === "error" && <button type="button" className={styles.secondaryButton} onClick={() => setPinterestResourcesRevision((value) => value + 1)}>Revérifier le compte</button>}</p>}
-        {channelId === "google" && draft.campaignType === "search" && googleLaunchReadinessReason && <p className={styles.studioReadiness} role="status"><strong>Contrôle Google Ads</strong>{googleLaunchReadinessReason}{googleGeoState.status === "error" && <button type="button" className={styles.secondaryButton} onClick={() => { googleResolvedGeoKey.current = ""; setGoogleGeoRevision((value) => value + 1); }}>Revérifier les zones</button>}{googleResourcesLoad === "error" && <button type="button" className={styles.secondaryButton} onClick={() => setGoogleResourcesRevision((value) => value + 1)}>Revérifier le compte</button>}</p>}
+        {channelId === "pinterest" && adsUiText(i18nT, pinterestLaunchReadinessReason) && <p className={styles.studioReadiness} role="status"><strong>{i18nT("controle_pinterest_ads_f675acc1")}</strong>{adsUiText(i18nT, pinterestLaunchReadinessReason)}<button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(pinterestGeoReady ? budgetStep : geographyStep)}>{i18nT("voir_les_reglages_concernes_01749cfc")}</button>{pinterestResourcesLoad === "error" && <button type="button" className={styles.secondaryButton} onClick={() => setPinterestResourcesRevision((value) => value + 1)}>{i18nT("reverifier_le_compte_39ef192e")}</button>}</p>}
+        {channelId === "google" && draft.campaignType === "search" && adsUiText(i18nT, googleLaunchReadinessReason) && <p className={styles.studioReadiness} role="status"><strong>{i18nT("controle_google_ads_79c5f65e")}</strong>{adsUiText(i18nT, googleLaunchReadinessReason)}{googleGeoState.status === "error" && <button type="button" className={styles.secondaryButton} onClick={() => { googleResolvedGeoKey.current = ""; setGoogleGeoRevision((value) => value + 1); }}>{i18nT("reverifier_les_zones_b7fd9197")}</button>}{googleResourcesLoad === "error" && <button type="button" className={styles.secondaryButton} onClick={() => setGoogleResourcesRevision((value) => value + 1)}>{i18nT("reverifier_le_compte_39ef192e")}</button>}</p>}
         {channelId === "linkedin" && <LinkedInAdsEffectiveSummary settings={linkedInDelivery} dailyBudget={draft.dailyBudgetEuros} endDate={draft.endDate} zones={linkedInGeoTargets.map((target) => target.name)} />}
         <dl className={styles.studioReviewGrid}>
-          <div><dt>Campagne</dt><dd>{draft.name || "À renseigner"}</dd><small>{nativeSettings ? `${nativeBriefTerm(nativeWizardObjective(nativeSettings))} · ${nativeWizardFormat(nativeSettings)}` : `${selectedCampaignType?.label || channelMeta.label} · ${OBJECTIVE_OPTIONS.find((option) => option.value === draft.objective)?.label}`}</small></div>
-          <div><dt>Compte / canal</dt><dd>{channelMeta.label} · {isAdsProvider(channelId) ? associatedAccountName || "À configurer" : channelId === "openai" ? connectionSnapshots.openai.accountLabel || connectionSnapshots.openai.accountId || "À connecter" : activeExternalStatus?.selectedAccountId ? activeExternalStatus.selectedAccountName || activeExternalStatus.selectedAccountId : "À associer"}</dd><small>{reviewAccountStatusLabel}</small></div>
-          <div><dt>{channelId === "openai" ? "Objectif publicitaire" : channelId === "pinterest" ? "Objectif Pinterest" : "Objectif mesuré"}</dt><dd>{channelId === "openai" ? "Clics vers le site" : channelId === "google" ? "Objectifs du compte Google Ads" : nativeSettings?.channel === "linkedin" || nativeSettings?.channel === "pinterest" ? nativeBriefTerm(nativeSettings.objectiveType) : CONVERSION_OPTIONS.find((option) => option.value === draft.conversionGoal)?.label}</dd><small>{channelId === "openai" ? draft.targetLocations.length ? `${draft.targetLocations.slice(0, 2).join(" · ")}${draft.targetLocations.length > 2 ? ` +${draft.targetLocations.length - 2} zone(s)` : ""}` : "Zones à préciser" : draft.targetLocations.length ? `${draft.targetLocations.length} zone${draft.targetLocations.length > 1 ? "s" : ""} ciblée${draft.targetLocations.length > 1 ? "s" : ""}` : "Zones à préciser"}</small></div>
-          {channelId !== "linkedin" && channelId !== "google" && <div><dt>Investissement</dt><dd>{channelId === "pinterest" ? pinterestAdsBudgetLabel(draft) : channelId === "meta" ? metaAdsBudgetLabel(draft) : channelId === "openai" ? openaiAdsBudgetLabel(draft) : preparedOnlyChannel ? preparedAdsBudgetLabel(draft) : `${draft.dailyBudgetEuros.toLocaleString("fr-FR")} € / jour`}</dd><small>{channelId === "openai" ? `CPC maximal · enchère ${draft.openaiBidEuros || "—"} € · fin ${draft.endDate || "à préciser"}` : `Fin prévue : ${draft.endDate || "à préciser"}`}</small></div>}
-          <div><dt>Redirection</dt><dd>{nativeSettings?.channel === "tiktok" && nativeSettings.destinationKind !== "website" ? nativeSettings.destinationKind === "profile" ? "Profil TikTok" : "Formulaire intégré TikTok" : draft.destinationUrl || "À renseigner"}</dd><small>{channelId === "openai" ? "Lien HTTPS de la carte ChatGPT" : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" ? draft.trackingParameters || "Lien de l’épingle sponsorisée" : channelId === "linkedin" ? draft.trackingParameters || "Lien de l’annonce · paramètres UTM facultatifs" : preparedOnlyChannel ? draft.trackingParameters || "Destination préparée · suivi natif à vérifier" : draft.keywords.length ? `${draft.keywords.length} signaux / mots-clés préparés` : "Mots-clés ou audiences à compléter"}</small></div>
-          <div><dt>{channelId === "openai" ? "Carte ChatGPT · image carrée" : "Médias & message"}</dt><dd>{channelId === "openai" ? draft.headlines[0] || "Titre à renseigner" : googleSearchMedia ? "Annonces textuelles" : channelId === "meta" ? "Pack images publicitaires Meta" : MEDIA_STRATEGY_OPTIONS.find((option) => option.value === draft.mediaStrategy)?.label}</dd><small>{channelId === "openai" ? draft.primaryText || "Texte à renseigner" : channelId === "meta" ? `${metaFeedReviewLabel} · ${metaStoryReelReviewLabel}` : googleSearchMedia ? `${draft.headlines.length} titres · ${draft.descriptions.length} descriptions` : channelId === "linkedin" ? LINKEDIN_CTA_LABELS[linkedInDelivery.callToAction] : channelId === "pinterest" ? "Titre, description et image de l’épingle" : draft.callToAction || "Appel à l’action à définir"}</small></div>
-          {channelId !== "openai" && <div><dt>Conversion &amp; suivi</dt><dd>{CONVERSION_LOCATION_OPTIONS.find((option) => option.value === draft.conversionLocation)?.label}</dd><small>{draft.trackingParameters || "Aucune balise de suivi ajoutée"}</small></div>}
-          {channelId !== "openai" && channelId !== "linkedin" && <div><dt>Diffusion avancée</dt><dd>{channelId === "meta" ? (draft.metaPlacements.length ? `${draft.metaPlacements.length} placement${draft.metaPlacements.length > 1 ? "s" : ""}` : "Placements à choisir") : channelId === "google" ? "Langue déduite des annonces et du site" : nativeSettings?.channel === "tiktok" ? nativeBriefTerm(nativeSettings.placementIntent) : nativeSettings?.channel === "pinterest" ? pinterestTargetingLabel(nativeSettings.targetingMode) : nativeSettings?.channel === "x" ? nativeBriefTerm(nativeSettings.targetingMode) : "Préparation complète"}</dd><small>{channelId === "meta" ? "Âges et langues vérifiés · optimisation des clics sur le lien" : channelId === "google" ? (draft.googleSearchPartners ? "Partenaires de recherche inclus" : "Réseau Google principal") : nativeSettings?.channel === "tiktok" ? `Destination : ${nativeBriefTerm(nativeSettings.destinationKind)} · Optimisation : ${nativeBriefTerm(nativeSettings.optimizationIntent)}` : nativeSettings?.channel === "pinterest" && nativeSettings.conversionEvent ? `Événement : ${nativeBriefTerm(nativeSettings.conversionEvent)}` : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" ? "Pinterest optimise automatiquement l’audience du groupe d’annonces" : "Choix à vérifier sur la plateforme"}</small></div>}
+          <div><dt>{i18nT("campagne_53c2fc2a")}</dt><dd>{draft.name || i18nT("a_renseigner_e3d2f20f")}</dd><small>{nativeSettings ? `${nativeBriefTerm(nativeWizardObjective(nativeSettings), i18nT)} · ${nativeWizardFormat(nativeSettings, i18nT)}` : `${selectedCampaignType?.label || channelMeta.label} · ${OBJECTIVE_OPTIONS.find((option) => option.value === draft.objective)?.label}`}</small></div>
+          <div><dt>{i18nT("compte_canal_f1359301")}</dt><dd>{channelMeta.label} · {isAdsProvider(channelId) ? associatedAccountName || i18nT("a_configurer_bde8227a") : channelId === "openai" ? connectionSnapshots.openai.accountLabel || connectionSnapshots.openai.accountId || i18nT("a_connecter_dee8dcb4") : activeExternalStatus?.selectedAccountId ? activeExternalStatus.selectedAccountName || activeExternalStatus.selectedAccountId : i18nT("a_associer_98e1fb09")}</dd><small>{reviewAccountStatusLabel}</small></div>
+          <div><dt>{channelId === "openai" ? i18nT("objectif_publicitaire_20d8c3c3") : channelId === "pinterest" ? i18nT("objectif_pinterest_7bfa04bd") : i18nT("objectif_mesure_3be0c22a")}</dt><dd>{channelId === "openai" ? i18nT("clics_vers_le_site_22552132") : channelId === "google" ? i18nT("objectifs_du_compte_google_ads_efa07a46") : nativeSettings?.channel === "linkedin" || nativeSettings?.channel === "pinterest" ? nativeBriefTerm(nativeSettings.objectiveType, i18nT) : CONVERSION_OPTIONS.find((option) => option.value === draft.conversionGoal)?.label}</dd><small>{channelId === "openai" ? draft.targetLocations.length ? `${draft.targetLocations.slice(0, 2).join(" · ")}${draft.targetLocations.length > 2 ? i18nT("ads_count_extra_zones", { count: draft.targetLocations.length - 2 }) : ""}` : i18nT("zones_a_preciser_2e28f65b") : draft.targetLocations.length ? i18nT("ads_count_target_zones", { count: draft.targetLocations.length }) : i18nT("zones_a_preciser_2e28f65b")}</small></div>
+          {channelId !== "linkedin" && channelId !== "google" && <div><dt>{i18nT("investissement_ba3f6f4e")}</dt><dd>{channelId === "pinterest" ? pinterestAdsBudgetLabel(draft, i18nT, locale) : channelId === "meta" ? metaAdsBudgetLabel(draft, i18nT, locale) : channelId === "openai" ? openaiAdsBudgetLabel(draft, i18nT, locale) : preparedOnlyChannel ? preparedAdsBudgetLabel(draft, i18nT, locale) : i18nT("value_jour_32cef077", { value0: draft.dailyBudgetEuros.toLocaleString(locale) })}</dd><small>{channelId === "openai" ? i18nT("cpc_maximal_enchere_value_fin_value_e1ba2dbb", { value0: draft.openaiBidEuros || "—", value1: draft.endDate || i18nT("ads_date_to_specify") }) : i18nT("fin_prevue_value_ac289a92", { value0: draft.endDate || i18nT("ads_date_to_specify") })}</small></div>}
+          <div><dt>{i18nT("redirection_b77aad5f")}</dt><dd>{nativeSettings?.channel === "tiktok" && nativeSettings.destinationKind !== "website" ? nativeSettings.destinationKind === "profile" ? i18nT("profil_tiktok_77aac6e1") : i18nT("formulaire_integre_tiktok_f1a247ba") : draft.destinationUrl || i18nT("a_renseigner_e3d2f20f")}</dd><small>{channelId === "openai" ? i18nT("lien_https_de_la_carte_chatgpt_d40fa1e6") : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" ? draft.trackingParameters || i18nT("lien_de_l_epingle_sponsorisee_ac881512") : channelId === "linkedin" ? draft.trackingParameters || i18nT("lien_de_l_annonce_parametres_utm_08495210") : preparedOnlyChannel ? draft.trackingParameters || i18nT("destination_preparee_suivi_natif_a_verifier_42aea3e4") : draft.keywords.length ? i18nT("value_signaux_mots_cles_prepares_71eb7bb1", { value0: draft.keywords.length }) : i18nT("mots_cles_ou_audiences_a_completer_608bf503")}</small></div>
+          <div><dt>{channelId === "openai" ? i18nT("carte_chatgpt_image_carree_7c54b6e5") : i18nT("medias_message_113a99d2")}</dt><dd>{channelId === "openai" ? draft.headlines[0] || i18nT("titre_a_renseigner_02c6be7e") : googleSearchMedia ? i18nT("annonces_textuelles_1a75ba49") : channelId === "meta" ? i18nT("pack_images_publicitaires_meta_0de7011a") : MEDIA_STRATEGY_OPTIONS.find((option) => option.value === draft.mediaStrategy)?.label}</dd><small>{channelId === "openai" ? draft.primaryText || i18nT("texte_a_renseigner_1d6da64c") : channelId === "meta" ? `${metaFeedReviewLabel} · ${metaStoryReelReviewLabel}` : googleSearchMedia ? i18nT("value_titres_value_descriptions_5d6b81f8", { value0: draft.headlines.length, value1: draft.descriptions.length }) : channelId === "linkedin" ? adsUiText(i18nT, LINKEDIN_CTA_LABELS[linkedInDelivery.callToAction]) : channelId === "pinterest" ? i18nT("titre_description_et_image_de_l_0a9ab5ea") : draft.callToAction || i18nT("appel_a_l_action_a_definir_a32bfc7e")}</small></div>
+          {channelId !== "openai" && <div><dt>{i18nT("conversion_amp_suivi_34a3f0cc")}</dt><dd>{CONVERSION_LOCATION_OPTIONS.find((option) => option.value === draft.conversionLocation)?.label}</dd><small>{draft.trackingParameters || i18nT("aucune_balise_de_suivi_ajoutee_19fdb348")}</small></div>}
+          {channelId !== "openai" && channelId !== "linkedin" && <div><dt>{i18nT("diffusion_avancee_b7c1a13f")}</dt><dd>{channelId === "meta" ? (draft.metaPlacements.length ? i18nT("ads_count_placements", { count: draft.metaPlacements.length }) : i18nT("placements_a_choisir_c60e5a11")) : channelId === "google" ? i18nT("langue_deduite_des_annonces_et_du_eee59a87") : nativeSettings?.channel === "tiktok" ? nativeBriefTerm(nativeSettings.placementIntent, i18nT) : nativeSettings?.channel === "pinterest" ? pinterestTargetingLabel(nativeSettings.targetingMode, i18nT) : nativeSettings?.channel === "x" ? nativeBriefTerm(nativeSettings.targetingMode, i18nT) : i18nT("preparation_complete_734a7b30")}</dd><small>{channelId === "meta" ? i18nT("ages_et_langues_verifies_optimisation_des_25ed96c3") : channelId === "google" ? (draft.googleSearchPartners ? i18nT("partenaires_de_recherche_inclus_93f4d74e") : i18nT("reseau_google_principal_5e2ca772")) : nativeSettings?.channel === "tiktok" ? i18nT("destination_value_optimisation_value_f8700438", { value0: nativeBriefTerm(nativeSettings.destinationKind, i18nT), value1: nativeBriefTerm(nativeSettings.optimizationIntent, i18nT) }) : nativeSettings?.channel === "pinterest" && nativeSettings.conversionEvent ? i18nT("evenement_value_5b1a4adf", { value0: nativeBriefTerm(nativeSettings.conversionEvent, i18nT) }) : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" ? i18nT("pinterest_optimise_automatiquement_l_audience_du_a38f4ccf") : i18nT("choix_a_verifier_sur_la_plateforme_36aafe91")}</small></div>}
           {["linkedin", "google", "pinterest", "meta", "openai", "x", "tiktok"].includes(channelId) && destinationReview.required && <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-linkedin-destination-confirmation={channelId === "linkedin" || undefined} data-google-destination-confirmation={channelId === "google" || undefined} data-pinterest-destination-confirmation={channelId === "pinterest" || undefined} data-meta-destination-confirmation={channelId === "meta" || undefined} data-openai-destination-confirmation={channelId === "openai" || undefined} data-prepared-destination-confirmation={preparedOnlyChannel || undefined}>
             <input type="checkbox" checked={destinationReview.confirmed} disabled={busy !== null || !destinationReview.valid} onChange={(event) => setConfirmedDestinationUrl(event.target.checked ? draft.destinationUrl.trim() : "")} />
-            <span><strong>Lien de votre annonce</strong>Je confirme que l’annonce doit diriger vers {draft.destinationUrl || "le lien à compléter"}.</span>
+            <span><strong>{i18nT("lien_de_votre_annonce_60abc0eb")}</strong>{i18nT("je_confirme_que_l_annonce_doit_f982d246")}{" "}{draft.destinationUrl || i18nT("le_lien_a_completer_33e1e3ab")}.</span>
           </label>}
           {preparedOnlyChannel && <>
             <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-prepared-budget-confirmation="true">
               <input type="checkbox" checked={preparedBudgetApprovalKey === preparedDraftKey} disabled={busy !== null || Boolean(preparedBudgetError)} onChange={(event) => setPreparedBudgetApprovalKey(event.target.checked ? preparedDraftKey : "")} />
-              <span><strong>Budget et calendrier préparés</strong>Je valide {preparedAdsBudgetLabel(draft)} et les dates du récapitulatif. {preparedNativeReady ? "La campagne sera créée en pause, sans diffusion ni dépense." : "Le brouillon sera enregistré ; aucune facturation ne sera déclenchée."}</span>
+              <span><strong>{i18nT("budget_et_calendrier_prepares_b9a9d758")}</strong>{i18nT("je_valide_77b8a207")}{" "}{preparedAdsBudgetLabel(draft, i18nT, locale)} {" "}{i18nT("et_les_dates_du_recapitulatif_20a82473")}{" "}{preparedNativeReady ? i18nT("la_campagne_sera_creee_en_pause_4214c9ee") : i18nT("le_brouillon_sera_enregistre_aucune_facturation_a4c678cf")}</span>
             </label>
             <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-prepared-content-confirmation="true">
               <input type="checkbox" checked={preparedContentApprovalKey === preparedDraftKey} disabled={busy !== null} onChange={(event) => setPreparedContentApprovalKey(event.target.checked ? preparedDraftKey : "")} />
-              <span><strong>Audience et annonce préparées</strong>Je valide les zones, les profils, le message et le format affichés. Les ressources exactes et les droits sont revérifiés avant toute création native sur {channelMeta.label}.</span>
+              <span><strong>{i18nT("audience_et_annonce_preparees_3e3a3694")}</strong>{i18nT("je_valide_les_zones_les_profils_e184f316")}{" "}{channelMeta.label}.</span>
             </label>
           </>}
           {channelId === "meta" && creationPath === "inrcy" && <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-meta-launch-confirmation="true">
             <input type="checkbox" checked={confirmedSpend} disabled={busy !== null || !reviewAccountReady || metaResourcesLoad !== "ready" || !effectiveMetaResources || Boolean(metaLaunchReadinessReason)} onChange={(event) => { setConfirmedSpend(event.target.checked); linkedInLaunchConsent.current = event.target.checked ? { key: JSON.stringify(draft), status: "active", metaResourcesKey: metaAdsResourcesConsentKey(effectiveMetaResources) } : null; }} />
-            <span><strong>Budget et diffusion</strong>J’autorise la diffusion sur le compte {effectiveMetaResources?.account.name || "Meta Ads"} avec {metaAdsBudgetLabel(draft)}, {metaDelivery.budget.startAt ? `à partir du ${metaConsentCalendar.start}` : "dès validation de Meta"}, jusqu’au {metaConsentCalendar.end}. Meta facturera directement ce compte. Le budget est celui de l’ensemble de publicités.</span>
+            <span><strong>{i18nT("budget_et_diffusion_62fba6bb")}</strong>{i18nT("j_autorise_la_diffusion_sur_le_4e960d87")}{" "}{effectiveMetaResources?.account.name || i18nT("meta_ads_54a00eaa")} {i18nT("ads_with_budget", { budget: metaAdsBudgetLabel(draft, i18nT, locale) })}, {metaDelivery.budget.startAt ? i18nT("a_partir_du_value_924108c5", { value0: metaConsentCalendar.start }) : i18nT("des_validation_de_meta_aa759c26")}{i18nT("jusqu_au_a6698bb9")}{" "}{metaConsentCalendar.end}{i18nT("meta_facturera_directement_ce_compte_le_a20a7b94")}</span>
           </label>}
           {channelId === "openai" && creationPath === "inrcy" && <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-openai-launch-confirmation="true">
             <input type="checkbox" checked={confirmedSpend} disabled={busy !== null || !reviewAccountReady || openaiResourcesLoad !== "ready" || !effectiveOpenaiResources || Boolean(openaiLaunchReadinessReason) || (!openaiAccountReady && !openaiLiveReady)} onChange={(event) => { setConfirmedSpend(event.target.checked); linkedInLaunchConsent.current = event.target.checked ? { key: JSON.stringify(draft), status: openaiLiveReady ? "active" : "paused", openaiResourcesKey: openaiAdsResourcesConsentKey(effectiveOpenaiResources) || undefined } : null; }} />
-            <span><strong>Budget et diffusion</strong>{openaiLiveReady ? `J’autorise la diffusion sur le compte ${effectiveOpenaiResources?.account.name || "ChatGPT Ads"} avec ${openaiAdsBudgetLabel(draft)} et un CPC maximal de ${draft.openaiBidEuros || "—"} €, ${openaiDelivery.budget.startAt ? `à partir du ${new Date(openaiDelivery.budget.startAt).toLocaleString("fr-FR", { timeZone: effectiveOpenaiResources?.account.timezone || "UTC" })}` : "après validation de l’annonce par ChatGPT Ads"}. Le calendrier détaillé ci-dessus s’applique ; ChatGPT Ads facturera ce compte.` : `Je confirme la création sur le compte ${effectiveOpenaiResources?.account.name || "ChatGPT Ads"} en pause, sans diffusion ni dépense.`}</span>
+            <span><strong>{i18nT("budget_et_diffusion_62fba6bb")}</strong>{openaiLiveReady ? i18nT("j_autorise_la_diffusion_sur_le_b66d5891", { value0: effectiveOpenaiResources?.account.name || "ChatGPT Ads", value1: openaiAdsBudgetLabel(draft, i18nT, locale), value2: draft.openaiBidEuros || "—", value3: openaiDelivery.budget.startAt ? i18nT("a_partir_du_value_924108c5", { value0: new Date(openaiDelivery.budget.startAt).toLocaleString(locale, { timeZone: effectiveOpenaiResources?.account.timezone || "UTC" }) }) : i18nT("ads_after_chatgpt_ad_approval") }) : i18nT("je_confirme_la_creation_sur_le_7cca9d93", { value0: effectiveOpenaiResources?.account.name || "ChatGPT Ads" })}</span>
           </label>}
           {channelId === "pinterest" && creationPath === "inrcy" && <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-pinterest-launch-confirmation="true">
             <input type="checkbox" checked={confirmedSpend} disabled={busy !== null || !reviewAccountReady || pinterestResourcesLoad !== "ready" || !effectivePinterestResources || Boolean(pinterestLaunchReadinessReason)} onChange={(event) => { setConfirmedSpend(event.target.checked); linkedInLaunchConsent.current = event.target.checked ? { key: JSON.stringify(draft), status: "active", pinterestResourcesKey: pinterestAdsResourcesConsentKey(effectivePinterestResources) } : null; }} />
-            <span><strong>Budget et diffusion</strong>J’autorise la diffusion de cette épingle sur le compte {externalStatuses.pinterest.selectedAccountName || "Pinterest Ads"} avec {pinterestAdsBudgetLabel(draft)}, {pinterestDelivery.budget.startAt ? `à partir du ${new Date(pinterestDelivery.budget.startAt).toLocaleString("fr-FR", { timeZone: effectivePinterestResources?.account.timezone || "UTC" })}` : "dès la validation de Pinterest"}, jusqu’au {new Date(pinterestDelivery.budget.endAt || draft.endDate + "T23:59:59Z").toLocaleString("fr-FR", { timeZone: effectivePinterestResources?.account.timezone || "UTC" })} ({effectivePinterestResources?.account.timezone || "UTC · calendrier"}). Pinterest facturera directement ce compte.</span>
+            <span><strong>{i18nT("budget_et_diffusion_62fba6bb")}</strong>{i18nT("j_autorise_la_diffusion_de_cette_46bd4268")}{" "}{externalStatuses.pinterest.selectedAccountName || i18nT("pinterest_ads_c131df7a")} {i18nT("ads_with_budget", { budget: pinterestAdsBudgetLabel(draft, i18nT, locale) })}, {pinterestDelivery.budget.startAt ? i18nT("a_partir_du_value_924108c5", { value0: new Date(pinterestDelivery.budget.startAt).toLocaleString(locale, { timeZone: effectivePinterestResources?.account.timezone || "UTC" }) }) : i18nT("des_la_validation_de_pinterest_fd5c96fd")}{i18nT("jusqu_au_a6698bb9")}{" "}{new Date(pinterestDelivery.budget.endAt || draft.endDate + "T23:59:59Z").toLocaleString(locale, { timeZone: effectivePinterestResources?.account.timezone || "UTC" })} ({effectivePinterestResources?.account.timezone || i18nT("utc_calendrier_cd9971e3")}{i18nT("pinterest_facturera_directement_ce_compte_fd9cc1ea")}</span>
           </label>}
           {channelId === "google" && creationPath === "inrcy" && <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-google-launch-confirmation="true">
             <input type="checkbox" checked={confirmedSpend} disabled={busy !== null || !reviewAccountReady || googleResourcesLoad !== "ready" || !effectiveGoogleResources || Boolean(googleLaunchReadinessReason)} onChange={(event) => { setConfirmedSpend(event.target.checked); linkedInLaunchConsent.current = event.target.checked ? { key: JSON.stringify(draft), status: "active", googleResourcesKey: googleAdsResourcesConsentKey(effectiveGoogleResources) } : null; }} />
-            <span><strong>Budget et diffusion</strong>J’autorise la diffusion sur le compte {associatedAccountName || "Google Ads"} avec {googleDelivery.budget.type === "total" ? `${Number(googleDelivery.budget.totalEuros || 0).toLocaleString("fr-FR")} € au total` : `${draft.dailyBudgetEuros.toLocaleString("fr-FR")} € de budget quotidien moyen`}, {googleDelivery.startDate ? `à partir du ${googleDelivery.startDate}` : "dès la validation de Google"}, jusqu’au {draft.endDate}, dans le fuseau {effectiveGoogleResources?.timeZone || "du compte"}. Google facturera directement ce compte.{googleDelivery.budget.type === "daily" ? " La dépense peut varier d’un jour à l’autre ; ce montant est une moyenne." : " Cette enveloppe totale est transmise à Google Ads."}</span>
+            <span><strong>{i18nT("budget_et_diffusion_62fba6bb")}</strong>{i18nT("j_autorise_la_diffusion_sur_le_4e960d87")}{" "}{associatedAccountName || i18nT("google_ads_14076a7d")} {i18nT("ads_with_budget", { budget: googleDelivery.budget.type === "total" ? i18nT("value_au_total_c990d9bf", { value0: Number(googleDelivery.budget.totalEuros || 0).toLocaleString(locale) }) : i18nT("value_de_budget_quotidien_moyen_f8b7b3dc", { value0: draft.dailyBudgetEuros.toLocaleString(locale) }) })}, {googleDelivery.startDate ? i18nT("a_partir_du_value_924108c5", { value0: googleDelivery.startDate }) : i18nT("des_la_validation_de_google_a37d748f")}{i18nT("jusqu_au_a6698bb9")}{" "}{draft.endDate}{i18nT("dans_le_fuseau_0ca8fdea")}{" "}{effectiveGoogleResources?.timeZone || i18nT("du_compte_28ccb6e3")}{i18nT("google_facturera_directement_ce_compte_293b8dc9")}{googleDelivery.budget.type === "daily" ? i18nT("la_depense_peut_varier_d_un_9470e504") : i18nT("cette_enveloppe_totale_est_transmise_a_135b3e44")}</span>
           </label>}
           {channelId === "linkedin" && <>
 
-            <div><dt>Groupe LinkedIn</dt><dd>{selectedLinkedInCampaignGroup?.name || (draft.linkedinCampaignGroupId ? `Groupe ${draft.linkedinCampaignGroupId}` : "À sélectionner")}</dd><small>{selectedLinkedInCampaignGroup ? `${selectedLinkedInCampaignGroup.status} · ID ${selectedLinkedInCampaignGroup.id}` : draft.linkedinCampaignGroupId ? `ID ${draft.linkedinCampaignGroupId} · à revérifier` : "À vérifier à l’étape Campagne"}</small></div>
-            <div><dt>Page LinkedIn</dt><dd>{selectedLinkedInOrganization ? linkedInOrganizationLabel(selectedLinkedInOrganization) : draft.linkedinOrganizationUrn || "À sélectionner"}</dd><small>{linkedInGeoTargets.length ? `${linkedInGeoTargets.length} zone${linkedInGeoTargets.length > 1 ? "s" : ""} LinkedIn exacte${linkedInGeoTargets.length > 1 ? "s" : ""}` : "Zone LinkedIn exacte à sélectionner"}</small></div>
+            <div><dt>{i18nT("groupe_linkedin_ed5b9915")}</dt><dd>{selectedLinkedInCampaignGroup?.name || (draft.linkedinCampaignGroupId ? i18nT("groupe_value_095e360a", { value0: draft.linkedinCampaignGroupId }) : i18nT("a_selectionner_51ca6f8a"))}</dd><small>{selectedLinkedInCampaignGroup ? i18nT("value_id_value_b0e8c14b", { value0: selectedLinkedInCampaignGroup.status, value1: selectedLinkedInCampaignGroup.id }) : draft.linkedinCampaignGroupId ? i18nT("id_value_a_reverifier_5dd2b37b", { value0: draft.linkedinCampaignGroupId }) : i18nT("a_verifier_a_l_etape_campagne_67fead3e")}</small></div>
+            <div><dt>{i18nT("page_linkedin_354333b8")}</dt><dd>{selectedLinkedInOrganization ? linkedInOrganizationLabel(selectedLinkedInOrganization, i18nT) : draft.linkedinOrganizationUrn || i18nT("a_selectionner_51ca6f8a")}</dd><small>{linkedInGeoTargets.length ? i18nT("ads_count_linkedin_zones", { count: linkedInGeoTargets.length }) : i18nT("zone_linkedin_exacte_a_selectionner_23a7dd44")}</small></div>
 
-            <div><dt>Conformité LinkedIn</dt><dd>{linkedInComplianceReady ? "Déclarations confirmées" : "Confirmation requise"}</dd><small>NOT_POLITICAL · ciblage non discriminatoire</small></div>
+            <div><dt>{i18nT("conformite_linkedin_62921c05")}</dt><dd>{linkedInComplianceReady ? i18nT("declarations_confirmees_dc6818f7") : i18nT("confirmation_requise_190264c7")}</dd><small>{i18nT("not_political_ciblage_non_discriminatoire_adcef6c0")}</small></div>
             {creationPath === "inrcy" && <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-linkedin-launch-confirmation="true">
               <input type="checkbox" checked={confirmedSpend} disabled={busy !== null || !linkedInSelectionsReady} onChange={(event) => { setConfirmedSpend(event.target.checked); linkedInLaunchConsent.current = event.target.checked ? { key: JSON.stringify(draft), status: linkedInPreparedLaunchStatus } : null; }} />
-              <span><strong>Budget et diffusion</strong>{linkedInPreparedLaunchStatus === "active"
-                ? `J’autorise la diffusion sur le compte ${externalStatuses.linkedin.selectedAccountName || "LinkedIn Ads"} avec ${linkedInBudgetCap.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })}${linkedInDelivery.budget.type === "total" ? " au total" : " par jour"}${linkedInDelivery.budget.startAt ? `, du ${new Date(linkedInDelivery.budget.startAt).toLocaleString("fr-FR")}` : ", dès la validation de LinkedIn"}, jusqu’au ${new Date(linkedInDelivery.budget.endAt || draft.endDate + "T23:59:59Z").toLocaleString("fr-FR")}. LinkedIn facturera directement ce compte.`
-                : `Je confirme la création de cette campagne sur le compte ${externalStatuses.linkedin.selectedAccountName || "LinkedIn Ads"} en pause, sans diffusion ni dépense.`}</span>
+              <span><strong>{i18nT("budget_et_diffusion_62fba6bb")}</strong>{linkedInPreparedLaunchStatus === "active"
+                ? i18nT("j_autorise_la_diffusion_sur_le_d7271ee3", { value0: externalStatuses.linkedin.selectedAccountName || "LinkedIn Ads", value1: linkedInBudgetCap.toLocaleString(locale, { style: "currency", currency: "EUR" }), value2: linkedInDelivery.budget.type === "total" ? ` ${i18nT("au_total_c8d2e40b")}` : i18nT("ads_ui_892bcf22ec"), value3: linkedInDelivery.budget.startAt ? `, ${i18nT("a_partir_du_value_924108c5", { value0: new Date(linkedInDelivery.budget.startAt).toLocaleString(locale) })}` : `, ${i18nT("des_la_validation_de_linkedin_1f84bd29")}`, value4: new Date(linkedInDelivery.budget.endAt || draft.endDate + "T23:59:59Z").toLocaleString(locale) })
+                : i18nT("je_confirme_la_creation_de_cette_8daf4c3e", { value0: externalStatuses.linkedin.selectedAccountName || "LinkedIn Ads" })}</span>
             </label>}
           </>}
         </dl>
         {draft.channelDraft?.channel === channelId && <details className={styles.studioNativeBrief}>
-          <summary><strong>Brief {channelMeta.label} préparé par iNrCy</strong><span>{nativeBriefDetails(draft.channelDraft).objective} · {nativeBriefDetails(draft.channelDraft).format}</span></summary>
+          <summary><strong>{i18nT("brief_value_prepare_par_inrcy_eb4df483", { value0: channelMeta.label })}</strong><span>{nativeBriefDetails(draft.channelDraft, i18nT).objective} · {nativeBriefDetails(draft.channelDraft, i18nT).format}</span></summary>
           <dl>
-            <div><dt>Audience</dt><dd>{draft.channelDraft.audience.audienceBrief}</dd><small>{draft.channelDraft.audience.locationBriefs.join(" · ")}</small></div>
-            <div><dt>Message proposé</dt><dd>{nativeBriefCopy(draft.channelDraft).message}</dd><small>{nativeBriefCopy(draft.channelDraft).headline}</small></div>
-            <div><dt>Direction média</dt><dd>{nativeBriefCopy(draft.channelDraft).media}</dd></div>
-            <div><dt>Réglages du canal</dt><dd>{nativeBriefDetails(draft.channelDraft).settings}</dd><small>{nativeBriefDetails(draft.channelDraft).complement}</small></div>
+            <div><dt>{i18nT("audience_51d99345")}</dt><dd>{draft.channelDraft.audience.audienceBrief}</dd><small>{draft.channelDraft.audience.locationBriefs.join(" · ")}</small></div>
+            <div><dt>{i18nT("message_propose_818f6ed0")}</dt><dd>{nativeBriefCopy(draft.channelDraft).message}</dd><small>{nativeBriefCopy(draft.channelDraft).headline}</small></div>
+            <div><dt>{i18nT("direction_media_99ba6cc2")}</dt><dd>{nativeBriefCopy(draft.channelDraft).media}</dd></div>
+            <div><dt>{i18nT("reglages_du_canal_b17da70e")}</dt><dd>{nativeBriefDetails(draft.channelDraft, i18nT).settings}</dd><small>{nativeBriefDetails(draft.channelDraft, i18nT).complement}</small></div>
           </dl>
-          <p>{["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) ? "Ce brief explique la proposition de l’IA. Le récapitulatif ci-dessus présente les réglages actuels ; vos confirmations finales autorisent leur publication." : "Ce brief prépare votre campagne. Les comptes, médias et ressources publicitaires doivent encore être confirmés sur la plateforme ; aucune diffusion n’est lancée ici."}</p>
+          <p>{["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) ? i18nT("ce_brief_explique_la_proposition_de_e9814a98") : i18nT("ce_brief_prepare_votre_campagne_les_bccc7ae2")}</p>
         </details>}
-        {channelId !== "openai" && (channelId === "linkedin" && !linkedInSelectionsReady ? <p className={styles.studioReadiness}><strong>Une vérification LinkedIn manque encore</strong>{linkedInReadinessDetails} {linkedInScheduleIssue && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(budgetStep)}>Corriger le calendrier</button>} <button type="button" className={styles.secondaryButton} disabled={busy !== null || linkedInPreflightLoad === "loading"} onClick={() => void loadLinkedInResources(true)}>Actualiser les vérifications</button> {linkedInAudiencePending > 0 && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(targetingStep)}>Vérifier les propositions Audience</button>} {(!draft.linkedinCampaignGroupId || !draft.linkedinOrganizationUrn) && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(foundationsStep)}>Voir les réglages Campagne</button>} {linkedInMissingGeoLocations.length > 0 && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(geographyStep)}>Voir les zones à compléter</button>} Le brouillon reste enregistrable sans lancer de campagne.</p> : channelId === "linkedin" && !linkedInComplianceReady ? <p className={styles.studioReadiness}><strong>Validez les deux déclarations LinkedIn</strong>La déclaration NOT_POLITICAL et l’avis de ciblage non discriminatoire doivent rester visibles et confirmés avant toute création distante.</p> : !isAdsDraftAccountChannel(channelId) ? <p className={styles.draftOnlyWarning}><strong>{tikTokPausedNotice?.title || "Brouillon uniquement pour le moment"}</strong>{tikTokPausedNotice?.message || `Vous pouvez connecter et associer votre compte ${channelMeta.label}, puis enregistrer cette campagne. La publication sur ce canal n’est pas encore activée : aucune diffusion ni dépense média ne sera déclenchée.`}{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>Vos modifications ont désynchronisé le brief spécifique de {channelMeta.label}. Le brouillon simple reste disponible. <button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm("Relancer l’analyse iNrCy ? La nouvelle proposition remplacera vos réglages actuels et pourra générer un nouveau média.")) return; setStep(analysisStep); void generateCampaignPlan(); }}>Recréer le brief IA</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>Préparation complète, publication de ce choix à venir</strong>{channelId === "google" ? "Ce type reste un brouillon préparatoire. Son parcours complet et sa publication nécessitent une intégration dédiée. L’automatisation de bout en bout est actuellement disponible pour le Réseau de recherche." : channelId === "meta" ? "iNr’ADS prépare ce format et conserve votre brouillon. La publication automatisée actuellement disponible concerne la campagne Trafic Meta." : channelId === "linkedin" ? "Ce format nécessite encore une intégration de publication. Les annonces avec image ou vidéo et les objectifs compatibles peuvent être lancés ; les autres formats restent enregistrables en brouillon." : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode !== "automatic" ? "Ce ciblage manuel reste dans le brouillon jusqu’à la sélection vérifiée de ses intérêts, mots-clés ou audiences. Choisissez Ciblage automatique pour un lancement réel sans identifiant inventé." : "iNr’ADS peut lancer une épingle sponsorisée image, avec le ciblage automatique, pour un objectif Notoriété ou Considération. Les vidéos, carrousels, catalogues et objectifs de conversion restent entièrement enregistrables en brouillon."}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>Conservez ce parcours dans votre brouillon</strong>Le connecteur de diffusion disponible aujourd’hui envoie les prospects vers votre site web. Votre choix de conversion est bien sauvegardé et sera repris dès que son connecteur dédié sera activé.</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>Choisissez l’objectif Trafic vers le site web</strong>Le premier connecteur Meta Ads disponible construit une campagne orientée trafic qualifié vers votre site. Les objectifs Leads, Ventes et Notoriété restent enregistrés dans votre brouillon pour leurs connecteurs dédiés.</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>Mesurez une visite de page clé</strong>Le connecteur Trafic Meta disponible mesure actuellement les visites de votre site web. Vos autres objectifs de conversion restent sauvegardés dans votre brouillon.</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>Choisissez un placement Meta compatible</strong>Les fils Facebook/Instagram, Stories et Reels sont disponibles. Messenger sera ajouté ultérieurement.</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>Choisissez le format image</strong>Le connecteur Trafic Meta disponible utilise actuellement des images publicitaires. Vos autres formats restent enregistrés dans le brouillon.</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>Utilisez l’appel à l’action « En savoir plus »</strong>Le premier connecteur Trafic Meta utilise cet appel à l’action pour conserver exactement le message que vous avez validé.</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>{knownMetaMediaInvalid ? "Corrigez le format du pack média" : "Complétez le média avant la création"}</strong>{channelId === "meta" ? knownMetaMediaInvalid ? "Au moins une image ne respecte pas les dimensions ou le ratio de son emplacement. Remplacez-la par une image conforme." : "Ajoutez le visuel Feed 4:5 et/ou Story/Reel 9:16 demandé par les placements sélectionnés. Chaque image restera associée à son format." : channelId === "linkedin" ? "Ajoutez le média demandé par votre format à l’étape Média avant le lancement LinkedIn." : "Ajoutez une image disponible dans la médiathèque iNrCy avant le lancement Pinterest."}</p> : <>
-          {connectorConfigurationIssue && <p className={styles.studioReadiness}><strong>Réglage à adapter avant publication</strong>{connectorConfigurationIssue}{nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" && draft.keywords.length > 0 && <button type="button" className={styles.secondaryButton} onClick={clearPinterestManualSignals}>Retirer les signaux manuels</button>}{openaiHiddenSettingsNeedReset && <button type="button" className={styles.secondaryButton} onClick={() => updateDraft({ conversionGoal: "website_visit", conversionLocation: "website", bidStrategy: "manual_review", trackingParameters: "", callToAction: "", keywords: [], negativeKeywords: [] })}>Adapter les anciens réglages ChatGPT</button>}</p>}
+        {channelId !== "openai" && (channelId === "linkedin" && !linkedInSelectionsReady ? <p className={styles.studioReadiness}><strong>{i18nT("une_verification_linkedin_manque_encore_64935cb1")}</strong>{adsUiText(i18nT, linkedInReadinessDetails)} {adsUiText(i18nT, linkedInScheduleIssue) && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(budgetStep)}>{i18nT("corriger_le_calendrier_557ae741")}</button>} <button type="button" className={styles.secondaryButton} disabled={busy !== null || linkedInPreflightLoad === "loading"} onClick={() => void loadLinkedInResources(true)}>{i18nT("actualiser_les_verifications_ff31e71c")}</button> {linkedInAudiencePending > 0 && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(targetingStep)}>{i18nT("verifier_les_propositions_audience_a59a19c5")}</button>} {(!draft.linkedinCampaignGroupId || !draft.linkedinOrganizationUrn) && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(foundationsStep)}>{i18nT("voir_les_reglages_campagne_05f1a490")}</button>} {linkedInMissingGeoLocations.length > 0 && <button type="button" className={styles.secondaryButton} onClick={() => navigateToStep(geographyStep)}>{i18nT("voir_les_zones_a_completer_0281d9bd")}</button>} {" "}{i18nT("le_brouillon_reste_enregistrable_sans_lancer_39496b0d")}</p> : channelId === "linkedin" && !linkedInComplianceReady ? <p className={styles.studioReadiness}><strong>{i18nT("validez_les_deux_declarations_linkedin_ba71e643")}</strong>{i18nT("la_declaration_not_political_et_l_2dc13f90")}</p> : !isAdsDraftAccountChannel(channelId) ? <p className={styles.draftOnlyWarning}><strong>{tikTokPausedNotice?.title || i18nT("brouillon_uniquement_pour_le_moment_f472dc4c")}</strong>{tikTokPausedNotice?.message || i18nT("vous_pouvez_connecter_et_associer_votre_db322ead", { value0: channelMeta.label })}{draft.creationMode === "inrcy" && !draft.channelDraft && <span className={styles.studioNativeBriefMissing}>{i18nT("vos_modifications_ont_desynchronise_le_brief_fdaaada0")}{" "}{channelMeta.label}{i18nT("le_brouillon_simple_reste_disponible_02b840db")}{" "}<button type="button" disabled={busy !== null} onClick={() => { if (!window.confirm(i18nT("relancer_l_analyse_inrcy_la_nouvelle_4864946c"))) return; setStep(analysisStep); void generateCampaignPlan(); }}>{i18nT("recreer_le_brief_ia_f97576a2")}</button></span>}</p> : !liveFormatAvailable ? <p className={styles.studioReadiness}><strong>{i18nT("preparation_complete_publication_de_ce_choix_7e9319a9")}</strong>{channelId === "google" ? i18nT("ce_type_reste_un_brouillon_preparatoire_58d0b90c") : channelId === "meta" ? i18nT("inr_ads_prepare_ce_format_et_4b42b96d") : channelId === "linkedin" ? i18nT("ce_format_necessite_encore_une_integration_2b459bb2") : nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode !== "automatic" ? i18nT("ce_ciblage_manuel_reste_dans_le_0dca7c3c") : i18nT("inr_ads_peut_lancer_une_epingle_211055af")}</p> : !livePublisherConversionReady ? <p className={styles.studioReadiness}><strong>{i18nT("conservez_ce_parcours_dans_votre_brouillon_72db8dfc")}</strong>{i18nT("le_connecteur_de_diffusion_disponible_aujourd_de8a2a56")}</p> : !metaLiveObjectiveSupported ? <p className={styles.studioReadiness}><strong>{i18nT("choisissez_l_objectif_trafic_vers_le_013299cc")}</strong>{i18nT("le_premier_connecteur_meta_ads_disponible_e5dbc5c8")}</p> : !metaLiveGoalSupported ? <p className={styles.studioReadiness}><strong>{i18nT("mesurez_une_visite_de_page_cle_86c3996a")}</strong>{i18nT("le_connecteur_trafic_meta_disponible_mesure_e20136f4")}</p> : !metaLivePlacementsSupported ? <p className={styles.studioReadiness}><strong>{i18nT("choisissez_un_placement_meta_compatible_f13e9ddb")}</strong>{i18nT("les_fils_facebook_instagram_stories_et_15c8b2f9")}</p> : !metaLiveCreativeSupported ? <p className={styles.studioReadiness}><strong>{i18nT("choisissez_le_format_image_845bf75c")}</strong>{i18nT("le_connecteur_trafic_meta_disponible_utilise_e513e758")}</p> : !metaLiveCtaSupported ? <p className={styles.studioReadiness}><strong>{i18nT("utilisez_l_appel_a_l_action_4e03e0d4")}</strong>{i18nT("le_premier_connecteur_trafic_meta_utilise_b1b49a22")}</p> : !livePublisherMediaReady ? <p className={styles.studioReadiness}><strong>{knownMetaMediaInvalid ? i18nT("corrigez_le_format_du_pack_media_db80427f") : i18nT("completez_le_media_avant_la_creation_6b5019c2")}</strong>{channelId === "meta" ? knownMetaMediaInvalid ? i18nT("au_moins_une_image_ne_respecte_a3b7f751") : i18nT("ajoutez_le_visuel_feed_4_5_2d890b26") : channelId === "linkedin" ? i18nT("ajoutez_le_media_demande_par_votre_e13ae14f") : i18nT("ajoutez_une_image_disponible_dans_la_ca18e0c5")}</p> : <>
+          {adsUiText(i18nT, connectorConfigurationIssue) && <p className={styles.studioReadiness}><strong>{i18nT("reglage_a_adapter_avant_publication_b3082270")}</strong>{adsUiText(i18nT, connectorConfigurationIssue)}{nativeSettings?.channel === "pinterest" && nativeSettings.targetingMode === "automatic" && draft.keywords.length > 0 && <button type="button" className={styles.secondaryButton} onClick={clearPinterestManualSignals}>{i18nT("retirer_les_signaux_manuels_d7d6e282")}</button>}{openaiHiddenSettingsNeedReset && <button type="button" className={styles.secondaryButton} onClick={() => updateDraft({ conversionGoal: "website_visit", conversionLocation: "website", bidStrategy: "manual_review", trackingParameters: "", callToAction: "", keywords: [], negativeKeywords: [] })}>{i18nT("adapter_les_anciens_reglages_chatgpt_cd1392d4")}</button>}</p>}
         </>)}
-        {channelId === "openai" && <p className={styles.studioReadiness}><strong>{channelPublishingEnabled && livePublisherMediaReady && liveFormatAvailable && livePublisherConversionReady && !connectorConfigurationIssue ? openaiLiveReady ? "Prête pour votre validation finale" : "Création réelle en pause disponible" : "À compléter pour ChatGPT Ads"}</strong>{!livePublisherMediaReady ? "Ajoutez une image JPG, PNG ou WebP carrée à l’étape Médias. " : ""}{connectorConfigurationIssue ? `${connectorConfigurationIssue} ` : ""}{!channelPublishingEnabled ? `${openaiReadinessMessage || "La clé Advertiser API et la revue du compte sont requises."} ` : ""}{!liveFormatAvailable || !livePublisherConversionReady ? "Ce format ou cet objectif n’est pas encore pris en charge. " : ""}{channelPublishingEnabled && livePublisherMediaReady && liveFormatAvailable && livePublisherConversionReady && !connectorConfigurationIssue ? openaiLiveReady ? "Le statut Active est préparé pour ce compte approuvé. La diffusion démarre seulement après votre validation finale et la revue de l’annonce par ChatGPT Ads." : `La carte peut être créée sans diffusion. ${openaiLiveReadinessMessage || "Le lancement Active n’est pas encore autorisé pour ce compte."}` : "Le brouillon reste enregistrable."}{openaiHiddenSettingsNeedReset && <button type="button" className={styles.secondaryButton} onClick={() => updateDraft({ conversionGoal: "website_visit", conversionLocation: "website", bidStrategy: "manual_review", trackingParameters: "", callToAction: "", keywords: [], negativeKeywords: [] })}>Adapter les anciens réglages ChatGPT</button>}</p>}
+        {channelId === "openai" && <p className={styles.studioReadiness}><strong>{channelPublishingEnabled && livePublisherMediaReady && liveFormatAvailable && livePublisherConversionReady && !adsUiText(i18nT, connectorConfigurationIssue) ? openaiLiveReady ? i18nT("prete_pour_votre_validation_finale_f539c702") : i18nT("creation_reelle_en_pause_disponible_f8c3e3b8") : i18nT("a_completer_pour_chatgpt_ads_5e5b012b")}</strong>{!livePublisherMediaReady ? i18nT("ajoutez_une_image_jpg_png_ou_141b171b") : ""}{adsUiText(i18nT, connectorConfigurationIssue) ? `${adsUiText(i18nT, connectorConfigurationIssue)} ` : ""}{!channelPublishingEnabled ? `${errorMessage(openaiReadinessMessage, "booster.ads_ui_20894d06ab")} ` : ""}{!liveFormatAvailable || !livePublisherConversionReady ? i18nT("ce_format_ou_cet_objectif_n_9d887858") : ""}{channelPublishingEnabled && livePublisherMediaReady && liveFormatAvailable && livePublisherConversionReady && !adsUiText(i18nT, connectorConfigurationIssue) ? openaiLiveReady ? i18nT("le_statut_active_est_prepare_pour_fc572302") : i18nT("la_carte_peut_etre_creee_sans_7d4e9f2b", { value0: errorMessage(openaiLiveReadinessMessage, "booster.ce_compte_n_est_pas_encore_c16c1342") }) : i18nT("le_brouillon_reste_enregistrable_5d982585")}{openaiHiddenSettingsNeedReset && <button type="button" className={styles.secondaryButton} onClick={() => updateDraft({ conversionGoal: "website_visit", conversionLocation: "website", bidStrategy: "manual_review", trackingParameters: "", callToAction: "", keywords: [], negativeKeywords: [] })}>{i18nT("adapter_les_anciens_reglages_chatgpt_cd1392d4")}</button>}</p>}
         <div className={styles.studioFinalActions} data-channel={channelId}>
-          {channelId === "meta" && <label className={`${styles.check} ${styles.studioRequiredCheck}`}><input type="checkbox" checked={draft.noSpecialCategoryConfirmed} disabled={busy !== null} onChange={(event) => confirmReviewedDeclaration("noSpecialCategoryConfirmed", event.target.checked)} /><span><strong>Obligatoire avant création sur Meta</strong>Je confirme que cette annonce ne concerne aucune catégorie spéciale Meta (crédit, emploi, logement ou enjeux sociaux/politiques).</span></label>}
-          {channelId === "google" && <label className={`${styles.check} ${styles.studioRequiredCheck}`}><input type="checkbox" checked={draft.notEuPoliticalConfirmed} disabled={busy !== null} onChange={(event) => confirmReviewedDeclaration("notEuPoliticalConfirmed", event.target.checked)} /><span><strong>Obligatoire avant création sur Google Ads</strong>Je certifie que cette campagne ne contient pas de publicité politique ciblant l’Union européenne.</span></label>}
+          {channelId === "meta" && <label className={`${styles.check} ${styles.studioRequiredCheck}`}><input type="checkbox" checked={draft.noSpecialCategoryConfirmed} disabled={busy !== null} onChange={(event) => confirmReviewedDeclaration("noSpecialCategoryConfirmed", event.target.checked)} /><span><strong>{i18nT("obligatoire_avant_creation_sur_meta_d0a82eb2")}</strong>{i18nT("je_confirme_que_cette_annonce_ne_744786d8")}</span></label>}
+          {channelId === "google" && <label className={`${styles.check} ${styles.studioRequiredCheck}`}><input type="checkbox" checked={draft.notEuPoliticalConfirmed} disabled={busy !== null} onChange={(event) => confirmReviewedDeclaration("notEuPoliticalConfirmed", event.target.checked)} /><span><strong>{i18nT("obligatoire_avant_creation_sur_google_ads_77fbd644")}</strong>{i18nT("je_certifie_que_cette_campagne_ne_c1dfb026")}</span></label>}
           {channelId === "linkedin" && <>
-            <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-linkedin-political-confirmation="true"><input type="checkbox" checked={draft.linkedinPoliticalIntentConfirmed === true} disabled={busy !== null} onChange={(event) => confirmReviewedDeclaration("linkedinPoliticalIntentConfirmed", event.target.checked)} /><span><strong>Déclaration politique LinkedIn obligatoire</strong>Je confirme qu’il ne s’agit pas de publicité politique. Aucune annonce de cette campagne ne constitue une publicité politique au regard du droit des pays ciblés, notamment du droit de l’Union européenne pour les publicités ciblant l’UE. Je respecte les politiques LinkedIn et les exigences réglementaires applicables. La campagne sera déclarée <b>NOT_POLITICAL</b>.</span></label>
-            <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-linkedin-targeting-notice="true"><input type="checkbox" checked={draft.linkedinTargetingNoticeAcknowledged === true} disabled={busy !== null} onChange={(event) => confirmReviewedDeclaration("linkedinTargetingNoticeAcknowledged", event.target.checked)} /><span><strong>Avis LinkedIn contre la discrimination</strong>Je reconnais que les outils publicitaires LinkedIn ne doivent pas être utilisés pour discriminer selon des caractéristiques personnelles telles que le genre, l’âge, l’origine, la race ou l’appartenance ethnique. <a href="https://www.linkedin.com/legal/ads-policy" target="_blank" rel="noreferrer">Consulter les règles LinkedIn ↗</a></span></label>
+            <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-linkedin-political-confirmation="true"><input type="checkbox" checked={draft.linkedinPoliticalIntentConfirmed === true} disabled={busy !== null} onChange={(event) => confirmReviewedDeclaration("linkedinPoliticalIntentConfirmed", event.target.checked)} /><span><strong>{i18nT("declaration_politique_linkedin_obligatoire_3633712d")}</strong>{i18nT("je_confirme_qu_il_ne_s_fe8b37de")}{" "}<b>{i18nT("ads_non_political_advertising")}</b>.</span></label>
+            <label className={`${styles.check} ${styles.studioRequiredCheck}`} data-linkedin-targeting-notice="true"><input type="checkbox" checked={draft.linkedinTargetingNoticeAcknowledged === true} disabled={busy !== null} onChange={(event) => confirmReviewedDeclaration("linkedinTargetingNoticeAcknowledged", event.target.checked)} /><span><strong>{i18nT("avis_linkedin_contre_la_discrimination_7f7dcef8")}</strong>{i18nT("je_reconnais_que_les_outils_publicitaires_dae5d2d4")}{" "}<a href="https://www.linkedin.com/legal/ads-policy" target="_blank" rel="noreferrer">{i18nT("consulter_les_regles_linkedin_d4fb52c4")}</a></span></label>
           </>}
           <div className={styles.studioFinalActionButtons}>
-            {preparedOnlyChannel && <button type="button" className={styles.primaryButton} data-prepared-final-validation="true" data-native-paused-ready={preparedNativeReady || undefined} disabled={busy !== null || preparedReviewIssues.length > 0 || preparedBudgetApprovalKey !== preparedDraftKey || preparedContentApprovalKey !== preparedDraftKey || destinationReview.required && !destinationReview.confirmed} onClick={() => void (preparedNativeReady ? openPreparedLaunchDialog() : validatePreparedDraft())}>{busy === "publish" ? "Création en pause…" : busy === "save" ? "Enregistrement…" : channelId === "tiktok" ? preparedNativeReady ? "Créer en pause" : "Enregistrer le brouillon" : preparedNativeReady ? "VALIDER" : "VALIDER LE BROUILLON"} <span aria-hidden="true">✓</span></button>}
-            <button type="button" className={styles.secondaryButton} disabled={busy !== null || (!dirty && Boolean(savedId))} onClick={() => void saveDraft()}>{busy === "save" ? "Enregistrement…" : !dirty && savedId ? "Brouillon enregistré" : "Enregistrer en brouillon"}</button>
-            {!preparedOnlyChannel && <div className={styles.studioLaunchGuard} data-blocked={launchBlocked || undefined} data-tooltip={launchBlocked ? launchBlockingMessage : undefined} title={launchBlocked ? launchBlockingMessage : undefined} tabIndex={launchBlocked ? 0 : undefined} aria-label={launchBlocked ? launchBlockingMessage : undefined}>
-              <button type="button" className={styles.primaryButton} disabled={busy !== null || launchBlocked || (["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) && creationPath === "inrcy" && !confirmedSpend)} onClick={() => void openLaunchDialog(["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) && creationPath === "inrcy")}>{busy === "demo" ? demoDialog || publicationPhase === "saving" || publicationPhase === "sending" ? "Création en cours…" : "Vérification du compte…" : ["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) && creationPath === "inrcy" ? "VALIDER" : "Lancer la campagne"} <span aria-hidden="true">↗</span></button>
+            {preparedOnlyChannel && <button type="button" className={styles.primaryButton} data-prepared-final-validation="true" data-native-paused-ready={preparedNativeReady || undefined} disabled={busy !== null || preparedReviewIssues.length > 0 || preparedBudgetApprovalKey !== preparedDraftKey || preparedContentApprovalKey !== preparedDraftKey || destinationReview.required && !destinationReview.confirmed} onClick={() => void (preparedNativeReady ? openPreparedLaunchDialog() : validatePreparedDraft())}>{busy === "publish" ? i18nT("creation_en_pause_4c43f18a") : busy === "save" ? i18nT("enregistrement_e7d5f232") : channelId === "tiktok" ? preparedNativeReady ? i18nT("creer_en_pause_6bdad8cf") : i18nT("enregistrer_le_brouillon_6a319595") : preparedNativeReady ? i18nT("ads_ui_90d23b1ef9") : i18nT("valider_le_brouillon_d79e5772")} <span aria-hidden="true">✓</span></button>}
+            <button type="button" className={styles.secondaryButton} disabled={busy !== null || (!dirty && Boolean(savedId))} onClick={() => void saveDraft()}>{busy === "save" ? i18nT("enregistrement_e7d5f232") : !dirty && savedId ? i18nT("brouillon_enregistre_5b3c3ae3") : i18nT("enregistrer_en_brouillon_d0c5a1eb")}</button>
+            {!preparedOnlyChannel && <div className={styles.studioLaunchGuard} data-blocked={launchBlocked || undefined} data-tooltip={launchBlocked ? adsUiText(i18nT, launchBlockingMessage) : undefined} title={launchBlocked ? adsUiText(i18nT, launchBlockingMessage) : undefined} tabIndex={launchBlocked ? 0 : undefined} aria-label={launchBlocked ? adsUiText(i18nT, launchBlockingMessage) : undefined}>
+              <button type="button" className={styles.primaryButton} disabled={busy !== null || launchBlocked || (["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) && creationPath === "inrcy" && !confirmedSpend)} onClick={() => void openLaunchDialog(["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) && creationPath === "inrcy")}>{busy === "demo" ? demoDialog || publicationPhase === "saving" || publicationPhase === "sending" ? i18nT("creation_en_cours_1488d01b") : i18nT("verification_du_compte_ac363391") : ["linkedin", "google", "pinterest", "meta", "openai"].includes(channelId) && creationPath === "inrcy" ? i18nT("ads_ui_90d23b1ef9") : i18nT("lancer_la_campagne_7b257402")} <span aria-hidden="true">↗</span></button>
               {launchBlocked && <span className={styles.studioLaunchWarning} aria-hidden="true">⚠</span>}
             </div>}
           </div>
         </div>
       </section>
       {creationPath !== "choice" && <div className={styles.wizardNavigation}>
-        <button type="button" className={styles.back} disabled={step === 0 || busy === "plan" || busy === "demo"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); resetStepProgress(0, inrcyStepKeys); return; } navigateToStep(step - 1); }}>← Précédent</button>
+        <button type="button" className={styles.back} disabled={step === 0 || busy === "plan" || busy === "demo"} onClick={() => { if (creationPath === "inrcy" && step === analysisStep) { stopPlanProgress(); setCreationPath("choice"); setAnalysisSetupOpen(true); resetStepProgress(0, inrcyStepKeys); return; } navigateToStep(step - 1); }}>{i18nT("precedent_3ec988c1")}</button>
         <span>{step + 1} / {stepNames.length}</span>
         {step < lastStep ? <div className={styles.wizardNextGroup}>
           {step === mediaStep && channelId === "meta" && !livePublisherMediaReady && <div className={styles.wizardMediaRequirement} role="status">
-            <strong>Pack média obligatoire</strong>
-            <span>{knownMetaMediaInvalid ? "Remplacez le visuel non conforme avant le lancement." : "Ajoutez chaque format demandé avant le lancement."}</span>
+            <strong>{i18nT("pack_media_obligatoire_5d8618e8")}</strong>
+            <span>{knownMetaMediaInvalid ? i18nT("remplacez_le_visuel_non_conforme_avant_cd96611f") : i18nT("ajoutez_chaque_format_demande_avant_le_7718c8fe")}</span>
           </div>}
           {step === deliveryStep && !["linkedin", "google", "pinterest", "meta", "openai", "x", "tiktok"].includes(channelId) && destinationReview.required && <label className={styles.wizardRequiredCheck}>
             <input type="checkbox" checked={destinationReview.confirmed} disabled={!destinationReview.valid} onChange={(event) => setConfirmedDestinationUrl(event.target.checked ? draft.destinationUrl.trim() : "")} />
-            <span><strong>À confirmer avant lancement</strong>Je confirme ce lien</span>
+            <span><strong>{i18nT("a_confirmer_avant_lancement_1c059f25")}</strong>{i18nT("je_confirme_ce_lien_a5d51935")}</span>
           </label>}
-          <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || busy === "demo" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100)} onClick={() => navigateToStep(step + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? channelId === "pinterest" ? "Voir ma proposition Pinterest →" : "Contrôler ma proposition →" : "Proposition en cours…" : "Suivant →"}</button>
-        </div> : <button type="button" className={styles.back} onClick={() => void confirmCampaignExit()}>Revenir au cockpit</button>}
+          <button type="button" className={`${styles.headerCta} ${analysisProposalReady ? styles.studioProposalReadyCta : ""}`} disabled={busy === "plan" || busy === "demo" || (creationPath === "inrcy" && step === analysisStep && planProgress !== 100)} onClick={() => navigateToStep(step + 1)}>{creationPath === "inrcy" && step === analysisStep ? planProgress === 100 ? channelId === "pinterest" ? i18nT("voir_ma_proposition_pinterest_7f5d9f02") : i18nT("controler_ma_proposition_e181d720") : i18nT("proposition_en_cours_3dcdee21") : i18nT("suivant_ea96c11e")}</button>
+        </div> : <button type="button" className={styles.back} onClick={() => void confirmCampaignExit()}>{i18nT("revenir_au_cockpit_167c8cad")}</button>}
       </div>}
       </div>
       </SettingsDrawer>
@@ -4525,13 +4548,13 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           && !linkedInAdsLaunchBlockers(linkedInPreflight.blockers, "PAUSED").length)
         : demoDialog.channelId === "x" || demoDialog.channelId === "tiktok" ? Boolean(preparedNativeReady) : demoDialog.channelId === "openai" ? openaiAccountReady : demoDialog.channelId === "google" ? googlePublishingEnabled : demoDialog.channelId === "pinterest" ? pinterestPublishingEnabled : demoDialog.channelId === "meta" && metaPublishingEnabled}
       activeDisabledReason={demoDialog.channelId === "openai"
-        ? openaiLiveReadinessMessage || "La diffusion Active n’est pas encore autorisée pour ce compte ChatGPT Ads."
-        : demoDialog.channelId === "x" || demoDialog.channelId === "tiktok" ? "Ce connecteur crée actuellement les campagnes en pause. La diffusion active reste désactivée dans iNrCy." : undefined}
+        ? errorMessage(openaiLiveReadinessMessage, "booster.ads_ui_db1c77acbf")
+        : demoDialog.channelId === "x" || demoDialog.channelId === "tiktok" ? i18nT("ads_ui_7595c54935") : undefined}
       declarationLabel={demoDialog.channelId === "openai" && demoDialog.launchStatus === "active"
-        ? `Je confirme que la facturation est configurée et validée dans ChatGPT Ads Manager. J’autorise le lancement en statut Active avec une limite de ${demoDialog.details.dailyBudgetEuros.toLocaleString("fr-FR", { style: "currency", currency: "EUR" })} par jour et je comprends qu’une dépense peut démarrer après la validation de l’annonce par ChatGPT Ads.`
+        ? i18nT("je_confirme_que_la_facturation_est_cfec120c", { value0: demoDialog.details.dailyBudgetEuros.toLocaleString(locale, { style: "currency", currency: "EUR" }) })
         : demoDialog.launchStatus === "active"
-        ? `Je valide le compte, la campagne et la facturation directe par ${demoDialog.details.channelLabel}, et je confirme le lancement en statut Active.`
-        : `Je valide le compte et la création de cette campagne sur ${demoDialog.details.channelLabel} en statut Paused, sans diffusion.`}
+        ? i18nT("je_valide_le_compte_la_campagne_40a5b8be", { value0: demoDialog.details.channelLabel })
+        : i18nT("je_valide_le_compte_et_la_bbe21d43", { value0: demoDialog.details.channelLabel })}
       declarationChecked={confirmedSpend}
       onDeclarationChange={setConfirmedSpend}
       onLaunchStatusChange={(launchStatus) => {
@@ -4555,17 +4578,17 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         plan={autoMediaPlan}
         onProgress={(progress) => {
           setAutoMediaState("generating");
-          setAutoMediaMessage(`iNr’Studio crée le média de la campagne · ${Math.min(99, Math.max(4, Math.round(progress)))} %`);
+          setAutoMediaMessage(i18nT("inr_studio_cree_le_media_de_eb950da9", { value0: Math.min(99, Math.max(4, Math.round(progress))) }));
           planProgressTarget.current = Math.max(planProgressTarget.current, Math.min(99, 90 + Math.round(progress / 10)));
         }}
         onComplete={(result) => {
           if (!result.item.signed_url) {
             setAutoMediaState("error");
-            setAutoMediaMessage("La campagne est prête, mais le média généré ne peut pas encore être associé. Vous pourrez en ajouter un à l’étape Médias.");
+            setAutoMediaMessage(i18nT("la_campagne_est_prete_mais_le_e67e7f00"));
           } else {
             applyCampaignMedia(result.item);
             setAutoMediaState("ready");
-            setAutoMediaMessage("iNr’Studio a généré et associé le média de cette campagne. Vous pourrez le remplacer, l’éditer ou le retirer à tout moment.");
+            setAutoMediaMessage(i18nT("inr_studio_a_genere_et_associe_440cc7e0"));
           }
           planProgressTarget.current = 100;
           setAutoMediaPlan(null);
@@ -4600,10 +4623,10 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
           }
           if (generationError || (needsFeed && !feedImageUrl) || (needsStoryReel && !storyReelImageUrl)) {
             setAutoMediaState("error");
-            setAutoMediaMessage(`La campagne est prête, mais le pack Meta est incomplet${generationError ? ` : ${generationError}` : "."} ${feedImageUrl || storyReelImageUrl ? "Le visuel déjà créé reste associé à la campagne. " : ""}Complétez le format manquant à l’étape Médias.`);
+            setAutoMediaMessage(i18nT("la_campagne_est_prete_mais_le_796e58f4", { value0: generationError ? ` : ${generationError}` : ".", value1: feedImageUrl || storyReelImageUrl ? `${i18nT("ads_existing_campaign_image_note")} ` : "" }));
           } else {
             setAutoMediaState("ready");
-            setAutoMediaMessage(`iNr’Studio a généré le pack publicitaire Meta${needsFeed && needsStoryReel ? " : Feed 4:5 et Story/Reel 9:16" : needsFeed ? " Feed 4:5" : " Story/Reel 9:16"}. Chaque visuel est associé uniquement à ses placements.`);
+            setAutoMediaMessage(i18nT("inr_studio_a_genere_le_pack_514d2165", { value0: needsFeed && needsStoryReel ? ` : ${i18nT("ads_format_pair", { first: "Feed 4:5", second: "Story/Reel 9:16" })}` : needsFeed ? " Feed 4:5" : " Story/Reel 9:16" }));
           }
           planProgressTarget.current = 100;
           setAutoMediaPlan(null);
@@ -4618,7 +4641,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
         }}
         onError={(message) => {
           setAutoMediaState("error");
-          setAutoMediaMessage(`La campagne est préparée, mais iNr’Studio n’a pas pu créer le média : ${message} Vous pourrez en ajouter un à l’étape Médias.`);
+          setAutoMediaMessage(i18nT("la_campagne_est_preparee_mais_inr_506b0a2d", { value0: message }));
           planProgressTarget.current = 100;
           setAutoMediaPlan(null);
           setBusy(null);
@@ -4628,18 +4651,18 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
     <MediaLibraryPickerModal
       open={campaignMediaLibraryOpen}
       title={channelId === "meta"
-        ? `Choisir l’image ${metaMediaSlot === "story_reel" ? "Story/Reel 9:16" : "Feed 4:5"}`
-        : "Ajouter un média à la campagne"}
+        ? i18nT("choisir_l_image_value_9a40f114", { value0: metaMediaSlot === "story_reel" ? "Story/Reel 9:16" : "Feed 4:5" })
+        : i18nT("ajouter_un_media_a_la_campagne_ffdce8ce")}
       subtitle={channelId === "meta"
-        ? "Choisissez un visuel publicitaire adapté au format sélectionné. L’autre format conserve sa propre image."
+        ? i18nT("choisissez_un_visuel_publicitaire_adapte_au_b11d9fb9")
         : channelId === "openai"
-          ? "Choisissez un JPG, PNG ou WebP carré de votre médiathèque iNrCy. Une image valide est obligatoire pour la carte ChatGPT."
-        : "Choisissez une image ou une vidéo déjà disponible dans votre médiathèque iNrCy. Elle sera immédiatement associée à cette campagne."}
+          ? i18nT("choisissez_un_jpg_png_ou_webp_afdb9933")
+        : i18nT("choisissez_une_image_ou_une_video_d902e543")}
       accept={googleSearchMedia || channelId === "meta" || channelId === "openai" ? "image" : "all"}
       maxImageBytes={channelId === "openai" ? CHATGPT_ADS_MAX_IMAGE_BYTES : undefined}
       multiple={false}
       maxSelection={1}
-      confirmLabel="Ajouter à la campagne"
+      confirmLabel={i18nT("ajouter_a_la_campagne_c14b0cf6")}
       onClose={() => setCampaignMediaLibraryOpen(false)}
       onConfirm={(items) => {
         const item = items[0];
@@ -4671,7 +4694,7 @@ export default function AdsClient({ initialChannel, initialEditCampaignId, initi
       fixedFreeFormat={googleSearchMedia || channelId === "openai" ? "square" : channelId === "meta" ? metaMediaSlot === "story_reel" ? "story" : "portrait" : undefined}
       publicationBrief={[draft.mediaBrief, draft.offer, draft.primaryText, draft.callToAction].filter(Boolean).join(". ").slice(0, 1_800)}
       acceptMode="insert"
-      handoffOriginLabel="iNr’ADS"
+      handoffOriginLabel={i18nT("inr_ads_85c07243")}
       onClose={() => setCampaignMediaStudioOpen(false)}
       onAccepted={handleGeneratedCampaignMedia}
     />

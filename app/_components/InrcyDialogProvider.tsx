@@ -194,7 +194,7 @@ export default function InrcyDialogProvider() {
             <input
               ref={inputRef}
               value={promptValue}
-              placeholder={dialog.options.placeholder || "Nom"}
+              placeholder={dialog.options.placeholder || i18nT("dialog_default_name_placeholder")}
               onChange={(event) => {
                 setPromptValue(event.target.value);
                 if (promptError) setPromptError("");

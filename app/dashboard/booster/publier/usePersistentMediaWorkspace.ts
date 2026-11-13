@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
@@ -464,9 +465,7 @@ export default function usePersistentMediaWorkspace({
                 return;
               }
               const message =
-                error instanceof Error
-                  ? error.message
-                  : translate("persistent_immediate_upload_failed");
+                getSafeClientErrorMessage(error, translate("persistent_immediate_upload_failed"));
               activeUploadFailureRef.current[mediaType] = message;
               setMediaStates((current) => {
                 if (!isCurrentOperation()) return current;
@@ -539,9 +538,7 @@ export default function usePersistentMediaWorkspace({
         .catch((error) => {
           if (!isAbortError(error)) {
             onError?.(
-              error instanceof Error
-                ? error.message
-                : translate("persistent_sync_failed"),
+              getSafeClientErrorMessage(error, translate("persistent_sync_failed")),
             );
           }
         })
@@ -861,9 +858,7 @@ export default function usePersistentMediaWorkspace({
       .catch((error) => {
         if (!isAbortError(error)) {
           onError?.(
-            error instanceof Error
-              ? error.message
-              : translate("persistent_clear_failed"),
+            getSafeClientErrorMessage(error, translate("persistent_clear_failed")),
           );
         }
       })
@@ -1021,7 +1016,7 @@ export default function usePersistentMediaWorkspace({
           includesFamily(item.mediaType) && item.status === "failed",
       );
       if (failedMedia && !options?.tolerateFailures) {
-        throw new Error(failedMedia.error || translate("persistent_upload_failed"));
+        throw new Error(getSafeClientErrorMessage(failedMedia, translate("persistent_upload_failed")));
       }
       return settledStates;
     },

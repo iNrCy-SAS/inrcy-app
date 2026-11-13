@@ -114,7 +114,7 @@ export default function CRMToolbar({
                 type="button"
                 onClick={clearSelection}
                 disabled={selectedCount === 0 || saving}
-                title={selectedCount === 0 ? "Aucun contact sélectionné" : "Désélectionner"}
+                title={selectedCount === 0 ? i18nT("aucun_contact_selectionne_19a9944c") : i18nT("deselectionner_bdc31a72")}
               >
                 ⊟
               </button>
@@ -126,7 +126,7 @@ export default function CRMToolbar({
               type="button"
               onClick={clearSelection}
               disabled={selectedCount === 0 || saving}
-              title={selectedCount === 0 ? "Aucun contact sélectionné" : "Vider la sélection"}
+              title={selectedCount === 0 ? i18nT("aucun_contact_selectionne_19a9944c") : i18nT("vider_la_selection_834a3e51")}
             >
               {i18nT("deselectionner_bdc31a72")}{" "}</button>
           )}
@@ -142,7 +142,7 @@ export default function CRMToolbar({
               }}
               disabled={(actionEmails.length === 0 && !primaryContact) || saving}
               aria-expanded={actionsOpen ? "true" : "false"}
-              title={primaryContact ? "Actions sur ce contact" : selectedCount > 0 ? "Actions sur la sélection" : "Sélectionnez un contact"}
+              title={primaryContact ? i18nT("actions_sur_ce_contact_87b37a84") : selectedCount > 0 ? i18nT("actions_sur_la_selection_e69d1a0b") : i18nT("selectionnez_un_contact_eff0c23e")}
             >
               {i18nT("actions_c3cd636a")}{" "}<span className={styles.caret}>▾</span>
             </button>
@@ -227,7 +227,7 @@ export default function CRMToolbar({
             type="button"
             onClick={removeSelected}
             disabled={selectedCount === 0 || saving}
-            title={selectedCount === 0 ? "Sélectionne 1 ou plusieurs contacts" : `Supprimer ${selectedCount} contact(s)`}
+            title={selectedCount === 0 ? i18nT("selectionne_1_ou_plusieurs_contacts_7059cd05") : i18nT("supprimer_value_contact_s_9252c4bd", { value0: selectedCount })}
           >
             🗑️
           </button>

@@ -1,4 +1,6 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
+import { getClientAiMediaGenerationErrorMessage } from "@/lib/aiMediaGenerationPublicErrorI18n";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useInrAssistantRefresh } from "./useInrAssistantRefresh";
@@ -345,19 +347,8 @@ function normalizeQuota(value: unknown): MediaGenerationQuota {
   };
 }
 
-function readErrorMessage(payload: unknown, fallback: string) {
-  if (!payload || typeof payload !== "object") return fallback;
-  const source = payload as Record<string, unknown>;
-  for (const candidate of [
-    source.userMessage,
-    source.user_message,
-    source.message,
-    source.error,
-  ]) {
-    if (typeof candidate === "string" && candidate.trim())
-      return candidate.trim();
-  }
-  return fallback;
+function readErrorMessage(payload: unknown, fallback: string, status?: number) {
+  return getClientAiMediaGenerationErrorMessage(status ? { error: payload, status } : payload, fallback);
 }
 
 function readErrorCode(payload: unknown) {
@@ -465,7 +456,8 @@ export async function discardMediaGenerationDraft(mediaId: string, recoveryScope
     throw new Error(
       readErrorMessage(
         payload,
-        "Le brouillon temporaire n’a pas pu être supprimé."
+        "Le brouillon temporaire n’a pas pu être supprimé.",
+        response.status
       )
     );
   }
@@ -591,7 +583,8 @@ export default function useMediaGeneration() {
             throw new Error(
               readErrorMessage(
                 payload,
-                "Impossible de charger le quota de génération."
+                "Impossible de charger le quota de génération.",
+                response.status
               )
             );
           }
@@ -612,9 +605,7 @@ export default function useMediaGeneration() {
         } catch (caught) {
           if (mountedRef.current && requestEpoch === accountEpochRef.current && quotaRequestRef.current?.key === requestKey && canApply()) {
             setError(
-              caught instanceof Error
-                ? caught.message
-                : "Impossible de charger le quota de génération."
+              getSafeClientErrorMessage(caught, "Impossible de charger le quota de génération.")
             );
             setStatus((current) =>
               current === "generating" ? current : "error"
@@ -919,7 +910,7 @@ export default function useMediaGeneration() {
             clearCurrentAttempt();
           }
           throw new Error(
-            readErrorMessage(payload, "La génération du média a échoué.")
+            readErrorMessage(payload, "La génération du média a échoué.", publicResponse.status)
           );
         }
         // Une réponse 2xx tronquée reste incertaine : le serveur a pu enregistrer
@@ -1070,9 +1061,7 @@ export default function useMediaGeneration() {
           throw new MediaGenerationAccountChangedError();
         }
         const message =
-          caught instanceof Error
-            ? caught.message
-            : "La génération du média a échoué.";
+          getSafeClientErrorMessage(caught, "La génération du média a échoué.");
         if (mountedRef.current) {
           completionStartedRef.current = false;
           setError(message);
@@ -1487,7 +1476,8 @@ export default function useMediaGeneration() {
               payload,
               response.ok
                 ? "La réponse de validation du média est incomplète."
-                : "Le média n’a pas pu être enregistré."
+                : "Le média n’a pas pu être enregistré.",
+              response.ok ? undefined : response.status
             )
           );
           if (

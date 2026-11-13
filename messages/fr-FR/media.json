@@ -1122,5 +1122,18 @@
   "ai_generator_character_voice_kling_reference_limits": "Pour Kling, utilisez un vocal propre de 5 à 10 secondes pour chaque personnage.",
   "ai_generator_model_description_kling-flash": "Images et dialogues natifs avec voix IA.",
   "ai_generator_engine_info_video_use_kling-flash": "Créer des scènes avec plusieurs personnages à partir d’images, avec des voix IA.",
-  "ai_generator_engine_info_video_limits_kling-flash": "4 à 20 s, 720p, jusqu’à 5 images. Voix IA uniquement ; pour les vocaux fournis, choisissez Kling 4.0 Omni."
+  "ai_generator_engine_info_video_limits_kling-flash": "4 à 20 s, 720p, jusqu’à 5 images. Voix IA uniquement ; pour les vocaux fournis, choisissez Kling 4.0 Omni.",
+  "camera_disable_flash": "Désactiver le flash",
+  "camera_enable_flash": "Activer le flash",
+  "camera_flash": "Flash",
+  "camera_flash_on": "Flash activé",
+  "camera_front": "Caméra avant",
+  "camera_photo_title": "Prendre une photo",
+  "camera_rear": "Caméra arrière",
+  "camera_switch_to_front": "Passer en caméra avant",
+  "camera_switch_to_rear": "Passer en caméra arrière",
+  "camera_video_unavailable_here": "Vidéo indisponible ici",
+  "viewer_zoom_in": "Augmenter le zoom",
+  "viewer_zoom_out": "Réduire le zoom",
+  "viewer_zoom_reset": "Rétablir le zoom à 100 %"
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 import { stableGoogleBusinessValue, type GoogleBusinessDate, type GoogleBusinessProfile, type GoogleBusinessSpecialPeriod, type GoogleBusinessTime } from "@/lib/googleBusinessProfile";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { confirmInrcy } from "@/lib/inrcyDialog";
@@ -26,6 +27,7 @@ function TimeField({ label, value, disabled, onChange, allowEndOfDay = false }: 
 
 export default function GoogleBusinessProfileEditor({ locationName, onDirtyChange }: { locationName: string; onDirtyChange: (dirty: boolean) => void }) {
   const t = useTranslations("dashboard.googleBusinessProfile");
+  const locale = useLocale();
   const formT = useTranslations("dashboard.aiMemory");
   const { actorUserId, activeAccountId } = useDashboardViewerAccess();
   const viewerScope = useRef({ actorUserId, activeAccountId });
@@ -67,15 +69,15 @@ export default function GoogleBusinessProfileEditor({ locationName, onDirtyChang
       try {
         const response = await fetch(`/api/integrations/google-business/profile?${new URLSearchParams({ locationName })}`, { cache: "no-store", signal: controller.signal });
         const data = await response.json();
-        if (!response.ok || !data.ok) throw new Error(data.user_message || data.error || t("loadError"));
+        if (!response.ok || !data.ok) throw new Error(getLocalizedErrorMessage({ ...data, status: response.status }, locale, t("loadError")));
         if (!current()) return;
         if (data.accountId !== account || data.locationName !== locationName) throw new Error(t("loadError"));
         setSnapshot(data); setDraft(data.profile); setCompletedRetry(retry);
-      } catch (caught) { if (current()) setError(caught instanceof Error ? caught.message : t("loadError")); }
+      } catch (caught) { if (current()) setError(getLocalizedErrorMessage(caught, locale, t("loadError"))); }
       finally { if (current()) setLoading(false); }
     })();
     return () => { controller.abort(); profileRevision.current++; };
-  }, [locationName, retry, t, actorUserId, activeAccountId]);
+  }, [locationName, retry, t, locale, actorUserId, activeAccountId]);
   const changes = useMemo(() => snapshot && draft ? (Object.keys(draft) as Array<keyof GoogleBusinessProfile>).filter(key => stableGoogleBusinessValue(snapshot.profile[key]) !== stableGoogleBusinessValue(draft[key])) : [], [snapshot, draft]);
   const update = <K extends keyof GoogleBusinessProfile>(key: K, value: GoogleBusinessProfile[K]) => { profileRevisionRef.current++; setDraft(current => current ? { ...current, [key]: value } : current); setSaved(false); setError(""); };
   const updateSpecial = (index: number, patch: Partial<GoogleBusinessSpecialPeriod>) => update("specialHours", { specialHourPeriods: draft!.specialHours.specialHourPeriods.map((row, i) => i === index ? { ...row, ...patch } : row) });
@@ -94,11 +96,11 @@ export default function GoogleBusinessProfileEditor({ locationName, onDirtyChang
     try {
       const response = await fetch("/api/integrations/google-business/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId: snapshot.accountId, accountName: snapshot.accountName, locationName: snapshot.locationName, version: snapshot.version, profile: draft }) });
       const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.user_message || data.error || t("saveError"));
+      if (!response.ok || !data.ok) throw new Error(getLocalizedErrorMessage({ ...data, status: response.status }, locale, t("saveError")));
       if (snapshot.accountId !== getActiveBrowserUserId() || !scopeCurrent()) return;
       setSnapshot(current => current ? { ...current, profile: data.profile, version: data.version } : current);
       setDraft(data.profile); setSaved(true);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : t("saveError")); }
+    } catch (caught) { setError(getLocalizedErrorMessage(caught, locale, t("saveError"))); }
     finally { setSaving(false); }
   }
   async function requestSave() {

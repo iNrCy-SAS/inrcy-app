@@ -550,5 +550,6 @@
   "visibility_index_tracking_hint": "O primeiro gráfico desbloqueia após um mês de valores registados.",
   "visibility_index_recording_method": "É guardado um valor diário com os dados disponíveis nessa data. Os valores passados nunca são recalculados com números atuais. Os dias sem recolha ficam ausentes. Cada período exige um histórico recente suficiente.",
   "visibility_index_rewards_method": "Cada marco atribui uma única vez Unidades de Inércia utilizáveis na loja. Bónus base: 50 / 100 / 200 / 500 UI. Coeficiente ao desbloquear: Básico ×0,5, Standard ×1, Premium ×1,5. Mudar de plano não volta a creditar um marco já ganho.",
-  "visibility_index_rewards_history_method": "As estatísticas históricas disponíveis podem validar retroativamente marcos de contas com antiguidade suficiente. Não reconstituem valores anteriores do índice."
+  "visibility_index_rewards_history_method": "As estatísticas históricas disponíveis podem validar retroativamente marcos de contas com antiguidade suficiente. Não reconstituem valores anteriores do índice.",
+  "stats_connect_x": "Ligar ao X"
 }

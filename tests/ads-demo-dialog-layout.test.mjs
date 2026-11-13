@@ -1,3 +1,4 @@
+import { adsComponentModules } from "./helpers/ads-component-runtime.mts";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -15,6 +16,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: {
 } }).outputText;
 const moduleExports = {};
 new Function("exports", "require", "document", compiled)(moduleExports, (name) => {
+  if (Object.hasOwn(adsComponentModules(), name)) return adsComponentModules()[name];
   if (name === "react-dom") return { createPortal: (children) => children };
   if (name.endsWith(".module.css")) return { default: new Proxy({}, { get: (_, key) => String(key) }) };
   if (name === "@/lib/adsPublicationProgress") return { nextAdsPublicationProgress: (phase) => phase };

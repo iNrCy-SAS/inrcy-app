@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import DrawerHeaderTabs from "../../DrawerHeaderTabs";
@@ -20,7 +21,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { createPortal } from "react-dom";
 
 import { invalidateBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
@@ -180,9 +181,7 @@ type WorkspaceSaveOptions = {
 };
 
 function apiErrorMessage(payload: unknown, fallback: string) {
-  if (!payload || typeof payload !== "object") return fallback;
-  const source = payload as { user_message?: unknown; error?: unknown };
-  return String(source.user_message || source.error || fallback);
+  return getSafeClientErrorMessage(payload, fallback);
 }
 
 function workspaceSignature(memory: AiMemory, businessKnowledge: AiBusinessKnowledge) {
@@ -255,6 +254,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   useLayoutEffect(() => { resetViewerRef.current = { actorUserId, activeAccountId }; });
   const [resetDialogTab, setResetDialogTab] = useState<AiMemoryWorkspaceTab | "all" | null>(null);
   const t = useTranslations("dashboard.aiMemory");
+  const locale = useLocale();
   const settingsT = useTranslations("settings");
   const [activeTab, setActiveTab] = useState<AiMemoryWorkspaceTab>(initialTab === "documents" ? "analysis" : initialTab);
   const [mountedEmbeddedTabs, setMountedEmbeddedTabs] = useState<Set<EmbeddedWorkspaceTab>>(
@@ -464,7 +464,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     const job = parseBusinessDnaManualAnalysisJob(quotaPayload.job);
     setAnalysisJob(job);
     setAnalyzing(isBusinessDnaManualAnalysisPending(job));
-    setAnalysisError(job?.status === "failed" ? job.error || t("analysisError") : "");
+    setAnalysisError(job?.status === "failed" ? getSafeClientErrorMessage(job.error, t("analysisError")) : "");
     setAnalysisSummary(job && (job.status === "succeeded" || job.status === "failed") ? summaryFromAnalysisJob(job) : null);
     setError("");
     setWorkspaceError("");
@@ -570,13 +570,13 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
         const job = parseBusinessDnaManualAnalysisJob(quotaPayload.job);
         setAnalysisJob(job);
         setAnalyzing(isBusinessDnaManualAnalysisPending(job));
-        setAnalysisError(job?.status === "failed" ? job.error || t("analysisError") : "");
+        setAnalysisError(job?.status === "failed" ? getSafeClientErrorMessage(job.error, t("analysisError")) : "");
         setAnalysisSummary(job && (job.status === "succeeded" || job.status === "failed")
           ? summaryFromAnalysisJob(job) : null);
         setLoaded(true);
         savedSignatureRef.current = workspaceSignature(synchronizedMemory, nextBusinessKnowledge);
       } catch (loadError) {
-        if (active) setError(loadError instanceof Error ? loadError.message : t("loadError"));
+        if (active) setError(getSafeClientErrorMessage(loadError, t("loadError")));
       } finally {
         if (active) { setCompletedLoadAttempt(loadAttempt); setLoading(false); }
       }
@@ -649,7 +649,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
           setAnalysisError("");
           setSaved(true);
         } else if (job.status === "failed") {
-          setAnalysisError(job.error || t("analysisError"));
+          setAnalysisError(getSafeClientErrorMessage(job.error, t("analysisError")));
           setAnalysisSummary(summaryFromAnalysisJob(job));
         }
         setAnalysisJob(job);
@@ -832,9 +832,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       }
     } catch (uploadError) {
       setDocumentUploadError(
-        uploadError instanceof Error
-          ? uploadError.message
-          : t("documentsUploadError"),
+        getSafeClientErrorMessage(uploadError, t("documentsUploadError")),
       );
     } finally {
       setDocumentUploadState("idle");
@@ -870,9 +868,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       await invalidateBoosterGenerationContextClient("professional");
     } catch (deleteError) {
       setDocumentUploadError(
-        deleteError instanceof Error
-          ? deleteError.message
-          : t("documentsDeleteError"),
+        getSafeClientErrorMessage(deleteError, t("documentsDeleteError")),
       );
     } finally {
       setDocumentUploadState("idle");
@@ -889,12 +885,12 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     setResetDialogTab(tabToReset);
     const confirmed = await confirmInrcy({
       title: isGlobalReset
-        ? "Réinitialiser votre ADN ?"
-        : `Réinitialiser « ${activeTabDefinition.label} » ?`,
+        ? t("resetTitle")
+        : t("irreversibleResetTabTitle", { tab: activeTabDefinition.label }),
       message: isGlobalReset
-        ? "Cette action efface toutes les informations iNr’ADN, y compris les documents importés et leurs fichiers. Elle est définitive."
-        : "Cette action efface uniquement les informations de cet onglet. Elle est définitive.",
-      confirmLabel: isGlobalReset ? "Réinitialiser tout l’ADN" : "Réinitialiser",
+        ? t("irreversibleResetAllMessage")
+        : t("irreversibleResetTabMessage"),
+      confirmLabel: isGlobalReset ? t("irreversibleResetAllConfirm") : t("reset"),
       variant: "danger",
     });
     setResetDialogTab(null);
@@ -947,7 +943,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       return current();
     } catch (resetError) {
       setWorkspaceError(
-        resetError instanceof Error ? resetError.message : t("saveError"),
+        getSafeClientErrorMessage(resetError, t("saveError")),
       );
       return false;
     }
@@ -1068,7 +1064,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       assertOwner();
       return { ok: true };
     } catch (saveError) {
-      const message = saveError instanceof Error ? saveError.message : t("saveError");
+      const message = getSafeClientErrorMessage(saveError, t("saveError"));
       if (workspaceMountedRef.current && workspaceOwnerRef.current === owner) setError(message);
       return { ok: false, message };
     } finally {
@@ -1189,7 +1185,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
             reconciliationBase,
           });
           if (!result.ok) {
-            setWorkspaceError(result.message || t("saveError"));
+            setWorkspaceError(getSafeClientErrorMessage(result.message, t("saveError")));
             return false;
           }
 
@@ -1223,9 +1219,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       }
       return savedWorkspace;
     } catch (workspaceSaveError) {
-      const message = workspaceSaveError instanceof Error
-        ? workspaceSaveError.message
-        : t("saveError");
+      const message = getSafeClientErrorMessage(workspaceSaveError, t("saveError"));
       setWorkspaceError(message);
       if (saveReason === "auto" || saveReason === "tab-change") {
         failedAutoSaveSignatureRef.current = failedDraftSignature;
@@ -1511,7 +1505,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       onAnalysisCompleted?.();
     } catch (analysisFailure) {
       setAnalysisError(
-        analysisFailure instanceof Error ? analysisFailure.message : t("analysisError"),
+        getSafeClientErrorMessage(analysisFailure, t("analysisError")),
       );
     } finally {
       if (!backgroundAccepted) {
@@ -1708,7 +1702,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                           <strong>{document.name}</strong>
                           <small>
                             {document.size
-                              ? `${Math.max(1, Math.round(document.size / 1024))} Ko · `
+                              ? `${new Intl.NumberFormat(locale, { style: "unit", unit: "kilobyte", unitDisplay: "short" }).format(Math.max(1, Math.round(document.size / 1024)))} · `
                               : ""}
                             {document.status === "analysed"
                               ? t("documentsStatusAnalysed")
@@ -2299,7 +2293,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
               opacity: voiceBusy || saving || workspaceSaving || documentUploadState !== "idle" ? 0.58 : 1,
             }}
           >
-            Réinitialiser
+            {t("reset")}
           </button>
         </div>
       ) : null}

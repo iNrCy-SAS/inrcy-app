@@ -5,6 +5,10 @@ import ts from "typescript";
 import * as uploadPolicy from "../../lib/mediaUploadPolicy.ts";
 import * as audioPolicy from "../../lib/mediaLibraryAudio.ts";
 import * as optimization from "../../lib/mediaLibraryOptimizationPolicy.ts";
+import { createTranslator } from "next-intl";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
+
+const t = createTranslator({ locale: "fr-FR", messages: JSON.parse(readFileSync(new URL("../../messages/fr-FR/media.json", import.meta.url), "utf8")) });
 
 type Element = { type: string; props: Record<string, unknown> };
 const audio = { id: "audio-a", bucket_name: "inrcy-pro-media", storage_path: "users/pro/audio/voice.wav", media_type: "audio", title: "Ma voix", original_file_name: "voice.wav", tags: ["voix"], signed_url: "/api/media-library/items/audio-a/content", mime_type: "audio/wav", size_bytes: 64_044, duration_seconds: 2, created_at: "2026-10-19T10:00:00Z", is_active: true };
@@ -44,7 +48,7 @@ function libraryHarness() {
   const require = (id: string) => {
     if (id === "react") return react;
     if (id === "react/jsx-runtime") return { jsx: (type: string, props: Record<string, unknown>) => ({ type, props }), jsxs: (type: string, props: Record<string, unknown>) => ({ type, props }) };
-    if (id === "next-intl") return { useLocale: () => "fr-FR", useTranslations: () => (key: string) => key };
+    if (id === "next-intl") return { useLocale: () => "fr-FR", useTranslations: (namespace: string) => { assert.equal(namespace, "media"); return t; } };
     if (id === "next/link") return { default: "a" };
     if (id.endsWith("DashboardAssistantTrigger")) return { default: "assistant-trigger" };
     if (id.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen(value: typeof assistantScreen) { assistantScreen = value; } };
@@ -65,7 +69,7 @@ function libraryHarness() {
     if (id === "@/lib/mediaLibraryAudio") return audioPolicy;
     if (id === "@/lib/mediaRules") return { INR_MEDIA_UPLOAD_BATCH_SIZE: 8 };
     if (id === "@/lib/mediaLibraryOptimizationPolicy") return { ...optimization, getMediaLibraryOptimizationRequirements: (input: Parameters<typeof optimization.getMediaLibraryOptimizationRequirements>[0]) => { optimizedTypes.push(input.mediaType); return optimization.getMediaLibraryOptimizationRequirements(input); } };
-    if (id === "@/lib/userFacingErrors") return { getClientUserFacingErrorMessage: (error: Error, fallback: string) => error?.message || fallback };
+    if (id === "@/lib/userFacingErrors") return userFacingErrorsFixture;
     if (id === "@/lib/inrcyDialog") return { confirmInrcy: async () => true };
     if (id === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => activeAccount };
     if (id === "@/lib/browserModuleSnapshotCache") return { MODULE_SNAPSHOT_KEYS: { mediaLibraryDefault: "default" }, readModuleSnapshot: () => ({ data: { items: [audio, photo], stats: { total: 2, images: 1, videos: 0, audios: 1, total_bytes: 128_088 } } }), writeModuleSnapshot: (_key: string, data: unknown) => snapshots.push(data), invalidateModuleSnapshot: (key: string) => invalidated.push(key) };
@@ -122,10 +126,10 @@ function libraryHarness() {
     setGetResponse(response: () => Promise<Response>) { getResponse = response; },
     setDownloadResponse(response: () => Promise<Response>) { downloadResponse = response; },
     selectFirst() { (elements("input").find((item) => item.props.type === "checkbox")!.props.onChange as () => void)(); render(); },
-    async download() { const button = elements("button").find((item) => item.props.children === "library_bulk_download"); assert.ok(button); await (button.props.onClick as () => Promise<void>)(); render(); },
+    async download() { const button = elements("button").find((item) => item.props.children === t("library_bulk_download")); assert.ok(button); await (button.props.onClick as () => Promise<void>)(); render(); },
     async saveField(field: string, value: string) { const control = elements("metadata").find((item) => item.props.field === field); assert.ok(control); await (control.props.onSave as (field: string, value: string) => Promise<void>)(field, value); render(); },
     changeFilter(value: string) { (elements("select")[0].props.onChange as (event: unknown) => void)({ target: { value } }); render(); },
-    async refresh() { const button = elements("button").find((item) => item.props["aria-label"] === "library_refresh_aria"); assert.ok(button); await (button.props.onClick as () => Promise<void>)(); for (let index = 0; index < 3; index++) await new Promise((resolve) => setImmediate(resolve)); render(); },
+    async refresh() { const button = elements("button").find((item) => item.props["aria-label"] === t("library_refresh_aria")); assert.ok(button); await (button.props.onClick as () => Promise<void>)(); for (let index = 0; index < 3; index++) await new Promise((resolve) => setImmediate(resolve)); render(); },
     selectFile(file: File) { if (!elements("form").length) { const open = elements("button").find((item) => item.props["aria-haspopup"] === "dialog"); assert.ok(open); (open.props.onClick as () => void)(); render(); } const input = elements("input").find((item) => item.props.type === "file"); assert.ok(input); (input.props.onChange as (event: unknown) => void)({ target: { files: [file] } }); render(); },
     async submit() { await (elements("form")[0].props.onSubmit as (event: unknown) => Promise<void>)({ preventDefault() {} }); render(); },
   };
@@ -140,7 +144,7 @@ test("the library opts in to Audio, renders native playback and keeps audio away
   const params = new URL(h.requests[0].url, "https://fixture.invalid").searchParams;
   assert.equal(params.get("type"), "audio"); assert.equal(params.get("includeAudio"), "true");
   assert.ok(h.elements("a").some((item) => String(item.props.href).includes("audio-a/content?download=1")));
-  const preview = h.elements("button").find((item) => item.props["aria-label"] === "library_audio_preview"); assert.ok(preview);
+  const preview = h.elements("button").find((item) => item.props["aria-label"] === t("library_audio_preview", { name: audio.title })); assert.ok(preview);
   (preview.props.onClick as (event: unknown) => void)({ stopPropagation() {} }); h.render();
   assert.equal(h.elements("audio").length, 2); assert.equal(h.elements("audio")[1].props.controls, true);
 });
@@ -156,11 +160,11 @@ test("inactive library images and videos expose metadata without loading an unus
   assert.equal(h.elements("img").length, 0);
   assert.equal(h.elements("video").length, 0);
   assert.equal(h.elements("audio").length, 0);
-  const previews = h.elements("button").filter(item => item.props["aria-label"] === "agrandir_le_media_55f536e4");
+  const previews = h.elements("button").filter(item => item.props["aria-label"] === t("agrandir_le_media_55f536e4"));
   assert.equal(previews.length, 2);
   assert.ok(previews.every(item => item.props.disabled === true));
   assert.equal(h.elements("metadata").length, 6, "hidden media can still be renamed and restored");
-  assert.ok(h.elements("a").filter(item => item.props["aria-label"] === "ai_generator_download").every(item => item.props.href === undefined));
+  assert.ok(h.elements("a").filter(item => item.props["aria-label"] === t("ai_generator_download")).every(item => item.props.href === undefined));
 });
 
 test("a GET captured before a successful metadata edit cannot revert it or repopulate its stale snapshot", async () => {
@@ -196,15 +200,15 @@ test("filters wait for the inline editor to save or cancel", () => {
   const title = h.elements("metadata")[0];
   (title.props.onEditingChange as (editing: boolean) => void)(true); h.render();
   assert.ok(h.elements("select").every((control) => control.props.disabled === true));
-  assert.ok(h.elements("input").find((control) => control.props.placeholder === "titre_tag_fichier_3ea8c409")?.props.disabled);
+  assert.ok(h.elements("input").find((control) => control.props.placeholder === t("titre_tag_fichier_3ea8c409"))?.props.disabled);
   (title.props.onEditingChange as (editing: boolean) => void)(false); h.render();
   assert.ok(h.elements("select").every((control) => control.props.disabled === false));
 });
 
 test("mobile filters open their fields, focus the first select and restore focus on Escape", () => {
   const h = libraryHarness();
-  const filterButton = () => h.elements("button").find((item) => item.props["aria-label"] === "library_filters")!;
-  const panel = () => h.elements("div").find((item) => item.props.role === "group" && item.props["aria-label"] === "library_filters")!;
+  const filterButton = () => h.elements("button").find((item) => item.props["aria-label"] === t("library_filters"))!;
+  const panel = () => h.elements("div").find((item) => item.props.role === "group" && item.props["aria-label"] === t("library_filters"))!;
   assert.equal(filterButton().props["aria-expanded"], false);
   assert.equal(panel().props["data-open"], undefined);
   (filterButton().props.onClick as () => void)(); h.render();
@@ -230,11 +234,11 @@ test("mobile filters open their fields, focus the first select and restore focus
 
 test("compact select-all toggles the visible media in both directions", () => {
   const h = libraryHarness();
-  const select = h.elements("button").find((item) => item.props["aria-label"] === "tout_selectionner_06f2c1c0")!;
+  const select = h.elements("button").find((item) => item.props["aria-label"] === t("tout_selectionner_06f2c1c0"))!;
   assert.equal(select.props["aria-pressed"], false);
   (select.props.onClick as () => void)(); h.render();
   assert.ok(h.elements("input").filter((item) => item.props.type === "checkbox").every((item) => item.props.checked === true));
-  const clear = h.elements("button").find((item) => item.props["aria-label"] === "tout_deselectionner_d17ec0b7")!;
+  const clear = h.elements("button").find((item) => item.props["aria-label"] === t("tout_deselectionner_d17ec0b7"))!;
   assert.equal(clear.props["aria-pressed"], true);
   (clear.props.onClick as () => void)(); h.render();
   assert.ok(h.elements("input").filter((item) => item.props.type === "checkbox").every((item) => item.props.checked === false));
@@ -242,10 +246,10 @@ test("compact select-all toggles the visible media in both directions", () => {
 
 test("mobile details disclose metadata and cannot hide an unsaved tag draft", () => {
   const h = libraryHarness();
-  const open = h.elements("button").find((item) => item.props["aria-label"] === "media_show_details")!;
+  const open = h.elements("button").find((item) => item.props["aria-label"] === t("media_show_details"))!;
   assert.equal(open.props["aria-expanded"], false);
   (open.props.onClick as (event: unknown) => void)({ stopPropagation() {} }); h.render();
-  const close = () => h.elements("button").find((item) => item.props["aria-label"] === "media_hide_details")!;
+  const close = () => h.elements("button").find((item) => item.props["aria-label"] === t("media_hide_details"))!;
   assert.equal(close().props["aria-expanded"], true);
   const tags = h.elements("metadata").find((item) => item.props.field === "tags")!;
   (tags.props.onEditingChange as (editing: boolean) => void)(true); h.render();
@@ -255,7 +259,7 @@ test("mobile details disclose metadata and cannot hide an unsaved tag draft", ()
   (tags.props.onEditingChange as (editing: boolean) => void)(false); h.render();
   assert.equal(close().props.disabled, false);
   (close().props.onClick as (event: unknown) => void)({ stopPropagation() {} }); h.render();
-  assert.equal(h.elements("button").find((item) => item.props["aria-label"] === "media_show_details")?.props["aria-expanded"], false);
+  assert.equal(h.elements("button").find((item) => item.props["aria-label"] === t("media_show_details"))?.props["aria-expanded"], false);
 });
 
 test("audio imports use scoped signed uploads and audio-only metadata, even when universal visual upload is enabled", async () => {
@@ -273,15 +277,16 @@ test("bulk download prevalidates chosen ids and launches one native ZIP without 
   assert.equal(h.requests[0].url, "/api/media-library/download");
   assert.deepEqual(JSON.parse(String(h.requests[0].init.body)), { ids: [audio.id] });
   assert.deepEqual(h.downloads, ["https://fixture.invalid/api/media-library/download?ids=audio-a"]);
-  assert.ok(h.elements("div").some((item) => item.props.children === "library_bulk_download_started"));
+  assert.ok(h.elements("div").some((item) => item.props.children === t("library_bulk_download_started")));
 });
 
 test("bulk download failures remain visible and do not start an invalid download", async () => {
   const h = libraryHarness(); h.selectFirst();
   h.setDownloadResponse(async () => Response.json({ error: "Archive trop volumineuse" }, { status: 413 }));
   await h.download(); assert.deepEqual(h.downloads, []);
-  assert.ok(h.elements("div").some((item) => item.props.children === "Archive trop volumineuse"));
-  assert.equal(h.elements("button").find((item) => item.props.children === "library_bulk_download")?.props.disabled, false);
+  const publicError = userFacingErrorsFixture.getClientUserFacingErrorMessage({ error: "Archive trop volumineuse" }, t("library_bulk_download_failed"));
+  assert.ok(h.elements("div").some((item) => item.props.children === publicError));
+  assert.equal(h.elements("button").find((item) => item.props.children === t("library_bulk_download"))?.props.disabled, false);
 });
 
 test("bulk download does not open another establishment's archive after an account switch", async () => {
@@ -316,7 +321,7 @@ test("each inline field sends only its normalized patch and keeps preview/downlo
 test("failed metadata saves leave the item intact and reject for the inline editor to retain its draft", async () => {
   const h = libraryHarness();
   h.setPatchResponse(async () => Response.json({ ok: false, error: "Sauvegarde refusée" }, { status: 503 }));
-  await assert.rejects(h.saveField("title", "Mon brouillon"), /Sauvegarde refusée/);
+  await assert.rejects(h.saveField("title", "Mon brouillon"), { message: userFacingErrorsFixture.getClientUserFacingErrorMessage({ error: "Sauvegarde refusée" }, t("library_edit_failed")) });
   h.render();
   assert.equal(h.elements("metadata")[0].props.value, audio.title);
   assert.equal(h.elements("metadata")[0].props.disabled, false);
@@ -351,7 +356,7 @@ test("selecting more than 25 native library items declares overflow instead of a
   const items = Array.from({ length: 26 }, (_, index) => ({ ...photo, id: `image-${index}` }));
   h.setGetResponse(async () => Response.json({ ok: true, items, stats: { total: 26, images: 26, videos: 0, audios: 0, total_bytes: 1000 } }));
   await h.refresh();
-  const selectAll = h.elements("button").find(item => item.props["aria-label"] === "tout_selectionner_06f2c1c0");
+  const selectAll = h.elements("button").find(item => item.props["aria-label"] === t("tout_selectionner_06f2c1c0"));
   assert.ok(selectAll); (selectAll.props.onClick as () => void)(); h.render();
   assert.equal(h.assistantScreen()?.selectionOverflow, true);
   assert.equal(h.assistantScreen()?.selectedMediaIds, undefined);

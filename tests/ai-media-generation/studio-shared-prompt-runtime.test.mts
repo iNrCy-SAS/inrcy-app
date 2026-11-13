@@ -1,3 +1,4 @@
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
 import assert from "node:assert/strict";
@@ -47,6 +48,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
     useLayoutEffect(effect: () => void | (() => void), deps: unknown[]) { react.useEffect(effect, deps); },
   };
   const modules = new Map(dependencies);
+  modules.set("@/lib/userFacingErrors", userFacingErrorsFixture);
   modules.set("react", react); modules.set("react/jsx-runtime", { jsx, jsxs: jsx });
   modules.set("./DashboardAssistantTrigger", { __esModule: true, default: "assistant-trigger" });
   modules.set("./DashboardAssistantScreenContext", { useInrAssistantScreen() {} });

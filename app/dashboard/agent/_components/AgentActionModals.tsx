@@ -4,6 +4,7 @@ import { parseInrAssistantPlanningDaySelection, parseInrAssistantPlanningFilterS
 import { agentPublicationHistoryWindow, parisHistoryCalendarParts } from "@/lib/inrAgentPublicationHistory";
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -833,6 +834,7 @@ function scheduleApprovalState(item: ScheduleListItem) {
 
 type AgentScheduleModalProps = {
   open: boolean;
+  suspended?: boolean;
   items: ScheduleListItem[];
   mutationState: "idle" | "saving";
   loading?: boolean;
@@ -850,6 +852,7 @@ type AgentScheduleModalProps = {
 
 export function AgentScheduleModal({
   open,
+  suspended = false,
   items,
   mutationState,
   loading = false,
@@ -866,6 +869,19 @@ export function AgentScheduleModal({
 }: AgentScheduleModalProps) {
   const i18nT = useTranslations("agent");
   const locale = useLocale();
+  const backdropRef = useRef<HTMLDivElement | null>(null);
+  const rescheduleTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const wasSuspendedRef = useRef(false);
+  useLayoutEffect(() => {
+    const returning = wasSuspendedRef.current && !suspended && open;
+    wasSuspendedRef.current = suspended;
+    if (!open) rescheduleTriggerRef.current = null;
+    if (!returning) return;
+    const target = rescheduleTriggerRef.current?.isConnected
+      ? rescheduleTriggerRef.current
+      : backdropRef.current?.querySelector<HTMLButtonElement>("button");
+    target?.focus({ preventScroll: true });
+  }, [open, suspended]);
   const [activeFilters, setActiveFilters] = useState(DEFAULT_SCHEDULE_FILTERS);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [disclosures, setDisclosures] = useState<Record<string, { actions?: boolean; channels?: boolean }>>({});
@@ -1054,7 +1070,7 @@ export function AgentScheduleModal({
       const input = parseInrAssistantPlanningItemSelection(value), state = snapshot as typeof itemSnapshot;
       return !!input && (input.action === "open_content" ? !state.open && state.openedItemId === input.id : state.open && state.month === monthKey && (state.disclosures[input.id]?.[input.action] ?? false) === input.open);
     },
-  } }, !loading && (open && visibleManualGroups.length > 0 || !!openedItemId), !open || mutationState === "saving");
+  } }, !loading && (open && visibleManualGroups.length > 0 || !!openedItemId), !open || suspended || mutationState === "saving");
   const expectedMonth = (direction: -1 | 1) => {
     const date = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + direction, 1);
     return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
@@ -1063,7 +1079,7 @@ export function AgentScheduleModal({
     previous: { invoke: () => moveMonth(-1), matches: snapshot => (snapshot as { month?: unknown } | undefined)?.month === expectedMonth(-1) },
     next: { invoke: () => moveMonth(1), matches: snapshot => (snapshot as { month?: unknown } | undefined)?.month === expectedMonth(1) },
     close: { invoke: onClose, matches: snapshot => (snapshot as { open?: unknown } | undefined)?.open === false, allowUnmount: true },
-  }, open && !loading, mutationState === "saving");
+  }, open && !loading && !suspended, mutationState === "saving");
   useInrAssistantLocalInterface("planning_day", calendarSnapshot, {
     select: {
       invoke(value) {
@@ -1079,7 +1095,7 @@ export function AgentScheduleModal({
           && current.index === (previous.index + selected.direction + previous.groups.length) % previous.groups.length);
       },
     },
-  }, open && !loading && calendarModel.days.some(day => day.groups.length > 1), mutationState === "saving");
+  }, open && !loading && !suspended && calendarModel.days.some(day => day.groups.length > 1), mutationState === "saving");
   useInrAssistantLocalInterface("planning_filters", { filtersOpen, activeFilters }, {
     open: { invoke: () => setFiltersOpen(true), matches: snapshot => (snapshot as { filtersOpen?: unknown } | undefined)?.filtersOpen === true },
     close: { invoke: () => setFiltersOpen(false), matches: snapshot => (snapshot as { filtersOpen?: unknown } | undefined)?.filtersOpen === false },
@@ -1094,11 +1110,11 @@ export function AgentScheduleModal({
         return Boolean(selected && (snapshot as { activeFilters?: Record<string, boolean> } | undefined)?.activeFilters?.[selected.filter] === selected.enabled);
       },
     },
-  }, open && !loading && scheduleFilters.length > 1, mutationState === "saving");
+  }, open && !loading && !suspended && scheduleFilters.length > 1, mutationState === "saving");
 
   if (!open) return null;
   return (
-    <div data-inrcy-tool-overlay className={styles.modalBackdrop} role="presentation" onClick={onClose}>
+    <div data-inrcy-tool-overlay ref={backdropRef} className={styles.modalBackdrop} role="presentation" inert={suspended || undefined} aria-hidden={suspended || undefined} onClick={() => { if (!suspended) onClose(); }}>
       <section data-inrcy-tool-dialog
         className={`${styles.settingsModal} ${styles.scheduleModal}`}
         role="dialog"
@@ -1369,7 +1385,7 @@ export function AgentScheduleModal({
                                     type="button"
                                     className={styles.scheduleIconButton}
                                     data-schedule-action="reschedule"
-                                    onClick={() => onReschedule(item)}
+                                    onClick={event => { rescheduleTriggerRef.current = event.currentTarget; onReschedule(item); }}
                                     disabled={
                                       !item.editable ||
                                       mutationState === "saving"
@@ -1525,8 +1541,8 @@ export function AgentScheduleModal({
                                           {mediaLabel}
                                         </span>
                                       ) : null}
+                                      <span className={styles.scheduleCalendarOriginBadge}>{item.originLabel}</span>
                                     </div>
-                                    <em>{item.originLabel}</em>
                                     {item.source === "history" ? (
                                       <strong className={styles.scheduleHistoryStatus} data-status={item.statusKey}>
                                         {item.status}
@@ -1545,7 +1561,7 @@ export function AgentScheduleModal({
                                     }}
                                     className={styles.scheduleCalendarCardMobileActions}
                                   >
-                                    <summary>{i18nT("planning_actions_menu")}</summary>
+                                    <summary><span>{i18nT("planning_actions_menu")}</span></summary>
                                     <div role="group" aria-label={i18nT("planning_actions_menu")}>
                                       {renderCalendarActions()}
                                     </div>

@@ -1,5 +1,8 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+import { useAdsErrorMessage } from "./useAdsErrorMessage";
+import { createAdsApiRequestError } from "./adsClientHttp";
 import { useEffect, useRef } from "react";
 
 import useMediaGeneration, {
@@ -66,9 +69,11 @@ export default function AdsCampaignAutoMediaGenerator({
   onSkip,
   onError,
 }: AdsCampaignAutoMediaGeneratorProps) {
+  const i18nT = useTranslations("booster");
+  const errorMessage = useAdsErrorMessage();
   const startedRef = useRef(false);
   const settledRef = useRef(false);
-  const callbacksRef = useRef({ onProgress, onComplete, onMetaPackComplete, onSkip, onError });
+  const callbacksRef = useRef({ onProgress, onComplete, onMetaPackComplete, onSkip, onError, errorMessage, i18nT });
   const batchProgressRef = useRef({ index: 0, total: 1 });
   const {
     generate,
@@ -80,8 +85,8 @@ export default function AdsCampaignAutoMediaGenerator({
   // The parent updates its progress UI while generation runs. Keep the latest
   // callbacks without restarting (or cancelling) the paid Studio operation.
   useEffect(() => {
-    callbacksRef.current = { onProgress, onComplete, onMetaPackComplete, onSkip, onError };
-  }, [onComplete, onError, onMetaPackComplete, onProgress, onSkip]);
+    callbacksRef.current = { onProgress, onComplete, onMetaPackComplete, onSkip, onError, errorMessage, i18nT };
+  }, [errorMessage, i18nT, onComplete, onError, onMetaPackComplete, onProgress, onSkip]);
 
   useEffect(() => {
     if (startedRef.current) return;
@@ -133,7 +138,7 @@ export default function AdsCampaignAutoMediaGenerator({
       } | null;
       if (disposed || quoteController.signal.aborted) throw new Error("Création du média annulée.");
       if (!response.ok || payload?.ok !== true) {
-        throw new Error(payload?.error || "Le devis du média est momentanément indisponible.");
+        throw createAdsApiRequestError(payload, response.status);
       }
       const quote = payload.quote;
       if (!quote || typeof quote.totalCredits !== "number" || !Number.isSafeInteger(quote.totalCredits) || quote.totalCredits < 0
@@ -156,8 +161,8 @@ export default function AdsCampaignAutoMediaGenerator({
         settledRef.current = true;
         callbacksRef.current.onSkip(
           plan.mediaStrategy === "search_text"
-            ? "Ce format est textuel dans iNr’ADS : aucun média n’a été généré."
-            : "Ce format utilise un flux produits : aucun visuel supplémentaire n’a été généré.",
+            ? callbacksRef.current.i18nT("ads_ui_70762aa7bb")
+            : callbacksRef.current.i18nT("ads_ui_239a90c6c4"),
         );
         return;
       }
@@ -167,7 +172,7 @@ export default function AdsCampaignAutoMediaGenerator({
       const prompt = mediaPromptForPlan(provider, plan, kind);
       if (prompt.length < 3) {
         settledRef.current = true;
-        callbacksRef.current.onError("La campagne est prête, mais il manque une consigne suffisamment précise pour générer son média.");
+        callbacksRef.current.onError(callbacksRef.current.i18nT("ads_ui_840c834dab"));
         return;
       }
 
@@ -235,9 +240,7 @@ export default function AdsCampaignAutoMediaGenerator({
         } catch (error) {
           if (!disposed) {
             settledRef.current = true;
-            const message = error instanceof Error
-              ? error.message
-              : "Le média iNr’Studio n’a pas pu être généré.";
+            const message = callbacksRef.current.errorMessage(error, "shell.ads_error_b3028c6096");
             // A first Meta asset may already have been accepted (and billed)
             // when generation of the second one fails. Keep it in the draft.
             if (provider === "meta" && (metaResults.feed || metaResults.storyReel)) {
@@ -259,7 +262,7 @@ export default function AdsCampaignAutoMediaGenerator({
       // left the assisted path. A completed result is deliberately preserved.
       if (startedRef.current && !settledRef.current) cancelGeneration();
     };
-  }, [acceptDraft, cancelGeneration, generate, plan, provider]);
+  }, [acceptDraft, cancelGeneration, generate, plan, provider, i18nT]);
 
   useEffect(() => {
     if (!startedRef.current) return;

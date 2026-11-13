@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useInrAssistantVideoCommands } from "../_hooks/useInrAssistantVideoCommands";
 import { loadInrAssistantLibraryVideo } from "@/lib/inrAssistantMediaUiClient";
@@ -448,9 +449,7 @@ export default function MediaVideoRetoucher({
     } catch (caught) {
       if (!isCurrent()) return false;
       setError(
-        caught instanceof Error
-          ? caught.message
-          : i18nT("media_ui_e2056e9248")
+        getSafeClientErrorMessage(caught, i18nT("media_ui_e2056e9248"))
       );
       return false;
     } finally {

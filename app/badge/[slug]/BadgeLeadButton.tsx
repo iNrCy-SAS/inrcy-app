@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import styles from "./badge.module.css";
 import { getInrBadgeTexts, normalizeInrBadgeLanguage, type InrBadgeLanguageCode } from "@/lib/inrBadgeLanguage";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 
 type Props = {
   slug: string;
@@ -33,7 +34,8 @@ function trim(value: string) {
 }
 
 export default function BadgeLeadButton({ slug, language }: Props) {
-  const badgeText = getInrBadgeTexts(normalizeInrBadgeLanguage(language));
+  const badgeLanguage = normalizeInrBadgeLanguage(language);
+  const badgeText = getInrBadgeTexts(badgeLanguage);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(initialForm);
   const [submitting, setSubmitting] = useState(false);
@@ -92,7 +94,7 @@ export default function BadgeLeadButton({ slug, language }: Props) {
       }
       setSent(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : badgeText.leadGenericError);
+      setError(getLocalizedErrorMessage(err, badgeLanguage, badgeText.leadGenericError));
     } finally {
       setSubmitting(false);
     }

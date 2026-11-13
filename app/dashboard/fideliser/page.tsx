@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
 
@@ -389,7 +390,7 @@ export default function FideliserPage() {
         { scroll: false },
       );
     } catch (error) {
-      setWorkflowDraftMessage(error instanceof Error ? error.message : i18nT("draft_open_failed"));
+      setWorkflowDraftMessage(getSafeClientErrorMessage(error, i18nT("draft_open_failed")));
     } finally {
       setWorkflowDraftLoading(false);
     }

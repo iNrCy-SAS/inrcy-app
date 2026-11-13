@@ -9,7 +9,7 @@ import boutiqueStyles from "./BoutiqueContent.module.css";
 
 import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
 
-import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
@@ -362,7 +362,7 @@ export default function BoutiqueContent({
                 type="button"
                 onClick={() => placeOrder(p, "UI")}
                 disabled={sendingKey !== null || !canOrderUi(p)}
-                title={!canOrderUi(p) ? "Solde UI insuffisant" : undefined}
+                title={!canOrderUi(p) ? i18nT("insufficient_ui_balance") : undefined}
                 style={{
                   flex: "1 1 160px",
                   borderRadius: 14,

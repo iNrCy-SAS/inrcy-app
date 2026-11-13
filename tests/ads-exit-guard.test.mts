@@ -1,3 +1,4 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -19,7 +20,7 @@ function find(source: ts.SourceFile, predicate: (node: ts.Node) => boolean): ts.
 
 function evaluate(expression: string, scope: Record<string, unknown>) {
   const compiled = ts.transpileModule(`const actual = ${expression};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  return new Function(...Object.keys(scope), `${compiled}\nreturn actual;`)(...Object.values(scope));
+  return new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn actual;`)(...Object.values(withAdsRuntime(scope)));
 }
 
 function actualFunction(source: ts.SourceFile, name: string, scope: Record<string, unknown>) {

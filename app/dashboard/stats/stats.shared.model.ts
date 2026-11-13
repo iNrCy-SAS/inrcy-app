@@ -366,7 +366,7 @@ export function buildSummaryActionItems({
       badge: t("connexion_a33c58f5"),
     },
     x: {
-      label: "Connecter X",
+      label: t("stats_connect_x"),
       kicker: t("activez_un_levier_social_local_ed260a0f"),
       motive: t("stats_connect_channel_to_activate"),
       badge: t("connexion_a33c58f5"),

@@ -1,3 +1,4 @@
+import { adsComponentModules } from "./helpers/ads-component-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -13,6 +14,8 @@ type PickerModule = { default: (props: Props) => Element; metaLocationPickerRows
 function load(react: Record<string, unknown> = {}, fetchImpl: unknown = () => { throw new Error("Unexpected fetch"); }) {
   const runtimeModule = { exports: {} };
   new Function("require", "module", "exports", "fetch", "AbortController", code)((name: string) => {
+    const modules: Record<string, unknown> = adsComponentModules();
+    if (Object.hasOwn(modules, name)) return modules[name];
     if (name === "react") return react;
     if (name === "react/jsx-runtime") return { jsx: (type: unknown, props: Record<string, unknown>) => ({ type, props }), jsxs: (type: unknown, props: Record<string, unknown>) => ({ type, props }) };
     if (name === "@/lib/adsMetaResources") return { normalizeMetaAdsGeoTargets };
@@ -118,10 +121,11 @@ test("Updated callback refs are used without restarting an identical lookup", as
 
 test("Provider failure keeps readiness false and does not write native targets", async () => {
   const h = harness(); h.render();
-  await h.finish(0, { error: "Meta ne peut pas confirmer ce lieu." }, false);
+  await h.finish(0, { error: "PRIVATE_META_PROVIDER_DETAIL" }, false);
   assert.equal(h.changes.length, 0);
   assert.equal(h.ready.at(-1)?.ready, false);
-  assert.match(h.ready.at(-1)?.error || "", /ne peut pas confirmer/);
+  assert.equal(h.ready.at(-1)?.error, adsComponentModules()["next-intl"].useTranslations("shell")("ads_error_43a7898001"));
+  assert.doesNotMatch(h.ready.at(-1)?.error || "", /PRIVATE_META_PROVIDER_DETAIL/);
 });
 
 test("A manual choice remains selected on verification, and a removed choice requires a new decision", async () => {

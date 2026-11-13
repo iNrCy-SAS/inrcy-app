@@ -1,3 +1,5 @@
+import { adsComponentModules } from "./helpers/ads-component-runtime.mts";
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -15,6 +17,8 @@ function controls(name: string) {
   const runtimeModule = { exports: {} };
   const require = createRequire(import.meta.url);
   new Function("require", "module", "exports", compiled)((path: string) => {
+    const modules = adsComponentModules();
+    if (Object.hasOwn(modules, path)) return modules[path as keyof typeof modules];
     if (path === "@/lib/adsMetaCampaignSettings") return metaSettings;
     if (path === "@/lib/adsOpenaiCampaignSettings") return openaiSettings;
     if (path === "./ads.module.css") return { default: new Proxy({}, { get: (_, key) => String(key) }) };
@@ -37,7 +41,7 @@ test("Actual Meta and ChatGPT labels and indices align with their ten manual or 
     for (const name of ["keywordStepName", "hasMediaStep", "hasKeywordsStep", "mediaStepName", "automatedChannelStepNames", "manualStepNames", "inrcyStepNames", "linkedInStepLabels", "googleStepLabels", "channelStepLabels", "stepNames", "foundationsStep", "biddingStep", "geographyStep", "targetingStep", "keywordsStep", "creativeStep", "mediaStep", "deliveryStep", "budgetStep", "validationStep"]) {
       const expression = variables.get(name); assert.ok(expression, name);
       const compiled = ts.transpileModule(`const value = (${expression.getText(source)});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-      scope[name] = new Function(...Object.keys(scope), `${compiled}\nreturn value;`)(...Object.values(scope));
+      scope[name] = new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn value;`)(...Object.values(withAdsRuntime(scope)));
     }
     const prefix = ["Votre projet", ...(creationPath === "inrcy" ? ["Analyse iNrCy"] : []), "Campagne"];
     assert.deepEqual(scope.stepNames, channelId === "meta" ? [...prefix, "Zones géographiques", "Audience", "Enchères", "Annonce", "Média", "Destination et suivi", "Budget et calendrier", "Vérifier et lancer"] : [...prefix, "Budget et calendrier", "Zones géographiques", "Audience et contexte", "Enchères", "Carte ChatGPT", "Média", "Destination et suivi", "Vérifier et lancer"]);
@@ -141,7 +145,15 @@ test("ChatGPT presents its fixed CPC and native platform filters, preserving a c
 test("ChatGPT geography adds only a selected native catalogue result, never every returned option", () => {
   const compiled = ts.transpileModule(readFileSync(new URL("../app/dashboard/ads/ChatGPTAdsCampaignControls.tsx", import.meta.url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const runtimeModule = { exports: {} as Controls };
-  new Function("require", "module", "exports", compiled)((path: string) => path === "@/lib/adsOpenaiCampaignSettings" ? openaiSettings : path === "react/jsx-runtime" ? { jsx: (type: unknown, props: Record<string, unknown>) => ({ type, props }), jsxs: (type: unknown, props: Record<string, unknown>) => ({ type, props }) } : path === "./ads.module.css" ? { default: {} } : {}, runtimeModule, runtimeModule.exports);
+  new Function("require", "module", "exports", compiled)((path: string) => {
+    const modules = adsComponentModules();
+    if (Object.hasOwn(modules, path)) return modules[path as keyof typeof modules];
+    if (path === "@/lib/adsOpenaiCampaignSettings") return openaiSettings;
+    if (path === "react/jsx-runtime") return { jsx: (type: unknown, props: Record<string, unknown>) => ({ type, props }), jsxs: (type: unknown, props: Record<string, unknown>) => ({ type, props }) };
+    if (path === "react") return { useMemo: (factory: () => unknown) => factory() };
+    if (path === "./ads.module.css") return { default: {} };
+    assert.fail(`Unexpected geography fixture dependency: ${path}`);
+  }, runtimeModule, runtimeModule.exports);
   const changes: string[][] = [];
   const tree = runtimeModule.exports.ChatGPTAdsGeography({ resources: { geographyOptions: [{ id: "native-lille", canonicalName: "Lille, Hauts-de-France, France" }, { id: "native-paris", canonicalName: "Paris, Île-de-France, France" }] }, locations: [], loading: false, error: "", query: "Lille", onQueryChange: noop, onSearch: noop, onLocationsChange: (value: string[]) => changes.push(value) });
   const descendants = (value: unknown): Array<{ type: unknown; props: Record<string, unknown> }> => Array.isArray(value) ? value.flatMap(descendants) : value && typeof value === "object" && "props" in value ? [value as never, ...descendants((value as { props: { children: unknown } }).props.children)] : [];
@@ -167,7 +179,7 @@ test("Meta historical geography never activates the global native picker until i
   const compiled = ts.transpileModule('const value = (' + expression.getText(source) + ');', { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const jsx = (type: unknown, props: Record<string, unknown>) => ({ type, props });
   const scope: Record<string, unknown> = { exports: {}, require: () => ({ jsx, jsxs: jsx }), styles: {}, creating: true, channelId: "meta", metaResourceAccountId: "1234567890", MetaAdsLocationPicker: "native-global-picker", updateDraft: noop, setMetaGeoState: noop, metaGeoKey: "key", updateMetaDelivery: noop };
-  const renderPicker = (draft: Record<string, unknown>) => new Function(...Object.keys(scope), "draft", compiled + '\nreturn value;')(...Object.values(scope), draft);
+  const renderPicker = (draft: Record<string, unknown>) => new Function(...Object.keys(withAdsRuntime(scope)), "draft", compiled + '\nreturn value;')(...Object.values(withAdsRuntime(scope)), draft);
   const native = renderPicker({ metaDeliverySettings: metaSettings.defaultMetaDeliverySettings(), metaGeoTargets: [], targetLocations: ["Paris"] });
   assert.equal(native.type, "native-global-picker"); assert.equal(native.props.active, true);
   const legacy = renderPicker({ metaGeoTargets: [{ name: "Paris US" }], targetLocations: ["Paris"] });

@@ -1122,5 +1122,18 @@
   "ai_generator_character_voice_kling_reference_limits": "For Kling, use a clean voice sample of 5–10 seconds for each character.",
   "ai_generator_model_description_kling-flash": "Reference images and native dialogue with AI voices.",
   "ai_generator_engine_info_video_use_kling-flash": "Create scenes with several characters from reference images and AI voices.",
-  "ai_generator_engine_info_video_limits_kling-flash": "4–20 s, 720p, up to 5 images. AI voices only; choose Kling 4.0 Omni for supplied voice samples."
+  "ai_generator_engine_info_video_limits_kling-flash": "4–20 s, 720p, up to 5 images. AI voices only; choose Kling 4.0 Omni for supplied voice samples.",
+  "camera_disable_flash": "Turn flash off",
+  "camera_enable_flash": "Turn flash on",
+  "camera_flash": "Flash",
+  "camera_flash_on": "Flash on",
+  "camera_front": "Front camera",
+  "camera_photo_title": "Take a photo",
+  "camera_rear": "Rear camera",
+  "camera_switch_to_front": "Switch to front camera",
+  "camera_switch_to_rear": "Switch to rear camera",
+  "camera_video_unavailable_here": "Video unavailable here",
+  "viewer_zoom_in": "Zoom in",
+  "viewer_zoom_out": "Zoom out",
+  "viewer_zoom_reset": "Reset zoom to 100%"
 }

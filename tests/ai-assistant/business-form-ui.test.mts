@@ -6,6 +6,8 @@ import ts from "typescript";
 import * as commands from "../../lib/inrAssistantBusinessFormUiCommands.ts";
 import * as clauses from "../../lib/inrAssistantActionClause.ts";
 import type * as Tools from "../../lib/inrAssistantBusinessFormUiTools.ts";
+import { catalogTranslator } from "../helpers/catalog-translator.mts";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 
 const accountId = "10000000-0000-4000-8000-000000000001", actorUserId = "10000000-0000-4000-8000-000000000002";
 const screen = { pathname: "/dashboard/personnalisation", tool: "Personnalisation", selection: { kind: "business_form" as const, id: "personalization" }, revision: "business_form_test_1", availableCommands: ["configure_business_form" as const] };
@@ -49,7 +51,10 @@ function expression(file: string, name: string, hook = false) {
   const visit = (node: ts.Node) => { if (ts.isVariableDeclaration(node) && node.name.getText(ast) === name && node.initializer) found = hook && ts.isCallExpression(node.initializer) ? node.initializer.arguments[0] : node.initializer; ts.forEachChild(node, visit); }; visit(ast); assert.ok(found, name);
   return ts.transpileModule(`const callback=(${found.getText(ast)});`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
 }
-function bind<T>(source: string, dependencies: Record<string, unknown>): T { return new Function("dependencies", `with(dependencies){${source}\nreturn callback;}`)(dependencies) as T; }
+function bind<T>(source: string, dependencies: Record<string, unknown>): T {
+  if (!Object.hasOwn(dependencies, "getSafeClientErrorMessage")) dependencies.getSafeClientErrorMessage = userFacingErrorsFixture.getClientUserFacingErrorMessage;
+  return new Function("dependencies", `with(dependencies){${source}\nreturn callback;}`)(dependencies) as T;
+}
 function formOption(file: string, property: "apply" | "isApplied") {
   const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), ast = ts.createSourceFile(file, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
   let found: ts.Expression | undefined;
@@ -63,7 +68,7 @@ test("Basic native general preferences reset and discard protect dirty inputs an
   const source = formOption("app/dashboard/settings/_components/GeneralPreferencesContent.tsx", "apply"), initial = { timezone: "Europe/Paris", currency: "EUR" }, saved = { timezone: "Asia/Bangkok", currency: "THB" };
   for (const action of ["reset", "discard"] as const) for (const outcome of ["cancel", "scope", "apply"] as const) {
     let form = { timezone: "Europe/London", currency: "GBP" }, calls = 0, confirmed = 0;
-    const apply = bind<Apply>(source, { form, savedPreferencesSignatureRef: { current: JSON.stringify(saved) }, confirmInrcy: async () => { confirmed++; return outcome !== "cancel"; }, i18nT: (key: string) => key, formT: (key: string) => key,
+    const apply = bind<Apply>(source, { form, savedPreferencesSignatureRef: { current: JSON.stringify(saved) }, confirmInrcy: async () => { confirmed++; return outcome !== "cancel"; }, i18nT: catalogTranslator("settings"), formT: catalogTranslator("dashboard.aiMemory"),
       reset: () => { calls++; form = { ...initial }; }, setForm: (next: typeof form) => { calls++; form = next; }, setSaved: () => {}, setError: () => {}, onUnsavedChange: () => {} });
     assert.equal(await apply({ businessFormAction: action }, () => outcome !== "scope"), outcome === "apply"); assert.equal(confirmed, 1); assert.equal(calls, outcome === "apply" ? 1 : 0);
     assert.deepEqual(form, outcome === "apply" ? action === "reset" ? initial : saved : { timezone: "Europe/London", currency: "GBP" });
@@ -72,7 +77,7 @@ test("Basic native general preferences reset and discard protect dirty inputs an
 test("Basic native AI configuration reset and discard retain their own confirmation and restore only their native form", async () => {
   const file = "app/dashboard/settings/_components/AiConfigurationContent.tsx";
   let form: Record<string, unknown> = { language: "fr", tone: "edited" }, approved = false, live = true; const caches: unknown[][] = [];
-  const dependencies = { voiceBusy: false, activeUserIdRef: { current: accountId }, confirmInrcy: async () => approved, configurationT: (key: string) => key, memoryT: (key: string) => key,
+  const dependencies = { voiceBusy: false, activeUserIdRef: { current: accountId }, confirmInrcy: async () => approved, configurationT: catalogTranslator("dashboard.aiConfiguration"), memoryT: catalogTranslator("dashboard.aiMemory"),
     initialForm: { language: "fr", tone: "default" }, readDefaultAppLanguage: () => "en", formRef: { current: form }, setForm: (next: typeof form) => { form = next; }, setSaved: () => {}, setError: () => {}, writeAccountCacheValue: (...args: unknown[]) => caches.push(args), STORAGE_KEY: "configuration", AI_LANGUAGE_CUSTOM_STORAGE_KEY: "custom" };
   const reset = bind<(scope: () => boolean) => Promise<boolean>>(expression(file, "reset"), dependencies);
   assert.equal(await reset(() => live), false); assert.equal(caches.length, 0); approved = true; live = false; assert.equal(await reset(() => live), false); assert.equal(caches.length, 0);
@@ -87,7 +92,7 @@ test("Basic ADN discard invokes the visible tab cancellation and preserves other
     profileContentRef: { current: { cancelChanges: () => calls.push("profile") } }, activityContentRef: { current: { cancelChanges: () => calls.push("activity") } }, businessLocationRef: { current: { cancelChanges: () => calls.push("location") } },
     restoreAiMemoryDraft: () => calls.push("memory"), setProfileDirty: () => {}, setProfileDraftSignature: () => {}, setActivityDirty: () => {}, setActivityDraftSignature: () => {}, setLocationDirty: () => {}, setLocationDraftSignature: () => {}, failedAutoSaveSignatureRef: { current: "failed" }, setWorkspaceError: () => {}, setAutoSaveState: () => {} });
   let approved = false;
-  const apply = bind<Apply>(formOption(file, "apply"), { hasWorkspaceChanges: true, confirmInrcy: async () => approved, t: (key: string) => key, cancelActiveTabChanges: cancel });
+  const apply = bind<Apply>(formOption(file, "apply"), { hasWorkspaceChanges: true, confirmInrcy: async () => approved, t: catalogTranslator("dashboard.aiMemory"), cancelActiveTabChanges: cancel });
   assert.equal(await apply({ businessFormAction: "discard" }, () => true), false); assert.deepEqual(calls, []); approved = true;
   assert.equal(await apply({ businessFormAction: "discard" }, () => false), false); assert.deepEqual(calls, []);
   assert.equal(await apply({ businessFormAction: "discard" }, () => true), true); assert.deepEqual(calls, ["profile"]);
@@ -112,7 +117,7 @@ function resetFixture() {
   const dependencies = { voiceBusy: false, saving: false, workspaceSaving: false, documentUploadState: "idle", activeTab: "identity", activeTabDefinition: { label: "Identité" }, resetViewerRef,
     getActiveBrowserUserId: () => browser.accountId, setResetDialogTab: (tab: unknown) => dialogs.push(tab),
     confirmInrcy: async () => new Promise<boolean>(resolve => { release = resolve; }), setWorkspaceError: () => {}, setError: () => {}, hideNavigation: true,
-    t: (key: string) => key, fetch: async (url: string, init: RequestInit) => { requests.push({ url, body: JSON.parse(String(init.body)) }); return Response.json({ error: "scope_changed" }, { status: 409 }); }, apiErrorMessage: () => "scope_changed" };
+    t: catalogTranslator("dashboard.aiMemory"), fetch: async (url: string, init: RequestInit) => { requests.push({ url, body: JSON.parse(String(init.body)) }); return Response.json({ error: "scope_changed" }, { status: 409 }); }, apiErrorMessage: () => "scope_changed" };
   const reset = bind<(tab?: string, scope?: () => boolean) => Promise<boolean>>(expression("app/dashboard/settings/_components/AiMemoryContent.tsx", "resetCurrentTab"), dependencies);
   return { reset, requests, dialogs, docs, browser, resetViewerRef, release: (approved: boolean) => release(approved) };
 }

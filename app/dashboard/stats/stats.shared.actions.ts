@@ -234,7 +234,7 @@ export function recommendAction(cubeKey: CubeKey, ov: Overview, qualityScore: nu
   if (cubeKey === "x" && !ov?.sources?.x?.connected) {
     return {
       key: "connect",
-      title: "Connecter X",
+      title: t("stats_connect_x"),
       detail: t("stats_connect_channel_to_activate"),
       href: "/dashboard?panel=x",
       pill: t("connexion_a33c58f5"),

@@ -1,3 +1,4 @@
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
@@ -42,6 +43,7 @@ function uiHarness(mode: "guided" | "free", kind: "image" | "video") {
   let references: Array<Record<string, unknown>> = [];
   const setReferences = (update: (current: typeof references) => typeof references) => { references = update(references); };
   const context: Record<string, unknown> = {
+    getSafeClientErrorMessage: userFacingErrorsFixture.getClientUserFacingErrorMessage,
     ...policy, kind, Error, crypto: globalThis.crypto, MAX_INSPIRATION_IMAGES: 5, AI_MEDIA_INSPIRATION_MAX_COUNT: 5,
     inspirationImages: [], references: [], characterReferences: [], locked: false, transformMode: false, recoveryPending: false, pendingReferenceRole: "inspiration",
     sequence, operationInFlight: { current: false }, voiceModeIntent: { current: null }, voiceReferences: [],

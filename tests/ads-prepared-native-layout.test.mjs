@@ -1,3 +1,4 @@
+import { adsComponentModules } from "./helpers/ads-component-runtime.mts";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -12,7 +13,7 @@ const css = await readFile(new URL("../app/dashboard/ads/ads.module.css", import
 const settingsExports = {};
 new Function("exports", ts.transpileModule(await readFile(new URL("../lib/adsPreparedCampaignSettings.ts", import.meta.url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText)(settingsExports);
 const components = {};
-new Function("exports", "require", ts.transpileModule(await readFile(new URL("../app/dashboard/ads/PreparedAdsCampaignControls.tsx", import.meta.url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText)(components, (path) => path === "@/lib/adsPreparedCampaignSettings" ? settingsExports : path === "./ads.module.css" ? { default: new Proxy({}, { get: (_, key) => String(key) }) } : require(path));
+new Function("exports", "require", ts.transpileModule(await readFile(new URL("../app/dashboard/ads/PreparedAdsCampaignControls.tsx", import.meta.url), "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText)(components, (path) => path === "@/lib/adsPreparedCampaignSettings" ? settingsExports : path === "./ads.module.css" ? { default: new Proxy({}, { get: (_, key) => String(key) }) } : Object.hasOwn(adsComponentModules(), path) ? adsComponentModules()[path] : require(path));
 const noop = () => {};
 function fixture(channel, stage, compact) {
   const settings = settingsExports.defaultPreparedDeliverySettings("total");

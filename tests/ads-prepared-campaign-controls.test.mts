@@ -1,3 +1,4 @@
+import { adsComponentModules } from "./helpers/ads-component-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -14,9 +15,11 @@ function controls(hooks = false) {
   const runtimeModule = { exports: {} as Controls };
   let state: unknown;
   new Function("require", "module", "exports", compiled)((path: string) => {
+    const modules = adsComponentModules();
+    if (Object.hasOwn(modules, path)) return modules[path as keyof typeof modules];
     if (path === "@/lib/adsPreparedCampaignSettings") return settingsModule;
     if (path === "./ads.module.css") return { default: new Proxy({}, { get: (_, key) => String(key) }) };
-    if (hooks && path === "react") return { useState: (initial: unknown) => { if (state === undefined) state = initial; return [state, (next: unknown) => { state = next; }]; } };
+    if (hooks && path === "react") return { useMemo: (factory: () => unknown) => factory(), useState: (initial: unknown) => { if (state === undefined) state = initial; return [state, (next: unknown) => { state = next; }]; } };
     if (hooks && path === "react/jsx-runtime") return { jsx: (type: unknown, props: unknown) => ({ type, props }), jsxs: (type: unknown, props: unknown) => ({ type, props }) };
     return require(path);
   }, runtimeModule, runtimeModule.exports);

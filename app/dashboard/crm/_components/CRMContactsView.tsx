@@ -84,7 +84,7 @@ export default function CRMContactsView({
                       className={styles.checkbox}
                       checked={selectedContactIds.has(c.id)}
                       onChange={() => toggleSelect(c.id)}
-                      aria-label={i18nT("selectionner_value_b74d84aa", { value0: buildDisplayName(c) || "ce contact" })}
+                      aria-label={i18nT("selectionner_value_b74d84aa", { value0: buildDisplayName(c) || i18nT("contact_sans_nom_5b4b82fc") })}
                     />
                   </label>
 
@@ -103,7 +103,7 @@ export default function CRMContactsView({
                     type="button"
                     className={styles.mobileExpandBtn}
                     onClick={() => setExpandedMobileContactId((prev) => (prev === c.id ? null : c.id))}
-                    aria-label={isExpanded ? "Réduire le détail" : "Afficher le détail"}
+                    aria-label={isExpanded ? i18nT("reduire_le_detail_a42a9c5a") : i18nT("afficher_le_detail_3b75c3b3")}
                     aria-expanded={isExpanded ? "true" : "false"}
                   >
                     {isExpanded ? "−" : "+"}

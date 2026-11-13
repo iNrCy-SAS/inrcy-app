@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
 
@@ -503,9 +504,7 @@ export default function MediaOptimizerModal({
       return true;
     } catch (err) {
       setInsertionError(
-        err instanceof Error
-          ? err.message
-          : i18nT("optimizer_insertion_failed"),
+        getSafeClientErrorMessage(err, i18nT("optimizer_insertion_failed")),
       );
       setNotice(i18nT("copie_optimisee_creee_value_369694d0", { value0: retentionMessage }));
       return false;

@@ -4,19 +4,28 @@ export type AdsApiRequestError = Error & {
   status?: number;
 };
 
+/** Preserve response metadata for public-message classification and retry guards. */
+export function createAdsApiRequestError(payload: unknown, status: number): AdsApiRequestError {
+  const data = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+  const nested = data.error && typeof data.error === "object" ? data.error as Record<string, unknown> : {};
+  const message = String(data.error || "Le service est momentanément indisponible. Réessayez dans un instant.");
+  const error = new Error(
+    /migration|stockage|relation .* does not exist/i.test(message)
+      ? "L’enregistrement des campagnes sera bientôt disponible. Vous pouvez déjà préparer vos messages."
+      : message,
+    { cause: payload },
+  ) as AdsApiRequestError;
+  const code = data.error_code || data.code || data.errorCode || nested.error_code || nested.code || nested.errorCode;
+  error.code = typeof code === "string" ? code : undefined;
+  error.requestId = typeof data.requestId === "string" ? data.requestId : undefined;
+  error.status = status;
+  return error;
+}
+
 export async function readJson(response: Response) {
   const data = await response.json().catch(() => ({})) as Record<string, unknown>;
   if (!response.ok) {
-    const message = String(data.error || "Le service est momentanément indisponible. Réessayez dans un instant.");
-    const error = new Error(
-      /migration|stockage|relation .* does not exist/i.test(message)
-        ? "L’enregistrement des campagnes sera bientôt disponible. Vous pouvez déjà préparer vos messages."
-        : message,
-    ) as AdsApiRequestError;
-    error.code = typeof data.code === "string" ? data.code : undefined;
-    error.requestId = typeof data.requestId === "string" ? data.requestId : undefined;
-    error.status = response.status;
-    throw error;
+    throw createAdsApiRequestError(data, response.status);
   }
   return data;
 }

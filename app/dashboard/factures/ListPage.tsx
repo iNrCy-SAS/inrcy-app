@@ -189,7 +189,7 @@ function ListPage({ kind, title, ctaLabel, ctaHref }: Props) {
                         onClick={() => onDelete(d.id)}
                         className={styles.ghostBtn}
                         disabled={deletionLocked}
-                        title={deletionLocked ? "Une facture figée ne peut pas être supprimée." : undefined}
+                        title={deletionLocked ? i18nT("locked_invoice_delete_unavailable") : undefined}
                         style={deletionLocked ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
                       >
                         {deletionLocked ? i18nT("figee_ea278e77") : i18nT("supprimer_1acfc1c7")}

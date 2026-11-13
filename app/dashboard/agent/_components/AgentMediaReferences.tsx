@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 import MediaReferenceInputs from "../../_components/MediaReferenceInputs";
 import MediaLibraryPickerModal, { type MediaLibraryPickerItem } from "../../_components/MediaLibraryPickerModal";
 import { prepareMediaGenerationImageReference, prepareVideoReferenceFrame } from "@/lib/mediaGenerationReferenceClient";
@@ -23,6 +24,7 @@ export default function AgentMediaReferences(props: {
   onChange: (references: InrAgentMediaReferences) => void; onBusyChange: (busy: boolean) => void;
 }) {
   const t = useTranslations("agent");
+  const locale = useLocale();
   const mediaT = useTranslations("media");
   const value = props.value || emptyInrAgentMediaReferences();
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -64,11 +66,11 @@ export default function AgentMediaReferences(props: {
         const response = await fetch("/api/agent/media-references", { method: "POST", credentials: "same-origin", cache: "no-store",
           headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accountId, image }), signal: controller.signal });
         const payload = await response.json();
-        if (!response.ok || !payload.id) throw new Error(payload.error || t("media_references_error"));
+        if (!response.ok || !payload.id) throw new Error(getLocalizedErrorMessage({ ...payload, status: response.status }, locale, t("media_references_error")));
         added.push({ id: payload.id, name: image.name || file.name, role: "character", usage: "required" });
       }
     } catch (caught) {
-      if (!controller.signal.aborted && mountedRef.current) setError(caught instanceof Error ? caught.message : t("media_references_error"));
+      if (!controller.signal.aborted && mountedRef.current) setError(getLocalizedErrorMessage(caught, locale, t("media_references_error")));
     } finally {
       if (!controller.signal.aborted && mountedRef.current) {
         if (added.length) props.onChange({ version: 1, items: [...value.items, ...added], authorized: false, animationProviderConsent: null });

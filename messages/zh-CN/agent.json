@@ -908,5 +908,12 @@
   "automation_enable_confirm_yes": "是",
   "automation_enable_confirm_verify": "检查我的设置",
   "automation_enabled_notice": "自动化已启用。",
-  "automation_enable_unavailable": "启用自动化前，请检查渠道和设置。"
+  "automation_enable_unavailable": "启用自动化前，请检查渠道和设置。",
+  "settings_impact_affected_count": "当前计划中有 {count} 条帖子受到影响。最终决定权始终在您手中。",
+  "settings_impact_available_images": "{count, plural, =-1 {图片不限量} other {# 张图片}}",
+  "settings_impact_available_video_seconds": "{count, plural, =-1 {视频不限量} other {# 秒视频}}",
+  "settings_impact_horizon": "{days, plural, =30 {一个月内} one {# 天内} other {# 天内}}",
+  "settings_impact_lost_quotas": "立即应用会损失已使用的配额：{images} 个图片配额单位和 {videos} 个视频配额单位。",
+  "settings_impact_media_count": "{images, plural, one {# 张图片} other {# 张图片}} · {videos, plural, one {# 个视频} other {# 个视频}}（{seconds} 秒）",
+  "settings_impact_publications_count": "{count, plural, one {篇帖子} other {篇帖子}}"
 }

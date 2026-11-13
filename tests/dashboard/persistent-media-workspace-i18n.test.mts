@@ -1,3 +1,4 @@
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -16,6 +17,7 @@ function fixture(translate?: Translator, states: Record<string, State> = {}) {
   let refIndex = 0;
   const nativeCalls: string[] = [];
   const modules: Record<string, unknown> = {
+    "@/lib/userFacingErrors": userFacingErrorsFixture,
     react: {
       useState: (value: unknown) => [value, () => {}], useCallback: (callback: unknown) => callback, useEffect() {},
       useRef: (value: unknown) => ({ current: refIndex++ === 0 ? states : value }),

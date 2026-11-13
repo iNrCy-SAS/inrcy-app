@@ -301,7 +301,7 @@
   "creer_la_facture_d28b4fd5": "创建发票",
   "creer_une_campagne_e8dbeefe": "创建营销活动",
   "cta_11441d32": "计算机辅助技术协会",
-  "date_de_fin_716a6d8d": "End date",
+  "date_de_fin_716a6d8d": "结束日期",
   "date_eb9a4bc1": "日期",
   "date_heure_12c2d703": "日期 / 时间",
   "deconnectee_0f5dae32": "已断开连接",
@@ -979,7 +979,7 @@
   "tres_grand_600_px_c870fb51": "非常大（600 像素）",
   "type_3deb7456": "类型",
   "type_de_campagne_70f9fad7": "广告系列类型",
-  "type_de_media_f54aeeae": "Media type",
+  "type_de_media_f54aeeae": "媒体类型",
   "typologie_3b7e8267": "类型学",
   "typologie_du_mail_09972fbd": "电子邮件类型",
   "une_confirmation_sera_demandee_avant_l_5e7f4ea1": "发送前将要求确认。保障措施、配额和自动恢复将保持有效。",
@@ -1053,5 +1053,10 @@
   "x_forbidden_url": "X 不支持此链接格式。请使用 HTTP 或 HTTPS 链接。",
   "youtube_3f8b5798": "YouTube：",
   "youtube_558865a1": "YouTube",
-  "zones_ciblees_09e322f6": "目标区域"
+  "zones_ciblees_09e322f6": "目标区域",
+  "editor_expand": "放大",
+  "editor_expand_label": "放大编辑器",
+  "editor_fullscreen_label": "全屏消息编辑器",
+  "editor_shrink": "缩小",
+  "editor_shrink_label": "缩小编辑器"
 }

@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { useTranslations } from "next-intl";
 
-import { getSimpleFrenchApiError, getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getClientUserFacingApiError as getSimpleFrenchApiError, getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 
 export function useReferralForm() {
+  const t = useTranslations("shell");
   const [referralName, setReferralName] = useState("");
   const [referralPhone, setReferralPhone] = useState("");
   const [referralEmail, setReferralEmail] = useState("");
@@ -20,7 +22,7 @@ export function useReferralForm() {
     const from = referralFrom.trim();
 
     if (!name || !phone || !email || !from) {
-      setReferralError("Merci de remplir tous les champs.");
+      setReferralError(t("referral_required_fields"));
       return;
     }
 
@@ -39,17 +41,17 @@ export function useReferralForm() {
       if (!res.ok || !json?.ok) {
         throw new Error(await getSimpleFrenchApiError(res));
       }
-      setReferralNotice("Merci, votre recommandation a bien été envoyée à l’équipe iNrCy.");
+      setReferralNotice(t("referral_sent_notice"));
       setReferralName("");
       setReferralPhone("");
       setReferralEmail("");
       setReferralFrom("");
     } catch (e: unknown) {
-      setReferralError(getSimpleFrenchErrorMessage(e, "Impossible d’envoyer la recommandation pour le moment."));
+      setReferralError(getSimpleFrenchErrorMessage(e, t("referral_send_failed")));
     } finally {
       setReferralSubmitting(false);
     }
-  }, [referralEmail, referralFrom, referralName, referralPhone]);
+  }, [referralEmail, referralFrom, referralName, referralPhone, t]);
 
   return {
     referralName,

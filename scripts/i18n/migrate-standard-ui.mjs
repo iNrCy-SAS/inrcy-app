@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { directConditionalUiLiteral } from "./ui-text-boundaries.mjs";
 
 import { STANDARD_I18N_TARGETS } from "./standard-scope.mjs";
 import { APPLICATION_I18N_TARGETS } from "./application-scope.mjs";
@@ -11,6 +12,8 @@ const write = process.argv.includes("--write");
 const catalogOnly = process.argv.includes("--catalog-only");
 const listRemaining = process.argv.includes("--list-remaining");
 const listHardcoded = process.argv.includes("--list-hardcoded");
+const uiOnly = process.argv.includes("--ui-only");
+const onlyTarget = process.argv.find((argument) => argument.startsWith("--target="))?.slice("--target=".length).replaceAll("\\", "/").replace(/\/+$/, "");
 const onlyNamespace = process.argv.find((argument) => argument.startsWith("--module="))?.split("=")[1];
 const scope = process.argv.find((argument) => argument.startsWith("--scope="))?.split("=")[1] || "standard";
 
@@ -27,6 +30,10 @@ const uiAttributes = new Set([
   "placeholder",
   "alt",
   "label",
+  "subtitle",
+  "description",
+  "hint",
+  "caption",
   "helperText",
   "emptyText",
 ]);
@@ -124,32 +131,6 @@ function callName(expression) {
   if (ts.isIdentifier(expression)) return expression.text;
   if (ts.isPropertyAccessExpression(expression)) return expression.name.text;
   return "";
-}
-
-function directConditionalUiLiteral(node) {
-  let current = node;
-  while (current.parent) {
-    const parent = current.parent;
-    if (ts.isJsxExpression(parent)) return !ts.isJsxAttribute(parent.parent);
-    if (ts.isParenthesizedExpression(parent)) {
-      current = parent;
-      continue;
-    }
-    if (ts.isConditionalExpression(parent) && (parent.whenTrue === current || parent.whenFalse === current)) {
-      current = parent;
-      continue;
-    }
-    if (
-      ts.isBinaryExpression(parent) &&
-      parent.right === current &&
-      [ts.SyntaxKind.BarBarToken, ts.SyntaxKind.QuestionQuestionToken, ts.SyntaxKind.AmpersandAmpersandToken].includes(parent.operatorToken.kind)
-    ) {
-      current = parent;
-      continue;
-    }
-    return false;
-  }
-  return false;
 }
 
 function functionName(node) {
@@ -338,7 +319,7 @@ function collectCandidates(source) {
 
     if (
       (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateExpression(node)) &&
-      directConditionalUiLiteral(node)
+      directConditionalUiLiteral(node, isUiAttribute)
     ) {
       addCandidate(found, node, "jsx-expression", source);
     }
@@ -421,7 +402,7 @@ function migrateFile(file, namespace, catalog, registeredSources) {
     true,
     file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
-  const candidates = collectCandidates(source);
+  const candidates = collectCandidates(source).filter(candidate => !uiOnly || candidate.kind.startsWith("jsx-") || candidate.kind.startsWith("attr:"));
   if (!listRemaining) {
     for (const candidate of candidates) {
       catalog[messageKey(candidate.message)] = candidate.message;
@@ -489,7 +470,10 @@ for (const [namespace, targets] of Object.entries(modules)) {
     ? JSON.parse(fs.readFileSync(destination, "utf8"))
     : {};
   const registeredSources = new Set(Object.values(catalog).map(normalizeText));
-  const files = [...new Set(targets.flatMap((target) => walkFiles(path.join(root, target))))];
+  const files = [...new Set(targets.flatMap((target) => walkFiles(path.join(root, target))))].filter(file => {
+    const relative = path.relative(root, file).replaceAll("\\", "/");
+    return !onlyTarget || relative === onlyTarget || relative.startsWith(`${onlyTarget}/`);
+  });
   let migrated = 0;
   let skipped = 0;
   let changedFiles = 0;
@@ -517,7 +501,7 @@ for (const [namespace, targets] of Object.entries(modules)) {
   };
 }
 
-console.log(JSON.stringify({ write, catalogOnly, listRemaining, listHardcoded, scope, report }, null, 2));
+console.log(JSON.stringify({ write, catalogOnly, listRemaining, listHardcoded, uiOnly, onlyTarget, scope, report }, null, 2));
 if (listRemaining && Object.values(report).some((entry) => entry.unregisteredOccurrences > 0)) {
   process.exitCode = 1;
 }

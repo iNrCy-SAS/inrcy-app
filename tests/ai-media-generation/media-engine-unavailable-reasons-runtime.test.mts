@@ -1,3 +1,4 @@
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
 import assert from "node:assert/strict";
@@ -42,6 +43,7 @@ function load<T>(path: string, modules: Map<string, unknown>): T {
   const record = { exports: {} as T };
   new Function("module", "exports", "require", output)(record, record.exports, (specifier: string) => {
     if (specifier.endsWith("useInrAssistantLocalInterface")) return { useInrAssistantLocalInterface() {} };
+    if (specifier === "@/lib/userFacingErrors") return userFacingErrorsFixture;
     if (specifier === "@/lib/inrAssistantStudioFormSelection") return studioForm;
     if (specifier === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => null };
     if (specifier === "@/lib/studioInspirationImagePolicy") return inspirationImagePolicy;

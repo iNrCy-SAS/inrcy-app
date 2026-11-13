@@ -1576,7 +1576,7 @@
     "sourceFiles": [
       "app/dashboard/agent/_components/AgentActionModals.tsx"
     ],
-    "sourceAnchor": "<div data-inrcy-tool-overlay className={styles.modalBackdrop} role=\"presentation\" onClick={onClose}>\n      <section data-inrcy-tool-dialog\n        className={`${styles.settingsModal} ${styles.scheduleModal}`}\n        role=\"dialog\"\n        a",
+    "sourceAnchor": "<div data-inrcy-tool-overlay ref={backdropRef} className={styles.modalBackdrop} role=\"presentation\" inert={suspended || undefined} aria-hidden={suspended || undefined} onClick={() => { if (!suspended) onClose(); }}>\n    ",
     "capabilityId": "navigation.local-controls",
     "toolNames": [
       "controlLocalInterface"
@@ -1588,7 +1588,7 @@
     ],
     "testAnchor": "Basic planning month and day ports execute native controls only after their rendered commit",
     "controlIds": [
-      "app/dashboard/agent/_components/AgentActionModals.tsx#div:120a293f05df6146:4"
+      "app/dashboard/agent/_components/AgentActionModals.tsx#div:9fd912f6666b3f3c:1"
     ],
     "notes": "Pilote planning_calendar/planning_day : vrais callbacks mois/jour exact visible et fermeture, ACK après commit. Aucun contenu changé, publication ni choix de catégorie payante. Contrôle natif AgentScheduleModal ; restrictions du compte et de l’offre conservées."
   },
@@ -1751,7 +1751,7 @@
     ],
     "testAnchor": "rescheduling and cancellation change only native scheduling fields after exact approval and recover without duplication",
     "controlIds": [
-      "app/dashboard/agent/_components/AgentActionModals.tsx#button:ad32aa935bce94f2:1"
+      "app/dashboard/agent/_components/AgentActionModals.tsx#button:c00c6791790432bf:1"
     ],
     "notes": "Équivalent serveur disponible ; il ne prouve pas l’activation de ce contrôle dans l’écran monté. Replanifier ou annuler la programmation manuelle exacte via aperçu signé ; version, état non commencé et droit Basic revérifiés. Contrôle natif AgentScheduleModal ; restrictions du compte et de l’offre conservées."
   },
@@ -1787,7 +1787,7 @@
     "sourceFiles": [
       "app/dashboard/agent/_components/AgentActionModals.tsx"
     ],
-    "sourceAnchor": "<summary>{i18nT(\"planning_actions_menu\")}</summary>",
+    "sourceAnchor": "<summary><span>{i18nT(\"planning_actions_menu\")}</span></summary>",
     "capabilityId": "navigation.local-controls",
     "toolNames": [
       "controlLocalInterface"

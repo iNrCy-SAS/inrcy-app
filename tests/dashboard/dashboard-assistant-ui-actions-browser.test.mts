@@ -10,6 +10,7 @@ import { getInrAssistantDocumentPrefillNavigation, type InrAssistantDocumentPref
 import { inrAssistantUiActionsFromToolResult, type InrAssistantUiAction, type InrAssistantUiResult } from "../../lib/inrAssistantUiActions.ts";
 import { inrAssistantUiSteps, inrAssistantUiStepResult, rebindInrAssistantUiStep } from "../../lib/inrAssistantUiTask.ts";
 import type { InrAssistantClientScreen } from "../../lib/inrAssistantClientContext.ts";
+import { browserCatalogRuntime } from "../helpers/browser-catalog-runtime.mts";
 
 type UiFixture = Window & {
   documentPrefill?: InrAssistantDocumentPrefill;
@@ -71,11 +72,15 @@ function clientLibSources(entry: string, output: Record<string, string> = {}) {
   const ast = ts.createSourceFile(file, raw, ts.ScriptTarget.Latest, true);
   for (const node of ast.statements) if (ts.isImportDeclaration(node) && !node.importClause?.isTypeOnly && ts.isStringLiteral(node.moduleSpecifier)) {
     const name = node.moduleSpecifier.text;
-    if (name.startsWith('./') && name.endsWith('.ts')) clientLibSources(name.slice(2, -3), output);
+    if (name.startsWith('@/lib/')) clientLibSources(name.slice(6), output);
+    else if (name.startsWith('./') || name.startsWith('../')) clientLibSources(path.posix.normalize(path.posix.join(path.posix.dirname(entry), name)).replace(/\.ts$/, ""), output);
   }
   return output;
 }
 const sources = {
+  "./useAdsErrorMessage": compile("app/dashboard/ads/useAdsErrorMessage.ts"),
+  "./adsPublicErrorMessages": compile("app/dashboard/ads/adsPublicErrorMessages.ts"),
+  ...clientLibSources("userFacingErrors"),
   react: packageSource("react", "react.production.js"), "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   "react-dom": packageSource("react-dom", "react-dom.production.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.production.js"), scheduler: packageSource("scheduler", "scheduler.production.js"),
   provider: compile("app/dashboard/_components/DashboardAssistantProvider.tsx"),
@@ -116,6 +121,7 @@ const sources = {
 };
 const A = "11111111-1111-4111-8111-111111111111", B = "22222222-2222-4222-8222-222222222222";
 const fixture = `
+${browserCatalogRuntime(["dashboard", "shell", "booster", "mails", "public"])}
 const sources=${JSON.stringify(sources)},loaded={};
 window.fixtureScope={actor:'actor-a',account:'account-a',pathname:location.pathname,query:location.search.includes('new=1')?'':'saveId=${A}',documentId:location.search.includes('new=1')?'':'${A}',selectedMediaIds:['${A}','${B}'],text:'Private form text'};
 window.exports=[];window.pdfBuilds=[];window.requests=[];window.allowNavigation=true;window.deferNavigation=true;
@@ -128,13 +134,12 @@ function require(name){
  if(name==='../../_hooks/useInrAssistantVisibleControl')return require('../_hooks/useInrAssistantVisibleControl');
  if(name==='../../_components/MediaSubjectVoiceButton')return {__esModule:true,default:()=>null};
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
- if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:()=>key=>key};
+ if(name==='next-intl')return fixtureIntl;
  if(name==='next/navigation')return {usePathname:()=>window.fixtureScope.pathname,useSearchParams:()=>new URLSearchParams(window.fixtureScope.query),useRouter:()=>router};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.fixtureScope.account,readAccountCacheValue:()=>null,writeAccountCacheValue(){}};
  if(name==='./DashboardEditionProvider')return {useDashboardEdition:()=> 'basic'};
  if(name==='../_hooks/useDashboardI18n')return {useDashboardI18n:()=>new Proxy({},{get:()=>new Proxy({},{get:(_,key)=>String(key)})})};
  if(name==='@/lib/inrcyDialog')return {confirmInrcy:async()=>false};
- if(name==='@/lib/userFacingErrors')return {getSimpleFrenchApiError:async()=> 'Native feed refused',getSimpleFrenchErrorMessage:()=> 'Native feed refused'};
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
  if(name==='@/lib/supabaseClient')return {createClient:()=>({auth:{onAuthStateChange(callback){window.authCallback=callback;return {data:{subscription:{unsubscribe(){}}}}}}})};
  if(name==='../_components/DashboardViewerAccessProvider')return require('./DashboardViewerAccessProvider');
@@ -211,6 +216,7 @@ function NativeLibrary(){
  return React.createElement('output',{id:'optimization-state'},JSON.stringify(assistantOptimization));
 }
 function AdsDraft(){
+ const errorMessage=require('./useAdsErrorMessage').useAdsErrorMessage(),i18nT=fixtureIntl.useTranslations('booster');
  const[draft,setDraft]=React.useState(()=>require('@/lib/adsValidation').parseAdsCampaignInput({provider:'meta',accountCurrency:'EUR',dailyBudgetEuros:20,endDate:'2026-12-30',name:'Original campaign',primaryText:'Original text'},{purpose:'draft'}).draft),[dirty,setDirty]=React.useState(false),[confirmedSpend,setConfirmedSpend]=React.useState(true),[step,setStep]=React.useState(0);
  const channelId='meta',creating=true,creationPath='manual',stepKeys=['foundations','creative','budget'];
  const [savedId,setSavedId]=React.useState(window.fixtureScope.documentId),[operationBusy,setBusy]=React.useState(null);
@@ -258,6 +264,7 @@ function VideoDraft(){
  return React.createElement('output',{id:'native-state'},JSON.stringify(window.nativeState));
 }
 function ImageDraft(){
+ const i18nT=fixtureIntl.useTranslations('shell'),getSafeClientErrorMessage=require('@/lib/userFacingErrors').getClientUserFacingErrorMessage;
  const [source,setSource]=React.useState(null),[transform,setTransform]=React.useState({fit:'contain',zoom:1,offsetX:0,offsetY:0,backgroundMode:'white',backgroundColor:'#ffffff'}),[saved,setSaved]=React.useState(false),[saving,setSaving]=React.useState(false);
  const savedCopy=React.useRef(null),baselineRef=React.useRef(null),initialSourceLoading=false,loadingSource=false,acceptMode='library',cloneTransform=value=>JSON.parse(JSON.stringify(value)),setError=()=>{};
  const loadInrAssistantLibraryImage=async(id,stillCurrent)=>{window.imageLoads=(window.imageLoads||[]).concat(id);if(window.deferImageLoad)await new Promise(resolve=>window.releaseImageLoad=resolve);return stillCurrent()?{id}:null};
@@ -277,7 +284,7 @@ function MailDraft(){
  const draftId=window.fixtureScope.documentId,composeOpen=true,sendBusy=Boolean(window.fixtureScope.blocked),scheduleBusy=false,attachBusy=false,scheduledMailEditSaving=false,scheduledMailEdit=null;
  const currentComposeSnapshot=JSON.stringify({to,subject,text,html,composeAttachments});
  const [lastSavedComposeSnapshot,setLastSavedComposeSnapshot]=React.useState(null),[assistantScheduleOpen,setAssistantScheduleOpen]=React.useState(false),[consumed,setConsumed]=React.useState(false);
- const assistantComposeConsumed=consumed,composeType='mail',setToast=()=>{},i18nT=value=>value,getClientUserFacingErrorMessage=()=>'';
+ const assistantComposeConsumed=consumed,composeType='mail',setToast=()=>{},i18nT=fixtureIntl.useTranslations('mails'),getClientUserFacingErrorMessage=require('@/lib/userFacingErrors').getClientUserFacingErrorMessage;
  const saveDraft=async execution=>{execution.started();window.mailSaves=(window.mailSaves||0)+1;if(window.deferMailSave)await new Promise(resolve=>window.releaseMailSave=resolve);if(!execution.isCurrent())return;execution.accepted('saved');setLastSavedComposeSnapshot(currentComposeSnapshot)};
  const assistantMailControls={current:{send:async execution=>{window.mailConfirmations=(window.mailConfirmations||0)+1;if(window.deferMailSend)await new Promise(resolve=>window.releaseMailSend=resolve);if(!execution.isCurrent()||window.refuseMail)return;execution.started();window.mailSends=(window.mailSends||0)+1;execution.accepted('accepted');setConsumed(true)}}};
  const useInrAssistantMailCommands=require('mail-native').useInrAssistantMailCommands;
@@ -824,7 +831,8 @@ test("Ads cross-tab conflict preserves this form edits and its opened baseline w
     assert.equal(await page.evaluate("window.nativeState.dirty"), true);
     assert.equal(await page.evaluate("window.requests.length"), 1);
     assert.match(await page.evaluate("JSON.parse(window.requests[0].body).expectedDraftHash"), /^[a-f0-9]{64}$/);
-    assert.match(await page.evaluate("window.adsNotice"), /Other tab/);
+    assert.match(await page.evaluate("window.adsNotice"), /brouillon|enregistr|réessay/i);
+    assert.doesNotMatch(await page.evaluate("window.adsNotice"), /Other tab/);
   } finally { await browser.close(); }
 });
 

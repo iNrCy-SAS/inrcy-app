@@ -14,7 +14,7 @@ import {
   normalizeAppLanguage,
   type AppLanguageCode,
 } from "@/lib/appLanguage";
-import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import AppAppearancePicker from "./AppAppearancePicker";
 import { DEFAULT_GENERAL_PREFERENCES, parseGeneralPreferencesPatch } from "@/lib/generalPreferences";
 import { useInrAssistantRefresh } from "../../_hooks/useInrAssistantRefresh";

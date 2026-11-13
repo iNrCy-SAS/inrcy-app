@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
+import { getAiEnginePresentation } from "./aiEnginePresentation";
 
 
 import { useEffect, useRef } from "react";
@@ -138,8 +139,9 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
             onClick={onClose}
             aria-label={i18nT("fermer_les_informations_sur_les_moteurs_a6165e55")}
             style={{
-              width: 34,
-              height: 34,
+              width: 44,
+              height: 44,
+              flexShrink: 0,
               borderRadius: 999,
               border: "1px solid rgba(255,255,255,0.14)",
               background: "rgba(255,255,255,0.08)",
@@ -167,6 +169,7 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
         <div style={{ display: "grid", gap: 8 }}>
           {AI_ENGINE_OPTIONS.map((option) => {
             const active = option.value === activeOption.value;
+            const copy = getAiEnginePresentation(i18nT, option.value);
             return (
               <div
                 key={option.value}
@@ -202,7 +205,7 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
                         whiteSpace: "nowrap",
                       }}
                     >
-                      actif
+                      {i18nT("engine_active")}
                     </span>
                   ) : null}
                 </div>
@@ -213,7 +216,7 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
                     lineHeight: 1.35,
                   }}
                 >
-                  {option.naturalTendency}
+                  {copy.tendency}
                 </div>
                 <div
                   style={{
@@ -222,7 +225,7 @@ export default function AiEngineInfoModal({ open, activeEngine, onClose }: Props
                     lineHeight: 1.35,
                   }}
                 >
-                  {i18nT("ideal_pour_value_048201f3", { value0: option.bestFor })}</div>
+                  {i18nT("ideal_pour_value_048201f3", { value0: copy.bestFor })}</div>
               </div>
             );
           })}

@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
 import {
@@ -404,7 +405,7 @@ export default function MediaModifier({
         return;
       }
       setActionError(
-        caught instanceof Error ? caught.message : t("ai_generator_error"),
+        getSafeClientErrorMessage(caught, t("ai_generator_error")),
       );
     } finally {
       setSourceBusy(false);
@@ -428,7 +429,7 @@ export default function MediaModifier({
       else await retryRecovery();
     } catch (caught) {
       if (!(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
-        setActionError(caught instanceof Error ? caught.message : t("ai_generator_error"));
+        setActionError(getSafeClientErrorMessage(caught, t("ai_generator_error")));
       }
     } finally {
       recoveryInFlightRef.current = false;
@@ -462,7 +463,7 @@ export default function MediaModifier({
     } catch (caught) {
       if (caught instanceof MediaGenerationAccountChangedError) return;
       setActionError(
-        caught instanceof Error ? caught.message : t("ai_generator_error"),
+        getSafeClientErrorMessage(caught, t("ai_generator_error")),
       );
     } finally {
       acceptInFlightRef.current = false;
@@ -489,7 +490,7 @@ export default function MediaModifier({
     } catch (caught) {
       if (caught instanceof MediaGenerationAccountChangedError) return;
       setActionError(
-        caught instanceof Error ? caught.message : t("ai_generator_error"),
+        getSafeClientErrorMessage(caught, t("ai_generator_error")),
       );
     } finally {
       acceptInFlightRef.current = false;

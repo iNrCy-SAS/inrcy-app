@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { assertUiCopy } from "../helpers/ui-copy-contract.mjs";
 import { PUBLISH_CHANNEL_IDENTITY } from "../../app/dashboard/booster/publier/components/publishChannelIdentity.ts";
 
 import {
@@ -78,8 +79,11 @@ test("Booster keeps forbidden X URLs visible and blocks only X", () => {
     /Ne jamais la retirer silencieusement[\s\S]*?key === "x"[\s\S]*?normalizePost\(prepared\[key\]\)/,
   );
   assert.match(editor, /data-x-url-blocker="true"/);
-  assert.match(editor, /Retirer le lien du CTA/);
-  assert.match(editor, /X est bloqué : corrigez le format de lien détecté/);
+  assert.match(editor, /const i18nT = useTranslations\("booster"\)/);
+  assert.match(editor, /\{i18nT\("retirer_le_lien_du_cta_754fb2a5"\)\}/);
+  assert.match(editor, /xUrlBlocked\s*\? i18nT\("editor_x_link_format_blocked"\)/);
+  assertUiCopy("booster", "retirer_le_lien_du_cta_754fb2a5", "Retirer le lien du CTA");
+  assertUiCopy("booster", "editor_x_link_format_blocked", "X est bloqué : corrigez le format de lien détecté.");
   assert.match(prompt, /X — RÈGLE TECHNIQUE PRIORITAIRE/);
   assert.match(prompt, /Les liens HTTP\(S\) fournis sont acceptés/);
   assert.doesNotMatch(prompt, /Ne propose jamais de CTA Site/);

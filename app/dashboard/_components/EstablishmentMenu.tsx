@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 import { purgeAllBrowserAccountCaches, setActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { switchActiveInrcyAccount } from "@/lib/multicompte/client";
 import { getAvailableEstablishmentSlots } from "@/lib/multicompte/normalize";
@@ -178,15 +179,15 @@ export default function EstablishmentMenu({
     try {
       const response = await fetch("/api/multicompte/accounts", { cache: "no-store", credentials: "include" });
       const json = await response.json().catch(() => null) as MenuPayload | null;
-      if (!response.ok || !json?.ok) throw new Error(json?.error || "Chargement impossible.");
+      if (!response.ok || !json?.ok) throw new Error(getLocalizedErrorMessage({ ...json, status: response.status }, language));
       setPayload(json);
       setReadVersion(previous => previous + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Chargement impossible.");
+      setError(getLocalizedErrorMessage(err, language));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [language]);
 
   useEffect(() => {
     if (!open) return;
@@ -235,7 +236,7 @@ export default function EstablishmentMenu({
         await switchActiveInrcyAccount(accountId);
         window.location.reload();
       } catch (err) {
-        setError(err instanceof Error ? err.message : copy.switchError);
+        setError(getLocalizedErrorMessage(err, language, copy.switchError));
         setSwitchingId(null);
       }
     };
@@ -267,14 +268,14 @@ export default function EstablishmentMenu({
       });
       const json = await response.json().catch(() => null) as MenuPayload | null;
       if (!response.ok || !json?.ok || !json.activeUserId) {
-        throw new Error(json?.error || "Création impossible.");
+        throw new Error(getLocalizedErrorMessage({ ...json, status: response.status }, language));
       }
 
       purgeAllBrowserAccountCaches();
       setActiveBrowserUserId(json.activeUserId);
       window.location.reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Création impossible.");
+      setError(getLocalizedErrorMessage(err, language));
       setCreating(false);
     }
   };

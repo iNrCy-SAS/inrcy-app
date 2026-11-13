@@ -550,5 +550,6 @@
   "visibility_index_tracking_hint": "Das erste Diagramm wird nach einem Monat gespeicherter Werte freigeschaltet.",
   "visibility_index_recording_method": "Jeden Tag wird ein Wert mit den an diesem Tag verfügbaren Daten gespeichert. Frühere Werte werden nie mit aktuellen Zahlen neu berechnet. Tage ohne Erfassung bleiben leer. Jeder Zeitraum erfordert ausreichend aktuelle Verlaufsdaten.",
   "visibility_index_rewards_method": "Jeder Meilenstein vergibt einmalig im Shop nutzbare Trägheitseinheiten. Basisboni: 50 / 100 / 200 / 500 UI. Tarif-Faktor bei Freischaltung: Basic ×0,5, Standard ×1, Premium ×1,5. Ein Tarifwechsel vergütet bereits erreichte Meilensteine nicht erneut.",
-  "visibility_index_rewards_history_method": "Verfügbare historische Statistiken können Meilensteine älterer Konten rückwirkend freischalten. Frühere Indexwerte werden dadurch nicht rekonstruiert."
+  "visibility_index_rewards_history_method": "Verfügbare historische Statistiken können Meilensteine älterer Konten rückwirkend freischalten. Frühere Indexwerte werden dadurch nicht rekonstruiert.",
+  "stats_connect_x": "X verbinden"
 }

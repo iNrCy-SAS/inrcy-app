@@ -1,4 +1,6 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
+import { getClientUserFacingApiError } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
 import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
@@ -106,8 +108,7 @@ function statusPresentation(subscription: SubscriptionData | null, i18nT: (key: 
 }
 
 async function responseError(response: Response, fallback: string): Promise<string> {
-  const body = (await response.json().catch(() => null)) as { error?: string } | null;
-  return body?.error || fallback;
+  return getClientUserFacingApiError(response, fallback);
 }
 
 export default function StandardSubscriptionContent({ onOpenContact }: Props) {
@@ -209,9 +210,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       .catch((caught) => {
         if (!active) return;
         setStorePriceError(
-          caught instanceof Error
-            ? caught.message
-            : i18nT("premium_store_prices_unavailable"),
+          getSafeClientErrorMessage(caught, i18nT("premium_store_prices_unavailable")),
         );
       });
 
@@ -226,9 +225,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       .catch((caught) => {
         if (!active) return;
         setPremiumStorePriceError(
-          caught instanceof Error
-            ? caught.message
-            : i18nT("premium_store_prices_unavailable"),
+          getSafeClientErrorMessage(caught, i18nT("premium_store_prices_unavailable")),
         );
       });
 
@@ -374,7 +371,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       if (!body.url) throw new Error("Le portail de facturation n’a pas pu être ouvert.");
       window.location.assign(body.url);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Le portail de facturation est indisponible.");
+      setError(getSafeClientErrorMessage(caught, i18nT("errors_billing_portal")));
     } finally {
       setBusyAction(null);
     }
@@ -405,7 +402,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
         await loadSubscription();
       }
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Le paiement est momentanément indisponible.");
+      setError(getSafeClientErrorMessage(caught, i18nT("errors_billing_payment")));
     } finally {
       setBusyAction(null);
     }
@@ -433,7 +430,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       }
       setUpgradeQuote(body.quote);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : i18nT("premium_plan_change_unavailable"));
+      setError(getSafeClientErrorMessage(caught, i18nT("premium_plan_change_unavailable")));
     } finally {
       setBusyAction(null);
     }
@@ -479,7 +476,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       }
       setMessage(i18nT("subscription_change_reload"));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : i18nT("premium_plan_change_unavailable"));
+      setError(getSafeClientErrorMessage(caught, i18nT("premium_plan_change_unavailable")));
     } finally {
       setBusyAction(null);
     }
@@ -556,7 +553,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           })
         : i18nT("premium_downgrade_canceled_message"));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : i18nT("premium_plan_change_unavailable"));
+      setError(getSafeClientErrorMessage(caught, i18nT("premium_plan_change_unavailable")));
     } finally {
       setBusyAction(null);
     }
@@ -570,7 +567,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       try {
         await openNativeSubscriptionManagement(view.billingProvider);
       } catch (caught) {
-        setError(caught instanceof Error ? caught.message : "Le magasin d’applications est indisponible.");
+        setError(getSafeClientErrorMessage(caught, i18nT("errors_billing_store")));
       } finally {
         setBusyAction(null);
       }
@@ -596,7 +593,7 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
           : "Votre résiliation a été annulée.",
       );
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "L’abonnement n’a pas pu être mis à jour.");
+      setError(getSafeClientErrorMessage(caught, i18nT("errors_subscription_update")));
     } finally {
       setBusyAction(null);
     }

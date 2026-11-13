@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import type { GoogleBusinessCategories, GoogleBusinessCategory } from "@/lib/googleBusinessProfile";
 import styles from "./GoogleBusinessProfileEditor.module.css";
@@ -47,7 +48,7 @@ export function GoogleBusinessCategoryPicker({ context, value, label, disabled, 
           setNextPageToken(data.nextPageToken || null);
           setActiveIndex(-1);
         } catch (caught) {
-          if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : t("error"));
+          if (!controller.signal.aborted) setError(getLocalizedErrorMessage(caught, locale, t("error")));
         } finally { if (!controller.signal.aborted) setLoading(false); }
       })();
     }, 300);

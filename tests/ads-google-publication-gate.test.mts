@@ -1,3 +1,4 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -17,7 +18,7 @@ function actualFunction(name: string, scope: Record<string, unknown>) {
   visit(source);
   assert.ok(declaration, `${name} must exist`);
   const compiled = ts.transpileModule(declaration.getText(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-  return new Function(...Object.keys(scope), `${compiled}\nreturn ${name};`)(...Object.values(scope));
+  return new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn ${name};`)(...Object.values(withAdsRuntime(scope)));
 }
 
 const accountId = "1234567890";

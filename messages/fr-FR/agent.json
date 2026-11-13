@@ -908,5 +908,12 @@
   "automation_enable_confirm_yes": "Oui",
   "automation_enable_confirm_verify": "Vérifier mes réglages",
   "automation_enabled_notice": "Automatisation activée.",
-  "automation_enable_unavailable": "Vérifiez les canaux et les réglages avant d’activer l’automatisation."
+  "automation_enable_unavailable": "Vérifiez les canaux et les réglages avant d’activer l’automatisation.",
+  "settings_impact_affected_count": "{count, plural, one {# publication du planning actuel est concernée. Vous gardez toujours le dernier mot.} other {# publications du planning actuel sont concernées. Vous gardez toujours le dernier mot.}}",
+  "settings_impact_available_images": "{count, plural, =-1 {Images illimitées} one {# image} other {# images}}",
+  "settings_impact_available_video_seconds": "{count, plural, =-1 {Vidéo illimitée} other {# s de vidéo}}",
+  "settings_impact_horizon": "{days, plural, =30 {sur un mois} one {sur # jour} other {sur # jours}}",
+  "settings_impact_lost_quotas": "En appliquant maintenant, vous perdez les quotas déjà consommés : {images, plural, one {# quota image} other {# quotas image}} et {videos, plural, one {# quota vidéo} other {# quotas vidéo}}.",
+  "settings_impact_media_count": "{images, plural, one {# image} other {# images}} · {videos, plural, one {# vidéo} other {# vidéos}} ({seconds} s)",
+  "settings_impact_publications_count": "{count, plural, one {publication} other {publications}}"
 }

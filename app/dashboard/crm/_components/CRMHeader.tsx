@@ -232,7 +232,7 @@ export default function CRMHeader({
                 onClick={() => setExportOpen((prev) => !prev)}
                 disabled={saving || loading || Boolean(exportingFormat) || total === 0}
                 aria-expanded={exportOpen ? "true" : "false"}
-                title={loading ? "Chargement des contacts" : total === 0 ? "Aucun contact à exporter" : "Choisir le format d’export"}
+                title={loading ? i18nT("chargement_des_contacts_558c9dc1") : total === 0 ? i18nT("aucun_contact_a_exporter_bf5a9807") : i18nT("choisir_le_format_d_export_cb81d35a")}
               >
                 {exportingFormat ? i18nT("export_0a116345") : i18nT("exporter_0cd84bdc")} <span className={styles.caret}>▾</span>
               </button>

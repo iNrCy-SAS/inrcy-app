@@ -1,4 +1,5 @@
 export const APPLICATION_I18N_TARGETS = {
+  auth: ["app/auth", "app/login", "app/set-password"],
   agenda: [
     "app/dashboard/agenda",
     "app/dashboard/settings/_components/AgendaSettingsContent.tsx",
@@ -17,6 +18,7 @@ export const APPLICATION_I18N_TARGETS = {
     "app/dashboard/settings/_components/BusinessLegalSettingsCard.tsx",
   ],
   settings: [
+    "app/dashboard/settings/_components",
     "app/dashboard/settings/_components/AbonnementContent.tsx",
     "app/dashboard/settings/_components/AccountContent.tsx",
     "app/dashboard/settings/_components/ActivityContent.tsx",
@@ -44,6 +46,9 @@ export const APPLICATION_I18N_TARGETS = {
     "app/_components",
   ],
   public: [
+    "app/equipe",
+    "app/suppression-compte",
+    "app/annuaire",
     "app/badge",
     "app/compte-bloque",
     "app/diagnostic",

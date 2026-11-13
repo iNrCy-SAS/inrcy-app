@@ -779,7 +779,11 @@
     "documentsDropHint": "PDF, images or documents · 20 MB per file",
     "presentationTitle": "Overview",
     "discardDraftMessage": "Unsaved changes in this form will be discarded. Information already saved will be kept.",
-    "resetPreferencesMessage": "The displayed preferences will return to their default values. This action does not approve a purchase or an account change."
+    "resetPreferencesMessage": "The displayed preferences will return to their default values. This action does not approve a purchase or an account change.",
+    "irreversibleResetAllConfirm": "Reset all DNA",
+    "irreversibleResetAllMessage": "This action deletes all iNr’ADN information, including imported documents and their files. It is permanent.",
+    "irreversibleResetTabMessage": "This action deletes only the information in this tab. It is permanent.",
+    "irreversibleResetTabTitle": "Reset “{tab}”?"
   },
   "aiConfiguration": {
     "pageDescription": "Set how AI writes and adapts every piece of content to your goals.",

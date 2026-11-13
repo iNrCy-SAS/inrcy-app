@@ -29,7 +29,7 @@ export default function RichMailEditor({
   text,
   html,
   onChange,
-  placeholder = "Votre message…",
+  placeholder: suppliedPlaceholder,
   minHeight = "clamp(180px, 30vh, 260px)",
   className,
   editorStyle,
@@ -42,6 +42,7 @@ export default function RichMailEditor({
   fullscreenHeader,
 }: RichMailEditorProps) {
   const i18nT = useTranslations("mails");
+  const placeholder = suppliedPlaceholder ?? i18nT("votre_message_ffe7b099");
   const editorRef = useRef<HTMLDivElement | null>(null);
   const lastHtmlRef = useRef("");
   const lastTouchYRef = useRef<number | null>(null);
@@ -249,7 +250,7 @@ export default function RichMailEditor({
     <div
       role={isExpanded ? "dialog" : undefined}
       aria-modal={isExpanded ? true : undefined}
-      aria-label={isExpanded ? "Éditeur de message en plein écran" : undefined}
+      aria-label={isExpanded ? i18nT("editor_fullscreen_label") : undefined}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -297,8 +298,8 @@ export default function RichMailEditor({
           <button
             type="button"
             onClick={() => setIsExpanded((value) => !value)}
-            aria-label={isExpanded ? "Rétrécir l’éditeur" : "Agrandir l’éditeur"}
-            title={isExpanded ? "Rétrécir" : "Agrandir"}
+            aria-label={isExpanded ? i18nT("editor_shrink_label") : i18nT("editor_expand_label")}
+            title={isExpanded ? i18nT("editor_shrink") : i18nT("editor_expand")}
             style={expandButtonStyle}
           >
             {isExpanded ? <CollapseIcon /> : <ExpandIcon />}

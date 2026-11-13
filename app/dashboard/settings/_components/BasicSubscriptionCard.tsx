@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useEffect, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
@@ -67,7 +68,7 @@ export default function BasicSubscriptionCard({ subscription, platform, onRefres
       method, cache: "no-store", ...(body ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {}),
     });
     const data = await response.json().catch(() => null);
-    if (!response.ok || !data) throw new Error(data?.error || t("subscription_change_failed"));
+    if (!response.ok || !data) throw new Error(getSafeClientErrorMessage(data, t("subscription_change_failed")));
     return data;
   };
   async function choose() {
@@ -84,7 +85,7 @@ export default function BasicSubscriptionCard({ subscription, platform, onRefres
       const candidate = data.changeType === "scheduled" ? { ...data, amountDue: 0, prorationDate: 0, scheduled: true } : data.quote;
       if (!candidate || candidate.targetPlan !== "Basic" || candidate.billingCycle !== cycle || !candidate.targetPriceId || !candidate.currentPriceId || !Number.isFinite(Date.parse(candidate.renewalAt)) || (!candidate.scheduled && !Number.isSafeInteger(candidate.amountDue))) throw new Error(t("premium_quote_unavailable"));
       setQuote(candidate);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : t("subscription_change_failed")); }
+    } catch (caught) { setError(getSafeClientErrorMessage(caught, t("subscription_change_failed"))); }
     finally { setBusy(false); }
   }
   async function confirm() {
@@ -102,13 +103,13 @@ export default function BasicSubscriptionCard({ subscription, platform, onRefres
       else if (data.scheduled) { setPending(true); setRenewal(data.renewalAt); setQuote(null); }
       else if (data.applied) { setQuote(null); await onApplied(quote.billingCycle, quote.targetPriceId); }
       else throw new Error(t("subscription_change_unconfirmed"));
-    } catch (caught) { setError(caught instanceof Error ? caught.message : t("subscription_change_failed")); }
+    } catch (caught) { setError(getSafeClientErrorMessage(caught, t("subscription_change_failed"))); }
     finally { setBusy(false); }
   }
   async function undo() {
     setBusy(true); setError("");
     try { await request("DELETE"); setPending(false); setRenewal(null); setQuote(null); }
-    catch (caught) { setError(caught instanceof Error ? caught.message : t("subscription_change_failed")); }
+    catch (caught) { setError(getSafeClientErrorMessage(caught, t("subscription_change_failed"))); }
     finally { setBusy(false); }
   }
   return <section className={`${styles.planCard} ${styles.basicCard}`} aria-label={`iNrCy ${t("subscription_basic_name")}`}>

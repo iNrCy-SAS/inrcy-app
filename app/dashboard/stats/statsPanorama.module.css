@@ -547,3 +547,7 @@
 @media (min-width: 1600px) and (min-height: 821px) {
   .channelCard { height:calc((100% - (var(--rows-wide) - 1) * var(--card-gap)) / var(--rows-wide)); }
 }
+
+@media (max-width: 1100px) {
+  .channelAction { min-height: 44px; min-width: 44px; }
+}

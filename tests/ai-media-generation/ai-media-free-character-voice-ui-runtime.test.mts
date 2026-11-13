@@ -16,6 +16,7 @@ import * as voiceClient from "../../lib/aiMediaCharacterVoiceClient.ts";
 import * as soundtracks from "../../lib/mediaSoundtrackSelection.ts";
 import { quoteAiMediaCredits, type AiMediaCreditsQuoteInput } from "../../lib/aiMediaCreditsPricing.ts";
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 
 type Props = Record<string, unknown>;
 type Element = { type: unknown; props: Props; key?: string };
@@ -90,6 +91,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   const localStorage = { getItem: (key: string) => storedPreferences.get(key) ?? null, setItem: (key: string, value: string) => { storedPreferences.set(key, value); } };
   const interfaces = new Map<string, Props>(), nativeEntries = new Map<string, NativeEntry>();
   const modules = new Map<string, unknown>([
+    ["@/lib/userFacingErrors", userFacingErrorsFixture],
     ["../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface(id: string, snapshot: Props, handlers: NativeEntry["handlers"], enabled = true, locked = false) { interfaces.set(id, snapshot); nativeEntries.set(id, { snapshot, handlers, enabled, locked }); } }],
     ["@/lib/inrAssistantStudioFormSelection", studioForm],
     ["react", react], ["react/jsx-runtime", { jsx, jsxs: jsx }],

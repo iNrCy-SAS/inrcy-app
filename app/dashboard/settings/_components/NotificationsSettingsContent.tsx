@@ -5,8 +5,8 @@ import sectionStyles from "./SettingsSections.module.css";
 
 
 import React from "react";
-import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
-import { getSimpleFrenchApiError } from "@/lib/userFacingErrors";
+import { getClientUserFacingErrorMessage as getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
+import { getClientUserFacingApiError as getSimpleFrenchApiError } from "@/lib/userFacingErrors";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { useInrAssistantRefresh } from "../../_hooks/useInrAssistantRefresh";
 
@@ -187,14 +187,14 @@ export default function NotificationsSettingsContent() {
 
       <ToggleRow
         title={i18nT("cloche_dans_l_application_1e5b30a4")}
-        subtitle="Affiche vos relances et actions à mener dans le cockpit iNrCy, via la cloche visible en haut du dashboard."
+        subtitle={i18nT("notifications_bell_description")}
         checked={prefs.in_app_enabled}
         onChange={(checked) => updatePrefs({ ...prefs, in_app_enabled: checked })}
         accent="rgba(56,189,248,0.12)"
       />
       <ToggleRow
         title={i18nT("email_digest_inrcy_76e52fa8")}
-        subtitle="Recevez aussi le résumé iNrCy par email. Désactivez-le ici si vous préférez garder seulement la cloche dans l’application."
+        subtitle={i18nT("notifications_email_description")}
         checked={prefs.email_enabled}
         onChange={(checked) => updatePrefs({ ...prefs, email_enabled: checked })}
         accent="rgba(167,139,250,0.12)"
@@ -202,21 +202,21 @@ export default function NotificationsSettingsContent() {
 
       <ToggleRow
         title={i18nT("performance_63c90455")}
-        subtitle="Résumé des demandes reçues, des contacts à relancer et du potentiel à transformer en chiffre d’affaires."
+        subtitle={i18nT("notifications_performance_description")}
         checked={prefs.performance_enabled}
         onChange={(checked) => updatePrefs({ ...prefs, performance_enabled: checked })}
         accent="rgba(56,189,248,0.12)"
       />
       <ToggleRow
         title={i18nT("action_97c89a4d")}
-        subtitle="Les prochaines actions utiles à faire : connecter un canal, lancer un booster ou finaliser ce qui est prêt."
+        subtitle={i18nT("notifications_action_description")}
         checked={prefs.action_enabled}
         onChange={(checked) => updatePrefs({ ...prefs, action_enabled: checked })}
         accent="rgba(244,114,182,0.12)"
       />
       <ToggleRow
         title={i18nT("information_0eb5ed50")}
-        subtitle="Des rappels simples pour suivre votre cockpit et garder iNrCy actif sans vous surcharger."
+        subtitle={i18nT("notifications_information_description")}
         checked={prefs.information_enabled}
         onChange={(checked) => updatePrefs({ ...prefs, information_enabled: checked })}
         accent="rgba(251,146,60,0.12)"

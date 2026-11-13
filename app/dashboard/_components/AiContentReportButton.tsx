@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 import { parseInrAssistantShellSelection } from "@/lib/inrAssistantShellSelection";
 import { useInrAssistantContentReport } from "../_hooks/useInrAssistantContentReport";
@@ -19,6 +20,7 @@ type ReportState = "idle" | "sending" | "sent" | "error";
 
 export default function AiContentReportButton({ surface, content = "", className = "" }: AiContentReportButtonProps) {
   const t = useTranslations("shell");
+  const locale = useLocale();
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("offensive");
@@ -106,12 +108,12 @@ export default function AiContentReportButton({ surface, content = "", className
       });
       const result = await response.json().catch(() => null);
       if (!valid()) return false;
-      if (!response.ok || result?.ok !== true) throw new Error(result?.message || t("ai_report_send_failed"));
+      if (!response.ok || result?.ok !== true) throw new Error(getLocalizedErrorMessage({ ...result, status: response.status }, locale, t("ai_report_send_failed")));
       setStatus("sent");
       return true;
     } catch (submissionError) {
       if (!valid()) return false;
-      setError(submissionError instanceof Error ? submissionError.message : t("ai_report_generic_error"));
+      setError(getLocalizedErrorMessage(submissionError, locale, t("ai_report_generic_error")));
       setStatus("error");
       return false;
     } finally {

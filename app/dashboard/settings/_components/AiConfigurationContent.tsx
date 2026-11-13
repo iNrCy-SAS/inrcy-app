@@ -5,6 +5,7 @@ import DashboardMobileSelect from "../../_components/DashboardMobileSelect";
 import colorStyles from "./AiConfigurationContent.module.css";
 
 import { useTranslations } from "next-intl";
+import { getAiEnginePresentation } from "../../_components/aiEnginePresentation";
 import { useInrAssistantBusinessFormCommands, type BusinessFormActionScope } from "../../_hooks/useInrAssistantBusinessFormCommands";
 import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 import type { InrAssistantBusinessFormPatch } from "@/lib/inrAssistantBusinessFormUiCommands";
@@ -478,6 +479,7 @@ export default function AiConfigurationContent({
   assistantActive = true,
 }: Props) {
   const i18nT = useTranslations("settings");
+  const engineT = useTranslations("booster");
   const sectionT = useTranslations("dashboard.settingsSections");
   const memoryT = useTranslations("dashboard.aiMemory");
   const configurationT = useTranslations("dashboard.aiConfiguration");
@@ -1161,7 +1163,7 @@ export default function AiConfigurationContent({
                   ))}
                 </select>
                 <span data-ai-hint style={hint}>
-                  {i18nT("tendance_f01115d3")}{" "}{selectedEngineOption.naturalTendency} {" "}{i18nT("inrcy_garde_vos_regles_metier_3bcab680")}{" "}{!selectedEngineOption.supportsVision
+                  {i18nT("tendance_f01115d3")}{" "}{getAiEnginePresentation(engineT, selectedEngineOption.value).tendency} {" "}{i18nT("inrcy_garde_vos_regles_metier_3bcab680")}{" "}{!selectedEngineOption.supportsVision
                     ? i18nT("les_images_passent_par_une_analyse_95521dc0")
                     : ""}
                 </span>

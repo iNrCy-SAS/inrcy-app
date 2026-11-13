@@ -94,10 +94,12 @@ test("Booster et iNrSend affichent explicitement l'avertissement", () => {
   const mailboxHelpers = read("app/dashboard/mails/_lib/mailboxPhase1.tsx");
   const hub = read("app/dashboard/_components/PublishExecutionProgress.tsx");
   assert.match(modal, /getPublicationDestinationStatus\(entry\) === "warning"/);
-  assert.match(modal, /<strong>\{warningCount\}<\/strong><span>avertissement/);
-  assert.match(hub, /warning: \{ label: "Publié avec avertissement"/);
+  assert.match(modal, /<strong>\{warningCount\}<\/strong><span>\{i18nT\("execution_result_warnings", \{ count: warningCount \}\)/);
+  assert.match(hub, /warning: \{ labelKey: "execution_progress_warning"/);
   assert.match(hub, /includes\("published_with_warning"\)\) return "warning"/);
-  assert.match(modal, /Publié avec avertissement/);
+  const messages = JSON.parse(read("messages/fr-FR/booster.json"));
+  assert.equal(messages.execution_progress_warning, "Publié avec avertissement");
+  assert.match(messages.execution_result_warnings, /plural.*avertissement.*avertissements/);
   assert.match(mailbox, /publiee_avec_avertissement_47eb62fb/);
   assert.match(mailboxHelpers, /channelWarningDot/);
   assert.match(mailboxHelpers, /isProcessingChannelResult/);

@@ -10,6 +10,7 @@ export const STANDARD_I18N_TARGETS = {
   reputation: ["app/dashboard/e-reputation"],
   booster: [
     "app/dashboard/booster",
+    "app/dashboard/ads",
     "app/dashboard/_components/DashboardBoosterModalLayer.tsx",
     "app/dashboard/_components/PublishExecutionProgress.tsx",
     "app/dashboard/_components/PublishExecutionResultModal.tsx",

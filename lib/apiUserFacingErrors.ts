@@ -33,13 +33,13 @@ function getKnownStructuredErrorMessage(code: string): string | null {
     return "La limite de sécurité IA de ce compte est temporairement atteinte. Merci de réessayer plus tard.";
   }
   if (code === "ai_operation_budget_exceeded") {
-    return "La génération a atteint sa limite technique de sécurité. Merci de relancer la génération.";
+    return "La génération n’a pas pu aboutir. Réessayez avec une demande plus courte ou choisissez un autre moteur IA.";
   }
   if (code === "ai_operation_deadline_exceeded" || code === "fetch_timeout") {
     return "Le moteur IA met trop de temps à répondre. Merci de relancer la génération.";
   }
   if (code === "ai_gateway_guard_unavailable") {
-    return "La protection économique IA est momentanément indisponible. Merci de réessayer dans quelques minutes.";
+    return "Le service IA est momentanément indisponible. Merci de réessayer dans quelques minutes.";
   }
   if (
     code === "ai_gateway_transcription_unavailable" ||

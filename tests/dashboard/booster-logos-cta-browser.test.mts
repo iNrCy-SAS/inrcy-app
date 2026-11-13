@@ -6,6 +6,7 @@ import path from "node:path";
 import test, { after, before } from "node:test";
 import { chromium, webkit, type Browser } from "@playwright/test";
 import ts from "typescript";
+import { IntlMessageFormat } from "intl-messageformat";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const nativeRequire = createRequire(import.meta.url);
@@ -64,11 +65,30 @@ function register(file: string): string {
 }
 register(selector); register(panel); register(identity);
 const css = [...cssFiles].map(read).join("\n");
+const catalogAst: Record<string, unknown> = {};
+function addMessages(messages: Record<string, unknown>, prefix: string) {
+  for (const [key, value] of Object.entries(messages)) {
+    if (typeof value === "string") catalogAst[prefix + key] = new IntlMessageFormat(value, "fr-FR").getAst();
+    else if (value && typeof value === "object") addMessages(value as Record<string, unknown>, `${prefix}${key}.`);
+  }
+}
+for (const namespace of ["settings", "booster", "dashboard", "mails"]) addMessages(JSON.parse(read(`messages/fr-FR/${namespace}.json`)), namespace + ".");
 const fixture = `
 const sources=${JSON.stringify(sources)},dependencies=${JSON.stringify(dependencies)},cache={},process={env:{NODE_ENV:'production'}};
+const catalogAst=${JSON.stringify(catalogAst)};
+function formatMessage(nodes,values,pound){return nodes.map(node=>{
+ if(node.type===0)return node.value;
+ if(node.type===1)return String(values[node.value]??'');
+ if(node.type===2)return new Intl.NumberFormat('fr-FR').format(values[node.value]);
+ if(node.type===5)return formatMessage((node.options[String(values[node.value])]||node.options.other).value,values,pound);
+ if(node.type===6){const value=Number(values[node.value]),option=node.options['='+value]||node.options[new Intl.PluralRules('fr-FR',{type:node.pluralType}).select(value-node.offset)]||node.options.other;return formatMessage(option.value,values,value-node.offset)}
+ if(node.type===7)return new Intl.NumberFormat('fr-FR').format(pound);
+ if(node.type===8)return formatMessage(node.children,values,pound);
+ throw Error('Unsupported catalogue fixture node '+node.type);
+}).join('')}
 window.fixtureScope={actor:'actor-a',account:'account-a'};window.saved={};window.ready=false;window.namesKnown=false;window.mobile=false;window.visible=true;
 function load(name,from){
- if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:()=>key=>key};
+ if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:namespace=>(key,values={})=>{const fullKey=(namespace?namespace+'.':'')+key;if(!catalogAst[fullKey])throw Error('Missing catalogue fixture key '+fullKey);return formatMessage(catalogAst[fullKey],values)}};
  if(name==='next/navigation')return {usePathname:()=>location.pathname};
  if(name.endsWith('DashboardViewerAccessProvider'))return {useDashboardViewerAccess:()=>({actorUserId:window.fixtureScope.actor,activeAccountId:window.fixtureScope.account,metaPilotEnabled:true})};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.fixtureScope.account};
@@ -86,7 +106,7 @@ const all=Object.fromEntries(${JSON.stringify(order)}.map(key=>[key,true]));
 function render(){dom.flushSync(()=>root.render(!window.visible?null:location.pathname==='/logo'?React.createElement(Selector,{styles:{},isMobile:window.mobile,connectionsPending:!window.ready,connected:all,channels:all,channelInfoOpen:null,setChannelInfoOpen(){},toggle(){},setAllChannelsSelected(){},getChannelDetailInfo:()=>({href:null,desktopLabel:'',mobileLabel:'',fullLabel:window.ready||window.namesKnown?'Compte de démonstration':''})}):React.createElement(Panel,{value:window.saved,onChange:value=>{window.saved=value;render()}})));}
 window.draw=render;window.warm=()=>load(${JSON.stringify(identity)}).prewarmPublishChannelIcons();window.document.documentElement.dataset.fixture='ready';render();
 `;
-let server: Server, browser: Browser, origin: string;
+let server: Server, browser: Browser, webkitBrowser: Browser | undefined, origin: string;
 const iconRequests = new Map<string, number>();
 before(async () => {
   server = createServer(async (request, response) => {
@@ -110,16 +130,18 @@ before(async () => {
   origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   browser = await chromium.launch({ headless: true });
 });
-after(async () => { await browser?.close(); if (server) await new Promise<void>(resolve => server.close(() => resolve())); });
+after(async () => { await browser?.close(); await webkitBrowser?.close(); if (server) await new Promise<void>(resolve => server.close(() => resolve())); });
 
-test("real Booster logos keep their circular geometry before decode, after account loading and at every reopening", { timeout: 60000 }, async t => {
-  for (const engine of [chromium, webkit]) {
-    const logosBrowser = engine === chromium ? browser : await engine.launch({ headless: true });
-    try {
+// Each browser/viewport has its own bounded budget and cleanup. A long suite
+// cannot consume the whole matrix's shared timeout before reaching WebKit.
+for (const engine of [chromium, webkit]) {
   for (const width of [390, 700, 701, 768, 820, 1024, 1280]) {
+    test(`real Booster logos preserve circular geometry before decode and on reopening (${engine.name()}, ${width}px)`, { timeout: 30000 }, async t => {
+    const logosBrowser = engine === chromium ? browser : webkitBrowser ??= await webkit.launch({ headless: true });
     t.diagnostic(`${engine.name()}: checking ${width}px`);
     const mobile = width <= 768;
     const context = await logosBrowser.newContext({ viewport: { width, height: 1000 } });
+    try {
     const page = await context.newPage(); const errors: string[] = [];
     page.on("pageerror", error => errors.push(error.message));
     await page.goto(`${origin}/logo`, { waitUntil: "domcontentloaded" });
@@ -167,12 +189,11 @@ test("real Booster logos keep their circular geometry before decode, after accou
       assert.equal(await page.locator('.bulkControl input').isEnabled(), true);
     }
     assert.equal(await page.locator("#root img").evaluateAll(images => images.every(img => (img as HTMLImageElement).naturalWidth > 0)), true);
-    assert.deepEqual(errors, []); await context.close();
+    assert.deepEqual(errors, []);
+    } finally { await context.close(); }
+    });
   }
-      t.diagnostic(`${engine.name()}: cold opening and three reopenings verified at 390, 700, 701, 768, 820, 1024 and 1280 px`);
-    } finally { if (logosBrowser !== browser) await logosBrowser.close(); }
-  }
-});
+}
 
 test("real CTA settings offer added actions on every compatible channel and preserve an explicit no-CTA after reload", { timeout: 60000 }, async () => {
   const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });

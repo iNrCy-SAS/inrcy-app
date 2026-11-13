@@ -7,6 +7,7 @@ import vm from "node:vm";
 
 import ts from "typescript";
 import { getAiMediaVideoDurationSceneOptions } from "../../lib/aiMediaVideoTimeline.ts";
+import { assertUiCopy } from "../helpers/ui-copy-contract.mjs";
 
 import {
   AiMediaRequestValidationError,
@@ -372,8 +373,21 @@ test("Sélection distingue IA libre, IA avec critères et inspiration libre", ()
   ]) {
     assertGeneratorUsesLabel(label);
   }
-  for (const label of ["Personne", "Décor", "Produit", "Obligatoire", "Inspiration"]) {
-    assert.match(generatorSource, new RegExp(label));
+  for (const [id, key, french] of [
+    ["character", "personne_6691d67a", "Personne"],
+    ["environment", "decor_97d1aaca", "Décor"],
+    ["product", "produit_ff673dc2", "Produit"],
+  ]) {
+    assert.ok(generatorSource.includes(`{ id: "${id}", labelKey: "${key}" }`));
+    assertUiCopy("shell", key, french);
+  }
+  assert.match(generatorSource, /\{i18nT\(role\.labelKey\)\}/);
+  for (const [value, key, french] of [
+    ["required", "obligatoire_389b678a", "Obligatoire"],
+    ["inspiration", "inspiration_2868202f", "Inspiration"],
+  ]) {
+    assert.ok(generatorSource.includes(`<option value="${value}">{i18nT("${key}")}</option>`));
+    assertUiCopy("shell", key, french);
   }
   assert.match(generatorSource, /usage:\s*"required"\s*\|\s*"inspiration"/);
   assert.match(generatorSource, /usage:\s*"required"/);
@@ -970,7 +984,8 @@ test("un brief commercial ne peut pas être généré silencieusement sans texte
     ),
   );
   assert.match(generatorSource, /visibleTextModeConflict/);
-  assert.match(generatorSource, /brief demande du texte visible/);
+  assert.match(generatorSource, /visibleTextModeConflict \? \(\s*<small className=\{styles\.fieldAlert\} role="alert">\s*\{i18nT\("votre_brief_demande_du_texte_visible_077ac35b"\)\}/);
+  assertUiCopy("shell", "votre_brief_demande_du_texte_visible_077ac35b", "Votre brief demande du texte visible. Choisissez « Texte rédigé par l’IA » ou « Texte exact » avant de générer.");
 });
 
 test("la composition locale garde tout le deck et ne dessine jamais un accent seul", () => {

@@ -1,3 +1,4 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -20,7 +21,7 @@ function actualFunction(name: string, scope: Record<string, unknown>) {
   visit(source);
   assert.ok(declaration, `${name} must exist`);
   const compiled = ts.transpileModule(declaration.getText(source), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-  return new Function(...Object.keys(scope), `${compiled}\nreturn ${name};`)(...Object.values(scope));
+  return new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn ${name};`)(...Object.values(withAdsRuntime(scope)));
 }
 
 const accountId = "1234567890";
@@ -220,7 +221,7 @@ function findAll(predicate: (node: ts.Node) => boolean, root: ts.Node = source):
 }
 function evaluate(node: ts.Node, scope: Record<string, unknown>) {
   const compiled = ts.transpileModule(`const value = (${node.getText(source)});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  return new Function(...Object.keys(scope), `${compiled}\nreturn value;`)(...Object.values(scope));
+  return new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn value;`)(...Object.values(withAdsRuntime(scope)));
 }
 function initializer(name: string, scope: Record<string, unknown>) {
   const variable = findAll((node) => ts.isVariableDeclaration(node) && node.name.getText(source) === name)[0] as ts.VariableDeclaration | undefined;

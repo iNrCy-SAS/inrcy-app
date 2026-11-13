@@ -1,4 +1,5 @@
 "use client";
+import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
 
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -102,7 +103,7 @@ function field(label: string, value: unknown, translate: MailsTranslator, isLink
 
 async function readActionResponse(response: Response, translate: MailsTranslator) {
   const result = await response.json().catch(() => null) as { error?: string } | null;
-  if (!response.ok) throw new Error(result?.error || translate("l_action_n_a_pas_pu_99c7a256"));
+  if (!response.ok) throw Object.assign(new Error(getSafeClientErrorMessage({ ...result, status: response.status }, translate("l_action_n_a_pas_pu_99c7a256"), { allowUnknownMessage: false })), { status: response.status });
 }
 
 export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelect, onClose, onRefresh }: Props) {
@@ -180,13 +181,13 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
     try {
       const response = await fetch(`/api/ads/campaigns/${encodeURIComponent(current.id)}/metrics`, { cache: "no-store" });
       const result = await response.json().catch(() => null) as { metrics?: unknown; reason?: string; error?: string } | null;
-      if (!response.ok) throw new Error(result?.error || i18nT("les_statistiques_ne_sont_pas_disponibles_053dac35"));
+      if (!response.ok) throw Object.assign(new Error(getSafeClientErrorMessage({ ...result, status: response.status }, i18nT("les_statistiques_ne_sont_pas_disponibles_053dac35"), { allowUnknownMessage: false })), { status: response.status });
       setMetricsById((previous) => ({ ...previous, [current.id]: result?.metrics === null && result?.reason === "no_data"
         ? { status: "empty" }
         : isAdsCampaignMetrics(result?.metrics, current.provider) ? { status: "ready", metrics: result.metrics }
           : { status: "error", error: i18nT("la_plateforme_n_a_pas_retourne_c609e1bc") } }));
     } catch (error) {
-      setMetricsById((previous) => ({ ...previous, [current.id]: { status: "error", error: error instanceof Error ? error.message : i18nT("statistiques_indisponibles_d182d329") } }));
+      setMetricsById((previous) => ({ ...previous, [current.id]: { status: "error", error: getSafeClientErrorMessage(error, i18nT("statistiques_indisponibles_d182d329")) } }));
     } finally {
       metricsRequestsRef.current.delete(current.id);
     }
@@ -232,7 +233,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
       if (refreshed) setActionSuccess(i18nT("la_date_de_fin_du_brouillon_c0573c12"));
       else setActionError(i18nT("la_date_a_bien_ete_enregistree_85555d5f"));
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : i18nT("impossible_de_prolonger_ce_brouillon_447e47b3"));
+      setActionError(getSafeClientErrorMessage(error, i18nT("impossible_de_prolonger_ce_brouillon_447e47b3")));
     } finally {
       setBusyId(null);
     }
@@ -248,7 +249,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
       setDeleteId(null);
       await onRefresh();
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : i18nT("impossible_de_supprimer_ce_brouillon_f92cf73b"));
+      setActionError(getSafeClientErrorMessage(error, i18nT("impossible_de_supprimer_ce_brouillon_f92cf73b")));
     } finally {
       setBusyId(null);
     }
@@ -300,7 +301,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
       else setActionError(i18nT("value_la_liste_inrsend_n_a_fe6b8092", { value0: successMessage }));
     } catch (error) {
       if (action === "reconcile") await onRefresh();
-      setActionError(error instanceof Error ? error.message : i18nT("impossible_de_gerer_cette_campagne_83dffbe1"));
+      setActionError(getSafeClientErrorMessage(error, i18nT("impossible_de_gerer_cette_campagne_83dffbe1")));
     } finally {
       setBusyId(null);
     }
@@ -338,7 +339,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
       setDeleteId(null);
       await onRefresh();
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : i18nT("impossible_de_supprimer_cette_campagne_aa8e5439"));
+      setActionError(getSafeClientErrorMessage(error, i18nT("impossible_de_supprimer_cette_campagne_aa8e5439")));
     } finally {
       setBusyId(null);
     }
@@ -442,7 +443,7 @@ export default function AdsCampaignDetailsModal({ campaigns, selectedId, onSelec
           </div>
         </div>
         {actionSuccess && <p className={styles.success} role="status">{actionSuccess}</p>}
-        {campaign.last_error && <p className={styles.error} role="alert">{i18nT("controle_necessaire_value_0fe8c3e0", { value0: campaign.last_error })}</p>}
+        {campaign.last_error && <p className={styles.error} role="alert">{i18nT("controle_necessaire_value_0fe8c3e0", { value0: getSafeClientErrorMessage(campaign.last_error, i18nT("mail_action_failed"), { allowUnknownMessage: false }) })}</p>}
         {actionError && <p className={styles.error} role="alert">{actionError}</p>}
         {canDiscardLocalRecovery ? <p className={styles.muted}>{i18nT("aucun_identifiant_de_campagne_distante_n_937ba42b")}</p>
           : isInterruptedRemoteOperation ? <p className={styles.muted}>{i18nT("inrsend_verifie_que_l_operation_est_9c120158")}</p>

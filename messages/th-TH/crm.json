@@ -114,5 +114,19 @@
   "uniquement_les_importants_00983567": "เฉพาะคนสำคัญเท่านั้น",
   "utiliser_l_adresse_principale_fbbcc33b": "ใช้ที่อยู่หลัก",
   "value_contact_value_selectionne_value_76477fae": "{value0} ติดต่อ{value1} ที่เลือก{value2}",
-  "ville_97217611": "เมือง"
+  "ville_97217611": "เมือง",
+  "actions_sur_ce_contact_87b37a84": "การดำเนินการสำหรับผู้ติดต่อนี้",
+  "actions_sur_la_selection_e69d1a0b": "การดำเนินการสำหรับผู้ติดต่อที่เลือก",
+  "afficher_le_detail_3b75c3b3": "แสดงรายละเอียด",
+  "aucun_contact_a_exporter_bf5a9807": "ไม่มีผู้ติดต่อที่จะส่งออก",
+  "aucun_contact_selectionne_19a9944c": "ยังไม่ได้เลือกผู้ติดต่อ",
+  "chargement_des_contacts_558c9dc1": "กำลังโหลดผู้ติดต่อ",
+  "choisir_le_format_d_export_cb81d35a": "เลือกรูปแบบการส่งออก",
+  "contact_important_2949497c": "ผู้ติดต่อสำคัญ",
+  "marquer_comme_important_c0cc7947": "ทำเครื่องหมายว่าสำคัญ",
+  "reduire_le_detail_a42a9c5a": "ย่อรายละเอียด",
+  "selectionne_1_ou_plusieurs_contacts_7059cd05": "เลือกผู้ติดต่ออย่างน้อยหนึ่งราย",
+  "selectionnez_un_contact_eff0c23e": "เลือกผู้ติดต่อ",
+  "supprimer_value_contact_s_9252c4bd": "ลบผู้ติดต่อ {value0} ราย",
+  "vider_la_selection_834a3e51": "ล้างการเลือก"
 }

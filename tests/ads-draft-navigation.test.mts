@@ -1,3 +1,4 @@
+import { withAdsRuntime } from "./helpers/ads-function-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -20,7 +21,7 @@ function actualStudioCallback(predicate: (node: ts.Node) => boolean, scope: Reco
   visit(studioSource);
   assert.ok(callback, "the actual studio callback must exist");
   const compiled = ts.transpileModule(`const callback = ${callback.getText(studioSource)};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  return new Function(...Object.keys(scope), `${compiled}\nreturn callback;`)(...Object.values(scope));
+  return new Function(...Object.keys(withAdsRuntime(scope)), `${compiled}\nreturn callback;`)(...Object.values(withAdsRuntime(scope)));
 }
 
 test("un brouillon reprend toujours sur la validation adaptée à son parcours", () => {

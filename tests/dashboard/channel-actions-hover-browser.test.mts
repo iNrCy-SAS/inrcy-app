@@ -177,7 +177,13 @@ test("keyboard focus and the public-link popover preserve the stable action row"
       await action.focus();
       const before = await action.boundingBox();
       await page.waitForTimeout(300);
-      assert.deepEqual(await action.boundingBox(), before, "keyboard focus cannot move the action");
+      const after = await action.boundingBox();
+      assert.ok(before && after, "the focused action remains rendered");
+      // Chromium can quantize a transformed ancestor by a fraction of a CSS
+      // pixel across platforms. This still rejects the former 1.5–7px jumps.
+      for (const coordinate of ["x", "y", "width", "height"] as const) {
+        assert.ok(Math.abs(after[coordinate] - before[coordinate]) < .1, `keyboard focus cannot move the action ${coordinate}`);
+      }
       assert.equal(await action.evaluate(element => element === document.activeElement), true);
     }
     await page.keyboard.press("Enter");

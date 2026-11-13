@@ -158,5 +158,15 @@
   "value_evenement_value_ea491d64": "{value0} Evento{value1}",
   "vendredi_cb289d87": "Sexta-feira",
   "ville_97217611": "Cidade",
-  "vue_mensuelle_cliquez_sur_un_jour_d2a2b7c4": "Vista mensal — clique num dia para ver os detalhes."
+  "vue_mensuelle_cliquez_sur_un_jour_d2a2b7c4": "Vista mensal — clique num dia para ver os detalhes.",
+  "calendar_draft_title": "Rascunho · {title}",
+  "calendar_more_events": "{count, plural, one {+# outro} other {+# outros}}",
+  "disable_reminders_this_event": "Desativar os lembretes apenas para este compromisso.",
+  "draft_saving": "A guardar",
+  "no_reminder_slots_enabled": "Não há horários de lembrete ativados nas definições.",
+  "public_booking_settings_description": "Estas definições aplicam-se aos horários de marcação propostos aos clientes na sua ficha pública. Pode continuar a adicionar marcações manualmente no iNr’Calendar sem restrições.",
+  "reminder_sender_description": "Os emails de lembrete serão enviados a partir desta caixa de correio iNr’Send.",
+  "save_as_draft": "Guardar como rascunho",
+  "team_assignment_awaiting_confirmation": "A atribuição da marcação ainda não foi confirmada no iNrCalendar. A sincronização continua; utilize Atualizar para verificar.",
+  "team_change_awaiting_confirmation": "A marcação foi alterada no Google Calendar. A sincronização com o iNrCalendar continua; utilize Atualizar para verificar."
 }

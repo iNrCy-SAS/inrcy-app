@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import { createTranslator } from "next-intl";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
+
+const i18nT = createTranslator({ locale: "fr-FR", messages: JSON.parse(readFileSync(new URL("../../messages/fr-FR/shell.json", import.meta.url), "utf8")) });
 
 const filename = "app/dashboard/_components/MediaVideoRetoucher.tsx";
 const source = readFileSync(filename, "utf8"), ast = ts.createSourceFile(filename, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -14,6 +18,7 @@ function harness(onSaved?: (value: unknown, options: { isCurrent: () => boolean 
   const source = { name: "A.mp4" }, state = { source, format: "9_16", adaptationMode: "cover_crop", channel: "site_web", mounted: true };
   const calls: unknown[][] = [], saveState = { current: state }, saveLock = { current: false };
   const variables = { source, format: state.format, adaptationMode: state.adaptationMode, channel: state.channel, saving: false,
+    i18nT, getSafeClientErrorMessage: userFacingErrorsFixture.getClientUserFacingErrorMessage,
     saveState, saveLock, savedCopy: { current: null }, onSaved, initialContext: null, sourceVariants: [], sourceMatchesInitial: false, acceptMode: "library",
     setSaving: (value: boolean) => calls.push(["busy", value]), setSaved: (value: boolean) => calls.push(["saved", value]), setError: (value: string) => calls.push(["error", value]) };
   const run = new Function(...Object.keys(variables), `${code}\nreturn handler;`)(...Object.values(variables)) as (options?: { isCurrent?: () => boolean }) => Promise<boolean>;
@@ -59,7 +64,9 @@ test("actual native save does not apply late success after scope invalidation or
 test("actual native failure clears its operation lock and retains the unsaved form", async () => {
   const fixture = harness(async () => { throw new Error("native save failed"); });
   assert.equal(await fixture.run(), false);
-  assert.deepEqual(fixture.calls, [["busy", true], ["error", ""], ["error", "native save failed"], ["busy", false]]);
+  const publicError = userFacingErrorsFixture.getClientUserFacingErrorMessage(new Error("native save failed"), i18nT("media_ui_e2056e9248"));
+  assert.notEqual(publicError, "native save failed", "the technical save diagnostic must stay private");
+  assert.deepEqual(fixture.calls, [["busy", true], ["error", ""], ["error", publicError], ["busy", false]]);
   assert.equal(fixture.saveLock.current, false);
 });
 

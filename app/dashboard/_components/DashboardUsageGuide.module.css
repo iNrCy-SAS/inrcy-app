@@ -124,3 +124,7 @@
   .setupStatus { flex-wrap: wrap; }
 }
 @media (prefers-reduced-motion: reduce) { .navItem { transition: none; } }
+
+@media (max-width: 1100px) {
+  .toolButton { min-height: 44px; }
+}

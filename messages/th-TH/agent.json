@@ -908,5 +908,12 @@
   "automation_enable_confirm_yes": "ใช่",
   "automation_enable_confirm_verify": "ตรวจสอบการตั้งค่าของฉัน",
   "automation_enabled_notice": "เปิดใช้งานระบบอัตโนมัติแล้ว",
-  "automation_enable_unavailable": "ตรวจสอบช่องทางและการตั้งค่าก่อนเปิดใช้งานระบบอัตโนมัติ"
+  "automation_enable_unavailable": "ตรวจสอบช่องทางและการตั้งค่าก่อนเปิดใช้งานระบบอัตโนมัติ",
+  "settings_impact_affected_count": "โพสต์ในกำหนดการปัจจุบันได้รับผลกระทบ {count} รายการ คุณเป็นผู้ตัดสินใจขั้นสุดท้ายเสมอ",
+  "settings_impact_available_images": "{count, plural, =-1 {รูปภาพไม่จำกัด} other {รูปภาพ # ภาพ}}",
+  "settings_impact_available_video_seconds": "{count, plural, =-1 {วิดีโอไม่จำกัด} other {วิดีโอ # วินาที}}",
+  "settings_impact_horizon": "{days, plural, =30 {ในหนึ่งเดือน} one {ใน # วัน} other {ใน # วัน}}",
+  "settings_impact_lost_quotas": "หากใช้ตอนนี้ โควตาที่ใช้ไปแล้วจะสูญเสีย: โควตารูปภาพ {images} หน่วย และโควตาวิดีโอ {videos} หน่วย",
+  "settings_impact_media_count": "{images, plural, one {# ภาพ} other {# ภาพ}} · {videos, plural, one {# วิดีโอ} other {# วิดีโอ}} ({seconds} วินาที)",
+  "settings_impact_publications_count": "{count, plural, one {โพสต์} other {โพสต์}}"
 }
