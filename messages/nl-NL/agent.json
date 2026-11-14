@@ -915,5 +915,10 @@
   "settings_impact_horizon": "{days, plural, =30 {over één maand} one {over # dag} other {over # dagen}}",
   "settings_impact_lost_quotas": "Als je dit nu toepast, gaat het al verbruikte tegoed verloren: {images, plural, one {# afbeeldingseenheid} other {# afbeeldingseenheden}} en {videos, plural, one {# video-eenheid} other {# video-eenheden}}.",
   "settings_impact_media_count": "{images, plural, one {# afbeelding} other {# afbeeldingen}} · {videos, plural, one {# video} other {# video’s}} ({seconds} s)",
-  "settings_impact_publications_count": "{count, plural, one {bericht} other {berichten}}"
+  "settings_impact_publications_count": "{count, plural, one {bericht} other {berichten}}",
+  "agent_admin_publish_daily": "Elke dag publiceren",
+  "agent_admin_publish_without_approval": "Publiceren zonder voorafgaande goedkeuring",
+  "agent_admin_publish_daily_hint": "Elke dag op het gekozen tijdstip. De gekozen goedkeuringsmodus blijft gelden.",
+  "agent_admin_publish_without_approval_hint": "Nieuwe berichten worden zonder handmatige goedkeuring voor het geplande tijdstip ingepland.",
+  "agent_admin_publish_requires_enabled": "Schakel eerst de automatisering Publiceren in om deze modus te kiezen."
 }

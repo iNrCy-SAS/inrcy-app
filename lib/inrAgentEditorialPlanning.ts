@@ -150,6 +150,7 @@ function addLocalDays(base: ReturnType<typeof getLocalParts>, days: number) {
 function frequencyValue(value: unknown): InrAgentFrequency {
   const normalized = String(value || "weekly") as InrAgentFrequency;
   return [
+    "daily",
     "weekly",
     "twice_weekly",
     "three_times_weekly",
@@ -221,6 +222,7 @@ function scheduledOnLocalDate(args: {
   slot: ScheduleSlot;
   monthDays: number[];
 }) {
+  if (args.frequency === "daily") return true;
   if (inrAgentMonthlyDateCount(args.frequency)) {
     return isInrAgentScheduledMonthDay(args.local, args.monthDays);
   }
@@ -269,6 +271,9 @@ function publicationOrdinal(args: {
   monthDays: number[];
 }) {
   const local = getLocalParts(new Date(args.scheduledFor), args.timezone);
+  if (args.frequency === "daily") {
+    return Math.floor((Date.UTC(local.year, local.month - 1, local.day) - Date.UTC(2020, 0, 1)) / 86_400_000) + 1;
+  }
   if (args.frequency === "one_off") return 1;
   if (inrAgentMonthlyDateCount(args.frequency)) {
     const monthIndex = (local.year - 2020) * 12 + local.month - 1;

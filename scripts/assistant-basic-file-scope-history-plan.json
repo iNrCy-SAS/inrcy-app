@@ -194,13 +194,6 @@
           "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#select:bccfd40178fc9171:1": {
-        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
       "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:1": {
         "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
@@ -314,20 +307,6 @@
         ]
       },
       "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:3": {
-        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
-      "app/dashboard/agent/AgentClient.tsx#select:a424dce4effaa936:1": {
-        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
-      "app/dashboard/agent/AgentClient.tsx#option:ed79c0eac79efab8:1": {
         "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
         "gateFiles": [
@@ -524,6 +503,43 @@
         ]
       },
       "app/dashboard/agent/AgentClient.tsx#button:a964359281d461b2:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:af3fa93231af7110:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:9b0f38207631c679:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:56236b23cf1b60b0:1": {
+        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:9ee2795b992d4983:1": {
+        "reason": "L’horaire quotidien appartient aux réglages de publication du compte administrateur : acteur et compte actif ADMIN. Il ne fait pas partie du planning manuel Basique.",
+        "gateAnchor": "const settingsCanUseAdminPublishOptions = settingsAutomation?.key === \"publish\" && viewerIsAdmin;",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx",
+          "app/dashboard/layout.tsx",
+          "lib/inrAgentAdminOptionsServer.ts"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:4": {
         "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
         "gateFiles": [

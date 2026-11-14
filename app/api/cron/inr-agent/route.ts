@@ -81,7 +81,7 @@ function normalizeDay(value: unknown) {
 
 function normalizeFrequency(value: unknown): InrAgentFrequency {
   const text = String(value || "weekly") as InrAgentFrequency;
-  return ["weekly", "twice_weekly", "three_times_weekly", "biweekly", "three_times_monthly", "monthly", "quarterly", "one_off"].includes(text) ? text : "weekly";
+  return ["daily", "weekly", "twice_weekly", "three_times_weekly", "biweekly", "three_times_monthly", "monthly", "quarterly", "one_off"].includes(text) ? text : "weekly";
 }
 
 function getLocalParts(date: Date, timeZone = "Europe/Paris") {
@@ -166,6 +166,7 @@ function isScheduledDate(
   dayOfWeek: number,
   monthDays: number[],
 ) {
+  if (frequency === "daily") return true;
   if (inrAgentMonthlyDateCount(frequency)) {
     return isInrAgentScheduledMonthDay(local, monthDays);
   }

@@ -9,6 +9,7 @@ import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer"
 import { getActiveSubscriptionAccountIds } from "@/lib/accountSubscriptionAccess";
 import { isStandardAgentActionDescriptor, isManualBoosterPublicationSchedule } from "@/lib/standardAgentPolicy";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
+import { isInrAgentAdminScheduledPublicationAuthorized, parkInrAgentAdminAutomaticPublications } from "@/lib/inrAgentAdminPublishServer";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -416,15 +417,7 @@ async function claimAction(row: ScheduledActionCronRow) {
 }
 
 async function automaticPublicationStillAuthorized(row: ScheduledActionCronRow) {
-  const isAutomaticPublication =
-    row.source === "automatic" &&
-    (row.target_tool === "booster" || row.action_type === "publication");
-  if (!isAutomaticPublication) return true;
-
-  // Politique de sûreté iNrAgent : une publication ne part jamais sans une
-  // validation explicite du professionnel. Les anciens jobs automatiques sont
-  // donc refusés ici, même s'ils existaient déjà avant la migration.
-  return false;
+  return isInrAgentAdminScheduledPublicationAuthorized({ supabase: supabaseAdmin, row, isCron: true });
 }
 
 async function syncSourceActionOutcome(
@@ -930,6 +923,8 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
             .eq("id", row.id)
             .eq("user_id", row.user_id)
             .eq("status", "scheduled");
+          await parkInrAgentAdminAutomaticPublications({ supabase: supabaseAdmin, accountId: row.user_id,
+            actionId: trimDiagnosticText(asRecord(row.payload).sourceActionId, 120) || row.id });
         }
         results.push({
           ok: true,
@@ -994,6 +989,17 @@ async function processDueScheduledActions(args: { origin: string; maxRows: numbe
       continue;
     }
 
+    // Recheck after the durable claim: a role or opt-in may have changed since selection.
+    if (!await automaticPublicationStillAuthorized(claimed)) {
+      await supabaseAdmin.from("inr_agent_scheduled_actions").update({ status: "cancelled",
+        last_error: "L’autorisation de publication automatique a été révoquée.", updated_at: new Date().toISOString() })
+        .eq("id", claimed.id).eq("user_id", claimed.user_id).eq("status", "running").eq("updated_at", claimed.updated_at);
+      await parkInrAgentAdminAutomaticPublications({ supabase: supabaseAdmin, accountId: claimed.user_id,
+        actionId: trimDiagnosticText(asRecord(claimed.payload).sourceActionId, 120) || claimed.id });
+      results.push({ ok: true, status: "skipped", scheduledActionId: claimed.id,
+        targetTool: String(claimed.target_tool || "agent"), detail: "automatic_authorization_revoked" });
+      continue;
+    }
     const result = await executeScheduledAction(claimed, args.origin, args.timeoutMs);
     try {
       if (result.ok) {

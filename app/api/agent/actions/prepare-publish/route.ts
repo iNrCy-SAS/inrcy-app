@@ -10,7 +10,7 @@ import { type BoosterChannels } from "@/lib/boosterPrompt";
 import { getBoosterGenerationContext } from "@/lib/boosterGenerationContext";
 import { INR_AGENT_VIDEO_AI_PREPARATION_VERSION } from "@/lib/inrAgentVideoPreparation";
 import { isValidJobForSector } from "@/lib/activityCatalog";
-import { normalizeInrAgentPublicationMediaTypes, type InrAgentTheme } from "@/lib/inrAgentSettings";
+import { normalizeInrAgentPublicationMediaTypes, type InrAgentTheme, type InrAgentValidationMode } from "@/lib/inrAgentSettings";
 import { rowToInrAgentAction } from "@/lib/inrAgentActions";
 import { videoAiContextReferenceAliases } from "@/lib/videoAiContextReference";
 import { generateInrAgentMedia } from "@/lib/inrAgentMediaGeneration";
@@ -34,6 +34,9 @@ import { loadEditorialPreparationTarget, selectConnectedChannels, loadPublishAut
 import { generatedPickerItemToAgentMedia, IMAGE_BANK_DIVERSIFICATION_RATE, isRecentlyUsedMediaRow, getRecentMediaTrace, selectInrAgentPublicationMedia } from "@/lib/inrAgentPublicationMediaSelection";
 import { prepareInrAgentSelectedMediaAnalysis } from "@/lib/inrAgentPublicationMediaAnalysis";
 import { generateBoosterPosts, prepareInrAgentEditorialIdea } from "@/lib/inrAgentPublicationEditorialService";
+import { canUseInrAgentAdminOptions, type InrAgentAdminRoleClient } from "@/lib/inrAgentAdminOptionsServer";
+import { INR_AGENT_ADMIN_PUBLISH_MODE, inrAgentPublishNeedsAdmin, readInrAgentAdminPublishOptIn, type InrAgentAdminAutomaticPublish } from "@/lib/inrAgentAdminPublishPolicy";
+import { isInrAgentAdminAutomaticPublicationAuthorized, parkInrAgentAdminAutomaticPublications } from "@/lib/inrAgentAdminPublishServer";
 
 export const maxDuration = 800;
 export const runtime = "nodejs";
@@ -101,6 +104,25 @@ export async function POST(request: Request) {
     loadPublishAutomationSettings(userId),
     loadInrAgentTone(userId),
   ]);
+  if (inrAgentPublishNeedsAdmin(automation) && !await canUseInrAgentAdminOptions(supabaseAdmin as unknown as InrAgentAdminRoleClient, { accountId: userId, actorAuthUserId: authUserId, isCron })) {
+    if (isCron) await parkInrAgentAdminAutomaticPublications({ supabase: supabaseAdmin, accountId: userId });
+    return NextResponse.json({ error: "Ces options de publication sont réservées aux comptes administrateurs.", code: "INR_AGENT_ADMIN_OPTIONS_FORBIDDEN" }, { status: 403 });
+  }
+  const adminOptIn = readInrAgentAdminPublishOptIn(automation.metadata.adminPublishOptIn);
+  if (automation.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE && !adminOptIn) {
+    return NextResponse.json({ error: "Confirmez à nouveau le mode de publication automatique dans les réglages.", code: "INR_AGENT_ADMIN_OPT_IN_REQUIRED" }, { status: 409 });
+  }
+  let adminAutomaticPublish: InrAgentAdminAutomaticPublish | null = isCron && editorialTarget && editorialTarget.metadata.adminAutomaticPublishManualReview !== true && adminOptIn && automation.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE
+    ? { version: 1, optInId: adminOptIn.id, accountId: userId, preparedAt: new Date().toISOString() } : null;
+  if (isCron && inrAgentPublishNeedsAdmin(automation)) {
+    const global = await supabaseAdmin.from("inr_agent_settings").select("global_enabled").eq("user_id", userId).maybeSingle();
+    if (global.error || global.data?.global_enabled !== true || (adminAutomaticPublish
+      && !await isInrAgentAdminAutomaticPublicationAuthorized({ supabase: supabaseAdmin, accountId: userId, isCron: true, marker: adminAutomaticPublish }))) {
+      await parkInrAgentAdminAutomaticPublications({ supabase: supabaseAdmin, accountId: userId });
+      return NextResponse.json({ error: "La préparation automatique n’est plus autorisée.", code: "INR_AGENT_ADMIN_AUTOMATIC_PUBLISH_FORBIDDEN" }, { status: 409 });
+    }
+  }
+  let effectiveValidationMode: InrAgentValidationMode = adminAutomaticPublish ? INR_AGENT_ADMIN_PUBLISH_MODE : "notify_before_validation";
   if (!automation.enabled) {
     return NextResponse.json(
       { error: "L’automatisation Publier est désactivée." },
@@ -665,7 +687,13 @@ export async function POST(request: Request) {
           generatedMediaCount: mediaAssets.length,
         }
       : null;
+    // A revocation while media was generated retains the paid result for review.
+    if (adminAutomaticPublish && !await isInrAgentAdminAutomaticPublicationAuthorized({ supabase: supabaseAdmin, accountId: userId, actorAuthUserId: authUserId, isCron, marker: adminAutomaticPublish })) {
+      adminAutomaticPublish = null;
+      effectiveValidationMode = "notify_before_validation";
+    }
     const payload = {
+      ...(adminAutomaticPublish ? { adminAutomaticPublish } : {}),
       version: 1,
       source: "inr_agent_publish_preparer",
       idea: resolvedIdea,
@@ -720,6 +748,8 @@ export async function POST(request: Request) {
       ...(readyEditorialPlan ? { editorialPlan: readyEditorialPlan } : {}),
     };
 
+    const preparationMetadata = { ...(editorialTarget?.metadata || {}) };
+    delete preparationMetadata.adminAutomaticPublish;
     const actionValues = {
       user_id: userId,
       automation_key: "publish",
@@ -738,13 +768,14 @@ export async function POST(request: Request) {
       recipients: [],
       image_assets: mediaAssets,
       payload,
-      validation_required: requiresManualValidation(automation.validationMode),
-      execution_policy: getExecutionPolicy(automation.validationMode),
-      status: getInitialStatus(automation.validationMode),
+      validation_required: requiresManualValidation(effectiveValidationMode),
+      execution_policy: getExecutionPolicy(effectiveValidationMode),
+      status: getInitialStatus(effectiveValidationMode),
       scheduled_for: editorialTarget?.plan.scheduledFor || null,
       prepared_at: now,
       metadata: {
-        ...(editorialTarget?.metadata || {}),
+        ...preparationMetadata,
+        ...(adminAutomaticPublish ? { adminAutomaticPublish } : {}),
         automationFrequency: automation.frequency,
         preparedManually: !isCron,
         preparedByCron: isCron,
@@ -895,7 +926,7 @@ export async function POST(request: Request) {
       mediaSource: media?.librarySource || media?.source || undefined,
       mediaSubjectSource,
       imagesSentToGeneration: imagesForAI.length,
-      validationRequired: requiresManualValidation(automation.validationMode),
+      validationRequired: requiresManualValidation(effectiveValidationMode),
       generationContextMs,
       professionalContextSource,
       publicationsContextSource,

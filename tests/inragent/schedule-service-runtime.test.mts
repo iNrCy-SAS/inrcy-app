@@ -76,6 +76,7 @@ function harness(options: Options = {}) {
     },
   };
   const dependencies: Record<string, unknown> = {
+    "@/lib/inrAgentAdminPublishServer": { isInrAgentAdminAutomaticPublicationAuthorized() { throw new Error("Manual scheduling must not invoke privileged automatic authorization"); } },
     "server-only": {}, "@/lib/supabaseAdmin": { supabaseAdmin: admin },
     "@/lib/inrAgentSettings": settings, "./siteWebChannel.ts": siteWeb, "@/lib/siteWebChannel": siteWeb, "@/lib/inrAgentScheduledPayload": compactPayload,
     "@/lib/boosterCtaPreferences": { normalizeCtaPhone: (value: unknown) => value, normalizeCtaWebsiteUrl: (value: unknown) => value },

@@ -1,4 +1,6 @@
 import "server-only";
+import type { InrAgentAdminAutomaticPublish } from "@/lib/inrAgentAdminPublishPolicy";
+import { isInrAgentAdminAutomaticPublicationAuthorized } from "@/lib/inrAgentAdminPublishServer";
 
 import { rowToInrAgentAction } from "@/lib/inrAgentActions";
 import { rowToInrAgentScheduledAction, scheduledActionToDbRow } from "@/lib/inrAgentScheduledActions";
@@ -24,6 +26,7 @@ export async function scheduleValidatedInrAgentAction(args: {
   scheduledAt: string | null;
   scheduleSelections: NormalizedScheduleSelection[];
   automaticExecution: boolean;
+  adminAutomaticPublish?: InrAgentAdminAutomaticPublish;
   confirmingEditorialPlan: boolean;
   confirmingRevisionPlan: boolean;
   preferences: { tiktokPublicationSettings?: unknown; timezone?: unknown };
@@ -107,12 +110,20 @@ export async function scheduleValidatedInrAgentAction(args: {
   };
 
   try {
+    const automaticAuthorized = () => isInrAgentAdminAutomaticPublicationAuthorized({ supabase: supabaseAdmin, accountId: activeUserId,
+      actorAuthUserId: context.actorAuthUserId, isCron: context.isCron, marker: args.adminAutomaticPublish, sourceActionId: action.id });
+    if (automaticExecution && (!context.isCron || !args.adminAutomaticPublish || !await automaticAuthorized())) {
+      return scheduleResult({ error: "Cette publication attend une validation manuelle.", code: "INR_AGENT_ADMIN_AUTOMATIC_PUBLISH_FORBIDDEN" }, { status: 403 });
+    }
     const scheduledPayload = await buildScheduledPayload(
       action,
       activeUserId,
       body?.tiktokPublicationSettings,
       context.actorAuthUserId,
     );
+    const trustedPayload = scheduledPayload.payload as JsonRecord;
+    if (automaticExecution) trustedPayload.adminAutomaticPublish = args.adminAutomaticPublish;
+    else delete trustedPayload.adminAutomaticPublish;
     const revisionReview = asRecord(action.payload.publicationRevisionReview);
     const timezone = cleanText(confirmingRevisionPlan ? revisionReview?.timezone : body?.timezone, 80) || "Europe/Paris";
     if (scheduledPayload.actionType !== "publication" && !scheduledAt) {
@@ -495,6 +506,7 @@ export async function scheduleValidatedInrAgentAction(args: {
     }
 
     if (automaticExecution) {
+      if (!await automaticAuthorized()) return scheduleResult({ error: "L’autorisation automatique a été révoquée.", code: "INR_AGENT_ADMIN_AUTOMATIC_PUBLISH_FORBIDDEN" }, { status: 403 });
       const claimNow = new Date().toISOString();
       const { data: claimedRow, error: claimError } = await supabaseAdmin
         .from("inr_agent_actions")
@@ -628,6 +640,8 @@ export async function scheduleValidatedInrAgentAction(args: {
         validated_at: automaticExecution
           ? null
           : editorialValidationClaimedAt || now,
+        ...(!automaticExecution && scheduledPayload.actionType === "publication" && action.executionPolicy === "automatic_after_settings"
+          ? { execution_policy: "manual_validation", validation_required: true } : {}),
         refused_at: null,
         last_error: null,
         payload: {

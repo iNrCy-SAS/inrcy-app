@@ -1,4 +1,8 @@
 import { after, NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
+import { canUseInrAgentAdminOptions, type InrAgentAdminRoleClient } from "@/lib/inrAgentAdminOptionsServer";
+import { INR_AGENT_ADMIN_PUBLISH_MODE, readInrAgentAdminPublishOptIn, requestedInrAgentAdminOptions } from "@/lib/inrAgentAdminPublishPolicy";
+import { parkInrAgentAdminAutomaticPublications } from "@/lib/inrAgentAdminPublishServer";
 import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import {
@@ -39,6 +43,7 @@ import {
   analyzeInrAgentEditorialPlanChange,
   notifyReadyInrAgentEditorialBatch,
   prepareNextInrAgentEditorialSlot,
+  scheduleReadyInrAgentAdminPublications,
   reconcileInrAgentEditorialPlan,
 } from "@/lib/inrAgentEditorialPlanServer";
 import {
@@ -80,6 +85,17 @@ const GLOBAL_SELECT = "global_enabled, tone, timezone, metadata";
 const AUTOMATION_SELECT = "automation_key, enabled, frequency, day_of_week, time, validation_mode, allowed_channels, allowed_themes, use_image_bank, image_required, recipient_scope, source_strategy, last_prepared_at, last_executed_at, next_run_at, metadata";
 const SETTINGS_SCHEDULE_GRACE_MS = 20 * 60 * 1000;
 type EditorialPlanApplyMode = "now" | "next_cycle";
+
+function settingsForAdminAccess(settings: InrAgentSettings, allowed: boolean): InrAgentSettings {
+  if (allowed) return settings;
+  const publish = settings.automations.publish;
+  const metadata = { ...publish.metadata };
+  delete metadata.adminPublishOptIn;
+  return sanitizeInrAgentSettings({ ...settings, automations: { ...settings.automations,
+    publish: { ...publish, frequency: publish.frequency === "daily" ? "weekly" : publish.frequency,
+      validationMode: "notify_before_validation", metadata },
+  } });
+}
 
 function editorialPlanApplyMode(value: unknown): EditorialPlanApplyMode | null {
   return value === "now" || value === "next_cycle" ? value : null;
@@ -128,7 +144,7 @@ function normalizeDay(value: unknown) {
 
 function normalizeFrequency(value: unknown): InrAgentFrequency {
   const text = String(value || "weekly") as InrAgentFrequency;
-  return ["weekly", "twice_weekly", "three_times_weekly", "biweekly", "three_times_monthly", "monthly", "quarterly", "one_off"].includes(text) ? text : "weekly";
+  return ["daily", "weekly", "twice_weekly", "three_times_weekly", "biweekly", "three_times_monthly", "monthly", "quarterly", "one_off"].includes(text) ? text : "weekly";
 }
 
 function getLocalParts(date: Date, timeZone = "Europe/Paris") {
@@ -210,6 +226,7 @@ function isScheduledDate(
   dayOfWeek: number,
   monthDays: number[],
 ) {
+  if (frequency === "daily") return true;
   if (inrAgentMonthlyDateCount(frequency)) {
     return isInrAgentScheduledMonthDay(local, monthDays);
   }
@@ -428,7 +445,7 @@ function filterSettingsByConnectedChannels(
     };
   }
 
-  const globalEnabled = Object.values(automations).some(
+  const globalEnabled = settings.globalEnabled && Object.values(automations).some(
     (automation) => automation.enabled,
   );
 
@@ -490,6 +507,7 @@ function rowsToSettings(
 async function getAgentSettingsHandler() {
   const { errorResponse, authUserId, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const adminOptionsAllowed = await canUseInrAgentAdminOptions(supabaseAdmin as unknown as InrAgentAdminRoleClient, { accountId: activeUserId, actorAuthUserId: authUserId, isCron: false });
   const standardMode =
     (await getDashboardEditionForAuthUser(authUserId)) === "standard";
 
@@ -540,10 +558,10 @@ async function getAgentSettingsHandler() {
     true,
   );
 
-  const connectedSettings = await applyConnectedChannelFilter(
+  const connectedSettings = settingsForAdminAccess(await applyConnectedChannelFilter(
     settings,
     activeUserId,
-  );
+  ), adminOptionsAllowed);
   const manualPublishCredits = await getInrAgentManualPublishCreditAvailability({
     accountId: activeUserId, actorAuthUserId: authUserId,
     automation: connectedSettings.automations.publish,
@@ -553,6 +571,7 @@ async function getAgentSettingsHandler() {
       ? restrictInrAgentSettingsForStandard(connectedSettings)
       : connectedSettings,
     tableMissing: false,
+    adminOptionsAllowed,
     manualPublishCredits,
   });
 }
@@ -574,6 +593,13 @@ async function saveAgentSettingsHandler(request: Request) {
     settings?: Partial<InrAgentSettings>;
     editorialPlanApplyMode?: EditorialPlanApplyMode;
   } | null;
+  const requestedAdminOptions = requestedInrAgentAdminOptions(requestBody?.settings);
+  if (requestedAdminOptions.requested && !await canUseInrAgentAdminOptions(supabaseAdmin as unknown as InrAgentAdminRoleClient, { accountId: activeUserId, actorAuthUserId: authUserId, isCron: false })) {
+    return NextResponse.json({ error: "Ces options de publication sont réservées aux comptes administrateurs.", code: "INR_AGENT_ADMIN_OPTIONS_FORBIDDEN" }, { status: 403 });
+  }
+  if (requestedAdminOptions.invalidModule) {
+    return NextResponse.json({ error: "Ces options sont disponibles uniquement pour Publier.", code: "INR_AGENT_ADMIN_OPTIONS_PUBLISH_ONLY" }, { status: 400 });
+  }
   const applyMode = editorialPlanApplyMode(
     requestBody?.editorialPlanApplyMode,
   );
@@ -632,6 +658,19 @@ async function saveAgentSettingsHandler(request: Request) {
     existingGlobalResult.data as DbAgentGlobalSettingsRow | null,
     existingRows,
   );
+  const requestedPublish = settings.automations.publish;
+  if ((!settings.globalEnabled || !requestedPublish.enabled) && requestedPublish.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE) {
+    requestedPublish.validationMode = "notify_before_validation";
+  }
+  const adminMetadata = { ...requestedPublish.metadata };
+  delete adminMetadata.adminPublishOptIn;
+  if (settings.globalEnabled && requestedPublish.enabled && requestedPublish.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE) {
+    const currentPublish = currentSettings.automations.publish;
+    const existingOptIn = currentSettings.globalEnabled && currentPublish.enabled && currentPublish.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE
+      ? readInrAgentAdminPublishOptIn(currentPublish.metadata.adminPublishOptIn) : null;
+    adminMetadata.adminPublishOptIn = existingOptIn ?? { version: 1, id: randomUUID(), enabledAt: now };
+  }
+  settings.automations.publish.metadata = adminMetadata;
   // Older clients omit this field. Preserve saved references in that case;
   // only the dedicated control can replace the list or clear it explicitly.
   const referenceValue = requestBody?.settings?.automations?.publish?.metadata?.[INR_AGENT_MEDIA_REFERENCES_KEY];
@@ -769,6 +808,13 @@ async function saveAgentSettingsHandler(request: Request) {
   const activePublishAutomation = clearDeferredEditorialMetadata(
     currentSettings.automations.publish,
   );
+  // Calendar changes may wait for the next cycle; revoking automatic approval never waits.
+  if (activePublishAutomation.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE
+    && (!settings.globalEnabled || !requestedPublishAutomation.enabled || requestedPublishAutomation.validationMode !== INR_AGENT_ADMIN_PUBLISH_MODE)) {
+    activePublishAutomation.validationMode = "notify_before_validation";
+    delete activePublishAutomation.metadata.adminPublishOptIn;
+    if (!settings.globalEnabled || !requestedPublishAutomation.enabled) activePublishAutomation.enabled = false;
+  }
   const previousPublishEpoch = nextEditorialPlanEpoch({
     previousMetadata: existingByKey.get("publish")?.metadata,
     calendarChanged: false,
@@ -810,14 +856,14 @@ async function saveAgentSettingsHandler(request: Request) {
       })
     : requestedPublishWithEpoch;
 
-  const persistedGlobalEnabled = deferEditorialSettings
+  const persistedGlobalEnabled = settings.globalEnabled && (deferEditorialSettings
     ? Object.entries(settings.automations).some(([key, automation]) =>
         key === "publish"
           ? persistedPublishAutomation.enabled ||
             requestedPublishAutomation.enabled
           : automation.enabled,
       )
-    : settings.globalEnabled;
+    : settings.globalEnabled);
 
   const globalPayload = {
     user_id: activeUserId,
@@ -923,6 +969,17 @@ async function saveAgentSettingsHandler(request: Request) {
     );
   }
 
+  const previousOptIn = readInrAgentAdminPublishOptIn(currentSettings.automations.publish.metadata.adminPublishOptIn);
+  const nextOptIn = readInrAgentAdminPublishOptIn(persistedPublishAutomation.metadata.adminPublishOptIn);
+  if (previousOptIn && (!persistedGlobalEnabled || !persistedPublishAutomation.enabled
+    || persistedPublishAutomation.validationMode !== INR_AGENT_ADMIN_PUBLISH_MODE || nextOptIn?.id !== previousOptIn.id)) {
+    try {
+      await parkInrAgentAdminAutomaticPublications({ supabase: supabaseAdmin, accountId: activeUserId, optInId: previousOptIn.id });
+    } catch (error) {
+      // Dispatch rechecks the fresh opt-in even if parking needs a cron retry.
+      console.warn("[inr-agent-settings] automatic publication parking failed", error);
+    }
+  }
   let editorialPlan: Awaited<
     ReturnType<typeof reconcileInrAgentEditorialPlan>
   > | null = null;
@@ -956,6 +1013,9 @@ async function saveAgentSettingsHandler(request: Request) {
           userId: activeUserId,
           origin,
         });
+        if (persistedPublishAutomation.validationMode === "admin_automatic_publish") {
+          await scheduleReadyInrAgentAdminPublications({ supabase: supabaseAdmin, userId: activeUserId, origin });
+        }
         await notifyReadyInrAgentEditorialBatch({
           supabase: supabaseAdmin,
           userId: activeUserId,

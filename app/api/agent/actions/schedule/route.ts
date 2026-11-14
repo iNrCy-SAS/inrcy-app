@@ -12,6 +12,8 @@ import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
 import { inrAgentPublicationNeedsRevisionReview, inrAgentPublicationRevisionSchedule } from "@/lib/inrAgentPublicationRevision";
 import { ACTION_SELECT, SCHEDULED_ACTION_SELECT, EDITORIAL_VALIDATION_EXPIRED_MESSAGE, schedulableStatuses, asRecord, cleanText, sanitizeFutureDate, sanitizeAutomaticScheduledDate, normalizeScheduleSelections, isMissingTableError, normalizeBoosterChannels, isManualEditorialPublicationAction } from "@/lib/inrAgentSchedulePolicy";
 import { scheduleValidatedInrAgentAction } from "@/lib/inrAgentScheduleService";
+import { readInrAgentAdminAutomaticPublish } from "@/lib/inrAgentAdminPublishPolicy";
+import { isInrAgentAdminAutomaticPublicationAuthorized } from "@/lib/inrAgentAdminPublishServer";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -30,17 +32,6 @@ async function scheduleAgentActionHandler(request: Request) {
       { status: 403 },
     );
   }
-  if (automaticExecution) {
-    return NextResponse.json(
-      {
-        error:
-          "Cette publication attend la validation du professionnel avant toute programmation.",
-        code: "INR_AGENT_MANUAL_VALIDATION_REQUIRED",
-      },
-      { status: 409 },
-    );
-  }
-
   const actionId = cleanText(body?.actionId, 120);
   let scheduledAt = automaticExecution
     ? sanitizeAutomaticScheduledDate(body?.scheduledAt)
@@ -84,6 +75,12 @@ async function scheduleAgentActionHandler(request: Request) {
     );
 
   const action = rowToInrAgentAction(actionRow as any);
+  const adminAutomaticPublish = readInrAgentAdminAutomaticPublish(asRecord((actionRow as any).metadata)?.adminAutomaticPublish);
+  if (automaticExecution && ((actionRow as any).metadata?.adminAutomaticPublishManualReview === true
+    || !adminAutomaticPublish || JSON.stringify(adminAutomaticPublish) !== JSON.stringify(readInrAgentAdminAutomaticPublish(action.payload.adminAutomaticPublish))
+    || !await isInrAgentAdminAutomaticPublicationAuthorized({ supabase: supabaseAdmin, accountId: activeUserId, isCron: true, marker: adminAutomaticPublish }))) {
+    return NextResponse.json({ error: "Cette publication attend une validation manuelle.", code: "INR_AGENT_ADMIN_AUTOMATIC_PUBLISH_FORBIDDEN" }, { status: 403 });
+  }
   if (action.automationKey === "publish" && (pendingInrAgentPublicationChannels(action.payload).length || unvalidatedInrAgentPublicationChannels(action.payload).length)) return NextResponse.json({ error: "Un canal sélectionné est vide ou attend sa validation.", code: "INR_AGENT_CHANNEL_REVIEW_REQUIRED" }, { status: 409 });
   if (filterInrAgentPublicationChannels(action.payload, normalizeBoosterChannels(action.payload?.selectedChannels || action.payload?.channels || action.targetChannels)).includes("threads") && !(await (isCron ? isMetaChannelPilotEnabledForAccount(supabaseAdmin, activeUserId) : isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, activeUserId)))) return metaChannelPilotDeniedResponse();
   if (standardMode && !isStandardAgentActionDescriptor(action)) {
@@ -214,6 +211,7 @@ async function scheduleAgentActionHandler(request: Request) {
       );
     }
     scheduledAt = sanitizeAutomaticScheduledDate(action.scheduledFor);
+    scheduleSelections = [];
   }
   if (confirmingEditorialPlan && action.status === "refused") {
     return NextResponse.json(
@@ -236,7 +234,7 @@ async function scheduleAgentActionHandler(request: Request) {
 
   const result = await scheduleValidatedInrAgentAction({
     context: Object.freeze({ accountId: activeUserId, actorAuthUserId: context.authUserId, isCron }),
-    action, scheduledAt, scheduleSelections, automaticExecution, confirmingEditorialPlan, confirmingRevisionPlan,
+    action, scheduledAt, scheduleSelections, automaticExecution, confirmingEditorialPlan, confirmingRevisionPlan, adminAutomaticPublish: adminAutomaticPublish ?? undefined,
     preferences: { tiktokPublicationSettings: body?.tiktokPublicationSettings, timezone: body?.timezone },
     onError: (error) => captureApiException(request, error, {
       area: "inragent",

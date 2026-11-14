@@ -1,4 +1,7 @@
 import "server-only";
+import { isInrAgentAdminAccount } from "@/lib/inrAgentAdminOptionsServer";
+import { INR_AGENT_ADMIN_PUBLISH_MODE, inrAgentAdminMarkerMatchesOptIn, inrAgentPublishNeedsAdmin, readInrAgentAdminAutomaticPublish } from "@/lib/inrAgentAdminPublishPolicy";
+import { isInrAgentAdminAutomaticPublicationAuthorized, parkInrAgentAdminAutomaticPublications } from "@/lib/inrAgentAdminPublishServer";
 
 import { createHash } from "node:crypto";
 
@@ -571,6 +574,10 @@ export async function activatePendingInrAgentEditorialSettings(args: {
   if (!pending || !Number.isFinite(effectiveAt) || effectiveAt > now.getTime()) {
     return { automation: current, activated: false };
   }
+  if (inrAgentPublishNeedsAdmin(pending) && !await isInrAgentAdminAccount(args.supabase, args.userId)) {
+    await parkInrAgentAdminAutomaticPublications({ supabase: args.supabase, accountId: args.userId });
+    throw new Error("INR_AGENT_ADMIN_OPTIONS_FORBIDDEN");
+  }
 
   const pendingMetadata = { ...asRecord(pending.metadata) };
   delete pendingMetadata.pendingEditorialSettings;
@@ -605,6 +612,11 @@ export async function reconcileInrAgentEditorialPlan(args: {
 }) {
   const now = args.now ?? new Date();
   const nowIso = now.toISOString();
+  const adminOptionsAllowed = !inrAgentPublishNeedsAdmin(args.automation) || await isInrAgentAdminAccount(args.supabase, args.userId);
+  if (!adminOptionsAllowed) {
+    await parkInrAgentAdminAutomaticPublications({ supabase: args.supabase, accountId: args.userId, now: nowIso });
+    throw new Error("INR_AGENT_ADMIN_OPTIONS_FORBIDDEN");
+  }
   const cutoverAt = futureEditorialCutoverAt(args.automation, now);
   const basePlan = buildInrAgentEditorialPlan({
     automation: args.automation,
@@ -629,6 +641,17 @@ export async function reconcileInrAgentEditorialPlan(args: {
   const existing = (Array.isArray(existingData)
     ? existingData
     : []) as EditorialActionRow[];
+  if (args.automation.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE) {
+    for (const row of existing) {
+      if (row.execution_policy === "automatic_after_settings" || asRecord(row.metadata).adminAutomaticPublishManualReview === true
+        || !["prepared", "pending_validation", "pending", "refused", "validated", "scheduled"].includes(row.status)) continue;
+      const metadata = { ...asRecord(row.metadata), adminAutomaticPublishManualReview: true };
+      const { error } = await args.supabase.from("inr_agent_actions").update({ metadata })
+        .eq("id", row.id).eq("user_id", args.userId).eq("status", row.status);
+      if (error) throw error;
+      row.metadata = metadata;
+    }
+  }
   const editorialRows = existing.filter(
     (row) => asRecord(row.metadata).editorialPlan === true,
   );
@@ -637,7 +660,8 @@ export async function reconcileInrAgentEditorialPlan(args: {
   // remains untouched. It only stops occupying the new epoch's slot key.
   const existingBySlot = new Map(
     editorialRows
-      .filter((row) => !shouldReplaceTerminalEditorialRow(row, planEpoch))
+      .filter((row) => args.automation.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE && (row.status === "refused" || row.refused_at)
+        || !shouldReplaceTerminalEditorialRow(row, planEpoch))
       .sort((left, right) =>
         (Date.parse(left.created_at || "") || 0) -
         (Date.parse(right.created_at || "") || 0),
@@ -1189,6 +1213,11 @@ export async function reconcileInrAgentEditorialPlan(args: {
       const validationWorkflowChanged =
         row.validation_required !== desiredValidationRequired ||
         cleanText(row.execution_policy, 80) !== desiredExecutionPolicy;
+      // Only freshly generated, explicitly opted-in admin publications retain
+      // automatic status. Never upgrade existing manual pending/refused rows.
+      if (args.automation.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE
+        && row.validation_required === false && row.execution_policy === "automatic_after_settings"
+        && inrAgentAdminMarkerMatchesOptIn(asRecord(row.metadata).adminAutomaticPublish, args.automation.metadata.adminPublishOptIn, args.userId)) continue;
       if (!validationWorkflowChanged) continue;
 
       automaticSchedulesCancelled +=
@@ -1509,6 +1538,36 @@ export async function notifyReadyInrAgentEditorialBatch(args: {
     remaining: activeRows.length - awaitingValidation.length,
     reminderCount: decision.inAppReminder.length,
   };
+}
+
+/** Retrying this step never regenerates content; the schedule service owns the durable claim. */
+export async function scheduleReadyInrAgentAdminPublications(args: {
+  supabase: SupabaseLike;
+  userId: string;
+  origin: string;
+}) {
+  const { data, error } = await args.supabase.from("inr_agent_actions")
+    .select("id,payload,metadata").eq("user_id", args.userId).eq("automation_key", "publish")
+    .eq("status", "prepared").eq("execution_policy", "automatic_after_settings").eq("validation_required", false)
+    .order("scheduled_for", { ascending: true }).limit(30);
+  if (error) throw error;
+  const results: Array<{ actionId: string; status: "scheduled" | "parked" | "retry" }> = [];
+  for (const row of Array.isArray(data) ? data : []) {
+    const marker = readInrAgentAdminAutomaticPublish(asRecord(row.metadata).adminAutomaticPublish);
+    if (!marker || !await isInrAgentAdminAutomaticPublicationAuthorized({ supabase: args.supabase,
+      accountId: args.userId, isCron: true, marker, sourceActionId: row.id })) {
+      await parkInrAgentAdminAutomaticPublications({ supabase: args.supabase, accountId: args.userId, optInId: marker?.optInId, actionId: row.id });
+      results.push({ actionId: row.id, status: "parked" });
+      continue;
+    }
+    const response = await fetch(`${args.origin.replace(/\/$/, "")}/api/agent/actions/schedule`, {
+      method: "POST", headers: buildInternalCronHeaders(args.userId), cache: "no-store",
+      body: JSON.stringify({ cronUserId: args.userId, actionId: row.id, executionSource: "automatic" }),
+    });
+    // A transient scheduling failure leaves this prepared row intact for the next cron.
+    results.push({ actionId: row.id, status: response.ok ? "scheduled" : "retry" });
+  }
+  return results;
 }
 
 export async function prepareNextInrAgentEditorialSlot(args: {

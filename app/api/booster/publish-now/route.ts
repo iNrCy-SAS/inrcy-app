@@ -229,6 +229,7 @@ import {
   resolveBoosterPreparationDispatchReference,
 } from "@/lib/boosterPreparationDispatch";
 import { normalizeBoosterPublicationChannels } from "@/lib/boosterPublicationPolicy";
+import { guardInrAgentAdminBoosterPublication } from "@/lib/inrAgentAdminPublishWorkerServer";
 import { buildBoosterPublicationDispatchPlan } from "@/lib/boosterPublicationDispatchPlan";
 import {
   getChannelConnectionStates,
@@ -534,11 +535,13 @@ async function publishNowHandler(req: Request) {
       ? getCronUserIdFromRequest(req)
       : "";
     let userId = cronUserId;
+    let actorAuthUserId: string | undefined;
 
     if (!userId) {
-      const { errorResponse, activeUserId } = await requireUser();
+      const { errorResponse, activeUserId, authUserId } = await requireUser();
       if (errorResponse) return errorResponse;
       userId = activeUserId;
+      actorAuthUserId = authUserId;
 
       const rl = await enforceRateLimit({
         name: "booster_publish",
@@ -655,6 +658,14 @@ async function publishNowHandler(req: Request) {
         );
       }
       body = resolvedPreparation.body;
+    }
+
+    const agentAuthorization = await guardInrAgentAdminBoosterPublication({ supabase: supabaseAdmin,
+      accountId: userId, actorAuthUserId, isCron: Boolean(cronUserId), body,
+      asyncPublicationId: internalAsyncWorkerDispatch ? asyncPublicationId : undefined });
+    if (!agentAuthorization.allowed) {
+      return NextResponse.json({ ok: false, code: agentAuthorization.code, retryable: agentAuthorization.status >= 500,
+        error: agentAuthorization.error }, { status: agentAuthorization.status });
     }
 
     // Preparation workers load their durable body above; validate that actual

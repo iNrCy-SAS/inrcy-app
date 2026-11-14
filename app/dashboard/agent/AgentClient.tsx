@@ -556,7 +556,7 @@ export default function AgentClient({ workspace = "publications" }: AgentClientP
 }
 
 function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { workspace: InrAgentWorkspace; manualPlanningOnly?: boolean }) {
-  const { metaPilotEnabled, activeAccountId, actorUserId } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId, actorUserId, viewerIsAdmin } = useDashboardViewerAccess();
   const i18nT = useTranslations("agent");
   const mediaT = useTranslations("media");
   const boosterT = useTranslations("booster");
@@ -1297,6 +1297,12 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
   const settingsMonthlyDateCount = settingsConfig
     ? inrAgentMonthlyDateCount(settingsConfig.frequency)
     : 0;
+  const settingsCanUseAdminPublishOptions = settingsAutomation?.key === "publish" && viewerIsAdmin;
+  const settingsAdminAutomaticAvailable = settingsCanUseAdminPublishOptions && Boolean(settingsConfig?.enabled && agentSettings.globalEnabled);
+  const settingsPublishDaily = settingsCanUseAdminPublishOptions && settingsConfig?.frequency ===
+    settingsOptions.publish.frequency.find((option) => option.value === "daily")?.label;
+  const settingsPublishWithoutApproval = settingsCanUseAdminPublishOptions && settingsConfig?.validation ===
+    settingsOptions.publish.validation.find((option) => option.value === "admin_automatic_publish")?.label;
   const settingsMonthDays = settingsConfig
     ? normalizeInrAgentMonthDays(
         settingsConfig.monthDays,
@@ -8240,6 +8246,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                   <span>{i18nT("frequence_bafbfba7")}</span>
                   <select
                     value={settingsConfig.frequency}
+                    aria-describedby={settingsPublishDaily ? "agent-publish-daily-hint" : undefined}
                     onChange={(event) =>
                       updateConfigFrequency(
                         settingsAutomation.key,
@@ -8247,7 +8254,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                       )
                     }
                   >
-                    {settingsOptions[settingsAutomation.key].frequency.map(
+                    {settingsOptions[settingsAutomation.key].frequency.filter((option) => option.value !== "daily" || settingsCanUseAdminPublishOptions).map(
                       (frequency) => (
                         <option key={frequency.value} value={frequency.label}>
                           {agentFrequencyLabel(frequency.label, runtimeT)}
@@ -8255,6 +8262,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                       )
                     )}
                   </select>
+                  {settingsPublishDaily ? <small id="agent-publish-daily-hint">{i18nT("agent_admin_publish_daily_hint")}</small> : null}
                 </label>
                 {settingsAutomation.key === "publish" ? (
                   <label>
@@ -8343,6 +8351,19 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                       </select>
                     </label>
                   </>
+                ) : settingsPublishDaily ? (
+                  <label>
+                    <span>{i18nT("horaire_db0addb3")}</span>
+                    <select
+                      value={settingsConfig.time}
+                      onChange={(event) => updateConfig(settingsAutomation.key, {
+                        time: event.target.value,
+                        scheduleSlots: [{ day: settingsConfig.day, time: event.target.value }],
+                      })}
+                    >
+                      {hourOptions.map((hour) => <option key={hour}>{hour}</option>)}
+                    </select>
+                  </label>
                 ) : settingsConfig.frequency === "2 fois par semaine" ||
                   settingsConfig.frequency === "3 fois par semaine" ? (
                   normalizeConfigScheduleSlots(settingsConfig)
@@ -8461,20 +8482,22 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                   <span>{i18nT("validation_dd74d182")}</span>
                   <select
                     value={settingsConfig.validation}
+                    aria-describedby={settingsCanUseAdminPublishOptions && !settingsAdminAutomaticAvailable ? "agent-publish-requires-enabled-hint" : settingsPublishWithoutApproval ? "agent-publish-without-approval-hint" : undefined}
                     onChange={(event) =>
                       updateConfig(settingsAutomation.key, {
                         validation: event.target.value,
                       })
                     }
                   >
-                    {settingsOptions[settingsAutomation.key].validation.map(
+                    {settingsOptions[settingsAutomation.key].validation.filter((option) => option.value !== "admin_automatic_publish" || settingsCanUseAdminPublishOptions).map(
                       (validation) => (
-                        <option key={validation.value} value={validation.label}>
+                        <option key={validation.value} value={validation.label} disabled={validation.value === "admin_automatic_publish" && !settingsAdminAutomaticAvailable}>
                           {agentValidationLabel(validation.label, runtimeT)}
                         </option>
                       )
                     )}
                   </select>
+                  {settingsCanUseAdminPublishOptions && !settingsAdminAutomaticAvailable ? <small id="agent-publish-requires-enabled-hint">{i18nT("agent_admin_publish_requires_enabled")}</small> : settingsPublishWithoutApproval ? <small id="agent-publish-without-approval-hint">{i18nT("agent_admin_publish_without_approval_hint")}</small> : null}
                 </label>
               </div>
 

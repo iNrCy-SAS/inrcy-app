@@ -14,6 +14,7 @@ import {
 } from "@/lib/dashboardEditionServer";
 import { isStandardAgentActionDescriptor, isManualBoosterPublicationSchedule } from "@/lib/standardAgentPolicy";
 import { scheduledPublicationFingerprint } from "@/lib/inrAssistantActionPreview";
+import { isInrAgentAdminScheduledPublicationAuthorized, parkInrAgentAdminAutomaticPublications } from "@/lib/inrAgentAdminPublishServer";
 
 export const runtime = "nodejs";
 export const maxDuration = 180;
@@ -232,7 +233,22 @@ function buildActionFromScheduled(row: any, userId: string) {
   };
 }
 
-async function executeBoosterPublicationNow(row: any, userId: string) {
+async function guardAutomaticPublication(row: any, actorAuthUserId: string) {
+  if (await isInrAgentAdminScheduledPublicationAuthorized({ supabase: supabaseAdmin, row, actorAuthUserId, isCron: false })) return null;
+  // A non-admin collaborator cannot cancel an otherwise authorized admin job.
+  if (!await isInrAgentAdminScheduledPublicationAuthorized({ supabase: supabaseAdmin, row, isCron: true })) {
+    await supabaseAdmin.from("inr_agent_scheduled_actions").update({ status: "cancelled",
+      last_error: "L’autorisation de publication automatique a été révoquée.", updated_at: new Date().toISOString() })
+      .eq("id", row.id).eq("user_id", row.user_id).in("status", ["scheduled", "running", "failed"]);
+    await parkInrAgentAdminAutomaticPublications({ supabase: supabaseAdmin, accountId: row.user_id,
+      actionId: cleanText(asRecord(row.payload).sourceActionId, 120) || row.id });
+  }
+  return NextResponse.json({ error: "Cette publication attend une validation manuelle.", code: "INR_AGENT_ADMIN_AUTOMATIC_PUBLISH_FORBIDDEN" }, { status: 403 });
+}
+
+async function executeBoosterPublicationNow(row: any, userId: string, actorAuthUserId: string) {
+  const denied = await guardAutomaticPublication(row, actorAuthUserId);
+  if (denied) return denied;
   const publicationRequest = buildScheduledPublicationRequest(row);
   if (!publicationRequest) {
     const now = new Date().toISOString();
@@ -424,6 +440,9 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
     );
   }
 
+  const denied = await guardAutomaticPublication(scheduledRow, authUserId);
+  if (denied) return denied;
+
   const claimAt = new Date().toISOString();
   let claim = supabaseAdmin
     .from("inr_agent_scheduled_actions")
@@ -468,7 +487,7 @@ export async function POST(_request: Request, ctx: { params: Promise<{ id: strin
   }
 
   if (isBoosterPublicationSchedule(claimedRow)) {
-    return executeBoosterPublicationNow(claimedRow, activeUserId);
+    return executeBoosterPublicationNow(claimedRow, activeUserId, authUserId);
   }
 
   const actionRow = buildActionFromScheduled(claimedRow, activeUserId);

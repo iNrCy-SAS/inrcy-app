@@ -915,5 +915,10 @@
   "settings_impact_horizon": "{days, plural, =30 {über einen Monat} one {über # Tag} other {über # Tage}}",
   "settings_impact_lost_quotas": "Beim sofortigen Anwenden geht das bereits verbrauchte Kontingent verloren: {images, plural, one {# Bildeinheit} other {# Bildeinheiten}} und {videos, plural, one {# Videoeinheit} other {# Videoeinheiten}}.",
   "settings_impact_media_count": "{images, plural, one {# Bild} other {# Bilder}} · {videos, plural, one {# Video} other {# Videos}} ({seconds} s)",
-  "settings_impact_publications_count": "{count, plural, one {Beitrag} other {Beiträge}}"
+  "settings_impact_publications_count": "{count, plural, one {Beitrag} other {Beiträge}}",
+  "agent_admin_publish_daily": "Jeden Tag veröffentlichen",
+  "agent_admin_publish_without_approval": "Ohne vorherige Freigabe veröffentlichen",
+  "agent_admin_publish_daily_hint": "Jeden Tag zur gewählten Uhrzeit. Der gewählte Freigabemodus gilt weiterhin.",
+  "agent_admin_publish_without_approval_hint": "Neue Beiträge werden ohne manuelle Freigabe für den vorgesehenen Zeitpunkt eingeplant.",
+  "agent_admin_publish_requires_enabled": "Aktiviere zuerst die Automatisierung Veröffentlichen, um diesen Modus auszuwählen."
 }

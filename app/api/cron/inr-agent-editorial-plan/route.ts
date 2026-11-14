@@ -6,6 +6,7 @@ import {
   notifyReadyInrAgentEditorialBatch,
   prepareNextInrAgentEditorialSlot,
   reconcileInrAgentEditorialPlan,
+  scheduleReadyInrAgentAdminPublications,
   type InrAgentEditorialAutomationRow,
 } from "@/lib/inrAgentEditorialPlanServer";
 import type { InrAgentAutomationSettings } from "@/lib/inrAgentSettings";
@@ -289,12 +290,17 @@ export async function POST(request: Request) {
   // Every enabled account must be checked for validation deadlines, even when
   // the generation budget was spent on other accounts during this cron run.
   const notificationResults: Array<Record<string, unknown>> = [];
+  const automaticScheduleResults: Array<Record<string, unknown>> = [];
   if (!dryRun) {
     for (let index = 0; index < enabledRows.length; index += 5) {
       const group = enabledRows.slice(index, index + 5);
       const results = await Promise.all(
         group.map(async (entry) => {
           try {
+            if (entry.automation.validationMode === "admin_automatic_publish") {
+              const scheduled = await scheduleReadyInrAgentAdminPublications({ supabase: supabaseAdmin, userId: entry.userId, origin });
+              automaticScheduleResults.push(...scheduled.map((result) => ({ userId: entry.userId, ...result })));
+            }
             const result = await notifyReadyInrAgentEditorialBatch({
               supabase: supabaseAdmin,
               userId: entry.userId,
@@ -339,6 +345,7 @@ export async function POST(request: Request) {
     reconciliations,
     generationResults: generated,
     notificationResults,
+    automaticScheduleResults,
   });
 }
 

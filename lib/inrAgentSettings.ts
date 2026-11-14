@@ -1,6 +1,7 @@
 import { canonicalSiteWebChannel } from "./siteWebChannel.ts";
 export const INR_AGENT_AUTOMATION_KEYS = ["publish", "grow", "loyalty", "stats"] as const;
 export const INR_AGENT_FREQUENCIES = [
+  "daily",
   "weekly",
   "twice_weekly",
   "three_times_weekly",
@@ -11,6 +12,7 @@ export const INR_AGENT_FREQUENCIES = [
   "one_off",
 ] as const;
 export const INR_AGENT_VALIDATION_MODES = [
+  "admin_automatic_publish",
   "validation_required",
   "draft_only",
   "notify_before_validation",
@@ -307,6 +309,7 @@ export const INR_AGENT_LABELS = {
     stats: "Statistiques",
   } satisfies Record<InrAgentAutomationKey, string>,
   frequencies: {
+    daily: "Tous les jours",
     weekly: "1 fois / semaine",
     twice_weekly: "2 fois / semaine",
     three_times_weekly: "3 fois / semaine",
@@ -317,12 +320,14 @@ export const INR_AGENT_LABELS = {
     one_off: "Ponctuel",
   } satisfies Record<InrAgentFrequency, string>,
   modes: {
+    admin_automatic_publish: "Publier sans validation préalable",
     validation_required: "Validation obligatoire",
     draft_only: "Brouillon uniquement",
     notify_before_validation: "Notification avant validation",
     automatic_report: "Automatique pour les bilans",
   } satisfies Record<InrAgentMode, string>,
   validationModes: {
+    admin_automatic_publish: "Publier sans validation préalable",
     validation_required: "Validation obligatoire",
     draft_only: "Brouillon uniquement",
     notify_before_validation: "Notification avant validation",
@@ -602,18 +607,18 @@ export function sanitizeInrAgentAutomationSettings(
 
   const validationMode =
     key === "publish"
-      ? "notify_before_validation"
-      : includesValue(INR_AGENT_VALIDATION_MODES, source.validationMode)
+      ? source.validationMode === "admin_automatic_publish" ? "admin_automatic_publish" : "notify_before_validation"
+      : includesValue(INR_AGENT_VALIDATION_MODES, source.validationMode) && source.validationMode !== "admin_automatic_publish"
         ? source.validationMode
         : defaults.validationMode;
 
   return {
     enabled: sanitizeBoolean(source.enabled, defaults.enabled),
-    frequency: includesValue(INR_AGENT_FREQUENCIES, source.frequency) ? source.frequency : defaults.frequency,
+    frequency: includesValue(INR_AGENT_FREQUENCIES, source.frequency) && (key === "publish" || source.frequency !== "daily") ? source.frequency : defaults.frequency,
     dayOfWeek: sanitizeDay(source.dayOfWeek, defaults.dayOfWeek),
     time: sanitizeTime(source.time, defaults.time),
-    // La publication iNrAgent reste toujours sous le contrôle du professionnel.
-    // Les anciennes valeurs `automatic_publish` sont normalisées ici dès la lecture.
+    // This is structural normalization only; server boundaries authorize the
+    // explicit admin option. Legacy `automatic_publish` never reactivates it.
     validationMode,
     allowedChannels: normalizedAllowedChannels,
     allowedThemes: normalizedAllowedThemes,

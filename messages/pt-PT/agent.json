@@ -915,5 +915,10 @@
   "settings_impact_horizon": "{days, plural, =30 {durante um mês} one {durante # dia} other {durante # dias}}",
   "settings_impact_lost_quotas": "Ao aplicar agora, perde a quota já consumida: {images, plural, one {# unidade de imagem} other {# unidades de imagem}} e {videos, plural, one {# unidade de vídeo} other {# unidades de vídeo}}.",
   "settings_impact_media_count": "{images, plural, one {# imagem} other {# imagens}} · {videos, plural, one {# vídeo} other {# vídeos}} ({seconds} s)",
-  "settings_impact_publications_count": "{count, plural, one {publicação} other {publicações}}"
+  "settings_impact_publications_count": "{count, plural, one {publicação} other {publicações}}",
+  "agent_admin_publish_daily": "Publicar todos os dias",
+  "agent_admin_publish_without_approval": "Publicar sem aprovação prévia",
+  "agent_admin_publish_daily_hint": "Todos os dias, à hora escolhida. O modo de aprovação selecionado continua a aplicar-se.",
+  "agent_admin_publish_without_approval_hint": "As novas publicações serão agendadas para a hora prevista sem aprovação manual.",
+  "agent_admin_publish_requires_enabled": "Ative primeiro a automatização Publicar para escolher este modo."
 }

@@ -18,6 +18,7 @@ import { bateau_ecoleJobTemplates } from '../../lib/templates/sectors/formation_
 import { formation_poids_lourd_transportJobTemplates } from '../../lib/templates/sectors/formation_enseignement/formation_poids_lourd_transport.ts';
 import { recuperation_pointsJobTemplates } from '../../lib/templates/sectors/formation_enseignement/recuperation_points.ts';
 import { formation_code_routeJobTemplates } from '../../lib/templates/sectors/formation_enseignement/formation_code_route.ts';
+import { formateurJobTemplates } from '../../lib/templates/sectors/formation_enseignement/formateur.ts';
 
 test('le secteur Formation & Enseignement est disponible', () => {
   assert.deepEqual(
@@ -45,7 +46,7 @@ test('les métiers de la conduite sont détectés sans perturber automobile et f
   }
 });
 
-test('le catalogue contient 6 métiers et 8 prestations par métier', () => {
+test('le catalogue contient 7 métiers et 8 prestations par métier', () => {
   const expectedJobs = [
     ['auto_ecole', 'Auto-école'],
     ['moto_ecole', 'Moto-école'],
@@ -53,6 +54,7 @@ test('le catalogue contient 6 métiers et 8 prestations par métier', () => {
     ['formation_poids_lourd_transport', 'Formation poids lourd et transport'],
     ['recuperation_points', 'Stage de récupération de points'],
     ['formation_code_route', 'Centre de formation au Code de la route'],
+    ['formateur', 'Formateur'],
   ] as const;
 
   const jobs = getJobsForSector('formation_enseignement');
@@ -80,7 +82,7 @@ test('les synonymes historiques retrouvent le bon métier', () => {
   }
 });
 
-test('les packs de templates couvrent le secteur et ses 6 métiers', () => {
+test('les packs de templates couvrent le secteur et ses 7 métiers', () => {
   assert.equal(formation_enseignementTemplates.sector, 'formation_enseignement');
 
   const definitions = [
@@ -90,6 +92,7 @@ test('les packs de templates couvrent le secteur et ses 6 métiers', () => {
     formation_poids_lourd_transportJobTemplates,
     recuperation_pointsJobTemplates,
     formation_code_routeJobTemplates,
+    formateurJobTemplates,
   ];
 
   assert.deepEqual(
@@ -101,6 +104,7 @@ test('les packs de templates couvrent le secteur et ses 6 métiers', () => {
       'formation_poids_lourd_transport',
       'recuperation_points',
       'formation_code_route',
+      'formateur',
     ],
   );
   assert.ok(definitions.every((definition) => definition.sector === 'formation_enseignement'));

@@ -17,10 +17,10 @@
     "app/api/agent/actions/route.ts": "42098c0c9d96bd7b0993c5a320a38f1c7f7e0e77a26ca312b1b13caf161a40c2",
     "app/api/agent/actions/send-stats-report/route.ts": "1207f41cf6b16ef9ac5ee38f7281d0b7e4c12ceb4f5da231830ec5ce3014dd64",
     "app/api/agent/publication-ideas/route.ts": "e66f22eaf022206877822c32538e4dbddf7be514394e668bcc911ad711a38db8",
-    "app/api/agent/scheduled-actions/[id]/execute/route.ts": "2ece8ca43192a041f87944f24e797598d4bee2b7565b1e490615348ba9d6bcd9",
+    "app/api/agent/scheduled-actions/[id]/execute/route.ts": "cf7994769eacb2ce08bc82691ad47879ceeb16d38feab0f3611b349c5bed4b58",
     "app/api/agent/scheduled-actions/[id]/route.ts": "1c8c10105d6d817b720fe896af1f3ba29aee256b58a97ab71ff7bb685da5b88d",
     "app/api/agent/scheduled-actions/route.ts": "fd633ac6c68ca191fd4c1a70f8a2ea020e4a8356425a4f31cac590b960c41fcb",
-    "app/api/agent/settings/route.ts": "1621a9244ebbc8ed82f055c9dd83d773c09d163740ec30dd43d392386c71fa66",
+    "app/api/agent/settings/route.ts": "612b84b4c67c1fea035b0d50ae35cad5f27ab5189a1a471acda4818ef86737b1",
     "app/api/ai-memory/analysis-schedule/route.ts": "90706a280a6d58b95d28b0fa9e344fdfef475e17e8f71e2113a585b6766abd75",
     "app/api/ai-memory/analyze-channels/route.ts": "b7c318e89504f0f0a2dbca23f87538073ee3ecda530c122a6031510e242281f0",
     "app/api/ai-memory/documents/route.ts": "b6df753d4a94ee02983b7faf73a27be55785276dc25fee4b171b3a539c2388ec",
@@ -33,7 +33,7 @@
     "app/api/booster/publish-now/publishNow.continuations.ts": "7cc71b41fcaff21f255f0a9a0d9df496571de139744ddcc61665c7bc956caf3e",
     "app/api/booster/publish-now/publishNow.foundations.ts": "cb6e0e3ccda04641e26e593df964e4b62d15a60f54f577b59d71bea5f7f554f5",
     "app/api/booster/publish-now/publishNow.server-preparation.ts": "375276b02a0716a11dbd86eaeab39f1127bf009908acca3d08eec94571cd0476",
-    "app/api/booster/publish-now/route.ts": "39b80ba7fc5e4517a847a2047c861545d2377390f5ee97679918005da7d385ff",
+    "app/api/booster/publish-now/route.ts": "0882fea71ca27e489d2a8acf067627810f0885f7a1550217ab739eb5916ff1a1",
     "app/api/booster/soundtracks/route.ts": "f7f889759e87f7a48dc9f69a4a725d7dd4edcd597bf56640fd9f5c9de8df9503",
     "app/api/booster/video-transform/route.ts": "be902e7529effd666565066c5c584a17aec2ff25072e497b72e158fc269071e9",
     "app/api/boutique/image-credits/orders/[orderId]/route.ts": "1f66a8c74ff7bee77f138a5b66873c45673fa9b8650e2f8e48a98150a7129235",
@@ -429,7 +429,7 @@
     "app/dashboard/ads/adsPublicErrorMessages.ts": "8820593eec6835f2e48c73fa09f34fa7f75092b346314dfc27feef89add642fe",
     "app/dashboard/ads/useAdsErrorMessage.ts": "69aaeed2e595a018bb34bb9c7b4e8387281ecca28a7cae11a0cdb311b6b16c93",
     "app/dashboard/agenda/agenda.shared.ts": "1ec7e04f3bcd33e326a96051664bc2f4d5a58276595e6bb1316f517d0b7d6b79",
-    "app/dashboard/agent/AgentClient.tsx": "72709c7616b8e6e232def1e40a55d4aa33eb3a25f9a554549d1412478626e4e6",
+    "app/dashboard/agent/AgentClient.tsx": "1106585b7dd0758a57275864196e077c5017df000ffd264ba097a418cfea4ac8",
     "app/dashboard/agent/_components/AgentActionModals.tsx": "3a811f07c9523a25143073d72a5ec646339b4370c0310abdb9100092c189ee77",
     "app/dashboard/agent/_components/AgentCampaignAccess.tsx": "8e3f0f5b88450f9ee677423bd50267f22c258cbc138b6140cd73c50f3761b7f8",
     "app/dashboard/agent/_components/AgentCampaignEditors.tsx": "f062dd61bc4cfb19dca2c805a7b60d9c7dfe00fc3ddd5eb2ef069186c425afa3",
@@ -459,8 +459,8 @@
     "app/dashboard/agent/_hooks/useAgentRuntimeData.ts": "9e2e8267171bb9127b94248446d1f3208cb98bc40fd5644a5c17fb4c35dabaa3",
     "app/dashboard/agent/_hooks/useScheduledStudioCredits.ts": "dd1eca2c3156e4128f2351407e0244be456cf51f4f0f7fc8a28b9f7cc542d37f",
     "app/dashboard/agent/_lib/agent.campaign-preview.ts": "8d5d50fe6d96aac60ddbfc306cb202650ba85e7e876a45eb9f9e18e47574ed3f",
-    "app/dashboard/agent/_lib/agent.config.ts": "e37b8909fa6f9c200aaa0d803ec7b836ec5ad4a2913c73cf05404f7a9bca495f",
-    "app/dashboard/agent/_lib/agent.i18n.ts": "b1faaf6087358a3cbe8a0ee4a3a71ac8fcb92c46025ce8d79484477535e7588d",
+    "app/dashboard/agent/_lib/agent.config.ts": "5007c29f2cd3adedd26f8735c0a34541f653f4bf9e64db2a71027afeb502b32f",
+    "app/dashboard/agent/_lib/agent.i18n.ts": "7e7a0f9ece4a2912e1d9dda61d263132203cc4822f572524306d6a1a3a03579d",
     "app/dashboard/agent/_lib/agent.media-preview-recovery.ts": "fb7b2501db5f81893e7818e69a6757602f7905a4faf8bc8e6d41fb5c2775bef3",
     "app/dashboard/agent/_lib/agent.publication-carousel.ts": "7f77b592d7236390873166259a028d5d8e9debf5daf18c95557dd393a19768b1",
     "app/dashboard/agent/_lib/agent.publication-validation.ts": "066356d4a1fb05f2d76fb2cf7378b2b09e39f8d485237f3db60aa364a2d26777",
@@ -704,14 +704,14 @@
     "app/legal/legal.module.css": "30d07ebb8f4c7217b287e04c1b4e10f7d6b3791e8286be6f84528d088f20410a",
     "lib/accountSubscriptionAccess.ts": "f720a233f799a844eae3c113311f812d11d05cb65ffa4f2dcceda09a08d3fa98",
     "lib/accountSubscriptionPolicy.ts": "b819acb04290168a52ef94de5eb456597a4e4f3ddabfaae897e9d15bd7768165",
-    "lib/activityCatalog.ts": "1ea594b9e9d823e52f48f9c56b481a56c3bcdc9d821e81b50a8f45c34615107b",
+    "lib/activityCatalog.ts": "3a8eebebe9824315b7e761d16c330ec3ea3c31110eca1d007bddfcdd75be640d",
     "lib/activityCatalogComplements/bookPublishing.ts": "9f35e4b2d8a15b39347a064ad244ccdd9256fbf49e32bb04aeb20f514b9692bc",
     "lib/activityCatalogComplements/index.ts": "8acd595462107a6a8a679cc0404deda4a9e7d6ff485fed113530ba09a1a01bdf",
     "lib/activityCatalogComplements/internationalTrade.ts": "c9bb1bf8091b4e6f52638ab1b52f93fbd7ed0eae11361cc856d998af8737eb4a",
     "lib/activityCatalogComplements/travelTourism.ts": "fa48db585926bba77bbff84980e9371d98af17c7321375027e27e81856e6e761",
     "lib/activityCatalogComplements/types.ts": "339568a8d9097f8ed4a8a84d3424e100190e6e42a95b9820f43679e94bc3dab9",
     "lib/activityJobSearch.ts": "b509df250a2816e2e471147ff33c277adf2ee7632b86aa8187e15c774b5561f7",
-    "lib/activitySectors.ts": "4f729f9e3c0811cfa9ae3e73f220b4425db267472321be7ec3d786ddbff0d895",
+    "lib/activitySectors.ts": "a6a4f247d71b016487e113147eabd39aa0e813996fd529362a257e3c1299734e",
     "lib/actusWidgetEmbed.ts": "676fbd4d07231fd9fa3fa09e52946ac56a7301b22bf39ba0ed2324b4a23cff9d",
     "lib/adsAccessPolicy.ts": "a4fc803f6004fbd4894526cd8eaa95367be73dae9269f6373e5d84dddac71f46",
     "lib/adsAccountLinks.ts": "07ff4e12eb8e416ce017728ee28676cf9fb3f79f3db30a749b86b1cf5c951eab",
@@ -922,7 +922,7 @@
     "lib/appBubbleAccessServer.ts": "9a752aa1a8c1256d761d2607cb47b933c9256cf0e851568138a5791942d63afb",
     "lib/appLanguage.ts": "4266146fdb0b0a78b10a3019ca1e56be21b1c2917f30ffec807c4a5596f757e3",
     "lib/boosterAsianCtaLabels.ts": "3d55f28d9d2dbfc3d8efeb8fb56603b0af47b5d235e1adbfc7a4303e8f25bf28",
-    "lib/boosterAsyncPublication.ts": "d026bca08b6d30e61e30431e36dc2c19a871f066505bc31fae4b7a108508f2c3",
+    "lib/boosterAsyncPublication.ts": "bca784587f45632dfdf3bfd8574e026a162683e680e2c4ebe156b3591e3c45d9",
     "lib/boosterChannelImageSelection.ts": "e9688f766b9789dfd66d8393091921a027bb3ac4aea3cc29eebd8a553f5d8984",
     "lib/boosterChannelRules.ts": "0be4639f6e27732c83e715142e2f6855f6e48a898490588325875331aa0baaeb",
     "lib/boosterContentAdjustment.ts": "ec13042871b5d59c1ab7725fa4a23e30fd2ff44df022bebed774365c66460f2b",
@@ -1086,9 +1086,13 @@
     "lib/imapCrypto.ts": "0291fb948e655c202a689fa5e34cc4cfe4ac0f6424e30908bfa3f626803ac7b8",
     "lib/inrAgentActionId.ts": "87437729bcb8fbf24b9e6131e12fe56dfb1e930e55b3f2c6c0e27813b1047e5d",
     "lib/inrAgentActions.ts": "742bc13bc31913cad126663062ef0c53a39fb714ea7265c25da91963dcc76e26",
+    "lib/inrAgentAdminOptionsServer.ts": "b5e3cbe7ea830a4fb997ce338f7231b02b323759d4b3a0f53b6151cd80e1fc21",
+    "lib/inrAgentAdminPublishPolicy.ts": "333fa3a047908730f7d555875549dbb67d3fc270e7ce1cc468633b92c2a86e0f",
+    "lib/inrAgentAdminPublishServer.ts": "55b1771b4381a0d6ac3db4c054232a6f89ca4d77893e647d67a758ee35298186",
+    "lib/inrAgentAdminPublishWorkerServer.ts": "87041649ab6183065366bf6b67f280d0588d076e86cd63e6ada1da3b705e2256",
     "lib/inrAgentEditorialMediaPolicy.ts": "d93521c70bf6759735b15dbf413e11484805b70c7ff5bd719f4320f3cb543603",
-    "lib/inrAgentEditorialPlanServer.ts": "94111321c3697cbb9d64bc5066f5729755fec49cac0db3a4653fa88daecf4c2b",
-    "lib/inrAgentEditorialPlanning.ts": "bdcfffcc957bc34f408c5bf5404cc0affac4046d4aebace3968eed2309320fba",
+    "lib/inrAgentEditorialPlanServer.ts": "7282b59196b2c2f009ca08e9c4b4c7f72f83e5361169a363f2012adf72576226",
+    "lib/inrAgentEditorialPlanning.ts": "1b604f0a2223c4017ca64dc259050870207b39e05bee00f5e5f782e39bacac12",
     "lib/inrAgentEditorialRecoveryPolicy.ts": "f46f183e6f681b90d418dea4ee83440c674c86acfde92a24c5ad026fe53992ae",
     "lib/inrAgentEditorialRetryPolicy.ts": "eee6255b1f0bb3030d0022937bb067e70b7f2352e97c72baec3f07f00cae67eb",
     "lib/inrAgentEditorialVariation.ts": "0a14341fe431c21a3d174f8be6d55c9ec3bdd09cec7f2005bc62047d35d9f706",
@@ -1125,7 +1129,7 @@
     "lib/inrAgentScheduledActions.ts": "0de95b1109aab5e9d8edf10e69cb11e991fefb7fb434d64655c7066a896db06c",
     "lib/inrAgentScheduledPayload.ts": "f68c3b4d9c6984c3a55135896d7040220a3a9338a23ab87a6489708982159f0f",
     "lib/inrAgentScheduledPublication.ts": "5f926b966244a5bc9f47381efbe7ecf1ac57482585612836684390bb78de7ffb",
-    "lib/inrAgentSettings.ts": "8f7817c8f7489e5c8086a3312d04ce39508d533d5372e8ec140663543a4a882e",
+    "lib/inrAgentSettings.ts": "ec8b5e9341373718c3be347e16d83d2fd5474b32da980578d49fa2bb48f34c7a",
     "lib/inrAgentThreadsPublication.ts": "43907ec35eaf544d25bab002328d9368f036daf68a18da7c329ccb0817a28026",
     "lib/inrAgentTiktokValidationSession.ts": "097db818374e2ef8dfd6c7de8da1ccb019328635b813477df1c31e48228f09a9",
     "lib/inrAgentUnvalidatedPublicationRefusal.ts": "a7aa40187b6ada70f8cff686d36ca65edc0685129bcbcd719f044146d77fb759",
@@ -1189,7 +1193,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "b6d15f37667db1eb756b45f694a68b328b586048cb7587f55ae07a511096bc52",
+    "lib/inrAssistantCodeIndex.generated.ts": "c4d8260490becc247f883e7c8186d93269c59aff244bbec5cdedfaf31d815e9c",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -1223,7 +1227,7 @@
     "lib/inrAssistantGuidesAccount.ts": "9ab9f98ce87f8ca8f3e351761007c64ee850344d4143386330a835bcd66a2d13",
     "lib/inrAssistantGuidesBasic.ts": "e24bd8226d7430a92b4c85f65b3610c0bad75f3136075a36deeaae3183fb43fd",
     "lib/inrAssistantGuidesContentLimits.ts": "dcdba643d6a24d46c2f73a93c18759086f570182a051fec07a797013ab533d53",
-    "lib/inrAssistantGuidesCreation.ts": "04bbae4f45b605b43a3729b16a0282978fb7985f12cbc039fd0a107f718b123f",
+    "lib/inrAssistantGuidesCreation.ts": "c678acbdf50db30eeb3324a62283436c72f96095a0e9d1ca9ef6a85bcf4bad0c",
     "lib/inrAssistantGuidesManagement.ts": "1131a3a1d6ba536232493684f3ea0ab31ae44a94e208e25435eed22e2f27b069",
     "lib/inrAssistantGuidesRecovery.ts": "c358fbf35f7b6dd6747752708f5135e130c685f1f08c5d8dff5950e4cf2fdc87",
     "lib/inrAssistantHistoryUiSelection.ts": "8c50a751e1ebbdea554c89c8d573b501b5d89d70f8dfabe603495ea43a0d2c69",
@@ -1536,7 +1540,7 @@
     "lib/sitePresenceSync.ts": "e48dc17b141dcc5676217add6c516783fb60c4eaed0a7a63f8b98ea30c98fa72",
     "lib/siteWebChannel.ts": "0a42f43f2ad470e89c53ee4c7e10cf41953b6bfad1d3ade11c6c0b05afafe807",
     "lib/siteWebPublications.ts": "3aff276bb49731c4323a3a44d98bee0981966a0e83b391160c1df0b758451207",
-    "lib/standardAgentPolicy.ts": "c2c3eac5d1438b4adabbec98d4d75b5622a256f6d0132acac86028916d5361ac",
+    "lib/standardAgentPolicy.ts": "11b421fce9f924e7c8c21e470b34af8f1cf2c81a62b2de89856be8799863e0b1",
     "lib/stats/buildOverview.activity.ts": "f7f068c66cb8d1381a24fa2da4ddf51be2c85a899283879a332a75101538542e",
     "lib/stats/buildOverview.connections.ts": "48b5898dd31637d08fac73cdf6d0ca8e1c731e0d6f00d723e80f3fd1c72fa571",
     "lib/stats/buildOverview.integrations.ts": "9c0f5275b8acf5419e0a8760886ae307f27a3022628132c2800ceadaf2d161ed",
@@ -1756,9 +1760,10 @@
     "lib/templates/sectors/formation_enseignement/auto_ecole.ts": "fe65b9df8efcecfdb8358f8f3cc1f67cca045e2cb2695575a2a3ae8ab78c8e7a",
     "lib/templates/sectors/formation_enseignement/bateau_ecole.ts": "cf57bfbe424504bd079b1ed6ba8627536e0a03b81948897f031eec0c44fca363",
     "lib/templates/sectors/formation_enseignement/common.ts": "0963aaf91c781b1184f8e1da90e8215bc21c2d3ed5d7322cf79d7ef2e28e4fe4",
+    "lib/templates/sectors/formation_enseignement/formateur.ts": "7eb7e0631b278b45e30dbfda76d6e4ae954629d0faaf72c4babccdda5982d48b",
     "lib/templates/sectors/formation_enseignement/formation_code_route.ts": "d35b91e3131cc423043c2ed0119be11488f64e10c0a5d3ba96e8134de04da44d",
     "lib/templates/sectors/formation_enseignement/formation_poids_lourd_transport.ts": "03b1f4d945da5c580adb1a963c00278ae2ad5a097ed54b8f85bda6167f0d7916",
-    "lib/templates/sectors/formation_enseignement/index.ts": "65914f1cd00041f0038194a6c2d658e39548c16dc9c7b585dacbb6884a8dacd0",
+    "lib/templates/sectors/formation_enseignement/index.ts": "0da0dfb6a8f8d7a914b4d93b118fbe755e98fabfce9f6c44b4d073c257a6d39b",
     "lib/templates/sectors/formation_enseignement/moto_ecole.ts": "0d462b0c8d8ffe6e3c0bd8c094b78427a5049197ec99e1a1cc6a4d4832b9d481",
     "lib/templates/sectors/formation_enseignement/recuperation_points.ts": "26824a9d42086964f40e0410bade6f17e2e9967e0e740bdd3cdc921d04cfcb4f",
     "lib/templates/sectors/funeraire/common.ts": "e72dd2b0b616ff5e7b9a23a998f6060d0aa3bae70025dd46078a12572bedfc0f",
@@ -1849,9 +1854,10 @@
     "lib/templates/sectors/plateformes_numeriques/plateforme_emploi_talents.ts": "4f483d463ab9dfc5e2844f16653b581747da77dd0c1e4f467feedd7b156857ac",
     "lib/templates/sectors/plateformes_numeriques/plateforme_mise_en_relation.ts": "dac50930a5d63b08c0085fe6687be66a1dd03acdec564f3c7786fdb2aa2788d4",
     "lib/templates/sectors/plateformes_numeriques/plateforme_reservation.ts": "b6147ed3077a3ac939eb676e449365411a9596a7aca2c4d00f02f6a03556e417",
+    "lib/templates/sectors/sante/chirurgien.ts": "802d9549dab5325a86eef54505af9f9a41511fac037e098ff6881819ed566e0c",
     "lib/templates/sectors/sante/common.ts": "96c81febb25a8bc0d0ff319d66a04284fb91b1f95895ca0fe44293f41e12c29c",
     "lib/templates/sectors/sante/dentiste.ts": "7f0e52085372dc5931a2ac11b51037c722f675e7cc45b3d172f0713139d7b5f7",
-    "lib/templates/sectors/sante/index.ts": "26f9e7ca1e9111c4b8e8156c476502ed7462cd8dc12c87c69e59990f9ec1b95d",
+    "lib/templates/sectors/sante/index.ts": "2e4b2a6f76efe6659947352115a3b6b43bf2f568b30d9b47761d0342ca993dfe",
     "lib/templates/sectors/sante/infirmier.ts": "f6c42e931551027cb4635b34c9ad3d92f5954186ef0d6d2fa7dae541153d3157",
     "lib/templates/sectors/sante/kine.ts": "670f1019b2d5952b8a236c7dd15f385d3f0ff46b8abcdf53afdd68affd648181",
     "lib/templates/sectors/sante/medecin_generaliste.ts": "5ba58bdc366e13a20e317dc0c1e697a0411b5d58272f97a82f842bd7f5977d6c",
@@ -5433,13 +5439,6 @@
             "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
           ]
         },
-        "app/dashboard/agent/AgentClient.tsx#select:bccfd40178fc9171:1": {
-          "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
-          "gateAnchor": "!props.manualPlanningOnly",
-          "gateFiles": [
-            "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-          ]
-        },
         "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:1": {
           "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
           "gateAnchor": "!props.manualPlanningOnly",
@@ -5553,20 +5552,6 @@
           ]
         },
         "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:3": {
-          "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
-          "gateAnchor": "!props.manualPlanningOnly",
-          "gateFiles": [
-            "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-          ]
-        },
-        "app/dashboard/agent/AgentClient.tsx#select:a424dce4effaa936:1": {
-          "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
-          "gateAnchor": "!props.manualPlanningOnly",
-          "gateFiles": [
-            "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-          ]
-        },
-        "app/dashboard/agent/AgentClient.tsx#option:ed79c0eac79efab8:1": {
           "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
           "gateAnchor": "!props.manualPlanningOnly",
           "gateFiles": [
@@ -5768,9 +5753,46 @@
           "gateFiles": [
             "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
           ]
+        },
+        "app/dashboard/agent/AgentClient.tsx#select:af3fa93231af7110:1": {
+          "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+          "gateAnchor": "!props.manualPlanningOnly",
+          "gateFiles": [
+            "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+          ]
+        },
+        "app/dashboard/agent/AgentClient.tsx#select:9b0f38207631c679:1": {
+          "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+          "gateAnchor": "!props.manualPlanningOnly",
+          "gateFiles": [
+            "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+          ]
+        },
+        "app/dashboard/agent/AgentClient.tsx#option:56236b23cf1b60b0:1": {
+          "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+          "gateAnchor": "!props.manualPlanningOnly",
+          "gateFiles": [
+            "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+          ]
+        },
+        "app/dashboard/agent/AgentClient.tsx#select:9ee2795b992d4983:1": {
+          "reason": "L’horaire quotidien appartient aux réglages de publication du compte administrateur : acteur et compte actif ADMIN. Il ne fait pas partie du planning manuel Basique.",
+          "gateAnchor": "const settingsCanUseAdminPublishOptions = settingsAutomation?.key === \"publish\" && viewerIsAdmin;",
+          "gateFiles": [
+            "app/dashboard/agent/AgentClient.tsx",
+            "app/dashboard/layout.tsx",
+            "lib/inrAgentAdminOptionsServer.ts"
+          ]
+        },
+        "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:4": {
+          "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
+          "gateAnchor": "!props.manualPlanningOnly",
+          "gateFiles": [
+            "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+          ]
         }
       },
-      "sourceDigest": "72709c7616b8e6e232def1e40a55d4aa33eb3a25f9a554549d1412478626e4e6",
+      "sourceDigest": "1106585b7dd0758a57275864196e077c5017df000ffd264ba097a418cfea4ac8",
       "controlIds": [
         "app/dashboard/agent/AgentClient.tsx#button:380930998349ff4d:1",
         "app/dashboard/agent/AgentClient.tsx#a:0cac81d26c803ef6:1",
@@ -5862,7 +5884,7 @@
         "app/dashboard/agent/AgentClient.tsx#section:392c818c2413edfb:1",
         "app/dashboard/agent/AgentClient.tsx#button:5c445ddb5135fa06:1",
         "app/dashboard/agent/AgentClient.tsx#button:e3e726ce712035bc:1",
-        "app/dashboard/agent/AgentClient.tsx#select:bccfd40178fc9171:1",
+        "app/dashboard/agent/AgentClient.tsx#select:af3fa93231af7110:1",
         "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:1",
         "app/dashboard/agent/AgentClient.tsx#select:d825693ef44ee424:1",
         "app/dashboard/agent/AgentClient.tsx#option:6c926b8ea6f94d6d:1",
@@ -5872,16 +5894,18 @@
         "app/dashboard/agent/AgentClient.tsx#option:781178ac78863121:1",
         "app/dashboard/agent/AgentClient.tsx#select:baa0136549f107b9:1",
         "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:1",
+        "app/dashboard/agent/AgentClient.tsx#select:9ee2795b992d4983:1",
+        "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:2",
         "app/dashboard/agent/AgentClient.tsx#select:77ff35f7da660aae:1",
         "app/dashboard/agent/AgentClient.tsx#option:77beb2b3e4a8fecb:1",
         "app/dashboard/agent/AgentClient.tsx#select:6ef4be7291276633:1",
-        "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:2",
+        "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:3",
         "app/dashboard/agent/AgentClient.tsx#select:937e627b18d5cce7:1",
         "app/dashboard/agent/AgentClient.tsx#option:77beb2b3e4a8fecb:2",
         "app/dashboard/agent/AgentClient.tsx#select:4ff508af5d26b375:1",
-        "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:3",
-        "app/dashboard/agent/AgentClient.tsx#select:a424dce4effaa936:1",
-        "app/dashboard/agent/AgentClient.tsx#option:ed79c0eac79efab8:1",
+        "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:4",
+        "app/dashboard/agent/AgentClient.tsx#select:9b0f38207631c679:1",
+        "app/dashboard/agent/AgentClient.tsx#option:56236b23cf1b60b0:1",
         "app/dashboard/agent/AgentClient.tsx#AgentSettingsMultiSelect:7117bc6af5d0a8dc:1",
         "app/dashboard/agent/AgentClient.tsx#AgentSettingsMultiSelect:0e33bbab5d29ee93:1",
         "app/dashboard/agent/AgentClient.tsx#button:3cf4c9734c790332:1",

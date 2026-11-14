@@ -333,7 +333,7 @@ test("le robot du cockpit PC reste entier et proportionnel", () => {
   );
 });
 
-test("la publication iNrAgent reste manuelle, notifiée et protégée en profondeur", () => {
+test("la publication iNrAgent reste manuelle par défaut et son exception admin est autorisée à chaque étape", () => {
   const settings = read("lib/inrAgentSettings.ts");
   const config = read("app/dashboard/agent/_lib/agent.config.ts");
   const client = read("app/dashboard/agent/AgentClient.tsx");
@@ -352,21 +352,22 @@ test("la publication iNrAgent reste manuelle, notifiée et protégée en profond
   assert.match(settings, /key === "publish"[\s\S]*?"notify_before_validation"/);
   assert.doesNotMatch(config, /Publication automatique à l’heure prévue/);
   assert.doesNotMatch(client, /automatic_publish_confirm_title/);
-  assert.match(prepare, /return "manual_validation"/);
-  assert.match(prepare, /return "pending_validation"/);
-  assert.match(prepare, /return true;/);
+  assert.match(prepare, /validationMode === "admin_automatic_publish" \? "automatic_after_settings" : "manual_validation"/);
+  assert.match(prepare, /validationMode === "admin_automatic_publish" \? "prepared" : "pending_validation"/);
+  assert.match(prepare, /validationMode !== "admin_automatic_publish"/);
+  assert.match(prepare, /canUseInrAgentAdminOptions/);
+  assert.match(prepare, /isInrAgentAdminAutomaticPublicationAuthorized/);
   assert.match(schedule, /resolveInrAgentActionRequest/);
-  assert.match(schedule, /INR_AGENT_MANUAL_VALIDATION_REQUIRED/);
-  assert.doesNotMatch(
-    editorial,
-    /schedulePreparedAutomaticInrAgentPublications/
-  );
+  assert.match(schedule, /INR_AGENT_ADMIN_AUTOMATIC_PUBLISH_FORBIDDEN/);
+  assert.match(schedule, /isInrAgentAdminAutomaticPublicationAuthorized/);
+  assert.match(editorial, /scheduleReadyInrAgentAdminPublications/);
+  assert.match(editorial, /adminAutomaticPublishManualReview/);
   assert.match(editorial, /cancelAutomaticScheduledExecution/);
   assert.match(editorial, /notifyReadyInrAgentEditorialBatch/);
   assert.match(notices, /inr_agent_editorial_batch_ready/);
   assert.match(editorial, /editorialReactivatedAt/);
   assert.match(scheduledCron, /automaticPublicationStillAuthorized/);
-  assert.match(scheduledCron, /return false;/);
+  assert.match(scheduledCron, /isInrAgentAdminScheduledPublicationAuthorized/);
   assert.match(migration, /validation_mode = 'notify_before_validation'/);
   assert.match(migration, /inr_agent_editorial_manual_validation_check/);
   assert.match(migration, /inrcy_save_inr_agent_settings/);

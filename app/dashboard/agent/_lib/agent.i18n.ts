@@ -69,6 +69,7 @@ const WEEKDAY_KEYS: Record<string, string> = {
 };
 
 const FREQUENCY_KEYS: Record<string, string> = {
+  "Publier tous les jours": "agent_admin_publish_daily",
   "1 fois par semaine": "1_fois_par_semaine_3753e32e",
   "2 fois par semaine": "2_fois_par_semaine_d8dee617",
   "3 fois par semaine": "3_fois_par_semaine_5b82c771",
@@ -83,6 +84,7 @@ const FREQUENCY_KEYS: Record<string, string> = {
 };
 
 const VALIDATION_KEYS: Record<string, string> = {
+  "Publier sans validation préalable": "agent_admin_publish_without_approval",
   "Validation obligatoire avant publication": "validation_obligatoire_avant_publication_1f648285",
   "Validation obligatoire avant envoi": "validation_obligatoire_avant_envoi_1bab8d93",
   "Préparer en brouillon": "preparer_en_brouillon_ca2aeaca",

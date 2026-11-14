@@ -9,6 +9,9 @@ import { getAiMediaGenerationPublicError, isAiMediaContentPolicyRejection } from
 import { buildInrAgentMediaFormatPlan, bindInrAgentMediaFormatVariants } from "../../lib/inrAgentMediaFormats.ts";
 import { MEDIA_FIRST_PUBLICATION_IDEA } from "../../lib/aiMediaSubject.ts";
 import { blocksInrAgentReferenceFallback } from "../../lib/inrAgentMediaReferences.ts";
+import { runtimeModules } from "./runtime-module-loader.mts";
+
+const { requiresManualValidation, getExecutionPolicy, getInitialStatus } = runtimeModules()<Pick<typeof import("../../lib/inrAgentPublicationPreparationPolicy.ts"), "requiresManualValidation" | "getExecutionPolicy" | "getInitialStatus">>("lib/inrAgentPublicationPreparationPolicy.ts");
 
 type RecordValue = Record<string, unknown>;
 type Media = { id: string; mediaType: "image" | "video"; kind: "image" | "video"; source: string; librarySource: string; storagePath: string };
@@ -34,7 +37,8 @@ const services = [
 }).join("\n");
 const compiled = ts.transpileModule(`${services}\nasync function run(){${body}}`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 
-function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCredits?: boolean; failedSnapshot?: boolean; failedPart?: number; mediaFailureOutcome?: string; failedText?: boolean; failedPersistence?: boolean; existingAssets?: Media[]; imageCount?: 1 | 3; imageReadFailure?: boolean } = {}) {
+function harness(options: { accountId?: string; ghostOnly?: boolean; ghostMixed?: boolean; refusedCredits?: boolean; failedSnapshot?: boolean; failedPart?: number; mediaFailureOutcome?: string; failedText?: boolean; failedPersistence?: boolean; existingAssets?: Media[]; imageCount?: 1 | 3; imageReadFailure?: boolean } = {}) {
+  const accountId = options.accountId || "account";
   const events: string[] = [];
   const generated = new Map<string, { item: Media; request: string }>();
   const mediaCalls: RecordValue[] = [];
@@ -57,7 +61,7 @@ function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCr
         eq(key: string, value: unknown) { filters.set(key, value); return this; },
         async maybeSingle() {
           if (table === "inr_agent_actions") {
-            assert.equal(filters.get("user_id"), "account"); assert.equal(filters.get("id"), "slot-1");
+            assert.equal(filters.get("user_id"), accountId); assert.equal(filters.get("id"), "slot-1");
             assert.equal(filters.get("status"), "executing");
             events.push("snapshot");
             if (options.failedSnapshot) return { error: { message: "snapshot_failed" }, data: null };
@@ -69,7 +73,7 @@ function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCr
         async single() {
           events.push("persist");
           if (options.failedPersistence) return { data: null, error: { message: "persist_failed" } };
-          assert.equal(filters.get("user_id"), "account");
+          assert.equal(filters.get("user_id"), accountId);
           storedAction = structuredClone({ id: "slot-1", ...patch });
           return { data: storedAction, error: null };
         },
@@ -84,8 +88,10 @@ function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCr
     const scope: Record<string, unknown> = {
       createHash, randomUUID, normalizeAiMediaGeneratorPreferences, MEDIA_FIRST_PUBLICATION_IDEA, blocksInrAgentReferenceFallback,
       getAiMediaGenerationPublicError,
-      preparationContext: { accountId: "account", actorAuthUserId: "actor", isCron: true },
-      supabase, supabaseAdmin: supabase, userId: "account", quotaAccountId: "account", actorUserId: "actor",
+      preparationContext: { accountId, actorAuthUserId: "actor", isCron: true },
+      supabase, supabaseAdmin: supabase, userId: accountId, quotaAccountId: accountId, actorUserId: "actor", authUserId: "actor",
+      adminAutomaticPublish: null, effectiveValidationMode: "notify_before_validation",
+      isInrAgentAdminAutomaticPublicationAuthorized: () => { throw new Error("The manual media flow must never request an automatic admin grant"); },
       isAdmin: false, isCron: true, ghostOnlyPublication: options.ghostOnly === true, threadsPublicationSettings: options.ghostOnly || options.ghostMixed ? { mode: "ghost" } : null, automaticMediaKind: options.existingAssets?.[0]?.mediaType || "image", requestedImageCount: options.ghostOnly || options.existingAssets?.[0]?.mediaType === "video" ? 0 : options.imageCount || 3, videoDurationSeconds: undefined,
       automation: { useImageBank: fallbackAssets.length > 0, preferredMediaSource: fallbackAssets.length ? "media_library" : "ai_generation", studioMediaPreferencePercent: 100, planningHorizonDays: 15, validationMode: "manual", frequency: "weekly", imageRequired: true },
       editorialTarget: { id: "slot-1", metadata: structuredClone(metadata), plan: { criteriaSignature: "criteria-1", scheduledFor: "2026-10-05T10:00:00Z", sequence: 1, channels: ["facebook"], theme: "realisations" } },
@@ -139,8 +145,8 @@ function harness(options: { ghostOnly?: boolean; ghostMixed?: boolean; refusedCr
         Boolean(post?.title?.trim() || post?.content?.trim() || post?.cta?.trim()),
       boosterToAgentChannel: { facebook: "facebook", threads: "threads" }, inrAgentChannelToBoosterPublishChannel: (channel: string) => channel,
       buildPreviewText: () => "Aperçu", themeLabels: { realisations: "Réalisations" }, buildSummary: () => "Trois images",
-      requiresManualValidation: () => true, getExecutionPolicy: () => "manual", getInitialStatus: () => "pending_validation",
       rowToInrAgentAction: (value: unknown) => value,
+      requiresManualValidation, getExecutionPolicy, getInitialStatus,
       ...overrides,
     };
     return new Function(...Object.keys(scope), `${compiled}\nreturn run();`)(...Object.values(scope)) as Promise<{ status: number; body: RecordValue }>;
@@ -156,10 +162,40 @@ test("le flux réel réserve les crédits avant les médias et analyse/persiste 
   assert.equal((h.textCalls[0].imagesForAI as unknown[]).length, 3);
   assert.equal((h.storedAction?.image_assets as unknown[]).length, 3);
   assert.equal(((h.storedAction?.payload as RecordValue).mediaAssets as unknown[]).length, 3);
+  assert.equal(h.storedAction?.validation_required, true);
+  assert.equal(h.storedAction?.execution_policy, "manual_validation");
+  assert.equal(h.storedAction?.status, "pending_validation");
+  assert.equal((h.storedAction?.payload as RecordValue).adminAutomaticPublish, undefined);
+  assert.equal((h.storedAction?.metadata as RecordValue).adminAutomaticPublish, undefined);
   assert.equal(h.credits.committed, 1); assert.equal(h.credits.rolledBack, 0);
   assert.ok(h.events.indexOf("commit") > h.events.indexOf("persist"));
   assert.equal(h.textCalls[0].mediaSubjectSource, "idea");
   assert.equal(h.textCalls[0].idea, String(h.mediaCalls[0].idea).split("\n\nCARROUSEL")[0]);
+});
+
+for (const authorized of [true, false]) test(`automatic preparation ${authorized ? "keeps a fresh admin grant" : "returns paid media to manual review when the grant is revoked"}`, async () => {
+  const accountId = "11111111-1111-4111-8111-111111111111";
+  const marker = { version: 1, optInId: "22222222-2222-4222-8222-222222222222", accountId, preparedAt: "2026-11-14T12:00:00.000Z" };
+  const h = harness({ accountId }); let checks = 0;
+  const result = await h.run({
+    // Automatic-publication permission does not imply an AI-credit exemption.
+    adminAutomaticPublish: marker, effectiveValidationMode: "admin_automatic_publish",
+    isInrAgentAdminAutomaticPublicationAuthorized: async (args: RecordValue) => {
+      checks++; h.events.push("fresh-admin-check");
+      assert.equal(args.accountId, accountId); assert.equal(args.actorAuthUserId, "actor"); assert.equal(args.isCron, true); assert.deepEqual(args.marker, marker);
+      assert.equal(h.generated.size, 3, "the final authorization is rechecked after media generation");
+      return authorized;
+    },
+  });
+  assert.equal(result.status, 200); assert.equal(checks, 1);
+  assert.equal(h.generated.size, 3); assert.equal(h.mediaCalls.length, 3, "revocation never regenerates the paid media");
+  assert.equal(h.credits.committed, 1); assert.equal(h.credits.rolledBack, 0);
+  assert.ok(h.events.indexOf("fresh-admin-check") < h.events.indexOf("persist"));
+  assert.equal(h.storedAction?.validation_required, !authorized);
+  assert.equal(h.storedAction?.execution_policy, authorized ? "automatic_after_settings" : "manual_validation");
+  assert.equal(h.storedAction?.status, authorized ? "prepared" : "pending_validation");
+  for (const value of [h.storedAction?.payload, h.storedAction?.metadata]) assert.deepEqual((value as RecordValue).adminAutomaticPublish, authorized ? marker : undefined);
+  assert.equal((h.storedAction?.image_assets as unknown[]).length, 3);
 });
 
 for (const source of ["pro_media_library", "inrcy_image_bank"]) {

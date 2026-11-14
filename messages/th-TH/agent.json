@@ -915,5 +915,10 @@
   "settings_impact_horizon": "{days, plural, =30 {ในหนึ่งเดือน} one {ใน # วัน} other {ใน # วัน}}",
   "settings_impact_lost_quotas": "หากใช้ตอนนี้ โควตาที่ใช้ไปแล้วจะสูญเสีย: โควตารูปภาพ {images} หน่วย และโควตาวิดีโอ {videos} หน่วย",
   "settings_impact_media_count": "{images, plural, one {# ภาพ} other {# ภาพ}} · {videos, plural, one {# วิดีโอ} other {# วิดีโอ}} ({seconds} วินาที)",
-  "settings_impact_publications_count": "{count, plural, one {โพสต์} other {โพสต์}}"
+  "settings_impact_publications_count": "{count, plural, one {โพสต์} other {โพสต์}}",
+  "agent_admin_publish_daily": "เผยแพร่ทุกวัน",
+  "agent_admin_publish_without_approval": "เผยแพร่โดยไม่ต้องอนุมัติล่วงหน้า",
+  "agent_admin_publish_daily_hint": "ทุกวันตามเวลาที่เลือก โดยยังใช้รูปแบบการอนุมัติที่เลือกไว้",
+  "agent_admin_publish_without_approval_hint": "โพสต์ใหม่จะถูกตั้งเวลาเผยแพร่ตามเวลาที่กำหนดโดยไม่ต้องอนุมัติด้วยตนเอง",
+  "agent_admin_publish_requires_enabled": "เปิดใช้งานระบบอัตโนมัติสำหรับการเผยแพร่ก่อนจึงจะเลือกโหมดนี้ได้"
 }

@@ -228,6 +228,7 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
   formation_enseignement: {
     label: 'Formation & Enseignement',
     jobs: {
+      formateur: { label: 'Formateur', services: ['Formation individuelle', 'Formation en groupe', 'Atelier pratique', 'Formation en entreprise', 'Formation à distance', 'Programme sur mesure', 'Évaluation des acquis', 'Suivi des apprenants'] },
       auto_ecole: {
         label: 'Auto-école',
         services: ['Permis B', 'Conduite accompagnée', 'Conduite supervisée', 'Leçons de conduite', 'Évaluation de départ', 'Boîte manuelle / automatique', 'Passerelle boîte automatique', 'Formation en ligne'],
@@ -394,6 +395,7 @@ export const ACTIVITY_CATALOG: Record<ActivitySectorCategory, SectorCatalog> = {
   sante: {
     label: 'Santé',
     jobs: {
+      chirurgien: { label: 'Chirurgien', services: ['Consultation chirurgicale', 'Bilan préopératoire', 'Information sur l’intervention', 'Préparation de l’intervention', 'Intervention chirurgicale', 'Suivi postopératoire', 'Consultation de contrôle', 'Coordination des soins'] },
       dentiste: { label: 'Dentiste', services: ['Bilan dentaire', 'Détartrage', 'Urgence dentaire', 'Soins', 'Prothèse', 'Implantologie', 'Orthodontie', 'Conseils hygiène'] },
       infirmier: { label: 'Infirmier / Infirmière', services: ['Soins à domicile', 'Prises de sang', 'Pansements', 'Suivi traitement', 'Accompagnement patient', 'Vaccination', 'Conseils', 'Disponibilités intervention'] },
       kine: { label: 'Kinésithérapeute', services: ['Rééducation', 'Massage', 'Drainage', 'Suivi post-opératoire', 'Sport', 'Douleurs chroniques', 'Respiratoire', 'Exercices à domicile'] },
@@ -509,6 +511,15 @@ for (const profession of ACTIVITY_PROFESSION_COMPLEMENTS) {
 
 /** Shared by profession restoration and search, so the same wording selects the same job. */
 export const ACTIVITY_JOB_ALIASES: Partial<Record<ActivitySectorCategory, Record<string, string[]>>> = {
+  sante: {
+    chirurgien: ['Chirurgienne', 'Chirurgiens', 'Chirurgiennes'],
+  },
+  formation_enseignement: {
+    formateur: ['Formatrice', 'Formateurs', 'Formatrices', 'Formateur indépendant', 'Formatrice indépendante', 'Formateur professionnel', 'Formatrice professionnelle'],
+  },
+  services_entreprises: {
+    organisme_formation: ['Organisme de formation', 'Centre de formation'],
+  },
   commerce_boutique: {
     import_export: ['Import export', 'Import / Export', 'Importation exportation', 'Importateur', 'Importatrice', 'Exportateur', 'Exportatrice', 'Importateur-exportateur', 'Société d’import-export', 'Entreprise d’import-export', 'Commerce international', 'Négoce international'],
   },

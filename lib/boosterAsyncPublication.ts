@@ -499,6 +499,17 @@ export async function isAsyncPublicationMarkedSubscriptionInactive(params: {
   return Boolean(data);
 }
 
+export async function isAsyncPublicationMarkedInrAgentAuthorizationRevoked(params: {
+  userId: string;
+  publicationId: string;
+}) {
+  const { data, error } = await supabaseAdmin.from("app_events").select("id")
+    .eq("id", params.publicationId).eq("user_id", params.userId)
+    .not("payload->>inrAgentAuthorizationRevokedAt", "is", null).maybeSingle();
+  if (error) throw error;
+  return Boolean(data);
+}
+
 async function loadAsyncChannelStates(params: {
   userId: string;
   descriptor: AsyncJobDescriptor;
@@ -1034,6 +1045,9 @@ async function finalizeClaimedAsyncPublication(params: {
           ),
         }
       : {}),
+    ...(cleanString(params.parentPayload.inrAgentAuthorizationRevokedAt)
+      ? { inrAgentAuthorizationRevokedAt: cleanString(params.parentPayload.inrAgentAuthorizationRevokedAt) }
+      : {}),
     publication_id: params.publicationId,
     attemptedChannels: params.descriptor.selected,
     channels: aggregate.summary.successChannels,
@@ -1173,11 +1187,14 @@ export async function finalizeAsyncPublicationIfReady(params: {
 export async function terminateAsyncPublicationForInactiveSubscription(params: {
   userId: string;
   publicationId: string;
+  reason?: "inr_agent_admin_authorization_revoked";
 }) {
+  const adminAuthorizationRevoked = params.reason === "inr_agent_admin_authorization_revoked";
+  const markerKey = adminAuthorizationRevoked ? "inrAgentAuthorizationRevokedAt" : "subscriptionInactiveAt";
   const parent = await loadAsyncPublicationParent(params);
   if (!parent) throw new Error("async_publication_parent_missing");
   if (String(parent.type || "") !== BOOSTER_ASYNC_JOB_EVENT_TYPE) {
-    if (cleanString(asRecord(parent.payload).subscriptionInactiveAt)) {
+    if (cleanString(asRecord(parent.payload)[markerKey])) {
       // Finalization can commit the parent before its best-effort technical
       // cleanup. Remove any orphaned children so the cron cannot rediscover
       // the old work forever after a transient cleanup failure.
@@ -1198,10 +1215,10 @@ export async function terminateAsyncPublicationForInactiveSubscription(params: {
   // reactivation without dispatching a formerly blocked publication.
   const subscriptionInactiveAt =
     cleanString(parentPayload.subscriptionInactiveAt) || new Date().toISOString();
-  const marked = await updateAsyncPublicationJobEvent({
-    ...params,
-    patch: { subscriptionInactiveAt },
-  });
+  const marked = adminAuthorizationRevoked
+    ? await updateAsyncPublicationJobEvent({ ...params,
+        patch: { inrAgentAuthorizationRevokedAt: cleanString(parentPayload.inrAgentAuthorizationRevokedAt) || new Date().toISOString() } })
+    : await updateAsyncPublicationJobEvent({ ...params, patch: { subscriptionInactiveAt } });
   if (!marked) {
     const current = await loadAsyncPublicationParent(params);
     if (current && current.type !== BOOSTER_ASYNC_JOB_EVENT_TYPE) {
@@ -1234,9 +1251,11 @@ export async function terminateAsyncPublicationForInactiveSubscription(params: {
       status: "failed",
       result: {
         ok: false,
-        code: "subscription_inactive",
+        ...(adminAuthorizationRevoked ? {
+          code: "inr_agent_admin_authorization_revoked",
+          error: "Publication automatique annulée : son autorisation administrateur n’est plus active.",
+        } : { code: "subscription_inactive", error: "Publication annulée : abonnement inactif." }),
         retryable: false,
-        error: "Publication annulée : abonnement inactif.",
       },
       completedAt: now,
       updatedAt: now,
@@ -1258,6 +1277,10 @@ export async function terminateAsyncPublicationForInactiveSubscription(params: {
   // already completed channels, updates deliveries, and removes technical rows.
   // If a worker raced a compare-and-swap, the marked-parent cron sweep retries.
   return finalizeAsyncPublicationIfReady(params);
+}
+
+export async function terminateAsyncPublicationForRevokedInrAgentAuthorization(params: { userId: string; publicationId: string }) {
+  return terminateAsyncPublicationForInactiveSubscription({ ...params, reason: "inr_agent_admin_authorization_revoked" });
 }
 
 export async function readAsyncPublicationStatus(params: {

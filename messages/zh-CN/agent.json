@@ -915,5 +915,10 @@
   "settings_impact_horizon": "{days, plural, =30 {一个月内} one {# 天内} other {# 天内}}",
   "settings_impact_lost_quotas": "立即应用会损失已使用的配额：{images} 个图片配额单位和 {videos} 个视频配额单位。",
   "settings_impact_media_count": "{images, plural, one {# 张图片} other {# 张图片}} · {videos, plural, one {# 个视频} other {# 个视频}}（{seconds} 秒）",
-  "settings_impact_publications_count": "{count, plural, one {篇帖子} other {篇帖子}}"
+  "settings_impact_publications_count": "{count, plural, one {篇帖子} other {篇帖子}}",
+  "agent_admin_publish_daily": "每天发布",
+  "agent_admin_publish_without_approval": "无需预先审核即可发布",
+  "agent_admin_publish_daily_hint": "每天在所选时间执行，仍遵循所选的审核模式。",
+  "agent_admin_publish_without_approval_hint": "新准备的内容将按预定时间安排发布，无需人工审核。",
+  "agent_admin_publish_requires_enabled": "请先启用发布自动化，再选择此模式。"
 }

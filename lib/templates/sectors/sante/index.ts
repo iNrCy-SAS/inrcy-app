@@ -9,9 +9,13 @@ import { osteopatheJobTemplates } from './osteopathe';
 import { pharmacieJobTemplates } from './pharmacie';
 import { podologueJobTemplates } from './podologue';
 import { psychologueJobTemplates } from './psychologue';
+import { buildChirurgienJobTemplates } from './chirurgien';
 
 export { santeTemplates };
 
 export function buildSanteJobTemplates() {
-  return [dentisteJobTemplates, infirmierJobTemplates, kineJobTemplates, medecin_generalisteJobTemplates, orthophonisteJobTemplates, osteopatheJobTemplates, pharmacieJobTemplates, podologueJobTemplates, psychologueJobTemplates].flatMap((definition) => createJobTemplates(definition));
+  return [
+    ...[dentisteJobTemplates, infirmierJobTemplates, kineJobTemplates, medecin_generalisteJobTemplates, orthophonisteJobTemplates, osteopatheJobTemplates, pharmacieJobTemplates, podologueJobTemplates, psychologueJobTemplates].flatMap((definition) => createJobTemplates(definition)),
+    ...buildChirurgienJobTemplates(),
+  ];
 }

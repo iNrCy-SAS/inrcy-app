@@ -104,6 +104,15 @@ function inferDivinationSector(value: string): ActivitySectorCategory | null {
 export function inferSectorCategoryFromProfession(input?: string | null): ActivitySectorCategory {
   const value = String(input || '').toLowerCase();
   if (!value) return DEFAULT_ACTIVITY_SECTOR;
+  // These are the principal roles, not a customer's trade mentioned later.
+  // In particular, "chirurgien esthétique" stays medical and "formulateur"
+  // keeps its separate cosmetics meaning rather than matching "formateur".
+  const principal = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ').trim()
+    .replace(/^(?:je suis|nous sommes)\s+/, '')
+    .replace(/^(?:un|une|des|le|la|les|mon|ma|mes|notre|nos)\s+/, '');
+  if (/^(?:cabinet de )?chirurgien(?:ne)?s?\b/.test(principal)) return 'sante';
+  if (/^(?:formateur|formatrice)s?\b/.test(principal)) return 'formation_enseignement';
   const complementarySector = inferComplementaryActivitySector(value);
   if (complementarySector) return inferBeautyProductSector(value) ?? complementarySector;
 

@@ -117,7 +117,7 @@ export function restrictInrAgentSettingsForStandard(
       nextRunAt: null,
     },
   };
-  const globalEnabled = STANDARD_AGENT_AUTOMATION_KEYS.some(
+  const globalEnabled = settings.globalEnabled && STANDARD_AGENT_AUTOMATION_KEYS.some(
     (key) => automations[key].enabled,
   );
 

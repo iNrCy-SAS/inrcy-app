@@ -218,6 +218,7 @@ export const hourOptions = [
 export const settingsOptions: Record<AutomationKey, AutomationSettingsOptions> = {
   publish: {
     frequency: [
+      { value: "daily", label: "Publier tous les jours" },
       { value: "weekly", label: "1 fois par semaine" },
       { value: "twice_weekly", label: "2 fois par semaine" },
       { value: "three_times_weekly", label: "3 fois par semaine" },
@@ -226,6 +227,7 @@ export const settingsOptions: Record<AutomationKey, AutomationSettingsOptions> =
       { value: "three_times_monthly", label: "3 fois par mois" },
     ],
     validation: [
+      { value: "admin_automatic_publish", label: "Publier sans validation préalable" },
       {
         value: "notify_before_validation",
         label: "Notification avant validation",

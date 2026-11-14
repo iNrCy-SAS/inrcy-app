@@ -915,5 +915,10 @@
   "settings_impact_horizon": "{days, plural, =30 {in un mese} one {in # giorno} other {in # giorni}}",
   "settings_impact_lost_quotas": "Applicando ora, perdi la quota già utilizzata: {images, plural, one {# unità immagine} other {# unità immagine}} e {videos, plural, one {# unità video} other {# unità video}}.",
   "settings_impact_media_count": "{images, plural, one {# immagine} other {# immagini}} · {videos, plural, one {# video} other {# video}} ({seconds} s)",
-  "settings_impact_publications_count": "{count, plural, one {pubblicazione} other {pubblicazioni}}"
+  "settings_impact_publications_count": "{count, plural, one {pubblicazione} other {pubblicazioni}}",
+  "agent_admin_publish_daily": "Pubblica ogni giorno",
+  "agent_admin_publish_without_approval": "Pubblica senza approvazione preventiva",
+  "agent_admin_publish_daily_hint": "Ogni giorno, all’ora scelta. Resta applicata la modalità di approvazione selezionata.",
+  "agent_admin_publish_without_approval_hint": "Le nuove pubblicazioni saranno programmate all’orario previsto senza approvazione manuale.",
+  "agent_admin_publish_requires_enabled": "Attiva prima l’automazione Pubblica per scegliere questa modalità."
 }

@@ -506,18 +506,15 @@ export function buildAgentIdea(args: {
 }
 
 export function getExecutionPolicy(validationMode: InrAgentValidationMode) {
-  void validationMode;
-  return "manual_validation";
+  return validationMode === "admin_automatic_publish" ? "automatic_after_settings" : "manual_validation";
 }
 
 export function getInitialStatus(validationMode: InrAgentValidationMode) {
-  void validationMode;
-  return "pending_validation";
+  return validationMode === "admin_automatic_publish" ? "prepared" : "pending_validation";
 }
 
 export function requiresManualValidation(validationMode: InrAgentValidationMode) {
-  void validationMode;
-  return true;
+  return validationMode !== "admin_automatic_publish";
 }
 
 export function hasUsefulContent(post: ChannelPost | undefined) {

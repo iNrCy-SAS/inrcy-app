@@ -142,7 +142,9 @@ test("l'ID du nouveau créneau est stable dans son époque et distinct de l'anci
 test("la réconciliation exclut l'ancien refus du slot courant sans le modifier", () => {
   const server = read("lib/inrAgentEditorialPlanServer.ts");
   assert.match(server, /metadata,refused_at,created_at,updated_at/);
-  assert.match(server, /\.filter\(\(row\) => !shouldReplaceTerminalEditorialRow\(row, planEpoch\)\)/);
+  assert.match(server, /!shouldReplaceTerminalEditorialRow\(row, planEpoch\)/);
+  assert.match(server, /args\.automation\.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE && \(row\.status === "refused" \|\| row\.refused_at\)/,
+    "le mode sans validation ne recrée jamais automatiquement le créneau d'un ancien refus");
   assert.match(server, /inrAgentEditorialActionId\(args\.userId, slot\.slotKey, planEpoch\)/);
   assert.match(server, /editorialPlanEpoch: planEpoch/);
   assert.match(server, /\.filter\(\(slot\) => !existingBySlot\.has\(slot\.slotKey\)\)/);
