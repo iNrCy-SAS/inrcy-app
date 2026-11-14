@@ -125,7 +125,8 @@ export async function scheduleValidatedInrAgentAction(args: {
     if (automaticExecution) trustedPayload.adminAutomaticPublish = args.adminAutomaticPublish;
     else delete trustedPayload.adminAutomaticPublish;
     const revisionReview = asRecord(action.payload.publicationRevisionReview);
-    const timezone = cleanText(confirmingRevisionPlan ? revisionReview?.timezone : body?.timezone, 80) || "Europe/Paris";
+    const timezone = cleanText(automaticExecution ? asRecord(action.payload.editorialPlan)?.timezone
+      : confirmingRevisionPlan ? revisionReview?.timezone : body?.timezone, 80) || "Europe/Paris";
     if (scheduledPayload.actionType !== "publication" && !scheduledAt) {
       return scheduleResult(
         { error: "Choisissez une date et une heure dans le futur." },

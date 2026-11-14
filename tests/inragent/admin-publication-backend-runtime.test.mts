@@ -269,15 +269,15 @@ test('next-cycle calendar deferral cannot defer revocation of automatic approval
   assert.equal(db.tables.inr_agent_actions[0].status, 'pending_validation');
 });
 
-test('real automatic schedule route uses its stored date and durable claim, with no human validation timestamp or duplicate', async () => {
+test('real automatic schedule route preserves its New York timezone and UTC date through a durable replay without human validation or duplicates', async () => {
   const db = database(); db.tables.inr_agent_scheduled_actions = [];
   const future = '2099-06-04T09:00:00.000Z';
   Object.assign(db.tables.inr_agent_actions[0], { status: 'prepared', scheduled_for: future,
-    target_channels: ['facebook'], payload: { adminAutomaticPublish: structuredClone(marker), editorialPlan: { scheduledFor: future } } });
+    target_channels: ['facebook'], payload: { adminAutomaticPublish: structuredClone(marker), editorialPlan: { scheduledFor: future, timezone: 'America/New_York' } } });
   let snapshots = 0, buildCalls = 0;
   const load = modules(db, {
     '@/lib/inrAgentRequest': { resolveInrAgentActionRequest: async () => ({ userId: accountId, authUserId: actorId, isCron: true,
-      body: { actionId, executionSource: 'automatic', scheduledAt: '2099-07-01T12:00:00Z', scheduleSelections: [{ channel: 'facebook', scheduledAt: '2099-07-01T12:00:00Z' }] } }) },
+      body: { actionId, executionSource: 'automatic', scheduledAt: '2099-07-01T12:00:00Z', timezone: 'Asia/Tokyo', scheduleSelections: [{ channel: 'facebook', scheduledAt: '2099-07-01T12:00:00Z' }] } }) },
     '@/lib/dashboardEditionServer': { getDashboardEditionForAccountId: async () => 'premium' },
     '@/lib/metaChannelRolloutServer': {}, '@/lib/observability/withApi': { withApi: (handler: unknown) => handler },
     '@/lib/observability/sentry': { captureApiException: (error: unknown) => { throw error; } },
@@ -298,6 +298,7 @@ test('real automatic schedule route uses its stored date and durable claim, with
   assert.equal(db.tables.inr_agent_actions[0].validation_required, false);
   const job = db.tables.inr_agent_scheduled_actions[0];
   assert.equal(job.source, 'automatic'); assert.equal(job.scheduled_at, future, 'caller-supplied date and selections cannot replace the planned date');
+  assert.equal(job.timezone, 'America/New_York', 'the server planning timezone wins over caller preferences and survives replay');
   assert.deepEqual(job.payload.adminAutomaticPublish, marker);
 });
 
