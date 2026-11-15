@@ -39,7 +39,7 @@ const PROVIDER_TOKEN_FAILURE_RE =
 const PROVIDER_PERMISSION_FAILURE_RE =
   /(?:\bnot\s+authori[sz]ed\b|\bunauthori[sz]ed\b|\bauthori[sz]ation\s+(?:failed|denied|required)\b|\baccess\s+denied\b|\binsufficient\s+(?:permission|scope)s?\b|\bpermission\s+denied\b|\bcaller\s+does\s+not\s+have\s+permission\b)/i;
 const PROVIDER_SESSION_FAILURE_RE =
-  /(?:\bsession\s+(?:(?:has|had)\s+(?:been\s+)?|is\s+)?(?:expired|invalidated|revoked)\b|\berror\s+validating\s+access\s+token\b|\bauthentication[_\s-]*failed\b)/i;
+  /(?:\bsession\s+(?:(?:has|had)\s+(?:been\s+)?|is\s+)?(?:expired|invalidated|revoked)\b|\berror\s+validating\s+access\s+token\b|\bauthentication[_\s-]*failed\b|\bcould\s+not\s+authenticate\b)/i;
 const PROVIDER_REAUTHORIZATION_RE =
   /(?:\binsufficient\s+permissions?\b|\bscope\s+permission\s+missed\b|\bmeta\s+direct\s+reconnect\s+required\b|\binvalid\s+credentials?\b|\bconnexion\b.{0,60}\b(?:expiree?|invalide|plus\s+valide)\b|\bautorisation\b.{0,60}\b(?:expiree?|revoquee?)\b)/i;
 const PROVIDER_OPERATIONAL_FAILURE_RE =

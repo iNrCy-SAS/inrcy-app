@@ -46,6 +46,7 @@ export async function getDashboardEditionForAuthUser(
 /** Resolve auth-level editions for account-scoped cron rows in one batch. */
 export async function getDashboardEditionsForAccountIds(
   accountIds: readonly string[],
+  options: { strict?: boolean } = {},
 ): Promise<Map<string, DashboardEdition>> {
   const uniqueAccountIds = Array.from(
     new Set(accountIds.map((value) => String(value || "").trim()).filter(Boolean)),
@@ -60,7 +61,10 @@ export async function getDashboardEditionsForAccountIds(
     .select("account_id, auth_user_id, role")
     .in("account_id", uniqueAccountIds);
 
-  if (membershipError) return editions;
+  if (membershipError) {
+    if (options.strict) throw new Error("ACCOUNT_EDITION_MEMBERSHIP_UNAVAILABLE");
+    return editions;
+  }
 
   const ownerByAccount = new Map<string, string>();
   for (const row of Array.isArray(membershipRows) ? membershipRows : []) {
@@ -84,11 +88,15 @@ export async function getDashboardEditionsForAccountIds(
     .select("user_id, app_edition, plan")
     .in("user_id", authUserIds);
 
-  if (subscriptionError) return editions;
+  if (subscriptionError) {
+    if (options.strict) throw new Error("ACCOUNT_EDITION_SUBSCRIPTION_UNAVAILABLE");
+    return editions;
+  }
 
   // The exception is restricted to the explicitly approved existing review account.
   // No role grants membership, changes a subscription, or unlocks another company.
   const { data: profileRows, error: profileError } = await supabaseAdmin.from("profiles").select("user_id,role").in("user_id", uniqueAccountIds);
+  if (profileError && options.strict) throw new Error("ACCOUNT_EDITION_ROLE_UNAVAILABLE");
   const rolesByAccount = new Map<string, unknown>();
   if (!profileError) for (const row of Array.isArray(profileRows) ? profileRows : []) {
     rolesByAccount.set(String(row.user_id || "").trim(), row.role);
@@ -104,6 +112,7 @@ export async function getDashboardEditionsForAccountIds(
     const authUserId = ownerByAccount.get(accountId) || accountId;
     const subscription =
       subscriptionsByUser.get(authUserId) || subscriptionsByUser.get(accountId);
+    if (!subscription && options.strict) throw new Error("ACCOUNT_EDITION_SUBSCRIPTION_UNAVAILABLE");
     if (subscription) editions.set(accountId, resolveDashboardEditionForRole(editionFromRow(subscription), rolesByAccount.get(accountId), accountId));
   }
 
@@ -112,10 +121,11 @@ export async function getDashboardEditionsForAccountIds(
 
 export async function getDashboardEditionForAccountId(
   accountId: string,
+  options: { strict?: boolean } = {},
 ): Promise<DashboardEdition> {
   const normalizedAccountId = String(accountId || "").trim();
   if (!normalizedAccountId) return "basic";
-  const editions = await getDashboardEditionsForAccountIds([normalizedAccountId]);
+  const editions = await getDashboardEditionsForAccountIds([normalizedAccountId], options);
   return editions.get(normalizedAccountId) || "basic";
 }
 

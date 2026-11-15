@@ -9,7 +9,8 @@ import { buildAiMediaBusinessDnaPayload } from "@/lib/aiMediaBusinessDna";
 import { buildAiMediaGlobalConstraints } from "./aiMediaGlobalConstraints.ts";
 import { buildAiContentLocationInstruction, resolveAiContentLocation } from "./aiContentLocation.ts";
 import { isAiMediaTechnicalCopyAllowed } from "./aiMediaTechnicalText.ts";
-import { aiGenerateJSON } from "@/lib/aiGatewayClient";
+import { aiGenerateJSON, type AiGenerateJsonOptions } from "@/lib/aiGatewayClient";
+import { fitAiMediaEditorialInput } from "./aiMediaFreeGenerationPrompt.ts";
 import { getAiEngineOption } from "@/lib/aiEnginePreference";
 import { hasAiLanguageMismatch } from "@/lib/aiLanguageValidation";
 import {
@@ -511,7 +512,7 @@ export async function writeAiMediaNarration(args: {
   // jamais envoyé au moteur ni exposé à l'utilisateur.
   for (let qualityAttempt = 0; qualityAttempt < 3 && !script; qualityAttempt += 1) {
     try {
-      const generated = await aiGenerateJSON<{ script?: unknown }>({
+      const options: AiGenerateJsonOptions = {
         feature: "media.video",
         accountId: args.accountId,
         model: String(
@@ -585,6 +586,10 @@ export async function writeAiMediaNarration(args: {
           qualityAttempt * 0.08,
         retries: 0,
         timeoutMs: 20_000,
+      };
+      const generated = await aiGenerateJSON<{ script?: unknown }>({ ...options,
+        feature: "media.video", accountId: args.accountId, model: options.model || String(process.env.AI_MEDIA_COPY_MODEL || getAiEngineOption("openai").model).trim(),
+        input: fitAiMediaEditorialInput({ system: options.system, input: JSON.parse(options.input), schema: NARRATION_SCHEMA.schema }),
       });
       // Le modèle est normalement borné par le schéma ; ce contrôle protège
       // aussi les réponses malformées sans jamais couper leur dernier mot.

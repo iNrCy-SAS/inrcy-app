@@ -30,6 +30,10 @@ export type TxMail = {
   messageId?: string;
   /** Stable business event key, preserved across retries by API mail providers. */
   idempotencyKey?: string;
+  /** Reserve the backup provider for essential mail; deferred mail remains with its durable caller. */
+  fallbackPolicy?: "critical" | "defer";
+  /** Optional worker deadline; a timeout after invoking sendMail remains unknown. */
+  deadlineAt?: number;
   attachments?: TxMailAttachment[];
 };
 
@@ -107,9 +111,9 @@ async function sendSmtpMail(mail: TxMail, config: TxSmtpConfig) {
   };
 
   await assertTxSmtpCircuitClosed(identity);
+  const retryGuard = createSmtpHandshakeRetryGuard();
 
   try {
-    const retryGuard = createSmtpHandshakeRetryGuard();
     const delivery = await withSmtpHandshakeRetry(async (attempt) => {
       // Only a fast TLS alert at CONN can reach the second attempt. Nothing
       // has been authenticated or delivered; never retry an ambiguous send.
@@ -130,7 +134,11 @@ async function sendSmtpMail(mail: TxMail, config: TxSmtpConfig) {
       });
 
       try {
-        return await transporter.sendMail({
+        const remainingMs = mail.deadlineAt ? mail.deadlineAt - Date.now() : null;
+        if (remainingMs !== null && remainingMs <= 0) throw Object.assign(new Error("Le délai du worker mail est écoulé avant l’envoi."), {
+          code: "TX_SMTP_DELIVERY_DEADLINE", deliveryState: "rejected", retryable: true,
+        });
+        const sending = transporter.sendMail({
           from: config.from,
           to: mail.to,
           subject: mail.subject,
@@ -145,6 +153,22 @@ async function sendSmtpMail(mail: TxMail, config: TxSmtpConfig) {
             contentDisposition: attachment.inline ? "inline" : "attachment",
           })),
         });
+        if (remainingMs === null) return await sending;
+        let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          return await Promise.race([sending, new Promise<never>((_resolve, reject) => {
+            deadlineTimer = setTimeout(() => {
+              transporter.close();
+              reject(Object.assign(new Error("Le délai du worker mail est écoulé. L’acceptation doit être vérifiée avant toute reprise."), {
+                // SMTPTransport.close() does not attest cancellation of an
+                // active send. Once invoked, delivery may continue afterwards.
+                code: "TX_SMTP_DELIVERY_DEADLINE", deliveryState: "unknown", retryable: false,
+              }));
+            }, remainingMs);
+          })]);
+        } finally {
+          if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+        }
       } finally {
         transporter.close();
       }
@@ -152,13 +176,37 @@ async function sendSmtpMail(mail: TxMail, config: TxSmtpConfig) {
     await clearTxSmtpCircuit(identity);
     return delivery;
   } catch (error) {
+    const failure = error as { code?: unknown; command?: unknown; responseCode?: unknown; response?: unknown } | null;
+    const responseCode = Number(failure?.responseCode);
+    const negativeDataReply = String(failure?.command || "").toUpperCase() === "DATA" &&
+      responseCode >= 400 && responseCode <= 599 &&
+      new RegExp(`^${responseCode}(?:[ -]|$)`).test(String(failure?.response || "").trim());
+    if (error && typeof error === "object" && String(failure?.command || "").toUpperCase() === "CONN" &&
+      ["ETIMEDOUT", "ESOCKET", "ECONNECTION", "EDNS"].includes(String(failure?.code || "")) && retryGuard.canRetry()) {
+      // The SMTP logger attests that AUTH/DATA never started. A mislabeled
+      // CONN error after authentication must retain its ambiguous outcome.
+      Object.assign(error, { deliveryState: "rejected", retryable: true, retryAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() });
+    }
+    if (error && typeof error === "object" && negativeDataReply) {
+      // An explicit negative SMTP reply after DATA certifies non-delivery
+      // (RFC 5321 4.2.5); a timeout or reset without that reply stays unknown.
+      Object.assign(error, { deliveryState: "rejected", retryable: true, retryAt: new Date(Date.now() + 60 * 60 * 1000).toISOString() });
+    }
     await openTxSmtpCircuit(error, identity);
     throw error;
   }
 }
 
 export async function sendTxMail(mail: TxMail) {
-  const config = loadSmtpConfig("transactional");
+  let config: TxSmtpConfig;
+  try {
+    config = loadSmtpConfig("transactional");
+  } catch {
+    throw Object.assign(new Error("Le transport SMTP principal n’est pas configuré. L’envoi reste à reprendre."), {
+      code: "TX_SMTP_CONFIGURATION_UNAVAILABLE", provider: "smtp", deliveryState: "rejected", retryable: true,
+      retryAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    });
+  }
   try {
     return await sendSmtpMail(mail, config);
   } catch (error) {
@@ -167,6 +215,12 @@ export async function sendTxMail(mail: TxMail) {
     const authRejected = isTxSmtpAuthenticationFailure(error) &&
       (command.startsWith("AUTH") || (!command && failure?.code === "EAUTH"));
     if (!canUseTxResendFallback() || (!authRejected && !isTxSmtpCircuitOpenError(error))) throw error;
+    if (mail.fallbackPolicy === "defer") {
+      throw Object.assign(new Error("Ce mail est différé pendant l’indisponibilité du transport SMTP principal."), {
+        code: "TX_MAIL_FALLBACK_DEFERRED", provider: "smtp", deliveryState: "rejected", retryable: true,
+        retryAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      });
+    }
     return sendTxResendMail(mail, config.from);
   }
 }

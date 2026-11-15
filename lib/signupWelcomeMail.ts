@@ -9,7 +9,7 @@ const TABLE = "signup_welcome_credentials";
 type WelcomeRow = {
   id: string; user_id: string | null; recipient_email: string; first_name: string;
   app_language: string; encrypted_password: string | null; expires_at: string;
-  ready_at: string | null; delivered_at: string | null;
+  ready_at: string | null; delivered_at: string | null; retry_at?: string | null;
 };
 
 function encryptionSecret() {
@@ -57,6 +57,9 @@ export async function completeSignupWelcome(welcomeId: string, userId: string) {
 async function deliver(row: WelcomeRow) {
   if (!row.user_id || !row.ready_at || row.delivered_at || !row.encrypted_password) return { delivered: false };
   if (Date.parse(row.expires_at) <= Date.now()) return { delivered: false };
+  if (row.retry_at && Date.parse(row.retry_at) > Date.now()) {
+    return { delivered: false, deferred: true, retryAt: row.retry_at };
+  }
   // A user can change their password/email before a delayed worker runs. Never
   // send an obsolete credential, and never rotate any existing user's password.
   const { data, error } = await supabaseAdmin.auth.admin.getUserById(row.user_id);
@@ -74,11 +77,21 @@ async function deliver(row: WelcomeRow) {
     welcomeId: row.id, userId: row.user_id, email: row.recipient_email, firstName: row.first_name,
     language: row.app_language, password, expiresAt: row.expires_at, appOrigin: appOrigin(),
   });
-  const result = await sendPreparedAuthEmail(message);
+  let result: Awaited<ReturnType<typeof sendPreparedAuthEmail>>;
+  try { result = await sendPreparedAuthEmail(message); }
+  catch (error) {
+    const temporary = error as { httpStatus?: unknown; retryable?: unknown; retryAt?: unknown } | null;
+    if (temporary?.httpStatus !== 429 || temporary.retryable !== true || typeof temporary.retryAt !== "string"
+      || !Number.isFinite(Date.parse(temporary.retryAt))) throw error;
+    const { error: deferError } = await supabaseAdmin.from(TABLE).update({ retry_at: temporary.retryAt, lease_until: null })
+      .eq("id", row.id).eq("user_id", row.user_id).is("delivered_at", null);
+    if (deferError) throw welcomeError("signup_welcome_deferral_write_failed");
+    return { delivered: false, deferred: true, retryAt: temporary.retryAt };
+  }
   // An ambiguous provider acceptance is reconciled by the existing webhook and
   // internal alert ledger. It must never cause a different credential to be sent.
   const { error: updateError } = await supabaseAdmin.from(TABLE).update({
-    delivered_at: new Date().toISOString(), encrypted_password: null, lease_until: null,
+    delivered_at: new Date().toISOString(), encrypted_password: null, lease_until: null, retry_at: null,
   }).eq("id", row.id);
   if (updateError) throw welcomeError("signup_welcome_delivery_write_failed");
   return { delivered: true, uncertain: "uncertain" in result && Boolean(result.uncertain) };
@@ -100,8 +113,14 @@ export async function processPendingSignupWelcomes() {
   if (error) throw welcomeError("signup_welcome_claim_failed");
   let delivered = 0;
   let failed = 0;
-  for (const row of (data || []) as WelcomeRow[]) {
-    try { if ((await deliver(row)).delivered) delivered++; }
+  let deferred = 0;
+  const claimed = (data || []) as WelcomeRow[];
+  for (const row of claimed) {
+    try {
+      const result = await deliver(row);
+      if (result.delivered) delivered++;
+      else if ("deferred" in result && result.deferred) deferred++;
+    }
     catch (error: unknown) {
       failed++;
       const code = error && typeof error === "object" && "code" in error ? String(error.code || "") : "signup_welcome_failed";
@@ -113,5 +132,5 @@ export async function processPendingSignupWelcomes() {
       }
     }
   }
-  return { delivered, failed };
+  return { claimed: claimed.length, delivered, failed, deferred };
 }

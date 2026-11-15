@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 import { Resend, type ErrorResponse } from "resend";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { resendFailureDetails } from "@/lib/resendFailurePolicy";
+import { readTxResendQuotaState, rememberTxResendQuota } from "@/lib/txResendQuota";
 import {
   authMailStatusNeedsAlert,
   redactAuthMailError,
@@ -16,6 +18,7 @@ const RESERVE_RPC = "reserve_auth_email_delivery";
 const ACCEPT_RPC = "accept_auth_email_delivery";
 const MARK_UNCERTAIN_RPC = "mark_auth_email_delivery_acceptance_uncertain";
 const FAIL_RPC = "fail_auth_email_delivery";
+const DEFER_RPC = "defer_auth_email_delivery";
 const RECORD_EVENT_RPC = "record_auth_email_provider_event";
 const CLAIM_ALERT_RPC = "claim_auth_email_delivery_alerts";
 // Supabase expects the hook to finish within five seconds. Keep enough room for
@@ -30,6 +33,7 @@ type AuthEmailDeliveryRow = {
   provider_message_id: string | null;
   status: string;
   status_rank: number;
+  retry_at: string | null;
   send_attempt_count: number;
   last_error_code: string | null;
   last_error_message: string | null;
@@ -50,13 +54,15 @@ export class AuthMailDeliveryError extends Error {
   readonly code: string;
   readonly httpStatus: number;
   readonly retryable: boolean;
+  readonly retryAt?: string;
 
-  constructor(args: { code: string; message: string; httpStatus: number; retryable: boolean }) {
+  constructor(args: { code: string; message: string; httpStatus: number; retryable: boolean; retryAt?: string }) {
     super(args.message);
     this.name = "AuthMailDeliveryError";
     this.code = args.code;
     this.httpStatus = args.httpStatus;
     this.retryable = args.retryable;
+    this.retryAt = args.retryAt;
   }
 }
 
@@ -182,6 +188,19 @@ async function failDelivery(deliveryKey: string, error: unknown) {
   return row;
 }
 
+async function deferDelivery(deliveryKey: string, error: AuthMailDeliveryError) {
+  const safeError = redactAuthMailError(error);
+  const { data, error: writeError } = await supabaseAdmin.rpc(DEFER_RPC, {
+    p_delivery_key: deliveryKey,
+    p_error_code: safeError.code,
+    p_error_message: safeError.message,
+    p_retry_at: error.retryAt,
+  });
+  if (writeError || !firstRow<AuthEmailDeliveryRow>(data)) {
+    throw new AuthMailDeliveryError({ code: "auth_mail_deferral_write_failed", message: "Authentication email deferral could not be persisted", httpStatus: 503, retryable: true });
+  }
+}
+
 async function markDeliveryAcceptanceUncertain(deliveryKey: string, error: unknown) {
   const safeError = redactAuthMailError(error);
   const { data, error: writeError } = await supabaseAdmin.rpc(MARK_UNCERTAIN_RPC, {
@@ -201,14 +220,16 @@ async function markDeliveryAcceptanceUncertain(deliveryKey: string, error: unkno
   return row;
 }
 
-function providerError(error: ErrorResponse) {
+function providerError(error: ErrorResponse, headers?: Record<string, string> | null) {
   const statusCode = Number(error.statusCode || 0);
   const retryable = statusCode === 429 || statusCode >= 500 || error.name === "concurrent_idempotent_requests";
+  const details = resendFailureDetails(statusCode, error.name, headers?.["retry-after"] ?? null);
   return new AuthMailDeliveryError({
     code: clean(error.name, 120) || "resend_error",
-    message: clean(error.message, 500) || "Authentication email provider rejected the request",
+    message: details.message,
     httpStatus: statusCode === 429 ? 429 : retryable ? 503 : 400,
     retryable,
+    ...(statusCode === 429 && details.retryAt ? { retryAt: details.retryAt } : {}),
   });
 }
 
@@ -234,6 +255,16 @@ export async function sendPreparedAuthEmail(message: PreparedAuthEmail) {
     // Resend tag lets a later provider webhook reconcile it to delivered.
     return { accepted: true, replay: true, uncertain: true, providerMessageId: row.provider_message_id } as const;
   }
+  if (row.status === "deferred") {
+    // The database reservation alone can reopen a due rejection. Never turn a
+    // known refusal into success or uncertainty, even on a later replay.
+    throw new AuthMailDeliveryError({
+      code: row.last_error_code || "auth_mail_deferred",
+      message: "Authentication email is waiting for provider capacity",
+      httpStatus: 429, retryable: true,
+      retryAt: row.retry_at || new Date(Date.now() + 60_000).toISOString(),
+    });
+  }
   if (authMailStatusNeedsAlert(row.status)) {
     throw new AuthMailDeliveryError({
       code: "auth_mail_previous_terminal_failure",
@@ -241,6 +272,19 @@ export async function sendPreparedAuthEmail(message: PreparedAuthEmail) {
       httpStatus: 400,
       retryable: false,
     });
+  }
+
+  let key: string;
+  try { key = authResendApiKey(); }
+  catch (error) { await failDelivery(message.deliveryKey, error); throw error; }
+  const quota = await readTxResendQuotaState(key);
+  if (quota) {
+    const error = new AuthMailDeliveryError({
+      code: `${quota.scope}_quota_exceeded`, message: "Authentication email is waiting for provider quota",
+      httpStatus: 429, retryable: true, retryAt: quota.retryAt,
+    });
+    await deferDelivery(message.deliveryKey, error);
+    throw error;
   }
 
   let response: Awaited<ReturnType<Resend["emails"]["send"]>>;
@@ -293,7 +337,7 @@ export async function sendPreparedAuthEmail(message: PreparedAuthEmail) {
   }
 
   if (response.error) {
-    const error = providerError(response.error);
+    const error = providerError(response.error, response.headers);
     if (isConcurrentIdempotentProviderResponse(error)) {
       // Resend is already processing the exact same idempotency key. Its final
       // acceptance is unknown, so never issue another professional send. The
@@ -306,9 +350,24 @@ export async function sendPreparedAuthEmail(message: PreparedAuthEmail) {
         providerMessageId: uncertainRow.provider_message_id,
       } as const;
     }
-    // A structured provider error is an explicit rejection, not an ambiguous
-    // transport outcome (apart from the concurrent idempotency case above).
-    // Make it terminal and alertable on the first response.
+    if (Number(response.error.statusCode || 0) >= 500) {
+      // A server error cannot establish that the provider did not accept the
+      // email. Keep the same no-resend guard as a lost transport response.
+      const uncertainRow = await markDeliveryAcceptanceUncertain(message.deliveryKey, error);
+      return { accepted: true, replay: false, uncertain: true, providerMessageId: uncertainRow.provider_message_id } as const;
+    }
+    if (error.httpStatus === 429 && error.retryAt) {
+      const details = resendFailureDetails(429, response.error.name, response.headers?.["retry-after"] ?? null);
+      if (details.quotaScope) await rememberTxResendQuota(key, {
+        scope: details.quotaScope, observedAt: new Date().toISOString(),
+        retryAt: error.retryAt, retryAtIsEstimate: details.retryAtIsEstimate,
+      });
+      await deferDelivery(message.deliveryKey, error);
+      throw error;
+    }
+    // A structured provider error reaching this branch is a permanent refusal.
+    // Ambiguous server/concurrent responses above remain uncertain; explicit
+    // 429 refusals are durable deferrals, never stale-pending uncertainty.
     await failDelivery(message.deliveryKey, error);
     // The cron owns internal-alert retries. Keeping it outside the Auth hook
     // preserves Supabase's five-second response contract.
@@ -433,11 +492,13 @@ async function persistAlertFailure(row: AuthEmailDeliveryRow, error: unknown) {
   const safeError = redactAuthMailError(error);
   const exhausted = row.alert_attempt_count >= row.alert_max_attempts;
   const now = new Date().toISOString();
+  const retryAt = error instanceof AuthMailDeliveryError && error.retryAt && Date.parse(error.retryAt) > Date.now()
+    ? error.retryAt : alertRetryAt(row.alert_attempt_count);
   const { data, error: writeError } = await supabaseAdmin
     .from(DELIVERY_TABLE)
     .update({
       alert_status: exhausted ? "dead" : "retry_wait",
-      alert_next_attempt_at: exhausted ? null : alertRetryAt(row.alert_attempt_count),
+      alert_next_attempt_at: exhausted ? null : retryAt,
       alert_lock_token: null,
       alert_locked_at: null,
       alert_lock_expires_at: null,
@@ -479,6 +540,13 @@ async function claimAuthEmailFailureAlerts(args: { deliveryId?: string; limit: n
 }
 
 async function sendClaimedAuthEmailFailureAlert(row: AuthEmailDeliveryRow) {
+  const key = authResendApiKey();
+  const quota = await readTxResendQuotaState(key);
+  if (quota) {
+    const error = new AuthMailDeliveryError({ code: `${quota.scope}_quota_exceeded`, message: "Authentication alert is waiting for provider quota", httpStatus: 429, retryable: true, retryAt: quota.retryAt });
+    const state = await persistAlertFailure(row, error);
+    return { outcome: state.exhausted ? "dead" : "retrying", code: state.code } as const;
+  }
   let response: Awaited<ReturnType<Resend["emails"]["send"]>>;
   try {
     response = await withProviderTimeout(
@@ -504,7 +572,11 @@ async function sendClaimedAuthEmailFailureAlert(row: AuthEmailDeliveryRow) {
   }
 
   if (response.error) {
-    const state = await persistAlertFailure(row, providerError(response.error));
+    const details = resendFailureDetails(Number(response.error.statusCode || 0), response.error.name, response.headers?.["retry-after"] ?? null);
+    if (details.quotaScope && details.retryAt) await rememberTxResendQuota(key, {
+      scope: details.quotaScope, observedAt: new Date().toISOString(), retryAt: details.retryAt, retryAtIsEstimate: details.retryAtIsEstimate,
+    });
+    const state = await persistAlertFailure(row, providerError(response.error, response.headers));
     return { outcome: state.exhausted ? "dead" : "retrying", code: state.code } as const;
   }
   const providerMessageId = clean(response.data?.id, 256);
@@ -522,6 +594,7 @@ async function sendClaimedAuthEmailFailureAlert(row: AuthEmailDeliveryRow) {
 }
 
 export async function processAuthEmailFailureAlert(args: { deliveryId: string }) {
+  if (await readTxResendQuotaState(authResendApiKey())) return { outcome: "deferred" } as const;
   const rows = await claimAuthEmailFailureAlerts({ deliveryId: args.deliveryId, limit: 1 });
   const row = rows[0];
   if (!row) return { outcome: "not_due" } as const;
@@ -529,6 +602,9 @@ export async function processAuthEmailFailureAlert(args: { deliveryId: string })
 }
 
 export async function processDueAuthEmailFailureAlerts(args: { limit?: number } = {}) {
+  if (await readTxResendQuotaState(authResendApiKey())) {
+    return { claimed: 0, sent: 0, retrying: 0, dead: 0, uncertain: 0, quotaBlocked: true };
+  }
   const limit = Math.min(Math.max(Math.trunc(args.limit || 10), 1), 10);
   const rows = await claimAuthEmailFailureAlerts({ limit });
   const summary = {

@@ -14,6 +14,8 @@ import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
 import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
 import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
 import { buildAiMediaVideoProviderContract } from "./aiMediaVideoProviderContract.ts";
+import { getAiFeaturePolicy } from "./aiGatewayPolicy.ts";
+import { appendPromptOnlyJsonContract } from "./aiGatewayResponse.ts";
 
 export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v17-editorial-subject-logo-space";
 export const AI_MEDIA_IMAGE_BRANDING_POLICY_VERSION = "image-branding-v2-dna-control-safe-placement";
@@ -371,6 +373,49 @@ export function buildAiMediaFreeBusinessContext(args: AiMediaPromptBuilderArgs):
   }
   const budget = Math.max(300, AI_MEDIA_FREE_DNA_MAX_CHARS - JSON.stringify(facts).length - 80);
   return { ...fitPromptPayloadToJsonBudget(base, budget), ...facts };
+}
+
+/** Fit optional company background to the complete Gateway request, including
+ * the JSON-only fallback's schema. The brief, rules, exact facts and repair
+ * feedback are authoritative and must never be shortened to fit a transport. */
+export function fitAiMediaEditorialInput(args: {
+  system: string;
+  input: Record<string, unknown>;
+  schema: Record<string, unknown>;
+}) {
+  const fallbackSystem = [appendPromptOnlyJsonContract(args.system),
+    `SCHÉMA JSON OBLIGATOIRE (respecte exactement cette structure) :\n${JSON.stringify(args.schema)}`].join("\n\n");
+  const inputBudget = getAiFeaturePolicy("media.video").maxInputChars - Math.max(args.system.length, fallbackSystem.length);
+  const input = { ...args.input };
+  let full = JSON.stringify(input);
+  // The local repetition validator still checks the complete history. Remove
+  // only the oldest optional examples from the prompt, as complete records.
+  if (Array.isArray(input.publications_recentes_a_ne_pas_reprendre)) {
+    let recent = [...input.publications_recentes_a_ne_pas_reprendre];
+    while (full.length > inputBudget && recent.length) {
+      recent = recent.slice(0, -1);
+      input.publications_recentes_a_ne_pas_reprendre = recent;
+      full = JSON.stringify(input);
+    }
+  }
+  if (full.length <= inputBudget) return full;
+  const company = input.company && typeof input.company === "object" && !Array.isArray(input.company)
+    ? input.company as ReturnType<typeof buildAiMediaFreeBusinessContext> : null;
+  const { identite, coordonnees, liens, informations_demandees, localisation_editoriale, horaires, ...background } = company || {};
+  const exactFacts = Object.fromEntries(Object.entries({ identite, coordonnees, liens, informations_demandees, localisation_editoriale, horaires })
+    .filter(([, value]) => value !== undefined));
+  const render = (optional: Record<string, unknown>) => JSON.stringify({ ...input, ...(company ? { company: { ...optional, ...exactFacts } } : {}) });
+  if (render({}).length > inputBudget) {
+    throw new AiMediaRequestValidationError("Le brief, les règles et les informations exactes dépassent la capacité de préparation du film. Réduisez les informations demandées avant de réessayer.");
+  }
+  let low = 2, high = JSON.stringify(background).length, best = render({});
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const candidate = render(fitPromptPayloadToJsonBudget(background, middle));
+    if (candidate.length <= inputBudget) { best = candidate; low = middle + 1; }
+    else high = middle - 1;
+  }
+  return best;
 }
 
 function businessContext(args: AiMediaPromptBuilderArgs, payloadBudget?: number) {

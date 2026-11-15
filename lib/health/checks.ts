@@ -15,7 +15,7 @@ import {
   isTxSmtpAuthenticationFailure,
   isTxSmtpCircuitOpenError,
 } from "@/lib/txSmtpCircuit";
-import { canUseTxResendFallback, verifyTxResendFallback } from "@/lib/txResend";
+import { canUseTxResendFallback, readTxResendFallbackQuotaStatus, verifyTxResendFallback } from "@/lib/txResend";
 
 export type HealthCheckName =
   | "supabase"
@@ -302,12 +302,26 @@ async function checkSmtp(): Promise<HealthCheckResult> {
     }
   });
   if (result.ok || !authBlocked || !canUseTxResendFallback()) return result;
+  const quotaStatus = await readTxResendFallbackQuotaStatus();
+  const quota = quotaStatus.state;
+  if (quota) return {
+    ok: false,
+    ms: result.ms,
+    error: quota.scope === "daily" ? "TX_RESEND_DAILY_QUOTA_EXCEEDED" : "TX_RESEND_MONTHLY_QUOTA_EXCEEDED",
+    warning: "Authentification SMTP refusée ; le quota du secours mail est atteint.",
+    details: {
+      provider: "resend", smtp_auth_blocked: true, quota_scope: quota.scope,
+      retry_at: quota.retryAt, retry_at_is_estimate: quota.retryAtIsEstimate, quota_state_storage: quota.storage,
+    },
+  };
   const fallback = await timeCheck(() => verifyTxResendFallback(optionalEnv("TX_MAIL_FROM", process.env.TX_SMTP_USER || "")));
   return {
     ...fallback,
     ms: (result.ms || 0) + (fallback.ms || 0),
-    warning: "Authentification SMTP refusée ; secours transactionnel Resend utilisé.",
-    details: { provider: "resend", smtp_auth_blocked: true },
+    warning: quotaStatus.storage === "unavailable"
+      ? "Authentification SMTP refusée ; domaine Resend vérifié mais état partagé des quotas inconnu."
+      : "Authentification SMTP refusée ; domaine du secours Resend vérifié, capacité d’envoi non vérifiée.",
+    details: { provider: "resend", smtp_auth_blocked: true, quota_state_storage: quotaStatus.storage, send_capacity_verified: false },
   };
 }
 

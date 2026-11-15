@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { aiGenerateJSON } from "@/lib/aiGatewayClient";
+import { aiGenerateJSON, type AiGenerateJsonOptions } from "@/lib/aiGatewayClient";
 import { getAiEngineOption } from "@/lib/aiEnginePreference";
 import type { NormalizedAiGenerationProfile } from "@/lib/aiGenerationProfile";
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
@@ -10,7 +10,7 @@ import type { AiMediaFreeDnaContext } from "./aiMediaFreeDnaContext.ts";
 import { buildAiMediaGlobalConstraints } from "./aiMediaGlobalConstraints.ts";
 import { getAiMediaVideoSegmentCount, getAiMediaVideoSegmentDurations } from "@/lib/aiMediaVideoTimeline";
 import { AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT, buildAiMediaFreeVideoCastContract, buildAiMediaFreeVideoPresentationContract, buildAiMediaFreeBusinessContext, getAiMediaFreeBrandPolicy, getAiMediaFreeRequestedDialogueLines, getAiMediaFreeRequestedLanguage, getAiMediaFreeSpeechBudget, getAiMediaFreeVideoCreativeBudget, resolveAiMediaFreeSpeechLanguage, resolveAiMediaFreeDialogueSequence, splitAiMediaFreeQuotedSpeech, validateAiMediaFreeDialogueLine } from "@/lib/aiMediaFreeGenerationPrompt";
-import { getAiMediaFreeDialogueTurnLimit, normalizeAiMediaFreeDialogueTurns, usesAiMediaFreeCharacterDialogueTurns } from "@/lib/aiMediaFreeGenerationPrompt";
+import { fitAiMediaEditorialInput, getAiMediaFreeDialogueTurnLimit, normalizeAiMediaFreeDialogueTurns, usesAiMediaFreeCharacterDialogueTurns } from "@/lib/aiMediaFreeGenerationPrompt";
 
 function cleaned(value: unknown) {
   return typeof value === "string" ? value.replace(/\u0000/g, "").replace(/\s+/g, " ").trim() : "";
@@ -18,6 +18,15 @@ function cleaned(value: unknown) {
 
 function model() {
   return String(process.env.AI_MEDIA_COPY_MODEL || getAiEngineOption("openai").model).trim();
+}
+
+function boundedFreeMediaInput(options: AiGenerateJsonOptions) {
+  const input = () => fitAiMediaEditorialInput({ system: options.system,
+    input: JSON.parse(options.input) as Record<string, unknown>, schema: options.responseSchema?.schema || {} });
+  // Validate immutable requirements before reserving a model call. Recalculate
+  // for each existing fallback because repair feedback can change its size.
+  input();
+  return input;
 }
 
 function literalTerms(prompt: string) {
@@ -96,7 +105,7 @@ export async function prepareAiMediaFreeCreativePlan(args: {
     reason: "empty" | "budget";
     instruction: string;
   }> | undefined;
-  const generated = await aiGenerateJSON<{ direction?: unknown; scenes?: unknown }>({
+  const options: AiGenerateJsonOptions = {
     accountId: args.accountId,
     feature: "media.video",
     model: model(),
@@ -228,6 +237,11 @@ export async function prepareAiMediaFreeCreativePlan(args: {
     // Within media.video's existing 2,048-token cap, including fallback reasoning.
     maxOutputTokens: 2_048, temperature: 0.55, retries: 0,
     timeoutMs: 30_000, deadlineAt: Date.now() + 31_000,
+  };
+  const boundedInput = boundedFreeMediaInput(options);
+  const generated = await aiGenerateJSON<{ direction?: unknown; scenes?: unknown }>({
+    ...options, feature: "media.video", accountId: args.accountId, model: options.model || model(),
+    get input() { return boundedInput(); },
   });
   args.signal?.throwIfAborted();
   let direction = cleaned(generated.direction);
@@ -277,7 +291,7 @@ export async function writeAiMediaFreeNarration(args: {
   let language = resolveAiMediaFreeSpeechLanguage(prompt, script || prompt, args.profile.preferences.language);
   if (!script) {
     let rewrite: { draft: string; word_count: number; instruction: string } | undefined;
-    const generated = await aiGenerateJSON<{ script?: unknown; language?: unknown }>({
+    const options: AiGenerateJsonOptions = {
       accountId: args.accountId, feature: "media.video", model: model(),
       system: [
         buildAiMediaGlobalConstraints(args.profile),
@@ -321,6 +335,11 @@ export async function writeAiMediaFreeNarration(args: {
       // Leave room for a fallback model's reasoning and its complete JSON.
       // Spoken copy remains bounded by maxWords and the schema's 620 characters.
       maxOutputTokens: 1_600, temperature: 0.4, retries: 0, timeoutMs: 30_000, deadlineAt: Date.now() + 31_000,
+    };
+    const boundedInput = boundedFreeMediaInput(options);
+    const generated = await aiGenerateJSON<{ script?: unknown; language?: unknown }>({
+      ...options, feature: "media.video", accountId: args.accountId, model: options.model || model(),
+      get input() { return boundedInput(); },
     }).catch((error: unknown) => {
       if (error && typeof error === "object" && "code" in error && error.code === "ai_gateway_invalid_output") {
         throw new Error("ai_media_generated_narration_invalid", { cause: error });

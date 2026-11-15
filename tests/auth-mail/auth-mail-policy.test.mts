@@ -6,7 +6,15 @@ import {
   buildPreparedAuthEmails,
   normalizeResendAuthEvent,
   parseSupabaseAuthEmailHookPayload,
+  redactAuthMailError,
 } from "../../lib/authMailPolicy.ts";
+
+test("safe auth delivery diagnostics preserve explicit retryable provider codes", () => {
+  const error = Object.assign(new Error("A quota refusal"), { name: "AuthMailDeliveryError", code: "daily_quota_exceeded", httpStatus: 429 });
+  assert.deepEqual(redactAuthMailError(error), { code: "daily_quota_exceeded", message: "A quota refusal" });
+  assert.equal(redactAuthMailError({ httpStatus: 429 }).code, "http_429");
+  assert.equal(redactAuthMailError({ code: "unsafe code?secret=value", name: "SafeError" }).code, "safeerror");
+});
 
 const USER_ID = "5d524543-6f8b-4594-b1b4-5b7b128ab32e";
 

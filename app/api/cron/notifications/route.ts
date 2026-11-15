@@ -1,13 +1,12 @@
 import { isMetaChannelPilotEnabledForAccount } from "@/lib/metaChannelRolloutServer";
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { sendTxMail } from "@/lib/txMailer";
-import { buildNotificationDigestEmail, type NotificationDigestItem } from "@/lib/notificationDigestEmail";
-import { optionalEnv } from "@/lib/env";
-import { getInrcyLogoInlineAttachments } from "@/lib/txEmailAssets";
+import type { NotificationDigestItem } from "@/lib/notificationDigestEmail";
+import { buildNotificationDigestDeliveryKey } from "@/lib/notificationDigestOutbox";
+import { getActiveSubscriptionAccountIds } from "@/lib/accountSubscriptionAccess";
 import { defaultNotificationPreferences } from "@/lib/notifications";
 import { hasPremiumDashboardAccess, type DashboardEdition } from "@/lib/dashboardEdition";
-import { getDashboardEditionForAccountId, getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
+import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
 import { listMissingNotificationChannels, projectNotificationForEdition } from "@/lib/notificationEditionPolicy";
 import {
   insertNotificationOnce,
@@ -45,13 +44,6 @@ type IntegrationRow = {
   category: string | null;
   product: string | null;
   status: string | null;
-};
-
-type ProfileRow = {
-  contact_email?: string | null;
-  first_name?: string | null;
-  company_legal_name?: string | null;
-  last_active_at?: string | null;
 };
 
 function isAuthorizedCron(req: Request) {
@@ -103,15 +95,15 @@ async function hasRecentCategoryNotification(userId: string, category: string, h
   return Boolean(data && data.length > 0);
 }
 
-async function insertNotification(row: NotificationInsertRow, edition: DashboardEdition) {
+async function insertNotification(row: NotificationInsertRow, edition: DashboardEdition, digestKey?: string) {
   const eligible = projectNotificationForEdition(row, edition);
   if (!eligible) return null;
-  const result = await insertNotificationOnce(eligible);
+  const result = await insertNotificationOnce(digestKey ? { ...eligible, meta: { ...eligible.meta, digest_delivery_key: digestKey } } : eligible);
   if (!result.inserted || !result.data) return null;
   return result.data as unknown as NotificationDigestItem & NotificationInsertRow;
 }
 
-async function buildPerformanceNotification(userId: string, digestHours: number, edition: DashboardEdition) {
+async function buildPerformanceNotification(userId: string, digestHours: number, edition: DashboardEdition, digestKey?: string) {
   if (await hasRecentCategoryNotification(userId, "performance", digestHours)) return null;
   const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
   const { data, error } = await supabaseAdmin
@@ -183,10 +175,10 @@ async function buildPerformanceNotification(userId: string, digestHours: number,
       top_opportunity_channel: topOpportunityChannel?.channel ?? null,
     },
     dedupe_key: dedupeWindowKey(`performance:${userId}`),
-  }, edition);
+  }, edition, digestKey);
 }
 
-async function buildActionNotification(userId: string, digestHours: number, edition: DashboardEdition) {
+async function buildActionNotification(userId: string, digestHours: number, edition: DashboardEdition, digestKey?: string) {
   if (await hasRecentCategoryNotification(userId, "action", digestHours)) return null;
   const [{ data: integrations, error: integrationsError }, { data: latest, error: latestError }] = await Promise.all([
     supabaseAdmin
@@ -258,13 +250,14 @@ async function buildActionNotification(userId: string, digestHours: number, edit
     cta_url: ctaUrl,
     meta: { missing_channels: missingChannels, connected_tools: connectedTools, opportunities, latest_demandes: latestDemandes },
     dedupe_key: dedupeWindowKey(`action:${userId}`),
-  }, edition);
+  }, edition, digestKey);
 }
 
 async function buildInformationNotification(
   userId: string,
   digestHours: number,
   edition: DashboardEdition,
+  digestKey?: string,
 ) {
   if (await hasRecentCategoryNotification(userId, "information", digestHours)) return null;
   const [{ data: latest, error: latestError }, { data: integrations, error: integrationsError }] = await Promise.all([
@@ -355,56 +348,7 @@ async function buildInformationNotification(
     cta_url: ctaUrl,
     meta: { connected_tools: connectedTools, demandes, opportunities, has_mail: hasMail, has_social: hasSocial, has_stats: hasStats },
     dedupe_key: dedupeWindowKey(`information:${userId}`),
-  }, edition);
-}
-
-async function getProfileEmail(userId: string) {
-  const { data: profile } = await supabaseAdmin
-    .from("profiles")
-    .select("contact_email, first_name, company_legal_name, last_active_at")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  const row = (profile ?? null) as ProfileRow | null;
-  if (!row?.last_active_at) {
-    return { email: null, firstName: row?.first_name ?? null, companyName: row?.company_legal_name ?? null };
-  }
-  const email = (row?.contact_email || "").trim();
-  if (email) return { email, firstName: row?.first_name ?? null, companyName: row?.company_legal_name ?? null };
-
-  const adminUser = await supabaseAdmin.auth.admin.getUserById(userId).catch(() => null);
-  const fallbackEmail = adminUser?.data?.user?.email ?? null;
-  return { email: fallbackEmail, firstName: row?.first_name ?? null, companyName: row?.company_legal_name ?? null };
-}
-
-async function maybeSendDigestEmail(userId: string, items: (NotificationDigestItem & NotificationInsertRow)[]) {
-  if (items.length === 0) return { sent: false, reason: "no_items" as const };
-  const smtpConfigured = Boolean(optionalEnv("TX_SMTP_HOST") && optionalEnv("TX_SMTP_PORT") && optionalEnv("TX_SMTP_USER") && optionalEnv("TX_SMTP_PASS"));
-  if (!smtpConfigured) return { sent: false, reason: "smtp_not_configured" as const };
-
-  const recipient = await getProfileEmail(userId);
-  if (!recipient.email) return { sent: false, reason: "missing_email" as const };
-
-  // Re-read immediately before delivery: a downgrade may have happened during generation.
-  const edition = await getDashboardEditionForAccountId(userId);
-  const eligibleItems = items.flatMap((item) => {
-    const eligible = projectNotificationForEdition(item, edition);
-    return eligible ? [eligible] : [];
-  });
-  if (!eligibleItems.length) return { sent: false, reason: "no_items" as const };
-
-  const appUrl = optionalEnv("NEXT_PUBLIC_SITE_URL", "https://app.inrcy.com").replace(/\/$/, "");
-  const dashboardUrl = `${appUrl}/dashboard`;
-
-  const { subject, html, text } = buildNotificationDigestEmail({
-    firstName: recipient.firstName,
-    companyName: recipient.companyName,
-    items: eligibleItems,
-    dashboardUrl,
-  });
-
-  await sendTxMail({ to: recipient.email, subject, html, text, attachments: await getInrcyLogoInlineAttachments() });
-  return { sent: true, reason: "sent" as const };
+  }, edition, digestKey);
 }
 
 export async function GET(req: Request) {
@@ -437,6 +381,13 @@ export async function GET(req: Request) {
     if (row.user_id && row.last_active_at) userIds.add(row.user_id);
   }
 
+  try {
+    const active = await getActiveSubscriptionAccountIds(Array.from(userIds));
+    for (const userId of userIds) if (!active.has(userId)) userIds.delete(userId);
+  } catch {
+    return NextResponse.json({ ok: false, error: "ACCOUNT_SUBSCRIPTIONS_UNAVAILABLE" }, { status: 503 });
+  }
+
   const prefs = Array.from(userIds).map((userId) => {
     const existing = prefMap.get(userId);
     if (existing) {
@@ -448,6 +399,13 @@ export async function GET(req: Request) {
     }
     return defaultNotificationPreferences(userId);
   });
+
+  // Never consume the generation window without its atomic email queue during
+  // a partial deployment, missing migration or rollback of the queue schema.
+  if (prefs.some(pref => pref.email_enabled !== false)) {
+    const { error: queueError } = await supabaseAdmin.from("notification_digest_deliveries").select("id").limit(1);
+    if (queueError) return NextResponse.json({ ok: false, error: "DIGEST_QUEUE_SCHEMA_UNAVAILABLE" }, { status: 503 });
+  }
 
   // Unknown rights receive only the Basic content shared by every pack.
   const editionByUser = new Map<string, DashboardEdition>(
@@ -464,7 +422,7 @@ export async function GET(req: Request) {
   }
 
   let generated = 0;
-  let emailed = 0;
+  let emailQueued = 0;
   const errors: Array<{ user_id: string; message: string }> = [];
 
   for (const pref of prefs) {
@@ -472,16 +430,17 @@ export async function GET(req: Request) {
       if (pref.in_app_enabled === false && pref.email_enabled === false) continue;
       const edition = editionByUser.get(pref.user_id) || "basic";
       const hours = Math.max(24, Math.min(168, pref.digest_every_hours || 48));
+      const digestKey = pref.email_enabled !== false ? buildNotificationDigestDeliveryKey(pref.user_id, dedupeWindowKey("digest")) : undefined;
       const createdItems: (NotificationDigestItem & NotificationInsertRow)[] = [];
       if (pref.performance_enabled) {
-        const item = await buildPerformanceNotification(pref.user_id, hours, edition);
+        const item = await buildPerformanceNotification(pref.user_id, hours, edition, digestKey);
         if (item) {
           generated += 1;
           createdItems.push(item);
         }
       }
       if (pref.action_enabled) {
-        const item = await buildActionNotification(pref.user_id, hours, edition);
+        const item = await buildActionNotification(pref.user_id, hours, edition, digestKey);
         if (item) {
           generated += 1;
           createdItems.push(item);
@@ -492,18 +451,20 @@ export async function GET(req: Request) {
           pref.user_id,
           hours,
           edition,
+          digestKey,
         );
         if (item) {
           generated += 1;
           createdItems.push(item);
         }
       }
-      const emailResult = pref.email_enabled !== false ? await maybeSendDigestEmail(pref.user_id, createdItems) : { sent: false, reason: "email_disabled" as const };
-      if (emailResult.sent) emailed += 1;
+      // The insert trigger committed these IDs to the outbox in the same
+      // transaction. The dedicated worker rereads eligibility before SMTP.
+      if (digestKey && createdItems.length) emailQueued += 1;
     } catch (e: unknown) {
       errors.push({ user_id: pref.user_id, message: e instanceof Error ? e.message : String(e) });
     }
   }
 
-  return NextResponse.json({ ok: true, users: prefs.length, generated, emailed, errors });
+  return NextResponse.json({ ok: true, users: prefs.length, generated, emailed: 0, email_queued: emailQueued, errors });
 }

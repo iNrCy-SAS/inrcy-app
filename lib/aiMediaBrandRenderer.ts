@@ -454,7 +454,7 @@ async function buildImageBrandOverlays(
     const from = backgroundOffset(x, y), to = backgroundOffset(nextX, nextY);
     return Math.max(...[0, 1, 2].map(channel => Math.abs(background.data[from + channel] - background.data[to + channel]) / 255));
   };
-  const candidates = axesY.flatMap(vertical => axesX.map(horizontal => {
+  const positions = axesY.flatMap(vertical => axesX.map(horizontal => {
     const preferred = reservation?.horizontal === horizontal && reservation.vertical === vertical;
     const left = preferred && reservation
       ? Math.round(reservation.left * args.width + (reservation.width * args.width - logo.width) * (horizontal === "left" ? 0 : horizontal === "center" ? 0.5 : 1))
@@ -462,6 +462,13 @@ async function buildImageBrandOverlays(
     const top = preferred && reservation
       ? Math.round(reservation.top * args.height + (reservation.height * args.height - logo.height) * (vertical === "top" ? 0 : vertical === "center" ? 0.5 : 1))
       : vertical === "top" ? marginY : vertical === "center" ? Math.round((args.height - logo.height) / 2) : args.height - marginY - logo.height;
+    const regionWidth = preferred && reservation ? reservation.width * args.width
+      : args.width * (args.logoPlacement?.size === "large" ? 0.36 : args.logoPlacement?.size === "small" ? 0.13 : args.logoMode === "visible" ? 0.27 : 0.23);
+    const regionHeight = preferred && reservation ? reservation.height * args.height
+      : Math.min(args.width, args.height) * (args.logoPlacement?.size === "large" ? 0.3 : args.logoPlacement?.size === "small" ? 0.1 : args.logoMode === "visible" ? 0.22 : 0.19);
+    return { left, top, preferred, horizontal, vertical, regionWidth, regionHeight };
+  }));
+  const inspect = ({ left, top, preferred, vertical }: typeof positions[number]) => {
     // Inspect the real, alpha-trimmed logo rectangle plus breathing room. The
     // small tiles prevent sparse lettering from disappearing in a whole-box
     // average. These conservative texture limits are deliberately not OCR.
@@ -504,8 +511,26 @@ async function buildImageBrandOverlays(
     const copyPenalty = args.withText && !args.logoPlacement?.vertical && vertical === "bottom" ? 0.4 : 0;
     return { left, top, preferred, clearEnough, contrast: meanContrast, logoLuminance: opacity ? logoLuminance / opacity : 0,
       score: detail / 1024 * 2 + variance * 0.7 + Math.max(0, 0.35 - meanContrast) * 1.5 + copyPenalty };
-  }));
-  const acceptable = candidates.filter(candidate => candidate.clearEnough);
+  };
+  let acceptable = positions.map(inspect).filter(candidate => candidate.clearEnough);
+  if (!acceptable.length && (!args.logoPlacement?.horizontal || !args.logoPlacement?.vertical)) {
+    // A wide/tall logo occupies only part of its reserved corner rectangle.
+    // Search that remaining space before refusing a paid image. Every point
+    // receives the same pixel checks; never shrink the logo, enter the centre,
+    // paint over a busy region or change an explicitly requested axis.
+    const nearby = positions.flatMap(position => {
+      const offsetsX = args.logoPlacement?.horizontal || position.regionWidth - logo.width < 1 ? [0] : [0, 0.25, 0.5, 0.75, 1];
+      const offsetsY = args.logoPlacement?.vertical || position.regionHeight - logo.height < 1 ? [0] : [0, 0.25, 0.5, 0.75, 1];
+      return offsetsY.flatMap(y => offsetsX.flatMap(x => {
+        if (!x && !y) return [];
+        const left = Math.round(position.left + x * Math.max(0, position.regionWidth - logo.width) * (position.horizontal === "right" ? -1 : 1));
+        const top = Math.round(position.top + y * Math.max(0, position.regionHeight - logo.height) * (position.vertical === "bottom" ? -1 : 1));
+        return left < 0 || top < 0 || left + logo.width > args.width || top + logo.height > args.height
+          ? [] : [{ ...position, left, top }];
+      }));
+    });
+    acceptable = nearby.map(inspect).filter(candidate => candidate.clearEnough);
+  }
   if (!acceptable.length) throw new Error("ai_media_logo_no_safe_placement");
   const chosen = acceptable.find(candidate => candidate.preferred)
     || acceptable.reduce((best, candidate) => candidate.score < best.score ? candidate : best);

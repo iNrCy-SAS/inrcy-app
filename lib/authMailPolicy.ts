@@ -552,11 +552,12 @@ export function redactAuthMailError(error: unknown) {
     return { code: error.code, message: safeProviderDetail(error.message) || "Auth mail payload error" };
   }
   const source = record(error);
-  const statusCode = Number(source.statusCode || source.status || 0);
+  const statusCode = Number(source.statusCode || source.httpStatus || source.status || 0);
+  const explicitCode = clean(source.code, 120).toLowerCase();
   const name = clean(source.name, 120).toLowerCase();
   const rawMessage = error instanceof Error ? error.message : source.message;
   return {
-    code: name || (statusCode ? `http_${statusCode}` : "auth_mail_error"),
+    code: /^[a-z0-9_-]+$/.test(explicitCode) ? explicitCode : name || (statusCode ? `http_${statusCode}` : "auth_mail_error"),
     message: safeProviderDetail(rawMessage) || "Authentication email delivery failed",
   };
 }

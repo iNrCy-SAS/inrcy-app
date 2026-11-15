@@ -82,7 +82,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
     "./dashboardCompletion.ts": { DASHBOARD_PROFILE_COMPLETION_SELECT: "synthetic", evaluateDashboardProfileCompletion: untouched },
     "@/lib/accountSubscriptionAccess": { getActiveSubscriptionAccountIds: untouched },
     "@/lib/dashboardEditionServer": { getDashboardEditionForAccountId: untouched },
-    "./dashboardEditionServer": { getDashboardEditionForAuthUser: untouched },
+    "./dashboardEditionServer": { getDashboardEditionForAuthUser: untouched, getDashboardEditionForAccountId: untouched },
     "./accountSubscriptionAccess": { getActiveSubscriptionAccountIds: untouched },
     "../app/dashboard/dashboard.types": { ACTUS_DESIGN_OPTIONS:[], ACTUS_THEME_OPTIONS:[], normalizeActusAccent:untouched, normalizeActusDesign:untouched, normalizeActusLayout:untouched, normalizeActusTheme:untouched },
     "./adsValidation.ts": { parseAdsCampaignInput: untouched },
@@ -171,7 +171,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
         const target = resolve(dirname(path), id.endsWith(".ts") ? id : `${id}.ts`);
         if (CATALOGUE_COMPLEMENT_MODULES.has(target)) return load(target);
         const name = basename(target);
-        if (["notifications.ts", "aiMediaVideoSpeechBudget.ts", "aiMediaVideoTimeline.ts", "aiMediaSpokenScript.ts", "aiMediaCharacterVoices.ts", "aiMediaPlanLimits.ts"].includes(name)) return load(target);
+        if (["notifications.ts", "notificationEditionPolicy.ts", "aiMediaVideoSpeechBudget.ts", "aiMediaVideoTimeline.ts", "aiMediaSpokenScript.ts", "aiMediaCharacterVoices.ts", "aiMediaPlanLimits.ts"].includes(name)) return load(target);
         assert.ok(/^inrAssistant[A-Za-z.]+\.ts$/.test(name) || ["aiEnginePreference.ts", "businessDnaActivityAutofill.ts", "businessDnaRichText.ts", "appLanguage.ts", "appAppearanceTheme.ts", "mediaRules.ts", "publicationEditVersion.ts", "aiMediaGenerationPreferences.ts", "aiMediaNarrationVoices.ts", "boosterCta.ts", "boosterFormatting.ts", "boosterPublicationSafety.ts", "notificationRemovalState.ts", "generatorSettings.ts", "facebookPublicationPreferences.ts", "instagramPublicationPreferences.ts", "threadsPublicationPreferences.ts", "referralRequest.ts", "cookieConsentPreferences.ts", "activityCatalog.ts", "activitySectors.ts", "activityJobs.ts", "activityJobSynonyms.ts", "inrSearchDisplaySettings.ts", "inrBadgeTheme.ts", "imageOverlay.ts", "imageOverlayLinkUrl.ts", "businessIdentity.ts", "activityJobSearch.ts", "activityJobCatalog.ts", "googleReviewStateFingerprint.ts", "statsCalendarMonths.ts", "monthlyMeasuredStats.ts", "manualBoosterPublicationSchedule.ts", "productNavigation.ts", "commercialDocumentTemplate.ts", "mediaLibraryAudio.ts", "commercialDocumentDraft.ts", "adsPreparedCampaignSettings.ts", "commercialDocumentValidation.ts", "commercialDocumentUpdate.ts", "inrAgentSettings.ts", "inrAgentMonthSchedule.ts", "siteWebChannel.ts", "subscriptionOffers.ts", "boosterPublicationPolicy.ts", "boosterChannelRules.ts", "boosterPublicationOutcome.ts", "aiContentLength.ts", "aiInstructionSections.ts", "dashboard.channel-setup.ts", "aiChannelCtaPreferences.ts", "boosterCtaActions.ts", "boosterWhatsappCta.ts", "generalPreferences.ts", "googleBusinessProfile.ts", "channelPublicUrl.ts", "instagramCapabilities.ts", "instagramCaptionLimits.ts", "pinterestTextLimits.ts"].includes(name), `Unexpected dependency ${id}`);
         return load(target);
       }

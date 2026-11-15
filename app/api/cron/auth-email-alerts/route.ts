@@ -26,8 +26,14 @@ export async function GET(request: Request) {
   }
 
   try {
-    const alerts = await processDueAuthEmailFailureAlerts({ limit: 10 });
     const welcomes = await processPendingSignupWelcomes();
+    // A full batch may leave more welcomes due. Reserve provider capacity for
+    // the next welcome batch before sending any internal failure alerts.
+    const welcomePriority = welcomes.deferred > 0 ? "welcome_deferred"
+      : welcomes.claimed >= 10 ? "welcome_backlog" : null;
+    const alerts = welcomePriority
+      ? { claimed: 0, sent: 0, retrying: 0, dead: 0, uncertain: 0, skipped: welcomePriority }
+      : await processDueAuthEmailFailureAlerts({ limit: 10 });
     console.info("[auth-mail][alert-cron-complete]", alerts);
     return NextResponse.json(
       { ok: true, alerts, welcomes },

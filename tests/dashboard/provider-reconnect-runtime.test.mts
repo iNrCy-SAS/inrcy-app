@@ -177,3 +177,82 @@ test("live Pinterest metrics propagate a refused credential through cached stats
     assert.equal(h.current()?.meta?.needs_reconnect === true, refused);
   }
 });
+
+const overviewSource = ts.createSourceFile("overview.ts", readFileSync(new URL("../../lib/stats/buildOverview.ts", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
+function overviewSnippet(match: (node: ts.Node) => boolean) {
+  let found: ts.Node | undefined;
+  function visit(node: ts.Node) { if (!found && match(node)) found = node; ts.forEachChild(node, visit); }
+  visit(overviewSource);
+  assert.ok(found, "the real overview stage must remain present");
+  return found.getText(overviewSource);
+}
+const refusalStage = overviewSnippet(node => ts.isFunctionDeclaration(node) && node.name?.text === "recordProviderRefusal");
+const threadsStage = overviewSnippet(node => ts.isIfStatement(node) && node.expression.getText(overviewSource) === "metaPilotEnabled && sourcesStatus.threads");
+const refusalProjection = overviewSnippet(node => ts.isForOfStatement(node) && node.expression.getText(overviewSource) === "providerReconnectRequired");
+
+async function runReturnedStats(metrics: Record<string, unknown>, channel: "threads" | "linkedin", options: { concurrentReconnect?: boolean } = {}) {
+  const h = harness(row(), options);
+  const sourcesStatus = { [channel]: { connected: true, metrics } };
+  const body = ts.transpileModule(`async function run() {
+    const providerReconnectRequired = new Set();
+    ${refusalStage}
+    ${channel === "threads" ? threadsStage : 'await recordProviderRefusal("linkedin", sourcesStatus.linkedin.metrics);'}
+    ${refusalProjection}
+    return sourcesStatus;
+  }`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const result = await new Function("sourcesStatus", "markPublishChannelReconnectRequired", "fetchThreadsAccountInsights", `
+    const userId = "account-A", attemptStartedAt = "${START}", metaPilotEnabled = true, includeAll = true;
+    const includeSet = new Set(), supabaseAdmin = {}, dateWindow = { start: new Date(), end: new Date() };
+    const channelStates = { threads: { connected: true } };
+    const isStatsActiveConnection = value => value.connected;
+    const bestIntegrationAny = () => ({ resource_id: "fixture-account" });
+    const ensureMetaDirectAccessToken = async () => "fixture-token";
+    const asRecord = value => value && typeof value === "object" ? value : {};
+    const getSimpleFrenchErrorMessage = () => "Statistiques indisponibles.";
+    ${body}
+    return run();
+  `)(sourcesStatus, h.diagnostics.markPublishChannelReconnectRequired, async () => metrics);
+  return { result, h };
+}
+
+test("returned Threads token invalidation reaches the real overview marker and orange state", async () => {
+  const metrics = { error: "Les statistiques Threads ne sont pas disponibles pour ce compte ou cette période.",
+    totals: {}, availableMetrics: [], raw: { metricErrors: { account: { views: INVALIDATED_SESSION, likes: INVALIDATED_SESSION } } } };
+  const { result, h } = await runReturnedStats(metrics, "threads");
+  assert.equal(h.current()?.meta?.needs_reconnect, true);
+  assert.equal(result.threads.connected, false);
+  assert.equal(result.threads.metrics.needs_reconnect, true);
+  assert.deepEqual(result.threads.metrics.totals, {}, "unavailable observations never become measured zeroes");
+  assert.equal(result.threads.metrics.error, metrics.error);
+});
+
+test("returned LinkedIn Could not authenticate persists the same provider warning", async () => {
+  const metrics = { error: "Impossible de récupérer les statistiques LinkedIn pour le moment.",
+    raw: { errors: ["member:memberFollowers:Could not authenticate"] } };
+  const { result, h } = await runReturnedStats(metrics, "linkedin");
+  assert.equal(h.current()?.meta?.needs_reconnect, true);
+  assert.equal(result.linkedin.connected, false);
+  assert.equal(result.linkedin.metrics.needs_reconnect, true);
+});
+
+test("partial observations, missing metrics and quota failures keep healthy provider connections", async () => {
+  for (const [channel, metrics] of [
+    ["threads", { totals: { views: 5 }, availableMetrics: ["views"], raw: { metricErrors: { account: { clicks: "Unsupported metric clicks" } } } }],
+    ["threads", { totals: {}, error: "Statistiques indisponibles.", raw: { metricErrors: { account: { views: "HTTP 429 quota exceeded" } } } }],
+    ["linkedin", { totals: { impressionCount: 25 }, raw: { errors: ["organization:Aucune métrique LinkedIn exploitable."] } }],
+    ["linkedin", { error: "Statistiques indisponibles.", raw: { errors: ["member:Aucune métrique LinkedIn membre exploitable."] } }],
+  ] as const) {
+    const original = structuredClone(metrics);
+    const { result, h } = await runReturnedStats(metrics, channel);
+    assert.equal(h.updates.length, 0);
+    assert.equal(result[channel].connected, true);
+    assert.deepEqual(result[channel].metrics, original, "available partial source data remains intact");
+  }
+});
+
+test("a newer reconnection still wins over a returned stale provider refusal", async () => {
+  const { result, h } = await runReturnedStats({ error: INVALIDATED_SESSION, totals: {} }, "threads", { concurrentReconnect: true });
+  assert.equal(result.threads.connected, true);
+  assert.equal(result.threads.metrics.needs_reconnect, undefined);
+  assert.equal(h.current()?.meta?.needs_reconnect, undefined);
+});

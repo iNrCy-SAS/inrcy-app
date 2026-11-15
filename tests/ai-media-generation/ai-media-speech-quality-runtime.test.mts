@@ -6,6 +6,8 @@ import test from "node:test";
 import ts from "typescript";
 
 import { extractAiMediaRequestedDialogue, hasNaturalAiMediaSpeechFlow, resolveAiMediaDialogueSequence } from "../../lib/aiMediaDialogue.ts";
+import { getAiFeaturePolicy } from "../../lib/aiGatewayPolicy.ts";
+import { appendPromptOnlyJsonContract } from "../../lib/aiGatewayResponse.ts";
 
 const requireFromTest = createRequire(import.meta.url);
 const lines = [
@@ -71,6 +73,35 @@ function generatedCopy(duration: 8 | 16 | 24) {
     })),
   };
 }
+
+test("a rich narration history fits the real input budget by omitting oldest whole examples only", async () => {
+  const env = runtime(8, [{ script: scripts[8] }]);
+  env.args.profile.preferences.customInstructions = `RÈGLE À CONSERVER ${"I".repeat(850)}`;
+  env.args.profile.preferences.forbiddenInstructions = `INTERDICTION À CONSERVER ${"P".repeat(850)}`;
+  const recent = Array.from({ length: 12 }, (_, index) => ({
+    title: `Ancienne campagne ${index} ${"T".repeat(100)}`,
+    idea: `Service historique ${index} ${"I".repeat(160)}`,
+    content: `Message antérieur ${index} ${"C".repeat(220)}`,
+  }));
+  const requestBefore = structuredClone(env.args.request);
+  const result = await env.load<typeof import("../../lib/aiMediaNarration.ts")>("lib/aiMediaNarration.ts")
+    .writeAiMediaNarration({ ...env.args, recentPublications: recent });
+  assert.equal(result?.source, "ai");
+  assert.equal(env.calls.length, 1, "a history-heavy request does not burn three rejected attempts");
+  const call = env.calls[0] as typeof env.calls[number] & { responseSchema: { schema: Record<string, unknown> } };
+  const payload = JSON.parse(call.input);
+  const effective = [appendPromptOnlyJsonContract(call.system),
+    `SCHÉMA JSON OBLIGATOIRE (respecte exactement cette structure) :\n${JSON.stringify(call.responseSchema.schema)}`].join("\n\n");
+  assert.ok(effective.length + call.input.length <= getAiFeaturePolicy("media.video").maxInputChars);
+  assert.ok(payload.publications_recentes_a_ne_pas_reprendre.length < 12);
+  assert.ok(payload.publications_recentes_a_ne_pas_reprendre[0].titre.startsWith("Ancienne campagne 0"));
+  assert.equal(payload.idee_du_professionnel, requestBefore.idea);
+  assert.equal(payload.consigne_ponctuelle, requestBefore.aiInstruction || null);
+  assert.ok(call.system.includes(env.args.profile.preferences.customInstructions));
+  assert.ok(call.system.includes(env.args.profile.preferences.forbiddenInstructions));
+  assert.deepEqual(env.args.request, requestBefore);
+  assert.equal(recent.length, 12, "local repetition validation retains the complete original history");
+});
 
 for (const duration of [8, 16, 24] as const) {
   test(`la voix off ${duration} s garde sa phrase entière et son budget réel`, async () => {

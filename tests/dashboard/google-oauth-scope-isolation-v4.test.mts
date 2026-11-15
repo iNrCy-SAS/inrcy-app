@@ -65,6 +65,6 @@ test("Google provider auth failures discovered by Stats disable publication imme
   assert.match(overview, /channel: "gmb"[\s\S]*stage: "stats_provider_metrics"/);
   assert.match(overview, /recordProviderRefusal\("youtube_shorts", e\)/);
   assert.match(overview, /sourcesStatus\.gmb\.connected = false/);
-  assert.match(overview, /async function recordProviderRefusal[\s\S]*channel, userId, error, stage: "stats_provider_metrics", attemptStartedAt[\s\S]*const source = sourcesStatus\[channel\];[\s\S]*if \(marked && source\) source\.connected = false/);
+  assert.match(overview, /async function recordProviderRefusal[\s\S]*channel, userId, error, stage: "stats_provider_metrics", attemptStartedAt[\s\S]*const source = sourcesStatus\[channel\];[\s\S]*if \(marked && source\)\s*\{\s*source\.connected = false;\s*providerReconnectRequired\.add\(channel\);\s*\}/);
   assert.match(overview, /needs_reconnect: reconnectPersisted/);
 });

@@ -254,7 +254,8 @@ export async function buildStatsOverview(args: {
   });
   // Skip pre-fix LinkedIn error snapshots without invalidating other channels.
   const linkedInDateRangeCacheVersion = includeAll || includeSet.has("linkedin") ? "|liDateRange=restli2" : "";
-  const rangeKey = `metaPilot=${metaPilotEnabled ? 1 : 0}|days=${days}|include=${includeRaw || "all"}|snapshot=${dateWindow.snapshotDate || "live"}|conn=${connectionsKey}${linkedInDateRangeCacheVersion}`;
+  const providerRefusalCacheVersion = includeAll || includeSet.has("linkedin") || includeSet.has("threads") ? "|providerRefusal=2" : "";
+  const rangeKey = `metaPilot=${metaPilotEnabled ? 1 : 0}|days=${days}|include=${includeRaw || "all"}|snapshot=${dateWindow.snapshotDate || "live"}|conn=${connectionsKey}${linkedInDateRangeCacheVersion}${providerRefusalCacheVersion}`;
 
   const {
     buildLinkedInMetricsCacheKey,
@@ -614,12 +615,16 @@ export async function buildStatsOverview(args: {
   };
 
   const channelStates = await channelStatesPromise;
+  const providerReconnectRequired = new Set<OAuthPublicationChannel>();
   async function recordProviderRefusal(channel: OAuthPublicationChannel, error: unknown) {
     const marked = await markPublishChannelReconnectRequired({
       channel, userId, error, stage: "stats_provider_metrics", attemptStartedAt,
     });
     const source = sourcesStatus[channel];
-    if (marked && source) source.connected = false;
+    if (marked && source) {
+      source.connected = false;
+      providerReconnectRequired.add(channel);
+    }
     return marked;
   }
 
@@ -1465,11 +1470,20 @@ export async function buildStatsOverview(args: {
       try {
         const token = await ensureMetaDirectAccessToken(supabaseAdmin, row);
         sourcesStatus.threads.metrics = await fetchThreadsAccountInsights(token, String(row["resource_id"]), dateWindow.start, dateWindow.end);
+        // This collector returns partial metrics and structured failures instead
+        // of throwing. Classify its raw provider refusals too; missing metrics,
+        // unsupported fields, quota and transient failures remain unavailable.
+        await recordProviderRefusal("threads", sourcesStatus.threads.metrics);
       } catch (error) {
         const needsReconnect = await recordProviderRefusal("threads", error);
         sourcesStatus.threads.metrics = { error: getSimpleFrenchErrorMessage(error, "Statistiques Threads indisponibles."), needs_reconnect: needsReconnect };
       }
     }
+  }
+
+  for (const channel of providerReconnectRequired) {
+    const source = sourcesStatus[channel];
+    if (source) source.metrics = { ...asRecord(source.metrics), needs_reconnect: true };
   }
 
   // Register only freshly fetched provider ranges, before any last-good fallback.

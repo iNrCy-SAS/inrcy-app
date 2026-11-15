@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
 import ts from "typescript";
+import * as dashboardEdition from "../../lib/dashboardEdition.ts";
 
 type Row = Record<string, unknown>;
 type GatewayRequest = { model: string; body: { model: string; reasoning?: { effort: string }; max_output_tokens: number }; attempt: number; timeoutMs: number };
@@ -71,6 +72,7 @@ function runtime(options: { publication?: boolean } = {}) {
     },
   };
   const routeDependencies: Row = {
+    "@/lib/dashboardEdition": dashboardEdition,
     "@/lib/aiWritingProfile": {
       buildAiLanguageInstruction: () => "Réponds en français.",
       buildAiWritingProfilePromptSection: () => "Style simple.",

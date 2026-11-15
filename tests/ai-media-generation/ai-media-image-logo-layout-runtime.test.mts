@@ -136,16 +136,38 @@ test("an explicitly requested occupied corner is refused instead of silently mov
   )), /ai_media_logo_no_safe_placement/);
 });
 
-test("busy regions in all four corners fail safely even when the centre is empty", async () => {
+test("busy reserved corner rectangles still fail safely even when the centre is empty", async () => {
   const checker = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800"><defs><pattern id="busy" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="white"/><rect width="8" height="8" fill="black"/><rect x="8" y="8" width="8" height="8" fill="black"/></pattern></defs><rect width="1000" height="800" fill="white"/><rect width="1000" height="240" fill="url(#busy)"/><rect y="560" width="1000" height="240" fill="url(#busy)"/></svg>')).png().toBuffer();
-  const text = await sharp(await solid(1000, 800, "#ffffff")).composite([{ input: Buffer.from(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800">${[55, 700].flatMap(x => [85, 750].map(y => `<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="36" fill="black">OFFRE TAXI</text>`)).join("")}</svg>`
-  ) }]).png().toBuffer();
-  for (const input of [checker, text]) {
+  for (const input of [checker]) {
     for (const imageLogoReservation of [undefined, resolveAiMediaImageLogoReservation({ width: 1000, height: 800 })]) {
       await assert.rejects(runtime.exports.composeAiMediaBrandedImage(args(input, await logo(600, 140), { imageLogoReservation })), /ai_media_logo_no_safe_placement/);
     }
   }
+});
+
+test("all occupied corner anchors can recover inside their reserved rectangles without covering text", async () => {
+  const input = await sharp(await solid(1000, 800, "#ffffff")).composite([{ input: Buffer.from(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800">${[55, 700].flatMap(x => [85, 750].map(y => `<text x="${x}" y="${y}" font-family="Arial" font-weight="bold" font-size="36" fill="black">OFFRE TAXI</text>`)).join("")}</svg>`
+  ) }]).png().toBuffer();
+  const reservation = resolveAiMediaImageLogoReservation({ width: 1000, height: 800 });
+  const output = await runtime.exports.composeAiMediaBrandedImage(args(input, await logo(600, 140), { imageLogoReservation: reservation }));
+  const bounds = await coloredLogoBounds(output);
+  assert.ok(bounds.width >= 260 && bounds.width <= 275, "recovery preserves the original readable size");
+  assert.ok(bounds.minX >= Math.floor(reservation.left * 1000) - 2);
+  assert.ok(bounds.minY >= Math.floor(reservation.top * 800) - 2);
+  assert.ok(bounds.maxX <= Math.ceil((reservation.left + reservation.width) * 1000) + 2);
+  assert.ok(bounds.maxY <= Math.ceil((reservation.top + reservation.height) * 800) + 2);
+  const before = await sharp(input).removeAlpha().raw().toBuffer();
+  const after = await sharp(output).removeAlpha().raw().toBuffer();
+  let darkText = 0, preserved = 0;
+  for (let offset = 0; offset < before.length; offset += 3) {
+    if (Math.max(...before.subarray(offset, offset + 3)) < 60) {
+      darkText++;
+      if (Math.max(...after.subarray(offset, offset + 3)) < 90) preserved++;
+    }
+  }
+  assert.ok(darkText > 200);
+  assert.ok(preserved / darkText > 0.98, `${preserved}/${darkText} original lettering pixels preserved`);
 });
 
 test("smooth background variation remains usable with the reserved logo at its original readable size", async () => {

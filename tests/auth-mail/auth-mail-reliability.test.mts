@@ -69,7 +69,7 @@ test("the first Resend response without a message id becomes uncertainty", async
   assert.match(missingMessageId, /accepted: true,[\s\S]*uncertain: true/);
 });
 
-test("configuration and structured provider errors become alertable immediately", async () => {
+test("configuration and permanent provider errors are terminal while explicit throttling is deferred", async () => {
   const delivery = await source("lib/authMailDelivery.ts");
   const providerFailure = delivery.slice(
     delivery.indexOf("if (response.error)"),
@@ -82,6 +82,9 @@ test("configuration and structured provider errors become alertable immediately"
     /Configuration failures[\s\S]*await failDelivery\(message\.deliveryKey, transportError\);[\s\S]*throw transportError/,
   );
   assert.match(providerFailure, /await failDelivery\(message\.deliveryKey, error\)/);
+  const deferredBranch = providerFailure.slice(providerFailure.indexOf("if (error.httpStatus === 429"), providerFailure.indexOf("// A structured provider error"));
+  assert.match(deferredBranch, /await deferDelivery\(message\.deliveryKey, error\)/);
+  assert.doesNotMatch(deferredBranch, /failDelivery|markDeliveryAcceptanceUncertain/);
   assert.doesNotMatch(providerFailure, /noteAttemptError|send_attempt_count/);
 });
 
@@ -105,7 +108,7 @@ test("a concurrent Resend idempotency request is uncertain rather than terminal"
   );
   const uncertainBranch = providerFailure.slice(
     providerFailure.indexOf("if (isConcurrentIdempotentProviderResponse(error))"),
-    providerFailure.indexOf("// A structured provider error"),
+    providerFailure.indexOf("if (error.httpStatus === 429"),
   );
 
   assert.match(

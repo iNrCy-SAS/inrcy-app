@@ -56,7 +56,7 @@ test("notification guides explain current pack targeting for historical alerts w
     assert.match(guide.content, /événement métier passé.*bouton accessible/);
     assert.match(guide.content, /supprimer.*contenu lié/i);
   }
-  assert.match(notifications.content, /Premium\/Founder.*un seul canal/);
+  assert.match(notifications.content, /Avec les droits Premium.*un seul canal/);
   assert.match(notifications.content, /récapitulatifs email/);
   assert.match(notifications.content, /recommandation devenue inaccessible.*masquée ou adaptée/);
   assert.match(basic.content, /factures d’abonnement/);
