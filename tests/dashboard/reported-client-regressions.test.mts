@@ -205,10 +205,14 @@ test("YouTube recharge l'état serveur au retour OAuth", () => {
 
 test("les notifications automatiques ignorent un compte invité mais jamais activé", () => {
   const cron = read("app/api/cron/notifications/route.ts");
+  const delivery = read("lib/notificationDigestOutbox.ts");
 
   assert.match(cron, /\.select\("user_id, last_active_at"\)/);
   assert.match(cron, /if\s*\(row\.user_id\s*&&\s*row\.last_active_at\)\s*userIds\.add/);
-  assert.match(cron, /if\s*\(!row\?\.last_active_at\)/);
+  assert.match(delivery, /if\s*\(!profileResult\.data\?\.last_active_at\)\s*return await finish\(row, "skipped", "account_not_activated"\)/);
+  const activationGate = delivery.indexOf('if (!profileResult.data?.last_active_at)');
+  const smtpSend = delivery.indexOf("await sendTxMail({");
+  assert.ok(activationGate >= 0 && smtpSend > activationGate, "la garde d’activation doit précéder l’envoi SMTP du récapitulatif");
 });
 
 test("la période d'essai démarre à l'inscription, sans attendre le mot de passe", () => {
