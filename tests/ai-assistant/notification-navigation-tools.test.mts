@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 import { getInrAssistantNotificationNavigation, getInrAssistantNotificationTargetForHref, isInrAssistantNotificationActionRequest, parseInrAssistantNotificationNavigation } from "../../lib/inrAssistantNotificationNavigation.ts";
+import type { DashboardEdition } from "../../lib/dashboardEdition.ts";
 type Row = Record<string, unknown>;
 const ACCOUNT = "10000000-0000-4000-8000-000000000001", ACTOR = "20000000-0000-4000-8000-000000000002", ID = "30000000-0000-4000-8000-000000000003";
 const statement = "Ouvre la notification « Connectez Facebook ».";
@@ -10,6 +11,7 @@ const initial = (id = ID, title = "Connectez Facebook", href = "/dashboard?panel
 function harness(rows: Row[] = [initial()]) {
   const records = new Map(rows.map(value => [String(value.id), structuredClone(value)])), requests: Array<{ path: string; method: string }> = [];
   let account = ACCOUNT, actor = ACTOR, enabled = true, ignoreMark = false, markFailure = false, marks = 0, afterFeed = () => {}, afterMark = () => {}, canStart = true;
+  let edition: DashboardEdition = "basic";
   const db = { from(table: string) {
     assert.ok(["notifications", "notification_preferences"].includes(table)); const filters: Array<[string, string, unknown]> = []; let patch: Row | null = null, head = false, start = 0, end = 1e6, single = false;
     const run = () => {
@@ -23,16 +25,44 @@ function harness(rows: Row[] = [initial()]) {
     const query = { select(_columns?: string, options?: { head?: boolean }) { head = options?.head === true; return query; }, eq(key: string, value: unknown) { filters.push(["eq", key, value]); return query; }, is(key: string, value: unknown) { filters.push(["is", key, value]); return query; }, order() { return query; }, range(first: number, last: number) { start = first; end = last; return query; }, abortSignal() { return query; }, update(value: Row) { patch = value; return query; }, maybeSingle: async () => { single = true; return run(); }, then(resolve: (value: unknown) => unknown, reject: (reason: unknown) => unknown) { return Promise.resolve().then(run).then(resolve, reject); } }; return query;
   } };
   const auth = async () => ({ activeUserId: account, authUserId: actor });
-  const native = runtimeModules({ "next/server": { NextResponse: { json: Response.json } }, "@/lib/requireUser": { requireUser: auth }, "@/lib/supabaseAdmin": { supabaseAdmin: db }, "@/lib/notificationWriter": { insertNotificationOnce: () => assert.fail("No notification may be created") }, "@/lib/apiUserFacingErrors": { jsonUserFacingError: () => Response.json({ error: "indisponible" }, { status: 503 }) } });
+  const editionLookup = { getDashboardEditionForAccountId: async (id: string) => { assert.equal(id, account); return edition; } };
+  const native = runtimeModules({ "next/server": { NextResponse: { json: Response.json } }, "@/lib/requireUser": { requireUser: auth }, "@/lib/dashboardEditionServer": editionLookup, "@/lib/supabaseAdmin": { supabaseAdmin: db }, "@/lib/notificationWriter": { insertNotificationOnce: () => assert.fail("No notification may be created") }, "@/lib/apiUserFacingErrors": { jsonUserFacingError: () => Response.json({ error: "indisponible" }, { status: 503 }) } });
   const feed = native<typeof import("../../app/api/notifications/feed/route.ts")>("app/api/notifications/feed/route.ts"), mark = native<typeof import("../../app/api/notifications/[id]/read/route.ts")>("app/api/notifications/[id]/read/route.ts"), projection = native<typeof import("../../lib/notifications.ts")>("lib/notifications.ts");
-  const factory = runtimeModules({ "./requireUser": { requireUser: auth }, "./notifications": projection,
+  const factory = runtimeModules({ "./requireUser": { requireUser: auth }, "./notifications": projection, "./dashboardEditionServer": editionLookup,
     "@/app/api/notifications/feed/route": { GET: async (request: Request) => { requests.push({ path: new URL(request.url).pathname + new URL(request.url).search, method: request.method }); assert.equal(request.headers.get("cookie"), "session=fixture"); assert.equal(request.headers.has("x-cron-secret"), false); const response = await feed.GET(request); afterFeed(); return response; } },
     "@/app/api/notifications/[id]/read/route": { POST: async (request: Request, context: { params: Promise<{ id: string }> }) => { requests.push({ path: new URL(request.url).pathname, method: request.method }); return mark.POST(request, context); } },
   })<typeof import("../../lib/inrAssistantNotificationNavigationTools.ts")>("lib/inrAssistantNotificationNavigationTools.ts");
   const create = (message = statement) => factory.createInrAssistantNotificationNavigationTools({ request: new Request("https://app.test/api/assistant/chat", { headers: { cookie: "session=fixture", "x-cron-secret": "never-forward" } }), accountId: ACCOUNT, actorUserId: ACTOR, edition: "basic", supabase: db as never, currentUserMessage: message, canStartWork: () => canStart, clientContext: { source: "untrusted_client", interfaces: [{ id: "notification_menu", revision: "native_menu_revision", operations: ["close"] }] } });
   const run = async (message = statement, selector: { notificationId: string | null; title: string | null } = { notificationId: null, title: "Connectez Facebook" }, tools = create(message)) => await tools.openNotificationAction.execute!({ ...selector, instructionQuote: message }, { toolCallId: "notification", messages: [] }) as Row;
-  return { run, create, records, requests, projection, get marks() { return marks; }, setAccount: () => { account = "foreign"; }, setActor: () => { actor = "foreign"; }, disabled: () => { enabled = false; }, ignore: () => { ignoreMark = true; }, markFailure: () => { markFailure = true; }, stop: () => { canStart = false; }, afterFeed: (callback: () => void) => { afterFeed = callback; }, afterMark: (callback: () => void) => { afterMark = callback; } };
+  return { run, create, records, requests, projection, setEdition: (value: DashboardEdition) => { edition = value; }, get marks() { return marks; }, setAccount: () => { account = "foreign"; }, setActor: () => { actor = "foreign"; }, disabled: () => { enabled = false; }, ignore: () => { ignoreMark = true; }, markFailure: () => { markFailure = true; }, stop: () => { canStart = false; }, afterFeed: (callback: () => void) => { afterFeed = callback; }, afterMark: (callback: () => void) => { afterMark = callback; } };
 }
+
+test("notification navigation rereads the same pack projection as the feed and does not restore a hidden mailbox recommendation", async () => {
+  const recommendation: Row = { ...initial(ID, "2 canaux encore activables", "/dashboard"), kind: "connect_channels", meta: { missing_channels: ["Facebook", "Gmail", "Microsoft"] } };
+  const h = harness([recommendation]); h.setEdition("standard");
+  const message = `Ouvre la notification ${ID} ?`;
+  const result = await h.run(message, { notificationId: ID, title: null });
+  assert.equal(result.ok, true); assert.equal(result.title, "1 canal encore activable"); assert.equal(h.marks, 1);
+  assert.equal((result.navigation as Row).href, "/dashboard");
+  assert.deepEqual(h.records.get(ID)?.meta, recommendation.meta, "only the explicit read marker changes the stored record");
+  assert.equal(h.records.get(ID)?.title, recommendation.title);
+
+  const mailOnly = harness([{ ...recommendation, meta: { missing_channels: ["Gmail", "Microsoft"] } }]);
+  assert.equal((await mailOnly.run(message, { notificationId: ID, title: null })).status, "not_found");
+  assert.equal(mailOnly.marks, 0); assert.equal(mailOnly.records.get(ID)?.read_at, null);
+});
+
+test("notification navigation stops when the current pack removes eligibility after the feed was read", async () => {
+  const h = harness([{ ...initial(), kind: "cross_sell_mail" }]); h.setEdition("premium");
+  h.afterFeed(() => h.setEdition("standard"));
+  assert.equal((await h.run()).ok, false); assert.equal(h.marks, 0); assert.equal(h.records.get(ID)?.read_at, null);
+});
+
+test("notification navigation does not assume a title is unique when the bounded source catalogue is incomplete", async () => {
+  const suppressed = Array.from({ length: 10000 }, (_, index) => ({ ...initial(`aaaaaaaa-aaaa-4aaa-8aaa-${String(index).padStart(12, "0")}`, `Premium ${index}`), kind: "cross_sell_mail" }));
+  const h = harness([...suppressed, initial()]);
+  assert.equal((await h.run()).status, "needs_instruction"); assert.equal(h.marks, 0); assert.equal(h.records.get(ID)?.read_at, null);
+});
 
 test("Basic notification CTA uses the real owned native feed and read route then verified read_at before requesting canonical navigation", async () => {
   const h = harness(), tools = h.create(), [result, duplicate] = await Promise.all([h.run(undefined, undefined, tools), h.run(undefined, undefined, tools)]);

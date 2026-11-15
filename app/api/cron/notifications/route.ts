@@ -7,7 +7,8 @@ import { optionalEnv } from "@/lib/env";
 import { getInrcyLogoInlineAttachments } from "@/lib/txEmailAssets";
 import { defaultNotificationPreferences } from "@/lib/notifications";
 import { hasPremiumDashboardAccess, type DashboardEdition } from "@/lib/dashboardEdition";
-import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
+import { getDashboardEditionForAccountId, getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
+import { listMissingNotificationChannels, projectNotificationForEdition } from "@/lib/notificationEditionPolicy";
 import {
   insertNotificationOnce,
   type NotificationInsertRow,
@@ -89,25 +90,6 @@ function truthyDetailMetric(details: Record<string, unknown> | null | undefined,
   return toInt(totals[metric] ?? nestedMetrics[metric] ?? metrics[metric] ?? detail[metric]);
 }
 
-function listMissingCoreChannels(integrations: IntegrationRow[]) {
-  const connected = new Set(
-    integrations
-      .filter((row) => (row.status || "connected") === "connected")
-      .map((row) => String(row.product || row.provider || "").toLowerCase())
-      .filter(Boolean)
-  );
-
-  const core = [
-    { key: "gmb", label: "Google Business" },
-    { key: "facebook", label: "Facebook" },
-    { key: "instagram", label: "Instagram" },
-    { key: "gmail", label: "Gmail" },
-    { key: "microsoft", label: "Microsoft" },
-  ];
-
-  return core.filter((item) => !connected.has(item.key)).map((item) => item.label);
-}
-
 async function hasRecentCategoryNotification(userId: string, category: string, hours: number) {
   const since = new Date(Date.now() - hours * 3600 * 1000).toISOString();
   const { data, error } = await supabaseAdmin
@@ -117,17 +99,19 @@ async function hasRecentCategoryNotification(userId: string, category: string, h
     .eq("category", category)
     .gte("created_at", since)
     .limit(1);
-  if (error) return false;
+  if (error) throw error;
   return Boolean(data && data.length > 0);
 }
 
-async function insertNotification(row: NotificationInsertRow) {
-  const result = await insertNotificationOnce(row);
+async function insertNotification(row: NotificationInsertRow, edition: DashboardEdition) {
+  const eligible = projectNotificationForEdition(row, edition);
+  if (!eligible) return null;
+  const result = await insertNotificationOnce(eligible);
   if (!result.inserted || !result.data) return null;
-  return result.data as unknown as NotificationDigestItem;
+  return result.data as unknown as NotificationDigestItem & NotificationInsertRow;
 }
 
-async function buildPerformanceNotification(userId: string, digestHours: number) {
+async function buildPerformanceNotification(userId: string, digestHours: number, edition: DashboardEdition) {
   if (await hasRecentCategoryNotification(userId, "performance", digestHours)) return null;
   const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
   const { data, error } = await supabaseAdmin
@@ -199,12 +183,12 @@ async function buildPerformanceNotification(userId: string, digestHours: number)
       top_opportunity_channel: topOpportunityChannel?.channel ?? null,
     },
     dedupe_key: dedupeWindowKey(`performance:${userId}`),
-  });
+  }, edition);
 }
 
-async function buildActionNotification(userId: string, digestHours: number) {
+async function buildActionNotification(userId: string, digestHours: number, edition: DashboardEdition) {
   if (await hasRecentCategoryNotification(userId, "action", digestHours)) return null;
-  const [{ data: integrations }, { data: latest }] = await Promise.all([
+  const [{ data: integrations, error: integrationsError }, { data: latest, error: latestError }] = await Promise.all([
     supabaseAdmin
       .from("integrations")
       .select("provider, category, product, status")
@@ -219,12 +203,13 @@ async function buildActionNotification(userId: string, digestHours: number) {
       .maybeSingle(),
   ]);
 
+  if (integrationsError || latestError) throw integrationsError || latestError;
   const metaPilotEnabled = await isMetaChannelPilotEnabledForAccount(supabaseAdmin, userId);
-  const connectedRows = ((integrations ?? []) as IntegrationRow[]).filter(row => metaPilotEnabled || (row.provider !== "threads" && row.product !== "threads"));
+  const connectedRows = ((integrations ?? []) as IntegrationRow[]).filter(row => (hasPremiumDashboardAccess(edition) || row.category !== "mail") && (metaPilotEnabled || (row.provider !== "threads" && row.product !== "threads")));
   const opportunities = toInt(latest?.opportunites_activables_total);
   const connectedTools = toInt(latest?.connected_tools_count);
   const latestDemandes = toInt(latest?.demandes_captees_total);
-  const missingChannels = listMissingCoreChannels(connectedRows);
+  const missingChannels = listMissingNotificationChannels(connectedRows, edition);
   const facebookClicks = truthyDetailMetric(latest?.details as Record<string, unknown> | null, "facebook", "page_website_clicks")
     + truthyDetailMetric(latest?.details as Record<string, unknown> | null, "facebook", "phone_call_clicks");
   const threadsSignals = metaPilotEnabled ? truthyDetailMetric(latest?.details as Record<string, unknown> | null, "threads", "views") + truthyDetailMetric(latest?.details as Record<string, unknown> | null, "threads", "clicks") : 0;
@@ -273,7 +258,7 @@ async function buildActionNotification(userId: string, digestHours: number) {
     cta_url: ctaUrl,
     meta: { missing_channels: missingChannels, connected_tools: connectedTools, opportunities, latest_demandes: latestDemandes },
     dedupe_key: dedupeWindowKey(`action:${userId}`),
-  });
+  }, edition);
 }
 
 async function buildInformationNotification(
@@ -282,7 +267,7 @@ async function buildInformationNotification(
   edition: DashboardEdition,
 ) {
   if (await hasRecentCategoryNotification(userId, "information", digestHours)) return null;
-  const [{ data: latest }, { data: integrations }] = await Promise.all([
+  const [{ data: latest, error: latestError }, { data: integrations, error: integrationsError }] = await Promise.all([
     supabaseAdmin
       .from("daily_metrics_summary")
       .select("connected_tools_count, demandes_captees_total, opportunites_activables_total, details")
@@ -297,15 +282,17 @@ async function buildInformationNotification(
       .eq("status", "connected"),
   ]);
 
+  if (integrationsError || latestError) throw integrationsError || latestError;
   const premiumToolsAvailable = hasPremiumDashboardAccess(edition);
   let latestCrmContactAt: Date | null = null;
   if (premiumToolsAvailable) {
-    const { data: crmContacts } = await supabaseAdmin
+    const { data: crmContacts, error: crmError } = await supabaseAdmin
       .from("crm_contacts")
       .select("id, created_at")
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
       .limit(1);
+    if (crmError) throw crmError;
     latestCrmContactAt = Array.isArray(crmContacts) && crmContacts[0]?.created_at
       ? new Date(String(crmContacts[0].created_at))
       : null;
@@ -320,7 +307,7 @@ async function buildInformationNotification(
     !latestCrmContactAt || (Date.now() - latestCrmContactAt.getTime()) > 30 * 24 * 3600 * 1000
   );
 
-  const hasMail = connectedRows.some((row) => row.category === "mail");
+  const hasMail = premiumToolsAvailable && connectedRows.some((row) => row.category === "mail");
   const hasSocial = connectedRows.some((row) => row.category === "social");
   const hasStats = connectedRows.some((row) => row.category === "stats");
 
@@ -368,7 +355,7 @@ async function buildInformationNotification(
     cta_url: ctaUrl,
     meta: { connected_tools: connectedTools, demandes, opportunities, has_mail: hasMail, has_social: hasSocial, has_stats: hasStats },
     dedupe_key: dedupeWindowKey(`information:${userId}`),
-  });
+  }, edition);
 }
 
 async function getProfileEmail(userId: string) {
@@ -390,7 +377,7 @@ async function getProfileEmail(userId: string) {
   return { email: fallbackEmail, firstName: row?.first_name ?? null, companyName: row?.company_legal_name ?? null };
 }
 
-async function maybeSendDigestEmail(userId: string, items: NotificationDigestItem[]) {
+async function maybeSendDigestEmail(userId: string, items: (NotificationDigestItem & NotificationInsertRow)[]) {
   if (items.length === 0) return { sent: false, reason: "no_items" as const };
   const smtpConfigured = Boolean(optionalEnv("TX_SMTP_HOST") && optionalEnv("TX_SMTP_PORT") && optionalEnv("TX_SMTP_USER") && optionalEnv("TX_SMTP_PASS"));
   if (!smtpConfigured) return { sent: false, reason: "smtp_not_configured" as const };
@@ -398,13 +385,21 @@ async function maybeSendDigestEmail(userId: string, items: NotificationDigestIte
   const recipient = await getProfileEmail(userId);
   if (!recipient.email) return { sent: false, reason: "missing_email" as const };
 
+  // Re-read immediately before delivery: a downgrade may have happened during generation.
+  const edition = await getDashboardEditionForAccountId(userId);
+  const eligibleItems = items.flatMap((item) => {
+    const eligible = projectNotificationForEdition(item, edition);
+    return eligible ? [eligible] : [];
+  });
+  if (!eligibleItems.length) return { sent: false, reason: "no_items" as const };
+
   const appUrl = optionalEnv("NEXT_PUBLIC_SITE_URL", "https://app.inrcy.com").replace(/\/$/, "");
   const dashboardUrl = `${appUrl}/dashboard`;
 
   const { subject, html, text } = buildNotificationDigestEmail({
     firstName: recipient.firstName,
     companyName: recipient.companyName,
-    items,
+    items: eligibleItems,
     dashboardUrl,
   });
 
@@ -454,10 +449,9 @@ export async function GET(req: Request) {
     return defaultNotificationPreferences(userId);
   });
 
-  // Tier lookup failures stay fail-closed: missing entries receive only
-  // Standard-safe notifications rather than links to Premium tools.
+  // Unknown rights receive only the Basic content shared by every pack.
   const editionByUser = new Map<string, DashboardEdition>(
-    Array.from(userIds, (userId) => [userId, "standard"]),
+    Array.from(userIds, (userId) => [userId, "basic"]),
   );
   const editionUserIds = Array.from(userIds);
   try {
@@ -466,7 +460,7 @@ export async function GET(req: Request) {
       for (const [userId, edition] of batch) editionByUser.set(userId, edition);
     }
   } catch (editionError) {
-    console.error("[notifications] edition lookup failed; using Standard-safe content", editionError);
+    console.error("[notifications] edition lookup failed; using Basic-safe content", editionError);
   }
 
   let generated = 0;
@@ -475,17 +469,19 @@ export async function GET(req: Request) {
 
   for (const pref of prefs) {
     try {
+      if (pref.in_app_enabled === false && pref.email_enabled === false) continue;
+      const edition = editionByUser.get(pref.user_id) || "basic";
       const hours = Math.max(24, Math.min(168, pref.digest_every_hours || 48));
-      const createdItems: NotificationDigestItem[] = [];
+      const createdItems: (NotificationDigestItem & NotificationInsertRow)[] = [];
       if (pref.performance_enabled) {
-        const item = await buildPerformanceNotification(pref.user_id, hours);
+        const item = await buildPerformanceNotification(pref.user_id, hours, edition);
         if (item) {
           generated += 1;
           createdItems.push(item);
         }
       }
       if (pref.action_enabled) {
-        const item = await buildActionNotification(pref.user_id, hours);
+        const item = await buildActionNotification(pref.user_id, hours, edition);
         if (item) {
           generated += 1;
           createdItems.push(item);
@@ -495,7 +491,7 @@ export async function GET(req: Request) {
         const item = await buildInformationNotification(
           pref.user_id,
           hours,
-          editionByUser.get(pref.user_id) || "standard",
+          edition,
         );
         if (item) {
           generated += 1;

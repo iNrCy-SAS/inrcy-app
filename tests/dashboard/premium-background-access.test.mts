@@ -12,7 +12,7 @@ const campaignCompletionSource = readSource("../../lib/mailCampaignCompletionEma
 
 test("les digests et alertes iNr’Search n’envoient pas les comptes Standard vers le CRM ou iNr’Send", () => {
   assert.match(notificationsSource, /getDashboardEditionsForAccountIds/);
-  assert.match(notificationsSource, /editionByUser\.get\(pref\.user_id\) \|\| "standard"/);
+  assert.match(notificationsSource, /editionByUser\.get\(pref\.user_id\) \|\| "basic"/);
   assert.match(notificationsSource, /premiumToolsAvailable && crmLooksEmptyOrStale/);
   assert.match(notificationsSource, /premiumToolsAvailable && hasSocial && !hasMail/);
 

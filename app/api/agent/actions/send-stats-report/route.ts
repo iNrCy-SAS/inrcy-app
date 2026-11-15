@@ -39,7 +39,7 @@ import {
   getAiProfessionalGenerationContext,
 } from "@/lib/aiProfessionalGenerationContext";
 import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
-import type { DashboardEdition } from "@/lib/dashboardEdition";
+import { hasAccountingDashboardAccess, hasPremiumDashboardAccess, type DashboardEdition } from "@/lib/dashboardEdition";
 import {
   inrAgentMonthlyDateCount,
   isInrAgentScheduledMonthDay,
@@ -470,17 +470,24 @@ function fallbackInsights(report: StatsReportData): StatsAiInsights {
 }
 
 const STANDARD_PREMIUM_REPORT_PATTERN =
-  /\b(?:propulser|fidéliser|crm|agenda|encaisser|factures?|devis|campagnes?\s+mail)\b/i;
+  /\b(?:propulser|fideliser|crm|inr\s*crm|agenda|inr\s*calendar|inr\s*ads|encaisser|factures?|devis|gmail|microsoft|outlook|imap|messagerie|e[\s-]?mailings?|boites?\s+(?:e[\s-]?)?mails?|campagnes?\s+(?:d[’']?\s*|par\s+)?(?:e[\s-]?)?mails?|canal\s+mails?)\b|\binr\s*send\b(?!\s+publications\b)/i;
+const ACCOUNTING_REPORT_PATTERN =
+  /\b(?:encaisser|inr\s*compta)\b|\b(?:ouvrez?|ouvrir|activez?|activer|utilisez?|utiliser|accedez|acceder)\b(?:\s+(?:a|au|aux|le|la|les|un|une|vos?|votre|des?|du|module|outil|rubrique))*\s+(?:devis|factures?)\b/i;
 
 function sanitizeStatsInsightsForEdition(
   insights: StatsAiInsights,
   edition: DashboardEdition,
 ): StatsAiInsights {
-  if (edition !== "standard") return insights;
+  const premiumAvailable = hasPremiumDashboardAccess(edition);
+  const accountingAvailable = hasAccountingDashboardAccess(edition);
+  if (premiumAvailable && accountingAvailable) return insights;
 
   const safeText = (value: unknown) => {
     const text = cleanText(value, 900);
-    return text && !STANDARD_PREMIUM_REPORT_PATTERN.test(text) ? text : "";
+    const normalized = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[’']/g, "");
+    const restricted = !premiumAvailable && STANDARD_PREMIUM_REPORT_PATTERN.test(normalized)
+      || !accountingAvailable && ACCOUNTING_REPORT_PATTERN.test(normalized);
+    return text && !restricted ? text : "";
   };
   const safeList = (value: unknown) =>
     (Array.isArray(value) ? value : [])
@@ -540,7 +547,8 @@ async function generateAiInsights(
       temperature: getAiEngineTemperature(generationProfile, preferredEngine, "factual"),
       system:
         `Tu es iNr’Agent. Tu rédiges des bilans statistiques courts, utiles et honnêtes pour des professionnels. Tu ne dois jamais inventer des chiffres. Réponds uniquement en JSON.
-${report.edition === "standard" ? "Ce compte utilise iNrCy Standard : recommande uniquement les canaux disponibles, Booster, iNrStats, iNrSend Publications, Réputation et iNrBadge. Ne cite jamais Propulser, Fidéliser, CRM, Agenda, Encaisser, devis, factures ni campagnes mails." : ""}
+${report.edition === "standard" ? "Ce compte utilise iNrCy Standard : recommande uniquement les canaux disponibles, Booster, iNrStats, iNrSend Publications, Réputation et iNrBadge. Ne cite jamais Propulser, Fidéliser, CRM, Agenda, Encaisser, devis, factures ni campagnes mails. Ne recommande aucune connexion Gmail, Microsoft, Outlook ou IMAP, boîte mail, messagerie générale ni emailing : ces outils sont réservés au Premium." : ""}
+${!hasAccountingDashboardAccess(report.edition) ? "Le module comptable Encaisser / iNrCompta n’est pas accessible à ce compte. Ne recommande jamais de l’ouvrir, de l’activer ni d’utiliser ses devis ou factures. Les demandes de devis reçues restent un indicateur commercial légitime : ne les confonds pas avec l’accès au module comptable." : ""}
 ${report.mail?.capturedLeadsEstimated ? "Les demandes du canal Mails sont une estimation pessimiste fondée sur les destinataires touchés et le taux de conversion configuré. Présente-les toujours comme estimées, jamais comme des retours de campagne mesurés." : ""}
 ${aiLanguageInstruction}
 ${writingRules}

@@ -48,6 +48,7 @@ import * as requestClauses from "../../lib/inrAssistantRequestClauses.ts";
 import * as scheduledEditorSelection from "../../lib/inrAssistantScheduledEditorSelection.ts";
 import * as studioFormSelection from "../../lib/inrAssistantStudioFormSelection.ts";
 import * as nativeDashboardEdition from "../../lib/dashboardEdition.ts";
+import * as notificationEditionPolicy from "../../lib/notificationEditionPolicy.ts";
 import * as studioSavedPreferences from "../../lib/aiMediaGenerationPreferences.ts";
 import * as pureStatsViewRequest from "../../lib/inrAssistantPureStatsViewRequest.ts";
 import * as assistantClock from "../../lib/inrAssistantClock.ts";
@@ -379,6 +380,7 @@ function harness(options: { sol?: boolean; fail?: number; guardError?: boolean; 
   const notificationProjection = loadClosedModule("notifications.ts", { "server-only": {}, "@/lib/supabaseAdmin": { supabaseAdmin: { from: () => { throw new Error("No notification database execution in this fixture"); } } }, "@/lib/notificationWriter": { insertNotificationOnce: () => { throw new Error("No notification write in this fixture"); } } });
   const noNativeRequest = async () => { throw new Error("No external native route is enabled for this fixture"); };
   stubs["./inrAssistantNotificationNavigationTools.ts"] = loadClosedModule("inrAssistantNotificationNavigationTools.ts", { ...localDependencies, "./dashboardEdition.ts": nativeDashboardEdition, "./inrAssistantMemory.ts": memoryRuntime, "./notificationRemovalState.ts": notificationRemovalState, "./notifications": notificationProjection,
+    "./dashboardEditionServer": { getDashboardEditionForAccountId: async () => "basic" }, "./notificationEditionPolicy": notificationEditionPolicy,
     "@/app/api/notifications/feed/route": { GET: options.nativeServices?.notificationFeed ?? noNativeRequest }, "@/app/api/notifications/[id]/read/route": { POST: options.nativeServices?.notificationMark ?? noNativeRequest } });
   stubs["./inrAssistantSendPublicationTools.ts"] = loadClosedModule("inrAssistantSendPublicationTools.ts", { ...localDependencies, "./inrAssistantMemory.ts": memoryRuntime, "@/app/api/booster/events/route": { GET: options.nativeServices?.draft ?? noNativeRequest } });
   if (options.nativeAccountServices) stubs["./inrAssistantAccountServiceTools.ts"] = loadClosedModule("inrAssistantAccountServiceTools.ts", { ...localDependencies, "./inrAssistantMemory.ts": memoryRuntime, "./inrAssistantRequestClauses.ts": requestClauses,

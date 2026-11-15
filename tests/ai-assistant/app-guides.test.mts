@@ -43,6 +43,26 @@ test("current guides cover each professional tool and retain real source referen
   }
 });
 
+test("notification guides explain current pack targeting for historical alerts without granting mailbox access", () => {
+  const notifications = runtime.INR_ASSISTANT_APP_GUIDES.find(({ id }) => id === "notifications")!;
+  const basic = runtime.INR_ASSISTANT_APP_GUIDES.find(({ id }) => id === "basic-account-services")!;
+  for (const guide of [notifications, basic]) {
+    assert.ok(guide.sourceFiles.includes("lib/notificationEditionPolicy.ts"));
+    assert.ok(guide.content.length <= 2500, `${guide.id}: existing context budget`);
+    assert.match(guide.content, /forfait actuel/);
+    assert.match(guide.content, /anciennes notifications|les anciennes/);
+    assert.match(guide.content, /aucune (?:invitation à connecter|recommandation) Gmail, Microsoft ou IMAP/);
+    assert.match(guide.content, /Basique\/Standard, essai compris/);
+    assert.match(guide.content, /événement métier passé.*bouton accessible/);
+    assert.match(guide.content, /supprimer.*contenu lié/i);
+  }
+  assert.match(notifications.content, /Premium\/Founder.*un seul canal/);
+  assert.match(notifications.content, /récapitulatifs email/);
+  assert.match(notifications.content, /recommandation devenue inaccessible.*masquée ou adaptée/);
+  assert.match(basic.content, /factures d’abonnement/);
+  assert.match(basic.content, /acceptation SMTP ne prouve pas la livraison/);
+});
+
 test("Google photo questions explain the first-photo API rule while keeping the other selections", () => {
   const knowledge = runtime.getInrAssistantAppKnowledge("Google Business : quelle photo publier avec un carrousel de cinq photos ?", 1200);
   assert.match(knowledge, /uniquement la première photo/);

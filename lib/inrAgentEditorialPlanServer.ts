@@ -64,6 +64,8 @@ import {
   INR_AGENT_VALIDATION_EMAIL_SCOPE_V2,
 } from "@/lib/inrAgentValidationNoticePolicy";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
+import { hasAgentAutomationAccess } from "@/lib/dashboardEdition";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 
 type SupabaseLike = any;
 type JsonRecord = Record<string, unknown>;
@@ -1373,6 +1375,11 @@ export async function notifyReadyInrAgentEditorialBatch(args: {
   horizonDays: number;
   now?: Date;
 }) {
+  // The account can change packs after the cron selected its pending work.
+  const edition = await getDashboardEditionForAccountId(args.userId);
+  if (!hasAgentAutomationAccess(edition)) {
+    return { status: "standard_required" as const, awaitingValidation: 0, remaining: 0 };
+  }
   const now = args.now ?? new Date();
   const horizonDays = [7, 15, 30].includes(Number(args.horizonDays))
     ? Number(args.horizonDays)

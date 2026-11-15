@@ -7,6 +7,8 @@ import { matchesInrAssistantActionClause } from "./inrAssistantActionClause.ts";
 import { sanitizeInrAssistantMemoryText } from "./inrAssistantMemory.ts";
 import { NOTIFICATION_REMOVAL_SELECT, notificationRemovalFingerprint } from "./notificationRemovalState.ts";
 import { toNotificationPayload, type NotificationRow } from "./notifications";
+import { getDashboardEditionForAccountId } from "./dashboardEditionServer";
+import { projectNotificationForEdition } from "./notificationEditionPolicy";
 import { getInrAssistantNotificationNavigation, getInrAssistantNotificationTargetForHref, isInrAssistantNotificationActionRequest } from "./inrAssistantNotificationNavigation.ts";
 import type { InrAssistantClientContext } from "./inrAssistantClientContext.ts";
 export { isInrAssistantNotificationActionRequest } from "./inrAssistantNotificationNavigation.ts";
@@ -36,7 +38,10 @@ export function createInrAssistantNotificationNavigationTools(options: { request
     if (!await scope()) throw new Error("notification_scope_changed");
     const result = await options.supabase.from("notifications").select(NOTIFICATION_REMOVAL_SELECT).eq("id", id).eq("user_id", options.accountId).abortSignal(AbortSignal.timeout(12000)).maybeSingle();
     if (result.error || !result.data || result.data.id !== id || result.data.user_id !== options.accountId || !await scope()) throw new Error("notification_unavailable");
-    return row(toNotificationPayload(result.data as NotificationRow));
+    const edition = await getDashboardEditionForAccountId(options.accountId);
+    const projected = projectNotificationForEdition(result.data as NotificationRow, edition);
+    if (!projected || !await scope()) throw new Error("notification_unavailable");
+    return row(toNotificationPayload(projected));
   }
   async function locate(selector: Input): Promise<{ item?: Row; incomplete?: boolean; ambiguous?: boolean }> {
     let offset = 0; const found = new Map<string, Row>();
@@ -52,7 +57,7 @@ export function createInrAssistantNotificationNavigationTools(options: { request
       }
       if (selector.notificationId && found.size === 1) return { item: found.values().next().value };
       if (found.size > 1) return { ambiguous: true };
-      if (payload.nextOffset === null || payload.nextOffset === undefined) return { item: found.values().next().value };
+      if (payload.nextOffset === null || payload.nextOffset === undefined) return payload.countKnown === false ? { incomplete: true } : { item: found.values().next().value };
       if (!Number.isSafeInteger(payload.nextOffset) || Number(payload.nextOffset) <= offset || Number(payload.nextOffset) > 10000) throw new Error("notification_page_invalid");
       offset = Number(payload.nextOffset);
     }

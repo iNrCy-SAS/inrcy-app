@@ -15,6 +15,8 @@ import { INR_AGENT_VALIDATION_EMAIL_SCOPE_V2 } from "@/lib/inrAgentValidationNot
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getInrcyLogoInlineAttachments } from "@/lib/txEmailAssets";
 import { sendTxMail } from "@/lib/txMailer";
+import { hasAgentAutomationAccess } from "@/lib/dashboardEdition";
+import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 
 type SupabaseLike = any;
 
@@ -101,6 +103,11 @@ export async function deliverInrAgentValidationReadyEmail(args: {
   firstScheduledAt?: string | null;
   lastScheduledAt?: string | null;
 }) {
+  // Recheck at delivery: a queued notice must not outlive automation access.
+  const edition = await getDashboardEditionForAccountId(args.userId);
+  if (!hasAgentAutomationAccess(edition)) {
+    return { status: "standard_required" as const };
+  }
   const { data: preferences, error: preferencesError } = await args.supabase
     .from("notification_preferences")
     .select("email_enabled,action_enabled")
