@@ -928,6 +928,16 @@
     }
   },
   "channelBubble": {
+    "googleVerificationRefresh": "Vernieuwen",
+    "googleVerificationPending": "Google-verificatie loopt",
+    "googleVerificationPendingMessage": "Volg de voortgang in Google Business.",
+    "googleVerificationRequired": "Google-verificatie vereist",
+    "googleVerificationRequiredMessage": "Je Google-account is verbonden. Google vraagt om verificatie van deze bedrijfsvermelding. Open je Google-bedrijfsprofiel om de gevraagde stappen te voltooien.",
+    "googleBusinessRestricted": "Actie vereist bij Google",
+    "googleBusinessRestrictedMessage": "Je Google-account is verbonden. Voor deze bedrijfsvermelding geldt een beperking bij Google. Open je Google-bedrijfsprofiel om te zien welke actie nodig is.",
+    "googleAccountAuthorizedChooseLocation": "Google-account geautoriseerd — kies een bedrijfsvermelding.",
+    "previousLocationUnavailable": "Vorige bedrijfsvermelding niet beschikbaar",
+    "googleBusinessLocation": "Google-bedrijfsprofiel",
     "linkedinDisconnectHelpTitle": "iNrCy-toegang in LinkedIn verwijderen",
     "linkedinDisconnectHelpIntro": "Verbinding verbreken in iNrCy koppelt het kanaal los. Zo verwijder je ook de toestemming voor iNrCy in LinkedIn:",
     "linkedinDisconnectHelpStep1": "Open in LinkedIn Ik en vervolgens Instellingen en privacy.",

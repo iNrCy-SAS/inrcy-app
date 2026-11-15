@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { getChannelTone, getChannelSceneLayout } from "../../app/dashboard/_components/dashboard-channel-presentation.ts";
+import { getChannelTone, getChannelSceneLayout, isChannelConnectionEstablished } from "../../app/dashboard/_components/dashboard-channel-presentation.ts";
 
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 const dashboard = read("app/dashboard/DashboardClient.tsx");
@@ -135,11 +135,16 @@ test("les états de connexion distinguent un canal actif d'un avertissement ou d
   assert.equal(getChannelTone(channel("reconnect", "Connexion requise")), "warning");
   assert.equal(getChannelTone(channel("coming", "À venir")), "disabled");
   assert.equal(getChannelTone(channel("coming", "Token expiré")), "disabled");
+  const pendingGoogle = { ...channel("pending", "Validation Google en cours"), key: "gmb" };
+  assert.equal(getChannelTone(pendingGoogle), "pending");
+  assert.equal(isChannelConnectionEstablished(pendingGoogle), true);
+  assert.equal(isChannelConnectionEstablished(channel("reconnect", "Connexion requise")), false);
+  assert.equal(isChannelConnectionEstablished(channel("coming", "À venir")), false);
   for (const text of ["Connexion à réactualiser", "Token expiré", "Reconnect required", "Reconectar", "Da ricollegare", "Neu verbinden", "Opnieuw verbinden", "Religar", "Update required", "Aktualisieren", "Bijwerken", "Attention"]) {
     assert.equal(getChannelTone(channel("connected", text)), "warning", text);
   }
-  assert.match(modal, /filter === "all" \|\| \(filter === "connected" \? tone === "connected" : tone === "available" \|\| tone === "warning"\)/);
-  assert.match(modal, /summary\?\.connected \?\? items\.filter\(\(item\) => getChannelTone\(item\) === "connected"\)\.length/);
+  assert.match(modal, /filter === "all" \|\| \(filter === "connected" \? isChannelConnectionEstablished\(item\) : tone === "available" \|\| tone === "warning"\)/);
+  assert.match(modal, /summary\?\.connected \?\? items\.filter\(isChannelConnectionEstablished\)\.length/);
   assert.match(modal, /summary\?\.total \?\? items\.length/);
 });
 

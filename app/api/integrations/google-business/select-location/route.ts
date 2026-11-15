@@ -9,6 +9,12 @@ import { withCurrentConnectionVersion } from "@/lib/connectionVersions";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 import { getGmbToken } from "@/lib/googleBusiness";
 import { listAllGoogleBusinessAccounts, listAllGoogleBusinessLocations } from "@/lib/googleBusinessLocations";
+import { clearGmbSelectionMeta, clearGmbSelectionSettings } from "@/lib/googleBusinessSelectionPolicy";
+
+function selectionChanged() {
+  return NextResponse.json({ error: "La connexion ou la fiche sélectionnée a changé. Actualisez la liste des établissements avant de choisir votre fiche.", code: "gmb_selection_changed" }, { status: 409 });
+}
+
 export async function POST(req: Request) {
   try {
     const supabase = await createSupabaseServer();
@@ -27,6 +33,9 @@ export async function POST(req: Request) {
 
     const token = await getGmbToken({ supabase, userId });
     if (!token?.accessToken) return NextResponse.json({ error: "Reconnectez votre compte Google Business." }, { status: 401 });
+    const snapshot = token.row;
+    if (!snapshot?.id || snapshot.user_id !== userId || snapshot.provider !== "google" || snapshot.source !== "gmb" || snapshot.product !== "gmb"
+      || !["connected", "account_connected"].includes(snapshot.status)) return selectionChanged();
     const accounts = await listAllGoogleBusinessAccounts(token.accessToken);
     if (!accounts.some(account => account.name === accountName)) return NextResponse.json({ error: "Ce compte Google Business n’est pas accessible." }, { status: 403 });
     const locations = await listAllGoogleBusinessLocations(token.accessToken, accountName);
@@ -39,6 +48,7 @@ export async function POST(req: Request) {
     const { data: existingIntegration, error: existingError } = await supabaseAdmin
       .from("integrations")
       .select("id,meta")
+      .eq("id", snapshot.id)
       .eq("user_id", userId)
       .eq("provider", "google")
       .eq("source", "gmb")
@@ -46,47 +56,56 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (existingError) return jsonUserFacingError(existingError, { status: 500 });
-    if (!existingIntegration?.id) {
-      return NextResponse.json(
-        { error: "Le compte Google Business doit être reconnecté avant de choisir l’établissement." },
-        { status: 409 },
-      );
-    }
+    if (!existingIntegration?.id) return selectionChanged();
 
-    const { data: updatedIntegration, error: upErr } = await supabaseAdmin
+    let update = supabaseAdmin
       .from("integrations")
       .update({
         resource_id: locationName,
         resource_label: locationTitle,
+        page_url: gmbUrl,
         meta: withCurrentConnectionVersion("channel:gmb", {
-          ...asRecord(existingIntegration.meta),
-          account: accountName,
+          ...clearGmbSelectionMeta(existingIntegration.meta, accountName),
+          url: gmbUrl,
         }),
         status: "connected",
         updated_at: new Date().toISOString(),
       })
-      .eq("id", existingIntegration.id)
+      .eq("id", snapshot.id)
       .eq("user_id", userId)
-      .eq("email_address", token.row.email_address)
-      .select("id,status,resource_id,resource_label,meta")
-      .single();
+      .eq("provider", "google")
+      .eq("source", "gmb")
+      .eq("product", "gmb");
+    // Google validated this exact credential/selection snapshot. An OAuth
+    // callback, refresh, disconnect or newer choice must win over this request.
+    for (const field of ["status", "email_address", "access_token_enc", "refresh_token_enc", "expires_at", "resource_id", "resource_label"] as const) {
+      update = snapshot[field] == null ? update.is(field, null) : update.eq(field, snapshot[field]);
+    }
+    update = snapshot.meta == null ? update.is("meta", null) : update.eq("meta", JSON.stringify(snapshot.meta));
+    const { data: updatedIntegration, error: upErr } = await update.select("id,status,resource_id,resource_label,meta").maybeSingle();
 
     if (upErr) return jsonUserFacingError(upErr, { status: 500 });
     if (!updatedIntegration?.id || updatedIntegration.resource_id !== locationName || updatedIntegration.status !== "connected") {
-      return NextResponse.json({ error: "L’établissement n’a pas pu être confirmé." }, { status: 409 });
+      return selectionChanged();
     }
 
     // Mirror to pro_tools_configs for UI
     try {
-      const { data: scRow } = await supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle();
+      const { data: scRow, error: mirrorReadError } = await supabaseAdmin.from("pro_tools_configs").select("settings").eq("user_id", userId).maybeSingle();
+      if (mirrorReadError) throw new Error("mirror_read_failed");
       const scRec = asRecord(scRow);
       const current = asRecord(scRec["settings"]);
       const currentGmb = asRecord(current["gmb"]);
       const merged = {
         ...current,
-        gmb: { ...currentGmb, connected: true, configured: true, accountName, locationName, locationTitle, resource_id: locationName, resource_label: locationTitle, url: gmbUrl },
+        gmb: { ...clearGmbSelectionSettings(currentGmb, accountName), connected: true, configured: true, accountName, locationName, locationTitle, resource_id: locationName, resource_label: locationTitle, url: gmbUrl },
       };
-      await supabaseAdmin.from("pro_tools_configs").upsert({ user_id: userId, settings: merged }, { onConflict: "user_id" });
+      if (scRow) {
+        const mirror = supabaseAdmin.from("pro_tools_configs").update({ settings: merged }).eq("user_id", userId);
+        await (scRow.settings == null ? mirror.is("settings", null) : mirror.eq("settings", JSON.stringify(scRow.settings)));
+      } else {
+        await supabaseAdmin.from("pro_tools_configs").insert({ user_id: userId, settings: merged });
+      }
     } catch {
       // non-fatal
     }

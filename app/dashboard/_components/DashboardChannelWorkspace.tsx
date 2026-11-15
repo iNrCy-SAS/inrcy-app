@@ -102,13 +102,25 @@ export default function DashboardChannelWorkspace(props: Props) {
 
   let connection: ChannelBubbleConnection;
   switch (item.key) {
-    case "gmb":
+    case "gmb": {
+      const canDescribeVerification = gmb.gmbAccountConnected && gmb.gmbConfigured && gmb.gmbConnectionStatus !== "needs_update" && item.bubbleStatus !== "reconnect";
+      const canRefreshVerification = gmb.gmbAccountConnected && gmb.gmbConfigured && gmb.gmbConnectionStatus === "connected" && gmb.gmbVerificationStatus === "pending" && item.bubbleStatus !== "reconnect";
+      const verification = canDescribeVerification && gmb.gmbVerificationStatus === "pending"
+        ? { status: "pending" as const, title: t("googleVerificationPending"), message: t("googleVerificationPendingMessage"), pending: true }
+        : canDescribeVerification && gmb.gmbVerificationStatus === "required"
+          ? { status: "available" as const, title: t("googleVerificationRequired"), message: t("googleVerificationRequiredMessage"), pending: false }
+          : canDescribeVerification && gmb.gmbVerificationStatus === "restricted"
+            ? { status: "available" as const, title: t("googleBusinessRestricted"), message: t("googleBusinessRestrictedMessage"), pending: false }
+            : null;
       connection = {
+        status: verification?.status,
+        statusText: verification?.title,
         accountConnected: gmb.gmbAccountConnected,
         accountLabel: gmb.gmbAccountEmail || undefined,
-        resourceLabel: gmb.gmbConfigured ? gmb.gmbLocationLabel : gmb.gmbAccountEmail,
-        value: gmb.gmbConfigured ? gmb.gmbLocationName : "",
-        options: gmb.gmbLocations.map((location: GoogleBusinessLocation) => ({ value: location.name, label: location.title || location.name })),
+        resourceLabel: gmb.gmbConfigured || gmb.gmbLocationUnavailable ? gmb.gmbLocationLabel : gmb.gmbAccountEmail,
+        value: gmb.gmbConfigured || gmb.gmbLocationUnavailable ? gmb.gmbLocationName : "",
+        selectionUnavailable: gmb.gmbLocationUnavailable,
+        options: gmb.gmbLocations.map((location: GoogleBusinessLocation) => ({ value: location.name, label: [location.title?.trim() || t("googleBusinessLocation"), location.addressLabel?.trim()].filter(Boolean).join(" — ") })),
         onSelect: gmb.saveGmbLocation,
         onLoad: () => gmb.loadGmbAccountsAndLocations({ autoSelect: false }),
         onConnect: gmb.connectGmbAccount,
@@ -117,12 +129,18 @@ export default function DashboardChannelWorkspace(props: Props) {
         publicLinks: publicLink("gmb", gmb.gmbUrl, gmb.setGmbUrl, gmb.gmbConfigured),
         loading: gmb.gmbLoadingList, busy: gmb.gmbLocationBusy || gmb.gmbAccountBusy || gmb.gmbLocationsPhase === "connecting",
         error: gmb.gmbUrlError || gmb.gmbListError,
+        afterContent: verification
+          ? <div className={`${bubbleStyles.channelFeedback} ${verification.pending ? bubbleStyles.channelFeedbackPending : bubbleStyles.channelFeedbackWarning}`} data-channel-feedback="verification" role="status"><p><strong>{verification.title}</strong><br />{verification.message}</p>{canRefreshVerification ? <button type="button" className={bubbleStyles.action} style={{ width: "auto", flexShrink: 0, alignSelf: "center", minHeight: 44 }} disabled={Boolean(gmb.gmbLoadingList)} aria-busy={Boolean(gmb.gmbLoadingList)} onClick={() => { void gmb.refreshGmbVerification(); }}>{t("googleVerificationRefresh")}</button> : null}</div>
+          : gmb.gmbAccountConnected && !gmb.gmbConfigured && gmb.gmbConnectionStatus !== "needs_update" && item.bubbleStatus !== "reconnect"
+            ? <div className={bubbleStyles.channelFeedback} data-channel-feedback="selection" role="status"><p>{t("googleAccountAuthorizedChooseLocation")}</p></div>
+            : undefined,
         extraActions: gmb.gmbConfigured ? <button type="button" className={`${bubbleStyles.iconAction} ${bubbleStyles.googleReviewsAction}`} title={t("googleReviews")} aria-label={i18nT("value_google_business_060ec891", { value0: t("googleReviews") })} onClick={() => setReviewsOpen(true)}><ChannelBubbleIcon kind="reviews" /></button> : undefined,
         parameters: gmb.gmbConfigured ? <GoogleBusinessProfileEditor key={gmb.gmbLocationName} locationName={gmb.gmbLocationName} onDirtyChange={setDirty} /> : undefined,
         parametersLabel: t("manageGoogleProfile"),
         parametersIcon: "businessProfile",
         parametersCompact: true,
       }; break;
+    }
     case "facebook":
       connection = {
         accountConnected: fb.facebookAccountConnected,

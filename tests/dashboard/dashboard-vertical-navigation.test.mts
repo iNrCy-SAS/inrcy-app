@@ -31,7 +31,7 @@ test("le cockpit ouvre les canaux et le Générateur central reste décoratif", 
   assert.doesNotMatch(generator, /onOpenGeneratorSettings|settingsAria|settingsTitle/);
   assert.match(generator, /role="img"/);
   assert.doesNotMatch(channels, /data-testid="dashboard-channels-hub"/);
-  assert.match(channels, /getChannelTone\(item\) === "connected"/);
+  assert.match(channels, /fluxBubbleItems\.filter\(isChannelConnectionEstablished\)\.length/);
   assert.match(channels, /summary=\{\{ connected, total \}\}/);
   assert.match(channels, /channelsOpen \? <DashboardChannelsModal items=\{fluxBubbleItems\}/);
   assert.match(channels, /onClose=\{onCloseChannels\}/);

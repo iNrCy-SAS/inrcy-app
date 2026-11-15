@@ -8,6 +8,7 @@ import type { DashboardChannelKey } from "@/lib/dashboardChannels";
 import type { InrstatsChannelBlock } from "@/lib/inrstats/channelBlocks";
 import type { ChannelResourcePhase } from "./channelResourcePhase";
 import type { GoogleBusinessLocation } from "@/lib/googleBusinessLocations";
+import type { GmbVerificationStatus } from "@/lib/googleBusinessVerification";
 
 type PatchChannelConnectionLocally = (
   channel: DashboardChannelKey,
@@ -52,7 +53,39 @@ export function useGoogleBusinessChannel({
   const [gmbAccounts, setGmbAccounts] = useState<Array<{ name: string; accountName?: string; type?: string }>>([]);
   const [gmbLocations, setGmbLocations] = useState<GoogleBusinessLocation[]>([]);
   const [gmbAccountName, setGmbAccountName] = useState<string>("");
-  const [gmbLocationName, setGmbLocationName] = useState<string>(() => typeof initialState?.gmbLocationName === "string" ? initialState.gmbLocationName : "");
+  const [gmbLocationName, setGmbLocationNameState] = useState<string>(() => typeof initialState?.gmbLocationName === "string" ? initialState.gmbLocationName : "");
+  const currentLocationRef = useRef(gmbLocationName);
+  const hydrationGenerationRef = useRef(0);
+  const [unavailableSelection, setUnavailableSelection] = useState<{ scope: string | null; locationName: string } | null>(null);
+  const [completeListing, setCompleteListing] = useState<{ scope: string | null; complete: boolean } | null>(null);
+  const [verification, setVerification] = useState<{ scope: string | null; locationName: string; status: GmbVerificationStatus }>(() => ({
+    scope: getActiveBrowserUserId(), locationName: gmbLocationName,
+    status: ["verified", "pending", "required", "restricted"].includes(initialState?.gmbVerificationStatus) ? initialState?.gmbVerificationStatus : "unknown",
+  }));
+  const currentScope = getActiveBrowserUserId();
+  const gmbLocationUnavailable = unavailableSelection?.scope === currentScope && unavailableSelection?.locationName === gmbLocationName;
+  const gmbLocationsComplete = completeListing?.scope === currentScope && completeListing?.complete === true;
+  const gmbVerificationStatus: GmbVerificationStatus = verification.scope === currentScope && verification.locationName === gmbLocationName ? verification.status : "unknown";
+  const setGmbLocationUnavailable = useCallback((unavailable: boolean) => {
+    setUnavailableSelection(unavailable ? { scope: getActiveBrowserUserId(), locationName: currentLocationRef.current } : null);
+  }, []);
+  const setGmbLocationsComplete = useCallback((complete: boolean) => {
+    setCompleteListing({ scope: getActiveBrowserUserId(), complete });
+  }, []);
+  const setGmbVerificationStatus = useCallback((status: GmbVerificationStatus) => {
+    const scope = getActiveBrowserUserId();
+    const locationName = currentLocationRef.current;
+    setVerification(previous => status === "unknown" && previous.scope === scope && previous.locationName === locationName && previous.status === "pending"
+      ? previous // A temporary failure cannot claim Google has validated it.
+      : { scope, locationName, status });
+  }, []);
+  const setGmbLocationName = useCallback((value: string) => {
+    // Even the same resource can belong to a newer canonical OAuth snapshot.
+    hydrationGenerationRef.current += 1;
+    currentLocationRef.current = value;
+    setGmbLocationNameState(value);
+    setUnavailableSelection(null);
+  }, []);
   const [gmbLocationLabel, setGmbLocationLabel] = useState<string>(() => typeof initialState?.gmbLocationLabel === "string" ? initialState.gmbLocationLabel : "");
   const [gmbLoadingList, setGmbLoadingList] = useState(false);
   const [gmbLocationsPhase, setGmbLocationsPhase] = useState<ChannelResourcePhase>("idle");
@@ -122,6 +155,8 @@ export function useGoogleBusinessChannel({
     setGmbAccountName("");
     setGmbLocationName("");
     setGmbLocationLabel("");
+    setGmbLocationUnavailable(false);
+    setGmbLocationsComplete(false);
     setGmbLocationsPhase("idle");
     patchChannelConnectionLocally("gmb", {
       connected: false,
@@ -135,7 +170,7 @@ export function useGoogleBusinessChannel({
     void triggerChannelRefresh("gmb").catch(() => {});
     setPanelSuccess("Compte Google déconnecté.");
     return true;
-  }, [patchChannelConnectionLocally, setPanelError, setPanelSuccess, triggerChannelRefresh]);
+  }, [patchChannelConnectionLocally, setGmbLocationName, setGmbLocationUnavailable, setGmbLocationsComplete, setPanelError, setPanelSuccess, triggerChannelRefresh]);
 
   const disconnectGmbBusiness = useCallback(async () => {
     const accountScope = getActiveBrowserUserId();
@@ -157,6 +192,8 @@ export function useGoogleBusinessChannel({
     setGmbUrl("");
     setGmbLocationName("");
     setGmbLocationLabel("");
+    setGmbLocationUnavailable(false);
+    setGmbLocationsComplete(false);
     setGmbLocationsPhase("idle");
     patchChannelConnectionLocally("gmb", {
       connected: false,
@@ -169,7 +206,7 @@ export function useGoogleBusinessChannel({
     void triggerChannelRefresh("gmb").catch(() => {});
     setPanelSuccess("Établissement Google Business déconnecté.");
     return true;
-  }, [patchChannelConnectionLocally, setPanelError, setPanelSuccess, triggerChannelRefresh]);
+  }, [patchChannelConnectionLocally, setGmbLocationName, setGmbLocationUnavailable, setGmbLocationsComplete, setPanelError, setPanelSuccess, triggerChannelRefresh]);
 
   const persistGmbLocation = useCallback((
     accountName: string,
@@ -203,7 +240,9 @@ export function useGoogleBusinessChannel({
         setGmbConfigured(true);
         setGmbConnected(true);
         setGmbConnectionStatus("connected");
+        setGmbLocationUnavailable(false);
         setGmbLocationName(locationName);
+        setGmbVerificationStatus("unknown");
         setGmbLocationLabel(locationTitle || "");
         if (payload?.url) setGmbUrl(String(payload.url));
         patchChannelConnectionLocally("gmb", {
@@ -227,9 +266,9 @@ export function useGoogleBusinessChannel({
     })();
     selectionInFlightRef.current = operation;
     return operation.promise;
-  }, [patchChannelConnectionLocally, setPanelError, setPanelSuccess, triggerChannelRefresh]);
+  }, [patchChannelConnectionLocally, setGmbLocationName, setGmbLocationUnavailable, setGmbVerificationStatus, setPanelError, setPanelSuccess, triggerChannelRefresh]);
 
-  const loadGmbAccountsAndLocations = useCallback((options?: { autoSelect?: boolean; afterOAuth?: boolean }): Promise<void> => {
+  const loadGmbAccountsAndLocations = useCallback((options?: { autoSelect?: boolean; afterOAuth?: boolean; refreshVerification?: boolean }): Promise<void> => {
     // The locations route validates the Google connection. After an OAuth
     // return, start discovery without waiting for dashboard hydration.
     if (!gmbAccountConnected && !options?.afterOAuth) return Promise.resolve();
@@ -242,11 +281,15 @@ export function useGoogleBusinessChannel({
     setGmbLoadingList(true);
     setGmbLocationsPhase("searching");
     setGmbListError(null);
-    const isCurrent = () => revision === connectionRevisionRef.current && accountScope === getActiveBrowserUserId();
+    setGmbLocationsComplete(false);
+    const selectionIntent = selectionIntentRef.current;
+    const hydrationGeneration = hydrationGenerationRef.current;
+    const isCurrentScope = () => revision === connectionRevisionRef.current && accountScope === getActiveBrowserUserId();
+    const isCurrent = () => isCurrentScope() && selectionIntent === selectionIntentRef.current;
     const operation = { accountScope, revision, promise: Promise.resolve() };
     operation.promise = (async () => {
       try {
-        const response = await fetch("/api/integrations/google-business/locations", { cache: "no-store" });
+        const response = await fetch(options?.refreshVerification ? "/api/integrations/google-business/locations?refreshVerification=1" : "/api/integrations/google-business/locations", { cache: "no-store" });
         if (!response.ok) throw new Error(await getSimpleFrenchApiError(response, "Impossible de charger les établissements Google Business."));
         const payload = await response.json().catch(() => ({}));
         if (!isCurrent()) return;
@@ -255,13 +298,41 @@ export function useGoogleBusinessChannel({
         setGmbAccounts(accounts);
         setGmbAccountName(payload.accountName || "");
         setGmbLocations(locations);
+        setGmbLocationsComplete(payload.complete === true);
+        const validation = payload.selectionValidation;
+        const matchesCurrentSelection = hydrationGeneration === hydrationGenerationRef.current && typeof validation?.locationName === "string" && validation.locationName === currentLocationRef.current;
+        if (validation?.status === "invalid" && validation.cleared === true && payload.complete === true && matchesCurrentSelection) {
+          setGmbLocationUnavailable(true);
+          setGmbConfigured(false);
+          setGmbConnected(false);
+          setGmbConnectionStatus("disconnected");
+          setGmbUrl("");
+          setGmbVerificationStatus("unknown");
+          patchChannelConnectionLocally("gmb", {
+            connected: false, accountConnected: true, configured: false,
+            expired: false, resourceId: null, resourceLabel: null, resourceUrl: null,
+          }, { clearData: true, clearError: true });
+          void triggerChannelRefresh("gmb").catch(() => {});
+        } else if (validation?.status === "valid" || validation?.status === "unselected") {
+          setGmbLocationUnavailable(false);
+        }
+        const verificationState = payload.verification;
+        if (validation?.status === "valid" && matchesCurrentSelection && verificationState?.locationName === currentLocationRef.current) {
+          const status: GmbVerificationStatus = ["verified", "pending", "required", "restricted"].includes(verificationState.status) ? verificationState.status : "unknown";
+          setGmbVerificationStatus(status);
+          if (verificationState.clearedStatsReconnect === true) {
+            setGmbConnectionStatus("connected");
+            patchChannelConnectionLocally("gmb", { connectionStatus: "connected" }, { clearError: true });
+          }
+        }
         if (payload.locationsError) setGmbListError(payload.locationsError);
         // Discovery only reads. Even one returned establishment needs an explicit choice.
       } catch (error) {
         if (isCurrent()) setGmbListError(getSimpleFrenchErrorMessage(error, "Impossible de charger les établissements Google Business."));
       } finally {
-        if (locationsInFlightRef.current === operation) locationsInFlightRef.current = null;
-        if (isCurrent()) {
+        const ownsRequest = locationsInFlightRef.current === operation;
+        if (ownsRequest) locationsInFlightRef.current = null;
+        if (ownsRequest && isCurrentScope()) {
           setGmbLoadingList(false);
           setGmbLocationsPhase("idle");
         }
@@ -269,7 +340,24 @@ export function useGoogleBusinessChannel({
     })();
     locationsInFlightRef.current = operation;
     return operation.promise;
-  }, [gmbAccountConnected]);
+  }, [gmbAccountConnected, patchChannelConnectionLocally, setGmbLocationUnavailable, setGmbLocationsComplete, setGmbVerificationStatus, triggerChannelRefresh]);
+
+  const refreshGmbVerification = useCallback((): Promise<void> => {
+    if (gmbVerificationStatus !== "pending" || !gmbAccountConnected || !gmbConfigured || gmbConnectionStatus !== "connected") return Promise.resolve();
+    return loadGmbAccountsAndLocations({ refreshVerification: true });
+  }, [gmbAccountConnected, gmbConfigured, gmbConnectionStatus, gmbVerificationStatus, loadGmbAccountsAndLocations]);
+
+  useEffect(() => {
+    if (gmbVerificationStatus !== "pending" || !gmbAccountConnected || !gmbConfigured || gmbConnectionStatus !== "connected") return;
+    const accountScope = getActiveBrowserUserId();
+    // Opening the app reuses Google's five-hour evidence cache. Subsequent
+    // automatic checks run only while pending; a user can refresh immediately.
+    void loadGmbAccountsAndLocations();
+    const timer = window.setInterval(() => {
+      if (accountScope === getActiveBrowserUserId()) void refreshGmbVerification();
+    }, 5 * 60 * 60 * 1000);
+    return () => window.clearInterval(timer);
+  }, [gmbAccountConnected, gmbConfigured, gmbConnectionStatus, gmbVerificationStatus, loadGmbAccountsAndLocations, refreshGmbVerification]);
 
   const oauthAccountScope = getActiveBrowserUserId();
   useEffect(() => {
@@ -322,6 +410,11 @@ export function useGoogleBusinessChannel({
     gmbLoadingList,
     gmbLocationsPhase,
     gmbListError,
+    gmbLocationsComplete,
+    gmbLocationUnavailable,
+    gmbVerificationStatus,
+    setGmbVerificationStatus,
+    refreshGmbVerification,
     connectGmbAccount,
     disconnectGmbAccount,
     disconnectGmbBusiness,

@@ -8,6 +8,8 @@ import { projectCanonicalChannelConnection } from "@/lib/dashboardChannelSync";
 import type { DashboardChannelKey } from "@/lib/dashboardChannels";
 import type { ModuleAction, ModuleStatus } from "./dashboard.types";
 import type { ConnectionDisplayStatus } from "@/lib/connectionVersions";
+import type { GmbVerificationStatus } from "@/lib/googleBusinessVerification";
+import type { ChannelBubbleStatus } from "./_components/channel-bubble.types";
 import { isBubbleEnabled, normalizeAppBubbleKey, type AppBubbleAccessMap } from "@/lib/bubbleAccess";
 import {
   getDashboardModuleCopy,
@@ -33,6 +35,8 @@ type BuildFluxBubbleItemsArgs = {
   getSiteBubbleProgress: (kind: "site_web") => { status: ModuleStatus; text: string };
   gmbConnected: boolean;
   gmbConnectionStatus: ConnectionDisplayStatus;
+  gmbVerificationStatus?: GmbVerificationStatus;
+  gmbVerificationLabels?: { pending: string; required: string; restricted: string };
   gmbUrl: string | null | undefined;
   instagramConnected: boolean;
   instagramConnectionStatus: ConnectionDisplayStatus;
@@ -89,6 +93,8 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
     getSiteBubbleProgress,
     gmbConnected,
     gmbConnectionStatus,
+    gmbVerificationStatus = "unknown",
+    gmbVerificationLabels,
     gmbUrl,
     instagramConnected,
     instagramConnectionStatus,
@@ -222,7 +228,10 @@ export function buildFluxBubbleItems(args: BuildFluxBubbleItemsArgs): DashboardF
           return { status: m.status, text: statusLabel(m.status, copy) };
           })();
 
-    const resolvedBubbleProgress = {
+    const gmbVerificationProgress = m.key === "gmb" && officialChannelStatesReady && gmbConnected && gmbConnectionStatus === "connected" && gmbVerificationLabels && (gmbVerificationStatus === "pending" || gmbVerificationStatus === "required" || gmbVerificationStatus === "restricted")
+      ? { status: (gmbVerificationStatus === "pending" ? "pending" : "available") as ChannelBubbleStatus, text: gmbVerificationLabels[gmbVerificationStatus] }
+      : null;
+    const resolvedBubbleProgress = gmbVerificationProgress || {
       ...resolvedBubbleProgressRaw,
       text: translateDashboardStatusText(resolvedBubbleProgressRaw.text, copy),
     };

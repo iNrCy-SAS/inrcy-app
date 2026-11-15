@@ -75,7 +75,7 @@ import { DASHBOARD_CHANNEL_KEYS, type DashboardChannelKey } from "@/lib/dashboar
 import { buildFluxBubbleItems } from "./dashboard.flux-bubbles";
 import { normalizeNativeChannelStates, type NativeChannelSnapshot } from "./_components/native-channel-state";
 import type { NativeChannelStates } from "@/lib/nativeChannelActivation";
-import { collapseDashboardWebsiteChannels, getChannelTone } from "./_components/dashboard-channel-presentation";
+import { collapseDashboardWebsiteChannels, isChannelConnectionEstablished } from "./_components/dashboard-channel-presentation";
 import {
   getDashboardChannelPowerSetup,
   type DashboardSetupChannelKey,
@@ -224,6 +224,7 @@ export default function DashboardClient({
     window.dispatchEvent(new CustomEvent("inrcy:channels-updated", { detail: { at: syncAt, channels: normalizedChannels.length ? normalizedChannels : undefined } }));
   }, []);
   const settingsDrawerT = useTranslations("dashboard.settingsDrawer");
+  const channelBubbleT = useTranslations("dashboard.channelBubble");
   const initialBrowserCacheAccountId = initialOfficialChannelStatesUserId ?? getActiveBrowserUserId();
   const [initialServerOfficialDashboardState] = useState(() => (
     buildOfficialDashboardChannelState(initialOfficialChannelStates)
@@ -1043,6 +1044,11 @@ const {
   gmbLoadingList,
   gmbLocationsPhase,
   gmbListError,
+  gmbLocationsComplete,
+  gmbLocationUnavailable,
+  gmbVerificationStatus,
+  setGmbVerificationStatus,
+  refreshGmbVerification,
   connectGmbAccount,
   disconnectGmbAccount,
   disconnectGmbBusiness,
@@ -1142,6 +1148,7 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
   if (isConnectionStatus(state.gmbConnectionStatus)) setGmbConnectionStatus(state.gmbConnectionStatus);
   if (typeof state.gmbAccountEmail === "string") setGmbAccountEmail(state.gmbAccountEmail);
   if (typeof state.gmbLocationName === "string") setGmbLocationName(state.gmbLocationName);
+  setGmbVerificationStatus(["verified", "pending", "required", "restricted"].includes(state.gmbVerificationStatus) ? state.gmbVerificationStatus : "unknown");
   if (typeof state.gmbLocationLabel === "string") setGmbLocationLabel(state.gmbLocationLabel);
 
   if (typeof state.facebookUrl === "string") setFacebookUrl(state.facebookUrl);
@@ -1202,7 +1209,7 @@ const applyDashboardChannelState = useCallback((state: Record<string, any> | nul
   setFacebookAccountEmail, setGmbAccountEmail, setLinkedinShareToPersonalProfile,
   setFacebookAccountConnected, setFacebookConnectionStatus, setFacebookPageConnected, setFacebookUrl,
   setFbSelectedPageId, setFbSelectedPageName,   setGmbAccountConnected,
-  setGmbConfigured, setGmbConnected, setGmbConnectionStatus, setGmbLocationLabel, setGmbLocationName, setGmbUrl,
+  setGmbConfigured, setGmbConnected, setGmbConnectionStatus, setGmbLocationLabel, setGmbLocationName, setGmbVerificationStatus, setGmbUrl,
    applyThreadsState, setInstagramAuthMode, setInstagramAccountConnected, setInstagramConnected, setInstagramConnectionStatus, setInstagramUrl,
   setInstagramUsername, setLinkedinAccountConnected, setLinkedinConnected, setLinkedinConnectionStatus,
   setLinkedinDisplayName, setLinkedinSelectedOrganizationId, setLinkedinSelectedOrganizationName, setLinkedinUrl,
@@ -3630,6 +3637,8 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     getSiteBubbleProgress,
     gmbConnected,
     gmbConnectionStatus,
+    gmbVerificationStatus,
+    gmbVerificationLabels: { pending: channelBubbleT("googleVerificationPending"), required: channelBubbleT("googleVerificationRequired"), restricted: channelBubbleT("googleBusinessRestricted") },
     gmbUrl,
     instagramConnected,
     instagramConnectionStatus,
@@ -3676,6 +3685,8 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     officialChannelStatesReady,
     channelBlocks,
     dashboardCopy,
+    channelBubbleT,
+    gmbVerificationStatus,
     facebookPageConnected,
     facebookConnectionStatus,
     facebookUrl,
@@ -3857,7 +3868,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
     fbPages, fbPagesError, fbPagesLoading, fbPagesPhase, fbSelectedPageId, fbSelectedPageName,
 
     gmbAccountConnected, gmbAccountEmail, gmbAccountName, gmbAccounts, gmbConfigured, gmbConnected, gmbConnectionStatus, gmbListError, gmbLoadingList, gmbLocationsPhase,
-    gmbLocationLabel, gmbLocationName, gmbLocations, gmbUrl, gmbUrlError, gmbUrlNotice, setGmbUrl,
+    gmbLocationLabel, gmbLocationName, gmbLocations, gmbLocationsComplete, gmbLocationUnavailable, gmbVerificationStatus, refreshGmbVerification, gmbUrl, gmbUrlError, gmbUrlNotice, setGmbUrl,
 
     igAccounts, igAccountsError, igAccountsLoading, igAccountsPhase, igSelectedPageId,
     instagramAccountConnected, instagramConnected, instagramConnectionStatus, instagramUrl, instagramUrlError, instagramUrlNotice, instagramUsername, setInstagramUrl,
@@ -3977,7 +3988,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
             generatorPower={generatorPower}
             dnaPower={dnaScore}
             aiPower={aiScore}
-            connectedChannels={dashboardChannelItems.filter((item) => getChannelTone(item) === "connected").length}
+            connectedChannels={dashboardChannelItems.filter(isChannelConnectionEstablished).length}
             totalChannels={dashboardChannelItems.length}
             uiBalance={uiBalance}
             channelPowerSteps={displayedGeneratorPowerSteps.map((step) => ({
@@ -4127,7 +4138,7 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
             channels: generatorPower,
             dna: dnaScore,
             ai: aiScore,
-            connected: dashboardChannelItems.filter((item) => getChannelTone(item) === "connected").length,
+            connected: dashboardChannelItems.filter(isChannelConnectionEstablished).length,
             total: dashboardChannelItems.length,
             uiBalance,
             isActive: generatorIsActive,

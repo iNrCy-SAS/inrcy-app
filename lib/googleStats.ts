@@ -11,7 +11,7 @@ export type StatsSourceKey = "site_web" | "gmb" | "facebook";
 export type StatsProductKey = "ga4" | "gsc" | "gmb" | "facebook";
 
 export type GoogleTokenRow = {
-  id: number;
+  id: string | number;
   user_id: string;
   source: StatsSourceKey;
   product: StatsProductKey;
@@ -197,6 +197,90 @@ async function selectLatestGoogleIntegration(
   return options?.allowStatsRecovery
     ? rows.find((row) => canRetryGoogleStatsIntegration(row)) ?? null
     : rows[0] ?? null;
+}
+
+function updateGmbIntegrationSnapshot(row: GoogleTokenRow, userId: string, patch: Record<string, unknown>) {
+  let query = supabaseAdmin
+    .from("integrations")
+    .update(patch)
+    .eq("id", row.id)
+    .eq("user_id", userId)
+    .eq("provider", "google")
+    .eq("source", "gmb")
+    .eq("product", "gmb");
+
+  // OAuth and establishment selection do not always advance updated_at.
+  // Guard the actual credentials, target and metadata instead: an older refresh
+  // must not disconnect or return the snapshot preceding a newer user action.
+  for (const field of ["status", "email_address", "access_token_enc", "refresh_token_enc", "expires_at", "resource_id", "resource_label"] as const) {
+    query = row[field] == null ? query.is(field, null) : query.eq(field, row[field]);
+  }
+  query = row.meta == null
+    ? query.is("meta", null)
+    : query.eq("meta", JSON.stringify(row.meta));
+  return query.select("*").maybeSingle();
+}
+
+async function getGmbGoogleToken(supabase: any, userId: string, initialRow: GoogleTokenRow) {
+  let row = initialRow;
+  // A concurrent OAuth callback, disconnect or selection wins. Re-read after a
+  // failed comparison and allow one retry; never loop indefinitely under load.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const accessToken = tryDecryptToken(row.access_token_enc);
+    const expiresAt = row.expires_at;
+    if (accessToken && !isExpired(expiresAt)) {
+      return { accessToken, row };
+    }
+    const refreshToken = tryDecryptToken(row.refresh_token_enc);
+    if (!refreshToken) return null;
+
+    let refreshed: Awaited<ReturnType<typeof refreshGoogleAccessToken>>;
+    try {
+      refreshed = await refreshGoogleAccessToken(refreshToken);
+    } catch (error) {
+      if (!isGoogleRefreshAuthenticationError(error)) throw error;
+      const { data, error: updateError } = await updateGmbIntegrationSnapshot(row, userId, {
+        status: "disconnected",
+        access_token_enc: null,
+        expires_at: null,
+        meta: {
+          ...(row.meta && typeof row.meta === "object" && !Array.isArray(row.meta) ? row.meta : {}),
+          needs_reconnect: true,
+          needs_reconnect_at: new Date().toISOString(),
+          needs_reconnect_channel: "gmb",
+          needs_reconnect_reason: "google_refresh_token_invalid",
+        },
+      });
+      if (updateError) {
+        console.error("[googleStats] Unable to persist Google Business refresh failure", { integrationId: row.id, userId });
+        throw new Error("La connexion Google Business ne peut pas être actualisée pour le moment. Réessayez.");
+      }
+      if (data) return null;
+      const latest = await selectLatestGoogleIntegration(supabase, userId, "gmb", "gmb");
+      if (!latest) return null;
+      row = latest;
+      continue;
+    }
+
+    const encryptedAccessToken = encryptToken(refreshed.accessToken);
+    const { data, error: updateError } = await updateGmbIntegrationSnapshot(row, userId, {
+      access_token_enc: encryptedAccessToken,
+      expires_at: refreshed.expiresAtIso,
+      // Preserve account_connected until the user explicitly selects a fiche.
+      // A technical token renewal must not change the business connection.
+    });
+    if (updateError) {
+      console.error("[googleStats] Unable to persist refreshed Google Business token", { integrationId: row.id, userId });
+      throw new Error("La connexion Google Business ne peut pas être actualisée pour le moment. Réessayez.");
+    }
+    if (data) return { accessToken: refreshed.accessToken, row: data as GoogleTokenRow };
+
+    const latest = await selectLatestGoogleIntegration(supabase, userId, "gmb", "gmb");
+    if (!latest) return null;
+    row = latest;
+  }
+  const accessToken = tryDecryptToken(row.access_token_enc);
+  return accessToken && !isExpired(row.expires_at) ? { accessToken, row } : null;
 }
 
 export async function getGoogleTokenFor(
@@ -530,6 +614,10 @@ export async function getGoogleTokenForAnyGoogle(
 
   const row = await selectLatestGoogleIntegration(supabase, userId, source, product);
   if (!row) return null;
+
+  if (source === "gmb" && product === "gmb") {
+    return getGmbGoogleToken(supabase, userId, row);
+  }
 
   let accessToken = tryDecryptToken(row.access_token_enc);
   let expiresAt = row.expires_at;

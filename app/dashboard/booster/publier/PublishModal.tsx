@@ -317,6 +317,7 @@ export default function PublishModal({
   const { metaPilotEnabled, activeAccountId, actorUserId } = useDashboardViewerAccess();
   const CHANNEL_KEYS = useMemo(() => ALL_CHANNEL_KEYS.filter((key) => key !== "threads" || metaPilotEnabled), [metaPilotEnabled]);
   const i18nT = useTranslations("booster");
+  const channelBubbleT = useTranslations("dashboard.channelBubble");
   const mediaT = useTranslations("media");
   const runtimeT = i18nT as unknown as (
     key: string,
@@ -1272,7 +1273,7 @@ export default function PublishModal({
             if (!isCurrent()) return prev;
             const next = mergeBoosterChannelDetails(CHANNEL_KEYS, { ...EMPTY_CHANNEL_DETAILS, ...nextChannelDetails }, prev, nextConnected);
             CHANNEL_KEYS.forEach((key) => {
-              next[key] = { ...next[key], availabilityError: false };
+              next[key] = { ...next[key], availabilityError: nextChannelDetails[key]?.availabilityError === true };
             });
             return next;
           });
@@ -2915,26 +2916,39 @@ export default function PublishModal({
 
   const getChannelDetailInfo = (key: ChannelKey) => {
     const detail = channelDetails[key] || EMPTY_CHANNEL_DETAILS[key];
-    const requiresReconnect = Boolean(detail?.requiresReconnect);
+    const requiresReconnect = Boolean(detail?.requiresReconnect || (key === "gmb" && detail?.connectionStatus === "needs_update"));
     const channelDisabled = Boolean(detail?.disabled);
     const availabilityError = Boolean(detail?.availabilityError);
     const rawLabel = String(detail?.label || detail?.href || "").trim();
     const simplifiedLabel = simplifyChannelDetail(key, rawLabel);
-    const statusLabel = availabilityError
+    const verificationLabel = key === "gmb"
+      ? detail?.verificationStatus === "pending"
+        ? channelBubbleT("googleVerificationPending")
+        : detail?.verificationStatus === "required"
+          ? channelBubbleT("googleVerificationRequired")
+          : detail?.verificationStatus === "restricted"
+            ? channelBubbleT("googleBusinessRestricted")
+            : ""
+      : "";
+    const googleReconnect = key === "gmb" && requiresReconnect;
+    const googleVerificationUnavailable = key === "gmb" && detail?.verificationStatus === "unknown" && availabilityError;
+    const statusLabel = googleReconnect
+      ? i18nT("reconnect_in_channels")
+      : availabilityError
       ? i18nT("channel_check_unavailable")
       : channelDisabled
         ? i18nT("channel_disabled_status")
         : requiresReconnect
           ? i18nT("reconnect_in_channels")
-          : detail?.connectionStatus === "disconnected"
+          : verificationLabel || (detail?.connectionStatus === "disconnected"
             ? i18nT("connect_in_channels")
-            : "";
-    const fullLabel = availabilityError && simplifiedLabel ? simplifiedLabel : statusLabel || simplifiedLabel;
+            : "");
+    const fullLabel = availabilityError && simplifiedLabel && !googleReconnect && !googleVerificationUnavailable ? simplifiedLabel : statusLabel || simplifiedLabel;
     if (!fullLabel) return null;
     const desktopLabel = truncateText(fullLabel, 34);
     const mobileLabel = truncateText(fullLabel, 24);
     return {
-      href: requiresReconnect || availabilityError ? null : detail?.href || null,
+      href: requiresReconnect || availabilityError || verificationLabel ? null : detail?.href || null,
       desktopLabel,
       mobileLabel,
       fullLabel,

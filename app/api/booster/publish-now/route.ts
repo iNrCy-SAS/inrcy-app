@@ -54,6 +54,7 @@ import {
   linkedinResharePost,
 } from "@/lib/linkedinPublish";
 import { getGmbToken, gmbCreateLocalPost } from "@/lib/googleBusiness";
+import { getGmbPublicationStateBlock } from "@/lib/googleBusinessPublicationGate";
 import { isGoogleBusinessPostOutcomeUnknown } from "@/lib/googleBusinessPostTransport";
 import { buildDeterministicPublicationChildId } from "@/lib/deterministicPublicationId";
 import { findSimilarUpcomingScheduledPublication } from "@/lib/scheduledPublicationDedupe";
@@ -3648,6 +3649,10 @@ async function publishNowHandler(req: Request) {
           liveChannelStates,
           ch,
         );
+        if (ch === "gmb") {
+          const businessValidationBlock = getGmbPublicationStateBlock(liveChannelState);
+          if (businessValidationBlock) throw businessValidationBlock;
+        }
         if (!isOfficialPublicationChannelConnected(liveChannelState)) {
           const reconnectRequired =
             publicationChannelRequiresReconnect(liveChannelState);
@@ -6715,6 +6720,9 @@ async function publishNowHandler(req: Request) {
           const tok = await getGmbToken({
             supabase: supabaseAdmin,
             userId,
+            purpose: "publication",
+            accountName,
+            locationName,
           });
           if (!tok?.accessToken) {
             const gmbUserError = GOOGLE_BUSINESS_RECONNECT_USER_MESSAGE;

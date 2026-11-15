@@ -928,6 +928,16 @@
     }
   },
   "channelBubble": {
+    "googleVerificationRefresh": "刷新",
+    "googleVerificationPending": "Google 正在验证",
+    "googleVerificationPendingMessage": "请在 Google 商家资料中跟进。",
+    "googleVerificationRequired": "需要 Google 验证",
+    "googleVerificationRequiredMessage": "您的 Google 账号已连接。Google 要求验证此商家资料。请打开您的 Google 商家资料完成所需步骤。",
+    "googleBusinessRestricted": "需要在 Google 中处理",
+    "googleBusinessRestrictedMessage": "您的 Google 账号已连接。此商家资料受到 Google 限制。请打开您的 Google 商家资料查看需要执行的操作。",
+    "googleAccountAuthorizedChooseLocation": "Google 账号已获授权 — 请选择商家资料。",
+    "previousLocationUnavailable": "原商家资料不可用",
+    "googleBusinessLocation": "Google 商家资料",
     "linkedinDisconnectHelpTitle": "在 LinkedIn 中移除 iNrCy 的访问权限",
     "linkedinDisconnectHelpIntro": "在 iNrCy 中断开连接会断开该渠道。如需同时撤销在 LinkedIn 中授予 iNrCy 的权限：",
     "linkedinDisconnectHelpStep1": "在 LinkedIn 中打开“我”，然后选择“设置与隐私”。",

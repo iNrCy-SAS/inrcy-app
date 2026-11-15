@@ -32,6 +32,7 @@ import {
   gmbPatchLocalPost,
 } from "@/lib/googleBusiness";
 import { isGoogleBusinessPostOutcomeUnknown } from "@/lib/googleBusinessPostTransport";
+import { GmbPublicationVerificationError, getGmbPublicationStateBlock } from "@/lib/googleBusinessPublicationGate";
 import {
   describeGoogleBusinessMediaProbeFailures,
   filterGoogleBusinessMediaUrls,
@@ -1261,6 +1262,10 @@ async function replaceChannelDelivery(params: {
       : channel === "inr_search"
         ? publicationStates.inr_search
         : publicationStates[channel];
+  if (channel === "gmb") {
+    const businessValidationBlock = getGmbPublicationStateBlock(officialState);
+    if (businessValidationBlock) throw businessValidationBlock;
+  }
   const officiallyConnected = channel === "site_web"
     ? officialState.connected === true
     : isOfficialPublicationChannelConnected(officialState);
@@ -1928,6 +1933,9 @@ async function replaceChannelDelivery(params: {
     const token = await getGmbToken({
       supabase: supabaseAdmin,
       userId,
+      purpose: "publication",
+      accountName,
+      locationName,
     });
     if (!token?.accessToken) {
       const gmbUserError = getPublishChannelUserMessage("gmb", "token expired");
@@ -3083,6 +3091,7 @@ export function createPublicationChannelHandlers(channel: ChannelKey) {
           channel,
         });
       }
+      if (channel === "gmb" && e instanceof GmbPublicationVerificationError) return jsonUserFacingError(e.message, { status: 409, code: e.code });
       if (e instanceof PublicationEditSourceChangedError) return jsonUserFacingError(e.message, { status: 409, code: "publication_edit_source_changed" });
       if (e instanceof PinterestTextValidationError) return pinterestTextIssueResponse(e.issue);
       if (e instanceof InstagramCaptionValidationError) return instagramCaptionIssueResponse(e.issue);

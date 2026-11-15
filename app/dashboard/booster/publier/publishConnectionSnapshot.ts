@@ -96,6 +96,9 @@ function normalizeSnapshot<K extends string>(keys: readonly K[], channels: unkno
         ? String(detail.connectionStatus) : null,
       requiresReconnect: detail.requiresReconnect === true,
       disabled: detail.disabled === true,
+      ...(key === "gmb" && ["verified", "pending", "required", "restricted", "unknown"].includes(String(detail.verificationStatus))
+        ? { verificationStatus: detail.verificationStatus as ChannelConnectionDetail["verificationStatus"] }
+        : {}),
     };
   }
   return normalized;

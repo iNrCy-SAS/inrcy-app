@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { collapseDashboardWebsiteChannels, getChannelTone } from "../../app/dashboard/_components/dashboard-channel-presentation.ts";
+import { collapseDashboardWebsiteChannels, getChannelTone, isChannelConnectionEstablished } from "../../app/dashboard/_components/dashboard-channel-presentation.ts";
 import type { DashboardFluxBubbleData } from "../../app/dashboard/_components/DashboardFluxBubble.tsx";
 import {
   DASHBOARD_CHANNEL_POWER_SETUP,
@@ -11,6 +11,17 @@ import {
 } from "../../app/dashboard/dashboard.channel-setup.ts";
 
 const read = (relativePath: string) => readFileSync(new URL(relativePath, import.meta.url), "utf8");
+
+test("une validation Google en attente garde une connexion établie et une couleur distincte", () => {
+  const item: DashboardFluxBubbleData = {
+    key: "gmb", name: "Google Business", description: "", accent: "cyan", logoSrc: "/test.svg", logoAlt: "Google",
+    bubbleStatus: "pending", bubbleStatusText: "Validation Google en cours", onConfigure() {},
+  };
+  assert.equal(getChannelTone(item), "pending");
+  assert.equal(isChannelConnectionEstablished(item), true);
+  assert.equal(isChannelConnectionEstablished({ ...item, bubbleStatus: "reconnect" }), false);
+  assert.equal(isChannelConnectionEstablished({ ...item, bubbleStatus: "coming" }), false);
+});
 
 const dashboardClientSource = read("../../app/dashboard/DashboardClient.tsx");
 const fluxBubblesSource = read("../../app/dashboard/dashboard.flux-bubbles.ts");
@@ -70,7 +81,7 @@ test("les deux offres montrent treize canaux, ou quatorze avec Threads, Mails re
   );
   assert.match(
     channelsSectionSource,
-    /const connected = fluxBubbleItems\.filter\(\(item\) => getChannelTone\(item\) === "connected"\)\.length;/,
+    /const connected = fluxBubbleItems\.filter\(isChannelConnectionEstablished\)\.length;/,
   );
   assert.match(channelsSectionSource, /items=\{fluxBubbleItems\} summary=\{\{ connected, total \}\}/);
   assert.match(dashboardClientSource, /const dashboardChannelItems = useMemo\(\(\) => \{[\s\S]*collapseDashboardWebsiteChannels\(fluxBubbleItems, \{/);

@@ -928,6 +928,16 @@
     }
   },
   "channelBubble": {
+    "googleVerificationRefresh": "รีเฟรช",
+    "googleVerificationPending": "Google กำลังตรวจสอบยืนยัน",
+    "googleVerificationPendingMessage": "ติดตามได้ใน Google Business",
+    "googleVerificationRequired": "ต้องยืนยันกับ Google",
+    "googleVerificationRequiredMessage": "บัญชี Google ของคุณเชื่อมต่อแล้ว Google ขอให้ยืนยันข้อมูลธุรกิจนี้ เปิดโปรไฟล์ธุรกิจใน Google เพื่อดำเนินการตามขั้นตอนที่กำหนด",
+    "googleBusinessRestricted": "ต้องดำเนินการใน Google",
+    "googleBusinessRestrictedMessage": "บัญชี Google ของคุณเชื่อมต่อแล้ว ข้อมูลธุรกิจนี้ถูกจำกัดโดย Google เปิดโปรไฟล์ธุรกิจใน Google เพื่อดูสิ่งที่ต้องดำเนินการ",
+    "googleAccountAuthorizedChooseLocation": "อนุญาตบัญชี Google แล้ว — เลือกข้อมูลธุรกิจ",
+    "previousLocationUnavailable": "ข้อมูลธุรกิจเดิมไม่พร้อมใช้งาน",
+    "googleBusinessLocation": "ข้อมูลธุรกิจ Google",
     "linkedinDisconnectHelpTitle": "ยกเลิกสิทธิ์การเข้าถึงของ iNrCy ใน LinkedIn",
     "linkedinDisconnectHelpIntro": "การตัดการเชื่อมต่อใน iNrCy จะตัดการเชื่อมต่อช่องทาง หากต้องการยกเลิกสิทธิ์ที่ให้ iNrCy ใน LinkedIn ด้วย:",
     "linkedinDisconnectHelpStep1": "ใน LinkedIn เปิด ฉัน จากนั้นเลือก การตั้งค่าและความเป็นส่วนตัว",

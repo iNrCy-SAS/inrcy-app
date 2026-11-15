@@ -229,6 +229,7 @@ export default function PublishChannelSelector({
           const isLastOddMobileItem = isMobile && index === visibleChannelKeys.length - 1 && visibleChannelKeys.length % 2 === 1;
           const channelLabel = getLocalizedChannelLabel(key, (messageKey) => i18nT(messageKey as never));
           const accountName = getChannelAccountName(info, isConnected, channelLabel, key === "inr_search" ? companyName : undefined);
+          const blockedGoogleLabel = key === "gmb" && !isConnected && info?.fullLabel ? `${channelLabel} — ${info.fullLabel}` : undefined;
 
           if (isMobile) {
             return (
@@ -241,6 +242,8 @@ export default function PublishChannelSelector({
                 tabIndex={isConnected ? 0 : -1}
                 aria-disabled={!isConnected}
                 aria-pressed={isSelected}
+                title={blockedGoogleLabel}
+                aria-label={blockedGoogleLabel}
                 onKeyDown={(event) => {
                   if (!isConnected) return;
                   if (event.key === "Enter" || event.key === " ") {
@@ -297,13 +300,13 @@ export default function PublishChannelSelector({
                   role="img"
                   className={css.connectionButton}
                   data-connected={isConnected}
-                  title={accountName || undefined}
+                  title={blockedGoogleLabel || accountName || undefined}
                   aria-label={
-                    requiresReconnect
+                    blockedGoogleLabel || (requiresReconnect
                       ? i18nT("channel_reconnect_aria", { channel: channelLabel })
                       : isConnected
                           ? i18nT("channel_connected_aria", { channel: channelLabel })
-                          : i18nT("channel_disconnected_aria", { channel: channelLabel })
+                          : i18nT("channel_disconnected_aria", { channel: channelLabel }))
                   }
                   onPointerDown={(event) => event.stopPropagation()}
                   onClick={(event) => event.stopPropagation()}
@@ -352,13 +355,14 @@ export default function PublishChannelSelector({
               tabIndex={isConnected ? 0 : -1}
               aria-disabled={!isConnected}
               aria-pressed={isSelected}
-              aria-label={requiresReconnect
+              title={blockedGoogleLabel}
+              aria-label={blockedGoogleLabel || (requiresReconnect
                 ? i18nT("channel_reconnect_title", { channel: channelLabel })
                 : accountName
                   ? `${channelLabel} — ${accountName}`
                   : isConnected
                     ? i18nT("channel_connected_aria", { channel: channelLabel })
-                    : i18nT("channel_disconnected_aria", { channel: channelLabel })}
+                    : i18nT("channel_disconnected_aria", { channel: channelLabel }))}
               onKeyDown={(event) => {
                 if (!isConnected) return;
                 if (event.key === "Enter" || event.key === " ") {
@@ -408,7 +412,7 @@ export default function PublishChannelSelector({
                   aria-hidden
                   className={css.desktopConnection}
                   data-connected={isConnected}
-                  title={accountName || undefined}
+                  title={blockedGoogleLabel || accountName || undefined}
                 ><LinkIcon /></span>
               )}
               <span aria-hidden className={css.selectionMark}>

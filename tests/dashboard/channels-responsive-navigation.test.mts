@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import { createNativeLocalHookLoader } from "../helpers/assistant-native-local-hooks.mts";
 import { acquireElementStyleLock } from "../../lib/elementStyleLock.ts";
+import * as channelPresentation from "../../app/dashboard/_components/dashboard-channel-presentation.ts";
 
 // Run real event closures with isolated hooks; never call live account services.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,7 +42,7 @@ function fixture() {
     if (name.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "channels-actor", activeAccountId: "channels-account", metaPilotEnabled: false }) };
     if (name.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (name.endsWith(".css")) return { __esModule: true, default: new Proxy({}, { get: (_, key) => String(key) }) };
-    if (name === "./dashboard-channel-presentation") return { getChannelTone: () => "connected", getChannelSceneLayout: () => ({ centerSize: 300, centerY: 220, satelliteSize: 120, slots: Array.from({ length: 13 }, () => ({ x: 20, y: 20, size: 100 })) }) };
+    if (name === "./dashboard-channel-presentation") return { ...channelPresentation, getChannelSceneLayout: () => ({ centerSize: 300, centerY: 220, satelliteSize: 120, slots: Array.from({ length: 13 }, () => ({ x: 20, y: 20, size: 100 })) }) };
     if (name === "./DashboardUnsavedNavigationProvider") return { useDashboardUnsavedNavigation: () => ({ requestNavigation: async (fn: () => void) => { guards++; if (allowed) fn(); return allowed; } }) };
     return { __esModule: true, default: "test-component" };
   };

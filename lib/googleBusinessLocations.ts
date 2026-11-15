@@ -7,6 +7,7 @@ export type GoogleBusinessLocation = {
   addressLabel?: string;
   status: "OPEN" | "CLOSED_TEMPORARILY" | "CLOSED_PERMANENTLY" | "UNKNOWN";
   mapsUri?: string;
+  hasVoiceOfMerchant?: boolean;
 };
 
 type Fetcher = typeof fetch;
@@ -61,6 +62,7 @@ function summary(row: RecordValue, accountName: string, legacy = false): GoogleB
     addressLabel: [...(Array.isArray(address.addressLines) ? address.addressLines.map(text) : []), text(address.postalCode), text(address.locality)].filter(Boolean).join(" · "),
     status: status === "OPEN" || status === "CLOSED_TEMPORARILY" || status === "CLOSED_PERMANENTLY" ? status : "UNKNOWN",
     mapsUri: text(metadata.mapsUri) || text(metadata.mapsUrl),
+    ...(typeof metadata.hasVoiceOfMerchant === "boolean" ? { hasVoiceOfMerchant: metadata.hasVoiceOfMerchant } : {}),
   };
 }
 

@@ -644,6 +644,8 @@
 .iconAction:disabled,.iconAction[aria-disabled="true"] { opacity: .4; cursor: default; transform: none; }
 .channelFeedback { box-sizing: border-box; display: flex; align-items: flex-start; gap: 10px; width: 100%; min-width: 0; margin: 20px 0 0; padding: 13px 16px; border: 1px solid #64d9c859; border-radius: 16px; background: linear-gradient(120deg,#0e3047f5,#152844f5); box-shadow: 0 8px 25px #020a202e; color: #d8f6ee; text-align: left; }
 .channelFeedbackError { border-color: #f7b16770; background: linear-gradient(120deg,#33283ff5,#24243ff5); color: #ffe7d3; }
+.channelFeedbackPending { border-color: #70b7ff80; background: linear-gradient(120deg,#123d67f5,#162c51f5); color: #d9edff; }
+.channelFeedbackWarning { border-color: #f7b16770; background: linear-gradient(120deg,#33283ff5,#24243ff5); color: #ffe7d3; }
 .channelFeedbackIcon { flex: 0 0 20px; width: 20px; height: 20px; margin-top: 1px; color: #7de3cc; }
 .channelFeedbackError .channelFeedbackIcon { color: #ffc67f; }
 .channelFeedback p { margin: 0; min-width: 0; font-size: 13px; font-weight: 550; line-height: 1.55; overflow-wrap: anywhere; white-space: pre-line; }
@@ -718,6 +720,7 @@
 .centralConnectionDot { position: absolute; top: 14.65%; left: 85.35%; transform: translate(-50%,-50%); z-index: 5; box-sizing: border-box; width: clamp(18px,6cqi,36px); height: clamp(18px,6cqi,36px); border: clamp(2px,.65cqi,4px) solid #adffde; border-radius: 50%; background: #2fdabd; box-shadow: 0 0 0 5px #27d1ae24,0 0 26px #2ae2bfa6; pointer-events: none; }
 .workspaceCard { overflow: visible; }
 .centralConnectionDot[data-status="available"],.centralConnectionDot[data-status="reconnect"] { border-color: #ffe0a9; background: #ffc863; box-shadow: 0 0 0 4px #ffc86324,0 0 18px #ffc86380; }
+.centralConnectionDot[data-status="pending"] { border-color: #c0e1ff; background: #5ba9ff; box-shadow: 0 0 0 4px #5ba9ff24,0 0 20px #5ba9ff9c; }
 .centralConnectionDot[data-status="coming"] { border-color: #bdc5da; background: #8b99b5; box-shadow: 0 0 0 4px #8b99b524; }
 .siteControls { display: grid; gap: clamp(8px,2.8cqi,12px); width: 100%; min-width: 0; }
 .siteUrlField { min-width: 0; }

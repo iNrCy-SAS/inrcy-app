@@ -12,6 +12,8 @@ import { log } from "@/lib/observability/logger";
 import { resolveInstagramAuthMode, type InstagramAuthMode } from "@/lib/instagramAuthMode";
 import { isMetaChannelPilotEnabledForAccount } from "@/lib/metaChannelRolloutServer";
 import { isGoogleStatsSiteBindingConnected } from "@/lib/googleStatsConnectionPolicy";
+import { readStoredGmbVerificationStatus } from "@/lib/googleBusinessVerificationStore";
+import type { GmbVerificationStatus } from "@/lib/googleBusinessVerification";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -55,6 +57,7 @@ export type ChannelStates = {
     expired: boolean;
     requiresUpdate: boolean;
     connection_status: ConnectionDisplayStatus;
+    verification_status?: GmbVerificationStatus;
     account_name: string | null;
     resource_id: string | null;
     resource_label: string | null;
@@ -561,6 +564,7 @@ export async function getChannelConnectionStates(
       expired: gmbExpired,
       requiresUpdate: gmbRequiresUpdate,
       connection_status: gmbConnectionStatus,
+      verification_status: gmbConfigured ? readStoredGmbVerificationStatus(gmbMeta, gmbResourceId, gmbAccountName) : "unknown",
       account_name: gmbAccountName,
       resource_id: gmbResourceId,
       resource_label: gmbResourceLabel,

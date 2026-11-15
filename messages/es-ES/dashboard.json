@@ -928,6 +928,16 @@
     }
   },
   "channelBubble": {
+    "googleVerificationRefresh": "Actualizar",
+    "googleVerificationPending": "Verificación de Google en curso",
+    "googleVerificationPendingMessage": "Consulta el estado en Google Business.",
+    "googleVerificationRequired": "Verificación de Google necesaria",
+    "googleVerificationRequiredMessage": "Tu cuenta de Google está conectada. Google requiere verificar esta ficha. Abre tu Perfil de Empresa en Google para completar los pasos solicitados.",
+    "googleBusinessRestricted": "Acción necesaria en Google",
+    "googleBusinessRestrictedMessage": "Tu cuenta de Google está conectada. Esta ficha tiene una restricción en Google. Abre tu Perfil de Empresa en Google para conocer la acción necesaria.",
+    "googleAccountAuthorizedChooseLocation": "Cuenta de Google autorizada: elige una ficha.",
+    "previousLocationUnavailable": "Ficha anterior no disponible",
+    "googleBusinessLocation": "Ficha de Google Business",
     "linkedinDisconnectHelpTitle": "Retirar el acceso de iNrCy en LinkedIn",
     "linkedinDisconnectHelpIntro": "Desconectar en iNrCy desconecta el canal. Para retirar también el permiso concedido a iNrCy en LinkedIn:",
     "linkedinDisconnectHelpStep1": "En LinkedIn, abre Yo y después Ajustes y privacidad.",

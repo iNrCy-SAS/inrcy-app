@@ -7,8 +7,8 @@ import styles from "../dashboard.module.css";
 import bubbleStyles from "./DashboardChannelBubble.module.css";
 import ChannelParametersDialog from "./ChannelParametersDialog";
 import { DashboardPremiumLockIcon } from "./DashboardPremiumLockIcon";
-import type { ModuleAction, ModuleStatus } from "../dashboard.types";
-import type { ChannelBubbleConnection } from "./channel-bubble.types";
+import type { ModuleAction } from "../dashboard.types";
+import type { ChannelBubbleConnection, ChannelBubbleStatus } from "./channel-bubble.types";
 import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
 import Image from "next/image";
 import ChannelPublicationTypes from "./ChannelPublicationTypes";
@@ -21,7 +21,7 @@ import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 export type DashboardConfigureDestination = { kind: "panel"; value: string } | { kind: "path"; value: string };
 export type DashboardFluxBubbleData = {
   key: string; name: string; description: string; accent: string; logoSrc: string; logoAlt: string;
-  bubbleStatus: ModuleStatus; bubbleStatusText: string;
+  bubbleStatus: ChannelBubbleStatus; bubbleStatusText: string;
   specialViewHref?: string; specialViewLabel?: string; canViewSpecial?: boolean; onSpecialView?: () => void;
   viewAction?: ModuleAction; createHref?: string | null; onCreate?: () => void; createLabel?: string; createDisabled?: boolean;
   onConfigure: () => void; configureDestination?: DashboardConfigureDestination;
@@ -29,6 +29,8 @@ export type DashboardFluxBubbleData = {
   emphasizeDisabledReason?: boolean; premiumLocked?: boolean; premiumLabel?: string;
   connection?: ChannelBubbleConnection;
 };
+
+const UNAVAILABLE_GMB_SELECTION = "__inrcy_unavailable_gmb_selection__";
 
 export function ChannelBubbleIcon({ kind }: { kind: "eye" | "plug" | "disconnect" | "settings" | "create" | "widget" | "info" | "reviews" | "businessProfile" }) {
   if (kind === "disconnect") return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" /></svg>;
@@ -76,6 +78,11 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
   const options = connection?.options ?? [];
   const value = connection?.value || "";
   const selectedMissing = Boolean(value && !options.some(option => option.value === value));
+  const selectionUnavailable = item.key === "gmb" && connection?.selectionUnavailable === true;
+  const selectionValue = selectionUnavailable ? UNAVAILABLE_GMB_SELECTION : value;
+  const missingSelectionLabel = selectionUnavailable
+    ? `${t("previousLocationUnavailable")} — ${connection?.resourceLabel || t("googleBusinessLocation")}`
+    : connection?.resourceLabel || chooseLabel;
   const hasResource = Boolean(connection?.accountConnected || (connection?.resourceLabel && value));
   const canConnect = Boolean(connection?.onConnect || connection?.connectOptions?.length);
   const connectMenus = [...new Set(connection?.connectOptions?.flatMap(option => option.menu ? [option.menu] : []) ?? [])];
@@ -120,9 +127,9 @@ export default function DashboardFluxBubble({ item, itemKey }: { item: Dashboard
               <button type="button" className={`${bubbleStyles.action} ${bubbleStyles.connectAction} ${item.bubbleStatus === "reconnect" ? bubbleStyles.actionMainReconnect : ""}`} aria-label={`${connectLabel} — ${item.name}`} disabled={Boolean(busy || disabled)} aria-busy={Boolean(busy)} onClick={() => connection?.connectOptions?.length ? setConnectOpen(true) : void run(connection?.onConnect)}><ChannelBubbleIcon kind="plug" /><span>{connectLabel}</span></button>
             </> : <div className={`${bubbleStyles.resourceLine} ${connection?.onCreateResource ? bubbleStyles.resourceLineWithCreate : ""}`}><div className={bubbleStyles.resourcePill}>
               {connection?.onSelect ? <>
-                <select id={`channel-resource-${item.key}`} aria-label={`${selectionCaption} — ${item.name}`} value={value} disabled={Boolean(busy || disabled)} aria-busy={Boolean(connection.loading)} onFocus={loadResourceChoices} onPointerDown={loadResourceChoices} onBlur={() => { loaded.current = false; }} onChange={event => { const next = event.target.value; if (next) void run(() => connection.onSelect?.(next)); }}>
+                <select id={`channel-resource-${item.key}`} aria-label={`${selectionCaption} — ${item.name}`} value={selectionValue} disabled={Boolean(busy || disabled)} aria-busy={Boolean(connection.loading)} onFocus={loadResourceChoices} onPointerDown={loadResourceChoices} onBlur={() => { loaded.current = false; }} onChange={event => { const next = event.target.value; if (next && !(selectionUnavailable && next === UNAVAILABLE_GMB_SELECTION)) void run(() => connection.onSelect?.(next)); }}>
                   <option value="" disabled>{loadingInResource ? t("loading") : chooseLabel}</option>
-                  {selectedMissing ? <option value={value}>{connection.resourceLabel || chooseLabel}</option> : null}
+                  {selectedMissing || selectionUnavailable ? <option value={selectionValue} disabled={selectionUnavailable}>{missingSelectionLabel}</option> : null}
                   {options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select><span className={bubbleStyles.resourceChevron} aria-hidden="true">⌄</span>
               </> : <span id={`channel-resource-${item.key}`} className={bubbleStyles.resourceValue} title={connection?.resourceLabel}>{hasResource ? connection?.resourceLabel || t("connectedAccount") : disabled ? item.bubbleStatusText : connection?.loading ? t("loading") : t("notConnected")}</span>}

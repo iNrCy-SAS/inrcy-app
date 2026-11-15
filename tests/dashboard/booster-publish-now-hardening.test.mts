@@ -164,7 +164,7 @@ test("synchronous and asynchronous summaries share the same retry policy", () =>
 test("Google Business publication reuses the resolved server identity", () => {
   assert.match(
     route,
-    /getGmbToken\(\{\s*supabase:\s*supabaseAdmin,\s*userId,\s*\}\)/,
+    /getGmbToken\(\{\s*supabase:\s*supabaseAdmin,\s*userId,\s*purpose: "publication",\s*accountName,\s*locationName,\s*\}\)/,
   );
   assert.doesNotMatch(route, /const tok = await getGmbToken\(\);/);
 });

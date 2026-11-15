@@ -59,7 +59,7 @@ test("the dashboard explains Google consent and offers product-specific retries"
     ["site_web", "ga4", "google-stats/start"],
     ["site_web", "gsc", "google-stats/start"],
   ]) {
-    const query = new URLSearchParams({ panel, linked: product, error: GOOGLE_OAUTH_PERMISSION_ERROR_CODE });
+    const query = new URLSearchParams({ panel, linked: product, ok: "0", error: GOOGLE_OAUTH_PERMISSION_ERROR_CODE });
     const runtime = channelRuntime("app/dashboard/_components/GoogleOAuthConsentBanner.tsx", {
       "next/navigation": { useSearchParams: () => query },
       "@/lib/googleOAuthConsent": { GOOGLE_OAUTH_PERMISSION_ERROR_CODE },
@@ -83,4 +83,25 @@ test("the dashboard explains Google consent and offers product-specific retries"
     query.delete("error");
     assert.equal(runtime.render(props), null, "Healthy connected bubbles do not repeat a consent notice");
   }
+});
+
+test("a Google consent error only belongs to its failed panel and product callback", () => {
+  const query = new URLSearchParams({ panel: "gmb", linked: "gmb", ok: "0", error: GOOGLE_OAUTH_PERMISSION_ERROR_CODE });
+  const runtime = channelRuntime("app/dashboard/_components/GoogleOAuthConsentBanner.tsx", {
+    "next/navigation": { useSearchParams: () => query },
+    "@/lib/googleOAuthConsent": { GOOGLE_OAUTH_PERMISSION_ERROR_CODE },
+  });
+  assert.equal(runtime.render({ panel: "gmb" }).props.role, "alert");
+
+  for (const [key, value] of [["ok", "1"], ["ok", ""], ["panel", "mails"], ["linked", "google"], ["linked", ""], ["error", "oauth_config_missing"]]) {
+    const previous = query.get(key)!;
+    query.set(key, value);
+    for (const errorsOnly of [true, false]) {
+      assert.equal(runtime.render({ panel: "gmb", errorsOnly }), null, `${key}=${value} cannot leave an unrelated or successful callback consent warning`);
+    }
+    query.set(key, previous);
+  }
+  assert.equal(runtime.render({ panel: "mails", errorsOnly: true }), null);
+  query.delete("error");
+  assert.equal(runtime.render({ panel: "gmb" }), null, "A healthy channel does not display a permanent permission warning");
 });

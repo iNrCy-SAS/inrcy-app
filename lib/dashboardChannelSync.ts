@@ -168,6 +168,7 @@ export function buildOfficialDashboardChannelState(payload: unknown): OfficialDa
     gmbAccountConnected: Boolean(gmb.accountConnected),
     gmbConfigured: Boolean(gmb.configured),
     gmbConnectionStatus: canonicalStatus(gmb),
+    gmbVerificationStatus: ["verified", "pending", "required", "restricted"].includes(String(gmb.verification_status)) ? gmb.verification_status : "unknown",
     gmbAccountEmail: String(gmb.email || ""),
     gmbLocationName: String(gmb.resource_id || ""),
     gmbLocationLabel: String(gmb.resource_label || ""),

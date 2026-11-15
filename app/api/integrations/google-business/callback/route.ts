@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { clearAllToolCaches } from "@/lib/statsCache";
 import { encryptToken as _encryptToken } from "@/lib/oauthCrypto";
-import { gmbListAccounts } from "@/lib/googleBusiness";
+import { listAllGoogleBusinessAccounts, listAllGoogleBusinessLocations } from "@/lib/googleBusinessLocations";
+import { clearGmbSelectionMeta, clearGmbSelectionSettings, resolveVerifiedGmbSelection, type VerifiedGmbSelection } from "@/lib/googleBusinessSelectionPolicy";
 import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 import { safeInternalPath, verifyOAuthState } from "@/lib/security";
 import { asRecord, asString } from "@/lib/tsSafe";
@@ -175,7 +176,7 @@ export async function GET(req: Request) {
     const [existingIntegrationRes, existingConfigRes] = await Promise.all([
       supabaseAdmin
         .from("integrations")
-        .select("id,refresh_token_enc,resource_id,resource_label,email_address,meta")
+        .select("id,access_token_enc,refresh_token_enc,resource_id,resource_label,email_address,meta")
         .eq("user_id", userId)
         .eq("provider", "google")
         .eq("source", "gmb")
@@ -211,9 +212,32 @@ export async function GET(req: Request) {
     const preservedAccountName = sameGoogleIdentity
       ? asString(existingMeta["account"]) || asString(existingSettings["accountName"])
       : null;
+    let verifiedSelection: VerifiedGmbSelection | null = null;
+    let verifiedAccountHint: string | null = null;
+    if (preservedLocationName && preservedAccountName) {
+      try {
+        // Validate with this authorization's NEW token, never a cached DB token.
+        // The paginated readers throw on an incomplete discovery. A matching
+        // title or the only remaining establishment cannot replace the saved ID.
+        const accounts = await listAllGoogleBusinessAccounts(tokenData.access_token);
+        if (accounts.some(account => account.name === preservedAccountName)) {
+          verifiedAccountHint = preservedAccountName;
+          const locations = await listAllGoogleBusinessLocations(tokenData.access_token, preservedAccountName);
+          verifiedSelection = resolveVerifiedGmbSelection(
+            { accountName: preservedAccountName, locationName: preservedLocationName },
+            { accounts, locations, complete: true },
+          );
+        }
+      } catch {
+        log.warn("google_business_selection_verification_unavailable", {
+          route: "google_business_callback", user_id: userId,
+        });
+      }
+    }
     const preserveSelection = Boolean(
-      preservedLocationName && preservedAccountName,
+      preservedLocationName && preservedAccountName && verifiedSelection,
     );
+    const selectionMeta = clearGmbSelectionMeta(existingMeta, verifiedSelection?.accountName || verifiedAccountHint);
 
     const refreshTokenToStore = tokenData.refresh_token
       ? _encryptToken(tokenData.refresh_token)
@@ -241,21 +265,32 @@ export async function GET(req: Request) {
       refresh_token_enc: refreshTokenToStore,
       expires_at: expiresAt,
       resource_id: preserveSelection ? preservedLocationName : null,
-      resource_label: preserveSelection ? preservedLocationTitle : null,
+      resource_label: preserveSelection ? verifiedSelection?.locationTitle || preservedLocationTitle : null,
+      page_url: verifiedSelection?.url || null,
       meta: withCurrentConnectionVersion("channel:gmb", {
-        ...existingMeta,
+        ...selectionMeta,
         picture: userInfo.picture ?? null,
-        account: preserveSelection ? preservedAccountName : null,
+        url: verifiedSelection?.url || null,
       }),
     };
 
     let savedIntegration: { id?: unknown; status?: unknown; resource_id?: unknown } | null = null;
     if (existingId) {
-      const { data, error: upErr } = await supabaseAdmin
+      const update = supabaseAdmin
         .from("integrations")
         .update(payload)
         .eq("id", existingId)
-        .eq("user_id", userId)
+        .eq("user_id", userId);
+      const targetGuard = existingRec.resource_id == null
+        ? update.is("resource_id", null)
+        : update.eq("resource_id", existingRec.resource_id);
+      const credentialGuard = existingRec.access_token_enc == null
+        ? targetGuard.is("access_token_enc", null)
+        : targetGuard.eq("access_token_enc", existingRec.access_token_enc);
+      const metadataGuard = existingRec.meta == null
+        ? credentialGuard.is("meta", null)
+        : credentialGuard.eq("meta", JSON.stringify(existingRec.meta));
+      const { data, error: upErr } = await metadataGuard
         .select("id,status,resource_id")
         .single();
       if (upErr) return fail("db_update_failed", "La mise à jour a échoué.");
@@ -286,85 +321,54 @@ export async function GET(req: Request) {
       const merged = {
         ...existingProSettings,
         gmb: {
-          ...existingSettings,
+          ...clearGmbSelectionSettings(existingSettings, verifiedSelection?.accountName || verifiedAccountHint),
           connected: true,
           configured: preserveSelection,
           accountEmail: userInfo.email,
           accountDisplayName: userInfo.name ?? null,
-          accountName: preserveSelection ? preservedAccountName : null,
+          accountName: verifiedSelection?.accountName || verifiedAccountHint,
           locationName: preserveSelection ? preservedLocationName : null,
-          locationTitle: preserveSelection ? preservedLocationTitle : null,
+          locationTitle: preserveSelection ? verifiedSelection?.locationTitle || preservedLocationTitle : null,
           resource_id: preserveSelection ? preservedLocationName : null,
-          resource_label: preserveSelection ? preservedLocationTitle : null,
+          resource_label: preserveSelection ? verifiedSelection?.locationTitle || preservedLocationTitle : null,
+          url: verifiedSelection?.url || null,
         },
       };
-      const { error: mirrorError } = await supabaseAdmin
-        .from("pro_tools_configs")
-        .upsert({ user_id: userId, settings: merged }, { onConflict: "user_id" });
-      if (mirrorError) {
+      // A selection/preferences write made during Google validation wins over
+      // this older mirror snapshot. The canonical integration remains authority.
+      const mirror = supabaseAdmin.from("pro_tools_configs");
+      let mirrorWrite;
+      if (existingConfigRes.data) {
+        const update = mirror.update({ settings: merged }).eq("user_id", userId);
+        mirrorWrite = existingConfigRes.data.settings == null
+          ? update.is("settings", null)
+          : update.eq("settings", JSON.stringify(existingConfigRes.data.settings));
+      } else {
+        mirrorWrite = mirror.insert({ user_id: userId, settings: merged });
+      }
+      const { data: savedMirror, error: mirrorError } = await mirrorWrite.select("user_id").maybeSingle();
+      if (mirrorError || !savedMirror) {
         log.warn("google_business_settings_mirror_sync_failed", {
           route: "google_business_callback",
           user_id: userId,
-          error: mirrorError.message,
+          error: mirrorError?.message || "concurrent_settings_write",
         });
       }
     }
 
 
-    // IMPORTANT:
-    // We DO NOT auto-select a location here.
-    // GMB stats are tied to a specific establishment (location). Until the user explicitly
-    // chooses a location in the UI, we must not fetch or display metrics.
-    // We can however store a default *account* hint to help list locations faster.
-    try {
-      // tokenData.access_token is the raw access token returned by Google.
-      // payload.access_token_enc is stored for DB usage but is typed as unknown (Record<string, unknown>).
-      // For calling Google APIs we must use a real string access token.
-      const accessToken = typeof tokenData.access_token === "string" ? tokenData.access_token.trim() : "";
-      if (accessToken) {
-        const accounts = await gmbListAccounts(accessToken);
-          const firstAcc = preserveSelection ? preservedAccountName : accounts?.[0]?.name; // e.g. "accounts/123"
-          if (firstAcc) {
-            const metaToMerge = asRecord(payload["meta"]);
-            const { error: accountHintError } = await supabaseAdmin
-              .from("integrations")
-              .update({
-                meta: withCurrentConnectionVersion("channel:gmb", { ...metaToMerge, account: firstAcc }),
-                resource_id: preserveSelection ? preservedLocationName : null,
-                resource_label: preserveSelection ? preservedLocationTitle : null,
-                status: preserveSelection ? "connected" : "account_connected",
-              })
-            .eq("user_id", userId)
-            .eq("provider", "google")
-            .eq("source", "gmb")
-            .eq("product", "gmb");
-            if (accountHintError) {
-              log.warn("google_business_account_hint_sync_failed", {
-                route: "google_business_callback",
-                user_id: userId,
-                error: accountHintError.message,
-              });
-            }
-        }
-      }
-    } catch (discoveryError) {
-      log.warn("google_business_account_discovery_failed", {
-        route: "google_business_callback",
-        user_id: userId,
-        error:
-          discoveryError instanceof Error
-            ? discoveryError.message
-            : String(discoveryError || ""),
-      });
-    }
+    // Discovery never writes a late account hint: it could overwrite an
+    // explicit selection made while this callback was completing.
 
     // Invalidate stats cache so iNrStats + Generator reflect the new connection immediately.
     await invalidateUserStatsCache(supabase, userId);
 
     // Build final redirect URL safely and append params without breaking existing querystring
     const finalUrl = new URL(returnToPath, siteUrl);
+    ["error", "message", "warning", "toast", "skipped"].forEach(key => finalUrl.searchParams.delete(key));
     finalUrl.searchParams.set("linked", "gmb");
     finalUrl.searchParams.set("ok", "1");
+    if (!preserveSelection) finalUrl.searchParams.set("warning", "gmb_selection_required");
 
     oauthCallbackEvent(req, { provider: "google_business", outcome: "success", user_id: userId, return_to: returnToPath });
     return clearStateCookie(NextResponse.redirect(finalUrl));

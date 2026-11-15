@@ -640,6 +640,42 @@ test("Booster: a transient connection check failure preserves the rendered accou
   assert.equal(detail.connectionStatus,"unavailable");
 });
 
+test("Booster: blocked Google publication explains verification without inventing an OAuth reconnect", () => {
+  const labels = JSON.parse(read("messages/fr-FR/dashboard.json")).channelBubble;
+  const detailFor = (verificationStatus: string, extra: Dict = {}, key = "gmb") => modalInitializer("getChannelDetailInfo")({
+    channelDetails: { [key]: { label: "Société connue", href: "https://example.invalid/", connectionStatus: "connected", verificationStatus, ...extra } },
+    EMPTY_CHANNEL_DETAILS: {}, simplifyChannelDetail: (_key: string, label: string) => label,
+    truncateText: (text: string) => text, i18nT: (name: string) => name, channelBubbleT: (name: string) => labels[name],
+  })(key);
+  for (const [status, label] of [["pending", "Validation Google en cours"], ["required", "Validation Google requise"], ["restricted", "Action requise chez Google"]]) {
+    const detail = detailFor(status);
+    assert.equal(detail.fullLabel, label);
+    assert.equal(detail.requiresReconnect, false);
+    assert.equal(detail.connectionStatus, "connected", "Google authentication stays separate from publication eligibility");
+    assert.equal(detail.href, null);
+  }
+  const unavailable = detailFor("unknown", { availabilityError: true });
+  assert.equal(unavailable.fullLabel, "channel_check_unavailable", "An unconfirmed verification cannot show only the business name");
+  for (const marker of [{ requiresReconnect: true }, { connectionStatus: "needs_update" }]) {
+    const reconnect = detailFor("pending", { ...marker, availabilityError: true });
+    assert.equal(reconnect.requiresReconnect, true);
+    assert.equal(reconnect.fullLabel, "reconnect_in_channels", "A real OAuth failure takes priority over verification");
+  }
+  assert.equal(detailFor("verified").fullLabel, "Société connue");
+  assert.equal(detailFor("pending", {}, "facebook").fullLabel, "Société connue", "Google verification cannot alter another channel");
+});
+
+test("Booster: a successful availability response preserves Google's explicit unknown-verification error", async () => {
+  const harness = boosterEffect({
+    fetch: async () => ({ ok: true, json: async () => ({ channels: { gmb: false }, channelDetails: { gmb: { label: "Société connue", connectionStatus: "connected", verificationStatus: "unknown", availabilityError: true } } }) }),
+  });
+  await tick();
+  assert.equal(harness.details().gmb.availabilityError, true);
+  assert.equal(harness.details().gmb.verificationStatus, "unknown");
+  assert.equal(harness.connected().gmb, false);
+  harness.cleanup();
+});
+
 test("Booster: the first render reads the cached display using the trusted account before the browser hint hydrates",()=>{
   const snapshot={channels:{gmb:true,pinterest:true},channelDetails:{gmb:{label:"Société connue"},pinterest:{label:"Profil connu"}}};
   const [bootstrap]=modalInitializer("initialConnectionBootstrap")({

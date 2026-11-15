@@ -2,6 +2,8 @@ import { isMetaChannelPilotEnabledForActorAndAccount } from "@/lib/metaChannelRo
 import { NextResponse } from "next/server";
 import { requireUser } from "@/lib/requireUser";
 import { getChannelConnectionStates } from "@/lib/channelConnectionState";
+import { getGmbToken } from "@/lib/googleBusiness";
+import type { GmbVerificationStatus } from "@/lib/googleBusinessVerification";
 import { getAppBubbleAccessMapForUser } from "@/lib/appBubbleAccessServer";
 import { isBubbleEnabled } from "@/lib/bubbleAccess";
 import { ensureSystemManagedInrSearch } from "@/lib/inrSearchProvisioning";
@@ -186,11 +188,29 @@ export async function GET() {
     const inrSearchUrl = provisioned.inrSearch.slug
       ? buildInrSearchPublicUrl(provisioned.inrSearch.slug)
       : null;
+    let gmbVerificationStatus: GmbVerificationStatus = states.gmb.verification_status || "unknown";
+    if (channelEnabled.gmb && isOfficialPublicationChannelConnected(states.gmb)
+      && states.gmb.account_name && states.gmb.resource_id && gmbVerificationStatus === "unknown") {
+      try {
+        // This purpose only performs the bounded verification read. Its success
+        // guarantees the exact selected fiche is verified; it never sends a post.
+        const token = await getGmbToken({ supabase, userId: activeUserId, purpose: "publication", accountName: states.gmb.account_name, locationName: states.gmb.resource_id });
+        if (token?.accessToken) gmbVerificationStatus = "verified";
+        else states.gmb = (await getChannelConnectionStates(supabase, activeUserId)).gmb;
+      } catch (error) {
+        const status = error && typeof error === "object" && "verificationStatus" in error ? error.verificationStatus : "unknown";
+        gmbVerificationStatus = status === "pending" || status === "required" || status === "restricted" ? status : "unknown";
+      }
+    }
+    const gmbStatusLabel = gmbVerificationStatus === "pending" ? "Validation Google en cours"
+      : gmbVerificationStatus === "required" ? "Validation Google requise"
+        : gmbVerificationStatus === "restricted" ? "Action requise chez Google"
+          : gmbVerificationStatus === "unknown" && isOfficialPublicationChannelConnected(states.gmb) ? "Validation Google momentanément indisponible" : null;
     return NextResponse.json({
       channels: {
         site_web: channelEnabled.site_web && isOfficialPublicationChannelConnected(states.site_web),
         inr_search: channelEnabled.inr_search && inrSearchPublished,
-        gmb: channelEnabled.gmb && isOfficialPublicationChannelConnected(states.gmb),
+        gmb: channelEnabled.gmb && isOfficialPublicationChannelConnected(states.gmb) && gmbVerificationStatus === "verified",
         facebook: channelEnabled.facebook && isOfficialPublicationChannelConnected(states.facebook),
         instagram: channelEnabled.instagram && isOfficialPublicationChannelConnected(states.instagram),
         threads: channelEnabled.threads && isOfficialPublicationChannelConnected(states.threads),
@@ -228,6 +248,9 @@ export async function GET() {
           href: states.gmb.url,
           connectionStatus: states.gmb.connection_status,
           requiresReconnect: publicationChannelRequiresReconnect(states.gmb),
+          verificationStatus: gmbVerificationStatus,
+          statusLabel: gmbStatusLabel,
+          availabilityError: channelEnabled.gmb && isOfficialPublicationChannelConnected(states.gmb) && gmbVerificationStatus === "unknown",
           disabled: !channelEnabled.gmb,
         },
         facebook: {

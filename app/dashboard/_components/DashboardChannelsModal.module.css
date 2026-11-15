@@ -60,6 +60,7 @@
 .selectedBubble > article { width: 100%; max-width: none; border: 2px solid #98dfffbd; background: radial-gradient(ellipse at 25% 10%,#9cddff80,transparent 28%),radial-gradient(ellipse at 87% 70%,#b226ed5e,transparent 50%),radial-gradient(ellipse at 16% 73%,#0876fc75,transparent 52%),linear-gradient(130deg,#0c3f89,#16184c 54%,#35226c); box-shadow: inset 3px 3px 8px #77eaff, inset -4px -3px 9px #a665ff, inset 0 0 44px #426dfca6,0 0 8px #1bceffb3,0 0 30px #2a73ff52,0 22px 55px #02082080; }
 .selectedBubble > article:hover { transform: none; }
 .selectedBubble[data-tone="warning"] > article { border-color: #f8ce84; box-shadow: inset 3px 3px 8px #ffd08799,inset -4px -3px 9px #a665ff99,inset 0 0 44px #92523480,0 0 24px #f5b55655,0 22px 55px #02082080; }
+.selectedBubble[data-tone="pending"] > article { border-color: #b9dcff; box-shadow: inset 3px 3px 8px #a8d5ff99,inset -4px -3px 9px #659fff80,inset 0 0 44px #2869a880,0 0 24px #5ba9ff66,0 22px 55px #02082080; }
 .selectedBubble[data-tone="disabled"] > article { border-color: #9ba7c0; box-shadow: inset 3px 3px 8px #bbc9e366,inset 0 0 35px #8292b744,0 22px 55px #02082080; }
 .selectedArea:focus-visible { outline: 2px solid #d6f4ff; outline-offset: 15px; border-radius: 50%; }
 .selectedBubble > article::before { inset: 3%; border: 1px solid #a8f0ff40; }
@@ -74,6 +75,8 @@
 .satellite:focus-visible { animation-play-state: paused; }
 .satelliteStatus { position: absolute; top: 13%; right: 10%; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #a3f9de; background: #2fdabd; box-shadow: 0 0 0 4px #27d1ae1a,0 0 15px #2ae2bfa6; }
 .available .satelliteStatus, .warning .satelliteStatus { background: #ffc863; border-color: #ffe0a9; box-shadow: 0 0 0 4px #ffc8631a,0 0 15px #ffc86380; }
+.pending .satelliteStatus { background: #5ba9ff; border-color: #c0e1ff; box-shadow: 0 0 0 4px #5ba9ff24,0 0 18px #5ba9ff9c; }
+.pending { border-color: #90c5fff0; }
 .warning { border-color: #f3c06fc9; box-shadow: inset 2px 2px 7px #ffc97599,inset -2px -3px 8px #ab50e766,0 0 22px #f7ae3426; }
 .disabled { border-color: #8493b680; filter: saturate(.45); }
 .disabled .satelliteStatus { background: #8794ad; border-color: #acb6cc; box-shadow: 0 0 0 4px #8794ad1a; }
@@ -194,6 +197,7 @@
  .mobileChannelButton:focus-visible{outline:2px solid #d4f3ff;outline-offset:3px}
  .miniStatus{position:absolute;right:3px;top:3px;width:5px;height:5px;background:#38ddbf;border-radius:50%;box-shadow:0 0 5px #38ddbf80}
  .mobileChannelButton[data-tone=available] .miniStatus,.mobileChannelButton[data-tone=warning] .miniStatus{background:#ffc863;box-shadow:none}.mobileChannelButton[data-tone=disabled] .miniStatus{background:#8794ad;box-shadow:none}
+ .mobileChannelButton[data-tone=pending] .miniStatus{background:#5ba9ff;box-shadow:0 0 7px #5ba9ffb3}
 }
 @media(max-width:720px){.surface{padding:16px}.scene{padding-top:18px}.selectedArea{width:min(304px,100%);--center-size:304px;row-gap:18px;margin-bottom:18px}.mobileChannelGrid{gap:8px 5px}}
 @media(max-width:360px){.surface{padding:12px}.scene{padding-bottom:4px}.selectedArea{width:min(272px,100%);--center-size:272px;margin-bottom:14px}.mobileChannelGrid{gap:7px 4px;padding-bottom:4px}.mobileChannelButton{height:40px;padding:4px}.mobileChannelButton img{width:28px;height:28px}}

@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
 import type { ModuleStatus } from "../dashboard.types";
 
+export type ChannelBubbleStatus = ModuleStatus | "pending";
+
 export type ChannelMailboxSlot = {
   number: number;
   address?: string;
@@ -15,7 +17,7 @@ export type ChannelMailboxSlot = {
 };
 
 export type ChannelBubbleConnection = {
-  status?: ModuleStatus;
+  status?: ChannelBubbleStatus;
   statusText?: string;
   publicView?: { href: string; disabled: boolean };
   afterContent?: ReactNode;
@@ -25,6 +27,7 @@ export type ChannelBubbleConnection = {
   resourceContent?: ReactNode;
   extraActions?: ReactNode;
   value?: string;
+  selectionUnavailable?: boolean;
   options?: { value: string; label: string }[];
   onSelect?: (value: string) => unknown | Promise<unknown>;
   onLoad?: () => unknown | Promise<unknown>;

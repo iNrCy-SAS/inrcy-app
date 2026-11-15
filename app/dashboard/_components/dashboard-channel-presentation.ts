@@ -1,16 +1,23 @@
 import type { DashboardFluxBubbleData } from "./DashboardFluxBubble";
 
-export type ChannelTone = "connected" | "available" | "warning" | "disabled";
+export type ChannelTone = "connected" | "pending" | "available" | "warning" | "disabled";
 
 /** Keep the existing channel warning rules even when its base connection is still valid. */
 export function getChannelTone(item: DashboardFluxBubbleData): ChannelTone {
   if (item.bubbleStatus === "reconnect") return "warning";
   if (item.bubbleStatus === "coming") return "disabled";
+  if (item.key === "gmb" && item.bubbleStatus === "pending") return "pending";
 
   const status = item.bubbleStatusText.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const warningWords = ["reconnect", "reconnexion", "reconectar", "ricolleg", "neu verbinden", "opnieuw", "religar", "actual", "update", "aktual", "bijwerk", "expire", "token", "attention"];
   if (warningWords.some((word) => status.includes(word))) return "warning";
   return item.bubbleStatus === "connected" ? "connected" : "available";
+}
+
+/** Google verification can be pending while its account and fiche stay linked. */
+export function isChannelConnectionEstablished(item: DashboardFluxBubbleData): boolean {
+  const tone = getChannelTone(item);
+  return tone === "connected" || tone === "pending";
 }
 
 /** One website presence channel, regardless of where the connected site is hosted. */

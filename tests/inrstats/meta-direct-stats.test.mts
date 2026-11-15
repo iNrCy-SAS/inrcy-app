@@ -263,6 +263,7 @@ test("Threads public URL accepts a profile on official domains and rejects posts
 test("Canonical state retains legacy Instagram and blocks expired direct tokens and USER pilot identities", async () => {
   const safe = load("lib/tsSafe.ts");
   const stateModule = (enabled: boolean) => load("lib/channelConnectionState.ts", {
+    "@/lib/googleBusinessVerificationStore": load("lib/googleBusinessVerificationStore.ts"),
     "@/lib/nativeChannelActivation": nativeActivation,
     "@/lib/inrSearchEligibility": { getNativeChannelPublicationEligibility: async (accountId: string) => {
       assert.equal(accountId, "account");

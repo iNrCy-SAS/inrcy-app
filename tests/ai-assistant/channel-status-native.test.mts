@@ -69,6 +69,7 @@ function harness(options: { pilot?: boolean; edition?: edition.DashboardEdition;
   const nativeActivation = load<typeof import("../../lib/nativeChannelActivation.ts")>("lib/nativeChannelActivation.ts");
   deps["@/lib/nativeChannelActivation"] = nativeActivation;
   deps["@/lib/connectionVersions"] = load("lib/connectionVersions.ts");
+  deps["@/lib/googleBusinessVerificationStore"] = load("lib/googleBusinessVerificationStore.ts");
   deps["./channelConnectionState"] = load("lib/channelConnectionState.ts");
   const runtime = load<ChannelRuntime>("lib/inrAssistantChannelTools.ts");
   const tool = runtime.createInrAssistantChannelTools({ supabase: db, accountId: "active", edition: options.edition ?? "founder" }).readChannelStatus;

@@ -18,6 +18,8 @@ import { buildSnapshotWindow } from "@/lib/stats/snapshotWindow";
 import { log } from "@/lib/observability/logger";
 import { markPublishChannelReconnectRequired } from "@/lib/channelPublishDiagnostics";
 import type { OAuthPublicationChannel } from "@/lib/channelReconnectPolicy";
+import { readGmbVerification } from "@/lib/googleBusinessVerification";
+import { persistGmbVerification, readStoredGmbVerificationStatus, shouldCheckGmbBusinessEligibility } from "@/lib/googleBusinessVerificationStore";
 import { getLinkedInAccessToken } from "@/lib/linkedinOAuth";
 import { refreshTiktokAccessToken } from "@/lib/tiktokOAuth";
 import { fetchTiktokAnalyticsSnapshot } from "@/lib/tiktokAnalytics";
@@ -1406,33 +1408,49 @@ export async function buildStatsOverview(args: {
           sourcesStatus.gmb.metrics = recovered.metrics;
 
         } catch (e) {
-          const reconnectPersisted = await markPublishChannelReconnectRequired({
-            channel: "gmb",
-            userId,
-            error: e,
-            stage: "stats_provider_metrics",
-            attemptStartedAt,
-          });
-          if (reconnectPersisted) {
-            sourcesStatus.gmb.connected = false;
+          const businessPermissionFailure = shouldCheckGmbBusinessEligibility(e);
+          const cachedVerificationStatus = businessPermissionFailure ? readStoredGmbVerificationStatus(tok.row.meta, loc, channelStates.gmb.account_name || "") : "unknown";
+          const verificationStatus = cachedVerificationStatus !== "unknown" ? cachedVerificationStatus : businessPermissionFailure ? await readGmbVerification(accessToken, loc) : "unknown";
+          if (verificationStatus === "pending" || verificationStatus === "required" || verificationStatus === "restricted") {
+            const verification = await persistGmbVerification({ db: supabaseAdmin, userId, row: tok.row, locationName: loc, accountName: channelStates.gmb.account_name || "", status: cachedVerificationStatus !== "unknown" ? "unknown" : verificationStatus });
+            const currentStatus = verification.persisted ? verification.status : "unknown";
+            sourcesStatus.gmb.metrics = {
+              error: currentStatus === "pending" ? "La fiche Google est en cours de validation. Suivez ou terminez les étapes demandées par Google pour accéder aux statistiques."
+                : currentStatus === "required" ? "La fiche Google doit être validée. Consultez les étapes demandées par Google."
+                  : currentStatus === "restricted" ? "Google demande une action sur la fiche avant de rendre les statistiques disponibles."
+                    : "Les statistiques Google Business sont momentanément indisponibles. Actualisez la fiche.",
+              location: loc, needs_reconnect: false, business_eligibility: currentStatus, verification_status: currentStatus,
+            };
+            log.info("gmb_stats_business_eligibility", { user_id: userId, verification_status: currentStatus, handled: true });
+          } else {
+            const reconnectPersisted = await markPublishChannelReconnectRequired({
+              channel: "gmb",
+              userId,
+              error: e,
+              stage: "stats_provider_metrics",
+              attemptStartedAt,
+            });
+            if (reconnectPersisted) {
+              sourcesStatus.gmb.connected = false;
+            }
+            log[reconnectPersisted ? "info" : "warn"]("gmb_stats_refresh_failed", {
+              user_id: userId,
+              stage: "provider_metrics",
+              connected: sourcesStatus.gmb.connected,
+              has_location: Boolean(loc),
+              has_account: Boolean(channelStates.gmb.account_name),
+              error_message: getErrorMessage(e).slice(0, 500),
+              handled: reconnectPersisted,
+            });
+            sourcesStatus.gmb.metrics = {
+              error: getSimpleFrenchErrorMessage(
+                e,
+                "Impossible de récupérer les statistiques Google Business pour le moment.",
+              ),
+              location: loc,
+              needs_reconnect: reconnectPersisted,
+            };
           }
-          log[reconnectPersisted ? "info" : "warn"]("gmb_stats_refresh_failed", {
-            user_id: userId,
-            stage: "provider_metrics",
-            connected: sourcesStatus.gmb.connected,
-            has_location: Boolean(loc),
-            has_account: Boolean(channelStates.gmb.account_name),
-            error_message: getErrorMessage(e).slice(0, 500),
-            handled: reconnectPersisted,
-          });
-          sourcesStatus.gmb.metrics = {
-            error: getSimpleFrenchErrorMessage(
-              e,
-              "Impossible de récupérer les statistiques Google Business pour le moment.",
-            ),
-            location: loc,
-            needs_reconnect: reconnectPersisted,
-          };
         }
       } else {
         if (!accessToken) {

@@ -81,6 +81,16 @@ test("Booster: warm restore preserves public account names and separates authent
   assert.doesNotMatch([...h.localStorage.values.values()].join(""), /not-public|also-private|access_token|refresh_token/);
 });
 
+test("Booster: a blocked Google snapshot retains its verification explanation without granting publication", () => {
+  const h = harness();
+  h.write("actor-one", "account-a", { ...channels, gmb: false }, { ...details, gmb: { ...details.gmb, connectionStatus: "connected", verificationStatus: "pending" }, facebook: { ...details.facebook, verificationStatus: "pending" } });
+  assert.equal(h.read()?.channels.gmb, false);
+  assert.equal(h.read()?.channelDetails.gmb.verificationStatus, "pending");
+  assert.equal(h.read()?.channelDetails.facebook.verificationStatus, undefined);
+  h.write("actor-one", "account-a", { ...channels, gmb: false }, { ...details, gmb: { ...details.gmb, verificationStatus: "untrusted-value" } });
+  assert.equal(h.read()?.channelDetails.gmb.verificationStatus, undefined);
+});
+
 test("Booster: account changes reject obsolete reads and writes; hydration never writes anonymously", () => {
   const h = harness();
   h.write();

@@ -6,7 +6,7 @@ import type { DashboardOverviewMetrics } from "./DashboardModulesCard";
 import type { DashboardFluxBubbleData } from "./DashboardFluxBubble";
 import DashboardModulesCard from "./DashboardModulesCard";
 import DashboardStandardModulesCard from "./DashboardStandardModulesCard";
-import { getChannelTone } from "./dashboard-channel-presentation";
+import { isChannelConnectionEstablished } from "./dashboard-channel-presentation";
 import { DASHBOARD_TOOLS_ANCHOR_ID } from "../dashboard.scroll";
 import styles from "./DashboardExperience.module.css";
 
@@ -34,7 +34,7 @@ type Props = {
 };
 
 export default function DashboardChannelsSection({ cockpit, generator, overview, fluxBubbleItems, goToModule, openPanel, onOpenChannelsHelp, onOpenStats, onOpenGeneratorSettings, onOpenBoosterPublish, onOpenBoosterStats, standardMode = false, inrAgentEnabled = true, channelsOpen, onCloseChannels, initialSelectedKey, renderSelected }: Props) {
-  const connected = fluxBubbleItems.filter((item) => getChannelTone(item) === "connected").length;
+  const connected = fluxBubbleItems.filter(isChannelConnectionEstablished).length;
   const total = fluxBubbleItems.length;
 
   return (

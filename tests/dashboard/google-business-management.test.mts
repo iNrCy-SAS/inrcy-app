@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import ts from "typescript";
 import { discoverGoogleBusinessLocations } from "../../lib/googleBusinessLocations.ts";
+import * as selectionPolicy from "../../lib/googleBusinessSelectionPolicy.ts";
 import { buildGoogleBusinessProfilePatch, editableGoogleBusinessProfile, stableGoogleBusinessValue } from "../../lib/googleBusinessProfile.ts";
 
 test("discovery includes inactive and active locations across every account and pagination page", async () => {
@@ -100,21 +101,23 @@ test("statistics never recover by selecting an unrelated establishment",async()=
   const code=ts.transpileModule(readFileSync("lib/googleBusiness.ts","utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
   const exports:{gmbFetchDailyMetricsNormalizedWithRecovery?:(args:unknown)=>Promise<unknown>}={};let calls=0;
   const ctaActions = await import("../../lib/boosterCtaActions.ts");
-  new Function("require","exports","fetch",code)((name:string)=>{if(name==="@/lib/boosterCtaActions")return ctaActions;if(name==="@/lib/googleStats"||name==="@/lib/googleBusinessPostTransport"||name==="@/lib/googleBusinessLocations")return{};throw Error(name);},exports,async()=>{calls++;return Response.json({error:{message:"NOT_FOUND"}},{status:404});});
+  new Function("require","exports","fetch",code)((name:string)=>{if(name==="@/lib/boosterCtaActions")return ctaActions;if(name==="@/lib/googleBusinessPublicationGate")return{assertGmbPublicationVerification:()=>assert.fail("Statistics must not invoke the publication verification gate")};if(name==="@/lib/googleStats"||name==="@/lib/googleBusinessPostTransport"||name==="@/lib/googleBusinessLocations")return{};throw Error(name);},exports,async()=>{calls++;return Response.json({error:{message:"NOT_FOUND"}},{status:404});});
   await assert.rejects(exports.gmbFetchDailyMetricsNormalizedWithRecovery!({accessToken:"fixture",locationName:"locations/chosen",preferredAccountName:"accounts/parent",start:new Date("2026-10-01"),end:new Date("2026-10-28")}));
   assert.equal(calls,1,"A missing selected location must not trigger discovery or choose another business");
 });
 
 test("an explicit inactive establishment choice persists its own parent and Google's real title", async () => {
   const writes: Array<{ table: string; value: Record<string, unknown>; filters: Record<string, unknown> }> = [];
+  const snapshot = { id: "integration", user_id: "active-company", provider: "google", source: "gmb", product: "gmb", status: "account_connected", email_address: "linked@example.test", access_token_enc: "encrypted:fixture-access", refresh_token_enc: "encrypted:fixture-refresh", expires_at: "2099-01-01T00:00:00Z", resource_id: null, resource_label: null, meta: { preserved: true } };
   const admin = { from(table: string) {
     const filters: Record<string, unknown> = {};
     let value: Record<string, unknown> = {};
     const query = {
       select() { return query; },
       eq(key: string, input: unknown) { filters[key] = input; return query; },
+      is(key: string, input: unknown) { filters[key] = input; return query; },
       update(input: Record<string, unknown>) { value = input; writes.push({ table, value, filters }); return query; },
-      async maybeSingle() { return { data: table === "integrations" ? { id: "integration", meta: { preserved: true } } : { settings: { unrelated: true } }, error: null }; },
+      async maybeSingle() { return { data: table === "integrations" ? Object.keys(value).length ? { id: "integration", ...value } : structuredClone(snapshot) : { settings: { unrelated: true } }, error: null }; },
       async single() { return { data: { id: "integration", ...value }, error: null }; },
       async upsert(input: Record<string, unknown>) { writes.push({ table, value: input, filters }); return { error: null }; },
     };
@@ -128,8 +131,9 @@ test("an explicit inactive establishment choice persists its own parent and Goog
     "@/lib/apiUserFacingErrors": { jsonUserFacingError: () => Response.json({ error: "unexpected" }, { status: 500 }) },
     "@/lib/statsCache": { clearAllToolCaches: async () => undefined },
     "@/lib/connectionVersions": { withCurrentConnectionVersion: (_: unknown, value: unknown) => value },
+    "@/lib/googleBusinessSelectionPolicy": selectionPolicy,
     "@/lib/multicompte/server": { resolveActiveInrcyAccountId: async () => "active-company" },
-    "@/lib/googleBusiness": { getGmbToken: async (options: { userId: string }) => { assert.equal(options.userId, "active-company"); return { accessToken: "fixture", row: { email_address: "linked@example.test" } }; } },
+    "@/lib/googleBusiness": { getGmbToken: async (options: { userId: string }) => { assert.equal(options.userId, "active-company"); return { accessToken: "fixture", row: structuredClone(snapshot) }; } },
     "@/lib/googleBusinessLocations": {
       listAllGoogleBusinessAccounts: async () => [{ name: "accounts/first" }, { name: "accounts/second" }],
       listAllGoogleBusinessLocations: async (_: string, account: string) => { assert.equal(account, "accounts/second"); return [{ name: "locations/inactive", title: "Real inactive title", status: "CLOSED_PERMANENTLY", mapsUri: "https://maps.google.com/?cid=fixture" }]; },
@@ -142,8 +146,9 @@ test("an explicit inactive establishment choice persists its own parent and Goog
   assert.equal((await exports.POST!(request("accounts/second"))).status, 200);
   assert.equal(writes[0].value.resource_id, "locations/inactive");
   assert.equal(writes[0].value.resource_label, "Real inactive title");
-  assert.deepEqual(writes[0].filters, { id: "integration", user_id: "active-company", email_address: "linked@example.test" });
-  assert.deepEqual(writes[0].value.meta, { preserved: true, account: "accounts/second" });
+  assert.deepEqual(writes[0].filters, { ...snapshot, meta: JSON.stringify(snapshot.meta) });
+  assert.deepEqual(writes[0].value.meta, { preserved: true, account: "accounts/second", url: "https://maps.google.com/?cid=fixture" });
+  assert.equal(writes[0].value.page_url, "https://maps.google.com/?cid=fixture");
   writes.length = 0;
   assert.equal((await exports.POST!(request("accounts/foreign"))).status, 403);
   assert.equal((await exports.POST!(request("accounts/second", "locations/foreign"))).status, 409);

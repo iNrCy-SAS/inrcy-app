@@ -83,6 +83,31 @@ new Function("require", "module", "exports", componentCode)((name: string) => {
 const ChannelSelector = componentModule.exports.default;
 assert.ok(ChannelSelector);
 
+test("disabled Google publication cards expose their short verification reason on desktop and mobile", () => {
+  const googleDependencies = {
+    ...dependencies,
+    "../publishModal.shared": { BOOSTER_CHANNEL_ORDER: ["gmb"], getLocalizedChannelLabel: () => "Google Business" },
+  };
+  const googleModule = { exports: {} as { default?: ComponentType<Record<string, unknown>> } };
+  new Function("require", "module", "exports", componentCode)((name: string) => {
+    assert.ok(Object.hasOwn(googleDependencies, name), `Unexpected component dependency: ${name}`);
+    return googleDependencies[name as keyof typeof googleDependencies];
+  }, googleModule, googleModule.exports);
+  assert.ok(googleModule.exports.default);
+  for (const isMobile of [false, true]) {
+    const html = renderToStaticMarkup(createElement(googleModule.exports.default, {
+      styles: {}, isMobile, connected: { gmb: false }, channels: { gmb: false }, channelInfoOpen: null,
+      setChannelInfoOpen() {}, toggle() { assert.fail("A disabled Google channel cannot publish"); }, setAllChannelsSelected() {},
+      getChannelDetailInfo: () => ({ fullLabel: "Validation Google en cours", desktopLabel: "Validation Google en cours", mobileLabel: "Validation Google en cours", href: null, requiresReconnect: false, connectionStatus: "connected" }),
+    }));
+    assert.match(html, /role="button"[^>]*aria-disabled="true"/);
+    assert.match(html, /title="Google Business — Validation Google en cours"/);
+    assert.match(html, /aria-label="Google Business — Validation Google en cours"/);
+    assert.doesNotMatch(html, /channel_disconnected_aria|channel_reconnect_aria|channel_reconnect_title/);
+    assert.doesNotMatch(html, /<a\b/);
+  }
+});
+
 test("both card layouts preserve real account subtitles and logos while checking connections", () => {
   for (const isMobile of [false, true]) {
     for (const connectionsPending of [false, true]) {

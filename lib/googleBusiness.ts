@@ -2,6 +2,7 @@ import { getBoosterLinkCtaChoice, type BoosterLinkCtaAction } from "@/lib/booste
 import { listAllGoogleBusinessAccounts, listAllGoogleBusinessLocations } from "@/lib/googleBusinessLocations";
 import { getGoogleTokenForAnyGoogle } from "@/lib/googleStats";
 import { postGoogleBusinessLocalPost } from "@/lib/googleBusinessPostTransport";
+import { assertGmbPublicationVerification } from "@/lib/googleBusinessPublicationGate";
 
 type GMBLocation = { name: string; title?: string; storefrontAddress?: any };
 
@@ -29,12 +30,27 @@ export const gmbListLocationsWithFallback = gmbListLocations;
  * Returns an access token + the stored integration row for the current user,
  * refreshing the access token if needed.
  */
-export async function getGmbToken(ctx?: { supabase?: any; userId?: string }) {
+type GmbTokenContext = { supabase?: any; userId?: string } & (
+  | { purpose?: undefined }
+  | { purpose: "publication"; accountName: string; locationName: string }
+);
+
+export async function getGmbToken(ctx?: GmbTokenContext) {
   // Publication routes already resolved the active iNrCy account. Reuse that
   // identity instead of relying on a second cookie-based auth lookup, which
   // is unavailable in long-running/cron-style server actions.
   const tok = await getGoogleTokenForAnyGoogle("gmb", "gmb", ctx);
   if (!tok?.accessToken) return null;
+  if (ctx?.purpose === "publication") {
+    await assertGmbPublicationVerification({
+      accessToken: tok.accessToken,
+      row: tok.row,
+      userId: ctx.userId || tok.row.user_id,
+      accountName: ctx.accountName,
+      locationName: ctx.locationName,
+      db: ctx.supabase,
+    });
+  }
   return tok;
 }
 

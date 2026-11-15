@@ -63,6 +63,28 @@ test("notification guides explain current pack targeting for historical alerts w
   assert.match(basic.content, /acceptation SMTP ne prouve pas la livraison/);
 });
 
+test("Google Business guidance separates authorization, explicit selection and Google validation", () => {
+  const guide = runtime.INR_ASSISTANT_APP_GUIDES.find(({ id }) => id === "channel-google-business")!;
+  assert.match(guide.content, /choisissez explicitement la bonne fiche/);
+  assert.match(guide.content, /aucune autre fiche n’est choisie automatiquement/);
+  assert.doesNotMatch(guide.content, /Certaines découvertes sélectionnent automatiquement/);
+  assert.match(guide.content, /Ancienne fiche indisponible.*désactivée/);
+  assert.match(guide.content, /Validation Google en cours.*bleu.*suivre ou terminer/);
+  assert.match(guide.content, /sans promettre une validation automatique/);
+  assert.match(guide.content, /toutes les 5 heures.*application reste ouverte.*Actualiser force un contrôle immédiat/);
+  assert.match(guide.content, /état de validation est inconnu.*ni en cours ni validé/);
+  assert.match(guide.content, /ne signifient pas que le compte OAuth doit être reconnecté/);
+  assert.match(guide.content, /iNrCy réserve la publication Google à une fiche dont la validation est confirmée/);
+  assert.match(guide.content, /validation inconnue laisse l’envoi momentanément indisponible.*sans prouver un accès OAuth cassé/);
+  assert.match(guide.content, /Google peut accepter des posts en attente.*ce parcours iNrCy garde l’envoi indisponible/);
+  for (const source of ["lib/googleBusinessSelectionPolicy.ts", "lib/googleBusinessVerification.ts", "lib/googleBusinessVerificationStore.ts"]) assert.ok(guide.sourceFiles.includes(source), source);
+  const channels = runtime.INR_ASSISTANT_APP_GUIDES.find(({ id }) => id === "channels-overview")!;
+  assert.match(channels.content, /Le bleu reste compté dans Connectés/);
+  const booster = runtime.INR_ASSISTANT_APP_GUIDES.find(({ id }) => id === "booster")!;
+  assert.match(booster.content, /Google Business doit être validé ; reconnecter seulement si l’accès le demande/);
+  assert.doesNotMatch(booster.content, /Reconnecter un canal indisponible depuis le cockpit/);
+});
+
 test("Google photo questions explain the first-photo API rule while keeping the other selections", () => {
   const knowledge = runtime.getInrAssistantAppKnowledge("Google Business : quelle photo publier avec un carrousel de cinq photos ?", 1200);
   assert.match(knowledge, /uniquement la première photo/);

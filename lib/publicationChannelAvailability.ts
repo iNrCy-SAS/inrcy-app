@@ -3,6 +3,7 @@ export type PublicationChannelAvailabilityState = {
   expired?: boolean;
   requiresUpdate?: boolean;
   connection_status?: string | null;
+  verification_status?: string | null;
 };
 
 /**
@@ -13,7 +14,8 @@ export type PublicationChannelAvailabilityState = {
 export function isOfficialPublicationChannelConnected(
   state: PublicationChannelAvailabilityState | null | undefined,
 ) {
-  return state?.connected === true && state.connection_status === "connected";
+  return state?.connected === true && state.connection_status === "connected"
+    && !["pending", "required", "restricted"].includes(state.verification_status || "");
 }
 
 /**

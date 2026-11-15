@@ -7,7 +7,7 @@ import Image from "next/image";
 import DashboardAssistantTrigger from "./DashboardAssistantTrigger";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import DashboardFluxBubble, { type DashboardFluxBubbleData } from "./DashboardFluxBubble";
-import { getChannelSceneLayout, getChannelTone } from "./dashboard-channel-presentation";
+import { getChannelSceneLayout, getChannelTone, isChannelConnectionEstablished } from "./dashboard-channel-presentation";
 import styles from "./DashboardChannelsModal.module.css";
 import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvider";
 import GoogleOAuthConsentBanner from "./GoogleOAuthConsentBanner";
@@ -129,12 +129,12 @@ export default function DashboardChannelsModal({ items, onClose, onOpenHelp, sum
     return priority(a.key) - priority(b.key);
   }).filter((item) => {
     const tone = getChannelTone(item);
-    return filter === "all" || (filter === "connected" ? tone === "connected" : tone === "available" || tone === "warning");
+    return filter === "all" || (filter === "connected" ? isChannelConnectionEstablished(item) : tone === "available" || tone === "warning");
   }), [filter, items]);
   const selected = filteredItems.find((item) => item.key === selectedKey) ?? filteredItems[0];
   useInrAssistantScreen({ action: "channels", channel: selected?.key });
   const satellites = filteredItems.filter((item) => item.key !== selected?.key);
-  const connectedCount = summary?.connected ?? items.filter((item) => getChannelTone(item) === "connected").length;
+  const connectedCount = summary?.connected ?? items.filter(isChannelConnectionEstablished).length;
   const totalCount = summary?.total ?? items.length;
   const selectAdjacentChannel = (direction: -1 | 1) => {
     if (!selected || filteredItems.length < 2) return;

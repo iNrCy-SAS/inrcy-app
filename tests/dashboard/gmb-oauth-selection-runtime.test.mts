@@ -58,6 +58,8 @@ function runtime(options: {
   const requests: Array<{ url: string; init?: RequestInit }> = [];
   const patches: Model[] = [];
   let refreshes = 0;
+  let nextTimer = 0;
+  const timers = new Map<number, { callback: () => void; delay: number }>();
   const require = (name: string) => {
     if (name === "react") return hooks;
     if (name.endsWith("browserAccountCache")) return { getActiveBrowserUserId: () => accountScope };
@@ -71,7 +73,7 @@ function runtime(options: {
     requests.push({ url, init });
     return options.fetch ? options.fetch(url, init) : response(url === listUrl ? oneLocation : url === selectUrl ? saved : { ok: true });
   };
-  new Function("module", "exports", "require", "fetch", "window", code)(fixtureModule, fixtureModule.exports, require, fetch, { location: { href: "" }, setTimeout() {} });
+  new Function("module", "exports", "require", "fetch", "window", code)(fixtureModule, fixtureModule.exports, require, fetch, { location: { href: "" }, setTimeout() {}, setInterval(callback: () => void, delay: number) { const id = ++nextTimer; timers.set(id, { callback, delay }); return id; }, clearInterval(id: number) { timers.delete(id); } });
   const props = {
     initialState: options.initial || {}, panel: options.panel ?? "gmb", searchParams: new URLSearchParams(options.params ?? "linked=gmb&ok=1"),
     patchChannelConnectionLocally: (_key: string, patch: Model) => patches.push(patch),
@@ -83,6 +85,8 @@ function runtime(options: {
     flushEffects: () => { effects.splice(0).forEach(effect => effect()); },
     setScope: (scope: string | null) => { accountScope = scope; },
     requests, patches, props, get refreshes() { return refreshes; },
+    timers,
+    tick: () => { for (const timer of [...timers.values()]) timer.callback(); },
   };
 }
 
@@ -265,4 +269,117 @@ test("A choice uses its own Google account parent, not the first account hint", 
   h.render(); h.flushEffects(); await settle();
   assert.equal(await h.render().saveGmbLocation("locations/2"), true);
   assert.equal(JSON.parse(String(h.requests.at(-1)?.init?.body)).accountName, "accounts/second");
+});
+
+test("Confirmed stale selection asks for a new choice while keeping Google authorized", async () => {
+  const h = runtime({ params: "", initial: { gmbAccountConnected: true, gmbConfigured: true, gmbConnected: true, gmbLocationName: "locations/old" }, fetch: async () => response({ ...oneLocation, complete: true, selectionValidation: { status: "invalid", cleared: true, locationName: "locations/old" } }) });
+  await h.render().loadGmbAccountsAndLocations();
+  const model = h.render();
+  assert.equal(model.gmbAccountConnected, true);
+  assert.equal(model.gmbConfigured, false);
+  assert.equal(model.gmbConnected, false);
+  assert.equal(model.gmbLocationUnavailable, true);
+  assert.equal(model.gmbLocationName, "locations/old", "The old option remains explicitly identified, never silently replaced");
+  assert.equal(h.requests.filter(request => request.url === selectUrl).length, 0);
+});
+
+test("Incomplete listing and failed CAS do not turn a selected fiche off", async () => {
+  for (const payload of [{ complete: false, selectionValidation: { status: "invalid", cleared: true, locationName: "locations/old" } }, { complete: true, selectionValidation: { status: "unknown", cleared: false, locationName: "locations/old" } }]) {
+    const h = runtime({ params: "", initial: { gmbAccountConnected: true, gmbConfigured: true, gmbConnected: true, gmbLocationName: "locations/old" }, fetch: async () => response({ ...oneLocation, ...payload }) });
+    await h.render().loadGmbAccountsAndLocations();
+    assert.equal(h.render().gmbConfigured, true);
+    assert.equal(h.render().gmbLocationUnavailable, false);
+    assert.equal(h.patches.length, 0);
+  }
+});
+
+test("A late invalidation response cannot erase a newer explicit selection or leave loading stuck", async () => {
+  const list = deferred<Reply>();
+  const h = runtime({ params: "", initial: { gmbAccountConnected: true, gmbConfigured: true, gmbConnected: true, gmbLocationName: "locations/old" }, fetch: async url => url === listUrl ? list.promise : response(saved) });
+  const pending = h.render().loadGmbAccountsAndLocations();
+  h.render().setGmbLocations([{ name: "locations/new", title: "Explicit", accountName: "accounts/1" }]);
+  assert.equal(await h.render().saveGmbLocation("locations/new"), true);
+  list.resolve(response({ ...oneLocation, complete: true, selectionValidation: { status: "invalid", cleared: true, locationName: "locations/old" } }));
+  await pending;
+  assert.equal(h.render().gmbLocationName, "locations/new");
+  assert.equal(h.render().gmbConfigured, true);
+  assert.equal(h.render().gmbLocationUnavailable, false);
+  assert.equal(h.render().gmbLoadingList, false);
+});
+
+test("Canonical hydration of a newer target also defeats a late invalidation response", async () => {
+  const list = deferred<Reply>();
+  const h = runtime({ params: "", initial: { gmbAccountConnected: true, gmbConfigured: true, gmbConnected: true, gmbLocationName: "locations/old" }, fetch: async () => list.promise });
+  const pending = h.render().loadGmbAccountsAndLocations();
+  h.render().setGmbLocationName("locations/new");
+  list.resolve(response({ ...oneLocation, complete: true, selectionValidation: { status: "invalid", cleared: true, locationName: "locations/old" } }));
+  await pending;
+  assert.equal(h.render().gmbConfigured, true);
+  assert.equal(h.patches.length, 0);
+});
+
+test("Hydrating the same resource from a newer OAuth snapshot defeats old invalidation too", async () => {
+  const list = deferred<Reply>();
+  const h = runtime({ params: "", initial: { gmbAccountConnected: true, gmbConfigured: true, gmbConnected: true, gmbLocationName: "locations/old" }, fetch: async () => list.promise });
+  const pending = h.render().loadGmbAccountsAndLocations();
+  h.render().setGmbLocationName("locations/old");
+  list.resolve(response({ ...oneLocation, complete: true, selectionValidation: { status: "invalid", cleared: true, locationName: "locations/old" } }));
+  await pending;
+  assert.equal(h.render().gmbConfigured, true);
+  assert.equal(h.render().gmbLocationUnavailable, false);
+  assert.equal(h.patches.length, 0);
+});
+
+test("Unavailable flags and provider verification cannot leak to another iNrCy account", async () => {
+  let fail = false;
+  const h = runtime({ params: "", initial: { gmbAccountConnected: true, gmbConfigured: true, gmbConnected: true, gmbLocationName: "locations/old" }, fetch: async () => fail ? response({}, false) : response({ ...oneLocation, complete: true, selectionValidation: { status: "invalid", cleared: true, locationName: "locations/old" } }) });
+  await h.render().loadGmbAccountsAndLocations();
+  assert.equal(h.render().gmbLocationUnavailable, true);
+  assert.equal(h.render().gmbLocationsComplete, true);
+  h.render().setGmbVerificationStatus("pending");
+  h.setScope("account-2");
+  assert.equal(h.render().gmbLocationUnavailable, false);
+  assert.equal(h.render().gmbLocationsComplete, false);
+  assert.equal(h.render().gmbVerificationStatus, "unknown");
+  h.render().setGmbLocationName("locations/valid-second");
+  h.render().setGmbConfigured(true);
+  fail = true;
+  await h.render().loadGmbAccountsAndLocations();
+  assert.equal(h.render().gmbLocationUnavailable, false);
+  assert.equal(h.render().gmbConfigured, true);
+});
+
+test("Provider-confirmed pending verification keeps Google linked without starting OAuth", async () => {
+  const h = runtime({ params: "", initial: { gmbAccountConnected: true, gmbConfigured: true, gmbConnected: true, gmbLocationName: "locations/1" }, fetch: async () => response({ ...oneLocation, complete: true, selectionValidation: { status: "valid", cleared: false, locationName: "locations/1" }, verification: { status: "pending", locationName: "locations/1", clearedStatsReconnect: false } }) });
+  await h.render().loadGmbAccountsAndLocations();
+  assert.equal(h.render().gmbVerificationStatus, "pending");
+  assert.equal(h.render().gmbConnected, true);
+  assert.equal(h.render().gmbConfigured, true);
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].url, listUrl);
+});
+
+test("Pending verification checks every five hours and stops automatically after Google validates", async () => {
+  let status = "pending";
+  const h = runtime({ params: "", initial: { gmbAccountConnected: true, gmbConfigured: true, gmbConnected: true, gmbConnectionStatus: "connected", gmbLocationName: "locations/1", gmbVerificationStatus: "pending" }, fetch: async () => response({ ...oneLocation, complete: true, selectionValidation: { status: "valid", locationName: "locations/1" }, verification: { status, locationName: "locations/1" } }) });
+  h.render(); h.flushEffects(); await settle();
+  assert.equal(h.requests.length, 1);
+  assert.equal([...h.timers.values()][0]?.delay, 5 * 60 * 60 * 1000);
+  status = "verified";
+  h.tick(); await settle();
+  assert.equal(h.requests.at(-1)?.url, `${listUrl}?refreshVerification=1`);
+  assert.equal(h.render().gmbVerificationStatus, "verified");
+  h.flushEffects();
+  assert.equal(h.timers.size, 0);
+  assert.equal(h.render().gmbConnected, true);
+  const count = h.requests.length;
+  await h.render().refreshGmbVerification();
+  assert.equal(h.requests.length, count, "A validated fiche exposes no manual refresh operation");
+});
+
+test("A temporary unknown verification cannot turn pending green or stop its next check", async () => {
+  const h = runtime({ params: "", initial: { gmbAccountConnected: true, gmbConfigured: true, gmbConnected: true, gmbConnectionStatus: "connected", gmbLocationName: "locations/1", gmbVerificationStatus: "pending" }, fetch: async () => response({ ...oneLocation, complete: true, selectionValidation: { status: "valid", locationName: "locations/1" }, verification: { status: "unknown", locationName: "locations/1" } }) });
+  h.render(); h.flushEffects(); await settle();
+  assert.equal(h.render().gmbVerificationStatus, "pending");
+  assert.equal(h.timers.size, 1);
 });

@@ -928,6 +928,16 @@
     }
   },
   "channelBubble": {
+    "googleVerificationRefresh": "Aktualisieren",
+    "googleVerificationPending": "Google-Bestätigung läuft",
+    "googleVerificationPendingMessage": "Den Status finden Sie bei Google Business.",
+    "googleVerificationRequired": "Google-Bestätigung erforderlich",
+    "googleVerificationRequiredMessage": "Ihr Google-Konto ist verbunden. Google verlangt eine Bestätigung dieses Unternehmensprofils. Öffnen Sie Ihr Google-Unternehmensprofil und führen Sie die angeforderten Schritte aus.",
+    "googleBusinessRestricted": "Aktion bei Google erforderlich",
+    "googleBusinessRestrictedMessage": "Ihr Google-Konto ist verbunden. Dieses Unternehmensprofil ist bei Google eingeschränkt. Öffnen Sie Ihr Google-Unternehmensprofil, um die erforderliche Aktion zu sehen.",
+    "googleAccountAuthorizedChooseLocation": "Google-Konto autorisiert — wählen Sie ein Unternehmensprofil.",
+    "previousLocationUnavailable": "Bisheriger Standort nicht verfügbar",
+    "googleBusinessLocation": "Google-Unternehmensprofil",
     "linkedinDisconnectHelpTitle": "iNrCy-Zugriff in LinkedIn entfernen",
     "linkedinDisconnectHelpIntro": "Das Trennen in iNrCy trennt den Kanal. So entfernen Sie auch die LinkedIn-Berechtigung für iNrCy:",
     "linkedinDisconnectHelpStep1": "Öffnen Sie in LinkedIn Ich und dann Einstellungen & Datenschutz.",

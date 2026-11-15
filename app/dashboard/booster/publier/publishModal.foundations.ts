@@ -37,6 +37,7 @@ export type ChannelConnectionDetail = {
   requiresReconnect?: boolean;
   disabled?: boolean;
   availabilityError?: boolean;
+  verificationStatus?: "verified" | "pending" | "required" | "restricted" | "unknown";
 };
 
 export type PinterestBoardOption = {

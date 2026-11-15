@@ -17,6 +17,12 @@ test("the publication availability truth table is strict and shared", () => {
   assert.equal(isOfficialPublicationChannelConnected({ connected: true, connection_status: "needs_update" }), false);
   assert.equal(isOfficialPublicationChannelConnected({ connected: false, connection_status: "connected" }), false);
   assert.equal(isOfficialPublicationChannelConnected(undefined), false);
+  for (const verification_status of ["pending", "required", "restricted"]) {
+    assert.equal(isOfficialPublicationChannelConnected({ connected: true, connection_status: "connected", verification_status }), false);
+    assert.equal(publicationChannelRequiresReconnect({ connected: true, connection_status: "connected", verification_status }), false, "Google verification must not demand a new OAuth connection");
+  }
+  assert.equal(isOfficialPublicationChannelConnected({ connected: true, connection_status: "connected", verification_status: "verified" }), true);
+  assert.equal(isOfficialPublicationChannelConnected({ connected: true, connection_status: "connected", verification_status: "unknown" }), true, "An unknown cache still reaches the live verification gate before any provider write");
 
   assert.equal(publicationChannelRequiresReconnect({ connected: false, expired: true }), true);
   assert.equal(publicationChannelRequiresReconnect({ connected: false, requiresUpdate: true }), true);

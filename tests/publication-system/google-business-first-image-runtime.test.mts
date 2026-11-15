@@ -28,6 +28,7 @@ function runtime() {
     const code = ts.transpileModule(readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
     const require = (name: string): unknown => {
       if (name === "@/lib/googleStats" || name === "@/lib/googleBusinessLocations") return {};
+      if (name === "@/lib/googleBusinessPublicationGate") return { assertGmbPublicationVerification() { throw new Error("A media-only fixture must not request a publication token"); } };
       if (name.startsWith("@/") || name.startsWith(".")) {
         const target = name.startsWith("@/") ? path.resolve(root, name.slice(2)) : path.resolve(path.dirname(file), name);
         const resolved = [target, `${target}.ts`, `${target}.tsx`].find(p => existsSync(p) && statSync(p).isFile());

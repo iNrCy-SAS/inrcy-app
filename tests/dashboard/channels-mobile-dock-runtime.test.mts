@@ -16,7 +16,7 @@ function clientLibSources(entry: string, output: Record<string, string> = {}) {
  const key='@/lib/'+entry;if(output[key])return output;const file='lib/'+entry+'.ts',raw=read(file);output[key]=compile(raw);const ast=ts.createSourceFile(file,raw,ts.ScriptTarget.Latest,true);
  for(const node of ast.statements)if(ts.isImportDeclaration(node)&&!node.importClause?.isTypeOnly&&ts.isStringLiteral(node.moduleSpecifier)){const name=node.moduleSpecifier.text;if(name.startsWith('./')&&name.endsWith('.ts'))clientLibSources(name.slice(2,-3),output)}return output;
 }
-const modules={react:packageSource("react","react.production.js"),"react/jsx-runtime":packageSource("react","react-jsx-runtime.production.js"),"react-dom":packageSource("react-dom","react-dom.production.js"),"react-dom/client":packageSource("react-dom","react-dom-client.production.js"),scheduler:packageSource("scheduler","scheduler.production.js"),channels:compile(read("app/dashboard/_components/DashboardChannelsModal.tsx")),nav:compile(`export default function Dock(){const ${toggleMenu.getText(source)};return (${nav!.getText(source)});}`),"../_hooks/useInrAssistantLocalInterface":compile(read("app/dashboard/_hooks/useInrAssistantLocalInterface.ts")),...clientLibSources('inrAssistantLocalInterface'),...clientLibSources('elementStyleLock')};
+const modules={react:packageSource("react","react.production.js"),"react/jsx-runtime":packageSource("react","react-jsx-runtime.production.js"),"react-dom":packageSource("react-dom","react-dom.production.js"),"react-dom/client":packageSource("react-dom","react-dom-client.production.js"),scheduler:packageSource("scheduler","scheduler.production.js"),channels:compile(read("app/dashboard/_components/DashboardChannelsModal.tsx")),presentation:compile(read("app/dashboard/_components/dashboard-channel-presentation.ts")),nav:compile(`export default function Dock(){const ${toggleMenu.getText(source)};return (${nav!.getText(source)});}`),"../_hooks/useInrAssistantLocalInterface":compile(read("app/dashboard/_hooks/useInrAssistantLocalInterface.ts")),...clientLibSources('inrAssistantLocalInterface'),...clientLibSources('elementStyleLock')};
 const fixture=`
 const sources=${JSON.stringify(modules)},messages=${JSON.stringify(JSON.parse(read("messages/fr-FR/dashboard.json")))},loaded={};window.fixtureError=null;window.addEventListener("error",event=>window.fixtureError=String(event.error?.stack||event.message));
 function require(name){
@@ -30,7 +30,7 @@ function require(name){
  if(name==='next/navigation')return {usePathname:()=>'/dashboard'};
  if(name.endsWith('DashboardViewerAccessProvider'))return {useDashboardViewerAccess:()=>({actorUserId:'actor-a',activeAccountId:'account-a'})};
  if(name==='./DashboardFluxBubble')return {__esModule:true,default:({item})=>React.createElement('article',{style:{height:300,display:'grid',placeItems:'center'}},item.name)};
- if(name==='./dashboard-channel-presentation')return {getChannelTone:()=> 'connected',getChannelSceneLayout:()=>({centerSize:300,centerY:220,satelliteSize:120,slots:Array.from({length:13},()=>({x:20,y:20,size:100}))})};
+ if(name==='./dashboard-channel-presentation')return {...require('presentation'),getChannelSceneLayout:()=>({centerSize:300,centerY:220,satelliteSize:120,slots:Array.from({length:13},()=>({x:20,y:20,size:100}))})};
  if(name==='./DashboardUnsavedNavigationProvider')return {useDashboardUnsavedNavigation:()=>({requestNavigation:async action=>{window.guardCalls++;if(window.allowClose){await action();return true}return false}})};
  if(['./GoogleOAuthConsentBanner','./MetaOAuthCallbackNotice'].includes(name))return {__esModule:true,default:()=>null};
  if(!sources[name])throw Error('Unexpected channels fixture module '+name);
@@ -39,7 +39,7 @@ function require(name){
 const React=require('react'),Channels=require('channels').default,root=require('react-dom/client').createRoot(document.getElementById('root'));
 window.allowClose=true;window.guardCalls=0;window.homeNavigations=0;window.assistantClicks=0;window.menuClicks=0;
 const image='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="15" fill="#67d3ff"/></svg>');
-const items=Array.from({length:14},(_,index)=>({key:index===0?'gmb':'channel-'+index,name:'Canal '+index,logoSrc:image,bubbleStatusText:'Connecté',onConfigure(){}}));
+const items=Array.from({length:14},(_,index)=>({key:index===0?'gmb':'channel-'+index,name:'Canal '+index,logoSrc:image,bubbleStatus:'connected',bubbleStatusText:'Connecté',onConfigure(){}}));
 function Fixture(){
  const [open,setOpen]=React.useState(true),[menuOpen,setMenuOpen]=React.useState(false);
  const icon=()=>React.createElement('svg',{width:24,height:24},React.createElement('circle',{cx:12,cy:12,r:9}));
