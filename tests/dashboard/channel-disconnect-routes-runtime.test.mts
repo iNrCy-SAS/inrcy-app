@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
 import ts from "typescript";
+import { integrationWriteSchemaError } from "../helpers/integrations-schema-contract.mts";
 
 const require = createRequire(import.meta.url);
 // The isolated loader intentionally models heterogeneous route dependencies.
@@ -72,6 +73,10 @@ function routeRuntime(entry: typeof routeCases[number], options: { failWrite?: b
             return Promise.resolve({ data: { settings }, error: null }).then(resolve, reject);
           }
           assert.equal(table, "integrations");
+          if (op === "update" || op === "upsert") {
+            const schemaError = integrationWriteSchemaError(patch);
+            if (schemaError) return Promise.resolve({ data: null, error: schemaError }).then(resolve, reject);
+          }
           const matches = (row: Row) => filters.every(([key, value]) => row[key] === value);
           let data = rows.filter(matches);
           if (op !== "select" && options.failWrite) return Promise.resolve({ data: null, error: { message: "Synthetic database failure" } }).then(resolve, reject);
@@ -107,6 +112,7 @@ function routeRuntime(entry: typeof routeCases[number], options: { failWrite?: b
     "@/lib/appBubbleAccessServer": { isAppBubbleEnabledForUser: async () => true },
     "@/lib/pinterestOAuth": { PINTEREST_PROVIDER: "pinterest", PINTEREST_SOURCE: "pinterest", PINTEREST_PRODUCT: "pinterest" },
     "@/lib/connectionVersions": { withCurrentConnectionVersion: (_kind: string, meta: Row) => meta },
+    "@/lib/googleBusinessSelectionPolicy": load("lib/googleBusinessSelectionPolicy.ts", {}),
     "@/lib/sitePresenceSync": { syncSitePresenceIntegrations: async () => { events.push("site:sync"); } },
     "@/lib/tsSafe": { asRecord },
   };
@@ -116,6 +122,18 @@ function routeRuntime(entry: typeof routeCases[number], options: { failWrite?: b
   const request = new Request(`http://localhost/api/integrations/${entry.route}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(entry.category === "mail" ? { accountId: "selected" } : { source: entry.source, product: entry.product }) });
   return { run: () => route.POST(request) as Promise<Response>, rows: () => rows, settings: () => settings, preserved, events };
 }
+
+test("Google Business location disconnection uses real SQL columns and preserves the authorized account", async () => {
+  const runtime = routeRuntime({ ...routeCases[0], route: "google-business/disconnect-location" });
+  const response = await runtime.run();
+  assert.equal(response.status, 200); assert.equal((await response.json()).ok, true);
+  const remaining = runtime.rows().find(row => row.id === "selected")!;
+  assert.equal(remaining.status, "account_connected"); assert.equal(remaining.resource_id, null); assert.equal(remaining.resource_label, null);
+  assert.equal(remaining.access_token_enc, "encrypted:access"); assert.equal(remaining.refresh_token_enc, "encrypted:refresh");
+  assert.equal(Object.hasOwn(remaining, "page_url"), false);
+  assert.equal(runtime.settings().gmb.configured, false); assert.equal(runtime.settings().gmb.locationName, null);
+  assert.deepEqual(runtime.rows().filter(row => row.id !== "selected"), runtime.preserved);
+});
 
 for (const entry of routeCases) {
   test(`${entry.channel}: disconnect persists only the selected channel/account and preserves sibling connections`, async () => {

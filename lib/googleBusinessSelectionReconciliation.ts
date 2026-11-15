@@ -49,7 +49,6 @@ export async function reconcileGmbSelection({ db, userId, row, discovery }: {
     status: "account_connected",
     resource_id: null,
     resource_label: null,
-    page_url: null,
     meta: withCurrentConnectionVersion("channel:gmb", clearGmbSelectionMeta(row.meta, accountHint)),
     updated_at: new Date().toISOString(),
   }).eq("id", row.id).eq("user_id", userId).eq("provider", "google").eq("source", "gmb").eq("product", "gmb");

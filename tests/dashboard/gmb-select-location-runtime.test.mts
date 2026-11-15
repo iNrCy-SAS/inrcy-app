@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import { integrationWriteSchemaError } from "../helpers/integrations-schema-contract.mts";
 
 // The fixture models heterogeneous route exports and PostgREST JSON rows.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,6 +39,10 @@ function runtime(options: {
       insert: (value: Row) => { op = "insert"; patch = value; return q; },
       then(resolve: (value: unknown) => unknown, reject: (error: unknown) => unknown) {
         return Promise.resolve().then(() => {
+          if (table === "integrations" && op !== "select") {
+            const schemaError = integrationWriteSchemaError(patch);
+            if (schemaError) return { data: null, error: schemaError };
+          }
           if (op !== "select") {
             if (table === "integrations") options.beforeWrite?.(db);
             else options.beforeMirrorWrite?.(db);
@@ -101,7 +106,7 @@ test("an explicit choice binds the complete verified snapshot and Google's exact
   assert.equal(h.db.row!.meta.locationName, undefined);
   assert.equal(h.db.row!.meta.gmb.location, undefined);
   assert.equal(h.db.row!.meta.url, "https://maps.google.com/?cid=chosen");
-  assert.equal(h.db.row!.page_url, h.db.row!.meta.url);
+  assert.equal(Object.hasOwn(h.db.row!, "page_url"), false);
   assert.equal(h.db.settings.gmb.locationName, "locations/chosen");
   assert.equal(h.db.settings.unrelated.retained, true);
   const filters = Object.fromEntries(h.writes[0].filters);

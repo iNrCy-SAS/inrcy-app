@@ -70,8 +70,9 @@ export async function GET(req: Request) {
       return res;
     };
 
-    const fail = (error: string, message?: string) => {
-      oauthCallbackEvent(req, { provider: "google_business", outcome: "failed", error, message, return_to: returnToPath, capture_in_sentry: true });
+    const fail = (error: string, message?: string, databaseCode?: unknown) => {
+      const dbCode = typeof databaseCode === "string" && /^(?:[0-9A-Z]{5}|PGRST[0-9]{3})$/.test(databaseCode) ? databaseCode : undefined;
+      oauthCallbackEvent(req, { provider: "google_business", outcome: "failed", error, message, return_to: returnToPath, capture_in_sentry: true, ...(dbCode ? { db_code: dbCode } : {}) });
       const finalUrl = new URL(returnToPath, siteUrl);
       finalUrl.searchParams.set("linked", "gmb");
       finalUrl.searchParams.set("ok", "0");
@@ -191,7 +192,7 @@ export async function GET(req: Request) {
     const { data: existing, error: existingErr } = existingIntegrationRes;
 
     if (existingErr || existingConfigRes.error) {
-      return fail("db_read_failed", "Le service est momentanément indisponible. Merci de réessayer.");
+      return fail("db_read_failed", "Le service est momentanément indisponible. Merci de réessayer.", (existingErr || existingConfigRes.error)?.code);
     }
 
     const existingRec = asRecord(existing);
@@ -266,7 +267,6 @@ export async function GET(req: Request) {
       expires_at: expiresAt,
       resource_id: preserveSelection ? preservedLocationName : null,
       resource_label: preserveSelection ? verifiedSelection?.locationTitle || preservedLocationTitle : null,
-      page_url: verifiedSelection?.url || null,
       meta: withCurrentConnectionVersion("channel:gmb", {
         ...selectionMeta,
         picture: userInfo.picture ?? null,
@@ -293,7 +293,7 @@ export async function GET(req: Request) {
       const { data, error: upErr } = await metadataGuard
         .select("id,status,resource_id")
         .single();
-      if (upErr) return fail("db_update_failed", "La mise à jour a échoué.");
+      if (upErr) return fail("db_update_failed", "La mise à jour a échoué.", upErr.code);
       savedIntegration = data;
     } else {
       const { data, error: insErr } = await supabaseAdmin
@@ -301,7 +301,7 @@ export async function GET(req: Request) {
         .insert(payload)
         .select("id,status,resource_id")
         .single();
-      if (insErr) return fail("db_insert_failed", "Le service est momentanément indisponible. Merci de réessayer.");
+      if (insErr) return fail("db_insert_failed", "Le service est momentanément indisponible. Merci de réessayer.", insErr.code);
       savedIntegration = data;
     }
 

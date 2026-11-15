@@ -2,14 +2,15 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
+import { integrationWriteSchemaError } from "../helpers/integrations-schema-contract.mts";
 
 // The route fixture models heterogeneous JSON, PostgREST and dependency exports.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 type Db = { integrations: Row[]; configs: Row[] };
 
-function load(file: string, modules: Row, globals: Row = {}): Row {
-  const code = ts.transpileModule(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+function load(file: string, modules: Row, globals: Row = {}, sourceOverride?: string): Row {
+  const code = ts.transpileModule(sourceOverride ?? readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   const output = { exports: {} as Row };
   new Function("require", "module", "exports", ...Object.keys(globals), code)((name: string) => {
     if (Object.hasOwn(modules, name)) return modules[name];
@@ -28,10 +29,10 @@ const oldSettings = { connected: true, configured: true, accountName, locationNa
 
 function runtime(options: {
   locations?: Row[]; accounts?: Row[]; accountFailure?: boolean; accountPageFailure?: boolean; locationPageFailure?: boolean;
-  nextEmail?: string; grantedScopes?: string; returnTo?: string; noExisting?: boolean;
+  nextEmail?: string; grantedScopes?: string; returnTo?: string; noExisting?: boolean; legacyPageUrlWrite?: boolean; databaseError?: Row;
   beforeIntegrationWrite?: (db: Db) => void; afterIntegrationWrite?: (db: Db) => void;
 } = {}) {
-  const target = { id: "gmb-row", user_id: "active-account", provider: "google", source: "gmb", product: "gmb", status: "connected", email_address: "mail@example.test", resource_id: oldLocation, resource_label: "Same title", access_token_enc: "encrypted:old-access", refresh_token_enc: "encrypted:old-refresh", meta: structuredClone(oldMeta), page_url: "https://old.example" };
+  const target = { id: "gmb-row", user_id: "active-account", provider: "google", source: "gmb", product: "gmb", status: "connected", email_address: "mail@example.test", resource_id: oldLocation, resource_label: "Same title", access_token_enc: "encrypted:old-access", refresh_token_enc: "encrypted:old-refresh", meta: structuredClone(oldMeta) };
   const db: Db = { integrations: options.noExisting ? [] : [target], configs: [{ user_id: "active-account", settings: { retained: { unchanged: true }, gmb: structuredClone(oldSettings) } }] };
   const requests: Array<{ url: URL; authorization: string | null }> = [];
   const writes: Array<{ table: string; op: string; payload: Row; matched: number }> = [];
@@ -50,6 +51,10 @@ function runtime(options: {
       upsert: (value: Row) => { op = "upsert"; payload = value; return q; },
       then(resolve: (value: unknown) => unknown, reject: (error: unknown) => unknown) {
         return Promise.resolve().then(() => {
+          if (table === "integrations" && op !== "select") {
+            const schemaError = integrationWriteSchemaError(payload);
+            if (schemaError || options.databaseError) return { data: null, error: schemaError || options.databaseError };
+          }
           if (table === "integrations" && op !== "select" && !integrationWriteStarted) { integrationWriteStarted = true; options.beforeIntegrationWrite?.(db); }
           const rows = table === "integrations" ? db.integrations : db.configs;
           const matches = (row: Row) => filters.every(([key, expected]) => {
@@ -113,7 +118,8 @@ function runtime(options: {
     "@/lib/connectionVersions": versions,
     "@/lib/multicompte/server": { resolveOAuthBoundInrcyAccountId: async () => "active-account" },
   };
-  const callback = load("app/api/integrations/google-business/callback/route.ts", modules, { fetch: fetcher, process: { env: { GOOGLE_CLIENT_ID: "fixture-client", GOOGLE_CLIENT_SECRET: "fixture-secret" } } });
+  const callbackSource = options.legacyPageUrlWrite ? readFileSync(new URL("../../app/api/integrations/google-business/callback/route.ts", import.meta.url), "utf8").replace(".insert(payload)", ".insert({ ...payload, page_url: null })").replace(".update(payload)", ".update({ ...payload, page_url: null })") : undefined;
+  const callback = load("app/api/integrations/google-business/callback/route.ts", modules, { fetch: fetcher, process: { env: { GOOGLE_CLIENT_ID: "fixture-client", GOOGLE_CLIENT_SECRET: "fixture-secret" } } }, callbackSource);
   const reviews = load("lib/googleBusinessReviews.ts", { "server-only": {}, "@/lib/tsSafe": safeTypes });
   return { db, requests, writes, logs, get cachesCleared() { return cachesCleared; }, reviews,
     run: async () => new URL((await callback.GET(new Request("https://app.example/api/integrations/google-business/callback?code=fixture-code&state=fixture-state")) as Response).headers.get("location")!),
@@ -125,7 +131,7 @@ test("an inaccessible old ID is cleared even when the only Google result has exa
   assert.equal(destination.searchParams.get("ok"), "1");
   assert.equal(destination.searchParams.get("warning"), "gmb_selection_required");
   assert.equal(row.status, "account_connected");
-  assert.equal(row.resource_id, null); assert.equal(row.resource_label, null); assert.equal(row.page_url, null);
+  assert.equal(row.resource_id, null); assert.equal(row.resource_label, null); assert.equal(Object.hasOwn(row, "page_url"), false);
   assert.equal(row.access_token_enc, `encrypted:${newToken}`);
   assert.equal(row.refresh_token_enc, "encrypted:old-refresh");
   assert.equal(row.meta.needs_reconnect, undefined);
@@ -191,6 +197,39 @@ test("a new authorization without an existing integration saves no selection fro
   assert.equal(h.db.integrations[0].resource_id, null);
   assert.equal(h.db.integrations[0].access_token_enc, `encrypted:${newToken}`);
   assert.equal(h.db.integrations[0].refresh_token_enc, null);
+  assert.equal(Object.hasOwn(h.db.integrations[0], "page_url"), false);
+});
+
+for (const noExisting of [true, false]) {
+  test(`${noExisting ? "INSERT" : "UPDATE"}: the real callback preserves the selected URL only inside existing JSON columns`, async () => {
+    const h = runtime({ noExisting, locations: [{ name: oldLocation, title: "Exact fiche", metadata: { mapsUri: "https://maps.google.com/?cid=verified" } }] });
+    assert.equal((await h.run()).searchParams.get("ok"), "1");
+    assert.equal(h.db.integrations[0].meta.url, "https://maps.google.com/?cid=verified");
+    assert.equal(h.db.configs[0].settings.gmb.url, h.db.integrations[0].meta.url);
+    assert.equal(Object.hasOwn(h.db.integrations[0], "page_url"), false);
+    assert.ok(h.writes.filter(write => write.table === "integrations").every(write => integrationWriteSchemaError(write.payload) === null));
+  });
+  test(`${noExisting ? "INSERT" : "UPDATE"}: the former page_url SQL payload is rejected by the production-schema fixture`, async () => {
+    const h = runtime({ noExisting, legacyPageUrlWrite: true }); const before = structuredClone(h.db);
+    const result = await h.run();
+    assert.equal(result.searchParams.get("ok"), "0");
+    assert.equal(result.searchParams.get("error"), noExisting ? "db_insert_failed" : "db_update_failed");
+    assert.deepEqual(h.db, before, "an unsupported SQL column cannot save credentials or change the old target");
+    assert.equal(h.writes.length, 0); assert.equal(h.cachesCleared, 0);
+    assert.ok(h.logs.some(event => event && typeof event === "object" && (event as Row).db_code === "PGRST204"));
+  });
+}
+
+test("callback database diagnostics retain only a normalized code and never raw provider details", async () => {
+  for (const code of ["42703", "https://fixture.invalid/token-canary?secret=fixture-token-canary"]) {
+    const h = runtime({ noExisting: true, databaseError: { code, message: "fixture-token-canary", details: "fixture-token-canary" } });
+    const result = await h.run();
+    assert.equal(result.searchParams.get("error"), "db_insert_failed");
+    assert.doesNotMatch(`${result}\n${JSON.stringify(h.logs)}`, /fixture-token-canary/);
+    const diagnostics = h.logs.filter(event => event && typeof event === "object" && Object.hasOwn(event as object, "db_code"));
+    assert.ok(diagnostics.every(event => (event as Row).db_code === "42703"));
+    if (code === "42703") assert.equal(diagnostics.length, 1);
+  }
 });
 
 test("a valid callback removes an older permission failure from the return URL", async () => {

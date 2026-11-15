@@ -63,7 +63,6 @@ export async function POST(req: Request) {
       .update({
         resource_id: locationName,
         resource_label: locationTitle,
-        page_url: gmbUrl,
         meta: withCurrentConnectionVersion("channel:gmb", {
           ...clearGmbSelectionMeta(existingIntegration.meta, accountName),
           url: gmbUrl,

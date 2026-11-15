@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { jsonUserFacingError } from "@/lib/apiUserFacingErrors";
 import { resolveActiveInrcyAccountId } from "@/lib/multicompte/server";
 import { withCurrentConnectionVersion } from "@/lib/connectionVersions";
+import { clearGmbSelectionMeta, clearGmbSelectionSettings } from "@/lib/googleBusinessSelectionPolicy";
 
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -34,9 +35,8 @@ export async function POST() {
         status: "account_connected",
         resource_id: null,
         resource_label: null,
-        page_url: null,
         meta: withCurrentConnectionVersion("channel:gmb", {
-          ...asRecord(currentIntegration.meta),
+          ...clearGmbSelectionMeta(currentIntegration.meta, typeof asRecord(currentIntegration.meta).account === "string" ? asRecord(currentIntegration.meta).account as string : null),
           url: null,
         }),
         updated_at: new Date().toISOString(),
@@ -61,7 +61,7 @@ export async function POST() {
       settings: {
         ...current,
         gmb: {
-          ...currentGmb,
+          ...clearGmbSelectionSettings(currentGmb, typeof currentGmb.accountName === "string" ? currentGmb.accountName : null),
           connected: true,
           configured: false,
           resource_id: null,

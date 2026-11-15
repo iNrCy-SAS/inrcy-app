@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import test from "node:test";
 import ts from "typescript";
+import { integrationWriteSchemaError } from "../helpers/integrations-schema-contract.mts";
 
 // The mock query builder loads the real server module without a network client.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,6 +30,10 @@ function database(options: { beforeWrite?: (table: string, state: Value) => void
     let result: Value;
     const execute = async () => {
       if (result) return result;
+      if (patch && table === "integrations") {
+        const schemaError = integrationWriteSchemaError(patch);
+        if (schemaError) return result = { data: null, error: schemaError };
+      }
       if (patch) options.beforeWrite?.(table, state);
       if (patch && table === "pro_tools_configs" && options.rejectMirror) throw Error("synthetic transport failure");
       if ((!patch && options.failRead) || (patch && options.failTable === table)) return result = { data: null, error: { message: "synthetic failure" } };
@@ -54,7 +59,7 @@ test("A confirmed absent target is cleared while the authorized identity and tok
   assert.deepEqual(result, { status: "invalid", cleared: true, locationName: "locations/old" });
   assert.equal(h.state.row.status, "account_connected");
   assert.equal(h.state.row.resource_id, null);
-  assert.equal((h.state.row as Value).page_url, null);
+  assert.equal(Object.hasOwn(h.state.row, "page_url"), false);
   assert.equal(h.state.row.access_token_enc, "synthetic-access");
   assert.equal(h.state.row.refresh_token_enc, "synthetic-refresh");
   assert.equal(h.state.row.email_address, "fixture@example.test");
