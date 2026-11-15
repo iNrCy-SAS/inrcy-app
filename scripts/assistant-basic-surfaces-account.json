@@ -1744,14 +1744,14 @@
   },
   {
     "id": "account-4be3a0da4a31cb24",
-    "label": "DashboardFluxBubble — select (ligne 121)",
+    "label": "DashboardFluxBubble — choisir une ressource actuelle",
     "domain": "channels",
     "sourceFiles": [
       "app/dashboard/_components/DashboardFluxBubble.tsx"
     ],
-    "sourceAnchor": "onFocus={loadResourceChoices}",
+    "sourceAnchor": "<select id={`channel-resource-${item.key}`} aria-label={`${selectionCaption} — ${item.name}`} value={selectionValue} disabled={Boolean(busy || disabled)} aria-busy={Boolean(connection.loading)} onFocus={loadResourceChoices} onPointerDown={loadResourceChoices} onBlur={() => { loaded.current = false; }} onChange={event => { const next = event.target.value; if (next && !(selectionUnavailable && next === UNAVAILABLE_GMB_SELECTION)) void run(() => connection.onSelect?.(next)); }}>",
     "controlIds": [
-      "app/dashboard/_components/DashboardFluxBubble.tsx#select:0db3a9b1f85e7ff2:1"
+      "app/dashboard/_components/DashboardFluxBubble.tsx#select:b99e0130838654a1:1"
     ],
     "capabilityId": "channels.resources",
     "toolNames": [
@@ -1772,25 +1772,31 @@
     },
     "coverageStatus": "server_equivalent",
     "status": "domain_contract_only",
-    "notes": "Un contrôle AST par ligne. Les options issues d’une boucle conservent leurs validations natives ; une preuve de contrat du domaine ne certifie pas l’exécution de ce bouton au navigateur.",
+    "notes": "Sélection serveur équivalente : ressource réelle, identifiant exact, aperçu signé puis confirmation et relecture. La nouvelle option Google indisponible ne peut jamais devenir une cible ; aucun remplacement automatique par titre et aucun OAuth autonome. Le contrat serveur ne certifie pas le clic dans le navigateur.",
     "uiConditions": [
       "connection?.onSelect",
       "showConnect",
       "connection?.resourceContent",
       "connection?.mailboxes",
       "item.premiumLocked"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/gmb-location-selection-ui.test.mts",
+        "testAnchor": "an unavailable saved Google location stays distinct from the current same-title location until explicit selection"
+      }
     ]
   },
   {
     "id": "account-6de241cc9a2e2589",
-    "label": "DashboardFluxBubble — option (ligne 123)",
+    "label": "DashboardFluxBubble — ancienne sélection affichée, indisponible si retirée",
     "domain": "channels",
     "sourceFiles": [
       "app/dashboard/_components/DashboardFluxBubble.tsx"
     ],
-    "sourceAnchor": "<option value={value}>",
+    "sourceAnchor": "<option value={selectionValue} disabled={selectionUnavailable}>",
     "controlIds": [
-      "app/dashboard/_components/DashboardFluxBubble.tsx#option:517feb4971fc5364:1"
+      "app/dashboard/_components/DashboardFluxBubble.tsx#option:1687ed1ec6b337ca:1"
     ],
     "capabilityId": "channels.resources",
     "toolNames": [
@@ -1811,16 +1817,22 @@
     },
     "coverageStatus": "server_equivalent",
     "status": "domain_contract_only",
-    "notes": "Un contrôle AST par ligne. Les options issues d’une boucle conservent leurs validations natives ; une preuve de contrat du domaine ne certifie pas l’exécution de ce bouton au navigateur.",
+    "notes": "Option de sélection existante. Pour Google, une ancienne fiche confirmée indisponible reste affichée avec une valeur sentinelle désactivée ; elle ne peut pas être réappliquée. Toute nouvelle cible accessible demande son identifiant réel, un aperçu signé et la confirmation du professionnel. Aucun OAuth ou choix par titre automatique.",
     "uiConditions": [
-      "selectedMissing",
+      "selectedMissing || selectionUnavailable",
       "connection?.onSelect",
       "showConnect",
       "connection?.resourceContent",
       "connection?.mailboxes",
       "item.premiumLocked"
     ],
-    "variant": "<option value={value}>{connection.resourceLabel || chooseLabel}</option>"
+    "variant": "<option value={selectionValue} disabled={selectionUnavailable}>{missingSelectionLabel}</option>",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/gmb-location-selection-ui.test.mts",
+        "testAnchor": "an unavailable saved Google location stays distinct from the current same-title location until explicit selection"
+      }
+    ]
   },
   {
     "id": "account-f91e0e720f76af68",
@@ -17364,6 +17376,54 @@
         "file": "tests/ai-assistant/basic-account-surface-handoffs.test.mts",
         "testAnchor": "Basic personal credentials OAuth grants and paid transactions stay in their native personal handoffs"
       }
+    ]
+  },
+  {
+    "id": "account-gmb-verification-refresh",
+    "label": "Actualiser la validation Google d’une fiche en cours",
+    "domain": "channels",
+    "capabilityId": "channels.resources",
+    "mode": "read",
+    "coverageStatus": "server_equivalent",
+    "status": "native_reader_contract",
+    "toolNames": [
+      "readChannelResources"
+    ],
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx",
+      "app/dashboard/_hooks/channels/useGoogleBusinessChannel.ts",
+      "lib/inrAssistantChannelConfigurationTools.ts",
+      "app/api/integrations/google-business/locations/route.ts",
+      "lib/googleBusinessVerificationStore.ts"
+    ],
+    "testFiles": [
+      "tests/ai-assistant/channel-verification-refresh.test.mts"
+    ],
+    "testAnchor": "Basic pending GMB verification refresh uses the native reader and never changes the selected target",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/gmb-verification-state-ui.test.mts",
+        "testAnchor": "refresh is only available for a pending authorized fiche and disappears once Google validates it"
+      },
+      {
+        "file": "tests/dashboard/gmb-verification-server-runtime.test.mts",
+        "testAnchor": "normal location reads reuse five-hour proof; an explicit refresh checks Google immediately"
+      }
+    ],
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "native_reader_runtime",
+      "browser": "not_demonstrated_for_this_control",
+      "provider": "not_tested"
+    },
+    "notes": "Équivalent serveur du bouton Actualiser : readChannelResources avec channel=gmb et refreshGmbVerification=true, uniquement pour la fiche actuelle en validation pending. L’acteur, le compte et la cible exacte sont contrôlés avant et après la lecture native forcée. Aucun POST de sélection, publication ou OAuth ; aucune preuve de validation Google n’est inventée si la lecture échoue. Le contrat ne certifie pas le clic au navigateur ni une intégration fournisseur réelle.",
+    "sourceAnchor": "<button type=\"button\" className={bubbleStyles.action} style={{ width: \"auto\", flexShrink: 0, alignSelf: \"center\", minHeight: 44 }} disabled={Boolean(gmb.gmbLoadingList)} aria-busy={Boolean(gmb.gmbLoadingList)} onClick={() => { void gmb.refreshGmbVerification(); }}>",
+    "controlIds": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx#button:5a774beed7b1adec:1"
+    ],
+    "uiConditions": [
+      "canRefreshVerification",
+      "verification"
     ]
   }
 ]

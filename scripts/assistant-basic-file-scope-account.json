@@ -90,7 +90,7 @@
   },
   "app/dashboard/_components/DashboardChannelWorkspace.tsx": {
     "disposition": "basic",
-    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId. Revue Google : compte OAuth, fiche explicite et validation distincts ; Actualiser est une lecture de validation sur la fiche en cours, pas une reconnexion ni une publication.",
     "gateFiles": [
       "app/dashboard/_components/DashboardChannelWorkspace.tsx"
     ],
@@ -98,7 +98,7 @@
   },
   "app/dashboard/_components/DashboardChannelsModal.tsx": {
     "disposition": "basic",
-    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId. Revue Google : un compte lié en validation reste dans Connectés ; ce compteur n’autorise pas sa publication.",
     "gateFiles": [
       "app/dashboard/_components/DashboardChannelWorkspace.tsx"
     ],
@@ -106,7 +106,7 @@
   },
   "app/dashboard/_components/DashboardFluxBubble.tsx": {
     "disposition": "basic",
-    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId. Revue Google : ancienne fiche indisponible désactivée, cible actuelle choisie explicitement ; aucun remplacement par titre. Les autorisations OAuth restent personnelles.",
     "gateFiles": [
       "app/dashboard/_components/DashboardChannelWorkspace.tsx"
     ],
@@ -170,7 +170,7 @@
   },
   "app/dashboard/_components/GoogleOAuthConsentBanner.tsx": {
     "disposition": "basic",
-    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId.",
+    "reason": "Contenu de domaine monté dans Personnalisation / les bulles canaux non verrouillées / les panneaux compte. Les contrôles payants sont exclus individuellement ; les variantes desktop/mobile ont leur propre controlId. Revue Google : bandeau seulement sur un échec OAuth du panneau et produit correspondants ; aucune boucle ou reprise automatique. Le professionnel choisit son compte et consent chez Google.",
     "gateFiles": [
       "app/dashboard/_components/DashboardChannelWorkspace.tsx"
     ],

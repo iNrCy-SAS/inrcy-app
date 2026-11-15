@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 
 function read(path: string) {
   return readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -160,24 +161,54 @@ const networkPublisherMarkers = [
   "gmbCreateLocalPost",
 ];
 
+// Inspect direct dispatch branches rather than the first textual channel
+// condition: a channel-specific eligibility guard is not a publisher branch.
+const ast = ts.createSourceFile("route.ts", route, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+const dispatchLoops: ts.ForOfStatement[] = [];
+function visit(node: ts.Node) {
+  if (ts.isForOfStatement(node) && node.expression.getText(ast) === "selected"
+    && ts.isVariableDeclarationList(node.initializer) && node.initializer.declarations.length === 1
+    && node.initializer.declarations[0].name.getText(ast) === "ch") dispatchLoops.push(node);
+  ts.forEachChild(node, visit);
+}
+visit(ast);
+assert.equal(dispatchLoops.length, 1, "The per-destination dispatch loop must remain unambiguous");
+const loopBody = dispatchLoops[0].statement;
+assert.ok(ts.isBlock(loopBody));
+function channelOf(node: ts.IfStatement): string | null {
+  const condition = node.expression;
+  return ts.isBinaryExpression(condition) && condition.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken
+    && ts.isIdentifier(condition.left) && condition.left.text === "ch" && ts.isStringLiteral(condition.right)
+    ? condition.right.text : null;
+}
+function dispatchBranch(node: ts.Statement): node is ts.IfStatement {
+  return ts.isIfStatement(node) && channelOf(node) !== null && ts.isBlock(node.thenStatement)
+    && ts.isContinueStatement(node.thenStatement.statements.at(-1)!);
+}
+const dispatchTries = loopBody.statements.filter(ts.isTryStatement).filter(node => node.tryBlock.statements.some(statement => dispatchBranch(statement) && channelOf(statement) === "inr_search"));
+assert.equal(dispatchTries.length, 1, "The publication try block must remain unambiguous");
+const dispatchTry = dispatchTries[0];
+const dispatchBranches = dispatchTry.tryBlock.statements.filter(dispatchBranch);
+const branchChannel = (name: string) => name === "sites" ? "site_web" : name;
+function dispatchBody(name: string) {
+  const branches = dispatchBranches.filter(node => channelOf(node) === branchChannel(name));
+  assert.equal(branches.length, 1, `missing or duplicate publication branch: ${name}`);
+  return branches[0].getText(ast);
+}
+
 test("the final publish-now route keeps one ordered explicit branch per supported destination", () => {
   let previousIndex = -1;
   for (const branch of branchDefinitions) {
-    const index = route.indexOf(branch.start);
+    const index = dispatchBranches.findIndex(node => channelOf(node) === branchChannel(branch.name));
     assert.ok(index > previousIndex, `branch out of order or missing: ${branch.name}`);
+    assert.equal(dispatchBranches.filter(node => channelOf(node) === branchChannel(branch.name)).length, 1);
     previousIndex = index;
   }
-  assert.equal((route.match(/if \(ch === "facebook"\)/g) || []).length, 1);
-  assert.equal((route.match(/if \(ch === "instagram"\)/g) || []).length, 1);
-  assert.equal((route.match(/if \(ch === "linkedin"\)/g) || []).length, 1);
-  assert.equal((route.match(/if \(ch === "youtube_shorts"\)/g) || []).length, 1);
-  assert.equal((route.match(/if \(ch === "tiktok"\)/g) || []).length, 1);
-  assert.equal((route.match(/if \(ch === "gmb"\)/g) || []).length, 1);
 });
 
 test("every channel branch retains its required prechecks, publisher and durable delivery update", () => {
   for (const branch of branchDefinitions) {
-    const body = sliceBetween(route, branch.start, branch.end);
+    const body = dispatchBody(branch.name);
     for (const marker of branch.required) {
       assert.ok(body.includes(marker), `${branch.name} lost required marker: ${marker}`);
     }
@@ -208,18 +239,21 @@ test("network publishers remain isolated inside their own channel branches", () 
     gmb: ["gmbCreateLocalPost"],
   };
 
-  for (const branch of branchDefinitions) {
-    const body = sliceBetween(route, branch.start, branch.end);
-    const allowed = new Set(ownership[branch.name] || []);
+  for (const branch of dispatchBranches) {
+    const channel = channelOf(branch)!;
+    const body = branch.getText(ast);
+    const allowed = new Set(ownership[channel] || []);
     for (const publisher of networkPublisherMarkers) {
       if (allowed.has(publisher)) continue;
       assert.doesNotMatch(
         body,
         new RegExp(`\\b${publisher}\\b`),
-        `${branch.name} unexpectedly invokes ${publisher}`,
+        `${channel} unexpectedly invokes ${publisher}`,
       );
     }
   }
+  const outsideDispatch = dispatchTry.tryBlock.statements.filter(statement => !dispatchBranches.includes(statement as ts.IfStatement)).map(statement => statement.getText(ast)).join("\n") + (dispatchTry.catchClause?.getText(ast) || "");
+  for (const publisher of networkPublisherMarkers) assert.doesNotMatch(outsideDispatch, new RegExp(`\\b${publisher}\\b`), `${publisher} escaped its explicit publication branch`);
 });
 
 test("the per-channel catch and unsupported fallback always produce terminal durable state", () => {

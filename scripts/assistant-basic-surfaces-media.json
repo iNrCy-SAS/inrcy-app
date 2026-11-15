@@ -8860,50 +8860,66 @@
   },
   {
     "id": "basic.media.0371",
-    "label": "Action Click",
+    "label": "Choix des canaux de publication — mobile",
     "domain": "publication",
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishChannelSelector.tsx"
     ],
-    "sourceAnchor": "<div\n                key={key}\n                className={`${css.channelCard} ${css.mobileCard}`}\n                data-reconnect={requiresReconnect}\n                onClick={() => toggle(key)}\n                role=\"button\"\n                tabIndex={isConnected ? 0 : -1}\n                aria-disabled={!isConnected}\n                aria-pressed={isSelected}\n                onKeyDown={(event) => {\n                  if (!isConnected) return;\n                  if (event.key === \"Enter\" || event.key === \" \") {\n                    event.preventDefault();\n                    toggle(key);\n                  }\n                }}\n                style={{\n                  ...channelStyle,\n                  ...channelBtn,\n                  ...(!isConnected ? channelBtnDisabled : {}),\n                  minHeight: 43,\n                  padding: \"8px 8px\",\n                  position: \"relative\",\n                  overflow: \"visible\",\n                  border: isSelected\n                    ? \"1px solid rgba(56,189,248,0.82)\"\n                    : requiresReconnect\n                      ? \"1px solid rgba(251,146,60,0.52)\"\n                      : \"1px solid rgba(255,255,255,0.12)\",\n                  boxShadow: isSelected\n                    ? \"0 0 0 1px rgba(56,189,248,0.26) inset, 0 10px 24px rgba(14,165,233,0.12)\"\n                    : requiresReconnect\n                      ? \"0 0 18px rgba(251,146,60,0.10)\"\n                      : \"none\",\n                  background: isSelected\n                    ? \"linear-gradient(135deg, rgba(56,189,248,0.22), rgba(14,116,144,0.20))\"\n                    : requiresReconnect\n                      ? \"linear-gradient(135deg, rgba(251,146,60,0.12), rgba(234,88,12,0.05))\"\n                      : \"rgba(255,255,255,0.04)\",\n                  cursor: isConnected ? \"pointer\" : \"not-allowed\",\n                  opacity: requiresReconnect ? 0.86 : undefined,\n                  display: \"flex\",\n                  alignItems: \"center\",\n                  justifyContent: \"space-between\",\n                  gap: 7,\n                  ...(isLastOddMobileItem\n                    ? {\n                        gridColumn: \"1 / -1\",\n                        width: \"calc(50% - 4px)\",\n                        justifySelf: \"center\",\n                      }\n                    : {}),\n                }}\n              >",
+    "sourceAnchor": "<div\n                key={key}\n                className={`${css.channelCard} ${css.mobileCard}`}\n                data-reconnect={requiresReconnect}\n                onClick={() => toggle(key)}\n                role=\"button\"\n                tabIndex={isConnected ? 0 : -1}\n                aria-disabled={!isConnected}\n                aria-pressed={isSelected}\n                title={blockedGoogleLabel}\n                aria-label={blockedGoogleLabel}\n                onKeyDown={(event) => {\n                  if (!isConnected) return;\n                  if (event.key === \"Enter\" || event.key === \" \") {\n                    event.preventDefault();\n                    toggle(key);\n                  }\n                }}\n                style={{\n                  ...channelStyle,\n                  ...channelBtn,\n                  ...(!isConnected ? channelBtnDisabled : {}),\n                  minHeight: 43,\n                  padding: \"8px 8px\",\n                  position: \"relative\",\n                  overflow: \"visible\",\n                  border: isSelected\n                    ? \"1px solid rgba(56,189,248,0.82)\"\n                    : requiresReconnect\n                      ? \"1px solid rgba(251,146,60,0.52)\"\n                      : \"1px solid rgba(255,255,255,0.12)\",\n                  boxShadow: isSelected\n                    ? \"0 0 0 1px rgba(56,189,248,0.26) inset, 0 10px 24px rgba(14,165,233,0.12)\"\n                    : requiresReconnect\n                      ? \"0 0 18px rgba(251,146,60,0.10)\"\n                      : \"none\",\n                  background: isSelected\n                    ? \"linear-gradient(135deg, rgba(56,189,248,0.22), rgba(14,116,144,0.20))\"\n                    : requiresReconnect\n                      ? \"linear-gradient(135deg, rgba(251,146,60,0.12), rgba(234,88,12,0.05))\"\n                      : \"rgba(255,255,255,0.04)\",\n                  cursor: isConnected ? \"pointer\" : \"not-allowed\",\n                  opacity: requiresReconnect ? 0.86 : undefined,\n                  display: \"flex\",\n                  alignItems: \"center\",\n                  justifyContent: \"space-between\",\n                  gap: 7,\n                  ...(isLastOddMobileItem\n                    ? {\n                        gridColumn: \"1 / -1\",\n                        width: \"calc(50% - 4px)\",\n                        justifySelf: \"center\",\n                      }\n                    : {}),\n                }}\n              >",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
       "editPublication"
     ],
     "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : isMobile.",
+    "notes": "Préparation du brouillon par preparePublication/editPublication, avec canaux explicitement autorisés ; cela ne publie rien et ne certifie pas une modification visuelle du wizard. Les cartes Google non validées ou de validation inconnue restent désactivées avec leur motif, sans demander un nouvel OAuth. Les gardes natives du serveur restent obligatoires avant diffusion.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishChannelSelector.tsx#div:c599e0b45bcd3ecf:1"
+      "app/dashboard/booster/publier/components/PublishChannelSelector.tsx#div:389605b941250a1f:1"
+    ],
+    "uiConditions": [
+      "isMobile"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/booster-channel-account-labels.test.mts",
+        "testAnchor": "disabled Google publication cards expose their short verification reason on desktop and mobile"
+      }
     ]
   },
   {
     "id": "basic.media.0372",
-    "label": "{channel} · À reconnecter dans Canaux",
+    "label": "Choix des canaux de publication — ordinateur",
     "domain": "publication",
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishChannelSelector.tsx"
     ],
-    "sourceAnchor": "<div\n              key={key}\n              className={css.channelCard}\n              data-reconnect={requiresReconnect}\n              onClick={() => toggle(key)}\n              role=\"button\"\n              tabIndex={isConnected ? 0 : -1}\n              aria-disabled={!isConnected}\n              aria-pressed={isSelected}\n              aria-label={requiresReconnect\n                ? i18nT(\"channel_reconnect_title\", { channel: channelLabel })\n                : accountName\n                  ? `${channelLabel} — ${accountName}`\n                  : isConnected\n                    ? i18nT(\"channel_connected_aria\", { channel: channelLabel })\n                    : i18nT(\"channel_disconnected_aria\", { channel: channelLabel })}\n              onKeyDown={(event) => {\n                if (!isConnected) return;\n                if (event.key === \"Enter\" || event.key === \" \") {\n                  event.preventDefault();\n                  toggle(key);\n                }\n              }}\n              style={{\n                ...channelStyle,\n                ...(!isConnected ? channelBtnDisabled : {}),\n                minHeight: 130,\n                minWidth: 0,\n                padding: \"5px 4px\",\n                position: \"relative\",\n                overflow: \"visible\",\n                borderRadius: 16,\n                border: isSelected\n                  ? \"2px solid rgba(76,195,255,0.88)\"\n                  : requiresReconnect\n                    ? \"1px solid rgba(251,146,60,0.52)\"\n                    : \"1px solid rgba(255,255,255,0.10)\",\n                boxShadow: isSelected\n                  ? \"0 0 0 1px rgba(76,195,255,0.28) inset, 0 0 18px rgba(76,195,255,0.18), 0 10px 24px rgba(8,18,34,0.16)\"\n                  : requiresReconnect\n                    ? \"0 0 18px rgba(251,146,60,0.10)\"\n                    : \"none\",\n                background: isSelected\n                  ? \"linear-gradient(135deg, rgba(76,195,255,0.16), rgba(34,211,238,0.08))\"\n                  : requiresReconnect\n                    ? \"linear-gradient(135deg, rgba(251,146,60,0.11), rgba(234,88,12,0.04))\"\n                    : \"rgba(255,255,255,0.03)\",\n                cursor: isConnected ? \"pointer\" : \"not-allowed\",\n                opacity: requiresReconnect ? 0.86 : undefined,\n                display: \"grid\",\n                placeItems: \"center\",\n              }}\n            >",
+    "sourceAnchor": "<div\n              key={key}\n              className={css.channelCard}\n              data-reconnect={requiresReconnect}\n              onClick={() => toggle(key)}\n              role=\"button\"\n              tabIndex={isConnected ? 0 : -1}\n              aria-disabled={!isConnected}\n              aria-pressed={isSelected}\n              title={blockedGoogleLabel}\n              aria-label={blockedGoogleLabel || (requiresReconnect\n                ? i18nT(\"channel_reconnect_title\", { channel: channelLabel })\n                : accountName\n                  ? `${channelLabel} — ${accountName}`\n                  : isConnected\n                    ? i18nT(\"channel_connected_aria\", { channel: channelLabel })\n                    : i18nT(\"channel_disconnected_aria\", { channel: channelLabel }))}\n              onKeyDown={(event) => {\n                if (!isConnected) return;\n                if (event.key === \"Enter\" || event.key === \" \") {\n                  event.preventDefault();\n                  toggle(key);\n                }\n              }}\n              style={{\n                ...channelStyle,\n                ...(!isConnected ? channelBtnDisabled : {}),\n                minHeight: 130,\n                minWidth: 0,\n                padding: \"5px 4px\",\n                position: \"relative\",\n                overflow: \"visible\",\n                borderRadius: 16,\n                border: isSelected\n                  ? \"2px solid rgba(76,195,255,0.88)\"\n                  : requiresReconnect\n                    ? \"1px solid rgba(251,146,60,0.52)\"\n                    : \"1px solid rgba(255,255,255,0.10)\",\n                boxShadow: isSelected\n                  ? \"0 0 0 1px rgba(76,195,255,0.28) inset, 0 0 18px rgba(76,195,255,0.18), 0 10px 24px rgba(8,18,34,0.16)\"\n                  : requiresReconnect\n                    ? \"0 0 18px rgba(251,146,60,0.10)\"\n                    : \"none\",\n                background: isSelected\n                  ? \"linear-gradient(135deg, rgba(76,195,255,0.16), rgba(34,211,238,0.08))\"\n                  : requiresReconnect\n                    ? \"linear-gradient(135deg, rgba(251,146,60,0.11), rgba(234,88,12,0.04))\"\n                    : \"rgba(255,255,255,0.03)\",\n                cursor: isConnected ? \"pointer\" : \"not-allowed\",\n                opacity: requiresReconnect ? 0.86 : undefined,\n                display: \"grid\",\n                placeItems: \"center\",\n              }}\n            >",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
       "editPublication"
     ],
     "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "notes": "Préparation du brouillon par preparePublication/editPublication, avec canaux explicitement autorisés ; cela ne publie rien et ne certifie pas une modification visuelle du wizard. Les cartes Google non validées ou de validation inconnue restent désactivées avec leur motif, sans demander un nouvel OAuth. Les gardes natives du serveur restent obligatoires avant diffusion.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishChannelSelector.tsx#div:2fe4fcb21c0cdaf2:1"
+      "app/dashboard/booster/publier/components/PublishChannelSelector.tsx#div:f018055b6e187862:1"
+    ],
+    "uiConditions": [],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/booster-channel-account-labels.test.mts",
+        "testAnchor": "disabled Google publication cards expose their short verification reason on desktop and mobile"
+      }
     ]
   },
   {
