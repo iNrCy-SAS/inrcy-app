@@ -9,7 +9,12 @@ test("Basic personal credentials OAuth grants and paid transactions stay in thei
   const tools = runtime.createInrAssistantAccountServiceTools({ request: new Request("https://example.invalid/api/assistant/chat"), accountId: "owned", actorUserId: "actor", currentUserMessage: "Lis mes services", supabase: { from() { assert.fail("The inventory cannot read or mutate a real account"); } } });
   for (const name of Object.keys(tools)) assert.doesNotMatch(name, /password|checkout|cancelSubscription|purchase|oauth|deleteAccount/i);
   const account = readFileSync(new URL("../../app/dashboard/settings/_components/AccountContent.tsx", import.meta.url), "utf8");
-  assert.match(account, /currentPassword/); assert.match(account, /type="password"/); assert.match(account, /fetch\("\/api\/auth\/change-password"/);
+  assert.match(account, /currentPassword/);
+  for (const name of ["Current", "New", "Confirm"]) {
+    assert.ok(account.includes(`const [show${name}Password, setShow${name}Password] = useState(false)`));
+    assert.ok(account.includes(`type={show${name}Password ? "text" : "password"}`));
+  }
+  assert.match(account, /fetch\("\/api\/auth\/change-password"/);
   const oauth = readFileSync(new URL("../../app/dashboard/_components/GoogleOAuthConsentBanner.tsx", import.meta.url), "utf8");
   assert.match(oauth, /window\.location\.href = retryHref/); assert.match(oauth, /access_denied/);
   const subscription = readFileSync(new URL("../../app/dashboard/settings/_components/StandardSubscriptionContent.tsx", import.meta.url), "utf8");

@@ -5882,15 +5882,52 @@
     ]
   },
   {
+    "id": "account-password-visibility",
+    "label": "Mon compte — afficher ou masquer un mot de passe",
+    "domain": "account",
+    "sourceFiles": [
+      "app/dashboard/settings/_components/AccountContent.tsx"
+    ],
+    "sourceAnchor": "onClick={onToggle}",
+    "controlIds": [
+      "app/dashboard/settings/_components/AccountContent.tsx#button:8d88442491beb40b:1"
+    ],
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "handoff",
+    "testFiles": [
+      "tests/ai-assistant/basic-account-surface-handoffs.test.mts"
+    ],
+    "testAnchor": "Basic personal credentials OAuth grants and paid transactions stay in their native personal handoffs",
+    "handoffReason": "Afficher un mot de passe est une action personnelle dans son champ local. L’assistant peut guider vers Mon compte mais ne révèle, ne lit ni ne transmet le secret.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "related_domain_contract",
+      "browser": "not_demonstrated_for_this_control",
+      "provider": "not_tested"
+    },
+    "coverageStatus": "human_required",
+    "status": "intentional_handoff",
+    "notes": "Un bouton natif réutilisé pour les trois champs, chacun avec son état indépendant initialement masqué. Bouton clavier type=button : aucune soumission ni modification de valeur. Les états ne sont pas persistés et sont réinitialisés après une modification de mot de passe réussie.",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/account-local-controls-browser.test.mts",
+        "testAnchor": "account password eyes reveal each field independently by mouse and keyboard without changing values or submitting"
+      }
+    ]
+  },
+  {
     "id": "account-af29eac772f77da7",
-    "label": "AccountContent — input (ligne 293)",
+    "label": "Mon compte — saisir le mot de passe actuel",
     "domain": "account",
     "sourceFiles": [
       "app/dashboard/settings/_components/AccountContent.tsx"
     ],
     "sourceAnchor": "onChange={(e) => setCurrentPassword(e.target.value)}",
     "controlIds": [
-      "app/dashboard/settings/_components/AccountContent.tsx#input:f723eb4e582b178f:1"
+      "app/dashboard/settings/_components/AccountContent.tsx#input:f803240d618fbeb4:1"
     ],
     "capabilityId": "navigation.screen",
     "toolNames": [
@@ -5910,18 +5947,24 @@
     },
     "coverageStatus": "human_required",
     "status": "intentional_handoff",
-    "notes": "Un contrôle AST par ligne. Les options issues d’une boucle conservent leurs validations natives ; une preuve de contrat du domaine ne certifie pas l’exécution de ce bouton au navigateur."
+    "notes": "Champ personnel masqué par défaut. Le professionnel peut afficher ou masquer uniquement ce champ avec son œil. La saisie, la lecture du secret et la modification du mot de passe restent personnelles ; aucun outil assistant ne reçoit la valeur.",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/account-local-controls-browser.test.mts",
+        "testAnchor": "account password eyes reveal each field independently by mouse and keyboard without changing values or submitting"
+      }
+    ]
   },
   {
     "id": "account-0af5e379cab5d424",
-    "label": "AccountContent — input (ligne 298)",
+    "label": "Mon compte — saisir le nouveau mot de passe",
     "domain": "account",
     "sourceFiles": [
       "app/dashboard/settings/_components/AccountContent.tsx"
     ],
     "sourceAnchor": "onChange={(e) => setNewPassword(e.target.value)}",
     "controlIds": [
-      "app/dashboard/settings/_components/AccountContent.tsx#input:b592202e9b855378:1"
+      "app/dashboard/settings/_components/AccountContent.tsx#input:ff9ef1e3af688acf:1"
     ],
     "capabilityId": "navigation.screen",
     "toolNames": [
@@ -5941,18 +5984,24 @@
     },
     "coverageStatus": "human_required",
     "status": "intentional_handoff",
-    "notes": "Un contrôle AST par ligne. Les options issues d’une boucle conservent leurs validations natives ; une preuve de contrat du domaine ne certifie pas l’exécution de ce bouton au navigateur."
+    "notes": "Champ personnel masqué par défaut. Le professionnel peut afficher ou masquer uniquement ce champ avec son œil. La saisie, la lecture du secret et la modification du mot de passe restent personnelles ; aucun outil assistant ne reçoit la valeur.",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/account-local-controls-browser.test.mts",
+        "testAnchor": "account password eyes reveal each field independently by mouse and keyboard without changing values or submitting"
+      }
+    ]
   },
   {
     "id": "account-2c5f9923beb35f7c",
-    "label": "AccountContent — input (ligne 303)",
+    "label": "Mon compte — confirmer le nouveau mot de passe",
     "domain": "account",
     "sourceFiles": [
       "app/dashboard/settings/_components/AccountContent.tsx"
     ],
     "sourceAnchor": "onChange={(e) => setConfirm(e.target.value)}",
     "controlIds": [
-      "app/dashboard/settings/_components/AccountContent.tsx#input:274007dc5ae2c20b:1"
+      "app/dashboard/settings/_components/AccountContent.tsx#input:802bcdb5745ba293:1"
     ],
     "capabilityId": "navigation.screen",
     "toolNames": [
@@ -5972,7 +6021,13 @@
     },
     "coverageStatus": "human_required",
     "status": "intentional_handoff",
-    "notes": "Un contrôle AST par ligne. Les options issues d’une boucle conservent leurs validations natives ; une preuve de contrat du domaine ne certifie pas l’exécution de ce bouton au navigateur."
+    "notes": "Champ personnel masqué par défaut. Le professionnel peut afficher ou masquer uniquement ce champ avec son œil. La saisie, la lecture du secret et la modification du mot de passe restent personnelles ; aucun outil assistant ne reçoit la valeur.",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/account-local-controls-browser.test.mts",
+        "testAnchor": "account password eyes reveal each field independently by mouse and keyboard without changing values or submitting"
+      }
+    ]
   },
   {
     "id": "account-67ea9a95599daa89",

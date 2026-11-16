@@ -7,7 +7,7 @@
         "app/dashboard/_components/DashboardAccountTabs.tsx": "76087a4f7b5d3df5601a1152a676cde72a954c33d0694e40155ec6ff51c85d07",
         "app/dashboard/_components/DashboardSettingsTabs.tsx": "435a1ff6157440e9d224aeb48f45ec8ba3f213cd80f98abbdd3d4016089ee6ab",
         "app/dashboard/_hooks/useDashboardPanelRouting.ts": "d821b18314e156fdd76bb1200a6893b7598962becd009c95dd259281d6599339",
-        "app/dashboard/settings/_components/AccountContent.tsx": "d2cc88689c5cbd09c5520a545137ac4779aad9c6acd549492b5f59bf03be7064"
+        "app/dashboard/settings/_components/AccountContent.tsx": "61a5e104c07c570fa4f0d45c49a6d1b5d28c175dce468f5f33d12f01a01e486d"
       }
     },
     "account-preferences-privacy": {

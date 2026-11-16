@@ -26,9 +26,10 @@ function add(file: string) {
   }
   return id;
 }
-const components = Object.fromEntries(["InertiaContent", "BoutiqueContent", "SubscriptionInvoicesPanel", "SubscriptionWorkspace"].map(name => [name, add(resolve(repo, `app/dashboard/settings/_components/${name}.tsx`))]));
+const components = Object.fromEntries(["InertiaContent", "BoutiqueContent", "SubscriptionInvoicesPanel", "SubscriptionWorkspace", "AccountContent"].map(name => [name, add(resolve(repo, `app/dashboard/settings/_components/${name}.tsx`))]));
 const nativeModule = add(resolve(repo, "lib/inrAssistantLocalInterface.ts"));
-const messages = { settings: JSON.parse(read("messages/fr-FR/settings.json")), shell: JSON.parse(read("messages/fr-FR/shell.json")) };
+const authMessages = JSON.parse(read("messages/fr-FR/auth.json"));
+const messages = { settings: JSON.parse(read("messages/fr-FR/settings.json")), shell: JSON.parse(read("messages/fr-FR/shell.json")), "auth.login": authMessages.login, "auth.password": authMessages.password };
 const unavailableInvoicesMessage = userFacingErrorsFixture.getLocalizedErrorMessage({ error: "Synthetic invoice read unavailable" }, "fr-FR", messages.settings.factures_stripe_erreur_7e2a5c11);
 const fixture = `
 const sources=${JSON.stringify(sources)},links=${JSON.stringify(links)},components=${JSON.stringify(components)},messages=${JSON.stringify(messages)},nativeModule=${JSON.stringify(nativeModule)},loaded={},process={env:{}};
@@ -52,6 +53,7 @@ function load(id){if(loaded[id])return loaded[id].exports;const module=loaded[id
 const React=load('react'),root=load('react-dom/client').createRoot(document.getElementById('root')),Inertia=load(components.InertiaContent).default,Boutique=load(components.BoutiqueContent).default,Invoices=load(components.SubscriptionInvoicesPanel).default,Details=load(components.SubscriptionWorkspace).SubscriptionDetails;
 window.renderFixture=()=>root.render(React.createElement(React.Fragment,null,React.createElement('section',{'data-part':'inertia'},React.createElement(Inertia,{edition:'basic',snapshot:{multiplier:1,connectedCount:0,totalChannels:12,breakdown:[],maxMultiplier:2}})),React.createElement('section',{'data-part':'boutique'},React.createElement(Boutique)),React.createElement('section',{'data-part':'invoices'},React.createElement(Invoices)),React.createElement(Details,{title:'Native billing details',assistantBilling:true},'Native billing explanation')));
 window.renderFixture();window.nativeHints=()=>load(nativeModule).getInrAssistantLocalInterfaceHints({actorUserId:window.actor,accountId:window.account,pathname:'/dashboard'});
+window.renderAccountFixture=()=>root.render(React.createElement(load(components.AccountContent).default,{edition:'standard'}));
 window.runNative=(id,operation,value=null,revision)=>{const native=load(nativeModule),scope={actorUserId:window.actor,accountId:window.account,pathname:'/dashboard'},hint=window.nativeHints()?.find(hint=>hint.id===id);if(!hint)return Promise.resolve(false);return native.runInrAssistantLocalInterface({command:'control_local_interface',selection:{kind:'account_document',id},revision:revision||hint.revision,operation,value},scope,()=>scope.actorUserId===window.actor&&scope.accountId===window.account)};
 `;
 async function mount(page: Page, initialFailures = 0) {
@@ -84,4 +86,44 @@ test("Basic actual account views help billing dialog invoice pages and order ref
 
 test("Basic actual subscription invoice retry refuses an unavailable native response and acknowledges only loaded invoices after rendering", async () => {
   const browser = await chromium.launch({ headless: true }); try { for (const failures of [1, 2]) { const page = await browser.newPage(), h = await mount(page, failures); const alert = page.getByRole("alert").filter({ hasText: unavailableInvoicesMessage }); await alert.waitFor(); assert.ok(!(await alert.innerText()).includes("Synthetic invoice read unavailable"), "raw backend diagnostics stay out of the customer message"); assert.equal(await page.evaluate("window.runNative('subscription_invoices','retry')"), failures === 1); if (failures === 1) assert.equal(await page.locator('[data-part="invoices"] tbody tr').count(), 5); assert.deepEqual(h.mutations, []); assert.deepEqual(await page.evaluate("window.errors"), []); await page.close(); } } finally { await browser.close(); }
+});
+
+test("account password eyes reveal each field independently by mouse and keyboard without changing values or submitting", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1366, height: 900 } }), h = await mount(page);
+    await page.addStyleTag({ content: read("app/dashboard/settings/_components/settingsContentLayout.module.css") + read("app/dashboard/settings/_components/AccountContent.module.css") });
+    await page.evaluate("window.renderAccountFixture()");
+    const labels = [messages.settings.mot_de_passe_actuel_f9242976, messages.settings.nouveau_mot_de_passe_3a713829, messages.settings.confirmer_le_mot_de_passe_88362d0d] as string[];
+    const fields = labels.map(label => page.getByLabel(label, { exact: true }));
+    const show = (index: number) => page.getByRole("button", { name: `${authMessages.login.showPassword} — ${labels[index]}`, exact: true });
+    const hide = (index: number) => page.getByRole("button", { name: `${authMessages.login.hidePassword} — ${labels[index]}`, exact: true });
+    const values = ["SyntheticCurrent42!", "SyntheticNew42!", "SyntheticConfirm42!"];
+    for (let index = 0; index < fields.length; index++) {
+      await fields[index].fill(values[index]);
+      assert.equal(await fields[index].getAttribute("type"), "password");
+      assert.equal(await show(index).getAttribute("aria-controls"), await fields[index].getAttribute("id"));
+      assert.equal(await show(index).getAttribute("aria-pressed"), "false");
+    }
+    await show(0).click();
+    assert.equal(await fields[0].getAttribute("type"), "text");
+    assert.equal(await hide(0).getAttribute("aria-pressed"), "true");
+    for (const index of [1, 2]) assert.equal(await fields[index].getAttribute("type"), "password");
+    await hide(0).focus(); await hide(0).press("Space");
+    assert.equal(await fields[0].getAttribute("type"), "password");
+    await show(1).click(); await show(2).click();
+    for (const index of [1, 2]) assert.equal(await fields[index].getAttribute("type"), "text");
+    await hide(1).focus(); await hide(1).press("Enter");
+    assert.equal(await fields[1].getAttribute("type"), "password");
+    assert.equal(await fields[2].getAttribute("type"), "text");
+    for (let index = 0; index < fields.length; index++) assert.equal(await fields[index].inputValue(), values[index]);
+    await page.setViewportSize({ width: 390, height: 844 });
+    for (let index = 0; index < fields.length; index++) {
+      const button = await (index === 2 ? hide(index) : show(index)).boundingBox(), field = await fields[index].boundingBox();
+      assert.ok(button && field); assert.ok(button.width >= 44 && button.height >= 44);
+      assert.ok(button.x >= field.x && button.x + button.width <= field.x + field.width);
+    }
+    assert.equal(await page.evaluate("document.documentElement.scrollWidth > window.innerWidth"), false);
+    assert.deepEqual(h.mutations, []); assert.deepEqual(await page.evaluate("window.errors"), []);
+  } finally { await browser.close(); }
 });

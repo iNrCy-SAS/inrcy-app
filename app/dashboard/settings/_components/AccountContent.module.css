@@ -34,6 +34,12 @@
 .input { width: 100%; min-width: 0; min-height: 42px; padding: 10px 12px; border: 1px solid var(--inrcy-theme-border, #b4cef22b); border-radius: 11px; background: var(--inrcy-theme-input-background, #07162d8c); color: inherit; font: inherit; font-size: 13px; line-height: 1.4; outline: none; }
 .input[readonly] { color: var(--inrcy-theme-text-secondary, #c8dff7); background: var(--inrcy-theme-surface-soft, #0a182b54); }
 .input:focus-visible { border-color: #82d7ff; outline: 2px solid #82d7ff73; outline-offset: 2px; }
+.passwordInput { position: relative; min-width: 0; }
+.passwordInput .input { min-height: 46px; padding-inline-end: 52px; }
+.passwordVisibility { position: absolute; inset-inline-end: 1px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 44px; height: 44px; padding: 12px; border: 0; border-radius: 10px; background: transparent; color: var(--inrcy-theme-text-secondary, #b8d1e9); cursor: pointer; }
+.passwordVisibility:hover { color: var(--inrcy-theme-text-primary, #f4f8ff); background: #81d7fb14; }
+.passwordInput:has(input:is(:autofill, :-webkit-autofill)) .passwordVisibility { color: #285a85; }
+.passwordVisibility:focus-visible { outline: 2px solid #9be8ff; outline-offset: -3px; }
 .securityCard { display: grid; align-content: start; gap: 18px; background: var(--inrcy-theme-surface, radial-gradient(ellipse at 100% 0, #7241cc24, transparent 65%), linear-gradient(145deg, #193b668c, #262348a6)); }
 .securityIcon { color: #c1b2ff; border-color: #b9a0ff4d; background: #8b62d629; }
 .passwordFields { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px 12px; min-width: 0; }

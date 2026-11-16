@@ -1,6 +1,6 @@
 {
   "formatVersion": 3,
-  "fragmentsDigest": "77c853f90ec90df5f7f88ddff3bb301441c9fd98694486b15c6751dddb40fd01",
+  "fragmentsDigest": "e3f80fe3fde21f392647ff5fb6970a2bec68dc47abbee2f52f89ad4973df22e9",
   "evidenceDigests": {
     "app/_components/CookieConsentBanner.tsx": "b8e8f644160ee0ba81a0ff7b887386aa119fff1e99c60f6973a872354eb37ccc",
     "app/_components/InrcyDialogProvider.tsx": "4b8d457b85b0ee368f2d3fc0fb061e9f9fa247bcb749aaa531b850f83992b74d",
@@ -607,8 +607,8 @@
     "app/dashboard/personnalisation/page.tsx": "ca0afa878c442ad078d57047a1a7463de70ce0d022263d6e651fb5f7b5e0633b",
     "app/dashboard/personnalisation/personalization.module.css": "7663f949357783e65c95919f6340e709816f530b238f611d0775543e2d30bc87",
     "app/dashboard/settings/_components/AbonnementContent.tsx": "c9db166daec7fe4db0b3c38eb3554a7587037b76a1763b09302ba2ac404fa0e1",
-    "app/dashboard/settings/_components/AccountContent.module.css": "b2a18f3b40b56751cf6c0c05103ba852967ea273f78cd318e80375a8fc7a6baf",
-    "app/dashboard/settings/_components/AccountContent.tsx": "d2cc88689c5cbd09c5520a545137ac4779aad9c6acd549492b5f59bf03be7064",
+    "app/dashboard/settings/_components/AccountContent.module.css": "0883ba56e36c553f2e61b4d5b22df48722bad6fd89c0c63cc79fcaea595ea9e9",
+    "app/dashboard/settings/_components/AccountContent.tsx": "61a5e104c07c570fa4f0d45c49a6d1b5d28c175dce468f5f33d12f01a01e486d",
     "app/dashboard/settings/_components/ActivityContent.tsx": "df5b40abedb82a3eedc8fd3dda6c6d4cd9b690e7bc78c93ea81f7109db0b5c40",
     "app/dashboard/settings/_components/AgendaSettingsContent.tsx": "5995586d6fa94e6e8ed7f29e629b496c32ee5421f2e30310ee34e2e0a900d208",
     "app/dashboard/settings/_components/AiChannelCtaPanel.module.css": "5ce0207cbd9f67726fe997a1228ee9c6c4f70bd0fe114fe623121a5419a62cba",
@@ -1198,7 +1198,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "5464a9a8ce224cf90fb381b82c1f71b662e118adf4c8181e29f0308f78e45dfb",
+    "lib/inrAssistantCodeIndex.generated.ts": "215c9d9c76fa26da99f3ebc123040a2b38766ad6b68c961070467605094e443b",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -1983,7 +1983,7 @@
     "tests/ai-assistant/account-invoice-hosted.test.mts": "6dfa365d8f15e77b718f4490604c34c9de748e4ec83c23d2fb4ffc875444e208",
     "tests/ai-assistant/app-guides.test.mts": "90e211ebc151d9ba17491255f671cb6d29fdeeda19847849343d2e43b11c627c",
     "tests/ai-assistant/basic-account-services.test.mts": "8656bcaab612db59bbe376d1a23c3a7e147da27771b336de6fb353e2573794a0",
-    "tests/ai-assistant/basic-account-surface-handoffs.test.mts": "ba9bb564476c09827cd5112f0325e4e3fb7c6f7c72259811aa3ff4689f08d18b",
+    "tests/ai-assistant/basic-account-surface-handoffs.test.mts": "6e81e77e4534108fbc1581d41fad40e4ae306940f595a21a524e7093a76e983c",
     "tests/ai-assistant/basic-application-preferences.test.mts": "b997d7f88ca03bce0212675b43c33d9c37df64564ac3288ceff234940d988391",
     "tests/ai-assistant/basic-channel-lifecycle.test.mts": "02212c76841e17add35742784892e635cd46cb93e0d77086ddd9eb4f6a6ab86f",
     "tests/ai-assistant/basic-inertia-shop-read.test.mts": "91d84a08c5d707862ef4cfd8b597e352bbc7e2b2c1a9aa33852565700a14b231",
@@ -2048,7 +2048,7 @@
     "tests/ai-media-generation/video-engine-retirement-runtime.test.mts": "78035fa74e9c3952d160071d1e56a1fd3e50cde705aa711a96c9b2c89357fac7",
     "tests/booster-inr-search/presentation-settings-browser.test.mts": "d3b806b0385b183289561ff05077ddd3a0aea30114abb086b4ab3c8eaca9bf28",
     "tests/boutique/media-credit-client.test.mjs": "17883da2a45a36a10856f97c6d364aca6760b91c088183888b67d4579a466b05",
-    "tests/dashboard/account-local-controls-browser.test.mts": "a1b4d0ac2a4086cab2c8fe6e60bbc38f067187fd32a4def65b4682c7523e9372",
+    "tests/dashboard/account-local-controls-browser.test.mts": "81b83d8a3f987f9be961dc56046fbc3ce77413d812992fe2c9b535d8e41fac95",
     "tests/dashboard/badge-logo-theme-browser.test.mts": "fda7a92273e9b859739d361806e07f2585b6c388b1f28914b00ef08262b49d40",
     "tests/dashboard/booster-channel-account-labels.test.mts": "db8d3af6ffac4cdf2d6af7d5e679beb15db227391ca4e43e014329b8e61d26dc",
     "tests/dashboard/booster-result-render-runtime.test.mts": "25247906ed4fd89b9953a5dcb1e98cad535e09810aaa3ffafa84b5995644574b",
@@ -8245,14 +8245,15 @@
           "gateAnchor": "<input id={`${accountId}-email`} className={accountStyles.input} value={email} readOnly />"
         }
       },
-      "sourceDigest": "d2cc88689c5cbd09c5520a545137ac4779aad9c6acd549492b5f59bf03be7064",
+      "sourceDigest": "61a5e104c07c570fa4f0d45c49a6d1b5d28c175dce468f5f33d12f01a01e486d",
       "controlIds": [
+        "app/dashboard/settings/_components/AccountContent.tsx#button:8d88442491beb40b:1",
         "app/dashboard/settings/_components/AccountContent.tsx#input:8fa2c63149047d01:1",
         "app/dashboard/settings/_components/AccountContent.tsx#button:0cd35183a3b02ac2:1",
         "app/dashboard/settings/_components/AccountContent.tsx#a:078fc18d42e3faee:1",
-        "app/dashboard/settings/_components/AccountContent.tsx#input:f723eb4e582b178f:1",
-        "app/dashboard/settings/_components/AccountContent.tsx#input:b592202e9b855378:1",
-        "app/dashboard/settings/_components/AccountContent.tsx#input:274007dc5ae2c20b:1",
+        "app/dashboard/settings/_components/AccountContent.tsx#input:f803240d618fbeb4:1",
+        "app/dashboard/settings/_components/AccountContent.tsx#input:ff9ef1e3af688acf:1",
+        "app/dashboard/settings/_components/AccountContent.tsx#input:802bcdb5745ba293:1",
         "app/dashboard/settings/_components/AccountContent.tsx#button:8bdc4e1f5b6e02f6:1"
       ]
     },

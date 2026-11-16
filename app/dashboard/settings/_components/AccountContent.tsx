@@ -114,6 +114,21 @@ function AccountIcon({ kind }: { kind: "identity" | "security" | "plan" }) {
   );
 }
 
+function PasswordVisibilityControl({ inputId, visible, label, onToggle }: {
+  inputId: string; visible: boolean; label: string; onToggle: () => void;
+}) {
+  return (
+    <button type="button" className={accountStyles.passwordVisibility} aria-controls={inputId}
+      aria-label={label} title={label} aria-pressed={visible} onClick={onToggle}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+        <circle cx="12" cy="12" r="3" />
+        {visible ? <path d="m3 3 18 18" /> : null}
+      </svg>
+    </button>
+  );
+}
+
 export default function AccountContent({
   mode: _mode = "page",
   onUnsavedChange,
@@ -122,6 +137,7 @@ export default function AccountContent({
 }: Props) {
   const i18nT = useTranslations("settings");
   const passwordT = useTranslations("auth.password");
+  const visibilityT = useTranslations("auth.login");
   const locale = useLocale();
   const accountId = useId();
   const [email, setEmail] = useState<string>("");
@@ -133,6 +149,9 @@ export default function AccountContent({
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string>("");
   const [ok, setOk] = useState<string>("");
@@ -225,6 +244,9 @@ export default function AccountContent({
       setCurrentPassword("");
       setNewPassword("");
       setConfirm("");
+      setShowCurrentPassword(false);
+      setShowNewPassword(false);
+      setShowConfirmPassword(false);
     } catch (e: unknown) {
       console.error(e);
       setMsg(passwordT("updateFailed"));
@@ -290,18 +312,33 @@ export default function AccountContent({
           <div className={accountStyles.passwordFields}>
             <label className={`${accountStyles.field} ${accountStyles.fullWidth}`} htmlFor={`${accountId}-current`}>
               <span>{i18nT("mot_de_passe_actuel_f9242976")}</span>
-              <input id={`${accountId}-current`} className={accountStyles.input} type="password" value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
+              <div className={accountStyles.passwordInput}>
+                <input id={`${accountId}-current`} className={accountStyles.input} type={showCurrentPassword ? "text" : "password"} value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
+                <PasswordVisibilityControl inputId={`${accountId}-current`} visible={showCurrentPassword}
+                  label={`${visibilityT(showCurrentPassword ? "hidePassword" : "showPassword")} — ${i18nT("mot_de_passe_actuel_f9242976")}`}
+                  onToggle={() => setShowCurrentPassword(visible => !visible)} />
+              </div>
             </label>
             <label className={accountStyles.field} htmlFor={`${accountId}-new`}>
               <span>{i18nT("nouveau_mot_de_passe_3a713829")}</span>
-              <input id={`${accountId}-new`} className={accountStyles.input} type="password" value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" />
+              <div className={accountStyles.passwordInput}>
+                <input id={`${accountId}-new`} className={accountStyles.input} type={showNewPassword ? "text" : "password"} value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" />
+                <PasswordVisibilityControl inputId={`${accountId}-new`} visible={showNewPassword}
+                  label={`${visibilityT(showNewPassword ? "hidePassword" : "showPassword")} — ${i18nT("nouveau_mot_de_passe_3a713829")}`}
+                  onToggle={() => setShowNewPassword(visible => !visible)} />
+              </div>
             </label>
             <label className={accountStyles.field} htmlFor={`${accountId}-confirm`}>
               <span>{i18nT("confirmer_le_mot_de_passe_88362d0d")}</span>
-              <input id={`${accountId}-confirm`} className={accountStyles.input} type="password" value={confirm}
-                onChange={(e) => setConfirm(e.target.value)} placeholder="••••••••" autoComplete="new-password" />
+              <div className={accountStyles.passwordInput}>
+                <input id={`${accountId}-confirm`} className={accountStyles.input} type={showConfirmPassword ? "text" : "password"} value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)} placeholder="••••••••" autoComplete="new-password" />
+                <PasswordVisibilityControl inputId={`${accountId}-confirm`} visible={showConfirmPassword}
+                  label={`${visibilityT(showConfirmPassword ? "hidePassword" : "showPassword")} — ${i18nT("confirmer_le_mot_de_passe_88362d0d")}`}
+                  onToggle={() => setShowConfirmPassword(visible => !visible)} />
+              </div>
             </label>
             <div className={`${accountStyles.passwordRules} ${accountStyles.fullWidth}`}>
               <Rule ok={strength.rules.minLen} label={i18nT("8_caracteres_85066a4b")} />
