@@ -6,6 +6,7 @@ import test from "node:test";
 import ts from "typescript";
 import { AI_MEDIA_INSPIRATION_MAX_COUNT, normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
 import { assertStudioInspirationImageMetadata, StudioInspirationImageOnlyError } from "../../lib/studioInspirationImagePolicy.ts";
+import { projectMediaExactDialogueRows } from "../../lib/mediaExactDialogueEditor.ts";
 
 const read = (path: string) =>
   readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -52,9 +53,9 @@ function audioControls(kind: "image" | "video", speechMode: "voiceover" | "chara
   narrationVoiceMode?: "ai" | "provided";
 } = {}) {
   const context: Record<string, unknown> = { kind, speechMode, spokenScriptOpen: options.exactRows !== undefined,
-    exactRows: options.exactRows ?? [], narrationVoiceMode: options.narrationVoiceMode ?? "ai",
-    voiceReferences: [], voiceReferenceId: null, voiceSourcePreference: "ai" };
-  for (const name of ["exactSpeechEditorVisible", "explicitlyEmptySpokenScript", "voiceConfigurationMode", "selectedVoiceReference", "selectedVoiceMode", "exactHasCharacters", "exactHasAiVoice", "exactHasProvidedNarrator"]) {
+    exactRows: options.exactRows?.map((row, index) => ({ id: `isolation-line-${index}`, ...row })) ?? [],
+    voiceReferences: [], voiceReferenceId: null, voiceSourcePreference: options.narrationVoiceMode ?? "ai", projectMediaExactDialogueRows };
+  for (const name of ["narrationVoiceMode", "exactSpeechEditorVisible", "exactSpeechActive", "explicitlyEmptySpokenScript", "voiceConfigurationMode", "selectedVoiceReference", "selectedVoiceMode", "effectiveExactRows", "exactHasCharacters", "exactHasProvidedNarrator", "speakingCharacterIds"]) {
     context[name] = evaluate(initializer(name), context);
   }
   return {
@@ -101,6 +102,7 @@ function resultContext() {
     hasSpokenScript: false,
     spokenScript: "",
     spokenScriptOpen: false,
+    exactSpeechEditorVisible: false, exactSpeechActive: false, exactHasCharacters: false, exactCharacters: [], speakingCharacterIds: new Set<string>(),
     soundtrackId: null, projectedReferences: [], submittedVoicePaths: { current: new Set<string>() },
     providedNarrationVoiceActive: false, narrationVoiceSample: undefined, narrationVoiceMode: "ai", narrationVoiceConsent: false, activeNarrationProfile: undefined,
     effectiveWithSubtitles: false,
@@ -313,12 +315,14 @@ test("Libre reprend le rôle du lancement et son usage sans imposer un personnag
     const existing = { id: "existing-image", role: "inspiration", usage: "required", mimeType: "image/png", data: "A".repeat(64) };
     let references: Array<Record<string, unknown>> = [existing];
     let closes = 0, resets = 0;
+    let voiceReferenceId: string | null = null;
     const run = evaluate(initializer("addFiles"), {
       locked: false, operationInFlight: { current: false }, recoveryPending: false,
-      pendingReferenceRole: role, sequence: { current: 0 }, references, voiceModeIntent: { current: null }, voiceReferences: [],
+      pendingReferenceRole: role, sequence: { current: 0 }, references, voiceReferences: [],
       AI_MEDIA_INSPIRATION_MAX_COUNT, assertStudioInspirationImageMetadata, StudioInspirationImageOnlyError,
       prepareMediaGenerationImageReference: async (file: { name: string }) => ({ name: file.name, mimeType: "image/png", data: "A".repeat(64) }),
       setReferences: (update: (current: typeof references) => typeof references) => { references = update(references); },
+      setVoiceReferenceId: (id: string) => { voiceReferenceId = id; },
       setReferencesBusy() {}, setActionError(message: string) { assert.equal(message, ""); },
       resetConsent: () => { resets++; },
       setMediaSettingsDialog: (dialog: null) => { assert.equal(dialog, null); closes++; },
@@ -329,6 +333,8 @@ test("Libre reprend le rôle du lancement et son usage sans imposer un personnag
     assert.equal(references[0], existing, "Importing a new role never migrates an existing generic required Image.");
     assert.equal(references[1].role, role);
     assert.equal(references[1].usage, role === "inspiration" ? "inspiration" : "required");
+    assert.equal(voiceReferenceId, role === "character" ? references[1].id : null,
+      "Only the newly imported character becomes the voice editing target; other roles do not change it.");
     assert.equal(closes, 1, "Successful preparation closes the add dialog.");
     assert.equal(resets, 1, "Every new reference invalidates earlier consent.");
   }
@@ -374,7 +380,8 @@ test("les commandes UI Libre transmettent le son choisi sans fuite des paramètr
     assert.equal(request.narrationVoice, sound === "voiceover" ? "male" : undefined);
     assert.equal(request.narrationVoiceVariant, sound === "voiceover" ? "Charon" : undefined);
     assert.equal(request.withMusic, withMusic);
-    assert.equal(request.inspirationImages, references);
+    assert.deepEqual(request.inspirationImages, references);
+    assert.equal((request.inspirationImages as unknown[])[0], references[0], "Audio projection preserves the unrelated product reference.");
     assert.equal(request.durationSeconds, 16);
     // The hook adds this opaque ID; all sound fields below are the real UI payload.
     const normalized = normalizeAiMediaGenerationRequest({ ...request, requestId: `ui-audio-${sound}-${withMusic}` });
@@ -413,10 +420,12 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
   const option = optionCallback.body.openingElement;
   for (const mode of modes) {
     assert.equal(evaluate(attribute(option, "value"), { mode }), mode);
-    for (const hasSpokenScript of [false, true]) assert.equal(evaluate(attribute(option, "disabled"), { mode, hasSpokenScript }), mode === "silent" && hasSpokenScript);
+    assert.equal(option.attributes.properties.some(property => ts.isJsxAttribute(property) && property.name.getText(parsed) === "disabled"), false,
+      "An explicit speech choice remains available without deleting the dormant Exact draft.");
   }
   for (const locked of [false, true]) for (const exactSpeechEditorVisible of [false, true]) {
-    assert.equal(evaluate(attribute(select.openingElement, "disabled"), { locked, exactSpeechEditorVisible }), locked || exactSpeechEditorVisible);
+    assert.equal(evaluate(attribute(select.openingElement, "disabled"), { locked, exactSpeechEditorVisible }), locked,
+      "Auto and Exact share the same editable speech selector, while an active operation still locks it.");
   }
   const voiceOptions = nodes.find((node): node is ts.ConditionalExpression =>
     ts.isConditionalExpression(node) && node.whenTrue.getText(parsed).includes("styles.voiceOptions"));
@@ -429,7 +438,7 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
           text: state.empty ? "" : "Bonjour, bienvenue.",
         }] } : {}) });
         assert.equal(evaluate(voiceOptions.condition, derived),
-          (state.exact ? speechMode !== "characters" : speechMode === "voiceover") && narrationVoiceMode === "ai",
+          speechMode === "voiceover" && narrationVoiceMode === "ai",
           "Voice-over AI settings remain editable even with an empty Exact draft; character and supplied-voice modes do not show them.");
         if (state.empty) assert.equal(derived.effectiveWithNarration, false,
           "Keeping voice settings visible must never activate empty narration.");
@@ -451,9 +460,8 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
   }) as () => void;
   for (const next of ["characters", "silent", "voiceover", "silent", "characters", "voiceover"] as const) {
     const onChange = evaluate(attribute(select.openingElement, "onChange"), {
-      exactSpeechEditorVisible: false,
       voiceSelectionRevision,
-      hasSpokenScript: false, characterVoiceSelection: { hasProvidedVoice: false }, voiceModeIntent: { current: null }, setVoiceSourcePreference: (mode: string) => assert.equal(mode, "ai"),
+      setVoiceSourcePreference: () => assert.fail("Changing who speaks must not change the voice source."),
       setSpeechMode: (value: typeof speechMode) => { speechMode = value; },
       resetConsent,
     }) as (event: { target: { value: string } }) => void;
@@ -468,22 +476,35 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
   assert.equal(voiceSelectionRevision.current, 6, "each explicit audio choice protects the current draft from a late saved default");
   assert.equal(identityConsent, false);
   assert.notEqual(referenceSetId.current, "previous-reference-set");
-  const blockSilent = evaluate(attribute(select.openingElement, "onChange"), {
-    exactSpeechEditorVisible: false,
-    hasSpokenScript: true,
-    setSpeechMode: () => assert.fail("Exact speech must not silently switch to silence."),
-    resetConsent: () => assert.fail("A refused mode change preserves the current consent."),
-  }) as (event: { target: { value: string } }) => void;
-  blockSilent({ target: { value: "silent" } });
-  assert.equal(speechMode, "voiceover");
-  const derivedExact = audioControls("video", "silent", { exactRows: [{ speaker: "ai_voice", text: "Bonjour." }] });
-  assert.equal(evaluate(attribute(select.openingElement, "value"), derivedExact), "voiceover", "Exact rows determine the visible locked menu without mutating Auto's stored silent choice.");
-  const blockExactChange = evaluate(attribute(select.openingElement, "onChange"), {
-    ...derivedExact,
-    setSpeechMode: () => assert.fail("A stale global control cannot override an Exact row."),
-    resetConsent: () => assert.fail("A refused global change cannot mutate consent."),
-  }) as (event: { target: { value: string } }) => void;
-  blockExactChange({ target: { value: "characters" } });
+  const savedExactRows = [{ speaker: "character" as const, text: "Bonjour." }, { speaker: "ai_voice" as const, text: "Bienvenue." }];
+  const beforeExactRows = structuredClone(savedExactRows);
+  for (const narrationVoiceMode of ["ai", "provided"] as const) {
+    for (const next of ["silent", "characters", "voiceover"] as const) {
+      const derivedExact = audioControls("video", speechMode, { narrationVoiceMode, exactRows: savedExactRows });
+      assert.equal(evaluate(attribute(select.openingElement, "value"), derivedExact), speechMode,
+        "Exact rows do not override the explicit global speech choice.");
+      const revision = voiceSelectionRevision.current, consentCount = consentChanges.length;
+      const changeExactMode = evaluate(attribute(select.openingElement, "onChange"), {
+        ...derivedExact, voiceSelectionRevision,
+        setSpeechMode: (value: typeof speechMode) => { speechMode = value; },
+        setVoiceSourcePreference: () => assert.fail("A speech choice must preserve the selected AI or real source."),
+        setExactRows: () => assert.fail("A speech choice must not erase or reassign saved Exact lines."),
+        generate: () => assert.fail("Choosing a speech mode must not generate a media."),
+        resetConsent,
+      }) as (event: { target: { value: string } }) => void;
+      changeExactMode({ target: { value: next } });
+      assert.equal(speechMode, next);
+      const committed = audioControls("video", speechMode, { narrationVoiceMode, exactRows: savedExactRows });
+      assert.equal(evaluate(attribute(select.openingElement, "value"), committed), next);
+      assert.equal(committed.selectedVoiceMode, narrationVoiceMode);
+      assert.equal(committed.effectiveWithNarration, next === "voiceover");
+      assert.equal(voiceSelectionRevision.current, revision + 1);
+      assert.equal(consentChanges.length, consentCount + 1);
+      assert.equal(consentChanges.at(-1), false, "An explicit mode change revokes earlier authorization.");
+      assert.deepEqual(savedExactRows, beforeExactRows);
+      assert.equal(withMusic, true);
+    }
+  }
 
   const music = nodes.filter(ts.isJsxSelfClosingElement).find(node => node.tagName.getText(parsed) === "StudioMusicLibrary");
   assert.ok(music); let soundtrackId: string | null = null;

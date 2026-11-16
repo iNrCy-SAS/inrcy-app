@@ -103,6 +103,42 @@ test("real Studio remembers photos and their dedicated voices across fresh sessi
       assert.equal(await page.locator('select[id$="-spoken-script-mode"]').inputValue(), "automatic");
       assert.equal(await page.locator('select[id$="-video-speech-mode"]').inputValue(), "characters");
       assert.equal(await page.locator('select[id$="-video-voice-mode"]').inputValue(), "provided");
+      await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
+      assert.equal(await page.locator('select[id$="-video-speech-mode"]').inputValue(), "characters", "Exact preserves the restored character intention rather than inventing an offscreen narrator");
+      assert.equal(await page.locator('select[id$="-video-voice-mode"]').inputValue(), "provided", "Exact retains each photo's supplied voice");
+      await page.locator("[data-exact-dialogue-settings]").click();
+      const exactDialog = page.locator("[data-exact-dialogue-dialog]"); await exactDialog.waitFor({ state: "visible" });
+      assert.equal(await exactDialog.locator("[data-exact-dialogue-row] select").first().inputValue(), `character:${id(1)}`);
+      assert.equal(await exactDialog.locator("textarea").first().inputValue(), "", "the default line never invents speech");
+      await exactDialog.locator('textarea').first().fill('Bonjour David.');
+      await exactDialog.locator('[data-exact-dialogue-add]').click();
+      await exactDialog.locator('[data-exact-dialogue-row] select').nth(1).selectOption(`character:${id(2)}`);
+      await exactDialog.locator('textarea').nth(1).fill('Bonjour Kathia.');
+      await exactDialog.locator('[data-exact-dialogue-add]').click();
+      await exactDialog.locator('textarea').nth(2).fill('Bienvenue à tous.');
+      const readRows=()=>page.evaluate(()=>(window as unknown as {fixtureStudioInterfaces:Record<string,{snapshot:{rows:Array<{id:string;speaker:string;characterId?:string;text:string}>}}>}).fixtureStudioInterfaces.studio_exact_dialogue.snapshot.rows);
+      const characterRows=await readRows();
+      await exactDialog.locator(":scope > header > button").click();
+      const speechChoice=page.locator('select[id$="-video-speech-mode"]'),voiceChoice=page.locator('select[id$="-video-voice-mode"]');
+      assert.equal(await speechChoice.isDisabled(),false);assert.equal(await voiceChoice.isDisabled(),false);
+      await voiceChoice.selectOption('ai');await voiceChoice.selectOption('provided');
+      await speechChoice.selectOption('voiceover');assert.equal(await voiceChoice.inputValue(),'provided','changing the speaker mode preserves the independent voice source');
+      await page.locator('[data-exact-dialogue-settings]').click();
+      assert.ok((await readRows()).every(row=>row.speaker==='provided_voice'&&!row.characterId),'the dialog displays the effective narrator rather than dormant character labels');
+      for(const select of await exactDialog.locator('[data-exact-dialogue-row] select').all())assert.equal(await select.isDisabled(),true);
+      await exactDialog.locator('textarea').nth(1).fill('Kathia révisée.');
+      await exactDialog.getByRole('button',{name:'Monter la réplique 3',exact:true}).click();
+      await exactDialog.locator(':scope > header > button').click();
+      await voiceChoice.selectOption('ai');await speechChoice.selectOption('characters');assert.equal(await voiceChoice.inputValue(),'ai');
+      await page.locator('[data-exact-dialogue-settings]').click();
+      assert.deepEqual((await readRows()).map(row=>[row.id,row.speaker,row.characterId,row.text]),[
+        [characterRows[0].id,'character',id(1),'Bonjour David.'],[characterRows[2].id,'ai_voice',undefined,'Bienvenue à tous.'],[characterRows[1].id,'character',id(2),'Kathia révisée.'],
+      ],'text and order edits retain dormant photo assignments through the narrator projection');
+      await exactDialog.locator(':scope > header > button').click();await voiceChoice.selectOption('provided');
+      await page.locator('select[id$="-spoken-script-mode"]').selectOption("automatic");
+      await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
+      assert.equal(await page.locator('select[id$="-video-speech-mode"]').inputValue(), "characters");
+      await page.locator('select[id$="-spoken-script-mode"]').selectOption("automatic");
       assert.equal(await page.evaluate(() => (window as unknown as { fixtureStudioInterfaces: Record<string, { snapshot: { videoEngine?: string } }> }).fixtureStudioInterfaces.studio_free_form.snapshot.videoEngine), initialEngine, "restored voices never change the effective video provider");
       const bindings = await page.evaluate(() => {
         const state = window as unknown as { fixtureStudioInterfaces: Record<string, { snapshot: { profiles?: unknown[]; characters?: unknown[] } }>; studioRequests: unknown[]; fixtureSavedMemory: { voices: number } };

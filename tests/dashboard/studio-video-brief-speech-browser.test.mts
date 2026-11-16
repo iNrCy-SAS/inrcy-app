@@ -401,6 +401,10 @@ test("compact video instructions fit all nine locales and retain the image text 
       await assertExactDialogueBudget(page);
     }
     await page.evaluate(() => { (window as unknown as FixtureWindow).fixtureLocale = "fr-FR"; (window as unknown as FixtureWindow).renderStudio("x".repeat(3900), "image"); });
+    await page.waitForFunction(() => {
+      const snapshot = (window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_free_form?.snapshot as { kind?: string; language?: string } | undefined;
+      return snapshot?.kind === "image" && snapshot.language === "fr-FR";
+    });
     const imagePrompt = page.locator('textarea[id$="-prompt"]');
     await imagePrompt.waitFor();
     assert.equal(await imagePrompt.inputValue(), "x".repeat(3900));
@@ -634,14 +638,17 @@ test("real Studio voice Settings opens the three-source pool and preserves new s
       const visual = page.getByLabel("Consignes visuelles", { exact: true });
       const prompt = await visual.inputValue();
       await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact"); await fillCommittedStudioText(page, "spokenScript", "Bonjour, bienvenue dans notre atelier.");
+      await page.locator('select[id$="-video-voice-mode"]').selectOption("provided");
       await page.locator('[data-exact-dialogue-settings]').click();
       const dialogue = page.locator('[data-exact-dialogue-dialog]');
       await dialogue.waitFor({ state: "visible" });
-      await dialogue.locator('[data-exact-dialogue-row] select').first().selectOption("provided_voice");
+      const narrator = dialogue.locator('[data-exact-dialogue-row] select').first();
+      assert.equal(await narrator.isDisabled(), true, "the narrator follows the explicit global source rather than a contradictory per-row choice");
+      assert.equal(await narrator.inputValue(), "provided_voice");
       await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_exact_dialogue.snapshot as { rows: Array<{ speaker: string }> }).rows[0].speaker === "provided_voice");
       await dialogue.locator('header button').click();
       await dialogue.waitFor({ state: "hidden" });
-      assert.equal(await page.locator('select[id$="-video-voice-mode"]').inputValue(), "provided", "the explicit offscreen row determines the voice source");
+      assert.equal(await page.locator('select[id$="-video-voice-mode"]').inputValue(), "provided", "Exact preserves the explicit main voice-source choice");
       const settings = page.locator('[data-voice-pool-settings]'); await settings.waitFor();
       assert.equal(await page.locator('[data-video-audio-button]').count(), 0, "Real uses one Settings entry rather than a second hidden gear");
       assert.equal(await page.locator('[data-voice-pool-import]').count(), 0, "no file import or three vocal chips are shown in the main panel");
@@ -687,7 +694,7 @@ test("real Studio voice Settings opens the three-source pool and preserves new s
         await imageDialog.locator('input[type="file"]').setInputFiles({ name: "moi.png", mimeType: "image/png", buffer: Buffer.from(referencePng, "base64") });
         await imageDialog.waitFor({ state: "detached" });
         await page.waitForFunction(() => document.querySelectorAll('[data-media-reference-open]').length === 1);
-        assert.equal(await page.locator('select[id$="-video-speech-mode"]').isDisabled(), true, "the original global menu remains visible while explicit dialogue speakers determine its value");
+        assert.equal(await page.locator('select[id$="-video-speech-mode"]').isDisabled(), false, "the independent speaker menu remains editable after a photo is added");
         assert.equal(await page.locator('select[id$="-video-speech-mode"]').inputValue(), "voiceover");
         assert.equal(await page.locator('select[id$="-video-voice-mode"]').inputValue(), "provided");
         await assertUsualDesktopPanelNeedsNoScroll(page, `${viewport.width}x${viewport.height} Real voiceover with one required photo and Exact`);
@@ -954,10 +961,16 @@ test("short windows keep both video frames separate and the speech header on two
         assert.equal(await page.locator('[id$="-spoken-script-count"]').count(), 0);
         assert.equal(await page.locator('select[id$="-spoken-script-mode"]').isEnabled(), true, "an explicit dialogue can be selected after silent Auto without relying on its old global mode");
         await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
-        assert.equal(await speech.inputValue(), "Bonjour, nous prenons soin de votre jardin.");
+        assert.equal(await speech.count(), 0, "selecting Exact cannot reactivate speech over the independent silent choice");
+        assert.equal(await page.locator('[data-exact-dialogue-settings]').count(), 0);
+        assert.equal(await page.locator('select[id$="-video-speech-mode"]').isDisabled(), false);
+        assert.equal(await page.locator('select[id$="-video-speech-mode"]').inputValue(), "silent");
+        await page.locator('select[id$="-video-speech-mode"]').selectOption("voiceover");
+        await speech.waitFor({ state: "attached" });
+        assert.equal(await speech.inputValue(), "Bonjour, nous prenons soin de votre jardin.", "an explicit speaker choice restores the intact Exact draft");
         assert.equal(await page.locator('[data-exact-dialogue-settings]').isVisible(), true);
-        assert.equal(await page.locator('select[id$="-video-speech-mode"]').isDisabled(), true, "the restored global menu reflects the explicit dialogue without overriding it");
-        assert.equal(await page.locator('select[id$="-video-speech-mode"]').inputValue(), "voiceover", "the offscreen dialogue replaces the stale silent Auto value");
+        assert.equal(await page.locator('select[id$="-video-speech-mode"]').isDisabled(), false);
+        assert.equal(await page.locator('select[id$="-video-speech-mode"]').inputValue(), "voiceover");
         await page.locator('select[id$="-spoken-script-mode"]').selectOption("automatic");
         await page.locator('select[id$="-video-speech-mode"]').selectOption("voiceover");
         assert.equal(await page.locator('select[id$="-spoken-script-mode"]').isVisible(), true);

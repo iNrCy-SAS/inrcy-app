@@ -30,6 +30,37 @@ export function createMediaExactDialogueRow(speaker: MediaExactDialogueRow['spea
   return { id: globalThis.crypto.randomUUID(), speaker, text };
 }
 
+/** Enter Exact without changing existing speech or assigning a different person by index. */
+export function initializeMediaExactDialogueRows(rows: readonly MediaExactDialogueRow[], legacyScript: string, characters: readonly MediaExactDialogueCharacter[], defaults: {
+  speechMode: 'characters' | 'voiceover' | 'silent'; characterId?: string | null; narrationVoiceMode?: 'ai' | 'provided';
+}): MediaExactDialogueRow[] {
+  if (rows.length) return [...rows];
+  const imported = importMediaExactDialogueText(legacyScript, characters);
+  if (imported.length) return imported;
+  if (defaults.speechMode === 'characters') {
+    const character = defaults.characterId ? characters.find(character => character.id === defaults.characterId) : characters[0];
+    return character ? [{ ...createMediaExactDialogueRow('character'), characterId: character.id }] : [createMediaExactDialogueRow('unassigned')];
+  }
+  return [createMediaExactDialogueRow(defaults.narrationVoiceMode === 'provided' ? 'provided_voice' : 'ai_voice')];
+}
+
+/** The global speech choice is explicit. Narration never destroys dormant photo bindings. */
+export function projectMediaExactDialogueRows(rows: readonly MediaExactDialogueRow[], speechMode: 'characters' | 'voiceover' | 'silent', narrationVoiceMode: 'ai' | 'provided'): MediaExactDialogueRow[] {
+  if (speechMode === 'silent') return [];
+  if (speechMode === 'characters') return [...rows];
+  return rows.map(row => ({ ...row, speaker: narrationVoiceMode === 'provided' ? 'provided_voice' : 'ai_voice', characterId: undefined }));
+}
+
+/** Apply text, order and row changes from the effective editor to the same stable draft IDs. */
+export function mergeMediaExactDialogueRows(previous: readonly MediaExactDialogueRow[], edited: readonly MediaExactDialogueRow[], speechMode: 'characters' | 'voiceover' | 'silent'): MediaExactDialogueRow[] {
+  if (speechMode !== 'voiceover') return [...edited];
+  const byId = new Map(previous.map(row => [row.id, row]));
+  return edited.map(row => {
+    const saved = byId.get(row.id);
+    return saved ? { ...saved, text: row.text } : { ...row };
+  });
+}
+
 /** Keep photo IDs in drafts. Their current numbered slots are used only on send. */
 export function serializeMediaExactDialogueRows(rows: readonly MediaExactDialogueRow[], characters: readonly MediaExactDialogueCharacter[]) {
   const turns: AiMediaExactDialogueTurn[] = [];

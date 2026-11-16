@@ -1144,6 +1144,7 @@
   "ai_generator_character_name_invalid": "Nom unique, 40 caractères maximum, sans ponctuation de dialogue.",
   "ai_generator_exact_dialogue_count": "{count, plural, one {# réplique} other {# répliques}}",
   "ai_generator_exact_dialogue_choose_speaker": "Choisissez un locuteur",
+  "ai_generator_exact_dialogue_engine_incompatible": "Ce moteur ne prend pas en charge ces locuteurs. Choisissez un moteur compatible.",
   "ai_generator_exact_dialogue_empty": "Ajoutez du texte à chaque réplique.",
   "ai_generator_exact_dialogue_title": "Paroles exactes",
   "ai_generator_exact_dialogue_help": "Choisissez qui parle pour chaque réplique. L’ordre affiché est celui du film.",

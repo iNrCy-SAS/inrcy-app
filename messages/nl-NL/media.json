@@ -1144,6 +1144,7 @@
   "ai_generator_character_name_invalid": "Gebruik een unieke naam van maximaal 40 tekens, zonder dialoogleestekens.",
   "ai_generator_exact_dialogue_count": "{count, plural, one {# regel} other {# regels}}",
   "ai_generator_exact_dialogue_choose_speaker": "Kies een spreker",
+  "ai_generator_exact_dialogue_engine_incompatible": "Dit model ondersteunt deze sprekers niet. Kies een compatibel model.",
   "ai_generator_exact_dialogue_empty": "Voeg tekst toe aan elke regel.",
   "ai_generator_exact_dialogue_title": "Exacte dialoog",
   "ai_generator_exact_dialogue_help": "Kies wie elke regel uitspreekt. De getoonde volgorde geldt voor de film.",

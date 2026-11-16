@@ -4,8 +4,47 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import {normalizeAiMediaGenerationRequest} from '../../lib/aiMediaGenerationContracts.ts';
 import {normalizeAiMediaExactDialogue} from '../../lib/aiMediaExactDialogue.ts';
-import {buildMediaExactDialogueCharacters,serializeMediaExactDialogueRows,importMediaExactDialogueText,createMediaExactDialogueRow,countMediaExactDialogueCharacters,getMediaExactDialogueDisplayBudget,
+import {buildMediaExactDialogueCharacters,serializeMediaExactDialogueRows,importMediaExactDialogueText,createMediaExactDialogueRow,countMediaExactDialogueCharacters,getMediaExactDialogueDisplayBudget,initializeMediaExactDialogueRows,projectMediaExactDialogueRows,mergeMediaExactDialogueRows,
  type MediaExactDialogueCharacter} from '../../lib/mediaExactDialogueEditor.ts';
+
+test('Exact starts with the chosen stable character while keeping existing and legacy speech intact',()=>{
+ const characters=buildMediaExactDialogueCharacters([{id:'david',role:'character',characterName:'David'},{id:'garden',role:'environment'},{id:'kathia',role:'character',characterName:'Kathia'}]);
+ const defaults={speechMode:'characters' as const,characterId:'kathia',narrationVoiceMode:'provided' as const};
+ const rows=initializeMediaExactDialogueRows([], '', characters, defaults);
+ assert.equal(rows.length,1);assert.equal(rows[0].speaker,'character');assert.equal(rows[0].characterId,'kathia');assert.equal(rows[0].text,'');
+ const reordered=buildMediaExactDialogueCharacters([{id:'kathia',role:'character'},{id:'garden',role:'environment'},{id:'david',role:'character'}]);
+ assert.equal(initializeMediaExactDialogueRows([], '', reordered, defaults)[0].characterId,'kathia');
+ assert.equal(initializeMediaExactDialogueRows([], '', characters,{...defaults,characterId:null})[0].characterId,'david');
+ assert.equal(initializeMediaExactDialogueRows([], '', characters,{...defaults,characterId:'removed'})[0].speaker,'unassigned');
+ assert.equal(initializeMediaExactDialogueRows([], '', [],defaults)[0].speaker,'unassigned');
+ const mixed=[{...rows[0],text:'Bonjour !'},createMediaExactDialogueRow('ai_voice','Bienvenue !')];
+ assert.deepEqual(initializeMediaExactDialogueRows(mixed,'Un ancien texte.',characters,{speechMode:'voiceover'}),mixed);
+ const legacy='Kathia : Bonjour !\nDavid : Bienvenue !';
+ assert.deepEqual(initializeMediaExactDialogueRows([],legacy,characters,defaults).map(row=>[row.characterId,row.text]),[['kathia','Bonjour !'],['david','Bienvenue !']]);
+ const unknown='Un ancien texte sans acteur.';
+ const imported=initializeMediaExactDialogueRows([],unknown,characters,defaults);assert.equal(imported[0].text,unknown);assert.equal(imported[0].speaker,'unassigned');
+ for(const source of ['ai','provided'] as const){const narrator=initializeMediaExactDialogueRows([],'',[],{speechMode:'voiceover',narrationVoiceMode:source});assert.equal(narrator[0].speaker,source==='provided'?'provided_voice':'ai_voice');}
+});
+
+test('voiceover projection edits the same text and order without destroying dormant photo assignments',()=>{
+ const characters=buildMediaExactDialogueCharacters([{id:'david',role:'character'},{id:'kathia',role:'character'}]);
+ const david={...createMediaExactDialogueRow('character','Bonjour de David.'),characterId:'david'},kathia={...createMediaExactDialogueRow('character','Bonjour de Kathia.'),characterId:'kathia'},offscreen=createMediaExactDialogueRow('ai_voice','Une conclusion.');
+ const draft=[david,kathia,offscreen],before=structuredClone(draft);
+ for(const source of ['ai','provided'] as const){
+  const effective=projectMediaExactDialogueRows(draft,'voiceover',source);
+  assert.deepEqual(effective.map(row=>[row.id,row.text]),draft.map(row=>[row.id,row.text]));
+  assert.ok(effective.every(row=>row.speaker===(source==='provided'?'provided_voice':'ai_voice')&&row.characterId===undefined));
+  assert.equal(serializeMediaExactDialogueRows(effective,characters).issue,null);
+ }
+ const projected=projectMediaExactDialogueRows(draft,'voiceover','ai');
+ const added=createMediaExactDialogueRow('ai_voice','Une nouvelle phrase.');
+ const edited=[{...projected[1],text:'Kathia révisée.'},projected[0],added];
+ const merged=mergeMediaExactDialogueRows(draft,edited,'voiceover');
+ assert.deepEqual(merged.map(row=>[row.id,row.speaker,row.characterId,row.text]),[[kathia.id,'character','kathia','Kathia révisée.'],[david.id,'character','david',david.text],[added.id,'ai_voice',undefined,added.text]]);
+ const restored=projectMediaExactDialogueRows(merged,'characters','provided');assert.deepEqual(restored,merged);
+ assert.deepEqual(draft,before);assert.deepEqual(projectMediaExactDialogueRows(merged,'silent','ai'),[]);
+ assert.equal(serializeMediaExactDialogueRows(restored,characters.filter(character=>character.id!=='kathia')).issue,'missing_character');
+});
 
 test('the displayed speech allowance stays useful before typing and follows the actual engine duration without truncating drafts',()=>{
  const input={videoEngine:'kling' as const,videoResolution:'1080p' as const,durationSeconds:16,sceneMode:'single' as const,language:'fr-FR'};

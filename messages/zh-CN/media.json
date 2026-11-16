@@ -1144,6 +1144,7 @@
   "ai_generator_character_name_invalid": "姓名须唯一，不超过40个字符，且不含台词标点。",
   "ai_generator_exact_dialogue_count": "{count} 条台词",
   "ai_generator_exact_dialogue_choose_speaker": "请选择说话者",
+  "ai_generator_exact_dialogue_engine_incompatible": "此模型不支持这些说话者。请选择兼容的模型。",
   "ai_generator_exact_dialogue_empty": "请为每条台词输入文字。",
   "ai_generator_exact_dialogue_title": "准确台词",
   "ai_generator_exact_dialogue_help": "为每条台词选择说话者。影片将按照显示顺序播放。",

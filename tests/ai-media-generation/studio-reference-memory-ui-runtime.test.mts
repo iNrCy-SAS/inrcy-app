@@ -35,11 +35,10 @@ function context(initial = draft()) {
   const state = { ...emptyReferenceMemory("account-a"), loaded: true };
   const current = { accountId: "account-a", draft: initial }; const requests: string[] = [], deleted: string[] = [];
   const consents = { identity: true, team: true, narration: true };
-  const choices = { speechMode: "voiceover", voiceMode: "ai", referenceId: null as string | null, restored: false };
+  const choices = { speechMode: "voiceover", voiceMode: "ai", referenceId: null as string | null };
   const value: Record<string, unknown> = { ...memoryClient, quota: { accountId: "account-a" }, kind: "video", instanceId: "test-memory", locked: false,
     voiceSelectionRevision: { current: 0 }, setSpeechMode(mode: string) { choices.speechMode = mode; },
     setVoiceSourcePreference(mode: string) { choices.voiceMode = mode; }, setVoiceReferenceId(referenceId: string) { choices.referenceId = referenceId; },
-    setRestoredCharacterVoices(restored: boolean) { choices.restored = restored; },
     operationInFlight: { current: false }, referenceMemoryController: { current: null }, sequence: { current: 1 },
     referenceMemoryCurrent: { current }, referenceMemoryLoadedAccount: { current: null }, referenceMemoryAction: { current: null }, referenceSetId: { current: "" },
     referenceMemory: state, referenceMemoryAvailable: true, hasMemoryReferences: Boolean(initial.references.length || initial.voices.length), referenceMemoryDirty: false,
@@ -156,11 +155,10 @@ test("a fresh Studio restores photos and voices once while all generation author
   harness.value.requestStudioReferenceMemory = async () => ({ ok: true, accountId: "account-a", memory: emptySavedMemory(), media: [], unavailableMediaIds: [] });
   let restores = 0; harness.value.hydrateStudioReferenceMemory = async () => { restores++; return restored; };
   const effect = evaluate<() => (() => void) | undefined>(loadEffect, harness.value); const cleanup = effect(); await flush();
-  assert.deepEqual(harness.current.draft, restored); assert.equal(harness.state.saved, true); assert.equal(harness.state.loaded, true);
+  assert.deepEqual(harness.current.draft, restored); assert.equal(harness.state.saved, true); assert.equal(harness.state.loaded, true); assert.equal(harness.state.error, "");
   assert.deepEqual(harness.consents, { identity: false, team: false, narration: false });
-  assert.deepEqual(harness.choices, { speechMode: "characters", voiceMode: "provided", referenceId: id(1), restored: true });
-  const selectedVideoEngine = evaluate<string>(initializer("selectedVideoEngine"), { restoredCharacterVoices: harness.choices.restored,
-    exactSpeechEditorVisible: false, characterVoiceSelection: { hasProvidedVoice: true }, enginePreference: { videoEngine: "omni" }, isAiMediaCharacterVoiceEngine });
+  assert.deepEqual(harness.choices, { speechMode: "characters", voiceMode: "provided", referenceId: id(1) });
+  const selectedVideoEngine = evaluate<string>(initializer("selectedVideoEngine"), { enginePreference: { videoEngine: "omni" } });
   assert.equal(selectedVideoEngine, "omni", "the effective provider remains the selected provider rather than a supplied-voice fallback");
   const unsupported = evaluate<boolean>(initializer("characterVoiceEngineUnsupported"), { selectedVideoEngine, characterVoiceSelection: { hasProvidedVoice: true }, isAiMediaCharacterVoiceEngine });
   assert.equal(unsupported, true);

@@ -1144,6 +1144,7 @@
   "ai_generator_character_name_invalid": "Nombre único, máximo 40 caracteres, sin signos de diálogo.",
   "ai_generator_exact_dialogue_count": "{count, plural, one {# intervención} other {# intervenciones}}",
   "ai_generator_exact_dialogue_choose_speaker": "Elija un hablante",
+  "ai_generator_exact_dialogue_engine_incompatible": "Este modelo no admite estos hablantes. Elija un modelo compatible.",
   "ai_generator_exact_dialogue_empty": "Añada texto a cada intervención.",
   "ai_generator_exact_dialogue_title": "Diálogo exacto",
   "ai_generator_exact_dialogue_help": "Elija quién habla en cada intervención. El orden mostrado es el del vídeo.",

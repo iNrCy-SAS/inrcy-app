@@ -6,20 +6,31 @@ const hasCredentials = Boolean(process.env.E2E_EMAIL && process.env.E2E_PASSWORD
 
 /** Real authenticated page and React controls; media billing/provider requests never leave the browser. */
 async function openStudio(page: Page, holdGeneration = false) {
+  const accountId = '10000000-0000-4000-8000-000000000099';
   const credits = { unit: 'credit', limit: 1000, used: 0, reserved: 0, remaining: 1000 };
   let submissions = 0;
+  let memoryReads = 0;
   let submittedBody: Record<string, unknown> | null = null;
   let releaseGeneration: () => void = () => {};
   const completion = new Promise<void>(resolve => { releaseGeneration = resolve; });
   await page.route('**/api/media-generation/quota', route => route.fulfill({
     json: { quota: {
-      accountId: '10000000-0000-4000-8000-000000000099', edition: 'premium', unlimited: false,
+      accountId, edition: 'premium', unlimited: false,
       periodStart: null, resetAt: null, studioEnabled: true, creditsReady: true,
       videoLongFormPremiumRequired: false, videoMaxDurationSeconds: 30,
       videoAllowedDurationsSeconds: Array.from({ length: 27 }, (_, index) => index + 4),
       credits, image: { ...credits, unit: 'item' }, video: { ...credits, unit: 'second' },
     } },
   }));
+  await page.route('**/api/media-generation/references', async route => {
+    expect(route.request().method()).toBe('GET');
+    expect(route.request().headers()['x-inrcy-account-id']).toBe(accountId);
+    memoryReads += 1;
+    await route.fulfill({
+      headers: { 'Cache-Control': 'private, no-store' },
+      json: { ok: true, accountId, memory: null, media: [], unavailableMediaIds: [] },
+    });
+  });
   await page.route('**/api/media-generation/quote', route => {
     const request = route.request().postDataJSON() as Record<string, unknown>;
     return route.fulfill({ json: { quote: {
@@ -47,7 +58,7 @@ async function openStudio(page: Page, holdGeneration = false) {
   await expect(studio).toBeVisible();
   await studio.getByRole('radio', { name: 'Vidéo', exact: true }).check();
   await expect(studio.getByRole('combobox', { name: 'Personnages', exact: true })).toBeVisible();
-  return { studio, releaseGeneration, submissionCount: () => submissions, submittedBody: () => submittedBody };
+  return { studio, releaseGeneration, submissionCount: () => submissions, submittedBody: () => submittedBody, memoryReadCount: () => memoryReads };
 }
 
 test.describe('iNrStudio creation controls without supplier billing', () => {
@@ -57,6 +68,8 @@ test.describe('iNrStudio creation controls without supplier billing', () => {
     const runtime = attachRuntimeErrorTracking(page);
     const { studio, submissionCount } = await openStudio(page);
     await studio.getByRole('combobox', { name: 'Paroles automatiques / Paroles exactes', exact: true }).selectOption('exact');
+    await expect(studio.getByRole('combobox', { name: 'Personnages', exact: true })).toBeEnabled();
+    await expect(studio.getByRole('combobox', { name: 'Voix', exact: true })).toBeEnabled();
     await studio.getByRole('button', { name: 'Réglages', exact: true }).click();
     const voice = studio.getByRole('dialog', { name: 'Voix', exact: true });
     await expect(voice).toBeVisible();
@@ -70,6 +83,8 @@ test.describe('iNrStudio creation controls without supplier billing', () => {
     await voice.getByRole('button', { name: 'Fermer', exact: true }).click();
     await expect(voice).toBeHidden();
     await studio.getByRole('combobox', { name: 'Personnages', exact: true }).selectOption('characters');
+    await expect(studio.getByRole('combobox', { name: 'Paroles automatiques / Paroles exactes', exact: true })).toHaveValue('exact');
+    await expect(studio.getByRole('combobox', { name: 'Voix', exact: true })).toHaveValue('ai');
     await expect(studio.getByRole('button', { name: 'Réglages', exact: true })).toHaveCount(0);
     await studio.getByRole('combobox', { name: 'Personnages', exact: true }).selectOption('voiceover');
     await expect(studio.getByRole('button', { name: 'Réglages', exact: true })).toBeEnabled();
@@ -102,6 +117,7 @@ test.describe('iNrStudio creation controls without supplier billing', () => {
     const runtime = attachRuntimeErrorTracking(page);
     const controls = await openStudio(page, true);
     try {
+      await expect.poll(controls.memoryReadCount).toBeGreaterThan(0);
       await controls.studio.getByRole('combobox', { name: 'Moteur et qualité', exact: true }).selectOption('grok-lite:720p');
       await controls.studio.getByRole('combobox', { name: 'Durée', exact: true }).selectOption({ label: '30 secondes' });
       await controls.studio.getByRole('textbox', { name: 'Consignes visuelles', exact: true }).fill('Une allée de jardin au soleil du matin. Mouvement de caméra lent, aucun texte dans l’image.');

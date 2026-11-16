@@ -16,6 +16,7 @@ import * as localInterface from "../../lib/inrAssistantLocalInterface.ts";
 import * as exactEditor from "../../lib/mediaExactDialogueEditor.ts";
 import * as exactSelection from "../../lib/inrAssistantStudioExactDialogue.ts";
 import * as voiceClient from "../../lib/aiMediaCharacterVoiceClient.ts";
+import * as requestClient from "../../lib/mediaGenerationClientRequest.ts";
 import * as soundtracks from "../../lib/mediaSoundtrackSelection.ts";
 import { quoteAiMediaCredits, type AiMediaCreditsQuoteInput } from "../../lib/aiMediaCreditsPricing.ts";
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
@@ -28,6 +29,23 @@ type Slot = { value?: unknown; setter?: (value: unknown) => void; deps?: unknown
 type NativeEntry = { snapshot: Props; handlers: Record<string, { invoke(value: string | null): unknown; matches(snapshot: unknown, value: string | null): boolean }>; enabled: boolean; locked: boolean };
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
 const frenchMessages = JSON.parse(read("messages/fr-FR/media.json")) as Record<string, string>;
+
+/** Exercise the actual hook's JSON transport, not a second hand-written request mapper. */
+function realRequestBody(request: MediaGenerationRequest) {
+  const source = read('app/dashboard/_hooks/useMediaGeneration.ts'), ast = ts.createSourceFile('useMediaGeneration.ts',source,ts.ScriptTarget.Latest,true);
+  let body: ts.Expression | undefined;
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && node.expression.getText(ast) === 'fetch' && node.arguments[0]?.getText(ast) === '"/api/media-generation/generate"') {
+      const options=node.arguments[1]; assert.ok(options&&ts.isObjectLiteralExpression(options));
+      const property=options.properties.find(item=>ts.isPropertyAssignment(item)&&item.name.getText(ast)==='body');assert.ok(property&&ts.isPropertyAssignment(property)&&ts.isCallExpression(property.initializer));body=property.initializer.arguments[0];
+    }
+    ts.forEachChild(node,visit);
+  };visit(ast);assert.ok(body);
+  const expression=ts.transpileModule(`(${body.getText(ast)})`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText.trim().replace(/;$/,'');
+  const helpers={hasAnimationSourceImage:requestClient.hasAnimationSourceImage,hasStrictIdentityReferences:requestClient.hasStrictIdentityReferences,normalizeMediaGenerationAiInstruction:requestClient.normalizeMediaGenerationAiInstruction,resolveMediaGenerationSceneMode:requestClient.resolveMediaGenerationSceneMode,resolveMediaGenerationConnectScenes:requestClient.resolveMediaGenerationConnectScenes,isProvidedCharacterVoice:voiceClient.isProvidedCharacterVoice};
+  const serialize=new Function('request','requestId','idea','textMode','providedNarrator',...Object.keys(helpers),`return JSON.parse(JSON.stringify(${expression}));`) as (...args:unknown[])=>Record<string,unknown>;
+  return serialize(request,'synthetic-independent-speech',request.idea,requestClient.resolveMediaGenerationTextMode(request),request.withNarration&&request.narrationVoiceMode==='provided',...Object.values(helpers));
+}
 const elements = (tree: unknown): Element[] => Array.isArray(tree) ? tree.flatMap(elements) : tree && typeof tree === "object" && "props" in tree ? [tree as Element, ...elements((tree as Element).props.children)] : [];
 const find = (tree: unknown, predicate: (node: Element) => boolean) => { const node = elements(tree).find(predicate); assert.ok(node, "Expected real rendered control"); return node; };
 const text = (tree: unknown): string => Array.isArray(tree) ? tree.map(text).join("") : typeof tree === "string" || typeof tree === "number" ? String(tree) : tree && typeof tree === "object" && "props" in tree ? text((tree as Element).props.children) : "";
@@ -567,7 +585,7 @@ test("the real direct vocal importer keeps invalid format and upload errors visi
   } finally { h.dispose(); }
 });
 
-test("the real three-menu voice flow binds supplied audio to the selected photo and never changes another person's voice", async () => {
+test("the real three-menu voice source is global while supplied audio remains attached only to its explicit photo", async () => {
   const h = harness();
   try {
     await h.addPhoto("Alice.png", "character"); await h.addPhoto("Bob.png", "character");
@@ -577,17 +595,21 @@ test("the real three-menu voice flow binds supplied audio to the selected photo 
     assert.equal(elements(h.tree()).some(node => node.type === "select" && String(node.props.id).endsWith("-voice-character")), true);
     h.closeSettings();
     h.chooseMainVoice("provided");
-    assert.deepEqual(h.voiceSnapshot().voiceReferences.map(reference => reference.voiceMode), ["ai", "ai"], "choosing Real alone cannot assign it to every person");
-    h.selectVoicePerson(bob.id); assert.equal(h.voiceSnapshot().voiceReferences.find(reference => reference.id === bob.id)!.voiceMode, "ai", "selecting a person only selects the target"); h.chooseMainVoice("provided");
+    assert.deepEqual(h.voiceSnapshot().voiceReferences.map(reference => reference.voiceMode), ["provided", "provided"], "the visible source applies to all speaking people without creating vocals");
+    assert.equal(h.quoteInputs.at(-1)!.enabled, false, "separate vocals still need to exist before generation");
+    h.selectVoicePerson(bob.id); assert.equal(h.voiceSnapshot().voiceMode, "provided", "selecting an editing target cannot change the global source");
     const actions = elements(h.renderVoice(1)).filter(node => node.type === "button").map(node => node.props.children);
     for (const action of ["import", "record", "library"]) assert.ok(actions.includes(`ai_generator_character_voice_${action}`));
     assert.equal(h.uploads.length, 0, "opening the three native choices never imports or records a voice");
     await h.uploadVoice(1); h.selectVoicePerson(alice.id);
-    assert.equal(h.voiceSnapshot().voiceReferences.find(reference => reference.id === alice.id)!.voiceMode, "ai", "the one-shot intent cannot convert another person during inspection");
+    assert.equal(h.voiceSnapshot().voiceReferences.find(reference => reference.id === alice.id)!.voiceMode, "provided", "Alice still needs her own vocal; inspection cannot borrow Bob's sample");
     assert.equal(h.voiceSnapshot().voiceReferences.find(reference => reference.id === bob.id)!.voiceMode, "provided");
-    assert.deepEqual(h.deleted, []); h.chooseMainVoice("ai"); assert.deepEqual(h.deleted, [], "changing Alice to AI cannot delete Bob's vocal");
-    h.selectVoicePerson(bob.id); h.chooseMainVoice("ai"); assert.deepEqual(h.deleted, [], "choosing AI detaches the vocal without deleting its independent profile");
-    assert.equal((h.poolNative().snapshot.profiles as Array<{ target: unknown }>)[0].target, null);
+    const profiles = structuredClone(h.poolNative().snapshot.profiles);
+    assert.deepEqual(h.deleted, []); h.chooseMainVoice("ai"); assert.deepEqual(h.deleted, [], "global AI leaves the saved vocal and photo binding intact");
+    assert.deepEqual(h.voiceSnapshot().voiceReferences.map(reference => reference.voiceMode), ["ai", "ai"]);
+    h.selectVoicePerson(bob.id); assert.equal(h.voiceSnapshot().voiceMode, "ai");
+    assert.deepEqual(h.poolNative().snapshot.profiles, profiles);
+    h.chooseMainVoice("provided"); assert.deepEqual(h.poolNative().snapshot.profiles, profiles); assert.equal(h.uploads.length, 1);
     assert.equal(h.requests.length, 0);
   } finally { h.dispose(); }
 });
@@ -598,17 +620,18 @@ test("provided voice with Exact empty preserves its photo and blocks spending un
     assert.equal(h.exactNative().snapshot.open,false);assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text,'');assert.equal(h.quoteInputs.at(-1)!.enabled,false);
     h.openExact();assert.ok(elements(h.exactTree()).some(node=>node.props.role==='alert'&&text(node).includes('ai_generator_voice_exact_script_needed')));h.closeExact();h.consent();await h.invokeGenerateCallback();assert.equal(h.requests.length,0);assert.equal(h.uploads.length,1);
     assert.equal(h.quoteInputs.at(-1)!.videoEngine,models.restoreAiMediaVideoPreference('minimax-h3','768p').videoEngine,'Exact keeps the canonical restored preference rather than selecting a supplied-voice fallback');assert.equal(h.storedEnginePreference().videoEngine,'minimax-h3');
-    if(resolution==='auto')h.removeSpeech();else {h.enterSpeech('Bonjour, bienvenue chez nous.');h.selectEngine('wan27');}
+    if(resolution==='auto')h.removeSpeech();else h.enterSpeech('Bonjour, bienvenue chez nous.');
+    assert.equal(h.quoteInputs.at(-1)!.enabled,false,'Auto/Exact cannot replace an incompatible engine');h.selectEngine('wan27');
     assert.equal(h.quoteInputs.at(-1)!.enabled,true);assert.equal(h.voiceSnapshot().voiceReferences[0].voiceMode,'provided');h.consent();await h.generate();assert.equal(h.requests.length,1);assert.equal(h.requests[0].withNarration,false);assert.equal(h.requests[0].inspirationImages![0].voiceSample!.path,h.sample.path);
     assert.equal(Object.hasOwn(h.requests[0],'spokenScript'),false);assert.equal(Object.hasOwn(h.requests[0],'exactDialogue'),resolution==='exact');
   }finally{h.dispose();}}
 });
 
-test("unattached supplied-voice intent is cancelled by a new speech choice while attached samples remain linked", async () => {
-  const h = harness();
+test("the global voice choice survives speech choices while each attached sample remains linked", async () => {
+  const h = harness('video','wan27');
   try {
     h.setSound("characters"); h.chooseMainVoice("provided"); assert.equal(h.uploads.length, 0); h.setSound("silent"); h.setSound("voiceover");
-    await h.addPhoto("Moi.png", "character"); h.setSound("characters"); assert.equal(h.voiceSnapshot().voiceReferences[0].voiceMode, "ai", "a later photo cannot revive a cancelled Real intent");
+    await h.addPhoto("Moi.png", "character"); h.setSound("characters"); assert.equal(h.voiceSnapshot().voiceReferences[0].voiceMode, "provided", "who speaks cannot reset the separate voice source"); assert.equal(h.quoteInputs.at(-1)!.enabled,false,'no vocal was created by menu choices');
     h.chooseMainVoice("provided"); await h.uploadVoice(0); const path = h.sample.path;
     h.setSound("voiceover"); h.setSound("characters"); h.consent(); await h.generate();
     assert.equal(h.requests[0].inspirationImages![0].voiceSample!.path, path); assert.deepEqual(h.deleted, []);
@@ -718,15 +741,21 @@ test("an unfinished Exact row remains editable and blocks spending instead of su
  for(const script of ['',' \n\t ']){const h=harness();try{assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!,'exactDialogue'),false);h.enterSpeech(script);assert.equal(h.quoteInputs.at(-1)!.enabled,false);h.openExact();assert.equal(find(h.exactTree(),node=>node.type==='textarea').props.value,script);h.closeExact();h.openAudioSettings();const settings=elements(h.tree()).find(node=>typeof node.type==='function'&&node.type.name==='MediaSettingsDialog')!;assert.equal(elements(settings).filter(node=>node.type==='select').length,2);h.closeSettings();await h.invokeGenerateCallback();assert.equal(h.requests.length,0);h.removeSpeech();assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!,'exactDialogue'),false);assert.equal(h.quoteInputs.at(-1)!.enabled,true);}finally{h.dispose();}}
 });
 
-test("Exact rows define their own speaker while retaining Auto voice and subtitle preferences",()=>{
- const h=harness();try{h.setSound('characters');h.setSubtitles(true);h.enterSpeech('');assert.equal(h.quoteInputs.at(-1)!.enabled,false);assert.equal(h.quoteInputs.at(-1)!.withSubtitles,false);assert.equal(find(h.tree(),node=>node.type==='select'&&String(node.props.id).endsWith('-video-speech-mode')).props.disabled,true,'the original main menu remains visible and derived from Exact rows');h.enterSpeech('Bienvenue chez nous.');assert.equal(h.quoteInputs.at(-1)!.withSubtitles,true);assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode,'voiceover','the row is an explicit offscreen narrator');h.enterSpeech('');assert.equal(h.quoteInputs.at(-1)!.withSubtitles,false);h.removeSpeech();assert.equal(h.quoteInputs.at(-1)!.withSubtitles,true);assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode,'characters');}finally{h.dispose();}
+test("Exact keeps editable global speech and subtitle choices without inventing a missing character",()=>{
+ const h=harness();try{
+  h.setSound('characters');h.setSubtitles(true);h.enterSpeech('');assert.equal(h.quoteInputs.at(-1)!.enabled,false);assert.equal(h.quoteInputs.at(-1)!.withSubtitles,false);
+  assert.equal(find(h.tree(),node=>node.type==='select'&&String(node.props.id).endsWith('-video-speech-mode')).props.disabled,false);
+  h.enterSpeech('Bienvenue chez nous.');assert.equal(h.quoteInputs.at(-1)!.withSubtitles,true);assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode,'characters');assert.equal(h.quoteInputs.at(-1)!.enabled,false,'the missing character must be assigned instead of inventing a narrator');
+  h.setSound('voiceover');assert.deepEqual(h.quoteInputs.at(-1)!.exactDialogue,[{speaker:'ai_voice',text:'Bienvenue chez nous.'}]);assert.equal(h.quoteInputs.at(-1)!.enabled,true);
+  h.enterSpeech('');assert.equal(h.quoteInputs.at(-1)!.withSubtitles,false);h.removeSpeech();assert.equal(h.quoteInputs.at(-1)!.withSubtitles,true);assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode,'voiceover');
+ }finally{h.dispose();}
 });
 
 test("the real subtitle checkbox keeps its explicit preference visible and editable while Exact is empty without enabling empty captions", async () => {
   for (const selected of [true, false]) {
     const h = harness();
     try {
-      h.setSound("characters"); h.setSubtitles(true); h.addSpeech();
+      h.setSound("voiceover"); h.setSubtitles(true); h.addSpeech();
       const control = () => find(h.tree(), node => node.props["data-media-subtitles"] !== undefined);
       assert.equal(control().props.checked, true, "temporarily empty Exact cannot disguise the stored subtitle preference");
       assert.equal(control().props.disabled, false, "the professional can turn subtitles off before writing speech");
@@ -757,8 +786,13 @@ test("the real subtitle checkbox keeps its explicit preference visible and edita
   }
 });
 
-test("returning to Auto omits Exact rows while retaining them for a later explicit return",async()=>{
- const h=harness();try{h.enterSpeech('Bonjour, bienvenue chez nous.');assert.equal(find(h.tree(),node=>node.type==='select'&&String(node.props.id).endsWith('-video-speech-mode')).props.disabled,true);assert.throws(()=>h.formNative().handlers.select.invoke(JSON.stringify({field:'speechMode',value:'silent'})));assert.deepEqual(h.quoteInputs.at(-1)!.exactDialogue,[{speaker:'ai_voice',text:'Bonjour, bienvenue chez nous.'}]);h.removeSpeech();assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!,'exactDialogue'),false);h.setSound('silent');assert.equal(find(h.tree(),node=>node.type==='select'&&String(node.props.id).endsWith('-video-voice-mode')).props.disabled,true);await h.generate();assert.equal(h.requests.length,1);assert.equal(Object.hasOwn(h.requests[0],'exactDialogue'),false);h.addSpeech();assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text,'Bonjour, bienvenue chez nous.');assert.equal(h.quoteInputs.at(-1)!.withNarration,true,'the explicit row overrides a hidden old silent state');}finally{h.dispose();}
+test("Auto and silence omit Exact speech while preserving its draft for an explicit return",async()=>{
+ const h=harness();try{
+  h.enterSpeech('Bonjour, bienvenue chez nous.');assert.equal(find(h.tree(),node=>node.type==='select'&&String(node.props.id).endsWith('-video-speech-mode')).props.disabled,false);assert.deepEqual(h.quoteInputs.at(-1)!.exactDialogue,[{speaker:'ai_voice',text:'Bonjour, bienvenue chez nous.'}]);
+  const action=h.formNative().handlers.select,encoded=JSON.stringify({field:'speechMode',value:'silent'});action.invoke(encoded);h.render();assert.equal(action.matches(h.formNative().snapshot,encoded),true);assert.equal(h.quoteInputs.at(-1)!.withNarration,false);assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!,'exactDialogue'),false);
+  h.removeSpeech();assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!,'exactDialogue'),false);assert.equal(find(h.tree(),node=>node.type==='select'&&String(node.props.id).endsWith('-video-voice-mode')).props.disabled,true);await h.generate();assert.equal(h.requests.length,1);assert.equal(Object.hasOwn(h.requests[0],'exactDialogue'),false);
+  h.addSpeech();assert.equal(h.quoteInputs.at(-1)!.withNarration,false,'retained Exact text cannot override explicit silence');h.setSound('voiceover');assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text,'Bonjour, bienvenue chez nous.');assert.equal(h.quoteInputs.at(-1)!.withNarration,true);
+ }finally{h.dispose();}
 });
 
 test("account changes erase speech and image creation never offers or submits it", async () => {
@@ -835,6 +869,11 @@ test("the real Free voice import enables only supported engines and aligns quote
   const h = harness(); await h.addPhoto("premier.png"); await h.addPhoto("deuxieme.png");
   h.criteria(0, "character", "inspiration"); h.criteria(1, "character", "required"); h.chooseVoice(0, "provided");
   assert.equal(find(h.tree(), (node) => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode")).props.value, "characters");
+  assert.equal(h.quoteInputs.at(-1)!.videoEngine, "omni", "the selected incompatible provider is preserved rather than replaced");
+  assert.equal(h.quoteInputs.at(-1)!.enabled, false); await h.generate(); assert.equal(h.requests.length,0);
+  const incompatibleMenu=find(h.renderEngines(),node=>node.type==='select'&&String(node.props.id).endsWith('-engine'));
+  assert.equal(String(incompatibleMenu.props.value).split(':')[0],'omni');assert.match(text(h.renderEngines()),/Voix fournie.*Wan 2\.7/);
+  h.selectEngine('wan27');
   const quote = h.quoteInputs.at(-1)!; assert.equal(quote.videoEngine, "wan27"); assert.equal(quote.withNarration, false); assert.equal(quote.teamVideoSpeechMode, "characters");
   const engines = h.renderEngines(); const engineMenu = find(engines, (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
   const options = elements(engineMenu).filter((node) => node.type === "option");
@@ -858,6 +897,7 @@ test("the real Free voice import enables only supported engines and aligns quote
   }
   await h.generate(); assert.equal(h.requests.length, 0, "a selected supplied voice without a vocal cannot generate");
   await h.uploadVoice(0); assert.equal(h.uploads.length, 1); assert.equal(h.uploads[0].get("file") instanceof File, true);
+  assert.equal(h.quoteInputs.at(-1)!.enabled,false,'the second speaking person cannot borrow the first vocal');await h.uploadVoice(1);assert.equal(h.uploads.length,2);
   await h.generate(); assert.equal(h.requests.length, 0, "the real consent checkbox still gates generation");
   h.consent(); await h.generate(); assert.equal(h.requests.length, 1);
   const request = h.requests[0]; assert.equal(request.videoEngine, "wan27"); assert.equal(request.identityConsent, true); assert.equal(request.withNarration, false);
@@ -890,14 +930,15 @@ test("available supplied-voice engines remain selected or can be selected with t
   }
 });
 
-test("the real hydrated MiniMax preference persists automatic supplied-voice Wan 2.7 and 1080p together without losing speech or consent guards", async () => {
+test("an incompatible hydrated preference stays unchanged until an explicit compatible engine choice with matching quote and request", async () => {
   const script = "Bonjour, nous prenons soin de votre jardin.";
   const h = harness("video", "minimax-h3", 8.4, { realEnginePreference: true, initialPrompt: "Le jardinier présente son jardin. Lumière naturelle." });
   assert.equal(h.storedEnginePreference().videoEngine, "minimax-h3");
   assert.equal(h.storedEnginePreference().videoResolution, "768p");
   await h.addPhoto("photo-jim.png"); h.criteria(0, "character", "required"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
-  assert.equal(h.quoteInputs.at(-1)!.videoEngine, "wan27");
-  assert.equal(h.storedEnginePreference().videoEngine, "minimax-h3", "the automatic compatible recommendation must not overwrite a saved engine before a user choice");
+  assert.equal(h.quoteInputs.at(-1)!.videoEngine, models.restoreAiMediaVideoPreference('minimax-h3','768p').videoEngine);
+  assert.equal(h.quoteInputs.at(-1)!.enabled,false);await h.generate();assert.equal(h.requests.length,0);
+  assert.equal(h.storedEnginePreference().videoEngine, "minimax-h3", "a voice choice must not overwrite a saved provider");
   h.enterSpeech(script); h.setExactCharacter(0,1); h.setDuration(10); h.consent();
   const authorization = () => find(h.tree(), node => node.type === "input" && String(node.props.id).endsWith("-authorization"));
   assert.equal(authorization().props.checked, true);
@@ -947,8 +988,8 @@ test("Free recovery hydration and ordinary AI changes preserve the independent v
     const h = harness("video", "wan27"); await h.addPhoto(); h.criteria(0, "character", "required"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
     if (pending) { h.beginRecoveryChecking(); h.pauseRecoveryChecking(); }
     h.chooseVoice(0, "ai");
-    assert.deepEqual(h.deleted, [], "AI changes only detach the reusable source");
-    assert.equal((h.poolNative().snapshot.profiles as Array<{ target: unknown }>)[0].target, null);
+    assert.deepEqual(h.deleted, [], "AI only makes the reusable source inactive");
+    assert.ok((h.poolNative().snapshot.profiles as Array<{ target: unknown }>)[0].target, 'the photo binding survives the source toggle');
     h.chooseVoice(0, "provided"); const entry = h.poolNative(); entry.handlers.open.invoke("voice:0"); h.render(); h.removePoolVocal();
     assert.deepEqual(h.deleted, pending ? [] : [h.sample.path], "only explicit source removal releases an unsubmitted vocal");
     assert.equal(h.requests.length, 0);
@@ -1219,7 +1260,7 @@ test("retired Wan3 selector and stale native payloads cannot partially alter peo
 });
 
 test("voice Inspiration retains permission and its reusable source while silent requests omit inactive character voices", async () => {
-  const h = harness(); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
+  const h = harness('video','wan27'); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
   assert.equal(h.quoteInputs.at(-1)!.identityMode, "auto"); assert.match(text(h.tree()), /son image et sa voix/);
   h.consent(); h.setSound("silent"); await h.generate(); assert.equal(h.requests.length, 1); assert.equal(h.requests[0].inspirationImages![0].voiceSample, undefined); assert.deepEqual(h.deleted, []);
   h.setSound("characters"); h.consent(); await h.generate(); assert.equal(h.requests[1].identityMode, "auto"); assert.equal(h.requests[1].identityConsent, true); assert.equal(h.requests[1].inspirationImages![0].voiceSample!.path, h.sample.path); h.dispose();
@@ -1235,16 +1276,66 @@ test("switching back to AI restores regular engines, and pending voice uploads l
 });
 
 
-test("two supplied voices follow their stable photos in real Exact rows despite a hidden old voiceover choice",async()=>{
+test("two supplied voices follow stable photos when Exact starts from the explicit character choice",async()=>{
  const h=harness('video','kling',7,{initialPrompt:'Deux personnes entretiennent un jardin.'});try{
- await h.addPhoto('homme.png','character');await h.addPhoto('femme.png','character');h.chooseVoice(0,'provided');await h.uploadVoice(0);h.chooseVoice(1,'provided');await h.uploadVoice(1);h.closePool();h.selectEngine('kling','1080p');h.setDuration(16);h.setSound('voiceover');
+ await h.addPhoto('homme.png','character');await h.addPhoto('femme.png','character');h.chooseVoice(0,'provided');await h.uploadVoice(0);h.chooseVoice(1,'provided');await h.uploadVoice(1);h.closePool();h.selectEngine('kling','1080p');h.setDuration(16);h.setSound('characters');
  const first='Les feuilles tombent et votre jardin a besoin d’entretien',second='Nous sommes là pour vous donner un coup de main !';h.enterSpeech(first);h.setExactCharacter(0,1);h.addExactRow();h.setExactText(1,second);h.setExactCharacter(1,2);
- const expected=[{speaker:'character',characterIndex:1,text:first},{speaker:'character',characterIndex:2,text:second}];assert.equal(h.quoteInputs.at(-1)!.enabled,true,'the same canonical photo slots pass the actual speech preflight');assert.equal(h.quoteInputs.at(-1)!.withNarration,false);assert.equal(h.quoteInputs.at(-1)!.hasProvidedCharacterVoice,true);assert.deepEqual(h.quoteInputs.at(-1)!.exactDialogue,expected);assert.deepEqual(h.quoteInputs.at(-1)!.inspirationImages,[{role:'character',characterIndex:1},{role:'character',characterIndex:2}]);assert.equal(h.voiceSnapshot().speechMode,'voiceover','Exact does not need to mutate an old hidden control');h.consent();await h.generate();assert.equal(h.requests.length,1);
+ const expected=[{speaker:'character',characterIndex:1,text:first},{speaker:'character',characterIndex:2,text:second}];assert.equal(h.quoteInputs.at(-1)!.enabled,true,'the same canonical photo slots pass the actual speech preflight');assert.equal(h.quoteInputs.at(-1)!.withNarration,false);assert.equal(h.quoteInputs.at(-1)!.hasProvidedCharacterVoice,true);assert.deepEqual(h.quoteInputs.at(-1)!.exactDialogue,expected);assert.deepEqual(h.quoteInputs.at(-1)!.inspirationImages,[{role:'character',characterIndex:1},{role:'character',characterIndex:2}]);assert.equal(h.voiceSnapshot().speechMode,'characters','Exact retains the selected global speech mode');h.consent();await h.generate();assert.equal(h.requests.length,1);
  const actual=h.requests[0];assert.deepEqual(actual.exactDialogue,expected);assert.equal(Object.hasOwn(actual,'spokenScript'),false);assert.equal(actual.withNarration,false);assert.equal(actual.teamVideoSpeechMode,'characters');assert.equal(actual.videoEngine,'kling');assert.equal(actual.videoResolution,'1080p');assert.equal(actual.durationSeconds,16);assert.deepEqual(actual.inspirationImages!.map(image=>[image.characterIndex,image.voiceSample!.path]),[[1,h.uploadedSamples[0].path],[2,h.uploadedSamples[1].path]]);
  const normalized=contracts.normalizeAiMediaGenerationRequest({...actual,requestId:'synthetic-structured-parent',inspirationImages:actual.inspirationImages!.map(image=>({...image,data:'A'.repeat(64)}))});assert.deepEqual(normalized.exactDialogue,expected);assert.equal(normalized.withNarration,false);
  }finally{h.dispose();}
 });
 
 test("mixed offscreen AI and a character preserve ordered targets and removed photos cannot be replaced implicitly",async()=>{
- const h=harness('video','kling',7,{initialPrompt:'Un jardin en automne.'});try{await h.addPhoto('premiere.png','character');await h.addPhoto('seconde.png','character');h.setDuration(16);h.enterSpeech('Bienvenue dans notre jardin.');h.addExactRow();h.setExactText(1,'Les feuilles sont magnifiques.');h.setExactCharacter(1,2);const expected=[{speaker:'ai_voice',text:'Bienvenue dans notre jardin.'},{speaker:'character',characterIndex:2,text:'Les feuilles sont magnifiques.'}];assert.deepEqual(h.quoteInputs.at(-1)!.exactDialogue,expected);assert.equal(h.quoteInputs.at(-1)!.withNarration,false);assert.equal(h.quoteInputs.at(-1)!.enabled,true);h.consent();await h.generate();assert.equal(h.requests.length,1);assert.deepEqual(h.requests[0].exactDialogue,expected);assert.equal(h.requests[0].withNarration,false);h.removePhoto(1);assert.equal(h.quoteInputs.at(-1)!.enabled,false);h.consent();await h.invokeGenerateCallback();assert.equal(h.requests.length,1);assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[1].speaker,'character','the missing stable target remains visible for explicit repair');}finally{h.dispose();}
+ const h=harness('video','kling',7,{initialPrompt:'Un jardin en automne.'});try{await h.addPhoto('premiere.png','character');await h.addPhoto('seconde.png','character');h.setSound('characters');h.setDuration(16);h.enterSpeech('Bienvenue dans notre jardin.');h.setExactSpeaker(0,'ai_voice');h.addExactRow();h.setExactText(1,'Les feuilles sont magnifiques.');h.setExactCharacter(1,2);const expected=[{speaker:'ai_voice',text:'Bienvenue dans notre jardin.'},{speaker:'character',characterIndex:2,text:'Les feuilles sont magnifiques.'}];assert.deepEqual(h.quoteInputs.at(-1)!.exactDialogue,expected);assert.equal(h.quoteInputs.at(-1)!.withNarration,false);assert.equal(h.quoteInputs.at(-1)!.enabled,true);h.consent();await h.generate();assert.equal(h.requests.length,1);assert.deepEqual(h.requests[0].exactDialogue,expected);assert.equal(h.requests[0].withNarration,false);h.removePhoto(1);assert.equal(h.quoteInputs.at(-1)!.enabled,false);h.consent();await h.invokeGenerateCallback();assert.equal(h.requests.length,1);assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[1].speaker,'character','the missing stable target remains visible for explicit repair');}finally{h.dispose();}
+});
+
+test('global voice and Auto/Exact choices preserve both bindings and align the actual JSON request, preflight and credit quote',async()=>{
+ const h=harness('video','kling',7,{realEnginePreference:true,initialPrompt:'Deux personnes présentent un jardin.'});
+ try{
+  await h.addPhoto('David.png','character');await h.addPhoto('Kathia.png','character');h.chooseVoice(0,'provided');await h.uploadVoice(0);await h.uploadVoice(1);h.closePool();h.selectEngine('kling','1080p');h.setDuration(16);
+  const profiles=structuredClone(h.poolNative().snapshot.profiles),paths=h.uploadedSamples.map(sample=>sample.path),preference=structuredClone(h.storedEnginePreference());
+  h.enterSpeech('Bonjour de David.');assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].characterId,h.voiceSnapshot().voiceReferences[1].id,'first Exact line respects the actual current editing target');
+  h.setExactCharacter(0,1);h.addExactRow();h.setExactText(1,'Bonjour de Kathia.');h.setExactCharacter(1,2);
+  const rows=structuredClone(h.exactNative().snapshot.rows);
+  const keys=new Map<string,string>();
+  for(const exact of [false,true])for(const source of ['provided','ai','provided'] as const){
+   if(exact)h.addSpeech();else h.removeSpeech();h.chooseMainVoice(source);
+   assert.equal(h.voiceSnapshot().voiceMode,source);assert.deepEqual(h.voiceSnapshot().voiceReferences.map(reference=>reference.voiceMode),[source,source]);
+   assert.deepEqual(h.poolNative().snapshot.profiles,profiles);assert.equal(h.uploads.length,2);assert.deepEqual(h.storedEnginePreference(),preference);
+   const quote=h.quoteInputs.at(-1)!;assert.equal(quote.enabled,true);assert.equal(quote.videoEngine,'kling');assert.equal(quote.hasProvidedCharacterVoice,source==='provided');
+   if(exact)assert.deepEqual(quote.exactDialogue,[{speaker:'character',characterIndex:1,text:'Bonjour de David.'},{speaker:'character',characterIndex:2,text:'Bonjour de Kathia.'}]);else assert.equal(Object.hasOwn(quote,'exactDialogue'),false);
+   h.consent();await h.generate();const client=h.requests.at(-1)!;assert.equal(client.expectedCredits,quoteAiMediaCredits(quote as AiMediaCreditsQuoteInput).totalCredits);
+   const body=realRequestBody(client);const normalized=contracts.normalizeAiMediaGenerationRequest({...body,inspirationImages:(body.inspirationImages as Array<Record<string,unknown>>).map(image=>({...image,data:'A'.repeat(64)}))});
+   assert.equal(normalized.teamVideoSpeechMode,'characters');assert.equal(normalized.videoEngine,'kling');assert.equal(normalized.withNarration,false);assert.equal(Object.hasOwn(body,'exactDialogue'),exact);
+   assert.deepEqual(normalized.inspirationImages.map(image=>image.voiceSample?.path),source==='provided'?paths:[undefined,undefined]);
+   assert.equal(voiceRules.hasProvidedAiMediaCharacterVoice(normalized.inspirationImages),source==='provided');
+   const key=requestClient.buildGenerationAttemptKey({...client,identityReferenceSetId:'synthetic-stable-reference-set'},client.idea),label=`${exact}:${source}`;
+   if(keys.has(label))assert.equal(key,keys.get(label),'at a constant authorization context, the restored vocal intent has the same fingerprint');else keys.set(label,key);
+  }
+  assert.notEqual(keys.get('true:provided'),keys.get('true:ai'));assert.notEqual(keys.get('false:provided'),keys.get('false:ai'));
+  assert.deepEqual(h.exactNative().snapshot.rows,rows);assert.deepEqual(h.deleted,[]);
+  h.setSound('silent');const silentQuote=h.quoteInputs.at(-1)!;assert.equal(silentQuote.withNarration,false);assert.equal(silentQuote.hasProvidedCharacterVoice,false);assert.equal(Object.hasOwn(silentQuote,'exactDialogue'),false);
+  h.consent();await h.generate();const silent=realRequestBody(h.requests.at(-1)!);assert.equal(Object.hasOwn(silent,'exactDialogue'),false);assert.equal(silent.withNarration,false);assert.ok((silent.inspirationImages as Array<{voiceSample?:unknown}>).every(image=>!image.voiceSample));
+  h.setSound('characters');assert.equal(h.voiceSnapshot().voiceMode,'provided');assert.deepEqual(h.exactNative().snapshot.rows,rows);assert.deepEqual(h.poolNative().snapshot.profiles,profiles);
+ }finally{h.dispose();}
+});
+
+test('Exact voiceover edits effective narrators while retaining mixed character IDs and source intent for the return',async()=>{
+ const h=harness('video','kling',7,{initialPrompt:'Deux personnes dans un jardin.'});try{
+  await h.addPhoto('David.png','character');await h.addPhoto('Kathia.png','character');h.chooseVoice(0,'provided');await h.uploadVoice(0);await h.uploadVoice(1);h.closePool();h.selectEngine('kling','1080p');h.setDuration(16);h.enterSpeech('Bonjour David.');h.setExactCharacter(0,1);h.addExactRow();h.setExactText(1,'Bonjour Kathia.');h.setExactCharacter(1,2);h.addExactRow();h.setExactText(2,'Bienvenue à tous.');
+  const before=structuredClone(h.exactNative().snapshot.rows) as exactEditor.MediaExactDialogueRow[],profiles=structuredClone(h.poolNative().snapshot.profiles);
+  h.setSound('voiceover');assert.equal(h.voiceSnapshot().voiceMode,'provided','changing who speaks never resets the third menu');assert.equal(h.quoteInputs.at(-1)!.enabled,false,'a dedicated narrator is required; character recordings are not borrowed');
+  h.openExact();assert.ok((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[]).every(row=>row.speaker==='provided_voice'&&!row.characterId));assert.ok(elements(h.exactTree()).filter(node=>node.type==='select').every(node=>node.props.disabled===true));
+  const add=JSON.stringify({field:'add'}),editor=h.exactNative().handlers.select;editor.invoke(add);h.render();assert.equal(editor.matches(h.exactNative().snapshot,add),true);assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[3].speaker,'provided_voice','adding narration inherits the effective global source without inserting an AI voice');h.exactNative().handlers.select.invoke(JSON.stringify({field:'remove',rowIndex:3}));h.render();
+  assert.throws(()=>h.exactNative().handlers.select.invoke(JSON.stringify({field:'speaker',rowIndex:0,value:'character:0'})),'a hidden character choice cannot contradict the global narrator mode');h.closeExact();
+  h.chooseMainVoice('ai');assert.ok((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[]).every(row=>row.speaker==='ai_voice'));assert.equal(h.quoteInputs.at(-1)!.hasProvidedCharacterVoice,false);assert.equal(h.quoteInputs.at(-1)!.withNarration,true);
+  h.setExactText(1,'Kathia révisée.');h.openExact();const move=h.exactNative().handlers.select,encoded=JSON.stringify({field:'move',rowIndex:2,value:'up'});move.invoke(encoded);h.render();assert.equal(move.matches(h.exactNative().snapshot,encoded),true);h.closeExact();
+  h.consent();await h.generate();let client=h.requests.at(-1)!;assert.deepEqual(client.exactDialogue,[{speaker:'ai_voice',text:before[0].text},{speaker:'ai_voice',text:before[2].text},{speaker:'ai_voice',text:'Kathia révisée.'}]);assert.ok(client.inspirationImages!.every(image=>!image.voiceSample));
+  h.setSound('characters');assert.equal(h.voiceSnapshot().voiceMode,'ai');const restored=h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[];
+  assert.deepEqual(restored.map(row=>[row.id,row.speaker,row.characterId,row.text]),[[before[0].id,'character',before[0].characterId,before[0].text],[before[2].id,'ai_voice',undefined,before[2].text],[before[1].id,'character',before[1].characterId,'Kathia révisée.']]);
+  assert.equal(h.quoteInputs.at(-1)!.hasProvidedCharacterVoice,false);h.chooseMainVoice('provided');assert.equal(h.quoteInputs.at(-1)!.hasProvidedCharacterVoice,true);assert.deepEqual(h.poolNative().snapshot.profiles,profiles);h.consent();await h.generate();client=h.requests.at(-1)!;assert.deepEqual(client.inspirationImages!.map(image=>image.voiceSample?.path),h.uploadedSamples.map(sample=>sample.path));
+  h.selectEngine('wan27');assert.equal(h.quoteInputs.at(-1)!.enabled,false,'an unsupported mixed request remains blocked without changing engine');h.openExact();assert.ok(text(h.exactTree()).includes('ai_generator_exact_dialogue_engine_incompatible'));assert.ok(!text(h.exactTree()).includes(frenchMessages.ai_generator_video_speech_too_long));h.closeExact();h.selectEngine('kling');
+  h.removePhoto(1);assert.equal(h.quoteInputs.at(-1)!.enabled,false);assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[2].characterId,before[1].characterId);assert.deepEqual(h.deleted,[]);
+ }finally{h.dispose();}
 });

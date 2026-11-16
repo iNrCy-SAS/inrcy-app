@@ -1144,6 +1144,7 @@
   "ai_generator_character_name_invalid": "Use a unique name, up to 40 characters, without dialogue punctuation.",
   "ai_generator_exact_dialogue_count": "{count, plural, one {# line} other {# lines}}",
   "ai_generator_exact_dialogue_choose_speaker": "Choose a speaker",
+  "ai_generator_exact_dialogue_engine_incompatible": "This engine does not support these speakers. Choose a compatible engine.",
   "ai_generator_exact_dialogue_empty": "Add text to every line.",
   "ai_generator_exact_dialogue_title": "Exact dialogue",
   "ai_generator_exact_dialogue_help": "Choose who speaks each line. The displayed order is the film order.",

@@ -1144,6 +1144,7 @@
   "ai_generator_character_name_invalid": "Nome univoco, massimo 40 caratteri, senza punteggiatura di dialogo.",
   "ai_generator_exact_dialogue_count": "{count, plural, one {# battuta} other {# battute}}",
   "ai_generator_exact_dialogue_choose_speaker": "Scegli chi parla",
+  "ai_generator_exact_dialogue_engine_incompatible": "Questo modello non supporta questi interlocutori. Scegli un modello compatibile.",
   "ai_generator_exact_dialogue_empty": "Aggiungi il testo a ogni battuta.",
   "ai_generator_exact_dialogue_title": "Dialogo esatto",
   "ai_generator_exact_dialogue_help": "Scegli chi pronuncia ogni battuta. L’ordine mostrato è quello del filmato.",

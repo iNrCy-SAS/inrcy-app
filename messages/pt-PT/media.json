@@ -1144,6 +1144,7 @@
   "ai_generator_character_name_invalid": "Nome único, máximo de 40 caracteres, sem pontuação de diálogo.",
   "ai_generator_exact_dialogue_count": "{count, plural, one {# fala} other {# falas}}",
   "ai_generator_exact_dialogue_choose_speaker": "Escolha quem fala",
+  "ai_generator_exact_dialogue_engine_incompatible": "Este modelo não suporta estes interlocutores. Escolha um modelo compatível.",
   "ai_generator_exact_dialogue_empty": "Adicione texto a cada fala.",
   "ai_generator_exact_dialogue_title": "Diálogo exato",
   "ai_generator_exact_dialogue_help": "Escolha quem diz cada fala. A ordem apresentada é a do vídeo.",

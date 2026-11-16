@@ -1144,6 +1144,7 @@
   "ai_generator_character_name_invalid": "Eindeutiger Name, höchstens 40 Zeichen, ohne Dialogsatzzeichen.",
   "ai_generator_exact_dialogue_count": "{count, plural, one {# Zeile} other {# Zeilen}}",
   "ai_generator_exact_dialogue_choose_speaker": "Sprecher auswählen",
+  "ai_generator_exact_dialogue_engine_incompatible": "Diese Sprecher werden von diesem Modell nicht unterstützt. Wählen Sie ein kompatibles Modell.",
   "ai_generator_exact_dialogue_empty": "Geben Sie für jede Zeile einen Text ein.",
   "ai_generator_exact_dialogue_title": "Exakter Dialog",
   "ai_generator_exact_dialogue_help": "Wählen Sie für jede Zeile den Sprecher. Die angezeigte Reihenfolge gilt für den Film.",

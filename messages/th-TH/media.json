@@ -1144,6 +1144,7 @@
   "ai_generator_character_name_invalid": "ชื่อไม่ซ้ำกัน ความยาวไม่เกิน 40 ตัวอักษร และไม่มีเครื่องหมายคั่นบทพูด",
   "ai_generator_exact_dialogue_count": "บทพูด {count} รายการ",
   "ai_generator_exact_dialogue_choose_speaker": "เลือกผู้พูด",
+  "ai_generator_exact_dialogue_engine_incompatible": "โมเดลนี้ไม่รองรับผู้พูดเหล่านี้ โปรดเลือกโมเดลที่รองรับ",
   "ai_generator_exact_dialogue_empty": "เพิ่มข้อความในทุกบทพูด",
   "ai_generator_exact_dialogue_title": "บทพูดตามข้อความ",
   "ai_generator_exact_dialogue_help": "เลือกผู้พูดสำหรับแต่ละบท โดยเรียงตามลำดับที่จะแสดงในวิดีโอ",

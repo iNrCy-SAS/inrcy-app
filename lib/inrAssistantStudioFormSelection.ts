@@ -64,7 +64,6 @@ export function parseInrAssistantStudioFormSelection(value: string | null, state
   if (field === 'spokenScript' && state.exactDialogueEditor === true) return null;
   const structuredExact = state.exactDialogueEditor === true && state.spokenScriptOpen === true;
   const voiceSelectionMode = state.voiceSelectionMode ?? state.speechMode;
-  if (structuredExact && field === 'speechMode') return null;
   if (videoOnly.includes(field) && state.kind !== "video") return null;
   if (field === "voiceMode" || field === "voiceReferenceId") {
     if (state.mode !== "free" || !["voiceover", "characters"].includes(voiceSelectionMode ?? "")) return null;
@@ -78,8 +77,6 @@ export function parseInrAssistantStudioFormSelection(value: string | null, state
       const matches = references.filter(reference => index ? reference.referenceIndex === Number(index[1]) : character ? reference.characterIndex === Number(character[1]) + 1 : reference.id === next);
       return matches.length === 1 ? { field, value: matches[0].id } : null;
     }
-    const targeted = state.voiceReferenceId ? references.some(reference => reference.id === state.voiceReferenceId) : references.length === 1;
-    if (field === "voiceMode" && voiceSelectionMode === "characters" && (!targeted && (references.length > 1 || next === "provided" || !!state.voiceReferenceId))) return null;
   }
   if (field === "activeTab") return (state.mode === "guided" ? ["subject", "selection", "direction", "finish"] : ["prompt", "criteria"]).includes(String(next)) ? row as InrAssistantStudioFormSelection : null;
   if (field === "subjectSource" && (state.transformMode || next === "publication" && !state.publicationAvailable)) return null;
@@ -87,12 +84,12 @@ export function parseInrAssistantStudioFormSelection(value: string | null, state
   if (["people", "setting", "focus"].includes(field) && state.sourceMode !== "criteria" || field === "focus" && next === "people" && state.people === "none") return null;
   if (field === "imagePurpose" && state.kind !== "image" || field === "format" && state.fixedFormat && next !== state.fixedFormat) return null;
   if (field === "exactText" && state.textMode !== "exact" || ["textKeywords", "textKeywordDraft"].includes(field) && state.textMode !== "ai") return null;
-  if (field === "speechMode" && (state.mode === "guided" ? !["voiceover", "characters"].includes(String(next)) : !["voiceover", "characters", "silent"].includes(String(next)) || next === "silent" && !!state.spokenScript?.trim())) return null;
+  if (field === "speechMode" && (state.mode === "guided" ? !["voiceover", "characters"].includes(String(next)) : !["voiceover", "characters", "silent"].includes(String(next)) || next === "silent" && !!state.spokenScript?.trim() && !state.exactDialogueEditor)) return null;
   if (["narrationVoice", "narrationVoiceVariant"].includes(field) &&
       (state.mode === 'free' ? voiceSelectionMode !== 'voiceover' || state.voiceMode !== 'ai' : state.speechMode !== 'voiceover')) return null;
   if (field === "narrationVoiceVariant" && !isAiMediaNarrationVoiceVariantForGender(next, state.narrationVoice || "female")) return null;
   if (field === "spokenScript" && (!state.spokenScriptOpen || state.speechMode === "silent") || field === "spokenScriptOpen" && next === true && state.speechMode === "silent" && !state.exactDialogueEditor) return null;
-  if (field === "withSubtitles" && state.speechMode === "silent" && !structuredExact) return null;
+  if (field === "withSubtitles" && state.speechMode === "silent") return null;
   if (choices[field] && !choices[field]!.includes(next)) return null;
   if (["useBrandColors", "useBusinessDna", "withMusic", "withSubtitles", "spokenScriptOpen"].includes(field) && typeof next !== "boolean") return null;
   const textLimits: Partial<Record<keyof Values, number>> = { creativeBrief: getAiMediaVisualBriefMaxChars(state.kind, "guided"), exactText: 600, textKeywordDraft: 160, prompt: Math.min(getAiMediaVisualBriefMaxChars(state.kind, "free"), state.maxPromptLength ?? AI_MEDIA_FREE_PROMPT_MAX_CHARS), spokenScript: AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS };
@@ -109,7 +106,9 @@ export function parseInrAssistantStudioFormSelection(value: string | null, state
     const pair = next as Record<string, unknown>;
     if (Object.keys(pair).length !== 2 || !Object.hasOwn(pair, "seconds") || !Object.hasOwn(pair, "sceneMode") || typeof pair.seconds !== "number" || !Number.isInteger(pair.seconds) || !["single", "multi"].includes(String(pair.sceneMode)) || !durationAllowed?.(pair.seconds, pair.sceneMode as "single" | "multi")) return null;
   }
-  if (state.kind === "video" && state.mode === "free" && ["spokenScript", "durationScene", "durationSeconds", "speechMode"].includes(field)) {
+  // Audio menus edit intent, even while the current draft is incomplete or incompatible.
+  // The final projected dialogue still passes the normal generation preflight.
+  if (state.kind === "video" && state.mode === "free" && ["spokenScript", "durationScene", "durationSeconds"].includes(field)) {
     const durationScene = durationSelection ?? (field === "durationScene" ? next as Values["durationScene"] : state.durationScene);
     const speechMode = field === "speechMode" ? next as Values["speechMode"] : state.speechMode;
     const speech = getAiMediaVideoSpeechState({ kind: "video", creationMode: "free", freePrompt: state.prompt,
@@ -131,7 +130,6 @@ export function isInrAssistantStudioFormSelectionApplied(snapshot: unknown, enco
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
   const row = parsed as Record<string, unknown>, state = snapshot as Record<string, unknown>;
   if (row.field === 'spokenScript' && state.exactDialogueEditor === true) return false;
-  if (state.exactDialogueEditor === true && state.spokenScriptOpen === true && row.field === 'speechMode') return false;
   if (state.kind === "video" && getAiMediaVideoEngineRetirementIssue(state.videoEngine)) return false;
   if (["narrationVoice", "narrationVoiceVariant"].includes(String(row.field)) && state.mode === "free" &&
       ((state.voiceSelectionMode ?? state.speechMode) !== "voiceover" || state.voiceMode !== "ai")) return false;
@@ -176,6 +174,14 @@ export function isInrAssistantStudioFormSelectionRequested(message: string, enco
     }
     const ai = /\b(?:ia|synthetiqu\w*|artifici\w*)\b/.test(text);
     const provided = /(?:voix|vocal).{0,20}(?:reell?e?|fourni\w*|personnel\w*|propre)|(?:ma|mon|notre|sa|leur|vraie|propre).{0,15}(?:voix|vocal)/.test(text);
+    // The main source selector affects all talking characters, never one numbered photo.
+    if (/\b(?:personnage|photo|image|reference)\s*(?:n[°o]?\.?\s*)?\d+\b/.test(text)) return false;
+    if (/\b(?:sa|son)\s+(?:voix|vocal)\b/.test(text)) return false;
+    if (/\b(?:mets|mettez|choisis\w*|selectionne\w*|utilis\w*|passe\w*)\s+(?!(?:(?:la|le|les|une?|des|ma|mon|notre|votre)\s+)?(?:voix|vocal|mode|source)\b|(?:a|en)\s+(?:mode\s+)?(?:voix|ia)\b)[\p{L}]/u.test(text)) return false;
+    // Unknown names are not permission to turn a local voice request into a global change.
+    for (const match of text.matchAll(/\b(?:pour|de|du|des|a)\s+([^.,;!?]+)/g)) {
+      if (!/^(?:(?:le|la|les|mon|ma|mes|notre|nos|ce|cette|ces)\s+)?(?:studio|video|film|creation|clip|narration|voix|vocal|compte)\b|^(?:tous|tout|ensemble)\b|^(?:les\s+)?personnages(?:\s+(?:dans|du|de)\s+(?:le\s+)?studio(?:\s+libre)?)?\s*$/.test(match[1].trim())) return false;
+    }
     return ai !== provided && (value === "ai" ? ai : value === "provided" && provided);
   }
   const fields: Record<string, RegExp> = { activeTab: /onglet|section|etape/, subjectSource: /source.{0,15}sujet|sujet.{0,15}source/, creativeBrief: /consigne|sujet|brief|instruction|idee/, sourceMode: /source|references?|selection/, people: /personnes?|personnages?/, setting: /decor|lieu|environnement/, focus: /priorite|focus|accent|mise? en avant/, imagePurpose: /composition|usage|objectif|flyer|affiche|banniere|infographie|fiche produit/, format: /format|carre|portrait|paysage|horizontal|vertical|story|1\s*:\s*1|4\s*:\s*5|9\s*:\s*16|16\s*:\s*9/, imageStyle: /style|photo|illustration|3d|graphique/, visualDirection: /direction|ambiance|intention visuelle/, useBrandColors: /couleurs?.{0,20}(?:marque|entreprise|adn)|charte/, logoMode: /logo/, textMode: /mode.{0,20}texte|texte.{0,20}(?:mode|exact|fourni|aucun|automati)/, exactText: /texte.{0,20}(?:exact|fourni)|(?:exact|fourni).{0,20}texte/, textKeywords: /mots.?(?:cles|dieses)|tags?/, textKeywordDraft: /mot.?(?:cle|diese)|tag/, speechMode: /paroles?|mode.{0,15}(?:audio|voix)|voix off|narration|silenc/, narrationVoice: /voix|narration/, narrationVoiceVariant: /voix|variante/, withMusic: /musique|bande.son/, durationScene: /duree|secondes?|\bsec\b|scenes?/, prompt: /prompt|consigne|instruction|brief/, useBusinessDna: /adn|dna/, spokenScript: /script|paroles?.{0,20}(?:exact|fourni)/, spokenScriptOpen: /script|paroles?.{0,20}(?:exact|fourni)/, withSubtitles: /sous.titres?/ };

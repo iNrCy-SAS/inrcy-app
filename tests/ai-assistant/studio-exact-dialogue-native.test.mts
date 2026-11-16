@@ -28,12 +28,16 @@ test('the structured Exact editor never accepts or acknowledges a hidden legacy 
   assert.ok(parseInrAssistantStudioFormSelection(encode({ field: 'spokenScriptOpen', value: true }), state), 'the visible Automatic/Exact selector retains its own native action');
 });
 
-test('the Exact native form follows visible subtitles character numbers and structured speech without reviving hidden global modes', () => {
-  const state: InrAssistantStudioFormSnapshot = { mode: 'free', kind: 'video', locked: false, editorVisible: true, speechMode: 'silent', voiceSelectionMode: 'characters', spokenScriptOpen: true, exactDialogueEditor: true,
+test('the Exact native form follows editable global speech choices while keeping speaker numbers and structured budgets', () => {
+  const state: InrAssistantStudioFormSnapshot = { mode: 'free', kind: 'video', locked: false, editorVisible: true, speechMode: 'characters', voiceSelectionMode: 'characters', spokenScriptOpen: true, exactDialogueEditor: true,
     voiceMode: 'ai', voiceReferenceId: 'photo-b', voiceReferences: [{ id: 'photo-b', name: 'Premier personnage', voiceMode: 'ai', characterIndex: 1, referenceIndex: 2 }, { id: 'photo-c', name: 'Second personnage', voiceMode: 'ai', characterIndex: 2, referenceIndex: 4 }] };
   assert.ok(parseInrAssistantStudioFormSelection(encode({ field: 'withSubtitles', value: true }), state));
   assert.ok(parseInrAssistantStudioFormSelection(encode({ field: 'spokenScriptOpen', value: true }), { ...state, spokenScriptOpen: false }));
-  for (const [field, value] of [['speechMode', 'voiceover'], ['narrationVoice', 'female'], ['narrationVoiceVariant', 'Kore']]) {
+  const voiceoverChoice = encode({ field: 'speechMode', value: 'voiceover' });
+  assert.ok(parseInrAssistantStudioFormSelection(voiceoverChoice, { ...state, videoEngine: 'omni', exactDialogue: [{ speaker: 'character', characterIndex: 1, text: 'Bonjour.' }] }), 'an incompatible old Exact draft cannot prevent correcting the global speech choice');
+  assert.equal(isInrAssistantStudioFormSelectionApplied({ ...state, speechMode: 'voiceover' }, voiceoverChoice), true);
+  assert.equal(parseInrAssistantStudioFormSelection(encode({ field: 'withSubtitles', value: true }), { ...state, speechMode: 'silent' }), null);
+  for (const [field, value] of [['narrationVoice', 'female'], ['narrationVoiceVariant', 'Kore']]) {
     const input = encode({ field, value });
     assert.equal(parseInrAssistantStudioFormSelection(input, state), null);
     assert.equal(isInrAssistantStudioFormSelectionApplied({ ...state, [field]: value }, input), false);
