@@ -36,6 +36,7 @@ import {
   finishAiMediaCompositionCheckpoint, hasAiMediaCompositionCheckpoint,
 } from "@/lib/aiMediaCompositionRecovery";
 import { safeAiMediaErrorDetails, safeAiMediaErrorMessage } from "@/lib/aiMediaSensitiveText";
+import { getAiMediaNativeDialogueQaFailureMetadata } from "@/lib/aiMediaNativeDialogueQa";
 import {
   getExistingGeneratedAiMedia,
   getPersistedGeneratedAiMediaId,
@@ -161,6 +162,7 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
     freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
     ...(request.creationMode === "free" && request.kind === "image" && request.publicationSubject ? { publicationSubject: request.publicationSubject } : {}),
     spokenScript: request.creationMode === "free" && request.kind === "video" ? request.spokenScript : undefined,
+    ...(request.exactDialogue !== undefined ? { exactDialogue: request.exactDialogue } : {}),
     ...(request.creationMode === "free" && request.kind === "video" && request.withSubtitles ? { withSubtitles: true } : {}),
     ...(request.creationMode === "free" && request.useBusinessDna ? { useBusinessDna: true } : {}),
     operation: request.operation || "generate",
@@ -225,6 +227,7 @@ function generationFingerprint(request: AiMediaGenerationRequest) {
       role: image.role || null,
       usage: image.usage || null,
       characterIndex: image.characterIndex || null,
+      ...(image.characterName ? { characterName: image.characterName } : {}),
       ...(image.voiceMode === "provided" && image.voiceSample ? {
         voiceMode: "provided", voiceReferencePath: image.voiceSample.path,
       } : {}),
@@ -829,6 +832,7 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
 
     if (quotaReserved && !quotaCompleted && !mediaPersisted && context.accountId && context.jobId) {
       const failure = safeFailureDetails(error);
+      const nativeDialogueQa = getAiMediaNativeDialogueQaFailureMetadata(error);
       await failAiMediaGeneration({
         accountId: context.accountId,
         jobId: context.jobId,
@@ -838,6 +842,7 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
           request_id: context.requestId,
           request_aborted: request.signal.aborted,
           error_details: safeAiMediaErrorDetails(error),
+          ...(nativeDialogueQa ? { native_dialogue_qa: nativeDialogueQa } : {}),
         },
       }).catch((releaseError) => {
         console.error("[ai-media] quota release failed", JSON.stringify({

@@ -19,6 +19,7 @@ import {
   tokenizeAiMediaNativeDialogue,
   type AiMediaNativeDialogueQaClip,
   type AiMediaNativeDialogueQaResult,
+  type AiMediaNativeDialogueQaDiagnostic,
   type AiMediaNativeDialogueTranscript,
   type AiMediaNativeDialogueTranscriber,
 } from "@/lib/aiMediaNativeDialogueQa";
@@ -73,38 +74,91 @@ function apiKey() {
 }
 
 function statusFromError(error: unknown) {
-  const record = error && typeof error === "object"
-    ? error as { status?: unknown; code?: unknown; message?: unknown }
-    : null;
-  const explicit = Number(record?.status || record?.code || 0);
-  if (Number.isFinite(explicit) && explicit >= 100 && explicit <= 599) return explicit;
-  const match = String(record?.message || error || "").match(/\b(429|500|502|503|504)\b/);
-  return match ? Number(match[1]) : 0;
+  let current = error;
+  const seen = new Set<unknown>();
+  while (current && typeof current === "object" && !seen.has(current) && seen.size < 5) {
+    seen.add(current);
+    const row = current as { status?: unknown; statusCode?: unknown; code?: unknown; cause?: unknown };
+    for (const value of [row.status, row.statusCode, row.code]) {
+      if (typeof value !== "number" && !(typeof value === "string" && /^\d{3}$/u.test(value))) continue;
+      const explicit = Number(value);
+      if (Number.isInteger(explicit) && explicit >= 400 && explicit <= 599) return explicit;
+    }
+    current = row.cause;
+  }
+  return 0;
 }
 
-function reportQaFailure(stage: "extract" | "transcribe" | "pronunciation" | "automatic_dialogue" | "setup", error: unknown) {
+type DiagnosticReporter = (diagnostic: AiMediaNativeDialogueQaDiagnostic) => void;
+function reportQaFailure(stage: AiMediaNativeDialogueQaDiagnostic["stage"], error: unknown, report?: DiagnosticReporter) {
   const status = statusFromError(error);
   const codes: string[] = [];
+  const allowedCodes = new Set(["ENOENT", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "ABORT_ERR", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT", "UND_ERR_CONNECT_TIMEOUT"]);
+  let credentialsMissing = false;
+  let invalidAutomaticInput = false;
+  let extractorMissing = false;
+  let sourceInvalid = false, audioInvalid = false, responseInvalid = false, deadlineExceeded = false;
+  let guardLimit = false, guardUnavailable = false;
   let cause = error;
   for (let depth = 0; cause && typeof cause === "object" && depth < 5; depth += 1) {
-    const record = cause as { code?: unknown; cause?: unknown };
-    if (typeof record.code === "string" && /^[A-Z_]{3,64}$/u.test(record.code)) codes.push(record.code);
+    const record = cause as { code?: unknown; cause?: unknown; message?: unknown; name?: unknown };
+    if (typeof record.code === "string" && allowedCodes.has(record.code)) codes.push(record.code);
+    credentialsMissing ||= record.message === "ai_media_dialogue_qa_credentials_missing";
+    invalidAutomaticInput ||= record.message === "ai_media_dialogue_qa_automatic_input_invalid";
+    extractorMissing ||= record.code === "ENOENT";
+    sourceInvalid ||= record.message === "ai_media_dialogue_qa_source_invalid";
+    audioInvalid ||= record.message === "ai_media_dialogue_qa_audio_invalid" || record.message === "ai_media_dialogue_qa_audio_missing";
+    responseInvalid ||= record.message === "ai_media_dialogue_qa_invalid_response" || record.message === "ai_media_dialogue_qa_empty_response" ||
+      record.message === "ai_media_dialogue_qa_automatic_response_invalid" || record.message === "ai_media_dialogue_qa_pronunciation_invalid_response";
+    deadlineExceeded ||= record.name === "TimeoutError" || ["ai_media_dialogue_qa_deadline", "ai_media_dialogue_qa_automatic_deadline",
+      "ai_media_dialogue_qa_confirmation_deadline", "ai_media_dialogue_qa_pronunciation_deadline"].includes(String(record.message));
+    guardLimit ||= record.code === "ai_gateway_account_limit_reached";
+    guardUnavailable ||= record.code === "ai_gateway_guard_unavailable";
     cause = record.cause;
   }
-  console.warn("[ai-media] dialogue QA unavailable", JSON.stringify({ stage, status, codes }));
+  // Only fixed machine categories leave this boundary. Provider messages may
+  // contain audio, customer text or URLs and must never be printed here.
+  const permanentStatuses: Partial<Record<number, AiMediaNativeDialogueQaDiagnostic["reason"]>> = {
+    400: "provider_request_rejected", 401: "provider_authentication_failed",
+    403: "provider_access_denied", 404: "provider_resource_unavailable",
+    405: "provider_method_rejected", 422: "provider_request_rejected",
+  };
+  const permanentReason = credentialsMissing ? "credentials_missing"
+    : invalidAutomaticInput ? "automatic_input_invalid"
+      : extractorMissing ? "extractor_missing" : sourceInvalid ? "source_invalid" : audioInvalid ? "audio_invalid"
+        : guardLimit ? "economic_guard_limit" : permanentStatuses[status];
+  const reason = permanentReason || (deadlineExceeded ? "deadline_exceeded" : guardUnavailable ? "economic_guard_unavailable"
+    : responseInvalid ? "response_invalid" : status === 429 ? "provider_rate_limited"
+      : status >= 500 ? "provider_temporarily_unavailable" : "unclassified_failure");
+  const diagnostic: AiMediaNativeDialogueQaDiagnostic = { stage, status, reason,
+    retryable: permanentReason ? false : deadlineExceeded || guardUnavailable || status === 429 || status >= 500 ? true : null };
+  console.warn("[ai-media] dialogue QA unavailable", JSON.stringify({
+    ...diagnostic, codes,
+  }));
+  report?.(diagnostic);
+}
+
+async function reserveQaAttempt(accountId: string, request: Parameters<typeof reserveAiGatewayAccountAttempt>[1],
+  stage: AiMediaNativeDialogueQaDiagnostic["stage"], report?: DiagnosticReporter) {
+  try { return await reserveAiGatewayAccountAttempt(accountId, request); }
+  catch (error) { reportQaFailure(stage, error, report); throw error; }
 }
 
 /** Compare creative wording only after independent audio transcription. */
 async function verifyAutomaticDialogueWithGoogle(args: {
   accountId: string; brief: string; expectedLine: string; transcript: string;
   language: string; signal?: AbortSignal; model: string; timeoutMs: number; costMicroUsd: number;
+  reportDiagnostic?: DiagnosticReporter;
 }): Promise<{ status: "passed" | "rejected" | "unavailable"; model: string }> {
   args.signal?.throwIfAborted();
-  if (args.brief.length > 500 || args.expectedLine.length > 4000 || args.transcript.length > 6000) throw new Error("ai_media_dialogue_qa_automatic_input_invalid");
-  const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
+  if (args.brief.length > 500 || args.expectedLine.length > 4000 || args.transcript.length > 6000) {
+    const error = new Error("ai_media_dialogue_qa_automatic_input_invalid");
+    reportQaFailure("automatic_dialogue", error, args.reportDiagnostic); throw error;
+  }
+  const reservation = await reserveQaAttempt(args.accountId, {
     feature: "media.video", estimatedInputTokens: Math.ceil((args.brief.length + args.expectedLine.length + args.transcript.length) / 3) + 400,
     reservedOutputTokens: 128, estimatedCostMicroUsd: args.costMicroUsd,
-  });
+  }, "automatic_dialogue", args.reportDiagnostic);
   try {
     const ai = new GoogleGenAI({ apiKey: apiKey() });
     const interaction = await ai.interactions.create({
@@ -133,9 +187,10 @@ async function verifyAutomaticDialogueWithGoogle(args: {
     if (parsed.status !== "passed" && parsed.status !== "rejected" && parsed.status !== "unavailable") throw new Error("ai_media_dialogue_qa_automatic_response_invalid");
     await commitAiGatewayAccountAttempt({ reservation, feature: "media.video", model: args.model,
       usage: usageOf(interaction), actualCostMicroUsd: args.costMicroUsd });
+    if (parsed.status === "unavailable") args.reportDiagnostic?.({ stage: "automatic_dialogue", reason: "verification_inconclusive", status: 0, retryable: null });
     return { status: parsed.status, model: args.model };
   } catch (error) {
-    reportQaFailure("automatic_dialogue", error);
+    reportQaFailure("automatic_dialogue", error, args.reportDiagnostic);
     await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined);
     if (args.signal?.aborted) throw error;
     await recordAiGatewayAccountFailure({ accountId: args.accountId, feature: "media.video", model: args.model, status: statusFromError(error) }).catch(() => undefined);
@@ -269,20 +324,21 @@ async function transcribeAudioWithGoogle(args: {
   timeoutMs: number;
   costMicroUsd: number;
   maxOutputTokens: number;
+  reportDiagnostic?: DiagnosticReporter;
 }): Promise<AiMediaNativeDialogueTranscript> {
   args.signal?.throwIfAborted();
   const comparison = Boolean(args.finalFrame && args.referenceFrame);
   const frameCost = comparison ? 2 * positiveInt(process.env.AI_MEDIA_DIALOGUE_QA_FRAME_COST_MICRO_USD, DEFAULT_FINAL_FRAME_COST_MICRO_USD, 100_000) : 0;
   const configuredCostMicroUsd = args.costMicroUsd + frameCost;
   const maxOutputTokens = args.maxOutputTokens + (comparison ? 48 : 0);
-  const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
+  const reservation = await reserveQaAttempt(args.accountId, {
     feature: "media.video",
     estimatedInputTokens: 640 + (comparison ? 2 * FINAL_FRAME_ESTIMATED_INPUT_TOKENS : 0),
     reservedOutputTokens: maxOutputTokens,
     estimatedCostMicroUsd: configuredCostMicroUsd,
-  });
-  const ai = new GoogleGenAI({ apiKey: apiKey() });
+  }, "transcribe", args.reportDiagnostic);
   try {
+    const ai = new GoogleGenAI({ apiKey: apiKey() });
     const interaction = await ai.interactions.create(
       {
         model: args.model,
@@ -352,7 +408,7 @@ async function transcribeAudioWithGoogle(args: {
     });
     return { ...transcript, model: args.model };
   } catch (error) {
-    reportQaFailure("transcribe", error);
+    reportQaFailure("transcribe", error, args.reportDiagnostic);
     await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined);
     if (args.signal?.aborted) throw error;
     await recordAiGatewayAccountFailure({
@@ -375,15 +431,16 @@ async function verifyNamePronunciationWithGoogle(args: {
   model: string;
   timeoutMs: number;
   costMicroUsd: number;
+  reportDiagnostic?: DiagnosticReporter;
 }): Promise<{ status: "verified" | "rejected" | "unavailable"; model: string }> {
   args.signal?.throwIfAborted();
   const maxOutputTokens = 128;
-  const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
+  const reservation = await reserveQaAttempt(args.accountId, {
     feature: "media.video",
     estimatedInputTokens: 640,
     reservedOutputTokens: maxOutputTokens,
     estimatedCostMicroUsd: args.costMicroUsd,
-  });
+  }, "pronunciation", args.reportDiagnostic);
   try {
     const ai = new GoogleGenAI({ apiKey: apiKey() });
     const interaction = await ai.interactions.create({
@@ -426,9 +483,10 @@ async function verifyNamePronunciationWithGoogle(args: {
       reservation, feature: "media.video", model: args.model,
       usage: usageOf(interaction), actualCostMicroUsd: args.costMicroUsd,
     });
+    if (parsed.status === "unavailable") args.reportDiagnostic?.({ stage: "pronunciation", reason: "verification_inconclusive", status: 0, retryable: null });
     return { status: parsed.status, model: args.model };
   } catch (error) {
-    reportQaFailure("pronunciation", error);
+    reportQaFailure("pronunciation", error, args.reportDiagnostic);
     await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined);
     if (args.signal?.aborted) throw error;
     await recordAiGatewayAccountFailure({
@@ -480,6 +538,17 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
     DEFAULT_COST_MICRO_USD,
     100_000,
   );
+  const diagnostics: AiMediaNativeDialogueQaDiagnostic[] = [];
+  const reportDiagnostic: DiagnosticReporter = diagnostic => {
+    if (diagnostics.length < 8 && !diagnostics.some(item => item.stage === diagnostic.stage && item.reason === diagnostic.reason && item.status === diagnostic.status)) {
+      diagnostics.push(diagnostic);
+    }
+  };
+  const withDiagnostics = (result: AiMediaNativeDialogueQaResult): AiMediaNativeDialogueQaResult => {
+    if (qaSignal.aborted && !args.signal?.aborted) reportDiagnostic({ stage: "setup", reason: "deadline_exceeded", status: 0, retryable: true });
+    if (result.status === "unavailable" && !diagnostics.length) reportDiagnostic({ stage: "comparison", reason: "verification_inconclusive", status: 0, retryable: null });
+    return { ...result, ...(diagnostics.length ? { diagnostics: [...diagnostics] } : {}) };
+  };
   let directory = "";
   try {
     directory = await mkdtemp(path.join(tmpdir(), "inrcy-dialogue-qa-"));
@@ -514,7 +583,7 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
             ffmpegPath, timeoutMs: remainingTimeoutMs(), signal: qaSignal,
           })));
           qaSignal.throwIfAborted();
-          for (const frame of frames) if (frame.status === "rejected") reportQaFailure("extract", frame.reason);
+          for (const frame of frames) if (frame.status === "rejected") reportQaFailure("extract", frame.reason, reportDiagnostic);
           if (frames[0].status === "fulfilled" && frames[1].status === "fulfilled") {
             referenceFrame = frames[0].value; finalFrame = frames[1].value;
           }
@@ -522,7 +591,7 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
         return { audio, referenceFrame, finalFrame };
       } catch (error) {
         if (qaSignal.aborted) throw error;
-        reportQaFailure("extract", error);
+        reportQaFailure("extract", error, reportDiagnostic);
         return null;
       }
     }));
@@ -550,11 +619,12 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
         model,
         timeoutMs: remainingTimeoutMs(),
         costMicroUsd,
+        reportDiagnostic,
         // A 30s dialogue must not be truncated by the old 160-token ASR cap.
         maxOutputTokens: Math.min(512, Math.max(160, Math.ceil(clip.durationSeconds * 12))),
       });
     };
-    return await auditAiMediaNativeDialogueClips({
+    const result = await auditAiMediaNativeDialogueClips({
       clips: args.clips,
       language: args.language,
       pronunciationAliases: args.pronunciationAliases,
@@ -563,34 +633,44 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
       signal: args.signal,
       transcribe,
       verifyAutomaticDialogue: async (clip, options) => {
-        if (deadlineAt - Date.now() < 1000) throw new Error("ai_media_dialogue_qa_automatic_deadline");
+        if (deadlineAt - Date.now() < 1000) {
+          const error = new Error("ai_media_dialogue_qa_automatic_deadline");
+          reportQaFailure("automatic_dialogue", error, reportDiagnostic); throw error;
+        }
         return verifyAutomaticDialogueWithGoogle({ accountId: args.accountId, brief: clip.automaticDialogueContext ?? "",
           expectedLine: clip.expectedLine, transcript: options.transcript, language: options.language,
-          signal: qaSignal, model, timeoutMs: remainingTimeoutMs(), costMicroUsd });
+          signal: qaSignal, model, timeoutMs: remainingTimeoutMs(), costMicroUsd, reportDiagnostic });
       },
       confirm: async (clip, options) => {
         // Confirmation consumes only audio already extracted, never new video.
-        if (deadlineAt - Date.now() < 1_500) throw new Error("ai_media_dialogue_qa_confirmation_deadline");
+        if (deadlineAt - Date.now() < 1_500) {
+          const error = new Error("ai_media_dialogue_qa_confirmation_deadline");
+          reportQaFailure("transcribe", error, reportDiagnostic); throw error;
+        }
         return transcribe(clip, options);
       },
       verifyPronunciation: async (clip, options) => {
-        if (deadlineAt - Date.now() < 1_500) throw new Error("ai_media_dialogue_qa_pronunciation_deadline");
+        if (deadlineAt - Date.now() < 1_500) {
+          const error = new Error("ai_media_dialogue_qa_pronunciation_deadline");
+          reportQaFailure("pronunciation", error, reportDiagnostic); throw error;
+        }
         const audio = audioByClip.get(clip);
         if (!audio) throw new Error("ai_media_dialogue_qa_audio_missing");
         return verifyNamePronunciationWithGoogle({
           accountId: args.accountId, audio, language: options.language,
           candidate: options.candidate, signal: qaSignal, model,
-          timeoutMs: remainingTimeoutMs(), costMicroUsd,
+          timeoutMs: remainingTimeoutMs(), costMicroUsd, reportDiagnostic,
         });
       },
     });
+    return withDiagnostics(result);
   } catch (error) {
     if (args.signal?.aborted) throw error;
-    reportQaFailure("setup", error);
+    reportQaFailure("setup", error, reportDiagnostic);
     // Une panne FFmpeg/Google ne doit jamais être confondue avec une vidéo
     // conforme. L'appelant reçoit explicitement `unavailable` et choisit son
     // repli contrôlé (nouvelle tentative, voix off ou vidéo silencieuse).
-    return {
+    return withDiagnostics({
       version: 1,
       status: "unavailable",
       clips: args.clips.map((clip) => ({
@@ -609,7 +689,7 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
       })),
       elapsedMs: Date.now() - startedAt,
       model,
-    };
+    });
   } finally {
     if (directory) {
       await rm(directory, { recursive: true, force: true }).catch(() => undefined);

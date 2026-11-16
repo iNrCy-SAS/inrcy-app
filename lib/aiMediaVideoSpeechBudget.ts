@@ -1,5 +1,7 @@
 import { getAiMediaVideoSegmentDurations } from './aiMediaVideoTimeline.ts';
 import { splitAiMediaSpokenScript } from './aiMediaSpokenScript.ts';
+import { getAiMediaCharacterSpeechText } from './aiMediaCharacterVoices.ts';
+import { normalizeAiMediaExactDialogue, aiMediaExactDialogueScript, assertAiMediaExactDialogueBindings, type AiMediaExactDialogueTurn } from './aiMediaExactDialogue.ts';
 import type { AiMediaVideoEngine, AiMediaVideoResolution, AiMediaVideoSceneMode } from './aiMediaModelCatalog.ts';
 
 export const AI_MEDIA_VIDEO_VISUAL_BRIEF_MAX_CHARS = 500;
@@ -13,8 +15,10 @@ export type AiMediaVideoSpeechIssue = { code: string; message: string };
 export type AiMediaVideoSpeechBudgetInput = {
   kind: 'image' | 'video'; creationMode?: 'guided' | 'free'; operation?: 'generate' | 'modify';
   spokenScript?: string; freePrompt?: string; withNarration?: boolean; teamVideoSpeechMode?: 'voiceover' | 'characters';
+  exactDialogue?: readonly AiMediaExactDialogueTurn[];
   durationSeconds?: number | null; videoEngine?: AiMediaVideoEngine | null; videoResolution?: AiMediaVideoResolution | null;
   sceneMode?: AiMediaVideoSceneMode | null; language?: string;
+  inspirationImages?: readonly { role?: string; characterIndex?: number; characterName?: string }[];
 };
 export type AiMediaVideoSpeechSegmentBudget = {
   durationSeconds: number; script: string; units: number; maxUnits: number; characters: number; maxCharacters: number;
@@ -25,19 +29,50 @@ function countUnits(text: string, unit: string) {
   return unit === 'caractères prononcés' ? Array.from(text.replace(/[^\p{L}\p{N}]/gu, '')).length : text.split(/\s+/u).filter(Boolean).length;
 }
 
+/** Whole turns stay ordered and retain their speaker; text is never cut to fit. */
+export function splitAiMediaExactDialogueScenes(turns: readonly AiMediaExactDialogueTurn[], durations: readonly number[], language: string): AiMediaExactDialogueTurn[][] {
+  if (!durations.length) throw new RangeError('Choisissez une durée disponible pour ces répliques.');
+  const scenes: AiMediaExactDialogueTurn[][] = durations.map(() => []);
+  let index = 0;
+  for (const turn of turns) {
+    const fits = () => {
+      const text = [...scenes[index], turn].map(item => item.text).join(' ');
+      const budget = getAiMediaFreeSpeechBudget(durations[index], language, text);
+      return scenes[index].length < Math.min(6, Math.max(2, Math.floor(durations[index] / 3))) &&
+        budget.units <= budget.maxUnits && text.length <= budget.maxCharacters;
+    };
+    while (!fits() && index < durations.length - 1) index++;
+    if (!fits()) throw new RangeError('Les répliques exactes dépassent la capacité de ces plans. Choisissez une durée supérieure ou raccourcissez-les ; leur texte et leur locuteur ont été conservés.');
+    scenes[index].push(turn);
+  }
+  return scenes;
+}
+
 /** Exact scripts remain byte-for-byte intact; budgets are estimates for a
  * natural reading, not a provider promise or a reason to shorten user copy. */
 export function getAiMediaVideoSpeechState(request: AiMediaVideoSpeechBudgetInput, exact?: { dialogueLines?: readonly string[]; narrationScript?: string }) {
-  const explicit = typeof request.spokenScript === 'string';
-  const characterMode = request.teamVideoSpeechMode === 'characters';
-  const mode: 'silent' | 'voiceover' | 'characters' = request.kind !== 'video' || request.operation === 'modify' || explicit && !request.spokenScript!.trim()
-    ? 'silent' : characterMode ? 'characters' : request.withNarration ? 'voiceover' : 'silent';
+  const structured = request.exactDialogue !== undefined;
+  let turns: AiMediaExactDialogueTurn[] | undefined;
+  let structuredIssue: AiMediaVideoSpeechIssue | null = null;
+  if (structured) {
+    try {
+      turns = normalizeAiMediaExactDialogue(request.exactDialogue);
+      assertAiMediaExactDialogueBindings(turns!, request.inspirationImages || [], request.videoEngine);
+    }
+    catch (error) { structuredIssue = { code: 'AI_MEDIA_EXACT_DIALOGUE_INVALID', message: error instanceof Error ? error.message : 'Répliques exactes invalides.' }; }
+  }
+  const explicit = structured || typeof request.spokenScript === 'string';
+  const characterMode = structured ? turns?.some(turn => turn.speaker === 'character') === true : request.teamVideoSpeechMode === 'characters';
+  const explicitScript = structured ? turns ? aiMediaExactDialogueScript(turns) : '' : request.spokenScript;
+  const mode: 'silent' | 'voiceover' | 'characters' = request.kind !== 'video' || request.operation === 'modify' || explicit && !explicitScript!.trim()
+    ? 'silent' : characterMode ? 'characters' : structured || request.withNarration ? 'voiceover' : 'silent';
   const legacyNarration = exact?.narrationScript ?? request.freePrompt?.match(/(?:voix\s*off|narration|texte\s+(?:prononc[ée]|[àa]\s+dire))\s*(?:exacte?\s*)?[:=]\s*[«“"]([^»”"]+)[»”"]/i)?.[1]?.trim();
   const legacyLines = characterMode ? exact?.dialogueLines ?? getAiMediaFreeRequestedDialogue(request.freePrompt || '') : [];
-  const script = explicit ? request.spokenScript! : mode === 'characters' ? legacyLines.join('\n') : mode === 'voiceover' ? legacyNarration || '' : '';
-  const language = resolveAiMediaFreeSpeechLanguage(request.freePrompt || '', script, request.language || 'fr');
-  const totalBudget = getAiMediaFreeSpeechBudget(request.durationSeconds ?? 8, language, script);
-  let issue: AiMediaVideoSpeechIssue | null = null;
+  const script = explicit ? explicitScript! : mode === 'characters' ? legacyLines.join('\n') : mode === 'voiceover' ? legacyNarration || '' : '';
+  const spoken = explicit && !structured && mode === 'characters' ? getAiMediaCharacterSpeechText(script, request.inspirationImages) : script;
+  const language = resolveAiMediaFreeSpeechLanguage(request.freePrompt || '', spoken, request.language || 'fr');
+  const totalBudget = getAiMediaFreeSpeechBudget(request.durationSeconds ?? 8, language, spoken);
+  let issue: AiMediaVideoSpeechIssue | null = structuredIssue;
   let durations: readonly number[] = [];
   if (request.kind === 'video' && request.operation !== 'modify') {
     try { durations = getAiMediaVideoSegmentDurations(request.durationSeconds ?? 8, request.videoEngine, request.videoResolution, request.sceneMode); }
@@ -45,7 +80,11 @@ export function getAiMediaVideoSpeechState(request: AiMediaVideoSpeechBudgetInpu
   }
   if (script.length > AI_MEDIA_VIDEO_SPOKEN_SCRIPT_MAX_CHARS) issue = { code: 'AI_MEDIA_SPOKEN_SCRIPT_TOO_LONG', message: 'Les paroles ne peuvent pas dépasser 4 000 caractères. Votre texte a été conservé.' };
   else if (script.trim() && mode === 'silent') issue = { code: 'AI_MEDIA_INVALID_SPEECH_MODE', message: 'Choisissez une voix off ou des personnages parlants pour utiliser les paroles.' };
-  const lines = durations.length ? explicit || mode === 'voiceover' ? splitAiMediaSpokenScript(script, durations) : [...legacyLines] : [];
+  let lines = durations.length ? explicit || mode === 'voiceover' ? splitAiMediaSpokenScript(spoken, durations) : [...legacyLines] : [];
+  if (turns && durations.length) {
+    try { lines = splitAiMediaExactDialogueScenes(turns, durations, language).map(scene => scene.map(turn => turn.text).join(' ')); }
+    catch (error) { issue = { code: 'AI_MEDIA_EXACT_DIALOGUE_TOO_LONG', message: error instanceof Error ? error.message : 'Répliques exactes trop longues.' }; }
+  }
   const code = mode === 'characters' ? 'AI_MEDIA_EXACT_DIALOGUE_TOO_LONG' : 'AI_MEDIA_EXACT_NARRATION_TOO_LONG';
   const segmentBudgets: AiMediaVideoSpeechSegmentBudget[] = durations.map((durationSeconds, index) => {
     const budget = getAiMediaFreeSpeechBudget(durationSeconds, language, script);
@@ -59,11 +98,11 @@ export function getAiMediaVideoSpeechState(request: AiMediaVideoSpeechBudgetInpu
   const maxCharacters = mode === 'silent' ? 0 : mode === 'voiceover'
     ? Math.min(totalBudget.maxCharacters, segmentBudgets.reduce((sum, budget) => sum + budget.maxCharacters, 0))
     : segmentBudgets.reduce((sum, budget) => sum + budget.maxCharacters, 0);
-  const units = countUnits(script, totalBudget.unit);
-  const excess = mode === 'silent' ? script.trim() ? units : 0 : Math.max(0, units - maxUnits, script.length - maxCharacters);
+  const units = countUnits(spoken, totalBudget.unit);
+  const excess = mode === 'silent' ? script.trim() ? units : 0 : Math.max(0, units - maxUnits, spoken.length - maxCharacters);
   if (!issue && mode === 'characters' && !explicit && legacyLines.length > durations.length) issue = { code, message: 'Il y a plus de répliques que de plans disponibles. Réduisez le nombre de répliques ou choisissez davantage de plans.' };
   if (!issue && mode !== 'silent') issue = segmentBudgets.find(segment => segment.issue)?.issue ?? (excess > 0 ? { code, message: `Les paroles dépassent le budget de ${maxUnits} ${totalBudget.unit} ou ${maxCharacters} caractères pour cette vidéo. Raccourcissez-les ou choisissez une durée supérieure.` } : null);
-  return { mode, script, language, unit: totalBudget.unit, units, maxUnits, characters: script.length, maxCharacters, excess, issue, segmentBudgets };
+  return { mode, script, language, unit: totalBudget.unit, units, maxUnits, characters: spoken.length, maxCharacters, excess, issue, segmentBudgets };
 }
 
 /** A quote used as a sign/slogan remains visual. Pronunciation guides do not

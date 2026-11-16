@@ -10,6 +10,7 @@ import sharp from "sharp";
 import * as identityReferences from "../../lib/aiMediaIdentityReferences.ts";
 import * as catalog from "../../lib/aiMediaModelCatalog.ts";
 import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
+import * as exactDialogue from "../../lib/aiMediaExactDialogue.ts";
 import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
 import * as boundary from "../../lib/aiMediaVideoProviderContract.ts";
 import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
@@ -854,6 +855,7 @@ test("Veo native character speech and explicit silence keep distinct server quot
   const nativeRequire = createRequire(import.meta.url);
   const dependencies: Record<string, unknown> = {
     "server-only": {}, "./aiMediaCreditsPricing.ts": pricing,
+    "./aiMediaExactDialogue.ts": exactDialogue,
     "./aiMediaModelCatalog.ts": catalog, "./aiMediaCharacterVoices.ts": characterVoices,
   };
   new Function("exports", "require", "module", javascript)(record.exports, (specifier: string) => {

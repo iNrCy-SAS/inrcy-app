@@ -17,6 +17,8 @@ import {
 } from "./aiMediaModelCatalog.ts";
 import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
 import { isAiMediaCharacterVoiceEngine } from "./aiMediaCharacterVoices.ts";
+import { normalizeAiMediaExactDialogue, assertAiMediaExactDialogueBindings } from "./aiMediaExactDialogue.ts";
+import { getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
 
 /** Commercial credit units, independent of supplier USD and credit pack prices. */
 export const AI_MEDIA_CREDIT_TARIFF_VERSION = "inrstudio-media-credits-2026-11-v6" as const;
@@ -35,6 +37,8 @@ export type AiMediaCreditsQuoteInput = {
   voiceMode?: string;
   teamVideoSpeechMode?: string;
   spokenScript?: string;
+  exactDialogue?: import("./aiMediaExactDialogue.ts").AiMediaExactDialogueTurn[];
+  inspirationImages?: readonly { role?: string; characterIndex?: number }[];
   identityMode?: string;
   inputMode?: string;
   sceneMode?: string;
@@ -62,6 +66,18 @@ function transmittedVideoReferences(input: AiMediaCreditsQuoteInput, model: Retu
 }
 
 export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCreditsQuote {
+  if (input.exactDialogue !== undefined) {
+    const turns = normalizeAiMediaExactDialogue(input.exactDialogue)!;
+    if (input.kind !== "video" || input.creationMode !== "free") throw new TypeError("Les répliques exactes structurées sont réservées aux vidéos Libres.");
+    assertAiMediaExactDialogueBindings(turns, input.inspirationImages || [], input.videoEngine);
+    const hasCharacter = turns.some(turn => turn.speaker === "character");
+    input = { ...input, exactDialogue: turns, withNarration: !hasCharacter, teamVideoSpeechMode: hasCharacter ? "characters" : "voiceover" };
+    const speech = getAiMediaVideoSpeechState({ ...input, kind: "video", creationMode: "free", videoEngine: input.videoEngine as AiMediaVideoEngine,
+      operation: input.operation === "modify" ? "modify" : "generate",
+      videoResolution: input.videoResolution as AiMediaVideoResolution, sceneMode: input.sceneMode as AiMediaVideoSceneMode,
+      teamVideoSpeechMode: hasCharacter ? "characters" : "voiceover" });
+    if (speech.issue) throw new TypeError(speech.issue.message);
+  }
   const inputReferences = input.inspirationImagesCount ?? 0;
   if (!Number.isSafeInteger(inputReferences) || inputReferences < 0 || inputReferences > 5) throw new Error("ai_media_credit_reference_count_invalid");
   if (input.hasProvidedCharacterVoice !== undefined && typeof input.hasProvidedCharacterVoice !== "boolean") throw new Error("ai_media_credit_voice_option_invalid");

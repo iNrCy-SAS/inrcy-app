@@ -11,7 +11,7 @@
 .count { flex: 0 0 auto; margin-inline-start: auto; padding: 4px 2px; color: #c5d7ec; font-size: 12px; font-weight: 650; line-height: 1.4; }
 .details, .editor { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .editor > label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
-.details select { min-height: 34px; padding: 6px 9px; border: 1px solid #829cb35c; border-radius: 8px; color: #e1edff; background: #142640; font: inherit; }
+.details select, .details input[type="text"] { min-height: 34px; padding: 6px 9px; border: 1px solid #829cb35c; border-radius: 8px; color: #e1edff; background: #142640; font: inherit; }
 .details p { margin: 0; color: #b7c7dd; font-size: 11px; line-height: 1.45; }
 .editor > button { min-height: 34px; padding: 6px 10px; border: 1px solid #829cb35c; border-radius: 8px; color: #e1edff; background: #1b3851; font: inherit; font-size: 12px; cursor: pointer; }
 .details .consent { flex-direction: row; align-items: flex-start; gap: 8px; line-height: 1.5; }

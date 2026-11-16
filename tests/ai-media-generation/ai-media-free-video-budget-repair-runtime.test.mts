@@ -140,7 +140,9 @@ test('the longest allowed account rules reduce generated scene and direction bud
   const input = request('wan27'); const active = profile(1_200);
   const rules = globalRules.buildAiMediaGlobalConstraints(active);
   const budget = prompts.getAiMediaFreeVideoCreativeBudget({ request: input, globalMediaConstraints: rules });
-  assert.ok(budget.sceneMaxCharacters < 300);
+  const withoutRules = prompts.getAiMediaFreeVideoCreativeBudget({ request: input, globalMediaConstraints: '' });
+  assert.ok(budget.directionMaxCharacters < withoutRules.directionMaxCharacters);
+  assert.ok(budget.sceneMaxCharacters <= withoutRules.sceneMaxCharacters);
   const h = planner([{ direction: 'Trois personnes entretiennent ensemble une haie dans le jardin.', scenes: [
     { visualBrief: 'Trois personnes taillent la haie.', spokenLine: 'Notre équipe prend soin du jardin.',
       spokenTurns: [{ reference: 1, speaker: 'personnage 1', text: 'Notre équipe prend soin du jardin.' }] },
@@ -230,7 +232,15 @@ test('Flash measures its real 1,500-character wire format and rewrites ACTION be
   const active = profile(0); active.preferences.customInstructions = 'Quiet.'; active.preferences.forbiddenInstructions = 'No logos.';
   const rules = globalRules.buildAiMediaGlobalConstraints(active);
   const budget = prompts.getAiMediaFreeVideoCreativeBudget({ request: input, globalMediaConstraints: rules });
-  assert.ok(budget.sceneMaxCharacters >= 40 && budget.sceneMaxCharacters < 100);
+  assert.ok(budget.sceneMaxCharacters >= 40 && budget.sceneMaxCharacters <= 300);
+  const boundaryPlan = { headline: '', subline: 'L’artisan entretient le jardin.', companyName: '', cta: '', scenes: [0, 1].map(() => ({
+    eyebrow: '', title: '', body: '', spokenReply: '', layout: 'hero' as const,
+    visualBrief: 'A'.repeat(budget.sceneMaxCharacters), spokenLine: '',
+  })) };
+  const boundaryArgs = provider(input, boundaryPlan, rules);
+  assert.equal(prompts.buildAiMediaFreeWanFlashPrompt(boundaryArgs, 1, 15, true).length, 1_500);
+  boundaryPlan.scenes[1].visualBrief += 'A';
+  assert.throws(() => prompts.buildAiMediaFreeWanFlashPrompt(boundaryArgs, 1, 15, true), /instruction_contract_too_long:1501:1500/);
   const action = 'Un artisan taille la haie.';
   const h = planner([
     { direction: 'L’artisan entretient le jardin.', scenes: ['S'.repeat(300), 'S'.repeat(300)] },

@@ -30,6 +30,11 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
   pronunciationStatus?: "verified" | "rejected" | "unavailable" | "invalid" | "deadline";
   automaticDialogueContext?: string;
   automaticStatus?: "passed" | "rejected" | "unavailable" | "invalid" | "deadline";
+  missingCredentials?: boolean;
+  constructorThrows?: boolean;
+  providerStatus?: number;
+  nestedProviderStatus?: number;
+  reserveFails?: "limit" | "unavailable";
 } = {}) {
   const expectedLine = overrides.expectedLine ?? line;
   const firstTranscript = overrides.firstTranscript ?? cut;
@@ -37,6 +42,8 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
   const calls: Array<{ body: Record<string, unknown>; options: { timeout: number; maxRetries: number } }> = [];
   const reservations: Array<{ reservedOutputTokens: number; estimatedInputTokens: number; estimatedCostMicroUsd: number }> = [];
   const extractionArgs: string[][] = []; const costs: number[] = [];
+  const warnings: unknown[][] = [];
+  let rollbacks = 0;
   const qaDeadline = new AbortController(); let cleaned = 0; let extractions = 0;
   const modules = new Map<string, unknown>([
     ["server-only", {}],
@@ -58,8 +65,13 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
       done(null, "", "");
     } }],
     ["@google/genai", { GoogleGenAI: class {
+      constructor() {
+        if (overrides.constructorThrows) throw new Error("PRIVATE_SDK_INITIALIZATION https://private.invalid/secret");
+      }
       interactions = { create: async (body: Record<string, unknown>, options: { timeout: number; maxRetries: number }) => {
         calls.push({ body, options });
+        if (overrides.providerStatus) throw Object.assign(new Error("PRIVATE_PROVIDER_MESSAGE https://private.invalid/transcript"), { status: overrides.providerStatus, code: "PRIVATE_PROVIDER_CODE" });
+        if (overrides.nestedProviderStatus) throw new Error("PRIVATE_WRAPPER https://private.invalid/transcript", { cause: { statusCode: overrides.nestedProviderStatus, code: "PRIVATE_PROVIDER_CODE", message: "PRIVATE_TRANSCRIPT" } });
         if (overrides.firstReadDeadline && calls.length === 1) { qaDeadline.abort(); throw new DOMException("QA deadline", "AbortError"); }
         if (overrides.firstReadThrows && calls.length === 1) throw new TypeError("PRIVATE_TRANSPORT_ERROR");
         assert.ok(calls.filter(call => (call.body.input as Array<{ type: string }>).some(part => part.type === "audio")).length <= (overrides.responseTranscripts?.length ?? 3), "The existing three-check paths and explicit four-check consensus stay bounded.");
@@ -97,8 +109,11 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
     ["@/lib/aiMediaNativeDialogueQa", dialogue],
     ["@/lib/mediaVideoNormalizer", { resolveVideoNormalizationFfmpegPath: async () => "virtual-ffmpeg" }],
     ["@/lib/aiGatewayAccountGuard", {
-      reserveAiGatewayAccountAttempt: async (_account: string, args: { reservedOutputTokens: number; estimatedInputTokens: number; estimatedCostMicroUsd: number }) => { reservations.push(args); return {}; },
-      commitAiGatewayAccountAttempt: async (args: { actualCostMicroUsd: number }) => { costs.push(args.actualCostMicroUsd); }, rollbackAiGatewayAccountAttempt: async () => {}, recordAiGatewayAccountFailure: async () => {},
+      reserveAiGatewayAccountAttempt: async (_account: string, args: { reservedOutputTokens: number; estimatedInputTokens: number; estimatedCostMicroUsd: number }) => {
+        if (overrides.reserveFails) throw Object.assign(new Error("PRIVATE_GUARD_MESSAGE"), { code: overrides.reserveFails === "limit" ? "ai_gateway_account_limit_reached" : "ai_gateway_guard_unavailable" });
+        reservations.push(args); return {};
+      },
+      commitAiGatewayAccountAttempt: async (args: { actualCostMicroUsd: number }) => { costs.push(args.actualCostMicroUsd); }, rollbackAiGatewayAccountAttempt: async () => { rollbacks++; }, recordAiGatewayAccountFailure: async () => {},
     }],
   ]);
   const output = ts.transpileModule(readFileSync(new URL("../../lib/aiMediaNativeDialogueQaGoogle.ts", import.meta.url), "utf8"), {
@@ -106,14 +121,78 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
   }).outputText;
   const native = createRequire(import.meta.url);
   const record = { exports: {} as typeof import("../../lib/aiMediaNativeDialogueQaGoogle.ts") };
-  new Function("module", "exports", "require", "process", "AbortSignal", output)(record, record.exports, (id: string) => {
+  new Function("module", "exports", "require", "process", "AbortSignal", "console", output)(record, record.exports, (id: string) => {
     if (modules.has(id)) return modules.get(id);
     assert.ok(id.startsWith("node:"), `Unexpected production dependency: ${id}`); return native(id);
-  }, { env: { GEMINI_API_KEY: "offline-test-only" } }, { timeout: () => qaDeadline.signal, any: AbortSignal.any });
-  return { calls, reservations, extractionArgs, costs, cleaned: () => cleaned, extractions: () => extractions,
+  }, { env: { GEMINI_API_KEY: overrides.missingCredentials ? "" : "offline-test-only" } }, { timeout: () => qaDeadline.signal, any: AbortSignal.any }, { warn: (...values: unknown[]) => warnings.push(values) });
+  return { calls, reservations, extractionArgs, costs, warnings, rollbacks: () => rollbacks, cleaned: () => cleaned, extractions: () => extractions,
     audit: (durationSeconds = 8) => record.exports.auditAiMediaNativeDialogueWithGoogle({ accountId: "test-account", language: "fr", pronunciationAliases: overrides.pronunciationAliases, clips: [{ sceneIndex: 0, buffer: Buffer.from("synthetic-video"), mediaType: "video/mp4", durationSeconds, expectedLine, automaticDialogueContext: overrides.automaticDialogueContext, expectedContinuation: overrides.expectedContinuation, checkFinalFrameLayout: overrides.checkFinalFrameLayout, sourceStartSeconds: overrides.sourceStartSeconds }] }),
   };
 }
+
+test("missing Google credentials and SDK construction failures roll back the audio reservation before any provider call", async () => {
+  for (const overrides of [{ missingCredentials: true }, { constructorThrows: true }]) {
+    const h = adapter("complete", true, overrides);
+    const result = await h.audit(16);
+    assert.equal(result.status, "unavailable");
+    assert.equal(h.reservations.length, 1);
+    assert.equal(h.rollbacks(), 1, "initialization after a reservation must stay inside its compensation boundary");
+    assert.equal(h.calls.length, 0); assert.equal(h.costs.length, 0);
+    assert.equal(h.extractions(), 1); assert.equal(h.cleaned(), 1);
+    assert.equal(result.diagnostics?.[0].stage, "transcribe");
+    assert.equal(result.diagnostics?.[0].reason, overrides.missingCredentials ? "credentials_missing" : "unclassified_failure");
+    assert.doesNotMatch(JSON.stringify(result), /PRIVATE_|private\.invalid|secret/);
+    assert.doesNotMatch(JSON.stringify(h.warnings), /PRIVATE_|private\.invalid|secret/);
+  }
+});
+
+test("bounded audit recovery keeps every initialization-failure reservation balanced without generating another video", async () => {
+  const h = adapter("complete", true, { missingCredentials: true });
+  const result = await dialogue.recoverAiMediaNativeDialogueVerification({ audit: () => h.audit(16) });
+  assert.equal(result.status, "unavailable"); assert.equal(result.verificationAttempts, 2);
+  assert.equal(h.reservations.length, 2); assert.equal(h.rollbacks(), 2);
+  assert.equal(h.calls.length, 0); assert.equal(h.costs.length, 0); assert.equal(h.cleaned(), 2);
+  const diagnostic = JSON.parse(String(h.warnings[0][1]));
+  assert.equal(diagnostic.stage, "transcribe"); assert.equal(diagnostic.reason, "credentials_missing"); assert.equal(diagnostic.retryable, false);
+});
+
+test("provider refusal diagnostics distinguish permanent authorization failures from transient rate and availability errors without private text", async () => {
+  for (const [status, reason, retryable] of [[401,"provider_authentication_failed",false], [403,"provider_access_denied",false], [404,"provider_resource_unavailable",false], [429,"provider_rate_limited",true], [503,"provider_temporarily_unavailable",true]] as const) {
+    const h = adapter("complete", true, { providerStatus: status });
+    const result = await h.audit();
+    assert.equal(result.status, "unavailable");
+    assert.equal(h.reservations.length, 1); assert.equal(h.rollbacks(), 1); assert.equal(h.costs.length, 0);
+    const diagnostic = JSON.parse(String(h.warnings[0][1]));
+    assert.deepEqual({stage:diagnostic.stage,status:diagnostic.status,reason:diagnostic.reason,retryable:diagnostic.retryable},{stage:"transcribe",status,reason,retryable});
+    assert.deepEqual(result.diagnostics, [{ stage: "transcribe", status, reason, retryable }]);
+    assert.doesNotMatch(JSON.stringify(h.warnings), /PRIVATE_|private\.invalid|transcript/);
+  }
+});
+
+test("nested HTTP status and economic guard failures produce bounded categories without private SDK codes or content", async () => {
+  const nested = adapter("complete", true, { nestedProviderStatus: 403 });
+  const nestedResult = await nested.audit();
+  assert.equal(nestedResult.status, "unavailable");
+  assert.deepEqual(nestedResult.diagnostics, [{ stage: "transcribe", status: 403, reason: "provider_access_denied", retryable: false }]);
+  assert.doesNotMatch(JSON.stringify([nestedResult, nested.warnings]), /PRIVATE_|private\.invalid/);
+  for (const reserveFails of ["limit", "unavailable"] as const) {
+    const h = adapter("complete", true, { reserveFails });
+    const result = await h.audit();
+    assert.equal(result.status, "unavailable");
+    assert.deepEqual(result.diagnostics, [{ stage: "transcribe", status: 0,
+      reason: reserveFails === "limit" ? "economic_guard_limit" : "economic_guard_unavailable", retryable: reserveFails !== "limit" }]);
+    assert.equal(h.calls.length, 0); assert.equal(h.reservations.length, 0); assert.equal(h.rollbacks(), 0); assert.equal(h.costs.length, 0);
+    assert.doesNotMatch(JSON.stringify([result, h.warnings]), /PRIVATE_/);
+  }
+});
+
+test("a successful blind transcription keeps its original accounting, deadline and response limit", async () => {
+  const h = adapter("complete", true);
+  assert.equal((await h.audit(16)).status, "passed");
+  assert.equal(h.reservations.length, 1); assert.equal(h.costs.length, 1); assert.equal(h.rollbacks(), 0);
+  assert.equal(h.calls[0].options.maxRetries, 0); assert.ok(h.calls[0].options.timeout <= 8000);
+  assert.equal((h.calls[0].body.generation_config as {max_output_tokens:number}).max_output_tokens, 192);
+});
 
 test("automatic replies use a bounded text-only coherence check after blind ASR without rendering another video", async () => {
   const expectedLine = "Nous présentons notre métier avec passion et beaucoup de soin.";
@@ -136,7 +215,9 @@ test("unavailable, malformed and timed-out automatic checks never authorize crea
   for (const automaticStatus of ["unavailable", "invalid", "deadline"] as const) {
     const h = adapter("still-cut", false, { expectedLine, firstTranscript,
       automaticDialogueContext: "Un couple présente son activité.", automaticStatus });
-    assert.equal((await h.audit()).status, "unavailable");
+    const result = await h.audit();
+    assert.equal(result.status, "unavailable");
+    assert.ok(result.diagnostics?.some(item => item.stage === "automatic_dialogue" && item.reason === (automaticStatus === "invalid" ? "response_invalid" : automaticStatus === "unavailable" ? "verification_inconclusive" : "unclassified_failure")));
     assert.equal(h.calls.length, 2); assert.equal(h.extractions(), 1); assert.equal(h.cleaned(), 1);
   }
 });
@@ -248,7 +329,8 @@ test("the fourth Google listen cannot turn its deadline or a changed amount into
     const result = await h.audit();
     assert.equal(result.status, "unavailable"); assert.equal(h.calls.length, 4); assert.equal(h.extractions(), 1);
     assert.equal(result.clips[0].confirmation, "unavailable"); assert.equal(result.clips[0].audioCheckCount, 4);
-    assert.equal(h.cleaned(), 1); assert.doesNotMatch(JSON.stringify(result), /livraison|500|deadline/);
+    assert.equal(h.cleaned(), 1); assert.doesNotMatch(JSON.stringify(result), /livraison|500|Shared QA deadline/);
+    if (last === expectedLine) assert.ok(result.diagnostics?.some(item => item.reason === "deadline_exceeded"));
   }
 });
 

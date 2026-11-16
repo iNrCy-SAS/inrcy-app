@@ -62,6 +62,7 @@ async function setup(page: Page) {
     "./InrSearchLeadForm": compile("exports.default=()=>null;"),
     "./inrSearchContactEvents": compile(read("app/entreprises/[slug]/inrSearchContactEvents.ts")),
     "@/lib/inrBadgeQr": compile(read("lib/inrBadgeQr.ts")),
+    "@/lib/ctaPhoneNumbers": compile(read("lib/ctaPhoneNumbers.ts")),
   };
   const requests: string[] = [];
   await page.route("**/*", route => { requests.push(route.request().url()); return route.abort(); });

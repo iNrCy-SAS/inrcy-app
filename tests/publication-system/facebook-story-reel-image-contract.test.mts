@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { getMetaImageMotionDuration } from "../../lib/metaImageMotionTiming.ts";
+import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 
 import {
   DEFAULT_FACEBOOK_PUBLICATION_PREFERENCES,
@@ -26,7 +27,7 @@ const foundations = read(
 );
 const provider = read("lib/facebookPublish.ts");
 const ingress = read("lib/boosterPublicationIngress.ts");
-const dedupe = read("lib/scheduledPublicationDedupe.ts");
+const { findSimilarScheduledPublication } = runtimeModules()<typeof import("../../lib/scheduledPublicationDedupe.ts")>("lib/scheduledPublicationDedupe.ts");
 const channelWorkspace = read("app/dashboard/_components/DashboardChannelWorkspace.tsx");
 const channelBubble = read("app/dashboard/_components/DashboardFluxBubble.tsx");
 const publicationTypes = read("app/dashboard/_components/ChannelPublicationTypes.tsx");
@@ -96,7 +97,7 @@ test("Booster exposes one primary Facebook format plus optional Stories", () => 
   );
 });
 
-test("immediate, scheduled and single-channel continuation payloads keep the Facebook mode", () => {
+test("immediate, scheduled and single-channel continuation payloads keep the Facebook mode", async () => {
   assert.ok(
     (submission.match(/facebookPublicationSettings:/g) || []).length >= 2,
     "immediate and scheduled payloads must carry the setting",
@@ -105,7 +106,21 @@ test("immediate, scheduled and single-channel continuation payloads keep the Fac
   assert.match(route, /normalizeMetaPublicationSelection\(body\.facebookPublicationSettings\)/);
   assert.match(route, /channel === "facebook"[\s\S]*?getMetaTargetSettings\(target\.placement\)/);
   assert.match(route, /channel === "facebook" && targetFacebookPublicationSettings/);
-  assert.match(dedupe, /facebook-placement:/);
+  // Exercise placement-sensitive deduplication rather than its internal key spelling.
+  const scheduledAt = "2099-01-01T10:00:00Z";
+  const post = { title: "Publication actuelle", content: "Un autre texte" };
+  const image = { storagePath: "account/media/photo.jpg" };
+  const supabase = { from: () => {
+    const query = { select() { return this; }, eq() { return this; }, in() { return this; }, gte() { return this; }, lte() { return this; },
+      async limit() { return { data: [{ id: "scheduled-one", channels: ["facebook"], scheduled_at: scheduledAt,
+        payload: { publishPayload: { post: { title: "Publication programmée", content: "Texte précédent" }, images: [image], facebookPublicationSettings: { primaryPlacement: "classic", includeStory: false } } } }], error: null }; } };
+    return query;
+  } };
+  for (const [placement, duplicate] of [["classic", true], ["reel", false], ["story", false]] as const) {
+    const result = await findSimilarScheduledPublication({ supabase, userId: "account", channels: ["facebook"], scheduledAt,
+      payload: { post, images: [image], facebookPublicationSettings: { primaryPlacement: placement, includeStory: false } } });
+    assert.equal(result.duplicate, duplicate, `Facebook ${placement}`);
+  }
   assert.match(foundations, /FacebookPublicationSettings[\s\S]*?mediaOnly: boolean/);
   assert.match(foundations, /mediaOnly: story/);
 });

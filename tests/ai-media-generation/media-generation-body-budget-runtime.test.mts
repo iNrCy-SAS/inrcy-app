@@ -5,6 +5,7 @@ import ts from "typescript";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as transport from "../../lib/aiMediaGenerationTransport.ts";
 import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
+import * as nativeDialogueQa from "../../lib/aiMediaNativeDialogueQa.ts";
 import { assertAiMediaFreeExactNarrationFits } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 
 function route() {
@@ -13,6 +14,7 @@ function route() {
   const quota = { creditsReady: true, credits: { remaining: 100 } };
   class TestError extends Error {}
   const modules = new Map<string, unknown>([
+    ["@/lib/aiMediaNativeDialogueQa", nativeDialogueQa],
     ["next/server", { after() {}, NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
     ["@/lib/aiMediaGenerationContracts", contracts],
     ["@/lib/aiMediaCompositionRecovery", {}],

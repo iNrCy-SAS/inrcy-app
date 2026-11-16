@@ -412,10 +412,30 @@ test("toutes les options visibles quittent MediaGenerator comme champs structur�
 
   const generationFetchStart = HOOK_SOURCE.indexOf('fetch("/api/media-generation/generate"');
   assert.ok(generationFetchStart >= 0, "la vérification cible la requête de génération");
-  const payloadStart = HOOK_SOURCE.indexOf("body: JSON.stringify({", generationFetchStart);
-  const payloadEnd = HOOK_SOURCE.indexOf("}),", payloadStart);
-  assert.ok(payloadStart >= 0 && payloadEnd > payloadStart);
-  const payload = HOOK_SOURCE.slice(payloadStart, payloadEnd);
+  // Conditional object spreads can contain `}),` before the request ends.
+  // Inspect the actual JSON argument rather than a textual closing delimiter.
+  const hookAst = ts.createSourceFile("useMediaGeneration.ts", HOOK_SOURCE, ts.ScriptTarget.Latest, true);
+  const payloadNodes: ts.ObjectLiteralExpression[] = [];
+  const visit = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "fetch" &&
+      node.arguments[0] && ts.isStringLiteral(node.arguments[0]) && node.arguments[0].text === "/api/media-generation/generate") {
+      const options = node.arguments[1];
+      if (options && ts.isObjectLiteralExpression(options)) {
+        for (const property of options.properties) {
+          if (ts.isPropertyAssignment(property) && property.name.getText(hookAst) === "body" &&
+            ts.isCallExpression(property.initializer) && property.initializer.expression.getText(hookAst) === "JSON.stringify") {
+            const argument = property.initializer.arguments[0];
+            if (argument && ts.isObjectLiteralExpression(argument)) payloadNodes.push(argument);
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(hookAst);
+  const payloadNode = payloadNodes.at(-1);
+  assert.ok(payloadNode, "la charge utile structurée de la génération est présente");
+  const payload = payloadNode.getText(hookAst);
 
   const structuredFields = [
     "kind",

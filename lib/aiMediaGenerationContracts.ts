@@ -3,10 +3,12 @@ import {
   type AiMediaNarrationVoiceVariant,
 } from "./aiMediaNarrationVoices.ts";
 import { INR_MEDIA_IMAGE_MAX_BYTES } from "./mediaRules.ts";
+import { normalizeAiMediaExactDialogue, aiMediaExactDialogueScript, assertAiMediaExactDialogueBindings, type AiMediaExactDialogueTurn } from "./aiMediaExactDialogue.ts";
+export type { AiMediaExactDialogueTurn } from "./aiMediaExactDialogue.ts";
 import { findAiMediaSoundtrack } from "./aiMediaSoundtrackDefinitions.ts";
 import { AI_MEDIA_VIDEO_SPOKEN_SCRIPT_MAX_CHARS, getAiMediaVisualBriefMaxChars, getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
 import { isStudioInspirationVideoReference, studioInspirationBase64IsVideo, STUDIO_INSPIRATION_IMAGES_ONLY_MESSAGE } from "./studioInspirationImagePolicy.ts";
-import { normalizeAiMediaCharacterVoiceSample, hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration, hasTooShortAiMediaCharacterVoice, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, type AiMediaCharacterVoiceSample } from "./aiMediaCharacterVoices.ts";
+import { normalizeAiMediaCharacterVoiceSample, normalizeAiMediaCharacterName, hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, exceedsAiMediaCharacterVoiceEngineDuration, hasTooShortAiMediaCharacterVoice, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, type AiMediaCharacterVoiceSample } from "./aiMediaCharacterVoices.ts";
 import {
   getAiMediaVideoDurations, getAiMediaVideoNativeDurations, getAiMediaVideoResolution, getAiMediaVideoEngineRetirementIssue,
   normalizeAiMediaVideoEngine, normalizeAiMediaImageEngine, isAiMediaImageModelCompatible,
@@ -122,6 +124,8 @@ export type AiMediaInspirationImage = {
   usage?: AiMediaReferenceUsage;
   /** Index stable du média Personnage ; un média peut contenir une ou plusieurs personnes. */
   characterIndex?: 1 | 2 | 3;
+  /** Optional name explicitly bound to this photo by the professional. */
+  characterName?: string;
   /** Vocal reference associated only with this character, independently of visual usage. */
   voiceMode?: "ai" | "provided";
   voiceSample?: AiMediaCharacterVoiceSample;
@@ -230,6 +234,8 @@ export type AiMediaGenerationRequest = {
   publicationSubject?: string;
   /** Exact speech for free Studio video. An explicit empty string overrides legacy quoted speech. */
   spokenScript?: string;
+  /** Ordered, explicit speaker targets from the Exact dialogue editor. */
+  exactDialogue?: AiMediaExactDialogueTurn[];
   /** Optional native subtitles for free Studio video only. */
   withSubtitles?: boolean;
   /** Optional verified business facts; never restores hidden guided settings. */
@@ -574,6 +580,9 @@ function normalizeInspirationImages(
         ? "required"
         : "inspiration")) as AiMediaReferenceUsage;
     const characterIndex = Number(source?.characterIndex);
+    const characterName = source?.characterName === undefined ? "" : normalizeAiMediaCharacterName(source.characterName);
+    if (characterName === null || (source?.characterName !== undefined && rawRole !== "character"))
+      throw new AiMediaRequestValidationError("Le nom du personnage doit contenir au maximum 40 caractères, sans consigne ni ponctuation de dialogue.");
     const rawVoiceMode = source?.voiceMode;
     if (rawVoiceMode !== undefined && rawVoiceMode !== "ai" && rawVoiceMode !== "provided") {
       throw new AiMediaRequestValidationError("Choix de voix du personnage invalide.");
@@ -601,11 +610,15 @@ function normalizeInspirationImages(
         ? { characterIndex: characterIndex as 1 | 2 | 3 }
         : {}),
       ...(rawRole === "character" && rawVoiceMode ? { voiceMode: rawVoiceMode } : {}),
+      ...(characterName ? { characterName } : {}),
       ...(voiceSample ? { voiceSample } : {}),
     };
   });
 
   // Supplied voices count even when their photo is only an inspiration.
+  const characterNames = normalized.flatMap(image => image.characterName ? [image.characterName.toLowerCase()] : []);
+  if (new Set(characterNames).size !== characterNames.length)
+    throw new AiMediaRequestValidationError("Utilisez un nom différent pour chaque personnage.");
   // Enforce the three-source contract for legacy clients as well as the UI.
   if (normalized.filter((image) => image.voiceMode === "provided").length > 3) {
     throw new AiMediaRequestValidationError(
@@ -651,7 +664,24 @@ export function normalizeAiMediaGenerationRequest(
     publicationSubject = normalizeAiInstruction(body.publicationSubject, 2_000) || undefined;
   }
   const useBusinessDna = creationMode === "free" && body.useBusinessDna === true;
-  const spokenScript = creationMode === "free" && body.kind === "video"
+  let exactDialogue: AiMediaExactDialogueTurn[] | undefined;
+  if (body.exactDialogue !== undefined) {
+    if (creationMode !== "free" || body.kind !== "video" || body.spokenScript !== undefined) {
+      throw new AiMediaRequestValidationError("Utilisez soit les répliques structurées, soit l’ancien texte exact, uniquement pour une vidéo Libre.");
+    }
+    try { exactDialogue = normalizeAiMediaExactDialogue(body.exactDialogue); }
+    catch (error) { throw new AiMediaRequestValidationError(error instanceof Error ? error.message : "Répliques exactes invalides."); }
+    const hasCharacter = exactDialogue!.some(turn => turn.speaker === "character");
+    const providedNarrator = exactDialogue!.every(turn => turn.speaker === "provided_voice");
+    if (providedNarrator && body.narrationVoiceMode !== "provided") {
+      throw new AiMediaRequestValidationError("Sélectionnez et autorisez le vocal de la voix off réelle avant de générer.");
+    }
+    body = { ...body, teamVideoSpeechMode: hasCharacter ? "characters" : "voiceover", withNarration: !hasCharacter,
+      // An explicit provided narrator retains the established ownership/consent/clone path.
+      narrationVoiceMode: providedNarrator ? "provided" : "ai", narrationVoiceSample: providedNarrator ? body.narrationVoiceSample : undefined,
+      narrationVoiceConsent: providedNarrator ? body.narrationVoiceConsent : false };
+  }
+  const spokenScript = exactDialogue ? aiMediaExactDialogueScript(exactDialogue) : creationMode === "free" && body.kind === "video"
     ? normalizeAiMediaSpokenScript(body.spokenScript)
     : undefined;
   const explicitEmptySpokenScript = typeof spokenScript === "string" && !spokenScript.trim();
@@ -1004,6 +1034,10 @@ export function normalizeAiMediaGenerationRequest(
     inputMode,
     creationMode === "free"
   );
+  if (exactDialogue) {
+    try { assertAiMediaExactDialogueBindings(exactDialogue, inspirationImages, videoEngine); }
+    catch (error) { throw new AiMediaRequestValidationError(error instanceof Error ? error.message : "Locuteurs exacts invalides."); }
+  }
   const providedCharacterVoice = hasProvidedAiMediaCharacterVoice(inspirationImages);
   if (providedCharacterVoice && (kind !== "video" || operation === "modify" || !isAiMediaCharacterVoiceEngine(videoEngine))) {
     throw new AiMediaRequestValidationError("Choisissez Wan 2.7 ou Kling pour une vidéo avec une voix fournie.");
@@ -1318,6 +1352,7 @@ export function normalizeAiMediaGenerationRequest(
     freePrompt: creationMode === "free" ? freePrompt : undefined,
     publicationSubject,
     spokenScript,
+    ...(exactDialogue ? { exactDialogue } : {}),
     withSubtitles,
     useBusinessDna: creationMode === "free" ? useBusinessDna : undefined,
     operation,

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { quoteAiMediaCredits, type AiMediaCreditsQuoteInput } from "./aiMediaCreditsPricing.ts";
 import type { AiMediaGenerationRequest } from "./aiMediaGenerationContracts.ts";
 import { hasProvidedAiMediaCharacterVoice } from "./aiMediaCharacterVoices.ts";
+import { normalizeAiMediaExactDialogue } from "./aiMediaExactDialogue.ts";
 import { getAiMediaVideoEngineRetirementIssue, isAiMediaVideoEngineAvailable, normalizeAiMediaVideoEngine } from "./aiMediaModelCatalog.ts";
 
 export function createAiMediaServerQuote(accountId: string, input: AiMediaCreditsQuoteInput) {
@@ -18,7 +19,9 @@ export function createAiMediaServerQuote(accountId: string, input: AiMediaCredit
   const quote = quoteAiMediaCredits(input);
   // Image format and the fixed provider canvas are part of the quote identity,
   // even when a bounded model has the same commercial price in every format.
-  const quoteId = createHash("sha256").update(JSON.stringify({ accountId, ...quote })).digest("hex");
+  const quoteId = createHash("sha256").update(JSON.stringify({ accountId, ...quote,
+    ...(input.exactDialogue !== undefined ? { exactDialogue: normalizeAiMediaExactDialogue(input.exactDialogue) } : {}),
+  })).digest("hex");
   return { ...quote, quoteId };
 }
 

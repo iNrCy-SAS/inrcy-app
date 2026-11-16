@@ -103,6 +103,41 @@ test("a supplier minimum-balance refusal has a precise operator-facing cause wit
   assert.equal(isAiMediaProviderBillingFailure({ message: "provider unavailable", metadata: { prompt: diagnostic } }), false);
 });
 
+test("Kling's prepaid-pack and postpaid-arrears 429s are supplier billing failures rather than retryable capacity", () => {
+  for (const code of [1101, 1102]) {
+    const diagnostic = `ai_video_kling_request_rejected:429:${code}`;
+    for (const raw of [
+      new Error(diagnostic),
+      new Error("AI_MEDIA_GENERATION_FAILED", { cause: new Error(diagnostic) }),
+      { error_code: "AI_MEDIA_GENERATION_FAILED", error_details: [{ message: diagnostic }] },
+      { message: `ai_video_kling_voice_completion_unconfirmed:429:${code}` },
+    ]) {
+      const result = explain(raw);
+      assert.equal(result.code, "AI_MEDIA_PROVIDER_BALANCE_INSUFFICIENT");
+      assert.equal(result.status, 503);
+      assert.equal(result.retryAfterSeconds, undefined);
+      assert.equal(isAiMediaProviderBillingFailure(raw), true);
+      assert.match(result.action, /assistance iNrCy/);
+      assert.match(result.action, /solde de crédits iNrCy n’est pas en cause/);
+      assert.doesNotMatch(result.message, /110[12]|429|ai_video_|réessay|recharg|autre moteur/i);
+    }
+    const secret = `${diagnostic} https://private.invalid/result?token=SECRET KLING_API_KEY=PRIVATE`;
+    assert.doesNotMatch(explain(new Error(secret)).message, /https:|SECRET|PRIVATE|token|API_KEY|110[12]/);
+    assert.equal(isAiMediaProviderBillingFailure({ message: "provider unavailable", metadata: { prompt: secret } }), false);
+  }
+  for (const diagnostic of [
+    "ai_video_kling_request_rejected:429:1100",
+    "ai_video_kling_request_rejected:429:1302",
+    "ai_video_kling_request_rejected:429:1303",
+    "ai_video_kling_request_rejected:429:11020",
+    "ai_video_other_request_rejected:429:1102",
+    "Unrelated error 429:1102",
+  ]) {
+    assert.equal(isAiMediaProviderBillingFailure(new Error(diagnostic)), false, diagnostic);
+    assert.notEqual(explain(new Error(diagnostic)).code, "AI_MEDIA_PROVIDER_BALANCE_INSUFFICIENT", diagnostic);
+  }
+});
+
 test("per-minute request quotas are distinct from supplier billing failures", () => {
   for (const suffix of ["", " Check billing for more information."]) {
     const error = Object.assign(new Error(`Quota exceeded for metric GenerateContent requests per minute per project. Please retry in 60 seconds.${suffix}`), { statusCode: 429 });

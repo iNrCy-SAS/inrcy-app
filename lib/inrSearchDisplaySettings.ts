@@ -48,15 +48,20 @@ export function createInrSearchPublicTextSanitizer(displayValue: unknown, privat
     if (encoded !== literal) patterns.push(new RegExp(escapePattern(encoded), "giu"));
   };
   if (!display.phone) {
-    const digits = text(privateContact.phone).replace(/\D/g, "");
-    if (digits.length >= 6) {
-      const aliases = new Set([digits]);
-      const french = /^0\d{9}$/.test(digits) ? digits.slice(1) : /^33\d{9}$/.test(digits) ? digits.slice(2) : /^0033\d{9}$/.test(digits) ? digits.slice(4) : "";
-      if (french) for (const alias of [`0${french}`, `33${french}`, `0033${french}`]) aliases.add(alias);
-      for (const alias of aliases) patterns.push(new RegExp(`(?<!\\d)(?:tel:)?\\+?${alias.split("").join("[\\s().\\-\\u00a0]*")}(?!\\d)`, "giu"));
-      if (french) patterns.unshift(new RegExp(`(?<!\\d)(?:tel:)?(?:\\+|00)?33[\\s().\\-\\u00a0]*(?:0[\\s().\\-\\u00a0]*)?${french.split("").join("[\\s().\\-\\u00a0]*")}(?!\\d)`, "giu"));
-      addLiteral(privateContact.phone);
+    // Redact each contact independently, including legacy profile strings that
+    // cannot be used as a call destination. Joining their digits would miss both.
+    for (const phone of text(privateContact.phone).split(/[\/;,|\n]|\b(?:ou|or)\b/iu)) {
+      const digits = phone.replace(/\D/g, "");
+      if (digits.length >= 6) {
+        const aliases = new Set([digits]);
+        const french = /^0\d{9}$/.test(digits) ? digits.slice(1) : /^33\d{9}$/.test(digits) ? digits.slice(2) : /^0033\d{9}$/.test(digits) ? digits.slice(4) : "";
+        if (french) for (const alias of [`0${french}`, `33${french}`, `0033${french}`]) aliases.add(alias);
+        for (const alias of aliases) patterns.push(new RegExp(`(?<!\\d)(?:tel:)?\\+?${alias.split("").join("[\\s().\\-\\u00a0]*")}(?!\\d)`, "giu"));
+        if (french) patterns.unshift(new RegExp(`(?<!\\d)(?:tel:)?(?:\\+|00)?33[\\s().\\-\\u00a0]*(?:0[\\s().\\-\\u00a0]*)?${french.split("").join("[\\s().\\-\\u00a0]*")}(?!\\d)`, "giu"));
+        addLiteral(phone);
+      }
     }
+    addLiteral(privateContact.phone);
   }
   if (!display.email) { addLiteral(privateContact.email); }
   if (!display.address) { addLiteral(privateContact.address); addLiteral(privateContact.zip); }

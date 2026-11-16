@@ -42,6 +42,18 @@ test("Annuaire structured data keeps separate telephone values and call targets 
   assert.deepEqual(result.contactPoint.telephone,result.telephone);
   assert.deepEqual(result.potentialAction.target,["tel:+243981837026","tel:+8618666071730"]);
   assert.equal(evaluate(source,context,'normalizeStructuredPhone("0612345678")'),"0612345678");
+  for(const country of ["FR","France","france"]){
+    assert.equal(evaluate(source,context,`normalizeStructuredPhone("0612345678",${JSON.stringify(country)})`),"+33612345678","a known French country preserves the legacy JSON-LD format");
+    const local={...data,phone:"0612345678 / +8618666071730",country};
+    const schema=evaluate<{telephone:string[];contactPoint:{telephone:string[]}}>(source,{...context,data:local},'buildJsonLd(data,i18nT,"fr-FR")');
+    assert.deepEqual(schema.telephone,["+33612345678","+8618666071730"]);
+    assert.deepEqual(schema.contactPoint.telephone,schema.telephone);
+  }
+  for(const country of ["","CD","République démocratique du Congo","Belgique"]){
+    assert.equal(evaluate(source,context,`normalizeStructuredPhone("0612345678",${JSON.stringify(country)})`),"0612345678","an absent or different country never gains an invented +33");
+    const schema=evaluate<{telephone:string}>(source,{...context,data:{...data,phone:"0612345678",country}},'buildJsonLd(data,i18nT,"fr-FR")');
+    assert.equal(schema.telephone,"0612345678");
+  }
 });
 
 test("Annuaire contact card renders two complete actionable phone links inside one contact route",()=>{

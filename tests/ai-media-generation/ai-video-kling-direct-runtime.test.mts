@@ -11,8 +11,10 @@ import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
 import * as boundary from "../../lib/aiMediaVideoProviderContract.ts";
 import * as voices from "../../lib/aiMediaCharacterVoices.ts";
 import * as prompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
+import { normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
 import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
 import { prepareAiMediaIdentityReferences } from "../../lib/aiMediaIdentityReferences.ts";
+import { getAiMediaGenerationPublicError, isAiMediaProviderBillingFailure } from "../../lib/aiMediaGenerationPublicErrors.ts";
 import type { KlingVideoRequest, KlingVideoTask } from "../../lib/aiVideoKlingApi.ts";
 import type * as KlingApi from "../../lib/aiVideoKlingApi.ts";
 import type * as KlingProvider from "../../lib/aiVideoProviderKling.ts";
@@ -31,6 +33,100 @@ function runtime<T>(file: string, imports: Record<string, unknown>): T {
 const api = runtime<typeof KlingApi>("aiVideoKlingApi.ts", { "node:timers/promises": { setTimeout: async () => undefined } });
 const mp4 = Buffer.alloc(24); mp4.write("ftyp", 4);
 const photo = await sharp({ create: { width: 320, height: 400, channels: 3, background: "#445566" } }).webp().toBuffer();
+
+test("a definite Kling billing refusal is sanitized, classified and never resubmitted", async () => {
+  for (const code of [1101, 1102]) {
+    let submissions = 0;
+    const client = api.createKlingApiClient({ apiKey: "synthetic-test-key", fetch: async (_url, options) => {
+      assert.equal(options?.method, "POST");
+      submissions++;
+      return Response.json({ code, message: "private supplier text https://secret.invalid/?token=PRIVATE" }, { status: 429 });
+    }, sleep: async () => assert.fail("A definite billing refusal must not wait or retry") });
+    await assert.rejects(() => client.submitVideo({
+      contents: [{ type: "prompt", text: "Synthetic offline fixture" }],
+      settings: { resolution: "720p", aspect_ratio: "1:1", duration: 8, audio: "native" },
+      options: { external_task_id: "billing-refusal-test" },
+    }), error => {
+      assert.ok(error instanceof api.KlingApiError);
+      assert.equal(error.uncertain, false);
+      assert.equal(error.upstreamCode, code);
+      assert.equal(error.message, `ai_video_kling_request_rejected:429:${code}`);
+      assert.equal(isAiMediaProviderBillingFailure(error), true);
+      const publicError = getAiMediaGenerationPublicError(error);
+      assert.equal(publicError.code, "AI_MEDIA_PROVIDER_BALANCE_INSUFFICIENT");
+      assert.equal(publicError.retryAfterSeconds, undefined);
+      assert.doesNotMatch(publicError.message, /PRIVATE|secret|https:|ai_video_|110[12]/);
+      return true;
+    });
+    assert.equal(submissions, 1);
+  }
+});
+
+test("Kling billing failure during video polling stops after one GET with no sleep or new submission", async () => {
+  for (const code of [1101, 1102]) {
+    const methods: string[] = [];
+    let sleeps = 0;
+    const client = api.createKlingApiClient({ apiKey: "synthetic-test-key", fetch: async (_url, options) => {
+      methods.push(String(options?.method));
+      assert.equal(options?.method, "GET");
+      return Response.json({ code, message: "private billing response" }, { status: 429 });
+    }, sleep: async () => { sleeps++; assert.fail("Permanent billing failures must not poll again"); } });
+    await assert.rejects(() => client.waitVideo({ id: "accepted-video", status: "processing", outputs: [] }), error => {
+      assert.ok(error instanceof api.KlingApiError);
+      assert.equal(error.upstreamCode, code);
+      assert.equal(isAiMediaProviderBillingFailure(error), true);
+      return true;
+    });
+    assert.deepEqual(methods, ["GET"]);
+    assert.equal(sleeps, 0);
+  }
+});
+
+test("a voice accepted before a billing polling error stays uncertain without another POST or sleep", async () => {
+  for (const code of [1101, 1102]) {
+    const methods: string[] = [];
+    let sleeps = 0;
+    const client = api.createKlingApiClient({ apiKey: "synthetic-test-key", fetch: async (_url, options) => {
+      methods.push(String(options?.method));
+      if (methods.length === 1) {
+        assert.equal(options?.method, "POST");
+        return Response.json({ code: 0, data: { task_id: "accepted-voice" } });
+      }
+      assert.equal(options?.method, "GET");
+      return Response.json({ code, message: "private billing response" }, { status: 429 });
+    }, sleep: async () => { sleeps++; assert.fail("Permanent billing failures must not poll again"); } });
+    await assert.rejects(() => client.createVoice({ url: "https://synthetic.invalid/voice.wav", externalTaskId: "voice-billing-test" }), error => {
+      assert.ok(error instanceof api.KlingApiError);
+      assert.equal(error.phase, "voice_completion_unconfirmed");
+      assert.equal(error.uncertain, true, "failure to read the accepted voice must not imply its creation was rejected");
+      assert.equal(error.upstreamCode, code);
+      assert.equal(isAiMediaProviderBillingFailure(error), true);
+      return true;
+    });
+    assert.deepEqual(methods, ["POST", "GET"]);
+    assert.equal(sleeps, 0);
+  }
+});
+
+test("Kling transient polling throttles, 5xx and network failures still recover the accepted task without any POST", async () => {
+  for (const [status, code] of [[429, 1302], [429, 1303], [500, 5000], [503, 5001], [0, 0]]) {
+    const methods: string[] = [];
+    let sleeps = 0;
+    const client = api.createKlingApiClient({ apiKey: "synthetic-test-key", fetch: async (_url, options) => {
+      methods.push(String(options?.method));
+      assert.equal(options?.method, "GET");
+      if (methods.length === 1) {
+        if (!status) throw new Error("synthetic network failure");
+        return Response.json({ code }, { status });
+      }
+      return Response.json({ code: 0, data: [{ id: "accepted-video", status: "succeeded", outputs: [{ type: "video", url: "https://synthetic.invalid/video.mp4", duration: 8 }] }] });
+    }, sleep: async () => { sleeps++; } });
+    const result = await client.waitVideo({ id: "accepted-video", status: "processing", outputs: [] });
+    assert.equal(result.status, "succeeded");
+    assert.deepEqual(methods, ["GET", "GET"]);
+    assert.ok(sleeps >= 1, "transient status lookup failures keep their existing backoff");
+  }
+});
 
 function argsFor(duration = 8, sceneMode: catalog.AiMediaVideoSceneMode = "single"): providerTypes.AiVideoProviderGenerationArgs {
   const contract = { version: boundary.AI_MEDIA_VIDEO_PROVIDER_CONTRACT_VERSION, subject: "Deux artisans présentent leur atelier.",
@@ -155,6 +251,33 @@ async function withKey(run: () => Promise<void>) {
   const previous = process.env.KLING_API_KEY; process.env.KLING_API_KEY = "test-only-kling-key";
   try { await run(); } finally { if (previous === undefined) delete process.env.KLING_API_KEY; else process.env.KLING_API_KEY = previous; }
 }
+
+test("structured Exact sends two owned character voices and a separate native off-screen narrator without a third voice profile", async () => withKey(async () => {
+  const args = argsFor(16);
+  const time = Date.now(), date = new Date(time).toISOString().slice(0, 10);
+  const turns = [{ speaker: "character", characterIndex: 2, text: "Nous prenons soin de votre jardin." },
+    { speaker: "ai_voice", text: "Une équipe à votre écoute." },
+    { speaker: "character", characterIndex: 1, text: "Contactez-nous pour en parler." }];
+  args.request = normalizeAiMediaGenerationRequest({ ...args.request, source: "studio", identityConsent: true,
+    identityReferenceSetId: crypto.randomUUID(), teamVideoProviderConsent: "kling", exactDialogue: turns,
+    inspirationImages: args.request.inspirationImages.map(image => image.voiceMode === "provided" ? { ...image,
+      voiceSample: { ...image.voiceSample, path: `_studio-voice-references/${date}/account-test__${time}__${crypto.randomUUID()}.wav` } } : image) });
+  args.providerContract = boundary.buildAiMediaVideoProviderContract({ request: args.request, durationSeconds: 16, brandColors: [] });
+  const c = context();
+  await c.provider.klingAiVideoProvider.generate(args);
+  assert.equal(c.profiles.length, 2); assert.equal(c.videoBodies.length, 1);
+  const contents = c.videoBodies[0].contents;
+  assert.deepEqual(contents.filter(content => content.type === "voice").map(content => content.id), ["voice_1", "voice_3"]);
+  assert.deepEqual(contents.filter(content => content.type === "refer_image").map(content => content.id), ["image_1", "image_2", "image_3"]);
+  const prompt = contents.find(content => content.type === "prompt")!.text;
+  assert.match(args.providerContract.parameters, /;voiceover=native;/, "the signed mixed envelope declares its native narrator");
+  assert.doesNotMatch(prompt, /voiceover=none/, "compact wire prompts must not reintroduce the conflicting prohibition");
+  assert.match(prompt, /NARRATOR_OFFSCREEN_AI/); assert.match(prompt, /no image or supplied voice reference/);
+  assert.ok(prompt.indexOf(turns[0].text) < prompt.indexOf(turns[1].text) && prompt.indexOf(turns[1].text) < prompt.indexOf(turns[2].text));
+  assert.doesNotMatch(prompt, /@image_0|@voice_0/);
+  assert.equal(c.videoBodies[0].settings.audio, "native");
+  assert.equal(c.counts.cleanups, 1); assert.equal(c.deleted.length, 2);
+}));
 
 test("Kling sends two distinct original faces and their own voice IDs through the direct API", async () => withKey(async () => {
   const c = context(); const result = await c.provider.klingAiVideoProvider.generate(argsFor());

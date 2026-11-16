@@ -1986,23 +1986,25 @@
       "app/dashboard/_components/MediaFreeGenerator.tsx",
       "lib/aiMediaGenerationServer.ts",
       "lib/aiMediaGeneratedVideo.ts",
-      "lib/aiMediaNarrationSubtitles.ts"
+      "lib/aiMediaNarrationSubtitles.ts",
+      "lib/inrAssistantStudioFormSelection.ts"
     ],
-    "sourceAnchor": "<input type=\"checkbox\" checked={withSubtitles} disabled={locked || speechMode === \"silent\"}\n                    data-media-subtitles onChange={event => setWithSubtitles(event.target.checked)} />",
+    "sourceAnchor": "data-media-subtitles",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Checkbox unique sous les trois menus du panneau vidéo. studio_free_form.select(withSubtitles) applique le choix explicite et confirme le même état après rendu ; aucune autorisation de voix accordée. Choix visible et modifiable même avec Paroles exactes vides, identique au snapshot natif ; devis et génération restent sans sous-titres tant que les paroles sont vides. Sans parole désactive le contrôle sans effacer la préférence ; choix omis pour une image ; changement de compte réinitialisé. Aucun lancement ni devis payé. En voix off séparée, le montage local incruste les paroles pendant la durée mesurée de la voix ; le découpage est proportionnel, sans garantie de synchronisation mot à mot.",
+    "notes": "studio_free_form.select(withSubtitles) applique uniquement le choix explicite Cocher/Décocher. Disponible dans les Paroles exactes structurées même si le mode automatique antérieur était silencieux ; sinon garde Sans parole inchangée. Compte, verrou et rendu réel contrôlés, aucun consentement ou génération.",
     "testFiles": [
       "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
-      "tests/ai-assistant/studio-native-form-controls.test.mts"
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/ai-assistant/studio-exact-dialogue-native.test.mts"
     ],
     "testAnchor": "video subtitles default off and the same explicit choice reaches quote and generation",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#input:ca2a174e557864d2:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#input:6c06116dd41c358d:1"
     ],
     "additionalProofs": [
       {
@@ -2028,6 +2030,10 @@
       {
         "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
         "testAnchor": "the real subtitle checkbox keeps its explicit preference visible and editable while Exact is empty without enabling empty captions"
+      },
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
+        "testAnchor": "the Exact native form follows visible subtitles character numbers and structured speech without reviving hidden global modes"
       }
     ]
   },
@@ -2114,23 +2120,25 @@
     "label": "Paroles automatiques / Paroles exactes",
     "domain": "studio",
     "sourceFiles": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx"
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/inrAssistantStudioFormSelection.ts"
     ],
-    "sourceAnchor": "<select\n                  id={`${instanceId}-spoken-script-mode`}\n                  className={styles.spokenScriptModeSelect}\n                  value={spokenScriptOpen ? \"exact\" : \"automatic\"}\n                  disabled={locked || speechMode === \"silent\"}\n                  aria-label={`${t(\"ai_generator_video_speech_automatic\")} / ${t(\"ai_generator_video_speech_exact\")}`}\n                  aria-controls={`${instanceId}-spoken-script-panel`}\n                  aria-describedby={`${instanceId}-spoken-script-help`}\n                  onChange={(event) => {\n                    if (event.target.value === \"exact\") {\n                      setSpokenScriptOpen(true);\n                      window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus({ preventScroll: true }));\n                    } else {\n                      setSpokenScript(\"\");\n                      setSpokenScriptOpen(false);\n                    }\n                  }}\n                >\n                  <option value=\"automatic\">{t(\"ai_generator_video_speech_automatic\")}</option>\n                  <option value=\"exact\">{t(\"ai_generator_video_speech_exact\")}</option>\n                </select>",
+    "sourceAnchor": "id={`${instanceId}-spoken-script-mode`}",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Champ unique typé studio_free_form : Paroles exactes via spokenScriptOpen=true affiche le champ et son compteur ; Paroles automatiques via spokenScriptOpen=false efface explicitement le script et affiche seulement une aide, sans champ ni compteur. ACK après rendu ; aucun lancement ni consentement vocal implicite. Contraintes UI : kind === \"video\", speechMode !== \"silent\", verrouillage natif préservé ; aria-controls vise le panneau stable.",
+    "notes": "studio_free_form.select(spokenScriptOpen) choisit explicitement Automatiques ou Exactes. Exact prépare le dialogue par lignes, sans textarea global caché. Un texte hérité est conservé et importé sans inventer de locuteur ; le narrateur réel déjà choisi est préservé sans photo. Automatiques masque le brouillon Exact sans le supprimer et omet les répliques Exact de sa requête. ACK après rendu, verrous conservés ; aucun import vocal, droit ou génération implicite.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts",
-      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
+      "tests/dashboard/studio-video-brief-speech-browser.test.mts",
+      "tests/ai-assistant/studio-exact-dialogue-native.test.mts"
     ],
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:5e12ef9fd5bb7d2b:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:2ef64515f44cc211:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:9f944cd37c813c70:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:e876ef7049b0c400:1"
     ],
@@ -2149,49 +2157,15 @@
       },
       {
         "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
-        "testAnchor": "provided voice with Exact empty preserves the draft and blocks quote and generation until the professional chooses Auto or supplies speech"
-      },
-      {
-        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
-        "testAnchor": "the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload"
-      }
-    ]
-  },
-  {
-    "id": "basic.media.0086",
-    "label": "Ex. Bonjour, découvrez nos nouveautés de la semaine.",
-    "domain": "studio",
-    "sourceFiles": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx"
-    ],
-    "sourceAnchor": "<textarea ref={speechInputRef} id={`${instanceId}-spoken-script`} value={spokenScript}\n                  disabled={locked}\n                  aria-invalid={speechInvalid ? true : undefined}\n                  aria-describedby={`${instanceId}-spoken-script-help ${instanceId}-spoken-script-count ${instanceId}-spoken-script-budget${speechInvalid ? ` ${instanceId}-spoken-script-error` : \"\"}`}\n                  placeholder={t(\"ai_generator_spoken_script_placeholder\")}\n                  onChange={(event) => { setSpokenScriptOpen(true); setSpokenScript(event.target.value); }} />",
-    "capabilityId": "studio.form",
-    "toolNames": [
-      "controlLocalInterface"
-    ],
-    "mode": "form",
-    "notes": "Champ unique typé studio_free_form : saisir spokenScript seulement après choix Paroles exactes. Champ et compteur montés uniquement si exactSpeechEditorVisible (kind === \"video\" && spokenScriptOpen && speechMode !== \"silent\") ; refus natif des champs cachés, du verrouillage et des paroles hors budget. Paroles automatiques et Sans parole n’affichent pas de textarea ni compteur. ACK après rendu ; aucune génération ni autorisation implicite.",
-    "testFiles": [
-      "tests/ai-assistant/studio-native-form-controls.test.mts",
-      "tests/dashboard/studio-video-brief-speech-browser.test.mts"
-    ],
-    "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
-    "coverageStatus": "implemented",
-    "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#textarea:ff3654b2ad0d8633:1"
-    ],
-    "additionalProofs": [
-      {
-        "file": "tests/dashboard/studio-video-brief-speech-browser.test.mts",
-        "testAnchor": "short windows keep both video frames separate and the speech header on two rows in every locale"
+        "testAnchor": "provided voice with Exact empty preserves its photo and blocks spending until Auto or a complete targeted line is chosen"
       },
       {
         "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
         "testAnchor": "the real voiceover pool accepts a vocal without a photo and keeps new Exact words gender subtitles and consent in its synthesis payload"
       },
       {
-        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
-        "testAnchor": "provided voice with Exact empty preserves the draft and blocks quote and generation until the professional chooses Auto or supplies speech"
+        "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
+        "testAnchor": "the Exact native form follows visible subtitles character numbers and structured speech without reviving hidden global modes"
       }
     ]
   },
@@ -15499,9 +15473,9 @@
     ],
     "mode": "form",
     "coverageStatus": "implemented",
-    "sourceAnchor": "<button type=\"button\" className={styles.voiceSettingsMain} data-video-audio-button disabled={locked || speechMode === \"silent\"}\n                    aria-haspopup=\"dialog\" aria-expanded={mediaSettingsDialog === \"audio\"} aria-controls={mediaSettingsDialog === \"audio\" ? `${instanceId}-video-audio-dialog` : undefined}\n                    onClick={() => setMediaSettingsDialog(\"audio\")}>{t(\"ai_generator_voice_details\")}</button>",
+    "sourceAnchor": "data-video-audio-button",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:212ca6ef7e8cd931:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:272318e75bfe7051:1"
     ],
     "notes": "studio_video_audio.open ouvre les vrais réglages de la voix IA du panneau vidéo, distincts du catalogue Musiques et des profils de voix réelles. Personnages conserve son sélecteur de photo ; la voix off IA conserve genre et variante. État ouvert confirmé après rendu, sous compte et verrou natifs. Aucun son, fichier, consentement ou média créé à l’ouverture.",
     "testFiles": [
@@ -15538,9 +15512,9 @@
     ],
     "mode": "form",
     "coverageStatus": "implemented",
-    "sourceAnchor": "<button type=\"button\" className={styles.mediaReferenceOpen} data-media-reference-open={index} disabled={locked}\n                aria-label={`${t(\"ai_generator_free_reference\", { index: index + 1 })} · ${reference.name} · ${t(reference.usage === \"inspiration\" ? \"ai_generator_free_usage_inspiration\" : reference.usage === \"required\" ? \"ai_generator_free_usage_required\" : \"ai_generator_free_reference_criteria_required\")}`}\n                title={!operationLocked && (!reference.role || !reference.usage || roleLimitExceeded && reference.role === \"character\") ? `${reference.name} — ${visibleReferenceWarning}` : reference.name}\n                aria-describedby={!operationLocked && (!reference.role || !reference.usage || roleLimitExceeded && reference.role === \"character\") ? `${instanceId}-media-images-warning` : undefined}\n                aria-haspopup=\"dialog\" onClick={() => { setSelectedReferenceId(reference.id); setPendingReferenceRole(reference.role ?? null); setMediaSettingsDialog(\"images\"); }}>\n                <img src={`data:${reference.mimeType};base64,${reference.data}`} alt=\"\" />\n              </button>",
+    "sourceAnchor": "data-media-reference-open={index}",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:11d04f11ad5ca8eb:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:5f6959426b153aa7:1"
     ],
     "notes": "studio_media_images.select(reference:N) ouvre les détails de la référence présente, ID capturé puis ACK sur le même ID après rendu. Indice hors plage, remplacement/suppression ou verrou refusés ; aucune copie, importation ou génération. Les changements de rôle existant restent leur équivalent serveur séparé.",
     "testFiles": [
@@ -15621,7 +15595,7 @@
     "coverageStatus": "implemented",
     "controlIds": [
       "app/dashboard/_components/StudioMusicLibrary.tsx#button:ab04f733f1387829:1",
-      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioMusicLibrary:c046bc450c697037:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioMusicLibrary:655fc4a04e3fa036:1"
     ],
     "testFiles": [
       "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
@@ -15742,24 +15716,26 @@
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx",
-      "lib/inrAssistantLocalInterface.ts"
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/inrAssistantStudioFormSelection.ts"
     ],
-    "sourceAnchor": "<select id={`${instanceId}-video-voice-mode`} className={styles.spokenScriptModeSelect} value={selectedVoiceMode} disabled={locked || speechMode === \"silent\"}\n                    aria-describedby={audioSettingsWarning ? `${instanceId}-video-audio-warning` : undefined}\n                    onChange={event => chooseVoiceMode(event.target.value === \"provided\" ? \"provided\" : \"ai\")}>\n                    <option value=\"ai\">{t(\"ai_generator_character_voice_ai\")}</option>\n                    <option value=\"provided\">{t(\"ai_generator_voice_real\")}</option>\n                  </select>",
+    "sourceAnchor": "id={`${instanceId}-video-voice-mode`}",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "studio_free_form.select(voiceMode) suit le vrai choix IA/Réelle. En Voix off, une voix réelle fonctionne sans personnage ni photo et prépare les réglages du vocal narrateur ; un seul narrateur actif est envoyé. En Personnages, le choix exige la photo ciblée sans ambiguïté et ne propage rien aux autres personnes. Références, verrou, compte et ACK contrôlés ; import, enregistrement et consentement restent humains.",
+    "notes": "studio_free_form.select(voiceMode) suit IA/Réelle sur la cible vocale effectivement visible. Le mode effectif peut provenir des répliques Exact ; le mode global automatique caché ne le remplace pas. Voix off réelle sans photo conservée ; Personnages exige la cible unique explicitement choisie. Aucun changement des autres vocaux, import, enregistrement, consentement ou génération. ACK sur la même photo/narrateur après rendu.",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:3c3de75defb8be95:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:b0e641c6132a3706:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:fe0ec7c00fbf85d1:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:9dec90f1f0128c60:1"
     ],
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts",
-      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts"
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/ai-assistant/studio-exact-dialogue-native.test.mts"
     ],
     "testAnchor": "native Real voiceover accepts no photo while character voices retain their explicit image target",
     "additionalProofs": [
@@ -15770,6 +15746,10 @@
       {
         "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
         "testAnchor": "native voice selections bind the requested current photo and acknowledge only its captured ID across reorder removal and account reset"
+      },
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
+        "testAnchor": "the Exact native form follows visible subtitles character numbers and structured speech without reviving hidden global modes"
       }
     ]
   },
@@ -15779,24 +15759,29 @@
     "domain": "studio",
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx",
-      "lib/inrAssistantLocalInterface.ts"
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/inrAssistantStudioFormSelection.ts"
     ],
-    "sourceAnchor": "<select id={`${instanceId}-voice-character`} value={selectedVoiceReference?.id ?? \"\"} disabled={locked}\n                  onChange={event => {\n                    const target = voiceReferences.find(reference => reference.id === event.target.value);\n                    if (!target) return;\n                    setVoiceReferenceId(target.id);\n                    const intendedMode = voiceModeIntent.current;\n                    voiceModeIntent.current = null;\n                    if (intendedMode) updateReference(target.id, { voiceMode: intendedMode });\n                    else setVoiceSourcePreference(target.voiceMode ?? \"ai\");\n                  }}>\n                  <option value=\"\" disabled>{t(\"ai_generator_voice_choose_person\")}</option>\n                  {voiceReferences.map(reference => <option key={reference.id} value={reference.id}>{reference.name}</option>)}\n                </select>",
+    "sourceAnchor": "aria-label={t(\"ai_generator_voice_choose_person\")}",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "studio_free_form.select(voiceReferenceId) choisit seulement une photo Personnage présente par ID stable ou position explicitement demandée. Personnages uniquement : ce sélecteur ne s’impose jamais à la voix off. ACK sur le même ID capturé après rendu ; suppression, remplacement, indice périmé ou changement de compte refusés. Aucun vocal attribué aux autres photos, upload ou consentement.",
+    "notes": "studio_free_form.select(voiceReferenceId) accepte character:0..2 pour le Personnage visible 1..3 explicitement demandé, ou reference:0..4 pour la photo correspondante parmi toutes les images. Résolution vers un ID privé existant : une image Produit avant le Personnage 1 ne décale pas son numéro. Aucun nom de fichier ni ID à deviner. Capture ID avant modification, ACK conservé après réordre mais refusé après suppression/remplacement/compte changé. Sélectionner la cible ne lui attribue aucun autre vocal, droit ou génération.",
     "coverageStatus": "implemented",
     "controlIds": [
       "app/dashboard/_components/MediaFreeGenerator.tsx#select:6abfa304ec4747c9:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:327e054c86baa631:2",
-      "app/dashboard/_components/MediaFreeGenerator.tsx#option:4c045fb9bdcc80b0:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#option:4c045fb9bdcc80b0:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:5ea7b357fc54e902:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#option:327e054c86baa631:3",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#option:ae58250d361d9470:1"
     ],
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts",
-      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts"
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/ai-assistant/studio-exact-dialogue-native.test.mts"
     ],
     "testAnchor": "native voice selections bind the requested current photo and acknowledge only its captured ID across reorder removal and account reset",
     "additionalProofs": [
@@ -15807,6 +15792,10 @@
       {
         "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
         "testAnchor": "the real Studio vocal pool imports at most three sources and binds native choices to captured profile and photo IDs"
+      },
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
+        "testAnchor": "the Exact native form follows visible subtitles character numbers and structured speech without reviving hidden global modes"
       }
     ]
   },
@@ -15819,17 +15808,17 @@
       "app/dashboard/_components/MediaFreeGenerator.tsx",
       "lib/inrAssistantLocalInterface.ts"
     ],
-    "sourceAnchor": "<button type=\"button\" className={styles.settings} data-voice-pool-settings disabled={disabled || !portalReady || !available} aria-haspopup=\"dialog\" aria-expanded={open} onClick={openSettings}>{t(\"ai_generator_voice_details\")}</button>",
+    "sourceAnchor": "data-voice-pool-settings disabled=",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "studio_voice_pool.open(null) ouvre les Réglages réels ; open(voice:N) ouvre le profil existant explicitement demandé. Pool maximum trois vocaux indépendants, identifiants stables et compte courant. Les callbacks du conteneur ne donnent aucun droit à importer, enregistrer, supprimer un fichier ou cocher le consentement. Ces gestes humains restent classés séparément ; seules ouverture et sélections finies disposent du bridge. Aucun lancement automatique.",
+    "notes": "studio_voice_pool.open(null) ouvre les Réglages réels ; open(voice:N) ouvre le profil existant explicitement demandé. Pool maximum trois vocaux indépendants, identifiants stables et compte courant. Les callbacks du conteneur ne donnent aucun droit à importer, enregistrer, supprimer un fichier ou cocher le consentement. Ces gestes humains restent classés séparément. Le bridge couvre ouverture, sélections finies et nom exact explicitement demandé pour une photo numérotée déjà affectée au profil ouvert. Aucun lancement automatique.",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/StudioVoicePool.tsx#button:faad2b4634b43527:1",
-      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioVoicePool:9df229f7d574b76c:1"
+      "app/dashboard/_components/StudioVoicePool.tsx#button:35ddf84be8076c29:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioVoicePool:295ce47bd213d951:1"
     ],
     "testFiles": [
       "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
@@ -16083,6 +16072,49 @@
     ]
   },
   {
+    "id": "basic.studio.character-name",
+    "label": "Nom du personnage de la photo affectée au vocal",
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioVoicePool.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/inrAssistantLocalInterfaceTools.ts",
+      "lib/aiMediaCharacterVoices.ts"
+    ],
+    "sourceAnchor": "<input type=\"text\" data-character-name-input value={assignedCharacter.characterName ?? \"\"} maxLength={40} autoComplete=\"off\"",
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "notes": "studio_voice_pool.select reçoit uniquement le JSON borné {field:characterName,referenceIndex:0..4,value:nom exact}. Il faut une instruction actuelle nommant le Studio, une seule photo numérotée et son nom littéral normalisé, limité à 40 caractères. Aucun nom déduit du fichier ; demandes ambiguës, négatives, rapportées ou anciennes refusées. La photo doit déjà être affectée au profil vocal ouvert, dans le compte courant et hors verrou. ACK après rendu sur le même ID de profil, ID et index de photo, nom exact et compte ; doublons refusés. Aucun transfert vocal, import, consentement, devis ni génération.",
+    "coverageStatus": "implemented",
+    "controlIds": [
+      "app/dashboard/_components/StudioVoicePool.tsx#input:9ee8ca57063587ea:1"
+    ],
+    "testFiles": [
+      "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+      "tests/ai-assistant/studio-native-form-controls.test.mts",
+      "tests/ai-assistant/basic-local-interface.test.mts"
+    ],
+    "testAnchor": "Basic character naming commits only its assigned photo and acknowledges the same profile identity and account without voice or consent effects",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
+        "testAnchor": "Studio character names require the literal name and one explicitly numbered photo in a current Studio directive"
+      },
+      {
+        "file": "tests/ai-assistant/basic-local-interface.test.mts",
+        "testAnchor": "Basic character naming emits only an exact requested photo label and refuses ambiguous, negated or stale scopes"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "the real optional name field stays on its assigned photo and reaches generation without changing either library vocal"
+      }
+    ]
+  },
+  {
     "id": "basic.studio.voice-pool-consent",
     "label": "Autoriser la synthèse de cette voix réelle",
     "domain": "studio",
@@ -16117,5 +16149,284 @@
       }
     ],
     "handoffReason": "Autorisation personnelle d’utilisation et de synthèse de la voix, non délégable à l’assistant."
+  },
+  {
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/mediaExactDialogueEditor.ts",
+      "lib/inrAssistantStudioExactDialogue.ts",
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/inrAssistantLocalInterfaceTools.ts"
+    ],
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "coverageStatus": "implemented",
+    "testFiles": [
+      "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+      "tests/ai-assistant/studio-exact-dialogue-native.test.mts"
+    ],
+    "testAnchor": "the real Exact dialogue native bridge commits row text speaker add remove and order only after render on captured line and photo IDs",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+        "testAnchor": "the real Exact dialogue native bridge refuses unavailable speakers limits locks and late account acknowledgments without external effects"
+      },
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
+        "testAnchor": "Basic Exact dialogue tool emits only a requested draft command and rejects stale revision or account without exposing rows"
+      }
+    ],
+    "id": "basic.studio.exact-dialogue-open",
+    "label": "Paroles exactes — ouvrir Réglages",
+    "sourceAnchor": "data-exact-dialogue-settings",
+    "controlIds": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#button:57f2ddb6d482a7d9:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioExactDialogueEditor:472c9876575f056b:1"
+    ],
+    "notes": "studio_exact_dialogue.open(null) ouvre le dialogue réellement monté en mode Paroles exactes, déverrouillé et dans le compte courant. Un brouillon vide peut préparer une première ligne vide avec le choix visible initial ou la voix off réelle déjà sélectionnée. Aucun texte, fichier, consentement, devis ni génération. ACK sur ouverture effectivement rendue."
+  },
+  {
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/mediaExactDialogueEditor.ts",
+      "lib/inrAssistantStudioExactDialogue.ts",
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/inrAssistantLocalInterfaceTools.ts"
+    ],
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "coverageStatus": "implemented",
+    "testFiles": [
+      "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+      "tests/ai-assistant/studio-exact-dialogue-native.test.mts"
+    ],
+    "testAnchor": "the real Exact dialogue native bridge commits row text speaker add remove and order only after render on captured line and photo IDs",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+        "testAnchor": "the real Exact dialogue native bridge refuses unavailable speakers limits locks and late account acknowledgments without external effects"
+      },
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
+        "testAnchor": "Basic Exact dialogue tool emits only a requested draft command and rejects stale revision or account without exposing rows"
+      }
+    ],
+    "id": "basic.studio.exact-dialogue-close",
+    "label": "Paroles exactes — fermer Réglages",
+    "sourceAnchor": "onCancel={event => { event.preventDefault(); event.stopPropagation(); if (!disabled) setOpen(false); }}",
+    "controlIds": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#dialog:7cee53cf051837da:1",
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#button:c32817b45d84d9dd:1"
+    ],
+    "notes": "studio_exact_dialogue.close(null) ferme le dialogue par son setter natif, sans effacer les répliques préparées. Le verrou reste applicable à Fermer, Échap et au clic extérieur. ACK sur fermeture du même compte après rendu ; aucun envoi ni consentement."
+  },
+  {
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/mediaExactDialogueEditor.ts",
+      "lib/inrAssistantStudioExactDialogue.ts",
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/inrAssistantLocalInterfaceTools.ts"
+    ],
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "coverageStatus": "implemented",
+    "testFiles": [
+      "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+      "tests/ai-assistant/studio-exact-dialogue-native.test.mts"
+    ],
+    "testAnchor": "the real Exact dialogue native bridge commits row text speaker add remove and order only after render on captured line and photo IDs",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+        "testAnchor": "the real Exact dialogue native bridge refuses unavailable speakers limits locks and late account acknowledgments without external effects"
+      },
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
+        "testAnchor": "Basic Exact dialogue tool emits only a requested draft command and rejects stale revision or account without exposing rows"
+      }
+    ],
+    "id": "basic.studio.exact-dialogue-text",
+    "label": "Réplique — texte exact de la ligne",
+    "sourceAnchor": "aria-label={t('ai_generator_exact_dialogue_text_line', { index: index + 1 })}",
+    "controlIds": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#textarea:a291c063e1a8856a:1"
+    ],
+    "notes": "studio_exact_dialogue.select({field:text,rowIndex:N,value:texte exact}) exige Studio, Paroles exactes, une seule ligne visible N+1 et le texte littéral de la demande actuelle. Les mots, la ponctuation et les espaces fournis sont conservés. L’ancien setter spokenScript ne peut pas modifier un champ caché. Limite globale native et ligne existante ; capture ID de ligne, ordre et compte, ACK après rendu. Aucun choix de voix déduit ni génération."
+  },
+  {
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/mediaExactDialogueEditor.ts",
+      "lib/inrAssistantStudioExactDialogue.ts",
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/inrAssistantLocalInterfaceTools.ts"
+    ],
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "coverageStatus": "implemented",
+    "testFiles": [
+      "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+      "tests/ai-assistant/studio-exact-dialogue-native.test.mts"
+    ],
+    "testAnchor": "the real Exact dialogue native bridge commits row text speaker add remove and order only after render on captured line and photo IDs",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+        "testAnchor": "the real Exact dialogue native bridge refuses unavailable speakers limits locks and late account acknowledgments without external effects"
+      },
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
+        "testAnchor": "Basic Exact dialogue tool emits only a requested draft command and rejects stale revision or account without exposing rows"
+      }
+    ],
+    "id": "basic.studio.exact-dialogue-speaker",
+    "label": "Réplique — choisir Voix off IA, Voix off réelle ou Personnage",
+    "sourceAnchor": "aria-label={t('ai_generator_exact_dialogue_speaker_line', { index: index + 1 })}",
+    "controlIds": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#select:a72e873c9847fc4b:1",
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#option:24ea94418f073a72:1",
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#option:22273d661a183044:1",
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#option:e63e6ab74579a6fa:1"
+    ],
+    "notes": "studio_exact_dialogue.select({field:speaker,rowIndex:N,value:ai_voice|provided_voice|character:0|character:1|character:2}) exige une ligne et le choix explicite Voix off IA, Voix off réelle ou Personnage numéroté. Le terme ambigu Voix IA seul ne peut changer un personnage en narrateur hors champ. Le numéro visible désigne une photo existante capturée par ID privé ; un remplacement à même index ne peut acquitter. Voix off réelle réutilise le narrateur existant sans photo ; sample/consentement natifs requis, toutes ses lignes dans ce mode, aucun mix. Aucun changement de fichier vocal ni autorisation/génération implicite. Une photo absente impose un nouveau choix explicite."
+  },
+  {
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/mediaExactDialogueEditor.ts",
+      "lib/inrAssistantStudioExactDialogue.ts",
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/inrAssistantLocalInterfaceTools.ts"
+    ],
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "coverageStatus": "implemented",
+    "testFiles": [
+      "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+      "tests/ai-assistant/studio-exact-dialogue-native.test.mts"
+    ],
+    "testAnchor": "the real Exact dialogue native bridge commits row text speaker add remove and order only after render on captured line and photo IDs",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+        "testAnchor": "the real Exact dialogue native bridge refuses unavailable speakers limits locks and late account acknowledgments without external effects"
+      },
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
+        "testAnchor": "Basic Exact dialogue tool emits only a requested draft command and rejects stale revision or account without exposing rows"
+      }
+    ],
+    "id": "basic.studio.exact-dialogue-add",
+    "label": "Paroles exactes — ajouter une ligne vide",
+    "sourceAnchor": "data-exact-dialogue-add",
+    "controlIds": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#button:d2c745ae4656a198:1"
+    ],
+    "notes": "studio_exact_dialogue.select({field:add}) exige une demande actuelle d’ajouter une ligne vide en fin des Paroles exactes du Studio. Ajoute une seule ligne vide avec nouveau ID, choix initial Voix off IA visible, sans inventer de paroles. Maximum douze lignes, verrou et limite globale vérifiés. ACK sur le tableau complet après rendu, même compte et ordre, sans effet externe."
+  },
+  {
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/mediaExactDialogueEditor.ts",
+      "lib/inrAssistantStudioExactDialogue.ts",
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/inrAssistantLocalInterfaceTools.ts"
+    ],
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "coverageStatus": "implemented",
+    "testFiles": [
+      "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+      "tests/ai-assistant/studio-exact-dialogue-native.test.mts"
+    ],
+    "testAnchor": "the real Exact dialogue native bridge commits row text speaker add remove and order only after render on captured line and photo IDs",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+        "testAnchor": "the real Exact dialogue native bridge refuses unavailable speakers limits locks and late account acknowledgments without external effects"
+      },
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
+        "testAnchor": "Basic Exact dialogue tool emits only a requested draft command and rejects stale revision or account without exposing rows"
+      }
+    ],
+    "id": "basic.studio.exact-dialogue-remove",
+    "label": "Paroles exactes — retirer une ligne du brouillon",
+    "sourceAnchor": "aria-label={t('ai_generator_exact_dialogue_remove', { index: index + 1 })}",
+    "controlIds": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#button:dff1d3186c6a3d41:1"
+    ],
+    "notes": "studio_exact_dialogue.select({field:remove,rowIndex:N}) retire uniquement la ligne de brouillon N+1 explicitement demandée. Capture son ID et vérifie l’ordre des autres lignes avant ACK après rendu. Un ordre de retrait ne peut être substitué à un changement de locuteur. Aucun fichier, publication, voix ou résultat enregistré supprimé, aucun débit ni génération."
+  },
+  {
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/mediaExactDialogueEditor.ts",
+      "lib/inrAssistantStudioExactDialogue.ts",
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/inrAssistantLocalInterfaceTools.ts"
+    ],
+    "capabilityId": "studio.form",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "form",
+    "coverageStatus": "implemented",
+    "testFiles": [
+      "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+      "tests/ai-assistant/studio-exact-dialogue-native.test.mts"
+    ],
+    "testAnchor": "the real Exact dialogue native bridge commits row text speaker add remove and order only after render on captured line and photo IDs",
+    "additionalProofs": [
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
+        "testAnchor": "the real Exact dialogue native bridge refuses unavailable speakers limits locks and late account acknowledgments without external effects"
+      },
+      {
+        "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
+        "testAnchor": "Basic Exact dialogue tool emits only a requested draft command and rejects stale revision or account without exposing rows"
+      }
+    ],
+    "id": "basic.studio.exact-dialogue-move",
+    "label": "Paroles exactes — monter ou descendre une ligne",
+    "sourceAnchor": "aria-label={t('ai_generator_exact_dialogue_up', { index: index + 1 })}",
+    "controlIds": [
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#button:d17ee25063403a30:1",
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#button:666c5f880e7e713b:1"
+    ],
+    "notes": "studio_exact_dialogue.select({field:move,rowIndex:N,value:up|down}) exige la ligne visible N+1 et le sens explicitement demandés. Déplacement d’une seule place dans le brouillon, conservant textes, locuteurs et IDs des photos. Bords de liste, verrou et même compte vérifiés. ACK sur l’ordre complet réellement rendu ; aucun échange silencieux des voix ni lancement."
   }
 ]

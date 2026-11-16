@@ -1,4 +1,6 @@
-import { getAiMediaFreeSpeechBudget, getAiMediaFreeRequestedLanguage, getAiMediaFreeRequestedDialogue, splitAiMediaFreeQuotedSpeech, getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
+import { getAiMediaFreeSpeechBudget, getAiMediaFreeRequestedLanguage, getAiMediaFreeRequestedDialogue, splitAiMediaFreeQuotedSpeech, getAiMediaVideoSpeechState, splitAiMediaExactDialogueScenes } from "./aiMediaVideoSpeechBudget.ts";
+import { AI_MEDIA_OFFSCREEN_NARRATOR, assertAiMediaExactDialogueBindings } from "./aiMediaExactDialogue.ts";
+import { normalizeAiMediaCharacterName } from "./aiMediaCharacterVoices.ts";
 export { getAiMediaFreeSpeechBudget, getAiMediaFreeRequestedLanguage, resolveAiMediaFreeSpeechLanguage, getAiMediaFreeRequestedDialogue, splitAiMediaFreeQuotedSpeech } from "./aiMediaVideoSpeechBudget.ts";
 import { createHash } from "node:crypto";
 import { AI_MEDIA_FORMAT_SPECS, AiMediaRequestValidationError, type AiMediaGenerationRequest } from "./aiMediaGenerationContracts.ts";
@@ -50,9 +52,11 @@ export function buildAiMediaVideoCharacterReferenceDirection(request: AiMediaGen
         : request.videoEngine === "wan27" ? "use only its attached referenceVoice"
         : `speak the new dialogue using only the voice characteristics of ${request.videoEngine === "heygen" ? `<Audio ${audioIndex}>` : `Audio ${audioIndex}`}; ignore the words spoken in that recording`;
     }
-    return [`${imageToken} = character${index + 1}${image.characterIndex ? ` = Studio character ${image.characterIndex}` : ""}; ${voiceDirection}`];
+    return [`${imageToken} = character${index + 1}${image.characterIndex ? ` = Studio character ${image.characterIndex}` : ""}${image.characterName ? ` = ${JSON.stringify(image.characterName)}` : ""}; ${voiceDirection}`];
   });
-  return characters.length ? `\nCHARACTER REFERENCES: ${characters.join(". ")}. Never exchange faces or voice assignments.` : "";
+  const offscreen = request.exactDialogue?.some(turn => turn.speaker === "ai_voice") && request.exactDialogue.some(turn => turn.speaker === "character")
+    ? ` ${AI_MEDIA_OFFSCREEN_NARRATOR} is a separate synthetic off-screen narrator: no image or reference voice belongs to it. Never use any supplied character voice for this narrator.` : "";
+  return (characters.length ? `\nCHARACTER REFERENCES: ${characters.join(". ")}. Never exchange faces or voice assignments.` : "") + offscreen;
 }
 
 export function buildAiMediaFreeVideoBusinessDnaDirection(args: { colors: readonly string[]; hasLocalLogo: boolean }) {
@@ -77,8 +81,9 @@ export const AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT = "RENDER: Photoreal humans/sce
 
 /** A reference file may contain a group, or repeat an identity in another file.
  * Preserve that cast without turning successive shots into simultaneous copies. */
-export function buildAiMediaFreeVideoCastContract(request: AiMediaGenerationRequest) {
+export function buildAiMediaFreeVideoCastContract(request: AiMediaGenerationRequest, compact = false) {
   if (request.kind !== "video" || !request.inspirationImages.some(image => image.role === "character" && image.usage === "required")) return "";
+  if (compact) return "CAST: Dedupe repeat people/photos; keep everyone in groups. File/shot count≠cast size; duplicates only if asked.";
   return "CAST: Each distinct identity at most once per frame unless explicitly duplicated in the user's brief. Dedupe the same person across files; preserve distinct people in group photos. File/shot count is not cast size. Same identities across shots, never simultaneous doubles.";
 }
 
@@ -91,11 +96,11 @@ export const AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT = [
 /** The checkbox controls spoken captions only; separately requested visual text stays allowed. */
 export function buildAiMediaFreeVideoPresentationContract(request: Pick<AiMediaGenerationRequest, "withSubtitles">, compact = false) {
   if (compact) return [
-    "VISUALS: Full frame; one view; actions unfold in time; no bars/split/panels/collage/duplicates unless requested.",
+    "VISUALS: Full frame; no bars/split/panels/collage/duplicate views unless asked; actions in time.",
     request.withSubtitles === true
-      ? "SUBTITLES ON: faithful synchronized captions of actual speech only, in its language; no translation or added words."
-      : "SUBTITLES OFF: no speech captions or auto transcription, even if the brief requests them.",
-    "Other requested visual text allowed; exact wording; write wording only if asked.",
+      ? "SUBTITLES ON: synchronized actual speech only; same language, no translation/additions."
+      : "SUBTITLES OFF despite brief; no speech captions/transcription.",
+    "Other requested text/numbers exact; invent only if asked.",
   ].join(" ");
   return [
     AI_MEDIA_FREE_VIDEO_PRESENTATION_CONTRACT.split(" TEXT:")[0],
@@ -164,11 +169,87 @@ function nativeNarrationTone(variant: AiMediaGenerationRequest["narrationVoiceVa
 
 /** A dedicated script is authoritative; legacy quoted dialogue remains supported when absent. */
 export function getAiMediaFreeRequestedDialogueLines(request: AiMediaGenerationRequest): string[] {
+  const turns = getAiMediaFreeExactDialogueTurnScenes(request);
+  if (turns) return turns.map(scene => scene.map(turn => turn.text).join(" "));
   if (typeof request.spokenScript === "string") {
     const durations = getAiMediaVideoSegmentDurations(request.durationSeconds || 8, request.videoEngine, request.videoResolution, request.sceneMode);
     return splitAiMediaSpokenScript(request.spokenScript, durations);
   }
   return getAiMediaFreeRequestedDialogue(request.freePrompt || "");
+}
+
+type FreeDialogueTurn = NonNullable<AiMediaCreativePlan["scenes"][number]["spokenTurns"]>[number];
+
+/** Named exact speech is data, never generated dialogue. Explicit Studio slots
+ * bind labels to faces/voices; names alone cannot establish that identity.
+ * Repeated names retain their declared binding, independent of speaking order. */
+export function getAiMediaFreeExactDialogueTurnScenes(request: AiMediaGenerationRequest): FreeDialogueTurn[][] | null {
+  if (request.exactDialogue && request.kind === "video" && request.creationMode === "free" && request.teamVideoSpeechMode === "characters") {
+    try { assertAiMediaExactDialogueBindings(request.exactDialogue, request.inspirationImages, request.videoEngine); }
+    catch (error) { throw new AiMediaRequestValidationError(error instanceof Error ? error.message : "Locuteurs exacts invalides."); }
+    const state = getAiMediaVideoSpeechState(request);
+    if (state.issue) throw new AiMediaRequestValidationError(state.issue.message);
+    const durations = getAiMediaVideoSegmentDurations(request.durationSeconds || 8, request.videoEngine, request.videoResolution, request.sceneMode);
+    return splitAiMediaExactDialogueScenes(request.exactDialogue, durations, state.language).map(scene => scene.map(turn => turn.speaker === "ai_voice"
+      ? { reference: 0, speaker: AI_MEDIA_OFFSCREEN_NARRATOR, text: turn.text }
+      : { reference: request.inspirationImages.findIndex(image => image.role === "character" && image.characterIndex === turn.characterIndex) + 1,
+        speaker: `Personnage ${turn.characterIndex}`, text: turn.text }));
+  }
+  if (request.kind !== "video" || request.creationMode !== "free" || request.teamVideoSpeechMode !== "characters" ||
+    !["wan27", "kling", "kling-flash"].includes(request.videoEngine || "") || typeof request.spokenScript !== "string") return null;
+  const script = request.spokenScript;
+  const matches = [...script.matchAll(/(?:^|\n)[ \t]*([\p{L}][\p{L}\p{M}\p{N} '’_()\-]{0,69}?)\s*:[ \t]*/gu)];
+  if (!matches.length || script.slice(0, matches[0].index).trim()) return null;
+  const speakers = matches.map(match => {
+    const raw = match[1].trim();
+    const named = /^(.{1,40}?)\s*\((?:personnage|character)\s*([1-3])\)$/iu.exec(raw);
+    const explicit = /^(?:personnage|character)\s*([1-3])$/iu.exec(raw);
+    const speaker = normalizeAiMediaCharacterName(named ? named[1] : raw);
+    if (!speaker) throw new AiMediaRequestValidationError("Le nom du locuteur ne correspond pas à un nom de personnage valide.");
+    return { speaker, key: speaker.toLowerCase(), annotated: Boolean(named), slot: named ? Number(named[2]) : explicit ? Number(explicit[1]) : null };
+  });
+  const labels = [...new Set(speakers.map(speaker => speaker.key))];
+  // An ordinary exact monologue, including its punctuation, keeps its old path.
+  if (labels.length < 2 && !speakers.some(speaker => speaker.slot) && !request.inspirationImages.some(image => image.characterName)) return null;
+  const characters = request.inspirationImages.flatMap((image, index) => image.role === "character"
+    ? [{ reference: index + 1, slot: image.characterIndex ?? index + 1, name: normalizeAiMediaCharacterName(image.characterName ?? "")?.toLowerCase() }] : []).sort((a, b) => a.slot - b.slot);
+  if (labels.length > characters.length) throw new AiMediaRequestValidationError("Le texte nomme plus de locuteurs que de personnages. Associez chaque locuteur à son personnage.");
+  const bindings = new Map<string, number>();
+  const assigned = new Set<number>();
+  for (const speaker of speakers) {
+    if (!speaker.slot) continue;
+    const character = characters.find(item => item.slot === speaker.slot);
+    if (!character || (speaker.annotated && character.name && character.name !== speaker.key) ||
+      (bindings.has(speaker.key) ? bindings.get(speaker.key) !== character.reference : assigned.has(character.reference)))
+      throw new AiMediaRequestValidationError("Une étiquette de locuteur ne correspond pas aux personnages sélectionnés.");
+    bindings.set(speaker.key, character.reference); assigned.add(character.reference);
+  }
+  for (const label of labels) if (!bindings.has(label)) {
+    const declared = characters.filter(character => character.name === label);
+    if (declared.length !== 1 || assigned.has(declared[0].reference)) throw new AiMediaRequestValidationError("Associez chaque prénom à sa photo dans Réglages de la voix réelle, avec le champ Nom du personnage. Aucun nom ne sera déduit des fichiers.");
+    bindings.set(label, declared[0].reference); assigned.add(declared[0].reference);
+  }
+  const turns = matches.map((match, index): FreeDialogueTurn => {
+    let text = script.slice(match.index! + match[0].length, matches[index + 1]?.index ?? script.length).trim();
+    if ((text.startsWith("«") && text.endsWith("»")) || (text.startsWith("“") && text.endsWith("”")) || (text.startsWith('"') && text.endsWith('"'))) text = text.slice(1, -1).trim();
+    if (!text || text.length > 620) throw new AiMediaRequestValidationError("Une réplique exacte est vide ou dépasse la capacité de ce moteur. Corrigez-la sans changer son locuteur.");
+    return { reference: bindings.get(speakers[index].key)!, speaker: speakers[index].speaker, text };
+  });
+  const durations = getAiMediaVideoSegmentDurations(request.durationSeconds || 8, request.videoEngine, request.videoResolution, request.sceneMode);
+  const language = getAiMediaVideoSpeechState(request).language;
+  const scenes: FreeDialogueTurn[][] = durations.map(() => []);
+  let index = 0;
+  for (const turn of turns) {
+    const fits = () => {
+      const text = [...scenes[index], turn].map(item => item.text).join(" ");
+      const budget = getAiMediaFreeSpeechBudget(durations[index], language, text);
+      return scenes[index].length < getAiMediaFreeDialogueTurnLimit(durations[index]) && budget.units <= budget.maxUnits;
+    };
+    while (!fits() && index < durations.length - 1) index++;
+    if (!fits()) throw new AiMediaRequestValidationError("Les répliques exactes sont trop longues pour cette durée. Choisissez une durée supérieure ou raccourcissez-les ; elles ne seront pas coupées.");
+    scenes[index].push(turn);
+  }
+  return scenes;
 }
 
 /** Reject impossible exact voice-over before reserving credits or preparing an AI plan. */
@@ -187,9 +268,10 @@ export function validateAiMediaFreeDialogueLine(line: string, durationSeconds = 
 
 /** Automatic multi-character dialogue has several turns within one shot. */
 export function usesAiMediaFreeCharacterDialogueTurns(request: AiMediaGenerationRequest) {
-  return request.kind === "video" && request.creationMode === "free" && request.teamVideoSpeechMode === "characters" &&
-    (request.videoEngine === "wan27" || request.videoEngine === "kling" || request.videoEngine === "kling-flash") &&
-    typeof request.spokenScript !== "string" && !getAiMediaFreeRequestedDialogueLines(request).length &&
+  if (request.kind !== "video" || request.creationMode !== "free" || request.teamVideoSpeechMode !== "characters" ||
+    !["wan27", "kling", "kling-flash"].includes(request.videoEngine || "")) return false;
+  if (getAiMediaFreeExactDialogueTurnScenes(request)) return true;
+  return typeof request.spokenScript !== "string" && !getAiMediaFreeRequestedDialogueLines(request).length &&
     request.inspirationImages.filter(image => image.role === "character").length > 1;
 }
 
@@ -207,7 +289,9 @@ export function normalizeAiMediaFreeDialogueTurns(request: AiMediaGenerationRequ
     const reference = typeof turn.reference === "number" ? turn.reference : NaN;
     const speaker = typeof turn.speaker === "string" ? turn.speaker.replace(/\s+/g, " ").trim() : "";
     const text = typeof turn.text === "string" ? turn.text.replace(/\u0000/g, "").replace(/\s+/g, " ").trim() : "";
-    if (!Number.isInteger(reference) || reference < 1 || request.inspirationImages[reference - 1]?.role !== "character" ||
+    const offscreen = reference === 0 && speaker === AI_MEDIA_OFFSCREEN_NARRATOR && request.exactDialogue?.some(turn =>
+      turn.speaker === "ai_voice" && turn.text.replace(/\s+/g, " ").trim() === text);
+    if ((!offscreen && (!Number.isInteger(reference) || reference < 1 || request.inspirationImages[reference - 1]?.role !== "character")) ||
       !speaker || speaker.length > 40 || !text || text.length > 620) throw new Error("ai_media_dialogue_turns_invalid");
     return { reference, speaker, text };
   });
@@ -218,12 +302,13 @@ export function resolveAiMediaFreeDialogueSequence(args: {
   plan: { scenes: ReadonlyArray<{ spokenLine?: string; spokenTurns?: AiMediaCreativePlan["scenes"][number]["spokenTurns"] }> };
 }) {
   if (args.request.kind !== "video" || args.request.teamVideoSpeechMode !== "characters") return [];
+  const exactTurns = getAiMediaFreeExactDialogueTurnScenes(args.request);
   const exact = getAiMediaFreeRequestedDialogueLines(args.request);
   if (exact.length > args.plan.scenes.length) {
     throw new AiMediaRequestValidationError("Prévoyez une réplique par plan. Choisissez une durée supérieure ou réduisez le nombre de répliques.");
   }
   const durations = getAiMediaVideoSegmentDurations(args.request.durationSeconds || 8, args.request.videoEngine, args.request.videoResolution, args.request.sceneMode);
-  const lines = args.plan.scenes.map((scene, index) => exact.length ? exact[index] || "" :
+  const lines = args.plan.scenes.map((scene, index) => exactTurns ? exactTurns[index]?.map(turn => turn.text).join(" ") || "" : exact.length ? exact[index] || "" :
     usesAiMediaFreeCharacterDialogueTurns(args.request) && scene.spokenTurns
       ? normalizeAiMediaFreeDialogueTurns(args.request, scene.spokenTurns, durations[index]).map(turn => turn.text).join(" ")
       : String(scene.spokenLine || "").trim());
@@ -562,8 +647,12 @@ function renderAiMediaFreeVideoScenePrompt(
   const hasProvidedVoice = args.request.inspirationImages.some((image) => image.voiceMode === "provided" && image.voiceSample);
   const nativeVoiceover = !nativeDialogue && args.request.withNarration && !usesSeparateAiMediaFreeVoiceover(args.request);
   const nativeNarrationLines = args.nativeNarrationLines;
+  if (args.request.exactDialogue && !args.providerContract.parameters.includes(
+    `exact_dialogue_sha256=${createHash("sha256").update(JSON.stringify(args.request.exactDialogue)).digest("hex")}`,
+  )) throw new Error("ai_video_exact_dialogue_contract_incomplete");
   const spokenLine = nativeDialogue ? resolveAiMediaFreeDialogueSequence(args)[index] : "";
-  const dialogueTurns = usesAiMediaFreeCharacterDialogueTurns(args.request) && scene?.spokenTurns
+  const exactTurnScenes = nativeDialogue ? getAiMediaFreeExactDialogueTurnScenes(args.request) : null;
+  const dialogueTurns = exactTurnScenes ? exactTurnScenes[index] || [] : usesAiMediaFreeCharacterDialogueTurns(args.request) && scene?.spokenTurns?.length
     ? normalizeAiMediaFreeDialogueTurns(args.request, scene.spokenTurns, durationSeconds) : [];
   const pronunciationAliases = nativeDialogue || nativeVoiceover
     ? extractAiMediaPronunciationAliases(args.request.freePrompt || "")
@@ -597,13 +686,24 @@ function renderAiMediaFreeVideoScenePrompt(
   const maximum = args.request.videoEngine === "wan-flash" ? 3_200 : getAiMediaFreeVideoPromptMaxCharacters(args.request.videoEngine);
   const reservedCharacters = buildAiMediaVideoCharacterReferenceDirection(args.request).length + buildAiMediaVideoFinalFrameDirection(args.request).length;
   let compactEnvelope = options.compactEnvelope === true;
+  const references = () => {
+    const canonical = args.providerContract.references;
+    if (!compactEnvelope || args.request.identityMode !== "reference_team" ||
+      !/group=[23] adults, each once; identities locked; all move 0\.0s; no merge\/omit\/duplicate\/swap/.test(canonical)) return canonical;
+    // The verified group clause already contains these exact identity guards.
+    // Compact only our known inventory syntax, retaining file indices, required
+    // vs inspiration roles and Studio character IDs. Product/place policies and
+    // the integrity-checked canonical contract are left unchanged.
+    return canonical.replace("; required characters: preserve every distinct adult identity exactly once; no merge/omit/duplicate/swap", "")
+      .replace(/#(\d+):character\/(required|inspiration)\/character-(\d+)/g, "#$1:$2 character-$3");
+  };
   const render = () => [
     args.providerContract.globalMediaConstraints || "",
-    compactEnvelope ? `SHOT ${index + 1}/${args.plan.scenes.length}; ${durationSeconds}s; ${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio}; action.${options.continuation ? " [# Sources <PREVIOUS_VIDEO>@Video1] Continue prior action; same cast/style/place; no restart." : options.continuationFrame ? ` ${options.firstFrameTag ? "[# Sources <FIRST_FRAME>@Image1] " : ""}Continue supplied prior final frame; same cast/style/place; no restart.` : ""}` : opening,
-    compactEnvelope ? "RENDER: Photoreal by default; non-photo only if explicitly requested, never from refs alone." : AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
-    buildAiMediaFreeVideoCastContract(args.request),
+    compactEnvelope ? `SHOT ${index + 1}/${args.plan.scenes.length} ${durationSeconds}s ${AI_MEDIA_FORMAT_SPECS[args.request.format].aspectRatio}.${options.continuation ? " [# Sources <PREVIOUS_VIDEO>@Video1] Continue prior action; same place; no restart." : options.continuationFrame ? ` ${options.firstFrameTag ? "[# Sources <FIRST_FRAME>@Image1] " : ""}Continue supplied prior final frame; same place; no restart.` : ""}` : opening,
+    compactEnvelope ? "RENDER: Photoreal unless brief asks otherwise, never from refs." : AI_MEDIA_FREE_VIDEO_RENDER_CONTRACT,
+    buildAiMediaFreeVideoCastContract(args.request, compactEnvelope),
     ...(!nativeDialogue ? [compactEnvelope
-      ? "VISUAL SPEECH: No speaking/articulation/mimed speech/lip-sync; natural gestures/gaze/smiles; overrides speaking below."
+      ? "VISUAL SPEECH: No speaking/articulation/mimed speech/lip-sync; natural gestures; overrides below."
       : AI_MEDIA_FREE_SILENT_CHARACTER_CONTRACT] : []),
     `CREATIVE DIRECTION: ${nativeDialogue ? splitAiMediaFreeQuotedSpeech(direction).visualPrompt : direction}`,
     `THIS SHOT: ${nativeDialogue ? splitAiMediaFreeQuotedSpeech(visualBrief).visualPrompt : visualBrief}`,
@@ -613,11 +713,11 @@ function renderAiMediaFreeVideoScenePrompt(
     // expressed below or applied by the compositor. Hashes stay code-only in
     // the compact envelope; the full contract is still integrity-checked.
     ...(isGrok || compactEnvelope ? [] : [`PARAMETERS: ${args.providerContract.parameters}`]),
-    `REFERENCES: ${args.providerContract.references}`,
+    `REFERENCES: ${references()}`,
     ...(args.request.useBusinessDna && args.businessDnaDirection ? [`BUSINESS IDENTITY: ${args.businessDnaDirection}`] : []),
     buildAiMediaFreeVideoPresentationContract(args.request, compactEnvelope),
     compactEnvelope
-      ? "Exact requested words/numbers only; no unrequested ads/logo/CTA/notes. Natural motion; same cast/objects/style."
+      ? "Continuity: same cast/objects/style; natural motion; no extra ads/logo/CTA/notes."
       : "Exact requested text/numbers only; no ads/logo/CTA/technical notes by default. Natural motion; consistent cast/objects/style across shots.",
     ...(pronunciationAliases.length
       ? [`AUDIO PRONUNCIATION: ${JSON.stringify(pronunciationAliases)}. Apply only to how these names sound; do not read this guide aloud or change the script or displayed spelling.`]
@@ -626,13 +726,18 @@ function renderAiMediaFreeVideoScenePrompt(
       ? dialogueTurns.length
         ? `NATIVE DIALOGUE: ${args.contentLanguage || "the requested language"}; ${compactEnvelope ? "" : "ordered turns, no overlap. "}${dialogueTurns.map((turn, turnIndex) => {
           const kling = args.request.videoEngine === "kling" || args.request.videoEngine === "kling-flash";
+          if (turn.reference === 0 && turn.speaker === AI_MEDIA_OFFSCREEN_NARRATOR) {
+            return `${turnIndex ? "THEN CHANGE SPEAKER. " : ""}[${AI_MEDIA_OFFSCREEN_NARRATOR}: a separate stable synthetic voice, off screen, no image or supplied voice reference] says once: ${JSON.stringify(turn.text)}. All visible characters keep their mouths closed during this narrator's turn.`;
+          }
           const image = kling ? `@image_${turn.reference}` : `Image ${turn.reference}`;
           const voice = args.request.inspirationImages[turn.reference - 1].voiceMode === "provided"
             ? kling ? `using only @voice_${turn.reference}` : "using only its own attached referenceVoice"
             : "distinct stable AI voice";
           if (compactEnvelope) return `${turnIndex ? "THEN CHANGE SPEAKER. " : ""}[${image}: ${JSON.stringify(turn.speaker)}${args.request.inspirationImages[turn.reference - 1].voiceMode === "provided" ? `; ${voice}` : ""}] ${JSON.stringify(turn.text)}`;
           return `${turnIndex ? "THEN CHANGE SPEAKER. " : ""}[CHARACTER_${turn.reference}: ${turn.speaker}, the person from ${image}, ${voice}] says once: ${JSON.stringify(turn.text)}`;
-        }).join(" ")} ${compactEnvelope ? "Lip-sync active speaker only. Distinct own voices. Complete turns; no narrator/repeats/music." : "Mouth-sync only the active speaker; others listen. Distinct voices, each keeps its own; finish all turns. No narrator/repetition/music."}`
+        }).join(" ")} ${dialogueTurns.some(turn => turn.reference === 0)
+          ? "Mouth-sync only a speaking visible character; all mouths stay closed during off-screen narration. Each supplied voice remains exclusive to its own character. Only the requested narrator and ordered turns; no added speech, repetition or music."
+          : compactEnvelope ? "Lip-sync active speaker only. Distinct own voices. Complete turns; no narrator/repeats/music." : "Mouth-sync only the active speaker; others listen. Distinct voices, each keeps its own; finish all turns. No narrator/repetition/music."}`
         : spokenLine
         ? compactEnvelope
           ? `NATIVE DIALOGUE: THIS SHOT's speaker; ${args.contentLanguage || "requested language"}; say exactly once: “${spokenLine}” Mouth-synchronized, audible, finished before shot ends then silent. One speaker at a time; ${hasProvidedVoice ? "each reference voice stays with its own character; otherwise stable distinct AI voices" : "stable distinct synthetic voices; never clone a real voice"}. No narrator/repeated lines/music.`
@@ -644,7 +749,7 @@ function renderAiMediaFreeVideoScenePrompt(
             ? `NATIVE VOICEOVER: off-screen ${args.request.narrationVoice === "male" ? "male" : "female"} narrator; ${args.contentLanguage || "requested language"}; ${nativeNarrationTone(args.request.narrationVoiceVariant)} tone. Say exactly once, audio only: ${narrationLine} Stable voice across shots; natural pace; finish audibly before shot ends. Characters stay silent, no mouth-sync/repeated lines/lyrics.`
             : `NATIVE VOICEOVER: an off-screen ${args.request.narrationVoice === "male" ? "male" : "female"} narrator, never a visible character, speaks in ${args.contentLanguage || "the requested language"} with a ${nativeNarrationTone(args.request.narrationVoiceVariant)} tone and says exactly once${isGrok && !args.request.withSubtitles ? ", as audio only, with no words displayed" : ""}: ${isGrok ? narrationLine : `“${narrationLine}”`} Keep this voice separate from the characters' actions, consistent across shots, naturally paced and fully audible before the shot ends. No on-screen speech or mouth-sync, repeated/previous lines or lyrics.`
           : "NATIVE VOICEOVER: this shot has no narration. Do not repeat a previous line or invent speech; keep all characters silent."
-        : "No native voices or dialogue. Keep all characters silent.",
+        : compactEnvelope ? "No native voices or dialogue." : "No native voices or dialogue. Keep all characters silent.",
     ...(args.request.withSubtitles && usesSeparateAiMediaFreeVoiceover(args.request) && args.subtitleLines?.[index]?.trim()
       ? [`EXTERNAL VOICEOVER CAPTIONS: the off-screen narration is added in editing. Display only this shot's exact words as progressive subtitles: ${JSON.stringify(args.subtitleLines[index])}. Spread them naturally across this shot; never speak them or animate mouths.`]
       : []),
@@ -722,7 +827,10 @@ export function getAiMediaFreeVideoCreativeBudget(args: {
         ? getAiMediaFreeSpeechBudget(duration, speechLanguage).maxCharacters : getAiMediaFreeSpeechBudget(duration, speechLanguage).maxUnits,
     ) : "",
   }));
-  if (usesAiMediaFreeCharacterDialogueTurns(args.request)) {
+  const exactTurnScenes = getAiMediaFreeExactDialogueTurnScenes(args.request);
+  if (exactTurnScenes) {
+    scenes.forEach((scene, index) => { scene.spokenTurns = exactTurnScenes[index]; });
+  } else if (usesAiMediaFreeCharacterDialogueTurns(args.request)) {
     const references = args.request.inspirationImages.flatMap((image, index) => image.role === "character" ? [index + 1] : []);
     // Reserve complete duration-bounded turns, including spaces and labels.
     scenes.forEach((scene, sceneIndex) => {
@@ -734,7 +842,7 @@ export function getAiMediaFreeVideoCreativeBudget(args: {
       }));
     });
   }
-  const subtitleLines = typeof args.request.spokenScript === "string"
+  const subtitleLines = exactTurnScenes ? exactTurnScenes.map(scene => scene.map(turn => turn.text).join(" ")) : typeof args.request.spokenScript === "string"
     ? splitAiMediaSpokenScript(args.request.spokenScript, durations)
     : durations.map(() => "S".repeat(620));
   const contract = buildAiMediaVideoProviderContract({ request: args.request, durationSeconds: durations[0], brandColors: args.brandColors || [],
@@ -761,7 +869,9 @@ export function getAiMediaFreeVideoCreativeBudget(args: {
       return maximum - reservedCharacters - prompt.length + 1;
     });
     directionMaxCharacters = Math.min(...available);
-    if (directionMaxCharacters >= Math.max(180, args.requiredDirectionCharacters || 3) || sceneMaxCharacters === 60 && directionMaxCharacters >= (args.requiredDirectionCharacters || 3)) {
+    // Balance the two generated fields before shrinking the action to its last
+    // resort. Account rules and exact requested values keep their full reserve.
+    if (directionMaxCharacters >= Math.max(96, args.requiredDirectionCharacters || 3) || sceneMaxCharacters === 60 && directionMaxCharacters >= (args.requiredDirectionCharacters || 3)) {
       return { directionMaxCharacters, sceneMaxCharacters };
     }
   }

@@ -1124,8 +1124,8 @@ test("l'adaptateur Google découpe réellement les sorties cumulées avant trans
   assert.match(source, /store: false/);
   assert.match(source, /const DEFAULT_MODEL = "gemini-3\.5-flash-lite"/);
   assert.doesNotMatch(source, /gemini-2\.5-flash-lite/);
-  assert.match(source, /reportQaFailure\("extract", error\)/);
-  assert.match(source, /reportQaFailure\("transcribe", error\)/);
+  assert.match(source, /reportQaFailure\("extract", error, reportDiagnostic\)/);
+  assert.match(source, /reportQaFailure\("transcribe", error, args\.reportDiagnostic\)/);
   assert.match(source, /const DEFAULT_TIMEOUT_MS = 8_000/);
   assert.match(source, /const deadlineAt = Date\.now\(\) \+ timeoutMs/);
   assert.match(source, /AbortSignal\.timeout\(timeoutMs\)/);

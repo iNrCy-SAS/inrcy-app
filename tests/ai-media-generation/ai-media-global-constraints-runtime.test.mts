@@ -158,7 +158,11 @@ function harness(activeProfile = profile(), failVideo = false, allowGeneratedFra
 function assertCompleteRules(value: string, expected = profile()) {
   assert.ok(value.includes(expected.preferences.customInstructions), "the complete custom instruction reaches the provider");
   assert.ok(value.includes(expected.preferences.forbiddenInstructions), "the complete prohibition reaches the provider");
-  assert.match(value, /prohibitions override instructions, the brief, casting and references/);
+  assert.match(value, /ADN on\/off; safety\/rights first/);
+  assert.match(value, /Prohibitions > even later instructions\/brief\/cast\/refs/);
+  assert.match(value, /Per relevant image\/shot/);
+  assert.match(value, /writing advice≠text\/CTA\/audio request/);
+  assert.match(value, /Never show\/say rules/);
 }
 
 for (const useBusinessDna of [false, true]) for (const kind of ["image", "video"] as const) {

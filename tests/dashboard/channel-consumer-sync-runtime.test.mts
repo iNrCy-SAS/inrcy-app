@@ -606,7 +606,8 @@ for(const action of ["runPublish", "performSchedulePublication"]) {
     visit(source); assert.ok(found);
     const compiled=ts.transpileModule("const action=("+found.getText(source)+");",{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
     const errors:string[]=[];
-    const dependencies={saving:false,draftSaving:false,voiceInputBusy:false,publishStartGuardRef:{current:false},
+    const dependencies={saving:false,draftSaving:false,scheduleSaving:false,voiceInputBusy:false,publishStartGuardRef:{current:false},
+      scheduleStartGuardRef:{current:false},scheduleSubmissionRef:{current:undefined},
       authoritativeChannelsRef:{current:false},connectedChannelsScopeRef:{current:"account-a"},getActiveBrowserUserId:()=>"account-a",activeAccountId:"",
       i18nT:(key:string)=>key,setPublishError:(message:string)=>errors.push(message),setScheduleError:(message:string)=>errors.push(message)};
     const ports={...dependencies,readContext:()=>({state:dependencies,media:dependencies,preparation:dependencies,actions:dependencies})};

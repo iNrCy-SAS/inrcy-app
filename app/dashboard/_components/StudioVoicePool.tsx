@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { createPortal } from "react-dom";
 import { useInrAssistantLocalInterface } from "../_hooks/useInrAssistantLocalInterface";
 import type { AiMediaCharacterVoiceSample } from "@/lib/aiMediaCharacterVoices";
+import { normalizeAiMediaCharacterName } from "@/lib/aiMediaCharacterVoices";
+import { parseInrAssistantStudioCharacterNameSelection } from "@/lib/inrAssistantLocalInterface";
 import MediaCharacterVoiceInput from "./MediaCharacterVoiceInput";
 import dialogStyles from "./MediaFreeGenerator.module.css";
 import styles from "./StudioVoicePool.module.css";
@@ -23,7 +25,8 @@ type Props = {
   scopeKey: string;
   profiles: StudioVoiceProfile[];
   onChange: (profiles: StudioVoiceProfile[]) => void;
-  characters: Array<{ id: string; name: string; referenceIndex: number }>;
+  characters: Array<{ id: string; name: string; referenceIndex: number; characterName?: string }>;
+  onCharacterNameChange?: (id: string, name: string) => void;
   selectedCharacterId: string | null;
   speechMode: "voiceover" | "characters" | "silent";
   activeNarrationVoiceId: string | null;
@@ -39,7 +42,7 @@ type Props = {
 
 /** Three independent sources; only an explicit binding determines their use. */
 export default function StudioVoicePool({ visible, available = true, onOpenChange, scopeKey, profiles, onChange, characters, selectedCharacterId, speechMode, activeNarrationVoiceId, onNarrationChange,
-  narrationConsent, onNarrationConsentChange, disabled, onBusyChange, onAssignCharacter, onUnassignCharacter, releaseSample }: Props) {
+  narrationConsent, onNarrationConsentChange, disabled, onBusyChange, onAssignCharacter, onUnassignCharacter, releaseSample, onCharacterNameChange }: Props) {
   const t = useTranslations("media");
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -49,9 +52,14 @@ export default function StudioVoicePool({ visible, available = true, onOpenChang
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const importTarget = useRef<Draft | null>(null);
-  const assistantAction = useRef<{ value: string; profileId: string; referenceId?: string; targetKind?: "narration" | "none"; gender?: StudioVoiceProfile["gender"] } | null>(null);
+  const assistantAction = useRef<{ value: string; profileId: string; referenceId?: string; referenceIndex?: number; characterName?: string; targetKind?: "narration" | "none"; gender?: StudioVoiceProfile["gender"] } | null>(null);
   const current = profiles.find(profile => profile.id === editingId);
   const edited = current ?? draft;
+  const assignedCharacterId = current?.target && current.target !== "narration" ? current.target.characterId : null;
+  const assignedCharacter = characters.find(character => character.id === assignedCharacterId);
+  const normalizedName = normalizeAiMediaCharacterName(assignedCharacter?.characterName ?? "");
+  const nameInvalid = normalizedName === null || Boolean(normalizedName && characters.some(character => character.id !== assignedCharacter?.id &&
+    normalizeAiMediaCharacterName(character.characterName ?? "")?.toLowerCase() === normalizedName.toLowerCase()));
   const newDraft = (): Draft => {
     let target: StudioVoiceProfile["target"] = speechMode === "voiceover" ? "narration" : null;
     if (speechMode === "characters" && selectedCharacterId && !profiles.some(profile => profile.target && profile.target !== "narration" && profile.target.characterId === selectedCharacterId)) target = { characterId: selectedCharacterId };
@@ -127,7 +135,7 @@ export default function StudioVoicePool({ visible, available = true, onOpenChang
     return true;
   };
 
-  type Snapshot = { open: boolean; editingId: string | null; draftId: string | null; scopeKey: string; profiles: Array<{ id: string; target: StudioVoiceProfile["target"]; gender: StudioVoiceProfile["gender"] }>; characters: Array<{ id: string }>; activeNarrationVoiceId: string | null };
+  type Snapshot = { open: boolean; editingId: string | null; draftId: string | null; scopeKey: string; profiles: Array<{ id: string; target: StudioVoiceProfile["target"]; gender: StudioVoiceProfile["gender"] }>; characters: Props["characters"]; activeNarrationVoiceId: string | null };
   const getState = (value: unknown) => value && typeof value === "object" && (value as Snapshot).scopeKey === scopeKey && Array.isArray((value as Snapshot).profiles) ? value as Snapshot : null;
   useInrAssistantLocalInterface("studio_voice_pool", { open, editingId, draftId: draft?.id ?? null, scopeKey,
     profiles: profiles.map(profile => ({ id: profile.id, name: profile.sample.name, durationSeconds: profile.sample.durationSeconds, target: profile.target, gender: profile.gender })), characters, activeNarrationVoiceId }, {
@@ -146,6 +154,15 @@ export default function StudioVoicePool({ visible, available = true, onOpenChang
     select: {
       invoke: value => {
         if (disabled || !open) throw new Error("studio_voice_pool_unavailable");
+        const nameSelection = parseInrAssistantStudioCharacterNameSelection(value);
+        if (nameSelection) {
+          const character = characters.find(item => item.referenceIndex === nameSelection.referenceIndex);
+          if (!onCharacterNameChange || !current || !character || character.id !== assignedCharacterId ||
+            characters.some(item => item.id !== character.id && nameSelection.value && normalizeAiMediaCharacterName(item.characterName ?? "")?.toLowerCase() === nameSelection.value.toLowerCase()))
+            throw new Error("studio_character_name_unavailable");
+          assistantAction.current = { value: value!, profileId: current.id, referenceId: character.id, referenceIndex: character.referenceIndex, characterName: nameSelection.value };
+          onCharacterNameChange(character.id, nameSelection.value); return;
+        }
         const match = /^(active|target|gender):([0-2])(?::(narration|none|reference:([0-4])|auto|female|male))?$/.exec(value ?? "");
         const profile = match ? profiles[Number(match[2])] : null;
         if (!match || !profile || profile.id !== editingId) throw new Error("studio_voice_profile_unavailable");
@@ -165,6 +182,9 @@ export default function StudioVoicePool({ visible, available = true, onOpenChang
         if (!state || !action || action.value !== value || !state.open || state.editingId !== action.profileId) return false;
         const profile = state.profiles.find(profile => profile.id === action.profileId);
         if (!profile) return false;
+        if (action.characterName !== undefined) return Boolean(profile.target && profile.target !== "narration" && profile.target.characterId === action.referenceId &&
+          state.characters.some(character => character.id === action.referenceId && character.referenceIndex === action.referenceIndex &&
+            normalizeAiMediaCharacterName(character.characterName ?? "") === action.characterName));
         if (value?.startsWith("active:")) return profile.target === "narration" && state.activeNarrationVoiceId === profile.id;
         if (value?.startsWith("gender:")) return profile.gender === action.gender;
         return action.referenceId ? Boolean(profile.target && profile.target !== "narration" && profile.target.characterId === action.referenceId && state.characters.some(character => character.id === action.referenceId)) : action.targetKind === "none" ? profile.target === null : profile.target === "narration";
@@ -173,7 +193,7 @@ export default function StudioVoicePool({ visible, available = true, onOpenChang
   }, portalReady && (open || available && visible), disabled);
 
   return <div className={styles.pool} data-studio-voice-pool>
-    {visible ? <button type="button" className={styles.settings} data-voice-pool-settings disabled={disabled || !portalReady || !available} aria-haspopup="dialog" aria-expanded={open} onClick={openSettings}>{t("ai_generator_voice_details")}</button> : null}
+    {visible ? <button type="button" className={styles.settings} data-voice-pool-settings disabled={disabled || !portalReady || !available} aria-label={t("ai_generator_voice_pool_settings_label")} aria-haspopup="dialog" aria-expanded={open} onClick={openSettings}>{t("ai_generator_voice_details")}</button> : null}
     {portalReady ? createPortal(<dialog ref={dialogRef} className={dialogStyles.mediaSettingsDialog} data-media-settings-dialog="voices" aria-labelledby={`${id}-title`} aria-modal="true"
       onKeyDown={event => event.stopPropagation()} onCancel={event => { event.preventDefault(); event.stopPropagation(); if (!disabled) setOpen(false); }}
       onClose={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); if (event.target !== event.currentTarget || disabled) return; const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) setOpen(false); }}>
@@ -208,6 +228,12 @@ export default function StudioVoicePool({ visible, available = true, onOpenChang
             <option value="narration">{t("ai_generator_free_audio_voiceover")}</option>
             {characters.map(character => <option key={character.id} value={character.id} disabled={profiles.some(profile => profile.id !== current.id && profile.target && profile.target !== "narration" && profile.target.characterId === character.id)}>{character.name}</option>)}
           </select></label>
+          {assignedCharacter && onCharacterNameChange ? <>
+            <label>{t("ai_generator_character_name_label")}<input type="text" data-character-name-input value={assignedCharacter.characterName ?? ""} maxLength={40} autoComplete="off"
+              disabled={disabled} aria-invalid={nameInvalid || undefined} aria-describedby={`${id}-character-name-help`}
+              onChange={event => onCharacterNameChange(assignedCharacter.id, event.target.value)} /></label>
+            <p id={`${id}-character-name-help`}>{t(nameInvalid ? "ai_generator_character_name_invalid" : "ai_generator_character_name_help")}</p>
+          </> : null}
           <label>{t("ai_generator_voice_pool_gender")}<select aria-label={t("ai_generator_voice_pool_gender")} value={current.gender} disabled={disabled} onChange={event => changeGender(event.target.value as StudioVoiceProfile["gender"])}>
             <option value="auto">{t("ai_generator_people_auto")}</option><option value="female">{t("ai_generator_narration_voice_female")}</option><option value="male">{t("ai_generator_narration_voice_male")}</option>
           </select></label>

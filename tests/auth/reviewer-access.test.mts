@@ -95,10 +95,14 @@ test("Full commercial tool access needs the exact approved account and reviewer 
     const database={from:(table:string)=>{
       calls.push(table);
       const query={ select(){return this;},eq(){return this;},in(){return this;},async maybeSingle(){return table==="subscriptions"?{data:{plan:"Premium"},error:null}:{data:{role:accountRole},error:readError?{message:"Role denied"}:null};},then(resolve:(result:unknown)=>unknown){
-        return Promise.resolve(table==="inrcy_account_members"?{data:[{account_id:approved,auth_user_id:approved,role:"owner"}],error:null}:table==="subscriptions"?{data:[{user_id:approved,plan:"Premium"}],error:null}:{data:[{user_id:approved,role:accountRole}],error:readError?{message:"Role denied"}:null}).then(resolve);
+        return Promise.resolve(table==="inrcy_account_subscriptions"?{data:[],error:null}:table==="inrcy_account_members"?{data:[{account_id:approved,auth_user_id:approved,role:"owner"}],error:null}:table==="subscriptions"?{data:[{user_id:approved,plan:"Premium"}],error:null}:{data:[{user_id:approved,role:accountRole}],error:readError?{message:"Role denied"}:null}).then(resolve);
       }};return query;
     }};
-    const server=load("lib/dashboardEditionServer.ts",{"next/server":{NextResponse:{}},"@/lib/dashboardEdition":editions,"@/lib/supabaseAdmin":{supabaseAdmin:database}});
+    const billing=load("lib/accountBillingSubscriptionServer.ts",{
+      "@/lib/supabaseAdmin":{supabaseAdmin:database},
+      "@/lib/adminSubscriberStripe":{},"@/lib/stripeSubscription":{},
+    });
+    const server=load("lib/dashboardEditionServer.ts",{"next/server":{NextResponse:{}},"@/lib/dashboardEdition":editions,"@/lib/supabaseAdmin":{supabaseAdmin:database},"@/lib/accountBillingSubscriptionServer":billing});
     assert.equal(await server.getDashboardEditionForAuthUser(approved),expected);
     assert.equal(await server.getDashboardEditionForAccountId(approved),expected);
     assert.equal(calls.includes("profiles"),true);

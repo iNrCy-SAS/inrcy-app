@@ -29,6 +29,7 @@ export type AiMediaVideoProviderContract = Readonly<{
 type ReferenceDescriptor = Pick<
   AiMediaInspirationImage,
   "role" | "usage" | "characterIndex"
+  | "characterName"
 >;
 
 function clean(value: unknown, max: number) {
@@ -79,7 +80,7 @@ function normalizedReference(
     role,
     usage,
     character,
-    inventory: `#${index + 1}:${role}/${usage}${character}`,
+    inventory: `#${index + 1}:${role}/${usage}${character}${role === "character" && reference.characterName ? `/name=${JSON.stringify(reference.characterName)}` : ""}`,
   };
 }
 
@@ -234,13 +235,17 @@ export function buildAiMediaVideoProviderContract(args: {
       : "";
     const speechFingerprint = typeof args.request.spokenScript === "string"
       ? `;speech_sha256=${createHash("sha256").update(args.request.spokenScript).digest("hex")}` : "";
+    const exactDialogueFingerprint = args.request.exactDialogue
+      ? `;exact_dialogue_sha256=${createHash("sha256").update(JSON.stringify(args.request.exactDialogue)).digest("hex")}` : "";
+    const explicitMixedNarrator = args.request.exactDialogue?.some(turn => turn.speaker === "ai_voice") &&
+      args.request.exactDialogue.some(turn => turn.speaker === "character");
     const subtitleFingerprint = args.request.withSubtitles && args.subtitleLines?.length
       ? `;captions_sha256=${createHash("sha256").update(args.subtitleLines.join("\n")).digest("hex")}` : "";
     const base = {
       version: AI_MEDIA_VIDEO_PROVIDER_CONTRACT_VERSION,
       subject: "",
       instruction: clean(args.request.freePrompt, 4_000),
-      parameters: `mode=free;format=${args.request.format};film=${args.request.durationSeconds || 8}s;scenes=${args.request.sceneMode || "single"};characters=${args.request.teamVideoSpeechMode === "characters" ? "native-dialogue" : "silent"};voiceover=${args.request.withNarration ? separateVoiceover ? "separate" : "native" : "none"}${nativeNarrationFingerprint}${speechFingerprint};subtitles=${args.request.withSubtitles ? "on" : "off"}${subtitleFingerprint};music=${args.request.withMusic ? "separate" : "none"};style/composition/text=brief-led`,
+      parameters: `mode=free;format=${args.request.format};film=${args.request.durationSeconds || 8}s;scenes=${args.request.sceneMode || "single"};characters=${args.request.teamVideoSpeechMode === "characters" ? "native-dialogue" : "silent"};voiceover=${explicitMixedNarrator ? "native" : args.request.withNarration ? separateVoiceover ? "separate" : "native" : "none"}${nativeNarrationFingerprint}${speechFingerprint}${exactDialogueFingerprint};subtitles=${args.request.withSubtitles ? "on" : "off"}${subtitleFingerprint};music=${args.request.withMusic ? "separate" : "none"};style/composition/text=brief-led`,
       references: buildAiMediaVideoReferenceContract(args),
       ...(globalMediaConstraints ? { globalMediaConstraints } : {}),
     } satisfies Omit<AiMediaVideoProviderContract, "sha256">;

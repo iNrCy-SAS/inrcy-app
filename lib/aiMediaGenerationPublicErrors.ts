@@ -411,6 +411,11 @@ function explanation(code: AiMediaPublicErrorCode): AiMediaPublicError {
 const CONTENT_POLICY_REJECTION = /\bai_media_content_policy_rejected\b|\bcontent_policy_violation\b|\bmoderation_blocked\b|\bsafety_violation\b|\bcontent_filter\b|request was rejected by the safety system/;
 const SAFETY_FILTER_REJECTION = /safety_filtered|content.moderat|safety filter|responsible ai|\bai_media_(?:reference_policy_rejected|audio_safety_filtered|video_safety_filtered)\b/;
 const PROVIDER_BALANCE_INSUFFICIENT = /\bai_media_provider_balance_insufficient\b|\binsufficient[_ -](?:balance|credits?|funds)\b|\b(?:insufficient|not enough)\b.{0,30}\b(?:balance|credits?|funds)\b|\bbalance\b.{0,40}\b(?:insufficient|exhausted|too low)\b|\b(?:low|exhausted)[_ -](?:credit[_ -])?balance\b/;
+// Kling's sanitized transport signature retains only phase, HTTP status and code.
+// 1101 = postpaid arrears; 1102 = exhausted/expired prepaid resource pack.
+// These official 429s require operator billing action, unlike 1302/1303 throttling.
+// https://kling.ai/document-api/api/get-started/error-codes
+const KLING_PROVIDER_BILLING_FAILURE = /\bai_video_kling_[a-z_]+:429:110[12]\b/;
 const PROVIDER_BUDGET_EXHAUSTED = /\bai_media_provider_budget_exhausted\b|monthly spending cap|billing[_ ]hard[_ ]limit|insufficient_quota|quota.{0,80}(?:exceed|exhaust)|exceed.{0,80}(?:quota|spending|budget)|credit balance.{0,40}(?:insufficient|exhaust|low)|insufficient.{0,20}(?:credits|funds)/;
 // Historical quota wording also covers throughput. Blocking retries requires
 // explicit money/billing evidence, rather than a generic "quota exceeded".
@@ -422,7 +427,7 @@ const PROVIDER_THROUGHPUT_QUOTA = /\b(?:requests?|tokens?|videos?|generations?) 
  */
 export function isAiMediaProviderBillingFailure(error: unknown): boolean {
   const text = diagnosticText(error).toLowerCase();
-  return PROVIDER_BALANCE_INSUFFICIENT.test(text) || PROVIDER_MONETARY_LIMIT.test(text);
+  return PROVIDER_BALANCE_INSUFFICIENT.test(text) || KLING_PROVIDER_BILLING_FAILURE.test(text) || PROVIDER_MONETARY_LIMIT.test(text);
 }
 
 /** Retrying verification must never submit a second paid video generation. */
@@ -478,7 +483,7 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
   if (/replique.{0,30}trop longue|dialogue.{0,20}too long/.test(plain)) return result("AI_MEDIA_DIALOGUE_TOO_LONG");
   if (/trop de textes ou de valeurs exactes/.test(plain)) return result("AI_MEDIA_EXACT_TEXT_TOO_DENSE");
   if (/limite quotidienne de securite/.test(plain)) return result("AI_MEDIA_ACCOUNT_DAILY_SAFETY_LIMIT");
-  if (PROVIDER_BALANCE_INSUFFICIENT.test(text)) return result("AI_MEDIA_PROVIDER_BALANCE_INSUFFICIENT");
+  if (PROVIDER_BALANCE_INSUFFICIENT.test(text) || KLING_PROVIDER_BILLING_FAILURE.test(text)) return result("AI_MEDIA_PROVIDER_BALANCE_INSUFFICIENT");
   if (PROVIDER_MONETARY_LIMIT.test(text)) return result("AI_MEDIA_PROVIDER_BUDGET_EXHAUSTED");
   if (PROVIDER_THROUGHPUT_QUOTA.test(text)) return result("AI_MEDIA_VIDEO_CAPACITY_REACHED");
   if (PROVIDER_BUDGET_EXHAUSTED.test(text)) return result("AI_MEDIA_PROVIDER_BUDGET_EXHAUSTED");

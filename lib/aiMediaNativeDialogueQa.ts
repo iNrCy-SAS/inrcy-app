@@ -88,7 +88,107 @@ export type AiMediaNativeDialogueQaResult = {
   model?: string;
   /** Full audits of the same paid asset; never video-generation attempts. */
   verificationAttempts?: number;
+  /** Fixed categories only; never audio, provider messages or ASR text. */
+  diagnostics?: AiMediaNativeDialogueQaDiagnostic[];
 };
+
+export type AiMediaNativeDialogueQaDiagnostic = {
+  stage: "extract" | "transcribe" | "pronunciation" | "automatic_dialogue" | "setup" | "comparison";
+  reason: "credentials_missing" | "automatic_input_invalid" | "extractor_missing" |
+    "source_invalid" | "audio_invalid" | "response_invalid" | "deadline_exceeded" |
+    "verification_inconclusive" | "economic_guard_limit" | "economic_guard_unavailable" |
+    "provider_request_rejected" | "provider_authentication_failed" | "provider_access_denied" |
+    "provider_resource_unavailable" | "provider_method_rejected" | "provider_rate_limited" |
+    "provider_temporarily_unavailable" | "unclassified_failure";
+  status: number;
+  retryable: boolean | null;
+  /** Present only when independent audits of the same asset were combined. */
+  auditAttempt?: number;
+};
+
+const QA_DIAGNOSTIC_STAGES = new Set(["extract", "transcribe", "pronunciation", "automatic_dialogue", "setup", "comparison"]);
+const QA_DIAGNOSTIC_REASONS = new Set([
+  "credentials_missing", "automatic_input_invalid", "extractor_missing", "source_invalid", "audio_invalid",
+  "response_invalid", "deadline_exceeded", "verification_inconclusive", "economic_guard_limit", "economic_guard_unavailable",
+  "provider_request_rejected", "provider_authentication_failed", "provider_access_denied", "provider_resource_unavailable",
+  "provider_method_rejected", "provider_rate_limited", "provider_temporarily_unavailable", "unclassified_failure",
+]);
+const QA_ISSUES = new Set([
+  "expected_dialogue_missing", "transcription_unavailable", "transcription_inconclusive", "spoken_dialogue_missing",
+  "spoken_dialogue_incomplete", "spoken_dialogue_mismatch", "spoken_critical_value_mismatch", "spoken_dialogue_repeated",
+  "unexpected_visual_fragmentation", "final_frame_unverified",
+]);
+
+type AiMediaNativeDialogueQaFailureMetadata = {
+  version: 1;
+  diagnostics: AiMediaNativeDialogueQaDiagnostic[];
+  verificationAttempts?: number;
+  elapsedMs?: number;
+  clipCount?: number;
+  clips?: Array<Pick<AiMediaNativeDialogueQaClipResult, "sceneIndex" | "status" | "issues" | "automaticDialogueVerification">>;
+};
+
+/** Revalidate at the persistence boundary; arbitrary error properties never escape. */
+function safeQaFailureMetadata(value: unknown): AiMediaNativeDialogueQaFailureMetadata | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const input = value as Record<string, unknown>;
+  if (input.version !== 1 || !Array.isArray(input.diagnostics)) return undefined;
+  const diagnostics: AiMediaNativeDialogueQaDiagnostic[] = [];
+  const seen = new Set<string>();
+  for (const item of input.diagnostics.slice(0, 32)) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const row = item as Record<string, unknown>;
+    if (typeof row.stage !== "string" || !QA_DIAGNOSTIC_STAGES.has(row.stage) ||
+      typeof row.reason !== "string" || !QA_DIAGNOSTIC_REASONS.has(row.reason) ||
+      typeof row.status !== "number" || !Number.isInteger(row.status) ||
+      !(row.status === 0 || row.status >= 400 && row.status <= 599) ||
+      !(row.retryable === null || typeof row.retryable === "boolean")) continue;
+    const diagnostic = { stage: row.stage, reason: row.reason, status: row.status, retryable: row.retryable,
+      ...(typeof row.auditAttempt === "number" && Number.isInteger(row.auditAttempt) && row.auditAttempt >= 1 && row.auditAttempt <= 3
+        ? { auditAttempt: row.auditAttempt } : {}) } as AiMediaNativeDialogueQaDiagnostic;
+    const key = JSON.stringify(diagnostic);
+    if (!seen.has(key)) { seen.add(key); diagnostics.push(diagnostic); }
+    if (diagnostics.length === 8) break;
+  }
+  if (!diagnostics.length) return undefined;
+  const result: AiMediaNativeDialogueQaFailureMetadata = { version: 1, diagnostics };
+  for (const [key, maximum] of [["verificationAttempts", 3], ["elapsedMs", 60_000], ["clipCount", 4]] as const) {
+    const number = input[key];
+    if (typeof number === "number" && Number.isInteger(number) && number >= 0 && number <= maximum) result[key] = number;
+  }
+  if (Array.isArray(input.clips)) {
+    result.clips = [];
+    for (const item of input.clips.slice(0, 4)) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+      const clip = item as Record<string, unknown>;
+      if (!Number.isInteger(clip.sceneIndex) || Number(clip.sceneIndex) < 0 || Number(clip.sceneIndex) > 3 ||
+        typeof clip.status !== "string" || !["passed", "rejected", "unavailable"].includes(clip.status) || !Array.isArray(clip.issues)) continue;
+      const safe = { sceneIndex: clip.sceneIndex as number, status: clip.status as AiMediaNativeDialogueQaStatus,
+        issues: [...new Set(clip.issues.slice(0, 16).filter(issue => typeof issue === "string" && QA_ISSUES.has(issue)))] as AiMediaNativeDialogueQaIssue[] };
+      result.clips.push({ ...safe, ...(typeof clip.automaticDialogueVerification === "string" && ["passed", "rejected", "unavailable"].includes(clip.automaticDialogueVerification)
+        ? { automaticDialogueVerification: clip.automaticDialogueVerification as AiMediaNativeDialogueQaStatus } : {}) });
+    }
+  }
+  return result;
+}
+
+export class AiMediaNativeDialogueVerificationUnavailableError extends Error {
+  readonly nativeDialogueQa: AiMediaNativeDialogueQaFailureMetadata | undefined;
+  constructor(result: AiMediaNativeDialogueQaResult | null) {
+    super("ai_media_native_speech_verification_unavailable");
+    if (!result) { this.nativeDialogueQa = undefined; return; }
+    this.nativeDialogueQa = safeQaFailureMetadata({ version: 1,
+      diagnostics: result.diagnostics?.length ? result.diagnostics : [
+        { stage: "comparison", reason: "verification_inconclusive", status: 0, retryable: null },
+      ], verificationAttempts: result.verificationAttempts, elapsedMs: result.elapsedMs, clipCount: result.clips.length, clips: result.clips });
+  }
+}
+
+export function getAiMediaNativeDialogueQaFailureMetadata(error: unknown) {
+  if (!error || typeof error !== "object") return undefined;
+  try { return safeQaFailureMetadata((error as { nativeDialogueQa?: unknown }).nativeDialogueQa); }
+  catch { return undefined; }
+}
 
 /**
  * Recover an unavailable Wan speech check without regenerating its video.
@@ -108,16 +208,28 @@ export async function recoverAiMediaNativeDialogueVerification(args: {
   if (first.status !== "unavailable" || first.clips.some(clip => clip.finalFrameLayout && clip.finalFrameLayout !== "passed")) return first;
   let attempts = 1;
   let result = first;
+  const diagnostics: AiMediaNativeDialogueQaDiagnostic[] = [];
+  const collect = (audit: AiMediaNativeDialogueQaResult, auditAttempt: number) => {
+    for (const diagnostic of audit.diagnostics || []) {
+      const item = { ...diagnostic, auditAttempt };
+      if (!diagnostics.some(previous => JSON.stringify(previous) === JSON.stringify(item))) diagnostics.push(item);
+      // Retain the beginning and the latest evidence within a fixed envelope.
+      if (diagnostics.length > 8) diagnostics.splice(4, 1);
+    }
+  };
+  collect(first, 1);
   // Both fresh audits must pass, so stop immediately if either is unavailable
   // or rejected. Each adapter retains its accounting guard and bounded timeout.
   for (let retry = 0; retry < 2 && !signal.aborted; retry += 1) {
     result = await args.audit(signal);
     attempts += 1;
+    collect(result, attempts);
     args.signal?.throwIfAborted();
     if (result.status !== "passed") break;
   }
   if (result.status === "passed" && (attempts !== 3 || signal.aborted)) result = first;
-  return { ...result, elapsedMs: Date.now() - startedAt, verificationAttempts: attempts };
+  return { ...result, elapsedMs: Date.now() - startedAt, verificationAttempts: attempts,
+    ...(diagnostics.length ? { diagnostics } : {}) };
 }
 
 export type AiMediaNativeDialogueTranscript = {

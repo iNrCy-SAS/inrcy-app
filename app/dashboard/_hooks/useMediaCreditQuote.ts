@@ -9,7 +9,9 @@ import type { MediaGenerationQuota, MediaGenerationRequest } from "./useMediaGen
 
 export type MediaCreditQuoteInput = Pick<MediaGenerationRequest,
   "kind" | "operation" | "creationMode" | "spokenScript" | "withSubtitles" | "videoEngine" | "imageEngine" | "format" | "durationSeconds" | "sceneMode" | "videoResolution" | "withNarration" | "teamVideoSpeechMode" | "identityMode" | "inputMode"
-> & { inspirationImagesCount: number; hasProvidedCharacterVoice?: boolean };
+> & { inspirationImagesCount: number; hasProvidedCharacterVoice?: boolean;
+  exactDialogue?: import("@/lib/aiMediaExactDialogue").AiMediaExactDialogueTurn[];
+  inspirationImages?: readonly { role?: string; characterIndex?: number }[] };
 export type ConfirmedMediaCreditQuote = {
   totalCredits: number;
   tariffVersion: string;

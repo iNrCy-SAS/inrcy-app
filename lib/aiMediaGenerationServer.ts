@@ -74,7 +74,7 @@ import {
   createReferenceTeamFallbackVideo,
   createReferenceTeamMontage,
 } from "@/lib/aiMediaReferenceTeam";
-import { shouldAuditAiMediaNativeFinalFrame, assertAiMediaNativeFinalFrameLayout, recoverAiMediaNativeDialogueVerification, getAiMediaAutomaticDialogueContext } from "@/lib/aiMediaNativeDialogueQa";
+import { shouldAuditAiMediaNativeFinalFrame, assertAiMediaNativeFinalFrameLayout, recoverAiMediaNativeDialogueVerification, getAiMediaAutomaticDialogueContext, AiMediaNativeDialogueVerificationUnavailableError } from "@/lib/aiMediaNativeDialogueQa";
 import { auditAiMediaNativeDialogueWithGoogle } from "@/lib/aiMediaNativeDialogueQaGoogle";
 import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
 import {
@@ -1749,6 +1749,7 @@ export async function generateAndSaveAiMedia(args: {
         jobId: args.jobId,
         provider: videoGateway.provider,
         verificationAttempts: nativeDialogueQa?.verificationAttempts,
+        diagnostics: nativeDialogueQa?.diagnostics,
         clips: nativeDialogueQa?.clips.map((clip) => ({
           sceneIndex: clip.sceneIndex,
           status: clip.status,
@@ -1768,13 +1769,14 @@ export async function generateAndSaveAiMedia(args: {
       console.warn("[ai-media] native character speech verification unavailable", JSON.stringify({
         jobId: args.jobId, provider: videoGateway.provider, elapsedMs: nativeDialogueQa?.elapsedMs,
         verificationAttempts: nativeDialogueQa?.verificationAttempts,
+        diagnostics: nativeDialogueQa?.diagnostics,
         clips: nativeDialogueQa?.clips.map(clip => ({
           sceneIndex: clip.sceneIndex, status: clip.status, issues: clip.issues,
           confirmation: clip.confirmation, pronunciationVerification: clip.pronunciationVerification,
           audioCheckCount: clip.audioCheckCount, readOutcomes: clip.readOutcomes, confirmationDecision: clip.confirmationDecision,
         })) || [],
       }));
-      throw new Error("ai_media_native_speech_verification_unavailable");
+      throw new AiMediaNativeDialogueVerificationUnavailableError(nativeDialogueQa);
     }
     const nativeVoiceoverQa = nativeVoiceoverRequested &&
       !videoGateway.provider.startsWith("inrcy-")
@@ -1811,13 +1813,14 @@ export async function generateAndSaveAiMedia(args: {
     if (nativeVoiceoverRequested && nativeVoiceoverQa?.status !== "passed") {
       console.warn("[ai-media] native voiceover verification unavailable", JSON.stringify({
         jobId: args.jobId, provider: videoGateway.provider, elapsedMs: nativeVoiceoverQa?.elapsedMs,
+        diagnostics: nativeVoiceoverQa?.diagnostics,
         clips: nativeVoiceoverQa?.clips.map(clip => ({
           sceneIndex: clip.sceneIndex, status: clip.status, issues: clip.issues,
           confirmation: clip.confirmation, pronunciationVerification: clip.pronunciationVerification,
           audioCheckCount: clip.audioCheckCount, readOutcomes: clip.readOutcomes, confirmationDecision: clip.confirmationDecision,
         })) || [],
       }));
-      throw new Error("ai_media_native_speech_verification_unavailable");
+      throw new AiMediaNativeDialogueVerificationUnavailableError(nativeVoiceoverQa);
     }
     // Only verified native speech reaches composition, with its original voice.
     const nativeVoiceoverPreserved = nativeVoiceoverRequested &&

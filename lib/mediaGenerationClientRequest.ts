@@ -143,6 +143,7 @@ export type MediaGenerationInspirationImage = {
   role?: MediaGenerationReferenceRole;
   usage?: MediaGenerationReferenceUsage;
   characterIndex?: 1 | 2 | 3;
+  characterName?: string;
   voiceMode?: "ai" | "provided";
   voiceSample?: AiMediaCharacterVoiceSample;
 };
@@ -152,6 +153,7 @@ export type MediaGenerationRequest = {
   freePrompt?: string;
   publicationSubject?: string;
   spokenScript?: string;
+  exactDialogue?: import("./aiMediaExactDialogue.ts").AiMediaExactDialogueTurn[];
   withSubtitles?: boolean;
   useBusinessDna?: boolean;
   operation?: MediaGenerationOperation;
@@ -291,6 +293,7 @@ export function buildGenerationAttemptKey(
     freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
     ...(request.creationMode === "free" && request.kind === "image" && request.publicationSubject ? { publicationSubject: request.publicationSubject } : {}),
     spokenScript: request.creationMode === "free" && request.kind === "video" ? request.spokenScript : undefined,
+    ...(request.exactDialogue !== undefined ? { exactDialogue: request.exactDialogue } : {}),
     ...(request.creationMode === "free" && request.kind === "video" && request.withSubtitles &&
       (request.withNarration || request.teamVideoSpeechMode === "characters") ? { withSubtitles: true } : {}),
     ...(request.creationMode === "free" && request.useBusinessDna ? { useBusinessDna: true } : {}),
@@ -391,6 +394,7 @@ export function buildGenerationAttemptKey(
       role: image.role || null,
       usage: image.usage || null,
       characterIndex: image.characterIndex || null,
+      ...(image.characterName ? { characterName: image.characterName } : {}),
       voiceMode: request.kind === "video" && image.role === "character" ? image.voiceMode || "ai" : null,
       voiceSamplePath: request.kind === "video" && isProvidedCharacterVoice(image) ? image.voiceSample?.path || null : null,
     })),

@@ -5,6 +5,7 @@ import { getAiMediaVideoEngineRetirementIssue, getAiMediaVideoModel, isAiMediaVi
 import { isAiMediaNarrationVoiceVariantForGender, type AiMediaNarrationVoiceVariant } from "./aiMediaNarrationVoices.ts";
 import { inrAssistantRequestClauses, inrAssistantUnquotedRequest } from "./inrAssistantRequestClauses.ts";
 import { getAutomaticMediaVideoDurationOptions } from "./aiMediaVideoClientOptions.ts";
+import type { AiMediaExactDialogueTurn } from './aiMediaExactDialogue.ts';
 
 type Values = {
   activeTab: string; subjectSource: AiMediaSubjectSource; creativeBrief: string; sourceMode: "ai" | "criteria" | "real";
@@ -23,7 +24,11 @@ export type InrAssistantStudioFormSnapshot = Partial<Values> & {
   videoEngine?: AiMediaVideoEngine | null; videoResolution?: AiMediaVideoResolution | null; language?: string;
   /** Browser-only: true for the Studio duration-only selector, never Guided or Booster. */
   automaticSceneMode?: boolean;
-  voiceReferences?: Array<{ id: string; name: string; voiceMode: "ai" | "provided"; referenceIndex?: number }>;
+  /** Free Studio exact text is edited through its visible row-based dialogue. */
+  exactDialogueEditor?: boolean;
+  voiceSelectionMode?: Values['speechMode'];
+  exactDialogue?: readonly AiMediaExactDialogueTurn[];
+  voiceReferences?: Array<{ id: string; name: string; voiceMode: "ai" | "provided"; referenceIndex?: number; characterIndex?: number }>;
 };
 const choices: Partial<Record<keyof Values, readonly unknown[]>> = {
   subjectSource: ["profile", "publication", "custom"], sourceMode: ["ai", "criteria", "real"],
@@ -56,20 +61,25 @@ export function parseInrAssistantStudioFormSelection(value: string | null, state
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const row = input as Record<string, unknown>, field = row.field as keyof Values, next = row.value;
   if (Object.keys(row).length !== 2 || !(state.mode === "guided" ? guided : free).includes(field)) return null;
+  if (field === 'spokenScript' && state.exactDialogueEditor === true) return null;
+  const structuredExact = state.exactDialogueEditor === true && state.spokenScriptOpen === true;
+  const voiceSelectionMode = state.voiceSelectionMode ?? state.speechMode;
+  if (structuredExact && field === 'speechMode') return null;
   if (videoOnly.includes(field) && state.kind !== "video") return null;
   if (field === "voiceMode" || field === "voiceReferenceId") {
-    if (state.mode !== "free" || !["voiceover", "characters"].includes(state.speechMode ?? "")) return null;
-    if (field === "voiceReferenceId" && state.speechMode !== "characters") return null;
+    if (state.mode !== "free" || !["voiceover", "characters"].includes(voiceSelectionMode ?? "")) return null;
+    if (field === "voiceReferenceId" && voiceSelectionMode !== "characters") return null;
     const references = state.voiceReferences ?? [];
     if (references.length > 5 || references.some(reference => !/^[A-Za-z0-9_-]{1,160}$/.test(reference.id)) || new Set(references.map(reference => reference.id)).size !== references.length) return null;
     if (field === "voiceReferenceId") {
       if (typeof next !== "string") return null;
       const index = /^reference:([0-4])$/.exec(next);
-      const matches = references.filter(reference => index ? reference.referenceIndex === Number(index[1]) : reference.id === next);
+      const character = /^character:([0-2])$/.exec(next);
+      const matches = references.filter(reference => index ? reference.referenceIndex === Number(index[1]) : character ? reference.characterIndex === Number(character[1]) + 1 : reference.id === next);
       return matches.length === 1 ? { field, value: matches[0].id } : null;
     }
     const targeted = state.voiceReferenceId ? references.some(reference => reference.id === state.voiceReferenceId) : references.length === 1;
-    if (field === "voiceMode" && state.speechMode === "characters" && (!targeted && (references.length > 1 || next === "provided" || !!state.voiceReferenceId))) return null;
+    if (field === "voiceMode" && voiceSelectionMode === "characters" && (!targeted && (references.length > 1 || next === "provided" || !!state.voiceReferenceId))) return null;
   }
   if (field === "activeTab") return (state.mode === "guided" ? ["subject", "selection", "direction", "finish"] : ["prompt", "criteria"]).includes(String(next)) ? row as InrAssistantStudioFormSelection : null;
   if (field === "subjectSource" && (state.transformMode || next === "publication" && !state.publicationAvailable)) return null;
@@ -79,10 +89,10 @@ export function parseInrAssistantStudioFormSelection(value: string | null, state
   if (field === "exactText" && state.textMode !== "exact" || ["textKeywords", "textKeywordDraft"].includes(field) && state.textMode !== "ai") return null;
   if (field === "speechMode" && (state.mode === "guided" ? !["voiceover", "characters"].includes(String(next)) : !["voiceover", "characters", "silent"].includes(String(next)) || next === "silent" && !!state.spokenScript?.trim())) return null;
   if (["narrationVoice", "narrationVoiceVariant"].includes(field) &&
-      (state.speechMode !== "voiceover" || state.mode === "free" && state.voiceMode !== "ai")) return null;
+      (state.mode === 'free' ? voiceSelectionMode !== 'voiceover' || state.voiceMode !== 'ai' : state.speechMode !== 'voiceover')) return null;
   if (field === "narrationVoiceVariant" && !isAiMediaNarrationVoiceVariantForGender(next, state.narrationVoice || "female")) return null;
-  if (field === "spokenScript" && (!state.spokenScriptOpen || state.speechMode === "silent") || field === "spokenScriptOpen" && next === true && state.speechMode === "silent") return null;
-  if (field === "withSubtitles" && state.speechMode === "silent") return null;
+  if (field === "spokenScript" && (!state.spokenScriptOpen || state.speechMode === "silent") || field === "spokenScriptOpen" && next === true && state.speechMode === "silent" && !state.exactDialogueEditor) return null;
+  if (field === "withSubtitles" && state.speechMode === "silent" && !structuredExact) return null;
   if (choices[field] && !choices[field]!.includes(next)) return null;
   if (["useBrandColors", "useBusinessDna", "withMusic", "withSubtitles", "spokenScriptOpen"].includes(field) && typeof next !== "boolean") return null;
   const textLimits: Partial<Record<keyof Values, number>> = { creativeBrief: getAiMediaVisualBriefMaxChars(state.kind, "guided"), exactText: 600, textKeywordDraft: 160, prompt: Math.min(getAiMediaVisualBriefMaxChars(state.kind, "free"), state.maxPromptLength ?? AI_MEDIA_FREE_PROMPT_MAX_CHARS), spokenScript: AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS };
@@ -103,7 +113,9 @@ export function parseInrAssistantStudioFormSelection(value: string | null, state
     const durationScene = durationSelection ?? (field === "durationScene" ? next as Values["durationScene"] : state.durationScene);
     const speechMode = field === "speechMode" ? next as Values["speechMode"] : state.speechMode;
     const speech = getAiMediaVideoSpeechState({ kind: "video", creationMode: "free", freePrompt: state.prompt,
-      spokenScript: field === "spokenScript" ? next as string : state.spokenScriptOpen ? state.spokenScript : undefined,
+      spokenScript: field === "spokenScript" ? next as string : state.spokenScriptOpen && !state.exactDialogueEditor ? state.spokenScript : undefined,
+      exactDialogue: structuredExact ? state.exactDialogue : undefined,
+      inspirationImages: structuredExact ? state.voiceReferences?.map(reference => ({ role: 'character', characterIndex: reference.characterIndex })) : undefined,
       withNarration: speechMode === "voiceover", teamVideoSpeechMode: speechMode === "characters" ? "characters" : "voiceover",
       durationSeconds: durationScene?.seconds, sceneMode: durationScene?.sceneMode, videoEngine: state.videoEngine,
       videoResolution: state.videoResolution, language: state.language });
@@ -118,9 +130,11 @@ export function isInrAssistantStudioFormSelectionApplied(snapshot: unknown, enco
   let parsed: unknown; try { parsed = JSON.parse(encoded); } catch { return false; }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false;
   const row = parsed as Record<string, unknown>, state = snapshot as Record<string, unknown>;
+  if (row.field === 'spokenScript' && state.exactDialogueEditor === true) return false;
+  if (state.exactDialogueEditor === true && state.spokenScriptOpen === true && row.field === 'speechMode') return false;
   if (state.kind === "video" && getAiMediaVideoEngineRetirementIssue(state.videoEngine)) return false;
   if (["narrationVoice", "narrationVoiceVariant"].includes(String(row.field)) && state.mode === "free" &&
-      (state.speechMode !== "voiceover" || state.voiceMode !== "ai")) return false;
+      ((state.voiceSelectionMode ?? state.speechMode) !== "voiceover" || state.voiceMode !== "ai")) return false;
   if (row.field === "durationSeconds") {
     const expected = automaticStudioDuration(state as unknown as InrAssistantStudioFormSnapshot, row.value);
     const committed = state.durationScene as Values["durationScene"] | undefined;
@@ -147,6 +161,11 @@ export function isInrAssistantStudioFormSelectionRequested(message: string, enco
       /\b(?:pas|jamais|ne|non|si|comment|pourquoi|ou|soit)\b|\bn['’]|\?/.test(text)) return false;
     if (field === "voiceReferenceId") {
       if (typeof value !== "string") return false;
+      const character = /^character:([0-2])$/.exec(value);
+      if (character) {
+        const numbers = [...text.matchAll(/\bpersonnage\s*(?:n[°o]?\.?\s*)?([1-3])\b/g)].map(match => Number(match[1]));
+        return numbers.length === 1 && numbers[0] === Number(character[1]) + 1 && !/\b(?:photo|image|reference)\s*\d+\b/.test(text);
+      }
       const index = /^reference:([0-4])$/.exec(value);
       if (index) {
         const numbers = [...text.matchAll(/\b(?:photo|image|reference)\s*(?:n(?:o|umero)?\s*)?([1-5])\b/g)].map(match => Number(match[1]));

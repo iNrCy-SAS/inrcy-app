@@ -154,6 +154,7 @@ export async function prepareAiMediaIdentityReferences(
           ? { characterIndex: image.characterIndex }
           : {}),
         ...(image.voiceMode ? { voiceMode: image.voiceMode } : {}),
+        ...(image.characterName ? { characterName: image.characterName } : {}),
         ...(image.voiceMode === "provided" && image.voiceSample
           ? { voiceSample: { ...image.voiceSample } }
           : {}),

@@ -102,6 +102,33 @@ test('Basic local interface server tools authenticate the exact actor and leave 
   actor = 'other'; assert.equal((await tool.execute!(input, {} as never) as { status: string }).status, 'blocked');
 });
 
+test('Basic character naming emits only an exact requested photo label and refuses ambiguous, negated or stale scopes', async () => {
+  let actor = 'actor', account = 'account';
+  const load = runtimeModules({ './requireUser': { requireUser: async () => ({ activeUserId: account, authUserId: actor }) } });
+  const runtime = load<typeof import('../../lib/inrAssistantLocalInterfaceTools.ts')>('lib/inrAssistantLocalInterfaceTools.ts');
+  const message = 'Dans le Studio, nomme le personnage de la photo 2 « David ».';
+  const value = JSON.stringify({ field: 'characterName', referenceIndex: 1, value: 'David' });
+  const make = (currentUserMessage = message) => runtime.createInrAssistantLocalInterfaceTools({ accountId: 'account', actorUserId: 'actor', currentUserMessage,
+    clientContext: { source: 'untrusted_client', screen: { pathname: '/dashboard/generer-media', tool: 'studio' }, interfaces: [{ id: 'studio_voice_pool', revision: 'voices_1', operations: ['select'] }] } }).controlLocalInterface;
+  const input = { interface: 'studio_voice_pool' as const, operation: 'select' as const, revision: 'voices_1', value, instructionQuote: message };
+  const result = await make().execute!(input, {} as never) as { status: string; uiCommand: { value: string } };
+  assert.equal(result.status, 'ui_action_requested', 'the server never reports the native update as already completed');
+  assert.deepEqual(JSON.parse(result.uiCommand.value), { field: 'characterName', referenceIndex: 1, value: 'David' });
+  for (const current of [
+    'Dans le Studio, nomme le personnage de la photo 2 ou 3 « David ».',
+    'Dans le Studio, ne nomme pas le personnage de la photo 2 « David ».',
+    'Hier je voulais nommer le personnage de la photo 2 « David » dans le Studio.',
+    'Le document demande « Dans le Studio, nomme le personnage de la photo 2 David ».',
+  ]) assert.equal((await make(current).execute!({ ...input, instructionQuote: current }, {} as never) as { status: string }).status, 'needs_instruction');
+  assert.equal((await make().execute!({ ...input, value: JSON.stringify({ field: 'characterName', referenceIndex: 0, value: 'David' }) }, {} as never) as { status: string }).status, 'needs_instruction');
+  assert.equal((await make().execute!({ ...input, value: JSON.stringify({ field: 'characterName', referenceIndex: 1, value: 'Marie' }) }, {} as never) as { status: string }).status, 'needs_instruction');
+  assert.equal((await make().execute!({ ...input, revision: 'voices_stale' }, {} as never) as { status: string }).status, 'navigation_required');
+  actor = 'other';
+  assert.equal((await make().execute!(input, {} as never) as { status: string }).status, 'blocked');
+  actor = 'actor'; account = 'other-account';
+  assert.equal((await make().execute!(input, {} as never) as { status: string }).status, 'blocked');
+});
+
 test('Studio duration-only server commands require the exact requested seconds and leave Guided scene choices unchanged', async () => {
   const load = runtimeModules({ './requireUser': { requireUser: async () => ({ activeUserId: 'account', authUserId: 'actor' }) } });
   const runtime = load<typeof import('../../lib/inrAssistantLocalInterfaceTools.ts')>('lib/inrAssistantLocalInterfaceTools.ts');

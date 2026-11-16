@@ -263,6 +263,83 @@ test("multi-character Kling keeps exact user speech authoritative", async () => 
   assert.equal(plan.scenes[0].spokenTurns, undefined);
 });
 
+test("Kling's exact named script keeps two declared library voices with their own faces in one native 16-second clip", async () => {
+  const first="Les feuilles tombent et notre jardin demande votre attention.";
+  const second="Nous préparons les extérieurs pour une belle nouvelle saison !";
+  const date=Date.now(),day=new Date(date).toISOString().slice(0,10);
+  const base=coupleRequest("kling",{durationSeconds:16});
+  const images=base.inspirationImages.map((image,index)=>image.role!=="character"?image:{...image,characterName:index===0?"Alex":"Léa",voiceMode:"provided" as const,voiceSample:{
+    path:`_studio-voice-references/${day}/offline-account__${date}__00000000-0000-4000-8000-00000000000${index+1}.wav`,
+    name:`voice-${index+1}.wav`,mimeType:"audio/wav" as const,durationSeconds:5,sizeBytes:160044,
+    libraryMediaId:`11111111-1111-4111-8111-11111111111${index+1}`,
+  }});
+  const input=coupleRequest("kling",{durationSeconds:16,inspirationImages:images,
+    freePrompt:"Alex et Léa sont dans un jardin d’automne. Alex parle, puis Léa répond. Les visages sont fidèles aux photos.",
+    spokenScript:`Alex : ${first}\nLéa : ${second}`});
+  const before=structuredClone(input);
+  // A model's attempted wording/voice reversal cannot replace exact user data.
+  const runtime=loadPlanner({direction:"Le couple échange au milieu des feuilles du jardin.",scenes:[{
+    visualBrief:"Alex parle puis Léa répond, chacun conserve son visage.",spokenLine:"Texte inventé à ignorer.",
+    spokenTurns:[{reference:3,speaker:"Alex",text:"Mauvaise voix."},{reference:1,speaker:"Léa",text:"Autres mots."}],
+  }]});
+  const plan=await runtime.prepareAiMediaFreeCreativePlan({accountId:"offline-test",request:input,profile});
+  const expected=[{reference:1,speaker:"Alex",text:first},{reference:3,speaker:"Léa",text:second}];
+  assert.equal(plan.scenes.length,1);assert.deepEqual(plan.scenes[0].spokenTurns,expected);
+  assert.equal(plan.scenes[0].spokenLine,`${first} ${second}`);
+  assert.deepEqual(JSON.parse(runtime.calls[0].input).exact_speaker_turns,[expected]);
+  const transport=prompts.buildAiMediaFreeVideoScenePrompt(providerArgs(input,plan,[]),0,16);
+  assert.match(transport,/CHARACTER_1: Alex, the person from @image_1, using only @voice_1/);
+  assert.match(transport,/THEN CHANGE SPEAKER.*CHARACTER_3: Léa, the person from @image_3, using only @voice_3/);
+  assert.equal(transport.split(JSON.stringify(first)).length,2);assert.equal(transport.split(JSON.stringify(second)).length,2);
+  assert.doesNotMatch(plan.scenes[0].spokenLine,/Personnage|Alex|Léa|inventé/);
+  assert.deepEqual(input,before,"Neither library reference nor exact input is rewritten");
+});
+
+test("exact speaker slots are independent of speaking order and repeated names retain their declared voice",()=>{
+  const input=coupleRequest("kling",{durationSeconds:16,
+    spokenScript:"Léa (Personnage 2) : Bonjour !\nAlex (Personnage 1) : Bonsoir !\nLéa : À bientôt."});
+  assert.deepEqual(prompts.getAiMediaFreeExactDialogueTurnScenes(input),[[
+    {reference:3,speaker:"Léa",text:"Bonjour !"},{reference:1,speaker:"Alex",text:"Bonsoir !"},{reference:3,speaker:"Léa",text:"À bientôt."},
+  ]]);
+});
+
+test("explicit photo names bind a woman speaking first to her own reference, regardless of photo order",()=>{
+  const base=coupleRequest("kling",{durationSeconds:16});
+  const input={...base,inspirationImages:base.inspirationImages.map((image,index)=>image.role==="character"?{...image,characterName:index===0?"Alex":"Léa"}:image),
+    spokenScript:"Léa : Bonjour !\nAlex : Bonsoir !\nLéa : À bientôt."};
+  assert.deepEqual(prompts.getAiMediaFreeExactDialogueTurnScenes(input),[[
+    {reference:3,speaker:"Léa",text:"Bonjour !"},{reference:1,speaker:"Alex",text:"Bonsoir !"},{reference:3,speaker:"Léa",text:"À bientôt."},
+  ]]);
+});
+
+test("script labels use the same NFKC and whitespace normalization as their explicit photo names",()=>{
+  const base=coupleRequest("kling",{durationSeconds:16});
+  const input={...base,inspirationImages:base.inspirationImages.map((image,index)=>image.role==="character"?{...image,characterName:index===0?"Alex Martin":"Léa"}:image),
+    spokenScript:"Ｌéａ : Bonjour !\nAlex   Martin : Bonsoir !"};
+  assert.deepEqual(prompts.getAiMediaFreeExactDialogueTurnScenes(input),[[
+    {reference:3,speaker:"Léa",text:"Bonjour !"},{reference:1,speaker:"Alex Martin",text:"Bonsoir !"},
+  ]]);
+  const measured=contracts.normalizeAiMediaGenerationRequest({...input,requestId:"normalized-name-script"});
+  assert.equal(measured.spokenScript,input.spokenScript);
+});
+
+test("unbound first names and conflicting slot declarations stop before paid planning instead of guessing a face",async()=>{
+  for(const spokenScript of ["Léa : Bonjour !\nAlex : Bonsoir !",
+    "Léa (Personnage 2) : Bonjour !\nAlex (Personnage 2) : Bonsoir !",
+    "Léa (Personnage 3) : Bonjour !\nAlex (Personnage 1) : Bonsoir !"]) {
+    const input=coupleRequest("kling",{durationSeconds:16,spokenScript}),runtime=loadPlanner({});
+    await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({accountId:"offline-test",request:input,profile}),/Associez|étiquette/);
+    assert.equal(runtime.calls.length,0);
+  }
+});
+
+test("named exact turns never split a sentence or discard its end when real clip speech capacity is exceeded",async()=>{
+  const input={...coupleRequest("kling"),durationSeconds:4,spokenScript:"Alex (Personnage 1) : Nous préparons chaque détail de votre grand projet.\nLéa (Personnage 2) : Nous conservons toutes les phrases sans les couper."};
+  const runtime=loadPlanner({});
+  await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({accountId:"offline-test",request:input,profile}),/répliques exactes sont trop longues/);
+  assert.equal(runtime.calls.length,0);
+});
+
 test("character dialogue keeps its exact line and the image plan remains unchanged", async () => {
   const line = "Avec iNrCy, nous avançons ensemble.";
   const input = request({ teamVideoSpeechMode: "characters", freePrompt: `La femme dit : « ${line} »` });

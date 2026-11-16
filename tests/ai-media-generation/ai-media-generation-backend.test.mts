@@ -9,6 +9,7 @@ import {
   normalizeAiMediaGenerationRequest,
 } from "../../lib/aiMediaGenerationContracts.ts";
 import { bufferFromUint8ArrayView } from "../../lib/aiMediaBuffer.ts";
+import { cleanAiMediaProfilePhone } from "../../lib/aiMediaVisibleContact.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 import { getMetaImageMotionDuration, META_IMAGE_SOUNDTRACK_ASSET_SECONDS } from "../../lib/metaImageMotionTiming.ts";
 import {
@@ -833,14 +834,15 @@ test("une demande de téléphone utilise le profil local sans exposer ses coordo
   );
   assert.match(server, /profile_phone_display_applied/);
   assert.match(detector, /isAiMediaProfilePhoneDisplayRequested/);
-  assert.match(detector, /Retourne uniquement le numéro réellement enregistré/);
+  assert.equal(cleanAiMediaProfilePhone("+243981837026 / +8618666071730"), "+243981837026 / +8618666071730");
+  assert.equal(cleanAiMediaProfilePhone("+243981837026 / numéro inventé"), "");
   assert.match(
     prompt,
     /produire exclusivement le fond sans texte, chiffre, téléphone/
   );
   assert.doesNotMatch(prompt, /profile\.business\.phone/);
   assert.match(composer, /wrapWholeWords/);
-  assert.match(composer, /TEL  \$\{phone\}/);
+  assert.match(composer, /parseCtaPhoneNumbers\(args\.phone\)/);
 });
 
 test("les textes d’image guidée sont composés localement et jamais dessinés par le fournisseur", () => {

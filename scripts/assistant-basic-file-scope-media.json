@@ -1,4 +1,22 @@
 {
+  "app/dashboard/_components/StudioExactDialogueEditor.tsx": {
+    "disposition": "basic",
+    "reason": "Éditeur manuel des répliques exactes du Studio, accessible dans le parcours Basique. Chaque contrôle possède un bridge natif borné, lié aux lignes et photos stables du compte courant. Les paroles, le locuteur, l’ordre et les limites sont vérifiés sans génération, fichier, consentement ni écriture chez un fournisseur.",
+    "gateFiles": [
+      "lib/dashboardEdition.ts"
+    ],
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#option:11c47c162c059375:1": {
+        "reason": "Option toujours désactivée : indique une ligne héritée sans locuteur. Ce libellé ne constitue aucune action sélectionnable ; le bridge impose un choix Voix IA ou personnage existant.",
+        "gateAnchor": "<option value=\"unassigned\" disabled>"
+      },
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#option:ffe0c172852d9d4e:1": {
+        "reason": "Option toujours désactivée : signale la disparition d’une photo, sans inventer ni réaffecter le personnage. Le bridge refuse la référence absente.",
+        "gateAnchor": "<option value={`character:${row.characterId}`} disabled>"
+      }
+    }
+  },
   "app/dashboard/_components/DashboardBoosterModalLayer.tsx": {
     "disposition": "basic",
     "reason": "Revue explicite des sorties Booster : la confirmation commune protège Fermer, Échap, retour et navigation tant que la publication est inachevée, même après enregistrement/rechargement du brouillon et à travers les surcouches. Échap reste géré par l’éditeur enfant lorsqu’il est ouvert ; les résultats terminaux conservent leurs handlers natifs. Aucun envoi ajouté.",
@@ -63,7 +81,7 @@
   },
   "app/dashboard/_components/MediaFreeGenerator.tsx": {
     "disposition": "basic",
-    "reason": "Revue explicite sujets Booster/ADN : contexte éditorial transmis uniquement pour le sujet hérité inchangé ; aucun nouveau contrôle ni changement des droits, devis, consentements, confirmations ou effets natifs. Le sujet reste modifiable et une réinitialisation retire le contexte hérité. Les tests du formulaire, des requêtes et de leur idempotence vérifient ce contrat.",
+    "reason": "Revue explicite Studio Libre : éditeur Exact par lignes avec locuteur numéroté, liaison stable photo/vocal, préservation du brouillon lors du retour à Automatiques et de la voix off réelle sans photo. Les autres contrôles natifs sont indisponibles derrière le dialogue ouvert. Le sujet Booster conserve son contexte seulement tant qu’il est inchangé ; reset retire ce contexte. Droits, devis, crédits et consentements restent natifs, aucune génération implicite. Ancien textarea global supprimé et setter caché refusé.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],

@@ -11,6 +11,7 @@ import {
 import { normalizeAiMediaVideoEngine } from "../../lib/aiMediaModelCatalog.ts";
 import * as models from "../../lib/aiMediaModelCatalog.ts";
 import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
+import * as exactDialogue from "../../lib/aiMediaExactDialogue.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 import { assertAiVideoReferenceTeamProviderEgress } from "../../lib/aiVideoProviderTypes.ts";
@@ -48,6 +49,7 @@ function quoteServer() {
     if (id === "server-only") return {};
     if (id === "node:crypto") return crypto;
     if (id === "./aiMediaCreditsPricing.ts") return pricing;
+    if (id === "./aiMediaExactDialogue.ts") return exactDialogue;
     if (id === "./aiMediaCharacterVoices.ts") return characterVoices;
     if (id === "./aiMediaModelCatalog.ts") return models;
     throw new Error(`Unisolated quote dependency: ${id}`);

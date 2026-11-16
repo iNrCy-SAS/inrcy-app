@@ -1115,6 +1115,7 @@ export default function useMediaGeneration() {
             freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
             publicationSubject: request.creationMode === "free" && request.kind === "image" ? request.publicationSubject : undefined,
             spokenScript: request.creationMode === "free" && request.kind === "video" ? request.spokenScript : undefined,
+            ...(request.creationMode === "free" && request.kind === "video" && request.exactDialogue !== undefined ? { exactDialogue: request.exactDialogue } : {}),
             withSubtitles: request.creationMode === "free" && request.kind === "video" ? request.withSubtitles === true : undefined,
             useBusinessDna: request.creationMode === "free" ? request.useBusinessDna === true : undefined,
             operation: request.operation || "generate",
@@ -1250,6 +1251,7 @@ export default function useMediaGeneration() {
                   role: image.role,
                   usage: image.usage,
                   characterIndex: image.characterIndex,
+                  characterName: image.role === "character" ? image.characterName : undefined,
                   voiceMode: request.kind === "video" && image.role === "character" ? image.voiceMode || "ai" : undefined,
                   voiceSample: request.kind === "video" && isProvidedCharacterVoice(image) ? image.voiceSample : undefined,
                 }))

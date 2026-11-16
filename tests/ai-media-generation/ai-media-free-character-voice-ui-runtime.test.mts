@@ -12,6 +12,9 @@ import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as narration from "../../lib/aiMediaNarrationVoices.ts";
 import * as rules from "../../lib/mediaRules.ts";
 import * as voiceRules from "../../lib/aiMediaCharacterVoices.ts";
+import * as localInterface from "../../lib/inrAssistantLocalInterface.ts";
+import * as exactEditor from "../../lib/mediaExactDialogueEditor.ts";
+import * as exactSelection from "../../lib/inrAssistantStudioExactDialogue.ts";
 import * as voiceClient from "../../lib/aiMediaCharacterVoiceClient.ts";
 import * as soundtracks from "../../lib/mediaSoundtrackSelection.ts";
 import { quoteAiMediaCredits, type AiMediaCreditsQuoteInput } from "../../lib/aiMediaCreditsPricing.ts";
@@ -107,17 +110,17 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     ["@/lib/aiMediaGenerationContracts", contracts], ["@/lib/aiMediaNarrationVoices", narration], ["@/lib/mediaRules", rules],
     ["@/lib/aiMediaVideoSpeechBudget", speechBudget],
     ["@/lib/aiMediaModelCatalog", models], ["@/lib/aiMediaVideoTimeline", timeline], ["@/lib/aiMediaVideoClientOptions", videoOptions],
-    ["@/lib/aiMediaCharacterVoices", voiceRules], ["@/lib/aiMediaCharacterVoiceClient", { ...voiceClient, deleteCharacterVoiceSample: async (value: voiceRules.AiMediaCharacterVoiceSample | undefined) => { if (value) deleted.push(value.path); } }],
+    ["@/lib/aiMediaCharacterVoices", voiceRules], ["@/lib/inrAssistantLocalInterface", localInterface], ["@/lib/mediaExactDialogueEditor",exactEditor], ["@/lib/inrAssistantStudioExactDialogue",exactSelection], ["@/lib/aiMediaCharacterVoiceClient", { ...voiceClient, deleteCharacterVoiceSample: async (value: voiceRules.AiMediaCharacterVoiceSample | undefined) => { if (value) deleted.push(value.path); } }],
     ["@/lib/mediaSoundtrackSelection", soundtracks],
     ["@/lib/aiMediaCharacterVoiceRecorderClient", { beginCharacterVoiceRecording() { assert.fail("These tests never activate a microphone"); }, CharacterVoiceRecorderUnavailableError: class extends Error {} }],
     ["@/lib/mediaGenerationReferenceClient", { prepareMediaGenerationImageReference: async (file: File) => ({ name: file.name, data: Buffer.from("synthetic-photo").toString("base64"), mimeType: "image/png" }) }],
     ["@/lib/aiMediaModelRecommendation", { recommendAiMediaModel: () => null }],
     ["../_hooks/useMediaEnginePreference", { __esModule: true, default: () => preference }],
-    ["../_hooks/useMediaCreditQuote", { __esModule: true, default: (input: Props, _quota: unknown, enabled: boolean) => { quoteInputs.push({ ...input, enabled }); const quote = options.realEnginePreference ? quoteAiMediaCredits(input as AiMediaCreditsQuoteInput) : { totalCredits: 88 }; return { ready: true, insufficient: false, authorization: { expectedCredits: quote.totalCredits }, quote }; } }],
+    ["../_hooks/useMediaCreditQuote", { __esModule: true, default: (input: Props, _quota: unknown, enabled: boolean) => { quoteInputs.push({ ...input, enabled }); const quote = options.realEnginePreference && enabled ? quoteAiMediaCredits(input as AiMediaCreditsQuoteInput) : { totalCredits: 88 }; return { ready: true, insufficient: false, authorization: { expectedCredits: quote.totalCredits }, quote }; } }],
     ["./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings-tabs" }],
   ]);
   for (const name of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaPromptHelp", "./MediaBusinessDnaHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceLibraryPicker"]) modules.set(name, { __esModule: true, default: name });
-  class FakeElement { isConnected = true; focus() { document.activeElement = this; } click() {} pause() {} showModal() {} close() {} getBoundingClientRect() { return { left: 0, top: 0, right: 560, bottom: 560 }; } }
+  class FakeElement { isConnected = true; focus() { document.activeElement = this; } click() {} pause() {} showModal() {} close() {} querySelector() { return null; } getBoundingClientRect() { return { left: 0, top: 0, right: 560, bottom: 560 }; } }
   const document = { body: {}, activeElement: null as FakeElement | null };
   const commitRefs = (child: Element) => { for (const node of elements(child)) if (typeof node.type === "string" && node.props.ref && typeof node.props.ref === "object") { const ref = node.props.ref as { current: unknown }; ref.current ||= new FakeElement(); } };
   const browser = { matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }), addEventListener(name: string, callback: () => void) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name)!.add(callback); }, removeEventListener(name: string, callback: () => void) { listeners.get(name)?.delete(callback); }, requestAnimationFrame() { return 1; }, setTimeout, clearTimeout };
@@ -150,13 +153,14 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   const voice = load("app/dashboard/_components/MediaCharacterVoiceInput.tsx"); modules.set("./MediaCharacterVoiceInput", { __esModule: true, ...voice });
   const music = load("app/dashboard/_components/StudioMusicLibrary.tsx"); modules.set("./StudioMusicLibrary", { __esModule: true, ...music });
   const pool = load("app/dashboard/_components/StudioVoicePool.tsx"); modules.set("./StudioVoicePool", { __esModule: true, ...pool });
+  const exact = load("app/dashboard/_components/StudioExactDialogueEditor.tsx"); modules.set("./StudioExactDialogueEditor", { __esModule:true,...exact });
   const controls = load("app/dashboard/_components/MediaEngineCreditControls.tsx"); modules.set("./MediaEngineCreditControls", { __esModule: true, ...controls });
   if (options.realEnginePreference) modules.set("../_hooks/useMediaEnginePreference", { __esModule: true, ...load("app/dashboard/_hooks/useMediaEnginePreference.ts") });
   const free = load("app/dashboard/_components/MediaFreeGenerator.tsx");
   const props = { source: "studio", acceptMode: "library", mediaType: kind, initialPrompt: options.initialPrompt ?? "Le personnage présente son métier avec sa voix.", onAccepted() {} };
   const render = () => {
     let count = 0;
-    do { assert.ok(++count < 20); slots = parentSlots; cursor = 0; dirty = false; tree = free.default(props); if (kind === "video") renderPool(); for (const effect of effects.splice(0)) effect(); } while (dirty);
+    do { assert.ok(++count < 20); slots = parentSlots; cursor = 0; dirty = false; tree = free.default(props); if (kind === "video") { renderPool(); renderExact(); } for (const effect of effects.splice(0)) effect(); } while (dirty);
     return tree;
   };
   const renderChild = (id: string, component: { default: (props: Props) => Element }, input: Props, commit?: (child: Element) => void) => {
@@ -185,7 +189,15 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     rendered = elements(tree).filter(node => node.props["data-reference-id"]);
     return rendered;
   };
-  let poolTree: Element, voiceTree: Element;
+  let poolTree: Element, voiceTree: Element, exactTree: Element | null = null;
+  const renderExact=()=>{
+    const node=elements(tree).find(item=>item.type===exact.default);
+    if(node)exactTree=renderChild('exact',exact,node.props,commitRefs);
+    else {exactTree=null;nativeEntries.delete('studio_exact_dialogue');}
+  };
+  const closeExact=()=>{if(!exactTree)return;const dialog=find(exactTree,node=>node.type==='dialog');(dialog.props.onCancel as(event:unknown)=>void)({preventDefault(){},stopPropagation(){}});render();};
+  const openExact=()=>{if(nativeEntries.get('studio_voice_pool')?.snapshot.open)closePool();closeSettings();if(!exactTree)return;if(nativeEntries.get('studio_exact_dialogue')?.snapshot.open)return;const button=find(exactTree,node=>node.props['data-exact-dialogue-settings']!==undefined);assert.equal(button.props.disabled,false);(button.props.onClick as()=>void)();render();};
+  const setExactSpeaker=(index:number,value:string)=>{openExact();const select=elements(exactTree).filter(node=>node.type==='select')[index];assert.ok(select);assert.equal(select.props.disabled,false);(select.props.onChange as(event:unknown)=>void)({target:{value}});render();closeExact();};
   const renderPool = () => {
     const node = find(tree, item => item.type === pool.default);
     poolTree = renderChild("pool", pool, node.props, commitRefs);
@@ -251,7 +263,11 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     deferMusicPlay() { musicPlaybackDeferred = true; }, finishMusicPlay() { finishMusicPlayback?.(); musicPlaybackDeferred = false; },
     mountedInterfaces: () => [...nativeEntries.keys()],
     storedEnginePreference: () => JSON.parse(localStorage.getItem(preferenceKey) || "null") as Props,
-    renderVoice, poolTree: () => poolTree, voiceTree: () => voiceTree, closePool,
+    renderVoice, poolTree: () => poolTree, voiceTree: () => voiceTree, closePool, exactTree:()=>exactTree,openExact,closeExact,setExactSpeaker,
+    setExactCharacter(index:number,characterIndex:number) {const snapshot=nativeEntries.get('studio_exact_dialogue')!.snapshot;const character=(snapshot.characters as Array<{id:string,characterIndex:number}>).find(item=>item.characterIndex===characterIndex);assert.ok(character);setExactSpeaker(index,`character:${character.id}`);},
+    addExactRow() {openExact();const button=find(exactTree,node=>node.props['data-exact-dialogue-add']!==undefined);assert.equal(button.props.disabled,false);(button.props.onClick as()=>void)();render();closeExact();},
+    setExactText(index:number,value:string) {openExact();const input=elements(exactTree).filter(node=>node.type==='textarea')[index];assert.ok(input);(input.props.onChange as(event:unknown)=>void)({target:{value}});render();closeExact();},
+    exactNative:()=>nativeEntries.get('studio_exact_dialogue')!,
     poolNative: () => nativeEntries.get("studio_voice_pool")!,
     formNative: () => nativeEntries.get("studio_free_form")!,
     audioNative: () => nativeEntries.get("studio_video_audio")!,
@@ -294,12 +310,14 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     async invokeGenerateCallback() { await (find(tree, node => node.type === "preview").props.handleGenerate as () => Promise<void>)(); await flush(); },
     addSpeech() { const menu = find(tree, (node) => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode")); if (!menu.props.disabled) (menu.props.onChange as (event: unknown) => void)({ target: { value: "exact" } }); render(); },
     enterSpeech(value: string) {
-      if (!elements(tree).some(node => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script"))) {
+      if(nativeEntries.get('studio_voice_pool')?.snapshot.open)closePool();closeSettings();
+      if (!exactTree) {
         const menu = find(tree, node => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode"));
         assert.equal(menu.props.disabled, false);
         (menu.props.onChange as (event: unknown) => void)({ target: { value: "exact" } }); render();
       }
-      const input = find(tree, (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script")); assert.equal(input.props.disabled, false); (input.props.onChange as (event: unknown) => void)({ target: { value } }); render();
+      openExact();
+      const input = find(exactTree, (node) => node.type === 'textarea'); assert.equal(input.props.disabled, false); (input.props.onChange as (event: unknown) => void)({ target: { value } }); render();closeExact();
     },
     removeSpeech() { const menu = find(tree, (node) => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode")); (menu.props.onChange as (event: unknown) => void)({ target: { value: "automatic" } }); render(); },
     setSubtitles(checked: boolean) { const input = find(tree, (node) => node.props["data-media-subtitles"] !== undefined); if (!input.props.disabled) (input.props.onChange as (event: unknown) => void)({ target: { checked } }); render(); },
@@ -500,7 +518,7 @@ test("a second independent vocal preserves an occupied character assignment and 
     await h.selectVocalFile(new File(["wav"], "second.wav", { type: "audio/wav" }));
     const profiles = h.poolNative().snapshot.profiles as Array<{ id: string; target: unknown }>;
     assert.equal(profiles.length, 2); assert.deepEqual(profiles[0].target, first.target); assert.equal(profiles[1].target, null, "a new source cannot silently compete for an already occupied photo");
-    assert.deepEqual(h.deleted, []); h.closePool(); h.enterSpeech("Bonjour, bienvenue dans notre atelier."); h.consent(); await h.generate();
+    assert.deepEqual(h.deleted, []); h.closePool(); h.enterSpeech("Bonjour, bienvenue dans notre atelier."); h.setExactCharacter(0,1); h.consent(); await h.generate();
     assert.equal(h.requests.length, 1); assert.equal(h.requests[0].inspirationImages![0].voiceSample!.path, h.uploadedSamples[0].path); assert.notEqual(h.uploadedSamples[0].path, h.uploadedSamples[1].path);
   } finally { h.dispose(); }
 });
@@ -526,8 +544,8 @@ test("the real voiceover pool accepts a vocal without a photo and keeps new Exac
       await h.generate(); assert.equal(h.requests.length, 1);
       const request = h.requests[0]; assert.equal(request.narrationVoiceMode, "provided"); assert.equal(request.narrationVoiceSample!.path, h.sample.path);
       assert.equal(request.narrationVoiceConsent, true); assert.equal(request.narrationVoiceGender, "male"); assert.equal(request.withNarration, true); assert.equal(request.withSubtitles, true);
-      assert.equal(request.inspirationImages?.length ?? 0, 0); assert.equal(Object.hasOwn(request, "spokenScript"), speech === "exact");
-      if (speech === "exact") assert.equal(request.spokenScript, words, "the source vocal is a reference for new words rather than a replay request");
+      assert.equal(request.inspirationImages?.length ?? 0, 0); assert.equal(Object.hasOwn(request, "spokenScript"), false); assert.equal(Object.hasOwn(request, "exactDialogue"), speech === "exact");
+      if (speech === "exact") assert.deepEqual(request.exactDialogue, [{speaker:"provided_voice",text:words}], "the source vocal is a reference for new words rather than a replay request");
       assert.deepEqual(h.deleted, []);
     } finally { h.dispose(); }
   }
@@ -572,21 +590,16 @@ test("the real three-menu voice flow binds supplied audio to the selected photo 
   } finally { h.dispose(); }
 });
 
-test("provided voice with Exact empty preserves the draft and blocks quote and generation until the professional chooses Auto or supplies speech", async () => {
-  for (const resolution of ["auto", "exact"]) {
-    const h = harness("video", "minimax-h3", 2, { realEnginePreference: true });
-    try {
-      await h.addPhoto("Moi.png", "character"); h.chooseVoice(0, "provided"); await h.uploadVoice(0); h.addSpeech(); h.enterSpeech("");
-      assert.equal(h.voiceSnapshot().spokenScriptOpen, true); assert.equal(h.voiceSnapshot().spokenScript, ""); assert.equal(h.quoteInputs.at(-1)!.enabled, false);
-      assert.equal(find(h.tree(), node => node.props["data-video-voice-script-warning"] !== undefined).props.role, "alert");
-      h.consent(); await h.invokeGenerateCallback(); assert.equal(h.requests.length, 0); assert.equal(h.uploads.length, 1);
-      assert.equal(h.quoteInputs.at(-1)!.videoEngine, "wan27"); assert.equal(h.storedEnginePreference().videoEngine, "minimax-h3", "a temporary compatible recommendation preserves the saved preference");
-      if (resolution === "auto") h.removeSpeech(); else h.enterSpeech("Bonjour, bienvenue chez nous.");
-      assert.equal(h.quoteInputs.at(-1)!.enabled, true); assert.equal(h.voiceSnapshot().voiceReferences[0].voiceMode, "provided");
-      h.consent(); await h.generate(); assert.equal(h.requests.length, 1); assert.equal(h.requests[0].withNarration, false); assert.equal(h.requests[0].inspirationImages![0].voiceSample!.path, h.sample.path);
-      assert.equal(Object.hasOwn(h.requests[0], "spokenScript"), resolution === "exact");
-    } finally { h.dispose(); }
-  }
+test("provided voice with Exact empty preserves its photo and blocks spending until Auto or a complete targeted line is chosen", async () => {
+  for(const resolution of ['auto','exact']){const h=harness('video','minimax-h3',2,{realEnginePreference:true});try{
+    await h.addPhoto('Moi.png','character');h.chooseVoice(0,'provided');await h.uploadVoice(0);h.enterSpeech('');h.setExactCharacter(0,1);
+    assert.equal(h.exactNative().snapshot.open,false);assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text,'');assert.equal(h.quoteInputs.at(-1)!.enabled,false);
+    assert.equal(find(h.tree(),node=>node.props['data-video-voice-script-warning']!==undefined).props.role,'alert');h.consent();await h.invokeGenerateCallback();assert.equal(h.requests.length,0);assert.equal(h.uploads.length,1);
+    assert.equal(h.quoteInputs.at(-1)!.videoEngine,models.restoreAiMediaVideoPreference('minimax-h3','768p').videoEngine,'Exact keeps the canonical restored preference rather than selecting a supplied-voice fallback');assert.equal(h.storedEnginePreference().videoEngine,'minimax-h3');
+    if(resolution==='auto')h.removeSpeech();else {h.enterSpeech('Bonjour, bienvenue chez nous.');h.selectEngine('wan27');}
+    assert.equal(h.quoteInputs.at(-1)!.enabled,true);assert.equal(h.voiceSnapshot().voiceReferences[0].voiceMode,'provided');h.consent();await h.generate();assert.equal(h.requests.length,1);assert.equal(h.requests[0].withNarration,false);assert.equal(h.requests[0].inspirationImages![0].voiceSample!.path,h.sample.path);
+    assert.equal(Object.hasOwn(h.requests[0],'spokenScript'),false);assert.equal(Object.hasOwn(h.requests[0],'exactDialogue'),resolution==='exact');
+  }finally{h.dispose();}}
 });
 
 test("unattached supplied-voice intent is cancelled by a new speech choice while attached samples remain linked", async () => {
@@ -651,53 +664,19 @@ test("video visual brief accepts 500 characters and preserves oversized historic
   h.dispose();
 });
 
-test("video speech live budget blocks seven words at four seconds then preserves them when duration and engine change", async () => {
-  const h = harness("video", "wan3"); h.setDuration(4); h.setSound("characters");
-  const script = "un deux trois quatre cinq six sept";
-  h.enterSpeech(script);
-  assert.match(text(h.tree()), /7 \/ 6 mots/);
-  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 0);
-  h.setDuration(8); h.changePreferredVideoEngine("veo");
-  assert.equal(find(h.tree(), node => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script")).props.value, script);
-  assert.match(text(h.tree()), /7 \/ 14 mots/);
-  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 1);
-  assert.equal(h.requests[0].spokenScript, script);
-  assert.equal(h.requests[0].withNarration, false, "character dialogue must still be counted without separate narration");
-  assert.equal(h.requests[0].teamVideoSpeechMode, "characters");
-  h.dispose();
+test("video speech live budget blocks seven words at four seconds then preserves the exact offscreen line when duration and engine change", async()=>{
+ const h=harness('video','wan3');try{h.setDuration(4);const script='un deux trois quatre cinq six sept';h.enterSpeech(script);assert.match(text(h.tree()),/7 \/ 6 mots/);await h.invokeGenerateCallback();assert.equal(h.requests.length,0);
+ h.setDuration(8);h.changePreferredVideoEngine('veo');assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text,script);assert.match(text(h.tree()),/7 \/ 14 mots/);await h.invokeGenerateCallback();assert.equal(h.requests.length,1);assert.deepEqual(h.requests[0].exactDialogue,[{speaker:'ai_voice',text:script}]);assert.equal(h.requests[0].withNarration,true);assert.equal(h.requests[0].teamVideoSpeechMode,'voiceover');
+ }finally{h.dispose();}
 });
 
-test("two real video segments and CJK speech use their own live budgets without truncating exact input", async () => {
-  const h = harness("video", "wan3", 2, { locale: "zh-CN" });
-  h.setDuration(8, "multi"); h.setSound("characters");
-  const script = "你".repeat(37);
-  h.enterSpeech(script);
-  assert.match(text(h.tree()), /37 \/ 36 caractères prononcés/);
-  assert.match(text(h.tree()), /Plan 1 \(4 s\)/);
-  assert.match(text(h.tree()), /Plan 2 \(4 s\)/);
-  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 0);
-  h.setDuration(30);
-  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 1);
-  assert.equal(h.requests[0].spokenScript, script);
-  h.dispose();
+test("CJK exact speech retains its full live duration budget without truncating input",async()=>{
+ const h=harness('video','wan3',2,{locale:'zh-CN'});try{h.setDuration(8,'multi');const script='你'.repeat(37);h.enterSpeech(script);assert.match(text(h.tree()),/37 \/ 36 caractères prononcés/);await h.invokeGenerateCallback();assert.equal(h.requests.length,0);h.setDuration(30);await h.invokeGenerateCallback();assert.equal(h.requests.length,1);assert.deepEqual(h.requests[0].exactDialogue,[{speaker:'ai_voice',text:script}]);}finally{h.dispose();}
 });
 
-test("oral instructions in the visual frame require an explicit speech choice while visible slogans stay visual", async () => {
-  const h = harness();
-  const prompt = 'Le personnage dit : « Bonjour, notre atelier vous accueille. »';
-  h.enterPrompt(prompt);
-  assert.match(text(h.tree()), /Vous avez écrit des paroles dans les consignes visuelles/);
-  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 0);
-  h.enterSpeech("");
-  await h.invokeGenerateCallback(); assert.equal(h.requests.length, 1);
-  assert.equal(h.requests[0].freePrompt, prompt, "a warning never moves or deletes the original wording");
-  assert.equal(h.requests[0].spokenScript, "", "explicit silence stays authoritative over legacy speech");
-  assert.equal(h.requests[0].withNarration, false);
-  h.dispose();
-  const visual = harness(); visual.enterPrompt('Un panneau affiche le slogan « Bienvenue au jardin ».');
-  await visual.invokeGenerateCallback(); assert.equal(visual.requests.length, 1);
-  assert.equal(Object.hasOwn(visual.requests[0], "spokenScript"), false);
-  visual.dispose();
+test("oral instructions in the visual frame require complete explicit dialogue while visible slogans stay visual",async()=>{
+ const h=harness();try{const prompt='Le personnage dit : « Bonjour, notre atelier vous accueille. »';h.enterPrompt(prompt);assert.match(text(h.tree()),/Vous avez écrit des paroles dans les consignes visuelles/);await h.invokeGenerateCallback();assert.equal(h.requests.length,0);h.enterSpeech('');await h.invokeGenerateCallback();assert.equal(h.requests.length,0,'an unfinished row cannot spend credits');h.enterSpeech('Bonjour, notre atelier vous accueille.');await h.invokeGenerateCallback();assert.equal(h.requests.length,1);assert.equal(h.requests[0].freePrompt,prompt);assert.deepEqual(h.requests[0].exactDialogue,[{speaker:'ai_voice',text:'Bonjour, notre atelier vous accueille.'}]);}finally{h.dispose();}
+ const visual=harness();try{visual.enterPrompt('Un panneau affiche le slogan « Bienvenue au jardin ».');await visual.invokeGenerateCallback();assert.equal(visual.requests.length,1);assert.equal(Object.hasOwn(visual.requests[0],'exactDialogue'),false);}finally{visual.dispose();}
 });
 
 test("image creation keeps its original 4000-character brief and never gains video frames", async () => {
@@ -726,74 +705,19 @@ test("the compact Free editor retains both Personne usages and opens the real in
   assert.equal(elements(image.cards()[0]).some((node) => typeof node.type === "function" && String(node.type).includes("MediaCharacterVoiceInput")), false); image.dispose();
 });
 
-test("the optional speech editor keeps exact script separate from the brief in both quote and generation", async () => {
-  const h = harness();
-  const mode = find(h.tree(), (node) => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode"));
-  assert.equal(mode.props.value, "automatic");
-  assert.notEqual(find(h.tree(), (node) => node.props.id === mode.props["aria-controls"]).props.hidden, true);
-  assert.equal(elements(h.tree()).some(node => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script")), false, "automatic speech never presents a text field to fill");
-  h.setSound("characters"); h.changePreferredVideoEngine("veo");
-  assert.notEqual(find(h.tree(), (node) => node.props.id === mode.props["aria-controls"]).props.hidden, true, "both frames remain visible without making speech explicit");
-  assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
-  h.addSpeech();
-  const script = '  Bonjour, je suis Océane.\n« iNrCy », notre application.  ';
-  h.enterSpeech(script);
-  const input = () => find(h.tree(), (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script"));
-  assert.equal(input().props.maxLength, undefined, "pasting exact words never silently truncates them");
-  assert.equal(h.quoteInputs.at(-1)!.spokenScript, script);
-  h.setSound("voiceover"); h.openAudioSettings(); h.setSound("characters"); h.closeSettings();
-  assert.equal(h.audioNative().enabled, false, "AI characters without a selectable person have no empty settings dialog");
-  assert.throws(() => h.audioNative().handlers.open.invoke(null));
-  assert.equal(input().props.value, script, "criteria and speech-mode changes preserve the script");
-  await h.generate();
-  assert.equal(h.requests.length, 1);
-  assert.equal(h.requests[0].spokenScript, script);
-  assert.equal(h.requests[0].freePrompt, "Le personnage présente son métier avec sa voix.");
-  assert.equal(h.requests[0].teamVideoSpeechMode, "characters");
-  h.dispose();
+test("the actual ordered dialogue editor keeps exact words separate from the brief in both quote and generation",async()=>{
+ const h=harness();try{const menu=find(h.tree(),node=>node.type==='select'&&String(node.props.id).endsWith('-spoken-script-mode'));assert.equal(menu.props.value,'automatic');assert.equal(elements(h.tree()).some(node=>node.type==='textarea'&&String(node.props.id).endsWith('-spoken-script')),false);assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!,'exactDialogue'),false);
+ h.changePreferredVideoEngine('veo');const script='  Bonjour, je suis Océane.\n« iNrCy », notre application.  ';h.enterSpeech(script);h.openExact();const input=find(h.exactTree(),node=>node.type==='textarea');assert.equal(input.props.maxLength,undefined);assert.equal(input.props.value,script);h.closeExact();assert.deepEqual(h.quoteInputs.at(-1)!.exactDialogue,[{speaker:'ai_voice',text:script}]);assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!,'spokenScript'),false);
+ h.openAudioSettings();assert.equal(h.audioNative().snapshot.open,true);h.closeSettings();assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text,script);await h.generate();assert.equal(h.requests.length,1);assert.deepEqual(h.requests[0].exactDialogue,[{speaker:'ai_voice',text:script}]);assert.equal(h.requests[0].freePrompt,'Le personnage présente son métier avec sa voix.');assert.equal(h.requests[0].teamVideoSpeechMode,'voiceover');
+ }finally{h.dispose();}
 });
 
-test("a closed speech editor omits the field while an explicitly opened empty editor sends exact empty speech", async () => {
-  for (const script of ["", " \n\t "]) {
-    const h = harness();
-    assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
-    h.addSpeech(); h.enterSpeech(script);
-    assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), true);
-    assert.equal(h.quoteInputs.at(-1)!.spokenScript, script);
-    assert.equal(h.quoteInputs.at(-1)!.withNarration, false);
-    assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode, "voiceover");
-    assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
-    h.openAudioSettings();
-    const settings = elements(h.tree()).find(node => typeof node.type === "function" && node.type.name === "MediaSettingsDialog")!;
-    assert.equal(elements(settings).filter(node => node.type === "select").length, 2, "an empty exact script keeps both voice preferences editable");
-    h.closeSettings();
-    await h.generate();
-    assert.equal(Object.hasOwn(h.requests[0], "spokenScript"), true);
-    assert.equal(h.requests[0].spokenScript, script);
-    assert.equal(h.requests[0].withNarration, false);
-    assert.equal(h.requests[0].teamVideoSpeechMode, "voiceover");
-    assert.equal(h.requests[0].withSubtitles, false);
-    h.removeSpeech();
-    assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
-    h.dispose();
-  }
+test("an unfinished Exact row remains editable and blocks spending instead of submitting empty dialogue",async()=>{
+ for(const script of ['',' \n\t ']){const h=harness();try{assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!,'exactDialogue'),false);h.enterSpeech(script);assert.equal(h.quoteInputs.at(-1)!.enabled,false);h.openExact();assert.equal(find(h.exactTree(),node=>node.type==='textarea').props.value,script);h.closeExact();h.openAudioSettings();const settings=elements(h.tree()).find(node=>typeof node.type==='function'&&node.type.name==='MediaSettingsDialog')!;assert.equal(elements(settings).filter(node=>node.type==='select').length,2);h.closeSettings();await h.invokeGenerateCallback();assert.equal(h.requests.length,0);h.removeSpeech();assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!,'exactDialogue'),false);assert.equal(h.quoteInputs.at(-1)!.enabled,true);}finally{h.dispose();}}
 });
 
-test("empty speech temporarily silences the request while retaining the professional’s voice and subtitle choices", () => {
-  const h = harness(); h.setSound("characters"); h.setSubtitles(true); h.addSpeech();
-  assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
-  assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode, "voiceover");
-  assert.equal(find(h.tree(), (node) => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode")).props.value, "characters");
-  h.enterSpeech("Bienvenue chez nous.");
-  assert.equal(h.quoteInputs.at(-1)!.withSubtitles, true);
-  assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode, "characters");
-  h.enterSpeech("");
-  assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
-  assert.equal(h.quoteInputs.at(-1)!.withNarration, false);
-  h.removeSpeech();
-  assert.equal(h.quoteInputs.at(-1)!.withSubtitles, true);
-  assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode, "characters");
-  h.dispose();
+test("Exact rows define their own speaker while retaining Auto voice and subtitle preferences",()=>{
+ const h=harness();try{h.setSound('characters');h.setSubtitles(true);h.enterSpeech('');assert.equal(h.quoteInputs.at(-1)!.enabled,false);assert.equal(h.quoteInputs.at(-1)!.withSubtitles,false);assert.equal(elements(h.tree()).some(node=>node.type==='select'&&String(node.props.id).endsWith('-video-speech-mode')),false,'the conflicting Auto control is absent');h.enterSpeech('Bienvenue chez nous.');assert.equal(h.quoteInputs.at(-1)!.withSubtitles,true);assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode,'voiceover','the row is an explicit offscreen narrator');h.enterSpeech('');assert.equal(h.quoteInputs.at(-1)!.withSubtitles,false);h.removeSpeech();assert.equal(h.quoteInputs.at(-1)!.withSubtitles,true);assert.equal(h.quoteInputs.at(-1)!.teamVideoSpeechMode,'characters');}finally{h.dispose();}
 });
 
 test("the real subtitle checkbox keeps its explicit preference visible and editable while Exact is empty without enabling empty captions", async () => {
@@ -817,39 +741,22 @@ test("the real subtitle checkbox keeps its explicit preference visible and edita
       }
       assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false);
       await h.generate();
-      assert.equal(h.requests.length, 1); assert.equal(h.requests[0].spokenScript, "");
-      assert.equal(h.requests[0].withSubtitles, false, "no captions are submitted without speech even when the preference is on");
+      assert.equal(h.requests.length, 0, "empty rows never launch generation");
+      assert.equal(h.quoteInputs.at(-1)!.withSubtitles, false, "no captions are budgeted without speech even when the preference is on");
       h.enterSpeech("Bienvenue chez nous.");
       assert.equal(control().props.checked, selected);
       assert.equal(h.quoteInputs.at(-1)!.withSubtitles, selected);
       await h.generate();
-      assert.equal(h.requests.length, 2); assert.equal(h.requests[1].withSubtitles, selected);
-      assert.equal(h.requests[1].spokenScript, "Bienvenue chez nous.");
+      assert.equal(h.requests.length, 1); assert.equal(h.requests[0].withSubtitles, selected);
+      assert.deepEqual(h.requests[0].exactDialogue, [{speaker:"ai_voice",text:"Bienvenue chez nous."}]);
       h.setLocked(true); assert.equal(control().props.disabled, true);
       h.setSubtitles(!selected); assert.equal(control().props.checked, selected, "the existing operation lock still protects the preference");
     } finally { h.dispose(); }
   }
 });
 
-test("removing speech clears the optional payload and permits no-speech mode without hidden text", async () => {
-  const h = harness(); h.addSpeech(); h.enterSpeech("Bonjour, bienvenue chez nous.");
-  const silent = () => find(h.tree(), (node) => node.type === "option" && node.props.value === "silent");
-  const sound = () => find(h.tree(), node => node.type === "select" && String(node.props.id).endsWith("-video-speech-mode"));
-  assert.equal(silent().props.disabled, true);
-  h.setSound("silent");
-  assert.notEqual(sound().props.value, "silent", "even a stale event cannot discard active speech");
-  assert.equal(h.quoteInputs.at(-1)!.spokenScript, "Bonjour, bienvenue chez nous.");
-  h.removeSpeech();
-  assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
-  h.setSound("silent");
-  assert.equal(sound().props.value, "silent");
-  assert.equal(find(h.tree(), node => node.type === "select" && String(node.props.id).endsWith("-spoken-script-mode")).props.disabled, true, "the persistent speech menu cannot activate contradictory speech in silent mode");
-  assert.equal(find(h.tree(), node => node.type === "select" && String(node.props.id).endsWith("-video-voice-mode")).props.disabled, true, "the persistent voice menu is disabled in silent mode");
-  assert.equal(sound().props.disabled, false, "the compact audio selector remains available in silent mode");
-  await h.generate();
-  assert.equal(h.requests.length, 1);
-  assert.equal(Object.hasOwn(h.requests[0], "spokenScript"), false);
-  h.dispose();
+test("returning to Auto omits Exact rows while retaining them for a later explicit return",async()=>{
+ const h=harness();try{h.enterSpeech('Bonjour, bienvenue chez nous.');assert.equal(elements(h.tree()).some(node=>node.type==='option'&&node.props.value==='silent'),false);assert.throws(()=>h.formNative().handlers.select.invoke(JSON.stringify({field:'speechMode',value:'silent'})));assert.deepEqual(h.quoteInputs.at(-1)!.exactDialogue,[{speaker:'ai_voice',text:'Bonjour, bienvenue chez nous.'}]);h.removeSpeech();assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!,'exactDialogue'),false);h.setSound('silent');assert.equal(find(h.tree(),node=>node.type==='select'&&String(node.props.id).endsWith('-video-voice-mode')).props.disabled,true);await h.generate();assert.equal(h.requests.length,1);assert.equal(Object.hasOwn(h.requests[0],'exactDialogue'),false);h.addSpeech();assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text,'Bonjour, bienvenue chez nous.');assert.equal(h.quoteInputs.at(-1)!.withNarration,true,'the explicit row overrides a hidden old silent state');}finally{h.dispose();}
 });
 
 test("account changes erase speech and image creation never offers or submits it", async () => {
@@ -858,7 +765,7 @@ test("account changes erase speech and image creation never offers or submits it
   assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
   assert.notEqual(find(h.tree(), (node) => String(node.props.id).endsWith("-spoken-script-panel")).props.hidden, true);
   h.addSpeech();
-  assert.equal(find(h.tree(), (node) => node.type === "textarea" && String(node.props.id).endsWith("-spoken-script")).props.value, "");
+  assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text, "");
   h.dispose();
   const image = harness("image");
   assert.equal(elements(image.tree()).some((node) => String(node.props.id).includes("spoken-script")), false);
@@ -990,7 +897,7 @@ test("the real hydrated MiniMax preference persists automatic supplied-voice Wan
   await h.addPhoto("photo-jim.png"); h.criteria(0, "character", "required"); h.chooseVoice(0, "provided"); await h.uploadVoice(0);
   assert.equal(h.quoteInputs.at(-1)!.videoEngine, "wan27");
   assert.equal(h.storedEnginePreference().videoEngine, "minimax-h3", "the automatic compatible recommendation must not overwrite a saved engine before a user choice");
-  h.enterSpeech(script); h.setDuration(10); h.consent();
+  h.enterSpeech(script); h.setExactCharacter(0,1); h.setDuration(10); h.consent();
   const authorization = () => find(h.tree(), node => node.type === "input" && String(node.props.id).endsWith("-authorization"));
   assert.equal(authorization().props.checked, true);
   h.selectEngine("wan27", "1080p"); await h.flush();
@@ -1002,12 +909,12 @@ test("the real hydrated MiniMax preference persists automatic supplied-voice Wan
   h.setDuration(8); h.setDuration(10); await h.flush();
   const quote = h.quoteInputs.at(-1)!;
   assert.equal(quote.videoEngine, "wan27"); assert.equal(quote.videoResolution, "1080p");
-  assert.equal(quote.durationSeconds, 10); assert.equal(quote.spokenScript, script); assert.equal(quote.hasProvidedCharacterVoice, true);
+  assert.equal(quote.durationSeconds, 10); assert.deepEqual(quote.exactDialogue, [{speaker:"character",characterIndex:1,text:script}]); assert.equal(quote.hasProvidedCharacterVoice, true);
   assert.equal(quoteAiMediaCredits(quote as AiMediaCreditsQuoteInput).totalCredits, 157);
   h.consent(); await h.generate();
   assert.equal(h.requests.length, 1);
   assert.equal(h.requests[0].videoEngine, "wan27"); assert.equal(h.requests[0].videoResolution, "1080p");
-  assert.equal(h.requests[0].expectedCredits, 157); assert.equal(h.requests[0].spokenScript, script);
+  assert.equal(h.requests[0].expectedCredits, 157); assert.deepEqual(h.requests[0].exactDialogue, [{speaker:"character",characterIndex:1,text:script}]);
   assert.equal(h.requests[0].inspirationImages![0].voiceSample?.path, h.sample.path);
   assert.equal(h.requests[0].identityConsent, true);
   h.dispose();
@@ -1072,6 +979,72 @@ test("assigned pool voices enable two-character generation without an active cha
       assert.equal(h.requests[0].spokenScript, undefined, "automatic words remain automatic");
     } finally { h.dispose(); }
   }
+});
+
+test("Basic character naming commits only its assigned photo and acknowledges the same profile identity and account without voice or consent effects", async () => {
+  const h = harness("video", "kling", 16);
+  try {
+    h.beginReferenceAddition("character");
+    await h.selectReferenceFiles([new File(["photo"], "first-photo.png", { type: "image/png" }), new File(["photo"], "second-photo.png", { type: "image/png" })]);
+    h.setSound("characters"); h.chooseMainVoice("provided"); await h.importNarrator(); await h.importNarrator();
+    for (let index = 0; index < 2; index++) {
+      h.poolNative().handlers.open.invoke(`voice:${index}`); h.render();
+      h.poolNative().handlers.select.invoke(`target:${index}:reference:${index}`); h.render();
+    }
+    h.poolNative().handlers.open.invoke("voice:0"); h.render();
+    let entry = h.poolNative();
+    const beforeProfiles = structuredClone(entry.snapshot.profiles);
+    const paths = h.uploadedSamples.map(sample => sample.path);
+    const value = JSON.stringify({ field: "characterName", referenceIndex: 0, value: "Alex" });
+    const select = entry.handlers.select;
+    select.invoke(value);
+    assert.equal(select.matches(entry.snapshot, value), false, "a requested label is not acknowledged before the rendered state commits");
+    h.render(); entry = h.poolNative();
+    assert.equal(select.matches(entry.snapshot, value), true);
+    const characters = entry.snapshot.characters as Array<{ id: string; referenceIndex: number; characterName?: string }>;
+    assert.deepEqual(characters.map(character => character.characterName || ""), ["Alex", ""]);
+    assert.deepEqual(entry.snapshot.profiles, beforeProfiles, "naming a photo never changes either vocal assignment or profile");
+    for (const referenceIndex of [1, 4]) assert.throws(() => entry.handlers.select.invoke(JSON.stringify({ field: "characterName", referenceIndex, value: "Autre" })), /studio_character_name_unavailable/);
+    assert.equal(select.matches({ ...entry.snapshot, scopeKey: "account-b" }, value), false);
+    assert.equal(select.matches({ ...entry.snapshot, editingId: "another-profile" }, value), false);
+    assert.equal(select.matches({ ...entry.snapshot, characters: characters.map(character => character.referenceIndex === 0 ? { ...character, id: "replacement-photo" } : character) }, value), false);
+    assert.equal(select.matches({ ...entry.snapshot, characters: characters.map(character => character.referenceIndex === 0 ? { ...character, referenceIndex: 3 } : character) }, value), false);
+    assert.equal(select.matches({ ...entry.snapshot, profiles: (entry.snapshot.profiles as Array<Props>).map(profile => ({ ...profile, target: null })) }, value), false);
+    h.setLocked(true); entry = h.poolNative(); assert.equal(entry.locked, true);
+    assert.throws(() => entry.handlers.select.invoke(value), /studio_voice_pool_unavailable/);
+    h.setLocked(false); entry = h.poolNative();
+    entry.handlers.open.invoke("voice:1"); h.render(); entry = h.poolNative();
+    assert.throws(() => entry.handlers.select.invoke(JSON.stringify({ field: "characterName", referenceIndex: 1, value: "Alex" })), /studio_character_name_unavailable/, "an existing person's label cannot silently identify another photo");
+    assert.deepEqual(entry.snapshot.profiles, beforeProfiles);
+    assert.deepEqual(h.uploadedSamples.map(sample => sample.path), paths);
+    const authorization = find(h.tree(), node => node.props["data-media-final-authorization"] !== undefined);
+    assert.equal(find(authorization, node => node.type === "input").props.checked, false);
+    assert.deepEqual(h.deleted, []); assert.equal(h.uploads.length, 2); assert.equal(h.requests.length, 0);
+    h.changeMusicAccount("account-b"); entry = h.poolNative();
+    assert.equal(entry.snapshot.scopeKey, "account-b");
+    assert.equal(select.matches(entry.snapshot, value), false, "a label from the previous account cannot acknowledge in the new account");
+    assert.equal(h.requests.length, 0);
+  } finally { h.dispose(); }
+});
+
+test("the real optional name field stays on its assigned photo and reaches generation without changing either library vocal",async()=>{
+ const h=harness("video","kling",16);
+ try{
+  h.beginReferenceAddition("character");
+  await h.selectReferenceFiles([new File(["photo"],"first-photo.png",{type:"image/png"}),new File(["photo"],"second-photo.png",{type:"image/png"})]);
+  h.setSound("characters");h.chooseMainVoice("provided");await h.importNarrator();await h.importNarrator();
+  for(let index=0;index<2;index++){
+   h.poolNative().handlers.open.invoke(`voice:${index}`);h.render();
+   h.poolNative().handlers.select.invoke(`target:${index}:reference:${index}`);h.render();
+   const input=find(h.poolTree(),node=>node.props["data-character-name-input"]!==undefined);
+   (input.props.onChange as(event:unknown)=>void)({target:{value:index===0?"Alex":"Léa"}});h.render();
+  }
+  h.closePool();h.consent();await h.generate();
+  assert.equal(h.requests.length,1);
+  assert.deepEqual(h.requests[0].inspirationImages!.map(reference=>reference.characterName),["Alex","Léa"]);
+  assert.deepEqual(h.requests[0].inspirationImages!.map(reference=>reference.voiceSample?.path),h.uploadedSamples.map(sample=>sample.path));
+  assert.deepEqual(h.deleted,[]);
+ }finally{h.dispose();}
 });
 
 test("one explicit footer authorization covers two required people and their distinct voices on every supported engine", async () => {
@@ -1258,4 +1231,19 @@ test("switching back to AI restores regular engines, and pending voice uploads l
   assert.equal(find(h.tree(), (node) => node.type === "textarea").props.disabled, true);
   h.changeAccount(); assert.equal(h.cards().length, 0); h.finishVoiceUpload(); await pending;
   assert.equal(h.cards().length, 0); assert.equal(h.requests.length, 0); h.dispose();
+});
+
+
+test("two supplied voices follow their stable photos in real Exact rows despite a hidden old voiceover choice",async()=>{
+ const h=harness('video','kling',7,{initialPrompt:'Deux personnes entretiennent un jardin.'});try{
+ await h.addPhoto('homme.png','character');await h.addPhoto('femme.png','character');h.chooseVoice(0,'provided');await h.uploadVoice(0);h.chooseVoice(1,'provided');await h.uploadVoice(1);h.closePool();h.selectEngine('kling','1080p');h.setDuration(16);h.setSound('voiceover');
+ const first='Les feuilles tombent et votre jardin a besoin d’entretien',second='Nous sommes là pour vous donner un coup de main !';h.enterSpeech(first);h.setExactCharacter(0,1);h.addExactRow();h.setExactText(1,second);h.setExactCharacter(1,2);
+ const expected=[{speaker:'character',characterIndex:1,text:first},{speaker:'character',characterIndex:2,text:second}];assert.equal(h.quoteInputs.at(-1)!.enabled,true,'the same canonical photo slots pass the actual speech preflight');assert.equal(h.quoteInputs.at(-1)!.withNarration,false);assert.equal(h.quoteInputs.at(-1)!.hasProvidedCharacterVoice,true);assert.deepEqual(h.quoteInputs.at(-1)!.exactDialogue,expected);assert.deepEqual(h.quoteInputs.at(-1)!.inspirationImages,[{role:'character',characterIndex:1},{role:'character',characterIndex:2}]);assert.equal(h.voiceSnapshot().speechMode,'voiceover','Exact does not need to mutate an old hidden control');h.consent();await h.generate();assert.equal(h.requests.length,1);
+ const actual=h.requests[0];assert.deepEqual(actual.exactDialogue,expected);assert.equal(Object.hasOwn(actual,'spokenScript'),false);assert.equal(actual.withNarration,false);assert.equal(actual.teamVideoSpeechMode,'characters');assert.equal(actual.videoEngine,'kling');assert.equal(actual.videoResolution,'1080p');assert.equal(actual.durationSeconds,16);assert.deepEqual(actual.inspirationImages!.map(image=>[image.characterIndex,image.voiceSample!.path]),[[1,h.uploadedSamples[0].path],[2,h.uploadedSamples[1].path]]);
+ const normalized=contracts.normalizeAiMediaGenerationRequest({...actual,requestId:'synthetic-structured-parent',inspirationImages:actual.inspirationImages!.map(image=>({...image,data:'A'.repeat(64)}))});assert.deepEqual(normalized.exactDialogue,expected);assert.equal(normalized.withNarration,false);
+ }finally{h.dispose();}
+});
+
+test("mixed offscreen AI and a character preserve ordered targets and removed photos cannot be replaced implicitly",async()=>{
+ const h=harness('video','kling',7,{initialPrompt:'Un jardin en automne.'});try{await h.addPhoto('premiere.png','character');await h.addPhoto('seconde.png','character');h.setDuration(16);h.enterSpeech('Bienvenue dans notre jardin.');h.addExactRow();h.setExactText(1,'Les feuilles sont magnifiques.');h.setExactCharacter(1,2);const expected=[{speaker:'ai_voice',text:'Bienvenue dans notre jardin.'},{speaker:'character',characterIndex:2,text:'Les feuilles sont magnifiques.'}];assert.deepEqual(h.quoteInputs.at(-1)!.exactDialogue,expected);assert.equal(h.quoteInputs.at(-1)!.withNarration,false);assert.equal(h.quoteInputs.at(-1)!.enabled,true);h.consent();await h.generate();assert.equal(h.requests.length,1);assert.deepEqual(h.requests[0].exactDialogue,expected);assert.equal(h.requests[0].withNarration,false);h.removePhoto(1);assert.equal(h.quoteInputs.at(-1)!.enabled,false);h.consent();await h.invokeGenerateCallback();assert.equal(h.requests.length,1);assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[1].speaker,'character','the missing stable target remains visible for explicit repair');}finally{h.dispose();}
 });

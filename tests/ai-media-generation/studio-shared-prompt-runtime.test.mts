@@ -3,6 +3,7 @@ import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
 import assert from "node:assert/strict";
 import * as studioForm from "../../lib/inrAssistantStudioFormSelection.ts";
+import * as exactDialogueEditor from "../../lib/mediaExactDialogueEditor.ts";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
@@ -55,6 +56,8 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
   modules.set("../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface() {} });
   modules.set("./DashboardUnsavedNavigationProvider", { useDashboardUnsavedNavigation: () => ({ registerGuard: () => () => {} }) });
   modules.set("@/lib/inrAssistantStudioFormSelection", studioForm);
+  modules.set("@/lib/mediaExactDialogueEditor", exactDialogueEditor);
+  modules.set("./StudioExactDialogueEditor", { __esModule: true, default: "./StudioExactDialogueEditor" });
   modules.set("@/lib/elementStyleLock", elementStyleLock);
   modules.set("@/lib/browserAccountCache", { getActiveBrowserUserId: () => null });
   modules.set("next-intl", { useLocale: () => "fr-FR", useTranslations: () => (key: string) => key });

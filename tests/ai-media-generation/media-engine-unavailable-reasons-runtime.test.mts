@@ -3,6 +3,7 @@ import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
 import assert from "node:assert/strict";
 import * as studioForm from "../../lib/inrAssistantStudioFormSelection.ts";
+import * as exactDialogueEditor from "../../lib/mediaExactDialogueEditor.ts";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
@@ -153,7 +154,7 @@ test("automatic duration respects account limits, locked jobs and callers retain
 });
 
 function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMediaVideoEngine; imageEngine?: models.AiMediaImageEngine; references?: Reference[]; prompt?: string; busy?: boolean; remaining?: number; quoteReady?: boolean } = {}) {
-  const slots: unknown[] = []; let cursor = 0;
+  const slots: unknown[] = []; let cursor = 0, arrayCursor = 0;
   const modules = new Map(commonModules);
   modules.set("react", { useId: () => "reason-free", useRef: (value: unknown) => ({ current: value }), useEffect() {}, useLayoutEffect() {}, useCallback(callback: unknown, deps: unknown[]) {
     const index = cursor++;
@@ -162,7 +163,10 @@ function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMedia
     return (slots[index] as { callback: unknown }).callback;
   }, useState: (initial: unknown) => {
     const index = cursor++;
-    if (!(index in slots)) slots[index] = Array.isArray(initial) ? options.references || [] : typeof initial === "function" ? (initial as () => unknown)() : initial;
+    // Only the photo state receives reference fixtures; Exact rows and the
+    // independent voice pool are separate empty arrays.
+    const referenceState = Array.isArray(initial) && ++arrayCursor === 2;
+    if (!(index in slots)) slots[index] = referenceState ? options.references || [] : typeof initial === "function" ? (initial as () => unknown)() : initial;
     return [slots[index], (next: unknown) => { slots[index] = typeof next === "function" ? (next as (current: unknown) => unknown)(slots[index]) : next; }];
   } });
   modules.set("@/app/dashboard/_hooks/useMediaGeneration", { __esModule: true, default: () => ({ quota: { accountId: "test-account", creditsReady: true, studioEnabled: true, credits: { remaining: options.remaining ?? 1000 }, videoMaxDurationSeconds: 30 }, quotaLoading: false, busy: options.busy ?? false, progress: 0, error: "", result: null, originChangedNotice: false, cancellable: false, cancellationPending: false, canRecover: false, loadQuota() {}, generate() { assert.fail("These UI tests must never submit generation."); } }), MediaGenerationAccountChangedError: Error, MediaGenerationCancelledError: Error });
@@ -171,6 +175,8 @@ function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMedia
   modules.set("@/lib/mediaGenerationReferenceClient", {});
   modules.set("@/lib/aiMediaCharacterVoiceClient", characterVoices);
   modules.set("@/lib/aiMediaCharacterVoices", characterVoiceRules);
+  modules.set("@/lib/mediaExactDialogueEditor", exactDialogueEditor);
+  modules.set("./StudioExactDialogueEditor", { __esModule: true, default: "./StudioExactDialogueEditor" });
   for (const path of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaQuotaSummary", "./MediaPromptHelp", "./MediaBusinessDnaHelp", "./MediaCharacterVoiceInput", "./StudioMusicLibrary", "./StudioVoicePool"]) modules.set(path, { __esModule: true, default: path });
   modules.set("./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings-tabs" });
   modules.set("./MediaGenerationCreationWorkspace.module.css", styles); modules.set("./MediaFreeGenerator.module.css", styles);
@@ -179,7 +185,7 @@ function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMedia
   modules.set("@/lib/aiMediaModelRecommendation", { recommendAiMediaModel: () => null });
   modules.set("./MediaEngineCreditControls", { __esModule: true, default: "engine-controls", isMediaVideoReferenceCompatible: controls().component.isMediaVideoReferenceCompatible, MediaCreditQuoteSummary: "credit-summary", MediaGenerationActions: "actions" });
   const component = load<{ default: (props: FreeProps) => Element }>("app/dashboard/_components/MediaFreeGenerator.tsx", modules);
-  const render = () => { cursor = 0; return component.default({ source: "studio", acceptMode: "library", mediaType: options.kind || "video", initialPrompt: options.prompt ?? "Une baleine traverse les nuages.", onAccepted() {} }); };
+  const render = () => { cursor = 0; arrayCursor = 0; return component.default({ source: "studio", acceptMode: "library", mediaType: options.kind || "video", initialPrompt: options.prompt ?? "Une baleine traverse les nuages.", onAccepted() {} }); };
   return { render, openImages() { const tree = render(); const launcher = find(tree, node => node.props["data-media-role-add"] === "inspiration"); (launcher.props.onClick as () => void)(); return render(); } };
 }
 const reference = (id: number, role?: "product" | "character", usage?: "required" | "inspiration"): Reference => ({ id: `ref-${id}`, mimeType: "image/png", data: "A".repeat(64), fromVideo: false, role, usage });

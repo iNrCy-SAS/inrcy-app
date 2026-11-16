@@ -13,6 +13,8 @@ import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
 import { AiJsonResponseNormalizationError } from "../../lib/aiJsonResponseNormalization.ts";
 import * as generationTransport from "../../lib/aiMediaGenerationTransport.ts";
 import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
+import * as nativeDialogueQa from "../../lib/aiMediaNativeDialogueQa.ts";
+import * as exactDialogue from "../../lib/aiMediaExactDialogue.ts";
 import { assertAiMediaFreeExactNarrationFits } from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 import type { PreparedAiMediaNarrationVoice } from "../../lib/aiMediaNarrationVoicePreflight.ts";
@@ -30,6 +32,7 @@ new Function("module", "exports", "require", quoteOutput)(quoteRecord, quoteReco
   if (id === "node:crypto") return crypto;
   if (id === "./aiMediaCreditsPricing.ts") return creditPricing;
   if (id === "./aiMediaCharacterVoices.ts") return characterVoices;
+  if (id === "./aiMediaExactDialogue.ts") return exactDialogue;
   if (id === "./aiMediaModelCatalog.ts") return models;
   throw new Error(`Unisolated quote dependency: ${id}`);
 });
@@ -62,6 +65,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
   class GuardUnavailableError extends Error {}
   class QuotaError extends Error {}
   const modules = new Map<string, unknown>([
+    ["@/lib/aiMediaNativeDialogueQa", nativeDialogueQa],
     ["@/lib/aiMediaGenerationPublicErrors", publicErrors],
     ["@/lib/aiMediaNarrationVoiceClone", { isAiMediaVoiceCloneConfigured: () => options.narrator?.configured !== false, supportsAiMediaClonedNarrationLanguage: clonePolicy.supportsAiMediaClonedNarrationLanguage }],
     ["@/lib/aiMediaNarrationVoicePreflight", {
@@ -204,6 +208,31 @@ function narratorRequest() {
     narrationVoiceMode: "provided", narrationVoiceSample: { path, mimeType: "audio/wav", name: "ma-voix.wav", durationSeconds: 6, sizeBytes: 192_044 }, narrationVoiceConsent: true, narrationVoiceGender: "auto" };
   return { reference, request };
 }
+
+test("structured Exact with a supplied off-screen voice preloads the same owned narrator before credits and keeps its exact words without a photo", async () => {
+  const sample = narratorRequest();
+  const { spokenScript, ...request } = sample.request;
+  const route = loadRoute({ narrator: { reference: sample.reference } });
+  const response = await route.post(body({ ...request, exactDialogue: [{ speaker: "provided_voice", text: spokenScript }] }));
+  assert.equal(response.status, 200);
+  assert.equal(route.narratorPreflights.length, 1); assert.equal(route.reservationCalls.length, 1); assert.equal(route.generationCalls.length, 1);
+  assert.deepEqual(route.narratorEvents.slice(0, 2), ["private-voice", "reserve"]);
+  const generated = route.generationCalls[0];
+  assert.equal(generated.request.spokenScript, spokenScript); assert.equal(generated.request.narrationVoiceMode, "provided");
+  assert.equal(generated.preparedNarrationVoice, sample.reference); assert.equal(generated.request.inspirationImages.length, 0);
+});
+
+test("structured Exact rejects unsupported mixtures and missing characters before credits, voice preload or generation", async () => {
+  const exactDialogue = [{ speaker: "ai_voice", text: "Une équipe à votre écoute." }, { speaker: "character", characterIndex: 1, text: "Nous prenons soin de votre jardin." }];
+  for (const overrides of [{ videoEngine: "wan27", inspirationImages: [{ mimeType: "image/png", data: "A".repeat(64), role: "character", usage: "required", characterIndex: 1 }] },
+    { videoEngine: "kling", inspirationImages: [] }]) {
+    const route = loadRoute();
+    const response = await route.post(body({ kind: "video", durationSeconds: 16, videoResolution: "1080p", identityConsent: true,
+      teamVideoSpeechMode: "characters", teamVideoProviderConsent: overrides.videoEngine, freePrompt: "Deux personnes dans un jardin.", exactDialogue, ...overrides }));
+    assert.equal(response.status, 400);
+    assert.equal(route.reservationCalls.length, 0); assert.equal(route.narratorPreflights.length, 0); assert.equal(route.paidCalls(), 0); assert.equal(route.generationCalls.length, 0);
+  }
+});
 
 test("Booster editorial image context reaches generation intact in JSON and streamed requests", async () => {
   for (const streamed of [false, true]) {
@@ -438,6 +467,29 @@ test("generation persists the same safe actionable cause that status recovery wi
     const failure = route.failureCalls[0] as { errorCode: string; errorMessage: string };
     assert.equal(failure.errorCode, payload.code); assert.equal(failure.errorMessage, payload.error);
     assert.doesNotMatch(JSON.stringify(payload), /https:|token|secret|720x1280|monthly spending cap/);
+  }
+});
+
+test("QA unavailability persists bounded diagnostic categories privately in JSON and streaming without another render", async () => {
+  const diagnostic = { stage: "automatic_dialogue", reason: "verification_inconclusive", status: 0, retryable: null } as const;
+  const error = new nativeDialogueQa.AiMediaNativeDialogueVerificationUnavailableError({ version: 1, status: "unavailable", elapsedMs: 125,
+    diagnostics: [diagnostic], verificationAttempts: 2, clips: [{ sceneIndex: 0, status: "unavailable",
+      issues: ["transcription_inconclusive"], automaticDialogueVerification: "unavailable",
+      metrics: { expectedTokenCount: 5, detectedTokenCount: 5, expectedCoverage: 0.8, bestWindowSimilarity: 0.8, extraTokenCount: 1, repeatCount: 0 } }] });
+  for (const stream of [false, true]) {
+    const route = loadRoute({ providerError: error });
+    const raw = await route.post(body({ kind: "video", videoEngine: "grok-lite", videoResolution: "720p", durationSeconds: 15,
+      teamVideoSpeechMode: "characters", withNarration: false, freePrompt: "PRIVATE_PROMPT Une personne présente son atelier." }),
+      stream ? { headers: { "Content-Type": "application/json", Accept: generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE } } : {});
+    const response = await generationTransport.readAiMediaGenerationResponse(raw, () => {});
+    assert.equal(response.status, 503);
+    assert.equal((response.payload as Record<string, unknown>).code, "AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE");
+    assert.equal(route.failureCalls.length, 1); assert.equal(route.paidCalls(), 1); assert.equal(route.generationCalls.length, 1);
+    assert.equal(route.completionCalls.length, 0); assert.equal(route.releasedCheckpoints.length, 0);
+    const failure = route.failureCalls[0] as { metadata: Record<string, unknown> };
+    assert.deepEqual(failure.metadata.native_dialogue_qa, nativeDialogueQa.getAiMediaNativeDialogueQaFailureMetadata(error));
+    assert.doesNotMatch(JSON.stringify(response.payload), /diagnostics|verificationAttempts|native_dialogue_qa|PRIVATE_/);
+    assert.doesNotMatch(JSON.stringify(failure.metadata.native_dialogue_qa), /PRIVATE_|https:|metrics|transcript"/);
   }
 });
 

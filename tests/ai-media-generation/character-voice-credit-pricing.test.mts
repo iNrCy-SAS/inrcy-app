@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
+import * as exactDialogue from "../../lib/aiMediaExactDialogue.ts";
 import * as models from "../../lib/aiMediaModelCatalog.ts";
 import { getMediaVideoEngineQualityChoices } from "../../lib/aiMediaVideoClientOptions.ts";
 import { normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
@@ -8,6 +9,7 @@ import { load, sample } from "./character-voice-runtime-fixtures.mts";
 
 const server = load<typeof import("../../lib/aiMediaCreditQuoteServer.ts")>("lib/aiMediaCreditQuoteServer.ts", {
   "./aiMediaCreditsPricing.ts": pricing,
+  "./aiMediaExactDialogue.ts": exactDialogue,
   "./aiMediaModelCatalog.ts": models,
 });
 const voiceInput = { kind: "video", creationMode: "free", inputMode: "essential", teamVideoSpeechMode: "characters", durationSeconds: 8, inspirationImagesCount: 2, hasProvidedCharacterVoice: true };
@@ -83,6 +85,7 @@ test("the generation server derives supplied voice from normalized references an
   });
   const quoteInputs: pricing.AiMediaCreditsQuoteInput[] = [];
   const checkedServer = load<typeof server>("lib/aiMediaCreditQuoteServer.ts", {
+    "./aiMediaExactDialogue.ts": exactDialogue,
     "./aiMediaCreditsPricing.ts": { ...pricing, quoteAiMediaCredits: (input: pricing.AiMediaCreditsQuoteInput) => { quoteInputs.push(input); return pricing.quoteAiMediaCredits(input); } },
     "./aiMediaModelCatalog.ts": models,
   });

@@ -265,6 +265,23 @@ for (const automaticSpeech of [true, false]) test(`Wan image + supplied voice re
   assert.equal(env.saved.length, 1);
 });
 
+test("the real server preserves unavailable QA categories on its error before composition or another provider submission", async () => {
+  const diagnostic = { stage: "automatic_dialogue", reason: "verification_inconclusive", status: 0, retryable: null } as const;
+  const env = harness(undefined, false, { nativeQaAudit: async () => ({ version: 1, status: "unavailable", elapsedMs: 50,
+    diagnostics: [diagnostic], clips: [{ sceneIndex: 0, status: "unavailable", issues: ["transcription_inconclusive"], automaticDialogueVerification: "unavailable",
+      metrics: { expectedTokenCount: 5, detectedTokenCount: 5, expectedCoverage: 0.8, bestWindowSimilarity: 0.8, extraTokenCount: 1, repeatCount: 0 } }] }) });
+  await assert.rejects(env.generate(request("wan27", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false })), error => {
+    assert.ok(error instanceof nativeQa.AiMediaNativeDialogueVerificationUnavailableError);
+    const metadata = nativeQa.getAiMediaNativeDialogueQaFailureMetadata(error);
+    assert.deepEqual(metadata?.diagnostics, [{ ...diagnostic, auditAttempt: 1 }, { ...diagnostic, auditAttempt: 2 }]);
+    assert.deepEqual(metadata?.clips, [{ sceneIndex: 0, status: "unavailable", issues: ["transcription_inconclusive"], automaticDialogueVerification: "unavailable" }]);
+    assert.doesNotMatch(JSON.stringify(metadata), /expectedLine|transcript"|https:|buffer|spokenLine|metrics/);
+    return true;
+  });
+  assert.equal(env.nativeQaCalls.length, 2); assert.equal(env.videoCalls.length, 1);
+  assert.equal(env.composeCalls.length, 0); assert.equal(env.saved.length, 0); assert.equal(env.ttsCalls.length, 0);
+});
+
 for (const statuses of [["unavailable", "passed", "unavailable"], ["unavailable", "rejected"], ["unavailable", "unavailable"]] as const) {
   test(`Wan recovery ${statuses.join("/")} never delivers unverified speech or resubmits the video`, async () => {
     const env = harness(undefined, false, { nativeQaStatuses: [...statuses] });

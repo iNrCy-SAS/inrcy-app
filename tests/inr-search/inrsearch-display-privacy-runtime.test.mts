@@ -5,6 +5,7 @@ import ts from "typescript";
 import * as policy from "../../lib/inrSearchDisplaySettings.ts";
 import * as identity from "../../lib/professionalBusinessIdentity.ts";
 import * as badge from "../../lib/inrBadge.ts";
+import * as ctaPhones from "../../lib/ctaPhoneNumbers.ts";
 
 const ACCOUNT = "00000000-0000-4000-8000-000000000011";
 const PHONE = "06 12 34 56 78";
@@ -44,6 +45,7 @@ function publicLoader(config: Dict = {}, options: { profile?: Dict | null; busin
     "@/lib/inrSearchPublicationFeed": { hasSuccessfulInrSearchChannel: () => true, mergeInrSearchPublicationFeeds: () => [] },
     "@/lib/inrSearchStorageMediaResolver": {},
     "@/lib/professionalBusinessIdentity": identity,
+    "@/lib/ctaPhoneNumbers": ctaPhones,
   };
   const loaded = { exports: {} as Dict };
   new Function("module", "exports", "require", compile("lib/inrSearchPublic.ts"))(loaded, loaded.exports, (name: string) => {
@@ -85,6 +87,7 @@ function schemas(data: Dict) {
   const code = `${compile("app/entreprises/[slug]/page.tsx")}\nexports.__schema = buildJsonLd; exports.__faq = buildFaqJsonLd; exports.__news = buildNewsJsonLd;`;
   const translator = (key: string) => key;
   new Function("module", "exports", "require", code)(loaded, loaded.exports, (name: string) => {
+    if (name === "@/lib/ctaPhoneNumbers") return ctaPhones;
     if (name === "@/lib/inrSearchPublic") return { buildInrSearchPublicUrl: () => "https://app.inrcy.com/entreprises/exemple" };
     if (name === "@/lib/openingSchedule") return { buildOpeningHoursSpecifications: () => [] };
     return {};
@@ -100,19 +103,36 @@ test("old pages retain their public information unless the professional chooses 
   assert.equal(data.phone, PHONE);
   assert.ok(data.faq.some((item: Dict) => item.answer.includes(PHONE)));
   assert.equal(schemas(data).business.telephone, "+33612345678");
+  for (const [phone, expected] of [
+    ["06 12 34 56 78 / 01 23 45 67 89", ["+33612345678", "+33123456789"]],
+    ["+243981837026 / +8618666071730", ["+243981837026", "+8618666071730"]],
+    ["0033 (0)6 12 34 56 78 / +86 186 6607 1730", ["+33612345678", "+8618666071730"]],
+  ] as const) {
+    const fixture = publicLoader();
+    fixture.privateProfile!.phone = phone;
+    const page = await fixture.load();
+    assert.equal(page.phone, phone);
+    const schema = schemas(page).business;
+    assert.deepEqual(schema.telephone, expected);
+    assert.deepEqual(schema.contactPoint.telephone, expected);
+  }
 });
 
 test("a hidden telephone is absent from the real public DTO, repeated text, FAQ and JSON-LD", async () => {
-  const h = publicLoader({ display: { phone: false }, pageTitleOverride: "Notre titre", pageDescriptionOverride: "Téléphone : +33 6 12 34 56 78" });
-  const before = structuredClone(h.privateProfile);
-  const data = await h.load();
-  const output = JSON.stringify({ data, schema: schemas(data) });
-  assert.equal(data.phone, "");
-  assert.equal(data.pageTitle, "Notre titre");
-  for (const secret of [PHONE, "0612345678", "+33 6 12 34 56 78", "+33612345678"]) assert.ok(!output.includes(secret), `hidden telephone leaked: ${secret}`);
-  assert.equal(schemas(data).business.telephone, undefined);
-  assert.equal(schemas(data).business.contactPoint.telephone, undefined);
-  assert.deepEqual(h.privateProfile, before, "the private profile is unchanged");
+  for (const phone of [PHONE, `${PHONE} / +8618666071730`]) {
+    const h = publicLoader({ display: { phone: false }, pageTitleOverride: "Notre titre", pageDescriptionOverride: "Téléphone : +33 6 12 34 56 78" });
+    h.privateProfile!.phone = phone;
+    if (phone.includes("+8618666071730")) h.privateBusiness.business_description += " Contact alternatif : +8618666071730.";
+    const before = structuredClone(h.privateProfile);
+    const data = await h.load();
+    const output = JSON.stringify({ data, schema: schemas(data) });
+    assert.equal(data.phone, "");
+    assert.equal(data.pageTitle, "Notre titre");
+    for (const secret of [PHONE, "0612345678", "+33 6 12 34 56 78", "+33612345678", "+8618666071730"]) assert.ok(!output.includes(secret), `hidden telephone leaked: ${secret}`);
+    assert.equal(schemas(data).business.telephone, undefined);
+    assert.equal(schemas(data).business.contactPoint.telephone, undefined);
+    assert.deepEqual(h.privateProfile, before, "the private profile is unchanged");
+  }
 });
 
 test("hidden telephone variants include French international formatting and optional trunk prefix", () => {

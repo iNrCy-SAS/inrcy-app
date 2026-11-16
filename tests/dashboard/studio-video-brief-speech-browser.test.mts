@@ -83,7 +83,7 @@ function require(name){
  if(name==='./VideoCreditRecharge')return {MediaCreditRechargeButton:()=>{throw Error('No credit purchase is available in this fixture')}};
  if(name==='./MediaLibraryPickerModal')return {__esModule:true,default:props=>props.open?React.createElement('section',{'data-fixture-library-open':true},React.createElement('button',{type:'button',onClick:props.onClose},'Fermer la médiathèque de test')):null};
  if(name==='./MediaCharacterVoiceLibraryPicker')return {__esModule:true,default:()=>null};
- if(name.endsWith('.css')){const prefix=name.includes('FreeGenerator')?'free-':name.includes('CreationWorkspace')?'editor-':name.includes('EngineCreditControls')?'engine-':name.includes('PromptHelp')?'help-':name.includes('QuotaSummary')?'quota-':name.includes('MediaGenerator.module')?'gen-':name.includes('StudioMusicLibrary')?'music-':name.includes('StudioVoicePool')?'pool-':name.includes('MediaCharacterVoiceInput')?'voice-':'other-';return {__esModule:true,default:new Proxy({},{get:(_,key)=>prefix+String(key)})};}
+ if(name.endsWith('.css')){const prefix=name.includes('FreeGenerator')?'free-':name.includes('CreationWorkspace')?'editor-':name.includes('EngineCreditControls')?'engine-':name.includes('PromptHelp')?'help-':name.includes('QuotaSummary')?'quota-':name.includes('MediaGenerator.module')?'gen-':name.includes('StudioMusicLibrary')?'music-':name.includes('StudioExactDialogueEditor')?'dialogue-':name.includes('StudioVoicePool')?'pool-':name.includes('MediaCharacterVoiceInput')?'voice-':'other-';return {__esModule:true,default:new Proxy({},{get:(_,key)=>prefix+String(key)})};}
  if(name==='app/dashboard/_components/MediaEngineCreditControls.ts')name='app/dashboard/_components/MediaEngineCreditControls.tsx';
  if(!sources[name])throw Error('Missing browser fixture module '+name);
  const record=loaded[name]={exports:{}};new Function('require','module','exports',sources[name])(require,record,record.exports);return record.exports;
@@ -99,7 +99,7 @@ window.renderLibrary=()=>{
 };
 `;
 const prefix = (css: string, name: string) => css.replace(/\.([a-zA-Z_][\w-]*)/g, `.${name}-$1`);
-const css = prefix(read("app/dashboard/_components/MediaFreeGenerator.module.css"), "free") + prefix(read("app/dashboard/_components/MediaGenerationCreationWorkspace.module.css"), "editor") + prefix(read("app/dashboard/_components/MediaEngineCreditControls.module.css"), "engine") + prefix(read("app/dashboard/_components/MediaGeneratorModal.module.css"), "modal") + prefix(read("app/dashboard/_components/MediaPromptHelp.module.css"), "help") + prefix(read("app/dashboard/_components/MediaGenerator.module.css"), "gen") + prefix(read("app/dashboard/_components/MediaQuotaSummary.module.css"), "quota") + prefix(read("app/dashboard/_components/StudioMusicLibrary.module.css"), "music") + prefix(read("app/dashboard/_components/StudioVoicePool.module.css"), "pool") + prefix(read("app/dashboard/_components/MediaCharacterVoiceInput.module.css"), "voice");
+const css = prefix(read("app/dashboard/_components/MediaFreeGenerator.module.css"), "free") + prefix(read("app/dashboard/_components/MediaGenerationCreationWorkspace.module.css"), "editor") + prefix(read("app/dashboard/_components/MediaEngineCreditControls.module.css"), "engine") + prefix(read("app/dashboard/_components/MediaGeneratorModal.module.css"), "modal") + prefix(read("app/dashboard/_components/MediaPromptHelp.module.css"), "help") + prefix(read("app/dashboard/_components/MediaGenerator.module.css"), "gen") + prefix(read("app/dashboard/_components/MediaQuotaSummary.module.css"), "quota") + prefix(read("app/dashboard/_components/StudioMusicLibrary.module.css"), "music") + prefix(read("app/dashboard/_components/StudioVoicePool.module.css"), "pool") + prefix(read("app/dashboard/_components/MediaCharacterVoiceInput.module.css"), "voice") + prefix(read("app/dashboard/_components/StudioExactDialogueEditor.module.css"), "dialogue");
 const globalCss = readFileSync(require.resolve("tailwindcss/preflight.css"), "utf8") + read("app/globals.css").replace('@import "tailwindcss";', "");
 // Use the real opted-in tool shell attributes and header classes. Its available
 // height follows global workspace CSS and actual navigation content, not a test height.
@@ -109,6 +109,7 @@ const html = `<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" 
 type LocalInterface = { snapshot: unknown; handlers: Record<string, { invoke(value: string | null): unknown; matches(snapshot: unknown, value: string | null): boolean }>; enabled: boolean; locked: boolean };
 type FixtureWindow = Window & { studioRequests: Array<Record<string, unknown>>; networkCalls: number; fixtureLocale: string; renderStudio(prompt?: string, kind?: string): void; fixtureUseRealWorkspace: boolean; fixtureRecovery: { pending: boolean; checking: boolean; cancelling: boolean }; refreshRecovery(): void; recoveryOperations: { reads: number; pauses: number; cancels: number }; fixtureStudioInterfaces: Record<string, LocalInterface>; parentEscapes: number; fixtureReferencePreparationEnabled: boolean; fixtureReferencePng: string; referencePreparations: number; fixtureVoiceUploadsEnabled: boolean; fixtureVoiceUploads: number; fixtureMusicCatalogueEnabled: boolean; fixtureMusicCatalogueCalls: number; fixtureAudioPlays: string[]; fixtureAudioPauses: number };
 async function mount(page: Page) {
+  page.setDefaultTimeout(30_000);
   mkdirSync(path.join(taskRoot, "outputs"), { recursive: true });
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -197,14 +198,16 @@ async function assertSpeechHeaderCompact(page: Page, context: string) {
       height: element.getBoundingClientRect().height,
       fits: element.scrollWidth <= element.clientWidth + 1,
     }));
-    return { responsive: innerWidth <= 1100, stacked: [...row.querySelectorAll<HTMLSelectElement>('select')].every(select => select.getBoundingClientRect().width >= rowBounds.width - 2), titleLines, titleCount: labels.length, detailsCount: row.querySelectorAll("[data-video-audio-button]").length, rowHeight: rowBounds.height, controls };
+    const exact = row.querySelector<HTMLSelectElement>('select[id$="-spoken-script-mode"]')?.value === "exact";
+    return { exact, dialogueSettings: row.querySelectorAll('[data-exact-dialogue-settings]').length, responsive: innerWidth <= 1100, stacked: [...row.querySelectorAll<HTMLSelectElement>('select')].every(select => select.getBoundingClientRect().width >= rowBounds.width - 2), titleLines, titleCount: labels.length, detailsCount: row.querySelectorAll("[data-video-audio-button]").length, rowHeight: rowBounds.height, controls };
   });
   assert.ok(layout.titleLines >= 1 && layout.titleLines <= 2, `${context}: the sound and speech title remains compact`);
-  assert.equal(layout.controls.length, 3, `${context}: the compact row retains the three Personnages, Paroles and Voix menus`);
-  assert.equal(layout.titleCount, 3, `${context}: each menu keeps its own visible label`);
+  assert.equal(layout.controls.length, layout.exact ? 2 : 3, `${context}: Exact takes its speakers from the dialogue rows; Auto retains the global speech-mode menu`);
+  assert.equal(layout.titleCount, layout.controls.length, `${context}: each menu keeps its own visible label`);
+  assert.equal(layout.dialogueSettings, layout.exact ? 1 : 0, `${context}: the dialogue Settings trigger sits inside the speech-menu row`);
   assert.equal(layout.detailsCount, 1, `${context}: the voice settings button remains present`);
   if (layout.responsive) assert.ok(layout.stacked, `${context}: each mobile speech menu occupies its own complete line`);
-  else assert.ok(layout.rowHeight <= 3 * Math.max(...layout.controls.map(control => control.height)) + 24, `${context}: menus, their labels and the visible Settings/subtitle row remain compact`);
+  else assert.ok(layout.rowHeight <= 3 * Math.max(...layout.controls.map(control => control.height)) + 24, `${context}: menus, their labels and the visible Settings/subtitle row remain compact ${JSON.stringify(layout)}`);
   assert.equal(layout.controls.every(control => control.fits), true, `${context}: speech controls are not clipped`);
 }
 
@@ -254,8 +257,23 @@ async function assertUsualDesktopPanelNeedsNoScroll(page: Page, context: string)
 }
 
 async function fillCommittedStudioText(page: Page, field: "prompt" | "spokenScript", value: string) {
-  await page.locator(`textarea[id$="-${field === "prompt" ? "prompt" : "spoken-script"}"]`).fill(value);
-  await page.waitForFunction(({ field, value }) => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_free_form.snapshot as Record<string, unknown>)[field] === value, { field, value });
+  if (field === "prompt") {
+    await page.locator('textarea[id$="-prompt"]').fill(value);
+    await page.waitForFunction(value => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_free_form.snapshot as Record<string, unknown>).prompt === value, value);
+    return;
+  }
+  await page.locator('[data-exact-dialogue-settings]').click();
+  const editor = page.locator('[data-exact-dialogue-dialog]');
+  await editor.waitFor({ state: "visible" });
+  assert.equal(await editor.evaluate(element => element.contains(document.activeElement)), true, "dialogue settings receive focus");
+  await editor.locator('[data-exact-dialogue-row] textarea').first().fill(value);
+  await page.waitForFunction(value => {
+    const entry = (window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_exact_dialogue;
+    const rows = (entry?.snapshot as { rows?: Array<{ text: string }> })?.rows;
+    return rows?.[0]?.text === value;
+  }, value);
+  await editor.locator('header button').click();
+  await editor.waitFor({ state: "hidden" });
 }
 
 async function assertToolbarFeedbackVisible(page: Page, selector: string, context: string) {
@@ -275,7 +293,7 @@ test("fixed visual prompts retain the speech banner position across Auto and Exa
       const errors = await mount(page);
       await page.evaluate(() => { const fixture = window as unknown as FixtureWindow; fixture.fixtureReferencePreparationEnabled = true; fixture.fixtureUseRealWorkspace = true; fixture.refreshRecovery(); });
       const visual = page.getByLabel("Consignes visuelles", { exact: true });
-      const speech = page.locator('textarea[id$="-spoken-script"]');
+      const speech = page.locator('[data-exact-dialogue-row] textarea').first();
       const mode = page.locator('select[id$="-spoken-script-mode"]');
       const referencePng = await page.evaluate(() => (window as unknown as FixtureWindow).fixtureReferencePng);
       let lastAutomaticGeometry!: Awaited<ReturnType<typeof videoGeometry>>;
@@ -363,7 +381,7 @@ test("compact video instructions fit all nine locales and retain the image text 
       await assertFramesRemainUsable(page, locale);
       await assertSpeechHeaderCompact(page, locale);
       assert.equal(await page.locator('[id$="-prompt-count"]').getAttribute("aria-live"), "polite");
-      assert.equal(await page.locator('textarea[id$="-spoken-script"]').count(), 0);
+      assert.equal(await page.locator('[data-exact-dialogue-row] textarea').first().count(), 0);
       await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
       await assertFramesRemainUsable(page, `${locale} exact`);
       assert.equal(await page.locator('[id$="-spoken-script-count"]').getAttribute("aria-live"), "polite");
@@ -449,8 +467,8 @@ test("the single video panel keeps the prompt visible while native Images/Audio 
       assert.equal(await visual.isVisible(), true);
       assert.equal(await page.locator('.free-videoSettingsPane [role="tablist"]').count(), 0, "video criteria no longer require a hidden second tab; vocal tabs stay in their own closed dialog");
       await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
-      const speech = page.locator('textarea[id$="-spoken-script"]');
-      await speech.fill("Bonjour, nous prenons soin de votre jardin.");
+      const speech = page.locator('[data-exact-dialogue-row] textarea').first();
+      await fillCommittedStudioText(page, "spokenScript", "Bonjour, nous prenons soin de votre jardin.");
       const prompt = await visual.inputValue(), script = await speech.inputValue();
       for (const kind of ["images", "audio"] as const) {
         const button = page.locator(`[${kind === "images" ? "data-media-role-add=\"inspiration\"" : "data-video-audio-button"}]`);
@@ -555,7 +573,7 @@ test("the real Studio music dialog previews live catalogue choices and retains t
       });
       await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
       await fillCommittedStudioText(page, "spokenScript", "Bonjour, bienvenue chez nous.");
-      const visual = page.locator('textarea[id$="-prompt"]'), speech = page.locator('textarea[id$="-spoken-script"]');
+      const visual = page.locator('textarea[id$="-prompt"]'), speech = page.locator('[data-exact-dialogue-row] textarea').first();
       const initial = { prompt: await visual.inputValue(), script: await speech.inputValue() };
       const launcher = page.locator("[data-video-music-button]"); await launcher.click();
       const dialog = page.locator('[data-media-settings-dialog="music"]'); await dialog.waitFor({ state: "visible" });
@@ -602,7 +620,14 @@ test("real Studio voice Settings opens the three-source pool and preserves new s
       const visual = page.getByLabel("Consignes visuelles", { exact: true });
       const prompt = await visual.inputValue();
       await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact"); await fillCommittedStudioText(page, "spokenScript", "Bonjour, bienvenue dans notre atelier.");
-      await page.locator('select[id$="-video-voice-mode"]').selectOption("provided");
+      await page.locator('[data-exact-dialogue-settings]').click();
+      const dialogue = page.locator('[data-exact-dialogue-dialog]');
+      await dialogue.waitFor({ state: "visible" });
+      await dialogue.locator('[data-exact-dialogue-row] select').first().selectOption("provided_voice");
+      await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_exact_dialogue.snapshot as { rows: Array<{ speaker: string }> }).rows[0].speaker === "provided_voice");
+      await dialogue.locator('header button').click();
+      await dialogue.waitFor({ state: "hidden" });
+      assert.equal(await page.locator('select[id$="-video-voice-mode"]').inputValue(), "provided", "the explicit offscreen row determines the voice source");
       const settings = page.locator('[data-voice-pool-settings]'); await settings.waitFor();
       assert.equal(await page.locator('[data-video-audio-button]').count(), 0, "Real uses one Settings entry rather than a second hidden gear");
       assert.equal(await page.locator('[data-voice-pool-import]').count(), 0, "no file import or three vocal chips are shown in the main panel");
@@ -636,7 +661,7 @@ test("real Studio voice Settings opens the three-source pool and preserves new s
       await dialog.waitFor({ state: "hidden" }); assert.equal(await settings.evaluate(element => document.activeElement === element), true);
       assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).parentEscapes), parentEscapes);
       assert.equal(await subtitles.isVisible(), true); assert.equal(await subtitles.isChecked(), true); await subtitles.uncheck(); assert.equal(await subtitles.isChecked(), false);
-      assert.equal(await visual.inputValue(), prompt); assert.equal(await page.locator('textarea[id$="-spoken-script"]').inputValue(), "Bonjour, bienvenue dans notre atelier.");
+      assert.equal(await visual.inputValue(), prompt); assert.equal(await page.locator('[data-exact-dialogue-row] textarea').first().inputValue(), "Bonjour, bienvenue dans notre atelier.");
       await settings.click(); await dialog.waitFor({ state: "visible" });
       assert.equal(await dialog.locator('[data-voice-profile]').count(), 1); assert.equal(await dialog.locator('input[type="checkbox"]').isChecked(), true);
       await page.keyboard.press("Escape"); await dialog.waitFor({ state: "hidden" });
@@ -648,7 +673,7 @@ test("real Studio voice Settings opens the three-source pool and preserves new s
         await imageDialog.locator('input[type="file"]').setInputFiles({ name: "moi.png", mimeType: "image/png", buffer: Buffer.from(referencePng, "base64") });
         await imageDialog.waitFor({ state: "detached" });
         await page.waitForFunction(() => document.querySelectorAll('[data-media-reference-open]').length === 1);
-        assert.equal(await page.locator('select[id$="-video-speech-mode"]').inputValue(), "voiceover");
+        assert.equal(await page.locator('select[id$="-video-speech-mode"]').count(), 0, "Exact uses each dialogue row instead of a hidden global speech-mode choice");
         assert.equal(await page.locator('select[id$="-video-voice-mode"]').inputValue(), "provided");
         await assertUsualDesktopPanelNeedsNoScroll(page, `${viewport.width}x${viewport.height} Real voiceover with one required photo and Exact`);
       }
@@ -827,7 +852,7 @@ test("real fixed geometry survives 0, 500, 501 and whitespace-heavy visual draft
       const errors = await mount(page);
       const visual = page.getByLabel("Consignes visuelles", { exact: true });
       const mode = page.locator('select[id$="-spoken-script-mode"]');
-      const speech = page.locator('textarea[id$="-spoken-script"]');
+      const speech = page.locator('[data-exact-dialogue-row] textarea').first();
       const generate = page.locator("[data-media-primary-action]");
       await visual.fill("");
       const emptyGeometry = await videoGeometry(page);
@@ -848,7 +873,7 @@ test("real fixed geometry survives 0, 500, 501 and whitespace-heavy visual draft
         assertSameVideoGeometry(emptyGeometry, await videoGeometry(page), `${context} automatic`);
         assert.equal(await speech.count(), 0);
         await mode.selectOption("exact");
-        await speech.fill("Bonjour, nous prenons soin de votre jardin.");
+        await fillCommittedStudioText(page, "spokenScript", "Bonjour, nous prenons soin de votre jardin.");
         assert.equal(await speech.inputValue(), "Bonjour, nous prenons soin de votre jardin.");
         assert.equal(await generate.isDisabled(), !valid, `${context}: opening speech never bypasses the visual limit`);
         assertSameVideoGeometry(emptyGeometry, await videoGeometry(page), `${context} exact`);
@@ -893,11 +918,11 @@ test("short windows keep both video frames separate and the speech header on two
           await assertFramesNeverOverlap(page, `${context} ${length} characters`);
         }
         await visual.fill(originalVisual);
-        const speech = page.locator('textarea[id$="-spoken-script"]');
+        const speech = page.locator('[data-exact-dialogue-row] textarea').first();
         assert.equal(await speech.count(), 0, `${context}: automatic mode has no editor`);
         await page.getByText(catalogs[locale].ai_generator_video_speech_automatic_hint, { exact: true }).waitFor();
         await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
-        await speech.fill("Bonjour, nous prenons soin de votre jardin.");
+        await fillCommittedStudioText(page, "spokenScript", "Bonjour, nous prenons soin de votre jardin.");
         await assertFramesNeverOverlap(page, `${context} exact`);
         await assertSpeechHeaderCompact(page, `${context} exact`);
         assertSameVideoGeometry(automaticGeometry, await videoGeometry(page), `${context} Auto→Exact`);
@@ -905,14 +930,19 @@ test("short windows keep both video frames separate and the speech header on two
         assert.equal(await speech.count(), 0);
         assertSameVideoGeometry(automaticGeometry, await videoGeometry(page), `${context} Exact→Auto`);
         await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
-        assert.equal(await speech.inputValue(), "", "returning to exact starts with the explicitly cleared script");
+        assert.equal(await speech.inputValue(), "Bonjour, nous prenons soin de votre jardin.", "returning to Exact restores its dialogue draft without making it active in Auto");
         await page.locator('select[id$="-spoken-script-mode"]').selectOption("automatic");
         await page.locator('select[id$="-video-speech-mode"]').selectOption("silent");
         await assertSpeechHeaderCompact(page, `${context} silent`);
         await assertFramesNeverOverlap(page, `${context} silent`);
         assert.equal(await speech.count(), 0, "silent mode has no inactive speech editor or 0/0 counter");
         assert.equal(await page.locator('[id$="-spoken-script-count"]').count(), 0);
-        assert.equal(await page.locator('select[id$="-spoken-script-mode"]').isDisabled(), true);
+        assert.equal(await page.locator('select[id$="-spoken-script-mode"]').isEnabled(), true, "an explicit dialogue can be selected after silent Auto without relying on its old global mode");
+        await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
+        assert.equal(await speech.inputValue(), "Bonjour, nous prenons soin de votre jardin.");
+        assert.equal(await page.locator('[data-exact-dialogue-settings]').isVisible(), true);
+        assert.equal(await page.locator('select[id$="-video-speech-mode"]').count(), 0, "the dialogue speakers replace the stale silent global setting");
+        await page.locator('select[id$="-spoken-script-mode"]').selectOption("automatic");
         await page.locator('select[id$="-video-speech-mode"]').selectOption("voiceover");
         assert.equal(await page.locator('select[id$="-spoken-script-mode"]').isVisible(), true);
       }
@@ -945,18 +975,18 @@ test("real recovery card keeps check and pause visible on desktop and mobile whi
       assert.equal(await pause.isEnabled(), true);
       const visual = page.getByLabel("Consignes visuelles", { exact: true });
       await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
-      const speech = page.locator('textarea[id$="-spoken-script"]');
-      // Exact intentionally focuses speech on the next frame. Let that native
-      // focus finish before Playwright fills a different field in two steps.
-      await page.waitForFunction(() => document.activeElement === document.querySelector('textarea[id$="-spoken-script"]'));
+      const speech = page.locator('[data-exact-dialogue-row] textarea').first();
+      const dialogueSettings = page.locator('[data-exact-dialogue-settings]');
+      await dialogueSettings.waitFor({ state: "visible" });
+      assert.equal(await page.locator('textarea[id$="-spoken-script"]').count(), 0, "Exact no longer exposes a free-text block");
       assert.equal(await visual.isEditable(), true);
-      assert.equal(await speech.isEditable(), true);
+      assert.equal(await dialogueSettings.isEnabled(), true);
       await visual.fill("Un nouveau jardin, en lumière naturelle.");
       assert.equal(await visual.inputValue(), "Un nouveau jardin, en lumière naturelle.");
       await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_free_form.snapshot as { prompt?: string }).prompt === "Un nouveau jardin, en lumière naturelle.");
-      await speech.fill("Bonjour, nous prenons soin de votre jardin.");
+      await fillCommittedStudioText(page, "spokenScript", "Bonjour, nous prenons soin de votre jardin.");
       assert.equal(await speech.inputValue(), "Bonjour, nous prenons soin de votre jardin.");
-      await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_free_form.snapshot as { spokenScript?: string }).spokenScript === "Bonjour, nous prenons soin de votre jardin.");
+      await page.waitForFunction(() => ((window as unknown as FixtureWindow).fixtureStudioInterfaces.studio_exact_dialogue.snapshot as { rows: Array<{text: string}> }).rows[0]?.text === "Bonjour, nous prenons soin de votre jardin.");
       const engines = page.locator("[data-media-engine-controls]");
       assert.equal(await engines.locator('select[id$="-engine"]').isEnabled(), true);
       assert.equal(await engines.locator('select[id$="-duration"]').isEnabled(), true);
@@ -966,7 +996,7 @@ test("real recovery card keeps check and pause visible on desktop and mobile whi
       assert.equal(await pause.isDisabled(), true);
       assert.equal(await visual.inputValue(), "Un nouveau jardin, en lumière naturelle.");
       assert.equal(await speech.inputValue(), "Bonjour, nous prenons soin de votre jardin.");
-      for (const field of [visual, speech]) {
+      for (const field of [visual, dialogueSettings]) {
         const cardBounds = await card.boundingBox(), fieldBounds = await field.boundingBox();
         assert.ok(cardBounds && fieldBounds && (cardBounds.y + cardBounds.height <= fieldBounds.y || fieldBounds.y + fieldBounds.height <= cardBounds.y || cardBounds.x + cardBounds.width <= fieldBounds.x || fieldBounds.x + fieldBounds.width <= cardBounds.x), "the recovery card never overlays either editable field");
       }
@@ -1006,10 +1036,11 @@ test("real Studio video frames render on desktop and mobile and block oversized 
       const errors = await mount(page);
       const visual = page.getByLabel("Consignes visuelles", { exact: true });
       await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
-      const speech = page.locator('textarea[id$="-spoken-script"]');
-      await assert.doesNotReject(() => speech.waitFor({ state: "visible" }));
+      const speech = page.locator('[data-exact-dialogue-row] textarea').first();
+      assert.equal(await page.locator('textarea[id$="-spoken-script"]').count(), 0);
+      assert.equal(await page.locator('[data-exact-dialogue-settings]').isVisible(), true);
       assert.equal(await visual.getAttribute("maxlength"), null);
-      await speech.fill("un deux trois quatre cinq six sept");
+      await fillCommittedStudioText(page, "spokenScript", "un deux trois quatre cinq six sept");
       const duration = page.locator('select[id$="-duration"]');
       await duration.selectOption("4:single");
       await page.getByText("7 / 6 mots", { exact: false }).waitFor();
@@ -1023,12 +1054,13 @@ test("real Studio video frames render on desktop and mobile and block oversized 
       assert.equal(await visual.inputValue(), "x".repeat(501));
       assert.equal(await generate.isDisabled(), true);
       await visual.fill("Un jardinier taille une haie. Lumière naturelle, plan rapproché.");
-      await speech.fill("Bonjour, nous prenons soin de votre jardin.");
+      await fillCommittedStudioText(page, "spokenScript", "Bonjour, nous prenons soin de votre jardin.");
       await page.screenshot({ path: path.join(taskRoot, `outputs/studio-video-cadres-${viewport.width > 760 ? "desktop" : "mobile"}.png`), fullPage: true });
       await generate.click();
       const requests = await page.evaluate(() => (window as unknown as FixtureWindow).studioRequests);
       assert.equal(requests.length, 1);
-      assert.equal(requests[0].spokenScript, "Bonjour, nous prenons soin de votre jardin.");
+      assert.equal(requests[0].spokenScript, undefined, "the client sends a structured dialogue rather than two competing exact sources");
+      assert.deepEqual(requests[0].exactDialogue, [{speaker: "ai_voice", text: "Bonjour, nous prenons soin de votre jardin."}]);
       assert.equal(requests[0].freePrompt, "Un jardinier taille une haie. Lumière naturelle, plan rapproché.");
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, "mobile frames never overflow horizontally");
       assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).networkCalls), 0);

@@ -86,6 +86,9 @@ export function createKlingApiClient(options: {
       signal?.throwIfAborted();
       try { const value = await read(); if (value !== null) return value; }
       catch (error) {
+        // These 429s need billing intervention, not another status lookup.
+        // Keep the accepted task intact; the caller retains its uncertain cost.
+        if (error instanceof KlingApiError && error.statusCode === 429 && [1101, 1102].includes(error.upstreamCode)) throw error;
         if (!(error instanceof KlingApiError) || (error.statusCode !== 429 && error.statusCode < 500 && error.phase !== "network_unavailable")) throw error;
       }
       await sleep(4_000, signal);

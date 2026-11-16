@@ -45,8 +45,10 @@ import MediaLibraryPickerModal, {
 import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 import StudioMusicLibrary from "./StudioMusicLibrary";
 import StudioVoicePool, { type StudioVoiceProfile } from "./StudioVoicePool";
+import StudioExactDialogueEditor from "./StudioExactDialogueEditor";
+import { createMediaExactDialogueRow, serializeMediaExactDialogueRows, importMediaExactDialogueText, buildMediaExactDialogueCharacters, type MediaExactDialogueRow, type MediaExactDialogueCharacter } from "@/lib/mediaExactDialogueEditor";
 import { deleteCharacterVoiceSample, getCharacterVoiceSelectionState } from "@/lib/aiMediaCharacterVoiceClient";
-import { AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, exceedsAiMediaCharacterVoiceEngineDuration, hasTooShortAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine } from "@/lib/aiMediaCharacterVoices";
+import { AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, exceedsAiMediaCharacterVoiceEngineDuration, hasTooShortAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, normalizeAiMediaCharacterName } from "@/lib/aiMediaCharacterVoices";
 import MediaPromptHelp from "./MediaPromptHelp";
 import MediaGenerationCreationWorkspace from "./MediaGenerationCreationWorkspace";
 import editorStyles from "./MediaGenerationCreationWorkspace.module.css";
@@ -112,11 +114,14 @@ const IMAGE_ACCEPT = [
   ...INR_MEDIA_ALLOWED_IMAGE_EXTENSIONS.map((extension) => `.${extension}`),
 ].join(",");
 
-function referencesForRequest(references: Reference[], includeCharacterVoices = true) {
+function referencesForRequest(references: Reference[], includeCharacterVoices = true, exactCharacters?: readonly MediaExactDialogueCharacter[]) {
   let characterIndex = 0;
   return references.map(({ id: _id, fromVideo: _fromVideo, ...savedReference }) => {
     const { voiceMode: _voiceMode, voiceSample: _voiceSample, ...imageOnlyReference } = savedReference;
     const reference = includeCharacterVoices ? savedReference : imageOnlyReference;
+    const exact = exactCharacters?.find(character => character.id === _id);
+    if (exact) return { ...reference, characterIndex: exact.characterIndex };
+    if (exactCharacters && reference.role === "character") return { ...reference, characterIndex: undefined };
     if (reference.role !== "character" || (reference.usage !== "required" && (!includeCharacterVoices || savedReference.voiceMode !== "provided"))) {
       return reference;
     }
@@ -223,7 +228,10 @@ export default function MediaFreeGenerator({
   }, [onSharedPromptChange]);
   const [spokenScript, setSpokenScript] = useState("");
   const [spokenScriptOpen, setSpokenScriptOpen] = useState(false);
-  const explicitlyEmptySpokenScript = kind === "video" && spokenScriptOpen && !spokenScript.trim();
+  const [exactRows, setExactRows] = useState<MediaExactDialogueRow[]>([]);
+  const [exactDialogueOpen, setExactDialogueOpen] = useState(false);
+  const [legacyExactImported, setLegacyExactImported] = useState(false);
+  const explicitlyEmptySpokenScript = kind === "video" && spokenScriptOpen && !exactRows.some(row => row.text.trim());
   const [useBusinessDna, setUseBusinessDna] = useState(true);
   const [format, setFormat] = useState<MediaGenerationFormat>(
     fixedFormat || (kind === "video" ? "story" : "square")
@@ -244,7 +252,7 @@ export default function MediaFreeGenerator({
   const [withSubtitles, setWithSubtitles] = useState(false);
   const [speechMode, setSpeechMode] =
     useState<"voiceover" | "characters" | "silent">("voiceover");
-  const exactSpeechEditorVisible = kind === "video" && spokenScriptOpen && speechMode !== "silent";
+  const exactSpeechEditorVisible = kind === "video" && spokenScriptOpen;
   const [voice, setVoice] = useState<MediaGenerationNarrationVoice>("female");
   const [voiceVariant, setVoiceVariant] =
     useState<MediaGenerationNarrationVoiceVariant>("Kore");
@@ -285,10 +293,12 @@ export default function MediaFreeGenerator({
     // edited or recovery is paused. Existing storage expiry cleans it later.
     if (sample && !recoveryPending && !submittedVoicePaths.current.has(sample.path)) void deleteCharacterVoiceSample(sample);
   };
-  const referencePickerVisible = editorAvailable && !stopConfirmOpen && !voicePoolOpen;
+  const referencePickerVisible = editorAvailable && !stopConfirmOpen && !voicePoolOpen && !exactDialogueOpen;
   const voiceReferences = references.filter(reference => reference.role === "character");
-  const selectedVoiceReference = speechMode === "characters" ? voiceReferences.find(reference => reference.id === voiceReferenceId) ?? (voiceReferences.length === 1 ? voiceReferences[0] : null) : null;
-  const selectedVoiceMode = speechMode === "voiceover" ? narrationVoiceMode : selectedVoiceReference ? selectedVoiceReference.voiceMode ?? "ai" : voiceSourcePreference;
+  const voiceConfigurationMode = exactSpeechEditorVisible ? exactRows.some(row => row.speaker === "character") ? "characters" : "voiceover" : speechMode;
+  const selectedVoiceReference = voiceConfigurationMode === "characters" ? voiceReferences.find(reference => reference.id === voiceReferenceId) ?? (voiceReferences.length === 1 ? voiceReferences[0] : null) : null;
+  const selectedVoiceMode = exactSpeechEditorVisible && voiceConfigurationMode === "voiceover" ? exactRows.some(row => row.speaker === "provided_voice") ? "provided" : "ai"
+    : voiceConfigurationMode === "voiceover" ? narrationVoiceMode : selectedVoiceReference ? selectedVoiceReference.voiceMode ?? "ai" : voiceSourcePreference;
   useInrAssistantLocalInterface("studio_free_library", { open: libraryOpen }, {
     open: { invoke: () => { if (locked || !referencePickerVisible || references.length >= AI_MEDIA_INSPIRATION_MAX_COUNT) throw new Error("reference_picker_unavailable"); setPendingReferenceRole(pendingReferenceRole ?? "inspiration"); setSelectedReferenceId(null); setMediaSettingsDialog("images"); setLibraryOpen(true); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
     close: { invoke: () => setLibraryOpen(false), matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
@@ -325,29 +335,49 @@ export default function MediaFreeGenerator({
     const profile = voiceProfiles.find(profile => profile.target && profile.target !== "narration" && profile.target.characterId === reference.id);
     return reference.voiceMode === "provided" && profile ? { ...reference, voiceSample: profile.sample } : reference;
   });
+  const exactCharacters = buildMediaExactDialogueCharacters(projectedReferences).map(character => {
+    const reference = projectedReferences.find(item => item.id === character.id);
+    return { ...character, voiceLabel: reference?.voiceMode === "provided"
+      ? reference.voiceSample ? t("ai_generator_exact_dialogue_provided_voice", { name: reference.voiceSample.name }) : t("ai_generator_character_voice_sample_missing")
+      : t("ai_generator_character_voice_ai") };
+  });
+  const serializedExact = serializeMediaExactDialogueRows(exactRows, exactCharacters);
+  const exactHasCharacters = exactSpeechEditorVisible && exactRows.some(row => row.speaker === "character");
+  const exactHasAiVoice = exactSpeechEditorVisible && exactRows.some(row => row.speaker === "ai_voice");
+  const exactHasProvidedNarrator = exactSpeechEditorVisible && exactRows.some(row => row.speaker === "provided_voice");
+  const exactInvalid = exactSpeechEditorVisible && Boolean(serializedExact.issue);
+  const speakingCharacterIds = new Set(exactRows.flatMap(row => row.speaker === "character" && row.characterId ? [row.characterId] : []));
+  const generationReferences: Reference[] = exactSpeechEditorVisible ? projectedReferences.map(reference => {
+    if (reference.role !== "character" || speakingCharacterIds.has(reference.id)) return reference;
+    const { voiceMode: _voiceMode, voiceSample: _voiceSample, ...withoutInactiveVoice } = reference;
+    return withoutInactiveVoice;
+  }) : projectedReferences;
+  const names = projectedReferences.filter(reference => reference.role === "character").map(reference => normalizeAiMediaCharacterName(reference.characterName ?? ""));
+  const namedCharacters = names.filter((name): name is string => Boolean(name));
+  const characterNameInvalid = names.some(name => name === null) || new Set(namedCharacters.map(name => name.toLowerCase())).size !== namedCharacters.length;
   const activeNarrationProfile = voiceProfiles.find(profile => profile.id === activeNarrationVoiceId && profile.target === "narration");
   const narrationVoiceSample = activeNarrationProfile?.sample;
-  const providedNarrationVoiceActive = kind === "video" && speechMode === "voiceover" && narrationVoiceMode === "provided";
+  const providedNarrationVoiceActive = kind === "video" && (exactSpeechEditorVisible ? exactHasProvidedNarrator : speechMode === "voiceover" && narrationVoiceMode === "provided");
   const narrationVoiceMissing = providedNarrationVoiceActive && !narrationVoiceSample;
   const narrationVoiceTooShort = providedNarrationVoiceActive && Boolean(narrationVoiceSample && narrationVoiceSample.durationSeconds < AI_MEDIA_NARRATION_VOICE_MIN_SECONDS);
   const narrationVoiceUnauthorized = providedNarrationVoiceActive && !narrationVoiceConsent;
-  const characterVoiceSelection = getCharacterVoiceSelectionState(kind === "video" && speechMode === "characters" ? projectedReferences : []);
+  const characterVoiceSelection = getCharacterVoiceSelectionState(kind === "video" && (exactSpeechEditorVisible ? exactHasCharacters : speechMode === "characters") ? generationReferences : []);
   const providedVoiceWithEmptyScript = kind === "video" && (characterVoiceSelection.hasProvidedVoice || providedNarrationVoiceActive) && explicitlyEmptySpokenScript;
-  const selectedVideoEngine = characterVoiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(enginePreference.videoEngine)
+  const selectedVideoEngine = !exactSpeechEditorVisible && characterVoiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(enginePreference.videoEngine)
     ? "wan27" : enginePreference.videoEngine;
-  const videoModel = getAiMediaVideoModelForCharacterVoice(selectedVideoEngine, characterVoiceSelection.hasProvidedVoice);
+  const videoModel = exactSpeechEditorVisible ? getAiMediaVideoModel(selectedVideoEngine) : getAiMediaVideoModelForCharacterVoice(selectedVideoEngine, characterVoiceSelection.hasProvidedVoice);
   const videoResolution = videoModel.resolutions.includes(enginePreference.videoResolution)
     ? enginePreference.videoResolution : videoModel.defaultResolution;
-  const characterVoiceSpeechConflict = characterVoiceSelection.hasProvidedVoice && speechMode !== "characters";
-  const aiVoiceSettingsAvailable = kind === "video" && selectedVoiceMode === "ai" && speechMode !== "silent" &&
-    (speechMode === "voiceover" || voiceReferences.length > 1 || characterVoiceSpeechConflict);
+  const characterVoiceSpeechConflict = !exactSpeechEditorVisible && characterVoiceSelection.hasProvidedVoice && speechMode !== "characters";
+  const aiVoiceSettingsAvailable = kind === "video" && selectedVoiceMode === "ai" && voiceConfigurationMode !== "silent" &&
+    (voiceConfigurationMode === "voiceover" || voiceReferences.length > 1 || characterVoiceSpeechConflict);
   useInrAssistantLocalInterface("studio_video_audio", { open: mediaSettingsDialog === "audio" }, {
-    open: { invoke: () => { if (!aiVoiceSettingsAvailable || voicePoolOpen || locked || libraryOpen || !editorAvailable || stopConfirmOpen) throw new Error("studio_audio_unavailable"); setMediaSettingsDialog("audio"); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
+    open: { invoke: () => { if (exactDialogueOpen || !aiVoiceSettingsAvailable || voicePoolOpen || locked || libraryOpen || !editorAvailable || stopConfirmOpen) throw new Error("studio_audio_unavailable"); setMediaSettingsDialog("audio"); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === true },
     close: { invoke: () => { if (mediaSettingsDialog !== "audio" || locked) throw new Error("studio_audio_busy"); setMediaSettingsDialog(null); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
-  }, kind === "video" && ((!voicePoolOpen && aiVoiceSettingsAvailable && editorAvailable && !stopConfirmOpen) || mediaSettingsDialog === "audio"), locked);
+  }, kind === "video" && !exactDialogueOpen && ((!voicePoolOpen && aiVoiceSettingsAvailable && editorAvailable && !stopConfirmOpen) || mediaSettingsDialog === "audio"), locked);
   const wan3VoiceDurationExceeded = kind === "video" && speechMode === "characters" && exceedsAiMediaCharacterVoiceEngineDuration("wan3", projectedReferences);
-  const characterVoiceDurationExceeded = kind === "video" && speechMode === "characters" && exceedsAiMediaCharacterVoiceEngineDuration(selectedVideoEngine, projectedReferences);
-  const characterVoiceTooShort = kind === "video" && speechMode === "characters" && hasTooShortAiMediaCharacterVoice(selectedVideoEngine, projectedReferences);
+  const characterVoiceDurationExceeded = kind === "video" && (exactSpeechEditorVisible ? exactHasCharacters : speechMode === "characters") && exceedsAiMediaCharacterVoiceEngineDuration(selectedVideoEngine, generationReferences);
+  const characterVoiceTooShort = kind === "video" && (exactSpeechEditorVisible ? exactHasCharacters : speechMode === "characters") && hasTooShortAiMediaCharacterVoice(selectedVideoEngine, generationReferences);
   const counter = quota?.credits;
   const maxDuration = quota?.videoMaxDurationSeconds ?? 30;
   const durations = getMediaVideoDurationChoices(maxDuration);
@@ -358,7 +388,7 @@ export default function MediaFreeGenerator({
   );
   // Pool assignments already identify their character; an editor selection is
   // needed only while choosing a supplied voice with no existing assignment.
-  const realVoiceNeedsPerson = kind === "video" && speechMode === "characters" && voiceSourcePreference === "provided" && !selectedVoiceReference && !characterVoiceSelection.hasProvidedVoice;
+  const realVoiceNeedsPerson = !exactSpeechEditorVisible && kind === "video" && speechMode === "characters" && voiceSourcePreference === "provided" && !selectedVoiceReference && !characterVoiceSelection.hasProvidedVoice;
   const identityRequired = personReferences.length > 0 || characterVoiceSelection.hasProvidedVoice;
   const identityMode = personReferences.length > 1 ? "reference_team" : personReferences.length === 1 ? "professional" : "auto";
   const teamConsentRequired = kind === "video" && personReferences.length > 1;
@@ -372,11 +402,11 @@ export default function MediaFreeGenerator({
       provider: kind === "video" ? videoModel.providerLabel : imageModel.providerLabel,
     });
   const effectiveWithNarration =
-    kind === "video" && !explicitlyEmptySpokenScript && speechMode === "voiceover";
+    kind === "video" && !explicitlyEmptySpokenScript && (exactSpeechEditorVisible ? (exactHasAiVoice || exactHasProvidedNarrator) && !exactHasCharacters : speechMode === "voiceover");
   const effectiveWithSubtitles =
-    kind === "video" && !explicitlyEmptySpokenScript && speechMode !== "silent" && withSubtitles;
+    kind === "video" && !explicitlyEmptySpokenScript && (exactSpeechEditorVisible || speechMode !== "silent") && withSubtitles;
   const requestSpeechMode: MediaGenerationTeamVideoSpeechMode =
-    !explicitlyEmptySpokenScript && speechMode === "characters" ? "characters" : "voiceover";
+    !explicitlyEmptySpokenScript && (exactSpeechEditorVisible ? exactHasCharacters : speechMode === "characters") ? "characters" : "voiceover";
   const referenceCriteriaIncomplete = references.some(
     (reference) => !reference.role || !reference.usage
   );
@@ -390,10 +420,11 @@ export default function MediaFreeGenerator({
   const misplacedSpeechBlocking = Boolean(misplacedSpeech) && !spokenScriptOpen;
   const speechState = getAiMediaVideoSpeechState({
     kind, creationMode: "free", freePrompt: effectivePrompt,
-    ...(kind === "video" && spokenScriptOpen ? { spokenScript } : {}),
+    ...(exactSpeechEditorVisible && !serializedExact.issue ? { exactDialogue: serializedExact.turns } : {}),
     withNarration: effectiveWithNarration, teamVideoSpeechMode: requestSpeechMode,
     durationSeconds: duration, videoEngine: selectedVideoEngine,
     videoResolution, sceneMode, language: locale,
+    inspirationImages: exactSpeechEditorVisible ? exactCharacters.map(character => ({ role: "character" as const, characterIndex: character.characterIndex })) : projectedReferences,
   });
   const speechInvalid = kind === "video" && Boolean(speechState.issue);
   const speechUnit = t(speechState.unit === "mots" ? "ai_generator_video_speech_words" : "ai_generator_video_speech_characters");
@@ -401,8 +432,8 @@ export default function MediaFreeGenerator({
     ? t("ai_generator_model_duration_unavailable", { seconds: duration })
     : speechState.issue?.code === "AI_MEDIA_INVALID_SPEECH_MODE"
       ? t("ai_generator_spoken_script_silent_help") : t("ai_generator_video_speech_too_long");
-  const hasSpokenScript = kind === "video" && spokenScript.trim().length > 0;
-  const spokenScriptConflict = hasSpokenScript && speechMode === "silent";
+  const hasSpokenScript = kind === "video" && (exactSpeechEditorVisible ? exactRows.some(row => row.text.trim()) : spokenScript.trim().length > 0);
+  const spokenScriptConflict = !exactSpeechEditorVisible && hasSpokenScript && speechMode === "silent";
   const durationUnavailable = kind === "video" && (!durations.includes(duration) || !canGenerateAiMediaVideoDuration(selectedVideoEngine, duration, videoResolution, sceneMode));
   const referenceCompatible = kind === "video" ? isMediaVideoReferenceCompatible(selectedVideoEngine, references.length, characterVoiceSelection.hasProvidedVoice) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: references.length });
   const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(selectedVideoEngine, effectivePrompt);
@@ -421,7 +452,7 @@ export default function MediaFreeGenerator({
     : references.length > imageModel.maxReferenceImages && imageModel.supportsReferences
       ? t("ai_generator_model_reference_limit", { count: imageModel.maxReferenceImages })
       : t("ai_generator_image_references_unavailable");
-  const criteriaWarning = operationLocked ? "" : !referenceCompatible
+  const criteriaWarning = operationLocked ? "" : characterNameInvalid ? t("ai_generator_character_name_invalid") : !referenceCompatible
     ? referenceCompatibilityReason
     : referenceCriteriaIncomplete ? t("ai_generator_free_reference_criteria_required")
     : roleLimitExceeded ? t("ai_generator_free_role_limit")
@@ -437,7 +468,7 @@ export default function MediaFreeGenerator({
   const referencePhotoMissing = kind === "video" && references.length === 0 && !videoModel.supportsTextToVideo;
   const photoRequiredHint = referencePhotoMissing
     ? t("ai_generator_model_photo_required") : "";
-  const referenceSettingsWarning = kind === "image" ? criteriaWarning : !referenceCompatible
+  const referenceSettingsWarning = kind === "image" ? criteriaWarning : characterNameInvalid ? t("ai_generator_character_name_invalid") : !referenceCompatible
     ? referenceCompatibilityReason : referenceCriteriaIncomplete ? t("ai_generator_free_reference_criteria_required")
     : roleLimitExceeded ? t("ai_generator_free_role_limit") : "";
   const visibleReferenceWarning = operationLocked ? "" : referencePhotoMissing
@@ -461,8 +492,8 @@ export default function MediaFreeGenerator({
     hasProvidedCharacterVoice: characterVoiceSelection.hasProvidedVoice,
     teamVideoSpeechMode: requestSpeechMode,
     ...(kind === "video" ? { withSubtitles: effectiveWithSubtitles } : {}),
-    ...(kind === "video" && spokenScriptOpen ? { spokenScript } : {}),
-  }, quota, !durationUnavailable && referenceCompatible && briefCompatible && !providedVoiceWithEmptyScript && !characterVoiceTooShort && !narrationVoiceMissing && !narrationVoiceTooShort && !narrationVoiceUnauthorized && (kind !== "video" || !speechInvalid && !misplacedSpeechBlocking && promptReady));
+    ...(exactSpeechEditorVisible && !serializedExact.issue ? { exactDialogue: serializedExact.turns, inspirationImages: exactCharacters.map(character => ({ role: "character" as const, characterIndex: character.characterIndex })) } : {}),
+  }, quota, !exactInvalid && !characterNameInvalid && !durationUnavailable && referenceCompatible && briefCompatible && !providedVoiceWithEmptyScript && !characterVoiceTooShort && !narrationVoiceMissing && !narrationVoiceTooShort && !narrationVoiceUnauthorized && (kind !== "video" || !speechInvalid && !misplacedSpeechBlocking && promptReady));
   const creditInsufficient = creditQuote.insufficient;
   const modelRecommendation = recommendAiMediaModel({ kind, format: fixedFormat || format, operation: "generate", brief: effectivePrompt,
     ...(source === "studio" ? { recommendationContext: "studio-free" as const } : {}),
@@ -471,6 +502,7 @@ export default function MediaFreeGenerator({
     inputMode: "essential", identityMode });
   const canGenerate =
     !operationLocked &&
+    !exactDialogueOpen &&
     !reviewingRecovery &&
     promptReady &&
     Boolean(quota) &&
@@ -485,6 +517,8 @@ export default function MediaFreeGenerator({
     !referenceCriteriaIncomplete &&
     !roleLimitExceeded &&
     !realVoiceNeedsPerson &&
+    !exactInvalid &&
+    !characterNameInvalid &&
     !providedVoiceWithEmptyScript &&
     !narrationVoiceMissing && !narrationVoiceTooShort && !narrationVoiceUnauthorized &&
     !characterVoiceSelection.missingSample &&
@@ -574,6 +608,7 @@ export default function MediaFreeGenerator({
       setPrompt("");
       setRecoveryAccountChecked(null);
       setSpokenScript("");
+      setExactRows([]); setExactDialogueOpen(false); setLegacyExactImported(false);
       setSpokenScriptOpen(false);
       setUseBusinessDna(true);
       setReferences([]);
@@ -769,7 +804,7 @@ export default function MediaFreeGenerator({
 
   const chooseVoiceMode = (mode: "ai" | "provided") => {
     if (locked) return;
-    if (speechMode === "voiceover") {
+    if (voiceConfigurationMode === "voiceover") {
       setNarrationVoiceMode(mode);
       setNarrationVoiceConsent(false);
       resetConsent();
@@ -796,7 +831,7 @@ export default function MediaFreeGenerator({
       if (result?.draft) await discardDraft(result);
       if (sequence.current !== currentSequence) return;
       setStopConfirmOpen(false);
-      for (const reference of projectedReferences) if (reference.voiceSample?.path) submittedVoicePaths.current.add(reference.voiceSample.path);
+      for (const reference of generationReferences) if (reference.voiceSample?.path) submittedVoicePaths.current.add(reference.voiceSample.path);
       if (providedNarrationVoiceActive && narrationVoiceSample) submittedVoicePaths.current.add(narrationVoiceSample.path);
       await generate({
         ...creditQuote.authorization,
@@ -806,7 +841,7 @@ export default function MediaFreeGenerator({
         creationMode: "free",
         freePrompt: effectivePrompt,
         ...(kind === "image" && publicationSubject?.trim() ? { publicationSubject } : {}),
-        ...(kind === "video" && spokenScriptOpen ? { spokenScript } : {}),
+        ...(exactSpeechEditorVisible ? { exactDialogue: serializedExact.turns } : {}),
         useBusinessDna,
         inputMode: "essential",
         source,
@@ -823,12 +858,12 @@ export default function MediaFreeGenerator({
         narrationVoice: effectiveWithNarration ? voice : undefined,
         narrationVoiceVariant:
           effectiveWithNarration ? voiceVariant : undefined,
-        ...(kind === "video" && speechMode === "voiceover" ? { narrationVoiceMode, narrationVoiceSample: providedNarrationVoiceActive ? narrationVoiceSample : undefined,
+        ...(kind === "video" && (providedNarrationVoiceActive || !exactSpeechEditorVisible && speechMode === "voiceover") ? { narrationVoiceMode: providedNarrationVoiceActive ? "provided" : narrationVoiceMode, narrationVoiceSample: providedNarrationVoiceActive ? narrationVoiceSample : undefined,
           narrationVoiceConsent: providedNarrationVoiceActive && narrationVoiceConsent, narrationVoiceGender: providedNarrationVoiceActive ? activeNarrationProfile?.gender ?? "auto" : undefined } : {}),
         videoEngine: selectedVideoEngine,
         teamVideoSpeechMode: kind === "video" ? requestSpeechMode : undefined,
         teamVideoMode: "cinematic",
-        inspirationImages: referencesForRequest(projectedReferences, kind === "video" && speechMode === "characters"),
+        inspirationImages: referencesForRequest(generationReferences, kind === "video" && (exactSpeechEditorVisible ? exactHasCharacters : speechMode === "characters"), exactSpeechEditorVisible ? exactCharacters : undefined),
         identityMode,
         identityConsent: identityRequired && identityConsent,
         teamVideoVeoConsent: videoModel.provider === "google" && teamConsentRequired && teamConsent,
@@ -1004,14 +1039,15 @@ export default function MediaFreeGenerator({
     return Boolean(target && document.activeElement === target);
   };
   const assistantFormSnapshot: InrAssistantStudioFormSnapshot = {
-    mode: "free", kind, locked: operationLocked, editorVisible: editorAvailable && !stopConfirmOpen,
+    mode: "free", kind, locked: operationLocked || exactDialogueOpen, editorVisible: editorAvailable && !stopConfirmOpen && !exactDialogueOpen,
     automaticSceneMode: source === "studio",
     fixedFormat, maxPromptLength: maxUserPromptLength, activeTab: activeSettingsTab, prompt, useBusinessDna, format,
     videoEngine: selectedVideoEngine, videoResolution, language: locale,
-    durationScene: { seconds: duration, sceneMode }, speechMode, spokenScript, spokenScriptOpen,
+    durationScene: { seconds: duration, sceneMode }, speechMode, spokenScript, spokenScriptOpen, exactDialogueEditor: true,
+    voiceSelectionMode: voiceConfigurationMode, ...(exactSpeechEditorVisible && !serializedExact.issue ? { exactDialogue: serializedExact.turns } : {}),
     narrationVoice: voice, narrationVoiceVariant: voiceVariant, withMusic, withSubtitles,
     voiceMode: selectedVoiceMode, voiceReferenceId: selectedVoiceReference?.id,
-    voiceReferences: speechMode === "characters" ? voiceReferences.map(reference => ({ id: reference.id, name: reference.name, voiceMode: reference.voiceMode ?? "ai", referenceIndex: references.findIndex(item => item.id === reference.id) })) : [],
+    voiceReferences: voiceConfigurationMode === "characters" ? voiceReferences.map(reference => ({ id: reference.id, name: reference.name, voiceMode: reference.voiceMode ?? "ai", characterIndex: exactCharacters.find(character => character.id === reference.id)?.characterIndex, referenceIndex: references.findIndex(item => item.id === reference.id) })) : [],
   };
   const isVoiceSelectionApplied = (snapshot: unknown, encoded: string | null) => {
     if (!encoded) return false;
@@ -1044,7 +1080,7 @@ export default function MediaFreeGenerator({
   useInrAssistantLocalInterface("studio_free_form", { ...assistantFormSnapshot, quotaRefreshId, quotaAccountId: quota?.accountId ?? null }, {
     ...(!quotaLoading ? { retry: {
       invoke: async (_value: string | null, stillCurrent: () => boolean) => {
-        if (operationLocked) throw new Error("quota_refresh_unavailable");
+        if (operationLocked || exactDialogueOpen) throw new Error("quota_refresh_unavailable");
         const refreshed = await loadQuota({ force: true, canApply: stillCurrent, expectedAccountId: quota?.accountId ?? undefined });
         if (!refreshed?.accountId || !stillCurrent()) throw new Error("quota_refresh_unconfirmed");
         setQuotaRefreshId(current => current + 1);
@@ -1066,8 +1102,8 @@ export default function MediaFreeGenerator({
             setSpeechMode(change.value); resetConsent(); break;
           case "voiceMode": voiceAction.current = { encoded: encoded!, targetId: selectedVoiceReference?.id ?? null }; chooseVoiceMode(change.value); break;
           case "voiceReferenceId": voiceAction.current = { encoded: encoded!, targetId: change.value }; setVoiceReferenceId(change.value); break;
-          case "spokenScript": setSpokenScript(change.value); break;
-          case "spokenScriptOpen": setSpokenScriptOpen(change.value); if (!change.value) setSpokenScript(""); break;
+          case "spokenScript": throw new Error("studio_exact_dialogue_editor_required");
+          case "spokenScriptOpen": setSpokenScriptOpen(change.value); if (change.value && !exactRows.length) { const imported = importMediaExactDialogueText(spokenScript, exactCharacters); setExactRows(imported.length ? imported : [createMediaExactDialogueRow(narrationVoiceMode === "provided" && narrationVoiceSample ? "provided_voice" : "ai_voice")]); setLegacyExactImported(Boolean(spokenScript)); } break;
           case "narrationVoice": setVoice(change.value); setVoiceVariant(defaultAiMediaNarrationVoiceVariant(change.value)); break;
           case "narrationVoiceVariant": setVoiceVariant(change.value); break;
           case "withMusic": setWithMusic(change.value); break;
@@ -1077,7 +1113,7 @@ export default function MediaFreeGenerator({
       },
       matches: committedFormSelectionMatches,
     },
-  }, editorAvailable && !stopConfirmOpen, operationLocked);
+  }, editorAvailable && !stopConfirmOpen && !exactDialogueOpen, operationLocked || exactDialogueOpen);
 
   const referenceAddTitle = t(pendingReferenceRole ? `ai_generator_reference_add_${pendingReferenceRole}_title` : "ai_generator_reference_add_title");
   const addReferenceControls = (<div className={styles.mediaAddContent}>
@@ -1213,7 +1249,7 @@ export default function MediaFreeGenerator({
   const audioControls = (<div className={styles.audioSection}>
               {audioSettingsWarning ? <p className={styles.muted} role="alert">{audioSettingsWarning}</p> : null}
               {characterVoiceSpeechConflict ? <button type="button" className={styles.secondaryButton} disabled={locked} onClick={() => setSpeechMode("characters")}>{t("ai_generator_character_voice_switch_characters")}</button> : null}
-              {speechMode === "characters" && voiceReferences.length > 1 ? <label className={styles.voicePersonChoice}>
+              {voiceConfigurationMode === "characters" && voiceReferences.length > 1 ? <label className={styles.voicePersonChoice}>
                 <span>{t("ai_generator_voice_choose_person")}</span>
                 <select id={`${instanceId}-voice-character`} value={selectedVoiceReference?.id ?? ""} disabled={locked}
                   onChange={event => {
@@ -1229,7 +1265,7 @@ export default function MediaFreeGenerator({
                   {voiceReferences.map(reference => <option key={reference.id} value={reference.id}>{reference.name}</option>)}
                 </select>
               </label> : null}
-              {speechMode === "characters" && voiceSourcePreference === "provided" && !voiceReferences.length ? <button type="button" className={styles.secondaryButton} disabled={locked}
+              {voiceConfigurationMode === "characters" && voiceSourcePreference === "provided" && !voiceReferences.length ? <button type="button" className={styles.secondaryButton} disabled={locked}
                 onClick={() => { setPendingReferenceRole("character"); setSelectedReferenceId(null); setMediaSettingsDialog("images"); }}>{t("ai_generator_add_reference_character")}</button> : null}
 
               {speechMode === "characters" ? (
@@ -1237,7 +1273,7 @@ export default function MediaFreeGenerator({
                   {t("ai_generator_essential_character_speech_notice")}
                 </p>
               ) : null}
-              {speechMode === "voiceover" && narrationVoiceMode === "ai" ? (
+              {voiceConfigurationMode === "voiceover" && selectedVoiceMode === "ai" ? (
                 <div className={styles.voiceOptions}>
                   <label>
                     <span>{t("ai_generator_narration_voice_label")}</span>
@@ -1515,14 +1551,19 @@ export default function MediaFreeGenerator({
           </div>
           {references.length ? <div className={styles.mediaReferenceThumbs} data-media-reference-thumbnails role="list" aria-label={t("ai_generator_free_references_title")}>
             {references.map((reference, index) => <div key={reference.id} className={styles.mediaReferenceThumb} data-usage={reference.usage}
+              data-character-index={exactSpeechEditorVisible ? exactCharacters.find(character => character.id === reference.id)?.characterIndex : undefined}
               data-invalid={!operationLocked && (!reference.role || !reference.usage || roleLimitExceeded && reference.role === "character") || undefined} role="listitem">
               <button type="button" className={styles.mediaReferenceOpen} data-media-reference-open={index} disabled={locked}
-                aria-label={`${t("ai_generator_free_reference", { index: index + 1 })} · ${reference.name} · ${t(reference.usage === "inspiration" ? "ai_generator_free_usage_inspiration" : reference.usage === "required" ? "ai_generator_free_usage_required" : "ai_generator_free_reference_criteria_required")}`}
+                aria-label={`${exactSpeechEditorVisible && exactCharacters.some(character => character.id === reference.id) ? `${t("ai_generator_exact_dialogue_character", { index: exactCharacters.find(character => character.id === reference.id)!.characterIndex })}${reference.characterName ? ` · ${reference.characterName}` : ""}` : t("ai_generator_free_reference", { index: index + 1 })} · ${reference.name} · ${t(reference.usage === "inspiration" ? "ai_generator_free_usage_inspiration" : reference.usage === "required" ? "ai_generator_free_usage_required" : "ai_generator_free_reference_criteria_required")}`}
                 title={!operationLocked && (!reference.role || !reference.usage || roleLimitExceeded && reference.role === "character") ? `${reference.name} — ${visibleReferenceWarning}` : reference.name}
                 aria-describedby={!operationLocked && (!reference.role || !reference.usage || roleLimitExceeded && reference.role === "character") ? `${instanceId}-media-images-warning` : undefined}
                 aria-haspopup="dialog" onClick={() => { setSelectedReferenceId(reference.id); setPendingReferenceRole(reference.role ?? null); setMediaSettingsDialog("images"); }}>
                 <img src={`data:${reference.mimeType};base64,${reference.data}`} alt="" />
               </button>
+              {exactSpeechEditorVisible && exactCharacters.some(character => character.id === reference.id) ? <span className={styles.mediaCharacterCaption}>
+                <span aria-hidden="true">{exactCharacters.find(character => character.id === reference.id)!.characterIndex}</span>
+                <span className={styles.srOnly}>{t("ai_generator_exact_dialogue_character", { index: exactCharacters.find(character => character.id === reference.id)!.characterIndex })}{reference.characterName ? ` · ${reference.characterName}` : ""}</span>
+              </span> : null}
               <button type="button" className={styles.mediaReferenceOptional} data-reference-inspiration-toggle={reference.id} disabled={locked}
                 aria-label={t("ai_generator_reference_inspiration_toggle", { index: index + 1 })} title={t("ai_generator_reference_inspiration_toggle", { index: index + 1 })}
                 aria-pressed={reference.usage === "inspiration"} onClick={() => updateReference(reference.id, { usage: reference.usage === "inspiration" ? "required" : "inspiration" })}><span aria-hidden="true">{reference.usage === "inspiration" ? "✦" : "✧"}</span></button>
@@ -1530,14 +1571,14 @@ export default function MediaFreeGenerator({
           </div> : null}
           {kind === "video" ? <div className={styles.spokenScriptSection} data-exact={exactSpeechEditorVisible}>
             <div className={styles.spokenScriptPanel} data-video-speech-frame data-invalid={speechInvalid ? true : undefined}>
-              <div className={`${styles.spokenScriptHeading} ${styles.videoSpeechModeRow}`} data-silent={speechMode === "silent"}>
+              <div className={`${styles.spokenScriptHeading} ${styles.videoSpeechModeRow}`} data-silent={!exactSpeechEditorVisible && speechMode === "silent"}>
                 <div className={styles.videoFrameHeading}>
                   <div className={styles.videoSpeechTitleRow}>
-                    <label htmlFor={`${instanceId}-${speechMode === "silent" ? "video-speech-mode" : exactSpeechEditorVisible ? "spoken-script" : "spoken-script-mode"}`}>{t("ai_generator_video_sound_and_speech_title")}</label>
+                    <label htmlFor={`${instanceId}-${!exactSpeechEditorVisible && speechMode === "silent" ? "video-speech-mode" : "spoken-script-mode"}`}>{t("ai_generator_video_sound_and_speech_title")}</label>
                   </div>
                   <p id={`${instanceId}-spoken-script-help`} className={styles.srOnly}>{t("ai_generator_video_speech_frame_hint_short")}</p>
                 </div>
-                <label className={styles.speechSelectField} htmlFor={`${instanceId}-video-speech-mode`}>
+                {!exactSpeechEditorVisible ? <label className={styles.speechSelectField} htmlFor={`${instanceId}-video-speech-mode`}>
                 <span>{t("ai_generator_free_audio_characters")}</span>
                 <select id={`${instanceId}-video-speech-mode`} className={styles.spokenScriptModeSelect} value={speechMode} disabled={locked}
                   aria-describedby={hasSpokenScript ? `${instanceId}-speech-mode-help` : undefined}
@@ -1549,23 +1590,22 @@ export default function MediaFreeGenerator({
                   }}>
                   {(["voiceover", "characters", "silent"] as const).map(mode => <option key={mode} value={mode} disabled={mode === "silent" && hasSpokenScript}>{t(`ai_generator_free_audio_${mode}`)}</option>)}
                 </select>
-                </label>
-                <label className={styles.speechSelectField} htmlFor={`${instanceId}-spoken-script-mode`}>
-                <span>{t("ai_generator_speech_menu_label")}</span>
+                </label> : null}
+                <div className={styles.speechSelectField}>
+                <label htmlFor={`${instanceId}-spoken-script-mode`}>{t("ai_generator_speech_menu_label")}</label>
                 <select
                   id={`${instanceId}-spoken-script-mode`}
                   className={styles.spokenScriptModeSelect}
                   value={spokenScriptOpen ? "exact" : "automatic"}
-                  disabled={locked || speechMode === "silent"}
+                  disabled={locked}
                   aria-label={`${t("ai_generator_video_speech_automatic")} / ${t("ai_generator_video_speech_exact")}`}
                   aria-controls={`${instanceId}-spoken-script-panel`}
                   aria-describedby={`${instanceId}-spoken-script-help`}
                   onChange={(event) => {
                     if (event.target.value === "exact") {
                       setSpokenScriptOpen(true);
-                      window.requestAnimationFrame(() => document.getElementById(`${instanceId}-spoken-script`)?.focus({ preventScroll: true }));
+                      if (!exactRows.length) { const imported = importMediaExactDialogueText(spokenScript, exactCharacters); setExactRows(imported.length ? imported : [createMediaExactDialogueRow(narrationVoiceMode === "provided" && narrationVoiceSample ? "provided_voice" : "ai_voice")]); setLegacyExactImported(Boolean(spokenScript)); }
                     } else {
-                      setSpokenScript("");
                       setSpokenScriptOpen(false);
                     }
                   }}
@@ -1573,31 +1613,40 @@ export default function MediaFreeGenerator({
                   <option value="automatic">{t("ai_generator_video_speech_automatic")}</option>
                   <option value="exact">{t("ai_generator_video_speech_exact")}</option>
                 </select>
-                </label>
+                {exactSpeechEditorVisible ? <StudioExactDialogueEditor enabled={editorAvailable && !voicePoolOpen && !libraryOpen && !mediaSettingsDialog} disabled={locked}
+                  scopeKey={quota?.accountId ?? ""} rows={exactRows} onChange={setExactRows} characters={exactCharacters}
+                  onOpenChange={setExactDialogueOpen} legacyImported={legacyExactImported} defaultSpeaker={narrationVoiceMode === "provided" && narrationVoiceSample ? "provided_voice" : "ai_voice"} /> : null}
+                </div>
                 <div className={`${styles.speechSelectField} ${styles.voiceSourceField}`}>
                   <div className={styles.voiceMenuHeading}>
-                    <label htmlFor={`${instanceId}-video-voice-mode`}>{t("ai_generator_narration_voice_label")}</label>
+                    <label htmlFor={`${instanceId}-video-voice-mode`}>{t(exactHasCharacters ? "ai_generator_exact_dialogue_character_voices" : "ai_generator_narration_voice_label")}</label>
                   </div>
-                  <select id={`${instanceId}-video-voice-mode`} className={styles.spokenScriptModeSelect} value={selectedVoiceMode} disabled={locked || speechMode === "silent"}
+                  {exactHasCharacters && exactCharacters.length > 1 ? <select aria-label={t("ai_generator_voice_choose_person")} disabled={locked} value={selectedVoiceReference?.id ?? ""}
+                    onChange={event => { setVoiceReferenceId(event.target.value || null); }}>
+                    <option value="" disabled>{t("ai_generator_voice_choose_person")}</option>
+                    {exactCharacters.map(character => <option key={character.id} value={character.id}>{t("ai_generator_exact_dialogue_character", { index: character.characterIndex })}{character.name ? ` · ${character.name}` : ""}</option>)}
+                  </select> : null}
+                  <select id={`${instanceId}-video-voice-mode`} className={styles.spokenScriptModeSelect} value={selectedVoiceMode} disabled={locked || exactSpeechEditorVisible && voiceConfigurationMode === "voiceover" || !exactSpeechEditorVisible && speechMode === "silent"}
                     aria-describedby={audioSettingsWarning ? `${instanceId}-video-audio-warning` : undefined}
                     onChange={event => chooseVoiceMode(event.target.value === "provided" ? "provided" : "ai")}>
                     <option value="ai">{t("ai_generator_character_voice_ai")}</option>
                     <option value="provided">{t("ai_generator_voice_real")}</option>
                   </select>
-                  {selectedVoiceMode === "ai" && (speechMode === "silent" || aiVoiceSettingsAvailable) ? <button type="button" className={styles.voiceSettingsMain} data-video-audio-button disabled={locked || speechMode === "silent"}
+                  {selectedVoiceMode === "ai" && (voiceConfigurationMode === "silent" || aiVoiceSettingsAvailable) ? <button type="button" className={styles.voiceSettingsMain} data-video-audio-button disabled={locked || voiceConfigurationMode === "silent"}
                     aria-haspopup="dialog" aria-expanded={mediaSettingsDialog === "audio"} aria-controls={mediaSettingsDialog === "audio" ? `${instanceId}-video-audio-dialog` : undefined}
                     onClick={() => setMediaSettingsDialog("audio")}>{t("ai_generator_voice_details")}</button> : null}
-                  <StudioVoicePool scopeKey={quota?.accountId ?? ""} visible={speechMode !== "silent" && selectedVoiceMode === "provided"}
-                    available={!mediaSettingsDialog && !libraryOpen && !stopConfirmOpen} onOpenChange={setVoicePoolOpen}
-                    profiles={voiceProfiles} onChange={setVoiceProfiles} characters={voiceReferences.map(reference => ({ id: reference.id, name: reference.name, referenceIndex: references.findIndex(item => item.id === reference.id) }))}
-                    selectedCharacterId={selectedVoiceReference?.id ?? null} speechMode={speechMode}
+                  <StudioVoicePool scopeKey={quota?.accountId ?? ""} visible={(exactSpeechEditorVisible || speechMode !== "silent") && selectedVoiceMode === "provided"}
+                    available={!mediaSettingsDialog && !libraryOpen && !stopConfirmOpen && !exactDialogueOpen} onOpenChange={setVoicePoolOpen}
+                    profiles={voiceProfiles} onChange={setVoiceProfiles} characters={voiceReferences.map(reference => ({ id: reference.id, name: reference.name, characterName: reference.characterName, referenceIndex: references.findIndex(item => item.id === reference.id) }))}
+                    onCharacterNameChange={(id, characterName) => { if (!locked) setReferences(current => current.map(reference => reference.id === id && reference.role === "character" ? { ...reference, characterName } : reference)); }}
+                    selectedCharacterId={selectedVoiceReference?.id ?? null} speechMode={voiceConfigurationMode}
                     activeNarrationVoiceId={activeNarrationVoiceId} onNarrationChange={id => { if (id !== activeNarrationVoiceId) setNarrationVoiceConsent(false); setActiveNarrationVoiceId(id); }}
                     narrationConsent={narrationVoiceConsent} onNarrationConsentChange={setNarrationVoiceConsent} disabled={locked} onBusyChange={setCharacterVoiceBusy}
                     onAssignCharacter={id => updateReference(id, { voiceMode: "provided" })} onUnassignCharacter={id => updateReference(id, { voiceMode: "ai" }, false)}
                     releaseSample={releaseUnusedVoiceSample} />
                 </div>
                 <label className={styles.inlineSubtitles}>
-                  <input type="checkbox" checked={withSubtitles} disabled={locked || speechMode === "silent"}
+                  <input type="checkbox" checked={withSubtitles} disabled={locked || !exactSpeechEditorVisible && speechMode === "silent"}
                     data-media-subtitles onChange={event => setWithSubtitles(event.target.checked)} />
                   <span>{t("ai_generator_free_subtitles")}</span>
                 </label>
@@ -1608,25 +1657,19 @@ export default function MediaFreeGenerator({
               <div id={`${instanceId}-spoken-script-panel`} className={styles.spokenScriptContent}>
               {exactSpeechEditorVisible ? <>
               <div className={styles.spokenScriptInput}>
-                <textarea ref={speechInputRef} id={`${instanceId}-spoken-script`} value={spokenScript}
-                  disabled={locked}
-                  aria-invalid={speechInvalid ? true : undefined}
-                  aria-describedby={`${instanceId}-spoken-script-help ${instanceId}-spoken-script-count ${instanceId}-spoken-script-budget${speechInvalid ? ` ${instanceId}-spoken-script-error` : ""}`}
-                  placeholder={t("ai_generator_spoken_script_placeholder")}
-                  onChange={(event) => { setSpokenScriptOpen(true); setSpokenScript(event.target.value); }} />
                 <span id={`${instanceId}-spoken-script-count`} className={styles.spokenScriptCounter} aria-live="polite">
                   {t("ai_generator_video_speech_count", { count: speechState.units.toLocaleString(locale), max: speechState.maxUnits.toLocaleString(locale), unit: speechUnit })}
                   {" · "}{t("ai_generator_video_speech_character_count", { count: speechState.characters.toLocaleString(locale), max: speechState.maxCharacters.toLocaleString(locale) })}
                 </span>
               </div>
               <p id={`${instanceId}-spoken-script-budget`} className={explicitlyEmptySpokenScript ? styles.promptHelp : styles.srOnly}
-                title={explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}>
-                <span aria-hidden="true">{explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty_short") : t("ai_generator_video_speech_budget_short", { seconds: duration, model: videoModel.label })}</span>
-                <span className={styles.srOnly}>{explicitlyEmptySpokenScript ? t("ai_generator_video_speech_empty") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}</span>
+                title={explicitlyEmptySpokenScript ? t("ai_generator_exact_dialogue_empty") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}>
+                <span aria-hidden="true">{explicitlyEmptySpokenScript ? t("ai_generator_exact_dialogue_empty") : t("ai_generator_video_speech_budget_short", { seconds: duration, model: videoModel.label })}</span>
+                <span className={styles.srOnly}>{explicitlyEmptySpokenScript ? t("ai_generator_exact_dialogue_empty") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}</span>
               </p>
               </> : speechMode !== "silent" ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_automatic_hint")}</p> : null}
               {!spokenScriptOpen && speechState.script ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_legacy")}</p> : null}
-              {(exactSpeechEditorVisible || Boolean(speechState.script)) && speechState.segmentBudgets.length > 1 && speechMode === "characters" ? <div className={styles.speechSegments}>
+              {(exactSpeechEditorVisible || Boolean(speechState.script)) && speechState.segmentBudgets.length > 1 && requestSpeechMode === "characters" ? <div className={styles.speechSegments}>
                 {speechState.segmentBudgets.map((segment, index) => <span key={index} data-invalid={segment.issue ? true : undefined}>
                   {t("ai_generator_video_speech_segment", { index: index + 1, seconds: segment.durationSeconds, count: segment.units.toLocaleString(locale), max: segment.maxUnits.toLocaleString(locale), unit: speechUnit })}
                 </span>)}
@@ -1701,7 +1744,7 @@ export default function MediaFreeGenerator({
         {libraryPicker}
       </MediaSettingsDialog> : null}
       {kind === "video" ? <StudioMusicLibrary withMusic={withMusic} soundtrackId={soundtrackId} scopeKey={quota?.accountId ?? ""} disabled={locked}
-        open={mediaSettingsDialog === "music"} available={editorAvailable && !stopConfirmOpen && !libraryOpen && !voicePoolOpen && Boolean(quota?.accountId)}
+        open={mediaSettingsDialog === "music"} available={editorAvailable && !stopConfirmOpen && !libraryOpen && !voicePoolOpen && !exactDialogueOpen && Boolean(quota?.accountId)}
         onOpen={() => setMediaSettingsDialog("music")} onClose={() => setMediaSettingsDialog(null)}
         onChange={(enabled, id) => { setWithMusic(enabled); setSoundtrackId(id); }}
         renderDialog={content => <MediaSettingsDialog id={`${instanceId}-video-music-dialog`} kind="music" title={t("ai_generator_music_title")} closeLabel={t("ai_generator_video_settings_close")} closeBlocked={locked} onClose={() => setMediaSettingsDialog(null)}>{content}</MediaSettingsDialog>} /> : null}

@@ -12,6 +12,34 @@ export const AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES = Object.freeze(["wan27", "w
 export type AiMediaCharacterVoiceVideoEngine = typeof AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES[number];
 export const AI_MEDIA_CHARACTER_VOICE_WAN3_MAX_TOTAL_SECONDS = 15;
 
+/** Explicit identity metadata only; never inferred from a file or a voice. */
+export function normalizeAiMediaCharacterName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const name = value.normalize("NFKC").replace(/\s+/gu, " ").trim();
+  if (!name) return "";
+  return name.length <= 40 && /^[\p{L}][\p{L}\p{M}\p{N} '’_-]{0,39}$/u.test(name) ? name : null;
+}
+
+/** Only declared speaker headers are excluded from spoken-length estimates. */
+export function getAiMediaCharacterSpeechText(script: string, references: readonly { role?: string; characterIndex?: number; characterName?: string }[] = []) {
+  const matches = [...script.matchAll(/(?:^|\n)[ \t]*([\p{L}][\p{L}\p{M}\p{N} '’_()\-]{0,69}?)\s*:[ \t]*/gu)];
+  if (!matches.length || script.slice(0, matches[0].index).trim()) return script;
+  const slots = new Set(references.flatMap((reference, index) => reference.role === "character" ? [reference.characterIndex ?? index + 1] : []));
+  const names = new Set(references.flatMap(reference => reference.role === "character" && reference.characterName ? [normalizeAiMediaCharacterName(reference.characterName)?.toLowerCase()] : []).filter(Boolean));
+  for (const match of matches) {
+    const named = /^(.{1,40}?)\s*\((?:personnage|character)\s*([1-3])\)$/iu.exec(match[1].trim());
+    const name = named ? normalizeAiMediaCharacterName(named[1]) : null;
+    if (name && named && slots.has(Number(named[2]))) names.add(name.toLowerCase());
+  }
+  if (!matches.every(match => {
+    const label = match[1].trim(), explicit = /^(?:personnage|character)\s*([1-3])$/iu.exec(label);
+    const named = /^(.{1,40}?)\s*\((?:personnage|character)\s*([1-3])\)$/iu.exec(label);
+    const name = normalizeAiMediaCharacterName(named ? named[1] : label);
+    return Boolean(name) && (explicit ? slots.has(Number(explicit[1])) : named ? slots.has(Number(named[2])) : names.has(name!.toLowerCase()));
+  })) return script;
+  return matches.map((match, index) => script.slice(match.index! + match[0].length, matches[index + 1]?.index ?? script.length).trim()).join("\n");
+}
+
 export type AiMediaCharacterVoiceSample = {
   path: string;
   name: string;

@@ -515,8 +515,14 @@ function buildOpeningHoursSpecification(data: InrSearchPublicPageData) {
   );
 }
 
-function normalizeStructuredPhone(value: string) {
-  const numbers = parseCtaPhoneNumbers(value).map(dialCtaPhone);
+function normalizeStructuredPhone(value: string, country = "") {
+  // Preserve the legacy French structured format only when the public address
+  // identifies France. A local number alone cannot establish its country code.
+  const isFrench = /^(?:fr|france)$/i.test(country.trim());
+  const numbers = parseCtaPhoneNumbers(value).map((phone) => {
+    const compact = dialCtaPhone(phone);
+    return isFrench && /^0\d{9}$/.test(compact) ? `+33${compact.slice(1)}` : compact;
+  });
   return numbers.length > 1 ? numbers : numbers[0] || undefined;
 }
 
@@ -553,13 +559,13 @@ function buildJsonLd(data: InrSearchPublicPageData, i18nT: (_key: string, _value
       Boolean,
     ),
     logo: data.logoUrl || undefined,
-    telephone: normalizeStructuredPhone(data.phone),
+    telephone: normalizeStructuredPhone(data.phone, data.country),
     email: data.email || undefined,
     contactPoint:
       callTargets.length || data.email
         ? {
             "@type": "ContactPoint",
-            telephone: normalizeStructuredPhone(data.phone),
+            telephone: normalizeStructuredPhone(data.phone, data.country),
             email: data.email || undefined,
             contactType: i18nT("customer_service_label"),
             availableLanguage: [locale],

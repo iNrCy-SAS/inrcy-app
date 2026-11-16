@@ -23,7 +23,7 @@ export function buildAiMediaGlobalConstraints(
   const instructions = completeRule(profile.preferences.customInstructions);
   if (!prohibited && !instructions) return "";
   return [
-    "GLOBAL MEDIA RULES (ADN on/off), below safety/rights: prohibitions override instructions, the brief, casting and references, even later. Apply relevant clauses per image/shot. Writing-only advice adds no unrequested text/CTA/audio. Never render/recite rules.",
+    "GLOBAL MEDIA RULES (ADN on/off; safety/rights first). Prohibitions > even later instructions/brief/cast/refs. Per relevant image/shot; writing advice≠text/CTA/audio request. Never show/say rules.",
     prohibited ? `PROHIBITIONS (highest priority):\n${prohibited}` : "",
     instructions ? `INSTRUCTIONS:\n${instructions}` : "",
   ].filter(Boolean).join("\n");

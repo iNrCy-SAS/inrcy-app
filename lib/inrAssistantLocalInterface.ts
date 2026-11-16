@@ -2,10 +2,12 @@ import { getInrAssistantAgentSettingsRequest } from './inrAssistantAgentSettings
 export { getInrAssistantAgentSettingsRequest };
 import { INR_ASSISTANT_PUBLIC_LINK_TARGETS } from "./inrAssistantNativeChannelLinks.ts";
 import { inrAssistantMaskQuotedText, inrAssistantClauseIsAdvice } from './inrAssistantRequestClauses.ts';
+import { normalizeAiMediaCharacterName } from './aiMediaCharacterVoices.ts';
+import { isInrAssistantStudioExactDialogueRequest, isInrAssistantStudioExactDialogueValueRequested, parseInrAssistantStudioExactDialogueSelection } from './inrAssistantStudioExactDialogue.ts';
 
 /** Finite local UI helpers only: no selector, URL, script, account switch,
  * consent, submit, delete, provider write or arbitrary component callback. */
-export const INR_ASSISTANT_LOCAL_INTERFACES = ['generator', 'help', 'help_dialog', 'contact', 'legal', 'channel_board', 'channel_formats', 'badge_actions', 'website_actions', 'channel_parameters', 'channel_header', 'engine_info', 'profession_picker', 'dna_sources', 'business_location', 'dna_schedule', 'studio_guided_form', 'studio_free_form', 'studio_media_images', 'studio_video_audio', 'studio_video_music', 'studio_voice_pool', 'studio_workspace', 'studio_result_viewer', 'studio_modal', 'badge_qr_options', 'badge_download_options', 'badge_link', 'channel_formats_facebook', 'channel_formats_instagram', 'cookie_options', 'website_ga4_details', 'website_gsc_details', 'writing_web_length_options', 'writing_social_length_options', 'language_options', 'notification_menu', 'planning_calendar', 'send_history', 'send_details', 'planning_day', 'planning_filters', 'send_preview', 'generator_settings', 'booster_stats', 'publication_media_preview', 'publication_adjustment', 'publication_review', 'publication_warning', 'channel_image_dialog', 'channel_image_viewer', 'google_review_details', 'media_import', 'writing_cta_channels', 'writing_cta_choices', 'subscription_activation_choice', 'studio_modifier', 'google_profile_draft', 'google_primary_category', 'google_additional_category', 'public_channel_link', 'channel_link_editor', 'channel_link_draft', 'publication_soundtrack_facebook', 'publication_soundtrack_instagram', 'emoji_picker', 'content_report', 'settings_drawer', 'dashboard_info', 'establishment_menu', 'mobile_menu', 'video_recharge', 'dna_text_description', 'dna_text_mission', 'dna_text_offers', 'dna_text_arguments', 'dna_text_proofs', 'dna_text_responses', 'dna_text_strategy', 'dna_text_calendar', 'publication_wizard', 'stats_channel_detail', 'studio_guided_library', 'studio_free_library', 'studio_retouch_library', 'studio_reference_information', 'studio_draft_reset', 'studio_draft_close', 'studio_draft_abandon', 'studio_recovery_guided', 'studio_recovery_free', 'publication_tiktok_settings', 'google_profile_sections', 'google_special_hours', 'google_weekly_hours', 'google_profile_reload', 'inertia_help', 'scheduled_publication_channel', 'scheduled_publication_editor', 'scheduled_publication_text_form', 'scheduled_publication_media', 'scheduled_publication_library', 'scheduled_publication_options', 'scheduled_publication_workspace', 'search_presentation', 'channel_cockpit', 'channel_cockpit_filter', 'inertia_views', 'boutique_views', 'boutique_help', 'subscription_details', 'subscription_invoices', 'planning_edit_choice', 'planning_workspace', 'planning_confirmation', 'planning_image', 'send_help', 'send_links', 'send_editor', 'pinterest_board_name', 'pinterest_boards', 'badge_identity_theme', 'planning_item', 'agent_settings'] as const;
+export const INR_ASSISTANT_LOCAL_INTERFACES = ['generator', 'help', 'help_dialog', 'contact', 'legal', 'channel_board', 'channel_formats', 'badge_actions', 'website_actions', 'channel_parameters', 'channel_header', 'engine_info', 'profession_picker', 'dna_sources', 'business_location', 'dna_schedule', 'studio_guided_form', 'studio_free_form', 'studio_media_images', 'studio_video_audio', 'studio_video_music', 'studio_voice_pool', 'studio_exact_dialogue', 'studio_workspace', 'studio_result_viewer', 'studio_modal', 'badge_qr_options', 'badge_download_options', 'badge_link', 'channel_formats_facebook', 'channel_formats_instagram', 'cookie_options', 'website_ga4_details', 'website_gsc_details', 'writing_web_length_options', 'writing_social_length_options', 'language_options', 'notification_menu', 'planning_calendar', 'send_history', 'send_details', 'planning_day', 'planning_filters', 'send_preview', 'generator_settings', 'booster_stats', 'publication_media_preview', 'publication_adjustment', 'publication_review', 'publication_warning', 'channel_image_dialog', 'channel_image_viewer', 'google_review_details', 'media_import', 'writing_cta_channels', 'writing_cta_choices', 'subscription_activation_choice', 'studio_modifier', 'google_profile_draft', 'google_primary_category', 'google_additional_category', 'public_channel_link', 'channel_link_editor', 'channel_link_draft', 'publication_soundtrack_facebook', 'publication_soundtrack_instagram', 'emoji_picker', 'content_report', 'settings_drawer', 'dashboard_info', 'establishment_menu', 'mobile_menu', 'video_recharge', 'dna_text_description', 'dna_text_mission', 'dna_text_offers', 'dna_text_arguments', 'dna_text_proofs', 'dna_text_responses', 'dna_text_strategy', 'dna_text_calendar', 'publication_wizard', 'stats_channel_detail', 'studio_guided_library', 'studio_free_library', 'studio_retouch_library', 'studio_reference_information', 'studio_draft_reset', 'studio_draft_close', 'studio_draft_abandon', 'studio_recovery_guided', 'studio_recovery_free', 'publication_tiktok_settings', 'google_profile_sections', 'google_special_hours', 'google_weekly_hours', 'google_profile_reload', 'inertia_help', 'scheduled_publication_channel', 'scheduled_publication_editor', 'scheduled_publication_text_form', 'scheduled_publication_media', 'scheduled_publication_library', 'scheduled_publication_options', 'scheduled_publication_workspace', 'search_presentation', 'channel_cockpit', 'channel_cockpit_filter', 'inertia_views', 'boutique_views', 'boutique_help', 'subscription_details', 'subscription_invoices', 'planning_edit_choice', 'planning_workspace', 'planning_confirmation', 'planning_image', 'send_help', 'send_links', 'send_editor', 'pinterest_board_name', 'pinterest_boards', 'badge_identity_theme', 'planning_item', 'agent_settings'] as const;
 export const INR_ASSISTANT_LOCAL_OPERATIONS = ['close', 'open', 'search', 'select', 'copy', 'previous', 'next', 'retry', 'clear', 'review', 'play', 'stop'] as const;
 export type InrAssistantLocalInterface = typeof INR_ASSISTANT_LOCAL_INTERFACES[number];
 export type InrAssistantLocalOperation = typeof INR_ASSISTANT_LOCAL_OPERATIONS[number];
@@ -16,6 +18,7 @@ const ALLOWED_OPERATIONS: Record<InrAssistantLocalInterface, readonly InrAssista
   studio_guided_form: ['select', 'retry'], studio_free_form: ['select', 'retry'], studio_workspace: ['open', 'close', 'select'], studio_result_viewer: ['close', 'select'], studio_modal: ['close', 'select'],
   studio_media_images: ['open', 'close', 'select'], studio_video_audio: ['open', 'close'], studio_video_music: ['open', 'close', 'select', 'play', 'stop', 'retry'],
   studio_voice_pool: ['open', 'close', 'select'],
+  studio_exact_dialogue: ['open', 'close', 'select'],
   badge_qr_options: ['open', 'close'], badge_download_options: ['open', 'close'], badge_link: ['copy'], channel_formats_facebook: ['open', 'close'], channel_formats_instagram: ['open', 'close'], cookie_options: ['open', 'close'],
   website_ga4_details: ['open', 'close'], website_gsc_details: ['open', 'close'],
   writing_web_length_options: ['open', 'close'], writing_social_length_options: ['open', 'close'], language_options: ['open', 'close'], notification_menu: ['open', 'close'],
@@ -25,7 +28,7 @@ const ALLOWED_OPERATIONS: Record<InrAssistantLocalInterface, readonly InrAssista
 /** Encoded JSON bounds; each native form additionally validates its own fields. */
 export function inrAssistantLocalInterfaceValueLimit(id: InrAssistantLocalInterface): number {
   if (id.startsWith('dna_text_')) return 32000;
-  if (['studio_guided_form', 'studio_free_form'].includes(id)) return 25000;
+  if (['studio_guided_form', 'studio_free_form', 'studio_exact_dialogue'].includes(id)) return 25000;
   if (id === 'studio_modifier') return 8000;
   if (id === 'content_report') return 13000;
   if (id === 'scheduled_publication_text_form') return 40000;
@@ -33,6 +36,45 @@ export function inrAssistantLocalInterfaceValueLimit(id: InrAssistantLocalInterf
 }
 export type InrAssistantLocalInterfaceHint = { id: InrAssistantLocalInterface; revision: string; operations: InrAssistantLocalOperation[] };
 export type InrAssistantLocalInterfaceCommand = { command: 'control_local_interface'; selection: { kind: 'account_document'; id: InrAssistantLocalInterface }; revision: string; operation: InrAssistantLocalOperation; value: string | null };
+export type InrAssistantStudioCharacterNameSelection = { field: 'characterName'; referenceIndex: number; value: string };
+
+/** A bounded label for an existing photo, never a filename, vocal or consent. */
+export function parseInrAssistantStudioCharacterNameSelection(value: unknown): InrAssistantStudioCharacterNameSelection | null {
+  if (typeof value !== 'string' || value.length > 1200) return null;
+  let raw: unknown;
+  try { raw = JSON.parse(value); } catch { return null; }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const row = raw as Record<string, unknown>;
+  if (Object.keys(row).length !== 3 || row.field !== 'characterName' || !Number.isInteger(row.referenceIndex) || Number(row.referenceIndex) < 0 || Number(row.referenceIndex) > 4) return null;
+  const name = normalizeAiMediaCharacterName(row.value);
+  return name === null ? null : { field: 'characterName', referenceIndex: Number(row.referenceIndex), value: name };
+}
+
+function requestedStudioCharacterName(message: string): InrAssistantStudioCharacterNameSelection | null {
+  if (message.length > 4000) return null;
+  const raw = message.normalize('NFKC').trim();
+  const text = inrAssistantMaskQuotedText(raw).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
+  if (inrAssistantClauseIsAdvice(text) || /\b(?:pas|jamais|ne|non|si|ou|soit|comment|pourquoi|hier|demain|quand|apres|avant|sans|not|never|if|when)\b|\bn['’]|\?|[\r\n]|[.!;]\s+\S/.test(text)) return null;
+  if (!/\bstudio\b/.test(text) || !/\bpersonnage\b/.test(text)) return null;
+  const directive = text.replace(/^(?:dans|sur)\s+(?:le|mon)\s+studio(?:\s+(?:libre|guide))?\s*[,;:]?\s*/, '')
+    .replace(/^(?:(?:peux|pourrais)[ -]tu|(?:pouvez|pourriez)[ -]vous)\s+/, '');
+  if (!/^(?:nomme(?:z)?|renomme(?:z)?|appelle(?:z)?|renseigne(?:z)?|mets|mettez|definis(?:sez)?|change(?:z)?)\b/.test(directive)) return null;
+  if (!/^(?:nomme(?:z)?|renomme(?:z)?|appelle(?:z)?)\b/.test(directive) && !/\bnom\b/.test(text)) return null;
+  if (/\b(?:fichier|filename|vocal|vocaux|enregistrement)\b/.test(text)) return null;
+  const photos = [...text.matchAll(/\b(?:photo|image|reference|miniature)\s*(?:n[°o]?\.?\s*)?(\d+)\b/g)];
+  if (photos.length !== 1 || !/^[1-5]$/.test(photos[0][1])) return null;
+  const photo = `(?:photo|image|r[eé]f[eé]rence|miniature)\\s*(?:n[°o]?\\.?\\s*)?${photos[0][1]}\\b`;
+  const studioSuffix = '(?:\\s+(?:dans|sur|du)\\s+(?:le|mon)\\s+studio(?:\\s+(?:libre|guid[eé]))?)?';
+  // The name must be the literal field value in this directive, not a name
+  // mentioned in another sentence, an instruction quotation or a filename.
+  const afterPhoto = new RegExp(`${photo}\\s*(?:(?:à|a|en|comme)\\s+|[:=]\\s*)?(.+?)${studioSuffix}\\s*[.!]*$`, 'iu').exec(raw);
+  const beforePhoto = new RegExp(`(?:nomme(?:z)?|renomme(?:z)?|appelle(?:z)?)\\s+(.+?)\\s+(?:le\\s+)?personnage\\s+(?:de\\s+la|sur\\s+la)\\s+${photo}${studioSuffix}\\s*[.!]*$`, 'iu').exec(raw);
+  let literal = (beforePhoto?.[1] ?? afterPhoto?.[1] ?? '').trim();
+  if (/^(?:dans|sur|du)\s+(?:le|mon)\s+studio(?:\s+(?:libre|guid[eé]))?\s*[.!]*$/iu.test(literal)) return null;
+  if (/^(?:«[\s\S]*»|“[\s\S]*”|"[\s\S]*"|‘[\s\S]*’|'[\s\S]*')$/.test(literal)) literal = literal.slice(1, -1);
+  const name = normalizeAiMediaCharacterName(literal);
+  return name === null || !literal && !afterPhoto ? null : { field: 'characterName', referenceIndex: Number(photos[0][1]) - 1, value: name };
+}
 const REVISION = /^[a-zA-Z0-9_-]{1,100}$/;
 export function parseInrAssistantLocalInterfaceHints(value: unknown): InrAssistantLocalInterfaceHint[] | undefined {
   if (!Array.isArray(value) || !value.length || value.length > INR_ASSISTANT_LOCAL_INTERFACES.length) return undefined;
@@ -60,10 +102,16 @@ export function parseInrAssistantLocalInterfaceCommand(value: unknown): InrAssis
     const valid = row.operation === "select" ? trackId : row.operation === "play" ? row.value === null || trackId && row.value !== "auto" && row.value !== "off" : row.value === null;
     return valid ? { command: row.command, selection: { kind: "account_document", id: selection.id }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: row.value as string | null } : null;
   }
+  if (selection.id === 'studio_exact_dialogue') {
+    const dialogue = row.operation === 'select' ? parseInrAssistantStudioExactDialogueSelection(row.value) : null;
+    const valid = row.operation === 'select' ? Boolean(dialogue) : row.value === null;
+    return valid ? { command: row.command, selection: { kind: 'account_document', id: selection.id }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: dialogue ? JSON.stringify(dialogue) : null } : null;
+  }
   if (selection.id === "studio_voice_pool") {
+    const characterName = row.operation === 'select' ? parseInrAssistantStudioCharacterNameSelection(row.value) : null;
     const valid = row.operation === "close" || row.operation === "open" && row.value === null ? row.value === null : typeof row.value === "string" &&
       (row.operation === "open" ? /^(?:new|voice:[0-2])$/.test(row.value) : /^(?:active:[0-2]|target:[0-2]:(?:none|narration|reference:[0-4])|gender:[0-2]:(?:auto|female|male))$/.test(row.value));
-    return valid ? { command: row.command, selection: { kind: "account_document", id: selection.id }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: row.value as string | null } : null;
+    return valid || characterName ? { command: row.command, selection: { kind: "account_document", id: selection.id }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: characterName ? JSON.stringify(characterName) : row.value as string | null } : null;
   }
   if (channelLink) return INR_ASSISTANT_PUBLIC_LINK_TARGETS.includes(row.value as never) ? { command: row.command, selection: { kind: "account_document", id: selection.id as InrAssistantLocalInterface }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: String(row.value) } : null;
   if (selection.id === "google_weekly_hours" && ["open", "select"].includes(String(row.operation))) return ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"].includes(String(row.value)) ? { command: row.command, selection: { kind: "account_document", id: selection.id }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: String(row.value) } : null;
@@ -79,6 +127,7 @@ const TARGETS: Record<InrAssistantLocalInterface, RegExp> = {
   channel_board: /tableau|pinterest/, channel_formats: /formats?|types? de publication/, badge_actions: /(?:menu|actions?|outils?).{0,25}badge|badge.{0,25}(?:menu|actions?|outils?)/, website_actions: /(?:menu|actions?|outils?).{0,25}(?:site|widget)|(?:site|widget).{0,25}(?:menu|actions?|outils?)/,
   channel_parameters: /canal|parametres?|bulle/, channel_header: /canal|bulle/, engine_info: /moteur|engine/, profession_picker: /(?:selecteur|recherche|liste).{0,30}(?:metier|profession)|(?:metier|profession).{0,30}(?:selecteur|recherche|liste)/,
   dna_sources: /adn|dna|sources?|documents?/, business_location: /localisation|adresse|siege|zone/, dna_schedule: /analyse|adn|programmation/,
+  studio_exact_dialogue: /studio.{0,80}(?:paroles?\s+exactes?|dialogue)|(?:paroles?\s+exactes?|dialogue).{0,80}studio/,
   studio_guided_form: /formulaire (?:du |de |d[u'] ?)?studio guide|studio guide/, studio_free_form: /formulaire (?:du |de |d[u'] ?)?studio libre|studio libre/,
   studio_media_images: /\b(?:images?|photos?|references?|inspirations?|miniatures?|personnages?|decors?|produits?)\b.{0,35}\bstudio\b|\bstudio\b.{0,35}\b(?:images?|photos?|references?|inspirations?|miniatures?|personnages?|decors?|produits?)\b/,
   studio_video_audio: /(?:fenetre|reglages?|parametres?|options?|panneau|details?).{0,20}\b(?:audio|son|voix|vocaux)\b.{0,35}studio|studio.{0,35}(?:fenetre|reglages?|parametres?|options?|panneau|details?).{0,20}\b(?:audio|son|voix|vocaux)\b|\b(?:voix|vocaux)\b.{0,35}\bstudio\b|\bstudio\b.{0,35}\b(?:voix|vocaux)\b/,
@@ -187,6 +236,7 @@ export function isInrAssistantLocalInterfaceRequest(message: string, target?: In
   if (!target && getInrAssistantAgentSettingsRequest(message)?.operation === 'open') return false; // The finite navigation opens and verifies this panel, including from another page.
   const text = inrAssistantMaskQuotedText(message).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
   if (inrAssistantClauseIsAdvice(text) || /\b(?:si|if|quand|when|apres|avant|demain|plus tard|sans|never|not)\b|\bne\b.{0,50}\bpas\b|\bn['’]/.test(text) || /^(?:le client|le message|la page|le document)\b/.test(text)) return false;
+  if (target === 'studio_exact_dialogue') return operation ? ['open', 'close', 'select'].includes(operation) && isInrAssistantStudioExactDialogueRequest(message, operation as 'open' | 'close' | 'select') : ['open', 'close', 'select'].some(op => isInrAssistantStudioExactDialogueRequest(message, op as 'open' | 'close' | 'select'));
   if (target === "badge_identity_theme") return false; // Dedicated tool verifies the native persistent logo extraction.
   if (target?.startsWith("dna_text_")) return false; // Dedicated formatting tool binds exact literal text and field.
   if (operation === "review") return false; // Dedicated tool preserves the pending human confirmation, never a generic success.
@@ -219,7 +269,7 @@ export function isInrAssistantLocalInterfaceRequest(message: string, target?: In
   if (target === "notification_menu" && operation && !/^(?:(?:peux|pourrais)[ -]tu\s+|(?:pouvez|pourriez)[ -]vous\s+)?(?:ouvre\w*|affiche\w*|montre\w*|ferme\w*|referme\w*|masque\w*|open|close|show|hide)\s+(?:(?:le|la|les|mon|ma|mes)\s+)?(?:notifications?|cloche|menu\s+(?:des?\s+)?notifications?)\b/.test(text)) return false;
   if (target && operation === "select") {
     if (target === "studio_free_form" && /\b(?:coche\w*|decoche\w*)\b/.test(text) && /\bsous.titres?\b/.test(text)) return TARGETS[target].test(text);
-    if (target === "studio_voice_pool") return TARGETS[target].test(text) && (OPERATIONS.select.test(text) || /\b(?:associe\w*|affecte\w*|attribue\w*|relie\w*|definis\w*|active\w*|desaffecte\w*|dissocie\w*|detache\w*)\b|\bretire\w*\b.{0,20}\b(?:affectation|association|rattachement)\b/.test(text));
+    if (target === "studio_voice_pool") return Boolean(requestedStudioCharacterName(message)) || TARGETS[target].test(text) && (OPERATIONS.select.test(text) || /\b(?:associe\w*|affecte\w*|attribue\w*|relie\w*|definis\w*|active\w*|desaffecte\w*|dissocie\w*|detache\w*)\b|\bretire\w*\b.{0,20}\b(?:affectation|association|rattachement)\b/.test(text));
     if (target === "send_history" && !/vue|page|ligne|element|selection|choisi|brouillon|envoy/.test(text)) return false;
     if (target === "send_details" && !/canal|selection|choisi/.test(text)) return false;
   }
@@ -229,7 +279,13 @@ export function isInrAssistantLocalInterfaceRequest(message: string, target?: In
 }
 export function isInrAssistantLocalInterfaceValueRequested(message: string, target: InrAssistantLocalInterface, operation: InrAssistantLocalOperation, value: string | null): boolean {
   const text = message.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  if (target === 'studio_exact_dialogue') return ['open', 'close', 'select'].includes(operation) && isInrAssistantStudioExactDialogueValueRequested(message, operation as 'open' | 'close' | 'select', value);
   if (target === "studio_voice_pool") {
+    const characterName = operation === 'select' ? parseInrAssistantStudioCharacterNameSelection(value) : null;
+    if (characterName) {
+      const requested = requestedStudioCharacterName(message);
+      return requested?.referenceIndex === characterName.referenceIndex && requested.value === characterName.value;
+    }
     const unquoted = inrAssistantMaskQuotedText(message).normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
     if (/\b(?:pas|jamais|ne|non|si|ou|soit|comment|pourquoi)\b|\bn['’]|\?/.test(unquoted.replace(/\bnon affecte\b/g, "libre"))) return false;
     if (operation === "close") return value === null;
