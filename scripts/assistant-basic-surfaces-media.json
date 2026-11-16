@@ -1223,6 +1223,10 @@
       {
         "file": "tests/ai-media-generation/veo-gateway-routing-runtime.test.mts",
         "testAnchor": "the real registry and Gateway preserve Fast and Lite model resolution duration audio and zero retries without a Gemini preview call"
+      },
+      {
+        "file": "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts",
+        "testAnchor": "a required engine reason is shown only while the current engine fails that requirement"
       }
     ]
   },

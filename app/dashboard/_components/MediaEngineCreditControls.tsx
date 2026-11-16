@@ -228,8 +228,6 @@ export default function MediaEngineCreditControls(props: Props) {
   const recommendedPair = recommendedPairs.find((choice) => choice.resolution === getAiMediaVideoModel(choice.engine).defaultResolution) ??
     recommendedPairs.sort((first, second) => first.creditsPerSecond - second.creditsPerSecond)[0];
   const selectDescription = [
-    props.requiredVideoEngineReason,
-    props.allowedVideoEnginesReason,
     videoCompatibilityReason(props.videoEngine),
     recommended && props.recommendation ? t("ai_generator_model_recommendation", { model: recommended.label, reason: t(`ai_generator_model_recommendation_${props.recommendation.reason}`) }) : "",
   ].filter(Boolean).join(" ");
@@ -280,8 +278,8 @@ export default function MediaEngineCreditControls(props: Props) {
       <span className={styles.visuallyHidden} role="status" aria-live="polite">{durationNotice}</span>
     </div> : null}
     {props.kind === "video" ? <>
-      {props.requiredVideoEngine && props.requiredVideoEngineReason ? <p className={styles.notice} role="status">{props.requiredVideoEngineReason}</p> : null}
-      {props.allowedVideoEngines && props.allowedVideoEnginesReason ? <p className={styles.notice} role="status">{props.allowedVideoEnginesReason}</p> : null}
+      {props.requiredVideoEngine && props.videoEngine !== props.requiredVideoEngine && props.requiredVideoEngineReason ? <p className={styles.notice} role="status">{props.requiredVideoEngineReason}</p> : null}
+      {props.allowedVideoEngines && !props.allowedVideoEngines.includes(props.videoEngine) && props.allowedVideoEnginesReason ? <p className={styles.notice} role="status">{props.allowedVideoEnginesReason}</p> : null}
       {props.unavailableVideoEngineReasons?.[props.videoEngine] ? <p className={styles.notice} role="status">{props.unavailableVideoEngineReasons[props.videoEngine]}</p> : null}
       {!compatible ? <p className={styles.notice} role="status">{t(props.referenceCount === 0 && !model.supportsTextToVideo ? "ai_generator_model_photo_required" : !model.supportsImageToVideo ? "ai_generator_model_text_only" : "ai_generator_model_reference_limit", { count: model.maxReferenceImages })}</p> : null}
       {!isMediaVideoBriefCompatible(props.videoEngine, props.brief ?? "") ? <p className={styles.notice} role="status">{t("ai_generator_engine_brief_too_long")}</p> : null}

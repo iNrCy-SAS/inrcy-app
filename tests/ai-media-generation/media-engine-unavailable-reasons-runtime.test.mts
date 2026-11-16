@@ -87,6 +87,7 @@ test("a current engine excluded by provided voices remains visible and disabled 
     const selected = engineOption(runtime.tree, String(select.props.value));
     assert.equal(selected.props.disabled, true); assert.ok(text(selected).includes("Gemini Omni"));
     assert.ok(text(selected).includes(t("ai_generator_model_unavailable_short")));
+    assert.ok(elements(runtime.tree).some(node => node.props.role === "status" && text(node).includes(t("ai_generator_character_voice_engine_required"))));
     for (const option of elements(select).filter(node => node.type === "option" && !node.props.disabled)) assert.match(String(option.props.value), /^(?:wan27|kling):/);
     selectEngine(runtime.tree, `omni:${resolution}`); assert.deepEqual(runtime.changes, [], "an unavailable current value is not an actionable engine choice");
     selectEngine(runtime.tree, "wan27:1080p"); assert.deepEqual(runtime.changes, [["engine", "wan27", "1080p"]]);
@@ -99,7 +100,20 @@ test("a saved Wan 2.7 quality stays selected and eligible when dedicated voices 
   const select = find(runtime.tree, node => node.type === "select" && String(node.props.id).endsWith("-engine"));
   assert.equal(select.props.value, "wan27:1080p"); assert.equal(engineOption(runtime.tree, "wan27:1080p").props.disabled, false);
   assert.ok(!text(engineOption(runtime.tree, "wan27:1080p")).includes(t("ai_generator_character_voice_engine_required")));
+  assert.ok(!elements(runtime.tree).some(node => node.props.role === "status" && text(node).includes(t("ai_generator_character_voice_engine_required"))));
+  assert.ok(!String(select.props.title || "").includes(t("ai_generator_character_voice_engine_required")));
   assert.deepEqual(runtime.changes, []);
+});
+
+test("a required engine reason is shown only while the current engine fails that requirement", () => {
+  const reason = "Ce parcours nécessite Kling.";
+  for (const videoEngine of ["omni", "kling"] as const) {
+    const runtime = controls({ videoEngine, referenceCount: 1, requiredVideoEngine: "kling", requiredVideoEngineReason: reason });
+    const select = find(runtime.tree, node => node.type === "select" && String(node.props.id).endsWith("-engine"));
+    assert.equal(elements(runtime.tree).some(node => node.props.role === "status" && text(node).includes(reason)), videoEngine !== "kling");
+    assert.equal(String(select.props.title || "").includes(reason), videoEngine !== "kling");
+    assert.deepEqual(runtime.changes, []);
+  }
 });
 
 test("Wan 2.6 est grisé sans référence avec une raison précise, indépendamment de la durée choisie", () => {

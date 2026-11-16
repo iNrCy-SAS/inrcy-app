@@ -1,6 +1,6 @@
 {
   "formatVersion": 3,
-  "fragmentsDigest": "1b86d2e0ca310ede840c6de13f8e7f39637cc80add0218b0eb03cf0cf78037cb",
+  "fragmentsDigest": "4c71c7f6d72029e70812d37e03d0b52d696dfff5f0d473d0223df8edcc7fe446",
   "evidenceDigests": {
     "app/_components/CookieConsentBanner.tsx": "b8e8f644160ee0ba81a0ff7b887386aa119fff1e99c60f6973a872354eb37ccc",
     "app/_components/InrcyDialogProvider.tsx": "4b8d457b85b0ee368f2d3fc0fb061e9f9fa247bcb749aaa531b850f83992b74d",
@@ -253,7 +253,7 @@
     "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e0fdc77a25455ea2b186b55e2b6fecd1e92be9a4c4a1a48f28326760e8521a98",
     "app/dashboard/_components/MediaCharacterVoiceLibraryPicker.tsx": "25736ff7aef44265474e10c6416635f871ad7311a84268147e045c4c9a7e4844",
     "app/dashboard/_components/MediaEngineCreditControls.module.css": "f4fef5edad9d1343dc0428ce8c285baad6e8d3e564cb94293a56961aadebbba0",
-    "app/dashboard/_components/MediaEngineCreditControls.tsx": "1f7d55bb5a01648f1c51229a8ba51daadc0be96113d1f1638d546782f1850557",
+    "app/dashboard/_components/MediaEngineCreditControls.tsx": "00de563f9885c82623a95c21865f23d162a6b5daa4dbef091546084c31d4402a",
     "app/dashboard/_components/MediaFreeGenerator.module.css": "1ee6eb3191d46b001a1bd348d5de0d356dd3ebdc643525b1a68e99306dc89147",
     "app/dashboard/_components/MediaFreeGenerator.tsx": "661b0395067950a5b1fcbfa761a5292c06c9c183d89114f4e9e62899d9b4ad57",
     "app/dashboard/_components/MediaGenerationCreationWorkspace.module.css": "958bc8db200a2ca96f12cd9316014b39cc3d391db3316ba0d960dd72dbb0be80",
@@ -1208,7 +1208,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "4e481d77dbd90ffdb0f103f398b933c02bd122eb84907ad82deb79519d717858",
+    "lib/inrAssistantCodeIndex.generated.ts": "901f21f4b945796a764f3c2d3a5749dc3db744b7d51bb7ce561e2ab371687d02",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -2056,7 +2056,7 @@
     "tests/ai-media-generation/ai-media-video-composition-runtime.test.mts": "04279b0c46843f0ababbdda0cc37b83e704a512fd00c3a69ac410c4e3c701ab8",
     "tests/ai-media-generation/character-voice-credit-pricing.test.mts": "21b431fdcf583f785c4396b926f4d083fb78c62d0d2afca96e210dffc4eccd61",
     "tests/ai-media-generation/character-voice-runtime-fixtures.mts": "cfc00a6b7776c2e960e111ff03398e6ffe8d481c042c6f5357465100042a62cc",
-    "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts": "2e02a0873f141d01413a53a164c63c8f8f9b984499c26f92d3786e1d5135d7ef",
+    "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts": "75bfdf13005bc19260c52165ec6f7c87e0b3b9d65be3bd2d0d24aa2fa3110b9a",
     "tests/ai-media-generation/media-exact-dialogue-editor.test.mts": "2bb53f3fc0807d7b28f3c88f56dfee15a51ef2402ecf142beb15078693172097",
     "tests/ai-media-generation/media-generation-cross-tab-recovery-runtime.test.mts": "a19d134980b3b735639d146a8ae72f91802c1e1325c73c0645cc70a610a1decf",
     "tests/ai-media-generation/narration-preparation-runtime.mjs": "d55f6754b7008a27fb2dae445d3af02c56995bee471f8709f6dc041dad4d1e5e",
@@ -2098,7 +2098,7 @@
     "tests/dashboard/personalization-browser-fixture.mts": "88893268a79802034b2c847f6ffe54b2916179b5f1ac973666957b802cf3344b",
     "tests/dashboard/settings-drawer-tab-navigation-runtime.test.mts": "e02aa30e186c730bfed7b1474a3d5bcca2c39e090c27ed9e7cccd81838b0d847",
     "tests/dashboard/studio-exact-dialogue-compact-browser.test.mts": "e9b8a3ec389b7bf3300e92c71034bfd9af7dcc1afe16cead15b49664cec664e3",
-    "tests/dashboard/studio-reference-memory-browser.test.mts": "1e8326716b6e1d23683c22054089de2c31f7173c5bdf604f3fb61f43f3591a57",
+    "tests/dashboard/studio-reference-memory-browser.test.mts": "110f61dcecc129a53db6ee91d498902b5af83e6827ee7b1c7dfcb91f6fab9774",
     "tests/dashboard/studio-video-brief-speech-browser.test.mts": "8fb69af7b95aa473e43fd7c4a74f37add732a8b1c867969c36d9acc44e1dfdc0",
     "tests/helpers/assistant-native-local-hooks.mts": "913bc6871cfb650b68c03f96983b08dd42b104af1b96552af149b3a3fe822a30",
     "tests/helpers/browser-catalog-runtime.mts": "5a96c406012418525236d74d68fd158e8e0899169c5dc3f6ded4cd8dfff87c13",
@@ -3231,7 +3231,7 @@
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "1f7d55bb5a01648f1c51229a8ba51daadc0be96113d1f1638d546782f1850557",
+      "sourceDigest": "00de563f9885c82623a95c21865f23d162a6b5daa4dbef091546084c31d4402a",
       "controlIds": [
         "app/dashboard/_components/MediaEngineCreditControls.tsx#select:be0e1d24b5fd9495:1",
         "app/dashboard/_components/MediaEngineCreditControls.tsx#option:6013879a78f1f71a:1",

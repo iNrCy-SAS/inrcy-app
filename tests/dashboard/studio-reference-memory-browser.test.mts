@@ -154,6 +154,7 @@ test("real Studio remembers photos and their dedicated voices across fresh sessi
 });
 
 test("real stored engine hydration keeps the DOM selection, effective provider and quote eligibility consistent with remembered voices", async () => {
+  const suppliedVoiceReason = (JSON.parse(readFileSync(new URL("../../messages/fr-FR/media.json", import.meta.url), "utf8")) as Record<string, string>).ai_generator_character_voice_engine_required;
   const { mount: mountRealPreference } = await loadFixture(true);
   const browser = await chromium.launch({ headless: true });
   try {
@@ -196,19 +197,29 @@ test("real stored engine hydration keeps the DOM selection, effective provider a
         const select = document.querySelector<HTMLSelectElement>('[data-media-engine-controls] select[id$="-engine"]')!;
         return { effective: state.fixtureStudioInterfaces.studio_free_form.snapshot.videoEngine, dom: select.value, label: select.selectedOptions[0]?.textContent,
           disabled: select.selectedOptions[0]?.disabled, quote: state.studioQuotes.at(-1), generationCalls: state.studioRequests.length,
+          title: select.title, notices: [...document.querySelectorAll('[data-media-engine-controls] [role="status"]')].map(element => element.textContent || ""),
           selectable: [...select.options].filter(option => !option.disabled).map(option => option.value), stored: localStorage.getItem("inrcy:media-engines:v1:fixture") };
       });
       const restored = await readState();
       assert.equal(restored.effective, expectedEngine); assert.equal(restored.dom, `${expectedEngine}:${expectedResolution}`, "the browser must display the effective engine rather than its first surviving option");
       assert.equal(restored.quote?.videoEngine, expectedEngine); assert.equal(restored.quote?.enabled, Boolean(preference));
       assert.equal(restored.disabled, !preference); assert.equal(restored.stored, storedBefore); assert.equal(restored.generationCalls, 0);
+      assert.equal(restored.notices.some(notice => notice.includes(suppliedVoiceReason)), !preference);
+      assert.equal(restored.title.includes(suppliedVoiceReason), !preference);
       for (const value of restored.selectable) assert.match(value, /^(?:wan27|kling):/);
       assert.ok(restored.label?.includes(preference ? "Wan 2.7" : "Gemini Omni"));
       if (!preference) {
         await page.locator('[data-media-engine-controls] select[id$="-engine"]').selectOption("kling:720p");
         await page.waitForFunction(() => (window as unknown as { studioQuotes: Array<{ enabled: boolean }> }).studioQuotes.at(-1)?.enabled === true);
         const explicit = await readState(); assert.equal(explicit.effective, "kling"); assert.equal(explicit.dom, "kling:720p"); assert.equal(explicit.quote?.videoEngine, "kling");
+        assert.ok(!explicit.notices.some(notice => notice.includes(suppliedVoiceReason))); assert.ok(!explicit.title.includes(suppliedVoiceReason));
         assert.equal(explicit.generationCalls, 0, "selecting a compatible engine never starts a paid generation");
+      } else {
+        await page.getByLabel("Consignes visuelles", { exact: true }).fill("");
+        await page.waitForFunction(() => (window as unknown as { studioQuotes: Array<{ enabled: boolean }> }).studioQuotes.at(-1)?.enabled === false);
+        const emptyBrief = await readState(); assert.equal(emptyBrief.effective, "wan27"); assert.equal(emptyBrief.dom, "wan27:1080p");
+        assert.equal(emptyBrief.quote?.enabled, false, "an empty brief prevents a quote without invalidating the compatible engine");
+        assert.ok(!emptyBrief.notices.some(notice => notice.includes(suppliedVoiceReason))); assert.equal(emptyBrief.generationCalls, 0);
       }
       assert.deepEqual(errors, []); await page.close();
     }
