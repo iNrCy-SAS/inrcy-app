@@ -411,6 +411,7 @@ test("native voice selections bind the requested current photo and acknowledge o
 });
 
 function actualHandlers(file: string, deps: Record<string, unknown>, interfaceId?: string) {
+  if (file.endsWith("MediaFreeGenerator.tsx")) deps.voiceSelectionRevision ??= { current: 0 };
   const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   let expression: ts.Expression | undefined;
   const helpers = new Map<string, ts.Expression>();

@@ -301,7 +301,7 @@
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e0fdc77a25455ea2b186b55e2b6fecd1e92be9a4c4a1a48f28326760e8521a98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "718ea5a4bc84a0cbb9edf01858a463463bb985abef326ef016cdf5a95584b264",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "661b0395067950a5b1fcbfa761a5292c06c9c183d89114f4e9e62899d9b4ad57",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "cda2ef09f327ef8546636c6dfcd654d2521e88b46639c2fa09b58e6e88271648",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "98d0d66fa68179398ad94494491615e06a894b6837847ed798885e2e409d689d",
         "app/dashboard/_components/StudioVoicePool.tsx": "a1546dfc0ef2ed9f85e2652435c3e673accf62ebbf92e6a2278298bd77eb8462",
@@ -821,7 +821,7 @@
         "app/api/media-generation/references/route.ts": "71067e9a7e4c698b3ff2e561f28fec604d9e5e0fcf2c9ab3b8269dce4ed42c7b",
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e0fdc77a25455ea2b186b55e2b6fecd1e92be9a4c4a1a48f28326760e8521a98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "718ea5a4bc84a0cbb9edf01858a463463bb985abef326ef016cdf5a95584b264",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "661b0395067950a5b1fcbfa761a5292c06c9c183d89114f4e9e62899d9b4ad57",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "cda2ef09f327ef8546636c6dfcd654d2521e88b46639c2fa09b58e6e88271648",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "98d0d66fa68179398ad94494491615e06a894b6837847ed798885e2e409d689d",
         "app/dashboard/_components/MediaModifier.tsx": "ad6fbb5dbbe96ced78c9fc20e4848aa85abb48f59da4b019dd1e2a527e730ede",
@@ -976,7 +976,7 @@
       "guideDigest": "c47d28e98dd42d98811ddcbb3f1a9b3ba2a4d17a04327903f1afc41dbfd34e05",
       "sources": {
         "app/api/media-generation/references/route.ts": "71067e9a7e4c698b3ff2e561f28fec604d9e5e0fcf2c9ab3b8269dce4ed42c7b",
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "718ea5a4bc84a0cbb9edf01858a463463bb985abef326ef016cdf5a95584b264",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "661b0395067950a5b1fcbfa761a5292c06c9c183d89114f4e9e62899d9b4ad57",
         "app/dashboard/_components/StudioVoicePool.tsx": "a1546dfc0ef2ed9f85e2652435c3e673accf62ebbf92e6a2278298bd77eb8462",
         "lib/inrAssistantLocalInterface.ts": "6dd57f2407c91aff3191a92d00a38ccae33a4d5df7491c0a969c1258ecdbb8a5",
         "lib/inrAssistantStudioReferenceMemory.ts": "64d5809f9e93f22d3360188f073eba6cff56075a2e10aceabd02dcf7d6d8aadd",

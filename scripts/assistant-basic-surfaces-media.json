@@ -1805,7 +1805,7 @@
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:16821fcbdd2a0041:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:1fbc916e4a01b3f9:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:95ff67061cc132aa:1"
     ],
     "additionalProofs": [
@@ -1822,7 +1822,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<select\n                      value={voice}\n                      disabled={locked}\n                      onChange={(event) => {\n                        const next = event.target\n                          .value as MediaGenerationNarrationVoice;\n                        setVoice(next);\n                        setVoiceVariant(\n                          defaultAiMediaNarrationVoiceVariant(next)\n                        );\n                      }}\n                    >\n                      {([\"female\", \"male\"] as const).map((gender) => (\n                        <option key={gender} value={gender}>\n                          {t(`ai_generator_narration_voice_${gender}`)}\n                        </option>\n                      ))}\n                    </select>",
+    "sourceAnchor": "<select\n                      value={voice}\n                      disabled={locked}\n                      onChange={(event) => {\n                        const next = event.target\n                          .value as MediaGenerationNarrationVoice;\n                        voiceSelectionRevision.current += 1; setVoice(next);\n                        setVoiceVariant(\n                          defaultAiMediaNarrationVoiceVariant(next)\n                        );\n                      }}\n                    >\n                      {([\"female\", \"male\"] as const).map((gender) => (\n                        <option key={gender} value={gender}>\n                          {t(`ai_generator_narration_voice_${gender}`)}\n                        </option>\n                      ))}\n                    </select>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -1835,7 +1835,7 @@
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:34dbdf03bd560209:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:9079d36ef1f346af:1"
     ],
     "additionalProofs": [
       {
@@ -1880,7 +1880,7 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<select\n                      value={voiceVariant}\n                      disabled={locked}\n                      onChange={(event) =>\n                        setVoiceVariant(\n                          event.target\n                            .value as MediaGenerationNarrationVoiceVariant\n                        )\n                      }\n                    >\n                      {AI_MEDIA_NARRATION_VOICE_VARIANTS[voice].map(\n                        (variant) => (\n                          <option key={variant} value={variant}>\n                            {t(\n                              `ai_generator_narration_voice_variant_${variant.toLowerCase()}`\n                            )}\n                          </option>\n                        )\n                      )}\n                    </select>",
+    "sourceAnchor": "<select\n                      value={voiceVariant}\n                      disabled={locked}\n                      onChange={(event) => {\n                        voiceSelectionRevision.current += 1;\n                        setVoiceVariant(\n                          event.target\n                            .value as MediaGenerationNarrationVoiceVariant\n                        );\n                      }}\n                    >\n                      {AI_MEDIA_NARRATION_VOICE_VARIANTS[voice].map(\n                        (variant) => (\n                          <option key={variant} value={variant}>\n                            {t(\n                              `ai_generator_narration_voice_variant_${variant.toLowerCase()}`\n                            )}\n                          </option>\n                        )\n                      )}\n                    </select>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -1893,7 +1893,7 @@
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:41ac7983dd3fca38:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:85429379816bb437:1"
     ],
     "additionalProofs": [
       {
@@ -15513,7 +15513,7 @@
     "coverageStatus": "implemented",
     "sourceAnchor": "data-media-reference-open={index}",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:5f6959426b153aa7:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:2cb031f3f4a6d3a5:1"
     ],
     "notes": "studio_media_images.select(reference:N) ouvre les détails de la référence présente, ID capturé puis ACK sur le même ID après rendu. Indice hors plage, remplacement/suppression ou verrou refusés ; aucune copie, importation ou génération. Les changements de rôle existant restent leur équivalent serveur séparé.",
     "testFiles": [
@@ -15770,7 +15770,7 @@
     "notes": "studio_free_form.select(voiceReferenceId) accepte character:0..2 pour le Personnage visible 1..3 explicitement demandé, ou reference:0..4 pour la photo correspondante parmi toutes les images. Résolution vers un ID privé existant : une image Produit avant le Personnage 1 ne décale pas son numéro. Aucun nom de fichier ni ID à deviner. Capture ID avant modification, ACK conservé après réordre mais refusé après suppression/remplacement/compte changé. Sélectionner la cible ne lui attribue aucun autre vocal, droit ou génération.",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:6abfa304ec4747c9:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:a0b546afb4fb459a:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:327e054c86baa631:2",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:4c045fb9bdcc80b0:1"
     ],
@@ -15814,7 +15814,7 @@
     "coverageStatus": "implemented",
     "controlIds": [
       "app/dashboard/_components/StudioVoicePool.tsx#button:35ddf84be8076c29:1",
-      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioVoicePool:295ce47bd213d951:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioVoicePool:2848e81f60ba97f1:1"
     ],
     "testFiles": [
       "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",

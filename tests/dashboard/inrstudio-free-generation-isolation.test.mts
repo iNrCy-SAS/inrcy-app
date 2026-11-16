@@ -443,6 +443,7 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
   const consentChanges: boolean[] = [];
   let identityConsent = true;
   const referenceSetId = { current: "previous-reference-set" };
+  const voiceSelectionRevision = { current: 0 };
   const resetConsent = evaluate(initializer("resetConsent"), {
     setIdentityConsent: (value: boolean) => { identityConsent = value; },
     setTeamConsent: (value: boolean) => { consentChanges.push(value); },
@@ -451,6 +452,7 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
   for (const next of ["characters", "silent", "voiceover", "silent", "characters", "voiceover"] as const) {
     const onChange = evaluate(attribute(select.openingElement, "onChange"), {
       exactSpeechEditorVisible: false,
+      voiceSelectionRevision,
       hasSpokenScript: false, characterVoiceSelection: { hasProvidedVoice: false }, voiceModeIntent: { current: null }, setVoiceSourcePreference: (mode: string) => assert.equal(mode, "ai"),
       setSpeechMode: (value: typeof speechMode) => { speechMode = value; },
       resetConsent,
@@ -463,6 +465,7 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
     assert.equal(withMusic, true, "Changing the speech selector must not change music.");
   }
   assert.deepEqual(consentChanges, [false, false, false, false, false, false]);
+  assert.equal(voiceSelectionRevision.current, 6, "each explicit audio choice protects the current draft from a late saved default");
   assert.equal(identityConsent, false);
   assert.notEqual(referenceSetId.current, "previous-reference-set");
   const blockSilent = evaluate(attribute(select.openingElement, "onChange"), {

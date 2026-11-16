@@ -1326,6 +1326,7 @@
 .mediaReferenceOpen { display: block; width: 48px; height: 48px; padding: 0; border: 1px solid #72b4c6; border-radius: 7px; background: #122c45; cursor: pointer; overflow: hidden; }
 .mediaReferenceOpen img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .mediaCharacterCaption { position:absolute; top:-4px; inset-inline-start:-4px; display:grid; place-items:center; width:17px; height:17px; border:1px solid #92d1eb; border-radius:50%; background:#173e61; color:#e5f7ff; font-size:10px; font-weight:700; line-height:1; pointer-events:none; }
+.mediaReferenceName { position: absolute; inset-inline-start: 1px; bottom: 1px; max-width: calc(100% - 18px); padding: 1px 2px; border-radius: 0 0 4px 4px; color: #f0f8ff; background: #10243ee8; font-size: 9px; line-height: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
 .mediaReferenceCategory { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid #7388ad; border-radius: 7px; color: #acc2dc; background: #172b47; font: inherit; font-size: 18px; }
 .mediaReferenceCategory svg { width: 18px; height: 18px; }
 .mediaReferenceThumb[data-usage="inspiration"] .mediaReferenceOpen { border-color: #efc881; }

@@ -6,6 +6,7 @@ import * as memoryClient from "../../lib/studioReferenceMemoryClient.ts";
 import type { StudioReferenceDraft } from "../../lib/studioReferenceMemoryClient.ts";
 import type { StudioReferenceMemory, StudioReferencesResponse } from "../../lib/studioReferences.ts";
 import { StudioInspirationImageOnlyError } from "../../lib/studioInspirationImagePolicy.ts";
+import { isAiMediaCharacterVoiceEngine } from "../../lib/aiMediaCharacterVoices.ts";
 
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
 const source = read("app/dashboard/_components/MediaFreeGenerator.tsx");
@@ -34,7 +35,11 @@ function context(initial = draft()) {
   const state = { ...emptyReferenceMemory("account-a"), loaded: true };
   const current = { accountId: "account-a", draft: initial }; const requests: string[] = [], deleted: string[] = [];
   const consents = { identity: true, team: true, narration: true };
-  const value: Record<string, unknown> = { ...memoryClient, quota: { accountId: "account-a" }, instanceId: "test-memory", locked: false,
+  const choices = { speechMode: "voiceover", voiceMode: "ai", referenceId: null as string | null, restored: false };
+  const value: Record<string, unknown> = { ...memoryClient, quota: { accountId: "account-a" }, kind: "video", instanceId: "test-memory", locked: false,
+    voiceSelectionRevision: { current: 0 }, setSpeechMode(mode: string) { choices.speechMode = mode; },
+    setVoiceSourcePreference(mode: string) { choices.voiceMode = mode; }, setVoiceReferenceId(referenceId: string) { choices.referenceId = referenceId; },
+    setRestoredCharacterVoices(restored: boolean) { choices.restored = restored; },
     operationInFlight: { current: false }, referenceMemoryController: { current: null }, sequence: { current: 1 },
     referenceMemoryCurrent: { current }, referenceMemoryLoadedAccount: { current: null }, referenceMemoryAction: { current: null }, referenceSetId: { current: "" },
     referenceMemory: state, referenceMemoryAvailable: true, hasMemoryReferences: Boolean(initial.references.length || initial.voices.length), referenceMemoryDirty: false,
@@ -52,7 +57,7 @@ function context(initial = draft()) {
       requests.push(method); return { ok: true, accountId: scope.accountId, memory: memory ?? null, media: [], unavailableMediaIds: [] };
     },
   };
-  return { value, state, current, requests, deleted, consents,
+  return { value, state, current, requests, deleted, consents, choices,
     remember: (canApply?: () => boolean) => evaluate<(canApply?: () => boolean) => Promise<boolean>>(initializer("handleRememberReferences"), value)(canApply),
     forget: (canApply?: () => boolean) => evaluate<(canApply?: () => boolean) => Promise<boolean>>(initializer("handleForgetReferences"), value)(canApply) };
 }
@@ -153,7 +158,27 @@ test("a fresh Studio restores photos and voices once while all generation author
   const effect = evaluate<() => (() => void) | undefined>(loadEffect, harness.value); const cleanup = effect(); await flush();
   assert.deepEqual(harness.current.draft, restored); assert.equal(harness.state.saved, true); assert.equal(harness.state.loaded, true);
   assert.deepEqual(harness.consents, { identity: false, team: false, narration: false });
+  assert.deepEqual(harness.choices, { speechMode: "characters", voiceMode: "provided", referenceId: id(1), restored: true });
+  const selectedVideoEngine = evaluate<string>(initializer("selectedVideoEngine"), { restoredCharacterVoices: harness.choices.restored,
+    exactSpeechEditorVisible: false, characterVoiceSelection: { hasProvidedVoice: true }, enginePreference: { videoEngine: "omni" }, isAiMediaCharacterVoiceEngine });
+  assert.equal(selectedVideoEngine, "omni", "the effective provider remains the selected provider rather than a supplied-voice fallback");
+  const unsupported = evaluate<boolean>(initializer("characterVoiceEngineUnsupported"), { selectedVideoEngine, characterVoiceSelection: { hasProvidedVoice: true }, isAiMediaCharacterVoiceEngine });
+  assert.equal(unsupported, true);
+  assert.equal(evaluate<boolean>(initializer("referenceCompatible"), { kind: "video", characterVoiceEngineUnsupported: unsupported,
+    isMediaVideoReferenceCompatible: () => assert.fail("an incompatible real-voice engine is rejected before quoting or generating") }), false);
   effect(); await flush(); assert.equal(restores, 1); assert.equal(harness.state.busy, false); cleanup?.();
+});
+
+test("restored dedicated voices never replace a speech choice made while the initial memory request was pending", async () => {
+  for (const mode of ["voiceover", "silent"]) {
+    const harness = context({ references: [], voices: [], activeNarrationVoiceId: null }); const waiting = deferred<StudioReferencesResponse>();
+    harness.value.requestStudioReferenceMemory = async () => waiting.promise; harness.value.hydrateStudioReferenceMemory = async () => draft();
+    const cleanup = evaluate<() => () => void>(loadEffect, harness.value)();
+    (harness.value.voiceSelectionRevision as { current: number }).current += 1; harness.choices.speechMode = mode;
+    waiting.resolve({ ok: true, accountId: "account-a", memory: emptySavedMemory(), media: [], unavailableMediaIds: [] });
+    await flush(); assert.equal(harness.choices.speechMode, mode); assert.equal(harness.choices.voiceMode, "ai");
+    assert.equal(harness.current.draft.voices.length, 1, "the stored assets still restore without overriding the explicit speech setting"); cleanup();
+  }
 });
 
 test("a pending hydration that becomes stale never replaces the new account's draft and releases only its temporary samples", async () => {
