@@ -23,6 +23,7 @@ import InrSearchVisualIdentity from "./InrSearchVisualIdentity";
 import InrSearchSocialOrbit from "./InrSearchSocialOrbit";
 import InrSearchStrengthsOrbit from "./InrSearchStrengthsOrbit";
 import { buildOpeningHoursSpecifications } from "@/lib/openingSchedule";
+import { dialCtaPhone, parseCtaPhoneNumbers } from "@/lib/ctaPhoneNumbers";
 import {
   buildInrSearchFallbackPalette,
   inferInrSearchVisualTheme,
@@ -515,12 +516,12 @@ function buildOpeningHoursSpecification(data: InrSearchPublicPageData) {
 }
 
 function normalizeStructuredPhone(value: string) {
-  const compact = value.replace(/[^+\d]/g, "");
-  if (/^0\d{9}$/.test(compact)) return `+33${compact.slice(1)}`;
-  return compact || undefined;
+  const numbers = parseCtaPhoneNumbers(value).map(dialCtaPhone);
+  return numbers.length > 1 ? numbers : numbers[0] || undefined;
 }
 
 function buildJsonLd(data: InrSearchPublicPageData, i18nT: (_key: string, _values?: Record<string, string>) => string, locale: string) {
+  const callTargets = parseCtaPhoneNumbers(data.phone).map(phone => `tel:${dialCtaPhone(phone)}`);
   const sameAs = data.socialLinks.map((link) => link.url).filter(Boolean);
   const offers = data.services.map((service) => ({
     "@type": "Offer",
@@ -555,7 +556,7 @@ function buildJsonLd(data: InrSearchPublicPageData, i18nT: (_key: string, _value
     telephone: normalizeStructuredPhone(data.phone),
     email: data.email || undefined,
     contactPoint:
-      data.phone || data.email
+      callTargets.length || data.email
         ? {
             "@type": "ContactPoint",
             telephone: normalizeStructuredPhone(data.phone),
@@ -566,15 +567,13 @@ function buildJsonLd(data: InrSearchPublicPageData, i18nT: (_key: string, _value
         : undefined,
     hasMap: data.googleBusinessUrl || undefined,
     potentialAction:
-      data.sections.cta && (data.phone || data.email)
+      data.sections.cta && (callTargets.length || data.email)
         ? {
             "@type": "CommunicateAction",
             name: i18nT("contacter_value_78104412", {
               value0: data.companyName,
             }),
-            target: data.phone
-              ? `tel:${data.phone.replace(/[^+\d]/g, "")}`
-              : `mailto:${data.email}`,
+            target: callTargets.length > 1 ? callTargets : callTargets[0] || `mailto:${data.email}`,
           }
         : undefined,
     address: data.addressLine || data.city || data.zip
@@ -806,11 +805,10 @@ export default async function InrSearchCompanyPage({ params }: PageProps) {
   const presentationLead = buildPresentationLead(data, i18nT, locale);
   const conversionSummary = buildConversionSummary(data, i18nT, locale);
   const enhancedZones = buildEnhancedZones(data);
-  const phoneHref = data.phone
-    ? `tel:${data.phone.replace(/[^+\d]/g, "")}`
-    : "";
+  const phoneNumbers = parseCtaPhoneNumbers(data.phone);
+  const phoneHref = phoneNumbers.length === 1 ? `tel:${dialCtaPhone(phoneNumbers[0])}` : "";
   const emailHref = data.email ? `mailto:${data.email}` : "";
-  const contactHref = phoneHref || emailHref;
+  const contactHref = phoneNumbers.length > 1 ? "#contact" : phoneHref || emailHref;
   const professionSlug = normalizeInrSearchDirectorySlug(data.profession);
   const professionUrl = professionSlug
     ? buildInrSearchProfessionUrl(professionSlug)

@@ -309,15 +309,15 @@ test("scheduling keeps the existing close path and hands immediate channels back
   const invoke = (request: unknown) => {
     const calls: unknown[] = [];
     evaluate(attribute(modal, "PublishScheduleModal", "onSuccess").getText(modal), {
-      pendingImmediatePublishAfterSchedule: request,
+      scheduleSubmissionRef: { current: request },
       setScheduleModalOpen: (value: boolean) => calls.push(["schedule", value]),
-      setPendingImmediatePublishAfterSchedule: (value: unknown) => calls.push(["pending", value]),
       publishImmediateChannelsAfterSchedule: (value: unknown) => calls.push(["immediate", value]),
       onClose: () => calls.push("close"),
     })();
     return calls;
   };
+  assert.deepEqual(invoke(undefined), [], "an unacknowledged submission never closes Booster");
   assert.equal(invoke(null).at(-1), "close");
   const request = { immediateChannels: ["facebook"] };
-  assert.deepEqual(invoke(request), [["schedule", false], ["pending", null], ["immediate", request]]);
+  assert.deepEqual(invoke(request), [["schedule", false], ["immediate", request]]);
 });

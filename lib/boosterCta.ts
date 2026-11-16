@@ -12,6 +12,7 @@ import {
   sanitizeGoogleBusinessPublicationText,
 } from "@/lib/boosterPublicationSafety";
 import { getBoosterLinkCtaChoice, type BoosterLinkCtaAction } from "@/lib/boosterCtaActions";
+import { dialCtaPhone, parseCtaPhoneNumbers } from "./ctaPhoneNumbers.ts";
 import { getInstagramCaptionIssue, INSTAGRAM_CAPTION_MAX_LENGTH, InstagramCaptionValidationError } from "./instagramCaptionLimits.ts";
 export {
   buildBoosterWhatsAppUrl,
@@ -107,15 +108,6 @@ function ensureUrl(input: string) {
   }
 }
 
-function normalizePhone(input: string) {
-  const phone = String(input || "")
-    .trim()
-    .replace(/[^\d+]/g, "")
-    .slice(0, 24);
-  const digitCount = phone.replace(/\D/g, "").length;
-  return digitCount >= 8 && digitCount <= 15 ? phone : "";
-}
-
 export function inferLegacyCtaMode(text: string): BoosterCtaMode {
   const value = collapseWhitespace(text).toLowerCase();
   if (!value) return "none";
@@ -165,7 +157,9 @@ export function getCtaWebsiteUrl(post: Partial<BoosterPostLike> | null | undefin
 }
 
 export function getCtaPhone(post: Partial<BoosterPostLike> | null | undefined, context?: BoosterCtaContext) {
-  return normalizePhone(String(post?.ctaPhone || "")) || normalizePhone(String(context?.phone || ""));
+  const requested = parseCtaPhoneNumbers(post?.ctaPhone);
+  return (requested.length ? requested : parseCtaPhoneNumbers(context?.phone))
+    .map(dialCtaPhone).join(" / ");
 }
 
 function getFallbackCtaModeForChannel(

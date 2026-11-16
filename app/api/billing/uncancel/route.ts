@@ -14,10 +14,10 @@ import {
  */
 export async function POST() {
   try {
-    const { user, errorResponse } = await requireUser();
+    const { user, activeUserId, errorResponse } = await requireUser();
     if (errorResponse) return errorResponse;
 
-    await restoreSubscriptionRenewalForUser(user.id);
+    await restoreSubscriptionRenewalForUser(user.id, activeUserId || user.id);
 
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {

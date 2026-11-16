@@ -7,6 +7,7 @@ import { getClientUserFacingApiError as getSimpleFrenchApiError, getClientUserFa
 import { confirmInrcy } from "@/lib/inrcyDialog";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { readCurrentAccountSubscription } from "@/lib/accountBillingSubscriptionClient";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   FOUNDER_OFFER_MONTHLY_PRICE_EXCL_TAX_EUR,
@@ -86,8 +87,6 @@ type SubData = {
   native_will_renew?: boolean | null;
   founder_offer_enabled?: boolean | null;
 };
-const SUB_SELECT =
-  "plan,scheduled_plan,status,monthly_price_eur,monthly_price_tax_behavior,start_date,trial_start_at,trial_end_at,next_renewal_date,cancel_requested_at,end_date,stripe_customer_id,stripe_subscription_id,stripe_price_id,billing_cycle,billing_provider,native_product_id,native_will_renew,founder_offer_enabled";
 
 
 function frDate(d: Date, locale: string) {
@@ -219,15 +218,8 @@ const fetchSubscription = async () => {
     if (!user) return;
     setAccountCreatedAt(user.created_at ?? null);
 
-    const { data } = await supabase
-      .from("subscriptions")
-      .select(SUB_SELECT)
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (data) {
-      setSub((prev) => ({ ...(prev ?? ({} as SubData)), ...(data as SubData) }));
-    }
+    const data = await readCurrentAccountSubscription<SubData>(user.id);
+    setSub(data);
   } catch (e) {
     console.error("fetchSubscription error", e);
   }
@@ -248,13 +240,7 @@ useEffect(() => {
         }
         setAccountCreatedAt(user.created_at ?? null);
 
-        const { data, error } = await supabase
-          .from("subscriptions")
-          .select(SUB_SELECT)
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (error) throw new Error(error.message);
+        const data = await readCurrentAccountSubscription<SubData>(user.id);
 
         if (!data) {
           setSub(null);
@@ -287,12 +273,13 @@ useEffect(() => {
       const { data: authData } = await supabase.auth.getUser();
       const user = authData?.user;
       if (!user) return;
-      const { data } = await supabase
-        .from("subscriptions")
-        .select(SUB_SELECT)
-        .eq("user_id", user.id)
-        .maybeSingle();
-      if (data) setSub((prev) => ({ ...(prev ?? ({} as SubData)), ...(data as SubData) }));
+      try {
+        const data = await readCurrentAccountSubscription<SubData>(user.id);
+        if (alive) setSub(data);
+      } catch {
+        // A switch of establishment invalidates an in-flight checkout poll.
+        clearInterval(timer);
+      }
     }, 1500);
 
     return () => {

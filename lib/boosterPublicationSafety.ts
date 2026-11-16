@@ -1,3 +1,5 @@
+import { parseCtaPhoneNumbers } from "./ctaPhoneNumbers.ts";
+
 export type BoosterStructuredCtaMode =
   | "none"
   | "website"
@@ -19,7 +21,7 @@ export type BoosterPublicationSafetyContext = {
   phone?: string | null;
 };
 
-const PHONE_CANDIDATE_RE = /(?:\+|00)?\d(?:[\s()./-]*\d){7,15}/g;
+const PHONE_CANDIDATE_RE = /(?:\+|00)?\d(?:[\s().-]*\d){7,15}/g;
 const URL_CANDIDATE_RE =
   /(?:https?:\/\/|www\.)[^\s<>{}\[\]"']+|(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}(?:\/[^\s<>{}\[\]"']*)?/giu;
 const EMAIL_RE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
@@ -83,10 +85,9 @@ export function getBoosterPhoneDisplayValue(
   post: BoosterPublicationSafetyPost | null | undefined,
   context?: BoosterPublicationSafetyContext,
 ) {
-  return (
-    cleanPhoneDisplayValue(post?.ctaPhone) ||
-    cleanPhoneDisplayValue(context?.phone)
-  );
+  const numbers = parseCtaPhoneNumbers(post?.ctaPhone);
+  return (numbers.length ? numbers : parseCtaPhoneNumbers(context?.phone))
+    .map(cleanPhoneDisplayValue).filter(Boolean).join(" / ");
 }
 
 function trimUrlCandidate(candidate: string) {
@@ -169,13 +170,13 @@ export function removeMatchingBoosterPhone(
   targetPhone: unknown,
   options?: { preserveContactCue?: boolean },
 ) {
-  const target = canonicalizeBoosterPhone(targetPhone);
-  if (!hasUsablePhone(targetPhone)) return normalizeSpaces(String(input || ""));
+  const targets = new Set(parseCtaPhoneNumbers(targetPhone).map(canonicalizeBoosterPhone));
+  if (!targets.size) return normalizeSpaces(String(input || ""));
 
   return sanitizeTextLines(input, (line) => {
     let removed = false;
     const value = line.replace(PHONE_CANDIDATE_RE, (candidate) => {
-      if (canonicalizeBoosterPhone(candidate) !== target) return candidate;
+      if (!targets.has(canonicalizeBoosterPhone(candidate))) return candidate;
       removed = true;
       return CONTACT_REMOVAL_MARKER;
     });
@@ -212,7 +213,7 @@ export function sanitizeBoosterPostForStructuredCta(
 
   if (mode === "call") {
     const phone = post?.ctaPhone || context?.phone || "";
-    if (hasUsablePhone(phone)) {
+    if (parseCtaPhoneNumbers(phone).length) {
       next.title = removeMatchingBoosterPhone(post?.title, phone);
       next.content = removeMatchingBoosterPhone(post?.content, phone);
       next.cta = removeMatchingBoosterPhone(post?.cta, phone, {

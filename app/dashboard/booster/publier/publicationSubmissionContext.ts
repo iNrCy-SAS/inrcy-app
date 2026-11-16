@@ -51,6 +51,7 @@ export type PublicationSubmissionContext = {
     channelDetails: Record<ChannelKey, ChannelConnectionDetail>;
     scheduleSaving: boolean;
     scheduleStartGuardRef: RefObject<boolean>;
+    scheduleSubmissionRef: RefObject<PendingImmediatePublishAfterSchedule | null | undefined>;
   };
   media: {
     persistentMediaWorkspaceEnabled: boolean;
@@ -111,7 +112,6 @@ export type PublicationSubmissionContext = {
     setScheduleError: Dispatch<SetStateAction<string>>;
     setScheduleSaving: Dispatch<SetStateAction<boolean>>;
     setChannels: Dispatch<SetStateAction<Record<ChannelKey, boolean>>>;
-    setPendingImmediatePublishAfterSchedule: Dispatch<SetStateAction<PendingImmediatePublishAfterSchedule | null>>;
     setScheduleReviewPosts: Dispatch<SetStateAction<Partial<Record<ChannelKey, ChannelPost>> | null>>;
     setTiktokPublicationSettings: Dispatch<SetStateAction<TiktokPublicationSettings | null>>;
     setTiktokSettingsFlow: Dispatch<SetStateAction<"publish" | "schedule" | "review" | null>>;

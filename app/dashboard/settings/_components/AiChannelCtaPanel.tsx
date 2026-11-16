@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { useTranslations } from "next-intl";
 import {
@@ -13,7 +13,8 @@ import {
   type AiCtaChannel,
   type AiCtaChoice,
 } from "@/lib/aiChannelCtaPreferences";
-import { getSupportedPreferredCtasForChannel, normalizeCtaPhone } from "@/lib/boosterCtaPreferences";
+import { getSupportedPreferredCtasForChannel } from "@/lib/boosterCtaPreferences";
+import { normalizeCtaCallPhones } from "@/lib/ctaPhoneNumbers";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { isBoosterLinkCtaChoice } from "@/lib/boosterCtaActions";
@@ -25,6 +26,7 @@ type Props = {
   onChange: (value: AiChannelCtaMap) => void;
   disabled?: boolean;
   assistantActive?: boolean;
+  validationTarget?: { channel: AiCtaChannel; attempt: number } | null;
 };
 
 
@@ -64,7 +66,7 @@ function automaticWebsite(channel: AiCtaChannel, destinations: AiChannelCtaDesti
   return destinations?.preferredWebsiteUrl || destinations?.siteWebUrl || "";
 }
 
-export default function AiChannelCtaPanel({ value, onChange, disabled = false, assistantActive = true }: Props) {
+export default function AiChannelCtaPanel({ value, onChange, disabled = false, assistantActive = true, validationTarget }: Props) {
   const channelT = useTranslations("dashboard");
   const { metaPilotEnabled, actorUserId, activeAccountId } = useDashboardViewerAccess();
   const AI_CTA_CHANNELS = ALL_AI_CTA_CHANNELS.filter(({ key }) => key !== "threads" || metaPilotEnabled)
@@ -89,6 +91,8 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false, a
     url: i18nT("settings.cta_url"),
     customUrl: i18nT("booster.lien_personnalise_d1d21cea"),
     phone: i18nT("settings.cta_phone"),
+    phoneHint: i18nT("settings.cta_phone_numbers_hint"),
+    whatsappPhoneHint: i18nT("settings.cta_whatsapp_single_phone_hint"),
     automatic: i18nT("settings.cta_automatic"),
     missingDestination: i18nT("settings.cta_missing_destination"),
     configured: i18nT("settings.cta_configured"),
@@ -123,6 +127,10 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false, a
     },
   };
   const [selectedActiveChannel, setActiveChannel] = useState<AiCtaChannel>("site_web");
+  const phoneHelpId = useId();
+  useEffect(() => {
+    if (validationTarget) setActiveChannel(validationTarget.channel);
+  }, [validationTarget]);
   const activeChannel = selectedActiveChannel === "threads" && !metaPilotEnabled ? "site_web" : selectedActiveChannel;
   const [menuOpen, setMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -202,7 +210,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false, a
     ? automaticWebsite(activeChannel, destinations)
     : destinations?.phone || "";
   const callPreviewPhone = selected?.choice === "appeler"
-    ? normalizeCtaPhone(selected.phone) || normalizeCtaPhone(destinations?.phone)
+    ? normalizeCtaCallPhones(selected.phone?.trim() ? selected.phone : destinations?.phone)
     : "";
   const previewLabel = selected ? selected.label || copy[selected.choice] : "";
   const previewText = selected?.choice === "appeler" && activeChannel !== "gmb" &&
@@ -404,9 +412,12 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false, a
                         inputMode="tel"
                         placeholder={automaticDestination || "+33 6…"}
                         value={selected.phone}
+                        maxLength={120}
+                        aria-describedby={phoneHelpId}
                         disabled={disabled}
                         onChange={(event) => update(activeChannel, { phone: event.target.value })}
                       />
+                      <small id={phoneHelpId}>{selected.choice === "appeler" ? copy.phoneHint : copy.whatsappPhoneHint}</small>
                     </label>
                   ) : null}
                 </div>

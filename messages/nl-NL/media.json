@@ -1135,5 +1135,7 @@
   "camera_video_unavailable_here": "Video hier niet beschikbaar",
   "viewer_zoom_in": "Inzoomen",
   "viewer_zoom_out": "Uitzoomen",
-  "viewer_zoom_reset": "Zoom terugzetten op 100%"
+  "viewer_zoom_reset": "Zoom terugzetten op 100%",
+  "ai_generator_credit_shared_short": "Inbegrepen tegoed gedeeld door {accounts} vestigingen",
+  "ai_generator_credit_shared_help": "Eén tegoed van {credits} inbegrepen credits per maand voor {accounts} vestigingen. Gekochte credits blijven bij deze vestiging horen."
 }

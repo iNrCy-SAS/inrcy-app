@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { dialCtaPhone, parseCtaPhoneNumbers } from "@/lib/ctaPhoneNumbers";
 
 
 import { useEffect, useRef, useState } from "react";
@@ -111,8 +112,9 @@ export default function InrSearchContactOrbit({
     };
   }, [formOpen]);
 
+  const phoneNumbers = parseCtaPhoneNumbers(phone);
   const signals: Signal[] = [
-    phone && phoneHref ? { key: "phone", label: i18nT("appeler_de49ee03"), value: phone, href: phoneHref, action: "phone", glyph: "☎" } : null,
+    phoneNumbers.length ? { key: "phone", label: i18nT("appeler_de49ee03"), value: phone, href: phoneHref || `tel:${dialCtaPhone(phoneNumbers[0])}`, action: "phone", glyph: "☎" } : null,
     email && emailHref ? { key: "email", label: i18nT("ecrire_4a2abc77"), value: email, href: emailHref, action: "email", glyph: "✉" } : null,
     addressLine ? { key: "location", label: i18nT("localiser_863066a6"), value: addressLine, href: directionsUrl || "#contact", action: directionsUrl ? "directions" : "", glyph: "⌖" } : null,
     websiteUrl ? { key: "website", label: i18nT("site_internet_bcabc83e"), value: "Visiter le site", href: websiteUrl, action: "website", glyph: "◎" } : null,
@@ -160,7 +162,18 @@ export default function InrSearchContactOrbit({
         </div>
 
         <div className={styles.contactSignals} role="list" aria-label={i18nT("moyens_de_contacter_l_entreprise_cd56744a")}>
-          {signals.map((signal, index) => (
+          {signals.map((signal, index) => signal.key === "phone" && phoneNumbers.length > 1 ? (
+            <div className={styles.contactSignal} data-signal-index={index} key={signal.key} role="listitem"
+              onMouseEnter={() => setActiveSignal(index)} onFocus={() => setActiveSignal(index)} onBlur={() => setActiveSignal(null)}>
+              <span aria-hidden="true">{signal.glyph}</span>
+              <small>{signal.label}</small>
+              <strong className={styles.contactPhoneOptions}>
+                {phoneNumbers.map(number => (
+                  <a key={number} href={`tel:${dialCtaPhone(number)}`} data-inrsearch-action="phone" data-inrsearch-target={`tel:${dialCtaPhone(number)}`}>{number}</a>
+                ))}
+              </strong>
+            </div>
+          ) : (
             <a
               className={styles.contactSignal}
               data-signal-index={index}

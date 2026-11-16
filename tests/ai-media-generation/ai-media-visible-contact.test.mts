@@ -6,13 +6,14 @@ import vm from "node:vm";
 
 import sharp from "sharp";
 import ts from "typescript";
+import * as ctaPhones from "../../lib/ctaPhoneNumbers.ts";
 
 import {
   cleanAiMediaProfilePhone,
   isAiMediaProfilePhoneDisplayRequested,
 } from "../../lib/aiMediaVisibleContact.ts";
 
-function loadContactComposer() {
+function loadContactComposer(onOverlay?: (svg: string) => void) {
   const filename = path.join(process.cwd(), "lib/aiMediaImageContactComposer.ts");
   const transpiled = ts.transpileModule(readFileSync(filename, "utf8"), {
     compilerOptions: {
@@ -25,7 +26,16 @@ function loadContactComposer() {
   const commonJsModule = { exports: {} as Record<string, unknown> };
   const localRequire = (specifier: string) => {
     if (specifier === "server-only") return {};
-    if (specifier === "sharp") return sharp;
+    if (specifier === "sharp") return (...args: Parameters<typeof sharp>) => {
+      const image = sharp(...args);
+      const composite = image.composite.bind(image);
+      image.composite = layers => {
+        for (const layer of layers) if (Buffer.isBuffer(layer.input) && layer.input.toString("utf8").startsWith("<svg")) onOverlay?.(layer.input.toString("utf8"));
+        return composite(layers);
+      };
+      return image;
+    };
+    if (specifier === "./ctaPhoneNumbers.ts") return ctaPhones;
     throw new Error(`unexpected_test_dependency:${specifier}`);
   };
   const factory = vm.runInThisContext(
@@ -114,6 +124,27 @@ test("seul un numéro plausible réellement enregistré peut être affiché", ()
   );
   assert.equal(cleanAiMediaProfilePhone("123"), "");
   assert.equal(cleanAiMediaProfilePhone("contact indisponible"), "");
+  assert.equal(cleanAiMediaProfilePhone("+243981837026 / +8618666071730"), "+243981837026 / +8618666071730");
+  assert.equal(cleanAiMediaProfilePhone("+243981837026 / invalid"), "");
+  assert.equal(cleanAiMediaProfilePhone("+243981837026 / +8618666071730 / +33123456789"), "");
+});
+
+test("two registered phones render as complete separate lines within the image at every supported aspect ratio",async()=>{
+  const overlays: string[]=[];
+  const compose=loadContactComposer(svg=>overlays.push(svg));
+  const input=await sharp({create:{width:320,height:320,channels:3,background:"#94a3b8"}}).jpeg().toBuffer();
+  for (const [width,height] of [[320,320],[1080,1080],[1080,1350],[1080,1920],[1920,1080]]) {
+    const output=await compose({input,width,height,headline:"Contactez-nous",phone:"+243981837026 / +8618666071730",officialLogo:Buffer.alloc(0),logoMode:"visible",brandColors:[]});
+    assert.equal((await sharp(output).metadata()).width,width);
+    const overlay=overlays.at(-1)!;
+    const lines=[...overlay.matchAll(/<text x="([\d.]+)" y="([\d.]+)"[^>]*font-size="([\d.]+)"[^>]*>(TEL  [^<]+)<\/text>/g)];
+    assert.deepEqual(lines.map(match=>match[4]),["TEL  +243981837026","TEL  +8618666071730"]);
+    assert.ok(Number(lines[1][2])>Number(lines[0][2]),"the second number has its own line");
+    for(const line of lines){
+      assert.ok(Number(line[1])+line[4].length*Number(line[3])*0.65<=width,"the complete phone fits horizontally");
+      assert.ok(Number(line[2])<=height,"the phone fits vertically");
+    }
+  }
 });
 
 test("le compositeur exact produit un JPEG complet dans les quatre formats", async () => {

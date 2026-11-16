@@ -7,6 +7,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 
 import sharp from "sharp";
+import { dialCtaPhone, parseCtaPhoneNumbers } from "./ctaPhoneNumbers.ts";
 
 import type {
   AiMediaInspirationImage,
@@ -253,19 +254,19 @@ export async function createBrandMotionFrame(args: {
         `<text x="${Math.round(width * 0.08)}" y="${textTop + index * lineHeight}" font-family="Arial,Helvetica,sans-serif" font-size="${fontSize}" font-weight="700" fill="#fff">${escapeXml(line)}</text>`,
     )
     .join("");
-  const phone = String(args.phone || "")
-    .replace(/[\u0000-\u001f\u007f]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const phoneFontSize = Math.max(22, Math.round(fontSize * 0.43));
-  const phonePillHeight = Math.round(phoneFontSize * 1.9);
+  const phoneLines = parseCtaPhoneNumbers(args.phone).map(phone => `TEL  ${phone.length > 24 ? dialCtaPhone(phone) : phone}`);
+  const longestPhone = Math.max(0, ...phoneLines.map(line => line.length));
+  const phoneAvailableWidth = Math.round(width * 0.84);
+  const phoneFontSize = Math.max(12, Math.min(Math.max(22, Math.round(fontSize * 0.43)), Math.floor(phoneAvailableWidth / (longestPhone * 0.65 + 1.8))));
+  const phoneRowHeight = Math.round(phoneFontSize * 1.9);
+  const phonePillHeight = phoneRowHeight + Math.max(0, phoneLines.length - 1) * Math.round(phoneFontSize * 1.3);
   const phonePillWidth = Math.min(
-    Math.round(width * 0.72),
-    Math.round((phone.length + 5) * phoneFontSize * 0.62 + phoneFontSize * 1.8),
+    phoneAvailableWidth,
+    Math.round(longestPhone * phoneFontSize * 0.65 + phoneFontSize * 1.8),
   );
   const phoneTop = Math.round(height * 0.75);
-  const phoneSvg = phone
-    ? `<rect x="${Math.round(width * 0.08)}" y="${phoneTop}" width="${phonePillWidth}" height="${phonePillHeight}" rx="${Math.round(phonePillHeight / 2)}" fill="#020617" opacity=".72" stroke="#fff" stroke-opacity=".24"/><text x="${Math.round(width * 0.08) + Math.round(phoneFontSize * 0.9)}" y="${phoneTop + Math.round(phonePillHeight * 0.66)}" font-family="Arial,Helvetica,sans-serif" font-size="${phoneFontSize}" font-weight="700" fill="#fff">${escapeXml(`TEL  ${phone}`)}</text>`
+  const phoneSvg = phoneLines.length
+    ? `<rect x="${Math.round(width * 0.08)}" y="${phoneTop}" width="${phonePillWidth}" height="${phonePillHeight}" rx="${Math.round(phoneRowHeight / 2)}" fill="#020617" opacity=".72" stroke="#fff" stroke-opacity=".24"/>${phoneLines.map((line, index) => `<text x="${Math.round(width * 0.08) + Math.round(phoneFontSize * 0.9)}" y="${phoneTop + Math.round(phoneRowHeight * 0.66) + index * Math.round(phoneFontSize * 1.3)}" font-family="Arial,Helvetica,sans-serif" font-size="${phoneFontSize}" font-weight="700" fill="#fff">${escapeXml(line)}</text>`).join("")}`
     : "";
   const svg = Buffer.from(
     `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">

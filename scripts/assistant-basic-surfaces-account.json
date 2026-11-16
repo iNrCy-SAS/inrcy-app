@@ -6936,14 +6936,14 @@
   },
   {
     "id": "account-c8a945991ba7907e",
-    "label": "AiChannelCtaPanel — input (ligne 455)",
+    "label": "AiChannelCtaPanel — input (ligne 410)",
     "domain": "business",
     "sourceFiles": [
       "app/dashboard/settings/_components/AiChannelCtaPanel.tsx"
     ],
     "sourceAnchor": "onChange={(event) => update(activeChannel, { phone: event.target.value })}",
     "controlIds": [
-      "app/dashboard/settings/_components/AiChannelCtaPanel.tsx#input:8a9c8f65ccf7df80:1"
+      "app/dashboard/settings/_components/AiChannelCtaPanel.tsx#input:5eb185a08b282a0f:1"
     ],
     "capabilityId": "business.write",
     "toolNames": [
@@ -6966,6 +6966,12 @@
     "uiConditions": [
       "needsPhone",
       "selected"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/cta-phone-numbers-browser.test.mts",
+        "testAnchor": "legacy two-phone profile populates call preview and saves a paired override on desktop and mobile"
+      }
     ]
   },
   {
@@ -9333,14 +9339,14 @@
   },
   {
     "id": "account-bcec99e5ef5b009c",
-    "label": "AiConfigurationContent — channelCtas (ligne 1393)",
+    "label": "AiConfigurationContent — channelCtas (ligne 1401)",
     "domain": "business",
     "sourceFiles": [
       "app/dashboard/settings/_components/AiConfigurationContent.tsx"
     ],
     "sourceAnchor": "onChange={(next) => set(\"channelCtas\", next)}",
     "controlIds": [
-      "app/dashboard/settings/_components/AiConfigurationContent.tsx#AiChannelCtaPanel:c4f7e006adc0dd62:1"
+      "app/dashboard/settings/_components/AiConfigurationContent.tsx#AiChannelCtaPanel:aa72c7e85e329ca6:1"
     ],
     "capabilityId": "business.write",
     "toolNames": [
@@ -9364,7 +9370,13 @@
       "activeTab === \"ctas\"",
       "loading"
     ],
-    "field": "channelCtas"
+    "field": "channelCtas",
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/cta-phone-numbers-browser.test.mts",
+        "testAnchor": "saving from Facebook opens the incomplete Site web CTA and fixing it clears the stale error"
+      }
+    ]
   },
   {
     "id": "account-98531e62048732f3",

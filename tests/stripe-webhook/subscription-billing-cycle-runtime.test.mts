@@ -58,6 +58,7 @@ function fixture(options: {
   let executions = 0;
   let previewCount = 0;
   const modules = new Map<string, unknown>([
+    ["@/lib/accountBillingSubscriptionServer", { getApprovedAccountSubscription: async () => null }],
     ["@/lib/subscriptionPlanChangePolicy", changePolicy],
     ["node:crypto", { randomUUID }],
     ["next/server", { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],

@@ -90,6 +90,7 @@ export type MediaGenerationQuotaCounter = {
   purchasedDebt?: number;
   purchasedHeld?: number;
   purchasedSuspendedDeficit?: number;
+  sharedPool?: { memberCount: number; monthlyLimit: number };
 };
 
 export type MediaGenerationQuota = {
@@ -266,12 +267,12 @@ const EMPTY_COUNTER: MediaGenerationQuotaCounter = {
   remaining: null,
 };
 
-function finiteNumber(value: unknown): number | null {
+function finiteNumber(value: unknown, signed = false): number | null {
   if (value === null || typeof value === "undefined" || value === "") {
     return null;
   }
   const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  return Number.isFinite(parsed) && (signed || parsed >= 0) ? parsed : null;
 }
 
 function normalizeCounter(
@@ -296,14 +297,19 @@ function normalizeCounter(
   const used =
     finiteNumber(source.used ?? source.count ?? source.consumed) ?? 0;
   const reserved = finiteNumber(source.reserved ?? source.pending) ?? 0;
-  const reportedRemaining = finiteNumber(source.remaining);
+  const reportedRemaining = finiteNumber(source.remaining, unit === "credit");
   const remaining =
     reportedRemaining ??
     (limit === null ? null : Math.max(0, limit - used - reserved));
   const paidFields: Partial<MediaGenerationQuotaCounter> = {};
   for (const key of ["includedRemaining", "includedLimit", "includedUsed", "includedReserved", "purchasedRemaining", "purchasedReserved", "purchasedDebt", "purchasedHeld", "purchasedSuspendedDeficit"] as const) {
-    const parsed = finiteNumber(source[key]);
+    const parsed = finiteNumber(source[key], unit === "credit" && key === "includedRemaining");
     if (parsed !== null && (parsed >= 0 || key === "includedRemaining")) paidFields[key] = parsed;
+  }
+  const shared = source.sharedPool && typeof source.sharedPool === "object" ? source.sharedPool as Record<string, unknown> : null;
+  if (shared && Number.isSafeInteger(shared.memberCount) && Number(shared.memberCount) >= 2 && Number(shared.memberCount) <= 1_000
+    && Number.isSafeInteger(shared.monthlyLimit) && Number(shared.monthlyLimit) >= 1 && Number(shared.monthlyLimit) <= 1_000_000) {
+    paidFields.sharedPool = { memberCount: Number(shared.memberCount), monthlyLimit: Number(shared.monthlyLimit) };
   }
   return { unit, limit, used, reserved, remaining, ...paidFields };
 }

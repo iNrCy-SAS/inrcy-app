@@ -14,6 +14,7 @@ type Plan = "Standard" | "Premium";
 type Cycle = "monthly" | "yearly";
 const compiled = new Map<string, string>();
 function load<T>(path: string, modules: Record<string, unknown>): T {
+  modules["@/lib/accountBillingSubscriptionServer"] ??= { getApprovedAccountSubscriptionByStripeId: async () => null };
   if (!compiled.has(path)) compiled.set(path, ts.transpileModule(readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
   }).outputText);
@@ -25,7 +26,7 @@ function load<T>(path: string, modules: Record<string, unknown>): T {
   return runtime.exports;
 }
 
-function fixture(plan: Plan, cycle: Cycle, trial = false, money: boolean | "image" = false) {
+function fixture(plan: Plan, cycle: Cycle, trial = false, money: boolean | "image" = false, approvedSecondary = false) {
   const priceEnv = Object.fromEntries([
     "STANDARD_58HT_MONTHLY", "STANDARD_58HT_YEARLY", "PREMIUM_108HT_MONTHLY", "PREMIUM_108HT_YEARLY",
   ].map((key) => [`STRIPE_PRICE_${key}_ID`, `price_fixture_${key}`]));
@@ -54,6 +55,7 @@ function fixture(plan: Plan, cycle: Cycle, trial = false, money: boolean | "imag
   const events = new Map<string, Row>();
   const writes: Row[] = [];
   const moneyCalls: Row[] = [];
+  const approvedSyncs: unknown[] = [];
   const moneyFailure = { enabled: false };
   const moneyCall = async (operation: string, id: string, event: string, domain = "video") => {
     const matches = money === "image" ? domain === "image" : money === true && domain === "video";
@@ -98,6 +100,11 @@ function fixture(plan: Plan, cycle: Cycle, trial = false, money: boolean | "imag
     return query;
   };
   const route = load<{ POST(req: Request): Promise<Response> }>("app/api/stripe/webhook/route.ts", {
+    "@/lib/accountBillingSubscriptionServer": {
+      getApprovedAccountSubscriptionByStripeId: async (id: string) => approvedSecondary && id === "sub_verified"
+        ? { account_id: "business_secondary", auth_user_id: "user_account", stripe_subscription_id: id } : null,
+      syncApprovedAccountSubscriptionFromStripe: async (sub: unknown) => { approvedSyncs.push(sub); return {}; },
+    },
     "next/server": { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } },
     "@/lib/apiUserFacingErrors": { jsonUserFacingError: (error: unknown, init: { status: number }) => Response.json({ error: String(error) }, init) },
     "@/lib/supabaseAdmin": { supabaseAdmin: { from } },
@@ -136,8 +143,30 @@ function fixture(plan: Plan, cycle: Cycle, trial = false, money: boolean | "imag
   const post = (type: string, object: Row, id = `evt_${type}`, signature = "fixture-verified") => route.POST(new Request("https://example.invalid/api/stripe/webhook", {
     method: "POST", headers: { "stripe-signature": signature }, body: JSON.stringify({ id, type, data: { object } }),
   }));
-  return { row, writes, live, checkout, post, trialEnd, moneyCalls, moneyFailure, events };
+  return { row, writes, live, checkout, post, trialEnd, moneyCalls, moneyFailure, events, approvedSyncs };
 }
+
+test("an approved secondary contract syncs current Stripe state and durably completes without rebinding its payer", async () => {
+  const run = fixture("Standard", "monthly", false, false, true);
+  const original = { ...run.row };
+  for (const [type, object] of [
+    ["customer.subscription.updated", { id: "sub_verified", status: "past_due" }],
+    ["invoice.paid", { subscription: "sub_verified", customer: "cus_account" }],
+    ["invoice.payment_failed", { subscription: "sub_verified", customer: "cus_account" }],
+    ["checkout.session.completed", run.checkout],
+  ] as const) {
+    const response = await run.post(type, object);
+    assert.deepEqual(await response.json(), { received: true, accountSubscription: true });
+    assert.equal(run.events.get(`evt_${type}`)?.status, "completed");
+    assert.equal((run.approvedSyncs.at(-1) as Row).status, "active");
+  }
+  assert.equal(run.approvedSyncs.length, 4);
+  assert.equal(run.writes.length, 0);
+  assert.deepEqual(run.row, original);
+  const replay = await run.post("invoice.paid", { subscription: "sub_verified" });
+  assert.deepEqual(await replay.json(), { received: true, duplicate: true });
+  assert.equal(run.approvedSyncs.length, 4);
+});
 
 for (const plan of ["Standard", "Premium"] as const) {
   for (const cycle of ["monthly", "yearly"] as const) {

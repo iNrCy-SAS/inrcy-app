@@ -108,7 +108,7 @@ test("a mixed schedule keeps five image channels and five video channels intact"
 
 test("iNrAgent scheduling preserves a structured Appeler CTA through execution", () => {
   assert.ok(agentScheduleRoute.includes("ctaMode?: BoosterCtaMode"));
-  assert.ok(agentScheduleRoute.includes("const ctaPhone = normalizeCtaPhone(record.ctaPhone"));
+  assert.ok(agentScheduleRoute.includes('ctaMode === "call" ? normalizeCtaCallPhones : normalizeCtaPhone'));
   assert.ok(agentScheduleRoute.includes("...(post.ctaPhone ? { ctaPhone: post.ctaPhone } : {})"));
   assert.ok(agentExecuteRoute.includes("record.ctaPhone ?? record.cta_phone ?? fallback?.ctaPhone"));
 

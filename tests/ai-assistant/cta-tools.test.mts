@@ -47,6 +47,28 @@ test("registered phone updates compatible future CTA defaults and Badge while pr
   await h.execute(input("phone")); assert.equal(h.calls.filter(call => call.patch).length, 2, "Model fallback must not repeat either update");
 });
 
+test("two registered phones are reused together without silently adding or dropping a literal requested number", async () => {
+  const phone = "+243981837026 / +8618666071730";
+  const current = "Mets mes numéros de téléphone partout dans les CTA de tous mes canaux.";
+  const h = fixture({phone,current});
+  const result = await h.execute(input("phone",current));
+  assert.equal(result.ok,true);
+  assert.equal(((h.tables.business_profiles.ai_channel_ctas as Row).facebook as Row).phone,phone);
+  assert.equal(h.tables.profiles.phone,phone,"the registered profile is kept intact");
+  const literal = `Mets mes numéros de téléphone ${phone} dans les CTA Facebook.`;
+  const exact = fixture({phone,current:literal});
+  assert.equal((await exact.execute(input("phone",literal,["facebook"]))).status,"updated");
+  for (const requested of ["+243981837026","+243981837026 / +33999999999"]) {
+    const instruction=`Mets mon téléphone ${requested} dans les CTA Facebook.`;
+    const blocked=fixture({phone,current:instruction});
+    assert.equal((await blocked.execute(input("phone",instruction,["facebook"]))).status,"needs_instruction");
+    assert.equal(blocked.calls.filter(call=>call.patch).length,0);
+  }
+  const excessive=fixture({phone:`${phone} / +33123456789`});
+  assert.equal((await excessive.execute(input("phone"))).status,"blocked");
+  assert.equal(excessive.calls.filter(call=>call.patch).length,0);
+});
+
 test("website default is taken from the current registered public site and feeds the real future CTA normalizer", async () => {
   const h = fixture({ current: websiteInstruction }); const result = await h.execute(input("website")); assert.equal(result.status, "partial");
   const map = h.tables.business_profiles.ai_channel_ctas as Row;

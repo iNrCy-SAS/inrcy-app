@@ -32,6 +32,7 @@ import {
   isAiChannelCtaComplete,
   normalizeAiChannelCtaMap,
   type AiChannelCtaDestinations,
+  type AiCtaChannel,
 } from "@/lib/aiChannelCtaPreferences";
 import AiChannelCtaPanel from "./AiChannelCtaPanel";
 import AiEngineInfoModal from "../../_components/AiEngineInfoModal";
@@ -491,6 +492,7 @@ export default function AiConfigurationContent({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
+  const [ctaValidationTarget, setCtaValidationTarget] = useState<{ channel: AiCtaChannel; attempt: number } | null>(null);
   const [engineInfoOpen, setEngineInfoOpen] = useState(false);
   useInrAssistantLocalInterface("engine_info", { open: engineInfoOpen }, {
     open: { invoke: () => setEngineInfoOpen(true), matches: snapshot => Boolean(snapshot && typeof snapshot === "object" && "open" in snapshot && snapshot.open === true) },
@@ -719,6 +721,7 @@ export default function AiConfigurationContent({
   const set = <K extends keyof AiConfigForm>(key: K, value: AiConfigForm[K]) => {
     setSaved(false);
     setError("");
+    if (key === "channelCtas") setCtaValidationTarget(null);
     const next = { ...formRef.current, [key]: value };
     formRef.current = next;
     setForm(next);
@@ -790,11 +793,14 @@ export default function AiConfigurationContent({
             .catch(() => null)
           : null;
         const incompleteChannel = AI_CTA_CHANNELS.find(({ key }) =>
-          submitted.channelCtas[key] && !isAiChannelCtaComplete(key, normalizedChannelCtas[key], ctaDestinations),
+          submitted.channelCtas[key] && !isAiChannelCtaComplete(key, submitted.channelCtas[key], ctaDestinations),
         );
         if (incompleteChannel) {
-          if (reason === "manual") setActiveTab("ctas");
-          throw new Error(`Complétez le lien ou le numéro du CTA ${incompleteChannel.label} avant d’enregistrer.`);
+          if (reason === "manual") {
+            setActiveTab("ctas");
+            setCtaValidationTarget(previous => ({ channel: incompleteChannel.key, attempt: (previous?.attempt || 0) + 1 }));
+          }
+          throw new Error(i18nT("cta_incomplete_channel", { channel: incompleteChannel.key === "site_web" ? i18nT("cta_channel_website") : incompleteChannel.label }));
         }
         const safeWebLength = enforceAiContentLengthForEdition(submitted.webLength, edition);
         const safeSocialLength = enforceAiContentLengthForEdition(submitted.socialLength, edition);
@@ -1394,6 +1400,7 @@ export default function AiConfigurationContent({
             {activeTab === "ctas" ? (
               <AiChannelCtaPanel
                 assistantActive={assistantActive}
+                validationTarget={ctaValidationTarget}
                 value={form.channelCtas}
                 onChange={(next) => set("channelCtas", next)}
                 disabled={saving || voiceBusy}

@@ -63,6 +63,8 @@ export type AiMediaQuotaCounter = {
   purchasedDebt?: number;
   purchasedHeld?: number;
   purchasedSuspendedDeficit?: number;
+  /** Only the included allowance is shared; bought credits remain account-owned. */
+  sharedPool?: { memberCount: number; monthlyLimit: number };
 };
 
 export type AiMediaQuotaSnapshot = {
@@ -367,6 +369,7 @@ export async function getAiMediaQuotaSnapshot(params: {
   accountId: string;
   actorAuthUserId: string;
   edition: AiMediaEdition;
+  includeSharedPoolContext?: boolean;
 }): Promise<AiMediaQuotaSnapshot> {
   const accountId = assertUuid(params.accountId, "accountId");
   const actorAuthUserId = assertUuid(params.actorAuthUserId, "actorAuthUserId");
@@ -385,6 +388,26 @@ export async function getAiMediaQuotaSnapshot(params: {
       throw new AiMediaGenerationQuotaError("ai_media_credit_wallet_unavailable", "Le portefeuille de crédits médias n'est pas prêt.", 503);
     }
     const credits: AiMediaQuotaCounter & { unit: "credit"; periodStart: string; resetAt: string } = { ...parsed, ...purchasedQuotaFromRow(row), unit: "credit" };
+    if (params.includeSharedPoolContext) {
+      const name = "get_ai_media_credit_pool_context";
+      const context = await client.rpc(name, { p_account_id: accountId, p_actor_auth_user_id: actorAuthUserId });
+      if (context.error) {
+        if (!isMissingQuotaRpc(context.error, name)) rpcError(name, context.error);
+      } else if (!Array.isArray(context.data) || context.data.length > 1) {
+        throw new AiMediaGenerationQuotaError("ai_media_invalid_rpc_response", "Le quota partagé est incohérent.", 503);
+      } else if (context.data.length) {
+        const shared = context.data[0] as { member_count?: unknown; monthly_limit?: unknown } | null;
+        if (!shared || typeof shared !== "object") {
+          throw new AiMediaGenerationQuotaError("ai_media_invalid_rpc_response", "Le quota partagé est incohérent.", 503);
+        }
+        const memberCount = numberValue(shared.member_count, "shared_member_count");
+        const monthlyLimit = numberValue(shared.monthly_limit, "shared_monthly_limit");
+        if (memberCount < 2 || monthlyLimit < 1 || memberCount > 1_000 || monthlyLimit > 1_000_000) {
+          throw new AiMediaGenerationQuotaError("ai_media_invalid_rpc_response", "Le quota partagé est incohérent.", 503);
+        }
+        credits.sharedPool = { memberCount, monthlyLimit };
+      }
+    }
     return {
       accountId, edition, periodStart: parsed.periodStart, resetAt: parsed.resetAt,
       studioEnabled: row.studio_enabled === true, creditsReady: true, credits,

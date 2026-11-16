@@ -134,7 +134,7 @@ test("strict account-edition lookups distinguish real Basic access from unavaila
   for(const failure of [null,"inrcy_account_members","subscriptions","profiles","missing_subscription"]){
     const tables:Record<string,Row[]>={inrcy_account_members:[{account_id:ACCOUNT,auth_user_id:"owner",role:"owner"}],subscriptions:failure==="missing_subscription"?[]:[{user_id:"owner",plan:"Premium",app_edition:"premium"}],profiles:[{user_id:ACCOUNT,role:"user"}]};
     const db={from(table:string){const query={select(){return query;},in(){return query;},then(resolve:(value:unknown)=>unknown,reject:(error:unknown)=>unknown){return Promise.resolve({data:tables[table],error:failure===table?Error("synthetic lookup outage"):null}).then(resolve,reject);}};return query;}};
-    const server=runtimeModules({"@/lib/supabaseAdmin":{supabaseAdmin:db},"next/server":{NextResponse:{json:Response.json}}})<typeof import("../../lib/dashboardEditionServer.ts")>("lib/dashboardEditionServer.ts");
+    const server=runtimeModules({"@/lib/accountBillingSubscriptionServer":{getApprovedAccountSubscriptionsForAccounts:async()=>new Map()},"@/lib/supabaseAdmin":{supabaseAdmin:db},"next/server":{NextResponse:{json:Response.json}}})<typeof import("../../lib/dashboardEditionServer.ts")>("lib/dashboardEditionServer.ts");
     if(failure)await assert.rejects(server.getDashboardEditionForAccountId(ACCOUNT,{strict:true}),/ACCOUNT_EDITION_/);
     else{
       assert.equal(await server.getDashboardEditionForAccountId(ACCOUNT,{strict:true}),"premium");tables.subscriptions[0].plan="Basic";tables.subscriptions[0].app_edition="basic";

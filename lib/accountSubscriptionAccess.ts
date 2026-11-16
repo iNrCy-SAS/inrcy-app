@@ -2,6 +2,7 @@ import "server-only";
 
 import { hasActiveAccountSubscription, type AccountSubscriptionGateRow } from "@/lib/accountSubscriptionPolicy";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getApprovedAccountSubscriptionsForAccounts } from "@/lib/accountBillingSubscriptionServer";
 
 function cleanId(value: unknown): string {
   return String(value || "").trim();
@@ -39,6 +40,7 @@ export async function getActiveSubscriptionAccountIds(
     .select("user_id,status,trial_end_at,start_date")
     .in("user_id", userIds);
   if (subscriptionError) throw new Error("Vérification de l’abonnement impossible.");
+  const approved = await getApprovedAccountSubscriptionsForAccounts(uniqueAccountIds);
 
   const subscriptionByUser = new Map<string, AccountSubscriptionGateRow>();
   for (const row of Array.isArray(subscriptionRows) ? subscriptionRows : []) {
@@ -48,7 +50,7 @@ export async function getActiveSubscriptionAccountIds(
 
   for (const accountId of uniqueAccountIds) {
     const ownerId = ownerByAccount.get(accountId) || accountId;
-    const subscription = subscriptionByUser.get(ownerId) || subscriptionByUser.get(accountId);
+    const subscription = approved.get(accountId) || subscriptionByUser.get(ownerId) || subscriptionByUser.get(accountId);
     if (hasActiveAccountSubscription(subscription, nowMs)) active.add(accountId);
   }
   return active;

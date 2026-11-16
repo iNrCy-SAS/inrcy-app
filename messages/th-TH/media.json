@@ -1135,5 +1135,7 @@
   "camera_video_unavailable_here": "วิดีโอไม่พร้อมใช้งานที่นี่",
   "viewer_zoom_in": "ขยายภาพ",
   "viewer_zoom_out": "ย่อภาพ",
-  "viewer_zoom_reset": "รีเซ็ตการซูมเป็น 100%"
+  "viewer_zoom_reset": "รีเซ็ตการซูมเป็น 100%",
+  "ai_generator_credit_shared_short": "เครดิตที่รวมในแพ็กเกจใช้ร่วมกันระหว่าง {accounts} กิจการ",
+  "ai_generator_credit_shared_help": "เครดิตที่รวมในแพ็กเกจ {credits} เครดิตต่อเดือนเป็นยอดเดียวที่ใช้ร่วมกันระหว่าง {accounts} กิจการ เครดิตที่ซื้อเพิ่มยังเป็นของกิจการนี้เท่านั้น"
 }

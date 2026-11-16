@@ -13,11 +13,11 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   let stage = "authentication";
   try {
-    const { user, errorResponse } = await requireUser();
+    const { user, activeUserId, errorResponse } = await requireUser();
     if (errorResponse) return errorResponse;
 
     stage = "schedule_cancellation";
-    const result = await scheduleSubscriptionCancellationForUser(user.id);
+    const result = await scheduleSubscriptionCancellationForUser(user.id, activeUserId || user.id);
 
     return NextResponse.json({
       ok: true,

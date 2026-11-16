@@ -32,6 +32,7 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
     suppressPublishSuccess?: boolean;
     throwOnError?: boolean;
     retryPreviousSummary?: PublishExecutionSummary;
+    scheduledImmediateRequest?: PendingImmediatePublishAfterSchedule;
   }) => {
     const context = readContext();
     const {
@@ -39,6 +40,9 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
       draftSaving,
       voiceInputBusy,
       publishStartGuardRef,
+      scheduleSaving,
+      scheduleStartGuardRef,
+      scheduleSubmissionRef,
       authoritativeChannelsRef,
       connectedChannelsScopeRef,
       activeAccountId,
@@ -118,11 +122,19 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
       onPublishSuccess,
       onClose,
     } = context.actions;
+    const scheduledContinuation = Boolean(
+      options?.scheduledImmediateRequest &&
+      scheduleSubmissionRef.current === options.scheduledImmediateRequest,
+    );
     if (
       saving ||
       draftSaving ||
+      scheduleSaving ||
       voiceInputBusy ||
-      publishStartGuardRef.current
+      publishStartGuardRef.current ||
+      scheduleStartGuardRef.current ||
+      (scheduleSubmissionRef.current !== undefined &&
+        !scheduledContinuation && !options?.retryPreviousSummary)
     ) return;
     if (!authoritativeChannelsRef.current || connectedChannelsScopeRef.current !== (getActiveBrowserUserId() || activeAccountId || null)) {
       setPublishError(i18nT("connections_loading"));
@@ -161,6 +173,9 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
     }
 
     publishStartGuardRef.current = true;
+    // A recorded schedule owns this editor attempt. Only its explicitly
+    // confirmed, disjoint immediate subset can continue, and only once.
+    if (scheduledContinuation) scheduleSubmissionRef.current = null;
     phasedPublicationProgressRef.current = true;
     setPublicationDestinations((current) => {
       const destinations = options?.retryPreviousSummary && current.length
@@ -1120,6 +1135,8 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
       scheduleSaving,
       voiceInputBusy,
       scheduleStartGuardRef,
+      publishStartGuardRef,
+      scheduleSubmissionRef,
       selectedChannels,
       creationMode,
       idea,
@@ -1170,7 +1187,6 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
       setPublishProgressLabel,
       scrollToPublishArea,
       setChannels,
-      setPendingImmediatePublishAfterSchedule,
       setScheduleReviewPosts,
       setTiktokPublicationSettings,
       setTiktokSettingsFlow,
@@ -1186,7 +1202,9 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
       draftSaving ||
       scheduleSaving ||
       voiceInputBusy ||
-      scheduleStartGuardRef.current
+      scheduleStartGuardRef.current ||
+      publishStartGuardRef.current ||
+      scheduleSubmissionRef.current !== undefined
     ) {
       return;
     }
@@ -1647,7 +1665,7 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
               : null,
           }
         : null;
-      setPendingImmediatePublishAfterSchedule(immediatePublishRequest);
+      scheduleSubmissionRef.current = immediatePublishRequest;
 
       setScheduleReviewPosts(null);
       setTiktokPublicationSettings(null);
@@ -1678,6 +1696,7 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
       preparedPostsByChannel: request.preparedPostsByChannel,
       tiktokPublicationSettings: request.tiktokSettingsForSchedule,
       channels: request.immediateChannels,
+      scheduledImmediateRequest: request,
       closeOnSuccess: false,
       throwOnError: false,
     });

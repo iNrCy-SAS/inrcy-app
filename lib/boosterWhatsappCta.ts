@@ -1,3 +1,5 @@
+import { normalizeSingleCtaPhone } from "./ctaPhoneNumbers.ts";
+
 function normalizeHttpUrl(input: unknown) {
   const raw = String(input || "").trim();
   if (!raw) return "";
@@ -9,7 +11,7 @@ function normalizeHttpUrl(input: unknown) {
 }
 
 export function normalizeBoosterWhatsAppPhone(input: unknown) {
-  const raw = String(input || "").trim();
+  const raw = normalizeSingleCtaPhone(input);
   if (!raw) return "";
 
   const explicitlyInternational = /^\s*(?:\+|00)/.test(raw);

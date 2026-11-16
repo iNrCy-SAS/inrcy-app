@@ -39,9 +39,12 @@ test("ensureProfileRow ne copie les métadonnées AUTH que sur le compte princip
   assert.match(ensureProfile, /user_id:\s*accountUserId/);
 });
 
-test("l'abonnement reste AUTH-global dans le layout et l'écran abonnement", () => {
+test("le forfait historique reste AUTH-global et l'écran lit le contrat vérifié de l'établissement", () => {
   assert.match(dashboardLayout, /\.eq\("user_id", user\.id\)/);
-  assert.match(subscriptionUi, /\.eq\("user_id", user\.id\)/);
+  assert.match(subscriptionUi, /readCurrentAccountSubscription<SubData>\(user\.id\)/);
+  const reader = read("app/api/billing/account-subscription/route.ts");
+  assert.match(reader, /getApprovedAccountSubscription\(accountId,user\.id\)/);
+  assert.match(reader, /\.eq\("user_id",user\.id\)/);
 });
 
 test("le dashboard ne réécrase pas l'établissement actif avec l'UID AUTH au chargement", () => {

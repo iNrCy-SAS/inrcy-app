@@ -272,6 +272,11 @@
   flex: 0 1 calc((100% - 20px) / 3);
   max-width: calc((100% - 20px) / 3);
 }
+.primaryGrid[data-phone-count="2"] > * {
+  flex-basis: calc((100% - 10px) / 2);
+  max-width: calc((100% - 10px) / 2);
+  overflow-wrap: anywhere;
+}
 
 .section {
   margin-top: 18px;

@@ -37,6 +37,7 @@ function fixture(options: { plan?: Plan; cycle?: Cycle; legacy?: boolean; subscr
   const posts: Array<{ path: string; params: URLSearchParams; idempotencyKey?: string }> = [];
   const gets: string[] = [];
   const modules = new Map<string, unknown>([
+    ["@/lib/accountBillingSubscriptionServer", { getApprovedAccountSubscription: async () => null }],
     ["@/lib/subscriptionPlanChangePolicy", changePolicy],
     ["node:crypto", { randomUUID }],
     ["next/server", { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],

@@ -35,6 +35,17 @@ test("all nine full application locales produce distinct localized client errors
   for (const output of outputs) assert.doesNotMatch(output, /Failed to fetch|TypeError/);
 });
 
+test("scheduled duplicate failures remain actionable without exposing raw diagnostics", () => {
+  const outputs = locales.map(locale => message({ code: "scheduled_publication_duplicate",
+    error: "PRIVATE_PROVIDER token=secret https://private.invalid?signature=secret",
+    duplicate: { existingTitle: "Private internal title", existingScheduledAt: "bad date" },
+  }, locale, "Generic failed publication", { allowUnknownMessage: false }));
+  assert.equal(new Set(outputs).size, 9);
+  assert.match(outputs[0], /publication identique.*programmée.*programmations/);
+  assert.match(outputs[1], /identical post.*scheduled/);
+  for (const output of outputs) assert.doesNotMatch(output, /PRIVATE|secret|invalid|Generic failed|scheduled_publication_duplicate/);
+});
+
 test("credit balance and period limits never suggest a rate-limit retry", () => {
   for (const locale of locales) {
     const credit = message({ code: "AI_MEDIA_QUOTA_REACHED" }, locale);

@@ -643,7 +643,7 @@ export function buildNormalizedAiGenerationProfile(
         firstValue(identitySources, ["hq_zip", "hqZip", "postal_code", "zip"]),
         24,
       ),
-      phone: cleanText(firstValue(identitySources, ["phone", "business_phone"]), 70),
+      phone: cleanText(firstValue(identitySources, ["phone", "business_phone"]), 120),
       email: cleanText(
         firstValue(identitySources, [
           "contact_email",

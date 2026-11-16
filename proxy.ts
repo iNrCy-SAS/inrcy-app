@@ -282,11 +282,42 @@ function getSupabaseHeaders(): HeadersInit | null {
   };
 }
 
-async function getSubscriptionGateRow(userId: string): Promise<SubscriptionGateRow | null> {
+async function getSubscriptionGateRow(userId: string, accountId: string | null = userId): Promise<SubscriptionGateRow | null> {
   try {
     const headers = getSupabaseHeaders();
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    if (!headers || !supabaseUrl) return null;
+    if (!headers || !supabaseUrl || !accountId) return null;
+
+    // accountId is resolved from trusted memberships by this request, never
+    // from the selection cookie alone. Private lookup errors fail closed.
+    const approvedUrl = new URL(`${supabaseUrl}/rest/v1/inrcy_account_subscriptions`);
+    approvedUrl.searchParams.set("select", "account_id,auth_user_id,status,start_date,app_edition,plan");
+    approvedUrl.searchParams.set("account_id", `eq.${accountId}`);
+    approvedUrl.searchParams.set("auth_user_id", `eq.${userId}`);
+    approvedUrl.searchParams.set("limit", "1");
+    const approvedResponse = await fetch(approvedUrl.toString(), { headers, cache: "no-store" });
+    if (!approvedResponse.ok) {
+      const error = await approvedResponse.json().catch(() => null) as { code?: string } | null;
+      if (error?.code !== "42P01" && error?.code !== "PGRST205") return null;
+    } else {
+      const rows: unknown = await approvedResponse.json();
+      if (!Array.isArray(rows) || rows.length > 1) return null;
+      if (rows.length) {
+        const approved = rows[0] as SubscriptionGateRow & { account_id?: string; auth_user_id?: string };
+        if (!approved || approved.account_id !== accountId || approved.auth_user_id !== userId) return null;
+        const ownerUrl = new URL(`${supabaseUrl}/rest/v1/inrcy_account_members`);
+        ownerUrl.searchParams.set("select", "account_id,auth_user_id,role");
+        ownerUrl.searchParams.set("account_id", `eq.${accountId}`);
+        ownerUrl.searchParams.set("auth_user_id", `eq.${userId}`);
+        ownerUrl.searchParams.set("role", "eq.owner");
+        ownerUrl.searchParams.set("limit", "1");
+        const ownerResponse = await fetch(ownerUrl.toString(), { headers, cache: "no-store" });
+        if (!ownerResponse.ok) return null;
+        const owners: unknown = await ownerResponse.json();
+        if (!Array.isArray(owners) || !owners.some((owner) => owner?.account_id === accountId && owner?.auth_user_id === userId && owner?.role === "owner")) return null;
+        return approved;
+      }
+    }
 
     const url = new URL(`${supabaseUrl}/rest/v1/subscriptions`);
     url.searchParams.set("select", "status,trial_end_at,start_date,app_edition,plan");
@@ -766,14 +797,22 @@ export async function proxy(req: NextRequest) {
 
   let subscriptionGate: SubscriptionGateRow | null | undefined;
   let trustedUserRole: string | null | undefined;
+  let trustedActiveAccount: Promise<string | null> | undefined;
 
   const getCurrentUserId = async () => authenticatedUserId;
+  const getCurrentActiveAccountId = () => {
+    if (!authenticatedUserId) return Promise.resolve(null);
+    trustedActiveAccount ||= resolveTrustedReviewerActiveAccountId(
+      authenticatedUserId, req.cookies.get(ACTIVE_INRCY_ACCOUNT_COOKIE)?.value || null,
+    );
+    return trustedActiveAccount;
+  };
 
   const getCurrentSubscriptionGate = async () => {
     const currentUserId = await getCurrentUserId();
     if (!currentUserId) return null;
     if (subscriptionGate !== undefined) return subscriptionGate;
-    subscriptionGate = await getSubscriptionGateRow(currentUserId);
+    subscriptionGate = await getSubscriptionGateRow(currentUserId, await getCurrentActiveAccountId());
     return subscriptionGate;
   };
   const getCurrentUserRole = async () => {
@@ -790,9 +829,7 @@ export async function proxy(req: NextRequest) {
     const role = await getCurrentUserRole();
     if (!hasFullProductReviewerAccess(role, authenticatedUserId)) return null;
     if (reviewerActiveAccountMatches === undefined) {
-      reviewerActiveAccountMatches = await resolveTrustedReviewerActiveAccountId(
-        authenticatedUserId, requestedReviewerAccountId,
-      ) === authenticatedUserId;
+      reviewerActiveAccountMatches = await getCurrentActiveAccountId() === authenticatedUserId;
     }
     return reviewerActiveAccountMatches ? role : null;
   };

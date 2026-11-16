@@ -23,6 +23,7 @@ type UserFacingErrorKey =
   | "forbidden"
   | "not_found"
   | "conflict"
+  | "scheduled_publication_duplicate"
   | "invalid"
   | "service_unavailable"
   | "cancelled"
@@ -54,6 +55,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     forbidden: "Vous n’avez pas l’autorisation d’effectuer cette action.",
     not_found: "L’information demandée est introuvable.",
     conflict: "Cette action est déjà en cours ou a déjà été effectuée.",
+    scheduled_publication_duplicate: "Une publication identique est déjà programmée. Consultez vos programmations avant de réessayer.",
     invalid: "Certaines informations sont manquantes ou incorrectes.",
     service_unavailable: "Le service est momentanément indisponible. Merci de réessayer dans quelques minutes.",
     cancelled: "La connexion a été annulée.",
@@ -84,6 +86,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     forbidden: "You are not allowed to perform this action.",
     not_found: "The requested information could not be found.",
     conflict: "This action is already in progress or has already been completed.",
+    scheduled_publication_duplicate: "An identical post is already scheduled. Check your scheduled posts before trying again.",
     invalid: "Some information is missing or incorrect.",
     service_unavailable: "The service is temporarily unavailable. Please try again in a few minutes.",
     cancelled: "The connection was cancelled.",
@@ -114,6 +117,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     forbidden: "No tienes permiso para realizar esta acción.",
     not_found: "No se ha encontrado la información solicitada.",
     conflict: "Esta acción ya está en curso o ya se ha realizado.",
+    scheduled_publication_duplicate: "Ya hay una publicación idéntica programada. Revisa tus publicaciones programadas antes de volver a intentarlo.",
     invalid: "Faltan algunos datos o no son correctos.",
     service_unavailable: "El servicio no está disponible temporalmente. Inténtalo de nuevo en unos minutos.",
     cancelled: "La conexión se ha cancelado.",
@@ -144,6 +148,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     forbidden: "Non hai l’autorizzazione per eseguire questa azione.",
     not_found: "Non è stato possibile trovare le informazioni richieste.",
     conflict: "Questa azione è già in corso o è già stata eseguita.",
+    scheduled_publication_duplicate: "Un post identico è già programmato. Controlla i post programmati prima di riprovare.",
     invalid: "Alcune informazioni mancano o non sono corrette.",
     service_unavailable: "Il servizio è temporaneamente indisponibile. Riprova tra qualche minuto.",
     cancelled: "La connessione è stata annullata.",
@@ -174,6 +179,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     forbidden: "Sie sind nicht berechtigt, diese Aktion auszuführen.",
     not_found: "Die angeforderten Informationen wurden nicht gefunden.",
     conflict: "Diese Aktion läuft bereits oder wurde schon ausgeführt.",
+    scheduled_publication_duplicate: "Ein identischer Beitrag ist bereits geplant. Prüfen Sie Ihre geplanten Beiträge, bevor Sie es erneut versuchen.",
     invalid: "Einige Angaben fehlen oder sind nicht korrekt.",
     service_unavailable: "Der Dienst ist vorübergehend nicht verfügbar. Bitte versuchen Sie es in einigen Minuten erneut.",
     cancelled: "Die Verbindung wurde abgebrochen.",
@@ -204,6 +210,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     forbidden: "U bent niet gemachtigd om deze actie uit te voeren.",
     not_found: "De gevraagde informatie kon niet worden gevonden.",
     conflict: "Deze actie wordt al uitgevoerd of is al uitgevoerd.",
+    scheduled_publication_duplicate: "Er staat al een identiek bericht gepland. Controleer je geplande berichten voordat je het opnieuw probeert.",
     invalid: "Sommige gegevens ontbreken of zijn onjuist.",
     service_unavailable: "De dienst is tijdelijk niet beschikbaar. Probeer het over enkele minuten opnieuw.",
     cancelled: "De verbinding is geannuleerd.",
@@ -234,6 +241,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     forbidden: "Não tem autorização para executar esta ação.",
     not_found: "Não foi possível encontrar a informação pedida.",
     conflict: "Esta ação já está em curso ou já foi concluída.",
+    scheduled_publication_duplicate: "Já existe uma publicação idêntica agendada. Consulte as publicações agendadas antes de tentar novamente.",
     invalid: "Faltam algumas informações ou estão incorretas.",
     service_unavailable: "O serviço está temporariamente indisponível. Tente novamente dentro de alguns minutos.",
     cancelled: "A ligação foi cancelada.",
@@ -264,6 +272,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     forbidden: "คุณไม่มีสิทธิ์ดำเนินการนี้",
     not_found: "ไม่พบข้อมูลที่ต้องการ",
     conflict: "การดำเนินการนี้กำลังดำเนินอยู่หรือเสร็จสิ้นแล้ว",
+    scheduled_publication_duplicate: "มีโพสต์ที่เหมือนกันกำหนดเวลาไว้แล้ว โปรดตรวจสอบโพสต์ที่กำหนดเวลาก่อนลองอีกครั้ง",
     invalid: "ข้อมูลบางส่วนขาดหายไปหรือไม่ถูกต้อง",
     service_unavailable: "บริการไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้งในอีกไม่กี่นาที",
     cancelled: "การเชื่อมต่อถูกยกเลิกแล้ว",
@@ -294,6 +303,7 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     forbidden: "您无权执行此操作。",
     not_found: "找不到所请求的信息。",
     conflict: "此操作正在进行中或已经完成。",
+    scheduled_publication_duplicate: "已有相同的帖子排期。请先检查已排期的帖子，再重试。",
     invalid: "部分信息缺失或不正确。",
     service_unavailable: "服务暂时不可用，请几分钟后重试。",
     cancelled: "连接已取消。",
@@ -760,6 +770,7 @@ function resolveStructuredErrorKey(input: unknown, preserveReadableMessage = tru
   const code = typeof codeValue === "string" ? codeValue.toLowerCase() : "";
   const raw = normalizeRawMessage(input).toLowerCase();
   const signal = `${code} ${raw}`;
+  if (code === "scheduled_publication_duplicate") return "scheduled_publication_duplicate";
   if (/^(?:invalid_client|invalid_client_id|invalid_client_secret|oauth_config_missing|ai_gateway_auth)$/.test(code) || /client authentication failed|invalid[_ ]client(?:[_ ]secret|[_ ]id)?|missing .*(?:api[_ -]?key|client_secret|client_id)|configuration serveur incompl/.test(raw)) return "service_unavailable";
   if (code === "ai_media_result_unavailable" || /média enregistré n[’']est plus disponible|saved media is no longer available/.test(raw)) return "media_missing";
   if (/^(?:file_too_large|payload_too_large|entity_too_large)$/.test(code) || /(?:file|image|video|payload|entity) (?:is )?too large/.test(raw) || Number(record.status) === 413) return "file_too_large";

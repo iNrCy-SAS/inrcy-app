@@ -20,7 +20,7 @@ function nodes(value: unknown): RenderNode[] {
   return [node, ...nodes(node.props?.children)];
 }
 
-async function renderLayout(actorRole: Role, accountRole: Role, options: { actorId?: string; accountId?: string; accountLookupFails?: boolean; status?: string } = {}) {
+async function renderLayout(actorRole: Role, accountRole: Role, options: { actorId?: string; accountId?: string; accountLookupFails?: boolean; status?: string; approved?: Record<string,unknown>; approvedLookupFails?: boolean } = {}) {
   const actorId = options.actorId || FULL_PRODUCT_REVIEWER_ACCOUNT_ID;
   const accountId = options.accountId || actorId;
   const subscription = { status: options.status || "active", plan: "Premium", app_edition: "premium" };
@@ -51,6 +51,11 @@ async function renderLayout(actorRole: Role, accountRole: Role, options: { actor
     if (id === "next/navigation") return { redirect: (destination: string) => { throw new Error("redirect:" + destination); } };
     if (id === "@/lib/supabaseServer") return { createSupabaseServer: async () => database };
     if (id === "@/lib/supabaseAdmin") return { supabaseAdmin: database };
+    if (id === "@/lib/accountBillingSubscriptionServer") return { getApprovedAccountSubscription: async (selected: string,payer: string) => {
+      assert.equal(selected,accountId);assert.equal(payer,actorId);
+      if(options.approvedLookupFails) throw new Error("ACCOUNT_SUBSCRIPTION_READ_UNAVAILABLE");
+      return options.approved || null;
+    } };
     if (id === "@/lib/roles") return loadedRoles.exports;
     if (id === "@/lib/metaChannelRollout") return rollout;
     if (id === "@/lib/dashboardEdition") return edition;
@@ -84,6 +89,17 @@ test("verified Meta reviewer gets every tool and Meta pilot while commercial pla
   assert.equal(result.subscription.plan, "Premium");
   assert.equal(result.access.viewerMetaPilotEnabled, true);
   assert.equal(result.access.viewerIsAdmin, false);
+});
+
+test("layout uses the selected paid secondary contract for access and edition even after the primary has ended",async()=>{
+  const result=await renderLayout("user","user",{accountId:"f164d258-45a1-436c-9bbc-abd371a19c6d",status:"canceled",approved:{status:"active",plan:"Premium",app_edition:"premium"}});
+  assert.equal(result.edition.edition,"premium");
+  assert.equal(result.edition.subscriptionEdition,"premium");
+});
+
+test("layout never borrows the active primary subscription over an ended or unavailable secondary contract",async()=>{
+  await assert.rejects(renderLayout("user","user",{status:"active",approved:{status:"canceled",plan:"Premium",app_edition:"premium"}}),/redirect:\/compte-bloque/);
+  await assert.rejects(renderLayout("user","user",{status:"active",approvedLookupFails:true}),/ACCOUNT_SUBSCRIPTION_READ_UNAVAILABLE/);
 });
 
 test("neither an ordinary user at the approved UUID nor a different reviewer receives the special full-product edition", async () => {

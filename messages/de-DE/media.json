@@ -1135,5 +1135,7 @@
   "camera_video_unavailable_here": "Video hier nicht verfügbar",
   "viewer_zoom_in": "Vergrößern",
   "viewer_zoom_out": "Verkleinern",
-  "viewer_zoom_reset": "Zoom auf 100 % zurücksetzen"
+  "viewer_zoom_reset": "Zoom auf 100 % zurücksetzen",
+  "ai_generator_credit_shared_short": "Inklusivguthaben für {accounts} Betriebe geteilt",
+  "ai_generator_credit_shared_help": "Ein gemeinsames Kontingent von {credits} Inklusiv-Credits pro Monat für {accounts} Betriebe. Gekaufte Credits bleiben diesem Betrieb zugeordnet."
 }

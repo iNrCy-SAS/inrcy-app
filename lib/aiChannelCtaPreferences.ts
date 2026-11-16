@@ -1,4 +1,5 @@
 import type { BoosterChannelKey, BoosterCtaMode } from "./boosterCta.ts";
+import { normalizeCtaCallPhones, normalizeSingleCtaPhone } from "./ctaPhoneNumbers.ts";
 import { normalizeBoosterWhatsAppPhone } from "./boosterWhatsappCta.ts";
 import { normalizeSiteWebChannelMap } from "./siteWebChannel.ts";
 import { isBoosterLinkCtaChoice, type BoosterLinkCtaChoice } from "./boosterCtaActions.ts";
@@ -88,9 +89,7 @@ function normalizeCtaWebsiteUrl(value: unknown) {
 }
 
 function normalizeCtaPhone(value: unknown) {
-  const phone = cleanText(value, 48).replace(/[^\d+().\-\s]/g, "").trim();
-  const digitCount = phone.replace(/\D/g, "").length;
-  return digitCount >= 8 && digitCount <= 15 ? phone : "";
+  return normalizeSingleCtaPhone(value);
 }
 
 function resolveChoice(entry: Record<string, unknown>): AiCtaChoice | null {
@@ -130,7 +129,7 @@ export function normalizeAiChannelCtaMap(value: unknown): AiChannelCtaMap {
     if (!MODES_BY_CHANNEL[key].includes(mode)) continue;
 
     const url = normalizeCtaWebsiteUrl(entry.url);
-    const phone = normalizeCtaPhone(entry.phone);
+    const phone = choice === "appeler" ? normalizeCtaCallPhones(entry.phone) : normalizeCtaPhone(entry.phone);
     if ((choice === "custom" || isBoosterLinkCtaChoice(choice)) && !url) continue;
     if (choice === "whatsapp" && phone && !normalizeBoosterWhatsAppPhone(phone)) continue;
 
@@ -152,6 +151,10 @@ export function isAiChannelCtaComplete(
   destinations: AiChannelCtaDestinations | null | undefined,
 ): boolean {
   if (!config) return false;
+  // A non-empty override must be valid itself. Only an empty field means
+  // "use the profile", so a malformed pair never silently changes its target.
+  if (config.phone?.trim() && (config.choice === "appeler" || config.mode === "call") && !normalizeCtaCallPhones(config.phone)) return false;
+  if (config.phone?.trim() && config.choice === "whatsapp" && !normalizeBoosterWhatsAppPhone(config.phone)) return false;
   const normalized = normalizeAiChannelCtaMap({ [channel]: config })[channel];
   if (!normalized) return false;
   if (normalized.choice === "none") return true;
@@ -163,7 +166,7 @@ export function isAiChannelCtaComplete(
     return Boolean(normalized.url || normalizeCtaWebsiteUrl(profileUrl));
   }
   if (normalized.choice === "appeler") {
-    return Boolean(normalized.phone || normalizeCtaPhone(destinations?.phone));
+    return Boolean(normalized.phone || normalizeCtaCallPhones(destinations?.phone));
   }
   if (normalized.choice === "whatsapp") {
     return Boolean(normalizeBoosterWhatsAppPhone(normalized.phone || destinations?.phone));
@@ -183,7 +186,7 @@ export function resolveAiChannelCtaMap(
 ): AiChannelCtaMap {
   const source = normalizeSiteWebChannelMap(value);
   const resolved = normalizeAiChannelCtaMap(source);
-  const phone = normalizeCtaPhone(destinations?.phone);
+  const phone = normalizeCtaCallPhones(destinations?.phone);
   for (const { key } of AI_CTA_CHANNELS) {
     if (Object.hasOwn(source, key)) {
       // Keep a disabled marker for an invalid explicit setting. Otherwise a

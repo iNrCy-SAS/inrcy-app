@@ -33,6 +33,7 @@ export async function GET() {
         accountId: activeUserId,
         actorAuthUserId: authUserId,
         edition,
+        includeSharedPoolContext: true,
       }),
       getAiMediaVideoEntitlement({ accountId: activeUserId, edition }),
     ]);

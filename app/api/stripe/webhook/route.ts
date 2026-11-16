@@ -5,6 +5,7 @@ import { stripeGet, verifyStripeWebhookSignature } from "@/lib/stripeRest";
 import { commercialPriceFromId } from "@/lib/billingCatalog";
 import { stripeSubscriptionMonthlyTerms, stripeSubscriptionTaxBehavior } from "@/lib/adminSubscriberStripe";
 import { stripeSubscriptionPeriodEndIso } from "@/lib/stripeSubscription";
+import { getApprovedAccountSubscriptionByStripeId, syncApprovedAccountSubscriptionFromStripe } from "@/lib/accountBillingSubscriptionServer";
 import { sendAdminSubscriptionAlertForUser } from "@/lib/subscriptionAdmin";
 import { enqueueMetaConversionEvent } from "@/lib/metaConversionOutbox";
 import { fulfillVideoCreditCheckout, reconcileVideoCreditRefund, reconcileVideoCreditDispute, VIDEO_CREDIT_PAYMENT_KIND } from "@/lib/boutique/videoCreditPayments";
@@ -548,6 +549,25 @@ export async function POST(req: Request) {
     const type = String(evt.type || "");
     const obj = (evt.data?.object ?? null) as StripeObjectLoose | null;
     const previous = (evt.data?.previous_attributes ?? {}) as StripeObjectLoose;
+
+    // Explicit business contracts take precedence over payer/email heuristics.
+    // Read current Stripe state so delayed events cannot restore an obsolete status.
+    const approvedSubscriptionId = type.startsWith("customer.subscription.") ? stripeObjectId(obj?.id)
+      : type.startsWith("invoice.") ? invoiceSubscriptionId(obj)
+        : type === "checkout.session.completed" ? stripeObjectId(obj?.subscription) : null;
+    if (approvedSubscriptionId) {
+      const approved = await getApprovedAccountSubscriptionByStripeId(approvedSubscriptionId);
+      if (approved) {
+        const fetchedBefore = Date.now();
+        const live = await stripeGet(`/subscriptions/${encodeURIComponent(approvedSubscriptionId)}`) as StripeObjectLoose;
+        if (stripeObjectId(live.id) !== approvedSubscriptionId) throw new Error("ACCOUNT_SUBSCRIPTION_IDENTITY_CONFLICT");
+        await syncApprovedAccountSubscriptionFromStripe(live, fetchedBefore);
+        if (approved.account_id !== approved.auth_user_id) {
+          await completeStripeWebhookEvent(evt);
+          return NextResponse.json({ received: true, accountSubscription: true });
+        }
+      }
+    }
 
     if (VIDEO_CREDIT_CHECKOUT_EVENTS.has(type)
       && (obj?.metadata as StripeObjectLoose | undefined)?.kind === VIDEO_CREDIT_PAYMENT_KIND) {

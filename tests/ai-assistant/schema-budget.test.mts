@@ -10,6 +10,7 @@ import * as sdk from "ai";
 import * as aiMemoryModule from "../../lib/aiMemory.ts";
 import * as videoClientOptions from "../../lib/aiMediaVideoClientOptions.ts";
 import * as mediaModelCatalog from "../../lib/aiMediaModelCatalog.ts";
+import * as ctaPhoneNumbers from "../../lib/ctaPhoneNumbers.ts";
 import { fitPromptPayloadToJsonBudget } from "../../lib/aiPromptBudget.ts";
 import { getAssistantInternalDestination } from "../../lib/inrAssistantNavigation.ts";
 import * as assistantNavigation from "../../lib/inrAssistantNavigation.ts";
@@ -44,6 +45,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
   let actionExecutions = 0, navigationPreparations = 0;
   const untouched = () => { assert.fail("Schema budget matrix must not execute a private operation or provider request"); };
   const common: Record<string, unknown> = {
+    "./ctaPhoneNumbers.ts": ctaPhoneNumbers,
     "./stats/snapshotWindow.ts": snapshotWindow,
     "./inrAssistantNavigation.ts": assistantNavigation,
     "server-only": {}, "node:crypto": { createHash, createHmac, timingSafeEqual, randomUUID },

@@ -26,6 +26,7 @@ function harness(overrides: Record<string, unknown> = {}) {
   const result = { submissions: [] as Array<{ selections: Selection[]; immediate: string[] }>, warnings: [] as unknown[], errors: [] as string[], busy: [] as boolean[], success: [] as string[] };
   const scope = {
     busy: false, doneMessage: "", scheduleMode: "general", generalDate: "2099-04-05", generalTime: "12:45",
+    submitGuardRef: { current: false },
     defaultDateTime: { date: "2099-04-05", time: "12:45" },
     publishableItems: [{ channel: "facebook", label: "Facebook" }, { channel: "youtube_shorts", label: "YouTube" }],
     isSelected: () => true, getDate: () => "2099-04-06", getTime: () => "08:30",
@@ -96,4 +97,100 @@ test("a scheduling failure leaves the form retryable and never reports success",
   const busy = harness({ busy: true });
   await busy.submit();
   assert.deepEqual(busy.result.submissions, []);
+});
+
+test("a rapid double click and queued click after acknowledgement schedule once and finish once", async () => {
+  let acknowledge!: () => void;
+  const response = new Promise<void>(resolve => { acknowledge = resolve; });
+  let calls = 0, finished = 0;
+  const timers: Array<() => void> = [];
+  const h = harness({
+    onConfirm: async () => { calls++; await response; },
+    onSuccess: () => { finished++; },
+    window: { setTimeout: (callback: () => void) => timers.push(callback) },
+  });
+  const first = h.submit();
+  await h.submit();
+  assert.equal(calls, 1);
+  assert.equal(finished, 0, "Booster must stay open until the server acknowledges the schedule");
+  acknowledge();
+  await first;
+  await h.submit();
+  assert.equal(calls, 1, "the old render cannot publish the same schedule again");
+  assert.equal(timers.length, 1);
+  timers[0]();
+  assert.equal(finished, 1);
+});
+
+test("the confirmation dialog also holds the synchronous submit lock and decline allows retry", async () => {
+  let answer!: (confirmed: boolean) => void;
+  const confirmation = new Promise<boolean>(resolve => { answer = resolve; });
+  let dialogs = 0, calls = 0;
+  const h = harness({
+    scheduleMode: "channel",
+    isSelected: (channel: string) => channel === "facebook",
+    confirmInrcy: async () => { dialogs++; return dialogs === 1 ? confirmation : true; },
+    onConfirm: async () => { calls++; },
+  });
+  const first = h.submit();
+  await h.submit();
+  assert.equal(dialogs, 1);
+  assert.equal(calls, 0);
+  answer(false);
+  await first;
+  await h.submit();
+  assert.equal(dialogs, 2);
+  assert.equal(calls, 1);
+});
+
+function boosterScheduleSuccess() {
+  const file = "app/dashboard/booster/publier/PublishModal.tsx";
+  const modal = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
+  let handler = "";
+  function visit(node: ts.Node) {
+    if (ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) {
+      if (node.tagName.getText(modal) === "PublishScheduleModal") {
+        const attribute = node.attributes.properties.find(item => ts.isJsxAttribute(item) && item.name.getText(modal) === "onSuccess");
+        if (attribute && ts.isJsxAttribute(attribute) && attribute.initializer && ts.isJsxExpression(attribute.initializer)) {
+          handler = attribute.initializer.expression?.getText(modal) || "";
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(modal);
+  assert.ok(handler, "the production schedule completion handler is connected");
+  let closed = 0;
+  const overlays: boolean[] = [], continuations: unknown[] = [];
+  const receipt: { current: unknown } = { current: undefined };
+  const compiled = ts.transpileModule(`const handler = ${handler};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const finish = new Function("scheduleSubmissionRef", "setScheduleModalOpen", "publishImmediateChannelsAfterSchedule", "onClose", compiled + "\nreturn handler;")(
+    receipt,
+    (value: boolean) => overlays.push(value),
+    (request: unknown) => continuations.push(request),
+    () => { closed++; },
+  ) as () => void;
+  return { finish, receipt, overlays, continuations, closed: () => closed };
+}
+
+test("Booster closes after a recorded complete schedule and never closes without acknowledgement", () => {
+  const h = boosterScheduleSuccess();
+  h.finish();
+  assert.equal(h.closed(), 0);
+  h.receipt.current = null;
+  h.finish();
+  assert.deepEqual(h.overlays, [false]);
+  assert.equal(h.closed(), 1);
+  assert.deepEqual(h.continuations, []);
+});
+
+test("the schedule completion callback reads the current receipt and continues only explicitly confirmed other channels", () => {
+  const h = boosterScheduleSuccess();
+  // Simulate a callback captured before the asynchronous schedule request.
+  const acknowledged = { immediateChannels: ["facebook"], preparedPostsByChannel: {} };
+  h.receipt.current = acknowledged;
+  h.finish();
+  assert.deepEqual(h.overlays, [false]);
+  assert.deepEqual(h.continuations, [acknowledged]);
+  assert.equal(h.closed(), 0, "explicit immediate channels keep their execution/result screen");
 });

@@ -14,6 +14,7 @@ import type {
 } from "@/lib/adminSubscribers";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { reconciledStripeSubscriptionStatus } from "@/lib/stripeWebhookPayload";
+import { syncApprovedAccountSubscriptionSnapshots } from "@/lib/accountBillingSubscriptionServer";
 
 const SUBSCRIPTION_PAGE_SIZE = 500;
 const PROFILE_BATCH_SIZE = 100;
@@ -230,6 +231,7 @@ export async function reconcileStripeSubscriptionStatuses(): Promise<StripeSubsc
   );
   result.stripe_scanned = stripe.subscriptions_scanned;
   result.stripe_pages = stripe.pages;
+  const approvedSubscriptionIds = new Set(await syncApprovedAccountSubscriptionSnapshots(stripe.snapshots, startedAt.getTime()));
 
   // All Supabase rows participate in uniqueness indexes, even expired trials,
   // so an out-of-scope duplicate can never become a false unique match.
@@ -240,7 +242,7 @@ export async function reconcileStripeSubscriptionStatuses(): Promise<StripeSubsc
   const reconciliation = matchAdminSubscribersToStripe(records, stripe.snapshots);
   result.matched = reconciliation.matchesByUserId.size;
   result.ambiguous = reconciliation.ambiguousUserIds.size;
-  result.unmatched_stripe = reconciliation.unmatchedStripeSubscriptionIds.size;
+  result.unmatched_stripe = [...reconciliation.unmatchedStripeSubscriptionIds].filter(id => !approvedSubscriptionIds.has(id)).length;
 
   const writable = records.flatMap((record) => {
     const match = reconciliation.matchesByUserId.get(record.subscription.user_id);

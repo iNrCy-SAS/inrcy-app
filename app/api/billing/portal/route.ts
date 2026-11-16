@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getAppUrl, stripeGet, stripePost } from "@/lib/stripeRest";
 import { inspectComplimentaryCheckout } from "@/lib/stripeCheckoutPreflight";
 import { hasActiveAccountSubscription } from "@/lib/accountSubscriptionPolicy";
+import { getApprovedAccountSubscription } from "@/lib/accountBillingSubscriptionServer";
 
 export const runtime = "nodejs";
 
@@ -24,7 +25,7 @@ function hasStripeConfig() {
 
 export async function POST(req: Request) {
   try {
-    const { user, errorResponse } = await requireUser();
+    const { user, activeUserId, errorResponse } = await requireUser();
     if (errorResponse) return errorResponse;
 
     if (!hasStripeConfig()) {
@@ -34,7 +35,20 @@ export async function POST(req: Request) {
       );
     }
 
-    // Billing follows the authenticated payer, like the subscription gate and
+    const approved = await getApprovedAccountSubscription(activeUserId || user.id,user.id);
+    if (approved) {
+      // The selected establishment may only use its exact, approved contract
+      // belonging to this authenticated payer. Request-body IDs are never used.
+      const live = await stripeGet(`/subscriptions/${encodeURIComponent(String(approved.stripe_subscription_id))}`);
+      if (live?.id !== approved.stripe_subscription_id || live?.customer !== approved.stripe_customer_id) {
+        throw new Error("ACCOUNT_SUBSCRIPTION_IDENTITY_CONFLICT");
+      }
+      const params = new URLSearchParams({customer:String(approved.stripe_customer_id),return_url:`${getAppUrl(req)}/dashboard?panel=abonnement`});
+      const session = await stripePost("/billing_portal/sessions",params);
+      return NextResponse.json({url:session.url});
+    }
+
+    // Legacy billing follows the authenticated payer, like the subscription gate and
     // /compte-bloque. An active establishment or request body cannot choose it.
     const userId = user.id;
     const { data: sub, error } = await supabaseAdmin

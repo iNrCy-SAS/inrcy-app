@@ -14,6 +14,8 @@ window.releaseFixtureWrite=index=>window.fixtureWrites[index].release();
 window.releaseFixtureAuth=index=>window.authWaiters[index]();
 const profile = { company_legal_name:"Atelier Lumière",contact_email:"contact@atelier.example",first_name:"Camille",last_name:"Martin",phone:"06 12 34 56 78",hq_zip:"62000",hq_city:"Arras" };
 const business = { sector:"[[SECTOR:autre]] Conseil",activity_description:"Un atelier local au service des professionnels.",services:["Conseil","Création","Accompagnement"],strengths:["Proximité","Réactivité","Expertise"],intervention_zones:["Arras","Lens"],customer_typologies:["particuliers","professionnels"] };
+if(window.fixtureProfilePhone !== undefined)profile.phone=window.fixtureProfilePhone;
+if(window.fixtureChannelCtas)business.ai_channel_ctas=structuredClone(window.fixtureChannelCtas);
 const memory = { mission:"Rendre les projets de nos clients plus simples et plus efficaces.",values:["Qualité","Écoute"],brandPersonality:["Chaleureuse","Experte"],commitments:["Suivi personnalisé"],preferredVocabulary:["Ensemble","Local"],forbiddenVocabulary:["Miracle"],targetAudiences:["Indépendants","Commerçants"],customerNeeds:["Gagner du temps","Développer leur visibilité"],specialties:["Communication locale"],recentNewsItems:["Une nouvelle offre de conseil pour les professionnels.","Notre atelier accueille de nouveaux collaborateurs.","Participation à un événement local.","Une réalisation menée avec un artisan partenaire."],offersAndArguments:"Une offre claire et un accompagnement adapté à chaque projet.",keyArguments:"Un interlocuteur local, une expérience concrète et des résultats suivis.",proofsAndObjections:"Des projets documentés et des retours clients vérifiables.",objectionResponses:"Nous adaptons le calendrier et le périmètre à votre besoin.",editorialStrategy:"Partager des conseils, des réalisations et la vie de l’équipe.",campaignCalendar:"Préparer les temps forts de l’activité chaque mois." };
 memory.referenceDocuments = Array.from({length:window.fixtureDocumentCount || 0},(_,index)=>({
  id:`reference-${index+1}`,name:`${String(index+1).padStart(2,'0')}-Catalogue des prestations et références professionnelles.pdf`,
@@ -92,7 +94,7 @@ window.fetch=async(url,options={})=>{
  if(url==='/api/ai-memory')return ok({accountId:account,memory:serverMemory,businessKnowledge:serverBusiness,strategyEnabled:true});
  if(url==='/api/ai-memory/analyze-channels')return ok({accountId:account,channels:[],quota:{limit:3,used:0,remaining:3,resetAt:'2026-12-01'},job:null});
  if(url==='/api/business-location')return ok({ok:true,accountId:account,location:{postalCode:'62000',city:'Arras'},source:'google_business'});
- if(url==='/api/booster/cta-defaults')return ok({preferredWebsiteUrl:'https://atelier.example',siteWebUrl:'https://atelier.example',phone:'0612345678'});
+ if(url==='/api/booster/cta-defaults')return ok(window.fixtureCtaDestinations || {preferredWebsiteUrl:'https://atelier.example',siteWebUrl:'https://atelier.example',phone:'0612345678'});
  throw Error('Unexpected layout fetch '+url);
 };
 const React=load('react'),Page=load('app/dashboard/personnalisation/page.tsx').default;

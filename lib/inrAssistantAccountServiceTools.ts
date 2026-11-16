@@ -38,7 +38,7 @@ export function createInrAssistantAccountServiceTools(options: { request: Reques
     return result.data as Row | null;
   };
   return {
-    readAccountServices: tool({ strict: true, description: "Lire les services Basique : notifications, abonnement/factures du TITULAIRE ; crédits Studio/credit_orders, inertia (solde et journal des Unités d’Inertie UI), shop_orders (commandes de prestations, montants historiques EUR/UI), confidentialité/parrainage. offset=0 puis nextOffset, 20 lignes/page. UI et crédits médias distincts ; montant inconnu=null, statut traité ne prouve pas paiement ni livraison. Lecture seule : aucun achat, débit, email ou réparation de ledger. Ne jamais appeler le retour paiement pour lire un historique.", inputSchema: schema({ view: { type: "string", enum: [...VIEWS] }, offset: { type: "integer", minimum: 0, maximum: 10000 } }, value => { const input = fields(value, ["view", "offset"]); if (!VIEWS.includes(input.view as never) || !Number.isInteger(input.offset) || Number(input.offset) < 0 || Number(input.offset) > 10000) throw new Error("Vue invalide"); return { view: String(input.view), offset: Number(input.offset) }; }), execute: async raw => {
+    readAccountServices: tool({ strict: true, description: "Lire les services Basique : notifications, abonnement/factures du contrat natif de l’établissement actif (contrat approuvé, sinon contrat historique du titulaire) ; crédits Studio/credit_orders, inertia (solde et journal des Unités d’Inertie UI), shop_orders (commandes de prestations, montants historiques EUR/UI), confidentialité/parrainage. Un quota sharedPool est une seule réserve incluse commune à memberCount établissements, monthlyLimit est son plafond mensuel total ; les crédits achetés restent propres au compte. offset=0 puis nextOffset, 20 lignes/page. UI et crédits médias distincts ; montant inconnu=null, statut traité ne prouve pas paiement ni livraison. Lecture seule : aucun achat, débit, email ou réparation de ledger. Ne jamais appeler le retour paiement pour lire un historique.", inputSchema: schema({ view: { type: "string", enum: [...VIEWS] }, offset: { type: "integer", minimum: 0, maximum: 10000 } }, value => { const input = fields(value, ["view", "offset"]); if (!VIEWS.includes(input.view as never) || !Number.isInteger(input.offset) || Number(input.offset) < 0 || Number(input.offset) > 10000) throw new Error("Vue invalide"); return { view: String(input.view), offset: Number(input.offset) }; }), execute: async raw => {
       const { view, offset } = raw;
       try {
         if (!await scope()) return fail("blocked", "La session ou l’établissement actif a changé.");
@@ -48,8 +48,14 @@ export function createInrAssistantAccountServiceTools(options: { request: Reques
           for (const item of (Array.isArray(data.items) ? data.items : []).map(row)) if (typeof item.id === "string" && UUID.test(item.id)) observedNotifications.set(item.id, safe(item.title, 180));
           result = { items: (Array.isArray(data.items) ? data.items : []).map(row).map(item => ({ id: item.id, title: safe(item.title, 180), body: safe(item.body, 600), category: safe(item.category, 30), createdAt: item.createdAt || item.created_at, unread: item.unread === true })), totalCount: data.countKnown === false ? null : count(data.totalCount), nextOffset: data.nextOffset ?? null, untrustedContent: true };
         } else if (view === "subscription") {
-          const data = await options.supabase.from("subscriptions").select("plan,scheduled_plan,status,monthly_price_eur,monthly_price_tax_behavior,start_date,trial_end_at,next_renewal_date,cancel_requested_at,end_date,billing_cycle,billing_provider,native_will_renew").eq("user_id", options.actorUserId).maybeSingle(); if (data.error) throw new Error("subscription_unavailable");
-          result = { scope: "authenticated_subscription_holder", subscription: data.data || null, nextAction: { label: "Mon abonnement", href: "/dashboard?panel=abonnement" } };
+          const response = await (await import("@/app/api/billing/account-subscription/route")).GET();
+          if (!response.ok) throw new Error("subscription_unavailable");
+          const data = row(await response.json());
+          if (data.ok !== true) throw new Error("subscription_unavailable");
+          if (data.accountId !== options.accountId || !await scope()) return fail("blocked", "Le contrat de l’établissement actif a changé.");
+          const source = row(data.subscription);
+          const publicFields = ["plan", "app_edition", "scheduled_plan", "status", "monthly_price_eur", "monthly_price_tax_behavior", "start_date", "trial_start_at", "trial_end_at", "next_renewal_date", "cancel_requested_at", "end_date", "billing_cycle", "billing_provider", "native_will_renew"];
+          result = { scope: "active_establishment_subscription", accountId: options.accountId, subscription: data.subscription ? Object.fromEntries(publicFields.filter(key => Object.hasOwn(source, key)).map(key => [key, source[key]])) : null, nextAction: { label: "Mon abonnement", href: "/dashboard?panel=abonnement" } };
         } else if (view === "invoices") {
           const data = await invoices(), all = Array.isArray(data.invoices) ? data.invoices.map(row) : [];
           result = { scope: "authenticated_subscription_holder", code: safe(data.code, 80), invoices: all.slice(offset, offset + 20).map(item => ({ id: item.id, number: safe(item.number, 100), status: safe(item.status, 40), currency: safe(item.currency, 3), totalCents: count(item.total), paidCents: count(item.amountPaid), createdAt: count(item.created), periodStart: count(item.periodStart), periodEnd: count(item.periodEnd), pdfAvailable: typeof item.invoicePdf === "string", hostedAvailable: typeof item.hostedInvoiceUrl === "string" })), nextOffset: offset + 20 < all.length ? offset + 20 : null, coverage: "native_subscription_invoices_latest_100", nextAction: { label: "Factures d’abonnement", href: "/dashboard?panel=factures" } };
@@ -64,10 +70,13 @@ export function createInrAssistantAccountServiceTools(options: { request: Reques
           if (catalogue && (catalogue.accountId !== options.accountId || catalogue.actorAuthUserId !== options.actorUserId)
             || quota && quota.accountId !== options.accountId) return fail("blocked", "Le compte de crédits a changé. Aucune valeur d’un autre établissement n’est affichée.");
           const nativeCredits = row(quota?.credits), quotaReady = quota?.creditsReady === true && nativeCredits.unit === "credit";
+          const nativePool = row(nativeCredits.sharedPool), poolMemberCount = count(nativePool.memberCount), poolMonthlyLimit = count(nativePool.monthlyLimit);
+          const sharedPool = quotaReady && poolMemberCount !== null && Number.isInteger(poolMemberCount) && poolMemberCount >= 2 && poolMonthlyLimit !== null && poolMonthlyLimit > 0 ? { memberCount: poolMemberCount, monthlyLimit: poolMonthlyLimit } : null;
           const unlimited = quota && typeof quota.unlimited === "boolean" ? quota.unlimited : null;
           const credits = {
             unit: "credit", remaining: quotaReady && typeof nativeCredits.remaining === "number" && Number.isFinite(nativeCredits.remaining) ? nativeCredits.remaining : null,
             limit: quotaReady ? count(nativeCredits.limit) : null, used: quotaReady ? count(nativeCredits.used) : null, reserved: quotaReady ? count(nativeCredits.reserved) : null,
+            sharedPool,
           };
           const quotaKnown = Boolean(quotaReady && credits.used !== null && credits.reserved !== null && (unlimited === true || credits.remaining !== null && credits.limit !== null));
           result = { ok: Boolean(catalogue || quotaKnown), status: catalogue && quotaKnown ? "read" : catalogue || quotaKnown ? "partial" : "unavailable", credits, unlimited, quotaKnown,

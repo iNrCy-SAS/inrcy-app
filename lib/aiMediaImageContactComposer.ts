@@ -3,6 +3,7 @@ import "server-only";
 import sharp from "sharp";
 
 import type { AiMediaLogoMode } from "@/lib/aiMediaGenerationContracts";
+import { dialCtaPhone, parseCtaPhoneNumbers } from "./ctaPhoneNumbers.ts";
 
 type CompositeLayer = { input: Buffer; left: number; top: number };
 
@@ -67,7 +68,7 @@ export async function composeAiMediaContactImage(args: {
   const colorB = safeHex(args.brandColors?.[1], "#8b5cf6");
   const colorC = safeHex(args.brandColors?.[2], "#e94aa5");
   const headline = String(args.headline ?? "").replace(/\s+/g, " ").trim();
-  const phone = String(args.phone ?? "").replace(/\s+/g, " ").trim();
+  const phoneNumbers = parseCtaPhoneNumbers(args.phone);
   const headlineFont = Math.max(
     34,
     Math.round((isTall ? width : Math.min(width, height)) * (isTall ? 0.061 : 0.052)),
@@ -87,26 +88,30 @@ export async function composeAiMediaContactImage(args: {
     )
     .join("");
 
-  const phoneAvailableWidth = Math.max(180, panelWidth - margin * 2);
+  const phoneAvailableWidth = Math.min(width - margin * 2, Math.max(240, panelWidth - margin * 2));
   const preferredPhoneFont = Math.max(24, Math.round(Math.min(width, height) * 0.029));
-  const phoneText = phone ? `TEL  ${phone}` : "";
+  // One complete number per line; never shrink two joined numbers into an
+  // unreadable line or clip the second one outside the contact plate.
+  const phoneLines = phoneNumbers.map(number => `TEL  ${(number.length + 4) * 14 * 0.65 + 14 * 3.2 > phoneAvailableWidth ? dialCtaPhone(number) : number}`);
+  const phoneText = phoneLines.toSorted((a, b) => b.length - a.length)[0] || "";
   const fittedPhoneFont = phoneText
     ? Math.max(
-        20,
+        14,
         Math.min(
           preferredPhoneFont,
-          Math.floor((phoneAvailableWidth - preferredPhoneFont * 1.9) / (phoneText.length * 0.59)),
+          Math.floor(phoneAvailableWidth / (phoneText.length * 0.65 + 3.2)),
         ),
       )
     : preferredPhoneFont;
-  const phonePaddingX = Math.round(fittedPhoneFont * 0.9);
   const phonePillWidth = phoneText
     ? Math.min(
         phoneAvailableWidth,
-        Math.round(phoneText.length * fittedPhoneFont * 0.59 + phonePaddingX * 2),
+        Math.round(phoneText.length * fittedPhoneFont * 0.65 + fittedPhoneFont * 3.2),
       )
     : 0;
-  const phonePillHeight = Math.round(fittedPhoneFont * 2.05);
+  const phoneRowHeight = Math.round(fittedPhoneFont * 2.05);
+  const phoneLineHeight = Math.round(fittedPhoneFont * 1.3);
+  const phonePillHeight = phoneRowHeight + Math.max(0, phoneLines.length - 1) * phoneLineHeight;
   const afterHeadline = headlineLines.length
     ? headlineTop + (headlineLines.length - 1) * lineHeight + Math.round(headlineFont * 0.75)
     : 0;
@@ -120,10 +125,10 @@ export async function composeAiMediaContactImage(args: {
       )
     : 0;
   const phoneSvg = phoneText
-    ? `<rect x="${margin}" y="${phoneTop}" width="${phonePillWidth}" height="${phonePillHeight}" rx="${Math.round(phonePillHeight / 2)}" fill="#020617" fill-opacity=".76" stroke="#fff" stroke-opacity=".25"/>
-       <circle cx="${margin + Math.round(phonePillHeight * 0.52)}" cy="${phoneTop + Math.round(phonePillHeight / 2)}" r="${Math.round(fittedPhoneFont * 0.48)}" fill="${colorA}"/>
-       <path d="M ${margin + Math.round(phonePillHeight * 0.38)} ${phoneTop + Math.round(phonePillHeight * 0.39)} C ${margin + Math.round(phonePillHeight * 0.43)} ${phoneTop + Math.round(phonePillHeight * 0.63)}, ${margin + Math.round(phonePillHeight * 0.58)} ${phoneTop + Math.round(phonePillHeight * 0.7)}, ${margin + Math.round(phonePillHeight * 0.66)} ${phoneTop + Math.round(phonePillHeight * 0.61)}" fill="none" stroke="#fff" stroke-width="${Math.max(3, Math.round(fittedPhoneFont * 0.13))}" stroke-linecap="round"/>
-       <text x="${margin + Math.round(phonePillHeight * 0.96)}" y="${phoneTop + Math.round(phonePillHeight * 0.66)}" font-family="Arial,Helvetica,sans-serif" font-size="${fittedPhoneFont}" font-weight="700" letter-spacing=".4" fill="#fff">${escapeXml(phoneText)}</text>`
+    ? `<rect x="${margin}" y="${phoneTop}" width="${phonePillWidth}" height="${phonePillHeight}" rx="${Math.round(phoneRowHeight / 2)}" fill="#020617" fill-opacity=".76" stroke="#fff" stroke-opacity=".25"/>
+       <circle cx="${margin + Math.round(phoneRowHeight * 0.52)}" cy="${phoneTop + Math.round(phoneRowHeight / 2)}" r="${Math.round(fittedPhoneFont * 0.48)}" fill="${colorA}"/>
+       <path d="M ${margin + Math.round(phoneRowHeight * 0.38)} ${phoneTop + Math.round(phoneRowHeight * 0.39)} C ${margin + Math.round(phoneRowHeight * 0.43)} ${phoneTop + Math.round(phoneRowHeight * 0.63)}, ${margin + Math.round(phoneRowHeight * 0.58)} ${phoneTop + Math.round(phoneRowHeight * 0.7)}, ${margin + Math.round(phoneRowHeight * 0.66)} ${phoneTop + Math.round(phoneRowHeight * 0.61)}" fill="none" stroke="#fff" stroke-width="${Math.max(3, Math.round(fittedPhoneFont * 0.13))}" stroke-linecap="round"/>
+       ${phoneLines.map((line, index) => `<text x="${margin + Math.round(phoneRowHeight * 0.96)}" y="${phoneTop + Math.round(phoneRowHeight * 0.66) + index * phoneLineHeight}" font-family="Arial,Helvetica,sans-serif" font-size="${fittedPhoneFont}" font-weight="700" letter-spacing=".4" fill="#fff">${escapeXml(line)}</text>`).join("")}`
     : "";
 
   const logoVisible = args.logoMode !== "none" && Boolean(args.officialLogo?.byteLength);

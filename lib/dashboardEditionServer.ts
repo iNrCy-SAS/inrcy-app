@@ -7,6 +7,7 @@ import {
   type DashboardEdition,
 } from "@/lib/dashboardEdition";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getApprovedAccountSubscriptionsForAccounts } from "@/lib/accountBillingSubscriptionServer";
 
 type SubscriptionEditionRow = {
   user_id?: string | null;
@@ -92,6 +93,13 @@ export async function getDashboardEditionsForAccountIds(
     if (options.strict) throw new Error("ACCOUNT_EDITION_SUBSCRIPTION_UNAVAILABLE");
     return editions;
   }
+  let approved: Map<string, SubscriptionEditionRow>;
+  try {
+    approved = await getApprovedAccountSubscriptionsForAccounts(uniqueAccountIds);
+  } catch {
+    if (options.strict) throw new Error("ACCOUNT_EDITION_SUBSCRIPTION_UNAVAILABLE");
+    return editions;
+  }
 
   // The exception is restricted to the explicitly approved existing review account.
   // No role grants membership, changes a subscription, or unlocks another company.
@@ -111,7 +119,7 @@ export async function getDashboardEditionsForAccountIds(
   for (const accountId of uniqueAccountIds) {
     const authUserId = ownerByAccount.get(accountId) || accountId;
     const subscription =
-      subscriptionsByUser.get(authUserId) || subscriptionsByUser.get(accountId);
+      approved.get(accountId) || subscriptionsByUser.get(authUserId) || subscriptionsByUser.get(accountId);
     if (!subscription && options.strict) throw new Error("ACCOUNT_EDITION_SUBSCRIPTION_UNAVAILABLE");
     if (subscription) editions.set(accountId, resolveDashboardEditionForRole(editionFromRow(subscription), rolesByAccount.get(accountId), accountId));
   }

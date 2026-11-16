@@ -19,6 +19,7 @@ function fixture(failure:"none"|"membership"|"subscription"|"missing"|"malformed
   if(name === "next/server")return {NextResponse:{}};
   if(name === "@/lib/dashboardEdition")return policy;
   if(name === "@/lib/supabaseAdmin")return {supabaseAdmin:client};
+  if(name === "@/lib/accountBillingSubscriptionServer")return {getApprovedAccountSubscriptionsForAccounts:async()=>new Map()};
   assert.fail(name);
  },moduleRecord,moduleRecord.exports);
  return moduleRecord.exports as typeof Server;

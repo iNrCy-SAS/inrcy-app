@@ -5,6 +5,7 @@ import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
 import { rowToInrAgentAction } from "@/lib/inrAgentActions";
 import { type BoosterCtaMode } from "@/lib/boosterCta";
 import { normalizeCtaPhone, normalizeCtaWebsiteUrl } from "@/lib/boosterCtaPreferences";
+import { normalizeCtaCallPhones } from "@/lib/ctaPhoneNumbers";
 import { type JsonRecord, type BoosterChannel, type BoosterPost, type NormalizedScheduleSelection } from "@/lib/inrAgentScheduleTypes";
 
 export const ACTION_SELECT =
@@ -237,7 +238,7 @@ export function normalizePost(raw: unknown, fallback?: BoosterPost): BoosterPost
     ? (rawCtaMode as BoosterCtaMode)
     : undefined;
   const ctaUrl = normalizeCtaWebsiteUrl(record.ctaUrl ?? record.cta_url ?? fallback?.ctaUrl);
-  const ctaPhone = normalizeCtaPhone(record.ctaPhone ?? record.cta_phone ?? fallback?.ctaPhone);
+  const ctaPhone = (ctaMode === "call" ? normalizeCtaCallPhones : normalizeCtaPhone)(record.ctaPhone ?? record.cta_phone ?? fallback?.ctaPhone);
   return {
     title,
     content,

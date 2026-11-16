@@ -1,3 +1,5 @@
+import { normalizeCtaCallPhones } from "./ctaPhoneNumbers.ts";
+
 function normalizedInstruction(value: unknown) {
   return String(value ?? "")
     .normalize("NFKD")
@@ -62,18 +64,12 @@ export function isAiMediaProfilePhoneDisplayRequested(value: unknown) {
   return displaySignal;
 }
 
-/** Retourne uniquement le numéro réellement enregistré, jamais celui du brief. */
+/** Retourne uniquement les numéros réellement enregistrés, jamais ceux du brief. */
 export function cleanAiMediaProfilePhone(value: unknown) {
   const normalized = String(value ?? "")
     .replace(/[\u0000-\u001f\u007f]/g, " ")
     .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 80);
+    .trim();
   if (!normalized) return "";
-
-  const direct = /^[+\d][\d\s().\-/]{4,38}\d$/.test(normalized)
-    ? normalized
-    : normalized.match(/\+?\d[\d\s().\-/]{4,38}\d/)?.[0]?.trim() || "";
-  const digitCount = direct.replace(/\D/g, "").length;
-  return digitCount >= 6 && digitCount <= 18 ? direct : "";
+  return normalizeCtaCallPhones(normalized.replace(/^(?:tél(?:éphone)?|tel(?:ephone)?|phone)\.?\s*:?\s*/iu, ""));
 }

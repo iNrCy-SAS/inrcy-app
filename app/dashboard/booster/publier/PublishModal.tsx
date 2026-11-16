@@ -434,6 +434,7 @@ export default function PublishModal({
   useEffect(() => {
     publicationActorScopeRef.current = { actorUserId, accountId: activeAccountId };
     latestPublicationSummaryRef.current = null;
+    scheduleSubmissionRef.current = undefined;
     setLivePublicationResult(null);
     setSoundtrackByChannel({});
     setContentAdjustmentSession(null);
@@ -452,6 +453,9 @@ export default function PublishModal({
   const phasedPublicationProgressRef = useRef(false);
   const publishStartGuardRef = useRef(false);
   const scheduleStartGuardRef = useRef(false);
+  // undefined: no receipt yet; null: recorded; object: one explicit immediate
+  // continuation remains. A receipt consumes this editor attempt until close.
+  const scheduleSubmissionRef = useRef<PendingImmediatePublishAfterSchedule | null | undefined>(undefined);
   const [postsByChannel, setPostsByChannel] = useState<
     Partial<Record<ChannelKey, ChannelPost>>
   >({});
@@ -547,10 +551,6 @@ export default function PublishModal({
     immediateChannels: ChannelKey[];
     preparedPostsByChannel: Partial<Record<ChannelKey, ChannelPost>>;
   } | null>(null);
-  const [
-    pendingImmediatePublishAfterSchedule,
-    setPendingImmediatePublishAfterSchedule,
-  ] = useState<PendingImmediatePublishAfterSchedule | null>(null);
   const [tiktokSettingsOpen, setTiktokSettingsOpen] = useState(false);
   const [tiktokSettingsFlow, setTiktokSettingsFlow] = useState<
     "publish" | "schedule" | "review" | null
@@ -3016,7 +3016,7 @@ export default function PublishModal({
     setFinalReviewPosts(null);
     setScheduleReviewPosts(null);
     setPendingScheduleRequest(null);
-    setPendingImmediatePublishAfterSchedule(null);
+    scheduleSubmissionRef.current = undefined;
     setShowPublicationPreview(false);
   };
 
@@ -4212,6 +4212,7 @@ export default function PublishModal({
         channelDetails,
         scheduleSaving,
         scheduleStartGuardRef,
+        scheduleSubmissionRef,
       },
       media: {
         persistentMediaWorkspaceEnabled,
@@ -4274,7 +4275,6 @@ export default function PublishModal({
         setScheduleError,
         setScheduleSaving,
         setChannels,
-        setPendingImmediatePublishAfterSchedule,
         setScheduleReviewPosts,
         setTiktokPublicationSettings,
         setTiktokSettingsFlow,
@@ -4805,7 +4805,6 @@ export default function PublishModal({
       if (immediatePublishRequest === undefined) return;
       setScheduleModalOpen(false);
       if (immediatePublishRequest?.immediateChannels?.length) {
-        setPendingImmediatePublishAfterSchedule(null);
         publishImmediateChannelsAfterSchedule(immediatePublishRequest);
         return;
       }
@@ -5578,9 +5577,9 @@ export default function PublishModal({
         enableImmediateUnselectedWarning
         onConfirm={confirmSchedulePublication}
         onSuccess={() => {
-          const immediatePublishRequest = pendingImmediatePublishAfterSchedule;
+          const immediatePublishRequest = scheduleSubmissionRef.current;
+          if (immediatePublishRequest === undefined) return;
           setScheduleModalOpen(false);
-          setPendingImmediatePublishAfterSchedule(null);
           if (immediatePublishRequest?.immediateChannels.length) {
             publishImmediateChannelsAfterSchedule(immediatePublishRequest);
             return;

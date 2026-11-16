@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { commercialPriceFromId, configuredBasicPriceId, configuredPremiumPriceId, configuredStandardPriceId } from "@/lib/billingCatalog";
 import { isCommercialDowngrade } from "@/lib/subscriptionPlanChangePolicy";
 import { requireUser } from "@/lib/requireUser";
+import { getApprovedAccountSubscription } from "@/lib/accountBillingSubscriptionServer";
 import { stripeGet, stripePost } from "@/lib/stripeRest";
 import { stripeSubscriptionPeriodEndUnix } from "@/lib/stripeSubscription";
 import { CURRENT_COMMERCIAL_PRICING_VERSION, type BillingCycle } from "@/lib/subscriptionOffers";
@@ -51,8 +52,11 @@ function failure(error: unknown) {
 }
 
 async function loadContext() {
-  const { supabase, user, errorResponse } = await requireUser();
+  const { supabase, user, activeUserId, errorResponse } = await requireUser();
   if (errorResponse) return { errorResponse } as const;
+  if (await getApprovedAccountSubscription(activeUserId || user.id, user.id)) {
+    throw new PlanChangeError("MANAGED_SUBSCRIPTION", "Ce tarif personnalisé est géré avec l’équipe iNrCy.");
+  }
   if (!process.env.STRIPE_SECRET_KEY) {
     throw new PlanChangeError("STRIPE_UNAVAILABLE", "La facturation est momentanément indisponible.", 503);
   }

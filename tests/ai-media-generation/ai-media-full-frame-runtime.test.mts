@@ -5,6 +5,7 @@ import test from "node:test";
 import sharp from "sharp";
 import ts from "typescript";
 import * as fullFrame from "../../lib/aiMediaFullFrame.ts";
+import * as ctaPhones from "../../lib/ctaPhoneNumbers.ts";
 
 const require = createRequire(import.meta.url);
 function load<T>(name: string): T {
@@ -16,6 +17,7 @@ function load<T>(name: string): T {
   new Function("module", "exports", "require", compiled)(record, record.exports, (id: string) => {
     if (id === "server-only") return {};
     if (id === "./aiMediaFullFrame.ts") return fullFrame;
+    if (id === "./ctaPhoneNumbers.ts") return ctaPhones;
     return require(id);
   });
   return record.exports as T;

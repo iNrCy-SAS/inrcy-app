@@ -4,6 +4,7 @@ import { jsonSchema, tool } from "ai";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { AI_CTA_CHANNELS, normalizeAiChannelCtaMap, type AiCtaChannel } from "./aiChannelCtaPreferences.ts";
 import { getPreferredCtaLabel, normalizeCtaPhone } from "./boosterCtaPreferences";
+import { parseCtaPhoneNumbers } from "./ctaPhoneNumbers.ts";
 import { normalizeInrBadgeShareSettings } from "./inrBadgeSettings.ts";
 import { normalizeChannelPublicUrl } from "./channelPublicUrl.ts";
 import { isMetaChannelPilotEnabledForActorAndAccount } from "./metaChannelRolloutServer";
@@ -16,7 +17,7 @@ type Result = { ok: boolean; status: "updated" | "unchanged" | "partial" | "need
 const LINK = { label: "Configuration IA — Appels à l’action", href: "/dashboard/configuration-ia" };
 const row = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
 const normalized = (value: string) => value.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-const hasPhoneTarget = (value: string) => /\b(?:telephone|tel|numero|appeler|phone|call)\b/.test(value);
+const hasPhoneTarget = (value: string) => /\b(?:telephones?|tel|numeros?|appeler|phones?|call)\b/.test(value);
 const hasWebsiteTarget = (value: string) => /\b(?:site|website|web|url|lien)\b/.test(value);
 const asksForTargetChoice = (value: string) => hasPhoneTarget(value) && hasWebsiteTarget(value) && /\b(?:ou|or)\b/.test(value);
 function parse(value: unknown): Input {
@@ -60,6 +61,10 @@ function phone(value: unknown): string {
   // Keep a locally saved prefix intact: never invent a country calling code.
   return /^(?:\+?[1-9]\d{7,14}|0\d{7,14})$/.test(canonical) ? canonical : "";
 }
+function callPhones(value: unknown): string {
+  const values = parseCtaPhoneNumbers(value).map(phone);
+  return values.length && values.every(Boolean) ? values.join(" / ") : "";
+}
 function website(value: unknown): string {
   if (typeof value !== "string" || value.length > 2048) return "";
   const result = normalizeChannelPublicUrl("site_web", value);
@@ -75,7 +80,10 @@ function usesRegisteredDestination(message: string, target: Input["target"], des
   const visible = message.slice(0, 4000).replace(/```[\s\S]*?(?:```|$)|«[^»]*»|"[^"]*"|^>.*$/gm, " ");
   if (target === "phone") {
     const values = visible.match(/(?:\+|00)?\d[\d\s().-]{6,}\d/g) ?? [];
-    return values.every(value => phone(value) === destination);
+    if (!values.length) return true;
+    const requested = new Set(values.map(phone));
+    const registered = new Set(parseCtaPhoneNumbers(destination).map(phone));
+    return !requested.has("") && requested.size === registered.size && [...requested].every(value => registered.has(value));
   }
   const values = visible.match(/\b(?:https?:\/\/|www\.)[^\s<>"«»]+/gi) ?? [];
   return values.every(value => website(value.replace(/[.,;!?]+$/, "")) === destination);
@@ -110,7 +118,7 @@ export function createInrAssistantCtaTools(options: { request: Request; accountI
               isMetaChannelPilotEnabledForActorAndAccount(supabase, accountId).catch(() => false),
             ]);
             const profile = row(profileRead.data), business = row(businessRead.data), config = row(configRead.data), settings = row(config.settings);
-            const destination = input.target === "phone" ? phone(profile.phone) : website(row(settings.site_web).url);
+            const destination = input.target === "phone" ? callPhones(profile.phone) : website(row(settings.site_web).url);
             if (input.target === "phone" && (profileRead.error || profile.user_id !== accountId) || input.target === "website" && (configRead.error || config.user_id !== accountId) || !destination) return result("blocked", [], input.target === "phone" ? "Aucun téléphone professionnel exploitable n’est enregistré. Complétez le téléphone dans l’ADN ; aucun numéro n’a été inventé ni aucun CTA modifié." : "Aucun site public valide n’est enregistré. Vérifiez le Site web dans Mes canaux ; aucune URL n’a été inventée ni aucun CTA modifié.");
             if (!usesRegisteredDestination(currentUserMessage, input.target, destination)) return result("needs_instruction", [], input.target === "phone" ? "Le téléphone indiqué ne correspond pas au téléphone professionnel enregistré. Vérifiez-le dans l’ADN, puis demandez à appliquer ce numéro aux CTA souhaités. Aucun CTA n’a été modifié." : "Le site indiqué ne correspond pas au site enregistré. Vérifiez le Site web dans Mes canaux, puis demandez à appliquer ce site aux CTA souhaités. Aucun CTA n’a été modifié.");
             const choice = input.target === "phone" ? "appeler" : "site";
@@ -137,7 +145,7 @@ export function createInrAssistantCtaTools(options: { request: Request; accountI
                 else {
                   const freshSource = input.target === "phone" ? await supabase.from("profiles").select("user_id,phone").eq("user_id", accountId).maybeSingle() : await supabase.from("pro_tools_configs").select("user_id,settings").eq("user_id", accountId).maybeSingle();
                   const fresh = row(freshSource.data);
-                  const freshDestination = input.target === "phone" ? phone(fresh.phone) : website(row(row(fresh.settings).site_web).url);
+                  const freshDestination = input.target === "phone" ? callPhones(fresh.phone) : website(row(row(fresh.settings).site_web).url);
                   if (freshSource.error || fresh.user_id !== accountId || freshDestination !== destination || !await activeScope()) return result("blocked", items, "La destination ou l’établissement actif a changé pendant la préparation. Aucun nouveau réglage n’a été enregistré.");
                   const patch = { ai_channel_ctas: nextMap, ...(legacyChange ? { preferred_cta: choice } : {}), updated_at: new Date().toISOString() };
                   let update = supabase.from("business_profiles").update(patch).eq("user_id", accountId);

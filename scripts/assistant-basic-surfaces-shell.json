@@ -2221,7 +2221,7 @@
     "testFiles": [
       "tests/ai-assistant/basic-account-services.test.mts"
     ],
-    "testAnchor": "account services preserve the authenticated subscription holder vs active business distinction and remove billing URLs/secrets",
+    "testAnchor": "account services use the native active-establishment contract and remove billing URLs/secrets",
     "controlIds": [
       "app/dashboard/_components/VideoCreditRecharge.tsx#summary:08db2a479a92c9ea:1"
     ],

@@ -8,6 +8,7 @@ import { isBoosterPublicationPendingStatus } from "../../lib/boosterPublicationS
 import { mapProgressRange, resolvePublicationBilanProgress } from "../../lib/boosterProgressPhases.ts";
 import type { PublicationSubmissionContext } from "../../app/dashboard/booster/publier/publicationSubmissionContext.ts";
 import type { PublishExecutionSummary } from "../../app/dashboard/_components/PublishExecutionResultModal.tsx";
+import type { PendingImmediatePublishAfterSchedule } from "../../app/dashboard/booster/publier/publishModal.foundations.ts";
 import { buildBoosterPublicationDispatchPlan, type BoosterChannelPreflightFailure } from "../../lib/boosterPublicationDispatchPlan.ts";
 import { durationReviewItems } from "./booster-duration-readiness-fixture.mts";
 
@@ -20,6 +21,7 @@ function fixture() {
   const state = {
     saving: false, draftSaving: false, scheduleSaving: false, voiceInputBusy: false,
     publishStartGuardRef: { current: false }, scheduleStartGuardRef: { current: false },
+    scheduleSubmissionRef: { current: undefined as PendingImmediatePublishAfterSchedule | null | undefined },
     authoritativeChannelsRef: { current: true }, connectedChannelsScopeRef: { current: "account-a" }, activeAccountId: "account-a",
     actorUserId: "actor-a", publicationActorScopeRef: { current: { actorUserId: "actor-a", accountId: "account-a" } },
     latestPublicationSummaryRef: { current: null as PublishExecutionSummary | null }, phasedPublicationProgressRef: { current: false },
@@ -141,6 +143,59 @@ test("scheduling returns only explicitly selected immediate channels and dispatc
   for (let turn = 0; turn < 20 && !f.successes.length; turn++) await new Promise(resolve => setImmediate(resolve));
   assert.equal(f.requests.length, 1); assert.deepEqual(f.requests[0].channels, ["facebook"]);
   assert.equal(f.successes.length, 1);
+  f.api.publishImmediateChannelsAfterSchedule(request);
+  await f.api.runPublish();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.requests.length, 1, "the acknowledged editor and its explicit continuation cannot dispatch twice");
+});
+
+test("scheduling and publishing share a synchronous lock before React can update button state", async () => {
+  const f = fixture(), gate = deferred<unknown[]>();
+  const selections = [{ channel: "gmb", scheduledAt: "2099-04-05T10:00:00.000Z" }] as const;
+  f.media.persistentMediaWorkspaceEnabled = true;
+  f.setWorkspaceWait(() => gate.promise);
+  const schedule = f.api.performSchedulePublication([...selections], f.posts, null);
+  assert.equal(f.state.scheduleStartGuardRef.current, true);
+  await f.api.runPublish();
+  await f.api.performSchedulePublication([...selections], f.posts, null);
+  assert.deepEqual(f.requests, []);
+  assert.deepEqual(f.scheduled, []);
+  gate.resolve([]);
+  assert.equal(await schedule, null);
+  assert.equal(f.scheduled.length, 1);
+
+  // Keep the old render's selectedChannels and boolean state on purpose.
+  // A queued event after ACK must not resend the submitted publication.
+  await f.api.runPublish();
+  assert.equal(await f.api.performSchedulePublication([...selections], f.posts, null), undefined);
+  assert.deepEqual(f.requests, []);
+  assert.equal(f.scheduled.length, 1);
+});
+
+test("a publication in flight cannot be scheduled by a stale render", async () => {
+  const f = fixture(), gate = deferred<unknown[]>();
+  f.media.persistentMediaWorkspaceEnabled = true;
+  f.setWorkspaceWait(() => gate.promise);
+  const publishing = f.api.runPublish();
+  assert.equal(f.state.publishStartGuardRef.current, true);
+  const scheduled = await f.api.performSchedulePublication([{ channel: "gmb", scheduledAt: "2099-04-05T10:00:00.000Z" }], f.posts, null);
+  assert.equal(scheduled, undefined);
+  gate.resolve([]);
+  await publishing;
+  assert.equal(f.requests.length, 1);
+  assert.deepEqual(f.scheduled, []);
+});
+
+test("a forged immediate continuation cannot publish channels outside the acknowledged schedule choice", async () => {
+  const f = fixture();
+  const request = await f.api.performSchedulePublication([{ channel: "gmb", scheduledAt: "2099-04-05T10:00:00.000Z" }], f.posts, null, ["facebook"]);
+  assert.ok(request);
+  f.api.publishImmediateChannelsAfterSchedule({ ...request, immediateChannels: ["gmb"] });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.requests.length, 0);
+  f.api.publishImmediateChannelsAfterSchedule(request);
+  for (let turn = 0; turn < 20 && !f.successes.length; turn++) await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(f.requests.map(payload => payload.channels), [["facebook"]]);
 });
 
 test("media preparation rejection preserves the draft, releases the scheduling lock and allows a single successful retry", async () => {

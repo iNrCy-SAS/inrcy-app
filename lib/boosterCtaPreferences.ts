@@ -1,5 +1,6 @@
 import { getBoosterLinkCtaAction, isBoosterLinkCtaChoice, type BoosterLinkCtaChoice } from "@/lib/boosterCtaActions";
 import { BOOSTER_ASIAN_CTA_LABELS } from "@/lib/boosterAsianCtaLabels";
+import { normalizeCtaCallPhones, normalizeSingleCtaPhone } from "./ctaPhoneNumbers.ts";
 import { resolveAiChannelCtaMap, type AiChannelCtaMap, type AiCtaChannel } from "@/lib/aiChannelCtaPreferences";
 import type {
   BoosterChannelKey,
@@ -285,11 +286,7 @@ export function normalizeCtaWebsiteUrl(value: unknown) {
 }
 
 export function normalizeCtaPhone(value: unknown) {
-  const phone = cleanText(value, 48)
-    .replace(/[^\d+().\-\s]/g, "")
-    .trim();
-  const digitCount = phone.replace(/\D/g, "").length;
-  return digitCount >= 8 && digitCount <= 15 ? phone : "";
+  return normalizeSingleCtaPhone(value);
 }
 
 export function getPreferredWebsiteUrlForChannel(
@@ -376,7 +373,7 @@ export function buildSafePreferredCtaPatch(args: {
     args.channel,
     args.defaults,
   );
-  const phone = normalizeCtaPhone(
+  const phone = (requestedChoice === "appeler" ? normalizeCtaCallPhones : normalizeCtaPhone)(
     args.post?.ctaPhone || args.defaults?.phone,
   );
   const customUrl = normalizeCtaWebsiteUrl(args.post?.ctaUrl);
@@ -493,7 +490,7 @@ function hasUsableExplicitStructuredCta(
   if (mode === "website" || mode === "custom") {
     return Boolean(normalizeCtaWebsiteUrl(post.ctaUrl));
   }
-  if (mode === "call") return Boolean(normalizeCtaPhone(post.ctaPhone));
+  if (mode === "call") return Boolean(normalizeCtaCallPhones(post.ctaPhone));
   if (mode === "message") return channel !== "gmb";
   return false;
 }
@@ -533,7 +530,7 @@ export function applySafePreferredCta<T extends BoosterPostLike>(args: {
   const websiteUrl = normalizeCtaWebsiteUrl(
     configured.url || getPreferredWebsiteUrlForChannel(args.channel, args.defaults),
   );
-  const phone = normalizeCtaPhone(configured.phone || args.defaults?.phone);
+  const phone = (choice === "appeler" ? normalizeCtaCallPhones : normalizeCtaPhone)(configured.phone || args.defaults?.phone);
   let patch: BoosterStructuredCtaPatch = emptyCta();
   if (isBoosterLinkCtaChoice(choice)) {
     const url = normalizeCtaWebsiteUrl(configured.url);

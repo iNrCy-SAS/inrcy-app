@@ -9,6 +9,7 @@ import styles from "./dashboard.module.css";
 import { redirect } from "next/navigation";
 import { createSupabaseServer } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getApprovedAccountSubscription } from "@/lib/accountBillingSubscriptionServer";
 import { getMaintenanceState, isAdminUser } from "@/lib/maintenance";
 import ProfileRealtimeBridge from "./_components/ProfileRealtimeBridge";
 import LastActiveTracker from "./_components/LastActiveTracker";
@@ -122,11 +123,18 @@ export default async function DashboardLayout({
   const viewerMetaPilotEnabled = isMetaChannelPilotEnabled(actorIsAdmin, actorIsReviewingOwnAccount)
     && isMetaChannelPilotEnabled(activeAccountIsAdmin, activeAccountIsApprovedReviewer);
 
-  const { data: subscription } = await supabaseAdmin
-    .from("subscriptions")
-    .select("status, trial_end_at, start_date, app_edition, plan")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  // The selected establishment's approved contract takes precedence even when
+  // the payer's other subscription is inactive. Private lookup errors fail closed.
+  let subscription = await getApprovedAccountSubscription(accountScope.activeUserId, user.id) as SubscriptionGateRow | null;
+  if (!subscription) {
+    const legacy = await supabaseAdmin
+      .from("subscriptions")
+      .select("status, trial_end_at, start_date, app_edition, plan")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (legacy.error) throw new Error("ACCOUNT_SUBSCRIPTION_READ_UNAVAILABLE");
+    subscription = legacy.data as SubscriptionGateRow | null;
+  }
 
   if (!hasDashboardAccess(subscription)) {
     const requestHeaders = await headers();

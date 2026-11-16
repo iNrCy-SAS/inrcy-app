@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 
 import { useEffect, useId, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@/lib/supabaseClient";
+import { readCurrentAccountSubscription } from "@/lib/accountBillingSubscriptionClient";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 import { evaluatePassword } from "@/lib/passwordPolicy";
 import { getTemporaryPasswordMetadata } from "@/lib/temporaryPasswordPolicy";
@@ -173,12 +174,7 @@ export default function AccountContent({
         setEmail(user?.email || "");
         setTemporaryPasswordExpiresAt(getTemporaryPasswordMetadata(user?.app_metadata)?.expires_at || null);
         if (user) {
-          const { data: subscriptionData } = await supabase
-            .from("subscriptions")
-            .select("plan,status,trial_end_at,next_renewal_date,cancel_requested_at,end_date")
-            .eq("user_id", user.id)
-            .maybeSingle();
-          setSubscriptionSummary((subscriptionData as AccountSubscriptionSummary | null) ?? null);
+          setSubscriptionSummary(await readCurrentAccountSubscription<AccountSubscriptionSummary>(user.id));
         }
         const raw = (data.user as any)?.created_at as string | undefined;
         if (raw) {

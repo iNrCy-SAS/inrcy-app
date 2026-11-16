@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { extractInrBadgeUserIdFromSlug } from "@/lib/inrBadge";
 import { getProfileLogoVersion } from "@/lib/profileLogo";
+import { dialCtaPhone, parseCtaPhoneNumbers } from "@/lib/ctaPhoneNumbers";
 import { normalizeInrBadgeShareSettings } from "@/lib/inrBadgeSettings";
 import { getInrBadgeThemeCssVariables, normalizeInrBadgeThemeSettings } from "@/lib/inrBadgeTheme";
 import { getInrBadgeTexts, normalizeInrBadgeLanguage } from "@/lib/inrBadgeLanguage";
@@ -73,11 +74,6 @@ function normalizeUrl(value: unknown) {
   return `https://${raw}`;
 }
 
-function phoneHref(value: string) {
-  const cleaned = value.replace(/[^+0-9]/g, "");
-  return cleaned ? `tel:${cleaned}` : "";
-}
-
 function createMailto(email: string, subject?: string) {
   const clean = trim(email);
   if (!clean) return "";
@@ -112,7 +108,7 @@ function createVCardDataUri(input: {
     `N:${escapeVCard(input.lastName)};${escapeVCard(input.firstName)};;;`,
     `FN:${escapeVCard(input.displayName || input.company)}`,
     input.company ? `ORG:${escapeVCard(input.company)}` : "",
-    input.phone ? `TEL;TYPE=WORK,VOICE:${escapeVCard(input.phone)}` : "",
+    ...parseCtaPhoneNumbers(input.phone).map(phone => `TEL;TYPE=WORK,VOICE:${escapeVCard(dialCtaPhone(phone))}`),
     input.email ? `EMAIL;TYPE=WORK:${escapeVCard(input.email)}` : "",
     input.website ? `URL:${escapeVCard(input.website)}` : "",
     input.address || input.city || input.zip || input.country
@@ -468,8 +464,9 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
   });
   const vCardFilename = `${safeFilename(company || displayName)}.vcf`;
 
+  const phoneNumbers = shareSettings.phone ? parseCtaPhoneNumbers(phone) : [];
   const primaryActions = [
-    shareSettings.phone && phone && phoneHref(phone) ? { href: phoneHref(phone), label: badgeText.call, iconSrc: "/icons/inrbadge-action-tel.png", tone: "phone" as ActionTone, trackingAction: "phone" } : null,
+    ...phoneNumbers.map(number => ({ href: `tel:${dialCtaPhone(number)}`, label: phoneNumbers.length > 1 ? `${badgeText.call} : ${number}` : badgeText.call, iconSrc: "/icons/inrbadge-action-tel.png", tone: "phone" as ActionTone, trackingAction: "phone" })),
     shareSettings.email && badgeEmail ? { href: createMailto(badgeEmail), label: badgeText.mail, iconSrc: "/icons/inrbadge-action-mail.png", tone: "mail" as ActionTone, trackingAction: "mail" } : null,
     shareSettings.saveContact ? { href: vCardUri, label: badgeText.saveContact, download: vCardFilename, iconSrc: "/icons/inrbadge-action-save.png", tone: "contact" as ActionTone, trackingAction: "save_contact" } : null,
   ].filter(Boolean) as ActionLinkProps[];
@@ -540,7 +537,7 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
           {description ? <p className={styles.description}>{description}</p> : null}
 
           {primaryActions.length > 0 ? (
-            <div className={styles.primaryGrid} data-count={primaryActions.length}>
+            <div className={styles.primaryGrid} data-count={primaryActions.length} data-phone-count={phoneNumbers.length}>
               {primaryActions.map((action) => (
                 <ActionLink key={`${action.label}-${action.href}`} {...action} compact />
               ))}

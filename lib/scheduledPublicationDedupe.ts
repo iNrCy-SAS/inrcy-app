@@ -124,6 +124,8 @@ function getMediaIdentity(value: unknown): string {
   if (typeof value === "string") return cleanText(value, 600);
   const record = asRecord(value);
   if (!record) return "";
+  const fileName = String(record.name || record.filename || "").trim();
+  const fileBytes = Number(record.size || record.bytes || 0);
   return cleanText(
     record.storagePath ||
       record.storage_path ||
@@ -141,7 +143,9 @@ function getMediaIdentity(value: unknown): string {
       record.original_url ||
       record.imageKey ||
       record.image_key ||
-      `${record.name || record.filename || ""}:${record.size || record.bytes || ""}:${record.duration || record.video_duration_seconds || ""}`,
+      (fileName && fileBytes > 0
+        ? `${fileName}:${fileBytes}:${record.duration || record.video_duration_seconds || ""}`
+        : ""),
     800,
   );
 }
@@ -162,20 +166,6 @@ function getChannelMediaSignature(payload: unknown, channel: BoosterChannel) {
   const videoByChannel = asRecord(publishPayload.videoByChannel);
   const mediaKeys = new Set<string>();
 
-  if (channel === "instagram") {
-    const settings = asRecord(publishPayload.instagramPublicationSettings);
-    normalizeMetaPublicationSelection(settings).placements.forEach(
-      (placement) => mediaKeys.add(`instagram-placement:${placement}`),
-    );
-  }
-
-  if (channel === "facebook") {
-    const settings = asRecord(publishPayload.facebookPublicationSettings);
-    normalizeMetaPublicationSelection(settings).placements.forEach(
-      (placement) => mediaKeys.add(`facebook-placement:${placement}`),
-    );
-  }
-
   if (mediaMode === "video") {
     getMediaIdentities(videoByChannel?.[channel]).forEach((key) => mediaKeys.add(key));
     getMediaIdentities(publishPayload.video).forEach((key) => mediaKeys.add(key));
@@ -189,6 +179,17 @@ function getChannelMediaSignature(payload: unknown, channel: BoosterChannel) {
 
   if (!mediaKeys.size) {
     getMediaIdentities(publishPayload.media).forEach((key) => mediaKeys.add(key));
+  }
+
+  // Feed/Story/Reel qualify an actual asset; a shared placement is not media
+  // identity. Otherwise every pair of distinct Meta posts looks duplicated.
+  if (mediaKeys.size && (channel === "instagram" || channel === "facebook")) {
+    const settings = asRecord(channel === "instagram"
+      ? publishPayload.instagramPublicationSettings
+      : publishPayload.facebookPublicationSettings);
+    normalizeMetaPublicationSelection(settings).placements.forEach(
+      (placement) => mediaKeys.add(`${channel}-placement:${placement}`),
+    );
   }
 
   const keys = Array.from(mediaKeys).filter(Boolean).sort();

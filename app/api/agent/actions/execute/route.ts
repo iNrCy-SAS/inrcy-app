@@ -2,6 +2,7 @@ import { filterInrAgentPublicationChannels, pendingInrAgentPublicationChannels, 
 import { readInrAgentThreadsPublicationSettings, projectInrAgentThreadsPublishPayload } from "@/lib/inrAgentThreadsPublication";
 import { isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { canonicalSiteWebChannel } from "@/lib/siteWebChannel";
+import { normalizeCtaCallPhones } from "@/lib/ctaPhoneNumbers";
 import { NextResponse } from "next/server";
 import { normalizeBoosterSoundtrackByChannel, normalizeBoosterSoundtrackId } from "@/lib/boosterSoundtracks";
 import { POST as publishNowBooster } from "@/app/api/booster/publish-now/route";
@@ -178,7 +179,7 @@ function normalizePost(raw: unknown, fallback?: BoosterPost): BoosterPost {
   const ctaUrl = normalizeCtaWebsiteUrl(
     record.ctaUrl ?? record.cta_url ?? fallback?.ctaUrl,
   );
-  const ctaPhone = normalizeCtaPhone(
+  const ctaPhone = (ctaMode === "call" ? normalizeCtaCallPhones : normalizeCtaPhone)(
     record.ctaPhone ?? record.cta_phone ?? fallback?.ctaPhone,
   );
 

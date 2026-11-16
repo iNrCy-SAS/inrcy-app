@@ -176,7 +176,7 @@ export function buildAiMediaFreeDnaContext(args: {
   const source = args.publicProfile || {};
   const contacts = {
     entreprise: text(source.company_legal_name || args.profile.business.companyName, 180),
-    telephone: text(source.phone || args.profile.business.phone, 80),
+    telephone: text(source.phone || args.profile.business.phone, 120),
     // An authentication email is not necessarily a public business contact.
     email: text(source.contact_email, 180),
     adresse: text(source.hq_address, 240),

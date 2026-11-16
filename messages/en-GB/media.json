@@ -1135,5 +1135,7 @@
   "camera_video_unavailable_here": "Video unavailable here",
   "viewer_zoom_in": "Zoom in",
   "viewer_zoom_out": "Zoom out",
-  "viewer_zoom_reset": "Reset zoom to 100%"
+  "viewer_zoom_reset": "Reset zoom to 100%",
+  "ai_generator_credit_shared_short": "Included credits shared across {accounts} businesses",
+  "ai_generator_credit_shared_help": "One allowance of {credits} included credits per month for {accounts} businesses. Purchased credits remain specific to this business."
 }

@@ -4,8 +4,12 @@ import { stripeGet, stripePost } from "@/lib/stripeRest";
 import { stripeSubscriptionPeriodEndUnix } from "@/lib/stripeSubscription";
 import { stripeCancellationSchedule } from "@/lib/subscriptionCancellation";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getApprovedAccountSubscription } from "@/lib/accountBillingSubscriptionServer";
 
 type SubscriptionRow = {
+  account_id?: string;
+  stripe_customer_id?: string;
+  updated_at?: string;
   stripe_subscription_id?: string | null;
   billing_provider?: string | null;
   status?: string | null;
@@ -76,15 +80,25 @@ function futureDateOnly(value: string | null | undefined): string | null {
 async function updateSubscriptionCancellation(
   userId: string,
   patch: Record<string, unknown>,
+  approved?: SubscriptionRow,
 ) {
-  const { error } = await supabaseAdmin
-    .from("subscriptions")
-    .update({ ...patch, updated_at: new Date().toISOString() })
-    .eq("user_id", userId);
+  const query = supabaseAdmin.from(approved?.account_id ? "inrcy_account_subscriptions" : "subscriptions")
+    .update({ ...patch, updated_at: new Date().toISOString() });
+  if (approved?.account_id) {
+    let scoped = query.eq("account_id", approved.account_id).eq("auth_user_id", userId)
+      .eq("stripe_subscription_id", approved.stripe_subscription_id).eq("stripe_customer_id", approved.stripe_customer_id);
+    if (approved.updated_at) scoped = scoped.eq("updated_at", approved.updated_at);
+    const result = await scoped.select("account_id").maybeSingle();
+    if (result.error || !result.data) throw new Error("ACCOUNT_SUBSCRIPTION_CONCURRENT_UPDATE");
+    return;
+  }
+  const { error } = await query.eq("user_id", userId);
   if (error) throw new Error(error.message);
 }
 
-export async function loadSubscriptionForCancellation(userId: string) {
+export async function loadSubscriptionForCancellation(userId: string, accountId = userId) {
+  const approved = await getApprovedAccountSubscription(accountId, userId);
+  if (approved) return approved as SubscriptionRow;
   const { data, error } = await supabaseAdmin
     .from("subscriptions")
     .select(
@@ -106,8 +120,9 @@ export async function loadSubscriptionForCancellation(userId: string) {
  */
 export async function scheduleSubscriptionCancellationForUser(
   userId: string,
+  accountId = userId,
 ): Promise<ScheduleSubscriptionCancellationResult> {
-  const row = await loadSubscriptionForCancellation(userId);
+  const row = await loadSubscriptionForCancellation(userId, accountId);
   if (!row) {
     throw new SubscriptionCancellationError(
       "NO_ACTIVE_SUBSCRIPTION",
@@ -147,7 +162,7 @@ export async function scheduleSubscriptionCancellationForUser(
     await updateSubscriptionCancellation(userId, {
       cancel_requested_at: new Date().toISOString(),
       end_date: nativeEndDate,
-    });
+    }, row);
 
     return {
       endDate: nativeEndDate,
@@ -181,6 +196,7 @@ export async function scheduleSubscriptionCancellationForUser(
   const currentSubscription = await stripeGet(
     `/subscriptions/${encodeURIComponent(stripeSubscriptionId)}`,
   );
+  if (row.account_id && (currentSubscription?.id !== stripeSubscriptionId || currentSubscription?.customer !== row.stripe_customer_id)) throw new Error("ACCOUNT_SUBSCRIPTION_IDENTITY_CONFLICT");
   const currentPeriodEndUnix = stripeSubscriptionPeriodEndUnix(currentSubscription);
   if (!currentPeriodEndUnix) {
     throw new Error("Stripe n’a pas renvoyé la date de la période en cours.");
@@ -218,7 +234,7 @@ export async function scheduleSubscriptionCancellationForUser(
     end_date: cancelEndDate,
     status: updated.status,
     next_renewal_date: nextRenewalDate,
-  });
+  }, row);
 
   return {
     endDate: cancelEndDate,
@@ -295,13 +311,13 @@ export async function stopFutureSubscriptionRenewalsForImmediateDeletion(userId:
     end_date: ymdFromDate(new Date(currentPeriodEndUnix * 1000)),
     status: updated.status,
     next_renewal_date: ymdFromDate(new Date(currentPeriodEndUnix * 1000)),
-  });
+  }, row);
 
   return { billingProvider: "stripe" as const };
 }
 
-export async function restoreSubscriptionRenewalForUser(userId: string) {
-  const row = await loadSubscriptionForCancellation(userId);
+export async function restoreSubscriptionRenewalForUser(userId: string, accountId = userId) {
+  const row = await loadSubscriptionForCancellation(userId, accountId);
   if (!row) {
     throw new SubscriptionCancellationError(
       "NO_ACTIVE_SUBSCRIPTION",
@@ -329,6 +345,11 @@ export async function restoreSubscriptionRenewalForUser(userId: string) {
     );
   }
 
+  if (row.account_id) {
+    const live = await stripeGet(`/subscriptions/${encodeURIComponent(stripeSubscriptionId)}`);
+    if (live?.id !== stripeSubscriptionId || live?.customer !== row.stripe_customer_id) throw new Error("ACCOUNT_SUBSCRIPTION_IDENTITY_CONFLICT");
+  }
+
   const updated = await stripePost(
     `/subscriptions/${encodeURIComponent(stripeSubscriptionId)}`,
     new URLSearchParams({
@@ -345,7 +366,7 @@ export async function restoreSubscriptionRenewalForUser(userId: string) {
     next_renewal_date: stripeSubscriptionPeriodEndUnix(updated)
       ? ymdFromDate(new Date(stripeSubscriptionPeriodEndUnix(updated)! * 1000))
       : null,
-  });
+  }, row);
 
   return { billingProvider: "stripe" as const };
 }

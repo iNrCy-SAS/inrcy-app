@@ -8,6 +8,7 @@ import test from "node:test";
 
 import sharp from "sharp";
 import ts from "typescript";
+import * as ctaPhones from "../../lib/ctaPhoneNumbers.ts";
 
 import { getAiMediaVideoSegmentDurations } from "../../lib/aiMediaVideoTimeline.ts";
 import {
@@ -16,6 +17,7 @@ import {
 } from "../../lib/mediaVideoNormalizer.ts";
 
 type RuntimeModule = {
+  createBrandMotionFrame: (args: {width:number;height:number;phone:string;headline?:string}) => Promise<Buffer>;
   createReferenceTeamMontage: (args: {
     references: readonly Buffer[];
     width: number;
@@ -47,7 +49,7 @@ type RuntimeModule = {
 
 const requireFromTest = createRequire(import.meta.url);
 
-function loadRuntime(): RuntimeModule {
+function loadRuntime(onSvg?: (svg:string)=>void): RuntimeModule {
   const source = readFileSync(
     new URL("../../lib/aiMediaReferenceTeam.ts", import.meta.url),
     "utf8",
@@ -62,6 +64,11 @@ function loadRuntime(): RuntimeModule {
   const moduleRecord: { exports: Record<string, unknown> } = { exports: {} };
   const localRequire = (specifier: string) => {
     if (specifier === "server-only") return {};
+    if (specifier === "./ctaPhoneNumbers.ts") return ctaPhones;
+    if (specifier === "sharp") return (...args:Parameters<typeof sharp>)=>{
+      if(Buffer.isBuffer(args[0])&&args[0].toString("utf8").startsWith("<svg"))onSvg?.(args[0].toString("utf8"));
+      return sharp(...args);
+    };
     if (specifier === "@/lib/aiMediaVideoTimeline") {
       return { getAiMediaVideoSegmentDurations };
     }
@@ -89,6 +96,19 @@ async function syntheticPortrait(
   );
   return await sharp(face).webp({ quality: 95 }).toBuffer();
 }
+
+test("brand motion frame keeps both registered phones as readable separate lines",async()=>{
+  const svgs:string[]=[];
+  const runtime=loadRuntime(svg=>svgs.push(svg));
+  for(const [width,height] of [[320,320],[1080,1080],[1080,1920],[1920,1080]]){
+    const frame=await runtime.createBrandMotionFrame({width,height,phone:"+243981837026 / +8618666071730",headline:"Contactez-nous"});
+    assert.equal((await sharp(frame).metadata()).width,width);
+    const lines=[...svgs.at(-1)!.matchAll(/<text x="([\d.]+)" y="([\d.]+)"[^>]*font-size="([\d.]+)"[^>]*>(TEL  [^<]+)<\/text>/g)];
+    assert.deepEqual(lines.map(line=>line[4]),["TEL  +243981837026","TEL  +8618666071730"]);
+    assert.ok(Number(lines[1][2])>Number(lines[0][2]));
+    for(const line of lines)assert.ok(Number(line[1])+line[4].length*Number(line[3])*0.65<=width);
+  }
+});
 
 test("le montage équipe conserve dynamiquement 2 puis 3 références distinctes", async () => {
   const runtime = loadRuntime();

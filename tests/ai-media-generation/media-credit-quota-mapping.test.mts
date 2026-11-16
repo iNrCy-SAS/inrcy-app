@@ -110,6 +110,35 @@ test("unified snapshot exposes one credit pool and compatibility counters are de
   assert.equal((q.video as Row).remaining,Math.floor(1124/10));
 });
 
+test("the UI snapshot adds safe shared allowance metadata without exposing pool or other account identifiers",async()=>{
+  const row={...base("media"),...breakdown("image"),quota_unit:"credit",wallet_ready:true,
+    included_limit_count:2530,included_used_count:91,included_reserved_count:0,included_remaining_count:2439,
+    limit_count:3030,used_count:91,reserved_count:0,remaining_count:2939,purchased_remaining_count:500};
+  const f=fixture([],true,async name=>({data:name==="get_ai_media_credit_pool_context"
+    ?[{pool_id:actor,member_count:2,monthly_limit:2530}]:[row],error:null}));
+  const q=await f.api.getAiMediaQuotaSnapshot({accountId:account,actorAuthUserId:actor,edition:"premium",includeSharedPoolContext:true});
+  assert.deepEqual(f.calls.map(x=>x.name),["get_ai_media_generation_quota_v4","get_ai_media_credit_pool_context"]);
+  assert.deepEqual(f.calls[1].args,{p_account_id:account,p_actor_auth_user_id:actor});
+  assert.deepEqual((q.credits as Row).sharedPool,{memberCount:2,monthlyLimit:2530});
+  assert.equal((q.credits as Row).includedRemaining,2439);
+  assert.equal((q.credits as Row).purchasedRemaining,500);
+  assert.doesNotMatch(JSON.stringify(q),/pool_id|member_count/);
+  assert.equal(JSON.stringify(q).includes(actor),false);
+});
+
+test("shared context is optional for nonmembers and rolling deploys, and malformed or denied replies fail closed",async()=>{
+  const row={...base("media"),...breakdown("image"),quota_unit:"credit",wallet_ready:true};
+  const read=(data:unknown,error:unknown=null)=>fixture([],true,async name=>name==="get_ai_media_credit_pool_context"?{data,error}:{data:[row],error:null})
+    .api.getAiMediaQuotaSnapshot({accountId:account,actorAuthUserId:actor,edition:"standard",includeSharedPoolContext:true});
+  assert.equal(Object.hasOwn((await read([])).credits as Row,"sharedPool"),false);
+  assert.equal(Object.hasOwn((await read(null,{code:"PGRST202",message:"Could not find get_ai_media_credit_pool_context"})).credits as Row,"sharedPool"),false);
+  await assert.rejects(read(null,{code:"42501",message:"AI_MEDIA_ACCOUNT_ACCESS_DENIED"}),/accessible/);
+  for(const malformed of [null,{},[null],[{member_count:1,monthly_limit:2530}],[{member_count:2.5,monthly_limit:2530}],
+    [{member_count:2,monthly_limit:0}],[{member_count:2,monthly_limit:1000001}],
+    [{member_count:2,monthly_limit:2530},{member_count:2,monthly_limit:2530}]])
+    await assert.rejects(read(malformed),/partagé|shared_member_count/);
+});
+
 test("a credit advance remains signed; legacy equivalents and non-balance counts remain nonnegative",async()=>{
   const row={...base("media"),...breakdown("image"),quota_unit:"credit",wallet_ready:true,
     limit_count:735,used_count:835,reserved_count:0,remaining_count:-100,

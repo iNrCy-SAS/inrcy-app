@@ -1135,5 +1135,7 @@
   "camera_video_unavailable_here": "Video non disponibile qui",
   "viewer_zoom_in": "Aumenta lo zoom",
   "viewer_zoom_out": "Riduci lo zoom",
-  "viewer_zoom_reset": "Ripristina lo zoom al 100%"
+  "viewer_zoom_reset": "Ripristina lo zoom al 100%",
+  "ai_generator_credit_shared_short": "Crediti inclusi condivisi tra {accounts} attività",
+  "ai_generator_credit_shared_help": "Un unico saldo di {credits} crediti inclusi al mese per {accounts} attività. I crediti acquistati restano riservati a questa attività."
 }

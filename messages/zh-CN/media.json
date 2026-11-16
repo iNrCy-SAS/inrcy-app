@@ -1135,5 +1135,7 @@
   "camera_video_unavailable_here": "此处无法使用视频",
   "viewer_zoom_in": "放大",
   "viewer_zoom_out": "缩小",
-  "viewer_zoom_reset": "将缩放重置为 100%"
+  "viewer_zoom_reset": "将缩放重置为 100%",
+  "ai_generator_credit_shared_short": "套餐积分由 {accounts} 家企业共享",
+  "ai_generator_credit_shared_help": "每月共计 {credits} 个套餐积分，由 {accounts} 家企业共享。另购积分仍仅属于当前企业。"
 }

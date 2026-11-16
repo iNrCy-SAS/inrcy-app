@@ -190,6 +190,7 @@ export default function PublishScheduleModal({
   const [localError, setLocalError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [doneMessage, setDoneMessage] = useState("");
+  const submitGuardRef = useRef(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   const channelDetailsId = titleId + "-channels";
@@ -270,6 +271,7 @@ export default function PublishScheduleModal({
     setLocalError("");
     setSubmitting(false);
     setDoneMessage("");
+    submitGuardRef.current = false;
   });
   const channelIdsKey = items.map((item) => item.channel).join("|");
   const initialSelectionsKey = (initialSelections || [])
@@ -390,7 +392,7 @@ export default function PublishScheduleModal({
   };
 
   const submit = async () => {
-    if (busy || doneMessage) return;
+    if (busy || doneMessage || submitGuardRef.current) return;
     const selections = (
       scheduleMode === "general"
         ? publishableItems.map((item) => ({
@@ -432,25 +434,32 @@ export default function PublishScheduleModal({
             .filter((item) => !isSelected(item.channel))
             .map((item) => item.channel);
 
-    if (enableImmediateUnselectedWarning && immediateChannels.length) {
-      const labels = publishableItems
-        .filter((item) => immediateChannels.includes(item.channel))
-        .map((item) => item.label)
-        .join(", ");
-      const confirmed = await confirmInrcy({
-        title: i18nT("schedule_publish_others_title"),
-        message: i18nT("schedule_publish_others_message", { channels: labels }),
-        confirmLabel: i18nT("schedule_confirm"),
-        cancelLabel: i18nT("schedule_back"),
-        variant: "warning",
-      });
-      if (!confirmed) return;
-    }
-
-    setLocalError("");
-    setSubmitting(true);
+    // State updates do not disable a second click synchronously. Hold the
+    // same lock while asking for confirmation and after a recorded success.
+    submitGuardRef.current = true;
+    let acknowledged = false;
+    let requestStarted = false;
     try {
+      if (enableImmediateUnselectedWarning && immediateChannels.length) {
+        const labels = publishableItems
+          .filter((item) => immediateChannels.includes(item.channel))
+          .map((item) => item.label)
+          .join(", ");
+        const confirmed = await confirmInrcy({
+          title: i18nT("schedule_publish_others_title"),
+          message: i18nT("schedule_publish_others_message", { channels: labels }),
+          confirmLabel: i18nT("schedule_confirm"),
+          cancelLabel: i18nT("schedule_back"),
+          variant: "warning",
+        });
+        if (!confirmed) return;
+      }
+
+      setLocalError("");
+      requestStarted = true;
+      setSubmitting(true);
       await onConfirm(selections, immediateChannels);
+      acknowledged = true;
       setDoneMessage(resolvedSuccessMessage);
       window.setTimeout(() => {
         void onSuccess?.();
@@ -461,7 +470,8 @@ export default function PublishScheduleModal({
         setLocalError(message);
       }
     } finally {
-      setSubmitting(false);
+      if (!acknowledged) submitGuardRef.current = false;
+      if (requestStarted) setSubmitting(false);
     }
   };
 

@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/requireUser";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { stripeGet } from "@/lib/stripeRest";
 import { invoiceSubscriptionId } from "@/lib/stripeWebhookPayload";
+import { getApprovedAccountSubscription } from "@/lib/accountBillingSubscriptionServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,7 +61,7 @@ function publicInvoice(invoice: StripeInvoice) {
 
 export async function GET() {
   try {
-    const { user, errorResponse } = await requireUser();
+    const { user, activeUserId, errorResponse } = await requireUser();
     if (errorResponse) return errorResponse;
 
     const { data: subscription, error } = await supabaseAdmin
@@ -71,7 +72,8 @@ export async function GET() {
 
     if (error) throw new Error(error.message);
 
-    const row = subscription as SubscriptionRow | null | undefined;
+    const approved = await getApprovedAccountSubscription(activeUserId || user.id,user.id);
+    const row = (approved || subscription) as SubscriptionRow | null | undefined;
     const billingProvider = String(row?.billing_provider ?? "").trim().toLowerCase();
     if (billingProvider === "app_store" || billingProvider === "play_store") {
       return NextResponse.json(

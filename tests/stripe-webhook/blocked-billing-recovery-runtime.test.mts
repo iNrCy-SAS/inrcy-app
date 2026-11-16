@@ -98,6 +98,7 @@ function billingFixture(options: {
     "@/lib/subscriptionOffers": offers,
   });
   const modules = {
+    "@/lib/accountBillingSubscriptionServer": { getApprovedAccountSubscription: async () => null },
     "next/server": { NextResponse },
     "@/lib/requireUser": { requireUser: async () => options.unauthenticated
       ? { errorResponse: Response.json({ error: "Non authentifié" }, { status: 401 }) }
