@@ -6,6 +6,7 @@ import ts from "typescript";
 import { discoverGoogleBusinessLocations } from "../../lib/googleBusinessLocations.ts";
 import * as selectionPolicy from "../../lib/googleBusinessSelectionPolicy.ts";
 import { buildGoogleBusinessProfilePatch, editableGoogleBusinessProfile, stableGoogleBusinessValue } from "../../lib/googleBusinessProfile.ts";
+import { integrationWriteSchemaError } from "../helpers/integrations-schema-contract.mts";
 
 test("discovery includes inactive and active locations across every account and pagination page", async () => {
   const calls: string[] = [];
@@ -112,13 +113,14 @@ test("an explicit inactive establishment choice persists its own parent and Goog
   const admin = { from(table: string) {
     const filters: Record<string, unknown> = {};
     let value: Record<string, unknown> = {};
+    let writeError: ReturnType<typeof integrationWriteSchemaError> = null;
     const query = {
       select() { return query; },
       eq(key: string, input: unknown) { filters[key] = input; return query; },
       is(key: string, input: unknown) { filters[key] = input; return query; },
-      update(input: Record<string, unknown>) { value = input; writes.push({ table, value, filters }); return query; },
-      async maybeSingle() { return { data: table === "integrations" ? Object.keys(value).length ? { id: "integration", ...value } : structuredClone(snapshot) : { settings: { unrelated: true } }, error: null }; },
-      async single() { return { data: { id: "integration", ...value }, error: null }; },
+      update(input: Record<string, unknown>) { value = input; writeError = table === "integrations" ? integrationWriteSchemaError(input) : null; if (!writeError) writes.push({ table, value, filters }); return query; },
+      async maybeSingle() { if (writeError) return { data: null, error: writeError }; return { data: table === "integrations" ? Object.keys(value).length ? { id: "integration", ...value } : structuredClone(snapshot) : { settings: { unrelated: true } }, error: null }; },
+      async single() { return writeError ? { data: null, error: writeError } : { data: { id: "integration", ...value }, error: null }; },
       async upsert(input: Record<string, unknown>) { writes.push({ table, value: input, filters }); return { error: null }; },
     };
     return query;
@@ -143,16 +145,26 @@ test("an explicit inactive establishment choice persists its own parent and Goog
   const exports: { POST?: (request: Request) => Promise<Response> } = {};
   new Function("require", "exports", code)((name: string) => { assert.ok(name in modules, name); return modules[name]; }, exports);
   const request = (accountName: string, locationName = "locations/inactive") => new Request("https://example.test/select", { method: "POST", body: JSON.stringify({ accountName, locationName, locationTitle: "Forged client title" }) });
-  assert.equal((await exports.POST!(request("accounts/second"))).status, 200);
+  const response = await exports.POST!(request("accounts/second"));
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { ok: true, url: "https://maps.google.com/?cid=fixture" });
   assert.equal(writes[0].value.resource_id, "locations/inactive");
   assert.equal(writes[0].value.resource_label, "Real inactive title");
   assert.deepEqual(writes[0].filters, { ...snapshot, meta: JSON.stringify(snapshot.meta) });
   assert.deepEqual(writes[0].value.meta, { preserved: true, account: "accounts/second", url: "https://maps.google.com/?cid=fixture" });
-  assert.equal(writes[0].value.page_url, "https://maps.google.com/?cid=fixture");
+  assert.equal(Object.hasOwn(writes[0].value, "page_url"), false);
+  const mirror = writes.find(write => write.table === "pro_tools_configs");
+  assert.ok(mirror);
+  const settings = mirror.value.settings as { unrelated: boolean; gmb: { url: string } };
+  assert.equal(settings.gmb.url, "https://maps.google.com/?cid=fixture");
+  assert.equal(settings.unrelated, true);
   writes.length = 0;
   assert.equal((await exports.POST!(request("accounts/foreign"))).status, 403);
   assert.equal((await exports.POST!(request("accounts/second", "locations/foreign"))).status, 409);
   assert.equal(writes.length, 0, "An inaccessible choice never guesses or writes another establishment");
+  const rejected = await admin.from("integrations").update({ page_url: "https://maps.google.com/?cid=fixture" }).maybeSingle();
+  assert.equal(rejected.error?.code, "PGRST204");
+  assert.equal(writes.length, 0, "An unknown SQL column cannot be accepted by the database fixture");
 });
 
 test("review reads reject a changed selection and identify the exact establishment in their cache response", async () => {
