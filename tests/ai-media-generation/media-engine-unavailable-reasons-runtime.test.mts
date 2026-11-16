@@ -16,6 +16,7 @@ import * as voices from "../../lib/aiMediaNarrationVoices.ts";
 import * as mediaRules from "../../lib/mediaRules.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoiceClient.ts";
 import * as characterVoiceRules from "../../lib/aiMediaCharacterVoices.ts";
+import { studioReferenceMemoryFixture, studioReferenceLibraryUploadFixture } from "../helpers/studio-reference-memory-fixture.mts";
 
 type Element = { type: unknown; props: Record<string, unknown> };
 type ControlsProps = Parameters<typeof import("../../app/dashboard/_components/MediaEngineCreditControls.tsx").default>[0];
@@ -176,6 +177,8 @@ function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMedia
   modules.set("@/lib/aiMediaCharacterVoiceClient", characterVoices);
   modules.set("@/lib/aiMediaCharacterVoices", characterVoiceRules);
   modules.set("@/lib/mediaExactDialogueEditor", exactDialogueEditor);
+  modules.set("@/lib/studioReferenceMemoryClient", studioReferenceMemoryFixture);
+  modules.set("@/lib/mediaLibraryUploadClient", studioReferenceLibraryUploadFixture);
   modules.set("./StudioExactDialogueEditor", { __esModule: true, default: "./StudioExactDialogueEditor" });
   for (const path of ["./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaQuotaSummary", "./MediaPromptHelp", "./MediaBusinessDnaHelp", "./MediaCharacterVoiceInput", "./StudioMusicLibrary", "./StudioVoicePool"]) modules.set(path, { __esModule: true, default: path });
   modules.set("./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings-tabs" });
