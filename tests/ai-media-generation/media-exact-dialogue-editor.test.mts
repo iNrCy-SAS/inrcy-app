@@ -12,6 +12,7 @@ test('the displayed speech allowance stays useful before typing and follows the 
  const rows=[createMediaExactDialogueRow()];
  const empty=getMediaExactDialogueDisplayBudget(rows,input);assert.equal(empty.units,0);assert.equal(empty.characters,0);assert.equal(empty.maxUnits,30);assert.equal(empty.maxCharacters,300);
  const short=getMediaExactDialogueDisplayBudget(rows,{...input,videoEngine:'wan27',durationSeconds:8});assert.equal(short.maxUnits,14);assert.equal(short.maxCharacters,140);
+ const wanMulti=getMediaExactDialogueDisplayBudget(rows,{...input,videoEngine:'wan27',durationSeconds:16});assert.equal(wanMulti.maxUnits,28);assert.equal(wanMulti.maxCharacters,280,'native two-eight-second plans have their own allowance, unlike one sixteen-second Kling plan');
  const script=Array(31).fill('bonjour').join(' ');rows[0].text=script;const over=getMediaExactDialogueDisplayBudget(rows,input);assert.equal(over.units,31);assert.equal(over.characters,script.length);assert.ok(over.issue);assert.equal(rows[0].text,script);
  rows[0].text='x'.repeat(4100);const historical=getMediaExactDialogueDisplayBudget(rows,input);assert.equal(historical.characters,4100);assert.equal(rows[0].text.length,4100);assert.ok(historical.issue);
  const cjk=getMediaExactDialogueDisplayBudget([createMediaExactDialogueRow('ai_voice','你好')],{...input,language:'zh-CN'});assert.equal(cjk.unit,'caractères prononcés');assert.equal(cjk.units,2);assert.ok(cjk.maxUnits>0);

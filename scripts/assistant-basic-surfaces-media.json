@@ -1806,7 +1806,7 @@
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:3fe6067fb39571d4:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:16821fcbdd2a0041:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:95ff67061cc132aa:1"
     ],
     "additionalProofs": [
@@ -2138,7 +2138,7 @@
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:2ef64515f44cc211:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:81c0a0e4d7460378:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:9f944cd37c813c70:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:e876ef7049b0c400:1"
     ],
@@ -16182,10 +16182,10 @@
     "label": "Paroles exactes — ouvrir Réglages",
     "sourceAnchor": "data-exact-dialogue-settings",
     "controlIds": [
-      "app/dashboard/_components/StudioExactDialogueEditor.tsx#button:57f2ddb6d482a7d9:1",
-      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioExactDialogueEditor:e79d4e10e7bd0651:1"
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#button:62b2c19aa10f03ea:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioExactDialogueEditor:2ecacfb6414afce0:1"
     ],
-    "notes": "studio_exact_dialogue.open(null) ouvre le dialogue réellement monté en mode Paroles exactes, déverrouillé et dans le compte courant. Un brouillon vide peut préparer une première ligne vide avec le choix visible initial ou la voix off réelle déjà sélectionnée. Aucun texte, fichier, consentement, devis ni génération. ACK sur ouverture effectivement rendue."
+    "notes": "Le bouton Réglages de Paroles reprend le gabarit de Voix ; compteur, aides et erreurs restent dans le dialogue, sans bloc ajouté sous Sous-titres. studio_exact_dialogue.open(null) ouvre le dialogue réellement monté en mode Paroles exactes, déverrouillé et dans le compte courant. Un brouillon vide peut préparer une première ligne vide avec le choix visible initial ou la voix off réelle déjà sélectionnée. Aucun texte, fichier, consentement, devis ni génération. ACK sur ouverture effectivement rendue."
   },
   {
     "domain": "studio",
@@ -16222,7 +16222,7 @@
     "label": "Paroles exactes — fermer Réglages",
     "sourceAnchor": "onCancel={event => { event.preventDefault(); event.stopPropagation(); if (!disabled) setOpen(false); }}",
     "controlIds": [
-      "app/dashboard/_components/StudioExactDialogueEditor.tsx#dialog:7cee53cf051837da:1",
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#dialog:8c98341a53cea4db:1",
       "app/dashboard/_components/StudioExactDialogueEditor.tsx#button:c32817b45d84d9dd:1"
     ],
     "notes": "studio_exact_dialogue.close(null) ferme le dialogue par son setter natif, sans effacer les répliques préparées. Le verrou reste applicable à Fermer, Échap et au clic extérieur. ACK sur fermeture du même compte après rendu ; aucun envoi ni consentement."

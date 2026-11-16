@@ -1315,9 +1315,9 @@
 .referenceWarning { display: flex; align-items: flex-start; gap: 7px; min-width: 0; margin: 0; color: #e8ce9b; font-size: 11px; line-height: 1.4; }
 .referenceWarning > :last-child { min-width: 0; overflow-wrap: anywhere; }
 .referenceWarningIcon { display: grid; place-items: center; flex: 0 0 15px; width: 15px; height: 15px; margin-top: 1px; border: 1px solid #d5ae68; border-radius: 50%; color: #f2d39e; font-size: 10px; font-weight: 750; }
-.mediaReferenceThumbs { display: flex; flex: 0 0 auto; flex-wrap: nowrap; gap: 4px; min-width: 0; }
-.mediaReferenceThumb { position: relative; flex: 0 0 52px; width: 52px; height: 36px; }
-.mediaReferenceOpen { display: block; width: 36px; height: 36px; padding: 0; border: 1px solid #72b4c6; border-radius: 7px; background: #122c45; cursor: pointer; overflow: hidden; }
+.mediaReferenceThumbs { display: flex; flex: 0 0 auto; flex-wrap: nowrap; gap: 10px; margin-block:8px; min-width: 0; }
+.mediaReferenceThumb { position: relative; flex: 0 0 64px; width: 64px; height: 48px; }
+.mediaReferenceOpen { display: block; width: 48px; height: 48px; padding: 0; border: 1px solid #72b4c6; border-radius: 7px; background: #122c45; cursor: pointer; overflow: hidden; }
 .mediaReferenceOpen img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .mediaCharacterCaption { position:absolute; top:-4px; inset-inline-start:-4px; display:grid; place-items:center; width:17px; height:17px; border:1px solid #92d1eb; border-radius:50%; background:#173e61; color:#e5f7ff; font-size:10px; font-weight:700; line-height:1; pointer-events:none; }
 .mediaReferenceOptional { position: absolute; right: 0; bottom: 0; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: 1px solid #7388ad; border-radius: 7px; color: #acc2dc; background: #172b47; font: inherit; font-size: 18px; cursor: pointer; }
@@ -1629,8 +1629,10 @@
 .speechSelectField > label { color:#ddccf1; font-size:12px; font-weight:650; line-height:1.35; }
 .voiceMenuHeading { display: flex; align-items: center; justify-content: space-between; gap: 5px; min-height: 16px; }
 .workspace[data-media-kind="video"] .spokenScriptHeading .voiceSettingsMain,
+.workspace[data-media-kind="video"] .spokenScriptHeading [data-exact-dialogue-settings],
 .workspace[data-media-kind="video"] .spokenScriptHeading [data-voice-pool-settings] { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 100%; min-height: 26px; padding: 4px 8px; border: 1px solid #829fbd66; border-radius: 7px; background: #1c304b; color: #d9eaff; font: inherit; font-size: 11px; line-height: 1.3; text-decoration: none; cursor: pointer; }
 .workspace[data-media-kind="video"] .spokenScriptHeading .voiceSettingsMain:disabled,
+.workspace[data-media-kind="video"] .spokenScriptHeading [data-exact-dialogue-settings]:disabled,
 .workspace[data-media-kind="video"] .spokenScriptHeading [data-voice-pool-settings]:disabled { opacity: .5; cursor: default; }
 .workspace .spokenScriptHeading .voiceSettingsButton { display: inline-grid; place-items: center; min-height: 16px; height: 16px; width: 22px; margin: 0; padding: 0; color: #b9d9f2; text-decoration: none; font-size: 14px; line-height: 1; }
 .voiceQuickAccess { display: flex; align-items: center; gap: 7px; min-height: 22px; min-width: 0; }

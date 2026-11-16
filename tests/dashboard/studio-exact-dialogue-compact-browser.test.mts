@@ -39,6 +39,16 @@ test('compact Exact rows keep two columns, real speech budget, controls and both
         await page.locator('[data-media-settings-dialog="images"]').waitFor({ state: 'hidden' });
       }
       await page.locator('select[id$="-spoken-script-mode"]').selectOption('exact');
+      const settings = await page.evaluate(() => {
+        const exact = document.querySelector<HTMLElement>('[data-exact-dialogue-settings]')!, voice = document.querySelector<HTMLElement>('[data-video-audio-button]')!, frame = document.querySelector<HTMLElement>('[data-video-speech-frame]')!;
+        const pick = (element: HTMLElement) => { const style = getComputedStyle(element), rect = element.getBoundingClientRect(); return { width: rect.width, height: rect.height, top: rect.top, background: style.backgroundColor, border: style.border, radius: style.borderRadius, padding: style.padding, font: style.font, decoration: style.textDecoration }; };
+        return { exact: pick(exact), voice: pick(voice), mainBlocks: frame.children.length, summaryChildren: exact.parentElement!.children.length, extraMainInfo: frame.querySelector('[id$="-spoken-script-count"], [id$="-spoken-script-budget"], .free-spokenScriptContent') !== null };
+      });
+      assert.equal(settings.mainBlocks, 1, 'only the three-menu controls and subtitles remain in the speech banner');
+      assert.equal(settings.extraMainInfo, false); assert.equal(settings.summaryChildren, 1, 'no reply-count span remains beside Settings');
+      const { top: exactTop, ...exactStyle } = settings.exact, { top: voiceTop, ...voiceStyle } = settings.voice;
+      assert.deepEqual(exactStyle, voiceStyle, 'both Settings buttons have identical native sizing and appearance');
+      if (viewport.width > 1100) assert.ok(Math.abs(exactTop - voiceTop) <= 1, 'Settings buttons align on desktop');
       await page.locator('[data-exact-dialogue-settings]').click();
       const dialog = page.locator('[data-exact-dialogue-dialog]'); await dialog.waitFor({ state: 'visible' });
       const emptyBudget = await dialog.locator('[data-exact-dialogue-budget]').innerText(); assert.doesNotMatch(emptyBudget, /0\s*\/\s*0|4[ ,.]?000/); assert.match(emptyBudget, /0\s*\/\s*30 mots/); assert.match(emptyBudget, /0\s*\/\s*300 caractères/);

@@ -276,6 +276,18 @@ async function fillCommittedStudioText(page: Page, field: "prompt" | "spokenScri
   await editor.waitFor({ state: "hidden" });
 }
 
+async function assertExactDialogueBudget(page: Page, expectedText?: string) {
+  await page.locator('[data-exact-dialogue-settings]').click();
+  const editor = page.locator('[data-exact-dialogue-dialog]');
+  await editor.waitFor({ state: "visible" });
+  const budget = editor.locator('[data-exact-dialogue-budget]');
+  if (expectedText) await budget.filter({ hasText: expectedText }).waitFor();
+  assert.equal(await budget.getAttribute("aria-live"), "polite", "the actual speech budget is announced inside dialogue settings");
+  await editor.locator('header button').click();
+  await editor.waitFor({ state: "hidden" });
+  assert.equal(await page.locator('[id$="-spoken-script-count"]').count(), 0, "the main panel has no budget information below Subtitles");
+}
+
 async function assertToolbarFeedbackVisible(page: Page, selector: string, context: string) {
   const feedback = page.locator(selector);
   assert.equal(await feedback.isVisible(), true, `${context}: feedback is actually visible`);
@@ -384,7 +396,7 @@ test("compact video instructions fit all nine locales and retain the image text 
       assert.equal(await page.locator('[data-exact-dialogue-row] textarea').first().count(), 0);
       await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
       await assertFramesRemainUsable(page, `${locale} exact`);
-      assert.equal(await page.locator('[id$="-spoken-script-count"]').getAttribute("aria-live"), "polite");
+      await assertExactDialogueBudget(page);
     }
     await page.evaluate(() => { (window as unknown as FixtureWindow).fixtureLocale = "fr-FR"; (window as unknown as FixtureWindow).renderStudio("x".repeat(3900), "image"); });
     const imagePrompt = page.locator('textarea[id$="-prompt"]');
@@ -921,7 +933,7 @@ test("short windows keep both video frames separate and the speech header on two
         await visual.fill(originalVisual);
         const speech = page.locator('[data-exact-dialogue-row] textarea').first();
         assert.equal(await speech.count(), 0, `${context}: automatic mode has no editor`);
-        await page.getByText(catalogs[locale].ai_generator_video_speech_automatic_hint, { exact: true }).waitFor();
+        assert.equal(await page.getByText(catalogs[locale].ai_generator_video_speech_automatic_hint, { exact: true }).count(), 0, "the main panel has no explanatory prose below Subtitles");
         await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
         await fillCommittedStudioText(page, "spokenScript", "Bonjour, nous prenons soin de votre jardin.");
         await assertFramesNeverOverlap(page, `${context} exact`);
@@ -1045,12 +1057,12 @@ test("real Studio video frames render on desktop and mobile and block oversized 
       await fillCommittedStudioText(page, "spokenScript", "un deux trois quatre cinq six sept");
       const duration = page.locator('select[id$="-duration"]');
       await duration.selectOption("4:single");
-      await page.locator('[id$="-spoken-script-count"]').filter({ hasText: "7 / 6 mots" }).waitFor();
+      await assertExactDialogueBudget(page, "7 / 6 mots");
       const generate = page.locator("[data-media-primary-action]");
       assert.equal(await generate.isDisabled(), true);
       await duration.selectOption("8:single");
       assert.equal(await speech.inputValue(), "un deux trois quatre cinq six sept");
-      await page.locator('[id$="-spoken-script-count"]').filter({ hasText: "7 / 14 mots" }).waitFor();
+      await assertExactDialogueBudget(page, "7 / 14 mots");
       assert.equal(await generate.isDisabled(), false);
       await visual.fill("x".repeat(501));
       assert.equal(await visual.inputValue(), "x".repeat(501));

@@ -594,7 +594,7 @@ test("provided voice with Exact empty preserves its photo and blocks spending un
   for(const resolution of ['auto','exact']){const h=harness('video','minimax-h3',2,{realEnginePreference:true});try{
     await h.addPhoto('Moi.png','character');h.chooseVoice(0,'provided');await h.uploadVoice(0);h.enterSpeech('');h.setExactCharacter(0,1);
     assert.equal(h.exactNative().snapshot.open,false);assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text,'');assert.equal(h.quoteInputs.at(-1)!.enabled,false);
-    assert.equal(find(h.tree(),node=>node.props['data-video-voice-script-warning']!==undefined).props.role,'alert');h.consent();await h.invokeGenerateCallback();assert.equal(h.requests.length,0);assert.equal(h.uploads.length,1);
+    h.openExact();assert.ok(elements(h.exactTree()).some(node=>node.props.role==='alert'&&text(node).includes('ai_generator_voice_exact_script_needed')));h.closeExact();h.consent();await h.invokeGenerateCallback();assert.equal(h.requests.length,0);assert.equal(h.uploads.length,1);
     assert.equal(h.quoteInputs.at(-1)!.videoEngine,models.restoreAiMediaVideoPreference('minimax-h3','768p').videoEngine,'Exact keeps the canonical restored preference rather than selecting a supplied-voice fallback');assert.equal(h.storedEnginePreference().videoEngine,'minimax-h3');
     if(resolution==='auto')h.removeSpeech();else {h.enterSpeech('Bonjour, bienvenue chez nous.');h.selectEngine('wan27');}
     assert.equal(h.quoteInputs.at(-1)!.enabled,true);assert.equal(h.voiceSnapshot().voiceReferences[0].voiceMode,'provided');h.consent();await h.generate();assert.equal(h.requests.length,1);assert.equal(h.requests[0].withNarration,false);assert.equal(h.requests[0].inspirationImages![0].voiceSample!.path,h.sample.path);
@@ -665,13 +665,13 @@ test("video visual brief accepts 500 characters and preserves oversized historic
 });
 
 test("video speech live budget blocks seven words at four seconds then preserves the exact offscreen line when duration and engine change", async()=>{
- const h=harness('video','wan3');try{h.setDuration(4);const script='un deux trois quatre cinq six sept';h.enterSpeech(script);assert.match(text(h.tree()),/7 \/ 6 mots/);await h.invokeGenerateCallback();assert.equal(h.requests.length,0);
- h.setDuration(8);h.changePreferredVideoEngine('veo');assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text,script);assert.match(text(h.tree()),/7 \/ 14 mots/);await h.invokeGenerateCallback();assert.equal(h.requests.length,1);assert.deepEqual(h.requests[0].exactDialogue,[{speaker:'ai_voice',text:script}]);assert.equal(h.requests[0].withNarration,true);assert.equal(h.requests[0].teamVideoSpeechMode,'voiceover');
+ const h=harness('video','wan3');try{h.setDuration(4);const script='un deux trois quatre cinq six sept';h.enterSpeech(script);assert.match(text(h.exactTree()),/7 \/ 6 mots/);await h.invokeGenerateCallback();assert.equal(h.requests.length,0);
+ h.setDuration(8);h.changePreferredVideoEngine('veo');assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text,script);assert.match(text(h.exactTree()),/7 \/ 14 mots/);await h.invokeGenerateCallback();assert.equal(h.requests.length,1);assert.deepEqual(h.requests[0].exactDialogue,[{speaker:'ai_voice',text:script}]);assert.equal(h.requests[0].withNarration,true);assert.equal(h.requests[0].teamVideoSpeechMode,'voiceover');
  }finally{h.dispose();}
 });
 
 test("CJK exact speech retains its full live duration budget without truncating input",async()=>{
- const h=harness('video','wan3',2,{locale:'zh-CN'});try{h.setDuration(8,'multi');const script='你'.repeat(37);h.enterSpeech(script);assert.match(text(h.tree()),/37 \/ 36 caractères prononcés/);await h.invokeGenerateCallback();assert.equal(h.requests.length,0);h.setDuration(30);await h.invokeGenerateCallback();assert.equal(h.requests.length,1);assert.deepEqual(h.requests[0].exactDialogue,[{speaker:'ai_voice',text:script}]);}finally{h.dispose();}
+ const h=harness('video','wan3',2,{locale:'zh-CN'});try{h.setDuration(8,'multi');const script='你'.repeat(37);h.enterSpeech(script);assert.match(text(h.exactTree()),/37 \/ 36 caractères prononcés/);await h.invokeGenerateCallback();assert.equal(h.requests.length,0);h.setDuration(30);await h.invokeGenerateCallback();assert.equal(h.requests.length,1);assert.deepEqual(h.requests[0].exactDialogue,[{speaker:'ai_voice',text:script}]);}finally{h.dispose();}
 });
 
 test("oral instructions in the visual frame require complete explicit dialogue while visible slogans stay visual",async()=>{
@@ -763,7 +763,7 @@ test("account changes erase speech and image creation never offers or submits it
   const h = harness(); h.addSpeech(); h.enterSpeech("Un texte privé du compte A.");
   h.changeAccount();
   assert.equal(Object.hasOwn(h.quoteInputs.at(-1)!, "spokenScript"), false);
-  assert.notEqual(find(h.tree(), (node) => String(node.props.id).endsWith("-spoken-script-panel")).props.hidden, true);
+  assert.equal(elements(h.tree()).some(node=>String(node.props.id).endsWith("-spoken-script-panel")), false);
   h.addSpeech();
   assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text, "");
   h.dispose();

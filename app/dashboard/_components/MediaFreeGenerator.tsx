@@ -1582,7 +1582,6 @@ export default function MediaFreeGenerator({
                 <label className={styles.speechSelectField} htmlFor={`${instanceId}-video-speech-mode`}>
                 <span>{t("ai_generator_free_audio_characters")}</span>
                 <select id={`${instanceId}-video-speech-mode`} className={styles.spokenScriptModeSelect} value={exactSpeechEditorVisible ? voiceConfigurationMode : speechMode} disabled={locked || exactSpeechEditorVisible}
-                  aria-describedby={!exactSpeechEditorVisible && hasSpokenScript ? `${instanceId}-speech-mode-help` : undefined}
                   onChange={event => {
                     if (exactSpeechEditorVisible) return;
                     const mode = event.target.value as typeof speechMode;
@@ -1601,7 +1600,6 @@ export default function MediaFreeGenerator({
                   value={spokenScriptOpen ? "exact" : "automatic"}
                   disabled={locked}
                   aria-label={`${t("ai_generator_video_speech_automatic")} / ${t("ai_generator_video_speech_exact")}`}
-                  aria-controls={`${instanceId}-spoken-script-panel`}
                   aria-describedby={`${instanceId}-spoken-script-help`}
                   onChange={(event) => {
                     if (event.target.value === "exact") {
@@ -1618,6 +1616,7 @@ export default function MediaFreeGenerator({
                 {exactSpeechEditorVisible ? <StudioExactDialogueEditor enabled={editorAvailable && !voicePoolOpen && !libraryOpen && !mediaSettingsDialog} disabled={locked}
                   scopeKey={quota?.accountId ?? ""} rows={exactRows} onChange={setExactRows} characters={exactCharacters}
                   speechBudget={{ units: speechDisplayBudget.units, maxUnits: speechDisplayBudget.maxUnits, characters: speechDisplayBudget.characters, maxCharacters: speechDisplayBudget.maxCharacters, unitLabel: speechUnit, engineLabel: videoModel.label, durationSeconds: duration }}
+                  validationMessage={audioSettingsWarning || undefined}
                   onOpenChange={setExactDialogueOpen} legacyImported={legacyExactImported} defaultSpeaker={narrationVoiceMode === "provided" && narrationVoiceSample ? "provided_voice" : "ai_voice"} /> : null}
                 </div>
                 <div className={`${styles.speechSelectField} ${styles.voiceSourceField}`}>
@@ -1648,31 +1647,6 @@ export default function MediaFreeGenerator({
                     data-media-subtitles onChange={event => setWithSubtitles(event.target.checked)} />
                   <span>{t("ai_generator_free_subtitles")}</span>
                 </label>
-              </div>
-              {providedVoiceWithEmptyScript ? <p className={styles.referenceWarning} data-video-voice-script-warning role="alert">{t("ai_generator_voice_exact_script_needed")}</p> : null}
-              {providedNarrationVoiceActive && audioSettingsWarning && !providedVoiceWithEmptyScript ? <p className={styles.referenceWarning} role="alert">{audioSettingsWarning}</p> : null}
-              {!exactSpeechEditorVisible && hasSpokenScript ? <p id={`${instanceId}-speech-mode-help`} className={styles.srOnly}>{t("ai_generator_spoken_script_remove_for_silent")}</p> : null}
-              <div id={`${instanceId}-spoken-script-panel`} className={styles.spokenScriptContent}>
-              {exactSpeechEditorVisible ? <>
-              <div className={styles.spokenScriptInput}>
-                <span id={`${instanceId}-spoken-script-count`} className={styles.spokenScriptCounter} aria-live="polite">
-                  {t("ai_generator_video_speech_count", { count: speechDisplayBudget.units.toLocaleString(locale), max: speechDisplayBudget.maxUnits.toLocaleString(locale), unit: speechUnit })}
-                  {" · "}{t("ai_generator_video_speech_character_count", { count: speechDisplayBudget.characters.toLocaleString(locale), max: speechDisplayBudget.maxCharacters.toLocaleString(locale) })}
-                </span>
-              </div>
-              <p id={`${instanceId}-spoken-script-budget`} className={explicitlyEmptySpokenScript ? styles.promptHelp : styles.srOnly}
-                title={explicitlyEmptySpokenScript ? t("ai_generator_exact_dialogue_empty") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}>
-                <span aria-hidden="true">{explicitlyEmptySpokenScript ? t("ai_generator_exact_dialogue_empty") : t("ai_generator_video_speech_budget_short", { seconds: duration, model: videoModel.label })}</span>
-                <span className={styles.srOnly}>{explicitlyEmptySpokenScript ? t("ai_generator_exact_dialogue_empty") : t("ai_generator_video_speech_budget", { seconds: duration, model: videoModel.label })}</span>
-              </p>
-              </> : speechMode !== "silent" ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_automatic_hint")}</p> : null}
-              {!spokenScriptOpen && speechState.script ? <p className={styles.promptHelp}>{t("ai_generator_video_speech_legacy")}</p> : null}
-              {(exactSpeechEditorVisible || Boolean(speechState.script)) && speechState.segmentBudgets.length > 1 && requestSpeechMode === "characters" ? <div className={styles.speechSegments}>
-                {speechState.segmentBudgets.map((segment, index) => <span key={index} data-invalid={segment.issue ? true : undefined}>
-                  {t("ai_generator_video_speech_segment", { index: index + 1, seconds: segment.durationSeconds, count: segment.units.toLocaleString(locale), max: segment.maxUnits.toLocaleString(locale), unit: speechUnit })}
-                </span>)}
-              </div> : null}
-              {speechInvalid ? <p id={`${instanceId}-spoken-script-error`} className={styles.videoFrameError} role="alert">{speechError}</p> : null}
               </div>
             </div>
           </div> : <p id={`${instanceId}-prompt-help`} className={styles.srOnly}>
