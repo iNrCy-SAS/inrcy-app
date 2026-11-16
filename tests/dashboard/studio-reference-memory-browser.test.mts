@@ -16,8 +16,17 @@ assert.ok(firstTest);
 const prefix = source.slice(0, firstTest.getStart(ast)).replaceAll("import.meta.url", JSON.stringify(original.href))
   .replace('from "@playwright/test"', `from ${JSON.stringify(pathToFileURL(require.resolve("@playwright/test")).href)}`)
   .replace('from "typescript"', `from ${JSON.stringify(pathToFileURL(require.resolve("typescript")).href)}`);
-const compiled = ts.transpileModule(`${prefix}\nexport { mount };`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
-const { mount } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`) as { mount: (page: Page) => Promise<string[]> };
+async function loadFixture(realEnginePreference = false) {
+  let selected = prefix;
+  if (realEnginePreference) {
+    selected = selected.replace('const fixture = `', 'add("app/dashboard/_hooks/useMediaEnginePreference.ts");\nconst fixture = `');
+    const hookStub = selected.split("\n").find(line => line.includes("if(name.endsWith('useMediaEnginePreference'))")); assert.ok(hookStub);
+    selected = selected.replace(hookStub, " if(name.endsWith('useMediaEnginePreference'))return require('app/dashboard/_hooks/useMediaEnginePreference.ts');");
+  }
+  const compiled = ts.transpileModule(`${selected}\nexport { mount };`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext } }).outputText;
+  return await import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`) as { mount: (page: Page) => Promise<string[]> };
+}
+const { mount } = await loadFixture();
 const id = (last: number) => `00000000-0000-4000-8000-${String(last).padStart(12, "0")}`;
 
 test("real Studio remembers photos and their dedicated voices across fresh sessions and forgets only the default on desktop and mobile", async () => {
@@ -138,6 +147,68 @@ test("real Studio remembers photos and their dedicated voices across fresh sessi
         });
         assert.equal(await page.locator('select[id$="-video-speech-mode"]').inputValue(), explicitMode, "late saved defaults preserve an explicit current choice");
         await assertNamesAndNumbers();
+      }
+      assert.deepEqual(errors, []); await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test("real stored engine hydration keeps the DOM selection, effective provider and quote eligibility consistent with remembered voices", async () => {
+  const { mount: mountRealPreference } = await loadFixture(true);
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const preference of [null, { videoEngine: "wan27", videoResolution: "1080p", imageEngine: "openai" }]) {
+      const page = await browser.newPage({ viewport: { width: 1460, height: 900 } });
+      if (preference) await page.addInitScript(value => localStorage.setItem("inrcy:media-engines:v1:fixture", JSON.stringify(value)), preference);
+      const errors = await mountRealPreference(page), expectedEngine = preference?.videoEngine || "omni", expectedResolution = preference?.videoResolution || "720p";
+      await page.waitForFunction(engine => (window as unknown as { fixtureStudioInterfaces: Record<string, { snapshot: { videoEngine?: string } }> }).fixtureStudioInterfaces.studio_free_form.snapshot.videoEngine === engine, expectedEngine);
+      const storedBefore = await page.evaluate(() => localStorage.getItem("inrcy:media-engines:v1:fixture"));
+      await page.evaluate(() => (window as unknown as { fixtureRoot: { render(value: null): void } }).fixtureRoot.render(null));
+      await page.locator("[data-media-tools]").waitFor({ state: "detached" });
+      await page.evaluate(() => {
+        type FixtureState = Window & { fixtureReferencePreparationEnabled: boolean; fixtureReferencePng: string; renderStudio(prompt: string, kind: string): void };
+        const state = window as unknown as FixtureState, prior = window.fetch;
+        const id = (last: number) => `00000000-0000-4000-8000-${String(last).padStart(12, "0")}`;
+        const memory: StudioReferenceMemory = { version: 1, references: [
+          { id: id(1), mediaLibraryId: id(11), role: "character", usage: "required", characterName: "David", voiceMode: "provided" },
+          { id: id(2), mediaLibraryId: id(12), role: "character", usage: "required", characterName: "Kathia", voiceMode: "provided" }],
+          voices: [{ id: id(3), libraryMediaId: id(13), target: { referenceId: id(1) }, gender: "male" },
+            { id: id(4), libraryMediaId: id(14), target: { referenceId: id(2) }, gender: "female" }], activeNarrationVoiceId: null };
+        state.fixtureReferencePreparationEnabled = true;
+        window.fetch = async (input, init = {}) => {
+          const url = String(input);
+          if (url === "/api/media-generation/references") return Response.json({ ok: true, accountId: "fixture", memory, unavailableMediaIds: [],
+            media: memory.references.map(reference => ({ id: reference.mediaLibraryId, media_type: "image", mime_type: "image/png", original_file_name: "portrait.png", title: null,
+              signed_url: `/__local-stored-engine/${reference.mediaLibraryId}`, size_bytes: 80, width: 2, height: 2, duration_seconds: null })) });
+          if (url.startsWith("/__local-stored-engine/")) return new Response(Uint8Array.from(atob(state.fixtureReferencePng), character => character.charCodeAt(0)), { headers: { "content-type": "image/png" } });
+          if (url === "/api/media-generation/voice-reference" && init.method === "POST") {
+            const libraryMediaId = JSON.parse(String(init.body)).mediaLibraryId as string;
+            return Response.json({ ok: true, sample: { path: `_studio-voice-references/fixture__${libraryMediaId}.wav`, name: "vocal.wav", mimeType: "audio/wav", durationSeconds: 7, sizeBytes: 224044, libraryMediaId } });
+          }
+          return prior(input, init);
+        };
+        state.renderStudio("Notre duo présente son activité.", "video");
+      });
+      await page.locator("[data-media-tools]").waitFor({ state: "visible" });
+      await page.waitForFunction(() => { const state = (window as unknown as { fixtureStudioInterfaces: Record<string, { snapshot: { loaded?: boolean; busy?: boolean } }> }).fixtureStudioInterfaces.studio_reference_memory.snapshot; return state.loaded && !state.busy; });
+      const readState = () => page.evaluate(() => {
+        const state = window as unknown as { fixtureStudioInterfaces: Record<string, { snapshot: { videoEngine?: string } }>; studioQuotes: Array<{ videoEngine: string; enabled: boolean }>; studioRequests: unknown[] };
+        const select = document.querySelector<HTMLSelectElement>('[data-media-engine-controls] select[id$="-engine"]')!;
+        return { effective: state.fixtureStudioInterfaces.studio_free_form.snapshot.videoEngine, dom: select.value, label: select.selectedOptions[0]?.textContent,
+          disabled: select.selectedOptions[0]?.disabled, quote: state.studioQuotes.at(-1), generationCalls: state.studioRequests.length,
+          selectable: [...select.options].filter(option => !option.disabled).map(option => option.value), stored: localStorage.getItem("inrcy:media-engines:v1:fixture") };
+      });
+      const restored = await readState();
+      assert.equal(restored.effective, expectedEngine); assert.equal(restored.dom, `${expectedEngine}:${expectedResolution}`, "the browser must display the effective engine rather than its first surviving option");
+      assert.equal(restored.quote?.videoEngine, expectedEngine); assert.equal(restored.quote?.enabled, Boolean(preference));
+      assert.equal(restored.disabled, !preference); assert.equal(restored.stored, storedBefore); assert.equal(restored.generationCalls, 0);
+      for (const value of restored.selectable) assert.match(value, /^(?:wan27|kling):/);
+      assert.ok(restored.label?.includes(preference ? "Wan 2.7" : "Gemini Omni"));
+      if (!preference) {
+        await page.locator('[data-media-engine-controls] select[id$="-engine"]').selectOption("kling:720p");
+        await page.waitForFunction(() => (window as unknown as { studioQuotes: Array<{ enabled: boolean }> }).studioQuotes.at(-1)?.enabled === true);
+        const explicit = await readState(); assert.equal(explicit.effective, "kling"); assert.equal(explicit.dom, "kling:720p"); assert.equal(explicit.quote?.videoEngine, "kling");
+        assert.equal(explicit.generationCalls, 0, "selecting a compatible engine never starts a paid generation");
       }
       assert.deepEqual(errors, []); await page.close();
     }

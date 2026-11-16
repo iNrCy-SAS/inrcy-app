@@ -1241,14 +1241,17 @@
       "quoteMediaGeneration"
     ],
     "mode": "form",
-    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : props.kind === \"video\". Le devis natif courant (tarif v5) distingue audio natif Personnages et vidéo sans audio Veo quand la voix off est produite séparément. Montants lus du devis, jamais du seul libellé catalogue ; aucun ancien devis réutilisé après changement.",
+    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : props.kind === \"video\". Le devis natif courant (tarif v5) distingue audio natif Personnages et vidéo sans audio Veo quand la voix off est produite séparément. Montants lus du devis, jamais du seul libellé catalogue ; aucun ancien devis réutilisé après changement. Une valeur courante incompatible reste uniquement affichée disabled/Indisponible pour ne pas montrer un autre moteur par défaut. Cette option ne peut pas être choisie par le callback et n’autorise aucun devis ni génération ; le choix explicite d’un moteur compatible reste nécessaire.",
     "testFiles": [
-      "tests/ai-assistant/media-tools.test.mts"
+      "tests/ai-assistant/media-tools.test.mts",
+      "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts",
+      "tests/dashboard/studio-reference-memory-browser.test.mts"
     ],
     "testAnchor": "a Studio cost question calls the native quote only and never accepts an existing draft",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/MediaEngineCreditControls.tsx#option:73b995fe9ae912d0:1"
+      "app/dashboard/_components/MediaEngineCreditControls.tsx#option:73b995fe9ae912d0:1",
+      "app/dashboard/_components/MediaEngineCreditControls.tsx#option:c5a34ced5b0eda13:1"
     ],
     "additionalProofs": [
       {
@@ -1262,6 +1265,14 @@
       {
         "file": "tests/ai-media-generation/veo-gateway-routing-runtime.test.mts",
         "testAnchor": "the real registry and Gateway preserve Fast and Lite model resolution duration audio and zero retries without a Gemini preview call"
+      },
+      {
+        "file": "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts",
+        "testAnchor": "a current engine excluded by provided voices remains visible and disabled without becoming another priced choice"
+      },
+      {
+        "file": "tests/dashboard/studio-reference-memory-browser.test.mts",
+        "testAnchor": "real stored engine hydration keeps the DOM selection, effective provider and quote eligibility consistent with remembered voices"
       }
     ]
   },

@@ -78,6 +78,30 @@ const selectEngine = (tree: unknown, value: string) => {
   (select.props.onChange as (event: { target: { value: string } }) => void)({ target: { value } });
 };
 
+test("a current engine excluded by provided voices remains visible and disabled without becoming another priced choice", () => {
+  for (const resolution of models.getAiMediaVideoModel("omni").resolutions) {
+    const runtime = controls({ videoEngine: "omni", resolution, referenceCount: 2, hasProvidedCharacterVoice: true,
+      allowedVideoEngines: ["wan27", "kling"], allowedVideoEnginesReason: t("ai_generator_character_voice_engine_required") });
+    const select = find(runtime.tree, node => node.type === "select" && String(node.props.id).endsWith("-engine"));
+    assert.equal(select.props.value, `omni:${resolution}`);
+    const selected = engineOption(runtime.tree, String(select.props.value));
+    assert.equal(selected.props.disabled, true); assert.ok(text(selected).includes("Gemini Omni"));
+    assert.ok(text(selected).includes(t("ai_generator_model_unavailable_short")));
+    for (const option of elements(select).filter(node => node.type === "option" && !node.props.disabled)) assert.match(String(option.props.value), /^(?:wan27|kling):/);
+    selectEngine(runtime.tree, `omni:${resolution}`); assert.deepEqual(runtime.changes, [], "an unavailable current value is not an actionable engine choice");
+    selectEngine(runtime.tree, "wan27:1080p"); assert.deepEqual(runtime.changes, [["engine", "wan27", "1080p"]]);
+  }
+});
+
+test("a saved Wan 2.7 quality stays selected and eligible when dedicated voices are restored", () => {
+  const runtime = controls({ videoEngine: "wan27", resolution: "1080p", referenceCount: 2, hasProvidedCharacterVoice: true,
+    allowedVideoEngines: ["wan27", "kling"], allowedVideoEnginesReason: t("ai_generator_character_voice_engine_required") });
+  const select = find(runtime.tree, node => node.type === "select" && String(node.props.id).endsWith("-engine"));
+  assert.equal(select.props.value, "wan27:1080p"); assert.equal(engineOption(runtime.tree, "wan27:1080p").props.disabled, false);
+  assert.ok(!text(engineOption(runtime.tree, "wan27:1080p")).includes(t("ai_generator_character_voice_engine_required")));
+  assert.deepEqual(runtime.changes, []);
+});
+
 test("Wan 2.6 est grisé sans référence avec une raison précise, indépendamment de la durée choisie", () => {
   for (const durationSeconds of [8, 20, 30]) {
     const runtime = controls({ durationSeconds });

@@ -255,6 +255,9 @@ export default function MediaEngineCreditControls(props: Props) {
       const choice = choices.find((option) => option.value === event.target.value);
       if (choice) selectVideoPair(choice.engine, choice.resolution);
     }}>
+      {!choices.some(option => option.value === `${props.videoEngine}:${selectedResolution}`) ? <option value={`${props.videoEngine}:${selectedResolution}`} disabled title={videoCompatibilityReason(props.videoEngine)}>
+        {model.label} · {selectedResolution} · {t("ai_generator_model_unavailable_short")}
+      </option> : null}
       {[...new Set(choices.map((option) => option.family))].map((family) => <optgroup key={family} label={family}>
         {choices.filter((option) => option.family === family).map((option) => <option key={option.value} value={option.value} disabled={!pairSelectable(option.engine, option.resolution)}>
           {option.label} · {option.resolution} · {t("ai_generator_model_credit_rate_short", { credits: new Intl.NumberFormat(locale).format(option.creditsPerSecond) })}
