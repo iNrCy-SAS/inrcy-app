@@ -1165,5 +1165,16 @@
   "ai_generator_exact_dialogue_character_voices": "เสียงของตัวละคร",
   "ai_generator_exact_dialogue_provided_voice": "เสียงบันทึกที่ให้มา · {name}",
   "ai_generator_exact_dialogue_provided_narrator": "เสียงบรรยายจากเสียงบันทึก",
-  "ai_generator_exact_dialogue_provided_mix": "บทพูดเหล่านี้ต้องใช้เสียงบรรยายจากเสียงบันทึกเพียงอย่างเดียว"
+  "ai_generator_exact_dialogue_provided_mix": "บทพูดเหล่านี้ต้องใช้เสียงบรรยายจากเสียงบันทึกเพียงอย่างเดียว",
+  "ai_generator_reference_memory_remember": "จดจำ",
+  "ai_generator_reference_memory_update": "อัปเดต",
+  "ai_generator_reference_memory_forget": "ลืม",
+  "ai_generator_reference_memory_hint": "ใช้สื่อและเสียงเหล่านี้อีกครั้งในการสร้างครั้งถัดไป",
+  "ai_generator_reference_memory_saved": "จดจำสื่อแล้ว",
+  "ai_generator_reference_memory_saving": "กำลังบันทึก…",
+  "ai_generator_reference_memory_loading": "กำลังโหลดสื่อที่จดจำไว้…",
+  "ai_generator_reference_memory_load_error": "สื่อที่จดจำไว้ไม่พร้อมใช้งาน โปรดเปิด Studio ใหม่เพื่อลองอีกครั้ง",
+  "ai_generator_reference_memory_save_error": "ไม่สามารถจดจำสื่อได้ ตรวจสอบรูปภาพและเสียงแล้วลองอีกครั้ง",
+  "ai_generator_reference_memory_forget_error": "ไม่สามารถลืมสื่อเหล่านี้ได้ โปรดลองอีกครั้ง",
+  "ai_generator_reference_memory_forget_hint": "ลืมการเลือกนี้สำหรับการสร้างครั้งถัดไป"
 }

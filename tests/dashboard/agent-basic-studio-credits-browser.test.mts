@@ -18,6 +18,7 @@ const browserSources = Object.fromEntries([
   "app/dashboard/_hooks/useMediaEnginePreference.ts",
   "app/dashboard/agent/_lib/agent.utils.ts",
   "lib/aiMediaModelCatalog.ts", "lib/aiMediaCreditsPricing.ts", "lib/aiMediaVideoTimeline.ts", "lib/aiMediaCharacterVoices.ts",
+  "lib/aiMediaExactDialogue.ts", "lib/aiMediaVideoSpeechBudget.ts", "lib/aiMediaSpokenScript.ts",
   "lib/inrAgentSettings.ts", "lib/siteWebChannel.ts", "lib/standardAgentPolicy.ts", "lib/metaChannelUiAccess.ts", "lib/inrAgentPublicationHistory.ts",
   "lib/userFacingErrors.ts", "lib/appLanguage.ts", "lib/publicationErrorFrench.ts", "lib/metaGraphErrorClassification.ts",
   "lib/aiMediaGenerationPublicErrorI18n.ts", "lib/aiMediaGenerationPublicErrorCopy.ts",

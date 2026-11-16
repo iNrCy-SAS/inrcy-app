@@ -1,3 +1,4 @@
+import { requestedStudioReferenceMemoryAction } from './inrAssistantStudioReferenceMemory.ts';
 import { getInrAssistantAgentSettingsRequest } from './inrAssistantAgentSettingsUi.ts';
 export { getInrAssistantAgentSettingsRequest };
 import { INR_ASSISTANT_PUBLIC_LINK_TARGETS } from "./inrAssistantNativeChannelLinks.ts";
@@ -6,8 +7,9 @@ import { normalizeAiMediaCharacterName } from './aiMediaCharacterVoices.ts';
 import { isInrAssistantStudioExactDialogueRequest, isInrAssistantStudioExactDialogueValueRequested, parseInrAssistantStudioExactDialogueSelection } from './inrAssistantStudioExactDialogue.ts';
 
 /** Finite local UI helpers only: no selector, URL, script, account switch,
- * consent, submit, delete, provider write or arbitrary component callback. */
-export const INR_ASSISTANT_LOCAL_INTERFACES = ['generator', 'help', 'help_dialog', 'contact', 'legal', 'channel_board', 'channel_formats', 'badge_actions', 'website_actions', 'channel_parameters', 'channel_header', 'engine_info', 'profession_picker', 'dna_sources', 'business_location', 'dna_schedule', 'studio_guided_form', 'studio_free_form', 'studio_media_images', 'studio_video_audio', 'studio_video_music', 'studio_voice_pool', 'studio_exact_dialogue', 'studio_workspace', 'studio_result_viewer', 'studio_modal', 'badge_qr_options', 'badge_download_options', 'badge_link', 'channel_formats_facebook', 'channel_formats_instagram', 'cookie_options', 'website_ga4_details', 'website_gsc_details', 'writing_web_length_options', 'writing_social_length_options', 'language_options', 'notification_menu', 'planning_calendar', 'send_history', 'send_details', 'planning_day', 'planning_filters', 'send_preview', 'generator_settings', 'booster_stats', 'publication_media_preview', 'publication_adjustment', 'publication_review', 'publication_warning', 'channel_image_dialog', 'channel_image_viewer', 'google_review_details', 'media_import', 'writing_cta_channels', 'writing_cta_choices', 'subscription_activation_choice', 'studio_modifier', 'google_profile_draft', 'google_primary_category', 'google_additional_category', 'public_channel_link', 'channel_link_editor', 'channel_link_draft', 'publication_soundtrack_facebook', 'publication_soundtrack_instagram', 'emoji_picker', 'content_report', 'settings_drawer', 'dashboard_info', 'establishment_menu', 'mobile_menu', 'video_recharge', 'dna_text_description', 'dna_text_mission', 'dna_text_offers', 'dna_text_arguments', 'dna_text_proofs', 'dna_text_responses', 'dna_text_strategy', 'dna_text_calendar', 'publication_wizard', 'stats_channel_detail', 'studio_guided_library', 'studio_free_library', 'studio_retouch_library', 'studio_reference_information', 'studio_draft_reset', 'studio_draft_close', 'studio_draft_abandon', 'studio_recovery_guided', 'studio_recovery_free', 'publication_tiktok_settings', 'google_profile_sections', 'google_special_hours', 'google_weekly_hours', 'google_profile_reload', 'inertia_help', 'scheduled_publication_channel', 'scheduled_publication_editor', 'scheduled_publication_text_form', 'scheduled_publication_media', 'scheduled_publication_library', 'scheduled_publication_options', 'scheduled_publication_workspace', 'search_presentation', 'channel_cockpit', 'channel_cockpit_filter', 'inertia_views', 'boutique_views', 'boutique_help', 'subscription_details', 'subscription_invoices', 'planning_edit_choice', 'planning_workspace', 'planning_confirmation', 'planning_image', 'send_help', 'send_links', 'send_editor', 'pinterest_board_name', 'pinterest_boards', 'badge_identity_theme', 'planning_item', 'agent_settings'] as const;
+ * consent, provider write or arbitrary component callback. The finite Studio
+ * memory control only saves/forgets the explicitly requested account preset. */
+export const INR_ASSISTANT_LOCAL_INTERFACES = ['generator', 'help', 'help_dialog', 'contact', 'legal', 'channel_board', 'channel_formats', 'badge_actions', 'website_actions', 'channel_parameters', 'channel_header', 'engine_info', 'profession_picker', 'dna_sources', 'business_location', 'dna_schedule', 'studio_guided_form', 'studio_free_form', 'studio_media_images', 'studio_video_audio', 'studio_video_music', 'studio_voice_pool', 'studio_reference_memory', 'studio_exact_dialogue', 'studio_workspace', 'studio_result_viewer', 'studio_modal', 'badge_qr_options', 'badge_download_options', 'badge_link', 'channel_formats_facebook', 'channel_formats_instagram', 'cookie_options', 'website_ga4_details', 'website_gsc_details', 'writing_web_length_options', 'writing_social_length_options', 'language_options', 'notification_menu', 'planning_calendar', 'send_history', 'send_details', 'planning_day', 'planning_filters', 'send_preview', 'generator_settings', 'booster_stats', 'publication_media_preview', 'publication_adjustment', 'publication_review', 'publication_warning', 'channel_image_dialog', 'channel_image_viewer', 'google_review_details', 'media_import', 'writing_cta_channels', 'writing_cta_choices', 'subscription_activation_choice', 'studio_modifier', 'google_profile_draft', 'google_primary_category', 'google_additional_category', 'public_channel_link', 'channel_link_editor', 'channel_link_draft', 'publication_soundtrack_facebook', 'publication_soundtrack_instagram', 'emoji_picker', 'content_report', 'settings_drawer', 'dashboard_info', 'establishment_menu', 'mobile_menu', 'video_recharge', 'dna_text_description', 'dna_text_mission', 'dna_text_offers', 'dna_text_arguments', 'dna_text_proofs', 'dna_text_responses', 'dna_text_strategy', 'dna_text_calendar', 'publication_wizard', 'stats_channel_detail', 'studio_guided_library', 'studio_free_library', 'studio_retouch_library', 'studio_reference_information', 'studio_draft_reset', 'studio_draft_close', 'studio_draft_abandon', 'studio_recovery_guided', 'studio_recovery_free', 'publication_tiktok_settings', 'google_profile_sections', 'google_special_hours', 'google_weekly_hours', 'google_profile_reload', 'inertia_help', 'scheduled_publication_channel', 'scheduled_publication_editor', 'scheduled_publication_text_form', 'scheduled_publication_media', 'scheduled_publication_library', 'scheduled_publication_options', 'scheduled_publication_workspace', 'search_presentation', 'channel_cockpit', 'channel_cockpit_filter', 'inertia_views', 'boutique_views', 'boutique_help', 'subscription_details', 'subscription_invoices', 'planning_edit_choice', 'planning_workspace', 'planning_confirmation', 'planning_image', 'send_help', 'send_links', 'send_editor', 'pinterest_board_name', 'pinterest_boards', 'badge_identity_theme', 'planning_item', 'agent_settings'] as const;
 export const INR_ASSISTANT_LOCAL_OPERATIONS = ['close', 'open', 'search', 'select', 'copy', 'previous', 'next', 'retry', 'clear', 'review', 'play', 'stop'] as const;
 export type InrAssistantLocalInterface = typeof INR_ASSISTANT_LOCAL_INTERFACES[number];
 export type InrAssistantLocalOperation = typeof INR_ASSISTANT_LOCAL_OPERATIONS[number];
@@ -18,6 +20,7 @@ const ALLOWED_OPERATIONS: Record<InrAssistantLocalInterface, readonly InrAssista
   studio_guided_form: ['select', 'retry'], studio_free_form: ['select', 'retry'], studio_workspace: ['open', 'close', 'select'], studio_result_viewer: ['close', 'select'], studio_modal: ['close', 'select'],
   studio_media_images: ['open', 'close', 'select'], studio_video_audio: ['open', 'close'], studio_video_music: ['open', 'close', 'select', 'play', 'stop', 'retry'],
   studio_voice_pool: ['open', 'close', 'select'],
+  studio_reference_memory: ['select'],
   studio_exact_dialogue: ['open', 'close', 'select'],
   badge_qr_options: ['open', 'close'], badge_download_options: ['open', 'close'], badge_link: ['copy'], channel_formats_facebook: ['open', 'close'], channel_formats_instagram: ['open', 'close'], cookie_options: ['open', 'close'],
   website_ga4_details: ['open', 'close'], website_gsc_details: ['open', 'close'],
@@ -107,6 +110,10 @@ export function parseInrAssistantLocalInterfaceCommand(value: unknown): InrAssis
     const valid = row.operation === 'select' ? Boolean(dialogue) : row.value === null;
     return valid ? { command: row.command, selection: { kind: 'account_document', id: selection.id }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: dialogue ? JSON.stringify(dialogue) : null } : null;
   }
+  if (selection.id === 'studio_reference_memory') {
+    return row.operation === 'select' && (row.value === 'remember' || row.value === 'forget')
+      ? { command: row.command, selection: { kind: 'account_document', id: selection.id }, revision: row.revision, operation: 'select', value: row.value } : null;
+  }
   if (selection.id === "studio_voice_pool") {
     const characterName = row.operation === 'select' ? parseInrAssistantStudioCharacterNameSelection(row.value) : null;
     const valid = row.operation === "close" || row.operation === "open" && row.value === null ? row.value === null : typeof row.value === "string" &&
@@ -121,6 +128,7 @@ export function parseInrAssistantLocalInterfaceCommand(value: unknown): InrAssis
   return { command: row.command, selection: { kind: 'account_document', id: selection.id as InrAssistantLocalInterface }, revision: row.revision, operation: row.operation as InrAssistantLocalOperation, value: row.value as string | null };
 }
 const TARGETS: Record<InrAssistantLocalInterface, RegExp> = {
+  studio_reference_memory: /(?:studio|inrstudio).*(?:memoire|memor|references|personnages)|(?:memoire|memor|references|personnages).*(?:studio|inrstudio)/,
   agent_settings: /agent.{0,50}(?:reglages?|parametres?|settings)|(?:reglages?|parametres?|settings).{0,50}agent/,
   generator: /generateur|cockpit/,
   help: /aide|guide|help|faq/, help_dialog: /aide|guide|help/, contact: /assistance|support|formulaire.{0,15}contact|message.{0,15}contact/, legal: /legal|cga|conditions|confidentialite/,
@@ -232,6 +240,7 @@ const TARGETS: Record<InrAssistantLocalInterface, RegExp> = {
 };
 const OPERATIONS: Record<InrAssistantLocalOperation, RegExp> = { play: /ecoute|joue|demarre.{0,15}lecture|play/, stop: /arrete.{0,15}(?:lecture|musique)|pause|stop/, review: /presente|prepare|validation|verifi|review/, clear: /\b(?:annule\w*|efface\w*|vide\w*|reinitialise\w*|clear)\b/, close: /\b(?:ferme\w*|referme\w*|masque\w*|close|hide)\b/, open: /\b(?:ouvre\w*|ouvrir|affiche\w*|montre\w*|agrandis\w*|open|show|expand)\b/, search: /\b(?:cherche\w*|recherch\w*|search)\b/, select: /\b(?:selectionne\w*|choisis|choisir|affiche\w*|modifie\w*|change\w*|regle\w*|mets|select|choose)\b/, copy: /\b(?:copie\w*|copy)\b/, previous: /precedent|previous/, next: /suivant|next/, retry: /reessaie|retente|recharge|actualise|retry|reload|refresh/ };
 export function isInrAssistantLocalInterfaceRequest(message: string, target?: InrAssistantLocalInterface, operation?: InrAssistantLocalOperation): boolean {
+  if (target === 'studio_reference_memory') return (!operation || operation === 'select') && requestedStudioReferenceMemoryAction(message) !== null;
   if (target === 'agent_settings') { const request = getInrAssistantAgentSettingsRequest(message); return Boolean(request && (!operation || operation === request.operation)); }
   if (!target && getInrAssistantAgentSettingsRequest(message)?.operation === 'open') return false; // The finite navigation opens and verifies this panel, including from another page.
   const text = inrAssistantMaskQuotedText(message).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim();
@@ -278,6 +287,7 @@ export function isInrAssistantLocalInterfaceRequest(message: string, target?: In
   return INR_ASSISTANT_LOCAL_INTERFACES.some(id => TARGETS[id].test(text) && ALLOWED_OPERATIONS[id].some(op => OPERATIONS[op].test(text)));
 }
 export function isInrAssistantLocalInterfaceValueRequested(message: string, target: InrAssistantLocalInterface, operation: InrAssistantLocalOperation, value: string | null): boolean {
+  if (target === 'studio_reference_memory') return operation === 'select' && value !== null && requestedStudioReferenceMemoryAction(message) === value;
   const text = message.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
   if (target === 'studio_exact_dialogue') return ['open', 'close', 'select'].includes(operation) && isInrAssistantStudioExactDialogueValueRequested(message, operation as 'open' | 'close' | 'select', value);
   if (target === "studio_voice_pool") {
@@ -420,7 +430,7 @@ export async function runInrAssistantLocalInterface(command: InrAssistantLocalIn
     const invoked = await new Promise<boolean>((resolve, reject) => {
       let finished = false;
       const finish = (ok: boolean, error?: unknown) => { if (finished) return; finished = true; clearTimeout(timer); clearInterval(scopeTimer); if (error !== undefined) reject(error); else resolve(ok); };
-      const invocationTimeout = command.selection.id === "badge_identity_theme" ? 30000 : 5000;
+      const invocationTimeout = command.selection.id === 'studio_reference_memory' ? 60000 : command.selection.id === "badge_identity_theme" ? 30000 : 5000;
       const timer = setTimeout(() => finish(false), invocationTimeout), scopeTimer = setInterval(() => { if (!stillCurrent()) finish(false); }, 50);
       invocation.then(() => { invocationSettled = true; finish(true); }, error => { invocationSettled = true; finish(false, error); });
     });

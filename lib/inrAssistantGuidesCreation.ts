@@ -47,17 +47,21 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
     keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits", "voix", "vocal", "musiques", "narration", "sous-titres"],
     content: `${productNavigationSummary("studio", false)} Image/Vidéo : format, moteur, durée (s), plans automatiques en Studio Libre ; choix explicite conservé. Moteurs disponibles ; Wan 3 et MiniMax H3 retirés de tous les parcours de génération.
 Visuel : vidéo 500 caractères, image 4 000 ; paroles séparées. Utiliser mon ADN coché par défaut ; décoché : contenu libre sans marque automatique, sauf demande explicite. Booster : sujet illustré sans copie ; texte original ou exact demandé. Zone logo contrôlée avant collage ; coordonnées sur demande. Consignes ET Interdictions de Ma communication intégrales ; les interdictions priment ; incompatibilité bloquée.
-Inspiration/Personnage/Décor/Produit : rôle puis Importer/Médiathèque (images seules). Inspiration facultative, autres Obligatoires ; usage dans les détails. Vérifier identités/doublons.
-Musiques : catalogue iNrCy, Automatique/Sans musique/piste, préécoute, hors vocaux.
+Références : Inspiration/Personnage/Décor/Produit, rôle puis Importer/Médiathèque images. Inspiration facultative, autres obligatoires ; vérifier identités/doublons.
+Références mémorisables par compte.
+Musique iNrCy : Automatique/Sans musique/piste, préécoute ; hors vocaux.
 Exact : Réglages → lignes : texte + Voix off IA (hors champ), Voix off réelle ou Personnage numéroté sur sa photo. Ajouter/Supprimer/Monter/Descendre règle l’ordre. Voix off/Personnages/Sans parole. Automatiques : IA sans champ. Paroles exactes : compteur durée/moteur/plans/langue ; texte/brouillon jamais tronqué, réduction avec accord ou durée compatible. Exact vide = sans parole.
 Voix off IA : Femme/Homme, style. Voix réelle : 3 vocaux max, Ajouter → Importer/Enregistrer/Médiathèque → usage/genre. Voix off sans photo : Chatterbox hors moteur vidéo, 5 à 10 s, un narrateur actif. Personnages : Wan 2.7/Kling Omni, un vocal/personne ; Kling 5 à 10 s, un locuteur. Timbre réel, genre descriptif ; droits/import/enregistrement humains.
 En Libre, paroles exactes compatibles et piste réelle trop longue : une resynthèse supplémentaire, mêmes paroles/vocal ; jamais après erreur réseau/soumission incertaine, ni substitution de voix.
 Sous-titres : durée mesurée, départ estimé, pas d’alignement mot à mot. Barre et ≈% vidéo estimés, sans délai garanti.
-Coût/solde puis Générer ; Enregistrer/Utiliser ce média garde le résultat. Réajuster reprend les critères ; régénérer peut débiter.
+Coût/solde puis Générer ; Enregistrer/Utiliser ce média garde le résultat ; Réajuster les critères ; régénérer peut débiter.
 Vérifier mon média : même tentative, sans relance. Pause/fermeture garde l’identifiant ; critères restent modifiables. Une nouvelle génération attend sa résolution. Annuler la génération : confirmation distincte ; arrêt ≠ absence de débit.
 Basique sans crédits mensuels ; les recharges permettent de générer sans changer d’offre. Booster : type/format fixés.`,
     sourceFiles: [
       "lib/inrAssistantMediaTools.ts",
+      "lib/studioReferences.ts",
+      "app/api/media-generation/references/route.ts",
+      "lib/inrAssistantStudioReferenceMemory.ts",
       "lib/productNavigation.ts",
       "app/dashboard/generer-media/page.tsx",
       "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx",
@@ -100,6 +104,27 @@ Basique sans crédits mensuels ; les recharges permettent de générer sans chan
       "lib/aiMediaModelRecommendation.ts",
       "lib/aiMediaVideoClientOptions.ts",
       "lib/aiMediaNarrationPreparation.ts"
+    ],
+  },
+  {
+    id: "studio-reference-memory",
+    title: "iNrStudio : mémoriser les médias et leurs voix",
+    keywords: ["studio", "inrstudio", "mémoriser", "mémoire", "médias", "références", "personnages", "photos", "noms", "voix", "vocaux", "oublier", "retrouver"],
+    content: `${productNavigationSummary("studio", false)} Dans Studio Libre, Mémoriser conserve les médias sélectionnés, noms des personnages et voix associées pour le seul établissement actif. Les fichiers nécessaires peuvent être ajoutés à la Médiathèque ; aucune création IA n’est lancée.
+Mettre à jour remplace ce jeu ; Oublier retire la mémoire sans supprimer les fichiers de la Médiathèque.
+Le jeu est restauré à la prochaine ouverture, aussi depuis une publication, sauf brouillon ou références déjà fournis : ces choix restent prioritaires. Les associations photo/voix sont conservées ; ne jamais deviner ou permuter les personnages.
+Ne mémorise ni consignes, dialogues, moteur ni autorisations. Les droits d’identité et de voix restent à confirmer par le professionnel ; la mémoire ne vaut pas consentement.
+Les fichiers devenus indisponibles sont signalés, sans remplacement silencieux.
+L’assistant agit uniquement sur la sélection affichée du compte courant, sur demande explicite de mémoriser, mettre à jour ou oublier. Il ne choisit pas des fichiers à la place du professionnel et ne lance ni génération ni achat.`,
+    sourceFiles: [
+      "lib/studioReferences.ts",
+      "lib/studioReferencesServer.ts",
+      "lib/studioReferenceMemoryClient.ts",
+      "app/api/media-generation/references/route.ts",
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "app/dashboard/_components/StudioVoicePool.tsx",
+      "lib/inrAssistantStudioReferenceMemory.ts",
+      "lib/inrAssistantLocalInterface.ts"
     ],
   },
   {

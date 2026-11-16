@@ -55,6 +55,7 @@ const sources = {
   session: compile("app/dashboard/_hooks/useInrStudioSession.tsx"),
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaModifier": compile("app/dashboard/_components/MediaModifier.tsx"),
+  "@/lib/aiMediaExactDialogue": compile("lib/aiMediaExactDialogue.ts"),
   ...Object.fromEntries(["inrStudioNavigation", "inrStudioViewport", "inrStudioModalPolicy", "inrAssistantStudioHandoff", "inrAssistantStudioDraft", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaSoundtrackDefinitions", "aiMediaVideoSpeechBudget", "aiMediaSpokenScript", "aiMediaVideoTimeline", "studioInspirationImagePolicy", "aiMediaNarrationVoices", "mediaRules", "aiMediaCharacterVoices", "inrAssistantStudioModifierSelection", "inrAssistantMediaUiClient", "mediaUploadPolicy", "userFacingErrors", "appLanguage", "publicationErrorFrench", "metaGraphErrorClassification"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
 };
 const dictionaries = { booster: JSON.parse(read("messages/fr-FR/booster.json")), media: JSON.parse(read("messages/fr-FR/media.json")), shell: JSON.parse(read("messages/fr-FR/shell.json")) };
@@ -80,7 +81,7 @@ function require(name){
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])return require('@/lib/'+name.slice(2).replace(/\\.ts$/,''));
  if(name==='next-intl')return {useLocale:()=> 'fr-FR',useTranslations:translate};
  if(name==='next/navigation')return {useRouter:()=>({replace:noOp,push:noOp}),usePathname:()=>'/dashboard',useSearchParams:()=>new URLSearchParams(location.search)};
- if(name==='next/dynamic')return {__esModule:true,default:()=>require('studio').default};
+ if(name==='next/dynamic')return {__esModule:true,default:()=>props=>require('react').createElement(require('studio').default,props)};
  if(name==='@/app/dashboard/_components/DashboardViewerAccessProvider')return {useDashboardViewerAccess:()=>({actorUserId:'actor-a',activeAccountId:'account-a'})};
  if(name==='./DashboardAssistantScreenContext')return {useInrAssistantScreen:noOp};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=> 'account-a'};

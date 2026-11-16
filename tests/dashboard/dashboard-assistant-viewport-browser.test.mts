@@ -140,6 +140,11 @@ const studioSources = {
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaFreeGenerator": compile("app/dashboard/_components/MediaFreeGenerator.tsx"),
   "./MediaBusinessDnaHelp": compile("app/dashboard/_components/MediaBusinessDnaHelp.tsx"),
+  studioMemoryFixture: compile("tests/helpers/studio-reference-memory-fixture.mts"),
+  rawStudioReferenceMemoryClient: compile("lib/studioReferenceMemoryClient.ts"),
+  ...browserLibSources("aiMediaExactDialogue"),
+  ...browserLibSources("mediaExactDialogueEditor"),
+  ...browserLibSources("studioReferences"),
   ...Object.fromEntries(["studioVideoRetouchPersistence", "aiMediaModelCatalog", "aiMediaGenerationContracts", "aiMediaVideoSpeechBudget", "aiMediaSpokenScript", "studioInspirationImagePolicy", "aiMediaVideoTimeline", "aiMediaVideoClientOptions", "aiMediaNarrationVoices", "mediaRules", "inrStudioModalPolicy", "aiMediaCharacterVoiceClient", "aiMediaCharacterVoices", "aiMediaSoundtrackDefinitions", "inrAssistantStudioFormSelection"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
 };
 const studioFixture = `
@@ -168,7 +173,10 @@ function require(name){
  if(name==='./MediaGenerationCreationWorkspace')return {__esModule:true,default:()=>null,MediaGenerationSettingsTabs:()=>null};
  if(name==='./MediaEngineCreditControls')return {__esModule:true,default:()=>null,isMediaVideoReferenceCompatible:()=>true,MediaCreditQuoteSummary:()=>null,MediaRecoveredCreditSummary:()=>null,MediaGenerationActions:()=>null};
  if(name==='@/lib/aiMediaModelRecommendation')return {recommendAiMediaModel:()=>null};
- if(['next/link','./DashboardAssistantTrigger','./DashboardMobileSelect','./MediaModifier','./MediaRetoucher','./MediaVideoRetoucher','./MediaLibraryPickerModal','./MediaSubjectVoiceButton','./MediaPromptHelp','./MediaQuotaSummary','./MediaCharacterVoiceInput','./StudioMusicLibrary','./StudioVoicePool'].includes(name))return {__esModule:true,default:()=>null};
+ if(name==='../../lib/studioReferenceMemoryClient.ts')return require('rawStudioReferenceMemoryClient');
+ if(name==='@/lib/studioReferenceMemoryClient')return require('studioMemoryFixture').studioReferenceMemoryFixture;
+ if(name==='@/lib/mediaLibraryUploadClient')return require('studioMemoryFixture').studioReferenceLibraryUploadFixture;
+ if(['next/link','./DashboardAssistantTrigger','./DashboardMobileSelect','./MediaModifier','./MediaRetoucher','./MediaVideoRetoucher','./MediaLibraryPickerModal','./MediaSubjectVoiceButton','./MediaPromptHelp','./MediaQuotaSummary','./MediaCharacterVoiceInput','./StudioMusicLibrary','./StudioVoicePool','./StudioExactDialogueEditor'].includes(name))return {__esModule:true,default:()=>null};
  if(['@/lib/imageOverlay','@/lib/imageInteractions','@/lib/mediaLibraryUploadClient','@/lib/mediaRetoucherRenderClient','@/lib/boosterVideoTransformClient','@/app/dashboard/booster/publier/publishModal.shared','@/lib/mediaGenerationReferenceClient'].includes(name))return {};
  if(loaded[name])return loaded[name].exports;
  if(!sources[name])throw Error('Unexpected Studio fixture module '+name);

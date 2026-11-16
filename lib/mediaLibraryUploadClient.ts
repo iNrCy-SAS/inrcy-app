@@ -3,6 +3,9 @@
 import { createClient } from "@/lib/supabaseClient";
 
 type UploadOptions = {
+  /** Scope a long save to the establishment that initiated it. */
+  accountId?: string;
+  signal?: AbortSignal;
   title?: string;
   source?: string;
   width?: number | null;
@@ -32,6 +35,7 @@ export async function uploadFileToMediaLibrary(
   file: File,
   options: UploadOptions = {}
 ) {
+  options.signal?.throwIfAborted();
   const clientId =
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
@@ -40,7 +44,8 @@ export async function uploadFileToMediaLibrary(
     method: "POST",
     credentials: "include",
     cache: "no-store",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(options.accountId ? { "X-Inrcy-Account-Id": options.accountId } : {}) },
+    signal: options.signal,
     body: JSON.stringify({
       mode: "prepare",
       files: [
@@ -55,6 +60,7 @@ export async function uploadFileToMediaLibrary(
     }),
   });
   const preparePayload = await responseJson(prepareResponse);
+  options.signal?.throwIfAborted();
   if (!prepareResponse.ok) {
     throw new Error(
       String(preparePayload?.error || "Impossible de préparer la sauvegarde.")
@@ -74,12 +80,14 @@ export async function uploadFileToMediaLibrary(
       contentType: prepared.content_type || file.type,
     });
   if (uploaded.error) throw uploaded.error;
+  options.signal?.throwIfAborted();
 
   const finalizeResponse = await fetch("/api/media-library/upload", {
     method: "POST",
     credentials: "include",
     cache: "no-store",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(options.accountId ? { "X-Inrcy-Account-Id": options.accountId } : {}) },
+    signal: options.signal,
     body: JSON.stringify({
       mode: "finalize",
       title: options.title || file.name.replace(/\.[^.]+$/, ""),
@@ -102,6 +110,7 @@ export async function uploadFileToMediaLibrary(
     }),
   });
   const finalizePayload = await responseJson(finalizeResponse);
+  options.signal?.throwIfAborted();
   if (!finalizeResponse.ok) {
     throw new Error(
       String(finalizePayload?.error || "Impossible de finaliser la sauvegarde.")

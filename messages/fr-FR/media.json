@@ -1165,5 +1165,16 @@
   "ai_generator_exact_dialogue_character_voices": "Voix des personnages",
   "ai_generator_exact_dialogue_provided_voice": "Vocal fourni · {name}",
   "ai_generator_exact_dialogue_provided_narrator": "Voix off réelle",
-  "ai_generator_exact_dialogue_provided_mix": "La voix off réelle doit être utilisée seule dans ces répliques."
+  "ai_generator_exact_dialogue_provided_mix": "La voix off réelle doit être utilisée seule dans ces répliques.",
+  "ai_generator_reference_memory_remember": "Mémoriser",
+  "ai_generator_reference_memory_update": "Mettre à jour",
+  "ai_generator_reference_memory_forget": "Oublier",
+  "ai_generator_reference_memory_hint": "Retrouver ces médias et leurs voix lors de mes prochaines créations.",
+  "ai_generator_reference_memory_saved": "Médias mémorisés",
+  "ai_generator_reference_memory_saving": "Mémorisation…",
+  "ai_generator_reference_memory_loading": "Chargement des médias mémorisés…",
+  "ai_generator_reference_memory_load_error": "Les médias mémorisés sont indisponibles. Réouvrez le Studio pour réessayer.",
+  "ai_generator_reference_memory_save_error": "Mémorisation impossible. Vérifiez les photos et les voix, puis réessayez.",
+  "ai_generator_reference_memory_forget_error": "Impossible d’oublier ces médias. Réessayez.",
+  "ai_generator_reference_memory_forget_hint": "Oublier cette sélection pour mes prochaines créations."
 }

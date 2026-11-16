@@ -1302,6 +1302,12 @@
 .videoTools { display: grid; grid-template-columns: minmax(0, 1fr); flex: 0 0 auto; align-items: start; gap: 4px; min-width: 0; }
 .mediaToolsTitle { color: #e3efff; font-size: 12px; font-weight: 700; line-height: 1.2; }
 .referenceAddControl { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.referenceAddHeading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 3px 8px; min-width: 0; }
+.referenceMemoryActions { display: flex; align-items: center; gap: 7px; margin-left: auto; }
+.referenceMemoryActions button { padding: 1px 0; border: 0; background: transparent; color: #a8dbe7; font: inherit; font-size: 10px; line-height: 1.25; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.referenceMemoryActions button:disabled { opacity: .5; cursor: default; text-decoration: none; }
+.referenceMemoryActions button:focus-visible { outline: 2px solid #9adcf5; outline-offset: 3px; border-radius: 2px; }
+.referenceMemoryError { margin: 0; color: #e8ce9b; font-size: 11px; line-height: 1.35; overflow-wrap: anywhere; }
 .videoTools:focus-visible { outline: 2px solid #9adcf5; outline-offset: 3px; border-radius: 9px; }
 .referenceRoleToolbar { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); flex: 0 0 auto; gap: 4px; align-items: stretch; width: 100%; }
 .referenceRoleButton { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; width: 100%; min-height: 42px; padding: 3px 2px; border: 1px solid #7895b45c; border-radius: 7px; color: #c8ddf4; background: #142944; cursor: pointer; }

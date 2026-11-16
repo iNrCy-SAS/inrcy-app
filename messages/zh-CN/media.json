@@ -1165,5 +1165,16 @@
   "ai_generator_exact_dialogue_character_voices": "角色语音",
   "ai_generator_exact_dialogue_provided_voice": "提供的录音 · {name}",
   "ai_generator_exact_dialogue_provided_narrator": "录音画外音",
-  "ai_generator_exact_dialogue_provided_mix": "这些台词只能使用录音画外音，不能混用其他说话者。"
+  "ai_generator_exact_dialogue_provided_mix": "这些台词只能使用录音画外音，不能混用其他说话者。",
+  "ai_generator_reference_memory_remember": "记住",
+  "ai_generator_reference_memory_update": "更新",
+  "ai_generator_reference_memory_forget": "忘记",
+  "ai_generator_reference_memory_hint": "在下次创作中重新使用这些媒体及其声音。",
+  "ai_generator_reference_memory_saved": "已记住媒体",
+  "ai_generator_reference_memory_saving": "正在保存…",
+  "ai_generator_reference_memory_loading": "正在加载已记住的媒体…",
+  "ai_generator_reference_memory_load_error": "已记住的媒体暂不可用。请重新打开 Studio 后重试。",
+  "ai_generator_reference_memory_save_error": "无法记住这些媒体。请检查照片和声音后重试。",
+  "ai_generator_reference_memory_forget_error": "无法忘记这些媒体。请重试。",
+  "ai_generator_reference_memory_forget_hint": "在下次创作中不再保留此选择。"
 }

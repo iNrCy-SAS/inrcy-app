@@ -1165,5 +1165,16 @@
   "ai_generator_exact_dialogue_character_voices": "Vozes das personagens",
   "ai_generator_exact_dialogue_provided_voice": "Gravação fornecida · {name}",
   "ai_generator_exact_dialogue_provided_narrator": "Voz-off gravada",
-  "ai_generator_exact_dialogue_provided_mix": "Utilize apenas a voz-off gravada nestas falas."
+  "ai_generator_exact_dialogue_provided_mix": "Utilize apenas a voz-off gravada nestas falas.",
+  "ai_generator_reference_memory_remember": "Memorizar",
+  "ai_generator_reference_memory_update": "Atualizar",
+  "ai_generator_reference_memory_forget": "Esquecer",
+  "ai_generator_reference_memory_hint": "Reutilizar estes conteúdos e as suas vozes nas minhas próximas criações.",
+  "ai_generator_reference_memory_saved": "Conteúdos memorizados",
+  "ai_generator_reference_memory_saving": "A guardar…",
+  "ai_generator_reference_memory_loading": "A carregar conteúdos memorizados…",
+  "ai_generator_reference_memory_load_error": "Os conteúdos memorizados não estão disponíveis. Reabra o Studio para tentar novamente.",
+  "ai_generator_reference_memory_save_error": "Não foi possível memorizar os conteúdos. Verifique as fotografias e as vozes e tente novamente.",
+  "ai_generator_reference_memory_forget_error": "Não foi possível esquecer estes conteúdos. Tente novamente.",
+  "ai_generator_reference_memory_forget_hint": "Esquecer esta seleção para as minhas próximas criações."
 }

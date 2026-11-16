@@ -12,6 +12,7 @@ const sources = {
   react: pkg('react', 'react.production.js'), 'react/jsx-runtime': pkg('react', 'react-jsx-runtime.production.js'), 'react-dom': pkg('react-dom', 'react-dom.production.js'), 'react-dom/client': pkg('react-dom', 'react-dom-client.production.js'), scheduler: pkg('scheduler', 'scheduler.production.js'),
   links: compile('lib/inrAssistantNativeChannelLinks.ts'), driver: compile('lib/inrAssistantLocalInterface.ts'), clauses: compile('lib/inrAssistantRequestClauses.ts'),
   './inrAssistantAgentSettingsUi.ts': compile('lib/inrAssistantAgentSettingsUi.ts'), './inrAssistantActionClause.ts': compile('lib/inrAssistantActionClause.ts'),
+  ...Object.fromEntries(['aiMediaCharacterVoices', 'aiMediaExactDialogue', 'inrAssistantStudioExactDialogue', 'inrAssistantStudioReferenceMemory'].map(name => ['./' + name + '.ts', compile('lib/' + name + '.ts')])),
   nativeHook: compile('app/dashboard/_hooks/useInrAssistantNativeChannelLinks.ts'), localHook: compile('app/dashboard/_hooks/useInrAssistantLocalInterface.ts'),
   editor: compile('app/dashboard/_components/ChannelPublicLinkEditor.tsx'), field: compile('app/dashboard/_components/EditableChannelUrlField.tsx'),
   url: compile('lib/channelPublicUrl.ts'), position: compile('app/dashboard/_components/channel-popover-position.ts'), saveIcon: compile('app/dashboard/_components/SaveIcon.tsx'),

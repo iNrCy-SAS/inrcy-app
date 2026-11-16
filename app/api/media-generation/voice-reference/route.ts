@@ -67,6 +67,10 @@ async function libraryMediaId(request: Request) {
 export async function POST(request: Request) {
   const auth = await requireUser();
   if (auth.errorResponse) return auth.errorResponse;
+  const expectedAccountId = request.headers.get("X-Inrcy-Account-Id");
+  if (expectedAccountId !== null && expectedAccountId.toLowerCase() !== auth.activeUserId.toLowerCase()) {
+    return NextResponse.json({ ok: false, code: "voice_reference_account_changed", error: "Le compte actif a changé. Sélectionnez le vocal dans ce compte." }, { status: 409, headers: HEADERS });
+  }
   const limited = await enforceRateLimit({ name: "studio_character_voice_upload", identifier: auth.activeUserId, limit: 18, fallbackLimit: 9, window: "10 m", failClosed: true, code: "voice_upload_rate_limit" });
   if (limited) return limited;
   try {

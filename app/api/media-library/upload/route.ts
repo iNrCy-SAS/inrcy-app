@@ -462,6 +462,10 @@ async function handleFinalizeUpload(
 export async function POST(request: NextRequest) {
   const { errorResponse, activeUserId } = await requireUser();
   if (errorResponse) return errorResponse;
+  const expectedAccountId = request.headers.get("X-Inrcy-Account-Id");
+  if (expectedAccountId !== null && expectedAccountId.toLowerCase() !== activeUserId.toLowerCase()) {
+    return NextResponse.json({ ok: false, code: "media_upload_account_changed", error: "Le compte actif a changé. Relancez l’import depuis ce compte." }, { status: 409 });
+  }
 
   try {
     const body = (await request.json().catch(() => null)) as Record<

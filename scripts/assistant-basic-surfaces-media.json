@@ -16434,5 +16434,85 @@
       "app/dashboard/_components/StudioExactDialogueEditor.tsx#button:666c5f880e7e713b:1"
     ],
     "notes": "studio_exact_dialogue.select({field:move,rowIndex:N,value:up|down}) exige la ligne visible N+1 et le sens explicitement demandés. Déplacement d’une seule place dans le brouillon, conservant textes, locuteurs et IDs des photos. Bords de liste, verrou et même compte vérifiés. ACK sur l’ordre complet réellement rendu ; aucun échange silencieux des voix ni lancement."
+  },
+  {
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/studioReferenceMemoryClient.ts",
+      "lib/studioReferences.ts",
+      "app/api/media-generation/references/route.ts",
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/inrAssistantLocalInterfaceTools.ts",
+      "lib/inrAssistantStudioReferenceMemory.ts"
+    ],
+    "capabilityId": "studio.reference-memory",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "coverageStatus": "implemented",
+    "testFiles": [
+      "tests/ai-media-generation/studio-reference-memory-ui-runtime.test.mts",
+      "tests/ai-assistant/studio-reference-memory-policy.test.mts"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/studio-reference-memory-ui-runtime.test.mts",
+        "testAnchor": "actual native remember/forget bindings acknowledge only the committed revision in the same professional"
+      },
+      {
+        "file": "tests/ai-assistant/studio-reference-memory-policy.test.mts",
+        "testAnchor": "Studio reference memory tool binds actor account revision and explicit action without exposing media"
+      }
+    ],
+    "id": "basic.studio.reference-memory-remember",
+    "label": "Mémoriser ou mettre à jour les médias du Studio",
+    "sourceAnchor": "data-reference-memory-remember",
+    "testAnchor": "actual remember callback saves current photo/voice bindings without uploading, generating, publishing or authorising them",
+    "notes": "Demande actuelle explicite de mémoriser la sélection montée du compte. Photos déjà en bibliothèque réutilisées ; images locales enregistrées une fois à la demande. IDs permanents, catégories, noms et liens vers les vocaux conservés. Callback natif PUT avec garde du compte, réponse confirmée et révision rendue avant ACK ; aucun prompt, dialogue, moteur, autorisation ou lancement. Aucun partage entre comptes.",
+    "controlIds": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:8088721639f55796:1"
+    ]
+  },
+  {
+    "domain": "studio",
+    "sourceFiles": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx",
+      "lib/studioReferenceMemoryClient.ts",
+      "lib/studioReferences.ts",
+      "app/api/media-generation/references/route.ts",
+      "lib/inrAssistantLocalInterface.ts",
+      "lib/inrAssistantLocalInterfaceTools.ts",
+      "lib/inrAssistantStudioReferenceMemory.ts"
+    ],
+    "capabilityId": "studio.reference-memory",
+    "toolNames": [
+      "controlLocalInterface"
+    ],
+    "mode": "execute",
+    "coverageStatus": "implemented",
+    "testFiles": [
+      "tests/ai-media-generation/studio-reference-memory-ui-runtime.test.mts",
+      "tests/ai-assistant/studio-reference-memory-policy.test.mts"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/ai-media-generation/studio-reference-memory-ui-runtime.test.mts",
+        "testAnchor": "actual native remember/forget bindings acknowledge only the committed revision in the same professional"
+      },
+      {
+        "file": "tests/ai-assistant/studio-reference-memory-policy.test.mts",
+        "testAnchor": "Studio reference memory tool binds actor account revision and explicit action without exposing media"
+      }
+    ],
+    "id": "basic.studio.reference-memory-forget",
+    "label": "Oublier les médias mémorisés du Studio",
+    "sourceAnchor": "data-reference-memory-forget",
+    "testAnchor": "actual forget callback removes only the remembered default and leaves current assets and library voices intact",
+    "notes": "Demande actuelle explicite d’oublier les références mémorisées du compte monté. DELETE limité au namespace studio_references ; médiathèque, fichiers, brouillon courant et autres préférences conservés. Compte, révision et résultat natif vérifiés avant ACK ; aucun autre effacement ni génération.",
+    "controlIds": [
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:d9b658a098da2f85:1"
+    ]
   }
 ]

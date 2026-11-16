@@ -104,7 +104,12 @@ test("library audio finalization derives duration from validated bytes and never
     "@/lib/mediaUploadPolicy": { detectUniversalUploadMediaType: () => null, getUniversalMediaContentType: () => { throw new Error("visual_policy_must_not_run"); }, getUniversalMediaSafeExtension: () => { throw new Error("visual_policy_must_not_run"); } },
     "@/lib/mediaLibraryAudioValidation": { validateMediaLibraryAudioBuffer: async ({ buffer }: { buffer: Buffer }) => { validated++; assert.deepEqual(buffer, wav()); return { mimeType: "audio/wav", durationSeconds: 2 }; } },
   });
-  const prepare = await runtime.POST(new Request("https://app.invalid/api/media-library/upload", { method: "POST", body: JSON.stringify({ mode: "prepare", files: [{ name: "vocal.wav", type: "audio/wav", size: wav().length }] }) }));
+  for (const mode of ["prepare", "finalize"]) {
+    const stale = await runtime.POST(new Request("https://app.invalid/api/media-library/upload", { method: "POST", headers: { "X-Inrcy-Account-Id": "another-account" }, body: JSON.stringify({ mode }) }));
+    assert.equal(stale.status, 409); assert.equal((await stale.json()).code, "media_upload_account_changed");
+    assert.equal(inserted.length, 0); assert.equal(removed.length, 0); assert.equal(validated, 0);
+  }
+  const prepare = await runtime.POST(new Request("https://app.invalid/api/media-library/upload", { method: "POST", headers: { "X-Inrcy-Account-Id": ACCOUNT }, body: JSON.stringify({ mode: "prepare", files: [{ name: "vocal.wav", type: "audio/wav", size: wav().length }] }) }));
   const prepared = await prepare.json(); assert.equal(prepared.items[0].media_type, "audio"); assert.equal(prepared.items[0].content_type, "audio/wav");
   assert.equal(audio.isOwnedMediaLibraryAudioPath(ACCOUNT, prepared.items[0].storage_path), true);
   const response = await runtime.POST(new Request("https://app.invalid/api/media-library/upload", { method: "POST", body: JSON.stringify({ mode: "finalize", uploads: [{ original_name: "vocal.wav", storage_path: PATH, mime_type: "audio/wav", size_bytes: wav().length, duration_seconds: 999, width: 999, height: 999 }] }) }));

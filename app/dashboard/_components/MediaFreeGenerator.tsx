@@ -9,12 +9,10 @@ import useMediaGeneration, {
   MediaGenerationAccountChangedError,
   MediaGenerationCancelledError,
   type MediaGenerationFormat,
-  type MediaGenerationInspirationImage,
   type MediaGenerationKind,
   type MediaGenerationNarrationVoice,
   type MediaGenerationNarrationVoiceVariant,
   type MediaGenerationReferenceRole,
-  type MediaGenerationReferenceUsage,
   type MediaGenerationResult,
   type MediaGenerationSource,
   type MediaGenerationTeamVideoSpeechMode,
@@ -39,6 +37,8 @@ import {
   prepareMediaGenerationLibraryReferenceFile,
 } from "@/lib/mediaGenerationReferenceClient";
 import { assertStudioInspirationImageMetadata, StudioInspirationImageOnlyError } from "@/lib/studioInspirationImagePolicy";
+import { hydrateStudioReferenceMemory, prepareStudioReferenceMemory, requestStudioReferenceMemory, studioReferenceDraftFingerprint, studioSavedReferenceFingerprint, publishStudioReferenceMemoryMetadata, readStudioReferenceMemoryMetadata, STUDIO_REFERENCE_MEMORY_EVENT, type StudioReferenceMemoryMetadata, type StudioMemoryReference, type StudioReferenceDraft } from "@/lib/studioReferenceMemoryClient";
+import { uploadFileToMediaLibrary } from "@/lib/mediaLibraryUploadClient";
 import MediaLibraryPickerModal, {
   type MediaLibraryPickerItem,
 } from "./MediaLibraryPickerModal";
@@ -84,17 +84,11 @@ type Props = {
   onReset?: () => void;
 };
 
-type Reference = Omit<
-  MediaGenerationInspirationImage,
-  "role" | "usage"
-> & {
-  id: string;
-  /** Chosen explicitly by the professional before the request is sent. */
-  role?: MediaGenerationReferenceRole;
-  /** A reference can be authoritative or only steer the creative direction. */
-  usage?: MediaGenerationReferenceUsage;
-  fromVideo: boolean;
-};
+type Reference = StudioMemoryReference;
+type ReferenceMemoryState = { scopeKey: string; loaded: boolean; busy: boolean; saved: boolean; revision: number;
+  lastAction: "remember" | "forget" | null; fingerprint: string; error: "" | "load" | "save" | "forget" };
+const emptyReferenceMemory = (scopeKey: string): ReferenceMemoryState => ({ scopeKey, loaded: false, busy: false, saved: false,
+  revision: 0, lastAction: null, fingerprint: "", error: "" });
 
 const FORMATS: { id: MediaGenerationFormat; ratio: string }[] = [
   { id: "square", ratio: "1:1" },
@@ -116,7 +110,7 @@ const IMAGE_ACCEPT = [
 
 function referencesForRequest(references: Reference[], includeCharacterVoices = true, exactCharacters?: readonly MediaExactDialogueCharacter[]) {
   let characterIndex = 0;
-  return references.map(({ id: _id, fromVideo: _fromVideo, ...savedReference }) => {
+  return references.map(({ id: _id, fromVideo: _fromVideo, libraryMediaId: _libraryMediaId, ...savedReference }) => {
     const { voiceMode: _voiceMode, voiceSample: _voiceSample, ...imageOnlyReference } = savedReference;
     const reference = includeCharacterVoices ? savedReference : imageOnlyReference;
     const exact = exactCharacters?.find(character => character.id === _id);
@@ -261,6 +255,7 @@ export default function MediaFreeGenerator({
   const [voiceBusy, setVoiceBusy] = useState(false);
   const [characterVoiceBusy, setCharacterVoiceBusy] = useState(false);
   const [referencesBusy, setReferencesBusy] = useState(false);
+  const [referenceMemoryState, setReferenceMemoryState] = useState<ReferenceMemoryState>(() => emptyReferenceMemory(""));
   const [finishing, setFinishing] = useState(false);
   const [savingToLibrary, setSavingToLibrary] = useState(false);
   const [creationScreen, setCreationScreen] = useState(false);
@@ -286,7 +281,15 @@ export default function MediaFreeGenerator({
   const referenceAction = useRef<{ encoded: string; id: string; usage?: "required" | "inspiration" } | null>(null);
   const voiceModeIntent = useRef<"ai" | "provided" | null>(null);
   const voiceAction = useRef<{ encoded: string; targetId: string | null } | null>(null);
-  const operationLocked = cancellationPending || ((busy || finishing) && !recovering) || voiceBusy || referencesBusy || characterVoiceBusy;
+  const referenceMemoryController = useRef<AbortController | null>(null);
+  const referenceMemoryLoadedAccount = useRef<string | null>(null);
+  const referenceMemoryAction = useRef<{ value: "remember" | "forget"; scopeKey: string; revision: number } | null>(null);
+  const referenceMemoryCurrent = useRef<{ accountId: string; draft: StudioReferenceDraft }>({ accountId: "", draft: { references: [], voices: [], activeNarrationVoiceId: null } });
+  referenceMemoryCurrent.current = { accountId: quota?.accountId ?? "", draft: { references, voices: voiceProfiles, activeNarrationVoiceId } };
+  const referenceMemory = referenceMemoryState.scopeKey === quota?.accountId ? referenceMemoryState : emptyReferenceMemory(quota?.accountId ?? "");
+  const referenceMemoryFingerprint = studioReferenceDraftFingerprint(referenceMemoryCurrent.current.draft);
+  const referenceMemoryDirty = referenceMemory.saved && referenceMemory.fingerprint !== referenceMemoryFingerprint;
+  const operationLocked = cancellationPending || ((busy || finishing) && !recovering) || voiceBusy || referencesBusy || characterVoiceBusy || referenceMemory.busy;
   const locked = operationLocked;
   const releaseUnusedVoiceSample = (sample: Parameters<typeof deleteCharacterVoiceSample>[0]) => {
     // A submitted request owns its original audio even if the next draft is
@@ -607,6 +610,9 @@ export default function MediaFreeGenerator({
   useEffect(() => {
     const clearAccountState = () => {
       sequence.current += 1;
+      referenceMemoryController.current?.abort(); referenceMemoryController.current = null;
+      referenceMemoryLoadedAccount.current = null; referenceMemoryAction.current = null;
+      setReferenceMemoryState(emptyReferenceMemory(""));
       setPrompt("");
       setRecoveryAccountChecked(null);
       setSpokenScript("");
@@ -667,7 +673,149 @@ export default function MediaFreeGenerator({
     setTeamConsent(checked);
   };
 
-  const addFiles = async (files: File[], lockOwned = false, requestedRole: MediaGenerationReferenceRole | null = pendingReferenceRole): Promise<boolean> => {
+  useEffect(() => {
+    const accountId = quota?.accountId;
+    if (!accountId || referenceMemoryLoadedAccount.current === accountId) return;
+    const controller = new AbortController(); referenceMemoryController.current = controller;
+    const accountSequence = sequence.current;
+    const metadataRevision = readStudioReferenceMemoryMetadata(accountId)?.revision ?? 0;
+    let ownsOperation = false;
+    const isCurrent = () => !controller.signal.aborted && sequence.current === accountSequence && referenceMemoryCurrent.current.accountId === accountId;
+    const scope = { accountId, signal: controller.signal, isCurrent };
+    const pristine = () => !referenceMemoryCurrent.current.draft.references.length && !referenceMemoryCurrent.current.draft.voices.length && !operationInFlight.current;
+    setReferenceMemoryState(emptyReferenceMemory(accountId));
+    void (async () => {
+      try {
+        const response = await requestStudioReferenceMemory("GET", scope);
+        if (!isCurrent()) return;
+        setReferenceMemoryState(current => ({ ...current, scopeKey: accountId, saved: Boolean(response.memory),
+          fingerprint: response.memory ? studioSavedReferenceFingerprint(response.memory) : "" }));
+        // A late load never replaces references or voices the professional has already added.
+        if (response.memory && pristine()) {
+          ownsOperation = true; operationInFlight.current = true;
+          setReferenceMemoryState(current => ({ ...current, busy: true }));
+          const restored = await hydrateStudioReferenceMemory(response, scope, prepareMediaGenerationImageReference);
+          if (restored && isCurrent() && (readStudioReferenceMemoryMetadata(accountId)?.revision ?? 0) <= metadataRevision && !referenceMemoryCurrent.current.draft.references.length && !referenceMemoryCurrent.current.draft.voices.length) {
+            setReferences(restored.references); setVoiceProfiles(restored.voices); setActiveNarrationVoiceId(restored.activeNarrationVoiceId);
+            setIdentityConsent(false); setTeamConsent(false); setNarrationVoiceConsent(false);
+            referenceSetId.current = globalThis.crypto.randomUUID();
+            setReferenceMemoryState(current => ({ ...current, fingerprint: studioReferenceDraftFingerprint(restored) }));
+          } else if (restored) {
+            for (const profile of restored.voices) void deleteCharacterVoiceSample(profile.sample);
+          }
+        }
+        if (isCurrent()) referenceMemoryLoadedAccount.current = accountId;
+      } catch {
+        if (isCurrent()) {
+          referenceMemoryLoadedAccount.current = accountId;
+          setReferenceMemoryState(current => ({ ...current, error: "load" }));
+        }
+      } finally {
+        if (isCurrent()) {
+          if (ownsOperation) operationInFlight.current = false;
+          const published = readStudioReferenceMemoryMetadata(accountId);
+          setReferenceMemoryState(current => ({ ...current, loaded: true, busy: false,
+            ...(published && published.revision > metadataRevision ? { saved: published.saved, fingerprint: published.fingerprint, lastAction: null } : {}) }));
+        }
+        if (referenceMemoryController.current === controller) referenceMemoryController.current = null;
+      }
+    })();
+    return () => { controller.abort(); if (ownsOperation) operationInFlight.current = false; };
+  }, [quota?.accountId]);
+
+  useEffect(() => {
+    const accountId = quota?.accountId;
+    if (!accountId) return;
+    const synchronize = (metadata: StudioReferenceMemoryMetadata | undefined) => {
+      if (!metadata || metadata.accountId !== accountId || metadata.origin === instanceId || referenceMemoryCurrent.current.accountId !== accountId) return;
+      setReferenceMemoryState(current => {
+        if (current.scopeKey !== accountId || !current.loaded || current.busy || current.saved === metadata.saved && current.fingerprint === metadata.fingerprint) return current;
+        return { ...current, saved: metadata.saved, fingerprint: metadata.fingerprint, lastAction: null, revision: current.revision + 1 };
+      });
+    };
+    synchronize(readStudioReferenceMemoryMetadata(accountId));
+    const onMemoryChange = (event: Event) => synchronize((event as CustomEvent<StudioReferenceMemoryMetadata>).detail);
+    window.addEventListener(STUDIO_REFERENCE_MEMORY_EVENT, onMemoryChange);
+    return () => window.removeEventListener(STUDIO_REFERENCE_MEMORY_EVENT, onMemoryChange);
+  }, [quota?.accountId, instanceId]);
+
+  const referenceMemoryAvailable = editorAvailable && !stopConfirmOpen && !voicePoolOpen && !libraryOpen && !mediaSettingsDialog && !exactDialogueOpen;
+  const hasMemoryReferences = Boolean(references.length || voiceProfiles.length);
+  const handleRememberReferences = async (canApply: () => boolean = () => true): Promise<boolean> => {
+    const accountId = quota?.accountId;
+    if (!canApply() || !accountId || locked || operationInFlight.current || !referenceMemory.loaded || !referenceMemoryAvailable || !hasMemoryReferences || referenceMemory.saved && !referenceMemoryDirty && !referenceMemory.error) return false;
+    const controller = new AbortController(); referenceMemoryController.current = controller;
+    const accountSequence = sequence.current;
+    const ownsCurrentOperation = () => referenceMemoryController.current === controller && sequence.current === accountSequence && referenceMemoryCurrent.current.accountId === accountId;
+    const isCurrent = () => canApply() && !controller.signal.aborted && ownsCurrentOperation();
+    const scope = { accountId, signal: controller.signal, isCurrent };
+    const draft = referenceMemoryCurrent.current.draft;
+    const fingerprint = studioReferenceDraftFingerprint(draft);
+    operationInFlight.current = true;
+    setReferenceMemoryState(current => ({ ...current, busy: true, error: "" }));
+    try {
+      const memory = await prepareStudioReferenceMemory(draft, scope, async (file, reference) => {
+        const uploaded = await uploadFileToMediaLibrary(file, { source: "studio", title: reference.characterName || reference.name, accountId, signal: controller.signal });
+        return String(uploaded.mediaId || "");
+      }, (id, libraryMediaId) => {
+        if (isCurrent()) setReferences(current => current.map(reference => reference.id === id ? { ...reference, libraryMediaId } : reference));
+      });
+      await requestStudioReferenceMemory("PUT", scope, memory);
+      if (!isCurrent()) return false;
+      setReferenceMemoryState(current => ({ ...current, saved: true, fingerprint, revision: current.revision + 1, lastAction: "remember" }));
+      publishStudioReferenceMemoryMetadata(accountId, memory, instanceId);
+      return true;
+    } catch {
+      if (isCurrent()) setReferenceMemoryState(current => ({ ...current, error: "save" }));
+      return false;
+    } finally {
+      if (ownsCurrentOperation()) { operationInFlight.current = false; setReferenceMemoryState(current => ({ ...current, busy: false })); }
+      if (referenceMemoryController.current === controller) referenceMemoryController.current = null;
+    }
+  };
+  const handleForgetReferences = async (canApply: () => boolean = () => true): Promise<boolean> => {
+    const accountId = quota?.accountId;
+    if (!canApply() || !accountId || locked || operationInFlight.current || !referenceMemory.loaded || !referenceMemory.saved || !referenceMemoryAvailable) return false;
+    const controller = new AbortController(); referenceMemoryController.current = controller;
+    const accountSequence = sequence.current;
+    const ownsCurrentOperation = () => referenceMemoryController.current === controller && sequence.current === accountSequence && referenceMemoryCurrent.current.accountId === accountId;
+    const isCurrent = () => canApply() && !controller.signal.aborted && ownsCurrentOperation();
+    operationInFlight.current = true;
+    setReferenceMemoryState(current => ({ ...current, busy: true, error: "" }));
+    try {
+      await requestStudioReferenceMemory("DELETE", { accountId, signal: controller.signal, isCurrent });
+      if (!isCurrent()) return false;
+      // Forget the default only. Current photos, voices and permanent library files stay usable.
+      setReferenceMemoryState(current => ({ ...current, saved: false, fingerprint: "", revision: current.revision + 1, lastAction: "forget" }));
+      publishStudioReferenceMemoryMetadata(accountId, null, instanceId);
+      return true;
+    } catch {
+      if (isCurrent()) setReferenceMemoryState(current => ({ ...current, error: "forget" }));
+      return false;
+    } finally {
+      if (ownsCurrentOperation()) { operationInFlight.current = false; setReferenceMemoryState(current => ({ ...current, busy: false })); }
+      if (referenceMemoryController.current === controller) referenceMemoryController.current = null;
+    }
+  };
+  useInrAssistantLocalInterface("studio_reference_memory", { scopeKey: quota?.accountId ?? "", loaded: referenceMemory.loaded,
+    saved: referenceMemory.saved, busy: referenceMemory.busy, revision: referenceMemory.revision, lastAction: referenceMemory.lastAction,
+    hasReferences: hasMemoryReferences, dirty: referenceMemoryDirty, error: referenceMemory.error }, { select: {
+    invoke: async (value, stillCurrent) => {
+      if (value !== "remember" && value !== "forget" || !referenceMemoryAvailable || locked) throw new Error("studio_reference_memory_unavailable");
+      referenceMemoryAction.current = { value, scopeKey: quota?.accountId ?? "", revision: referenceMemory.revision };
+      const confirmed = value === "remember" ? await handleRememberReferences(stillCurrent) : await handleForgetReferences(stillCurrent);
+      if (!confirmed) throw new Error("studio_reference_memory_unconfirmed");
+    },
+    matches: (state, value) => {
+      const action = referenceMemoryAction.current;
+      if (!state || typeof state !== "object" || !action || value !== action.value) return false;
+      const current = state as { scopeKey?: string; revision?: number; lastAction?: string; saved?: boolean; busy?: boolean; error?: string; dirty?: boolean };
+      return current.scopeKey === action.scopeKey && current.revision === action.revision + 1 && current.lastAction === value &&
+        current.saved === (value === "remember") && current.busy === false && !current.error && (value !== "remember" || current.dirty === false);
+    },
+  } }, referenceMemoryAvailable && referenceMemory.loaded, locked);
+
+  const addFiles = async (files: File[], lockOwned = false, requestedRole: MediaGenerationReferenceRole | null = pendingReferenceRole, libraryMediaIds: readonly string[] = []): Promise<boolean> => {
     if (!lockOwned && (locked || (operationInFlight.current && !recoveryPending))) return false;
     if (!requestedRole) { setActionError(t("ai_generator_reference_choose_role")); return false; }
     const currentSequence = sequence.current;
@@ -678,10 +826,10 @@ export default function MediaFreeGenerator({
     try {
       const prepared: Reference[] = [];
       for (const file of files) assertStudioInspirationImageMetadata(file, t("ai_generator_inspiration_images_only"));
-      for (const file of files.slice(
+      for (const [fileIndex, file] of files.slice(
         0,
         AI_MEDIA_INSPIRATION_MAX_COUNT - references.length
-      )) {
+      ).entries()) {
         const image = await prepareMediaGenerationImageReference(file);
         if (sequence.current !== currentSequence) return false;
         prepared.push({
@@ -690,6 +838,7 @@ export default function MediaFreeGenerator({
           role: requestedRole,
           usage: requestedRole === "inspiration" ? "inspiration" : "required",
           fromVideo: false,
+          ...(libraryMediaIds[fileIndex] ? { libraryMediaId: libraryMediaIds[fileIndex] } : {}),
         });
       }
       if (!prepared.length) return false;
@@ -740,7 +889,7 @@ export default function MediaFreeGenerator({
           }))
       );
       if (sequence.current !== currentSequence) return;
-      const added = await addFiles(files, true, requestedRole);
+      const added = await addFiles(files, true, requestedRole, items.slice(0, files.length).map(item => item.id));
       if (sequence.current !== currentSequence) return;
       if (added) setLibraryOpen(false);
     } catch (caught) {
@@ -1519,7 +1668,21 @@ export default function MediaFreeGenerator({
               </label>
             </div>
             <div className={styles.referenceAddControl}>
-              <span id={`${instanceId}-add-media-title`} className={styles.mediaToolsTitle}>{t("ai_generator_add_media_title")}</span>
+              <div className={styles.referenceAddHeading}>
+                <span id={`${instanceId}-add-media-title`} className={styles.mediaToolsTitle}>{t("ai_generator_add_media_title")}</span>
+                <div className={styles.referenceMemoryActions} data-studio-reference-memory>
+                  <button type="button" data-reference-memory-remember title={t("ai_generator_reference_memory_hint")}
+                    disabled={locked || !referenceMemoryAvailable || !referenceMemory.loaded || !hasMemoryReferences || referenceMemory.saved && !referenceMemoryDirty && !referenceMemory.error}
+                    onClick={() => { void handleRememberReferences(); }}>
+                    {t(referenceMemory.saved ? "ai_generator_reference_memory_update" : "ai_generator_reference_memory_remember")}
+                  </button>
+                  {referenceMemory.saved ? <button type="button" data-reference-memory-forget title={t("ai_generator_reference_memory_forget_hint")}
+                    disabled={locked || !referenceMemoryAvailable || !referenceMemory.loaded}
+                    onClick={() => { void handleForgetReferences(); }}>{t("ai_generator_reference_memory_forget")}</button> : null}
+                  <span className={styles.srOnly} role="status">{t(referenceMemory.busy ? "ai_generator_reference_memory_saving" : !referenceMemory.loaded ? "ai_generator_reference_memory_loading" : referenceMemory.saved ? "ai_generator_reference_memory_saved" : "ai_generator_reference_memory_hint")}</span>
+                </div>
+              </div>
+              {referenceMemory.error ? <p className={styles.referenceMemoryError} role="alert">{t(`ai_generator_reference_memory_${referenceMemory.error}_error`)}</p> : null}
               <div className={styles.referenceRoleToolbar} role="group" aria-labelledby={`${instanceId}-add-media-title`}>
               {(["inspiration", "character", "environment", "product"] as const).map(role => {
                 const label = t(role === "inspiration" ? "ai_generator_reference_inspiration" : role === "character" ? "ai_generator_add_reference_character" : `ai_generator_free_role_${role}`);

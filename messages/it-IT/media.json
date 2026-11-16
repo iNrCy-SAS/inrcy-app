@@ -1165,5 +1165,16 @@
   "ai_generator_exact_dialogue_character_voices": "Voci dei personaggi",
   "ai_generator_exact_dialogue_provided_voice": "Registrazione fornita · {name}",
   "ai_generator_exact_dialogue_provided_narrator": "Voce fuori campo registrata",
-  "ai_generator_exact_dialogue_provided_mix": "Usa soltanto la voce fuori campo registrata per queste battute."
+  "ai_generator_exact_dialogue_provided_mix": "Usa soltanto la voce fuori campo registrata per queste battute.",
+  "ai_generator_reference_memory_remember": "Memorizza",
+  "ai_generator_reference_memory_update": "Aggiorna",
+  "ai_generator_reference_memory_forget": "Dimentica",
+  "ai_generator_reference_memory_hint": "Riutilizzare questi media e le loro voci nelle mie prossime creazioni.",
+  "ai_generator_reference_memory_saved": "Media memorizzati",
+  "ai_generator_reference_memory_saving": "Salvataggio…",
+  "ai_generator_reference_memory_loading": "Caricamento dei media memorizzati…",
+  "ai_generator_reference_memory_load_error": "I media memorizzati non sono disponibili. Riapri lo Studio per riprovare.",
+  "ai_generator_reference_memory_save_error": "Impossibile memorizzare i media. Controlla foto e voci e riprova.",
+  "ai_generator_reference_memory_forget_error": "Impossibile dimenticare questi media. Riprova.",
+  "ai_generator_reference_memory_forget_hint": "Dimenticare questa selezione per le mie prossime creazioni."
 }

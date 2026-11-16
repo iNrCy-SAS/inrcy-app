@@ -1165,5 +1165,16 @@
   "ai_generator_exact_dialogue_character_voices": "Character voices",
   "ai_generator_exact_dialogue_provided_voice": "Provided recording · {name}",
   "ai_generator_exact_dialogue_provided_narrator": "Recorded voice-over",
-  "ai_generator_exact_dialogue_provided_mix": "Use the recorded voice-over on its own in these lines."
+  "ai_generator_exact_dialogue_provided_mix": "Use the recorded voice-over on its own in these lines.",
+  "ai_generator_reference_memory_remember": "Remember",
+  "ai_generator_reference_memory_update": "Update",
+  "ai_generator_reference_memory_forget": "Forget",
+  "ai_generator_reference_memory_hint": "Reuse these media and their voices in my next creations.",
+  "ai_generator_reference_memory_saved": "Media remembered",
+  "ai_generator_reference_memory_saving": "Saving…",
+  "ai_generator_reference_memory_loading": "Loading remembered media…",
+  "ai_generator_reference_memory_load_error": "Remembered media are unavailable. Reopen the Studio to try again.",
+  "ai_generator_reference_memory_save_error": "Could not remember these media. Check the photos and voices, then try again.",
+  "ai_generator_reference_memory_forget_error": "Could not forget these media. Try again.",
+  "ai_generator_reference_memory_forget_hint": "Forget this selection for my next creations."
 }

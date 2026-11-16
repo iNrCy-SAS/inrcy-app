@@ -1165,5 +1165,16 @@
   "ai_generator_exact_dialogue_character_voices": "Voces de los personajes",
   "ai_generator_exact_dialogue_provided_voice": "Grabación aportada · {name}",
   "ai_generator_exact_dialogue_provided_narrator": "Voz en off grabada",
-  "ai_generator_exact_dialogue_provided_mix": "Utilice solo la voz en off grabada en estas intervenciones."
+  "ai_generator_exact_dialogue_provided_mix": "Utilice solo la voz en off grabada en estas intervenciones.",
+  "ai_generator_reference_memory_remember": "Recordar",
+  "ai_generator_reference_memory_update": "Actualizar",
+  "ai_generator_reference_memory_forget": "Olvidar",
+  "ai_generator_reference_memory_hint": "Reutilizar estos medios y sus voces en mis próximas creaciones.",
+  "ai_generator_reference_memory_saved": "Medios guardados",
+  "ai_generator_reference_memory_saving": "Guardando…",
+  "ai_generator_reference_memory_loading": "Cargando medios guardados…",
+  "ai_generator_reference_memory_load_error": "Los medios guardados no están disponibles. Vuelve a abrir el Studio.",
+  "ai_generator_reference_memory_save_error": "No se pudieron guardar estos medios. Comprueba las fotos y las voces e inténtalo de nuevo.",
+  "ai_generator_reference_memory_forget_error": "No se pudieron olvidar estos medios. Inténtalo de nuevo.",
+  "ai_generator_reference_memory_forget_hint": "Olvidar esta selección para mis próximas creaciones."
 }

@@ -8,6 +8,7 @@ import * as contracts from "../../../lib/aiMediaGenerationContracts.ts";
 import * as catalogue from "../../../lib/aiMediaModelCatalog.ts";
 import * as pricing from "../../../lib/aiMediaCreditsPricing.ts";
 import * as speech from "../../../lib/aiMediaVideoSpeechBudget.ts";
+import * as exactDialogue from "../../../lib/aiMediaExactDialogue.ts";
 import * as durations from "../../../lib/aiMediaVideoClientOptions.ts";
 import * as intent from "../../../lib/inrAssistantMediaIntent.ts";
 import * as clauses from "../../../lib/inrAssistantRequestClauses.ts";
@@ -31,7 +32,7 @@ function load<T>(file:string, dependencies:Record<string,unknown>):T {
  * quota and HTTP routes are fixtures; no provider, database or filesystem write. */
 export function createNativeMediaQuoteFixture(currentUserMessage:string, remaining:number|null=50) {
   const native=load<typeof NativeQuote>("aiMediaCreditQuoteServer.ts",{"server-only":{},"node:crypto":{createHash},
-    "./aiMediaCreditsPricing.ts":pricing,"./aiMediaCharacterVoices.ts":{hasProvidedAiMediaCharacterVoice:()=>false},"./aiMediaModelCatalog.ts":catalogue});
+    "./aiMediaCreditsPricing.ts":pricing,"./aiMediaCharacterVoices.ts":{hasProvidedAiMediaCharacterVoice:()=>false},"./aiMediaExactDialogue.ts":exactDialogue,"./aiMediaModelCatalog.ts":catalogue});
   const calls:Array<{stage:string;body?:Record<string,unknown>}>=[], outputs:MediaTools.InrAssistantMediaResult[]=[];
   const forbid=async()=>{calls.push({stage:"forbidden_mutation"});assert.fail("Quote cannot dispatch media work or change a draft");};
   const mediaRuntime=load<typeof MediaTools>("inrAssistantMediaTools.ts",{"server-only":{},ai:sdk,

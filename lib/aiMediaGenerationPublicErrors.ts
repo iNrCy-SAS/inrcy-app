@@ -395,6 +395,18 @@ function diagnosticText(error: unknown): string {
     seen.add(value);
     if (Array.isArray(value)) { for (const item of value.slice(0, 8)) visit(item, depth + 1); return; }
     const record = value as Record<string, unknown>;
+    try {
+      const rawDiagnostics = record.diagnostics;
+      const diagnostics = rawDiagnostics && typeof rawDiagnostics === "object" && !Array.isArray(rawDiagnostics)
+        ? rawDiagnostics as Record<string, unknown> : null;
+      // An SDK can replace the abort reason with a generic response-format
+      // error. Trust only our bounded, explicit deadline facts, never a prompt
+      // or an arbitrary diagnostic string, for live and persisted failures.
+      if (diagnostics?.deadlineExceeded === true && diagnostics.providerAborted === true &&
+        diagnostics.callerAborted === false && (diagnostics.deadlineKind === "clip" || diagnostics.deadlineKind === "film")) {
+        visit("ai_video_gateway_timeout", depth + 1);
+      }
+    } catch { /* A diagnostic getter cannot break the error response. */ }
     for (const key of ["name", "code", "message", "error_code", "error_message", "cause", "error", "details", "error_details"]) {
       try { visit(record[key], depth + 1); } catch { /* A diagnostic getter cannot break the error response. */ }
     }

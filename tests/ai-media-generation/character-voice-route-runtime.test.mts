@@ -47,6 +47,17 @@ test("all voice endpoints authenticate before reading request data or touching S
   }
 });
 
+test("voice imports and library restoration reject a stale account header before parsing or creating a sample", async () => {
+  for (const request of [upload(), new Request("http://localhost/voice", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ mediaLibraryId: LIBRARY_ID }) })]) {
+    request.headers.set("X-Inrcy-Account-Id", "another-account");
+    const runtime = routeRuntime(); const response = await runtime.route.POST(request);
+    assert.equal(response.status, 409); assert.equal((await response.json()).code, "voice_reference_account_changed");
+    assert.deepEqual(runtime.calls.map(call => call.operation), ["auth"]);
+  }
+  const runtime = routeRuntime(); const request = upload(); request.headers.set("X-Inrcy-Account-Id", ACCOUNT);
+  assert.equal((await runtime.route.POST(request)).status, 200);
+});
+
 test("uploads are limited per active account with a fail-closed rate gate before multipart parsing", async () => {
   const runtime = routeRuntime({ limited: true });
   const response = await runtime.route.POST(upload());

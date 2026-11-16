@@ -1165,5 +1165,16 @@
   "ai_generator_exact_dialogue_character_voices": "Stimmen der Personen",
   "ai_generator_exact_dialogue_provided_voice": "Eigene Aufnahme · {name}",
   "ai_generator_exact_dialogue_provided_narrator": "Eigene Sprecheraufnahme",
-  "ai_generator_exact_dialogue_provided_mix": "Verwenden Sie für diese Zeilen ausschließlich die eigene Sprecheraufnahme."
+  "ai_generator_exact_dialogue_provided_mix": "Verwenden Sie für diese Zeilen ausschließlich die eigene Sprecheraufnahme.",
+  "ai_generator_reference_memory_remember": "Merken",
+  "ai_generator_reference_memory_update": "Aktualisieren",
+  "ai_generator_reference_memory_forget": "Vergessen",
+  "ai_generator_reference_memory_hint": "Diese Medien und ihre Stimmen bei meinen nächsten Kreationen wiederverwenden.",
+  "ai_generator_reference_memory_saved": "Medien gespeichert",
+  "ai_generator_reference_memory_saving": "Speichern…",
+  "ai_generator_reference_memory_loading": "Gespeicherte Medien werden geladen…",
+  "ai_generator_reference_memory_load_error": "Gespeicherte Medien sind nicht verfügbar. Öffnen Sie das Studio erneut.",
+  "ai_generator_reference_memory_save_error": "Medien konnten nicht gespeichert werden. Prüfen Sie Fotos und Stimmen und versuchen Sie es erneut.",
+  "ai_generator_reference_memory_forget_error": "Medien konnten nicht vergessen werden. Versuchen Sie es erneut.",
+  "ai_generator_reference_memory_forget_hint": "Diese Auswahl für meine nächsten Kreationen vergessen."
 }
