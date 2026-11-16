@@ -2048,7 +2048,7 @@
     "tests/ai-assistant/studio-reference-memory-policy.test.mts": "b73e59aaa6e373b4dde8041d9862c66d7425363719191ebb3c351f3954802e72",
     "tests/ai-assistant/studio-soundtrack-controls.test.mts": "9f508626dcbbb1588bb8d53cdd05647c986b9b58fd3a8c44ba71e6e242b186cc",
     "tests/ai-assistant/ui-tools.test.mts": "0a6a0f3562f6b21929b414a176ae36c1712d3047dd7769deabb595aa2f68e9e8",
-    "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts": "345637eeccd070129e28e9af3283c55387e9dccae951c15aa6c6b2baf9bd203b",
+    "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts": "a79ec3fb4e557e273da4fc821d568fbe5209c0a14a1512ad44a0c5f74ffabef1",
     "tests/ai-media-generation/ai-media-free-generation-prompt-runtime.test.mts": "3d9543fdce0af33cb80bd76969c4e227c8d8f5b5e34d760c20fe91b9fc6c36e0",
     "tests/ai-media-generation/ai-media-free-grok-voiceover-runtime.test.mts": "614b359986129ec5086e2c5e9bd513348208b465423ca7f96f92eefb5b873f03",
     "tests/ai-media-generation/ai-media-free-identity-auto-master-frame-runtime.test.mts": "04bebd2d34f1341762a8fa2f8798f296b80882ea64dcf699815a5b0e41017913",

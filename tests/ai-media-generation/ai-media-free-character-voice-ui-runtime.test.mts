@@ -841,12 +841,11 @@ test("the real Free voice import enables only supported engines and aligns quote
   for (const option of options) assert.equal(option.props.disabled, !voiceRules.isAiMediaCharacterVoiceEngine(String(option.props.value).split(":")[0]));
   const activeVoiceEngines = voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(models.isAiMediaVideoEngineAvailable);
   assert.deepEqual(activeVoiceEngines, ["wan27", "kling"], "recommend only current engines while historical capability metadata stays intact");
+  assert.deepEqual([...new Set(options.filter(option => !option.props.disabled).map(option => String(option.props.value).split(":")[0]))].sort(), [...activeVoiceEngines].sort(), "the real menu offers exactly the current supported engines");
   assert.deepEqual(voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, ["wan27", "wan3", "heygen", "kling"]);
   const status = elements(engines).filter(node => node.props.role === "status").map(text).find(value => value.includes("Voix fournie"));
-  assert.ok(status, "the real restricted-engine menu keeps its useful visible status");
-  assert.match(status, /Wan 2\.7/);
-  assert.match(status, /Kling/);
-  assert.doesNotMatch(status, /Wan 3|HeyGen/i);
+  assert.equal(status, undefined, "the compatible current engine does not repeat the supplied-voice engine advice");
+  assert.ok(!String(engineMenu.props.title || "").includes(frenchMessages.ai_generator_character_voice_engine_required), "the compatible engine title does not show an unmet restriction");
   for (const option of options.filter(option => option.props.disabled)) {
     assert.match(text(option), /Wan 2\.7/, "each disabled option points to the current supplied-voice engine");
     assert.doesNotMatch(text(option), /Wan 3|HeyGen/i);
