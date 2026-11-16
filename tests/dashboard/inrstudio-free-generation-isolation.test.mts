@@ -60,6 +60,7 @@ function audioControls(kind: "image" | "video", speechMode: "voiceover" | "chara
   }
   return {
     ...context,
+    selectedVoiceMode: context.selectedVoiceMode as "ai" | "provided",
     effectiveWithNarration: evaluate(initializer("effectiveWithNarration"), context) as boolean,
     requestSpeechMode: evaluate(initializer("requestSpeechMode"), context) as "voiceover" | "characters",
   };
@@ -483,7 +484,7 @@ test("le groupe vocal est exclusif, ses transitions restaurent la voix off et la
       const derivedExact = audioControls("video", speechMode, { narrationVoiceMode, exactRows: savedExactRows });
       assert.equal(evaluate(attribute(select.openingElement, "value"), derivedExact), speechMode,
         "Exact rows do not override the explicit global speech choice.");
-      const revision = voiceSelectionRevision.current, consentCount = consentChanges.length;
+      const revision: number = voiceSelectionRevision.current, consentCount = consentChanges.length;
       const changeExactMode = evaluate(attribute(select.openingElement, "onChange"), {
         ...derivedExact, voiceSelectionRevision,
         setSpeechMode: (value: typeof speechMode) => { speechMode = value; },
