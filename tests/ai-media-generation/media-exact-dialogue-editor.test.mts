@@ -4,8 +4,18 @@ import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import {normalizeAiMediaGenerationRequest} from '../../lib/aiMediaGenerationContracts.ts';
 import {normalizeAiMediaExactDialogue} from '../../lib/aiMediaExactDialogue.ts';
-import {buildMediaExactDialogueCharacters,serializeMediaExactDialogueRows,importMediaExactDialogueText,createMediaExactDialogueRow,countMediaExactDialogueCharacters,
+import {buildMediaExactDialogueCharacters,serializeMediaExactDialogueRows,importMediaExactDialogueText,createMediaExactDialogueRow,countMediaExactDialogueCharacters,getMediaExactDialogueDisplayBudget,
  type MediaExactDialogueCharacter} from '../../lib/mediaExactDialogueEditor.ts';
+
+test('the displayed speech allowance stays useful before typing and follows the actual engine duration without truncating drafts',()=>{
+ const input={videoEngine:'kling' as const,videoResolution:'1080p' as const,durationSeconds:16,sceneMode:'single' as const,language:'fr-FR'};
+ const rows=[createMediaExactDialogueRow()];
+ const empty=getMediaExactDialogueDisplayBudget(rows,input);assert.equal(empty.units,0);assert.equal(empty.characters,0);assert.equal(empty.maxUnits,30);assert.equal(empty.maxCharacters,300);
+ const short=getMediaExactDialogueDisplayBudget(rows,{...input,videoEngine:'wan27',durationSeconds:8});assert.equal(short.maxUnits,14);assert.equal(short.maxCharacters,140);
+ const script=Array(31).fill('bonjour').join(' ');rows[0].text=script;const over=getMediaExactDialogueDisplayBudget(rows,input);assert.equal(over.units,31);assert.equal(over.characters,script.length);assert.ok(over.issue);assert.equal(rows[0].text,script);
+ rows[0].text='x'.repeat(4100);const historical=getMediaExactDialogueDisplayBudget(rows,input);assert.equal(historical.characters,4100);assert.equal(rows[0].text.length,4100);assert.ok(historical.issue);
+ const cjk=getMediaExactDialogueDisplayBudget([createMediaExactDialogueRow('ai_voice','你好')],{...input,language:'zh-CN'});assert.equal(cjk.unit,'caractères prononcés');assert.equal(cjk.units,2);assert.ok(cjk.maxUnits>0);
+});
 
 test('the same canonical photo table drives thumbnail numbers, editor choices and the real serialized request',()=>{
  const stamp=Date.now(),day=new Date(stamp).toISOString().slice(0,10);

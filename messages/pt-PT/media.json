@@ -1104,6 +1104,7 @@
   "ai_generator_voice_choose_person": "Escolher a personagem",
   "ai_generator_voice_photo_needed": "Adicione uma fotografia de personagem para usar uma voz real.",
   "ai_generator_voice_details": "Definições",
+  "ai_generator_voice_pool_settings_label": "Definições das vozes",
   "ai_generator_voice_exact_script_needed": "Adicione as falas ou selecione Falas automáticas para usar uma voz real.",
   "ai_generator_voice_profile": "Gravação {index}",
   "ai_generator_voice_pool_count": "{count}/3",

@@ -257,7 +257,7 @@
         "lib/inrAssistantMediaLibraryTools.ts": "4a08f0e1a2081ce5d21b81efdf65b1f97e3c457781eb89b79366b262e373d567",
         "lib/inrAssistantMediaUiTools.ts": "2f15e337d2db730aae585760d3d98b392b52f7876aa6005f33744298ccb29ebf",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
-        "messages/fr-FR/media.json": "dea825f0afec1f037bd476e28794dfd102a94a255d0c0a00aeaaf0132495c97c"
+        "messages/fr-FR/media.json": "6637b93f5b8ba20f03fb0da2088b283b2473a05aeec2be60564851d2c3505f85"
       }
     },
     "basic-reputation": {
@@ -301,7 +301,7 @@
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e0fdc77a25455ea2b186b55e2b6fecd1e92be9a4c4a1a48f28326760e8521a98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "606786c4f104c46ff68bf6f8a0d38082646c6ebb8fe6e0efc56316f26520c632",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "f3df765ebb71bc3e5bacbe9e493b831fa9c2680db7b2d8b18f0472d3789d1a37",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "cda2ef09f327ef8546636c6dfcd654d2521e88b46639c2fa09b58e6e88271648",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "98d0d66fa68179398ad94494491615e06a894b6837847ed798885e2e409d689d",
         "app/dashboard/_components/StudioVoicePool.tsx": "a1546dfc0ef2ed9f85e2652435c3e673accf62ebbf92e6a2278298bd77eb8462",
@@ -335,7 +335,7 @@
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
         "lib/studioInspirationImagePolicy.ts": "0ab78c05540a02cc11912ed154430592824fa53492768bd0efb9c62772f8c3c0",
-        "messages/fr-FR/media.json": "dea825f0afec1f037bd476e28794dfd102a94a255d0c0a00aeaaf0132495c97c"
+        "messages/fr-FR/media.json": "6637b93f5b8ba20f03fb0da2088b283b2473a05aeec2be60564851d2c3505f85"
       }
     },
     "basic-studio-edit": {
@@ -351,7 +351,7 @@
         "lib/inrAssistantStudioUiCommands.ts": "9838413a08c3207b019d3756e5adb7d447d3378018c60bca2e665345db436fa1",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
-        "messages/fr-FR/media.json": "dea825f0afec1f037bd476e28794dfd102a94a255d0c0a00aeaaf0132495c97c"
+        "messages/fr-FR/media.json": "6637b93f5b8ba20f03fb0da2088b283b2473a05aeec2be60564851d2c3505f85"
       }
     },
     "basic-studio-preview": {
@@ -685,7 +685,7 @@
         "lib/inrAssistantMediaLibraryTools.ts": "4a08f0e1a2081ce5d21b81efdf65b1f97e3c457781eb89b79366b262e373d567",
         "lib/inrAssistantMediaUiTools.ts": "2f15e337d2db730aae585760d3d98b392b52f7876aa6005f33744298ccb29ebf",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
-        "messages/fr-FR/media.json": "dea825f0afec1f037bd476e28794dfd102a94a255d0c0a00aeaaf0132495c97c"
+        "messages/fr-FR/media.json": "6637b93f5b8ba20f03fb0da2088b283b2473a05aeec2be60564851d2c3505f85"
       }
     },
     "notifications": {
@@ -820,7 +820,7 @@
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e0fdc77a25455ea2b186b55e2b6fecd1e92be9a4c4a1a48f28326760e8521a98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "606786c4f104c46ff68bf6f8a0d38082646c6ebb8fe6e0efc56316f26520c632",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "f3df765ebb71bc3e5bacbe9e493b831fa9c2680db7b2d8b18f0472d3789d1a37",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "cda2ef09f327ef8546636c6dfcd654d2521e88b46639c2fa09b58e6e88271648",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "98d0d66fa68179398ad94494491615e06a894b6837847ed798885e2e409d689d",
         "app/dashboard/_components/MediaModifier.tsx": "ad6fbb5dbbe96ced78c9fc20e4848aa85abb48f59da4b019dd1e2a527e730ede",
@@ -860,7 +860,7 @@
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
         "lib/studioInspirationImagePolicy.ts": "0ab78c05540a02cc11912ed154430592824fa53492768bd0efb9c62772f8c3c0",
-        "messages/fr-FR/media.json": "dea825f0afec1f037bd476e28794dfd102a94a255d0c0a00aeaaf0132495c97c"
+        "messages/fr-FR/media.json": "6637b93f5b8ba20f03fb0da2088b283b2473a05aeec2be60564851d2c3505f85"
       }
     },
     "studio-edit": {
@@ -876,7 +876,7 @@
         "lib/inrAssistantStudioUiCommands.ts": "9838413a08c3207b019d3756e5adb7d447d3378018c60bca2e665345db436fa1",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
-        "messages/fr-FR/media.json": "dea825f0afec1f037bd476e28794dfd102a94a255d0c0a00aeaaf0132495c97c"
+        "messages/fr-FR/media.json": "6637b93f5b8ba20f03fb0da2088b283b2473a05aeec2be60564851d2c3505f85"
       }
     },
     "studio-transfer-recovery": {
@@ -966,7 +966,7 @@
         "lib/aiMediaCharacterVoices.ts": "03f6d0d0ab72d67922c8d2f9736f7fe3db77f6ec11e11985beed92c0b281c0b0",
         "lib/aiMediaModelCatalog.ts": "8b7d159af2e863aae5eccba8bdf3c9f114f137674f1b901440058525dae61271",
         "lib/inrAssistantStudioFacts.ts": "f1d4b0047d00b7b4961524f7415cabff4b0f8ddb2e94c5af13fdf0b4e8ae630e",
-        "messages/fr-FR/media.json": "dea825f0afec1f037bd476e28794dfd102a94a255d0c0a00aeaaf0132495c97c"
+        "messages/fr-FR/media.json": "6637b93f5b8ba20f03fb0da2088b283b2473a05aeec2be60564851d2c3505f85"
       }
     }
   }

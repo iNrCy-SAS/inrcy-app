@@ -1104,6 +1104,7 @@
   "ai_generator_voice_choose_person": "Kies het personage",
   "ai_generator_voice_photo_needed": "Voeg een personagefoto toe om een echte stem te gebruiken.",
   "ai_generator_voice_details": "Instellingen",
+  "ai_generator_voice_pool_settings_label": "Steminstellingen",
   "ai_generator_voice_exact_script_needed": "Voeg spreektekst toe of kies Automatische spreektekst om een echte stem te gebruiken.",
   "ai_generator_voice_profile": "Stemopname {index}",
   "ai_generator_voice_pool_count": "{count}/3",

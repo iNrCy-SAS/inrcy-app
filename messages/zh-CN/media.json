@@ -1104,6 +1104,7 @@
   "ai_generator_voice_choose_person": "选择角色",
   "ai_generator_voice_photo_needed": "请添加角色照片以使用真实声音。",
   "ai_generator_voice_details": "设置",
+  "ai_generator_voice_pool_settings_label": "声音设置",
   "ai_generator_voice_exact_script_needed": "请添加台词或选择自动台词，以使用真实声音。",
   "ai_generator_voice_profile": "录音 {index}",
   "ai_generator_voice_pool_count": "{count}/3",

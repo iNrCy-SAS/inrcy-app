@@ -14,9 +14,10 @@ type Props = {
   characters: MediaExactDialogueCharacter[]; onChange: (rows: MediaExactDialogueRow[]) => void;
   onOpenChange?: (open: boolean) => void; legacyImported?: boolean;
   defaultSpeaker?: 'ai_voice' | 'provided_voice';
+  speechBudget?: { units: number; maxUnits: number; characters: number; maxCharacters: number; unitLabel: string; engineLabel: string; durationSeconds: number };
 };
 
-export default function StudioExactDialogueEditor({ enabled, disabled, scopeKey, rows, characters, onChange, onOpenChange, legacyImported, defaultSpeaker = 'ai_voice' }: Props) {
+export default function StudioExactDialogueEditor({ enabled, disabled, scopeKey, rows, characters, onChange, onOpenChange, legacyImported, defaultSpeaker = 'ai_voice', speechBudget }: Props) {
   const t = useTranslations('media'), id = useId();
   const [open, setOpen] = useState(false), [ready, setReady] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -95,19 +96,15 @@ export default function StudioExactDialogueEditor({ enabled, disabled, scopeKey,
       onCancel={event => { event.preventDefault(); event.stopPropagation(); if (!disabled) setOpen(false); }} onClose={event => event.stopPropagation()}
       onClick={event => { if (event.target !== event.currentTarget || disabled) return; const rect = event.currentTarget.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) setOpen(false); }}>
       <header><h2 id={`${id}-title`}>{t('ai_generator_exact_dialogue_title')}</h2><button type="button" disabled={disabled} aria-label={t('ai_generator_video_settings_close')} onClick={() => setOpen(false)}>×</button></header>
-      <p>{t('ai_generator_exact_dialogue_help')}</p>
+      <p className={styles.help}>{t('ai_generator_exact_dialogue_help')}</p>
       {empty || missing || mixedProvided || count > MEDIA_EXACT_DIALOGUE_MAX_CHARS ? <p className={styles.hint} role="status">{t(mixedProvided ? 'ai_generator_exact_dialogue_provided_mix' : count > MEDIA_EXACT_DIALOGUE_MAX_CHARS ? 'ai_generator_exact_dialogue_limit' : missing ? 'ai_generator_exact_dialogue_choose_speaker' : 'ai_generator_exact_dialogue_empty')}</p> : null}
       {legacyImported ? <p role="status">{t('ai_generator_exact_dialogue_legacy')}</p> : null}
       <ol className={styles.rows}>
         {rows.map((row, index) => {
           const character = characters.find(item => item.id === row.characterId);
           return <li key={row.id} data-exact-dialogue-row={row.id}>
-            <div className={styles.rowHeading}><strong>{t('ai_generator_exact_dialogue_line', { index: index + 1 })}</strong><div>
-              <button type="button" disabled={disabled || index === 0} aria-label={t('ai_generator_exact_dialogue_up', { index: index + 1 })} onClick={() => { const next = move(index, 'up'); if (next) onChange(next); }}>↑</button>
-              <button type="button" disabled={disabled || index === rows.length - 1} aria-label={t('ai_generator_exact_dialogue_down', { index: index + 1 })} onClick={() => { const next = move(index, 'down'); if (next) onChange(next); }}>↓</button>
-              <button type="button" disabled={disabled} aria-label={t('ai_generator_exact_dialogue_remove', { index: index + 1 })} onClick={() => onChange(rows.filter(item => item.id !== row.id))}>×</button>
-            </div></div>
-            <label>{t('ai_generator_exact_dialogue_speaker')}<select disabled={disabled} aria-label={t('ai_generator_exact_dialogue_speaker_line', { index: index + 1 })}
+            <div className={styles.speakerColumn}><strong>{t('ai_generator_exact_dialogue_line', { index: index + 1 })}</strong>
+            <label><span className={styles.srOnly}>{t('ai_generator_exact_dialogue_speaker')}</span><select disabled={disabled} aria-label={t('ai_generator_exact_dialogue_speaker_line', { index: index + 1 })}
               value={row.speaker === 'character' ? `character:${row.characterId}` : row.speaker} onChange={event => onChange(rows.map(item => item.id === row.id ? changeSpeaker(item, event.target.value) : item))}>
               <option value="unassigned" disabled>{t('ai_generator_exact_dialogue_choose_speaker')}</option>
               <option value="ai_voice">{t('ai_generator_exact_dialogue_ai_voice')}</option>
@@ -115,13 +112,22 @@ export default function StudioExactDialogueEditor({ enabled, disabled, scopeKey,
               {row.speaker === 'character' && !character ? <option value={`character:${row.characterId}`} disabled>{t('ai_generator_exact_dialogue_missing')}</option> : null}
               {characters.map(item => <option key={item.id} value={`character:${item.id}`}>{t('ai_generator_exact_dialogue_character', { index: item.characterIndex })}{item.name ? ` · ${item.name}` : ''}</option>)}
             </select></label>
-            {row.speaker === 'character' && character?.voiceLabel ? <p className={styles.voiceLabel}>{character.voiceLabel}</p> : null}
-            <label>{t('ai_generator_exact_dialogue_text')}<textarea disabled={disabled} value={row.text}
+            {row.speaker === 'character' && character?.voiceLabel ? <p className={styles.voiceLabel} title={character.voiceLabel}>{character.voiceLabel}</p> : null}
+            </div>
+            <label className={styles.textColumn}><span className={styles.srOnly}>{t('ai_generator_exact_dialogue_text')}</span><textarea rows={2} disabled={disabled} value={row.text}
               aria-label={t('ai_generator_exact_dialogue_text_line', { index: index + 1 })} onChange={event => onChange(rows.map(item => item.id === row.id ? { ...item, text: event.target.value } : item))} /></label>
+            <div className={styles.rowActions}>
+              <button type="button" disabled={disabled || index === 0} aria-label={t('ai_generator_exact_dialogue_up', { index: index + 1 })} onClick={() => { const next = move(index, 'up'); if (next) onChange(next); }}>↑</button>
+              <button type="button" disabled={disabled || index === rows.length - 1} aria-label={t('ai_generator_exact_dialogue_down', { index: index + 1 })} onClick={() => { const next = move(index, 'down'); if (next) onChange(next); }}>↓</button>
+              <button type="button" disabled={disabled} aria-label={t('ai_generator_exact_dialogue_remove', { index: index + 1 })} onClick={() => onChange(rows.filter(item => item.id !== row.id))}>×</button>
+            </div>
           </li>;
         })}
       </ol>
-      <footer><span aria-live="polite">{count.toLocaleString()} / {MEDIA_EXACT_DIALOGUE_MAX_CHARS.toLocaleString()}</span>
+      <footer>{speechBudget ? <div className={styles.budget} data-exact-dialogue-budget aria-live="polite" data-invalid={speechBudget.units > speechBudget.maxUnits || speechBudget.characters > speechBudget.maxCharacters || undefined}>
+        <span>{t('ai_generator_video_speech_budget_short', { seconds: speechBudget.durationSeconds, model: speechBudget.engineLabel })}</span>
+        <strong>{t('ai_generator_video_speech_count', { count: speechBudget.units.toLocaleString(), max: speechBudget.maxUnits.toLocaleString(), unit: speechBudget.unitLabel })}{' · '}{t('ai_generator_video_speech_character_count', { count: speechBudget.characters.toLocaleString(), max: speechBudget.maxCharacters.toLocaleString() })}</strong>
+      </div> : null}
         <button type="button" disabled={disabled || rows.length >= MEDIA_EXACT_DIALOGUE_MAX_ROWS} data-exact-dialogue-add onClick={() => onChange([...rows, createMediaExactDialogueRow()])}>{t('ai_generator_exact_dialogue_add')}</button></footer>
       {count > MEDIA_EXACT_DIALOGUE_MAX_CHARS ? <p role="alert">{t('ai_generator_exact_dialogue_limit')}</p> : null}
     </dialog>, document.body) : null}

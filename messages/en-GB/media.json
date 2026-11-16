@@ -1104,6 +1104,7 @@
   "ai_generator_voice_choose_person": "Choose the character",
   "ai_generator_voice_photo_needed": "Add a character photo to use a real voice.",
   "ai_generator_voice_details": "Settings",
+  "ai_generator_voice_pool_settings_label": "Voice settings",
   "ai_generator_voice_exact_script_needed": "Add speech or select Automatic speech to use a real voice.",
   "ai_generator_voice_profile": "Voice clip {index}",
   "ai_generator_voice_pool_count": "{count}/3",

@@ -1623,7 +1623,6 @@
 .workspace[data-media-kind="video"] .spokenScriptHeading > .videoFrameHeading { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .speechSelectField { display: flex; flex-direction: column; gap: 3px; min-width: 0; margin: 0; }
 .voiceSourceField { grid-column: 3; grid-row: 1 / span 2; }
-.spokenScriptSection[data-exact="true"] .voiceSourceField { grid-column: 2 / 4; }
 .inlineSubtitles { display: flex; grid-column: 1 / 3; grid-row: 2; align-items: center; align-self: start; gap: 6px; min-width: 0; margin: 0; color: #c6d7ec; font-size: 11px; line-height: 1.4; }
 .inlineSubtitles input { flex: 0 0 auto; margin: 0; }
 .speechSelectField > span, .voiceMenuHeading > label { color: #ddccf1; font-size: 12px; font-weight: 650; line-height: 1.35; }
@@ -1684,7 +1683,6 @@
   .mediaReferenceOpen { width: 60px; height: 60px; }
   .workspace[data-media-kind="video"] .spokenScriptHeading.videoSpeechModeRow { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .voiceSourceField { grid-column: auto; grid-row: auto; }
-  .spokenScriptSection[data-exact="true"] .voiceSourceField { grid-column: auto; }
   .inlineSubtitles { grid-column: auto; grid-row: auto; }
   .spokenScriptModeSelect { min-height: 42px; font-size: 14px; }
   .workspace[data-media-kind="video"] .spokenScriptCounter { width: 100%; max-width: none; }

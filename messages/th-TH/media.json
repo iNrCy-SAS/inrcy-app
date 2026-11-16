@@ -1104,6 +1104,7 @@
   "ai_generator_voice_choose_person": "เลือกตัวละคร",
   "ai_generator_voice_photo_needed": "เพิ่มรูปภาพตัวละครเพื่อใช้เสียงจริง",
   "ai_generator_voice_details": "ตั้งค่า",
+  "ai_generator_voice_pool_settings_label": "ตั้งค่าเสียง",
   "ai_generator_voice_exact_script_needed": "เพิ่มบทพูดหรือเลือกบทพูดอัตโนมัติเพื่อใช้เสียงจริง",
   "ai_generator_voice_profile": "เสียงบันทึก {index}",
   "ai_generator_voice_pool_count": "{count}/3",

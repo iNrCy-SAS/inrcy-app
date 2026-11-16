@@ -1792,13 +1792,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaFreeGenerator.tsx"
     ],
-    "sourceAnchor": "<select id={`${instanceId}-video-speech-mode`} className={styles.spokenScriptModeSelect} value={speechMode} disabled={locked}\n                  aria-describedby={hasSpokenScript ? `${instanceId}-speech-mode-help` : undefined}\n                  onChange={event => {\n                    const mode = event.target.value as typeof speechMode;\n                    if (mode === \"silent\" && hasSpokenScript) return;\n                    if (mode !== \"characters\" && !characterVoiceSelection.hasProvidedVoice) { voiceModeIntent.current = null; setVoiceSourcePreference(\"ai\"); }\n                    setSpeechMode(mode); resetConsent();\n                  }}>\n                  {([\"voiceover\", \"characters\", \"silent\"] as const).map(mode => <option key={mode} value={mode} disabled={mode === \"silent\" && hasSpokenScript}>{t(`ai_generator_free_audio_${mode}`)}</option>)}\n                </select>",
+    "sourceAnchor": "id={`${instanceId}-video-speech-mode`}",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "studio_free_form sélectionne speechMode dans le bandeau vidéo. Valeurs finies, Sans parole interdit si texte exact présent, autorisations vocales réinitialisées par le setter natif mais jamais accordées. ACK après rendu ; Image ne présente pas ce contrôle.",
+    "notes": "Le panneau principal conserve ses trois colonnes Personnages / Paroles / Voix. En Automatiques, studio_free_form.select(speechMode) suit les choix natifs et leurs validations. En Exact, le mode Personnages affiché est dérivé des répliques et verrouillé : le bridge refuse toute écriture ou acquittement de ce mode global. Les locuteurs se choisissent dans les lignes du dialogue ; aucun changement de voix, consentement ou génération implicite.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts",
       "tests/dashboard/studio-video-brief-speech-browser.test.mts"
@@ -1806,7 +1806,7 @@
     "testAnchor": "the actual free Studio callbacks preserve prompt ownership and reset native speech authorizations without granting them",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:992eb6a59a90c278:1",
+      "app/dashboard/_components/MediaFreeGenerator.tsx#select:3fe6067fb39571d4:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:95ff67061cc132aa:1"
     ],
     "additionalProofs": [
@@ -15762,7 +15762,7 @@
       "lib/inrAssistantLocalInterface.ts",
       "lib/inrAssistantStudioFormSelection.ts"
     ],
-    "sourceAnchor": "aria-label={t(\"ai_generator_voice_choose_person\")}",
+    "sourceAnchor": "id={`${instanceId}-voice-character`}",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
@@ -15773,10 +15773,7 @@
     "controlIds": [
       "app/dashboard/_components/MediaFreeGenerator.tsx#select:6abfa304ec4747c9:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#option:327e054c86baa631:2",
-      "app/dashboard/_components/MediaFreeGenerator.tsx#option:4c045fb9bdcc80b0:1",
-      "app/dashboard/_components/MediaFreeGenerator.tsx#select:5ea7b357fc54e902:1",
-      "app/dashboard/_components/MediaFreeGenerator.tsx#option:327e054c86baa631:3",
-      "app/dashboard/_components/MediaFreeGenerator.tsx#option:ae58250d361d9470:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#option:4c045fb9bdcc80b0:1"
     ],
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts",
@@ -16186,7 +16183,7 @@
     "sourceAnchor": "data-exact-dialogue-settings",
     "controlIds": [
       "app/dashboard/_components/StudioExactDialogueEditor.tsx#button:57f2ddb6d482a7d9:1",
-      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioExactDialogueEditor:472c9876575f056b:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#StudioExactDialogueEditor:e79d4e10e7bd0651:1"
     ],
     "notes": "studio_exact_dialogue.open(null) ouvre le dialogue réellement monté en mode Paroles exactes, déverrouillé et dans le compte courant. Un brouillon vide peut préparer une première ligne vide avec le choix visible initial ou la voix off réelle déjà sélectionnée. Aucun texte, fichier, consentement, devis ni génération. ACK sur ouverture effectivement rendue."
   },
@@ -16248,7 +16245,9 @@
     "coverageStatus": "implemented",
     "testFiles": [
       "tests/ai-assistant/studio-exact-dialogue-native-ui.test.mts",
-      "tests/ai-assistant/studio-exact-dialogue-native.test.mts"
+      "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
+      "tests/ai-media-generation/media-exact-dialogue-editor.test.mts",
+      "tests/dashboard/studio-exact-dialogue-compact-browser.test.mts"
     ],
     "testAnchor": "the real Exact dialogue native bridge commits row text speaker add remove and order only after render on captured line and photo IDs",
     "additionalProofs": [
@@ -16259,15 +16258,23 @@
       {
         "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
         "testAnchor": "Basic Exact dialogue tool emits only a requested draft command and rejects stale revision or account without exposing rows"
+      },
+      {
+        "file": "tests/ai-media-generation/media-exact-dialogue-editor.test.mts",
+        "testAnchor": "the displayed speech allowance stays useful before typing and follows the actual engine duration without truncating drafts"
+      },
+      {
+        "file": "tests/dashboard/studio-exact-dialogue-compact-browser.test.mts",
+        "testAnchor": "compact Exact rows keep two columns, real speech budget, controls and both replies visible on desktop and mobile"
       }
     ],
     "id": "basic.studio.exact-dialogue-text",
     "label": "Réplique — texte exact de la ligne",
     "sourceAnchor": "aria-label={t('ai_generator_exact_dialogue_text_line', { index: index + 1 })}",
     "controlIds": [
-      "app/dashboard/_components/StudioExactDialogueEditor.tsx#textarea:a291c063e1a8856a:1"
+      "app/dashboard/_components/StudioExactDialogueEditor.tsx#textarea:443026a830f7e741:1"
     ],
-    "notes": "studio_exact_dialogue.select({field:text,rowIndex:N,value:texte exact}) exige Studio, Paroles exactes, une seule ligne visible N+1 et le texte littéral de la demande actuelle. Les mots, la ponctuation et les espaces fournis sont conservés. L’ancien setter spokenScript ne peut pas modifier un champ caché. Limite globale native et ligne existante ; capture ID de ligne, ordre et compte, ACK après rendu. Aucun choix de voix déduit ni génération."
+    "notes": "studio_exact_dialogue.select({field:text,rowIndex:N,value:texte exact}) exige Studio, Paroles exactes, une seule ligne visible N+1 et le texte littéral de la demande actuelle. Mots, ponctuation et espaces sont conservés. Le compteur affiche le budget de parole calculé pour le moteur, la durée, la langue et les plans, dès le brouillon vide. Le dépassement reste visible sans tronquer la saisie ; validation et devis natifs restent requis avant génération. Les bornes techniques de transport ne définissent pas la capacité affichée. Ancien setter spokenScript refusé ; capture ID de ligne, ordre et compte, ACK après rendu. Aucun choix de voix déduit ni génération."
   },
   {
     "domain": "studio",

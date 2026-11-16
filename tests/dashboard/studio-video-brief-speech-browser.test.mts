@@ -202,7 +202,7 @@ async function assertSpeechHeaderCompact(page: Page, context: string) {
     return { exact, dialogueSettings: row.querySelectorAll('[data-exact-dialogue-settings]').length, responsive: innerWidth <= 1100, stacked: [...row.querySelectorAll<HTMLSelectElement>('select')].every(select => select.getBoundingClientRect().width >= rowBounds.width - 2), titleLines, titleCount: labels.length, detailsCount: row.querySelectorAll("[data-video-audio-button]").length, rowHeight: rowBounds.height, controls };
   });
   assert.ok(layout.titleLines >= 1 && layout.titleLines <= 2, `${context}: the sound and speech title remains compact`);
-  assert.equal(layout.controls.length, layout.exact ? 2 : 3, `${context}: Exact takes its speakers from the dialogue rows; Auto retains the global speech-mode menu`);
+  assert.equal(layout.controls.length, 3, `${context}: Personnages, Paroles and Voix retain their original three-column controls`);
   assert.equal(layout.titleCount, layout.controls.length, `${context}: each menu keeps its own visible label`);
   assert.equal(layout.dialogueSettings, layout.exact ? 1 : 0, `${context}: the dialogue Settings trigger sits inside the speech-menu row`);
   assert.equal(layout.detailsCount, 1, `${context}: the voice settings button remains present`);
@@ -673,7 +673,8 @@ test("real Studio voice Settings opens the three-source pool and preserves new s
         await imageDialog.locator('input[type="file"]').setInputFiles({ name: "moi.png", mimeType: "image/png", buffer: Buffer.from(referencePng, "base64") });
         await imageDialog.waitFor({ state: "detached" });
         await page.waitForFunction(() => document.querySelectorAll('[data-media-reference-open]').length === 1);
-        assert.equal(await page.locator('select[id$="-video-speech-mode"]').count(), 0, "Exact uses each dialogue row instead of a hidden global speech-mode choice");
+        assert.equal(await page.locator('select[id$="-video-speech-mode"]').isDisabled(), true, "the original global menu remains visible while explicit dialogue speakers determine its value");
+        assert.equal(await page.locator('select[id$="-video-speech-mode"]').inputValue(), "voiceover");
         assert.equal(await page.locator('select[id$="-video-voice-mode"]').inputValue(), "provided");
         await assertUsualDesktopPanelNeedsNoScroll(page, `${viewport.width}x${viewport.height} Real voiceover with one required photo and Exact`);
       }
@@ -941,7 +942,8 @@ test("short windows keep both video frames separate and the speech header on two
         await page.locator('select[id$="-spoken-script-mode"]').selectOption("exact");
         assert.equal(await speech.inputValue(), "Bonjour, nous prenons soin de votre jardin.");
         assert.equal(await page.locator('[data-exact-dialogue-settings]').isVisible(), true);
-        assert.equal(await page.locator('select[id$="-video-speech-mode"]').count(), 0, "the dialogue speakers replace the stale silent global setting");
+        assert.equal(await page.locator('select[id$="-video-speech-mode"]').isDisabled(), true, "the restored global menu reflects the explicit dialogue without overriding it");
+        assert.equal(await page.locator('select[id$="-video-speech-mode"]').inputValue(), "voiceover", "the offscreen dialogue replaces the stale silent Auto value");
         await page.locator('select[id$="-spoken-script-mode"]').selectOption("automatic");
         await page.locator('select[id$="-video-speech-mode"]').selectOption("voiceover");
         assert.equal(await page.locator('select[id$="-spoken-script-mode"]').isVisible(), true);
@@ -1043,12 +1045,12 @@ test("real Studio video frames render on desktop and mobile and block oversized 
       await fillCommittedStudioText(page, "spokenScript", "un deux trois quatre cinq six sept");
       const duration = page.locator('select[id$="-duration"]');
       await duration.selectOption("4:single");
-      await page.getByText("7 / 6 mots", { exact: false }).waitFor();
+      await page.locator('[id$="-spoken-script-count"]').filter({ hasText: "7 / 6 mots" }).waitFor();
       const generate = page.locator("[data-media-primary-action]");
       assert.equal(await generate.isDisabled(), true);
       await duration.selectOption("8:single");
       assert.equal(await speech.inputValue(), "un deux trois quatre cinq six sept");
-      await page.getByText("7 / 14 mots", { exact: false }).waitFor();
+      await page.locator('[id$="-spoken-script-count"]').filter({ hasText: "7 / 14 mots" }).waitFor();
       assert.equal(await generate.isDisabled(), false);
       await visual.fill("x".repeat(501));
       assert.equal(await visual.inputValue(), "x".repeat(501));

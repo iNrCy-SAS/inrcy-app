@@ -46,7 +46,7 @@ import MediaSubjectVoiceButton from "./MediaSubjectVoiceButton";
 import StudioMusicLibrary from "./StudioMusicLibrary";
 import StudioVoicePool, { type StudioVoiceProfile } from "./StudioVoicePool";
 import StudioExactDialogueEditor from "./StudioExactDialogueEditor";
-import { createMediaExactDialogueRow, serializeMediaExactDialogueRows, importMediaExactDialogueText, buildMediaExactDialogueCharacters, type MediaExactDialogueRow, type MediaExactDialogueCharacter } from "@/lib/mediaExactDialogueEditor";
+import { createMediaExactDialogueRow, serializeMediaExactDialogueRows, importMediaExactDialogueText, buildMediaExactDialogueCharacters, getMediaExactDialogueDisplayBudget, type MediaExactDialogueRow, type MediaExactDialogueCharacter } from "@/lib/mediaExactDialogueEditor";
 import { deleteCharacterVoiceSample, getCharacterVoiceSelectionState } from "@/lib/aiMediaCharacterVoiceClient";
 import { AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, exceedsAiMediaCharacterVoiceEngineDuration, hasTooShortAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine, normalizeAiMediaCharacterName } from "@/lib/aiMediaCharacterVoices";
 import MediaPromptHelp from "./MediaPromptHelp";
@@ -296,7 +296,7 @@ export default function MediaFreeGenerator({
   const referencePickerVisible = editorAvailable && !stopConfirmOpen && !voicePoolOpen && !exactDialogueOpen;
   const voiceReferences = references.filter(reference => reference.role === "character");
   const voiceConfigurationMode = exactSpeechEditorVisible ? exactRows.some(row => row.speaker === "character") ? "characters" : "voiceover" : speechMode;
-  const selectedVoiceReference = voiceConfigurationMode === "characters" ? voiceReferences.find(reference => reference.id === voiceReferenceId) ?? (voiceReferences.length === 1 ? voiceReferences[0] : null) : null;
+  const selectedVoiceReference = voiceConfigurationMode === "characters" ? voiceReferences.find(reference => reference.id === voiceReferenceId) ?? (exactSpeechEditorVisible || voiceReferences.length === 1 ? voiceReferences[0] ?? null : null) : null;
   const selectedVoiceMode = exactSpeechEditorVisible && voiceConfigurationMode === "voiceover" ? exactRows.some(row => row.speaker === "provided_voice") ? "provided" : "ai"
     : voiceConfigurationMode === "voiceover" ? narrationVoiceMode : selectedVoiceReference ? selectedVoiceReference.voiceMode ?? "ai" : voiceSourcePreference;
   useInrAssistantLocalInterface("studio_free_library", { open: libraryOpen }, {
@@ -427,7 +427,8 @@ export default function MediaFreeGenerator({
     inspirationImages: exactSpeechEditorVisible ? exactCharacters.map(character => ({ role: "character" as const, characterIndex: character.characterIndex })) : projectedReferences,
   });
   const speechInvalid = kind === "video" && Boolean(speechState.issue);
-  const speechUnit = t(speechState.unit === "mots" ? "ai_generator_video_speech_words" : "ai_generator_video_speech_characters");
+  const speechDisplayBudget = exactSpeechEditorVisible ? getMediaExactDialogueDisplayBudget(exactRows, { durationSeconds: duration, videoEngine: selectedVideoEngine, videoResolution, sceneMode, language: locale }) : speechState;
+  const speechUnit = t(speechDisplayBudget.unit === "mots" ? "ai_generator_video_speech_words" : "ai_generator_video_speech_characters");
   const speechError = speechState.issue?.code === "AI_MEDIA_VIDEO_DURATION_INVALID"
     ? t("ai_generator_model_duration_unavailable", { seconds: duration })
     : speechState.issue?.code === "AI_MEDIA_INVALID_SPEECH_MODE"
@@ -1578,11 +1579,12 @@ export default function MediaFreeGenerator({
                   </div>
                   <p id={`${instanceId}-spoken-script-help`} className={styles.srOnly}>{t("ai_generator_video_speech_frame_hint_short")}</p>
                 </div>
-                {!exactSpeechEditorVisible ? <label className={styles.speechSelectField} htmlFor={`${instanceId}-video-speech-mode`}>
+                <label className={styles.speechSelectField} htmlFor={`${instanceId}-video-speech-mode`}>
                 <span>{t("ai_generator_free_audio_characters")}</span>
-                <select id={`${instanceId}-video-speech-mode`} className={styles.spokenScriptModeSelect} value={speechMode} disabled={locked}
-                  aria-describedby={hasSpokenScript ? `${instanceId}-speech-mode-help` : undefined}
+                <select id={`${instanceId}-video-speech-mode`} className={styles.spokenScriptModeSelect} value={exactSpeechEditorVisible ? voiceConfigurationMode : speechMode} disabled={locked || exactSpeechEditorVisible}
+                  aria-describedby={!exactSpeechEditorVisible && hasSpokenScript ? `${instanceId}-speech-mode-help` : undefined}
                   onChange={event => {
+                    if (exactSpeechEditorVisible) return;
                     const mode = event.target.value as typeof speechMode;
                     if (mode === "silent" && hasSpokenScript) return;
                     if (mode !== "characters" && !characterVoiceSelection.hasProvidedVoice) { voiceModeIntent.current = null; setVoiceSourcePreference("ai"); }
@@ -1590,7 +1592,7 @@ export default function MediaFreeGenerator({
                   }}>
                   {(["voiceover", "characters", "silent"] as const).map(mode => <option key={mode} value={mode} disabled={mode === "silent" && hasSpokenScript}>{t(`ai_generator_free_audio_${mode}`)}</option>)}
                 </select>
-                </label> : null}
+                </label>
                 <div className={styles.speechSelectField}>
                 <label htmlFor={`${instanceId}-spoken-script-mode`}>{t("ai_generator_speech_menu_label")}</label>
                 <select
@@ -1615,17 +1617,13 @@ export default function MediaFreeGenerator({
                 </select>
                 {exactSpeechEditorVisible ? <StudioExactDialogueEditor enabled={editorAvailable && !voicePoolOpen && !libraryOpen && !mediaSettingsDialog} disabled={locked}
                   scopeKey={quota?.accountId ?? ""} rows={exactRows} onChange={setExactRows} characters={exactCharacters}
+                  speechBudget={{ units: speechDisplayBudget.units, maxUnits: speechDisplayBudget.maxUnits, characters: speechDisplayBudget.characters, maxCharacters: speechDisplayBudget.maxCharacters, unitLabel: speechUnit, engineLabel: videoModel.label, durationSeconds: duration }}
                   onOpenChange={setExactDialogueOpen} legacyImported={legacyExactImported} defaultSpeaker={narrationVoiceMode === "provided" && narrationVoiceSample ? "provided_voice" : "ai_voice"} /> : null}
                 </div>
                 <div className={`${styles.speechSelectField} ${styles.voiceSourceField}`}>
                   <div className={styles.voiceMenuHeading}>
-                    <label htmlFor={`${instanceId}-video-voice-mode`}>{t(exactHasCharacters ? "ai_generator_exact_dialogue_character_voices" : "ai_generator_narration_voice_label")}</label>
+                    <label htmlFor={`${instanceId}-video-voice-mode`}>{t("ai_generator_narration_voice_label")}</label>
                   </div>
-                  {exactHasCharacters && exactCharacters.length > 1 ? <select aria-label={t("ai_generator_voice_choose_person")} disabled={locked} value={selectedVoiceReference?.id ?? ""}
-                    onChange={event => { setVoiceReferenceId(event.target.value || null); }}>
-                    <option value="" disabled>{t("ai_generator_voice_choose_person")}</option>
-                    {exactCharacters.map(character => <option key={character.id} value={character.id}>{t("ai_generator_exact_dialogue_character", { index: character.characterIndex })}{character.name ? ` · ${character.name}` : ""}</option>)}
-                  </select> : null}
                   <select id={`${instanceId}-video-voice-mode`} className={styles.spokenScriptModeSelect} value={selectedVoiceMode} disabled={locked || exactSpeechEditorVisible && voiceConfigurationMode === "voiceover" || !exactSpeechEditorVisible && speechMode === "silent"}
                     aria-describedby={audioSettingsWarning ? `${instanceId}-video-audio-warning` : undefined}
                     onChange={event => chooseVoiceMode(event.target.value === "provided" ? "provided" : "ai")}>
@@ -1653,13 +1651,13 @@ export default function MediaFreeGenerator({
               </div>
               {providedVoiceWithEmptyScript ? <p className={styles.referenceWarning} data-video-voice-script-warning role="alert">{t("ai_generator_voice_exact_script_needed")}</p> : null}
               {providedNarrationVoiceActive && audioSettingsWarning && !providedVoiceWithEmptyScript ? <p className={styles.referenceWarning} role="alert">{audioSettingsWarning}</p> : null}
-              {hasSpokenScript ? <p id={`${instanceId}-speech-mode-help`} className={styles.srOnly}>{t("ai_generator_spoken_script_remove_for_silent")}</p> : null}
+              {!exactSpeechEditorVisible && hasSpokenScript ? <p id={`${instanceId}-speech-mode-help`} className={styles.srOnly}>{t("ai_generator_spoken_script_remove_for_silent")}</p> : null}
               <div id={`${instanceId}-spoken-script-panel`} className={styles.spokenScriptContent}>
               {exactSpeechEditorVisible ? <>
               <div className={styles.spokenScriptInput}>
                 <span id={`${instanceId}-spoken-script-count`} className={styles.spokenScriptCounter} aria-live="polite">
-                  {t("ai_generator_video_speech_count", { count: speechState.units.toLocaleString(locale), max: speechState.maxUnits.toLocaleString(locale), unit: speechUnit })}
-                  {" · "}{t("ai_generator_video_speech_character_count", { count: speechState.characters.toLocaleString(locale), max: speechState.maxCharacters.toLocaleString(locale) })}
+                  {t("ai_generator_video_speech_count", { count: speechDisplayBudget.units.toLocaleString(locale), max: speechDisplayBudget.maxUnits.toLocaleString(locale), unit: speechUnit })}
+                  {" · "}{t("ai_generator_video_speech_character_count", { count: speechDisplayBudget.characters.toLocaleString(locale), max: speechDisplayBudget.maxCharacters.toLocaleString(locale) })}
                 </span>
               </div>
               <p id={`${instanceId}-spoken-script-budget`} className={explicitlyEmptySpokenScript ? styles.promptHelp : styles.srOnly}

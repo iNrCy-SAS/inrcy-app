@@ -1,5 +1,6 @@
 import { normalizeAiMediaCharacterName } from './aiMediaCharacterVoices.ts';
 import type { AiMediaExactDialogueTurn } from './aiMediaExactDialogue.ts';
+import { getAiMediaVideoSpeechState, type AiMediaVideoSpeechBudgetInput } from './aiMediaVideoSpeechBudget.ts';
 
 export const MEDIA_EXACT_DIALOGUE_MAX_ROWS = 12;
 export const MEDIA_EXACT_DIALOGUE_MAX_CHARS = 4_000;
@@ -14,6 +15,15 @@ export function buildMediaExactDialogueCharacters(references: readonly { id: str
 
 export function countMediaExactDialogueCharacters(rows: readonly MediaExactDialogueRow[]) {
   return rows.reduce((sum, row) => sum + row.text.length, Math.max(0, rows.length - 1));
+}
+
+/** Display the current duration's speech allowance even before the first word.
+ * This does not replace structured target validation or generation preflight. */
+export function getMediaExactDialogueDisplayBudget(rows: readonly MediaExactDialogueRow[], input: Pick<AiMediaVideoSpeechBudgetInput, 'durationSeconds' | 'videoEngine' | 'videoResolution' | 'sceneMode' | 'language'>) {
+  const script = rows.map(row => row.text).join('\n');
+  return getAiMediaVideoSpeechState({ ...input, kind: 'video', creationMode: 'free', freePrompt: '',
+    ...(script.trim() ? { spokenScript: script } : {}), withNarration: true,
+    teamVideoSpeechMode: rows.some(row => row.speaker === 'character') ? 'characters' : 'voiceover' });
 }
 
 export function createMediaExactDialogueRow(speaker: MediaExactDialogueRow['speaker'] = 'ai_voice', text = ''): MediaExactDialogueRow {
