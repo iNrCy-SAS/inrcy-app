@@ -11,6 +11,7 @@ import { loadAiMediaFreeDnaContext } from "@/lib/aiMediaFreeDnaContextServer";
 import {
   composeAiMediaBrandedImage,
   renderAiMediaVideoOverlay,
+  type AiMediaImageLogoLayout,
 } from "@/lib/aiMediaBrandRenderer";
 import { composeAiMediaContactImage } from "@/lib/aiMediaImageContactComposer";
 import { buildAiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
@@ -754,6 +755,8 @@ export async function generateAndSaveAiMedia(args: {
   let exactContactCompositionApplied = false;
   let deterministicImageCompositionApplied = false;
   let exactLogoCompositionApplied = false;
+  let imageLogoLayout: AiMediaImageLogoLayout | null = null;
+  const recordImageLogoLayout = (layout: AiMediaImageLogoLayout) => { imageLogoLayout = layout; };
   let teamPrecompositionGateway: AiMediaGatewayResult | null = null;
   let teamPrecompositionModel = "";
   let teamPrecompositionMetadata: Record<string, unknown> | null = null;
@@ -876,6 +879,7 @@ export async function generateAndSaveAiMedia(args: {
               scene: imageScene,
               logo: officialLogo,
               requireLogo: true,
+              onLogoLayout: recordImageLogoLayout,
               colors: effectiveColors,
               companyName: creativePlan.companyName,
               visualStyle: providerRequest.visualStyle,
@@ -924,6 +928,7 @@ export async function generateAndSaveAiMedia(args: {
               scene: composedImageScene,
               logo: officialLogo,
               requireLogo: Boolean(officialLogo),
+              onLogoLayout: recordImageLogoLayout,
               colors: effectiveColors,
               companyName: creativePlan.companyName,
               visualStyle: providerRequest.visualStyle,
@@ -967,6 +972,7 @@ export async function generateAndSaveAiMedia(args: {
           scene: imageScene,
           logo: officialLogo,
           requireLogo: true,
+          onLogoLayout: recordImageLogoLayout,
           colors: effectiveColors,
           companyName: creativePlan.companyName,
           visualStyle: providerRequest.visualStyle,
@@ -2245,6 +2251,7 @@ export async function generateAndSaveAiMedia(args: {
           deterministic_image_composition_applied:
             deterministicImageCompositionApplied,
           local_logo_composition_applied: exactLogoCompositionApplied,
+          ...(exactLogoCompositionApplied && imageLogoLayout ? { image_logo_layout: imageLogoLayout } : {}),
           profile_phone_display_requested: profilePhoneDisplayRequested,
           profile_phone_display_applied: Boolean(profilePhone),
           brand_palette_applied: isFreeCreation ? promptBrandColors : providerRequest.useBrandColors ? brandKit.colors : [],

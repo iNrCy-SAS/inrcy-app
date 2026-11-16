@@ -178,6 +178,54 @@ test("smooth background variation remains usable with the reserved logo at its o
   assert.ok(bounds.width >= 260 && bounds.height >= 60);
 });
 
+async function narrowQuietCorner() {
+  return sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800"><defs><pattern id="busy" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="white"/><rect width="8" height="8" fill="black"/><rect x="8" y="8" width="8" height="8" fill="black"/></pattern></defs><rect width="100%" height="100%" fill="url(#busy)"/><rect x="740" width="260" height="200" fill="#17263e"/></svg>')).png().toBuffer();
+}
+
+test("default logo dimensions adapt inside the same quiet corner while preserving the official aspect ratio", async () => {
+  let layout: Parameters<NonNullable<ImageArgs["onLogoLayout"]>>[0] | undefined;
+  const output = await runtime.exports.composeAiMediaBrandedImage(args(await narrowQuietCorner(), await logo(600, 140), {
+    imageLogoReservation: resolveAiMediaImageLogoReservation({ width: 1000, height: 800 }),
+    onLogoLayout: value => { layout = value; },
+  }));
+  const bounds = await coloredLogoBounds(output);
+  assert.ok(layout && layout.scale < 1 && layout.scale >= 0.65, JSON.stringify(layout));
+  assert.ok(bounds.width >= 175 && bounds.width < 240, JSON.stringify(bounds));
+  assert.ok(bounds.minX >= 740 && bounds.minY >= 30 && bounds.maxY < 200);
+  assert.ok(Math.abs(bounds.width / bounds.height - 600 / 140) < 0.16, "no stretched or cropped mark");
+  assert.ok(bounds.maxX <= 960);
+});
+
+test("a vertical opaque logo fits every output format independently of uploaded pixel dimensions", async () => {
+  for (const [width, height] of [[1080, 1080], [1080, 1350], [1080, 1920], [1920, 1080]]) {
+    const layouts: Array<Parameters<NonNullable<ImageArgs["onLogoLayout"]>>[0]> = [];
+    for (const [sourceWidth, sourceHeight] of [[400, 600], [1600, 2400]]) {
+      await runtime.exports.composeAiMediaBrandedImage(args(await solid(width, height), await logo(sourceWidth, sourceHeight), {
+        width, height, onLogoLayout: value => { layouts.push(value); },
+      }));
+    }
+    assert.equal(layouts.length, 2);
+    assert.deepEqual(layouts[0], layouts[1], "source resolution must not control display size");
+    assert.equal(layouts[0].scale, 1, "valid compositions keep the original readable display size");
+    assert.ok(layouts[0].width <= width * 0.27 + 1);
+    assert.ok(layouts[0].height <= Math.min(width, height) * 0.22 + 1);
+    assert.ok(Math.abs(layouts[0].width / layouts[0].height - 2 / 3) < 0.01);
+    assert.ok(layouts[0].left >= 0 && layouts[0].top >= 0 && layouts[0].left + layouts[0].width <= width && layouts[0].top + layouts[0].height <= height);
+  }
+});
+
+test("adaptive fitting keeps requested axes and never overrides an explicit logo size", async () => {
+  const input = await narrowQuietCorner();
+  await assert.rejects(runtime.exports.composeAiMediaBrandedImage(args(input, await logo(600, 140), {
+    logoPlacement: { horizontal: "right", vertical: "top", size: "large" },
+  })), /ai_media_logo_no_safe_placement/);
+  let layout: Parameters<NonNullable<ImageArgs["onLogoLayout"]>>[0] | undefined;
+  await runtime.exports.composeAiMediaBrandedImage(args(input, await logo(600, 140), {
+    logoPlacement: { horizontal: "right", vertical: "top" }, onLogoLayout: value => { layout = value; },
+  }));
+  assert.ok(layout && layout.scale < 1 && layout.left >= 740 && layout.top === 36, JSON.stringify(layout));
+});
+
 test("an unavoidable matching background receives an alpha halo, not a solid branding badge", async () => {
   const whiteMark = await sharp({ create: { width: 160, height: 80, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
     .composite([{ input: await sharp({ create: { width: 120, height: 40, channels: 4, background: "#ffffff" } }).png().toBuffer(), left: 20, top: 20 }]).png().toBuffer();

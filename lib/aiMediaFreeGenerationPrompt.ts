@@ -18,7 +18,7 @@ import { getAiFeaturePolicy } from "./aiGatewayPolicy.ts";
 import { appendPromptOnlyJsonContract } from "./aiGatewayResponse.ts";
 
 export const AI_MEDIA_FREE_PROMPT_VERSION = "free-creative-v17-editorial-subject-logo-space";
-export const AI_MEDIA_IMAGE_BRANDING_POLICY_VERSION = "image-branding-v2-dna-control-safe-placement";
+export const AI_MEDIA_IMAGE_BRANDING_POLICY_VERSION = "image-branding-v3-format-adaptive-logo-size";
 // Recraft also receives the exact-logo reservation and provider identity rules.
 const AI_MEDIA_FREE_RECRAFT_PROMPT_MAX_CHARS = 8_600;
 

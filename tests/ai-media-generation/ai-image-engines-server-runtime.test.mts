@@ -47,7 +47,7 @@ function realCapabilityGate() {
   ])).assertAiMediaGatewayImageInputs;
 }
 
-function serverHarness(providerFailure: boolean | Error = false, options: { logo?: Buffer | null; composerFailure?: boolean | Error; phone?: string; normalizedCanvas?: { width: number; height: number } } = {}) {
+function serverHarness(providerFailure: boolean | Error = false, options: { logo?: Buffer | null; logoLayout?: RecordValue; composerFailure?: boolean | Error; phone?: string; normalizedCanvas?: { width: number; height: number } } = {}) {
   const counts = { creative: 0, headline: 0, provider: 0, fallback: 0, branded: 0, saved: 0 };
   const providerCalls: RecordValue[] = [];
   const composerCalls: RecordValue[] = [];
@@ -86,7 +86,7 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
     ["@/lib/aiGenerationProfile", { buildNormalizedAiGenerationProfile: () => profile }],
     ["@/lib/aiMediaBrandKit", { loadAiMediaBrandKit: async () => ({ colors: ["#112233", "#445566", "#778899"], hasOfficialPalette: true, logo, logoVersion: "test" }) }],
     ["@/lib/aiMediaFreeDnaContextServer", { loadAiMediaFreeDnaContext: async () => ({ coordonnees: { telephone: "01 23 45 67 89" }, liens: { site_web: "https://atelier.example/" }, informations_demandees: [] }) }],
-    ["@/lib/aiMediaBrandRenderer", { composeAiMediaBrandedImage: async (args: RecordValue) => { counts.branded += 1; composerCalls.push(args); if (options.composerFailure) throw options.composerFailure instanceof Error ? options.composerFailure : new Error("ai_media_required_logo_not_composed"); return Buffer.from("locally-branded-output"); } }],
+    ["@/lib/aiMediaBrandRenderer", { composeAiMediaBrandedImage: async (args: RecordValue) => { counts.branded += 1; composerCalls.push(args); if (options.composerFailure) throw options.composerFailure instanceof Error ? options.composerFailure : new Error("ai_media_required_logo_not_composed"); if (options.logoLayout) (args.onLogoLayout as ((layout: RecordValue) => void) | undefined)?.(options.logoLayout); return Buffer.from("locally-branded-output"); } }],
     ["@/lib/aiMediaImageContactComposer", { composeAiMediaContactImage: async (args: RecordValue) => { contactCalls.push(args); return Buffer.from("locally-contacted-output"); } }],
     ["@/lib/aiMediaCreativePlan", { buildAiMediaCreativePlan: () => plan }],
     ["@/lib/aiMediaCastingVariation", { chooseAiMediaCastingVariation: () => null }],
@@ -283,6 +283,23 @@ test("explicit exclusions, new logos and attached client logos cannot be replace
         assert.equal(h.counts.saved, 1);
       }
     }
+  });
+});
+
+test("successful local logo fitting records display dimensions after a single image generation", async () => {
+  await withCredentials(async () => {
+    const layout = { width: 189, height: 44, left: 766, top: 36, scale: 0.7 };
+    const h = serverHarness(false, { logoLayout: layout });
+    await h.generate(request("gemini", { creationMode: "free", useBusinessDna: true,
+      freePrompt: "Une affiche pour notre atelier avec le logo officiel." }));
+    const metadata = h.saved[0].metadata as { provenance: RecordValue };
+    assert.equal(h.counts.provider, 1);
+    assert.equal(h.counts.branded, 1);
+    assert.equal(h.counts.fallback, 0);
+    assert.equal(h.counts.saved, 1);
+    assert.deepEqual(metadata.provenance.image_logo_layout, layout);
+    assert.equal(metadata.provenance.exact_logo_applied, true);
+    assert.equal(metadata.provenance.official_logo_sha256, createHash("sha256").update(h.logo!).digest("hex"));
   });
 });
 

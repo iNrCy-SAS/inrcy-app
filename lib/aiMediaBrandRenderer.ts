@@ -413,6 +413,15 @@ async function prepareLogo(
 
 type ImageLogoOverlay = { input: Buffer; left: number; top: number };
 
+export type AiMediaImageLogoLayout = {
+  width: number;
+  height: number;
+  left: number;
+  top: number;
+  /** Display scale relative to the default footprint for this output format. */
+  scale: number;
+};
+
 /**
  * Choose a quiet, contrasting edge of this image, not a fixed corner. This
  * bounded pixel analysis rejects busy edges; it does not recognize text,
@@ -420,17 +429,18 @@ type ImageLogoOverlay = { input: Buffer; left: number; top: number };
  * that the received pixels are clear. Explicit user axes remain authoritative.
  */
 async function buildImageBrandOverlays(
-  args: RenderBaseArgs & { input: Buffer; withText: boolean }
+  args: RenderBaseArgs & { input: Buffer; withText: boolean; onLogoLayout?: (layout: AiMediaImageLogoLayout) => void }
 ): Promise<ImageLogoOverlay[]> {
   if (args.logoMode === "none") {
     if (args.requireLogo) throw new Error("ai_media_required_logo_not_composed");
     return [];
   }
-  const logo = await prepareLogo(args.logo, args.width, args.height, args.logoMode, args.logoPlacement, true);
-  if (!logo) {
+  const preparedLogo = await prepareLogo(args.logo, args.width, args.height, args.logoMode, args.logoPlacement, true);
+  if (!preparedLogo) {
     if (args.requireLogo) throw new Error("ai_media_required_logo_not_composed");
     return [];
   }
+  let logo = preparedLogo;
   const [background, logoSample] = await Promise.all([
     sharp(args.input).resize({ width: 512, height: 512, fit: "inside", withoutEnlargement: true }).toColourspace("srgb").removeAlpha().raw().toBuffer({ resolveWithObject: true }),
     sharp(logo.buffer).resize(32, 32, { fit: "fill" }).toColourspace("srgb").ensureAlpha().raw().toBuffer({ resolveWithObject: true }),
@@ -454,7 +464,7 @@ async function buildImageBrandOverlays(
     const from = backgroundOffset(x, y), to = backgroundOffset(nextX, nextY);
     return Math.max(...[0, 1, 2].map(channel => Math.abs(background.data[from + channel] - background.data[to + channel]) / 255));
   };
-  const positions = axesY.flatMap(vertical => axesX.map(horizontal => {
+  const positionsForSize = () => axesY.flatMap(vertical => axesX.map(horizontal => {
     const preferred = reservation?.horizontal === horizontal && reservation.vertical === vertical;
     const left = preferred && reservation
       ? Math.round(reservation.left * args.width + (reservation.width * args.width - logo.width) * (horizontal === "left" ? 0 : horizontal === "center" ? 0.5 : 1))
@@ -468,7 +478,7 @@ async function buildImageBrandOverlays(
       : Math.min(args.width, args.height) * (args.logoPlacement?.size === "large" ? 0.3 : args.logoPlacement?.size === "small" ? 0.1 : args.logoMode === "visible" ? 0.22 : 0.19);
     return { left, top, preferred, horizontal, vertical, regionWidth, regionHeight };
   }));
-  const inspect = ({ left, top, preferred, vertical }: typeof positions[number]) => {
+  const inspect = ({ left, top, preferred, vertical }: ReturnType<typeof positionsForSize>[number]) => {
     // Inspect the real, alpha-trimmed logo rectangle plus breathing room. The
     // small tiles prevent sparse lettering from disappearing in a whole-box
     // average. These conservative texture limits are deliberately not OCR.
@@ -512,12 +522,12 @@ async function buildImageBrandOverlays(
     return { left, top, preferred, clearEnough, contrast: meanContrast, logoLuminance: opacity ? logoLuminance / opacity : 0,
       score: detail / 1024 * 2 + variance * 0.7 + Math.max(0, 0.35 - meanContrast) * 1.5 + copyPenalty };
   };
-  let acceptable = positions.map(inspect).filter(candidate => candidate.clearEnough);
-  if (!acceptable.length && (!args.logoPlacement?.horizontal || !args.logoPlacement?.vertical)) {
+  const findClearPlacements = () => {
+    const positions = positionsForSize();
+    const anchors = positions.map(inspect).filter(candidate => candidate.clearEnough);
+    if (anchors.length || (args.logoPlacement?.horizontal && args.logoPlacement?.vertical)) return anchors;
     // A wide/tall logo occupies only part of its reserved corner rectangle.
-    // Search that remaining space before refusing a paid image. Every point
-    // receives the same pixel checks; never shrink the logo, enter the centre,
-    // paint over a busy region or change an explicitly requested axis.
+    // Search that remaining space with the same pixel checks and requested axes.
     const nearby = positions.flatMap(position => {
       const offsetsX = args.logoPlacement?.horizontal || position.regionWidth - logo.width < 1 ? [0] : [0, 0.25, 0.5, 0.75, 1];
       const offsetsY = args.logoPlacement?.vertical || position.regionHeight - logo.height < 1 ? [0] : [0, 0.25, 0.5, 0.75, 1];
@@ -529,11 +539,31 @@ async function buildImageBrandOverlays(
           ? [] : [{ ...position, left, top }];
       }));
     });
-    acceptable = nearby.map(inspect).filter(candidate => candidate.clearEnough);
+    return nearby.map(inspect).filter(candidate => candidate.clearEnough);
+  };
+  let acceptable = findClearPlacements();
+  if (!acceptable.length && !args.logoPlacement?.size) {
+    // Source pixels are not display pixels. Fit a default-size official asset
+    // to this output's free space before rejecting the already generated image.
+    // Keep its aspect ratio, original file, requested axes and safe-pixel checks;
+    // never make it arbitrarily tiny or reinterpret an explicit size instruction.
+    const originalLogo = logo;
+    for (const scale of [0.85, 0.7, 0.65]) {
+      const resized = await sharp(originalLogo.buffer).resize({
+        width: Math.max(1, Math.round(originalLogo.width * scale)),
+        height: Math.max(1, Math.round(originalLogo.height * scale)),
+        fit: "inside", withoutEnlargement: true,
+      }).png().toBuffer({ resolveWithObject: true });
+      logo = { buffer: resized.data, width: resized.info.width, height: resized.info.height };
+      acceptable = findClearPlacements();
+      if (acceptable.length) break;
+    }
   }
   if (!acceptable.length) throw new Error("ai_media_logo_no_safe_placement");
   const chosen = acceptable.find(candidate => candidate.preferred)
     || acceptable.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
+  args.onLogoLayout?.({ width: logo.width, height: logo.height, left: chosen.left, top: chosen.top,
+    scale: Math.round(logo.width / preparedLogo.width * 1_000) / 1_000 });
   const overlays: ImageLogoOverlay[] = [];
   if (chosen.contrast < 0.2) {
     // A small alpha-shaped halo improves separation on an unavoidable matching
@@ -1310,6 +1340,7 @@ export async function composeAiMediaBrandedImage(
     scene: AiMediaCreativeScene;
     withText: boolean;
     copy?: AiMediaImageCompositionCopy;
+    onLogoLayout?: (layout: AiMediaImageLogoLayout) => void;
   }
 ) {
   // Image logos have their own sizing and scene-aware placement. Rendering
