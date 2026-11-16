@@ -245,15 +245,25 @@ test("the actual image reference controls acknowledge the captured ID after reor
   const commits: Array<() => void> = [], updates: string[] = [];
   const deps = {
     locked: false, libraryOpen: false, referencePickerVisible: true, referenceAction: { current: null }, setActionError: (value: string) => assert.equal(value, ""), get references() { return references; },
+    get mediaSettingsDialog() { return open; }, get selectedReferenceId() { return selected; },
     setPendingReferenceRole: (value: string | null) => commits.push(() => { pendingRole = value; }), setSelectedReferenceId: (value: string) => commits.push(() => { selected = value; }), setMediaSettingsDialog: (value: string) => commits.push(() => { open = value; }),
     updateReference: (id: string, patch: { usage: string }) => { updates.push(id); commits.push(() => { references = references.map(reference => reference.id === id ? { ...reference, ...patch } : reference); }); },
   };
   const handlers = actualHandlers("app/dashboard/_components/MediaFreeGenerator.tsx", deps, "studio_media_images");
   const snapshot = () => ({ open: open === "images", selectedReferenceId: selected, pendingReferenceRole: pendingRole, references });
+  assert.throws(() => handlers.select.invoke("inspiration:0:true"), /studio_reference_unavailable/, "a passive thumbnail badge never exposes the usage toggle while details are closed");
+  assert.deepEqual(updates, []);
   handlers.open.invoke("role:product"); assert.equal(handlers.open.matches(snapshot(), "role:product"), false); commits.splice(0).forEach(commit => commit()); assert.equal(handlers.open.matches(snapshot(), "role:product"), true);
+  assert.throws(() => handlers.select.invoke("inspiration:0:true"), /studio_reference_unavailable/, "the add chooser is not the selected reference's usage control");
+  handlers.select.invoke("reference:0"); assert.equal(handlers.select.matches(snapshot(), "reference:0"), false); commits.splice(0).forEach(commit => commit()); assert.equal(handlers.select.matches(snapshot(), "reference:0"), true);
   handlers.select.invoke("inspiration:0:true"); assert.deepEqual(updates, ["reference-a"]); assert.equal(handlers.select.matches(snapshot(), "inspiration:0:true"), false);
   references.reverse(); commits.splice(0).forEach(commit => commit());
   assert.equal(handlers.select.matches(snapshot(), "inspiration:0:true"), true, "reordering preserves confirmation for the same captured ID");
+  assert.equal(handlers.select.matches({ ...snapshot(), open: false }, "inspiration:0:true"), false, "closing the details cannot acknowledge its unmounted usage control");
+  assert.equal(handlers.select.matches({ ...snapshot(), selectedReferenceId: 'reference-b' }, "inspiration:0:true"), false);
+  open = null; assert.throws(() => handlers.select.invoke("inspiration:1:false"), /studio_reference_unavailable/); open = 'images';
+  selected = 'reference-b'; assert.throws(() => handlers.select.invoke("inspiration:1:false"), /studio_reference_unavailable/); selected = 'reference-a';
+  assert.equal(updates.length, 1, 'a closed or different reference cannot receive a hidden partial write');
   assert.equal(references.find(reference => reference.id === "reference-b")?.usage, "required", "the reference now at index zero is untouched");
   references = [{ id: "replacement", role: "character", usage: "inspiration" }, references[0]];
   assert.equal(handlers.select.matches(snapshot(), "inspiration:0:true"), false, "a same-index replacement cannot impersonate the captured reference");

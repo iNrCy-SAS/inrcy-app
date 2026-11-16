@@ -319,6 +319,7 @@ export default function MediaFreeGenerator({
       const reference = references[Number(match[2])];
       if (!reference) throw new Error("studio_reference_unavailable");
       const usage = match[1] === "inspiration" ? match[3] === "true" ? "inspiration" : "required" : undefined;
+      if (usage && (mediaSettingsDialog !== "images" || selectedReferenceId !== reference.id)) throw new Error("studio_reference_unavailable");
       referenceAction.current = { encoded: value!, id: reference.id, usage };
       if (usage) updateReference(reference.id, { usage });
       else { setSelectedReferenceId(reference.id); setPendingReferenceRole(reference.role ?? null); setMediaSettingsDialog("images"); }
@@ -327,7 +328,7 @@ export default function MediaFreeGenerator({
       if (!action || action.encoded !== value || !state || typeof state !== "object") return false;
       const current = state as { open?: boolean; selectedReferenceId?: string; references?: Array<{ id: string; usage?: string }> };
       const reference = current.references?.find(item => item.id === action.id);
-      return Boolean(reference && (action.usage ? reference.usage === action.usage : current.open && current.selectedReferenceId === action.id));
+      return Boolean(reference && current.open && current.selectedReferenceId === action.id && (!action.usage || reference.usage === action.usage));
     } },
     close: { invoke: () => { if (mediaSettingsDialog !== "images" || locked || libraryOpen) throw new Error("studio_images_busy"); setMediaSettingsDialog(null); }, matches: state => !!state && typeof state === "object" && (state as { open?: boolean }).open === false },
   }, !voicePoolOpen && (referencePickerVisible || mediaSettingsDialog === "images"), locked);
@@ -1565,9 +1566,11 @@ export default function MediaFreeGenerator({
                 <span aria-hidden="true">{exactCharacters.find(character => character.id === reference.id)!.characterIndex}</span>
                 <span className={styles.srOnly}>{t("ai_generator_exact_dialogue_character", { index: exactCharacters.find(character => character.id === reference.id)!.characterIndex })}{reference.characterName ? ` · ${reference.characterName}` : ""}</span>
               </span> : null}
-              <button type="button" className={styles.mediaReferenceOptional} data-reference-inspiration-toggle={reference.id} disabled={locked}
-                aria-label={t("ai_generator_reference_inspiration_toggle", { index: index + 1 })} title={t("ai_generator_reference_inspiration_toggle", { index: index + 1 })}
-                aria-pressed={reference.usage === "inspiration"} onClick={() => updateReference(reference.id, { usage: reference.usage === "inspiration" ? "required" : "inspiration" })}><span aria-hidden="true">{reference.usage === "inspiration" ? "✦" : "✧"}</span></button>
+              <span className={styles.mediaReferenceCategory} data-reference-category={reference.role ?? "unassigned"}
+                role="img" aria-label={t(reference.role ? `ai_generator_free_role_${reference.role}` : "ai_generator_free_reference_role_placeholder")}
+                title={t(reference.role ? `ai_generator_free_role_${reference.role}` : "ai_generator_free_reference_role_placeholder")}>
+                {reference.role ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={REFERENCE_ROLE_PATHS[reference.role]} /></svg> : <span aria-hidden="true">?</span>}
+              </span>
             </div>)}
           </div> : null}
           {kind === "video" ? <div className={styles.spokenScriptSection} data-exact={exactSpeechEditorVisible}>

@@ -1744,7 +1744,7 @@
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "studio_media_images.select(inspiration:N:true|false), même bouton dans les détails et sur la miniature. N est borné aux références présentes ; l’ID capturé reste autoritaire après réordonnancement. true rend facultatif, false remet Obligatoire ; ACK sur le même ID et usage. Nouvelles inspirations facultatives, trois autres rôles Obligatoires ; références existantes conservées. Refus verrouillage, suppression/remplacement/révision périmée ; aucun consentement ni génération.",
+    "notes": "studio_media_images.select(inspiration:N:true|false) utilise le bouton des détails de la même référence. Ouvrir reference:N et attendre son ACK avant de changer usage. Images doit rester ouvert sur cet ID pour invocation et ACK ; dialogue fermé, choix Ajouter ou autre référence refusés. Le badge de miniature indique seulement la catégorie réelle, sans action de bascule. true rend facultatif, false remet Obligatoire ; ID capturé stable après réordre. Nouvelles inspirations facultatives, autres rôles Obligatoires ; références existantes conservées. Refus verrou, suppression/remplacement/révision périmée ; aucun consentement ni génération.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts",
       "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts"
@@ -1752,8 +1752,7 @@
     "testAnchor": "the actual image reference controls acknowledge the captured ID after reorder and reject removal, replacement or stale indices",
     "coverageStatus": "implemented",
     "controlIds": [
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:d2d17d351ec1df3b:1",
-      "app/dashboard/_components/MediaFreeGenerator.tsx#button:f862ae28fb3f2c92:1"
+      "app/dashboard/_components/MediaFreeGenerator.tsx#button:d2d17d351ec1df3b:1"
     ],
     "additionalProofs": [
       {

@@ -301,7 +301,7 @@
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e0fdc77a25455ea2b186b55e2b6fecd1e92be9a4c4a1a48f28326760e8521a98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "0c0d8da667500e01ae4367909691117ea31f1225a6efcc413c34548ef1e3f6cd",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "9ba33e69c8de3c06fab59d83f869bfa61919174261e2d6e3cbea633100fc4ad9",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "cda2ef09f327ef8546636c6dfcd654d2521e88b46639c2fa09b58e6e88271648",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "98d0d66fa68179398ad94494491615e06a894b6837847ed798885e2e409d689d",
         "app/dashboard/_components/StudioVoicePool.tsx": "a1546dfc0ef2ed9f85e2652435c3e673accf62ebbf92e6a2278298bd77eb8462",
@@ -816,11 +816,11 @@
       }
     },
     "studio-create": {
-      "guideDigest": "6a39032a1352f86fa831bf9cfb1a7fcef50971867f3f31c1825768c551b7fef4",
+      "guideDigest": "34cb9450d6d75b60d854d701852fada305502e59a616578f4c377db750f4748b",
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e0fdc77a25455ea2b186b55e2b6fecd1e92be9a4c4a1a48f28326760e8521a98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "b28d499166dd2f0faee33137539d2ba829a5ba0fe27e742b0b759ed30f8053ca",
-        "app/dashboard/_components/MediaFreeGenerator.tsx": "0c0d8da667500e01ae4367909691117ea31f1225a6efcc413c34548ef1e3f6cd",
+        "app/dashboard/_components/MediaFreeGenerator.tsx": "9ba33e69c8de3c06fab59d83f869bfa61919174261e2d6e3cbea633100fc4ad9",
         "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx": "cda2ef09f327ef8546636c6dfcd654d2521e88b46639c2fa09b58e6e88271648",
         "app/dashboard/_components/MediaGeneratorModal.tsx": "98d0d66fa68179398ad94494491615e06a894b6837847ed798885e2e409d689d",
         "app/dashboard/_components/MediaModifier.tsx": "ad6fbb5dbbe96ced78c9fc20e4848aa85abb48f59da4b019dd1e2a527e730ede",
