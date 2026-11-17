@@ -12,12 +12,9 @@ import DashboardWorkspaceHeader, {
   dashboardWorkspaceContentStyle,
   dashboardWorkspacePageStyle,
 } from "../../../_components/DashboardWorkspaceHeader";
-import { useDashboardCompletionChecks } from "../../../_hooks/useDashboardCompletionChecks";
 import { useDashboardEdition } from "../../../_components/DashboardEditionProvider";
-import { useDashboardPreparationScores } from "../../../_hooks/useDashboardPreparationScores";
 import AiConfigurationContent from "../../../settings/_components/AiConfigurationContent";
 import { useUnsavedExitGuard } from "../../../_hooks/useUnsavedExitGuard";
-import styles from "../../../dashboard.module.css";
 
 type PublishAiConfigurationDrawerProps = {
   open: boolean;
@@ -70,8 +67,6 @@ function PublishAiConfigurationWorkspace({
     router.push("/dashboard/adn-entreprise");
   });
   const edition = useDashboardEdition();
-  const { accountId } = useDashboardCompletionChecks();
-  const { aiScore } = useDashboardPreparationScores({ accountId, edition });
   const [hasUnsavedChanges, setHasUnsavedChanges] = React.useState(false);
   const [headerTabsHost, setHeaderTabsHost] = React.useState<HTMLDivElement | null>(null);
   const [voiceBusy, setVoiceBusy] = React.useState(false);
@@ -230,20 +225,6 @@ function PublishAiConfigurationWorkspace({
         title={aiSignatureTitle}
         mobileTitle={i18nT("configuration_ia_f620c8d8")}
         subtitle=""
-        status={(
-          <span
-            data-dashboard-workspace-status
-            className={styles.cockpitGlobalPower}
-            aria-label={`${i18nT("configuration_ia_f620c8d8")} : ${aiScore}%`}
-            title={`${i18nT("configuration_ia_f620c8d8")} : ${aiScore}%`}
-            style={{
-              "--cockpit-global-power-mid": `${aiScore * 1.8}deg`,
-              "--cockpit-global-power": `${aiScore * 3.6}deg`,
-            } as React.CSSProperties}
-          >
-            {aiScore}%
-          </span>
-        )}
         actions={[
           {
             label: memoryT("title"),

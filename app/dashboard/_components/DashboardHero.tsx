@@ -28,6 +28,8 @@ type DashboardHeroProps = {
   generatorPower: number;
   dnaPower: number;
   aiPower: number;
+  personalizationScore?: number;
+  personalizationKnown?: boolean;
   channelPowerSteps: readonly ChannelPowerStep[];
   connectedChannels: number;
   totalChannels: number;
@@ -40,6 +42,8 @@ export default function DashboardHero({
   generatorPower,
   dnaPower,
   aiPower,
+  personalizationScore,
+  personalizationKnown = true,
   channelPowerSteps,
   connectedChannels,
   totalChannels,
@@ -90,6 +94,7 @@ export default function DashboardHero({
       key: "channels",
       title: heroT("connectChannelsLabel"),
       value: generatorPower,
+      known: true,
       action: onOpenChannels,
       infoAria: heroT("channelsInfoAria"),
       infoTitle: heroT("channelsInfoTitle"),
@@ -98,7 +103,8 @@ export default function DashboardHero({
     {
       key: "dna",
       title: heroT("personalizeApplicationLabel"),
-      value: Math.round((Math.min(100, Math.max(0, dnaPower)) + Math.min(100, Math.max(0, aiPower))) / 2),
+      value: personalizationScore ?? Math.round(Math.min(100, Math.max(0, dnaPower)) * 0.75 + Math.min(100, Math.max(0, aiPower)) * 0.25),
+      known: personalizationKnown,
       action: onOpenPersonalization,
       infoAria: heroT("personalizationInfoAria"),
       infoTitle: heroT("personalizeApplicationLabel"),
@@ -127,7 +133,7 @@ export default function DashboardHero({
               className={`${styles.cockpitStage} ${openInfo === step.key ? styles.cockpitStageInfoOpen : ""}`}
               key={step.key}
               data-step={step.key}
-              data-complete={step.value >= 100}
+              data-complete={step.known && step.value >= 100}
             >
               <div className={styles.cockpitStageHeading}>
                 <span className={styles.cockpitStageNumber}>{index + 1}</span>
@@ -178,16 +184,16 @@ export default function DashboardHero({
                   <div
                     className={styles.cockpitStageBar}
                     role="progressbar"
-                    aria-label={`${step.title} ${step.value}%`}
+                    aria-label={step.known ? `${step.title} ${step.value}%` : step.title}
                     aria-valuemin={0}
                     aria-valuemax={100}
-                    aria-valuenow={step.value}
+                    aria-valuenow={step.known ? step.value : undefined}
                   >
-                    <span style={{ width: `${step.value}%` }} />
+                    <span style={{ width: `${step.known ? step.value : 0}%` }} />
                   </div>
                   <span className={styles.cockpitStageScore}>
-                    {step.value >= 100 ? <span className={styles.cockpitComplete}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 10 3.2 3.2L15 6.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>{heroT("stepComplete")}</span> : null}
-                    <b>{step.value}%</b>
+                    {step.known && step.value >= 100 ? <span className={styles.cockpitComplete}><svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 10 3.2 3.2L15 6.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>{heroT("stepComplete")}</span> : null}
+                    <b>{step.known ? `${step.value}%` : "—"}</b>
                   </span>
                 </div>
               </div>

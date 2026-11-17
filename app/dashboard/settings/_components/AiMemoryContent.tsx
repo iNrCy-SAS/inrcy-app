@@ -43,7 +43,6 @@ import {
   EMPTY_AI_BUSINESS_KNOWLEDGE,
   EMPTY_AI_MEMORY,
   getAiMemoryReferenceDocumentStorage,
-  getAiWorkspaceCompletionScore,
   mergeAiBusinessDnaAnalysis,
   normalizeAiBusinessKnowledge,
   normalizeAiMemory,
@@ -53,8 +52,9 @@ import {
   type AiMemoryReferenceDocument,
 } from "@/lib/aiMemory";
 import { type DashboardEdition } from "@/lib/dashboardEdition";
+import { getCompanyCompletion, getStrategyCompletion, type PersonalizationCompanyContext } from "@/lib/personalizationCompletion";
 import { confirmInrcy } from "@/lib/inrcyDialog";
-import { refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
+import { PUBLIC_PROFILE_DATA_SAVED_EVENT, refreshPublicProfileDependents } from "@/lib/publicProfileRefreshClient";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { useInrAssistantRefresh } from "../../_hooks/useInrAssistantRefresh";
 import { reconcileSavedDraft } from "@/lib/reconcileSavedDraft";
@@ -269,6 +269,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
   const [businessKnowledge, setBusinessKnowledge] = useState<AiBusinessKnowledge>(
     EMPTY_AI_BUSINESS_KNOWLEDGE,
   );
+  const [completionContext, setCompletionContext] = useState<PersonalizationCompanyContext>({});
   // La stratégie fait désormais partie du socle iNrADN de toutes les éditions.
   const strategyEnabled = true;
   const [loading, setLoading] = useState(true);
@@ -353,9 +354,9 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     () => workspaceSignature(memory, businessKnowledge),
     [businessKnowledge, memory],
   );
-  const completionScore = getAiWorkspaceCompletionScore(memory, businessKnowledge, {
-    includePremium: strategyEnabled,
-  });
+  const companyCompletion = getCompanyCompletion(memory, businessKnowledge, completionContext);
+  const completionScore = Math.round(companyCompletion.percent);
+  const strategyCompletionScore = Math.round(getStrategyCompletion(memory).percent);
   const documentStorage = useMemo(
     () => getAiMemoryReferenceDocumentStorage(memory.referenceDocuments),
     [memory.referenceDocuments],
@@ -459,6 +460,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     failedAutoSaveSignatureRef.current = null;
     updateMemory(synchronizedMemory);
     updateBusinessKnowledge(nextKnowledge);
+    setCompletionContext(payload.completionContext || {});
     setAnalysisQuota(parseAnalysisQuota(quotaPayload.quota));
     setAnalysisChannels(parseAnalysisChannels(quotaPayload.channels));
     const job = parseBusinessDnaManualAnalysisJob(quotaPayload.job);
@@ -474,6 +476,35 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
     setLocationContentRevision(current => current + 1);
     return true;
   } });
+
+  // Profile, activity and headquarters saves update scoring context only. A
+  // background read must never replace the memory draft being edited here.
+  useEffect(() => {
+    let active = true;
+    let sequence = 0;
+    const refreshContext = async () => {
+      const owner = workspaceOwnerRef.current;
+      const browserScope = getActiveBrowserUserId() || "";
+      if (!owner.accountId || owner.browserScope !== browserScope) return;
+      const requestSequence = ++sequence;
+      try {
+        const response = await fetch("/api/ai-memory", { cache: "no-store", credentials: "include" });
+        const payload = await response.json().catch(() => null);
+        if (!active || requestSequence !== sequence || workspaceOwnerRef.current !== owner
+          || (getActiveBrowserUserId() || "") !== browserScope || !response.ok
+          || payload?.accountId !== owner.accountId || !payload.completionContext) return;
+        setCompletionContext(payload.completionContext);
+      } catch {
+        // Keep the last confirmed context when this auxiliary refresh fails.
+      }
+    };
+    window.addEventListener(PUBLIC_PROFILE_DATA_SAVED_EVENT, refreshContext);
+    return () => {
+      active = false;
+      sequence += 1;
+      window.removeEventListener(PUBLIC_PROFILE_DATA_SAVED_EVENT, refreshContext);
+    };
+  }, []);
 
   const changeTab = useCallback((tab: AiMemoryWorkspaceTab) => {
     if (tab === "profile" || tab === "activity" || tab === "local") {
@@ -525,6 +556,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       const browserScope = getActiveBrowserUserId() || "";
       setLoading(true);
       setLoaded(false);
+      setCompletionContext({});
       setError("");
       try {
         const [response, quotaResponse] = await Promise.all([
@@ -562,6 +594,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
 
         updateMemory(synchronizedMemory);
         updateBusinessKnowledge(nextBusinessKnowledge);
+        setCompletionContext(payload.completionContext || {});
         setAnalysisQuota(parseAnalysisQuota(quotaPayload.quota));
         setAnalysisChannels(parseAnalysisChannels(quotaPayload.channels));
         setExcludedAnalysisChannels(new Set());
@@ -1053,6 +1086,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
       const reconciledBusinessKnowledge = reconcileSavedDraft(reconciliationBase.businessKnowledge, businessKnowledgeRef.current, nextBusinessKnowledge);
       updateMemory(reconciledMemory);
       updateBusinessKnowledge(reconciledBusinessKnowledge);
+      if (payload.completionContext) setCompletionContext(payload.completionContext);
       savedSignatureRef.current = workspaceSignature(nextMemory, nextBusinessKnowledge);
       setSaved(workspaceSignature(reconciledMemory, reconciledBusinessKnowledge) === savedSignatureRef.current);
 
@@ -1981,7 +2015,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                     icon="🤝"
                     title={t("audienceTitle")}
                     description={hideNavigation ? "" : t("audienceDescription")}
-                    trailing={<CompletionPill label={t("completion")} score={completionScore} />}
+                    trailing={<CompletionPill label={t("tabAudience")} score={Math.round(companyCompletion.sections.audience.percent)} />}
                   />
                   <div style={fieldStyle}>
                     <span style={labelStyle}>{settingsT("typologie_de_clientele_4d08c355")}</span>
@@ -2066,7 +2100,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                     icon="🧭"
                     title={t("expertiseTitle")}
                     description={hideNavigation ? "" : t("expertiseDescription")}
-                    trailing={<CompletionPill label={t("completion")} score={completionScore} />}
+                    trailing={<CompletionPill label={t("tabIdentity")} score={Math.round(companyCompletion.sections.identity.percent)} />}
                   />
                   <div data-identity-core style={identityCoreGridStyle}>
                     <div data-identity-mission style={identityMissionCardStyle}>
@@ -2190,7 +2224,7 @@ const AiMemoryContent = forwardRef<AiMemoryContentHandle, Props>(function AiMemo
                     icon="🧠"
                     title={t("premiumTitle")}
                     description={hideNavigation ? "" : t("premiumDescription")}
-                    trailing={<CompletionPill label={t("completion")} score={completionScore} />}
+                    trailing={<CompletionPill label={t("tabStrategy")} score={strategyCompletionScore} />}
                   />
                 </div>
                 <div data-ai-memory-premium-rows style={premiumGridStyle}>

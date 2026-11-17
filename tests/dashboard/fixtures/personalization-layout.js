@@ -52,14 +52,14 @@ const known={
  'lib/browserAccountCache':{getActiveBrowserUserId:()=>window.activeAccount,resolveActiveBrowserUserId:()=>window.activeAccount,readAccountCacheValue:key=>cache.get(key)||null,writeAccountCacheValue:(key,value)=>cache.set(key,value)},
  'lib/userFacingErrors':{getClientUserFacingErrorMessage:(e,fallback)=>e?.message||fallback},
  'lib/boosterGenerationContextClient':{invalidateBoosterGenerationContextClient:async()=>true},
- 'lib/publicProfileRefreshClient':{PUBLIC_PROFILE_DATA_SAVED_EVENT:'fixture-profile',refreshPublicProfileDependents:async()=>true},
+ 'lib/publicProfileRefreshClient':{PUBLIC_PROFILE_DATA_SAVED_EVENT:'inrcy:public-profile-data-saved',refreshPublicProfileDependents:async()=>true},
  'lib/universalMediaUploadClient':{uploadFileToPreparedStorageIntent:()=>{throw Error('No upload allowed in layout fixture')}},
  'lib/inrcyDialog':{confirmInrcy:async options=>{window.confirmations.push(options);return false},chooseInrcy:async()=>null},
  'app/dashboard/_components/DashboardViewerAccessProvider':{useDashboardViewerAccess:()=>({metaPilotEnabled:true,actorUserId:account,activeAccountId:account})},
  'app/dashboard/_components/DashboardEditionProvider':{useDashboardEdition:()=>"premium"},
  'app/dashboard/_components/DashboardUnsavedNavigationProvider':{useDashboardUnsavedNavigation:()=>({requestNavigation:async fn=>{if(!window.exitGuard?.shouldBlock||await window.exitGuard.onBlockedExit())fn()}})},
  'app/dashboard/_hooks/useDashboardCompletionChecks':{useDashboardCompletionChecks:()=>({accountId:account,checkProfile:noop,checkActivity:noop,markProfileCompleted:noop,markActivityCompleted:noop})},
- 'app/dashboard/_hooks/useDashboardPreparationScores':{useDashboardPreparationScores:()=>({dnaScore:80,aiScore:80,refreshPreparationScores:noop})},
+ 'app/dashboard/_hooks/useDashboardPreparationScores':{useDashboardPreparationScores:()=>({dnaScore:80,aiScore:80,companyScore:80,ctaScore:80,strategyScore:80,personalizationScore:80,scoresKnown:true,...window.fixturePreparationScores,refreshPreparationScores:noop})},
  'app/dashboard/_hooks/useUnsavedExitGuard':{useUnsavedExitGuard:options=>{window.exitGuard=options}},
 };
 function resolveName(name,from){
@@ -91,10 +91,10 @@ window.fetch=async(url,options={})=>{
    if(url==='/api/ai-memory'&&options.method==='PUT')return runWrite('ai-memory',JSON.parse(options.body),saved=>{Object.assign(serverMemory,saved.memory);Object.assign(serverBusiness,saved.businessKnowledge);return ok({accountId:account,memory:serverMemory,businessKnowledge:serverBusiness,strategyEnabled:true})});
    window.mutations++;throw Error('Unexpected layout mutation '+url);
  }
- if(url==='/api/ai-memory')return ok({accountId:account,memory:serverMemory,businessKnowledge:serverBusiness,strategyEnabled:true});
+ if(url==='/api/ai-memory')return ok({accountId:account,memory:{...serverMemory,...window.fixtureMemoryReadOverride},businessKnowledge:serverBusiness,strategyEnabled:true,completionContext:{companyName:profile.company_legal_name,phone:profile.phone,contactEmail:profile.contact_email,logoPath:profile.logo_path,logoUrl:profile.logo_url,postalCode:profile.hq_zip,city:profile.hq_city,sector:'Conseil',profession:'Conseil',...window.fixtureCompletionContext}});
  if(url==='/api/ai-memory/analyze-channels')return ok({accountId:account,channels:[],quota:{limit:3,used:0,remaining:3,resetAt:'2026-12-01'},job:null});
  if(url==='/api/business-location')return ok({ok:true,accountId:account,location:{postalCode:'62000',city:'Arras'},source:'google_business'});
- if(url==='/api/booster/cta-defaults')return ok(window.fixtureCtaDestinations || {preferredWebsiteUrl:'https://atelier.example',siteWebUrl:'https://atelier.example',phone:'0612345678'});
+ if(url==='/api/booster/cta-defaults')return ok({accountId:account,...(window.fixtureCtaDestinations || {preferredWebsiteUrl:'https://atelier.example',siteWebUrl:'https://atelier.example',phone:'0612345678'})});
  throw Error('Unexpected layout fetch '+url);
 };
 const React=load('react'),Page=load('app/dashboard/personnalisation/page.tsx').default;

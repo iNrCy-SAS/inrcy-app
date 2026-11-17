@@ -514,3 +514,24 @@ test("Basic local controls cannot acknowledge a late account or route change", a
   const pending = h.run(h.command("contact", "copy", "email"));
   h.invalidate(); release(); await ticks(); h.render(); assert.equal(await pending, false);
 });
+
+test("dashboard personalization waits for a known weighted score while the channels gauge stays unchanged", t => {
+  const h = harness("app/dashboard/_components/DashboardHero.tsx", {
+    generatorPower: 40, dnaPower: 100, aiPower: 100, personalizationScore: 100,
+    personalizationKnown: false, channelPowerSteps: [], connectedChannels: 2,
+    totalChannels: 5, uiBalance: 3, onOpenChannels() {}, onOpenPersonalization() {},
+  }); t.after(() => h.unmount());
+  const stage = (key: string) => find(h.tree, node => node.type === "article" && node.props["data-step"] === key);
+  const progress = (key: string) => find(stage(key).props.children as React.ReactNode, node => node.props.role === "progressbar");
+  assert.equal(stage("dna").props["data-complete"], false);
+  assert.equal(progress("dna").props["aria-valuenow"], undefined);
+  assert.equal(find(stage("dna").props.children as React.ReactNode, node => node.type === "b").props.children, "—");
+  assert.equal(progress("channels").props["aria-valuenow"], 40);
+  h.render({ personalizationKnown: true, personalizationScore: 85 });
+  assert.equal(stage("dna").props["data-complete"], false);
+  assert.equal(progress("dna").props["aria-valuenow"], 85);
+  assert.equal(find(stage("dna").props.children as React.ReactNode, node => node.type === "b").props.children, "85%");
+  assert.equal(progress("channels").props["aria-valuenow"], 40);
+  h.render({ personalizationScore: 100 });
+  assert.equal(stage("dna").props["data-complete"], true);
+});

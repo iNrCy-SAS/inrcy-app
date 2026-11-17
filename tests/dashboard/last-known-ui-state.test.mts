@@ -66,18 +66,19 @@ test("notification and iNrAgent badges hydrate from account-scoped caches before
   assert.match(accountCache, /"inrcy_inr_agent_pending_count_v1"/);
 });
 
-test("ADN and IA scores hydrate from a strictly account-scoped cache before silent refresh", () => {
+test("the three personalization scores hydrate from a versioned account cache before silent refresh", () => {
   assert.match(
     preparationScoresHook,
-    /DASHBOARD_PREPARATION_SCORES_CACHE_KEY =\s*\n?\s*"inrcy_dashboard_preparation_scores_v1"/,
+    /DASHBOARD_PREPARATION_SCORES_CACHE_KEY =\s*\n?\s*"inrcy_dashboard_preparation_scores_v2"/,
   );
+  assert.doesNotMatch(preparationScoresHook, /inrcy_dashboard_preparation_scores_v1/);
   assert.match(
     preparationScoresHook,
     /readAccountCacheValue\(DASHBOARD_PREPARATION_SCORES_CACHE_KEY, accountId\)/,
   );
   assert.match(
     preparationScoresHook,
-    /useState<PreparationScoreState>\(\(\) => \(\s*createPreparationScoreState\(currentAccountId\)/,
+    /useState<PreparationScoreState>\(\(\) =>\s*createPreparationScoreState\(currentAccountId, metaPilotEnabled\)/,
   );
   assert.match(
     preparationScoresHook,
@@ -85,13 +86,18 @@ test("ADN and IA scores hydrate from a strictly account-scoped cache before sile
   );
   assert.match(
     preparationScoresHook,
-    /if \(!dnaSucceeded && !aiSucceeded\) return;/,
+    /if \(!memorySucceeded && !ctaSucceeded\) return;/,
   );
   assert.match(
     preparationScoresHook,
     /writeAccountCacheValue\([\s\S]*DASHBOARD_PREPARATION_SCORES_CACHE_KEY[\s\S]*state\.accountId/,
   );
-  assert.match(accountCache, /"inrcy_dashboard_preparation_scores_v1"/);
+  assert.match(preparationScoresHook, /companyKnown/);
+  assert.match(preparationScoresHook, /ctaKnown/);
+  assert.match(preparationScoresHook, /strategyKnown/);
+  assert.match(preparationScoresHook, /payload\.accountId !== refreshAccountId/);
+  assert.match(preparationScoresHook, /businessResult\.value\.data\.user_id === refreshAccountId/);
+  assert.match(accountCache, /"inrcy_dashboard_preparation_scores_v2"/);
 });
 
 test("channel controllers load only for the selected bubble and protect unsaved drafts", () => {

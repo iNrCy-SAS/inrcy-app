@@ -41,6 +41,7 @@ const ACCOUNT_CACHE_BASE_KEYS = [
   "inrcy_dashboard_completion_state_v3",
   "inrcy_dashboard_completion_state_v4",
   "inrcy_dashboard_preparation_scores_v1",
+  "inrcy_dashboard_preparation_scores_v2",
 ] as const;
 
 const ACCOUNT_CACHE_PREFIXES = [

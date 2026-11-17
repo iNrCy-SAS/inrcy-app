@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { useTranslations } from "next-intl";
 import {
   AI_CTA_CHANNELS as ALL_AI_CTA_CHANNELS,
   isAiChannelCtaComplete,
-  resolveAiChannelCtaMap,
   type AiChannelCtaConfig,
   type AiChannelCtaDestinations,
   type AiChannelCtaMap,
@@ -18,6 +17,7 @@ import { normalizeCtaCallPhones } from "@/lib/ctaPhoneNumbers";
 import { getActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { isBoosterLinkCtaChoice } from "@/lib/boosterCtaActions";
+import { getCtaCompletion } from "@/lib/personalizationCompletion";
 import styles from "./AiChannelCtaPanel.module.css";
 import { useInrAssistantLocalInterface } from "../../_hooks/useInrAssistantLocalInterface";
 
@@ -145,7 +145,7 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false, a
     window.addEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, update);
     return () => window.removeEventListener(ACTIVE_INRCY_ACCOUNT_EVENT, update);
   }, [activeAccountId]);
-  const effectiveValue = useMemo(() => ({ ...resolveAiChannelCtaMap(value, destinations), ...value }), [value, destinations]);
+  const effectiveValue = value;
   const activeSelection = (channel: AiCtaChannel) => {
     const selection = effectiveValue[channel];
     return selection?.choice === "none" ? undefined : selection;
@@ -156,9 +156,10 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false, a
     void fetch("/api/booster/cta-defaults", { cache: "no-store", credentials: "include", signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("cta_destinations_unavailable");
-        return response.json() as Promise<AiChannelCtaDestinations>;
+        return response.json() as Promise<AiChannelCtaDestinations & { accountId: string }>;
       })
       .then((loaded) => {
+        if (loaded.accountId !== accountId) throw new Error("cta_destinations_scope_unavailable");
         if (!controller.signal.aborted && (getActiveBrowserUserId() || activeAccountId) === accountId) {
           setLoadedDestinations({ actor: actorUserId, account: accountId, value: loaded });
         }
@@ -178,11 +179,9 @@ export default function AiChannelCtaPanel({ value, onChange, disabled = false, a
     if (!menuOpen) return;
     dropdownRef.current?.querySelector<HTMLButtonElement>('[role="option"][aria-selected="true"]')?.focus();
   }, [menuOpen, activeChannel]);
-  const configuredCount = AI_CTA_CHANNELS.filter(({ key }) =>
-    isAiChannelCtaComplete(key, activeSelection(key), destinations),
-  ).length;
-  const configuredPercent = Math.round((configuredCount / AI_CTA_CHANNELS.length) * 100);
-  const progressLabel = i18nT("settings.cta_configured_count", { configured: configuredCount, total: AI_CTA_CHANNELS.length });
+  const { configuredCount, totalCount, percent } = getCtaCompletion(value, destinations, metaPilotEnabled);
+  const configuredPercent = Math.round(percent);
+  const progressLabel = i18nT("settings.cta_configured_count", { configured: configuredCount, total: totalCount });
   const activeMeta = AI_CTA_CHANNELS.find(({ key }) => key === activeChannel)!;
   const activeIndex = AI_CTA_CHANNELS.findIndex(({ key }) => key === activeChannel);
   const navigate = (direction: -1 | 1) => {

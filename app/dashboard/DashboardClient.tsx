@@ -356,7 +356,7 @@ export default function DashboardClient({
     activityIncomplete,
     profileCheckReady,
   } = useDashboardCompletionChecks();
-  const { dnaScore, aiScore } = useDashboardPreparationScores({
+  const { dnaScore, aiScore, personalizationScore, scoresKnown } = useDashboardPreparationScores({
     accountId: completionAccountId ?? initialOfficialChannelStatesUserId,
     edition: dashboardEdition,
   });
@@ -3988,6 +3988,8 @@ const refreshKpis = useCallback(async (options?: { fresh?: boolean; syncedAt?: n
             generatorPower={generatorPower}
             dnaPower={dnaScore}
             aiPower={aiScore}
+            personalizationScore={personalizationScore}
+            personalizationKnown={scoresKnown}
             connectedChannels={dashboardChannelItems.filter(isChannelConnectionEstablished).length}
             totalChannels={dashboardChannelItems.length}
             uiBalance={uiBalance}

@@ -2,10 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
-import { migrateBusinessProfileAiConfiguration } from "@/lib/aiConfigurationCompatibility";
 import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessProvider";
-import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
-import { AI_CTA_CHANNELS, countConfiguredAiChannelCtas } from "@/lib/aiChannelCtaPreferences";
+import {
+  getCompanyCompletion,
+  getCtaCompletion,
+  getPersonalizationScore,
+  getStrategyCompletion,
+  type PersonalizationCompanyContext,
+} from "@/lib/personalizationCompletion";
+import type { AiChannelCtaDestinations } from "@/lib/aiChannelCtaPreferences";
 import {
   getActiveBrowserUserId,
   readAccountCacheValue,
@@ -14,130 +19,95 @@ import {
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 
 export const DASHBOARD_PREPARATION_SCORES_CACHE_KEY =
-  "inrcy_dashboard_preparation_scores_v1";
+  "inrcy_dashboard_preparation_scores_v2";
 
 type CachedPreparationScores = {
-  dnaScore?: number;
-  aiScore?: number;
+  companyPercent?: number;
+  ctaPercent?: number;
+  strategyPercent?: number;
+  metaPilotEnabled?: boolean;
 };
 
 type PreparationScoreState = {
   accountId: string | null;
-  dnaScore: number;
-  aiScore: number;
-  dnaKnown: boolean;
-  aiKnown: boolean;
+  companyPercent: number;
+  ctaPercent: number;
+  strategyPercent: number;
+  companyKnown: boolean;
+  ctaKnown: boolean;
+  strategyKnown: boolean;
+  metaPilotEnabled: boolean;
 };
 
-const CORE_AI_FIELDS = [
-  "preferredEngine",
-  "tone",
-  "textStyle",
-  "originality",
-  "webLength",
-  "socialLength",
-  "emojiLevel",
-  "pronoun",
-  "addressMode",
-  "commercialLevel",
-  "technicalityLevel",
-  "humorLevel",
-  "mainGoal",
-  "preferredAngle",
-  "language",
-] as const;
+type MemoryCompletionPayload = {
+  ok: boolean;
+  accountId: string;
+  memory: unknown;
+  businessKnowledge: unknown;
+  completionContext: PersonalizationCompanyContext;
+};
 
-const ENRICHMENT_AI_FIELDS = [
-  "likedExample",
-  "likedExample2",
-  "instructions",
-  "forbiddenStyle",
-] as const;
-
-function clampScore(value: unknown) {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric)) return 0;
-  return Math.max(0, Math.min(100, Math.round(numeric)));
-}
-
-function readCachedScore(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value)
-    ? clampScore(value)
-    : undefined;
+function boundedPercent(value: unknown) {
+  const numeric = typeof value === "number" ? value : Number.NaN;
+  return Number.isFinite(numeric) ? Math.max(0, Math.min(100, numeric)) : 0;
 }
 
 function readCachedPreparationScores(accountId: string | null): CachedPreparationScores | null {
   if (!accountId) return null;
-
   try {
     const raw = readAccountCacheValue(DASHBOARD_PREPARATION_SCORES_CACHE_KEY, accountId);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Record<string, unknown> | null;
-    if (!parsed || typeof parsed !== "object") return null;
-
-    const dnaScore = readCachedScore(parsed.dnaScore);
-    const aiScore = readCachedScore(parsed.aiScore);
-    return dnaScore === undefined && aiScore === undefined
-      ? null
-      : { dnaScore, aiScore };
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const source = parsed as Record<string, unknown>;
+    const result: CachedPreparationScores = {};
+    for (const key of ["companyPercent", "ctaPercent", "strategyPercent"] as const) {
+      if (typeof source[key] === "number" && Number.isFinite(source[key])) {
+        result[key] = boundedPercent(source[key]);
+      }
+    }
+    if (typeof source.metaPilotEnabled === "boolean") result.metaPilotEnabled = source.metaPilotEnabled;
+    return result;
   } catch {
     return null;
   }
 }
 
-function createPreparationScoreState(accountId: string | null): PreparationScoreState {
+function createPreparationScoreState(accountId: string | null, metaPilotEnabled: boolean): PreparationScoreState {
   const cached = readCachedPreparationScores(accountId);
+  const ctaKnown = cached?.ctaPercent !== undefined && cached.metaPilotEnabled === metaPilotEnabled;
   return {
     accountId,
-    dnaScore: cached?.dnaScore ?? 0,
-    aiScore: cached?.aiScore ?? 0,
-    dnaKnown: cached?.dnaScore !== undefined,
-    aiKnown: cached?.aiScore !== undefined,
+    companyPercent: cached?.companyPercent ?? 0,
+    ctaPercent: ctaKnown ? cached.ctaPercent! : 0,
+    strategyPercent: cached?.strategyPercent ?? 0,
+    companyKnown: cached?.companyPercent !== undefined,
+    ctaKnown,
+    strategyKnown: cached?.strategyPercent !== undefined,
+    metaPilotEnabled,
   };
 }
 
 function writeCachedPreparationScores(state: PreparationScoreState) {
-  if (!state.accountId || (!state.dnaKnown && !state.aiKnown)) return;
-
-  const cached: CachedPreparationScores = {};
-  if (state.dnaKnown) cached.dnaScore = clampScore(state.dnaScore);
-  if (state.aiKnown) cached.aiScore = clampScore(state.aiScore);
-  writeAccountCacheValue(
-    DASHBOARD_PREPARATION_SCORES_CACHE_KEY,
-    JSON.stringify(cached),
-    state.accountId,
-  );
-}
-
-function getAiConfigurationScore(row: unknown, edition: DashboardEdition, metaPilotEnabled: boolean) {
-  const migrated = migrateBusinessProfileAiConfiguration(row, edition, { useDbLanguage: true });
-  const coreScore = CORE_AI_FIELDS.reduce((score, field) => (
-    migrated[field] === undefined ? score : score + 4
-  ), 0);
-  const enrichmentScore = ENRICHMENT_AI_FIELDS.reduce((score, field) => (
-    String(migrated[field] ?? "").trim() ? score + 4 : score
-  ), 0);
-  // 24 of the 100 points belong to the ten per-channel CTAs. No configured CTA
-  // earns zero points in that category, never a legacy global default.
-  const visibleCtaCount = AI_CTA_CHANNELS.filter(({ key }) => key !== "threads" || metaPilotEnabled).length;
-  const ctaScore = countConfiguredAiChannelCtas(filterMetaPilotPayload(migrated.channelCtas, metaPilotEnabled)) * (24 / visibleCtaCount);
-  return clampScore(coreScore + enrichmentScore + ctaScore);
+  if (!state.accountId || (!state.companyKnown && !state.ctaKnown && !state.strategyKnown)) return;
+  const cached: CachedPreparationScores = { metaPilotEnabled: state.metaPilotEnabled };
+  if (state.companyKnown) cached.companyPercent = state.companyPercent;
+  if (state.ctaKnown) cached.ctaPercent = state.ctaPercent;
+  if (state.strategyKnown) cached.strategyPercent = state.strategyPercent;
+  writeAccountCacheValue(DASHBOARD_PREPARATION_SCORES_CACHE_KEY, JSON.stringify(cached), state.accountId);
 }
 
 export function useDashboardPreparationScores({
   accountId,
-  edition,
 }: {
   accountId: string | null;
   edition: DashboardEdition;
 }) {
   const { metaPilotEnabled } = useDashboardViewerAccess();
-  // The live browser scope wins after an establishment switch; the server or
-  // completion scope remains the stable fallback on a hard refresh/OAuth return.
   const currentAccountId = getActiveBrowserUserId() ?? accountId;
-  const [scoreState, setScoreState] = useState<PreparationScoreState>(() => (
-    createPreparationScoreState(currentAccountId)
-  ));
+  const [scoreState, setScoreState] = useState<PreparationScoreState>(() =>
+    createPreparationScoreState(currentAccountId, metaPilotEnabled),
+  );
   const scoreStateRef = useRef(scoreState);
   const currentAccountIdRef = useRef(currentAccountId);
   const refreshSequenceRef = useRef(0);
@@ -145,79 +115,98 @@ export function useDashboardPreparationScores({
   useEffect(() => {
     currentAccountIdRef.current = currentAccountId;
     refreshSequenceRef.current += 1;
-    if (scoreStateRef.current.accountId === currentAccountId) return;
-    const nextState = createPreparationScoreState(currentAccountId);
+    if (scoreStateRef.current.accountId === currentAccountId
+      && scoreStateRef.current.metaPilotEnabled === metaPilotEnabled) return;
+    const nextState = createPreparationScoreState(currentAccountId, metaPilotEnabled);
     scoreStateRef.current = nextState;
     setScoreState(nextState);
-  }, [currentAccountId]);
+  }, [currentAccountId, metaPilotEnabled]);
 
   const refresh = useCallback(async () => {
-    const refreshAccountId = getActiveBrowserUserId() ?? accountId;
+    const refreshAccountId = getActiveBrowserUserId() ?? currentAccountId;
     const refreshSequence = ++refreshSequenceRef.current;
     if (!refreshAccountId) return;
 
-    const [dnaResult, aiResult] = await Promise.allSettled([
-      fetch("/api/ai-memory", { cache: "no-store", credentials: "include" }).then(async (response) => {
+    const [memoryResult, businessResult, destinationsResult] = await Promise.allSettled([
+      fetch("/api/ai-memory", { cache: "no-store", credentials: "include" }).then(async response => {
         if (!response.ok) throw new Error("dna_score_unavailable");
-        return response.json() as Promise<{ completionScore?: number }>;
+        const payload = await response.json() as MemoryCompletionPayload;
+        if (payload?.ok !== true || payload.accountId !== refreshAccountId
+          || !payload.memory || !payload.businessKnowledge || !payload.completionContext) {
+          throw new Error("dna_score_scope_unavailable");
+        }
+        return payload;
       }),
-      createClient()
-        .from("business_profiles")
-        .select("*")
-        .eq("user_id", refreshAccountId)
-        .maybeSingle(),
+      createClient().from("business_profiles").select("user_id,ai_channel_ctas")
+        .eq("user_id", refreshAccountId).maybeSingle(),
+      fetch("/api/booster/cta-defaults", { cache: "no-store", credentials: "include" }).then(async response => {
+        if (!response.ok) throw new Error("cta_destinations_unavailable");
+        const payload = await response.json() as AiChannelCtaDestinations & { accountId?: string };
+        if (!payload || payload.accountId !== refreshAccountId) throw new Error("cta_destinations_scope_unavailable");
+        return payload;
+      }),
     ]);
 
-    if (
-      refreshSequence !== refreshSequenceRef.current ||
-      currentAccountIdRef.current !== refreshAccountId
-    ) return;
+    if (refreshSequence !== refreshSequenceRef.current
+      || currentAccountIdRef.current !== refreshAccountId
+      || (getActiveBrowserUserId() ?? currentAccountId) !== refreshAccountId) return;
 
-    const dnaSucceeded = dnaResult.status === "fulfilled";
-    const aiSucceeded = aiResult.status === "fulfilled" && !aiResult.value.error;
-    if (!dnaSucceeded && !aiSucceeded) return;
+    const memorySucceeded = memoryResult.status === "fulfilled";
+    const ctaSucceeded = businessResult.status === "fulfilled" && !businessResult.value.error
+      && (!businessResult.value.data || businessResult.value.data.user_id === refreshAccountId)
+      && destinationsResult.status === "fulfilled";
+    if (!memorySucceeded && !ctaSucceeded) return;
 
     const baseline = scoreStateRef.current.accountId === refreshAccountId
-      ? scoreStateRef.current
-      : createPreparationScoreState(refreshAccountId);
-    const nextState: PreparationScoreState = {
-      accountId: refreshAccountId,
-      dnaScore: dnaSucceeded
-        ? clampScore(dnaResult.value.completionScore)
-        : baseline.dnaScore,
-      aiScore: aiSucceeded
-        ? getAiConfigurationScore(aiResult.value.data, edition, metaPilotEnabled)
-        : baseline.aiScore,
-      dnaKnown: dnaSucceeded || baseline.dnaKnown,
-      aiKnown: aiSucceeded || baseline.aiKnown,
-    };
-
+      && scoreStateRef.current.metaPilotEnabled === metaPilotEnabled
+      ? scoreStateRef.current : createPreparationScoreState(refreshAccountId, metaPilotEnabled);
+    const nextState: PreparationScoreState = { ...baseline, accountId: refreshAccountId, metaPilotEnabled };
+    if (memorySucceeded) {
+      const payload = memoryResult.value;
+      nextState.companyPercent = getCompanyCompletion(payload.memory, payload.businessKnowledge, payload.completionContext).percent;
+      nextState.strategyPercent = getStrategyCompletion(payload.memory).percent;
+      nextState.companyKnown = true;
+      nextState.strategyKnown = true;
+    }
+    if (ctaSucceeded) {
+      nextState.ctaPercent = getCtaCompletion(
+        businessResult.value.data?.ai_channel_ctas, destinationsResult.value, metaPilotEnabled,
+      ).percent;
+      nextState.ctaKnown = true;
+    }
     scoreStateRef.current = nextState;
     setScoreState(nextState);
     writeCachedPreparationScores(nextState);
-  }, [accountId, edition, metaPilotEnabled]);
+  }, [currentAccountId, metaPilotEnabled]);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
+  useEffect(() => { void refresh(); }, [refresh]);
   useEffect(() => {
     const handleRefresh = () => void refresh();
     window.addEventListener("focus", handleRefresh);
     window.addEventListener("inrcy:ai-configuration-updated", handleRefresh);
+    window.addEventListener("inrcy:public-profile-data-saved", handleRefresh);
     return () => {
       window.removeEventListener("focus", handleRefresh);
       window.removeEventListener("inrcy:ai-configuration-updated", handleRefresh);
+      window.removeEventListener("inrcy:public-profile-data-saved", handleRefresh);
     };
   }, [refresh]);
 
-  const visibleScoreState = scoreState.accountId === currentAccountId
-    ? scoreState
-    : createPreparationScoreState(currentAccountId);
-
+  const visible = scoreState.accountId === currentAccountId && scoreState.metaPilotEnabled === metaPilotEnabled
+    ? scoreState : createPreparationScoreState(currentAccountId, metaPilotEnabled);
+  const companyScore = Math.round(visible.companyPercent);
+  const ctaScore = Math.round(visible.ctaPercent);
+  const strategyScore = Math.round(visible.strategyPercent);
+  const communicationScore = Math.round(visible.ctaPercent * 0.6 + visible.strategyPercent * 0.4);
+  const personalizationScore = getPersonalizationScore(visible.companyPercent, visible.ctaPercent, visible.strategyPercent);
   return {
-    dnaScore: visibleScoreState.dnaScore,
-    aiScore: visibleScoreState.aiScore,
+    companyScore, ctaScore, strategyScore, communicationScore, personalizationScore,
+    scoresKnown: visible.companyKnown && visible.ctaKnown && visible.strategyKnown,
+    companyKnown: visible.companyKnown,
+    ctaKnown: visible.ctaKnown,
+    strategyKnown: visible.strategyKnown,
+    // Compatibility for older callers: only the approved groups contribute.
+    dnaScore: companyScore, aiScore: communicationScore,
     refreshPreparationScores: refresh,
   };
 }

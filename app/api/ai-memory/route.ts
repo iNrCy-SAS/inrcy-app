@@ -39,6 +39,10 @@ export const maxDuration = 30;
 
 const MAX_REQUEST_CHARS = 70_000;
 
+function completionText(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function migrationRequiredResponse(error: unknown) {
   const message = error && typeof error === "object" && "message" in error
     ? String((error as { message?: unknown }).message || "")
@@ -135,7 +139,7 @@ export async function GET() {
       .maybeSingle(),
     supabase
       .from("profiles")
-      .select("company_legal_name")
+      .select("company_legal_name,phone,contact_email,logo_path,logo_url,hq_zip,hq_city")
       .eq("user_id", activeUserId)
       .maybeSingle(),
   ]);
@@ -190,6 +194,19 @@ export async function GET() {
       strategyEnabled: true,
       memory,
       businessKnowledge,
+      // Read-only context for the shared personalization score. Keep this
+      // scoped to the active company and independent from the actor's identity.
+      completionContext: {
+        companyName,
+        phone: completionText(profileResult.data?.phone),
+        contactEmail: completionText(profileResult.data?.contact_email),
+        logoPath: completionText(profileResult.data?.logo_path),
+        logoUrl: completionText(profileResult.data?.logo_url),
+        postalCode: completionText(profileResult.data?.hq_zip),
+        city: completionText(profileResult.data?.hq_city),
+        sector: professionalProfile.business.sectorLabel,
+        profession: professionalProfile.business.professionLabel,
+      },
       completionScore: getAiWorkspaceCompletionScore(memory, businessKnowledge, {
         includePremium: true,
       }),

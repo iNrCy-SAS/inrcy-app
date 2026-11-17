@@ -7,10 +7,10 @@ export async function GET() {
     const { supabase, errorResponse, activeUserId } = await requireUser();
     if (errorResponse) return errorResponse;
     return NextResponse.json(
-      await loadBoosterCtaDefaults({
+      { ...await loadBoosterCtaDefaults({
         supabase,
         userId: activeUserId,
-      }),
+      }), accountId: activeUserId },
     );
   } catch {
     return NextResponse.json({ error: "Requête invalide." }, { status: 400 });

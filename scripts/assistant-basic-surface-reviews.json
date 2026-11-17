@@ -24,7 +24,7 @@
     "app/api/ai-memory/analysis-schedule/route.ts": "90706a280a6d58b95d28b0fa9e344fdfef475e17e8f71e2113a585b6766abd75",
     "app/api/ai-memory/analyze-channels/route.ts": "b7c318e89504f0f0a2dbca23f87538073ee3ecda530c122a6031510e242281f0",
     "app/api/ai-memory/documents/route.ts": "b6df753d4a94ee02983b7faf73a27be55785276dc25fee4b171b3a539c2388ec",
-    "app/api/ai-memory/route.ts": "a90d6b3e5c2e9976a8c49c2d58dde75ef6efc080ac6126949b8cef3f7f2944bd",
+    "app/api/ai-memory/route.ts": "aa09c4d5cfb49ba1bb30ece6617fdfd5f0c2788d57420ba1fc4f0d47dcf6dcfe",
     "app/api/billing/account-subscription/route.ts": "40d5817b65a3cc6803933b08c92885ffa3aa0e728dd16aa6b38b6747afc1af64",
     "app/api/billing/invoices/route.ts": "1ed75a37389b4bcf9fe2b38a26907874526dff932f8a0d5d5172f76bc9d41786",
     "app/api/booster/connected-channels/route.ts": "0e5912b9d042e8bb9639b01cd376ec898b55ae8c7d141623670b177586acd3ad",
@@ -136,7 +136,7 @@
     "app/api/stats/channel-refresh/route.ts": "c86ae6550741d29267b9bd953dff8e4897c0d0aa24a87ae325ba89f82e288171",
     "app/api/stats/daily-refresh/route.ts": "2814e9f415d89d37268a8cbb26cc416b5ae238ea99e4f4ed633d68ad32308dde",
     "app/api/stats/overview/route.ts": "442ac3859e6f5f1946a1038b81089b9489d47f79374120470091b47e91102ca9",
-    "app/dashboard/DashboardClient.tsx": "1d0588fa196a04a3da711199a58456b669d0c32327a22987a4b641fa70b6d356",
+    "app/dashboard/DashboardClient.tsx": "ec07674d5478a19c3ae30197800b7d41ae0b933d5009ea968646d731016281a5",
     "app/dashboard/DrawerHeaderTabs.module.css": "b7a28d8033fa9beaa7b54fe9430906c06639afce0f9669fa27929f0b2799d7c2",
     "app/dashboard/DrawerHeaderTabs.tsx": "eda605bfaf116415363e91a3b33f4af0b9c7a0162b3d349bc8371e11b9945b84",
     "app/dashboard/SettingsDrawer.tsx": "5ecfaee1078949a6062231bddb2cd6b6bd851ee3a9bf5106d669e6960dc01908",
@@ -198,7 +198,7 @@
     "app/dashboard/_components/DashboardGeneratorOrb.tsx": "d3973938418dae4cd1775f257b181b48d42d7b21d494b58cd1ae63d48644b40d",
     "app/dashboard/_components/DashboardGeneratorStateProvider.tsx": "6c993f6bc3a4ef2595557906adbc9107028622032358c34efdc92f452c5e04dc",
     "app/dashboard/_components/DashboardHelpModals.tsx": "d6d9d3c3e9d1ae000b35b5a7da687b50f9006013f6c6953411e844a448eecc40",
-    "app/dashboard/_components/DashboardHero.tsx": "b06351ef53f0212c237b38513568cb93526cada93c7a53c6bdc88623e166ee74",
+    "app/dashboard/_components/DashboardHero.tsx": "3486b13d5e7c3b631dd6675d98e39b787fc22b277f6446280d7988fae946d1fc",
     "app/dashboard/_components/DashboardHeroPremium.module.css": "94447fb5ab67d17a6ae44b99b8b15e05ceeba85014747e560c0ac4ec6fd76cb6",
     "app/dashboard/_components/DashboardIntlProvider.tsx": "8e9669a1b9077efcf982d7832ccd8187350dbe965de1bf56dffcffb1aa1d0989",
     "app/dashboard/_components/DashboardMobileSelect.module.css": "fa30d7dcae5c1aa1a606997481de992fb2db3e4b7160604d087679a348514d64",
@@ -363,7 +363,7 @@
     "app/dashboard/_hooks/useDashboardMenus.ts": "43008ac1f6949ed44107191108d4e6305a9efdbd16468ae92e938b0d3e2817bc",
     "app/dashboard/_hooks/useDashboardNotifications.ts": "1fd7f3fa635804847cdafbf0418d978f7a530752ca353e8430e292f24e328adc",
     "app/dashboard/_hooks/useDashboardPanelRouting.ts": "d821b18314e156fdd76bb1200a6893b7598962becd009c95dd259281d6599339",
-    "app/dashboard/_hooks/useDashboardPreparationScores.ts": "8409afea721ce9f702c33a826e9830a0c72547a98a3027905f1064ecdcddf99f",
+    "app/dashboard/_hooks/useDashboardPreparationScores.ts": "2b3715b0f6098b0e66bc9ee6c40b02391be3fe05fc4bd38afddbd366b36c82f4",
     "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts": "56b27fde1ca2e52f613100a771942f462b8a10af3b0b9bef74ec1b4b8bc89492",
     "app/dashboard/_hooks/useDrawerMutationGuard.ts": "00c40ca900231a9c239422bbfbfb573e45174e07434de21149f6d6d5d4eb3bf5",
     "app/dashboard/_hooks/useInrAgentPendingCount.ts": "ed5ee7fe029495c261225266ebccc08dcca86c31ec75561e72a84f602b4627fb",
@@ -487,7 +487,7 @@
     "app/dashboard/booster/publier/components/ChannelNavigationRail.tsx": "c9ea49d8ef08b68997dfe51a9c208fd0cd3df76eb837203453b3e3cfd7ffb81f",
     "app/dashboard/booster/publier/components/MediaPoolImagePreview.module.css": "c9a9c1cfb3b63854e6c8f16d9772f26cb4ad4a9ad59d7e5f0cf37caf940e399a",
     "app/dashboard/booster/publier/components/MediaPoolImagePreview.tsx": "0fd38e593cc2181c2321405e8ba1e97cc44cbc47c2fe934d86941ce009fcf2a0",
-    "app/dashboard/booster/publier/components/PublishAiConfigurationDrawer.tsx": "b25c684404d3de52b732edf6f8fd8d8a20e47f4c13855d682e64ddb79b313eff",
+    "app/dashboard/booster/publier/components/PublishAiConfigurationDrawer.tsx": "c461f6c5f58b65bf235c5ee83fb20bdb9442e934ac04c62a3338dc3f8d56e375",
     "app/dashboard/booster/publier/components/PublishChannelSelector.module.css": "01f4be1ce6f4413f550cd02f6fd6a4f17f6430d034c33ddd4038a6b3f200b1ec",
     "app/dashboard/booster/publier/components/PublishChannelSelector.tsx": "15f5fc17ab975013ecac81da520af52b51cdd86ae159080dd7af8affc973e122",
     "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.module.css": "ac426d4bc423ba3f7a0f65108cca71e773fce375f6c55d682c955f24220bd003",
@@ -608,7 +608,7 @@
     "app/dashboard/mediatheque/mediaLibrary.module.css": "3cf573abb14ead01ae41992eeb7ffb2a04a7628927d030ab03277194e861b13f",
     "app/dashboard/personnalisation/PersonalizationForms.module.css": "943c50d5645945f0d8356863572e5f60435bd60af5904fabb3ff988088b4d29a",
     "app/dashboard/personnalisation/PersonalizationSectionIcon.tsx": "27460ea70ca8ccc27127d1db4aeb43e3a2cdd85698ccbf7b598bd0dec27a2e37",
-    "app/dashboard/personnalisation/page.tsx": "ca0afa878c442ad078d57047a1a7463de70ce0d022263d6e651fb5f7b5e0633b",
+    "app/dashboard/personnalisation/page.tsx": "0b7ba91035466ec79fb24ab9a9e4d66dc2d3db8d395c5913dabd0f5b6d0a5dbe",
     "app/dashboard/personnalisation/personalization.module.css": "7663f949357783e65c95919f6340e709816f530b238f611d0775543e2d30bc87",
     "app/dashboard/settings/_components/AbonnementContent.tsx": "544d32d86b6dd0c899b28c4156e54e0aff445a6bcbf01952f8e0bb1f1ee87e41",
     "app/dashboard/settings/_components/AccountContent.module.css": "0883ba56e36c553f2e61b4d5b22df48722bad6fd89c0c63cc79fcaea595ea9e9",
@@ -616,10 +616,10 @@
     "app/dashboard/settings/_components/ActivityContent.tsx": "df5b40abedb82a3eedc8fd3dda6c6d4cd9b690e7bc78c93ea81f7109db0b5c40",
     "app/dashboard/settings/_components/AgendaSettingsContent.tsx": "5995586d6fa94e6e8ed7f29e629b496c32ee5421f2e30310ee34e2e0a900d208",
     "app/dashboard/settings/_components/AiChannelCtaPanel.module.css": "5ce0207cbd9f67726fe997a1228ee9c6c4f70bd0fe114fe623121a5419a62cba",
-    "app/dashboard/settings/_components/AiChannelCtaPanel.tsx": "fc86532bfd4f789dc14913f97d7fe121854e0c8f8bc82cc0aafc00f174760bbc",
+    "app/dashboard/settings/_components/AiChannelCtaPanel.tsx": "1e06afca1ad07f72a52077cc4050c2c7588c411502007f318ea2c2d985dcf9cd",
     "app/dashboard/settings/_components/AiConfigurationContent.module.css": "22f8b9490d168a56f6890d23ae9b6a501f6c3bd8fa04a3e5b62a0f6a97cdc6e3",
     "app/dashboard/settings/_components/AiConfigurationContent.tsx": "2946b6a8ab6ad86878cb9f7e083c40d7dd81f7ea495f038f9dc16fc9f8988384",
-    "app/dashboard/settings/_components/AiMemoryContent.tsx": "2b46967792c413eee9ccf9fa8273059ff1d67f0f7b2055e842884e73dda47108",
+    "app/dashboard/settings/_components/AiMemoryContent.tsx": "69ebd0a1d320bc33867ce929e59838d42f7acb9547fde7a8b5fe51e1a224a9e3",
     "app/dashboard/settings/_components/AppAppearancePicker.tsx": "5408ba8f4f0e04bdb74dc46acb350b56d4193a16cb41d21c0c47fc3fd616a3dc",
     "app/dashboard/settings/_components/BasicSubscriptionCard.tsx": "173d7d60c5fef2d893fc01456dfe28042b37a0f41092aae2920da1d839d9d39c",
     "app/dashboard/settings/_components/BoutiqueContent.module.css": "05577d1070a0808741bccf666620fc77ee21afa2dbb839a12089508c82486c3b",
@@ -999,7 +999,7 @@
     "lib/boutique/products.ts": "7816719e50fe318a157b1f43f4e38c805f953029615a71a8a10415818aaae8c2",
     "lib/boutique/videoCreditPacks.ts": "b50bcab5bad32fa4779b3b42e8e8f1b51b25ccf6ad01374aff01b3d627a03726",
     "lib/boutique/videoCreditPayments.ts": "c4986a54da8018b6685d9672ffb92a4c1a6d86777e42e148dbfb1988d12bd211",
-    "lib/browserAccountCache.ts": "1dc81c249001636860d513ca19a6e9e03a7536135d7322cef00782475b114c04",
+    "lib/browserAccountCache.ts": "6a255fa919a2050c30c8f434fd06a3c8ad2af7bd36c71daf16cf6f0a4e7250ff",
     "lib/browserFetchDeadline.ts": "152adb54413c9ba47916bde279a83df740c35839ca3b6953a0e6061d470b7360",
     "lib/browserModuleSnapshotCache.ts": "fbd5e35505614f0fde54a8ae9193f1516549fa4038ee95b780f7f9a6f542be96",
     "lib/browserPopover.ts": "a0c5efa51dc7cd7eb57072dfcf5a1691eac38837dbc46babd20ec7c7d2bcc3e1",
@@ -1217,7 +1217,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "041661fa515caf7cefa68b16cc215cc8804af4c5f6d0bb06d83dca8e914de328",
+    "lib/inrAssistantCodeIndex.generated.ts": "c6a4da2415dec5a577965457e9d318fb45d89a60776c555fb19065fed86194f8",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -1248,7 +1248,7 @@
     "lib/inrAssistantGoogleBusinessDraftUiTools.ts": "cf6e0c4c8e0700629517bf1ab91e06387520f5d76325ad8ef05370b45a7bfa55",
     "lib/inrAssistantGoogleReviewDraftIntent.ts": "bb7a17f0441ef4b812427babe3a80b5cdc268b784867cf4a05d533ada27fd538",
     "lib/inrAssistantGoogleReviewTools.ts": "320906763262c5363b5a4072db20c6ef6f88442f5cdbe3578496f7e15c6d01bc",
-    "lib/inrAssistantGuidesAccount.ts": "1b083b87cbcfab62bbd9a27109b50745ed65941983a3dbfea3df40f2072bd74a",
+    "lib/inrAssistantGuidesAccount.ts": "cc23a5b0ed97b2688fbb589789da8d972f7909fa51243d2ffd381fe0730e51c8",
     "lib/inrAssistantGuidesBasic.ts": "5cac8a585429aed81c7e35047455cad581c56c3cc9d0871a3d14cd08d7ab695a",
     "lib/inrAssistantGuidesContentLimits.ts": "dcdba643d6a24d46c2f73a93c18759086f570182a051fec07a797013ab533d53",
     "lib/inrAssistantGuidesCreation.ts": "7af09618a81a7e45bbf79b0333215360c3ba19d276e9ff240dc845f235fee12f",
@@ -1531,6 +1531,7 @@
     "lib/openingSchedule.ts": "28832a6902f4cc5b182095d6b17af6d10b864b1db5c3accb2e1ca9487a7607d2",
     "lib/passwordPolicy.ts": "5eea7d13e920121a052af41b8365b304e4ee7759b23cb83f8b1a30209fb9ab5c",
     "lib/pdfTextExtraction.ts": "f8084d93ebb7b1b54487d5566b3241dce85d7b221b669df7860706e12db6dc08",
+    "lib/personalizationCompletion.ts": "e28c4b15fc4ab515049b320467c2d2ab8e0c9dd368a71c02539c50abf523aa6a",
     "lib/pinterestAnalytics.ts": "79dcb07a670229077278af1048701ca43b38db5d546ca7b5b1246a2d90448f53",
     "lib/pinterestCarouselImages.ts": "10c87cb6cf66e0fef530696bd03f54682f5e1989bdbd12e39a2a5c98424b5d3d",
     "lib/pinterestCarouselPolicy.ts": "1f24fb1829c0dddb949777f383821497b3aedbb7d1c9a61ff89baba6def70550",
@@ -2091,7 +2092,7 @@
     "tests/dashboard/dashboard-assistant-media-preview-runtime.test.mts": "3672e3a6e804c79c081faba3cb32ed3955d35e730304412c7b7fdb5bd776bb19",
     "tests/dashboard/dashboard-assistant-runtime-harness.mts": "fe1262393bb66c39820fa53813cc91f713d812aafa88b73239bb0d8652f70819",
     "tests/dashboard/dashboard-assistant-ui-actions-browser.test.mts": "08c262cb433cc1671032b1b4cbf9b05bcbbba4348c0fa873ba546808020a9b7f",
-    "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts": "460ab6c10a8c52ad042a93ce768bbea7c4800ca7ce3082f77b7c42d37bb1a278",
+    "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts": "49112153a67cb63396ff3faf0bd0a099606b467ba6ecfa0fd41b18ccc0df1a94",
     "tests/dashboard/dashboard-header-tool-overlay-browser.test.mts": "e7182058080c0c8f8932516284e45e7b07a71908bf1b9a86588f106823b4cb27",
     "tests/dashboard/dashboard-help-navigation-runtime.test.mts": "1dc34057162fca356df952bb5c58f935b411e66a1cdce2f68e6d3a88e089b5d2",
     "tests/dashboard/dashboard-mobile-menu-runtime.test.mts": "12a6dae03859769ea145a37bb96b41e4a9aa666d5244677f2dd4fd872323b17a",
@@ -2184,7 +2185,7 @@
         "app/dashboard/DashboardClient.tsx"
       ],
       "gateAnchor": "\"use client\";\nimport { useInrAssistantLocalInterface } from \"./_hooks/useInrAssi",
-      "sourceDigest": "1d0588fa196a04a3da711199a58456b669d0c32327a22987a4b641fa70b6d356",
+      "sourceDigest": "ec07674d5478a19c3ae30197800b7d41ae0b933d5009ea968646d731016281a5",
       "controlIds": [
         "app/dashboard/DashboardClient.tsx#HelpButton:0ff768e85f5abf4b:1",
         "app/dashboard/DashboardClient.tsx#DashboardAccountTabs:c32d34439d636788:1",
@@ -2722,7 +2723,7 @@
         "app/dashboard/_components/DashboardHero.tsx"
       ],
       "gateAnchor": "\"use client\";\n\nimport { useEffect, useRef, useState } from \"react\";\nimport { use",
-      "sourceDigest": "b06351ef53f0212c237b38513568cb93526cada93c7a53c6bdc88623e166ee74",
+      "sourceDigest": "3486b13d5e7c3b631dd6675d98e39b787fc22b277f6446280d7988fae946d1fc",
       "controlIds": [
         "app/dashboard/_components/DashboardHero.tsx#button:8d8525bf911660d8:1",
         "app/dashboard/_components/DashboardHero.tsx#button:92d8fa3bdc6c1adf:1"
@@ -6741,7 +6742,7 @@
           "gateAnchor": "<aside\n        ref={dialogRef}\n        role=\"dialog\"\n        aria-modal=\"true\"\n        aria-label={i18nT(\"configuration_ia_f620c8d8\")}\n        tabIndex={-1}\n        onClick={(event) => event.stopPropagation()}\n        style={{\n          width: \"100%\",\n          maxWidth: \"100%\",\n          height: \"100%\",\n          maxHeight: \"100%\",\n          minHeight: 0,\n          minWidth: 0,\n          boxSizing: \"border-box\",\n          color: \"var(--inrcy-theme-text-primary, white)\",\n          padding: 0,\n          display: \"flex\",\n          flexDirection: \"column\",\n          overflow: \"hidden\",\n          overscrollBehavior: \"contain\",\n          WebkitOverflowScrolling: \"touch\",\n        }}\n      >"
         }
       },
-      "sourceDigest": "b25c684404d3de52b732edf6f8fd8d8a20e47f4c13855d682e64ddb79b313eff",
+      "sourceDigest": "c461f6c5f58b65bf235c5ee83fb20bdb9442e934ac04c62a3338dc3f8d56e375",
       "controlIds": [
         "app/dashboard/booster/publier/components/PublishAiConfigurationDrawer.tsx#aside:b62cc4e087c07a16:1",
         "app/dashboard/booster/publier/components/PublishAiConfigurationDrawer.tsx#button:e7511d0fac0820aa:1",
@@ -8184,7 +8185,7 @@
         "app/dashboard/settings/_components/AiMemoryContent.tsx"
       ],
       "gateAnchor": "const strategyEnabled = true;",
-      "sourceDigest": "ca0afa878c442ad078d57047a1a7463de70ce0d022263d6e651fb5f7b5e0633b",
+      "sourceDigest": "0b7ba91035466ec79fb24ab9a9e4d66dc2d3db8d395c5913dabd0f5b6d0a5dbe",
       "controlIds": [
         "app/dashboard/personnalisation/page.tsx#button:d4c7c1a6ef65281c:1",
         "app/dashboard/personnalisation/page.tsx#button:0b2340d0f4e18273:1"
@@ -8416,7 +8417,7 @@
         "app/dashboard/settings/_components/AiMemoryContent.tsx"
       ],
       "gateAnchor": "const strategyEnabled = true;",
-      "sourceDigest": "fc86532bfd4f789dc14913f97d7fe121854e0c8f8bc82cc0aafc00f174760bbc",
+      "sourceDigest": "1e06afca1ad07f72a52077cc4050c2c7588c411502007f318ea2c2d985dcf9cd",
       "controlIds": [
         "app/dashboard/settings/_components/AiChannelCtaPanel.tsx#button:bd2323e7f46182c5:1",
         "app/dashboard/settings/_components/AiChannelCtaPanel.tsx#button:e9928f01c79274ab:1",
@@ -8525,7 +8526,7 @@
         "app/dashboard/settings/_components/AiMemoryContent.tsx"
       ],
       "gateAnchor": "const strategyEnabled = true;",
-      "sourceDigest": "2b46967792c413eee9ccf9fa8273059ff1d67f0f7b2055e842884e73dda47108",
+      "sourceDigest": "69ebd0a1d320bc33867ce929e59838d42f7acb9547fde7a8b5fe51e1a224a9e3",
       "controlIds": [
         "app/dashboard/settings/_components/AiMemoryContent.tsx#EditableTags:a8c0db01a589302e:1",
         "app/dashboard/settings/_components/AiMemoryContent.tsx#input:bbd6ebb217f5f296:1",

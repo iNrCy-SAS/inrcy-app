@@ -34,7 +34,7 @@ export default function PersonalizationPage() {
   const edition = useDashboardEdition();
   const { requestNavigation } = useDashboardUnsavedNavigation();
   const { accountId, checkProfile, checkActivity, markProfileCompleted, markActivityCompleted } = useDashboardCompletionChecks();
-  const { dnaScore, aiScore, refreshPreparationScores } = useDashboardPreparationScores({ accountId, edition });
+  const { companyScore, ctaScore, strategyScore, personalizationScore, scoresKnown, refreshPreparationScores } = useDashboardPreparationScores({ accountId, edition });
   const requestedSection = searchParams.get("section");
   const initialSection: Section = requestedSection === "communication" ? "communication" : requestedSection === "company" || requestedSection === "identity" ? "company" : "analysis";
   const [section, setSection] = useState<Section>(initialSection);
@@ -49,7 +49,8 @@ export default function PersonalizationPage() {
   const [memoryTab, setMemoryTab] = useState<AiMemoryWorkspaceTab>(requestedSection === "identity" ? "identity" : initialSection === "company" ? "profile" : "analysis");
   const [communicationTab, setCommunicationTab] = useState<AiConfigurationTab | "strategy" | "news">("parameters");
   const voiceBusy = companyVoiceBusy || communicationVoiceBusy;
-  const score = Math.round((dnaScore + aiScore) / 2);
+  const score = personalizationScore;
+  const scoreBreakdown = `${t("companyTitle")} (75 %) : ${companyScore}% · ${t("ctasTab")} (15 %) : ${ctaScore}% · ${t("strategyTab")} (10 %) : ${strategyScore}%`;
 
   useUnsavedExitGuard({
     active: true,
@@ -154,7 +155,7 @@ export default function PersonalizationPage() {
             {sections.map((item) => <button key={item.key} type="button" id={`personalization-tab-${item.key}`} aria-pressed={section === item.key} disabled={voiceBusy} onClick={() => selectSection(item.key)} className={styles.sectionButton}><strong>{item.title}</strong></button>)}
           </nav>
         )}
-        status={<span data-dashboard-workspace-status className={styles.score} aria-label={`${t("title")} : ${score}%`}>{score}%</span>}
+        status={<span data-dashboard-workspace-status className={styles.score} aria-label={scoresKnown ? `${t("title")} : ${score}%. ${scoreBreakdown}` : t("title")} title={scoresKnown ? scoreBreakdown : undefined}>{scoresKnown ? `${score}%` : "—"}</span>}
         actions={[{
           label: t("close"),
           onClick: () => { void requestNavigation(() => router.push("/dashboard")); },
