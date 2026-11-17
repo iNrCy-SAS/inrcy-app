@@ -596,7 +596,7 @@ test("un échec Libre conserve l'autorisation de la même demande, un succès la
   }
 });
 
-test("les avis de voix native restent nonbloquants sans transcript et les erreurs historiques restent expliquées", () => {
+test("la voix native est livrée sans QA et les avis historiques restent nonbloquants sans transcript", () => {
   const route = read("app/api/media-generation/generate/route.ts");
   const publicErrors = read("lib/aiMediaGenerationPublicErrors.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
@@ -606,7 +606,7 @@ test("les avis de voix native restent nonbloquants sans transcript et les erreur
   assert.match(publicErrors, /spoken_dialogue_repeated/);
   assert.match(publicErrors, /spoken_dialogue_incomplete/);
   assert.match(publicErrors, /spoken_dialogue_mismatch/);
-  assert.match(server, /getAiMediaNativeDialogueDeliveryDecision\(nativeDialogueQa\)/);
+  assert.doesNotMatch(server, /aiMediaNativeDialogueQa|verifyAiMediaNativeDialogue|nativeDialogueQa/);
   for (const status of ["rejected", "unavailable"] as const) {
     const issue = status === "rejected" ? "spoken_dialogue_mismatch" : "transcription_inconclusive";
     const clip: AiMediaNativeDialogueQaClipResult & { transcript: string } = { sceneIndex: 0, status, issues: [issue],

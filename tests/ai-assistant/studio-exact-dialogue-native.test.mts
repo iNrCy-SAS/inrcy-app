@@ -28,7 +28,7 @@ test('the structured Exact editor never accepts or acknowledges a hidden legacy 
   assert.ok(parseInrAssistantStudioFormSelection(encode({ field: 'spokenScriptOpen', value: true }), state), 'the visible Automatic/Exact selector retains its own native action');
 });
 
-test('the Exact native form follows editable global speech choices while keeping speaker numbers and structured budgets', () => {
+test('the Exact native form follows editable global speech choices while keeping speaker numbers and advisory reading budgets', () => {
   const state: InrAssistantStudioFormSnapshot = { mode: 'free', kind: 'video', locked: false, editorVisible: true, speechMode: 'characters', voiceSelectionMode: 'characters', spokenScriptOpen: true, exactDialogueEditor: true,
     voiceMode: 'ai', voiceReferenceId: 'photo-b', voiceReferences: [{ id: 'photo-b', name: 'Premier personnage', voiceMode: 'ai', characterIndex: 1, referenceIndex: 2 }, { id: 'photo-c', name: 'Second personnage', voiceMode: 'ai', characterIndex: 2, referenceIndex: 4 }] };
   assert.ok(parseInrAssistantStudioFormSelection(encode({ field: 'withSubtitles', value: true }), state));
@@ -56,7 +56,7 @@ test('the Exact native form follows editable global speech choices while keeping
   assert.equal(isInrAssistantStudioFormSelectionApplied({ ...state, voiceReferences: state.voiceReferences!.map(reference => ({ ...reference, id: 'replacement' })) }, encode(targeted)), false);
   const budget: InrAssistantStudioFormSnapshot = { ...state, voiceSelectionMode: 'voiceover', automaticSceneMode: true, videoEngine: 'kling', videoResolution: '720p', durationScene: { seconds: 8, sceneMode: 'single' }, spokenScript: 'Ancien texte beaucoup trop long. '.repeat(100), exactDialogue: [{ speaker: 'ai_voice', text: 'Bonjour à tous.' }] };
   assert.ok(parseInrAssistantStudioFormSelection(encode({ field: 'durationSeconds', value: 8 }), budget, () => true), 'the new lines replace the obsolete legacy text for preflight');
-  assert.equal(parseInrAssistantStudioFormSelection(encode({ field: 'durationSeconds', value: 8 }), { ...budget, exactDialogue: [{ speaker: 'ai_voice', text: 'Bonjour '.repeat(100) }] }, () => true), null, 'structured speech retains its real duration budget');
+  assert.deepEqual(parseInrAssistantStudioFormSelection(encode({ field: 'durationSeconds', value: 8 }), { ...budget, exactDialogue: [{ speaker: 'ai_voice', text: 'Bonjour '.repeat(100) }] }, () => true), { field: 'durationScene', value: { seconds: 8, sceneMode: 'single' } }, 'an estimated reading budget does not block the selected duration or shorten structured speech');
 });
 
 test('Exact dialogue draft commands accept only bounded row edits and preserve literal speech without hidden actions', () => {

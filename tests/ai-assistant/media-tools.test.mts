@@ -128,7 +128,7 @@ test("all media provider schemas require every declared property while legacy ru
   assert.equal(h.tools.modifyMedia.inputSchema.validate?.({ sourceMediaId, instruction: "Éclaircis le fond" }).success, true);
 });
 
-test("assistant video briefs use 500 characters and exact dialogue is refused before quote or paid generation", async () => {
+test("assistant video briefs use 500 characters and exact speech above the reading estimate reaches native generation unchanged", async () => {
   const video = { mediaType: "video", prompt: "v".repeat(500), format: "story", durationSeconds: 8, resultMode: "preview", settings: [] };
   const h = harness();
   assert.equal(h.tools.generateMedia.inputSchema.validate?.(video).success, true);
@@ -136,14 +136,21 @@ test("assistant video briefs use 500 characters and exact dialogue is refused be
   assert.equal(h.tools.quoteMediaGeneration.inputSchema.validate?.({ ...video, prompt: "v".repeat(501) }).success, false);
   assert.equal(h.tools.generateMedia.inputSchema.validate?.({ ...imageInput, resultMode: null, settings: null, prompt: "i".repeat(3900) }).success, true);
   assert.equal(h.calls.length, 0);
-  const result = await h.tools.generateMedia.execute({ ...video, prompt: "Un atelier filmé en lumière naturelle.", settings: [
+  const prompt = "Un atelier filmé en lumière naturelle.", spokenScript = "Bonjour ".repeat(40);
+  const result = await h.tools.generateMedia.execute({ ...video, prompt, settings: [
     { field: "videoEngine", valueJson: '"veo"' }, { field: "teamVideoSpeechMode", valueJson: '"characters"' },
-    { field: "spokenScript", valueJson: JSON.stringify("Bonjour ".repeat(40)) },
+    { field: "spokenScript", valueJson: JSON.stringify(spokenScript) },
   ] });
-  assert.equal(result.status, "failed");
-  assert.match(result.message, /paroles|plan|réplique/i);
-  assert.doesNotMatch(result.message, /AI_MEDIA_|ai_media_/);
-  assert.ok(!h.calls.some(call => ["quote", "generate", "accept"].includes(call.stage)));
+  assert.equal(result.status, "ready_to_save");
+  for (const stage of ["quote", "generate"]) {
+    const body = h.calls.find(call => call.stage === stage)!.body!;
+    assert.equal(body.freePrompt, prompt);
+    assert.equal(body.spokenScript, spokenScript);
+    assert.equal(body.durationSeconds, 8);
+    assert.equal(body.teamVideoSpeechMode, "characters");
+  }
+  assert.equal(h.calls.filter(call => call.stage === "generate").length, 1);
+  assert.equal(h.calls.some(call => call.stage === "accept"), false);
 });
 
 test("a read-only follow-up distinguishes ready draft from saved media without accepting or generating", async()=>{
@@ -361,13 +368,16 @@ test("preview generation remains a native temporary draft across fresh status-on
 test("automatic duration and native speech preserve required product/environment references in quote and generation", async () => {
   const h = harness();
   const input = { mediaType: "video", prompt: "Un film en deux scènes de notre produit dans notre atelier", format: "story", durationSeconds: 16, resultMode: "preview", settings: [
-    { field: "videoEngine", valueJson: '"grok-lite"' }, { field: "teamVideoSpeechMode", valueJson: '"characters"' }, { field: "spokenScript", valueJson: '"Découvrez notre savoir-faire."' },
+    { field: "videoEngine", valueJson: '"veo"' }, { field: "teamVideoSpeechMode", valueJson: '"characters"' }, { field: "spokenScript", valueJson: '"Découvrez notre savoir-faire."' },
     { field: "references", valueJson: JSON.stringify([{ mediaId: sourceMediaId, role: "product", usage: "required", characterIndex: null }, { mediaId, role: "environment", usage: "inspiration", characterIndex: null }]) },
   ] };
   const result = await h.tools.generateMedia.execute(input); assert.equal(result.status, "ready_to_save", JSON.stringify(result));
   const body = h.calls.find(call => call.stage === "generate")!.body!, quote = h.calls.find(call => call.stage === "quote")!.body!;
+  assert.equal(body.videoEngine, "veo"); assert.equal(quote.videoEngine, body.videoEngine);
   assert.equal(body.sceneMode, "multi"); assert.equal(body.connectScenes, false); assert.equal(quote.sceneMode, body.sceneMode); assert.equal(quote.connectScenes, false); assert.equal(body.freePrompt, input.prompt); assert.equal(body.teamVideoSpeechMode, "characters"); assert.equal(body.identityConsent, false); assert.equal(quote.inspirationImagesCount, 2);
-  const references = body.inspirationImages as Array<Record<string, unknown>>; assert.equal(references[0].role, "product"); assert.equal(references[0].usage, "required"); assert.equal(references[1].role, "environment"); assert.equal(references[1].usage, "inspiration"); assert.equal(h.calls.some(call => call.stage === "accept"), false);
+  const references = body.inspirationImages as Array<Record<string, unknown>>;
+  assert.deepEqual(references.map(reference => reference.data), [sourceReference.reference.data, sourceReference.reference.data], "both original photos reach generation without composition");
+  assert.equal(references[0].role, "product"); assert.equal(references[0].usage, "required"); assert.equal(references[1].role, "environment"); assert.equal(references[1].usage, "inspiration"); assert.equal(h.calls.some(call => call.stage === "accept"), false);
 });
 
 test("automatic Grok duration picks native fifteen or independent thirty seconds identically in quote and generation", async () => {

@@ -19,6 +19,7 @@ const browserSources = Object.fromEntries([
   "app/dashboard/agent/_lib/agent.utils.ts",
   "lib/aiMediaModelCatalog.ts", "lib/aiMediaCreditsPricing.ts", "lib/aiMediaVideoTimeline.ts", "lib/aiMediaCharacterVoices.ts",
   "lib/aiMediaExactDialogue.ts", "lib/aiMediaVideoSpeechBudget.ts", "lib/aiMediaSpokenScript.ts",
+  "lib/aiMediaHeygenBilling.ts", "lib/aiMediaHeygenRoute.ts",
   "lib/inrAgentSettings.ts", "lib/siteWebChannel.ts", "lib/standardAgentPolicy.ts", "lib/metaChannelUiAccess.ts", "lib/inrAgentPublicationHistory.ts",
   "lib/userFacingErrors.ts", "lib/appLanguage.ts", "lib/publicationErrorFrench.ts", "lib/metaGraphErrorClassification.ts",
   "lib/aiMediaGenerationPublicErrorI18n.ts", "lib/aiMediaGenerationPublicErrorCopy.ts",
@@ -124,6 +125,7 @@ async function setup(page: Page) {
       root.render(React.createElement(React.StrictMode,null,React.createElement(Runtime,{key:window.account}),React.createElement(Credits,window.options)));};
     window.render({});
   ` });
+  assert.deepEqual(errors, [], "the real Basic hooks load without fixture import errors");
   page.setDefaultTimeout(4_000);
   await page.waitForFunction("window.pending('/api/media-generation/quota').length > 0 && window.pending('/api/agent/scheduled-actions').length > 0");
   return { networkRequests, errors };

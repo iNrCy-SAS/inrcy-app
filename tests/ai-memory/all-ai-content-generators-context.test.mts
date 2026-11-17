@@ -40,6 +40,7 @@ const USER_CONTENT_CALLS = new Map<string, number>([
   ["app/api/e-reputation/google/generate-reply/route.ts", 1],
   ["app/api/mails/generate-ai/route.ts", 1],
   ["lib/aiMediaCopywriter.ts", 1],
+  ["lib/aiMediaDirectAvatarDialogue.ts", 1],
   ["lib/aiMediaFreeGenerationPlan.ts", 2],
   ["lib/aiMediaNarration.ts", 1],
   ["lib/boosterPublishGeneration.ts", 1],

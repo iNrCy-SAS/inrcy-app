@@ -2037,7 +2037,7 @@
       },
       {
         "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
-        "testAnchor": "the Exact native form follows editable global speech choices while keeping speaker numbers and structured budgets"
+        "testAnchor": "the Exact native form follows editable global speech choices while keeping speaker numbers and advisory reading budgets"
       },
       {
         "file": "tests/ai-media-generation/ai-media-free-grok-voiceover-runtime.test.mts",
@@ -2173,7 +2173,7 @@
       },
       {
         "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
-        "testAnchor": "the Exact native form follows editable global speech choices while keeping speaker numbers and structured budgets"
+        "testAnchor": "the Exact native form follows editable global speech choices while keeping speaker numbers and advisory reading budgets"
       },
       {
         "file": "tests/ai-assistant/studio-native-form-controls.test.mts",
@@ -15765,7 +15765,7 @@
       },
       {
         "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
-        "testAnchor": "the Exact native form follows editable global speech choices while keeping speaker numbers and structured budgets"
+        "testAnchor": "the Exact native form follows editable global speech choices while keeping speaker numbers and advisory reading budgets"
       },
       {
         "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
@@ -15812,7 +15812,7 @@
       },
       {
         "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
-        "testAnchor": "the Exact native form follows editable global speech choices while keeping speaker numbers and structured budgets"
+        "testAnchor": "the Exact native form follows editable global speech choices while keeping speaker numbers and advisory reading budgets"
       }
     ]
   },

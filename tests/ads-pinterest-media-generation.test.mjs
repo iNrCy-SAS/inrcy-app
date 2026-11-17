@@ -10,6 +10,8 @@ import * as pricing from "../lib/aiMediaCreditsPricing.ts";
 import * as characterVoices from "../lib/aiMediaCharacterVoices.ts";
 import * as exactDialogue from "../lib/aiMediaExactDialogue.ts";
 import * as models from "../lib/aiMediaModelCatalog.ts";
+import * as videoClientOptions from "../lib/aiMediaVideoClientOptions.ts";
+import * as heygenRoute from "../lib/aiMediaHeygenRoute.ts";
 
 test("le générateur Pinterest transmet le portrait au pipeline partagé et accepte une seule création", { timeout: 2_000 }, async () => {
   const source = await readFile(new URL("../app/dashboard/ads/AdsCampaignAutoMediaGenerator.tsx", import.meta.url), "utf8");
@@ -24,6 +26,8 @@ test("le générateur Pinterest transmet le portrait au pipeline partagé et acc
     if (name === "./aiMediaCharacterVoices.ts") return characterVoices;
     if (name === "./aiMediaExactDialogue.ts") return exactDialogue;
     if (name === "./aiMediaModelCatalog.ts") return models;
+    if (name === "./aiMediaVideoClientOptions.ts") return videoClientOptions;
+    if (name === "./aiMediaHeygenRoute.ts") return heygenRoute;
     throw new Error(`Unexpected quote dependency: ${name}`);
   });
   const accountId = "pinterest-fixture-account";

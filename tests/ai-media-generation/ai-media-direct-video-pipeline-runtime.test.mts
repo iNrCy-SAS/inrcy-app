@@ -185,3 +185,13 @@ test("a supplied exact off-screen narrator stays outside the native direct promp
   assert.match(prompt, /No speech/); assert.doesNotMatch(prompt, /NARRATOR VOICE DIRECTION/); assert.ok(!prompt.includes(exact));
   assert.equal(supplied.spokenScript, exact);
 });
+
+test("Avatar dialogue is user content with only the explicitly opted-in company context",async()=>{
+ const env=avatarRuntime();const company={companyName:"Business fact explicitly opted in",professionLabel:"Jardinier"},dna={facts:["Scoped account context"]};
+ const pictures=[{role:"environment",usage:"required",mimeType:"image/png",data:"C".repeat(88)},portrait,{...portrait,characterIndex:2,characterName:"Kathia"}];
+ for(const useBusinessDna of [false,true]){
+  await env.prepare({accountId:"account-a",request:request({videoEngine:"heygen-avatar",teamVideoSpeechMode:"characters",withNarration:false,teamVideoProviderConsent:"heygen-avatar",inspirationImages:pictures,useBusinessDna}),profile:{...profile,business:company,memory:{unrelated:"Guided writing memory must not leak"}} as never,businessDnaContext:dna,globalMediaConstraints:"Account directions"});
+  const sent=JSON.parse(env.calls.at(-1)!.input as string);assert.deepEqual(sent.company,useBusinessDna?company:null);assert.deepEqual(sent.requestedContext,useBusinessDna?dna:null);assert.equal(sent.account_rules,"Account directions");assert.doesNotMatch(env.calls.at(-1)!.input as string,/Guided writing memory must not leak/);
+ }
+ assert.equal(env.calls.length,2);
+});

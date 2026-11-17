@@ -297,7 +297,7 @@
       }
     },
     "basic-studio-create": {
-      "guideDigest": "7496c768691dad672bf7328ea05b35cb9f494046b845ee224ff30c620c6f17e3",
+      "guideDigest": "482b0e4422658af7aec7f62c37ff2172876810b2f34ef116ed3c88edd4195b39",
       "sources": {
         "app/api/media-generation/generate/route.ts": "27e3b8ad215a63917943999f675ea501e48b479ddb063ea81d17adbe132548ab",
         "app/api/media-generation/normalize-reference/route.ts": "16cfd97b92fb3ee618bab493d4933fa977a36100dc572679d3eb5b85b23642df",
@@ -828,7 +828,7 @@
       }
     },
     "studio-create": {
-      "guideDigest": "413a9f75191ec61f27d90bdc200cdfeeab6e7f4c67f3024fe67229fda5b2b620",
+      "guideDigest": "228ee0ba4469297760bf9eea7ec837d5d7f5e50a5f03934e9b89fef2a338d2ad",
       "sources": {
         "app/api/media-generation/generate/route.ts": "27e3b8ad215a63917943999f675ea501e48b479ddb063ea81d17adbe132548ab",
         "app/api/media-generation/normalize-reference/route.ts": "16cfd97b92fb3ee618bab493d4933fa977a36100dc572679d3eb5b85b23642df",
