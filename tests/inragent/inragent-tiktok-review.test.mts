@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import { runtimeModules } from "./runtime-module-loader.mts";
+import { withInrAgentPublicationChannelSelection } from "../../lib/inrAgentPublicationChannelSelection.ts";
 import {
   createInrAgentTiktokValidationSession,
   resolveReusableInrAgentTiktokSettings,
@@ -197,3 +198,84 @@ test("l’édition programmée conserve les réglages TikTok réellement revus d
   assert.deepEqual(payload.publishPayload.tiktokPublicationSettings, settings);
   assert.deepEqual(sourceAction, before);
 });
+
+
+function additionalTiktokChannelReview(args: {
+  reusable?: typeof settings | null;
+  inFlight?: boolean;
+  afterCheck?: (signature: { current: string }) => void;
+} = {}) {
+  const prepared = { ...structuredClone(action), status: "scheduled",
+    payload: { ...structuredClone(action.payload), publicationChannelSelection: {
+      version: 1, availableChannels: ["facebook", "tiktok"], excludedChannels: [], unvalidatedChannels: ["tiktok"],
+    } } };
+  const signature = signatureFor(prepared, ["facebook", "tiktok"]);
+  const signatureRef = { current: signature };
+  const requests: Array<{ url: string; method?: string; body: Record<string, unknown> }> = [];
+  const modals: unknown[] = [];
+  let creatorChecks = 0;
+  const save = uiFunction("savePublicationChannelSelection", {
+    selectedPreparedAction: prepared, canEditPublicationChannels: true,
+    publishChannelSelectionBusy: { current: false },
+    preparedChannels: ["facebook", "tiktok"], selectedPublishChannels: ["facebook", "tiktok"],
+    unvalidatedPublicationChannels: ["tiktok"], scheduledEditSession: null,
+    tiktokSessionCheckInFlightRef: { current: args.inFlight === true },
+    tiktokCurrentReviewSignature: signature, tiktokReviewSignatureRef: signatureRef,
+    resolveAgentTiktokSessionSettings: async () => {
+      creatorChecks += 1;
+      args.afterCheck?.(signatureRef);
+      return args.reusable ?? null;
+    },
+    openAgentTiktokSettings: (value: unknown) => modals.push(value),
+    withInrAgentPublicationChannelSelection,
+    boosterChannelKeyFromAgentChannel: (value: string) => value,
+    setPublishChannelSelectionSaving: () => {},
+    flushPublishSoundtrackSaves: async (value: unknown) => value,
+    fetch: async (url: string, init: RequestInit) => {
+      requests.push({ url, method: init.method, body: JSON.parse(String(init.body)) });
+      return Response.json({ action: prepared });
+    },
+    setActions: () => {}, refreshScheduledActions: async () => {}, refreshActions: async () => {},
+    selectPreviewChannel: () => {}, showNotice: () => {}, i18nT: (key: string) => key,
+    getLocalizedErrorMessage: () => "unexpected failure",
+  });
+  return { save, requests, modals, checks: () => creatorChecks, prepared };
+}
+
+test("valider TikTok différé réutilise la session et ne fait que le PATCH explicite de sélection des canaux", async () => {
+  const h = additionalTiktokChannelReview({ reusable: settings });
+  await h.save(["facebook", "tiktok"], undefined, true);
+  assert.equal(h.checks(), 1);
+  assert.deepEqual(h.modals, []);
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].url, "/api/agent/actions");
+  assert.equal(h.requests[0].method, "PATCH");
+  assert.deepEqual(h.requests[0].body, { actionId: h.prepared.id, editType: "publish_channel_selection",
+    channels: ["facebook", "tiktok"], expectedUpdatedAt: h.prepared.updatedAt,
+    confirmPending: true, tiktokPublicationSettings: settings });
+});
+
+test("valider TikTok différé sans session réutilisable ouvre la modale sans sauvegarder", async () => {
+  const h = additionalTiktokChannelReview();
+  await h.save(["facebook", "tiktok"], undefined, true);
+  assert.equal(h.checks(), 1);
+  assert.deepEqual(h.modals, [{ kind: "channel_selection", channels: ["facebook", "tiktok"], confirmPending: true }]);
+  assert.deepEqual(h.requests, []);
+});
+
+test("une vérification TikTok déjà en cours empêche une seconde validation du canal différé", async () => {
+  const h = additionalTiktokChannelReview({ reusable: settings, inFlight: true });
+  await h.save(["facebook", "tiktok"], undefined, true);
+  assert.equal(h.checks(), 0);
+  assert.deepEqual(h.modals, []); assert.deepEqual(h.requests, []);
+});
+
+for (const reusable of [settings, null]) {
+  test(`une navigation ou édition pendant la vérification TikTok différée abandonne le résultat ${reusable ? "réutilisable" : "invalide"}`, async () => {
+    const h = additionalTiktokChannelReview({ reusable, afterCheck: signature => { signature.current = "another-action-or-edited-content"; } });
+    await h.save(["facebook", "tiktok"], undefined, true);
+    assert.equal(h.checks(), 1);
+    assert.deepEqual(h.modals, [], "do not open a review for the previously selected publication");
+    assert.deepEqual(h.requests, [], "never save old settings against a changed publication");
+  });
+}

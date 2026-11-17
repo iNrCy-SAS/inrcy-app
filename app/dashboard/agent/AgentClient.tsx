@@ -3815,8 +3815,16 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     let action = selectedPreparedAction;
     if (!action || !canEditPublicationChannels || publishChannelSelectionBusy.current) return;
     if (nextChannels.includes("tiktok") && preparedChannels.includes("tiktok") && (!selectedPublishChannels.includes("tiktok") || confirmPending && unvalidatedPublicationChannels.includes("tiktok")) && (scheduledEditSession || ["validated", "scheduled"].includes(action.status)) && !tiktokPublicationSettings) {
-      openAgentTiktokSettings({ kind: "channel_selection", channels: nextChannels, confirmPending });
-      return;
+      if (tiktokSessionCheckInFlightRef.current) return;
+      const reviewSignature = tiktokCurrentReviewSignature;
+      const reusableSettings = await resolveAgentTiktokSessionSettings();
+      // Navigation or editing during the account check invalidates this intent.
+      if (tiktokReviewSignatureRef.current !== reviewSignature) return;
+      if (!reusableSettings) {
+        openAgentTiktokSettings({ kind: "channel_selection", channels: nextChannels, confirmPending });
+        return;
+      }
+      tiktokPublicationSettings = reusableSettings;
     }
     const nextPayload = withInrAgentPublicationChannelSelection({ ...action.payload, ...(tiktokPublicationSettings ? { tiktokPublicationSettings } : {}) }, preparedChannels.map(boosterChannelKeyFromAgentChannel), nextChannels.map(boosterChannelKeyFromAgentChannel));
     publishChannelSelectionBusy.current = true;
