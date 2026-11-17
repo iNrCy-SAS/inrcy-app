@@ -81,6 +81,8 @@ export function withInrAgentPublicationChannelReview(
   preparedChannels: readonly string[],
   manualReviewChannels: readonly string[],
 ): Payload {
+  // Empty channels cannot be reclassified as provider review or silently approved.
+  if (pendingInrAgentPublicationChannels(payload).length) return payload;
   const available = preparedInrAgentPublicationChannels(payload, preparedChannels);
   const selected = selectedInrAgentPublicationChannels(payload, available);
   const held = channels(manualReviewChannels).filter(value => value === "tiktok" && available.includes(value) && selected.includes(value));

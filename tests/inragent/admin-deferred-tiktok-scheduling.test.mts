@@ -233,3 +233,23 @@ for (const changed of ["status", "execution_policy", "validation_required"] as c
     assert.equal(db.tables.inr_agent_scheduled_actions.length, 0);
   });
 }
+
+for (const pending of ["tiktok", "facebook"] as const) {
+  test(`the real worker retains an existing pending ${pending} channel and the route blocks every automatic dispatch`, async () => {
+    const db = fixture();
+    db.action().payload.publicationChannelSelection = {
+      version: 1, availableChannels: ["facebook", "tiktok"], excludedChannels: [], pendingChannels: [pending],
+    };
+    const initial = structuredClone(db.action()), h = harness(db);
+    const result = await worker(db, h, async () => {
+      const response = await h.schedule();
+      assert.equal(response.status, 409);
+      assert.equal((await response.clone().json()).code, "INR_AGENT_CHANNEL_REVIEW_REQUIRED");
+      return response;
+    });
+    assert.equal(result.calls, 1); assert.equal(result.result[0]?.status, "retry");
+    assert.deepEqual(db.action(), initial, "pending state, media and provenance stay untouched");
+    assert.equal(db.writes.length, 0); assert.equal(h.built(), 0);
+    assert.equal(db.tables.inr_agent_scheduled_actions.length, 0);
+  });
+}
