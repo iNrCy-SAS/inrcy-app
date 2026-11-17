@@ -31,7 +31,7 @@ test("normalization binds each supplied voice to its own character and keeps pro
 });
 
 test("current Wan2.7 and historical HeyGen normalization preserve Free and guided voice assignments without changing their voice assignments", () => {
-  assert.deepEqual(AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, ["wan27", "wan3", "heygen", "kling"]);
+  assert.deepEqual(AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, ["wan27", "wan3", "heygen", "heygen-avatar", "kling"]);
   for (const videoEngine of AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(engine => engine !== "wan3" && engine !== "kling")) {
     assert.equal(isAiMediaCharacterVoiceEngine(videoEngine), true);
     for (const creationMode of ["free", "guided"]) {

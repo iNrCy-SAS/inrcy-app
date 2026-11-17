@@ -50,7 +50,7 @@ Visuel : vidéo 500 caractères, image 4 000 ; paroles séparées. Utiliser mon 
 Références : Inspiration/Personnage/Décor/Produit, rôle puis Importer/Médiathèque images. Inspiration facultative, autres obligatoires ; vérifier identités/doublons.
 Musique iNrCy : Automatique/Sans musique/piste, préécoute ; hors vocaux.
 Menus indépendants : Personnages/Voix off/Sans paroles ; Auto/Exact ; IA/Réelle globale. Textes/vocaux/moteur conservés. Exact : Réglages, locuteur/texte par ligne, ajout/retrait/ordre. Voix off projette le narrateur ; retour Personnages restaure les attributions, mix IA hors champ possible. Vide/cible absente/incompatible : bloqué, sans moteur automatique. Sans paroles omet les paroles. Budget durée/moteur/langue ; jamais tronquer.
-Voix off IA : Femme/Homme, style. Voix réelle : 3 vocaux max, Ajouter → Importer/Enregistrer/Médiathèque → usage/genre. Voix off sans photo : Chatterbox hors moteur vidéo, 5 à 10 s, un narrateur actif. Personnages : Wan 2.7/Kling Omni, un vocal/personne ; Kling 5 à 10 s, un locuteur/vocal. Timbre réel, genre descriptif ; droits/import/enregistrement humains.
+Voix off IA : Femme/Homme, style. Voix réelle : 3 vocaux max, Ajouter → Importer/Enregistrer/Médiathèque → usage/genre. Voix off sans photo : Chatterbox hors moteur vidéo, 5 à 10 s, un narrateur actif. Personnages : Wan 2.7/Kling Omni/HeyGen Avatar, un vocal/personne ; Kling 5 à 10 s, un locuteur/vocal. Timbre réel, genre descriptif ; droits/import/enregistrement humains.
 En Libre, paroles exactes compatibles et piste réelle trop longue : une resynthèse supplémentaire, mêmes paroles/vocal ; jamais après erreur réseau/soumission incertaine, ni substitution de voix.
 Sous-titres : durée mesurée, départ estimé, pas d’alignement mot à mot. Barre et ≈% vidéo estimés, sans délai garanti.
 Coût/solde → Générer ; Enregistrer/Utiliser conserve ; régénérer peut débiter. Qualité : avis non bloquant « Vidéo à vérifier ».
@@ -94,6 +94,9 @@ Basique sans crédits mensuels ; les recharges permettent de générer sans chan
       "lib/aiMediaCreditsPricing.ts",
       "lib/aiVideoProvider.ts",
       "lib/aiVideoProviderGateway.ts",
+      "lib/aiVideoProviderHeygen.ts",
+      "lib/aiVideoHeygenApi.ts",
+      "lib/aiMediaCompositionRecovery.ts",
       "lib/aiVideoProviderKling.ts",
       "lib/aiVideoKlingApi.ts",
       "lib/inrStudioModalPolicy.ts",

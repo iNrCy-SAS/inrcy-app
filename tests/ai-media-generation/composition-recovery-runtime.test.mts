@@ -8,9 +8,10 @@ import ts from "typescript";
 import type * as Recovery from "../../lib/aiMediaCompositionRecovery.ts";
 import * as soundtrackCatalog from "../../lib/aiMediaSoundtrackCatalog.ts";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
+import * as pending from "../../lib/aiMediaPendingVideo.ts";
 
 const accountId = "11111111-1111-4111-8111-111111111111", jobId = "22222222-2222-4222-8222-222222222222", authUserId = "33333333-3333-4333-8333-333333333333";
-function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; leaseLost?: boolean; cleanupRows?: Array<{storage_bucket:string;storage_path:string}> } = {}) {
+function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; leaseLost?: boolean; cleanupRows?: Array<{storage_bucket:string;storage_path:string}>; providerState?: "processing" | "completed" | "failed"; providerStatusFails?: boolean } = {}) {
   const objects = new Map<string, Buffer>();
   const events: string[] = [];
   const warnings: unknown[][] = [];
@@ -21,11 +22,26 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
   let savedMetadata: Record<string, unknown> | undefined;
   const runtimeModule = { exports: {} };
   const supabaseAdmin = {
+    from: (table: string) => {
+      let patch: Record<string,unknown> | undefined;
+      const filters: Array<[string,unknown]> = [];
+      const query = { select: () => query, update: (value: Record<string,unknown>) => { patch = value; return query; },
+        eq: (column: string, value: unknown) => { filters.push([column,value]); return query; },
+        lte: () => query, gt: () => query, lt: () => query,
+        maybeSingle: async () => {
+          if (table === "ai_media_generation_jobs") return { data: { status: "processing" }, error: null };
+          if (!record || filters.some(([key,value]) => record![key] !== value)) return { data: null, error: null };
+          if (patch) Object.assign(record,patch);
+          return { data: {...record}, error: null };
+        },
+        then: (resolve: (value: unknown) => unknown) => query.maybeSingle().then(resolve),
+      }; return query;
+    },
     rpc: async (name: string, args: Record<string, unknown>) => {
       events.push(name);
-      if (name === "start_ai_media_composition_checkpoint_v2") record = { account_id: accountId, job_id: jobId, actor_auth_user_id: authUserId, lease_token: args.p_lease_token, storage_bucket: "inrcy-ai-composition" };
+      if (name === "start_ai_media_composition_checkpoint_v2") record = { account_id: accountId, job_id: jobId, actor_auth_user_id: authUserId, lease_token: args.p_lease_token, storage_bucket: "inrcy-ai-composition", state: "ready", attempts: 0 };
       if (name === "ready_ai_media_composition_checkpoint") record!.manifest_path = args.p_manifest_path;
-      if (name === "claim_ai_media_composition_checkpoint_v2") return { data: record ? [record] : [], error: null };
+      if (name === "claim_ai_media_composition_checkpoint_v2") { if (record) record.attempts = Number(record.attempts) + 1; return { data: record ? [{...record}] : [], error: null }; }
       if (name === "list_expired_ai_media_composition_objects_v2") return { data: options.cleanupRows || [], error: null };
       if (name === "assert_ai_media_composition_lease" && options.leaseLost) return { data: null, error: new Error("lease conflict") };
       return { data: true, error: null };
@@ -52,6 +68,12 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
     },
   };
   const stubs: Record<string, unknown> = {
+    "./aiMediaPendingVideo.ts": pending,
+    "./aiVideoHeygenApi.ts": { createHeygenApiClient: () => ({
+      getVideo: async (id: string) => { events.push(`provider-get:${id}`); if (options.providerStatusFails) throw new Error("private upstream transport"); return { id, status: options.providerState || "processing", videoUrl: "https://resource2.heygen.ai/paid.mp4" }; },
+      downloadVideo: async () => { events.push("provider-download"); return Buffer.from("paid-heygen-mp4"); },
+    }) },
+    "./aiVideoProviderHeygen.ts": { cleanupHeygenTemporaryResources: async () => { events.push("provider-cleanup"); } },
     "server-only": {}, "@/lib/supabaseAdmin": { supabaseAdmin },
     "@/lib/aiMediaGeneratedVideo": { composeOriginalAiVideo: async (input: Recovery.AiMediaCompositionInput) => {
       events.push("compose"); composed = input;
@@ -64,6 +86,7 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
     },
     "@/lib/aiMediaGenerationQuota": {
       completeAiMediaGeneration: async () => { events.push("complete"); }, expireAiMediaGenerationReservations: async () => { events.push("expire"); },
+      failAiMediaGeneration: async () => { events.push("fail"); },
     },
     "@/lib/aiMediaSoundtrackCatalog": soundtrackCatalog,
     "@/lib/aiMediaVideoLocalQa": { inspectAiMediaVideoBufferLocally: async () => ({ status: "ok", advisories: [] }) },
@@ -71,7 +94,7 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
   const source = readFileSync(new URL("../../lib/aiMediaCompositionRecovery.ts", import.meta.url), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const nativeRequire = createRequire(import.meta.url);
-  vm.runInNewContext(`(function(require,module,exports){${js}\n})`, { Buffer, process: { cwd: process.cwd }, console: {...console,warn:(...args:unknown[])=>warnings.push(args)} })((id: string) => {
+  vm.runInNewContext(`(function(require,module,exports){${js}\n})`, { Buffer, process: { cwd: process.cwd, env: { HEYGEN_API_KEY: "synthetic-key" } }, console: {...console,warn:(...args:unknown[])=>warnings.push(args)} })((id: string) => {
     if (id.startsWith("node:")) return nativeRequire(id);
     if (!(id in stubs)) throw new Error(`Unexpected dependency (provider imports forbidden): ${id}`);
     return stubs[id];
@@ -83,6 +106,53 @@ const input: Recovery.AiMediaCompositionInput = {
   width: 1080, height: 1920, durationSeconds: 8, nativeAudioMode: "mute",
   narration: { buffer: Buffer.from("already-paid-audio"), extension: "wav", mimeType: "audio/wav", model: "tts", voice: "Kore" },
 };
+const heygenTask = { provider: "heygen-direct", model: "heygen-avatar-iv", videoId: "accepted-video", temporaryVoiceIds: ["voice-1"],
+  temporaryAvatarGroupIds: ["group-1"], temporaryAssetIds: ["asset-1"], estimatedCostMicroUsd: 640_000 } as const;
+const pendingTask = () => ({ ...heygenTask, temporaryVoiceIds: [...heygenTask.temporaryVoiceIds],
+  temporaryAvatarGroupIds: [...heygenTask.temporaryAvatarGroupIds], temporaryAssetIds: [...heygenTask.temporaryAssetIds] });
+async function saveHeygenCheckpoint(h: ReturnType<typeof harness>) {
+  await h.runtime.persistAiMediaCompositionCheckpoint({ accountId, jobId, authUserId,
+    input: { ...input, clips: [{ buffer: Buffer.alloc(0), durationSeconds: 8 }], nativeAudioMode: "dialogue", narration: null },
+    pendingProvider: pendingTask(), metadata: { provider: "heygen-direct", video_engine: "heygen-avatar", prompt: "private brief" } });
+}
+test("pending HeyGen checkpoints persist the remote ID and montage privately without uploading an empty video", async () => {
+  const h = harness(); await saveHeygenCheckpoint(h);
+  assert.ok(![...h.objects.keys()].some(key => key.endsWith(".mp4")));
+  const manifest = JSON.parse([...h.objects.entries()].find(([key]) => key.endsWith("manifest.json"))![1].toString());
+  assert.equal(manifest.version, 2); assert.equal(manifest.pendingProvider.videoId, "accepted-video");
+  assert.doesNotMatch(JSON.stringify(manifest), /private brief|https:/);
+});
+test("ten normal HeyGen polls keep the paid job alive without consuming composition retries, saving or billing", async () => {
+  const h = harness(); await saveHeygenCheckpoint(h);
+  for (let i = 0; i < 10; i++) {
+    assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"retry_pending");
+    assert.equal(h.record!.attempts,0);
+  }
+  assert.equal(h.events.filter(event => event === "provider-get:accepted-video").length,10);
+  assert.ok(!h.events.some(event => ["compose","save","complete","fail","expire","provider-cleanup"].includes(event)));
+});
+test("a transient status lookup failure keeps the same HeyGen task and its resources for the next poll", async () => {
+  const h = harness({ providerStatusFails: true }); await saveHeygenCheckpoint(h);
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"retry_pending");
+  assert.equal(h.record!.attempts,0);
+  assert.ok(!h.events.includes("provider-cleanup"));
+});
+test("an explicit HeyGen render failure releases the user reservation and cleans only its tracked resources", async () => {
+  const h = harness({ providerState: "failed" }); await saveHeygenCheckpoint(h);
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"failed");
+  assert.equal(h.record!.state,"failed");
+  assert.equal(h.events.filter(event => event === "fail").length,1);
+  assert.ok(h.events.includes("provider-cleanup"));
+  assert.ok(!h.events.includes("save") && !h.events.includes("complete"));
+});
+test("a completed HeyGen render is downloaded once and keeps its native voices through saving and final billing", async () => {
+  const h = harness({ providerState: "completed" }); await saveHeygenCheckpoint(h);
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"completed");
+  assert.equal(h.events.filter(event => event === "provider-download").length,1);
+  assert.equal(h.composed!.nativeAudioMode,"dialogue"); assert.equal(h.composed!.narration,null);
+  assert.equal(h.composed!.clips[0].buffer.toString(),"paid-heygen-mp4");
+  assert.ok(h.events.indexOf("provider-cleanup") > h.events.indexOf("complete"));
+});
 test("an unclaimed completed/discarded checkpoint causes no composition or upload", async () => {
   const h = harness();
   assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status, "idle");

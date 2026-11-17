@@ -17,7 +17,7 @@ import { quoteAiMediaCredits, estimateAiMediaVideoSupplierCostMicroUsd, estimate
 import { getAiMediaVideoSegmentDurations, canGenerateAiMediaVideoDuration, getAiMediaVideoDurationSceneOptions } from "../../lib/aiMediaVideoTimeline.ts";
 
 test("Studio retains historical choices and adds direct Kling with distinct capabilities", () => {
-  assert.equal(AI_MEDIA_VIDEO_MODELS.length, 12);
+  assert.equal(AI_MEDIA_VIDEO_MODELS.length, 13);
   assert.equal(new Set(AI_MEDIA_VIDEO_MODELS.map((model) => model.provider)).size, 6);
   assert.equal(getAiMediaVideoModel("kling").transport, "kling-direct");
   assert.equal(getAiMediaVideoModel("kling").maxDurationSeconds, 30);

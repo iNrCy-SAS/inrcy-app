@@ -1,3 +1,4 @@
+import * as pendingVideo from "../../lib/aiMediaPendingVideo.ts";
 import * as nativeQa from "../../lib/aiMediaNativeDialogueQa.ts";
 import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import { AiVideoProviderBillableFailure } from "../../lib/aiVideoProviderTypes.ts";
@@ -74,6 +75,7 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
   for (const name of ["aiMediaImageContactComposer", "aiMediaCopywriter", "aiMediaGateway", "aiMediaImageProviderRequest", "aiMediaReferenceTeam",
     "aiMediaGenerationSoundtracks", "aiMediaNormalizer", "aiVideoReliability"]) modules.set(`@/lib/${name}`, {});
   const entries: Array<[string, unknown]> = [
+    ["./aiMediaPendingVideo.ts", pendingVideo],
     ["@/lib/aiMediaNativeDialogueQa", nativeQa],
     ["./aiMediaVideoSpeechBudget.ts", speechBudget],
     ["./aiMediaGlobalConstraints.ts", globalConstraints],

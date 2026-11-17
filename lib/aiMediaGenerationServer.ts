@@ -1,4 +1,5 @@
 import "server-only";
+import { isAiVideoProviderPending, type AiMediaPendingVideo } from "./aiMediaPendingVideo.ts";
 
 import { createHash } from "node:crypto";
 import sharp from "sharp";
@@ -327,6 +328,7 @@ export async function generateAndSaveAiMedia(args: {
   onCompositionReady?: (checkpoint: {
     input: Omit<Parameters<typeof composeOriginalAiVideo>[0], "signal">;
     metadata: Record<string, unknown>;
+    pendingProvider?: AiMediaPendingVideo;
   }) => Promise<void>;
 }): Promise<AiMediaGenerationServerResult> {
   const pipelineStartedAt = performance.now();
@@ -1142,6 +1144,7 @@ export async function generateAndSaveAiMedia(args: {
       });
       const providerArgs: AiVideoProviderGenerationArgs = {
         accountId: args.accountId,
+        jobId: args.jobId,
         request: modelRequest,
         plan: creativePlan,
         canonicalPrompt: prompt,
@@ -1169,6 +1172,7 @@ export async function generateAndSaveAiMedia(args: {
           ? await generateInrAgentVideoWithFallback(providerArgs, generateOriginalAiVideoClips)
           : await generateOriginalAiVideoClips(providerArgs);
       } catch (primaryError) {
+        if (isAiVideoProviderPending(primaryError)) throw primaryError;
         args.signal?.throwIfAborted();
         recordVideoEngineFailure({
           engine: request.videoEngine || "omni",
@@ -1229,7 +1233,7 @@ export async function generateAndSaveAiMedia(args: {
     const generateVideoGateway = () => measure("video_generation", async () => {
       // R2V composes the scene itself. Original images must remain separate:
       // each character's voice reference belongs to that exact image.
-      if (providerRequest.videoEngine === "wan27" || providerRequest.videoEngine === "kling" || providerRequest.videoEngine === "kling-flash" || (hasProvidedAiMediaCharacterVoice(providerRequest.inspirationImages) && isAiMediaCharacterVoiceEngine(providerRequest.videoEngine))) {
+      if (providerRequest.videoEngine === "heygen-avatar" || providerRequest.videoEngine === "wan27" || providerRequest.videoEngine === "kling" || providerRequest.videoEngine === "kling-flash" || (hasProvidedAiMediaCharacterVoice(providerRequest.inspirationImages) && isAiMediaCharacterVoiceEngine(providerRequest.videoEngine))) {
         return await generateProviderVideo(providerRequest, providerRequest.identityMode === "reference_team"
           ? { identityTeamMemberCount: preparedCharacterBuffers.length as 2 | 3 }
           : {});
@@ -1679,6 +1683,31 @@ export async function generateAndSaveAiMedia(args: {
     try {
       videoGateway = await videoGatewayTask;
     } catch (error) {
+      if (isAiVideoProviderPending(error)) {
+        const [soundtrackResult, overlaysResult, narrationResult] = await Promise.all([soundtrackTask, overlaysTask, narrationTask]);
+        if (!overlaysResult.value || overlaysResult.error) throw overlaysResult.error || new Error("ai_media_video_overlay_missing");
+        if (!args.onCompositionReady) throw new Error("ai_media_async_checkpoint_required");
+        let sourceStartSeconds = 0;
+        const clips = segmentDurations.map(seconds => {
+          const clip = { buffer: Buffer.alloc(0), durationSeconds: seconds, sourceStartSeconds };
+          sourceStartSeconds += seconds; return clip;
+        });
+        await args.onCompositionReady({ pendingProvider: error.task,
+          input: { clips, overlays: overlaysResult.value, width: format.width, height: format.height, durationSeconds,
+            nativeAudioMode: characterDialogueRequested ? "dialogue" : "mute", soundtrack: soundtrackResult.value,
+            narration: narrationResult.audio, preserveComposition: args.preserveOutputComposition,
+            ...(providerRequest.withSubtitles && (narrationResult.narration?.script || expectedDialogueLines.join(" ").trim())
+              ? { subtitles: { script: narrationResult.narration?.script || expectedDialogueLines.join(" ") } } : {}) },
+          metadata: { provider: error.task.provider, model: error.task.model, video_engine: "heygen-avatar", video_engine_result: "heygen-avatar",
+            video_resolution: providerRequest.videoResolution, format: providerRequest.format, creation_mode: providerRequest.creationMode,
+            prompt_version: activePromptVersion, prompt_sha256: promptHash, provider_request_ids: [error.task.videoId],
+            estimated_cost_micro_usd: error.task.estimatedCostMicroUsd, warnings: ["native_speech_review_recommended"],
+            native_character_dialogue_preserved: characterDialogueRequested,
+            ...(soundtrackResult.value ? { soundtrack: { id: soundtrackResult.value.id } } : {}) },
+        });
+        args.signal?.removeEventListener("abort", abortNarrationFromCaller);
+        throw error;
+      }
       narrationController.abort(error);
       throw error;
     }

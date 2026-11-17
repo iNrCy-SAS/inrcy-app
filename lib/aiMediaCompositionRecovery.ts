@@ -7,7 +7,8 @@ import path from "node:path";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { composeOriginalAiVideo } from "@/lib/aiMediaGeneratedVideo";
 import { getExistingGeneratedAiMedia, saveGeneratedAiMediaDraft } from "@/lib/aiGeneratedMediaRegistry";
-import { completeAiMediaGeneration, expireAiMediaGenerationReservations } from "@/lib/aiMediaGenerationQuota";
+import { completeAiMediaGeneration, expireAiMediaGenerationReservations, failAiMediaGeneration } from "@/lib/aiMediaGenerationQuota";
+import { isAiMediaPendingVideo, type AiMediaPendingVideo } from "./aiMediaPendingVideo.ts";
 import { findAiMediaSoundtrack, getAiMediaSoundtrackAssetRelativePath } from "@/lib/aiMediaSoundtrackCatalog";
 import { inspectAiMediaVideoBufferLocally } from "@/lib/aiMediaVideoLocalQa";
 
@@ -37,7 +38,8 @@ async function rpc(name: string, args: Record<string, unknown> = {}) {
 
 type Asset = { file: string; bytes: number; sha256: string };
 type Manifest = {
-  version: 1; accountId: string; jobId: string; width: number; height: number; durationSeconds: number;
+  version: 1 | 2; accountId: string; jobId: string; width: number; height: number; durationSeconds: number;
+  pendingProvider?: AiMediaPendingVideo;
   nativeAudioMode: "ambience" | "dialogue" | "mute";
   preserveComposition?: boolean;
   /** Explicit render copy only; never the visual brief or generation prompt. */
@@ -92,7 +94,9 @@ function validateSubtitles(value: Manifest["subtitles"]) {
 export async function persistAiMediaCompositionCheckpoint(args: {
   accountId: string; jobId: string; authUserId: string; input: AiMediaCompositionInput; metadata: Record<string, unknown>;
   checkpoint?: AiMediaCompositionCheckpoint;
+  pendingProvider?: AiMediaPendingVideo;
 }): Promise<AiMediaCompositionCheckpoint> {
+  if (args.pendingProvider && !isAiMediaPendingVideo(args.pendingProvider)) throw new Error("ai_media_composition_provider_invalid");
   const checkpoint = { accountId: uuid(args.accountId), jobId: uuid(args.jobId), leaseToken: args.checkpoint?.leaseToken || randomUUID() };
   if (args.checkpoint && (args.checkpoint.accountId !== checkpoint.accountId || args.checkpoint.jobId !== checkpoint.jobId)) throw new Error("ai_media_composition_scope_invalid");
   const layout = { ...args.input, nativeAudioMode: args.input.nativeAudioMode || "ambience" as const };
@@ -116,7 +120,8 @@ export async function persistAiMediaCompositionCheckpoint(args: {
     stage = "clips";
     const clips = [];
     for (const [i, clip] of args.input.clips.entries()) clips.push({
-      ...await upload(`clip-${i}.mp4`, clip.buffer, "video/mp4", MAX_CLIP_BYTES),
+      ...(args.pendingProvider ? { file: `clip-${i}.mp4`, bytes: 0, sha256: "0".repeat(64) }
+        : await upload(`clip-${i}.mp4`, clip.buffer, "video/mp4", MAX_CLIP_BYTES)),
       durationSeconds: clip.durationSeconds, ...(clip.sourceStartSeconds !== undefined ? { sourceStartSeconds: clip.sourceStartSeconds } : {}),
     });
     stage = "overlays";
@@ -141,7 +146,8 @@ export async function persistAiMediaCompositionCheckpoint(args: {
       if (hash(audio) !== track.sha256) throw new Error("ai_media_composition_soundtrack_changed");
       soundtrack = { ...await upload("soundtrack.wav", audio, "audio/wav"), id: track.id, durationSeconds: track.durationSeconds };
     }
-    const manifest: Manifest = { version: 1, accountId: checkpoint.accountId, jobId: checkpoint.jobId,
+    const manifest: Manifest = { version: args.pendingProvider ? 2 : 1, accountId: checkpoint.accountId, jobId: checkpoint.jobId,
+      ...(args.pendingProvider ? { pendingProvider: args.pendingProvider } : {}),
       width: args.input.width, height: args.input.height, durationSeconds: args.input.durationSeconds, nativeAudioMode: layout.nativeAudioMode,
       preserveComposition: args.input.preserveComposition === true,
       ...(args.input.subtitles ? { subtitles: { script: args.input.subtitles.script } } : {}),
@@ -180,14 +186,49 @@ export async function finishAiMediaCompositionCheckpoint(checkpoint: AiMediaComp
   return (await rpc("finish_ai_media_composition_checkpoint", parameters(checkpoint))) === true;
 }
 
-/** Claim one paid result and finish locally. This module never imports a generation provider. */
-export async function recoverNextAiMediaCompositionCheckpoint(): Promise<AiMediaCompositionRecoveryOutcome> {
-  const rows = await rpc("claim_ai_media_composition_checkpoint_v2");
+/** An account-bound status request may claim only its existing private montage. */
+async function claimScopedCheckpoint(scope: { accountId: string; jobId: string }) {
+  const job = await supabaseAdmin.from("ai_media_generation_jobs").select("status")
+    .eq("account_id", uuid(scope.accountId)).eq("id", uuid(scope.jobId)).maybeSingle();
+  if (job.error) throw new Error("ai_media_composition_claim_unavailable");
+  if (!job.data || !["reserved", "processing"].includes(job.data.status)) return [];
+  const now = new Date();
+  const selected = await supabaseAdmin.from("ai_media_composition_checkpoints").select("*")
+    .eq("account_id", uuid(scope.accountId)).eq("job_id", uuid(scope.jobId)).eq("state", "ready")
+    .lte("lease_until", now.toISOString()).gt("expires_at", new Date(now.getTime() + 900_000).toISOString()).lt("attempts", 3).maybeSingle();
+  if (selected.error) throw new Error("ai_media_composition_claim_unavailable");
+  if (!selected.data) return [];
+  const row = selected.data;
+  // The token and attempt counter are compared atomically, including against a
+  // concurrent cron claim. Only one request owns the paid result at a time.
+  const claimed = await supabaseAdmin.from("ai_media_composition_checkpoints").update({
+    lease_token: randomUUID(), lease_until: new Date(now.getTime() + 900_000).toISOString(), attempts: row.attempts + 1,
+    updated_at: now.toISOString(),
+  }).eq("account_id", scope.accountId).eq("job_id", scope.jobId).eq("state", "ready")
+    .eq("lease_token", row.lease_token).eq("attempts", row.attempts).lte("lease_until", now.toISOString()).select("*").maybeSingle();
+  if (claimed.error) throw new Error("ai_media_composition_claim_unavailable");
+  return claimed.data ? [claimed.data] : [];
+}
+
+async function deferProviderCheckpoint(checkpoint: AiMediaCompositionCheckpoint, attempts: number) {
+  const now = new Date();
+  const deferred = await supabaseAdmin.from("ai_media_composition_checkpoints").update({
+    // A running render is not a failed composition attempt.
+    attempts: Math.max(0, attempts - 1), lease_until: new Date(now.getTime() + 30_000).toISOString(), updated_at: now.toISOString(),
+  }).eq("account_id", checkpoint.accountId).eq("job_id", checkpoint.jobId).eq("lease_token", checkpoint.leaseToken)
+    .eq("state", "ready").eq("attempts", attempts).select("job_id").maybeSingle();
+  if (deferred.error || !deferred.data) throw new Error("ai_media_composition_defer_unavailable");
+}
+
+/** Recovery only reads existing provider jobs; it never submits another generation. */
+export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountId: string; jobId: string }): Promise<AiMediaCompositionRecoveryOutcome> {
+  const rows = scope ? await claimScopedCheckpoint(scope) : await rpc("claim_ai_media_composition_checkpoint_v2");
   const row = Array.isArray(rows) ? rows[0] : null;
   if (!row) return { status: "idle" };
   const checkpoint: AiMediaCompositionCheckpoint = { accountId: uuid(row.account_id), jobId: uuid(row.job_id), leaseToken: uuid(row.lease_token) };
   let directory: string | undefined;
   let stage = "existing_result";
+  let pendingProvider: AiMediaPendingVideo | undefined;
   try {
     const existing = await getExistingGeneratedAiMedia(checkpoint);
     if (existing) {
@@ -209,7 +250,11 @@ export async function recoverNextAiMediaCompositionCheckpoint(): Promise<AiMedia
       return Buffer.from(await result.data.arrayBuffer());
     };
     const manifest = JSON.parse((await download(manifestPath, 32_768)).toString("utf8")) as Manifest;
-    if (manifest.version !== 1 || manifest.accountId !== checkpoint.accountId || manifest.jobId !== checkpoint.jobId) throw new Error("ai_media_composition_scope_invalid");
+    if (![1,2].includes(manifest.version) || manifest.accountId !== checkpoint.accountId || manifest.jobId !== checkpoint.jobId) throw new Error("ai_media_composition_scope_invalid");
+    if (manifest.version === 2) {
+      if (!isAiMediaPendingVideo(manifest.pendingProvider) || manifest.metadata?.provider !== "heygen-direct" || manifest.metadata?.video_engine !== "heygen-avatar") throw new Error("ai_media_composition_provider_invalid");
+      pendingProvider = manifest.pendingProvider;
+    } else if (manifest.pendingProvider) throw new Error("ai_media_composition_provider_invalid");
     validateLayout(manifest);
     validateSubtitles(manifest.subtitles);
     const readAsset = async (asset: Asset, expectedFile: string, maximum = MAX_AUX_BYTES) => {
@@ -218,8 +263,31 @@ export async function recoverNextAiMediaCompositionCheckpoint(): Promise<AiMedia
       if (buffer.length !== asset.bytes || hash(buffer) !== asset.sha256) throw new Error("ai_media_composition_asset_corrupt");
       return buffer;
     };
+    let providerVideo: Buffer | undefined;
+    if (pendingProvider) {
+      stage = "provider_status";
+      const { createHeygenApiClient } = await import("./aiVideoHeygenApi.ts");
+      const client = createHeygenApiClient({ apiKey: process.env.HEYGEN_API_KEY || "" });
+      const result = await client.getVideo(pendingProvider.videoId);
+      if (result.status === "pending" || result.status === "processing") {
+        await deferProviderCheckpoint(checkpoint, row.attempts);
+        return { status: "retry_pending", accountId: checkpoint.accountId, jobId: checkpoint.jobId };
+      }
+      if (result.status === "failed") {
+        await failAiMediaGeneration({ accountId: checkpoint.accountId, jobId: checkpoint.jobId,
+          errorCode: "AI_MEDIA_GENERATION_FAILED", errorMessage: "HeyGen n’a pas pu terminer cette vidéo.",
+          metadata: { provider_failure_code: result.failureCode || "generation_failed" } });
+        await supabaseAdmin.from("ai_media_composition_checkpoints").update({ state: "failed", lease_until: new Date().toISOString() })
+          .eq("account_id", checkpoint.accountId).eq("job_id", checkpoint.jobId).eq("lease_token", checkpoint.leaseToken);
+        const { cleanupHeygenTemporaryResources } = await import("./aiVideoProviderHeygen.ts");
+        await cleanupHeygenTemporaryResources(pendingProvider);
+        return { status: "failed", accountId: checkpoint.accountId, jobId: checkpoint.jobId };
+      }
+      stage = "provider_download";
+      providerVideo = await client.downloadVideo(result.videoUrl!);
+    }
     const clips = [];
-    for (const [i, clip] of manifest.clips.entries()) clips.push({ buffer: await readAsset(clip, `clip-${i}.mp4`, MAX_CLIP_BYTES), durationSeconds: clip.durationSeconds, sourceStartSeconds: clip.sourceStartSeconds });
+    for (const [i, clip] of manifest.clips.entries()) clips.push({ buffer: providerVideo || await readAsset(clip, `clip-${i}.mp4`, MAX_CLIP_BYTES), durationSeconds: clip.durationSeconds, sourceStartSeconds: clip.sourceStartSeconds });
     const overlays = [];
     for (const [i, overlay] of manifest.overlays.entries()) overlays.push(await readAsset(overlay, `overlay-${i}.png`));
     let soundtrack: AiMediaCompositionInput["soundtrack"] = null;
@@ -269,9 +337,17 @@ export async function recoverNextAiMediaCompositionCheckpoint(): Promise<AiMedia
     stage = "finalize";
     await completeAiMediaGeneration({ ...checkpoint, mediaId: item.id, metadata });
     await finishAiMediaCompositionCheckpoint(checkpoint);
+    if (pendingProvider) {
+      const { cleanupHeygenTemporaryResources } = await import("./aiVideoProviderHeygen.ts");
+      await cleanupHeygenTemporaryResources(pendingProvider).catch(() => undefined);
+    }
     return { status: "completed", accountId: checkpoint.accountId, jobId: checkpoint.jobId, mediaId: item.id };
   } catch {
     console.warn("[ai-media] composition recovery deferred", { accountId: checkpoint.accountId, jobId: checkpoint.jobId, stage });
+    if (pendingProvider && ["provider_status", "provider_download"].includes(stage)) {
+      await deferProviderCheckpoint(checkpoint, row.attempts);
+      return { status: "retry_pending", accountId: checkpoint.accountId, jobId: checkpoint.jobId };
+    }
     await releaseAiMediaCompositionCheckpoint(checkpoint);
     const active = await hasAiMediaCompositionCheckpoint(checkpoint);
     if (!active) await expireAiMediaGenerationReservations({ batchSize: 100 });

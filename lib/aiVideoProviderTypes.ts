@@ -111,6 +111,8 @@ export function getAiVideoProviderRecoverableStatus(error: unknown): number {
 
 export type AiVideoProviderGenerationArgs = {
   accountId: string;
+  /** Server job identity, used for upstream idempotency; never supplied by the browser. */
+  jobId?: string;
   request: AiMediaGenerationRequest;
   plan: AiMediaCreativePlan;
   /**
@@ -195,7 +197,8 @@ export function assertAiVideoReferenceTeamProviderEgress(
   // A composed team frame would destroy that association. Keep the existing
   // one-attempt provider consent, without pretending these were precomposed.
   const referenceProvider = args.request.videoEngine === "heygen" ? "heygen" : "alibaba";
-  if ((provider === "kling" && (args.request.videoEngine === "kling" || args.request.videoEngine === "kling-flash")) ||
+  if ((provider === "heygen" && args.request.videoEngine === "heygen-avatar") ||
+      (provider === "kling" && (args.request.videoEngine === "kling" || args.request.videoEngine === "kling-flash")) ||
       (provider === "alibaba" && args.request.videoEngine === "wan27") ||
       (hasProvidedAiMediaCharacterVoice(args.request.inspirationImages) && isAiMediaCharacterVoiceEngine(args.request.videoEngine) && provider === referenceProvider)) {
     if (args.identityTeamProviderEgressConsent !== args.request.videoEngine) {

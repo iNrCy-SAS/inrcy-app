@@ -66,7 +66,7 @@ function controls(overrides: Partial<ControlsProps> = {}, locale = "fr-FR") {
 test("retired HeyGen has no family or quality in the engine menu, including supplied voices", () => {
   for (const hasProvidedCharacterVoice of [false, true]) {
     const tree = controls({ hasProvidedCharacterVoice }).render();
-    assert.ok(!elements(tree).some((element) => element.type === "optgroup" && element.props.label === "HeyGen"));
+    assert.ok(elements(tree).some((element) => element.type === "option" && String(element.props.value).startsWith("heygen-avatar:")));
     assert.ok(!elements(tree).some((element) => element.type === "option" && String(element.props.value).startsWith("heygen:")));
   }
 });
@@ -104,7 +104,7 @@ test("the information guide excludes retired HeyGen at every account duration an
     assert.ok(!find(tree, (element) => element.props["aria-haspopup"] === "dialog").props.disabled);
     const dialog = runtime.openInfo();
     assert.equal(dialog.type, "dialog");
-    assert.doesNotMatch(text(dialog), /HeyGen/i);
+    assert.doesNotMatch(text(dialog), /HeyGen Video/i);
     assert.deepEqual(elements(dialog).filter((element) => element.type === "h3").map(text), [models.getAiMediaVideoModel("omni").label]);
     assert.ok(text(dialog).includes(runtime.t("ai_generator_engine_info_cost_note")), "The guide still explains what the displayed Studio cost covers");
     assert.doesNotMatch(text(dialog), /50\s*%|\$|USD|31 octobre/, "Wholesale promotions must not imply a permanent client discount");
@@ -131,7 +131,7 @@ test("the compact guide keeps every model accessible while showing one translate
         assert.deepEqual(headings.map(text), [model.label], "Only the viewed model has a detailed card");
         assert.ok(text(dialog).includes(runtime.t(`ai_generator_engine_info_${kind}_use_${model.id}`)), locale);
         assert.ok(text(dialog).includes(runtime.t(`ai_generator_engine_info_${kind}_limits_${model.id}`)), locale);
-        if (kind === "video") assert.doesNotMatch(text(dialog), /HeyGen/i);
+        if (kind === "video") assert.doesNotMatch(text(dialog), /HeyGen Video/i);
         assert.doesNotMatch(text(dialog), /ai_generator_|\{seconds\}/);
       }
       assert.deepEqual(runtime.changes, [], "Browsing information must not alter generation settings");

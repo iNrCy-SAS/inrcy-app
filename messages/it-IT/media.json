@@ -1032,7 +1032,7 @@
   "ai_generator_character_voice_file_error": "Scegli un file MP3 o WAV di massimo 3 MB.",
   "ai_generator_character_voice_duration_error": "Il campione vocale deve durare da 1 a 10 secondi.",
   "ai_generator_character_voice_sample_missing": "Carica un campione per ogni personaggio con voce fornita.",
-  "ai_generator_character_voice_engine_required": "Per una voce fornita, scegli Wan 2.7 o Kling 4.0 Omni.",
+  "ai_generator_character_voice_engine_required": "Per una voce fornita, scegli Wan 2.7, Kling 4.0 Omni o HeyGen Avatar.",
   "ai_generator_character_voice_speech_required": "Le voci fornite vengono utilizzate nella modalità audio Personaggi.",
   "ai_generator_character_voice_switch_characters": "Usa l’audio Personaggi",
   "ai_generator_character_voice_preview": "Ascolta il campione vocale di questo personaggio",
@@ -1178,5 +1178,8 @@
   "ai_generator_reference_memory_save_error": "Impossibile memorizzare i media. Controlla foto e voci e riprova.",
   "ai_generator_reference_memory_forget_error": "Impossibile dimenticare questi media. Riprova.",
   "ai_generator_reference_memory_forget_hint": "Dimenticare questa selezione per le mie prossime creazioni.",
-  "ai_generator_speech_review_warning": "Video da controllare: guarda e ascolta il risultato prima di usarlo."
+  "ai_generator_speech_review_warning": "Video da controllare: guarda e ascolta il risultato prima di usarlo.",
+  "ai_generator_model_description_heygen-avatar": "Ritratti parlanti e dialoghi con le tue foto e voci.",
+  "ai_generator_engine_info_video_use_heygen-avatar": "Presentazioni in camera e conversazioni in inquadrature successive.",
+  "ai_generator_engine_info_video_limits_heygen-avatar": "Ogni persona parla nella propria inquadratura. La modalità avatar non compone una scena di gruppo."
 }

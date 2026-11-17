@@ -57,6 +57,7 @@ export type AiMediaCreditsQuote = Readonly<{
 }>;
 
 function transmittedVideoReferences(input: AiMediaCreditsQuoteInput, model: ReturnType<typeof getAiMediaVideoModelForCharacterVoice>, references: number, segmentCount: number) {
+  if (model.transport === "heygen-direct") return references;
   if (input.hasProvidedCharacterVoice || model.id === "wan27" || model.transport === "kling-direct") {
     // R2V repeats original image/voice associations for every clip. Only Wan 2.7
     // also accepts a distinct continuation image when there is room for it.
@@ -85,7 +86,7 @@ export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCre
   const videoModel = input.kind === "video" ? getAiMediaVideoModelForCharacterVoice(input.videoEngine ?? "omni", hasProvidedVoice) : null;
   if (hasProvidedVoice && (input.kind !== "video" || !isAiMediaCharacterVoiceEngine(videoModel?.id))) throw new Error("ai_media_video_voice_engine_unsupported");
   // R2V retains each original portrait and its voice binding. Other engines use a composed first frame.
-  const composeFirstFrame = input.kind === "video" && videoModel?.id !== "wan27" && videoModel?.transport !== "kling-direct" && !hasProvidedVoice &&
+  const composeFirstFrame = input.kind === "video" && videoModel?.id !== "wan27" && videoModel?.transport !== "kling-direct" && videoModel?.transport !== "heygen-direct" && !hasProvidedVoice &&
     (input.identityMode === "reference_team" || input.inputMode === "essential") && inputReferences > 0;
   const references = composeFirstFrame ? 1 : inputReferences;
   if (input.kind === "image") {
@@ -165,7 +166,7 @@ export function estimateAiMediaVideoSupplierCostMicroUsd(input: AiMediaCreditsQu
   const model = getAiMediaVideoModelForCharacterVoice(quote.engine, input.hasProvidedCharacterVoice);
   const rate = getAiMediaVideoSupplierRate(model.id, quote.resolution!, input);
   const rawReferences = input.inspirationImagesCount ?? 0;
-  const effectiveReferences = model.id !== "wan27" && model.transport !== "kling-direct" && !input.hasProvidedCharacterVoice && (input.identityMode === "reference_team" || input.inputMode === "essential") && rawReferences > 0 ? 1 : rawReferences;
+  const effectiveReferences = model.id !== "wan27" && model.transport !== "kling-direct" && model.transport !== "heygen-direct" && !input.hasProvidedCharacterVoice && (input.identityMode === "reference_team" || input.inputMode === "essential") && rawReferences > 0 ? 1 : rawReferences;
   const segments = getAiMediaVideoSegmentDurations(quote.durationSeconds!, model.id, quote.resolution, input.sceneMode as AiMediaVideoSceneMode);
   const referenceCount = transmittedVideoReferences(input, model, effectiveReferences, segments.length);
   return Math.ceil((quote.durationSeconds ?? 0) * rate * 1_000_000)

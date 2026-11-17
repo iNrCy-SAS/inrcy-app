@@ -1,3 +1,4 @@
+import { isAiVideoProviderPending } from "../../lib/aiMediaPendingVideo.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -87,7 +88,7 @@ test("the real Server never starts a fallback film after an uncertain Gateway pe
     const context = {
       providerRequest: request, args: { accountId: "offline-fallback", signal: new AbortController().signal },
       isFreeCreation: true, profile, usesSeparateAiMediaFreeVoiceover, buildAiMediaVideoProviderContract,
-      getAiMediaVideoSegmentDurations, getAiVideoProviderRecoverableStatus, isAiVideoProviderBillableFailure, classifyVeoFailure,
+      isAiVideoProviderPending, getAiMediaVideoSegmentDurations, getAiVideoProviderRecoverableStatus, isAiVideoProviderBillableFailure, classifyVeoFailure,
       creativePlan: { companyName: "", headline: "", subline: "", cta: "", scenes: [{ visualBrief: "La personne observe les fleurs." }, { visualBrief: "Elle poursuit la visite." }] },
       segmentDurations: [8, 8], globalMediaConstraints: "", effectiveColors: [], prompt: request.freePrompt, promptHash: "offline-hash",
       speechLanguage: "fr", nativeNarrationLines: undefined, subtitleLines: undefined, useFreeDna: false, pipelineWarnings: [], recordVideoEngineFailure() {},

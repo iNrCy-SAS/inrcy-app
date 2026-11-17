@@ -1032,7 +1032,7 @@
   "ai_generator_character_voice_file_error": "Wählen Sie eine MP3- oder WAV-Datei mit höchstens 3 MB.",
   "ai_generator_character_voice_duration_error": "Die Sprachaufnahme muss zwischen 1 und 10 Sekunden lang sein.",
   "ai_generator_character_voice_sample_missing": "Laden Sie für jede Figur mit eigener Stimme eine Sprachaufnahme hoch.",
-  "ai_generator_character_voice_engine_required": "Für eine bereitgestellte Stimme Wan 2.7 oder Kling 4.0 Omni wählen.",
+  "ai_generator_character_voice_engine_required": "Für eine bereitgestellte Stimme Wan 2.7, Kling 4.0 Omni oder HeyGen Avatar wählen.",
   "ai_generator_character_voice_speech_required": "Eigene Stimmen werden im Audiomodus Figuren verwendet.",
   "ai_generator_character_voice_switch_characters": "Figuren-Audio verwenden",
   "ai_generator_character_voice_preview": "Sprachaufnahme dieser Figur anhören",
@@ -1178,5 +1178,8 @@
   "ai_generator_reference_memory_save_error": "Medien konnten nicht gespeichert werden. Prüfen Sie Fotos und Stimmen und versuchen Sie es erneut.",
   "ai_generator_reference_memory_forget_error": "Medien konnten nicht vergessen werden. Versuchen Sie es erneut.",
   "ai_generator_reference_memory_forget_hint": "Diese Auswahl für meine nächsten Kreationen vergessen.",
-  "ai_generator_speech_review_warning": "Video prüfen: Sehen und hören Sie sich das Ergebnis vor der Verwendung an."
+  "ai_generator_speech_review_warning": "Video prüfen: Sehen und hören Sie sich das Ergebnis vor der Verwendung an.",
+  "ai_generator_model_description_heygen-avatar": "Sprechende Porträts und Dialoge mit Ihren Fotos und Stimmen.",
+  "ai_generator_engine_info_video_use_heygen-avatar": "Präsentationen vor der Kamera und Gespräche in aufeinanderfolgenden Einstellungen.",
+  "ai_generator_engine_info_video_limits_heygen-avatar": "Jede Person spricht in einer eigenen Einstellung. Der Avatar-Modus erstellt keine Gruppenszene."
 }

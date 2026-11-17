@@ -1,3 +1,4 @@
+import * as pendingVideo from "../../lib/aiMediaPendingVideo.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as crypto from "node:crypto";
@@ -55,6 +56,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
   const completionCalls: unknown[] = [];
   const failureCalls: unknown[] = [];
   const releasedCheckpoints: unknown[] = [];
+  const providerRecoveries: unknown[] = [];
   const completedRequests = new Map<string, { fingerprint: string; jobId: string }>();
   const pendingRequests = new Map<string, { fingerprint: string; jobId: string }>();
   const item = {
@@ -65,6 +67,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
   class GuardUnavailableError extends Error {}
   class QuotaError extends Error {}
   const modules = new Map<string, unknown>([
+    ["@/lib/aiMediaPendingVideo", pendingVideo],
     ["@/lib/aiMediaNativeDialogueQa", nativeDialogueQa],
     ["@/lib/aiMediaGenerationPublicErrors", publicErrors],
     ["@/lib/aiMediaNarrationVoiceClone", { isAiMediaVoiceCloneConfigured: () => options.narrator?.configured !== false, supportsAiMediaClonedNarrationLanguage: clonePolicy.supportsAiMediaClonedNarrationLanguage }],
@@ -78,6 +81,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
       },
     }],
     ["@/lib/aiMediaCompositionRecovery", {
+      recoverNextAiMediaCompositionCheckpoint: async (scope: unknown) => { providerRecoveries.push(scope); return { status: "retry_pending" }; },
       persistAiMediaCompositionCheckpoint: async (args: Record<string, unknown>) => {
         if (options.checkpoint !== "saved") throw new Error("checkpoint unavailable");
         return { accountId: args.accountId, jobId: args.jobId, leaseToken: "lease-a" };
@@ -86,7 +90,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
       releaseAiMediaCompositionCheckpoint: async (args: unknown) => { releasedCheckpoints.push(args); },
       finishAiMediaCompositionCheckpoint: async () => { if (options.cleanupFails) throw new Error("cleanup unavailable"); },
     }],
-    ["next/server", { after: (task: Promise<unknown>) => { lifetimes.push(task); }, NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
+    ["next/server", { after: (task: Promise<unknown> | (() => Promise<unknown>)) => { lifetimes.push(typeof task === "function" ? task() : task); }, NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
     ["@/lib/aiMediaGenerationTransport", generationTransport],
     ["@/lib/aiGatewayAccountGuard", { AiGatewayAccountLimitError: AccountLimitError, AiGatewayGuardUnavailableError: GuardUnavailableError }],
     ["@/lib/aiMediaGenerationContracts", contracts],
@@ -179,7 +183,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
     return modules.get(specifier);
   }, { info() {}, warn() {}, error() {} }, routeDate);
   return {
-    reservationCalls, generationCalls, completionCalls, failureCalls, lifetimes, releasedCheckpoints, narratorPreflights, narratorEvents,
+    reservationCalls, generationCalls, completionCalls, failureCalls, lifetimes, releasedCheckpoints, narratorPreflights, narratorEvents, providerRecoveries,
     paidCalls: () => paidCalls, authenticationCalls: () => authenticationCalls,
     post: (body: unknown, init: RequestInit = {}) => record.exports.POST(new Request("https://example.invalid/api/media-generation/generate", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...init,
@@ -968,4 +972,18 @@ test("des voix IA invalides après les secours renvoient une erreur fournisseur 
   assert.equal(route.reservationCalls[0]!.quotaAmount, 87);
   assert.equal(route.failureCalls.length, 1);
   assert.equal(route.completionCalls.length, 0);
+});
+
+
+test("an accepted HeyGen job returns background status without refunding, finishing or submitting a second video", async () => {
+  const task = { provider: "heygen-direct", model: "heygen-avatar-iv", videoId: "existing-video", temporaryVoiceIds: [], temporaryAvatarGroupIds: [], temporaryAssetIds: [], estimatedCostMicroUsd: 640000 } as const;
+  const route = loadRoute({ checkpoint: "saved", providerError: new pendingVideo.AiVideoProviderPending({ ...task, temporaryVoiceIds: [], temporaryAvatarGroupIds: [], temporaryAssetIds: [] }) });
+  const response = await route.post(body({ kind: "video", videoEngine: "heygen-avatar", videoResolution: "720p", durationSeconds: 8, freePrompt: "Une présentation face caméra.", teamVideoSpeechMode: "voiceover", withNarration: false }));
+  assert.equal(response.status,202);
+  const payload = await response.json(); assert.equal(payload.code,"AI_MEDIA_FINALIZATION_PENDING");
+  assert.doesNotMatch(JSON.stringify(payload), /existing-video|temporaryVoice|estimatedCostMicro/);
+  await Promise.all(route.lifetimes);
+  assert.equal(route.reservationCalls.length,1); assert.equal(route.generationCalls.length,1);
+  assert.equal(route.failureCalls.length,0); assert.equal(route.completionCalls.length,0);
+  assert.equal(route.releasedCheckpoints.length,1); assert.equal(route.providerRecoveries.length,1);
 });

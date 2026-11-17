@@ -1,3 +1,4 @@
+import * as pendingVideo from "../../lib/aiMediaPendingVideo.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -14,6 +15,7 @@ function route() {
   const quota = { creditsReady: true, credits: { remaining: 100 } };
   class TestError extends Error {}
   const modules = new Map<string, unknown>([
+    ["@/lib/aiMediaPendingVideo", pendingVideo],
     ["@/lib/aiMediaNativeDialogueQa", nativeDialogueQa],
     ["next/server", { after() {}, NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
     ["@/lib/aiMediaGenerationContracts", contracts],

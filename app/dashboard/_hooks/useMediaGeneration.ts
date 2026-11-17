@@ -731,7 +731,7 @@ export default function useMediaGeneration() {
         const voiceSelection = getCharacterVoiceSelectionState(request.inspirationImages || []);
         if (voiceSelection.missingSample) throw new Error("Insérez un vocal pour chaque personnage en voix fournie.");
         if (voiceSelection.hasProvidedVoice && request.teamVideoSpeechMode !== "characters") throw new Error("Les voix fournies sont utilisées en mode Personnages.");
-        if (voiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(request.videoEngine)) throw new Error("Choisissez Wan 2.7 ou Kling pour une vidéo avec une voix fournie.");
+        if (voiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(request.videoEngine)) throw new Error("Choisissez Wan 2.7, Kling ou HeyGen Avatar pour une vidéo avec une voix fournie.");
         if (voiceSelection.hasProvidedVoice && hasTooShortAiMediaCharacterVoice(request.videoEngine, request.inspirationImages || [])) throw new Error("Kling nécessite un vocal de 5 à 10 secondes pour chaque personnage.");
         if (voiceSelection.hasProvidedVoice && exceedsAiMediaCharacterVoiceEngineDuration(request.videoEngine, request.inspirationImages || [])) throw new Error("Les vocaux dépassent la durée acceptée par ce moteur. Raccourcissez vos échantillons ou choisissez Wan 2.7.");
       }

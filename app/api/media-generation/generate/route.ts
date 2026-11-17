@@ -1,4 +1,5 @@
 import { after, NextResponse } from "next/server";
+import { isAiVideoProviderPending } from "@/lib/aiMediaPendingVideo";
 
 import {
   AiGatewayAccountLimitError,
@@ -631,12 +632,12 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
       signal: executionSignal,
       deadlineAt: options.deadlineAt,
       onBillableWorkStarted: options.onBillingStarted,
-      onCompositionReady: async ({ input, metadata }) => {
+      onCompositionReady: async ({ input, metadata, pendingProvider }) => {
         compositionCheckpointAttempted = true;
         try {
           compositionCheckpoint = await persistAiMediaCompositionCheckpoint({
             accountId: context.accountId, jobId: context.jobId!, authUserId: context.authUserId,
-            input, metadata, ...(compositionCheckpoint ? { checkpoint: compositionCheckpoint } : {}),
+            input, metadata, pendingProvider, ...(compositionCheckpoint ? { checkpoint: compositionCheckpoint } : {}),
           });
         } catch {
           // A recovery-store outage must not prevent a healthy local montage.
@@ -813,6 +814,16 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
       }
     }
 
+    if (isAiVideoProviderPending(error) && compositionCheckpoint) {
+      await releaseAiMediaCompositionCheckpoint(compositionCheckpoint);
+      const scopedJob = { accountId: context.accountId, jobId: context.jobId! };
+      after(async () => {
+        const { recoverNextAiMediaCompositionCheckpoint } = await import("@/lib/aiMediaCompositionRecovery");
+        await recoverNextAiMediaCompositionCheckpoint(scopedJob).catch(() => undefined);
+      });
+      return jsonError({ status: 202, code: "AI_MEDIA_FINALIZATION_PENDING",
+        message: "HeyGen prépare votre vidéo. La création continue en arrière-plan ; vous pouvez revenir plus tard.", retryAfterSeconds: 5 });
+    }
     if (quotaReserved && !quotaCompleted && !mediaPersisted && context.accountId && context.jobId && compositionCheckpointAttempted) {
       // The paid assets may already be durable, even if the acknowledgement
       // was lost. Never launch AI again or release credits during reconciliation.

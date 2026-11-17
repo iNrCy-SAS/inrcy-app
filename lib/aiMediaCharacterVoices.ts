@@ -8,7 +8,7 @@ export const AI_MEDIA_CHARACTER_VOICE_SAMPLE_RATE = 16_000;
 export const AI_MEDIA_CHARACTER_VOICE_MAX_NORMALIZED_BYTES = 320_044;
 export const AI_MEDIA_CHARACTER_VOICE_RETENTION_MS = 24 * 60 * 60 * 1000;
 export const AI_MEDIA_CHARACTER_VOICE_STORAGE_ROOT = "_studio-voice-references";
-export const AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES = Object.freeze(["wan27", "wan3", "heygen", "kling"] as const);
+export const AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES = Object.freeze(["wan27", "wan3", "heygen", "heygen-avatar", "kling"] as const);
 export type AiMediaCharacterVoiceVideoEngine = typeof AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES[number];
 export const AI_MEDIA_CHARACTER_VOICE_WAN3_MAX_TOTAL_SECONDS = 15;
 

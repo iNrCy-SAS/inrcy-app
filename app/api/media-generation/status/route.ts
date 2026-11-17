@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { getExistingGeneratedAiMediaContext } from "@/lib/aiGeneratedMediaRegistry";
 import { getAiMediaGenerationPublicError } from "@/lib/aiMediaGenerationPublicErrors";
@@ -8,6 +8,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 800;
 
 const NO_STORE_HEADERS = { "Cache-Control": "private, no-store, max-age=0" };
 const REQUEST_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]{7,179}$/i;
@@ -17,7 +18,7 @@ type Job = {
   status: "reserved" | "processing" | "completed" | "failed" | "expired";
   error_code: string | null;
   error_message: string | null;
-  metadata: { format?: unknown; error_details?: unknown; video_engine_result?: unknown; credit_amount?: unknown } | null;
+  metadata: { format?: unknown; error_details?: unknown; video_engine_result?: unknown; video_engine?: unknown; credit_amount?: unknown } | null;
 };
 
 /** Recover an existing attempt without reserving credits or starting AI work. */
@@ -68,6 +69,13 @@ export async function GET(request: Request) {
         { ok: true, status: job.status, code: failure.code, error: failure.message },
         { headers: NO_STORE_HEADERS },
       );
+    }
+    if (job.metadata?.video_engine === "heygen-avatar") {
+      const jobId = job.id;
+      after(async () => {
+        const { recoverNextAiMediaCompositionCheckpoint } = await import("@/lib/aiMediaCompositionRecovery");
+        await recoverNextAiMediaCompositionCheckpoint({ accountId, jobId }).catch(() => undefined);
+      });
     }
     return NextResponse.json({ ok: true, status: "processing" }, { status: 202, headers: NO_STORE_HEADERS });
   } catch {

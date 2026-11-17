@@ -1032,7 +1032,7 @@
   "ai_generator_character_voice_file_error": "เลือกไฟล์ MP3 หรือ WAV ขนาดไม่เกิน 3 MB",
   "ai_generator_character_voice_duration_error": "ตัวอย่างเสียงต้องมีความยาว 1 ถึง 10 วินาที",
   "ai_generator_character_voice_sample_missing": "อัปโหลดตัวอย่างเสียงสำหรับตัวละครแต่ละตัวที่ใช้เสียงที่อัปโหลด",
-  "ai_generator_character_voice_engine_required": "หากใช้เสียงที่อัปโหลด ให้เลือก Wan 2.7 หรือ Kling 4.0 Omni",
+  "ai_generator_character_voice_engine_required": "หากใช้เสียงที่อัปโหลด ให้เลือก Wan 2.7, Kling 4.0 Omni หรือ HeyGen Avatar",
   "ai_generator_character_voice_speech_required": "เสียงที่อัปโหลดจะใช้ในโหมดเสียงตัวละคร",
   "ai_generator_character_voice_switch_characters": "ใช้โหมดเสียงตัวละคร",
   "ai_generator_character_voice_preview": "ฟังตัวอย่างเสียงของตัวละครนี้",
@@ -1178,5 +1178,8 @@
   "ai_generator_reference_memory_save_error": "ไม่สามารถจดจำสื่อได้ ตรวจสอบรูปภาพและเสียงแล้วลองอีกครั้ง",
   "ai_generator_reference_memory_forget_error": "ไม่สามารถลืมสื่อเหล่านี้ได้ โปรดลองอีกครั้ง",
   "ai_generator_reference_memory_forget_hint": "ลืมการเลือกนี้สำหรับการสร้างครั้งถัดไป",
-  "ai_generator_speech_review_warning": "โปรดตรวจสอบวิดีโอโดยดูและฟังผลลัพธ์ก่อนใช้งาน"
+  "ai_generator_speech_review_warning": "โปรดตรวจสอบวิดีโอโดยดูและฟังผลลัพธ์ก่อนใช้งาน",
+  "ai_generator_model_description_heygen-avatar": "สร้างภาพบุคคลพูดและบทสนทนาด้วยภาพถ่ายและเสียงของคุณ",
+  "ai_generator_engine_info_video_use_heygen-avatar": "เหมาะสำหรับการนำเสนอต่อหน้ากล้องและบทสนทนาแบบสลับภาพ",
+  "ai_generator_engine_info_video_limits_heygen-avatar": "แต่ละคนพูดในภาพของตนเอง โหมดอวตารไม่สร้างฉากกลุ่ม"
 }

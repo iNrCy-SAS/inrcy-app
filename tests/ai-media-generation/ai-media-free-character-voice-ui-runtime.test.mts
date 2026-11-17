@@ -892,21 +892,21 @@ test("the real Free voice import enables only supported engines and aligns quote
   const options = elements(engineMenu).filter((node) => node.type === "option");
   for (const option of options) assert.equal(option.props.disabled, !voiceRules.isAiMediaCharacterVoiceEngine(String(option.props.value).split(":")[0]));
   const activeVoiceEngines = voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES.filter(models.isAiMediaVideoEngineAvailable);
-  assert.deepEqual(activeVoiceEngines, ["wan27", "kling"], "recommend only current engines while historical capability metadata stays intact");
+  assert.deepEqual(activeVoiceEngines, ["wan27", "heygen-avatar", "kling"], "recommend only current engines while historical capability metadata stays intact");
   assert.deepEqual([...new Set(options.filter(option => !option.props.disabled).map(option => String(option.props.value).split(":")[0]))].sort(), [...activeVoiceEngines].sort(), "the real menu offers exactly the current supported engines");
-  assert.deepEqual(voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, ["wan27", "wan3", "heygen", "kling"]);
+  assert.deepEqual(voiceRules.AI_MEDIA_CHARACTER_VOICE_VIDEO_ENGINES, ["wan27", "wan3", "heygen", "heygen-avatar", "kling"]);
   const status = elements(engines).filter(node => node.props.role === "status").map(text).find(value => value.includes("Voix fournie"));
   assert.equal(status, undefined, "the compatible current engine does not repeat the supplied-voice engine advice");
   assert.ok(!String(engineMenu.props.title || "").includes(frenchMessages.ai_generator_character_voice_engine_required), "the compatible engine title does not show an unmet restriction");
   for (const option of options.filter(option => option.props.disabled)) {
     assert.match(text(option), /Wan 2\.7/, "each disabled option points to the current supplied-voice engine");
-    assert.doesNotMatch(text(option), /Wan 3|HeyGen/i);
+    assert.doesNotMatch(text(option), /Wan 3|HeyGen Video/i);
   }
   for (const locale of ["de-DE", "en-GB", "es-ES", "fr-FR", "it-IT", "nl-NL", "pt-PT", "th-TH", "zh-CN"]) {
     const hint = (JSON.parse(read(`messages/${locale}/media.json`)) as Record<string, string>).ai_generator_character_voice_engine_required;
     assert.match(hint, /Wan 2\.7/, locale);
     assert.match(hint, /Kling/, locale);
-    assert.doesNotMatch(hint, /Wan 3|HeyGen/i, locale);
+    assert.doesNotMatch(hint, /Wan 3|HeyGen Video/i, locale);
   }
   await h.generate(); assert.equal(h.requests.length, 0, "a selected supplied voice without a vocal cannot generate");
   await h.uploadVoice(0); assert.equal(h.uploads.length, 1); assert.equal(h.uploads[0].get("file") instanceof File, true);
@@ -1218,10 +1218,10 @@ test("retired HeyGen is absent from regular and supplied-voice menus and their i
   const h = harness("video", "wan27"); await h.addPhoto(); h.criteria(0, "character", "inspiration"); h.chooseVoice(0, "provided");
   let menu = find(h.renderEngines(), (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
   assert.ok(!elements(menu).some((node) => node.type === "option" && String(node.props.value).startsWith("heygen:")));
-  assert.doesNotMatch(text(h.renderEngineInfo()), /HeyGen/i);
+  assert.doesNotMatch(text(h.renderEngineInfo()), /HeyGen Video/i);
   h.chooseVoice(0, "ai"); menu = find(h.renderEngines(), (node) => node.type === "select" && String(node.props.id).endsWith("-engine"));
   assert.ok(!elements(menu).some((node) => node.type === "option" && String(node.props.value).startsWith("heygen:")));
-  assert.doesNotMatch(text(h.renderEngineInfo()), /HeyGen/i); h.dispose();
+  assert.doesNotMatch(text(h.renderEngineInfo()), /HeyGen Video/i); h.dispose();
 });
 
 test("Wan2.7 keeps two independent eight-second supplied voices without the retired Wan3 shared cap", async () => {

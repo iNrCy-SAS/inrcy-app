@@ -318,3 +318,5 @@ Avant chaque redéploiement de palier :
 - [ ] vérifier que `inrcy-pro-media` reste privé ;
 - [ ] vérifier l'absence de jobs avec lease expirée persistante ;
 - [ ] conserver les routes historiques tant que la période d'observation n'est pas terminée.
+
+- [ ] `HEYGEN_API_KEY` — clé API HeyGen V3 dédiée, secret serveur sur Production ; aucun préfixe public. Le moteur `heygen-avatar` utilise l’API directe et la reprise privée des rendus.

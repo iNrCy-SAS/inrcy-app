@@ -3,7 +3,7 @@
  */
 export type AiMediaVideoEngine =
   | "omni" | "veo" | "veo-lite" | "minimax-h3"
-  | "wan-flash" | "wan27" | "wan3" | "grok-lite" | "grok" | "heygen" | "kling" | "kling-flash";
+  | "wan-flash" | "wan27" | "wan3" | "grok-lite" | "grok" | "heygen" | "heygen-avatar" | "kling" | "kling-flash";
 export type AiMediaImageEngine = "openai" | "gemini" | "flux" | "grok" | "recraft";
 export type AiMediaImageFormat = "square" | "portrait" | "story" | "landscape";
 export type AiMediaImageDimensions = Readonly<{ width: number; height: number }>;
@@ -35,7 +35,7 @@ export type AiMediaVideoModel = Readonly<{
   family: "Google" | "MiniMax" | "Alibaba" | "Grok" | "HeyGen" | "Kling";
   provider: "google" | "minimax" | "alibaba" | "spacexai" | "heygen" | "kling";
   providerLabel: string;
-  transport: "google-direct" | "gateway" | "kling-direct";
+  transport: "google-direct" | "gateway" | "kling-direct" | "heygen-direct";
   modelId: string;
   description: string;
   costTier: "economy" | "balanced" | "premium";
@@ -61,6 +61,16 @@ const range = (from: number, to: number) =>
   Object.freeze(Array.from({ length: to - from + 1 }, (_, index) => from + index));
 
 export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze([
+  {
+    id: "heygen-avatar", label: "HeyGen Avatar", family: "HeyGen", provider: "heygen", providerLabel: "HeyGen",
+    transport: "heygen-direct", modelId: "heygen-avatar-iv",
+    description: "Portraits parlants et dialogues en plans successifs, avec la voix dédiée à chaque personnage.", costTier: "balanced",
+    // Avatar IV photo rates include a conservative 2x motion-prompt allowance.
+    creditsPerSecond: 8, creditsByResolution: { "720p": 8, "1080p": 16 },
+    durationsSeconds: range(4,30), maxDurationSeconds: 30, resolutions: ["720p","1080p"], defaultResolution: "1080p",
+    nativeAudio: true, frenchDialogue: "supported", supportsTextToVideo: true, supportsImageToVideo: true,
+    maxReferenceImages: 5, pricingUsdPerSecond: { "720p": 0.08, "1080p": 0.16 }, supplierReferenceCostMicroUsd: 0, referenceInputCredits: 0,
+  },
   {
     id: "kling-flash", label: "Kling 4.0 Flash", family: "Kling", provider: "kling", providerLabel: "Kling",
     transport: "kling-direct", modelId: "kling-4.0-flash",

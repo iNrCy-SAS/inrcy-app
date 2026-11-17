@@ -1,3 +1,4 @@
+import * as pendingVideo from "../../lib/aiMediaPendingVideo.ts";
 import * as nativeQa from "../../lib/aiMediaNativeDialogueQa.ts";
 import * as videoProviderTypes from "../../lib/aiVideoProviderTypes.ts";
 import { loadNarrationPreparationRuntime } from "./narration-preparation-runtime.mjs";
@@ -74,6 +75,7 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
       officialLogoIncluded: Boolean(args.officialLogo), warnings: [], usage: null };
   };
   const overrides: Array<[string, unknown]> = [
+    ["./aiMediaPendingVideo.ts", pendingVideo],
     ["@/lib/aiMediaNativeDialogueQa", nativeQa],
     ["@/lib/aiVideoProviderTypes", videoProviderTypes],
     ["./aiMediaGlobalConstraints.ts", globalConstraints],

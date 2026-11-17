@@ -45,11 +45,11 @@ export function aiMediaExactDialogueScript(turns: readonly AiMediaExactDialogueT
 export function assertAiMediaExactDialogueBindings(turns: readonly AiMediaExactDialogueTurn[],
   references: readonly { role?: string; characterIndex?: number }[], engine: unknown) {
   const characters = turns.filter(turn => turn.speaker === "character");
-  if (characters.length && !["wan27", "kling", "kling-flash"].includes(String(engine))) {
-    throw new TypeError("Ce moteur ne prend pas en charge ces locuteurs exacts. Choisissez Wan 2.7 ou Kling pour les personnages.");
+  if (characters.length && !["wan27", "kling", "kling-flash", "heygen-avatar"].includes(String(engine))) {
+    throw new TypeError("Ce moteur ne prend pas en charge ces locuteurs exacts. Choisissez Wan 2.7, Kling ou HeyGen Avatar pour les personnages.");
   }
-  if (characters.length && turns.some(turn => turn.speaker === "ai_voice") && engine !== "kling") {
-    throw new TypeError("Le mélange voix IA hors champ et personnages parlants nécessite Kling 4.0. Aucun moteur n’a été changé.");
+  if (characters.length && turns.some(turn => turn.speaker === "ai_voice") && engine !== "kling" && engine !== "heygen-avatar") {
+    throw new TypeError("Le mélange voix IA hors champ et personnages parlants nécessite Kling 4.0 ou HeyGen Avatar. Aucun moteur n’a été changé.");
   }
   for (const turn of characters) {
     if (references.filter(reference => reference.role === "character" && reference.characterIndex === turn.characterIndex).length !== 1) {

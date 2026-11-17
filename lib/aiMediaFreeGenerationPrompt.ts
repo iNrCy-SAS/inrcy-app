@@ -30,7 +30,7 @@ const AI_MEDIA_FREE_RECRAFT_PROMPT_MAX_CHARS = 8_600;
  * The existing 3,200-character ceiling remains for other transports.
  */
 export function getAiMediaFreeVideoPromptMaxCharacters(engine: AiMediaGenerationRequest["videoEngine"]) {
-  return engine === "wan-flash" ? 1_500 : engine === "wan27" ? 5_000 : engine === "wan3" ? 20_000 : engine === "kling" || engine === "kling-flash" ? 10_000 : 3_200;
+  return engine === "wan-flash" ? 1_500 : engine === "wan27" ? 5_000 : engine === "wan3" ? 20_000 : engine === "kling" || engine === "kling-flash" || engine === "heygen-avatar" ? 10_000 : 3_200;
 }
 
 /** The Gateway appends these exact bindings after the scene prompt. Reserve
@@ -196,7 +196,7 @@ export function getAiMediaFreeExactDialogueTurnScenes(request: AiMediaGeneration
         speaker: `Personnage ${turn.characterIndex}`, text: turn.text }));
   }
   if (request.kind !== "video" || request.creationMode !== "free" || request.teamVideoSpeechMode !== "characters" ||
-    !["wan27", "kling", "kling-flash"].includes(request.videoEngine || "") || typeof request.spokenScript !== "string") return null;
+    !["wan27", "kling", "kling-flash", "heygen-avatar"].includes(request.videoEngine || "") || typeof request.spokenScript !== "string") return null;
   const script = request.spokenScript;
   const matches = [...script.matchAll(/(?:^|\n)[ \t]*([\p{L}][\p{L}\p{M}\p{N} '’_()\-]{0,69}?)\s*:[ \t]*/gu)];
   if (!matches.length || script.slice(0, matches[0].index).trim()) return null;
@@ -269,7 +269,7 @@ export function validateAiMediaFreeDialogueLine(line: string, durationSeconds = 
 /** Automatic multi-character dialogue has several turns within one shot. */
 export function usesAiMediaFreeCharacterDialogueTurns(request: AiMediaGenerationRequest) {
   if (request.kind !== "video" || request.creationMode !== "free" || request.teamVideoSpeechMode !== "characters" ||
-    !["wan27", "kling", "kling-flash"].includes(request.videoEngine || "")) return false;
+    !["wan27", "kling", "kling-flash", "heygen-avatar"].includes(request.videoEngine || "")) return false;
   if (getAiMediaFreeExactDialogueTurnScenes(request)) return true;
   return typeof request.spokenScript !== "string" && !getAiMediaFreeRequestedDialogueLines(request).length &&
     request.inspirationImages.filter(image => image.role === "character").length > 1;

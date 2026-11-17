@@ -1042,7 +1042,7 @@ export function normalizeAiMediaGenerationRequest(
   }
   const providedCharacterVoice = hasProvidedAiMediaCharacterVoice(inspirationImages);
   if (providedCharacterVoice && (kind !== "video" || operation === "modify" || !isAiMediaCharacterVoiceEngine(videoEngine))) {
-    throw new AiMediaRequestValidationError("Choisissez Wan 2.7 ou Kling pour une vidéo avec une voix fournie.");
+    throw new AiMediaRequestValidationError("Choisissez Wan 2.7, Kling ou HeyGen Avatar pour une vidéo avec une voix fournie.");
   }
   if (providedCharacterVoice && hasTooShortAiMediaCharacterVoice(videoEngine, inspirationImages)) {
     throw new AiMediaRequestValidationError("Kling nécessite un vocal de 5 à 10 secondes pour chaque personnage.");

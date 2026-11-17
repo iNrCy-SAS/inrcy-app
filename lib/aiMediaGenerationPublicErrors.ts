@@ -422,7 +422,7 @@ function explanation(code: AiMediaPublicErrorCode): AiMediaPublicError {
 
 const CONTENT_POLICY_REJECTION = /\bai_media_content_policy_rejected\b|\bcontent_policy_violation\b|\bmoderation_blocked\b|\bsafety_violation\b|\bcontent_filter\b|request was rejected by the safety system/;
 const SAFETY_FILTER_REJECTION = /safety_filtered|content.moderat|safety filter|responsible ai|\bai_media_(?:reference_policy_rejected|audio_safety_filtered|video_safety_filtered)\b/;
-const PROVIDER_BALANCE_INSUFFICIENT = /\bai_media_provider_balance_insufficient\b|\binsufficient[_ -](?:balance|credits?|funds)\b|\b(?:insufficient|not enough)\b.{0,30}\b(?:balance|credits?|funds)\b|\bbalance\b.{0,40}\b(?:insufficient|exhausted|too low)\b|\b(?:low|exhausted)[_ -](?:credit[_ -])?balance\b/;
+const PROVIDER_BALANCE_INSUFFICIENT = /\bai_media_provider_balance_insufficient\b|\bai_video_heygen_insufficient_balance:402\b|\binsufficient[_ -](?:balance|credits?|funds)\b|\b(?:insufficient|not enough)\b.{0,30}\b(?:balance|credits?|funds)\b|\bbalance\b.{0,40}\b(?:insufficient|exhausted|too low)\b|\b(?:low|exhausted)[_ -](?:credit[_ -])?balance\b/;
 // Kling's sanitized transport signature retains only phase, HTTP status and code.
 // 1101 = postpaid arrears; 1102 = exhausted/expired prepaid resource pack.
 // These official 429s require operator billing action, unlike 1302/1303 throttling.
@@ -476,6 +476,8 @@ export function classifyAiMediaGenerationError(error: unknown): AiMediaPublicErr
   if (match(/\bai_media_character_voice_kling_duration_invalid\b/)) return result("AI_MEDIA_KLING_VOICE_TOO_SHORT");
   if (match(/\bai_media_kling_reference_dimensions_invalid\b/)) return result("AI_MEDIA_KLING_REFERENCE_INVALID");
   if (match(/\bai_video_kling_(?:voice_failed|reference_voice_missing)\b/)) return result("AI_MEDIA_CHARACTER_VOICE_INVALID");
+  if (match(/\bai_video_heygen_voice_clone_failed\b/)) return result("AI_MEDIA_CHARACTER_VOICE_INVALID");
+  if (match(/\bai_video_heygen_voice_pending\b/)) return result("AI_MEDIA_CHARACTER_VOICE_UNAVAILABLE");
   if (match(/\bvoice_(?:reference_(?:invalid_or_expired|missing)|audio_\w+|account_invalid)\b|ai_video_reference_voice_(?:url_missing|assignment_invalid)/)) return result("AI_MEDIA_CHARACTER_VOICE_INVALID");
   if (match(/\bvoice_(?:storage_unavailable|reference_unavailable)\b/)) return result("AI_MEDIA_CHARACTER_VOICE_UNAVAILABLE");
   // These are iNrCy wallet/session failures, never supplier billing failures.
