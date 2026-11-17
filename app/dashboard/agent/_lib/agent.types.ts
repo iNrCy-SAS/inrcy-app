@@ -150,6 +150,7 @@ export type AgentPreparedAction = {
   validationRequired: boolean;
   executionPolicy: string;
   status: InrAgentActionStatus;
+  lastError?: string | null;
   scheduledFor: string | null;
   preparedAt: string | null;
   validatedAt?: string | null;

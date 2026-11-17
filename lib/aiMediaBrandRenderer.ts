@@ -559,7 +559,12 @@ async function buildImageBrandOverlays(
       if (acceptable.length) break;
     }
   }
-  if (!acceptable.length) throw new Error("ai_media_logo_no_safe_placement");
+  if (!acceptable.length) {
+    // Optional branding must not discard a generated image or cover busy
+    // content. Explicitly required logos retain the same safe-placement rule.
+    if (args.requireLogo !== false) throw new Error("ai_media_logo_no_safe_placement");
+    return [];
+  }
   const chosen = acceptable.find(candidate => candidate.preferred)
     || acceptable.reduce((best, candidate) => candidate.score < best.score ? candidate : best);
   args.onLogoLayout?.({ width: logo.width, height: logo.height, left: chosen.left, top: chosen.top,

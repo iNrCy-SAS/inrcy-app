@@ -583,6 +583,10 @@ export async function generateAndSaveAiMedia(args: {
   const creativePlan = await creativePlanTask;
   args.signal?.throwIfAborted();
   const freeLogoPlacement = getAiMediaFreeLogoPlacement(logoBrief);
+  // Discreet branding is best-effort unless the brief explicitly requires an
+  // official logo or its placement. The display footprint remains unchanged.
+  const requireImageLogo = providerRequest.logoMode !== "discreet" ||
+    requireProfileLogo || explicitProfileLogo || Boolean(freeLogoPlacement);
   const officialLogo = profileLogoRequested ? brandKit.logo : null;
   const effectiveLogoMode = officialLogo && providerRequest.kind === "image" ? "visible"
     : officialLogo && providerRequest.logoMode === "none" ? "discreet" : providerRequest.logoMode;
@@ -879,7 +883,7 @@ export async function generateAndSaveAiMedia(args: {
               height: normalized.height || format.height,
               scene: imageScene,
               logo: officialLogo,
-              requireLogo: true,
+              requireLogo: requireImageLogo,
               onLogoLayout: recordImageLogoLayout,
               colors: effectiveColors,
               companyName: creativePlan.companyName,
@@ -891,7 +895,7 @@ export async function generateAndSaveAiMedia(args: {
             })
           );
           normalized = { ...normalized, buffer: brandedBuffer };
-          exactLogoCompositionApplied = true;
+          exactLogoCompositionApplied = requireImageLogo || Boolean(imageLogoLayout);
         }
       } catch (error) {
         args.signal?.throwIfAborted();
@@ -928,7 +932,7 @@ export async function generateAndSaveAiMedia(args: {
               height: format.height,
               scene: composedImageScene,
               logo: officialLogo,
-              requireLogo: Boolean(officialLogo),
+              requireLogo: Boolean(officialLogo) && requireImageLogo,
               onLogoLayout: recordImageLogoLayout,
               colors: effectiveColors,
               companyName: creativePlan.companyName,
@@ -952,7 +956,7 @@ export async function generateAndSaveAiMedia(args: {
         );
         normalized = { ...normalized, buffer: composedBuffer };
         deterministicImageCompositionApplied = true;
-        exactLogoCompositionApplied = Boolean(officialLogo);
+        exactLogoCompositionApplied = Boolean(officialLogo) && (requireImageLogo || Boolean(imageLogoLayout));
         if (providerRequest.textMode === "exact" && profilePhone) {
           exactContactCompositionApplied = true;
         }
@@ -972,7 +976,7 @@ export async function generateAndSaveAiMedia(args: {
           height: normalized.height || format.height,
           scene: imageScene,
           logo: officialLogo,
-          requireLogo: true,
+          requireLogo: requireImageLogo,
           onLogoLayout: recordImageLogoLayout,
           colors: effectiveColors,
           companyName: creativePlan.companyName,
@@ -985,7 +989,7 @@ export async function generateAndSaveAiMedia(args: {
         })
       );
       normalized = { ...normalized, buffer: composedBuffer };
-      exactLogoCompositionApplied = true;
+      exactLogoCompositionApplied = requireImageLogo || Boolean(imageLogoLayout);
     }
     args.signal?.throwIfAborted();
     model = gateway.model;
@@ -997,7 +1001,8 @@ export async function generateAndSaveAiMedia(args: {
     providerMetadata = {
       ...cleanGatewayMetadata,
       warnings: Array.from(
-        new Set([...cleanGatewayMetadata.warnings, ...contactWarnings])
+        new Set([...cleanGatewayMetadata.warnings, ...contactWarnings,
+          ...(officialLogo && !requireImageLogo && !exactLogoCompositionApplied ? ["image_optional_logo_omitted"] : [])])
       ),
       exact_contact_composition_applied: exactContactCompositionApplied,
       deterministic_image_composition_applied:

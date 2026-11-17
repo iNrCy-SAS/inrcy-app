@@ -436,6 +436,23 @@ function studioMediaPreferenceStep(value: number): StudioMediaPreferenceStep {
   ) as StudioMediaPreferenceStep;
 }
 
+function publicationFailureMessage(action: AgentPreparedAction | null, locale: string) {
+  if (action?.status !== "failed") return null;
+  // This reviewed public sentence is already returned by prepare-publish.
+  // Unknown diagnostics still go through the strict, localized error boundary.
+  const publicMediaPreparationFailure = action.lastError ===
+    "Le média de cette publication n’a pas pu être préparé. Réessayez dans quelques instants.";
+  return getLocalizedErrorMessage(action.lastError, locale, undefined, {
+    allowUnknownMessage: publicMediaPreparationFailure,
+  });
+}
+
+function PublicationFailureNotice({ message }: { message: string | null }) {
+  return message ? (
+    <p className={styles.publishTextUrlError} role="alert">{message}</p>
+  ) : null;
+}
+
 function isAgentActionAwaitingValidation(action: AgentPreparedAction | null) {
   if (!action) return false;
   if (
@@ -1734,6 +1751,9 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     isPublishView &&
       (preparedChannelPreview?.title || preparedChannelPreview?.body)
   );
+  const publishFailureMessage = isPublishView
+    ? publicationFailureMessage(selectedPreparedAction, locale)
+    : null;
   const publishPreparationInProgress = Boolean(
     isPublishView &&
       (isInstantPublicationPreview ||
@@ -6275,12 +6295,14 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                           ) : null}
                           {activePublicationChannelEmpty ? (
                             <div className={styles.publicationEmptyChannel} role="alert">
+                              <PublicationFailureNotice message={publishFailureMessage} />
                               <span aria-hidden>⚠</span>
                               <strong>{i18nT("publication_channel_empty")}</strong>
                               <p>{i18nT("publication_channel_empty_help")}</p>
                             </div>
                           ) : publishMediaOnly ? (
                             <div className={styles.publishMediaOnlyNotice}>
+                              <PublicationFailureNotice message={publishFailureMessage} />
                               <span aria-hidden>🎬</span>
                               <strong>
                                 {publishPlacement === "story"
@@ -6291,6 +6313,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                             </div>
                           ) : (
                             <div className={styles.publishPostText}>
+                              <PublicationFailureNotice message={publishFailureMessage} />
                               <div className={styles.publishTitleLine}>
                                 <span>{i18nT("titre_d03e0c7c")}</span>
                                 {publishPreparationInProgress && !isInstantPublicationPreview ? (

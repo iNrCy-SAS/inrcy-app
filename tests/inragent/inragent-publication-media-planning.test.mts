@@ -156,3 +156,92 @@ test("désactiver les options conserve la signature historique et les activer ne
       reference.map((slot) => [slot.slotKey, slot.sequence, slot.theme, slot.tone]));
   }
 });
+
+
+test("une rotation explicite alterne une image, une vidéo de huit secondes et trois images", () => {
+  const expected = [
+    { mediaKind: "image", imageCount: 1 },
+    { mediaKind: "video", imageCount: 0, videoDurationSeconds: 8 },
+    { mediaKind: "image", imageCount: 3 },
+  ];
+  for (let ordinal = 1; ordinal <= 30; ordinal += 1) {
+    assert.deepEqual(inrAgentPublicationMediaAt(ordinal, both, "alternating"), expected[(ordinal - 1) % 3]);
+  }
+  for (const ordinal of [NaN, Infinity, -1, 0]) {
+    assert.deepEqual(inrAgentPublicationMediaAt(ordinal, both, "alternating"), expected[0]);
+  }
+  for (const unset of [undefined, null, {}, false, "random", "alternating "]) {
+    for (let ordinal = 1; ordinal <= 20; ordinal += 1) {
+      assert.deepEqual(inrAgentPublicationMediaAt(ordinal, both, unset), inrAgentPublicationMediaAt(ordinal, both));
+    }
+  }
+});
+
+test("la rotation explicite saute les formats désactivés sans recréer de vidéo ni carrousel", () => {
+  const cases = [
+    { mediaTypes: { singleImage: true, video: true, carousel: false }, expected: [
+      { mediaKind: "image", imageCount: 1 }, { mediaKind: "video", imageCount: 0, videoDurationSeconds: 8 },
+    ] },
+    { mediaTypes: { singleImage: true, video: false, carousel: true }, expected: [
+      { mediaKind: "image", imageCount: 1 }, { mediaKind: "image", imageCount: 3 },
+    ] },
+    { mediaTypes: { singleImage: true, video: false, carousel: false }, expected: [
+      { mediaKind: "image", imageCount: 1 },
+    ] },
+  ];
+  for (const { mediaTypes, expected } of cases) {
+    for (let ordinal = 1; ordinal <= 12; ordinal += 1) {
+      assert.deepEqual(inrAgentPublicationMediaAt(ordinal, mediaTypes, "alternating"), expected[(ordinal - 1) % expected.length]);
+    }
+  }
+});
+
+test("le planning quotidien conserve l’alternance opt-in et 18 h locales entre fenêtres et changements d’heure", () => {
+  const config = automation({ frequency: "daily", time: "18:00", metadata: { publicationMediaRotation: "alternating" } });
+  const localDate = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", dateStyle: "short" });
+  const localTime = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  for (const start of ["2026-03-20T00:00:00Z", "2026-10-20T00:00:00Z"]) {
+    const complete = planned(config, start, 30);
+    const originals = new Map(complete.map((slot) => [slot.slotKey, slot]));
+    assert.equal(complete.length, 30);
+    assert.equal(new Set(complete.map((slot) => localDate.format(new Date(slot.scheduledFor)))).size, complete.length);
+    assert.deepEqual([...new Set(complete.map((slot) => new Date(slot.scheduledFor).getUTCHours()))].sort(), [16, 17]);
+    for (let index = 0; index + 2 < complete.length; index += 1) {
+      const cycle = complete.slice(index, index + 3);
+      assert.equal(cycle.filter((slot) => slot.mediaKind === "video").length, 1);
+      assert.equal(cycle.filter((slot) => slot.imageCount === 1).length, 1);
+      assert.equal(cycle.filter((slot) => slot.imageCount === 3).length, 1);
+    }
+    for (const daysLater of [0, 2, 10]) {
+      const now = new Date(Date.parse(start) + daysLater * 86_400_000).toISOString();
+      for (const horizon of [7, 15, 30]) {
+        let matchingSlots = 0;
+        for (const slot of planned(config, now, horizon)) {
+          assert.equal(localTime.format(new Date(slot.scheduledFor)), "18:00");
+          assert.equal(slot.channels.includes("youtube"), slot.mediaKind === "video");
+          assert.equal(slot.videoDurationSeconds, slot.mediaKind === "video" ? 8 : undefined);
+          const original = originals.get(slot.slotKey);
+          if (!original) continue;
+          matchingSlots += 1;
+          assert.deepEqual([slot.mediaKind, slot.imageCount, slot.videoDurationSeconds, slot.channels],
+            [original.mediaKind, original.imageCount, original.videoDurationSeconds, original.channels]);
+        }
+        assert.ok(matchingSlots > 0);
+      }
+    }
+  }
+});
+
+test("seule la rotation reconnue change les critères et conserve calendrier, sujets et réglages des autres comptes", () => {
+  const originalConfig = automation({ frequency: "daily", time: "18:00" });
+  const original = getInrAgentEditorialPlanSignatures({ automation: originalConfig, timezone: "Europe/Paris" });
+  const unchangedMetadata = { unrelatedSetting: true, publicationMediaRotation: "unrecognized" };
+  assert.deepEqual(getInrAgentEditorialPlanSignatures({ automation: { ...originalConfig, metadata: unchangedMetadata }, timezone: "Europe/Paris" }), original);
+  const changedConfig = { ...originalConfig, metadata: { publicationMediaRotation: "alternating" } };
+  const changed = getInrAgentEditorialPlanSignatures({ automation: changedConfig, timezone: "Europe/Paris" });
+  assert.equal(changed.scheduleSignature, original.scheduleSignature);
+  assert.notEqual(changed.criteriaSignature, original.criteriaSignature);
+  const fields = (slot: InrAgentEditorialSlot) => [slot.slotKey, slot.scheduledFor, slot.sequence, slot.totalSlots, slot.theme, slot.tone];
+  assert.deepEqual(planned(changedConfig, undefined, 30).map(fields), planned(originalConfig, undefined, 30).map(fields));
+  assert.deepEqual(getInrAgentEditorialPlanSignatures({ automation: originalConfig, timezone: "Europe/Paris" }), original);
+});

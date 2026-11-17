@@ -13,7 +13,10 @@ import {
   isInrAgentScheduledMonthDay,
   normalizeInrAgentMonthDays,
 } from "./inrAgentMonthSchedule.ts";
-import { inrAgentPublicationMediaAt } from "./inrAgentEditorialMediaPolicy.ts";
+import {
+  inrAgentPublicationMediaAt,
+  normalizeInrAgentPublicationMediaRotation,
+} from "./inrAgentEditorialMediaPolicy.ts";
 import type { InrAgentEditorialFocus } from "@/lib/inrAgentEditorialVariation";
 
 export const INR_AGENT_EDITORIAL_HORIZON_DAYS = 15;
@@ -331,6 +334,12 @@ export function getInrAgentEditorialPlanSignatures(args: {
     args.automation.publicationMediaTypes ?? asRecord(args.automation.metadata).publicationMediaTypes,
   );
   const baseCriteriaSignature = editorialCriteriaSignature(args.automation, args.tone);
+  const mediaCriteriaSignature = mediaTypes.video || mediaTypes.carousel
+    ? `${baseCriteriaSignature}|${JSON.stringify(mediaTypes)}`
+    : baseCriteriaSignature;
+  const mediaRotation = normalizeInrAgentPublicationMediaRotation(
+    asRecord(args.automation.metadata).publicationMediaRotation,
+  );
   return {
     scheduleSignature: signature([
       args.automation.enabled,
@@ -340,9 +349,9 @@ export function getInrAgentEditorialPlanSignatures(args: {
       timezone,
     ]),
     // Preserve existing draft signatures on rollout when both options are off.
-    criteriaSignature: mediaTypes.video || mediaTypes.carousel
-      ? `${baseCriteriaSignature}|${JSON.stringify(mediaTypes)}`
-      : baseCriteriaSignature,
+    criteriaSignature: mediaRotation
+      ? `${mediaCriteriaSignature}|${mediaRotation}`
+      : mediaCriteriaSignature,
   };
 }
 
@@ -425,7 +434,7 @@ export function buildInrAgentEditorialPlan(args: {
     const theme = plannedTheme(automation.allowedThemes, planSeed, index);
     const media = inrAgentPublicationMediaAt(publicationOrdinal({
       scheduledFor, timezone, frequency, scheduleSlots, monthDays,
-    }), mediaTypes);
+    }), mediaTypes, asRecord(automation.metadata).publicationMediaRotation);
     let channels = [...baseChannels];
 
     if (media.mediaKind === "image") {

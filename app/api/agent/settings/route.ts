@@ -370,6 +370,7 @@ function connectedInrAgentChannels(states: Awaited<ReturnType<typeof getChannelC
   if (states.gmb.connected && !states.gmb.requiresUpdate) channels.add("gmb");
   if (states.facebook.connected && !states.facebook.requiresUpdate) channels.add("facebook");
   if (states.instagram.connected && !states.instagram.requiresUpdate) channels.add("instagram");
+  if (states.threads?.connected && !states.threads.requiresUpdate) channels.add("threads");
   if (states.linkedin.connected && !states.linkedin.requiresUpdate) channels.add("linkedin");
   if (states.x.connected && !states.x.requiresUpdate) channels.add("x");
   if (states.tiktok.connected && !states.tiktok.requiresUpdate) channels.add("tiktok");

@@ -24,6 +24,8 @@ import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
 import * as spokenScript from "../../lib/aiMediaSpokenScript.ts";
 import * as pronunciation from "../../lib/aiMediaPronunciation.ts";
 import * as localLogoComposition from "../../lib/aiMediaLocalLogoCompositionPrompt.ts";
+import * as videoLayout from "../../lib/aiMediaVideoLayout.ts";
+import * as textIntegrity from "../../lib/aiMediaTextIntegrity.ts";
 import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 
 type RecordValue = Record<string, unknown>;
@@ -48,7 +50,7 @@ function realCapabilityGate() {
   ])).assertAiMediaGatewayImageInputs;
 }
 
-function serverHarness(providerFailure: boolean | Error = false, options: { logo?: Buffer | null; logoLayout?: RecordValue; composerFailure?: boolean | Error; phone?: string; normalizedCanvas?: { width: number; height: number } } = {}) {
+function serverHarness(providerFailure: boolean | Error = false, options: { logo?: Buffer | null; logoLayout?: RecordValue; composerFailure?: boolean | Error; composer?: (args: RecordValue) => Promise<Buffer>; providerImage?: Buffer; phone?: string; normalizedCanvas?: { width: number; height: number } } = {}) {
   const counts = { creative: 0, headline: 0, provider: 0, fallback: 0, branded: 0, saved: 0 };
   const providerCalls: RecordValue[] = [];
   const composerCalls: RecordValue[] = [];
@@ -70,7 +72,7 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
     const engine = args.imageEngine as catalog.AiMediaImageEngine;
     const references = args.identityReferences as Buffer[];
     return { kind: "image", provider: "vercel-ai-gateway", engine, upstreamProvider: catalog.getAiMediaImageModel(engine).provider,
-      model: catalog.getAiMediaImageModel(engine).modelId, buffer: Buffer.from("provider-output"), mediaType: "image/jpeg",
+      model: catalog.getAiMediaImageModel(engine).modelId, buffer: options.providerImage || Buffer.from("provider-output"), mediaType: "image/jpeg",
       referenceImagesCount: references.length, identityReferenceImagesCount: 0, genericReferenceImagesCount: references.length,
       officialLogoIncluded: Boolean(args.officialLogo), warnings: [], usage: null };
   };
@@ -88,7 +90,7 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
     ["@/lib/aiGenerationProfile", { buildNormalizedAiGenerationProfile: () => profile }],
     ["@/lib/aiMediaBrandKit", { loadAiMediaBrandKit: async () => ({ colors: ["#112233", "#445566", "#778899"], hasOfficialPalette: true, logo, logoVersion: "test" }) }],
     ["@/lib/aiMediaFreeDnaContextServer", { loadAiMediaFreeDnaContext: async () => ({ coordonnees: { telephone: "01 23 45 67 89" }, liens: { site_web: "https://atelier.example/" }, informations_demandees: [] }) }],
-    ["@/lib/aiMediaBrandRenderer", { composeAiMediaBrandedImage: async (args: RecordValue) => { counts.branded += 1; composerCalls.push(args); if (options.composerFailure) throw options.composerFailure instanceof Error ? options.composerFailure : new Error("ai_media_required_logo_not_composed"); if (options.logoLayout) (args.onLogoLayout as ((layout: RecordValue) => void) | undefined)?.(options.logoLayout); return Buffer.from("locally-branded-output"); } }],
+    ["@/lib/aiMediaBrandRenderer", { composeAiMediaBrandedImage: async (args: RecordValue) => { counts.branded += 1; composerCalls.push(args); if (options.composer) return options.composer(args); if (options.composerFailure) throw options.composerFailure instanceof Error ? options.composerFailure : new Error("ai_media_required_logo_not_composed"); if (options.logoLayout) (args.onLogoLayout as ((layout: RecordValue) => void) | undefined)?.(options.logoLayout); return Buffer.from("locally-branded-output"); } }],
     ["@/lib/aiMediaImageContactComposer", { composeAiMediaContactImage: async (args: RecordValue) => { contactCalls.push(args); return Buffer.from("locally-contacted-output"); } }],
     ["@/lib/aiMediaCreativePlan", { buildAiMediaCreativePlan: () => plan }],
     ["@/lib/aiMediaCastingVariation", { chooseAiMediaCastingVariation: () => null }],
@@ -595,5 +597,74 @@ test("a cancellation at the paid-work gate cannot reach a creative plan or provi
     assert.equal(harness.counts.creative, 0);
     assert.equal(harness.counts.provider, 0);
     assert.equal(harness.counts.saved, 0);
+  });
+});
+
+
+function realBrandedImageComposer() {
+  const runtime = compile("lib/aiMediaBrandRenderer.ts", new Map<string, unknown>([
+    ["server-only", {}], ["sharp", sharp], ["@/lib/aiMediaVideoLayout", videoLayout], ["@/lib/aiMediaTextIntegrity", textIntegrity],
+  ])) as unknown as { composeAiMediaBrandedImage: (args: RecordValue) => Promise<Buffer> };
+  return runtime.composeAiMediaBrandedImage;
+}
+
+async function crowdedImageBackground() {
+  return sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800"><defs><pattern id="busy" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="white"/><rect width="8" height="8" fill="black"/><rect x="8" y="8" width="8" height="8" fill="black"/></pattern></defs><rect width="1000" height="800" fill="url(#busy)"/></svg>')).png().toBuffer();
+}
+
+test("a discreet optional logo cannot discard a generated crowded image or claim branding that was omitted", async () => {
+  await withCredentials(async () => {
+    const h = serverHarness(false, { composer: realBrandedImageComposer(), providerImage: await crowdedImageBackground(),
+      logo: await sharp({ create: { width: 600, height: 140, channels: 4, background: "#ed1f8a" } }).png().toBuffer() });
+    await h.generate(request("gemini", { source: "booster", logoMode: "discreet" }));
+    assert.equal(h.counts.provider, 1);
+    assert.equal(h.counts.fallback, 0);
+    assert.equal(h.counts.saved, 1);
+    assert.equal(h.composerCalls[0].requireLogo, false);
+    const metadata = h.saved[0].metadata as { provenance: RecordValue; gateway: RecordValue };
+    assert.equal(metadata.provenance.exact_logo_applied, false);
+    assert.equal(metadata.provenance.local_logo_composition_applied, false);
+    assert.equal(metadata.provenance.logo_version_applied, null);
+    assert.equal(metadata.provenance.official_logo_source, undefined);
+    assert.equal(metadata.provenance.official_logo_sha256, undefined);
+    assert.equal(metadata.provenance.image_logo_layout, undefined);
+    assert.equal(metadata.gateway.local_logo_composition_applied, false);
+    assert.ok((metadata.gateway.warnings as string[]).includes("image_optional_logo_omitted"));
+    const delivered = await sharp((h.saved[0].media as { buffer: Buffer }).buffer).metadata();
+    assert.equal(delivered.format, "jpeg");
+    assert.equal(delivered.width, 1920);
+    assert.equal(delivered.height, 1080);
+  });
+});
+
+test("a visible or explicitly requested image logo keeps its safe-placement requirement", async () => {
+  await withCredentials(async () => {
+    for (const controls of [{ logoMode: "visible" }, { logoMode: "discreet", aiInstruction: "Ajoute mon logo officiel en haut à droite." }]) {
+      const h = serverHarness(false, { composer: realBrandedImageComposer(), providerImage: await crowdedImageBackground(),
+        logo: await sharp({ create: { width: 600, height: 140, channels: 4, background: "#ed1f8a" } }).png().toBuffer() });
+      await assert.rejects(h.generate(request("gemini", controls)), /ai_media_logo_no_safe_placement/);
+      assert.equal(h.composerCalls[0].requireLogo, true);
+      assert.equal(h.counts.provider, 1);
+      assert.equal(h.counts.fallback, 0);
+      assert.equal(h.counts.saved, 0);
+    }
+  });
+});
+
+test("a discreet optional logo is still applied and attributed when the generated image has safe space", async () => {
+  await withCredentials(async () => {
+    const h = serverHarness(false, { composer: realBrandedImageComposer(),
+      providerImage: await sharp({ create: { width: 1920, height: 1080, channels: 3, background: "#17263e" } }).png().toBuffer(),
+      logo: await sharp({ create: { width: 600, height: 140, channels: 4, background: "#ed1f8a" } }).png().toBuffer() });
+    await h.generate(request("gemini", { source: "booster", logoMode: "discreet" }));
+    assert.equal(h.composerCalls[0].requireLogo, false);
+    assert.equal(h.counts.provider, 1);
+    assert.equal(h.counts.saved, 1);
+    const metadata = h.saved[0].metadata as { provenance: RecordValue; gateway: RecordValue };
+    assert.equal(metadata.provenance.exact_logo_applied, true);
+    assert.equal(metadata.provenance.local_logo_composition_applied, true);
+    assert.equal(metadata.provenance.official_logo_sha256, createHash("sha256").update(h.logo!).digest("hex"));
+    assert.ok(metadata.provenance.image_logo_layout);
+    assert.ok(!(metadata.gateway.warnings as string[]).includes("image_optional_logo_omitted"));
   });
 });

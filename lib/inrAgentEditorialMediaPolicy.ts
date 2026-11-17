@@ -9,14 +9,26 @@ export type InrAgentPublicationMedia = {
   videoDurationSeconds?: 8;
 };
 
+/** Only an explicit saved opt-in changes the historical ten-publication mix. */
+export function normalizeInrAgentPublicationMediaRotation(value: unknown): "alternating" | null {
+  return value === "alternating" ? value : null;
+}
+
 /** A one-based publication ordinal, independent of the visible planning window. */
 export function inrAgentPublicationMediaAt(
   sequence: number,
   mediaTypes: unknown,
+  rotation?: unknown,
 ): InrAgentPublicationMedia {
   const ordinal = Number.isFinite(sequence) ? Math.max(1, Math.floor(sequence)) : 1;
   const position = (ordinal - 1) % 10;
   const selected = normalizeInrAgentPublicationMediaTypes(mediaTypes);
+  if (normalizeInrAgentPublicationMediaRotation(rotation)) {
+    const cycle: InrAgentPublicationMedia[] = [{ mediaKind: "image", imageCount: 1 }];
+    if (selected.video) cycle.push({ mediaKind: "video", imageCount: 0, videoDurationSeconds: 8 });
+    if (selected.carousel) cycle.push({ mediaKind: "image", imageCount: 3 });
+    return cycle[(ordinal - 1) % cycle.length];
+  }
   if (selected.video && position === 9) {
     return { mediaKind: "video", imageCount: 0, videoDurationSeconds: 8 };
   }

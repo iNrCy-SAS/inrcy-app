@@ -272,3 +272,20 @@ test("a reserved logo stays inside the agreed rectangle in every format even whe
   }
   }
 });
+
+
+
+test("a busy image omits an optional logo without covering its content", async () => {
+  const input = await sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800"><defs><pattern id="busy" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="white"/><rect width="8" height="8" fill="black"/><rect x="8" y="8" width="8" height="8" fill="black"/></pattern></defs><rect width="1000" height="800" fill="url(#busy)"/></svg>')).png().toBuffer();
+  let layoutReported = false;
+  const output = await runtime.exports.composeAiMediaBrandedImage(args(input, await logo(600, 140), {
+    logoMode: "discreet", requireLogo: false, onLogoLayout: () => { layoutReported = true; },
+  }));
+  assert.equal(layoutReported, false);
+  assert.equal((await coloredLogoBounds(output)).count, 0);
+  const original = await sharp(input).resize(100, 80).removeAlpha().raw().toBuffer();
+  const delivered = await sharp(output).resize(100, 80).removeAlpha().raw().toBuffer();
+  let difference = 0;
+  for (let index = 0; index < original.length; index++) difference += Math.abs(original[index] - delivered[index]);
+  assert.ok(difference / original.length < 5, "the generated background is retained, without a logo plate or replacement");
+});
