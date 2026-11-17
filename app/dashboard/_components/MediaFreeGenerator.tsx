@@ -503,7 +503,7 @@ export default function MediaFreeGenerator({
     inspirationImagesCount: references.length, withNarration: effectiveWithNarration,
     hasProvidedCharacterVoice: characterVoiceSelection.hasProvidedVoice,
     teamVideoSpeechMode: requestSpeechMode,
-    ...(kind === "video" ? { withSubtitles: effectiveWithSubtitles } : {}),
+    ...(kind === "video" ? { freePrompt: effectivePrompt, withSubtitles: effectiveWithSubtitles } : {}),
     ...(exactSpeechActive && !serializedExact.issue ? { exactDialogue: serializedExact.turns, inspirationImages: exactCharacters.map(character => ({ role: "character" as const, characterIndex: character.characterIndex })) } : {}),
   }, quota, !exactInvalid && !characterNameInvalid && !durationUnavailable && referenceCompatible && briefCompatible && !realVoiceNeedsPerson && !characterVoiceSelection.missingSample && !providedVoiceWithEmptyScript && !characterVoiceTooShort && !narrationVoiceMissing && !narrationVoiceTooShort && !narrationVoiceUnauthorized && (kind !== "video" || !speechInvalid && !misplacedSpeechBlocking && promptReady));
   const creditInsufficient = creditQuote.insufficient;

@@ -1,4 +1,5 @@
 import "server-only";
+import { installSafeAiSdkWarningLogger } from "./aiSdkSafeWarnings.ts";
 
 import { createDownload, experimental_generateVideo as generateVideo } from "ai";
 import {
@@ -36,10 +37,29 @@ import {
   type AiVideoProviderClip,
 } from "@/lib/aiVideoProviderTypes";
 
+// Standalone server workers use the same durable policy as Next instrumentation.
+installSafeAiSdkWarningLogger();
+
 const MAX_CLIP_BYTES = 128 * 1024 * 1024;
 const downloadClip = createDownload({ maxBytes: MAX_CLIP_BYTES });
 const diagnostic = (value: unknown) => redactAiMediaSensitiveText(value, 1000)
   .replace(/https?:\/\/[^\s"'<>]+/gi, "[provider-url-redacted]");
+
+/** A lost response cannot prove that the supplier refused the submitted video. */
+function isUncertainGatewaySubmission(error: unknown, signal: AbortSignal): boolean {
+  let current = error; const seen = new Set<unknown>(); let transportFailure = false; let status = 0;
+  while (current && typeof current === "object" && !seen.has(current) && seen.size < 6) {
+    seen.add(current);
+    const row = current as { name?: unknown; message?: unknown; code?: unknown; type?: unknown; statusCode?: unknown; status?: unknown; cause?: unknown };
+    status ||= Number(row.statusCode || row.status || 0);
+    transportFailure ||= /abort|cancel|timeout|timed.?out|fetch failed|network|socket|econn|etimedout|UND_ERR_(?:HEADERS|BODY|CONNECT)_TIMEOUT/i.test([row.name,row.message,row.code,row.type].join(" "));
+    current = row.cause;
+  }
+  // A concrete input/access/rate rejection remains refundable. HTTP408 and
+  // transport interruptions can occur after the remote task was accepted.
+  if (status >= 400 && status < 500 && status !== 408) return false;
+  return status === 408 || signal.aborted || transportFailure;
+}
 
 /** Dense Wan transport retains the complete user contract and exact spoken line. */
 export function buildWanFlashVideoPrompt(args: AiVideoProviderGenerationArgs, _validatedPrompt: string, index = 0, duration = args.request.durationSeconds ?? 8): string {
@@ -348,6 +368,10 @@ export function createGatewayAiVideoProvider(engine: AiMediaVideoEngine): AiVide
                 requestId: args.request.requestId, model: model.modelId, warnings: clipWarnings };
             } catch (error) {
               observedClipFailure = failureContext(context);
+              const uncertainSubmission = context.phase === "provider_submission" && isUncertainGatewaySubmission(error, clipSignal);
+              if (uncertainSubmission) { billable = true; filmBillable = true; }
+              // This affects supplier spend tracking only. Customer credits are
+              // still finalized only when a real result has been delivered.
               if (billable) await commit().catch(() => undefined);
               else await rollbackAiGatewayAccountAttempt(reservation).catch(() => undefined);
               throw error;

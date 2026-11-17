@@ -401,6 +401,11 @@ export default function MediaGenerationCreationWorkspace({
                     : "ai_generator_image_ready_title"
                 )}
               </h3>
+              {previewKind === "video" && generationResult.item.finishing_unavailable === true ? (
+                <p className={styles.finishingNotice} role="status" data-media-finishing-warning>
+                  {t("ai_generator_finishing_unavailable")}
+                </p>
+              ) : null}
               {previewKind === "video" && generationResult.item.speech_review_recommended === true ? (
                 <p className={styles.speechReviewNotice} role="status" data-media-speech-review-warning>
                   <span aria-hidden="true">⚠ </span>{t("ai_generator_speech_review_warning")}

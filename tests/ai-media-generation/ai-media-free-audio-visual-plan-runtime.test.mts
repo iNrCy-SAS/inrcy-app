@@ -225,14 +225,16 @@ test("automatic Wan and Kling dialogue retains both speakers within one shot and
   }
 });
 
-test("automatic multi-character speech shares one total duration budget", async () => {
+test("automatic multi-character speech keeps timing as guidance without rejecting valid words", async () => {
   const input = coupleRequest();
   const runtime = loadPlanner({ direction: "Le couple présente son activité dans le jardin.", scenes: [{
     visualBrief: "L'homme et la femme parlent successivement.", spokenLine: "Brouillon.", spokenTurns: coupleTurns.map(turn => ({
       ...turn, text: "Nous accompagnons chaque projet avec une approche attentive et humaine.",
     })),
   }] });
-  await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "offline-test", request: input, profile }), /ai_media_dialogue_budget/);
+  const plan=await runtime.prepareAiMediaFreeCreativePlan({ accountId:"offline-test",request:input,profile });
+  assert.equal(runtime.calls.length,1);assert.equal(plan.scenes[0].spokenTurns?.length,2);
+  assert.ok(plan.scenes[0].spokenTurns?.every(turn=>turn.text==="Nous accompagnons chaque projet avec une approche attentive et humaine."));
 });
 
 test("automatic dialogue never assigns a turn to an environment reference", async () => {
@@ -335,9 +337,10 @@ test("unbound first names and conflicting slot declarations stop before paid pla
 
 test("named exact turns never split a sentence or discard its end when real clip speech capacity is exceeded",async()=>{
   const input={...coupleRequest("kling"),durationSeconds:4,spokenScript:"Alex (Personnage 1) : Nous préparons chaque détail de votre grand projet.\nLéa (Personnage 2) : Nous conservons toutes les phrases sans les couper."};
-  const runtime=loadPlanner({});
-  await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({accountId:"offline-test",request:input,profile}),/répliques exactes sont trop longues/);
-  assert.equal(runtime.calls.length,0);
+  const runtime=loadPlanner({direction:"Un couple présente un jardin.",scenes:[{visualBrief:"Ils parlent à tour de rôle.",spokenLine:"Brouillon.",spokenTurns:[]}]});
+  const plan=await runtime.prepareAiMediaFreeCreativePlan({accountId:"offline-test",request:input,profile});
+  assert.deepEqual(plan.scenes[0].spokenTurns?.map(turn=>turn.text),["Nous préparons chaque détail de votre grand projet.","Nous conservons toutes les phrases sans les couper."]);
+  assert.equal(runtime.calls.length,1);
 });
 
 test("character dialogue keeps its exact line and the image plan remains unchanged", async () => {
@@ -413,16 +416,11 @@ test("an explicitly empty speech block remains silent despite old quoted speech 
   assert.equal(sent.native_dialogue, false);
 });
 
-test("duration guards reject an oversized exact voiceover without rewriting or truncating it", async () => {
-  const spokenScript = "Bonjour à toutes et à tous, nous sommes heureux de vous présenter notre application et toutes ses fonctionnalités.";
-  assert.throws(() => request({ spokenScript, durationSeconds: 4 }), contracts.AiMediaRequestValidationError);
-  // Restored legacy data reaches the same exact-speech guard without truncation.
-  const input = { ...request(), spokenScript, durationSeconds: 4 };
-  const runtime = loadPlanner(visualResponse);
-  await assert.rejects(runtime.writeAiMediaFreeNarration({ accountId: "offline-test", request: input, profile,
-    plan: runtime.buildAiMediaFreeBasePlan(input) }), contracts.AiMediaRequestValidationError);
-  assert.equal(input.spokenScript, spokenScript);
-  assert.equal(runtime.calls.length, 0);
+test("an Exact voiceover above estimated pace is preserved without buying a rewrite",async()=>{
+ const spokenScript="Bonjour à toutes et à tous, nous sommes heureux de vous présenter notre application et toutes ses fonctionnalités.";
+ const input=request({spokenScript,durationSeconds:4});const runtime=loadPlanner(visualResponse);
+ const narration=await runtime.writeAiMediaFreeNarration({accountId:"offline-test",request:input,profile,plan:runtime.buildAiMediaFreeBasePlan(input)});
+ assert.equal(narration?.script,spokenScript);assert.equal(runtime.calls.length,0);
 });
 
 test("phonetic guidance does not remove the same wording when it is separately requested on a sign", async () => {

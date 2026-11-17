@@ -8,6 +8,7 @@
 .workspace .recoveryStop { flex:0 1 126px;width:auto;min-width:105px;line-height:1.25; }
 
 .workspace {
+  color-scheme: dark;
   --free-cyan: #53d8f3;
   --free-purple: #cb6feb;
   display: flex;

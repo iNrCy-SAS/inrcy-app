@@ -46,9 +46,11 @@ function transientAccountPrefix(accountId: string) {
 }
 
 function ownedTransientPath(accountId: string, value: unknown) {
-  const path = cleanText(value, 900).replace(/^\/+/, "");
-  if (!path || path.includes("..") || path.includes("\\")) return "";
-  return path.startsWith(transientAccountPrefix(accountId)) ? path : "";
+  // Upload keys are generated from sanitized ASCII segments. Reject alternate
+  // URL encodings before passing an account-bound key to privileged Storage.
+  if (typeof value !== "string" || value.length > 900 || !/^[a-zA-Z0-9\/_.-]+$/.test(value)) return "";
+  if (value.split("/").some(segment => !segment || segment === "." || segment === "..")) return "";
+  return value.startsWith(transientAccountPrefix(accountId)) ? value : "";
 }
 
 async function removeTransientReference(storagePath: string) {

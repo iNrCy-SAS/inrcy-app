@@ -1178,6 +1178,7 @@
   "ai_generator_reference_memory_save_error": "无法记住这些媒体。请检查照片和声音后重试。",
   "ai_generator_reference_memory_forget_error": "无法忘记这些媒体。请重试。",
   "ai_generator_reference_memory_forget_hint": "在下次创作中不再保留此选择。",
+  "ai_generator_finishing_unavailable": "视频已生成，但部分后期效果（标志、音乐或字幕）未能应用。",
   "ai_generator_speech_review_warning": "使用前，请观看并聆听视频，核对结果。",
   "ai_generator_model_description_heygen-avatar": "使用您的照片和声音生成会说话的肖像与对话。",
   "ai_generator_engine_info_video_use_heygen-avatar": "适合面对镜头的演示以及分镜对话。",

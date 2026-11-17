@@ -1,12 +1,13 @@
+import { AI_MEDIA_MAX_PROVIDER_VIDEO_DURATION_SECONDS } from "./aiMediaPendingVideo.ts";
 /** Local captions follow the measured voice duration; timings are proportional,
  * not a claim of word-level speech alignment. No words are rewritten.
  * Optional start offset must already be established by the caller, in rendered
  * seconds. This module neither detects speech nor changes any audio. */
 export type AiMediaNarrationSubtitleCue = { startSeconds: number; endSeconds: number; text: string };
 
-export function buildAiMediaNarrationSubtitleCues(script: string, durationSeconds: number, startOffsetSeconds = 0): AiMediaNarrationSubtitleCue[] {
+function buildSubtitleCues(script: string, durationSeconds: number, startOffsetSeconds: number, maximumDurationSeconds: number): AiMediaNarrationSubtitleCue[] {
   if (!script.trim() || script.length > 4_000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(script) ||
-      !Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > 30 ||
+      !Number.isFinite(durationSeconds) || durationSeconds <= 0 || durationSeconds > maximumDurationSeconds ||
       !Number.isFinite(startOffsetSeconds) || startOffsetSeconds < 0 || startOffsetSeconds >= durationSeconds) {
     throw new Error("ai_media_narration_subtitles_invalid");
   }
@@ -39,13 +40,32 @@ export function buildAiMediaNarrationSubtitleCues(script: string, durationSecond
   });
 }
 
+export function buildAiMediaNarrationSubtitleCues(script: string, durationSeconds: number, startOffsetSeconds = 0): AiMediaNarrationSubtitleCue[] {
+  return buildSubtitleCues(script, durationSeconds, startOffsetSeconds, 30);
+}
+
+/** Native avatar captions use the exact sent script and the whole measured render.
+ * These proportional cue timings do not assert word-level audio alignment. */
+export function buildAiMediaNativeDialogueSubtitleCues(script: string, durationSeconds: number): AiMediaNarrationSubtitleCue[] {
+  return buildSubtitleCues(script, durationSeconds, 0, AI_MEDIA_MAX_PROVIDER_VIDEO_DURATION_SECONDS);
+}
+
 function timestamp(seconds: number) {
   const centiseconds = Math.round(seconds * 100);
   return `${Math.floor(centiseconds / 360_000)}:${String(Math.floor(centiseconds / 6_000) % 60).padStart(2, "0")}:${String(Math.floor(centiseconds / 100) % 60).padStart(2, "0")}.${String(centiseconds % 100).padStart(2, "0")}`;
 }
 
-export function buildAiMediaNarrationSubtitlesAss(args: { script: string; durationSeconds: number; width: number; height: number; startOffsetSeconds?: number }) {
-  const cues = buildAiMediaNarrationSubtitleCues(args.script, args.durationSeconds, args.startOffsetSeconds);
+type SubtitleAssInput = { script: string; durationSeconds: number; width: number; height: number; startOffsetSeconds?: number };
+
+export function buildAiMediaNarrationSubtitlesAss(args: SubtitleAssInput) {
+  return renderSubtitlesAss(args, buildAiMediaNarrationSubtitleCues(args.script, args.durationSeconds, args.startOffsetSeconds));
+}
+
+export function buildAiMediaNativeDialogueSubtitlesAss(args: Omit<SubtitleAssInput, "startOffsetSeconds">) {
+  return renderSubtitlesAss(args, buildAiMediaNativeDialogueSubtitleCues(args.script, args.durationSeconds));
+}
+
+function renderSubtitlesAss(args: SubtitleAssInput, cues: AiMediaNarrationSubtitleCue[]) {
   const fontSize = Math.max(18, Math.round(Math.min(args.width, args.height) * 0.052));
   // User text never becomes an ASS override or an FFmpeg filter expression.
   const escapeText = (text: string) => text.replace(/\\/gu, "\\\\").replace(/\{/gu, "\\{").replace(/\}/gu, "\\}").replace(/\r?\n/gu, " ");

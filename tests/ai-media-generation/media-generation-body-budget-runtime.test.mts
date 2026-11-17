@@ -16,10 +16,11 @@ function route() {
   class TestError extends Error {}
   const modules = new Map<string, unknown>([
     ["@/lib/aiMediaPendingVideo", pendingVideo],
+    ["node:timers/promises",{setTimeout:async()=>{assert.fail("body validation never schedules provider persistence");}}],
     ["@/lib/aiMediaNativeDialogueQa", nativeDialogueQa],
     ["next/server", { after() {}, NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } }],
     ["@/lib/aiMediaGenerationContracts", contracts],
-    ["@/lib/aiMediaCompositionRecovery", {}],
+    ["@/lib/aiMediaCompositionRecovery",{startPendingAiMediaVideoAnchor:async()=>{assert.fail("body validation fixtures never require an asynchronous provider anchor");}}],
     ["@/lib/aiMediaGenerationTransport", transport],
     ["@/lib/aiMediaGenerationPublicErrors", publicErrors],
     ["@/lib/aiGatewayAccountGuard", { AiGatewayAccountLimitError: TestError, AiGatewayGuardUnavailableError: TestError }],

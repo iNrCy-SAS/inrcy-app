@@ -26,7 +26,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!row || (!draft && !accepted) || row.upload_status !== "uploaded") return reply(404, "Média introuvable.");
     const path = String(row.storage_path || "");
     if (row.bucket_name !== "inrcy-pro-media" || !path.startsWith(`users/${accountId}/ai-generated/`) ||
-      path.split("/").some((part) => part === ".." || part === "." || !part) || path.includes("\\")) {
+      path.split("/").some((part) => part === ".." || part === "." || !part) || /[\\%?#\u0000-\u0020\u007f]/.test(path)) {
       return reply(404, "Média introuvable.");
     }
     // Retention is enforced by the cleanup job, just like acceptance/status.

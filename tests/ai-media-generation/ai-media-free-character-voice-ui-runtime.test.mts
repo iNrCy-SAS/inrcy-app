@@ -702,14 +702,14 @@ test("video visual brief accepts 500 characters and preserves oversized historic
   h.dispose();
 });
 
-test("video speech live budget blocks seven words at four seconds then preserves the exact offscreen line when duration and engine change", async()=>{
- const h=harness('video','wan3');try{h.setDuration(4);const script='un deux trois quatre cinq six sept';h.enterSpeech(script);assert.match(text(h.exactTree()),/7 \/ 6 mots/);await h.invokeGenerateCallback();assert.equal(h.requests.length,0);
- h.setDuration(8);h.changePreferredVideoEngine('veo');assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text,script);assert.match(text(h.exactTree()),/7 \/ 14 mots/);await h.invokeGenerateCallback();assert.equal(h.requests.length,1);assert.deepEqual(h.requests[0].exactDialogue,[{speaker:'ai_voice',text:script}]);assert.equal(h.requests[0].withNarration,true);assert.equal(h.requests[0].teamVideoSpeechMode,'voiceover');
+test("video speech estimates remain visible without blocking valid Exact copy when duration and engine change", async()=>{
+ const h=harness('video','wan3');try{h.setDuration(4);const script='un deux trois quatre cinq six sept';h.enterSpeech(script);assert.match(text(h.exactTree()),/7 \/ 6 mots/);await h.invokeGenerateCallback();assert.equal(h.requests.length,1);
+ h.setDuration(8);h.changePreferredVideoEngine('veo');assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[0].text,script);assert.match(text(h.exactTree()),/7 \/ 14 mots/);await h.invokeGenerateCallback();assert.equal(h.requests.length,2);assert.deepEqual(h.requests[1].exactDialogue,[{speaker:'ai_voice',text:script}]);assert.equal(h.requests[1].withNarration,true);assert.equal(h.requests[1].teamVideoSpeechMode,'voiceover');
  }finally{h.dispose();}
 });
 
 test("CJK exact speech retains its full live duration budget without truncating input",async()=>{
- const h=harness('video','wan3',2,{locale:'zh-CN'});try{h.setDuration(8,'multi');const script='你'.repeat(37);h.enterSpeech(script);assert.match(text(h.exactTree()),/37 \/ 36 caractères prononcés/);await h.invokeGenerateCallback();assert.equal(h.requests.length,0);h.setDuration(30);await h.invokeGenerateCallback();assert.equal(h.requests.length,1);assert.deepEqual(h.requests[0].exactDialogue,[{speaker:'ai_voice',text:script}]);}finally{h.dispose();}
+ const h=harness('video','wan3',2,{locale:'zh-CN'});try{h.setDuration(8,'multi');const script='你'.repeat(37);h.enterSpeech(script);assert.match(text(h.exactTree()),/37 \/ 36 caractères prononcés/);await h.invokeGenerateCallback();assert.equal(h.requests.length,1);h.setDuration(30);await h.invokeGenerateCallback();assert.equal(h.requests.length,2);assert.deepEqual(h.requests[1].exactDialogue,[{speaker:'ai_voice',text:script}]);}finally{h.dispose();}
 });
 
 test("oral instructions in the visual frame require complete explicit dialogue while visible slogans stay visual",async()=>{
@@ -1351,4 +1351,20 @@ test('Exact voiceover edits effective narrators while retaining mixed character 
   h.selectEngine('wan27');assert.equal(h.quoteInputs.at(-1)!.enabled,false,'an unsupported mixed request remains blocked without changing engine');h.openExact();assert.ok(text(h.exactTree()).includes('ai_generator_exact_dialogue_engine_incompatible'));assert.ok(!text(h.exactTree()).includes(frenchMessages.ai_generator_video_speech_too_long));h.closeExact();h.selectEngine('kling');
   h.removePhoto(1);assert.equal(h.quoteInputs.at(-1)!.enabled,false);assert.equal((h.exactNative().snapshot.rows as exactEditor.MediaExactDialogueRow[])[2].characterId,before[1].characterId);assert.deepEqual(h.deleted,[]);
  }finally{h.dispose();}
+});
+
+
+test("the Free video quote and generation receive the same effective brief while image quotes omit it", async () => {
+  const brief='David présente notre entreprise dans un jardin lumineux.';
+  const h=harness('video','heygen-avatar',8,{initialPrompt:brief,realEnginePreference:true});
+  try {
+    await h.addPhoto('David.png','character');h.setSound('characters');h.enterSpeech('Bienvenue dans notre jardin.');h.setExactCharacter(0,1);
+    const quote=h.quoteInputs.at(-1)!;assert.equal(quote.freePrompt,brief);assert.equal(quote.enabled,true);
+    h.consent();await h.generate();assert.equal(h.requests.length,1);
+    const body=realRequestBody(h.requests[0]);assert.equal(body.freePrompt,quote.freePrompt);
+    assert.equal(h.requests[0].expectedCredits,quoteAiMediaCredits(quote as AiMediaCreditsQuoteInput).totalCredits);
+    h.enterPrompt('David accueille les clients dans le jardin au soleil.');
+    assert.equal(h.quoteInputs.at(-1)!.freePrompt,'David accueille les clients dans le jardin au soleil.');
+  } finally {h.dispose();}
+  const image=harness('image');try {assert.equal(Object.hasOwn(image.quoteInputs.at(-1)!,'freePrompt'),false);}finally{image.dispose();}
 });

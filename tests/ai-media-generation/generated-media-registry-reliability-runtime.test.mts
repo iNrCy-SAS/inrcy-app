@@ -79,3 +79,18 @@ for (const mode of ["unresolved", "recovery-unavailable"] as const) test(`${mode
   assert.equal(h.state().storageExists, true);
   assert.equal(h.state().removals, 0);
 });
+
+ test("only a fixed finishing warning reaches the video result, without speech QA or private diagnostics",async()=>{
+  for(const warnings of [["video_finishing_unavailable_original_retained"],["branding_overlay_unavailable_video_continued"],["unrelated"],"malformed"]) {
+   const h=harness("lost-response");
+   const item=await h.runtime.saveGeneratedAiMediaDraft({...args,media:{...args.media,kind:"video",extension:"mp4",mimeType:"video/mp4",durationSeconds:8},metadata:{gateway:{warnings,private_error:"sensitive vendor detail"}}});
+   assert.equal(item.finishing_unavailable,Array.isArray(warnings)&&warnings.some(warning=>["video_finishing_unavailable_original_retained","branding_overlay_unavailable_video_continued"].includes(warning))?true:undefined);
+   assert.equal(item.speech_review_recommended,undefined);assert.doesNotMatch(JSON.stringify(item),/sensitive vendor|private_error/);
+  }
+ });
+
+test("the optional video branding warning never changes exact-image result presentation",async()=>{
+ const h=harness("lost-response");
+ const item=await h.runtime.saveGeneratedAiMediaDraft({...args,metadata:{gateway:{warnings:["branding_overlay_unavailable_video_continued"]}}});
+ assert.equal(item.media_type,"image");assert.equal(item.finishing_unavailable,undefined);
+});

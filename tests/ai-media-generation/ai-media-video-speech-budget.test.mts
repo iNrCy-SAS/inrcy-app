@@ -32,8 +32,8 @@ test('native characters use their actual duration even when narration is disable
   assert.equal(request({ spokenScript: fits }).spokenScript, fits);
   const tooLong = `${fits} autre`;
   const refused = getAiMediaVideoSpeechState({ ...base, spokenScript: tooLong });
-  assert.equal(refused.script, tooLong); assert.equal(refused.issue?.code, 'AI_MEDIA_EXACT_DIALOGUE_TOO_LONG');
-  assert.throws(() => request({ spokenScript: tooLong }), /AI_MEDIA_EXACT_DIALOGUE_TOO_LONG/);
+  assert.equal(refused.script, tooLong); assert.equal(refused.issue, null); assert.equal(refused.advisory?.code, 'AI_MEDIA_EXACT_DIALOGUE_TOO_LONG');
+  assert.equal(request({ spokenScript: tooLong }).spokenScript,tooLong);
 });
 
 test('every available engine uses its real duration/scene options and aggregates exactly those clip budgets', () => {
@@ -61,15 +61,16 @@ test('Chinese, Japanese and Thai count spoken characters and preserve original n
   }
   const script = '你'.repeat(43);
   assert.equal(getAiMediaFreeSpeechBudget(8, 'zh', script).maxUnits, 42);
-  assert.equal(getAiMediaVideoSpeechState({ ...base, spokenScript: script }).issue?.code, 'AI_MEDIA_EXACT_DIALOGUE_TOO_LONG');
+  assert.equal(getAiMediaVideoSpeechState({ ...base, spokenScript: script }).issue, null);
+  assert.equal(getAiMediaVideoSpeechState({ ...base, spokenScript: script }).advisory?.code, 'AI_MEDIA_EXACT_DIALOGUE_TOO_LONG');
 });
 
 test('dedicated and legacy exact narration/dialogue share budgets while explicit silence never revives an old quote', () => {
   const script = 'Bonjour '.repeat(15).trim();
   const narration = getAiMediaVideoSpeechState({ ...base, teamVideoSpeechMode: 'voiceover', withNarration: true, freePrompt: `Un atelier. Voix off : « ${script} »` });
-  assert.equal(narration.issue?.code, 'AI_MEDIA_EXACT_NARRATION_TOO_LONG');
+  assert.equal(narration.issue,null); assert.equal(narration.advisory?.code, 'AI_MEDIA_EXACT_NARRATION_TOO_LONG');
   const characters = getAiMediaVideoSpeechState({ ...base, freePrompt: `Un homme dit « ${script} »` });
-  assert.equal(characters.issue?.code, 'AI_MEDIA_EXACT_DIALOGUE_TOO_LONG');
+  assert.equal(characters.issue,null); assert.equal(characters.advisory?.code, 'AI_MEDIA_EXACT_DIALOGUE_TOO_LONG');
   const silent = getAiMediaVideoSpeechState({ ...base, spokenScript: '', freePrompt: `Un homme dit « ${script} »` });
   assert.equal(silent.mode, 'silent'); assert.equal(silent.script, ''); assert.equal(silent.issue, null);
   const kept = '  Salut !\n';

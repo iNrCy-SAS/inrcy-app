@@ -23,6 +23,7 @@ const projection = registryFunction<(metadata: Row | null | undefined) => boolea
 const sourceConstants = { GENERATED_SOURCE: "ai_media_generation", GENERATED_DRAFT_SOURCE: "ai_media_generation_draft" };
 const serialize = registryFunction<(row: Row) => Promise<contracts.AiMediaLibraryPickerItem>>("toPickerItem", {
   hasSpeechReviewWarning: projection,
+  hasFinishingWarning: registryFunction("hasFinishingWarning", {}),
   isGeneratedDraft: registryFunction("isGeneratedDraft", sourceConstants),
   isAcceptedGeneratedMedia: registryFunction("isAcceptedGeneratedMedia", sourceConstants),
   buildMediaLibraryContentUrl: (id: string) => `/api/media-library/items/${id}/content`,

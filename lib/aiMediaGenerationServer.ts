@@ -25,7 +25,6 @@ import { splitAiMediaSpokenScript } from "./aiMediaSpokenScript.ts";
 import { buildAiMediaLocalLogoCompositionPrompt, resolveAiMediaImageLogoReservation } from "./aiMediaLocalLogoCompositionPrompt.ts";
 import { prepareAiMediaNarration } from "@/lib/aiMediaNarrationPreparation";
 import type { PreparedAiMediaNarrationVoice } from "./aiMediaNarrationVoicePreflight.ts";
-import { extractAiMediaPronunciationAliases } from "./aiMediaPronunciation.ts";
 import {
   AiGatewayAccountLimitError,
   AiGatewayGuardUnavailableError,
@@ -60,8 +59,6 @@ import { isAiMediaContentPolicyRejection } from "./aiMediaGenerationPublicErrors
 import {
   composeOriginalAiVideo,
 } from "@/lib/aiMediaGeneratedVideo";
-import { AI_MEDIA_VIDEO_TEXT_LAYOUT } from "@/lib/aiMediaVideoLayout";
-import { inspectAiMediaVideoBufferLocally } from "@/lib/aiMediaVideoLocalQa";
 import { buildAiMediaVideoProviderContract } from "@/lib/aiMediaVideoProviderContract";
 import {
   AiMediaIdentityReferenceValidationError,
@@ -75,8 +72,6 @@ import {
   createReferenceTeamFallbackVideo,
   createReferenceTeamMontage,
 } from "@/lib/aiMediaReferenceTeam";
-import { shouldAuditAiMediaNativeFinalFrame, getAiMediaAutomaticDialogueContext, getAiMediaNativeDialogueDeliveryDecision, type AiMediaNativeDialogueQaResult } from "@/lib/aiMediaNativeDialogueQa";
-import { auditAiMediaNativeDialogueWithGoogle } from "@/lib/aiMediaNativeDialogueQaGoogle";
 import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
 import {
   AI_MEDIA_PROMPT_VERSION,
@@ -329,6 +324,7 @@ export async function generateAndSaveAiMedia(args: {
     input: Omit<Parameters<typeof composeOriginalAiVideo>[0], "signal">;
     metadata: Record<string, unknown>;
     pendingProvider?: AiMediaPendingVideo;
+    providerReceiptOnly?: boolean;
   }) => Promise<void>;
 }): Promise<AiMediaGenerationServerResult> {
   const pipelineStartedAt = performance.now();
@@ -1045,6 +1041,8 @@ export async function generateAndSaveAiMedia(args: {
       once: true,
     });
 
+    const renderTransparentOverlays = () => sharp({ create: { width: format.width, height: format.height, channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer().then(empty => creativePlan.scenes.map(() => empty));
     let minimalOverlaysTask: Promise<Buffer[]> | null = null;
     const renderMinimalOverlays = () => {
       if (isFreeCreation) {
@@ -1055,8 +1053,7 @@ export async function generateAndSaveAiMedia(args: {
           })));
           return minimalOverlaysTask;
         }
-        minimalOverlaysTask ||= sharp({ create: { width: format.width, height: format.height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
-          .png().toBuffer().then((empty) => creativePlan.scenes.map(() => empty));
+        minimalOverlaysTask ||= renderTransparentOverlays();
         return minimalOverlaysTask;
       }
       minimalOverlaysTask ||= Promise.all(
@@ -1633,8 +1630,8 @@ export async function generateAndSaveAiMedia(args: {
       }
     });
     const overlaysTask = measure("video_overlays", async () => {
-      if (isFreeCreation) return { value: await renderMinimalOverlays(), warnings: [] as string[], error: null };
       try {
+        if (isFreeCreation) return { value: await renderMinimalOverlays(), warnings: [] as string[], error: null };
         const value = await Promise.all(
           creativePlan.scenes.map((scene, index) =>
             renderAiMediaVideoOverlay({
@@ -1655,19 +1652,13 @@ export async function generateAndSaveAiMedia(args: {
           )
         );
         return { value, warnings: [] as string[], error: null };
-      } catch (error) {
+      } catch {
         args.signal?.throwIfAborted();
-        if (
-          providerRequest.inputMode === "essential" &&
-          (providerRequest.withText || Boolean(officialLogo))
-        ) {
-          return { value: null, warnings: [] as string[], error };
-        }
-        // Un logo corrompu ou une accroche impossible à rasteriser ne doit pas
-        // annuler les clips Veo déjà facturés. On conserve la vidéo avec un
-        // calque transparent et on signale explicitement la dégradation.
+        // Optional PNG branding cannot discard a paid native clip. Build a
+        // genuinely empty layer; retrying the logo renderer can repeat its failure.
         try {
-          const value = await renderMinimalOverlays();
+          const value = await renderTransparentOverlays();
+          minimalOverlaysTask = Promise.resolve(value);
           return {
             value,
             warnings: ["branding_overlay_unavailable_video_continued"],
@@ -1684,28 +1675,45 @@ export async function generateAndSaveAiMedia(args: {
       videoGateway = await videoGatewayTask;
     } catch (error) {
       if (isAiVideoProviderPending(error)) {
-        const [soundtrackResult, overlaysResult, narrationResult] = await Promise.all([soundtrackTask, overlaysTask, narrationTask]);
-        if (!overlaysResult.value || overlaysResult.error) throw overlaysResult.error || new Error("ai_media_video_overlay_missing");
-        if (!args.onCompositionReady) throw new Error("ai_media_async_checkpoint_required");
+        const pendingNativeSpeech = characterDialogueRequested || nativeVoiceoverRequested;
+        const finishingRequested = Boolean(providerRequest.withText || (officialLogo && (localDnaLogo || effectiveLogoMode !== "none")) ||
+          providerRequest.withMusic || providerRequest.withSubtitles || (providerRequest.withNarration && !pendingNativeSpeech));
         let sourceStartSeconds = 0;
         const clips = segmentDurations.map(seconds => {
-          const clip = { buffer: Buffer.alloc(0), durationSeconds: seconds, sourceStartSeconds };
+          const clip = {buffer:Buffer.alloc(0),durationSeconds:seconds,sourceStartSeconds};
           sourceStartSeconds += seconds; return clip;
         });
-        await args.onCompositionReady({ pendingProvider: error.task,
-          input: { clips, overlays: overlaysResult.value, width: format.width, height: format.height, durationSeconds,
-            nativeAudioMode: characterDialogueRequested ? "dialogue" : "mute", soundtrack: soundtrackResult.value,
-            narration: narrationResult.audio, preserveComposition: args.preserveOutputComposition,
-            ...(providerRequest.withSubtitles && (narrationResult.narration?.script || expectedDialogueLines.join(" ").trim())
-              ? { subtitles: { script: narrationResult.narration?.script || expectedDialogueLines.join(" ") } } : {}) },
-          metadata: { provider: error.task.provider, model: error.task.model, video_engine: "heygen-avatar", video_engine_result: "heygen-avatar",
-            video_resolution: providerRequest.videoResolution, format: providerRequest.format, creation_mode: providerRequest.creationMode,
-            prompt_version: activePromptVersion, prompt_sha256: promptHash, provider_request_ids: [error.task.videoId],
-            estimated_cost_micro_usd: error.task.estimatedCostMicroUsd, warnings: ["native_speech_review_recommended"],
-            native_character_dialogue_preserved: characterDialogueRequested,
-            ...(soundtrackResult.value ? { soundtrack: { id: soundtrackResult.value.id } } : {}) },
-        });
-        args.signal?.removeEventListener("abort", abortNarrationFromCaller);
+        const pendingInput = {clips,overlays:clips.map(()=>Buffer.alloc(0)),width:format.width,height:format.height,durationSeconds,
+          nativeAudioMode:pendingNativeSpeech ? "dialogue" as const : "mute" as const,soundtrack:null,narration:null,preserveComposition:true};
+        const pendingMetadata = {provider:error.task.provider,model:error.task.model,video_engine:"heygen-avatar",video_engine_result:"heygen-avatar",
+          video_resolution:providerRequest.videoResolution,format:providerRequest.format,creation_mode:providerRequest.creationMode,
+          prompt_version:activePromptVersion,prompt_sha256:promptHash,provider_request_ids:[error.task.videoId],
+          estimated_cost_micro_usd:error.task.estimatedCostMicroUsd,warnings:[],video_finishing_requested:finishingRequested,
+          native_character_dialogue_preserved:characterDialogueRequested,native_voiceover_preserved:nativeVoiceoverRequested};
+        const finishingTasks = [soundtrackTask,overlaysTask,narrationTask] as const;
+        if (!args.onCompositionReady) {
+          void Promise.allSettled(finishingTasks);
+          args.signal?.removeEventListener("abort",abortNarrationFromCaller);
+          throw error;
+        }
+        // First make the accepted provider ID durable. No optional PNG/audio preparation can erase it.
+        try { await args.onCompositionReady({pendingProvider:error.task,providerReceiptOnly:true,input:pendingInput,metadata:pendingMetadata}); }
+        catch { console.warn("[ai-media] accepted render checkpoint pending",{jobId:args.jobId,providerVideoId:error.task.videoId}); }
+        if (finishingRequested) {
+          const [track,overlay,voice] = await Promise.allSettled(finishingTasks);
+          if (track.status === "fulfilled" && overlay.status === "fulfilled" && voice.status === "fulfilled" && overlay.value.value && !overlay.value.error) {
+            const soundtrackResult=track.value,overlaysResult=overlay.value,narrationResult=voice.value;
+            const pendingSubtitleScript=narrationResult.narration?.script || expectedDialogueLines.join(" ").trim() || nativeVoiceoverNarration?.script;
+            const pendingSubtitles=providerRequest.withSubtitles && pendingSubtitleScript
+              ? {script:pendingSubtitleScript,...(!narrationResult.audio && pendingNativeSpeech ? {source:"native" as const} : {})} : undefined;
+            try { await args.onCompositionReady({pendingProvider:error.task,input:{...pendingInput,overlays:overlaysResult.value!,
+              soundtrack:soundtrackResult.value,narration:narrationResult.audio,...(pendingSubtitles?{subtitles:pendingSubtitles}:{})},
+              metadata:{...pendingMetadata,warnings:[...new Set([...pendingMetadata.warnings,...soundtrackResult.warnings,...overlaysResult.warnings,...(narrationResult.warnings||[])])],
+                ...(soundtrackResult.value?{soundtrack:{id:soundtrackResult.value.id}}:{})}}); }
+            catch { console.warn("[ai-media] accepted render finishing deferred",{jobId:args.jobId,providerVideoId:error.task.videoId}); }
+          }
+        } else void Promise.allSettled(finishingTasks);
+        args.signal?.removeEventListener("abort",abortNarrationFromCaller);
         throw error;
       }
       narrationController.abort(error);
@@ -1713,72 +1721,8 @@ export async function generateAndSaveAiMedia(args: {
     }
     args.signal?.throwIfAborted();
 
-    const unavailableNativeQa: AiMediaNativeDialogueQaResult = { version: 1, status: "unavailable", clips: [], elapsedMs: 0,
-      diagnostics: [{ stage: "setup", reason: "unclassified_failure", status: 0, retryable: null }] };
-    const characterDialogueProviderFallback =
-      characterDialogueRequested && videoGateway.provider.startsWith("inrcy-");
-    const nativeDialogueQa =
-      characterDialogueRequested && !characterDialogueProviderFallback
-        ? await measure("native_character_dialogue_qa", () => {
-            const audit = (signal = args.signal) => auditAiMediaNativeDialogueWithGoogle({
-              accountId: args.accountId,
-              advisoryOnly: true,
-              language: speechLanguage,
-              pronunciationAliases: isFreeCreation ? extractAiMediaPronunciationAliases(providerRequest.freePrompt || "") : undefined,
-              signal,
-              clips: videoGateway.clips.map((clip, index) => ({
-                sceneIndex: index,
-                checkFinalFrameLayout: shouldAuditAiMediaNativeFinalFrame(providerRequest, videoGateway.provider),
-                buffer: clip.buffer,
-                mediaType: clip.mediaType,
-                durationSeconds: clip.durationSeconds,
-                sourceStartSeconds: clip.sourceStartSeconds,
-                expectedLine: expectedDialogueLines[index] || "",
-                automaticDialogueContext: getAiMediaAutomaticDialogueContext(providerRequest),
-                expectSilence: isFreeCreation && !expectedDialogueLines[index],
-                expectedContinuation: isFreeCreation && typeof providerRequest.spokenScript === "string" &&
-                  expectedDialogueLines.slice(index + 1).some((line) => Boolean(line.trim())),
-              })),
-            });
-            return audit();
-          }).catch(() => {
-            args.signal?.throwIfAborted();
-            return unavailableNativeQa;
-          })
-        : null;
-    const nativeDialogueDelivery = getAiMediaNativeDialogueDeliveryDecision(nativeDialogueQa);
-    // Quality describes the paid take; it never authorizes discarding it,
-    // changing its original voice or submitting another provider generation.
-    args.signal?.throwIfAborted();
-    if (characterDialogueRequested && nativeDialogueDelivery.status === "warning") pipelineWarnings.push(nativeDialogueDelivery.code);
-    const nativeVoiceoverQa = nativeVoiceoverRequested &&
-      !videoGateway.provider.startsWith("inrcy-")
-      ? await measure("native_voiceover_qa", () =>
-          auditAiMediaNativeDialogueWithGoogle({
-            accountId: args.accountId,
-            advisoryOnly: true,
-            language: nativeVoiceoverNarration?.language || profile.preferences.language,
-            pronunciationAliases: isFreeCreation ? extractAiMediaPronunciationAliases(providerRequest.freePrompt || "") : undefined,
-            signal: args.signal,
-            clips: videoGateway.clips.map((clip, index) => ({
-              sceneIndex: index,
-              buffer: clip.buffer,
-              mediaType: clip.mediaType,
-              durationSeconds: clip.durationSeconds,
-              sourceStartSeconds: clip.sourceStartSeconds,
-              expectedLine: nativeNarrationLines?.[index] || "",
-              expectSilence: !nativeNarrationLines?.[index],
-              expectedContinuation: isFreeCreation && typeof providerRequest.spokenScript === "string" &&
-                nativeNarrationLines?.slice(index + 1).some((line) => Boolean(line.trim())) === true,
-            })),
-          })).catch(() => {
-            args.signal?.throwIfAborted();
-            return unavailableNativeQa;
-          })
-      : null;
-    args.signal?.throwIfAborted();
-    const nativeVoiceoverDelivery = getAiMediaNativeDialogueDeliveryDecision(nativeVoiceoverQa);
-    if (nativeVoiceoverRequested && nativeVoiceoverDelivery.status === "warning") pipelineWarnings.push(nativeVoiceoverDelivery.code);
+    // Provider output is delivered directly: no transcription, semantic scoring or paid QA.
+    const characterDialogueProviderFallback = characterDialogueRequested && videoGateway.provider.startsWith("inrcy-");
     // Accepted native speech keeps its original track, including a review warning.
     const nativeVoiceoverPreserved = nativeVoiceoverRequested &&
       !videoGateway.provider.startsWith("inrcy-");
@@ -2048,20 +1992,6 @@ export async function generateAndSaveAiMedia(args: {
         }
       }
     }
-    // Local, bounded advisory inspection only: no paid retry and no blocking
-    // decision based on a deliberate still shot or an unavailable scanner.
-    const inspectedVideoQa = await measure("final_video_local_qa", () => inspectAiMediaVideoBufferLocally({
-      buffer: normalized.buffer, expectedDurationSeconds: durationSeconds,
-      audioExpectation: nativeCharacterDialoguePreserved || nativeVoiceoverPreserved || narrationAudio ? "required" : "optional",
-      timeoutMs: 4_000,
-    }));
-    pipelineWarnings.push(...inspectedVideoQa.advisories.map((advisory) => `video_local_qa_${advisory}`));
-    if (inspectedVideoQa.advisories.length) pipelineWarnings.push("native_speech_review_recommended");
-    const finalVideoQa = {
-      ...inspectedVideoQa,
-      checks: ["duration", "frame_layout", "audio_policy"] as const,
-      caption_layout: AI_MEDIA_VIDEO_TEXT_LAYOUT,
-    };
     model = [
       teamPrecompositionModel,
       videoGateway.model,
@@ -2096,20 +2026,10 @@ export async function generateAndSaveAiMedia(args: {
       native_character_dialogue_preserved: nativeCharacterDialoguePreserved,
       native_voiceover_preserved: nativeVoiceoverPreserved,
       quality_assurance: {
-        native_dialogue_delivery: characterDialogueRequested ? nativeDialogueDelivery : { version: 1, status: "not_requested" },
-        native_voiceover_delivery: nativeVoiceoverRequested ? nativeVoiceoverDelivery : { version: 1, status: "not_requested" },
-        native_dialogue: characterDialogueRequested
-          ? nativeDialogueQa || {
-              version: 1,
-              status: "unavailable",
-              reason: "provider_fallback",
-              clips: [],
-            }
-          : { version: 1, status: "not_requested" },
-        native_voiceover: nativeVoiceoverRequested
-          ? nativeVoiceoverQa || { version: 1, status: "unavailable", reason: "provider_fallback", clips: [] }
-          : { version: 1, status: "not_requested" },
-        final_video: finalVideoQa,
+        policy: "provider_output", blocking: false,
+        native_dialogue: { version: 1, status: "not_requested" },
+        native_voiceover: { version: 1, status: "not_requested" },
+        final_video: { version: 1, status: "not_requested", blocking: false },
       },
       narration:
         nativeVoiceoverPreserved && nativeVoiceoverNarration

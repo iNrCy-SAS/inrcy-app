@@ -1,12 +1,13 @@
 import "server-only";
 import { setTimeout as delay } from "node:timers/promises";
+import { AI_MEDIA_MAX_PROVIDER_VIDEO_DURATION_SECONDS } from "./aiMediaPendingVideo.ts";
 
 const ORIGIN = "https://api.heygen.com";
 const ID = /^[a-zA-Z0-9_-]{1,180}$/;
 const MAX_JSON_BYTES = 1024 * 1024;
 export type HeygenAsset = { type: "asset_id"; asset_id: string };
 export type HeygenStudioScene =
-  | { type: "avatar_video"; input: { type: "avatar"; avatar_id: string; script: string; voice_id: string; motion_prompt?: string; expressiveness?: "low" } }
+  | { type: "avatar_video"; input: { type: "avatar"; avatar_id: string; motion_prompt?: string; expressiveness?: "low"; background?: { type: "image"; source: HeygenAsset }; remove_background?: boolean } & ({ script: string; voice_id: string; audio_asset_id?: never } | { audio_asset_id: string; script?: never; voice_id?: never }) }
   | { type: "image"; source: HeygenAsset; script?: string; voice_id?: string; duration?: number };
 export type HeygenVideoState = { id: string; status: "pending" | "processing" | "completed" | "failed"; videoUrl?: string; durationSeconds?: number; failureCode?: string };
 
@@ -98,11 +99,33 @@ export function createHeygenApiClient(options: { apiKey: string; fetch?: typeof 
       const result = await request<{ asset_id: unknown }>("/v3/assets", { method: "POST", form, signal });
       return { type: "asset_id", asset_id: heygenIdentifier(result.asset_id) };
     },
+    async uploadAudio(buffer: Buffer, signal?: AbortSignal): Promise<HeygenAsset> {
+      if (buffer.length < 44 || buffer.length > 20 * 1024 * 1024 || buffer.subarray(0,4).toString("ascii") !== "RIFF" || buffer.subarray(8,12).toString("ascii") !== "WAVE") {
+        throw new HeygenApiError(0,"audio_input_invalid");
+      }
+      const form = new FormData();
+      form.append("file",new Blob([new Uint8Array(buffer)],{type:"audio/wav"}),"silence.wav");
+      const result = await request<{asset_id:unknown}>("/v3/assets",{method:"POST",form,signal});
+      return {type:"asset_id",asset_id:heygenIdentifier(result.asset_id)};
+    },
     async createPhotoAvatar(asset: HeygenAsset, name: string, idempotencyKey: string, signal?: AbortSignal) {
       const result = await request<{ avatar_item?: { id?: unknown }; avatar_group?: { id?: unknown } }>("/v3/avatars", {
         method: "POST", json: { type: "photo", name: name.slice(0,64), file: asset }, idempotencyKey, signal,
       });
       return { id: heygenIdentifier(result.avatar_item?.id), groupId: heygenIdentifier(result.avatar_group?.id) };
+    },
+    async waitForAvatar(lookId: string, signal?: AbortSignal) {
+      const id = heygenIdentifier(lookId);
+      for (let attempt = 0; attempt < 120; attempt++) {
+        signal?.throwIfAborted();
+        const look = await request<{ id?: unknown; status?: unknown }>(`/v3/avatars/looks/${id}`, { signal });
+        if (look.id !== id) throw new HeygenApiError(0, "avatar_response_invalid");
+        if (look.status === "completed") return;
+        if (look.status === "failed") throw new HeygenApiError(422, "avatar_preparation_failed");
+        if (look.status !== "processing") throw new HeygenApiError(0, "avatar_response_invalid");
+        await sleep(1_000, undefined, { signal });
+      }
+      throw new HeygenApiError(0, "avatar_preparation_timeout");
     },
     async createVoice(url: string, name: string, language: string, idempotencyKey: string, signal?: AbortSignal, onCreated?: (id: string) => void) {
       const result = await request<{ voice_id?: unknown }>("/v3/models/audio/voices", { method: "POST", idempotencyKey, signal,
@@ -142,7 +165,7 @@ export function createHeygenApiClient(options: { apiKey: string; fetch?: typeof 
       const id = heygenIdentifier(videoId);
       const result = await request<{ id?: unknown; status?: unknown; video_url?: unknown; duration?: unknown; failure_code?: unknown }>(`/v3/videos/${id}`, { signal });
       if (result.id !== id || !["waiting", "pending", "processing", "completed", "failed"].includes(String(result.status))) throw new HeygenApiError(0, "video_response_invalid");
-      if (result.status === "completed" && (!isHeygenMediaUrl(result.video_url) || typeof result.duration !== "number" || result.duration <= 0 || result.duration > 180)) throw new HeygenApiError(0, "video_output_invalid");
+      if (result.status === "completed" && (!isHeygenMediaUrl(result.video_url) || typeof result.duration !== "number" || !Number.isFinite(result.duration) || result.duration <= 0 || result.duration > AI_MEDIA_MAX_PROVIDER_VIDEO_DURATION_SECONDS)) throw new HeygenApiError(0, "video_output_invalid");
       return { id, status: result.status === "waiting" ? "pending" : result.status as HeygenVideoState["status"],
         ...(isHeygenMediaUrl(result.video_url) ? { videoUrl: result.video_url } : {}),
         ...(typeof result.duration === "number" ? { durationSeconds: result.duration } : {}),

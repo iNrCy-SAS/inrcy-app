@@ -273,12 +273,10 @@ test("both Exact clone attempts share one original240s budget and exhaustion pre
   } finally { AbortSignal.timeout = originalTimeout; }
 });
 
-test("a genuinely over-budget Exact script keeps its existing length classification", async () => {
-  const script = Array.from({ length: 20 }, () => "bonjour").join(" ");
-  assert.throws(() => normalize({ spokenScript: script, durationSeconds: 10 }), (error: unknown) => {
-    assert.equal(getAiMediaGenerationPublicError(error).code, "AI_MEDIA_EXACT_NARRATION_TOO_LONG");
-    assert.doesNotMatch(String(error), /voice_clone_duration_invalid/); return true;
-  });
+test("a valid Exact script above estimated reading pace stays intact without a clone error",()=>{
+  const script=Array.from({length:20},()=>"bonjour").join(" ");
+  assert.equal(normalize({spokenScript:script,durationSeconds:10}).spokenScript,script);
+  assert.throws(()=>normalize({spokenScript:"x".repeat(4001),durationSeconds:10}));
 });
 
 test("an AI voice never inherits the provided-voice duration classification", async () => {

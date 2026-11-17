@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
 import ts from "typescript";
+import * as safeWarnings from "../../lib/aiSdkSafeWarnings.ts";
 import * as catalog from "../../lib/aiMediaModelCatalog.ts";
 import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
 import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
@@ -34,6 +35,7 @@ function harness(configuredProvider = "auto", rejectSdk = false) {
   const legacy = { id: "legacy-gemini-veo", model: "preview-not-allowed", generate: () => { counts.legacyGemini++; return noIo(); } };
   const env = { AI_GATEWAY_API_KEY: "offline-synthetic-only", AI_MEDIA_VIDEO_PROVIDER: configuredProvider };
   const gateway = compile<typeof import("../../lib/aiVideoProviderGateway.ts")>("lib/aiVideoProviderGateway.ts", new Map<string, unknown>([
+    ["./aiSdkSafeWarnings.ts", safeWarnings],
     ["server-only", {}],
     ["ai", { createDownload: () => noIo, experimental_generateVideo: async (input: Record<string, unknown>) => {
       sdk.push(input);

@@ -1178,6 +1178,7 @@
   "ai_generator_reference_memory_save_error": "Could not remember these media. Check the photos and voices, then try again.",
   "ai_generator_reference_memory_forget_error": "Could not forget these media. Try again.",
   "ai_generator_reference_memory_forget_hint": "Forget this selection for my next creations.",
+  "ai_generator_finishing_unavailable": "The video is available. Some finishing touches (logo, music or subtitles) could not be applied.",
   "ai_generator_speech_review_warning": "Check this video: watch and listen before using it.",
   "ai_generator_model_description_heygen-avatar": "Talking portraits and dialogue with your photos and voices.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Presentations to camera and conversations in successive shots.",

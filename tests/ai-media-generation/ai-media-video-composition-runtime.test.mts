@@ -19,6 +19,7 @@ import * as videoLayout from "../../lib/aiMediaVideoLayout.ts";
 import * as textIntegrity from "../../lib/aiMediaTextIntegrity.ts";
 import * as fullFrame from "../../lib/aiMediaFullFrame.ts";
 import * as narrationSubtitles from "../../lib/aiMediaNarrationSubtitles.ts";
+import * as pendingVideo from "../../lib/aiMediaPendingVideo.ts";
 
 const execFileAsync = promisify(execFile);
 const requireFromTest = createRequire(import.meta.url);
@@ -37,7 +38,7 @@ type ComposerModule = {
     nativeAudioMode?: "ambience" | "dialogue" | "mute";
     durationFromAudio?: boolean;
     preserveComposition?: boolean;
-    subtitles?: { script: string } | null;
+    subtitles?: { script: string; source?: "native" } | null;
     narration?: {
       buffer: Buffer;
       mimeType: string;
@@ -225,6 +226,7 @@ function transpileRuntimeModule<T>(relativePath: string, observeProbe?: (options
     }
     if (specifier === "@/lib/aiMediaVideoLayout") return videoLayout;
     if (specifier === "@/lib/aiMediaTextIntegrity") return textIntegrity;
+    if (specifier === "./aiMediaPendingVideo.ts") return pendingVideo;
     return requireFromTest(specifier);
   };
   const execute = new Function("module", "exports", "require", output);
@@ -1307,4 +1309,26 @@ test("un canvas blanc est détouré sans effacer un vrai logo blanc transparent"
     preservedWhitePixels > 400,
     "les éléments blancs sur transparence ne sont jamais supprimés"
   );
+});
+
+test("native avatar captions render beyond 30 seconds without replacing, muting or retiming its original voices", async () => {
+  const runtime=transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
+  const directory=await mkdtemp(path.join(tmpdir(),"inrcy-native-captions-"));
+  const ffmpegPath=await resolveVideoNormalizationFfmpegPath(),durationSeconds=31.2;
+  try {
+    const source=path.join(directory,"native.mp4");
+    await execFileAsync(ffmpegPath,["-hide_banner","-nostdin","-y","-f","lavfi","-i","color=c=0x183048:s=320x320:r=30:d=31.2",
+      "-f","lavfi","-i","sine=frequency=770:sample_rate=48000:duration=31.2","-c:v","libx264","-preset","ultrafast","-pix_fmt","yuv420p","-c:a","aac","-shortest",source],{windowsHide:true,timeout:30000});
+    const overlay=await sharp({create:{width:320,height:320,channels:4,background:{r:0,g:0,b:0,alpha:0}}}).png().toBuffer();
+    const input={clips:[{buffer:await readFile(source),durationSeconds}],overlays:[overlay],width:320,height:320,durationSeconds,nativeAudioMode:"dialogue" as const,durationFromAudio:true,preserveComposition:true};
+    const off=await runtime.composeOriginalAiVideo(input);
+    const on=await runtime.composeOriginalAiVideo({...input,subtitles:{script:"Bienvenue dans notre jardin. Nous sommes ravis de vous accueillir et de prendre soin de votre maison, à très bientôt !",source:"native"}});
+    const offPath=path.join(directory,"off.mp4"),onPath=path.join(directory,"on.mp4");await writeFile(offPath,off.buffer);await writeFile(onPath,on.buffer);
+    const probe=await probeVideoSource({ffmpegPath,inputPath:onPath,timeoutMs:30000});assert.equal(probe.hasAudio,true);assert.ok(Math.abs(probe.durationSeconds-durationSeconds)<0.1);
+    const audio=createAudioProbe(ffmpegPath,directory);
+    assert.deepEqual(await audio.decodeAudio(onPath,"on"),await audio.decodeAudio(offPath,"off"),"native captions must leave the complete existing audio unchanged");
+    const pixels=async(file:string,seconds:number)=>{const result=await execFileAsync(ffmpegPath,["-hide_banner","-loglevel","error","-ss",String(seconds),"-i",file,"-frames:v","1","-vf","crop=320:120:0:190","-pix_fmt","rgb24","-f","rawvideo","pipe:1"],{encoding:"buffer",windowsHide:true,timeout:30000,maxBuffer:320*120*4});let white=0;for(let i=0;i<result.stdout.length;i+=3)if(result.stdout[i]>210&&result.stdout[i+1]>210&&result.stdout[i+2]>210)white++;return white;};
+    assert.equal(await pixels(offPath,0.3),0);assert.ok(await pixels(onPath,0.3)>100);assert.ok(await pixels(onPath,31)>100,"the final caption uses the real end rather than the requested creative budget");
+    await assert.rejects(runtime.composeOriginalAiVideo({...input,nativeAudioMode:"mute",subtitles:{script:"Bonjour.",source:"native"}}),/native_subtitles_audio_conflict/);
+  } finally {await rm(directory,{recursive:true,force:true});}
 });

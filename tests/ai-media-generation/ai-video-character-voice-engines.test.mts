@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import * as safeWarnings from "../../lib/aiSdkSafeWarnings.ts";
 import * as catalog from "../../lib/aiMediaModelCatalog.ts";
 import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
 import * as boundary from "../../lib/aiMediaVideoProviderContract.ts";
@@ -69,6 +70,7 @@ function loadRuntime(options: { missingSignedVoice?: boolean; failSigning?: bool
     module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true,
   } }).outputText;
   const stubs = new Map<string, unknown>([
+    ["./aiSdkSafeWarnings.ts", safeWarnings],
     ["server-only", {}],
     ["ai", { createDownload: () => async () => { throw new Error("real_download_forbidden"); }, experimental_generateVideo: async (input: Input) => {
       submissions.push(input); const buffer = Buffer.alloc(24); buffer.write("ftyp", 4, "ascii");

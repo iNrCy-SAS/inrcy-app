@@ -8,9 +8,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { composeOriginalAiVideo } from "@/lib/aiMediaGeneratedVideo";
 import { getExistingGeneratedAiMedia, saveGeneratedAiMediaDraft } from "@/lib/aiGeneratedMediaRegistry";
 import { completeAiMediaGeneration, expireAiMediaGenerationReservations, failAiMediaGeneration } from "@/lib/aiMediaGenerationQuota";
-import { isAiMediaPendingVideo, type AiMediaPendingVideo } from "./aiMediaPendingVideo.ts";
+import { AI_MEDIA_MAX_PROVIDER_VIDEO_DURATION_SECONDS, isAiMediaPendingVideo, type AiMediaPendingVideo } from "./aiMediaPendingVideo.ts";
 import { findAiMediaSoundtrack, getAiMediaSoundtrackAssetRelativePath } from "@/lib/aiMediaSoundtrackCatalog";
-import { inspectAiMediaVideoBufferLocally } from "@/lib/aiMediaVideoLocalQa";
+import type { NormalizedAiVideo } from "@/lib/aiMediaNormalizer";
 
 export type AiMediaCompositionInput = Omit<Parameters<typeof composeOriginalAiVideo>[0], "signal">;
 export type AiMediaCompositionCheckpoint = { accountId: string; jobId: string; leaseToken: string };
@@ -43,7 +43,7 @@ type Manifest = {
   nativeAudioMode: "ambience" | "dialogue" | "mute";
   preserveComposition?: boolean;
   /** Explicit render copy only; never the visual brief or generation prompt. */
-  subtitles?: { script: string } | null;
+  subtitles?: { script: string; source?: "native" } | null;
   clips: Array<Asset & { durationSeconds: number; sourceStartSeconds?: number }>;
   overlays: Asset[];
   narration: (Asset & { extension: "wav" | "mp3" | "ogg" | "aac"; mimeType: string; model: string; voice: string }) | null;
@@ -62,7 +62,7 @@ function safeMetadata(input: Record<string, unknown>) {
   for (const key of ["provider_request_ids", "warnings"]) if (Array.isArray(input[key])) {
     output[key] = input[key].filter(value => typeof value === "string" && !value.includes("://") && /^[a-z0-9_.:/+>\-]{1,300}$/i.test(value)).slice(0, 50);
   }
-  for (const key of ["native_character_dialogue_preserved", "native_voiceover_preserved"]) if (typeof input[key] === "boolean") output[key] = input[key];
+  for (const key of ["native_character_dialogue_preserved", "native_voiceover_preserved", "video_finishing_requested"]) if (typeof input[key] === "boolean") output[key] = input[key];
   if (typeof input.estimated_cost_micro_usd === "number" && Number.isSafeInteger(input.estimated_cost_micro_usd) && input.estimated_cost_micro_usd >= 0) output.estimated_cost_micro_usd = input.estimated_cost_micro_usd;
   const soundtrack = input.soundtrack as { id?: unknown } | undefined;
   const definition = findAiMediaSoundtrack(soundtrack?.id);
@@ -86,8 +86,91 @@ function validateLayout(input: Pick<Manifest, "width" | "height" | "durationSeco
 }
 
 function validateSubtitles(value: Manifest["subtitles"]) {
-  if (value != null && (typeof value !== "object" || typeof value.script !== "string" || !value.script.trim() || value.script.length > 4_000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(value.script))) {
+  if (value != null && (typeof value !== "object" || (value.source !== undefined && value.source !== "native") || typeof value.script !== "string" || !value.script.trim() || value.script.length > 4_000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/u.test(value.script))) {
     throw new Error("ai_media_composition_subtitles_invalid");
+  }
+}
+
+const PENDING_RECEIPT = "ai_media_pending_video_receipt";
+type PendingReceipt = { version: 1; accountId: string; jobId: string; actorAuthUserId: string; manifestPath: string; manifest: Manifest };
+
+function checkpointFor(args: { accountId: string; jobId: string; checkpoint?: AiMediaCompositionCheckpoint }): AiMediaCompositionCheckpoint {
+  const value = { accountId: uuid(args.accountId), jobId: uuid(args.jobId), leaseToken: args.checkpoint?.leaseToken || randomUUID() };
+  uuid(value.leaseToken);
+  if (args.checkpoint && (args.checkpoint.accountId !== value.accountId || args.checkpoint.jobId !== value.jobId)) throw new Error("ai_media_composition_scope_invalid");
+  return value;
+}
+async function assertPrivateCompositionBucket() {
+  const result = await supabaseAdmin.storage.getBucket(BUCKET);
+  if (result.error || !result.data || result.data.public) throw new Error("ai_media_composition_private_bucket_required", { cause: result.error });
+}
+/** Reserve the private recovery anchor before an asynchronous supplier may charge. */
+export async function startPendingAiMediaVideoAnchor(args: { accountId: string; jobId: string; authUserId: string }): Promise<AiMediaCompositionCheckpoint> {
+  const checkpoint = checkpointFor(args);
+  await assertPrivateCompositionBucket();
+  await rpc("start_ai_media_composition_checkpoint_v2", { ...parameters(checkpoint), p_actor_auth_user_id: uuid(args.authUserId) });
+  return checkpoint;
+}
+function receiptJobQuery(scope: { accountId: string; jobId: string; actorAuthUserId: string }) {
+  return supabaseAdmin.from("ai_media_generation_jobs").select("metadata").eq("account_id", uuid(scope.accountId))
+    .eq("id", uuid(scope.jobId)).eq("actor_auth_user_id", uuid(scope.actorAuthUserId)).in("status", ["reserved", "processing"]);
+}
+function validatePendingReceipt(value: unknown, scope: { accountId: string; jobId: string; actorAuthUserId: string }, manifestPath?: string): PendingReceipt {
+  if (!value || typeof value !== "object" || Array.isArray(value) || Buffer.byteLength(JSON.stringify(value)) > 16_384) throw new Error("ai_media_composition_receipt_invalid");
+  const receipt = value as PendingReceipt;
+  const expectedPrefix = prefix(scope.accountId,scope.jobId);
+  const suffix = typeof receipt.manifestPath === "string" ? receipt.manifestPath.slice(expectedPrefix.length) : "";
+  if (Object.keys(receipt).some(key => !["version","accountId","jobId","actorAuthUserId","manifestPath","manifest"].includes(key)) || receipt.version !== 1 ||
+      receipt.accountId !== scope.accountId || receipt.jobId !== scope.jobId || receipt.actorAuthUserId !== scope.actorAuthUserId ||
+      typeof receipt.manifestPath !== "string" || !receipt.manifestPath.startsWith(expectedPrefix) || !suffix.endsWith("/manifest.json") || !UUID.test(suffix.slice(0,-"/manifest.json".length)) ||
+      (manifestPath !== undefined && receipt.manifestPath !== manifestPath)) throw new Error("ai_media_composition_receipt_scope_invalid");
+  const manifest = receipt.manifest;
+  if (!manifest || manifest.version !== 2 || manifest.accountId !== scope.accountId || manifest.jobId !== scope.jobId || !isAiMediaPendingVideo(manifest.pendingProvider) ||
+      manifest.metadata?.provider !== "heygen-direct" || manifest.metadata?.video_engine !== "heygen-avatar" || manifest.metadata?.video_finishing_requested !== false ||
+      manifest.narration !== null || manifest.soundtrack !== null || manifest.subtitles != null ||
+      Object.keys(manifest).some(key => !["version","accountId","jobId","pendingProvider","width","height","durationSeconds","nativeAudioMode","preserveComposition","clips","overlays","narration","soundtrack","metadata"].includes(key))) throw new Error("ai_media_composition_receipt_invalid");
+  const cleanMetadata = safeMetadata(manifest.metadata);
+  if (Object.keys(manifest.metadata).length !== Object.keys(cleanMetadata).length || Object.entries(cleanMetadata).some(([key,value]) => JSON.stringify(value) !== JSON.stringify(manifest.metadata[key]))) throw new Error("ai_media_composition_receipt_invalid");
+  if (Object.keys(manifest.pendingProvider).some(key => !["provider","model","videoId","temporaryVoiceIds","temporaryAvatarGroupIds","temporaryAssetIds","estimatedCostMicroUsd"].includes(key))) throw new Error("ai_media_composition_receipt_invalid");
+  validateLayout(manifest);
+  for (const [index,asset] of manifest.clips.entries()) if (asset.file !== "clip-"+index+".mp4" || asset.bytes !== 0 || asset.sha256 !== "0".repeat(64) || Object.keys(asset).some(key=>!["file","bytes","sha256","durationSeconds","sourceStartSeconds"].includes(key))) throw new Error("ai_media_composition_receipt_invalid");
+  for (const [index,asset] of manifest.overlays.entries()) if (asset.file !== "overlay-"+index+".png" || asset.bytes !== 0 || asset.sha256 !== "0".repeat(64) || Object.keys(asset).some(key=>!["file","bytes","sha256"].includes(key))) throw new Error("ai_media_composition_receipt_invalid");
+  return receipt;
+}
+async function readPendingReceipt(scope: { accountId: string; jobId: string; actorAuthUserId: string }, manifestPath: string): Promise<PendingReceipt> {
+  const result = await receiptJobQuery(scope).maybeSingle();
+  if (result.error || !result.data) throw new Error("ai_media_composition_receipt_unavailable");
+  return validatePendingReceipt(result.data.metadata?.[PENDING_RECEIPT],scope,manifestPath);
+}
+async function persistPendingReceipt(receipt: PendingReceipt): Promise<PendingReceipt> {
+  const scope = { accountId: receipt.accountId, jobId: receipt.jobId, actorAuthUserId: receipt.actorAuthUserId };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const selected = await receiptJobQuery(scope).maybeSingle();
+    if (selected.error || !selected.data) continue;
+    const previous = selected.data.metadata;
+    if (previous != null && (typeof previous !== "object" || Array.isArray(previous))) throw new Error("ai_media_composition_receipt_invalid");
+    if (previous?.[PENDING_RECEIPT] !== undefined) {
+      const existing = validatePendingReceipt(previous[PENDING_RECEIPT],scope);
+      if (existing.manifest.pendingProvider!.videoId !== receipt.manifest.pendingProvider!.videoId) throw new Error("ai_media_composition_receipt_conflict");
+      return existing;
+    }
+    let update = supabaseAdmin.from("ai_media_generation_jobs").update({ metadata: { ...(previous || {}), [PENDING_RECEIPT]: receipt } })
+      .eq("account_id",scope.accountId).eq("id",scope.jobId).eq("actor_auth_user_id",scope.actorAuthUserId).in("status",["reserved","processing"]);
+    update = previous == null ? update.is("metadata",null) : update.eq("metadata",JSON.stringify(previous));
+    const result = await update.select("metadata").maybeSingle();
+    if (result.error || !result.data) continue;
+    const confirmed = validatePendingReceipt(result.data.metadata?.[PENDING_RECEIPT],scope);
+    if (confirmed.manifest.pendingProvider!.videoId !== receipt.manifest.pendingProvider!.videoId) throw new Error("ai_media_composition_receipt_conflict");
+    return confirmed;
+  }
+  throw new Error("ai_media_composition_receipt_unavailable");
+}
+async function readyCheckpoint(checkpoint: AiMediaCompositionCheckpoint, manifestPath: string) {
+  try { await rpc("ready_ai_media_composition_checkpoint",{...parameters(checkpoint),p_manifest_path:manifestPath}); }
+  catch (error) {
+    const result = await supabaseAdmin.from("ai_media_composition_checkpoints").select("state,manifest_path").eq("account_id",checkpoint.accountId)
+      .eq("job_id",checkpoint.jobId).eq("lease_token",checkpoint.leaseToken).eq("state","ready").eq("manifest_path",manifestPath).maybeSingle();
+    if (result.error || !result.data) throw error;
   }
 }
 
@@ -95,14 +178,16 @@ export async function persistAiMediaCompositionCheckpoint(args: {
   accountId: string; jobId: string; authUserId: string; input: AiMediaCompositionInput; metadata: Record<string, unknown>;
   checkpoint?: AiMediaCompositionCheckpoint;
   pendingProvider?: AiMediaPendingVideo;
+  /** Persist only the accepted supplier receipt before optional finishing becomes available. */
+  providerReceiptOnly?: boolean;
 }): Promise<AiMediaCompositionCheckpoint> {
   if (args.pendingProvider && !isAiMediaPendingVideo(args.pendingProvider)) throw new Error("ai_media_composition_provider_invalid");
-  const checkpoint = { accountId: uuid(args.accountId), jobId: uuid(args.jobId), leaseToken: args.checkpoint?.leaseToken || randomUUID() };
-  if (args.checkpoint && (args.checkpoint.accountId !== checkpoint.accountId || args.checkpoint.jobId !== checkpoint.jobId)) throw new Error("ai_media_composition_scope_invalid");
+  const checkpoint = checkpointFor(args);
   const layout = { ...args.input, nativeAudioMode: args.input.nativeAudioMode || "ambience" as const };
   validateLayout(layout as unknown as Manifest);
   validateSubtitles(args.input.subtitles);
-  const folder = `${prefix(checkpoint.accountId, checkpoint.jobId)}${randomUUID()}/`;
+  let folder = `${prefix(checkpoint.accountId, checkpoint.jobId)}${randomUUID()}/`;
+  let receipt: PendingReceipt | undefined;
   let stage = "bucket";
   let checkpointStarted = false;
   const upload = async (file: string, buffer: Buffer, contentType: string, maximum = MAX_AUX_BYTES): Promise<Asset> => {
@@ -112,11 +197,44 @@ export async function persistAiMediaCompositionCheckpoint(args: {
     return { file, bytes: buffer.length, sha256: hash(buffer) };
   };
   try {
-    const bucket = await supabaseAdmin.storage.getBucket(BUCKET);
-    if (bucket.error || !bucket.data || bucket.data.public) throw new Error("ai_media_composition_private_bucket_required", { cause: bucket.error });
+    if (!args.pendingProvider) await assertPrivateCompositionBucket();
     stage = "start";
     await rpc("start_ai_media_composition_checkpoint_v2", { ...parameters(checkpoint), p_actor_auth_user_id: uuid(args.authUserId) });
     checkpointStarted = true;
+    if (args.pendingProvider) {
+      stage = "receipt";
+      const task = args.pendingProvider;
+      const metadata = safeMetadata(args.metadata);
+      const finishingRequested = metadata.video_finishing_requested !== false;
+      metadata.video_finishing_requested = false;
+      if (finishingRequested) metadata.warnings = [...new Set([...(Array.isArray(metadata.warnings) ? metadata.warnings : []),"video_finishing_unavailable_original_retained"])];
+      delete metadata.soundtrack_id;
+      const fallback: PendingReceipt = { version:1, accountId:checkpoint.accountId, jobId:checkpoint.jobId, actorAuthUserId:uuid(args.authUserId), manifestPath:folder+"manifest.json",
+        manifest: { version:2, accountId:checkpoint.accountId, jobId:checkpoint.jobId, width:args.input.width, height:args.input.height, durationSeconds:args.input.durationSeconds,
+          nativeAudioMode:layout.nativeAudioMode,preserveComposition:true,
+          pendingProvider:{provider:task.provider,model:task.model,videoId:task.videoId,temporaryVoiceIds:[...task.temporaryVoiceIds],temporaryAvatarGroupIds:[...task.temporaryAvatarGroupIds],temporaryAssetIds:[...task.temporaryAssetIds],estimatedCostMicroUsd:task.estimatedCostMicroUsd},
+          clips:args.input.clips.map((clip,index)=>({file:"clip-"+index+".mp4",bytes:0,sha256:"0".repeat(64),durationSeconds:clip.durationSeconds,...(clip.sourceStartSeconds===undefined?{}:{sourceStartSeconds:clip.sourceStartSeconds})})),
+          overlays:args.input.clips.map((_,index)=>({file:"overlay-"+index+".png",bytes:0,sha256:"0".repeat(64)})),narration:null,soundtrack:null,metadata } };
+      validatePendingReceipt(fallback,{accountId:checkpoint.accountId,jobId:checkpoint.jobId,actorAuthUserId:uuid(args.authUserId)});
+      try {
+        receipt = await persistPendingReceipt(fallback);
+        folder = receipt.manifestPath.slice(0,-"manifest.json".length);
+      } catch (error) {
+        if (error instanceof Error && /receipt_(?:conflict|scope_invalid|invalid)$/.test(error.message)) throw error;
+        console.warn("[ai-media] accepted provider receipt deferred",{jobId:checkpoint.jobId,providerVideoId:task.videoId});
+      }
+      if (args.providerReceiptOnly) {
+        // Either independent private store is sufficient to recover the accepted native render.
+        if (!receipt) {
+          await assertPrivateCompositionBucket();
+          await upload("manifest.json",Buffer.from(JSON.stringify(fallback.manifest)),"application/json",32_768);
+        }
+        await readyCheckpoint(checkpoint,(receipt || fallback).manifestPath);
+        return checkpoint;
+      }
+      stage = "bucket";
+      await assertPrivateCompositionBucket();
+    }
     stage = "clips";
     const clips = [];
     for (const [i, clip] of args.input.clips.entries()) clips.push({
@@ -150,12 +268,12 @@ export async function persistAiMediaCompositionCheckpoint(args: {
       ...(args.pendingProvider ? { pendingProvider: args.pendingProvider } : {}),
       width: args.input.width, height: args.input.height, durationSeconds: args.input.durationSeconds, nativeAudioMode: layout.nativeAudioMode,
       preserveComposition: args.input.preserveComposition === true,
-      ...(args.input.subtitles ? { subtitles: { script: args.input.subtitles.script } } : {}),
+      ...(args.input.subtitles ? { subtitles: { script: args.input.subtitles.script, ...(args.input.subtitles.source === "native" ? {source:"native" as const} : {}) } } : {}),
       clips, overlays, narration, soundtrack, metadata: safeMetadata(args.metadata) };
     stage = "manifest";
     await upload("manifest.json", Buffer.from(JSON.stringify(manifest)), "application/json", 32_768);
     stage = "ready";
-    await rpc("ready_ai_media_composition_checkpoint", { ...parameters(checkpoint), p_manifest_path: folder + "manifest.json" });
+    await readyCheckpoint(checkpoint, folder + "manifest.json");
     return checkpoint;
   } catch (error) {
     const failure = error as { message?: unknown; cause?: { code?: unknown; statusCode?: unknown; status?: unknown } };
@@ -171,14 +289,32 @@ export async function persistAiMediaCompositionCheckpoint(args: {
     // No immediate object deletion: a lost ready-RPC response may have committed.
     // A healthy main composition may continue after this advisory failure.
     // Never release its credits or its ready lease while it is still running.
+    if (args.pendingProvider) {
+      if (receipt) { await readyCheckpoint(checkpoint,receipt.manifestPath); return checkpoint; }
+      throw error;
+    }
     if (checkpointStarted) await rpc("abandon_ai_media_composition_checkpoint", parameters(checkpoint)).catch(() => undefined);
     throw error;
   }
 }
 
-export async function hasAiMediaCompositionCheckpoint(args: { accountId: string; jobId: string }): Promise<boolean> {
+export async function hasAiMediaCompositionCheckpoint(args: { accountId: string; jobId: string; readyOnly?: boolean }): Promise<boolean> {
+  if (args.readyOnly) {
+    const result = await supabaseAdmin.from("ai_media_composition_checkpoints").select("job_id").eq("account_id",uuid(args.accountId)).eq("job_id",uuid(args.jobId)).eq("state","ready").maybeSingle();
+    if (result.error) throw new Error("ai_media_composition_claim_unavailable");
+    return Boolean(result.data);
+  }
   return (await rpc("has_ai_media_composition_checkpoint", { p_account_id: uuid(args.accountId), p_job_id: uuid(args.jobId) })) === true;
 }
+/** An unclaimable lease is pending only while its owning job and checkpoint remain active. */
+export async function hasActiveAiMediaCompositionCheckpoint(scope: { accountId: string; jobId: string }): Promise<boolean> {
+  const job = await supabaseAdmin.from("ai_media_generation_jobs").select("status")
+    .eq("account_id", uuid(scope.accountId)).eq("id", uuid(scope.jobId)).maybeSingle();
+  if (job.error) throw new Error("ai_media_composition_claim_unavailable");
+  if (!job.data || !["reserved", "processing"].includes(job.data.status)) return false;
+  return hasAiMediaCompositionCheckpoint(scope);
+}
+
 export async function releaseAiMediaCompositionCheckpoint(checkpoint: AiMediaCompositionCheckpoint): Promise<boolean> {
   return (await rpc("release_ai_media_composition_checkpoint", parameters(checkpoint))) === true;
 }
@@ -249,7 +385,12 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
       if (result.error || !result.data || result.data.size > maximum) throw new Error("ai_media_composition_download_failed");
       return Buffer.from(await result.data.arrayBuffer());
     };
-    const manifest = JSON.parse((await download(manifestPath, 32_768)).toString("utf8")) as Manifest;
+    let manifest: Manifest;
+    try { manifest = JSON.parse((await download(manifestPath, 32_768)).toString("utf8")) as Manifest; }
+    catch (error) {
+      if (storageBucket !== BUCKET) throw error;
+      manifest = (await readPendingReceipt({accountId:checkpoint.accountId,jobId:checkpoint.jobId,actorAuthUserId:uuid(row.actor_auth_user_id)},manifestPath)).manifest;
+    }
     if (![1,2].includes(manifest.version) || manifest.accountId !== checkpoint.accountId || manifest.jobId !== checkpoint.jobId) throw new Error("ai_media_composition_scope_invalid");
     if (manifest.version === 2) {
       if (!isAiMediaPendingVideo(manifest.pendingProvider) || manifest.metadata?.provider !== "heygen-direct" || manifest.metadata?.video_engine !== "heygen-avatar") throw new Error("ai_media_composition_provider_invalid");
@@ -289,7 +430,7 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
         requestedDurationSeconds: manifest.durationSeconds });
       // Studio avatar scenes follow their speech. Keep the whole existing render,
       // including fractional seconds, instead of rejecting or cutting its dialogue.
-      if (typeof result.durationSeconds !== "number" || !Number.isFinite(result.durationSeconds) || result.durationSeconds <= 0 || result.durationSeconds > 180) {
+      if (typeof result.durationSeconds !== "number" || !Number.isFinite(result.durationSeconds) || result.durationSeconds <= 0 || result.durationSeconds > AI_MEDIA_MAX_PROVIDER_VIDEO_DURATION_SECONDS) {
         throw new Error("ai_media_composition_provider_duration_invalid");
       }
       compositionDurationSeconds = result.durationSeconds;
@@ -300,35 +441,56 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
     for (const [i, clip] of manifest.clips.entries()) clips.push({ buffer: providerVideo || await readAsset(clip, `clip-${i}.mp4`, MAX_CLIP_BYTES),
       durationSeconds: clip.durationSeconds * durationScale,
       sourceStartSeconds: clip.sourceStartSeconds === undefined ? undefined : clip.sourceStartSeconds * durationScale });
-    const overlays = [];
-    for (const [i, overlay] of manifest.overlays.entries()) overlays.push(await readAsset(overlay, `overlay-${i}.png`));
     let soundtrack: AiMediaCompositionInput["soundtrack"] = null;
-    if (manifest.soundtrack) {
-      const track = manifest.soundtrack;
-      const definition = findAiMediaSoundtrack(track.id);
-      if (!definition || ![8,16,24].includes(track.durationSeconds)) throw new Error("ai_media_composition_soundtrack_invalid");
-      directory = await mkdtemp(path.join(tmpdir(), "inrcy-composition-recovery-"));
-      const absolutePath = path.join(directory, "soundtrack.wav");
-      await writeFile(absolutePath, await readAsset(track, "soundtrack.wav"));
-      soundtrack = { ...definition, absolutePath, fileName: "soundtrack.wav", sha256: track.sha256, sizeBytes: track.bytes, durationSeconds: track.durationSeconds };
-    }
-    let narration: AiMediaCompositionInput["narration"] = null;
-    if (manifest.narration) {
-      const audio = manifest.narration;
-      if (!["wav","mp3","ogg","aac"].includes(audio.extension)) throw new Error("ai_media_composition_audio_invalid");
-      narration = { buffer: await readAsset(audio, `narration.${audio.extension}`), extension: audio.extension, mimeType: "audio/octet-stream", model: "recovered-audio", voice: "preserved" };
-    }
     await rpc("assert_ai_media_composition_lease", parameters(checkpoint));
     stage = "compose";
-    const media = await composeOriginalAiVideo({ clips, overlays, width: manifest.width, height: manifest.height,
-      durationSeconds: compositionDurationSeconds, nativeAudioMode: manifest.nativeAudioMode, soundtrack, narration,
-      ...(pendingProvider ? { durationFromAudio: true } : {}),
-      ...(manifest.subtitles ? { subtitles: { script: manifest.subtitles.script } } : {}), preserveComposition: manifest.preserveComposition === true });
-    const qa = await inspectAiMediaVideoBufferLocally({ buffer: media.buffer, expectedDurationSeconds: compositionDurationSeconds,
-      audioExpectation: manifest.nativeAudioMode === "dialogue" || narration ? "required" : "optional", timeoutMs: 4_000 });
+    const originalProviderMedia: NormalizedAiVideo | undefined = providerVideo ? {
+      kind: "video", buffer: providerVideo, extension: "mp4", mimeType: "video/mp4",
+      width: Math.round(manifest.width * (manifest.metadata.video_resolution === "720p" ? 2/3 : 1)),
+      height: Math.round(manifest.height * (manifest.metadata.video_resolution === "720p" ? 2/3 : 1)),
+      durationSeconds: compositionDurationSeconds,
+    } : undefined;
+    let finishingUnavailable = false;
+    let media: NormalizedAiVideo;
+    if (originalProviderMedia && manifest.metadata.video_finishing_requested === false) {
+      media = originalProviderMedia;
+    } else {
+      try {
+        const overlays = [];
+        for (const [i, overlay] of manifest.overlays.entries()) overlays.push(await readAsset(overlay, `overlay-${i}.png`));
+        if (manifest.soundtrack) {
+          const track = manifest.soundtrack;
+          const definition = findAiMediaSoundtrack(track.id);
+          if (!definition || ![8,16,24].includes(track.durationSeconds)) throw new Error("ai_media_composition_soundtrack_invalid");
+          directory = await mkdtemp(path.join(tmpdir(), "inrcy-composition-recovery-"));
+          const absolutePath = path.join(directory, "soundtrack.wav");
+          await writeFile(absolutePath, await readAsset(track, "soundtrack.wav"));
+          soundtrack = { ...definition, absolutePath, fileName: "soundtrack.wav", sha256: track.sha256, sizeBytes: track.bytes, durationSeconds: track.durationSeconds };
+        }
+        let narration: AiMediaCompositionInput["narration"] = null;
+        if (manifest.narration) {
+          const audio = manifest.narration;
+          if (!["wav","mp3","ogg","aac"].includes(audio.extension)) throw new Error("ai_media_composition_audio_invalid");
+          narration = { buffer: await readAsset(audio, `narration.${audio.extension}`), extension: audio.extension, mimeType: "audio/octet-stream", model: "recovered-audio", voice: "preserved" };
+        }
+        media = await composeOriginalAiVideo({ clips, overlays, width: manifest.width, height: manifest.height,
+          durationSeconds: compositionDurationSeconds, nativeAudioMode: manifest.nativeAudioMode, soundtrack, narration,
+          ...(pendingProvider ? { durationFromAudio: true } : {}),
+          ...(manifest.subtitles ? { subtitles: { script: manifest.subtitles.script, ...(manifest.subtitles.source === "native" ? {source:"native" as const} : {}) } } : {}),
+          preserveComposition: Boolean(pendingProvider) || manifest.preserveComposition === true });
+      } catch (error) {
+        if (!originalProviderMedia) throw error;
+        // Optional finishing cannot discard a successful paid provider render.
+        media = originalProviderMedia;
+        soundtrack = null;
+        finishingUnavailable = true;
+        console.warn("[ai-media] original provider video retained", { jobId: checkpoint.jobId });
+      }
+    }
     await rpc("assert_ai_media_composition_lease", parameters(checkpoint));
     stage = "persist";
     const metadata = safeMetadata(manifest.metadata || {});
+    if (!soundtrack) delete metadata.soundtrack_id;
     if (pendingProvider) {
       metadata.duration_seconds = compositionDurationSeconds;
       metadata.requested_duration_seconds = manifest.durationSeconds;
@@ -337,8 +499,8 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
     metadata.video_engine_result ||= provider.startsWith("inrcy-") ? "local_fallback"
       : metadata.video_engine === "veo" && provider.includes("google-gemini-omni") ? "veo_omni_fallback"
       : provider.includes("+") ? "omni_veo_fallback" : provider === "google-gemini-omni" ? "omni" : metadata.video_engine || "veo";
-    const warnings = [...(Array.isArray(metadata.warnings) ? metadata.warnings : []), ...qa.advisories.map(code => `video_local_qa_${code}`),
-      ...(qa.advisories.length ? ["native_speech_review_recommended"] : [])];
+    const warnings = [...(Array.isArray(metadata.warnings) ? metadata.warnings : []),
+      ...(finishingUnavailable ? ["video_finishing_unavailable_original_retained"] : [])];
     const item = await saveGeneratedAiMediaDraft({ ...checkpoint, authUserId: uuid(row.actor_auth_user_id), title: "Vidéo générée par iNrCy", media,
       metadata: {
         provenance: { source: "inrcy_original_ai_video_engine", recovered_composition: true,
@@ -348,7 +510,7 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
           active_account_id: checkpoint.accountId, actor_auth_user_id: row.actor_auth_user_id },
         gateway: { provider: metadata.provider, model: metadata.model, provider_request_ids: metadata.provider_request_ids,
           native_character_dialogue_preserved: metadata.native_character_dialogue_preserved, native_voiceover_preserved: metadata.native_voiceover_preserved,
-          estimated_cost_micro_usd: metadata.estimated_cost_micro_usd, warnings, quality_assurance: { final_video: qa } },
+          estimated_cost_micro_usd: metadata.estimated_cost_micro_usd, warnings, quality_assurance: { policy: "provider_output", blocking: false, final_video: { status: "not_requested" } } },
         soundtrack: soundtrack ? { id: soundtrack.id, name: soundtrack.name, file_name: soundtrack.fileName,
           duration_seconds: soundtrack.durationSeconds, license: soundtrack.license, sha256: soundtrack.sha256, size_bytes: soundtrack.sizeBytes } : null,
       } });

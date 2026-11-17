@@ -5,6 +5,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
 import ts from "typescript";
 import * as pending from "../../lib/aiMediaPendingVideo.ts";
+import * as billing from "../../lib/aiMediaHeygenBilling.ts";
 import * as catalog from "../../lib/aiMediaModelCatalog.ts";
 import * as types from "../../lib/aiVideoProviderTypes.ts";
 import { getAiMediaGenerationPublicError, isAiMediaProviderBillingFailure } from "../../lib/aiMediaGenerationPublicErrors.ts";
@@ -23,7 +24,7 @@ function load<T>(file: string, dependencies: Record<string,unknown>): T {
   });
   return record.exports as T;
 }
-const api = load<typeof Api>("aiVideoHeygenApi.ts", { "node:timers/promises": { setTimeout: delay } });
+const api = load<typeof Api>("aiVideoHeygenApi.ts", { "node:timers/promises": { setTimeout: delay }, "./aiMediaPendingVideo.ts": pending });
 const mp4 = Buffer.from("0000ftypisomTEST");
 
 test("HeyGen V3 uses one idempotent Studio submission and only sends its key to the API origin", async () => {
@@ -105,12 +106,15 @@ function args(): types.AiVideoProviderGenerationArgs {
     plan: { scenes: [{ visualBrief: "Jardin", spokenTurns: [{ reference: 3, text: "David" }, { reference: 1, text: "Kathia" }] }] },
   } as unknown as types.AiVideoProviderGenerationArgs;
 }
-function providerHarness(options: { submission?: "rejected" | "uncertain" } = {}) {
+function providerHarness(options: { submission?: "rejected" | "uncertain"; invalidTemporaryIds?: boolean } = {}) {
   const events: string[] = [], submitted: Array<{ scenes: Api.HeygenStudioScene[] }> = [];
+  const audioUploads: Buffer[] = [], clonedVoices: string[] = [], signedImages: Array<unknown[]> = [];
+  const reservations: Array<{estimatedCostMicroUsd:number}> = [], commits: Array<{actualCostMicroUsd:number}> = [];
   const client = {
-    uploadImage: async (buffer: Buffer) => ({ type: "asset_id", asset_id: buffer.toString() }),
-    createPhotoAvatar: async (asset: Api.HeygenAsset) => ({ id: `avatar-${asset.asset_id}`, groupId: `group-${asset.asset_id}` }),
-    createVoice: async (url: string, _name: string, _language: string, _key: string, _signal: unknown, track: (id: string) => void) => { const id = `cloned-${url}`; track(id); return id; },
+    uploadImage: async (buffer: Buffer) => ({ type: "asset_id", asset_id: options.invalidTemporaryIds ? "invalid/id" : buffer.toString() }),
+    uploadAudio: async (buffer: Buffer) => { audioUploads.push(Buffer.from(buffer)); return { type: "asset_id", asset_id: "silence" }; },
+    waitForAvatar: async (id:string) => {events.push("ready:"+id);}, createPhotoAvatar: async (asset: Api.HeygenAsset) => ({ id: `avatar-${asset.asset_id}`, groupId: `group-${asset.asset_id}` }),
+    createVoice: async (url: string, _name: string, _language: string, _key: string, _signal: unknown, track: (id: string) => void) => { const id = `cloned-${url}`; track(id); clonedVoices.push(id); return id; },
     publicVoices: async () => { events.push("public-voices"); return ["ai-voice"]; },
     publicAvatar: async () => "public-avatar",
     submitVideo: async (input: { scenes: Api.HeygenStudioScene[] }) => { submitted.push(input); if (options.submission) throw new api.HeygenApiError(options.submission === "rejected" ? 402 : 503, "request_failed", options.submission === "uncertain"); return "video-1"; },
@@ -118,14 +122,16 @@ function providerHarness(options: { submission?: "rejected" | "uncertain" } = {}
   };
   const provider = load<typeof Provider>("aiVideoProviderHeygen.ts", {
     "node:crypto": crypto, "@/lib/aiGatewayAccountGuard": {
-      reserveAiGatewayAccountAttempt: async () => { events.push("reserve"); return {}; },
-      commitAiGatewayAccountAttempt: async () => { events.push("commit"); }, rollbackAiGatewayAccountAttempt: async () => { events.push("rollback"); }, recordAiGatewayAccountFailure: async () => {},
+      reserveAiGatewayAccountAttempt: async (_account:string,input:{estimatedCostMicroUsd:number}) => { reservations.push(input); events.push("reserve"); return {}; },
+      commitAiGatewayAccountAttempt: async (input:{actualCostMicroUsd:number}) => { commits.push(input); events.push("commit"); }, rollbackAiGatewayAccountAttempt: async () => { events.push("rollback"); }, recordAiGatewayAccountFailure: async () => {},
     }, "./aiVideoHeygenApi.ts": { ...api, createHeygenApiClient: () => client }, "./aiMediaPendingVideo.ts": pending,
-    "./aiMediaIdentityReferences.ts": { prepareAiMediaIdentityReferences: async () => ({ buffers: [Buffer.from("person2"),Buffer.from("garden"),Buffer.from("person1")] }) },
-    "./aiMediaCharacterVoiceStorage.ts": { getAiMediaCharacterVoiceSignedUrls: async () => ["voice2",null,"voice1"] },
+    "./aiVideoHeygenBackground.ts": { prepareHeygenBackground: async () => Buffer.from("garden"), prepareHeygenAvatarImage: async (buffer:Buffer) => buffer, createHeygenSilenceWav: (duration:number) => Buffer.from("silence:"+duration) },
+    "./aiMediaIdentityReferences.ts": { prepareAiMediaIdentityReferences: async (images:unknown[]) => ({ buffers: images.map((_,i)=>Buffer.from(i===1?"garden":i===0?"person2":i===2?"person1":"person3")) }) },
+    "./aiMediaCharacterVoiceStorage.ts": { getAiMediaCharacterVoiceSignedUrls: async (input:{images:Array<{voiceMode?:string}>}) => { signedImages.push(input.images); return input.images.map((image,i)=>image.voiceMode==="provided"?"voice"+(i===0?2:i===2?1:3):null); } },
+    "./aiMediaHeygenBilling.ts": billing,
     "./aiMediaModelCatalog.ts": catalog, "./aiVideoProviderTypes.ts": { ...types, assertAiVideoReferenceTeamProviderEgress: () => {} },
   });
-  return { provider, submitted, events };
+  return { provider, submitted, events, audioUploads, clonedVoices, signedImages, reservations, commits };
 }
 
 test("dialogue slots keep their own original photo and voice even when references are reordered around a decor", async () => {
@@ -141,8 +147,11 @@ test("dialogue slots keep their own original photo and voice even when reference
   assert.deepEqual(scenes.map(scene => [scene.input.avatar_id, scene.input.voice_id, scene.input.script]), [
     ["avatar-person1","cloned-voice1","Bonjour, je suis David."], ["avatar-person2","cloned-voice2","Bonjour, je suis Kathia."],
   ]);
+  assert.ok(scenes.every(scene => scene.input.remove_background === true));
+  assert.ok(scenes.every(scene => scene.input.background?.source.asset_id === "garden"));
+  assert.ok(scenes.every(scene => scene.input.motion_prompt === undefined));
   assert.ok(!h.events.includes("public-voices"));
-  assert.deepEqual(h.events, ["reserve","commit"]);
+  assert.deepEqual(h.events, ["reserve","ready:avatar-person1","ready:avatar-person2","commit"]);
 });
 
 test("automatic two-person turns preserve attribution; an unbound speaker never spends", () => {
@@ -197,4 +206,103 @@ test("HeyGen support metrics read only a bounded window and exclude unexpected p
   assert.equal(calls.length, 1);
   await assert.rejects(client.errorMetrics(100, 5000), /diagnostic_window_invalid/);
   assert.equal(calls.length, 1);
+});
+
+ test("photo avatar training completes before any video is submitted; only read-only polls repeat",async()=>{
+  const methods:string[]=[];let sleeps=0;const states=["processing","processing","completed"];
+  const client=api.createHeygenApiClient({apiKey:"synthetic",sleep:async <T,>(_ms?:number,value?:T)=>{sleeps++;return value as T;},fetch:async(url,options)=>{methods.push(options?.method||"GET");assert.equal(String(url),"https://api.heygen.com/v3/avatars/looks/look-1");return Response.json({data:{id:"look-1",status:states.shift()}});}});
+  await client.waitForAvatar("look-1");assert.deepEqual(methods,["GET","GET","GET"]);assert.equal(sleeps,2);
+ });
+ test("failed or mismatched avatar preparation stops before a billable video without exposing upstream text",async()=>{
+  for(const data of [{id:"look-1",status:"failed",error:"secret"},{id:"another-look",status:"completed"}]){
+   let calls=0;const client=api.createHeygenApiClient({apiKey:"synthetic",fetch:async()=>{calls++;return Response.json({data});}});
+   await assert.rejects(client.waitForAvatar("look-1"),error=>{assert.doesNotMatch(String(error),/secret/);return true;});assert.equal(calls,1);
+  }
+ });
+ test("automatic multi-plan dialogue uses the real Studio fifty-scene limit rather than the exact-editor twelve-turn cap",()=>{
+  const h=providerHarness(),input=args();delete input.request.exactDialogue;
+  input.plan.scenes=Array.from({length:2},()=>({...input.plan.scenes[0],spokenTurns:Array.from({length:7},(_,i)=>({reference:i%2?1:3,speaker:"Assigned",text:"Bonjour."}))}));
+  assert.equal(h.provider.buildHeygenDialogueTurns(input).length,14);
+ });
+
+test("external voiceover keeps both original portraits in their garden as silent avatar scenes",async()=>{
+ const h=providerHarness(),input=args();delete input.request.exactDialogue;
+ input.request.teamVideoSpeechMode="voiceover";input.request.withNarration=false;
+ await assert.rejects(h.provider.heygenAiVideoProvider.generate(input),error=>{
+  assert.ok(pending.isAiVideoProviderPending(error));assert.equal(error.task.temporaryVoiceIds.length,0);
+  assert.equal(error.task.temporaryAssetIds.length,4);return true;
+ });
+ const scenes=h.submitted[0].scenes;
+ assert.deepEqual(scenes.map(scene=>scene.type==="avatar_video"?scene.input.avatar_id:null),["avatar-person2","avatar-person1"]);
+ for(const scene of scenes){assert.equal(scene.type,"avatar_video");if(scene.type!=="avatar_video")continue;
+  assert.equal(scene.input.audio_asset_id,"silence");assert.equal(scene.input.script,undefined);assert.equal(scene.input.voice_id,undefined);
+  assert.equal(scene.input.background?.source.asset_id,"garden");assert.equal(scene.input.remove_background,true);
+ }
+ assert.equal(h.audioUploads.length,1);assert.equal(h.audioUploads[0].toString(),"silence:8");
+ assert.equal(h.clonedVoices.length,0);assert.ok(!h.events.includes("public-voices"));
+ assert.ok(h.signedImages[0].every(image=>(image as {voiceMode?:string}).voiceMode==="ai"));
+ assert.equal(h.submitted.length,1);
+});
+
+test("three silent portraits share one audio asset and stay inside the private cleanup five-asset limit",async()=>{
+ const h=providerHarness(),input=args();delete input.request.exactDialogue;
+ input.request.teamVideoSpeechMode="voiceover";input.request.withNarration=false;
+ input.request.inspirationImages.push({role:"character",characterIndex:3,voiceMode:"provided",data:"A".repeat(64),mimeType:"image/png"});
+ await assert.rejects(h.provider.heygenAiVideoProvider.generate(input),error=>{
+  assert.ok(pending.isAiVideoProviderPending(error));assert.ok(pending.isAiMediaPendingVideo(error.task));
+  assert.equal(error.task.temporaryAvatarGroupIds.length,3);assert.equal(error.task.temporaryAssetIds.length,5);return true;
+ });
+ assert.equal(h.submitted[0].scenes.length,3);assert.equal(h.audioUploads.length,1);assert.equal(h.clonedVoices.length,0);
+});
+
+test("a silent exact-dialogue tail keeps both portraits visible instead of requiring an invented speaker",async()=>{
+ const h=providerHarness(),input=args();delete input.request.exactDialogue;
+ input.plan.scenes.push({...input.plan.scenes[0],spokenLine:"",spokenTurns:[]});
+ await assert.rejects(h.provider.heygenAiVideoProvider.generate(input),pending.isAiVideoProviderPending);
+ const scenes=h.submitted[0].scenes;
+ assert.equal(scenes.length,4);assert.equal(h.audioUploads.length,1);assert.equal(h.clonedVoices.length,2);
+ assert.ok(scenes.slice(0,2).every(scene=>scene.type==="avatar_video"&&typeof scene.input.script==="string"));
+ assert.ok(scenes.slice(2).every(scene=>scene.type==="avatar_video"&&scene.input.audio_asset_id==="silence"&&scene.input.script===undefined));
+});
+
+test("an exact offscreen AI turn remains separate from the two real speakers without creating another person",async()=>{
+ const h=providerHarness(),input=args();input.request.exactDialogue!.splice(1,0,{speaker:"ai_voice",text:"Le jardin vous attend."});
+ await assert.rejects(h.provider.heygenAiVideoProvider.generate(input),pending.isAiVideoProviderPending);
+ const scenes=h.submitted[0].scenes;
+ assert.equal(scenes.length,3);assert.equal(scenes[1].type,"image");
+ if(scenes[1].type==="image"){assert.equal(scenes[1].source.asset_id,"garden");assert.equal(scenes[1].script,"Le jardin vous attend.");assert.equal(scenes[1].voice_id,"ai-voice");}
+ assert.deepEqual(scenes.filter(scene=>scene.type==="avatar_video").map(scene=>scene.input.voice_id),["cloned-voice1","cloned-voice2"]);
+ assert.equal(h.audioUploads.length,0);assert.equal(h.clonedVoices.length,2);
+});
+
+test("voiceover without a portrait keeps its decor and does not create an unrequested public avatar",async()=>{
+ const h=providerHarness(),input=args();delete input.request.exactDialogue;
+ input.request.teamVideoSpeechMode="voiceover";input.request.withNarration=false;input.request.inspirationImages=[];
+ await assert.rejects(h.provider.heygenAiVideoProvider.generate(input),pending.isAiVideoProviderPending);
+ assert.deepEqual(h.submitted[0].scenes,[{type:"image",source:{type:"asset_id",asset_id:"garden"},duration:16}]);
+ assert.equal(h.audioUploads.length,0);assert.equal(h.clonedVoices.length,0);assert.ok(!h.events.includes("public-voices"));
+});
+
+test("supplier reservation uses the actual prepared Auto words instead of the selected eight seconds",async()=>{
+ const h=providerHarness(),input=args();delete input.request.exactDialogue;
+ input.request.durationSeconds=8;input.request.videoResolution="1080p";
+ const text="Bonjour à tous. ".repeat(50);input.plan.scenes[0].spokenTurns=[{reference:3,speaker:"David",text}];
+ await assert.rejects(h.provider.heygenAiVideoProvider.generate(input),error=>{
+  assert.ok(pending.isAiVideoProviderPending(error));assert.equal(error.task.estimatedCostMicroUsd,12_160_000);return true;
+ });
+ assert.equal(h.reservations[0].estimatedCostMicroUsd,12_160_000);assert.equal(h.commits[0].actualCostMicroUsd,12_160_000);
+ assert.equal(h.submitted.length,1);const scene=h.submitted[0].scenes[0];assert.equal(scene.type,"avatar_video");
+ if(scene.type==="avatar_video")assert.equal(scene.input.script,text);
+});
+
+test("invalid temporary identifiers stop before a paid render instead of failing while constructing its pending task",async()=>{
+ const h=providerHarness({invalidTemporaryIds:true});
+ await assert.rejects(h.provider.heygenAiVideoProvider.generate(args()));
+ assert.equal(h.submitted.length,0);assert.ok(h.events.includes("rollback"));assert.equal(h.commits.length,0);
+});
+
+test("the bounded supplier estimate supports long accepted speech and rejects only malformed monetary values",()=>{
+ const base={provider:"heygen-direct",model:"heygen-avatar-iv",videoId:"video-1",temporaryVoiceIds:[],temporaryAvatarGroupIds:[],temporaryAssetIds:[]};
+ assert.ok(pending.isAiMediaPendingVideo({...base,estimatedCostMicroUsd:400_000_000}));
+ for(const cost of [-1,Infinity,NaN,400_000_001])assert.ok(!pending.isAiMediaPendingVideo({...base,estimatedCostMicroUsd:cost}));
 });

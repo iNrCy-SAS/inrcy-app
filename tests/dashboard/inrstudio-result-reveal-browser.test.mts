@@ -66,7 +66,7 @@ function Fixture(){
  window.studioFixture={
   start(kind='image'){setState(current=>({...current,kind:kind==='modify'?'image':kind,generationResult:null,generationInProgress:true,operationLocked:true,progress:25,origin:kind==='modify'?'modify':'studio'}))},
   progress(){setState(current=>({...current,progress:75}))},
-  complete(kind='image',id='result-1',account='account-a'){setState(current=>({...current,generationInProgress:false,operationLocked:false,generationResult:{item:{id,media_type:kind==='video'?'video':'image',title:'Résultat',width:600,height:600,signed_url:kind==='video'?'':preview},format:'square',quota:{accountId:account},draft:true,videoEngineResult:null}}))},
+  complete(kind='image',id='result-1',account='account-a',finishingUnavailable=false){setState(current=>({...current,generationInProgress:false,operationLocked:false,generationResult:{item:{id,media_type:kind==='video'?'video':'image',title:'Résultat',width:600,height:600,signed_url:kind==='video'?'':preview,...(finishingUnavailable?{finishing_unavailable:true}:{})},format:'square',quota:{accountId:account},draft:true,videoEngineResult:null}}))},
   save(){setState(current=>({...current,generationResult:{...current.generationResult,draft:false,item:{...current.generationResult.item,signed_url:preview+'#renewed'}}}))},
   switchAccount(account){window.activeAccount=account;setState(current=>({...current,accountId:account,generationInProgress:false,generationResult:null}))},
   reset(){setState(base);window.activeAccount='account-a';window.revealCalls=[]},
@@ -85,7 +85,7 @@ require('react-dom/client').createRoot(document.getElementById('root')).render(R
 const prefix = (text: string, name: string) => text.replace(/\.([a-zA-Z_][\w-]*)/g, `.${name}-$1`);
 const css = prefix(read("app/dashboard/_components/MediaGeneratorModal.module.css"), "modal") + prefix(read("app/dashboard/_components/MediaGenerator.module.css"), "generator") + prefix(read("app/dashboard/_components/MediaGenerationCreationWorkspace.module.css"), "editor") + prefix(read("app/dashboard/_components/MediaResultViewer.module.css"), "viewer");
 const html = `<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>*{box-sizing:border-box}body{margin:0;background:#08122d;color:white;font:14px Arial}${css}</style></head><body><div id="root"></div><dialog id="other"><input aria-label="Autre dialogue"></dialog></body></html>`;
-type FixtureWindow = Window & { studioFixture: { start(kind?: string): void; progress(): void; complete(kind?: string, id?: string, account?: string): void; save(): void; switchAccount(account: string): void; reset(): void }; revealCalls: ScrollIntoViewOptions[]; activeAccount: string };
+type FixtureWindow = Window & { studioFixture: { start(kind?: string): void; progress(): void; complete(kind?: string, id?: string, account?: string, finishingUnavailable?: boolean): void; save(): void; switchAccount(account: string): void; reset(): void }; revealCalls: ScrollIntoViewOptions[]; activeAccount: string };
 
 const nativeSources = {
   "@/lib/elementStyleLock": compile(read("lib/elementStyleLock.ts")),
@@ -529,4 +529,24 @@ test("a browser account switch before the scheduled frame prevents a late result
     assert.equal(await page.locator("#bottom").evaluate(element => element === document.activeElement), true);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
+});
+
+
+test("an available provider video explains omitted finishing without blocking review on every viewport", async () => {
+  const browser = await chromium.launch({headless:true});
+  try {
+    for (const viewport of [{width:320,height:720},{width:375,height:812},{width:768,height:1024},{width:1440,height:900}]) {
+      const page=await browser.newPage({viewport});const errors=await mount(page);
+      await page.evaluate(() => (window as unknown as FixtureWindow).studioFixture.complete("video","finishing-result","account-a",true));
+      const notice=page.locator("[data-media-finishing-warning]");await notice.waitFor();
+      assert.match(await notice.innerText(),/La vidéo est disponible/);
+      assert.equal(await notice.getAttribute("role"),"status");
+      const buttons=page.locator("[data-media-result-actions] button");assert.ok(await buttons.count()>0);
+      assert.equal(await buttons.first().isEnabled(),true);
+      const geometry=await notice.evaluate(element=>({width:element.getBoundingClientRect().width,overflow:document.documentElement.scrollWidth>innerWidth}));
+      assert.ok(geometry.width>150);assert.equal(geometry.overflow,false);
+      await page.evaluate(() => (window as unknown as FixtureWindow).studioFixture.complete("video","complete-result"));
+      await notice.waitFor({state:"hidden"});assert.deepEqual(errors,[]);await page.close();
+    }
+  } finally {await browser.close();}
 });

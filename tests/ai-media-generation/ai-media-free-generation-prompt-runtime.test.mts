@@ -499,11 +499,10 @@ test("la voix off Libre respecte le texte exact et refuse de le tronquer pour te
   const result = await runtime.writeAiMediaFreeNarration({ accountId: "test", request: input, profile, plan: runtime.buildAiMediaFreeBasePlan(input) });
   assert.equal(result?.script, "Découvrez un monde merveilleux.");
   assert.equal(runtime.calls.length, 0);
-  // A restored legacy request still reaches the narration guard; new requests
-  // are rejected earlier by the shared preflight without cutting exact copy.
-  const tooLong = { ...input, freePrompt: `Voix off : « ${"mot ".repeat(30)}. »` };
-  assert.throws(() => request({ kind: "video", durationSeconds: 8, withNarration: true, freePrompt: tooLong.freePrompt }), contracts.AiMediaRequestValidationError);
-  await assert.rejects(runtime.writeAiMediaFreeNarration({ accountId: "test", request: tooLong, profile, plan: runtime.buildAiMediaFreeBasePlan(tooLong) }), contracts.AiMediaRequestValidationError);
+  const exactCopy = "mot ".repeat(30) + ".";
+  const longer = request({ kind: "video", durationSeconds: 8, withNarration: true, freePrompt: `Voix off : « ${exactCopy} »` });
+  const retained = await runtime.writeAiMediaFreeNarration({ accountId: "test", request: longer, profile, plan: runtime.buildAiMediaFreeBasePlan(longer) });
+  assert.equal(retained?.script, exactCopy); assert.equal(runtime.calls.length, 0);
 });
 
 test("sans option voix off, Libre ne lance aucune génération de narration", async () => {
@@ -593,7 +592,7 @@ test("le script de voix off Libre est réparti sans perte et ne contamine pas le
   const longLines = freePrompts.splitAiMediaFreeNarrationByScene(longScript, 2, [15, 15]);
   assert.equal(longLines.join(" "), longScript);
   assert.ok(longLines.every((line) => line.split(" ").length <= 28));
-  assert.throws(() => freePrompts.splitAiMediaFreeNarrationByScene(longScript, 2, [4, 4]), contracts.AiMediaRequestValidationError);
+  assert.equal(freePrompts.splitAiMediaFreeNarrationByScene(longScript, 2, [4, 4]).join(" "), longScript);
   assert.equal(lines.filter(Boolean).join(" "), "Bonjour à tous. Voici notre atelier. Nous façonnons des pièces avec soin.");
   assert.equal(lines[1], "");
   const twoActs = freePrompts.splitAiMediaFreeNarrationByScene(
@@ -660,7 +659,7 @@ test("un ancien dialogue Libre conserve une citation même courte et située apr
 });
 
 test("un dialogue IA absent ou trop long est une sortie fournisseur invalide, pas une demande utilisateur invalide", async () => {
-  for (const spokenLine of ["", " \n\t ", "mot ".repeat(15), "a".repeat(141), 123]) {
+  for (const spokenLine of ["", " \n\t ", "a".repeat(4_001), 123]) {
     const scenes = [{ visualBrief: "La baleine parle.", spokenLine }];
     const runtime = loadPlan({ direction: "Court film animé.", scenes });
     await assert.rejects(runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters" }), profile }), (error: unknown) => {
@@ -676,9 +675,10 @@ test("dialogue budgets follow actual duration and non-space languages without a 
   const spokenLine = "Bienvenue dans notre atelier où nous fabriquons chaque jour vos meubles sur mesure avec passion et beaucoup de soin.";
   assert.ok(spokenLine.length > 90);
   assert.doesNotThrow(() => freePrompts.validateAiMediaFreeDialogueLine(spokenLine, 30, "fr"));
-  assert.throws(() => freePrompts.validateAiMediaFreeDialogueLine(spokenLine, 8, "fr"), contracts.AiMediaRequestValidationError);
+  assert.doesNotThrow(() => freePrompts.validateAiMediaFreeDialogueLine(spokenLine, 8, "fr"));
   assert.doesNotThrow(() => freePrompts.validateAiMediaFreeDialogueLine("让".repeat(42), 8, "zh"));
-  assert.throws(() => freePrompts.validateAiMediaFreeDialogueLine("让".repeat(43), 8, "zh"), contracts.AiMediaRequestValidationError);
+  assert.doesNotThrow(() => freePrompts.validateAiMediaFreeDialogueLine("让".repeat(43), 8, "zh"));
+  assert.throws(() => freePrompts.validateAiMediaFreeDialogueLine("让".repeat(4_001), 8, "zh"), contracts.AiMediaRequestValidationError);
   const runtime = loadPlan({ direction: "Le personnage visite son atelier.", scenes: [{ visualBrief: "Un artisan s'adresse à la caméra.", spokenLine }] });
   const input = request({ kind: "video", videoEngine: "grok", durationSeconds: 15, sceneMode: "single", teamVideoSpeechMode: "characters", freePrompt: `L'artisan dit « ${spokenLine} ».` });
   const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: input, profile });
@@ -705,7 +705,7 @@ test("quoted and generated voiceovers share the explicitly requested language ov
 });
 
 test("les citations trop longues ou trop nombreuses restent rejetées avant tout appel IA", async () => {
-  for (const freePrompt of ['Il dit « Bonjour ! ». Elle répond « Salut ! ».', `Il dit « ${"mot ".repeat(15)} ».`]) {
+  for (const freePrompt of [Array.from({length:13},()=>"Il dit « A ».").join(" "), `Il dit « ${"a".repeat(4_001)} ».`]) {
     const runtime = loadPlan({});
     await assert.rejects(async () => runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: request({ kind: "video", durationSeconds: 8, teamVideoSpeechMode: "characters", freePrompt }), profile }), contracts.AiMediaRequestValidationError);
     assert.equal(runtime.calls.length, 0);
@@ -756,7 +756,7 @@ test("a fallback receives every missing or oversized automatic line", async () =
   const gateway = loadDialogueGateway([
     { direction: "Une visite de l'atelier.", scenes: [
       { visualBrief: "La guide salue.", spokenLine: "" },
-      { visualBrief: "La guide présente une pièce.", spokenLine: "mot ".repeat(20) },
+      { visualBrief: "La guide présente une pièce.", spokenLine: "a".repeat(4_001) },
     ] },
     { direction: "Une visite de l'atelier.", scenes: [
       { visualBrief: "La guide salue.", spokenLine: "Bienvenue dans notre atelier !" },
@@ -780,40 +780,20 @@ test("deux réponses IA invalides épuisent les secours sans boucle ni erreur de
   assert.equal(gateway.calls.length, 2);
 });
 
-test("dialogue rewrite feedback repairs only automatic over-budget lines in the existing bounded fallback", async () => {
-  const goodLine = "Bonjour, petit nuage !";
-  const longLine = "Nous explorons ensemble ce merveilleux ciel pour découvrir les secrets de chaque petit nuage blanc.";
-  const response = (spokenLine: string) => ({ direction: "Une baleine explore les nuages.", scenes: [
-    { visualBrief: "La baleine salue le nuage.", spokenLine: goodLine },
-    { visualBrief: "Le nuage lui répond.", spokenLine },
-  ] });
-  const gateway = loadDialogueGateway([response(longLine), response("Explorons ce ciel ensemble !")]);
-  const runtime = loadPlan(null, gateway.generate);
-  const input = request({ kind: "video", durationSeconds: 16, teamVideoSpeechMode: "characters" });
-  const plan = await runtime.prepareAiMediaFreeCreativePlan({ accountId: "test", request: input, profile });
-  assert.deepEqual(plan.scenes.map((scene) => scene.spokenLine), [goodLine, "Explorons ce ciel ensemble !"]);
-  assert.equal(runtime.calls.length, 1, "Reuse the existing Gateway chain instead of opening another operation.");
-  assert.equal(gateway.calls.length, 2);
-  assert.equal(gateway.calls[0].deadlineAt, gateway.calls[1].deadlineAt);
-  const first = JSON.parse(gateway.calls[0].input);
-  const retry = JSON.parse(gateway.calls[1].input);
-  assert.equal(first.rewrite_dialogue, undefined);
-  assert.equal(retry.brief, input.freePrompt);
-  assert.deepEqual(retry.exact_dialogue, []);
-  assert.equal(retry.rewrite_dialogue.length, 1);
-  assert.equal(retry.rewrite_dialogue[0].scene, 2);
-  assert.equal(retry.rewrite_dialogue[0].duration_seconds, 8);
-  assert.equal(retry.rewrite_dialogue[0].draft, longLine);
-  assert.equal(retry.rewrite_dialogue[0].units, 15);
-  assert.equal(retry.rewrite_dialogue[0].maxUnits, 14);
-  assert.equal(retry.rewrite_dialogue[0].maxCharacters, 140);
-  assert.match(retry.rewrite_dialogue[0].instruction, /phrase complète/i);
+test("a valid automatic line beyond the speaking estimate is retained with no extra model call", async () => {
+  const goodLine="Bonjour, petit nuage !",longLine="Nous explorons ensemble ce merveilleux ciel pour découvrir les secrets de chaque petit nuage blanc.";
+  const response={direction:"Une baleine explore les nuages.",scenes:[{visualBrief:"La baleine salue le nuage.",spokenLine:goodLine},{visualBrief:"Le nuage répond.",spokenLine:longLine}]};
+  const gateway=loadDialogueGateway([response]);const runtime=loadPlan(null,gateway.generate);
+  const input=request({kind:"video",durationSeconds:16,teamVideoSpeechMode:"characters"});
+  const plan=await runtime.prepareAiMediaFreeCreativePlan({accountId:"test",request:input,profile});
+  assert.deepEqual(plan.scenes.map(scene=>scene.spokenLine),[goodLine,longLine]);
+  assert.equal(gateway.calls.length,1);assert.equal(runtime.calls.length,1);assert.equal(JSON.parse(gateway.calls[0].input).rewrite_dialogue,undefined);
 });
 
-test("dialogue rewrite feedback respects character and non-space budgets and stops when fallback is exhausted", async () => {
+test("only text beyond the protocol character limit requests a bounded rewrite in every language", async () => {
   for (const [spokenLine, freePrompt, units, unit] of [
-    ["a".repeat(141), "Un personnage parle dans les nuages.", 1, "mots"],
-    ["让".repeat(43), "Un personnage parle en chinois dans les nuages.", 43, "caractères prononcés"],
+    ["a".repeat(4_001), "Un personnage parle dans les nuages.", 1, "mots"],
+    ["让".repeat(4_001), "Un personnage parle en chinois dans les nuages.", 4_001, "caractères prononcés"],
   ] as const) {
     const invalid = { direction: "Court film animé.", scenes: [{ visualBrief: "Le personnage parle.", spokenLine }] };
     const gateway = loadDialogueGateway([invalid, invalid]);
@@ -824,7 +804,7 @@ test("dialogue rewrite feedback respects character and non-space budgets and sto
     const feedback = JSON.parse(gateway.calls[1].input).rewrite_dialogue[0];
     assert.equal(feedback.units, units);
     assert.equal(feedback.unit, unit);
-    assert.equal(feedback.draft, spokenLine);
+    assert.equal(feedback.draft, spokenLine.slice(0, 620));
   }
 });
 

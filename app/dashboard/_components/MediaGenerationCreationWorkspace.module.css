@@ -25,6 +25,7 @@
 @media(max-width:760px) { .recoveryPanel { width:calc(100% - 24px);padding:16px; }.recoveryPanel h3 { font-size:19px; }.recoveryPanel p { font-size:13px; }.recoveryPanelActions { gap:8px;margin:12px 0; }.recoveryPanelActions button { flex-basis:100%; }.recoveryPanel .recoveryExplanation { font-size:11px; } }
 .embedded [data-media-review] { width:100%;height:100%;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto auto;gap:12px;padding:18px;overflow:hidden;overscroll-behavior:auto; }
 .embedded [data-media-review-heading] { grid-column:1;grid-row:1;align-self:start;display:flex;align-items:center;justify-content:space-between;gap:10px; }
+.embedded [data-media-review-heading] > div { min-width:0; }
 .embedded [data-media-review-heading] h3 { font-size:20px;line-height:1.25; }
 .resultHeading:focus-visible { outline:2px solid #8bdaff;outline-offset:4px;border-radius:4px; }
 .expandButton { display:inline-grid;place-items:center;flex:none;min-width:44px;min-height:44px;padding:9px;border:1px solid #72b9e8;border-radius:12px;background:#163c60;color:#eefaff;cursor:pointer; }

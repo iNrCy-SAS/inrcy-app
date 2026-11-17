@@ -403,3 +403,38 @@ test("a late cloned-narrator result cannot populate another active account", asy
   assert.equal(instance.status().result, null); assert.equal(instance.status().quota?.accountId, "account-b");
   assert.equal(instance.generationBodies.length, 1); assert.equal(recovery.readAiMediaGenerationRecovery(storage, "account-b"), null); instance.dispose();
 });
+
+test("an accepted asynchronous video stays in normal generation until its one existing job is ready", async () => {
+  const storage = memory(), backend = server(), instance = tab(storage, backend); await instance.ready();
+  instance.deferGenerate(); instance.deferStatus();
+  const creating = instance.status().generate({ ...musicRequest, textKeywords: [], videoEngine: "heygen-avatar" });
+  await instance.flush();
+  instance.deferred[0].resolve(Response.json({ ok: false, code: "AI_MEDIA_FINALIZATION_PENDING", error: "Rendering in the background" }, { status: 202 }));
+  await instance.flush();
+  assert.equal(instance.status().status, "generating"); assert.equal(instance.status().busy, true);
+  assert.equal(instance.status().recovering, false); assert.equal(instance.status().canRecover, false);
+  assert.equal(instance.status().canPauseRecovery, false); assert.equal(instance.status().recoveryContext, null);
+  assert.equal(instance.status().cancellable, false);
+  assert.equal(instance.generationBodies.length, 1);
+  assert.equal(instance.deferred.length, 2);
+  instance.deferred[1].resolve(Response.json({ ok: true, status: "completed", recovered: true, draft: true, item: backend.item }));
+  const result = await creating; await instance.flush();
+  assert.equal(instance.status().status, "success"); assert.equal(result.recovered, false);
+  assert.equal(instance.status().canRecover, false); assert.equal(instance.status().recovering, false);
+  assert.equal(instance.generationBodies.length, 1);
+  await instance.status().acceptDraft(); await instance.flush();
+  assert.equal(instance.status().result?.draft, false);
+  assert.equal(recovery.readAiMediaGenerationRecovery(storage, "account-a"), null);
+  instance.dispose();
+});
+
+test("reopening a confirmed pending video resumes normal generation with reads only",async()=>{
+ const storage=memory(),backend=server();recovery.writeAiMediaGenerationRecovery(storage,"account-a",{requestId:"pending-video-0001",kind:"video",format:"story",phase:"rendering"});
+ const instance=tab(storage,backend);instance.deferStatus();await instance.ready();await instance.flush();
+ assert.equal(instance.status().status,"generating");assert.equal(instance.status().recovering,false);assert.equal(instance.status().canRecover,false);
+ assert.equal(instance.status().recoveryContext,null);assert.equal(instance.generationBodies.length,0);
+ assert.equal(instance.deferred.length,1);instance.deferred[0].resolve(Response.json({ok:true,status:"completed",draft:true,recovered:true,item:backend.item}));
+ await new Promise(resolve => setTimeout(resolve, 450)); await instance.flush();
+ assert.equal(instance.status().status,"success");assert.equal(instance.status().result?.recovered,false);
+ assert.equal(instance.generationBodies.length,0);instance.dispose();
+});

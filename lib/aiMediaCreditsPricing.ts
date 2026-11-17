@@ -19,9 +19,10 @@ import { getAiMediaVideoSegmentDurations } from "./aiMediaVideoTimeline.ts";
 import { isAiMediaCharacterVoiceEngine } from "./aiMediaCharacterVoices.ts";
 import { normalizeAiMediaExactDialogue, assertAiMediaExactDialogueBindings } from "./aiMediaExactDialogue.ts";
 import { getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
+import { getHeygenQuotedBillableDurationSeconds } from "./aiMediaHeygenBilling.ts";
 
 /** Commercial credit units, independent of supplier USD and credit pack prices. */
-export const AI_MEDIA_CREDIT_TARIFF_VERSION = "inrstudio-media-credits-2026-11-v6" as const;
+export const AI_MEDIA_CREDIT_TARIFF_VERSION = "inrstudio-media-credits-2026-11-v7" as const;
 export type AiMediaCreditsQuoteInput = {
   kind: string;
   operation?: string;
@@ -37,8 +38,9 @@ export type AiMediaCreditsQuoteInput = {
   voiceMode?: string;
   teamVideoSpeechMode?: string;
   spokenScript?: string;
+  freePrompt?: string;
   exactDialogue?: import("./aiMediaExactDialogue.ts").AiMediaExactDialogueTurn[];
-  inspirationImages?: readonly { role?: string; characterIndex?: number }[];
+  inspirationImages?: readonly { role?: string; characterIndex?: number; characterName?: string }[];
   identityMode?: string;
   inputMode?: string;
   sceneMode?: string;
@@ -50,6 +52,8 @@ export type AiMediaCreditsQuote = Readonly<{
   modelLabel: string;
   engine: AiMediaVideoEngine | AiMediaImageEngine;
   durationSeconds: number | null;
+  /** HeyGen follows audio; this estimate is included in the accepted total. */
+  billableDurationSeconds?: number;
   resolution: AiMediaVideoResolution | null;
   sceneMode: AiMediaVideoSceneMode | null;
   imageFormat: AiMediaImageFormat | null;
@@ -125,7 +129,8 @@ export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCre
   if (references && (!model.supportsImageToVideo || references > model.maxReferenceImages)) throw new Error("ai_media_video_references_unsupported");
   if (model.id === "veo" && references > 1 &&
     (input.sceneMode === "multi" ? segments.some((duration) => duration !== 8) : segments[0] !== 8)) throw new Error("ai_media_video_references_require_eight_seconds");
-  const videoCredits = Math.ceil(durationSeconds * getAiMediaVideoCreditRate(model.id, resolution, input));
+  const billableDurationSeconds = model.transport === "heygen-direct" ? getHeygenQuotedBillableDurationSeconds(input) : durationSeconds;
+  const videoCredits = Math.ceil(billableDurationSeconds * getAiMediaVideoCreditRate(model.id, resolution, input));
   const transmittedReferences = transmittedVideoReferences(input, model, references, segments.length);
   const referenceCredits = transmittedReferences * model.referenceInputCredits;
   // Libre always runs the creative director; this also covers optional logo preparation.
@@ -138,12 +143,14 @@ export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCre
     tariffVersion: AI_MEDIA_CREDIT_TARIFF_VERSION,
     totalCredits: videoCredits + referenceCredits + narrationCredits + preparationCredits,
     breakdown: [
-      { key: "video", label: `${model.label} · ${durationSeconds} s · ${resolution}`, credits: videoCredits },
+      { key: "video", label: model.label + " · " + billableDurationSeconds + (billableDurationSeconds > durationSeconds ? " s audio estimées · " : " s · ") + resolution, credits: videoCredits },
       ...(preparationCredits ? [{ key: "preparation", label: preparationLabel, credits: preparationCredits }] : []),
       ...(referenceCredits ? [{ key: "references", label: "Images de référence", credits: referenceCredits }] : []),
       ...(narrationCredits ? [{ key: "narration", label: "Voix off", credits: narrationCredits }] : []),
     ],
-    modelLabel: model.label, engine: model.id, durationSeconds, resolution, sceneMode: input.sceneMode === "multi" ? "multi" : "single",
+    modelLabel: model.label, engine: model.id, durationSeconds,
+    ...(model.transport === "heygen-direct" ? { billableDurationSeconds } : {}),
+    resolution, sceneMode: input.sceneMode === "multi" ? "multi" : "single",
     imageFormat: null, imageDimensions: null,
   };
 }
@@ -169,6 +176,6 @@ export function estimateAiMediaVideoSupplierCostMicroUsd(input: AiMediaCreditsQu
   const effectiveReferences = model.id !== "wan27" && model.transport !== "kling-direct" && model.transport !== "heygen-direct" && !input.hasProvidedCharacterVoice && (input.identityMode === "reference_team" || input.inputMode === "essential") && rawReferences > 0 ? 1 : rawReferences;
   const segments = getAiMediaVideoSegmentDurations(quote.durationSeconds!, model.id, quote.resolution, input.sceneMode as AiMediaVideoSceneMode);
   const referenceCount = transmittedVideoReferences(input, model, effectiveReferences, segments.length);
-  return Math.ceil((quote.durationSeconds ?? 0) * rate * 1_000_000)
+  return Math.ceil((quote.billableDurationSeconds ?? quote.durationSeconds ?? 0) * rate * 1_000_000)
     + referenceCount * model.supplierReferenceCostMicroUsd;
 }

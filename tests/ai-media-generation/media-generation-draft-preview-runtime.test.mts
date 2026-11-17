@@ -42,3 +42,11 @@ test("transient reads fail explicitly without changing or deactivating a media",
   assert.equal((await harness({row:{...base,media_metadata:{draft_expires_at:"2000-01-01"}}}).get()).status,307);
   assert.equal((await harness({row:{...base,source:"ai_media_generation",is_active:true,media_metadata:{draft_expires_at:"2000-01-01"}}}).get()).status,307);
 });
+
+ test("draft preview signs only canonical account-owned object keys",async()=>{
+  const base=harness().row!;
+  for(const suffix of ["%2e","%2f","%25","source.jpg?variant=1","source.jpg#x","folder\\image.jpg","./file.jpg","nested//file.jpg"]){
+   const h=harness({row:{...base,storage_path:"users/account-a/ai-generated/"+suffix}});
+   assert.equal((await h.get()).status,404);assert.equal(h.signatures.length,0);
+  }
+ });

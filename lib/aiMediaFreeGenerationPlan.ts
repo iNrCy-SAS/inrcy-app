@@ -70,22 +70,13 @@ export async function prepareAiMediaFreeCreativePlan(args: {
   const speechLanguage = resolveAiMediaFreeSpeechLanguage(prompt, args.request.spokenScript || prompt, args.profile.preferences.language);
   const dialogueBudgets = segmentDurations.map((duration) => ({ duration_seconds: duration, ...getAiMediaFreeSpeechBudget(duration, speechLanguage),
     ...(orderedDialogue ? { maxTurns: getAiMediaFreeDialogueTurnLimit(duration) } : {}) }));
-  const explicitSpokenScript = typeof args.request.spokenScript === "string";
   const exactDialogue = nativeDialogue ? getAiMediaFreeRequestedDialogueLines(args.request) : [];
   const characterReferences = args.request.inspirationImages.flatMap((image, index) => image.role === "character" ? [index + 1] : []);
   if (exactDialogue.length > base.scenes.length) {
     throw new AiMediaRequestValidationError("Prévoyez une réplique par plan. Choisissez une durée supérieure ou réduisez le nombre de répliques.");
   }
   exactDialogue.forEach((line, index) => {
-    if (!line.trim()) return;
-    if (!explicitSpokenScript) {
-      validateAiMediaFreeDialogueLine(line, segmentDurations[index], speechLanguage);
-      return;
-    }
-    const budget = getAiMediaFreeSpeechBudget(segmentDurations[index], speechLanguage, line);
-    if (budget.units > budget.maxUnits) {
-      throw new AiMediaRequestValidationError("Le texte exact des personnages est trop long pour cette durée. Raccourcissez-le ou choisissez une durée supérieure.");
-    }
+    if (line.trim()) validateAiMediaFreeDialogueLine(line, segmentDurations[index], speechLanguage);
   });
   const { visualPrompt, audioOnlyQuotes: legacyAudioQuotes } = splitAiMediaFreeQuotedSpeech(prompt);
   const audioOnlyQuotes = [...new Set([...legacyAudioQuotes, ...(args.request.spokenScript?.trim() ? [args.request.spokenScript] : [])])];
@@ -222,12 +213,12 @@ export async function prepareAiMediaFreeCreativePlan(args: {
               type: "object", additionalProperties: false,
               properties: {
                 visualBrief: { type: "string", minLength: 3, maxLength: sceneBudget },
-                spokenLine: { type: "string", minLength: exactDialogue.length ? 0 : 1, maxLength: Math.max(...dialogueBudgets.map((budget) => budget.maxCharacters), ...exactDialogue.map((line) => line.length)) },
+                spokenLine: { type: "string", minLength: exactDialogue.length ? 0 : 1, maxLength: AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS },
                 ...(orderedDialogue ? { spokenTurns: { type: "array", minItems: exactTurnScenes ? 0 : 1, maxItems: Math.max(...segmentDurations.map(getAiMediaFreeDialogueTurnLimit)), items: {
                   type: "object", additionalProperties: false, properties: {
                     reference: { type: "integer", enum: exactTurnScenes?.some(scene => scene.some(turn => turn.reference === 0)) ? [0, ...characterReferences] : characterReferences },
                     speaker: { type: "string", minLength: 1, maxLength: 40 },
-                    text: { type: "string", minLength: 1, maxLength: Math.max(...dialogueBudgets.map(budget => budget.maxCharacters), ...(exactTurnScenes?.flatMap(scene => scene.map(turn => turn.text.length)) || [])) },
+                    text: { type: "string", minLength: 1, maxLength: AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS },
                   }, required: ["reference", "speaker", "text"],
                 } } } : {}),
               },
@@ -278,11 +269,8 @@ export async function writeAiMediaFreeNarration(args: {
     const script = args.request.spokenScript;
     if (!script.trim()) return null;
     const language = resolveAiMediaFreeSpeechLanguage(prompt, script, args.profile.preferences.language);
-    const budget = getAiMediaFreeSpeechBudget(duration, language, script);
-    const unitMultiplier = budget.unit === "mots" ? 1 : 3;
-    const maximumUnits = Math.min(budget.maxUnits, (args.maximumSpeechUnits ?? Infinity) * unitMultiplier);
-    if (script.length > AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS || budget.units > maximumUnits) {
-      throw new AiMediaRequestValidationError("Le texte exact de la voix off est trop long pour cette durée. Raccourcissez-le ou choisissez une durée supérieure.");
+    if (script.length > AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS) {
+      throw new AiMediaRequestValidationError("Le texte exact de la voix off ne peut pas dépasser 4 000 caractères. Votre texte a été conservé.");
     }
     return { script, language, wordCount: script.split(/\s+/u).filter(Boolean).length,
       source: "ai", sha256: createHash("sha256").update(script).digest("hex") };
@@ -353,8 +341,9 @@ export async function writeAiMediaFreeNarration(args: {
     language = resolveAiMediaFreeSpeechLanguage(prompt, script, language, String(generated.language || ""));
   }
   const wordCount = script.split(/\s+/).filter(Boolean).length;
-  if (!script || script.length > 620 || wordCount > maxWords) {
-    if (exact) throw new AiMediaRequestValidationError("Le texte exact de la voix off est trop long pour cette durée. Raccourcissez-le ou choisissez une durée supérieure.");
+  if (exact) {
+    if (!script || script.length > AI_MEDIA_SPOKEN_SCRIPT_MAX_CHARS) throw new AiMediaRequestValidationError("Le texte exact de la voix off ne peut pas dépasser 4 000 caractères. Votre texte a été conservé.");
+  } else if (!script || script.length > 620 || wordCount > maxWords) {
     throw new Error("ai_media_generated_narration_invalid");
   }
   return { script, language, wordCount, source: "ai", sha256: createHash("sha256").update(script).digest("hex") };

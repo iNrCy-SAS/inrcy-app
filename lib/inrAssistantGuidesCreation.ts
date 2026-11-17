@@ -49,12 +49,12 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
 Visuel : vidéo 500 caractères, image 4 000 ; paroles séparées. Utiliser mon ADN coché par défaut ; sinon libre sans marque ni logo automatiques, sauf demande explicite. Consignes ET Interdictions de Ma communication intégrales ; interdictions priment. Booster illustre le sujet sans copie. Logo en zone sûre, sinon refus ; coordonnées sur demande.
 Références : Inspiration/Personnage/Décor/Produit, rôle puis Importer/Médiathèque images. Inspiration facultative, autres obligatoires ; vérifier identités/doublons.
 Musique iNrCy : Automatique/Sans musique/piste, préécoute ; hors vocaux.
-Menus indépendants : Personnages/Voix off/Sans paroles ; Auto/Exact ; IA/Réelle globale. Textes/vocaux/moteur conservés. Exact : Réglages, locuteur/texte par ligne, ajout/retrait/ordre. Voix off projette le narrateur ; retour Personnages restaure les attributions, mix IA hors champ possible. Vide/cible absente/incompatible : bloqué, sans moteur automatique. Sans paroles omet les paroles. Budget durée/moteur/langue ; jamais tronquer.
+Menus indépendants : Personnages/Voix off/Sans paroles ; Auto/Exact ; IA/Réelle globale. Textes/vocaux/moteur conservés. Exact : Réglages, locuteur/texte par ligne, ajout/retrait/ordre. Voix off projette le narrateur ; retour Personnages restaure les attributions, mix IA hors champ possible. Vide/cible absente/incompatible : bloqué, sans moteur automatique. Sans paroles omet les paroles. Durée estimée non bloquante ; texte conservé.
 Voix off IA : Femme/Homme, style. Voix réelle : 3 vocaux max, Ajouter → Importer/Enregistrer/Médiathèque → usage/genre. Voix off sans photo : Chatterbox hors moteur vidéo, 5 à 10 s, un narrateur actif. Personnages : Wan 2.7/Kling Omni/HeyGen Avatar, un vocal/personne ; Kling 5 à 10 s, un locuteur/vocal. Timbre réel, genre descriptif ; droits/import/enregistrement humains.
 En Libre, paroles exactes compatibles et piste réelle trop longue : une resynthèse supplémentaire, mêmes paroles/vocal ; jamais après erreur réseau/soumission incertaine, ni substitution de voix.
 Sous-titres : durée mesurée, départ estimé, pas d’alignement mot à mot. Barre et ≈% vidéo estimés, sans délai garanti.
-Coût/solde → Générer ; Enregistrer/Utiliser conserve ; régénérer peut débiter. Qualité : avis non bloquant « Vidéo à vérifier ».
-Vérifier mon média : même tentative, sans relance. Pause/fermeture garde l’identifiant ; critères restent modifiables. Une nouvelle génération attend sa résolution. Annuler la génération : confirmation distincte ; arrêt ≠ absence de débit.
+Coût/solde → Générer ; Enregistrer/Utiliser conserve ; régénérer peut débiter. Rendu moteur sans analyse IA. HeyGen : décor séparé ; coût Exact selon durée audio estimée.
+Rendu normal : Génération en cours, puis résultat. Vérifier mon média : reprise sans relance. Pause/fermeture garde l’identifiant ; critères restent modifiables. Une nouvelle génération attend sa résolution. Annuler la génération : confirmation distincte ; arrêt ≠ absence de débit.
 Basique sans crédits mensuels ; les recharges permettent de générer sans changer d’offre. Booster : type/format fixés.`,
     sourceFiles: [
       "lib/inrAssistantMediaTools.ts",
@@ -78,6 +78,14 @@ Basique sans crédits mensuels ; les recharges permettent de générer sans chan
       "lib/studioInspirationImagePolicy.ts",
       "lib/aiMediaGenerationContracts.ts",
       "lib/aiMediaVideoSpeechBudget.ts",
+      "lib/aiMediaHeygenBilling.ts",
+      "lib/aiVideoHeygenBackground.ts",
+      "lib/aiMediaPendingVideo.ts",
+      "lib/aiMediaPendingVideoWorker.ts",
+      "lib/aiSdkSafeWarnings.ts",
+      "app/api/media-generation/normalize-reference/route.ts",
+      "app/api/media-generation/generate/route.ts",
+      "app/dashboard/_hooks/useMediaCreditQuote.ts",
       "app/dashboard/_components/MediaGenerationCreationWorkspace.tsx",
       "app/dashboard/_hooks/useMediaGeneration.ts",
       "lib/inrAssistantLocalInterface.ts",

@@ -41,8 +41,9 @@ export function splitAiMediaExactDialogueScenes(turns: readonly AiMediaExactDial
       return scenes[index].length < Math.min(6, Math.max(2, Math.floor(durations[index] / 3))) &&
         budget.units <= budget.maxUnits && text.length <= budget.maxCharacters;
     };
-    while (!fits() && index < durations.length - 1) index++;
-    if (!fits()) throw new RangeError('Les répliques exactes dépassent la capacité de ces plans. Choisissez une durée supérieure ou raccourcissez-les ; leur texte et leur locuteur ont été conservés.');
+    // Reading speed is an estimate. A whole turn may exceed one segment without
+    // invalidating the film or changing the speaker/text sent to the provider.
+    if (scenes[index].length && !fits() && index < durations.length - 1) index++;
     scenes[index].push(turn);
   }
   return scenes;
@@ -100,9 +101,8 @@ export function getAiMediaVideoSpeechState(request: AiMediaVideoSpeechBudgetInpu
     : segmentBudgets.reduce((sum, budget) => sum + budget.maxCharacters, 0);
   const units = countUnits(spoken, totalBudget.unit);
   const excess = mode === 'silent' ? script.trim() ? units : 0 : Math.max(0, units - maxUnits, spoken.length - maxCharacters);
-  if (!issue && mode === 'characters' && !explicit && legacyLines.length > durations.length) issue = { code, message: 'Il y a plus de répliques que de plans disponibles. Réduisez le nombre de répliques ou choisissez davantage de plans.' };
-  if (!issue && mode !== 'silent') issue = segmentBudgets.find(segment => segment.issue)?.issue ?? (excess > 0 ? { code, message: `Les paroles dépassent le budget de ${maxUnits} ${totalBudget.unit} ou ${maxCharacters} caractères pour cette vidéo. Raccourcissez-les ou choisissez une durée supérieure.` } : null);
-  return { mode, script, language, unit: totalBudget.unit, units, maxUnits, characters: spoken.length, maxCharacters, excess, issue, segmentBudgets };
+  const advisory = mode !== 'silent' ? segmentBudgets.find(segment => segment.issue)?.issue ?? null : null;
+  return { mode, script, language, unit: totalBudget.unit, units, maxUnits, characters: spoken.length, maxCharacters, excess, issue, advisory, segmentBudgets };
 }
 
 /** A quote used as a sign/slogan remains visual. Pronunciation guides do not

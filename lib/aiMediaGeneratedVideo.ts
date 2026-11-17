@@ -1,4 +1,5 @@
 import "server-only";
+import { AI_MEDIA_MAX_PROVIDER_VIDEO_DURATION_SECONDS } from "./aiMediaPendingVideo.ts";
 
 import { execFile } from "node:child_process";
 import { copyFile, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
@@ -20,7 +21,7 @@ import {
   probeVideoSource,
   resolveVideoNormalizationFfmpegPath,
 } from "@/lib/mediaVideoNormalizer";
-import { buildAiMediaNarrationSubtitlesAss, estimateAiMediaNarrationSubtitleStartSeconds } from "./aiMediaNarrationSubtitles.ts";
+import { buildAiMediaNativeDialogueSubtitlesAss, buildAiMediaNarrationSubtitlesAss, estimateAiMediaNarrationSubtitleStartSeconds } from "./aiMediaNarrationSubtitles.ts";
 
 const execFileAsync = promisify(execFile);
 const MAX_GOOGLE_BUSINESS_VIDEO_BYTES = 74 * 1024 * 1024;
@@ -519,8 +520,8 @@ export async function composeOriginalAiVideo(args: {
   durationSeconds: AiMediaVideoDuration;
   soundtrack?: LoadedAiMediaSoundtrack | null;
   narration?: GeneratedAiNarrationAudio | null;
-  /** Only separately prepared narration has known complete, exact words. */
-  subtitles?: { script: string } | null;
+  /** Undefined source follows measured narration; native uses the sent dialogue and actual render duration. */
+  subtitles?: { script: string; source?: "native" } | null;
   /** Préserve les dialogues/lip-sync natifs à leur niveau de parole. */
   nativeAudioMode?: AiMediaNativeAudioMode;
   /** Avatar speech has a measured fractional duration, independent of the requested creative budget. */
@@ -534,14 +535,17 @@ export async function composeOriginalAiVideo(args: {
   if (requestedNativeAudioMode === "dialogue" && args.narration) {
     throw new Error("ai_original_video_dialogue_narration_conflict");
   }
-  if (args.subtitles && !args.narration) throw new Error("ai_media_narration_subtitles_audio_missing");
+  const nativeSubtitles = args.subtitles?.source === "native";
+  if (args.subtitles?.source !== undefined && !nativeSubtitles) throw new Error("ai_media_narration_subtitles_invalid");
+  if (nativeSubtitles && (requestedNativeAudioMode !== "dialogue" || args.narration)) throw new Error("ai_media_native_subtitles_audio_conflict");
+  if (args.subtitles && !args.narration && !nativeSubtitles) throw new Error("ai_media_narration_subtitles_audio_missing");
   const clipDurationTotal = args.clips.reduce(
     (total, clip) => total + clip.durationSeconds,
     0
   );
   const validDuration = (seconds: number) => Number.isFinite(seconds) &&
     (args.durationFromAudio === true
-      ? seconds > 0 && seconds <= 180
+      ? seconds > 0 && seconds <= AI_MEDIA_MAX_PROVIDER_VIDEO_DURATION_SECONDS
       : Number.isInteger(seconds) && seconds >= 4 && seconds <= 30);
   if (
     !validDuration(args.durationSeconds) ||
@@ -652,15 +656,21 @@ export async function composeOriginalAiVideo(args: {
       });
       command.push("-i", narrationPath);
     }
-    if (args.subtitles && narrationDurationSeconds !== null && narrationPath !== null) {
+    let captions: string | undefined;
+    if (args.subtitles && nativeSubtitles) {
+      captions = buildAiMediaNativeDialogueSubtitlesAss({ script: args.subtitles.script,
+        durationSeconds: args.durationSeconds, width: args.width, height: args.height });
+    } else if (args.subtitles && narrationDurationSeconds !== null && narrationPath !== null) {
       const { targetVoiceSeconds } = narrationTiming(args.durationSeconds);
       const tempo = Math.max(1, requiredNarrationTempo({ narrationDurationSeconds, targetVoiceSeconds }));
       const startOffsetSeconds = await probeNarrationSubtitleStartSeconds({
         ffmpegPath, inputPath: narrationPath, durationSeconds: narrationDurationSeconds, signal: args.signal,
       });
-      const captions = buildAiMediaNarrationSubtitlesAss({ script: args.subtitles.script,
+      captions = buildAiMediaNarrationSubtitlesAss({ script: args.subtitles.script,
         startOffsetSeconds: startOffsetSeconds / tempo,
         durationSeconds: narrationDurationSeconds / tempo, width: args.width, height: args.height });
+    }
+    if (captions !== undefined) {
       await mkdir(path.join(temporaryDirectory, "fonts"));
       await copyFile(path.join(process.cwd(), "node_modules", "next", "dist", "compiled", "@vercel", "og", "Geist-Regular.ttf"), path.join(temporaryDirectory, "fonts", "Geist-Regular.ttf"));
       await writeFile(path.join(temporaryDirectory, "captions.ass"), captions, "utf8");

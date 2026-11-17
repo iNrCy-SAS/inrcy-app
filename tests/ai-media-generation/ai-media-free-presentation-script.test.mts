@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
 import ts from "typescript";
+import * as safeWarnings from "../../lib/aiSdkSafeWarnings.ts";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as prompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
@@ -115,6 +116,7 @@ for (const engine of ["wan27", "heygen"] as const) {
       providerContract: boundary.buildAiMediaVideoProviderContract({ request: input, durationSeconds: 8, brandColors: [] }),
     } as providerTypes.AiVideoProviderGenerationArgs;
     const gateway = load<typeof import("../../lib/aiVideoProviderGateway.ts")>("lib/aiVideoProviderGateway.ts", new Map([
+      ["./aiSdkSafeWarnings.ts", safeWarnings],
       ["ai", { createDownload: () => async () => { throw new Error("real_download_forbidden"); } }],
       ["@/lib/aiGatewayAccountGuard", {}], ["./aiMediaBuffer.ts", { bufferFromUint8ArrayView }],
       ["./aiMediaFreeGenerationPrompt.ts", prompts], ["@/lib/aiMediaGenerationContracts", contracts],

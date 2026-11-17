@@ -40,6 +40,23 @@ function safeUrl(value: unknown): string {
   return url.toString();
 }
 
+async function readKlingJsonResponse(response: Response): Promise<string> {
+  const maximum = 1_000_000;
+  if (!response.body || Number(response.headers.get("content-length")) > maximum) {
+    await response.body?.cancel(); throw new Error("response_too_large");
+  }
+  const reader = response.body.getReader(); const chunks: Uint8Array[] = []; let bytes = 0;
+  try {
+    for (;;) {
+      const part = await reader.read(); if (part.done) break;
+      bytes += part.value.byteLength;
+      if (bytes > maximum) throw new Error("response_too_large");
+      chunks.push(part.value);
+    }
+  } finally { await reader.cancel().catch(() => undefined); reader.releaseLock(); }
+  return Buffer.concat(chunks, bytes).toString("utf8");
+}
+
 export function createKlingApiClient(options: {
   apiKey: string; fetch?: typeof fetch; sleep?: (milliseconds: number, signal?: AbortSignal) => Promise<void>;
   videoModel?: KlingVideoModel;
@@ -66,8 +83,7 @@ export function createKlingApiClient(options: {
     }
     let payload: JsonObject;
     try {
-      const text = await response.text();
-      if (text.length > 1_000_000) throw new Error("response_too_large");
+      const text = await readKlingJsonResponse(response);
       payload = object(JSON.parse(text));
     } catch {
       signal?.throwIfAborted();

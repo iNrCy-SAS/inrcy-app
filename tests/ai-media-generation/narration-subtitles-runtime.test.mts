@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAiMediaNarrationSubtitleCues, buildAiMediaNarrationSubtitlesAss } from "../../lib/aiMediaNarrationSubtitles.ts";
+import { buildAiMediaNativeDialogueSubtitleCues, buildAiMediaNativeDialogueSubtitlesAss, buildAiMediaNarrationSubtitleCues, buildAiMediaNarrationSubtitlesAss } from "../../lib/aiMediaNarrationSubtitles.ts";
 
 test("local narration captions retain exact accented words and advance over the measured voice only", () => {
   const script = "L’été d’Inès révèle l’élégance du jardin. Découvrez l’allée éclairée d’un accueil chaleureux.";
@@ -59,4 +59,19 @@ test("invalid or out-of-track offsets cannot extend or invert captions", () => {
     assert.throws(() => buildAiMediaNarrationSubtitlesAss({ script: "Paroles exactes.", durationSeconds: 6.88,
       startOffsetSeconds: offset, width: 1920, height: 1080 }), /subtitles_invalid/);
   }
+});
+
+test("native avatar captions retain the exact sent words throughout the real render up to the bounded provider duration", () => {
+  const script = "David : Bienvenue dans notre jardin. Kathia : Nous sommes ravis de vous accueillir, à très bientôt !";
+  for (const durationSeconds of [2.65, 31.2, 180, 667, 3600]) {
+    const cues = buildAiMediaNativeDialogueSubtitleCues(script, durationSeconds);
+    assert.equal(cues[0].startSeconds,0); assert.equal(cues.at(-1)!.endSeconds,durationSeconds);
+    assert.equal(cues.map(cue=>cue.text).join(" ").replace(/\s/gu,""),script.replace(/\s/gu,""));
+    cues.forEach((cue,index)=>{assert.ok(cue.endSeconds>cue.startSeconds);if(index)assert.equal(cue.startSeconds,cues[index-1].endSeconds);});
+    const ass=buildAiMediaNativeDialogueSubtitlesAss({script,durationSeconds,width:1080,height:1920});
+    assert.equal(ass.split("Dialogue: ").length-1,cues.length);
+  }
+  assert.throws(()=>buildAiMediaNativeDialogueSubtitleCues(script,3600.01),/subtitles_invalid/);
+  assert.throws(()=>buildAiMediaNativeDialogueSubtitleCues("x".repeat(4001),8),/subtitles_invalid/);
+  assert.throws(()=>buildAiMediaNarrationSubtitleCues(script,31.2),/subtitles_invalid/,"the existing measured narration contract remains unchanged");
 });

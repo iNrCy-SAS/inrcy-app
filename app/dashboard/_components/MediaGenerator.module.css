@@ -3357,7 +3357,8 @@
   font-size: clamp(26px, 2.6vw, 38px);
 }
 
-.reviewHeading p.speechReviewNotice {
+.reviewHeading p.speechReviewNotice,
+.reviewHeading p.finishingNotice {
   margin: 6px 0 0;
   color: #ffdf9a;
   font-size: 12px;

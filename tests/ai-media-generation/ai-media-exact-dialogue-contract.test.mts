@@ -62,8 +62,9 @@ test("invalid targets, unsupported mixtures, empty lines and contradictory legac
   assert.throws(() => normalizeAiMediaGenerationRequest(raw({ spokenScript: "Un autre texte." })), /soit.*ancien/);
   assert.throws(() => normalizeAiMediaGenerationRequest(raw({ kind: "image" })), /vidéo Libre/);
   const long = [{ speaker: "character", characterIndex: 1, text: "Un texte exact très long. ".repeat(100) }];
-  assert.throws(() => normalizeAiMediaGenerationRequest(raw({ exactDialogue: long })), /EXACT_DIALOGUE_TOO_LONG/);
-  assert.equal(long[0].text, "Un texte exact très long. ".repeat(100), "rejection never cuts the draft");
+  assert.deepEqual(normalizeAiMediaGenerationRequest(raw({ exactDialogue: long })).exactDialogue,long);
+  assert.throws(()=>normalizeAiMediaGenerationRequest(raw({exactDialogue:[{speaker:"character",characterIndex:1,text:"x".repeat(4001)}]})));
+  assert.equal(long[0].text, "Un texte exact très long. ".repeat(100), "estimates never cut the draft");
   assert.deepEqual(normalizeAiMediaExactDialogue([{ speaker: "ai_voice", text: " Bonjour\r\nle jardin. " }]), [{ speaker: "ai_voice", text: " Bonjour\nle jardin. " }]);
 });
 

@@ -1178,6 +1178,7 @@
   "ai_generator_reference_memory_save_error": "Medien konnten nicht gespeichert werden. Prüfen Sie Fotos und Stimmen und versuchen Sie es erneut.",
   "ai_generator_reference_memory_forget_error": "Medien konnten nicht vergessen werden. Versuchen Sie es erneut.",
   "ai_generator_reference_memory_forget_hint": "Diese Auswahl für meine nächsten Kreationen vergessen.",
+  "ai_generator_finishing_unavailable": "Das Video ist verfügbar. Einige Ergänzungen (Logo, Musik oder Untertitel) konnten nicht angewendet werden.",
   "ai_generator_speech_review_warning": "Video prüfen: Sehen und hören Sie sich das Ergebnis vor der Verwendung an.",
   "ai_generator_model_description_heygen-avatar": "Sprechende Porträts und Dialoge mit Ihren Fotos und Stimmen.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Präsentationen vor der Kamera und Gespräche in aufeinanderfolgenden Einstellungen.",

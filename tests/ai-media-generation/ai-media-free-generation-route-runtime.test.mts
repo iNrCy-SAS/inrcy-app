@@ -44,7 +44,7 @@ type ReservationCall = {
   metadata?: Record<string, unknown>;
 };
 
-function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; clock?: { now: number }; cancelledKey?: string; cancellationConflictKey?: string; providerFails?: boolean; providerError?: Error; preparationError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void>; checkpoint?: "saved" | "lost_ack" | "unavailable"; compositionFails?: boolean; cleanupFails?: boolean;
+function loadRoute(options: { authenticated?: boolean; authentication?: Promise<void>; clock?: { now: number }; cancelledKey?: string; cancellationConflictKey?: string; providerFails?: boolean; providerError?: Error; preparationError?: Error; quotaReached?: boolean; maximumDuration?: number; creditsReady?: boolean; preparation?: Promise<void>; work?: Promise<void>; checkpoint?: "saved" | "lost_ack" | "unavailable"; compositionFails?: boolean; cleanupFails?: boolean; anchorUnavailable?: boolean; checkpointSucceedsAt?: number;
   narrator?: { configured?: boolean; language?: string; profileFails?: boolean; error?: Error; reference?: PreparedAiMediaNarrationVoice } } = {}) {
   const reservationCalls: ReservationCall[] = [];
   const generationCalls: Array<{ request: contracts.AiMediaGenerationRequest; accountId: string; jobId: string; signal?: AbortSignal; deadlineAt?: number; preparedNarrationVoice?: PreparedAiMediaNarrationVoice | null }> = [];
@@ -57,6 +57,8 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
   const failureCalls: unknown[] = [];
   const releasedCheckpoints: unknown[] = [];
   const providerRecoveries: unknown[] = [];
+  const providerWorkerCheckpoints: unknown[] = [];
+  const pendingAnchors: unknown[] = [], persistedCheckpoints: Record<string,unknown>[] = [], persistenceWaits:number[]=[];
   const completedRequests = new Map<string, { fingerprint: string; jobId: string }>();
   const pendingRequests = new Map<string, { fingerprint: string; jobId: string }>();
   const item = {
@@ -68,6 +70,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
   class QuotaError extends Error {}
   const modules = new Map<string, unknown>([
     ["@/lib/aiMediaPendingVideo", pendingVideo],
+    ["node:timers/promises",{setTimeout:async(ms:number)=>{persistenceWaits.push(ms);}}],
     ["@/lib/aiMediaNativeDialogueQa", nativeDialogueQa],
     ["@/lib/aiMediaGenerationPublicErrors", publicErrors],
     ["@/lib/aiMediaNarrationVoiceClone", { isAiMediaVoiceCloneConfigured: () => options.narrator?.configured !== false, supportsAiMediaClonedNarrationLanguage: clonePolicy.supportsAiMediaClonedNarrationLanguage }],
@@ -80,10 +83,13 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
         return options.narrator?.reference;
       },
     }],
+    ["@/lib/aiMediaPendingVideoWorker", { continuePendingAiMediaVideo: async (scope:unknown,_deadlineAt:number,checkpoint:unknown)=>{providerRecoveries.push(scope);providerWorkerCheckpoints.push(checkpoint);} }],
     ["@/lib/aiMediaCompositionRecovery", {
       recoverNextAiMediaCompositionCheckpoint: async (scope: unknown) => { providerRecoveries.push(scope); return { status: "retry_pending" }; },
+      startPendingAiMediaVideoAnchor: async (args:Record<string,unknown>)=>{pendingAnchors.push(args);narratorEvents.push("pending-anchor");if(options.anchorUnavailable)throw new Error("private recovery unavailable");return {accountId:args.accountId,jobId:args.jobId,leaseToken:"lease-a"};},
       persistAiMediaCompositionCheckpoint: async (args: Record<string, unknown>) => {
-        if (options.checkpoint !== "saved") throw new Error("checkpoint unavailable");
+        persistedCheckpoints.push(args);
+        if (options.checkpoint !== "saved" && !(options.checkpointSucceedsAt && persistedCheckpoints.length>=options.checkpointSucceedsAt)) throw new Error("checkpoint unavailable");
         return { accountId: args.accountId, jobId: args.jobId, leaseToken: "lease-a" };
       },
       hasAiMediaCompositionCheckpoint: async () => options.checkpoint === "lost_ack",
@@ -115,6 +121,11 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
           }
           return { outcome: "replayed", status: "completed", jobId: completed.jobId };
         }
+        const pending = pendingRequests.get(args.requestKey);
+        if (pending) {
+          if (args.requestFingerprint !== pending.fingerprint) throw Object.assign(new QuotaError("Idempotency conflict"),{code:"AI_MEDIA_IDEMPOTENCY_CONFLICT",httpStatus:409});
+          return {outcome:"replayed",status:"processing",jobId:pending.jobId};
+        }
         const jobId = `job-${pendingRequests.size + 1}`;
         pendingRequests.set(args.requestKey, { fingerprint: args.requestFingerprint, jobId });
         return { outcome: "reserved", status: "reserved", jobId };
@@ -139,8 +150,9 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
         args.signal?.throwIfAborted();
         if (options.preparationError) throw options.preparationError;
         await args.onBillableWorkStarted?.();
-        paidCalls += 1;
-        if (options.checkpoint) await args.onCompositionReady?.({ input: {}, metadata: {} });
+        paidCalls += 1;narratorEvents.push("paid");
+        if (options.checkpoint || pendingVideo.isAiVideoProviderPending(options.providerError)) await args.onCompositionReady?.({ input: {}, metadata: {},
+          ...(pendingVideo.isAiVideoProviderPending(options.providerError)?{pendingProvider:options.providerError.task}:{}) });
         if (options.compositionFails) throw new Error("ffmpeg timeout");
         await options.work;
         if (options.providerError) throw options.providerError;
@@ -183,7 +195,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
     return modules.get(specifier);
   }, { info() {}, warn() {}, error() {} }, routeDate);
   return {
-    reservationCalls, generationCalls, completionCalls, failureCalls, lifetimes, releasedCheckpoints, narratorPreflights, narratorEvents, providerRecoveries,
+    reservationCalls, generationCalls, completionCalls, failureCalls, lifetimes, releasedCheckpoints, narratorPreflights, narratorEvents, providerRecoveries, providerWorkerCheckpoints, pendingAnchors,persistedCheckpoints,persistenceWaits,
     paidCalls: () => paidCalls, authenticationCalls: () => authenticationCalls,
     post: (body: unknown, init: RequestInit = {}) => record.exports.POST(new Request("https://example.invalid/api/media-generation/generate", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), ...init,
@@ -318,52 +330,33 @@ test("les créations libres passent par la même authentification avant tout dé
   assert.equal(route.generationCalls.length, 0);
 });
 
-test("exact narration exceeding duration is rejected before reservation or AI work, in JSON and streaming", async () => {
-  for (const streamed of [false, true]) {
-    for (const exact of [{ spokenScript: "Bonjour ".repeat(40) }, { freePrompt: `Un atelier. Voix off : « ${"Bonjour ".repeat(40)} »` }, { spokenScript: "你".repeat(100), freePrompt: "Une scène en chinois." }, { freePrompt: `En chinois. Voix off : « ${"你".repeat(100)} »` }]) {
-      const route = loadRoute();
-      const raw = await route.post(body({ kind: "video", videoEngine: "grok-lite", durationSeconds: 4, withNarration: true, ...exact }), streamed ? {
-        headers: { "Content-Type": "application/json", Accept: generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE },
-      } : {});
-      const response = await generationTransport.readAiMediaGenerationResponse(raw, () => {});
-      assert.equal(response.status, 422);
-      assert.equal((response.payload as Record<string, unknown>).code, "AI_MEDIA_EXACT_NARRATION_TOO_LONG");
-      assert.equal(route.reservationCalls.length, 0);
-      assert.equal(route.generationCalls.length, 0);
-      assert.equal(route.paidCalls(), 0);
-      assert.equal(route.failureCalls.length, 0);
-    }
-  }
+test("reading-speed estimates do not reject exact narration before provider work, in JSON and streaming",async()=>{
+ for(const streamed of [false,true])for(const spokenScript of ["Bonjour ".repeat(40),"你".repeat(100)]){
+  const route=loadRoute();const raw=await route.post(body({kind:"video",videoEngine:"grok-lite",durationSeconds:4,withNarration:true,spokenScript}),streamed?{headers:{"Content-Type":"application/json",Accept:generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE}}:{});
+  const response=await generationTransport.readAiMediaGenerationResponse(raw,()=>{});assert.equal(response.status,200);
+  assert.equal(route.reservationCalls.length,1);assert.equal(route.generationCalls.length,1);assert.equal(route.failureCalls.length,0);
+  assert.equal((route.generationCalls[0] as {request:{spokenScript:string}}).request.spokenScript,spokenScript);
+ }
 });
-
-test("speech preflight preserves valid exact copy and explicit silence while refusing impossible character speech", () => {
+test("speech preflight preserves valid exact copy and explicit silence without rejecting an estimated character speaking pace", () => {
   for (const overrides of [{ spokenScript: "Bonjour, bienvenue !" }, { spokenScript: "", freePrompt: 'Voix off : « ' + "Bonjour ".repeat(40) + ' »' }, { spokenScript: "Bonjour, bienvenue !", teamVideoSpeechMode: "characters" }]) {
     const input = contracts.normalizeAiMediaGenerationRequest(body({ kind: "video", videoEngine: "grok-lite", durationSeconds: 4, withNarration: true, ...overrides }));
     const before = JSON.stringify(input);
     assert.doesNotThrow(() => assertAiMediaFreeExactNarrationFits(input));
     assert.equal(JSON.stringify(input), before);
   }
-  assert.throws(() => contracts.normalizeAiMediaGenerationRequest(body({ kind: "video", videoEngine: "grok-lite", durationSeconds: 4,
-    withNarration: false, teamVideoSpeechMode: "characters", spokenScript: "Bonjour ".repeat(40) })), /AI_MEDIA_EXACT_DIALOGUE_TOO_LONG/);
+  assert.equal(contracts.normalizeAiMediaGenerationRequest(body({ kind: "video", videoEngine: "grok-lite", durationSeconds: 4,
+    withNarration: false, teamVideoSpeechMode: "characters", spokenScript: "Bonjour ".repeat(40) })).spokenScript,"Bonjour ".repeat(40));
 });
 
-test("exact character dialogue is rejected before credits or AI work in both JSON and streaming, including legacy quotations", async () => {
-  for (const streamed of [false, true]) for (const speech of [{ spokenScript: "Bonjour ".repeat(40) }, { freePrompt: `Un personnage dit « ${"Bonjour ".repeat(40)} »` }]) {
-    const route = loadRoute();
-    const raw = await route.post(body({ kind: "video", videoEngine: "veo", durationSeconds: 8, withNarration: false, teamVideoSpeechMode: "characters", ...speech }), streamed ? {
-      headers: { "Content-Type": "application/json", Accept: generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE },
-    } : {});
-    const response = await generationTransport.readAiMediaGenerationResponse(raw, () => {});
-    assert.equal(response.status, 422);
-    const payload = response.payload as Record<string, unknown>;
-    assert.equal(payload.code, "AI_MEDIA_EXACT_DIALOGUE_TOO_LONG");
-    assert.match(String(payload.error), /paroles exactes|réplique/i);
-    assert.equal(route.reservationCalls.length, 0);
-    assert.equal(route.generationCalls.length, 0);
-    assert.equal(route.paidCalls(), 0);
-  }
+test("Exact character speech reaches its provider intact despite an estimated timing excess",async()=>{
+ for(const streamed of [false,true]){const route=loadRoute();const spokenScript="Bonjour ".repeat(40);
+  const raw=await route.post(body({kind:"video",videoEngine:"veo",durationSeconds:8,withNarration:false,teamVideoSpeechMode:"characters",spokenScript}),streamed?{headers:{"Content-Type":"application/json",Accept:generationTransport.AI_MEDIA_GENERATION_STREAM_TYPE}}:{});
+  const response=await generationTransport.readAiMediaGenerationResponse(raw,()=>{});assert.equal(response.status,200);
+  assert.equal(route.reservationCalls.length,1);assert.equal(route.generationCalls.length,1);
+  assert.equal((route.generationCalls[0] as {request:{spokenScript:string}}).request.spokenScript,spokenScript);
+ }
 });
-
 test("reservation observability uses the active free prompt version and safe separate input lengths", async () => {
   const route = loadRoute();
   const visual = "Un atelier en lumière naturelle.";
@@ -985,5 +978,34 @@ test("an accepted HeyGen job returns background status without refunding, finish
   await Promise.all(route.lifetimes);
   assert.equal(route.reservationCalls.length,1); assert.equal(route.generationCalls.length,1);
   assert.equal(route.failureCalls.length,0); assert.equal(route.completionCalls.length,0);
-  assert.equal(route.releasedCheckpoints.length,1); assert.equal(route.providerRecoveries.length,1);
+  assert.equal(route.releasedCheckpoints.length,0); assert.equal(route.providerRecoveries.length,1);
+  assert.deepEqual(route.providerWorkerCheckpoints,[{accountId:"active-account-test",jobId:route.generationCalls[0]!.jobId,leaseToken:"lease-a"}]);
+});
+
+function acceptedHeygenError(){return new pendingVideo.AiVideoProviderPending({provider:"heygen-direct",model:"heygen-avatar-iv",videoId:"accepted-private-id",temporaryVoiceIds:["temporary-private-voice"],temporaryAvatarGroupIds:[],temporaryAssetIds:[],estimatedCostMicroUsd:640000});}
+function acceptedHeygenBody(){return body({kind:"video",videoEngine:"heygen-avatar",videoResolution:"720p",durationSeconds:8,freePrompt:"Une présentation face caméra.",teamVideoSpeechMode:"voiceover",withNarration:false});}
+test("an unavailable private HeyGen anchor prevents every paid supplier call",async()=>{
+  const route=loadRoute({anchorUnavailable:true});
+  const response=await route.post(acceptedHeygenBody());assert.ok(response.status>=400);
+  assert.equal(route.paidCalls(),0);assert.equal(route.generationCalls.length,0);assert.equal(route.failureCalls.length,1);
+});
+for(const checkpoint of ["lost_ack","unavailable"] as const)test("accepted HeyGen "+checkpoint+" keeps its reservation and never resubmits or leaks private IDs",async()=>{
+  const route=loadRoute({checkpoint,providerError:acceptedHeygenError()});
+  const response=await route.post(acceptedHeygenBody());assert.equal(response.status,202);
+  assert.doesNotMatch(JSON.stringify(await response.json()),/accepted-private-id|temporary-private-voice/);
+  await Promise.all(route.lifetimes);
+  assert.ok(route.narratorEvents.indexOf("pending-anchor")<route.narratorEvents.indexOf("paid"));
+  assert.equal(route.paidCalls(),1);assert.equal(route.failureCalls.length,0);assert.equal(route.completionCalls.length,0);
+  assert.equal(route.providerRecoveries.length,checkpoint==="lost_ack"?1:0);
+  if(checkpoint==="unavailable"){assert.equal(route.persistedCheckpoints.length,4);assert.deepEqual(route.persistenceWaits,[1000,2000]);}
+  for(const args of route.persistedCheckpoints){assert.equal((args.checkpoint as Record<string,unknown>).leaseToken,"lease-a");assert.equal((args.pendingProvider as Record<string,unknown>).videoId,"accepted-private-id");}
+  const replay=await route.post(acceptedHeygenBody());assert.equal(replay.status,409);assert.equal(route.paidCalls(),1);
+});
+test("a transient accepted-checkpoint outage is retried with the original lease before background reads",async()=>{
+  const route=loadRoute({checkpoint:"unavailable",checkpointSucceedsAt:2,providerError:acceptedHeygenError()});
+  assert.equal((await route.post(acceptedHeygenBody())).status,202);await Promise.all(route.lifetimes);
+  assert.equal(route.persistedCheckpoints.length,2);assert.equal(route.paidCalls(),1);assert.equal(route.failureCalls.length,0);
+  assert.equal(route.releasedCheckpoints.length,0);assert.equal(route.providerRecoveries.length,1);
+  assert.deepEqual(route.providerWorkerCheckpoints,[{accountId:"active-account-test",jobId:route.generationCalls[0]!.jobId,leaseToken:"lease-a"}]);
+  assert.ok(route.persistedCheckpoints.every(args=>(args.checkpoint as Record<string,unknown>).leaseToken==="lease-a"));
 });

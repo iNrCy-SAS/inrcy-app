@@ -1,4 +1,5 @@
 import { after, NextResponse } from "next/server";
+import { setTimeout as delay } from "node:timers/promises";
 import { isAiVideoProviderPending } from "@/lib/aiMediaPendingVideo";
 
 import {
@@ -34,7 +35,7 @@ import { isAdminUserForAi } from "@/lib/aiUsageQuota";
 import { generateAndSaveAiMedia } from "@/lib/aiMediaGenerationServer";
 import {
   persistAiMediaCompositionCheckpoint, releaseAiMediaCompositionCheckpoint,
-  finishAiMediaCompositionCheckpoint, hasAiMediaCompositionCheckpoint,
+  finishAiMediaCompositionCheckpoint, hasAiMediaCompositionCheckpoint, startPendingAiMediaVideoAnchor,
 } from "@/lib/aiMediaCompositionRecovery";
 import { safeAiMediaErrorDetails, safeAiMediaErrorMessage } from "@/lib/aiMediaSensitiveText";
 import { getAiMediaNativeDialogueQaFailureMetadata } from "@/lib/aiMediaNativeDialogueQa";
@@ -319,6 +320,8 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
   let persistedVideoEngineResult: AiMediaGenerationServerResult["videoEngineResult"] = null;
   let compositionCheckpoint: Awaited<ReturnType<typeof persistAiMediaCompositionCheckpoint>> | null = null;
   let compositionCheckpointAttempted = false;
+  let pendingComposition: Parameters<typeof persistAiMediaCompositionCheckpoint>[0] | null = null;
+  let pendingCheckpointRecorded = false;
   let accountEdition: DashboardEdition | null = null;
   let videoMaxDurationSeconds: AiMediaVideoDurationLimit = 30;
   let adminUnlimited = false;
@@ -618,6 +621,9 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
     }
 
     quotaReserved = true;
+    if (normalizedRequest.kind === "video" && normalizedRequest.videoEngine === "heygen-avatar") {
+      compositionCheckpoint = await startPendingAiMediaVideoAnchor({accountId:context.accountId,jobId:context.jobId!,authUserId:context.authUserId});
+    }
     const generated = await generateAndSaveAiMedia({
       supabase: current.supabase,
       accountId: context.accountId,
@@ -632,16 +638,18 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
       signal: executionSignal,
       deadlineAt: options.deadlineAt,
       onBillableWorkStarted: options.onBillingStarted,
-      onCompositionReady: async ({ input, metadata, pendingProvider }) => {
+      onCompositionReady: async ({ input, metadata, pendingProvider, providerReceiptOnly }) => {
         compositionCheckpointAttempted = true;
+        const persistence = { accountId:context.accountId,jobId:context.jobId!,authUserId:context.authUserId,
+          input,metadata,pendingProvider,providerReceiptOnly,...(compositionCheckpoint ? {checkpoint:compositionCheckpoint} : {}) };
+        if (pendingProvider) pendingComposition = persistence;
         try {
-          compositionCheckpoint = await persistAiMediaCompositionCheckpoint({
-            accountId: context.accountId, jobId: context.jobId!, authUserId: context.authUserId,
-            input, metadata, pendingProvider, ...(compositionCheckpoint ? { checkpoint: compositionCheckpoint } : {}),
-          });
+          compositionCheckpoint = await persistAiMediaCompositionCheckpoint(persistence);
+          if (pendingProvider) pendingCheckpointRecorded = true;
         } catch {
-          // A recovery-store outage must not prevent a healthy local montage.
-          console.warn("[ai-media] composition checkpoint unavailable", { jobId: context.jobId });
+          // A synchronous montage can continue. An accepted remote render is retained and retried below.
+          console.warn("[ai-media] composition checkpoint unavailable", {jobId:context.jobId,
+            ...(pendingProvider ? {providerVideoId:pendingProvider.videoId} : {})});
         }
       },
     });
@@ -814,15 +822,33 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
       }
     }
 
-    if (isAiVideoProviderPending(error) && compositionCheckpoint) {
-      await releaseAiMediaCompositionCheckpoint(compositionCheckpoint);
-      const scopedJob = { accountId: context.accountId, jobId: context.jobId! };
+    if (isAiVideoProviderPending(error) && context.accountId && context.jobId) {
+      const scopedJob = {accountId:context.accountId,jobId:context.jobId};
+      const providerVideoId = error.task.videoId;
       after(async () => {
-        const { recoverNextAiMediaCompositionCheckpoint } = await import("@/lib/aiMediaCompositionRecovery");
-        await recoverNextAiMediaCompositionCheckpoint(scopedJob).catch(() => undefined);
+        // Reconcile the same accepted ID and lease. This task never submits provider work.
+        const {continuePendingAiMediaVideo} = await import("@/lib/aiMediaPendingVideoWorker");
+        for (let attempt = 0; attempt < 3 && Date.now() < options.deadlineAt - 10_000; attempt++) {
+          let ready = pendingCheckpointRecorded || await hasAiMediaCompositionCheckpoint({...scopedJob,readyOnly:true}).catch(()=>false);
+          if (!ready && pendingComposition) {
+            try {
+              compositionCheckpoint = await persistAiMediaCompositionCheckpoint({...pendingComposition,...(compositionCheckpoint ? {checkpoint:compositionCheckpoint} : {})});
+              ready = pendingCheckpointRecorded = true;
+            } catch {
+              console.warn("[ai-media] accepted render persistence retry",{jobId:scopedJob.jobId,providerVideoId,attempt:attempt+1});
+            }
+          }
+          if (ready) {
+            await continuePendingAiMediaVideo(scopedJob,options.deadlineAt,compositionCheckpoint).catch(()=>undefined);
+            return;
+          }
+          if (attempt < 2) await delay(1_000 * (attempt+1));
+        }
+        // Simultaneous data-store outages retain the reservation and a safe diagnostic, never a false provider failure.
+        console.error("[ai-media] accepted render awaiting durable recovery",{jobId:scopedJob.jobId,providerVideoId});
       });
-      return jsonError({ status: 202, code: "AI_MEDIA_FINALIZATION_PENDING",
-        message: "HeyGen prépare votre vidéo. La création continue en arrière-plan ; vous pouvez revenir plus tard.", retryAfterSeconds: 5 });
+      return jsonError({status:202,code:"AI_MEDIA_FINALIZATION_PENDING",
+        message:"Votre vidéo est en cours de génération. La création continue en arrière-plan.",retryAfterSeconds:5});
     }
     if (quotaReserved && !quotaCompleted && !mediaPersisted && context.accountId && context.jobId && compositionCheckpointAttempted) {
       // The paid assets may already be durable, even if the acknowledgement

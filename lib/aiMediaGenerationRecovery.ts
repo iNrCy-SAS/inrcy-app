@@ -4,6 +4,8 @@ export type AiMediaGenerationRecoveryPointer = {
   format: "square" | "portrait" | "story" | "landscape";
   /** Set only after success; allows acceptance/discard to clear this exact result. */
   mediaId?: string;
+  /** A confirmed provider render resumes as normal generation after reload. */
+  phase?: "rendering";
 };
 type RecoveryStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 /** Keep attempts from older session-only releases recoverable during upgrades. */
@@ -51,6 +53,7 @@ export function readAiMediaGenerationRecovery(storage: RecoveryStorage | null, a
     if (value?.version !== 1 || typeof value.requestId !== "string" || !REQUEST_KEY_PATTERN.test(value.requestId) ||
       !["image", "video"].includes(value.kind) || !["square", "portrait", "story", "landscape"].includes(value.format)) return null;
     return { requestId: value.requestId, kind: value.kind, format: value.format,
+      ...(value.kind === "video" && value.phase === "rendering" ? { phase: "rendering" as const } : {}),
       ...(typeof value.mediaId === "string" && MEDIA_KEY_PATTERN.test(value.mediaId) ? { mediaId: value.mediaId } : {}) };
   } catch { return null; }
 }
@@ -60,6 +63,7 @@ export function writeAiMediaGenerationRecovery(storage: RecoveryStorage | null, 
   try {
     storage.setItem(`${PREFIX}${encodeURIComponent(accountId)}`, JSON.stringify({
       version: 1, savedAt: Date.now(), requestId: pointer.requestId, kind: pointer.kind, format: pointer.format,
+      ...(pointer.kind === "video" && pointer.phase === "rendering" ? { phase: "rendering" } : {}),
       ...(pointer.mediaId && MEDIA_KEY_PATTERN.test(pointer.mediaId) ? { mediaId: pointer.mediaId } : {}),
     }));
   } catch { /* Recovery remains available in memory if browser storage is blocked. */ }

@@ -194,3 +194,19 @@ test("equivalent input objects preserve a pending and then confirmed quote witho
   assert.equal(h.status().quote?.quoteId, "account-a-0");
   h.dispose();
 });
+
+
+test("inline HeyGen speech reaches the quote unchanged and editing it invalidates the old authorization", async () => {
+  const first: MediaCreditQuoteInput = { ...input("heygen-avatar"), videoResolution:"1080p", teamVideoSpeechMode:"characters",
+    freePrompt:'Une personne dit : « '+Array(100).fill('mot').join(' ')+' » dans un jardin.' };
+  const h=harness(first,quota("account-a",5000));
+  h.runTimers();assert.equal(h.requests[0].input.freePrompt,first.freePrompt);
+  const expected=pricing.quoteAiMediaCredits(first);assert.ok(expected.billableDurationSeconds!>first.durationSeconds!);
+  h.respond(0,"account-a",5000);await h.flush();assert.equal(h.status().quote?.totalCredits,expected.totalCredits);
+  assert.equal(h.status().authorization.expectedCredits,expected.totalCredits);
+  const replacement={...first,freePrompt:'Une personne dit : « Bonjour et bienvenue dans notre jardin. »'};
+  h.update(replacement);assert.equal(h.status().ready,false);assert.deepEqual(h.status().authorization,{});
+  h.runTimers();assert.equal(h.requests[1].input.freePrompt,replacement.freePrompt);
+  h.respond(1,"account-a",5000);await h.flush();assert.equal(h.status().quote?.totalCredits,pricing.quoteAiMediaCredits(replacement).totalCredits);
+  assert.ok(h.status().quote!.totalCredits<expected.totalCredits);h.dispose();
+});

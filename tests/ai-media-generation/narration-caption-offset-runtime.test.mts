@@ -9,6 +9,7 @@ import test from "node:test";
 import ts from "typescript";
 import * as fullFrame from "../../lib/aiMediaFullFrame.ts";
 import * as subtitles from "../../lib/aiMediaNarrationSubtitles.ts";
+import * as pendingVideo from "../../lib/aiMediaPendingVideo.ts";
 
 function pcm(leadingSeconds: number, options: { quietDb?: number; activeDb?: number; burstOnly?: boolean; seconds?: number } = {}) {
   const sampleRate = 16_000, seconds = options.seconds ?? 3;
@@ -71,6 +72,7 @@ function harness(options: { duration?: number; analysisError?: boolean; abortAna
     if (id === "node:child_process") return { execFile: fakeExec };
     if (id === "./aiMediaFullFrame.ts") return fullFrame;
     if (id === "./aiMediaNarrationSubtitles.ts") return subtitles;
+    if (id === "./aiMediaPendingVideo.ts") return pendingVideo;
     if (id === "@/lib/mediaVideoNormalizer") return { probeVideoSource: async () => probe, resolveVideoNormalizationFfmpegPath: async () => "local-ffmpeg" };
     if (id.startsWith("node:")) return nativeRequire(id);
     throw new Error("unexpected-test-dependency");

@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { chromium } from '@playwright/test';
+import { chromium, webkit } from '@playwright/test';
 import ts from 'typescript';
 
 // Reuse the real, network-blocked React/CSS fixture without registering its tests.
@@ -23,9 +23,10 @@ const output = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..
 mkdirSync(output, { recursive: true });
 
 test('compact Exact rows keep two columns, real speech budget, controls and both replies visible on desktop and mobile', async () => {
-  const browser = await chromium.launch({ headless: true });
+  for (const browserType of [chromium, webkit]) {
+  const browser = await browserType.launch({ headless: true });
   try {
-    for (const viewport of [{ width: 1366, height: 768 }, { width: 390, height: 844 }]) {
+    for (const viewport of [{ width: 320, height: 720 }, { width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1440, height: 900 }]) {
       const page = await browser.newPage({ viewport }); const errors = await mount(page);
       await page.locator('select[id$="-engine"]').selectOption('kling:1080p');
       await page.evaluate(() => {
@@ -65,21 +66,22 @@ test('compact Exact rows keep two columns, real speech budget, controls and both
       const geometry = await dialog.evaluate(element => {
         const bound = element.getBoundingClientRect();
         const list = element.querySelector('ol')!;
-        return { height: bound.height, top: bound.top, bottom: bound.bottom, viewport: innerHeight, overflow: element.scrollWidth > element.clientWidth,
+        return { colorScheme: getComputedStyle(element).colorScheme, height: bound.height, top: bound.top, bottom: bound.bottom, viewport: innerHeight, overflow: element.scrollWidth > element.clientWidth,
           listScroll: list.scrollHeight > list.clientHeight + 1,
           rows: Array.from(element.querySelectorAll('[data-exact-dialogue-row]')).map(row => {
             const select = row.querySelector('select')!.getBoundingClientRect(), textarea = row.querySelector('textarea')!.getBoundingClientRect(), heading = row.querySelector('strong')!.getBoundingClientRect();
             return { top: row.getBoundingClientRect().top, bottom: row.getBoundingClientRect().bottom, selectLeft: select.left, selectWidth: select.width, textLeft: textarea.left, textWidth: textarea.width, textHeight: textarea.height, headingAbove: heading.bottom <= select.top + 1 };
           }), footerVisible: element.querySelector('footer')!.getBoundingClientRect().bottom <= bound.bottom + 1 };
       });
-      assert.equal(geometry.overflow, false); assert.equal(geometry.listScroll, false); assert.ok(geometry.top >= 0 && geometry.bottom <= geometry.viewport); assert.equal(geometry.footerVisible, true); assert.equal(geometry.rows.length, 2);
-      for (const row of geometry.rows) { assert.ok(row.headingAbove); assert.ok(row.textLeft >= row.selectLeft + row.selectWidth); assert.ok(row.textHeight >= 52 && row.textHeight <= 62); assert.ok(row.textWidth >= 95); assert.ok(row.bottom - row.top <= 120); }
-      assert.ok(geometry.height < 400, `two compact replies fit without scrolling: ${JSON.stringify(geometry)}`);
+      assert.equal(geometry.colorScheme, "dark", "native Safari controls must retain readable dark styling"); assert.equal(geometry.overflow, false); assert.equal(geometry.listScroll, false); assert.ok(geometry.top >= 0 && geometry.bottom <= geometry.viewport); assert.equal(geometry.footerVisible, true); assert.equal(geometry.rows.length, 2);
+      for (const row of geometry.rows) { assert.ok(row.headingAbove); assert.ok(row.textLeft >= row.selectLeft + row.selectWidth); assert.ok(row.textHeight >= 52 && row.textHeight <= 62); assert.ok(row.textWidth >= 95); assert.ok(row.bottom - row.top <= (viewport.width <= 350 ? 128 : 120), JSON.stringify({viewport,geometry})); }
+      // At 320px the actions move below the two columns; all controls still fit the viewport.
+      assert.ok(geometry.height < (viewport.width <= 520 ? 450 : 400), `two compact replies fit without scrolling: ${JSON.stringify(geometry)}`);
       assert.equal(await dialog.locator('textarea').first().getAttribute('maxlength'), null);
       await dialog.locator('textarea').first().fill('x'.repeat(4100)); assert.equal((await dialog.locator('textarea').first().inputValue()).length, 4100);
       assert.equal(await dialog.locator('[data-exact-dialogue-budget]').getAttribute('data-invalid'), 'true');
       await dialog.locator('textarea').first().fill('Les feuilles brillent dans notre jardin.');
-      await page.screenshot({ path: path.join(output, `studio-exact-dialogue-compact-${viewport.width}x${viewport.height}.png`), fullPage: true });
+      await page.screenshot({ path: path.join(output, `studio-exact-dialogue-compact-${browserType.name()}-${viewport.width}x${viewport.height}.png`), fullPage: true });
       for (let index = 0; index < 10; index++) await dialog.locator('[data-exact-dialogue-add]').click();
       const full = await dialog.evaluate(element => {
         const rect = element.getBoundingClientRect(), list = element.querySelector('ol')!, header = element.querySelector('header')!.getBoundingClientRect(), footer = element.querySelector('footer')!.getBoundingClientRect();
@@ -89,4 +91,5 @@ test('compact Exact rows keep two columns, real speech budget, controls and both
       assert.deepEqual(errors, []); await page.close();
     }
   } finally { await browser.close(); }
+  }
 });

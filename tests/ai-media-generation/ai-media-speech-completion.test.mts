@@ -145,7 +145,7 @@ test("le prompt Veo transmet la réplique complète et réserve une fin silencie
     /plan: creativePlan,[\s\S]*?contentLanguage: speechLanguage/
   );
   assert.match(server, /const speechLanguage = isFreeCreation[\s\S]*?nativeVoiceoverNarration\?\.language[\s\S]*?: profile\.preferences\.language/);
-  assert.match(server, /expectedLine: expectedDialogueLines\[index\] \|\| ""/);
+  assert.doesNotMatch(server, /auditAiMediaNativeDialogueWithGoogle/);
   assert.match(
     server,
     /nativeCharacterDialoguePreserved\s*=\s*characterDialogueRequested &&\s*!characterDialogueProviderFallback/,
@@ -156,8 +156,8 @@ test("le prompt Veo transmet la réplique complète et réserve une fin silencie
     /ai_media_character_dialogue_quality_unverified/,
     "un avis qualité ne remplace pas la piste native par une nouvelle synthèse"
   );
-  assert.match(server, /advisoryOnly: true/);
-  assert.match(server, /nativeDialogueDelivery\.status === "warning"\) pipelineWarnings\.push\(nativeDialogueDelivery\.code\)/);
+  assert.match(server, /policy: "provider_output"/);
+  assert.doesNotMatch(server, /nativeDialogueDelivery/);
   assert.doesNotMatch(server, /throw new AiMediaNativeDialogueVerificationUnavailableError/);
   assert.doesNotMatch(server, /recoverAiMediaNativeDialogueVerification\(\{|assertNativeFinalFrameQa\(/);
   assert.match(

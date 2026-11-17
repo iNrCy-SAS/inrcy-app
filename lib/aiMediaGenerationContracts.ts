@@ -376,6 +376,7 @@ export type AiMediaLibraryPickerItem = {
   signed_url: string | null;
   /** A non-blocking server QA notice; raw transcripts and diagnostics stay private. */
   speech_review_recommended?: true;
+  finishing_unavailable?: true;
 };
 
 export type AiMediaSoundtrackResponse = {

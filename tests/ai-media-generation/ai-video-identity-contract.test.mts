@@ -309,7 +309,7 @@ test("le montage audio préserve le dialogue natif sans jamais recoller un TTS s
     /const nativeAudioMode = args\.narration\s*\? "mute"\s*:\s*requestedNativeAudioMode/,
     "une voix off coupe toujours l'audio natif Veo pour empêcher une seconde voix en fond",
   );
-  assert.match(server, /auditAiMediaNativeDialogueWithGoogle/);
+  assert.doesNotMatch(server, /auditAiMediaNativeDialogueWithGoogle/);
   assert.doesNotMatch(server, /native_character_dialogue_qa_(?:rejected_native_audio_muted|unavailable_native_audio_preserved)/);
   assert.match(
     server,
@@ -318,8 +318,8 @@ test("le montage audio préserve le dialogue natif sans jamais recoller un TTS s
   assert.doesNotMatch(server, /character_dialogue_fallback_narration/);
   assert.doesNotMatch(server, /character_dialogue_audio_fallback/);
   assert.doesNotMatch(server, /identity_team_character_dialogue_fallback_voiceover/);
-  assert.match(server, /nativeDialogueDelivery\.status === "warning"\) pipelineWarnings\.push\(nativeDialogueDelivery\.code\)/);
-  assert.match(server, /native_dialogue_delivery: characterDialogueRequested \? nativeDialogueDelivery/);
+  assert.doesNotMatch(server, /auditAiMediaNativeDialogueWithGoogle/);
+  assert.match(server, /policy: "provider_output"/);
   assert.doesNotMatch(server, /nativeDialogueDelivery\.status === "blocked"/);
   assert.doesNotMatch(server, /throw new AiMediaNativeDialogueVerificationUnavailableError/);
   assert.doesNotMatch(server, /ai_media_character_dialogue_quality_unverified/);
@@ -338,10 +338,7 @@ test("le montage audio préserve le dialogue natif sans jamais recoller un TTS s
   assert.match(server, /nativeAudioMode: "mute"/);
   assert.match(server, /native_character_dialogue_preserved/);
   assert.match(server, /quality_assurance/);
-  assert.match(server, /inspectAiMediaVideoBufferLocally\(\{/);
-  assert.match(server, /video_local_qa_\$\{advisory\}/);
-  assert.match(server, /checks: \["duration", "frame_layout", "audio_policy"\] as const/);
-  assert.match(server, /caption_layout: AI_MEDIA_VIDEO_TEXT_LAYOUT/);
+  assert.doesNotMatch(server, /inspectAiMediaVideoBufferLocally/);
   assert.match(server, /inrcy\/video-composer-v7-edge-to-edge/);
   assert.doesNotMatch(server, /caption-band|videoCaptionLayout/);
   assert.doesNotMatch(composer, /caption-band|captionLayout|pad=.*020617/);

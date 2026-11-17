@@ -1054,7 +1054,7 @@ test("real recovery card keeps check and pause visible on desktop and mobile whi
   } finally { await browser.close(); }
 });
 
-test("real Studio video frames render on desktop and mobile and block oversized exact speech without clearing it", async () => {
+test("real Studio video frames keep speech estimates advisory and preserve absolute text limits without clearing drafts", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
     mkdirSync(path.join(taskRoot, "work"), { recursive: true });
@@ -1074,11 +1074,15 @@ test("real Studio video frames render on desktop and mobile and block oversized 
       await duration.selectOption("4:single");
       await assertExactDialogueBudget(page, "7 / 6 mots");
       const generate = page.locator("[data-media-primary-action]");
-      assert.equal(await generate.isDisabled(), true);
+      assert.equal(await generate.isDisabled(), false, "an estimated speech rate is guidance, not a refusal");
       await duration.selectOption("8:single");
       assert.equal(await speech.inputValue(), "un deux trois quatre cinq six sept");
       await assertExactDialogueBudget(page, "7 / 14 mots");
       assert.equal(await generate.isDisabled(), false);
+      await fillCommittedStudioText(page, "spokenScript", "x".repeat(4001));
+      assert.equal(await generate.isDisabled(), true, "the real 4000-character input cap is still enforced");
+      assert.equal(await speech.inputValue(), "x".repeat(4001));
+      await fillCommittedStudioText(page, "spokenScript", "un deux trois quatre cinq six sept");
       await visual.fill("x".repeat(501));
       assert.equal(await visual.inputValue(), "x".repeat(501));
       assert.equal(await generate.isDisabled(), true);

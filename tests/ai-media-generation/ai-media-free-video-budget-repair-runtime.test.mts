@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 import ts from 'typescript';
+import * as safeWarnings from '../../lib/aiSdkSafeWarnings.ts';
 import * as prompts from '../../lib/aiMediaFreeGenerationPrompt.ts';
 import * as contracts from '../../lib/aiMediaGenerationContracts.ts';
 import * as catalog from '../../lib/aiMediaModelCatalog.ts';
@@ -66,6 +67,7 @@ function gateway() {
   let reservations = 0, submissions = 0;
   const noOperation = () => assert.fail('No network, upload or media operation is allowed in this fixture');
   const runtime = load<typeof import('../../lib/aiVideoProviderGateway.ts')>('lib/aiVideoProviderGateway.ts', {
+    './aiSdkSafeWarnings.ts': safeWarnings,
     'server-only': {}, ai: { createDownload: () => noOperation, experimental_generateVideo: () => { submissions++; return noOperation(); } },
     '@/lib/aiGatewayAccountGuard': { reserveAiGatewayAccountAttempt: () => { reservations++; return noOperation(); },
       commitAiGatewayAccountAttempt: noOperation, rollbackAiGatewayAccountAttempt: noOperation, recordAiGatewayAccountFailure: noOperation },

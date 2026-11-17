@@ -11,7 +11,7 @@ import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 import * as pending from "../../lib/aiMediaPendingVideo.ts";
 
 const accountId = "11111111-1111-4111-8111-111111111111", jobId = "22222222-2222-4222-8222-222222222222", authUserId = "33333333-3333-4333-8333-333333333333";
-function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; leaseLost?: boolean; composeFails?: string; cleanupRows?: Array<{storage_bucket:string;storage_path:string}>; providerState?: "processing" | "completed" | "failed"; providerDuration?: number; providerStatusFails?: boolean } = {}) {
+function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; leaseLost?: boolean; composeFails?: string; cleanupRows?: Array<{storage_bucket:string;storage_path:string}>; providerState?: "processing" | "completed" | "failed"; providerDuration?: number; providerStatusFails?: boolean; receiptWriteFails?: boolean; receiptWriteLostAck?: boolean; receiptCasConflict?: boolean; readyLostAck?: boolean; bucketFails?: boolean } = {}) {
   const objects = new Map<string, Buffer>();
   const events: string[] = [];
   const warnings: unknown[][] = [];
@@ -20,6 +20,10 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
   let composed: Recovery.AiMediaCompositionInput | undefined;
   let composedSoundtrack: Buffer | undefined;
   let savedMetadata: Record<string, unknown> | undefined;
+  let completedMetadata: Record<string, unknown> | undefined;
+  let savedMedia: { buffer: Buffer } | undefined;
+  const job: Record<string,unknown> = {id:jobId,account_id:accountId,actor_auth_user_id:authUserId,status:"processing",metadata:{format:"story"}};
+  let casConflictRemaining=options.receiptCasConflict===true, receiptAckRemaining=options.receiptWriteLostAck===true,readyAckRemaining=options.readyLostAck===true;
   const runtimeModule = { exports: {} };
   const supabaseAdmin = {
     from: (table: string) => {
@@ -27,9 +31,21 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
       const filters: Array<[string,unknown]> = [];
       const query = { select: () => query, update: (value: Record<string,unknown>) => { patch = value; return query; },
         eq: (column: string, value: unknown) => { filters.push([column,value]); return query; },
+        is: (column:string,value:unknown)=>{filters.push([column,value]);return query;},
+        in: (column:string,values:unknown[])=>{filters.push([column,values]);return query;},
         lte: () => query, gt: () => query, lt: () => query,
         maybeSingle: async () => {
-          if (table === "ai_media_generation_jobs") return { data: { status: "processing" }, error: null };
+          if (table === "ai_media_generation_jobs") {
+            if(filters.some(([key,value])=>Array.isArray(value)?!value.includes(job[key]):key==="metadata"&&typeof value==="string"?JSON.stringify(job[key])!==value:job[key]!==value))return {data:null,error:null};
+            if(patch){
+              events.push("receipt-cas");
+              if(options.receiptWriteFails)return {data:null,error:new Error("receipt unavailable")};
+              if(casConflictRemaining){casConflictRemaining=false;job.metadata={...(job.metadata as Record<string,unknown>),concurrent:"preserved"};return {data:null,error:null};}
+              Object.assign(job,patch);
+              if(receiptAckRemaining){receiptAckRemaining=false;return {data:null,error:new Error("lost receipt acknowledgement")};}
+            }
+            return {data:{...job},error:null};
+          }
           if (!record || filters.some(([key,value]) => record![key] !== value)) return { data: null, error: null };
           if (patch) Object.assign(record,patch);
           return { data: {...record}, error: null };
@@ -39,15 +55,22 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
     },
     rpc: async (name: string, args: Record<string, unknown>) => {
       events.push(name);
-      if (name === "start_ai_media_composition_checkpoint_v2") record = { account_id: accountId, job_id: jobId, actor_auth_user_id: authUserId, lease_token: args.p_lease_token, storage_bucket: "inrcy-ai-composition", state: "ready", attempts: 0 };
-      if (name === "ready_ai_media_composition_checkpoint") record!.manifest_path = args.p_manifest_path;
+      if(name==="start_ai_media_composition_checkpoint_v2"){
+        if(args.p_actor_auth_user_id!==authUserId||args.p_account_id!==accountId||args.p_job_id!==jobId)return {data:null,error:new Error("scope conflict")};
+        if(record&&record.lease_token!==args.p_lease_token)return {data:null,error:new Error("lease conflict")};
+        record ||= {account_id:accountId,job_id:jobId,actor_auth_user_id:authUserId,lease_token:args.p_lease_token,storage_bucket:"inrcy-ai-composition",state:"uploading",attempts:0};
+      }
+      if(name==="ready_ai_media_composition_checkpoint"){
+        record!.manifest_path=args.p_manifest_path;record!.state="ready";
+        if(readyAckRemaining){readyAckRemaining=false;return {data:null,error:new Error("lost ready acknowledgement")};}
+      }
       if (name === "claim_ai_media_composition_checkpoint_v2") { if (record) record.attempts = Number(record.attempts) + 1; return { data: record ? [{...record}] : [], error: null }; }
       if (name === "list_expired_ai_media_composition_objects_v2") return { data: options.cleanupRows || [], error: null };
       if (name === "assert_ai_media_composition_lease" && options.leaseLost) return { data: null, error: new Error("lease conflict") };
       return { data: true, error: null };
     },
     storage: {
-      getBucket: async () => ({ data: { public: false }, error: null }),
+      getBucket: async () => ({data:options.bucketFails?null:{public:false},error:options.bucketFails?new Error("bucket unavailable"):null}),
       from: (bucket: string) => ({
         upload: async (storagePath: string, buffer: Buffer, settings:{contentType:string}) => {
           if (options.uploadFails) return { error: { code: "InvalidMimeType", statusCode: "415", message: "SECRET URL https://private.invalid?token=secret" } };
@@ -83,10 +106,10 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
     } },
     "@/lib/aiGeneratedMediaRegistry": {
       getExistingGeneratedAiMedia: async () => null,
-      saveGeneratedAiMediaDraft: async (args: { metadata: Record<string, unknown> }) => { events.push("save"); savedMetadata = args.metadata; return { id: "recovered-media" }; },
+      saveGeneratedAiMediaDraft: async (args: { metadata: Record<string, unknown>; media: { buffer: Buffer } }) => { events.push("save"); savedMetadata = args.metadata; savedMedia = args.media; return { id: "recovered-media" }; },
     },
     "@/lib/aiMediaGenerationQuota": {
-      completeAiMediaGeneration: async () => { events.push("complete"); }, expireAiMediaGenerationReservations: async () => { events.push("expire"); },
+      completeAiMediaGeneration: async (args: { metadata?: Record<string, unknown> }) => { events.push("complete"); completedMetadata = args.metadata; }, expireAiMediaGenerationReservations: async () => { events.push("expire"); },
       failAiMediaGeneration: async () => { events.push("fail"); },
     },
     "@/lib/aiMediaSoundtrackCatalog": soundtrackCatalog,
@@ -100,7 +123,7 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
     if (!(id in stubs)) throw new Error(`Unexpected dependency (provider imports forbidden): ${id}`);
     return stubs[id];
   }, runtimeModule, runtimeModule.exports);
-  return { runtime: runtimeModule.exports as typeof Recovery, objects, events, warnings, removed, get record(){return record;}, get composed() { return composed; }, get composedSoundtrack(){return composedSoundtrack;}, get metadata() { return savedMetadata; } };
+  return { runtime: runtimeModule.exports as typeof Recovery, job, objects, events, warnings, removed, get record(){return record;}, get composed() { return composed; }, get composedSoundtrack(){return composedSoundtrack;}, get metadata() { return savedMetadata; }, get media() { return savedMedia; }, get completedMetadata() { return completedMetadata; } };
 }
 const input: Recovery.AiMediaCompositionInput = {
   clips: [{ buffer: Buffer.from("paid-video-bytes"), durationSeconds: 8 }], overlays: [Buffer.from("rendered-overlay")],
@@ -155,16 +178,58 @@ test("a completed HeyGen render is downloaded once and keeps its native voices t
   assert.ok(h.events.indexOf("provider-cleanup") > h.events.indexOf("complete"));
 });
 
-test("a HeyGen montage failure reports only its machine category and preserves the existing paid render", async () => {
+test("a failed optional HeyGen finishing still delivers the original paid render once", async () => {
   const h = harness({ providerState: "completed", composeFails: "ai_original_video_clip_contract_failed:https://private.invalid?token=secret" });
   await saveHeygenCheckpoint(h);
-  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status, "retry_pending");
-  assert.match(JSON.stringify(h.warnings), /ai_original_video_clip_contract_failed/);
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status, "completed");
+  assert.ok(h.events.includes("save") && h.events.includes("complete") && h.events.includes("provider-cleanup"));
   assert.doesNotMatch(JSON.stringify(h.warnings), /private.invalid|token=secret/);
-  assert.ok(!h.events.some(event => ["save", "complete", "fail", "provider-cleanup"].includes(event)));
+  assert.equal(JSON.stringify((h.metadata!.gateway as Record<string,unknown>).warnings), JSON.stringify(["video_finishing_unavailable_original_retained"]));
+  assert.equal(h.events.filter(event => event === "provider-download").length, 1);
 });
 
-for (const durationSeconds of [2.65, 10.3184, 19.7681, 31.2]) test(`HeyGen preserves all ${durationSeconds}s of spoken video instead of enforcing the requested 16s`, async () => {
+test("a direct HeyGen video without requested finishing is saved byte-for-byte without FFmpeg", async () => {
+  const h = harness({ providerState: "completed" });
+  await h.runtime.persistAiMediaCompositionCheckpoint({ accountId,jobId,authUserId,
+    input: {...input,clips:[{buffer:Buffer.alloc(0),durationSeconds:8}],nativeAudioMode:"dialogue",narration:null},
+    pendingProvider:pendingTask(),metadata:{provider:"heygen-direct",video_engine:"heygen-avatar",video_resolution:"1080p",video_finishing_requested:false} });
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"completed");
+  assert.ok(!h.events.includes("compose"));
+  assert.equal(h.events.filter(event=>event==="save").length,1);
+  assert.equal(h.events.filter(event=>event==="complete").length,1);
+});
+test("a direct unadorned HeyGen render does not depend on unused overlay storage", async () => {
+  const h = harness({ providerState: "completed" });
+  await h.runtime.persistAiMediaCompositionCheckpoint({ accountId,jobId,authUserId,
+    input: {...input,clips:[{buffer:Buffer.alloc(0),durationSeconds:8}],nativeAudioMode:"dialogue",narration:null},
+    pendingProvider:pendingTask(),metadata:{provider:"heygen-direct",video_engine:"heygen-avatar",video_finishing_requested:false} });
+  for (const key of [...h.objects.keys()]) if (key.endsWith("/overlay-0.png")) h.objects.delete(key);
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"completed");
+  assert.equal(h.media!.buffer.toString(),"paid-heygen-mp4");
+  assert.ok(!h.events.includes("compose"));
+  assert.equal(JSON.stringify((h.metadata!.gateway as Record<string,unknown>).warnings),"[]");
+});
+
+for (const missingAsset of ["overlay-0.png", "soundtrack.wav"]) test("a missing optional " + missingAsset + " keeps the paid native render and honest music metadata", async () => {
+  const load = runtimeModules();
+  const assets = load<typeof import("../../lib/aiMediaGenerationSoundtracks.ts")>("lib/aiMediaGenerationSoundtracks.ts");
+  const soundtrack = await assets.loadAiMediaSoundtrack("", { soundtrackId:"piano-serein", durationSeconds:8 });
+  const h = harness({ providerState:"completed" });
+  await h.runtime.persistAiMediaCompositionCheckpoint({ accountId,jobId,authUserId,
+    input:{...input,clips:[{buffer:Buffer.alloc(0),durationSeconds:8}],nativeAudioMode:"dialogue",narration:null,soundtrack},
+    pendingProvider:pendingTask(),metadata:{provider:"heygen-direct",video_engine:"heygen-avatar",video_finishing_requested:true,soundtrack} });
+  for (const key of [...h.objects.keys()]) if (key.endsWith("/" + missingAsset)) h.objects.delete(key);
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"completed");
+  assert.equal(h.media!.buffer.toString(),"paid-heygen-mp4");
+  assert.ok(!h.events.includes("compose"));
+  assert.equal(h.events.filter(event=>event==="complete").length,1);
+  assert.equal(h.events.filter(event=>event==="provider-download").length,1);
+  assert.equal(h.metadata!.soundtrack,null);
+  assert.equal(h.completedMetadata!.soundtrack_id,undefined);
+  assert.equal(JSON.stringify((h.metadata!.gateway as Record<string,unknown>).warnings),JSON.stringify(["video_finishing_unavailable_original_retained"]));
+});
+
+for (const durationSeconds of [2.65, 10.3184, 19.7681, 31.2, 200]) test(`HeyGen preserves all ${durationSeconds}s of spoken video instead of enforcing the requested 16s`, async () => {
   const h = harness({ providerState: "completed", providerDuration: durationSeconds });
   await saveHeygenCheckpoint(h, 16);
   assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status, "completed");
@@ -324,4 +389,113 @@ test("corrupt saved soundtrack bytes block recovery before composition, saving o
   assert.ok(!h.events.includes("compose"));
   assert.ok(!h.events.includes("save"));
   assert.ok(!h.events.includes("complete"));
+});
+
+test("HeyGen private bucket and scoped DB anchor are established before any provider work",async()=>{
+  const h=harness();const anchor=await h.runtime.startPendingAiMediaVideoAnchor({accountId,jobId,authUserId});
+  assert.equal(anchor.accountId,accountId);assert.equal(h.record!.state,"uploading");
+  assert.deepEqual(h.events,["start_ai_media_composition_checkpoint_v2"]);
+  assert.equal(h.objects.size,0);
+  const unavailable=harness({bucketFails:true});
+  await assert.rejects(unavailable.runtime.startPendingAiMediaVideoAnchor({accountId,jobId,authUserId}),/private_bucket_required/);
+  assert.equal(unavailable.events.length,0);
+});
+
+for(const options of [{receiptCasConflict:true},{receiptWriteLostAck:true}])test("the accepted receipt survives CAS concurrency or a lost acknowledgement without overwriting job metadata "+JSON.stringify(options),async()=>{
+  const h=harness(options);await saveHeygenCheckpoint(h);
+  const metadata=h.job.metadata as Record<string,unknown>;
+  assert.equal(metadata.format,"story");if(options.receiptCasConflict)assert.equal(metadata.concurrent,"preserved");
+  const receipt=metadata.ai_media_pending_video_receipt as {manifest:{pendingProvider:{videoId:string}}};
+  assert.equal(receipt.manifest.pendingProvider.videoId,"accepted-video");
+  assert.equal(h.events.filter(value=>value==="receipt-cas").length,options.receiptCasConflict?2:1);
+  assert.doesNotMatch(JSON.stringify(receipt),/private brief|https:|script|narration-source/);
+});
+
+test("Storage failure after supplier acceptance keeps a ready receipt and saves the same paid render",async()=>{
+  const h=harness({uploadFails:true,providerState:"completed"});await saveHeygenCheckpoint(h);
+  assert.equal(h.record!.state,"ready");assert.equal(h.objects.size,0);
+  assert.ok(!h.events.includes("abandon_ai_media_composition_checkpoint"));
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"completed");
+  assert.equal(h.media!.buffer.toString(),"paid-heygen-mp4");assert.ok(!h.events.includes("compose"));
+  assert.equal(h.events.filter(value=>value==="provider-download").length,1);
+  assert.equal(h.events.filter(value=>value==="complete").length,1);assert.ok(!h.events.includes("fail"));
+  assert.match(JSON.stringify((h.metadata!.gateway as Record<string,unknown>).warnings),/video_finishing_unavailable_original_retained/);
+});
+
+test("a lost ready acknowledgement reconciles its exact lease and manifest instead of abandoning the render",async()=>{
+  const h=harness({readyLostAck:true});await saveHeygenCheckpoint(h);
+  assert.equal(h.record!.state,"ready");assert.ok(!h.events.includes("abandon_ai_media_composition_checkpoint"));
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"retry_pending");
+  assert.equal(h.events.filter(value=>value==="provider-get:accepted-video").length,1);
+});
+
+test("an unavailable receipt write still permits the independent private Storage checkpoint",async()=>{
+  const h=harness({receiptWriteFails:true,providerState:"completed"});await saveHeygenCheckpoint(h);
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"completed");
+  assert.equal(h.events.filter(value=>value==="provider-download").length,1);assert.ok(!h.events.includes("fail"));
+});
+
+test("simultaneous receipt and Storage outages never abandon or refund an accepted remote render",async()=>{
+  const h=harness({receiptWriteFails:true,uploadFails:true});
+  await assert.rejects(saveHeygenCheckpoint(h),/upload_failed/);
+  assert.equal(h.record!.state,"uploading");
+  assert.ok(!h.events.includes("abandon_ai_media_composition_checkpoint"));
+  assert.ok(!h.events.includes("fail"));assert.ok(!h.events.includes("expire"));
+});
+
+for(const field of ["accountId","jobId","actorAuthUserId","manifestPath"])test("a forged fallback receipt "+field+" cannot read or download a supplier result",async()=>{
+  const h=harness({uploadFails:true,providerState:"completed"});await saveHeygenCheckpoint(h);
+  const receipt=(h.job.metadata as Record<string,unknown>).ai_media_pending_video_receipt as Record<string,unknown>;
+  receipt[field]=field==="manifestPath"?accountId+"/_composition-recovery/"+jobId+"/"+authUserId+"/manifest.json":"44444444-4444-4444-8444-444444444444";
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"retry_pending");
+  assert.ok(!h.events.some(value=>value.startsWith("provider-get:")));assert.ok(!h.events.includes("provider-download"));assert.ok(!h.events.includes("save"));assert.ok(!h.events.includes("complete"));
+});
+
+test("an unclaimable checkpoint is active only while its owning job is still pending",async()=>{
+  const h=harness();await saveHeygenCheckpoint(h);
+  for(const status of ["reserved","processing"]){
+    h.job.status=status;
+    assert.equal(await h.runtime.hasActiveAiMediaCompositionCheckpoint({accountId,jobId}),true);
+  }
+  const reads=h.events.filter(value=>value==="has_ai_media_composition_checkpoint").length;
+  for(const status of ["completed","failed","expired"]){
+    h.job.status=status;
+    assert.equal(await h.runtime.hasActiveAiMediaCompositionCheckpoint({accountId,jobId}),false);
+  }
+  assert.equal(h.events.filter(value=>value==="has_ai_media_composition_checkpoint").length,reads);
+  assert.equal(await h.runtime.hasActiveAiMediaCompositionCheckpoint({accountId,jobId:"44444444-4444-4444-8444-444444444444"}),false);
+});
+
+test("the first accepted supplier ID is immutable across an accidental second persistence",async()=>{
+  const h=harness();await saveHeygenCheckpoint(h);
+  const checkpoint={accountId,jobId,leaseToken:h.record!.lease_token as string};
+  await assert.rejects(h.runtime.persistAiMediaCompositionCheckpoint({accountId,jobId,authUserId,checkpoint,
+    input:{...input,narration:null,nativeAudioMode:"dialogue"},pendingProvider:{...pendingTask(),videoId:"another-video"},
+    metadata:{provider:"heygen-direct",video_engine:"heygen-avatar"}}),/receipt_conflict/);
+  const receipt=(h.job.metadata as Record<string,unknown>).ai_media_pending_video_receipt as {manifest:{pendingProvider:{videoId:string}}};
+  assert.equal(receipt.manifest.pendingProvider.videoId,"accepted-video");
+});
+
+for(const receiptWriteFails of [false,true])test("an immediate provider-only receipt tolerates unfinished PNGs and either private durability store "+receiptWriteFails,async()=>{
+  const h=harness({receiptWriteFails,providerState:"completed"});
+  const checkpoint=await h.runtime.persistAiMediaCompositionCheckpoint({accountId,jobId,authUserId,providerReceiptOnly:true,
+    input:{...input,overlays:[Buffer.alloc(0)],clips:[{buffer:Buffer.alloc(0),durationSeconds:8}],narration:null,nativeAudioMode:"dialogue"},
+    pendingProvider:pendingTask(),metadata:{provider:"heygen-direct",video_engine:"heygen-avatar",video_finishing_requested:true}});
+  assert.equal(h.record!.state,"ready");assert.equal(checkpoint.leaseToken,h.record!.lease_token);
+  assert.equal([...h.objects.keys()].filter(key=>key.endsWith(".png")).length,0);
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"completed");
+  assert.equal(h.media!.buffer.toString(),"paid-heygen-mp4");assert.ok(!h.events.includes("compose"));
+  assert.ok(!h.events.includes("abandon_ai_media_composition_checkpoint"));
+});
+test("a provider receipt can be completed with its requested native captions under the same immutable task and lease",async()=>{
+  const h=harness({providerState:"completed"});
+  const metadata={provider:"heygen-direct",video_engine:"heygen-avatar",video_finishing_requested:true};
+  const native={...input,clips:[{buffer:Buffer.alloc(0),durationSeconds:8}],narration:null,nativeAudioMode:"dialogue" as const};
+  const checkpoint=await h.runtime.persistAiMediaCompositionCheckpoint({accountId,jobId,authUserId,providerReceiptOnly:true,
+    input:{...native,overlays:[Buffer.alloc(0)]},pendingProvider:pendingTask(),metadata});
+  await h.runtime.persistAiMediaCompositionCheckpoint({accountId,jobId,authUserId,checkpoint,
+    input:{...native,subtitles:{script:"Bienvenue au jardin.",source:"native"}},pendingProvider:pendingTask(),metadata});
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"completed");
+  assert.equal(h.composed!.subtitles!.source,"native");assert.equal(h.composed!.nativeAudioMode,"dialogue");assert.equal(h.composed!.narration,null);
+  assert.equal(h.events.filter(event=>event==="receipt-cas").length,1);assert.equal(h.events.filter(event=>event==="provider-download").length,1);
 });

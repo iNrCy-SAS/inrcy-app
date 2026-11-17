@@ -18,6 +18,7 @@ import { AiMediaRequestValidationError, normalizeAiMediaGenerationRequest } from
 import { bufferFromUint8ArrayView } from "../../lib/aiMediaBuffer.ts";
 import * as freePrompt from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as sensitiveText from "../../lib/aiMediaSensitiveText.ts";
+import * as sdkWarningPolicy from "../../lib/aiSdkSafeWarnings.ts";
 import { getAiMediaGenerationPublicError } from "../../lib/aiMediaGenerationPublicErrors.ts";
 
 type Runtime = {
@@ -128,6 +129,7 @@ function loadRuntime(mode: "success" | "rejected" | "http-rejected" | "balance-i
       recordAiGatewayAccountFailure: async () => noOp(),
     }],
     ["./aiMediaBuffer.ts", { bufferFromUint8ArrayView }],
+    ["./aiSdkSafeWarnings.ts", sdkWarningPolicy],
     ["./aiMediaIdentityReferences.ts", identityReferences],
     ["@/lib/aiMediaCharacterVoiceStorage", {
       getAiMediaCharacterVoiceSignedUrls: async ({ images }: { images: characterVoices.AiMediaCharacterVoiceReference[] }) =>
@@ -992,7 +994,7 @@ test("two paid Wan3 clips taking 615740ms finish inside the remaining absolute b
   assert.equal(clock.pending(), 0, "all clip and film timers are released");
 });
 
-test("the absolute film deadline stops clip two and preserves the first paid clip cost without another submission", async () => {
+test("the absolute film deadline stops clip two and preserves completed and uncertain submitted clip costs without another submission", async () => {
   const clock = virtualClock([318_070, 350_000]); const context = loadRuntime("success", undefined, clock);
   const args = argsFor("wan3", 0, 30, "multi"); args.request.videoResolution = "1080p";
   args.deadlineAt = clock.now() + 635_000;
@@ -1003,12 +1005,12 @@ test("the absolute film deadline stops clip two and preserves the first paid cli
     assert.ok(providerTypes.isAiVideoProviderBillableFailure(error));
     assert.equal(error.diagnostics?.deadlineKind, "film"); assert.equal(error.diagnostics?.deadlineExceeded, true);
     assert.equal(error.diagnostics?.elapsedMs, 635_000); assert.equal(error.diagnostics?.clipElapsedMs, 316_930);
-    assert.equal(error.diagnostics?.completedClips, 1); assert.equal(error.diagnostics?.committedCostMicroUsd, 3_000_000);
+    assert.equal(error.diagnostics?.completedClips, 1); assert.equal(error.diagnostics?.committedCostMicroUsd, 6_000_000);
     assert.equal(error.diagnostics?.callerAborted, false); assert.equal(error.diagnostics?.overallBudgetMs, 635_000);
     return true;
   });
-  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 1, rollbacks: 1 });
-  assert.deepEqual(context.costs, [3_000_000]); assert.equal(clock.pending(), 0);
+  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 2, rollbacks: 0 });
+  assert.deepEqual(context.costs, [3_000_000,3_000_000]); assert.equal(clock.pending(), 0);
 });
 
 test("a single stalled Wan3 clip keeps its 600s cap even when the two-clip film has 715s available", async () => {
@@ -1023,7 +1025,7 @@ test("a single stalled Wan3 clip keeps its 600s cap even when the two-clip film 
     assert.equal(diagnostics?.overallBudgetMs, 715_000); assert.equal(diagnostics?.clipBudgetMs, 600_000);
     return true;
   });
-  assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 0, rollbacks: 1 });
+  assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 1, rollbacks: 0 });
   assert.equal(clock.pending(), 0);
 });
 
@@ -1160,11 +1162,11 @@ test("an uncertain fast peer timeout forbids fallback even when the other clip w
     assert.equal(diagnostics?.clipIndex, 2); assert.equal(diagnostics?.deadlineKind, "clip");
     return true;
   });
-  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 0, rollbacks: 2 });
+  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 1, rollbacks: 1 });
   assert.equal(clock.pending(), 0);
 });
 
-test("cancelling fast Studio aborts both existing requests, releases their reservations and never starts a third", async () => {
+test("cancelling fast Studio aborts both existing requests, retains uncertain supplier spend and never starts a third", async () => {
   const clock = virtualClock([300_000, 300_000]);
   const context = loadRuntime("success", undefined, clock);
   const args = fastStudioArgs("grok"); const controller = new AbortController(); args.signal = controller.signal;
@@ -1172,6 +1174,25 @@ test("cancelling fast Studio aborts both existing requests, releases their reser
   await waitForSubmission(context, 2); controller.abort(new Error("local-cancelled"));
   await assert.rejects(pending, /local-cancelled/);
   assert.ok(context.submissions.every(input => (input.abortSignal as AbortSignal).aborted));
-  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 0, rollbacks: 2 });
+  assert.deepEqual(context.counters, { requests: 2, reservations: 2, commits: 2, rollbacks: 0 });
   assert.equal(clock.pending(), 0);
+});
+
+test("a Wan timeout after submission retains its uncertain supplier spend without another paid request",async()=>{
+ await withMockCredentials(async()=>{
+  const context=loadRuntime("await-abort");const pending=context.runtime.createGatewayAiVideoProvider("wan27").generate(argsFor("wan27",1,8));
+  for(let tick=0;tick<30&&!context.counters.requests;tick++)await Promise.resolve();
+  assert.equal(context.counters.requests,1);context.expireTimeout();
+  await assert.rejects(pending,error=>{assert.ok(providerTypes.isAiVideoProviderBillableFailure(error));return true;});
+  assert.deepEqual(context.counters,{requests:1,reservations:1,commits:1,rollbacks:0});assert.equal(context.costs[0],context.reservedCosts[0]);
+ });
+});
+
+test("a lost Wan transport response cannot reset supplier spend as though the video were never submitted",async()=>{
+ await withMockCredentials(async()=>{
+  const failure=Object.assign(new Error("fetch failed"),{cause:Object.assign(new Error("socket lost"),{code:"ECONNRESET"})});
+  const context=loadRuntime("success",{call:1,error:failure});
+  await assert.rejects(context.runtime.createGatewayAiVideoProvider("wan27").generate(argsFor("wan27",1,8)),providerTypes.isAiVideoProviderBillableFailure);
+  assert.deepEqual(context.counters,{requests:1,reservations:1,commits:1,rollbacks:0});
+ });
 });

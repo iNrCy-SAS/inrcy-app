@@ -1,5 +1,5 @@
 import { getAiMediaFreeSpeechBudget, getAiMediaFreeRequestedLanguage, getAiMediaFreeRequestedDialogue, splitAiMediaFreeQuotedSpeech, getAiMediaVideoSpeechState, splitAiMediaExactDialogueScenes } from "./aiMediaVideoSpeechBudget.ts";
-import { AI_MEDIA_OFFSCREEN_NARRATOR, assertAiMediaExactDialogueBindings } from "./aiMediaExactDialogue.ts";
+import { AI_MEDIA_EXACT_DIALOGUE_MAX_TURNS, AI_MEDIA_OFFSCREEN_NARRATOR, assertAiMediaExactDialogueBindings } from "./aiMediaExactDialogue.ts";
 import { normalizeAiMediaCharacterName } from "./aiMediaCharacterVoices.ts";
 export { getAiMediaFreeSpeechBudget, getAiMediaFreeRequestedLanguage, resolveAiMediaFreeSpeechLanguage, getAiMediaFreeRequestedDialogue, splitAiMediaFreeQuotedSpeech } from "./aiMediaVideoSpeechBudget.ts";
 import { createHash } from "node:crypto";
@@ -125,9 +125,6 @@ export function splitAiMediaFreeNarrationByScene(script: string, sceneCount: num
     throw new AiMediaRequestValidationError("Le découpage de la voix off est invalide.");
   }
   const capacities = Array.from({ length: sceneCount }, (_, index) => segmentDurations ? Math.floor((segmentDurations[index] - 1) * 2) : 15);
-  if (words.length > capacities.reduce((sum, capacity) => sum + capacity, 0)) {
-    throw new AiMediaRequestValidationError("La voix off est trop longue pour cette durée. Raccourcissez le texte ou choisissez une durée supérieure.");
-  }
   const activeScenes = words.length <= capacities[0] ? 1 : sceneCount;
   const lines: string[] = [];
   let start = 0;
@@ -245,8 +242,7 @@ export function getAiMediaFreeExactDialogueTurnScenes(request: AiMediaGeneration
       const budget = getAiMediaFreeSpeechBudget(durations[index], language, text);
       return scenes[index].length < getAiMediaFreeDialogueTurnLimit(durations[index]) && budget.units <= budget.maxUnits;
     };
-    while (!fits() && index < durations.length - 1) index++;
-    if (!fits()) throw new AiMediaRequestValidationError("Les répliques exactes sont trop longues pour cette durée. Choisissez une durée supérieure ou raccourcissez-les ; elles ne seront pas coupées.");
+    if (scenes[index].length && !fits() && index < durations.length - 1) index++;
     scenes[index].push(turn);
   }
   return scenes;
@@ -259,10 +255,9 @@ export function assertAiMediaFreeExactNarrationFits(request: AiMediaGenerationRe
   if (state.issue) throw new AiMediaRequestValidationError(`${state.issue.code.toLowerCase()}: ${state.issue.message}`);
 }
 
-export function validateAiMediaFreeDialogueLine(line: string, durationSeconds = 8, language = "fr") {
-  const budget = getAiMediaFreeSpeechBudget(durationSeconds, language, line);
-  if (!line || line.length > budget.maxCharacters || budget.units > budget.maxUnits) {
-    throw new AiMediaRequestValidationError(`Une réplique est trop longue pour ce plan de ${durationSeconds} secondes. Utilisez au maximum ${budget.maxUnits} ${budget.unit} et ${budget.maxCharacters} caractères, ou choisissez une durée supérieure.`);
+export function validateAiMediaFreeDialogueLine(line: string, _durationSeconds = 8, _language = "fr") {
+  if (!line || line.length > 4_000) {
+    throw new AiMediaRequestValidationError("Une réplique doit contenir du texte et ne peut pas dépasser 4 000 caractères.");
   }
 }
 
@@ -275,8 +270,8 @@ export function usesAiMediaFreeCharacterDialogueTurns(request: AiMediaGeneration
     request.inspirationImages.filter(image => image.role === "character").length > 1;
 }
 
-export function getAiMediaFreeDialogueTurnLimit(durationSeconds: number) {
-  return Math.min(6, Math.max(2, Math.floor(durationSeconds / 3)));
+export function getAiMediaFreeDialogueTurnLimit(_durationSeconds: number) {
+  return AI_MEDIA_EXACT_DIALOGUE_MAX_TURNS;
 }
 
 export function normalizeAiMediaFreeDialogueTurns(request: AiMediaGenerationRequest, value: unknown, durationSeconds = getAiMediaVideoSegmentDurations(
@@ -316,12 +311,7 @@ export function resolveAiMediaFreeDialogueSequence(args: {
   lines.forEach((line, index) => {
     if (!line.trim()) return;
     const language = getAiMediaFreeRequestedLanguage(args.request.freePrompt || "");
-    if (typeof args.request.spokenScript === "string") {
-      const budget = getAiMediaFreeSpeechBudget(durations[index], language, line);
-      if (budget.units > budget.maxUnits) {
-        throw new AiMediaRequestValidationError(`Les paroles sont trop longues pour ce plan de ${durations[index]} secondes. Choisissez une durée supérieure ou raccourcissez le texte.`);
-      }
-    } else validateAiMediaFreeDialogueLine(line, durations[index], language);
+    validateAiMediaFreeDialogueLine(line, durations[index], language);
   });
   return lines;
 }
@@ -834,7 +824,9 @@ export function getAiMediaFreeVideoCreativeBudget(args: {
     const references = args.request.inspirationImages.flatMap((image, index) => image.role === "character" ? [index + 1] : []);
     // Reserve complete duration-bounded turns, including spaces and labels.
     scenes.forEach((scene, sceneIndex) => {
-      const count = getAiMediaFreeDialogueTurnLimit(durations[sceneIndex]);
+      // Reserve a plausible speaking cast for prompt sizing, not twelve invented labels per shot.
+      // This estimate never limits the actual ordered or exact dialogue.
+      const count = Math.min(getAiMediaFreeDialogueTurnLimit(durations[sceneIndex]), references.length, Math.max(1, Math.floor(durations[sceneIndex] / 3)));
       const characters = Math.max(count, scene.spokenLine.length - count + 1);
       scene.spokenTurns = Array.from({ length: count }, (_, index) => ({
         reference: references[index % references.length], speaker: "P".repeat(40),

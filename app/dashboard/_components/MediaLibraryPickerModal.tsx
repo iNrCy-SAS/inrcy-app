@@ -25,6 +25,8 @@ export type MediaLibraryPickerItem = {
   signed_url: string | null;
   /** The existing video is available, with its spoken words to be reviewed. */
   speech_review_recommended?: true;
+  /** Original render retained when an optional finishing step was unavailable. */
+  finishing_unavailable?: true;
   /** Links on text already rasterized into the file, never a visual overlay. */
   image_interactions?: ImageInteractions;
   media_metadata?: Record<string, unknown> | null;

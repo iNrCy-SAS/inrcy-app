@@ -1,3 +1,8 @@
+export const AI_MEDIA_MAX_PROVIDER_VIDEO_DURATION_SECONDS = 3_600;
+
+/** Bounded to the maximum two-plan speech envelope at HeyGen pricing. */
+export const AI_MEDIA_HEYGEN_MAX_ESTIMATED_COST_MICRO_USD = 400_000_000;
+
 /** Persisted provider identifiers only; never credentials, recordings or signed URLs. */
 export type AiMediaPendingVideo = {
   provider: "heygen-direct";
@@ -18,7 +23,7 @@ export function isAiMediaPendingVideo(value: unknown): value is AiMediaPendingVi
     Array.isArray(task.temporaryVoiceIds) && task.temporaryVoiceIds.length <= 4 &&
     task.temporaryVoiceIds.every(id => typeof id === "string" && ID.test(id)) &&
     [task.temporaryAvatarGroupIds, task.temporaryAssetIds].every(ids => Array.isArray(ids) && ids.length <= 5 && ids.every(id => typeof id === "string" && ID.test(id))) &&
-    Number.isSafeInteger(task.estimatedCostMicroUsd) && task.estimatedCostMicroUsd >= 0 && task.estimatedCostMicroUsd <= 20_000_000;
+    Number.isSafeInteger(task.estimatedCostMicroUsd) && task.estimatedCostMicroUsd >= 0 && task.estimatedCostMicroUsd <= AI_MEDIA_HEYGEN_MAX_ESTIMATED_COST_MICRO_USD;
 }
 
 /** A successful asynchronous submission, not a provider or quality failure. */

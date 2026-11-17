@@ -82,6 +82,15 @@ function hasSpeechReviewWarning(metadata: Record<string, unknown> | null | undef
   });
 }
 
+/** Expose only this fixed finishing state, never internal metadata or error text. */
+function hasFinishingWarning(metadata: RegistryRow["media_metadata"]): boolean {
+  const gateway = metadata?.gateway;
+  if (!gateway || typeof gateway !== "object" || Array.isArray(gateway)) return false;
+  const warnings = (gateway as Record<string,unknown>).warnings;
+  return Array.isArray(warnings) && warnings.some(warning => warning === "video_finishing_unavailable_original_retained" ||
+    warning === "branding_overlay_unavailable_video_continued");
+}
+
 async function toPickerItem(row: RegistryRow): Promise<AiMediaLibraryPickerItem> {
   // La signature est un confort de réponse court terme, pas une condition de
   // persistance. Une panne Storage après l'INSERT ne doit jamais faire croire
@@ -118,6 +127,7 @@ async function toPickerItem(row: RegistryRow): Promise<AiMediaLibraryPickerItem>
     created_at: row.created_at || null,
     signed_url: signedUrl,
     ...(row.media_type === "video" && hasSpeechReviewWarning(row.media_metadata) ? { speech_review_recommended: true as const } : {}),
+    ...(row.media_type === "video" && hasFinishingWarning(row.media_metadata) ? { finishing_unavailable: true as const } : {}),
   };
 }
 

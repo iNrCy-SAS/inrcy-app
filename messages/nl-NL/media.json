@@ -1178,6 +1178,7 @@
   "ai_generator_reference_memory_save_error": "Deze media konden niet worden opgeslagen. Controleer de foto’s en stemmen en probeer het opnieuw.",
   "ai_generator_reference_memory_forget_error": "Deze media konden niet worden vergeten. Probeer het opnieuw.",
   "ai_generator_reference_memory_forget_hint": "Deze selectie vergeten voor mijn volgende creaties.",
+  "ai_generator_finishing_unavailable": "De video is beschikbaar. Sommige toevoegingen (logo, muziek of ondertitels) konden niet worden toegepast.",
   "ai_generator_speech_review_warning": "Controleer de video: bekijk en beluister het resultaat voordat u het gebruikt.",
   "ai_generator_model_description_heygen-avatar": "Sprekende portretten en dialogen met je foto’s en stemmen.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Presentaties voor de camera en gesprekken in opeenvolgende beelden.",

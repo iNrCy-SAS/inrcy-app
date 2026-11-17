@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import * as safeWarnings from "../../lib/aiSdkSafeWarnings.ts";
 import sharp from "sharp";
 import * as catalog from "../../lib/aiMediaModelCatalog.ts";
 import * as timeline from "../../lib/aiMediaVideoTimeline.ts";
@@ -58,6 +59,7 @@ function loadRuntime(failVoices = false) {
   const source = readFileSync(path.join(process.cwd(), "lib/aiVideoProviderGateway.ts"), "utf8");
   const javascript = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const stubs = new Map<string, unknown>([
+    ["./aiSdkSafeWarnings.ts", safeWarnings],
     ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices],
     ["ai", { createDownload: () => async () => { throw new Error("no real downloads"); }, experimental_generateVideo: async (input: Record<string, unknown>) => {
       submissions.push(input);

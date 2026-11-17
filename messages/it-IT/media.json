@@ -1178,6 +1178,7 @@
   "ai_generator_reference_memory_save_error": "Impossibile memorizzare i media. Controlla foto e voci e riprova.",
   "ai_generator_reference_memory_forget_error": "Impossibile dimenticare questi media. Riprova.",
   "ai_generator_reference_memory_forget_hint": "Dimenticare questa selezione per le mie prossime creazioni.",
+  "ai_generator_finishing_unavailable": "Il video è disponibile. Non è stato possibile applicare alcune finiture (logo, musica o sottotitoli).",
   "ai_generator_speech_review_warning": "Video da controllare: guarda e ascolta il risultato prima di usarlo.",
   "ai_generator_model_description_heygen-avatar": "Ritratti parlanti e dialoghi con le tue foto e voci.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Presentazioni in camera e conversazioni in inquadrature successive.",

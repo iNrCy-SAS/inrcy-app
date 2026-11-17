@@ -51,7 +51,7 @@ test("retired HeyGen tariffs remain absent from new engine choices with AI or su
 });
 
 test("voice quotes preserve original references and charge only the free creative director, never a composed frame", () => {
-  assert.equal(pricing.AI_MEDIA_CREDIT_TARIFF_VERSION, "inrstudio-media-credits-2026-11-v6");
+  assert.equal(pricing.AI_MEDIA_CREDIT_TARIFF_VERSION, "inrstudio-media-credits-2026-11-v7");
   for (const videoEngine of ["wan27", "wan3", "heygen"]) {
     const quote = pricing.quoteAiMediaCredits({ ...voiceInput, videoEngine });
     assert.equal(quote.totalCredits, videoEngine === "heygen" ? 95 : 87);
