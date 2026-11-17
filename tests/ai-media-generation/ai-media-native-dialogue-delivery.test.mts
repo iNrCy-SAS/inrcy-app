@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  evaluateAiMediaNativeDialogue, getAiMediaNativeDialogueDeliveryDecision,
+  evaluateAiMediaNativeDialogue, getAiMediaNativeDialogueDeliveryDecision, auditAiMediaNativeDialogueClips,
   type AiMediaNativeDialogueQaResult, type AiMediaNativeDialogueQaClipResult,
 } from "../../lib/aiMediaNativeDialogueQa.ts";
 
@@ -33,24 +33,26 @@ test("a real short critical wording difference becomes review, while intact word
   assert.equal(getAiMediaNativeDialogueDeliveryDecision({ version: 1, status: limited.status, clips: [limited], elapsedMs: 1 }).status, "warning");
 });
 
-test("missing, truncated, repeated, substantially different and visually invalid takes still block", () => {
+test("all qualitative defects and inconclusive audits are delivery warnings, never false passes", () => {
   for (const issue of ["spoken_dialogue_missing", "spoken_dialogue_incomplete", "spoken_dialogue_repeated",
     "spoken_dialogue_mismatch", "unexpected_visual_fragmentation", "final_frame_unverified"] as const) {
-    assert.equal(getAiMediaNativeDialogueDeliveryDecision(dkAudit({ issues: ["spoken_critical_value_mismatch", issue] })).status, "blocked", issue);
+    assert.equal(getAiMediaNativeDialogueDeliveryDecision(dkAudit({ issues: ["spoken_critical_value_mismatch", issue] })).status, "warning", issue);
   }
   const metrics = dkAudit().clips[0].metrics;
   for (const patch of [{ expectedCoverage: 0.7 }, { bestWindowSimilarity: 0.68 }, { extraTokenCount: 8, detectedTokenCount: 28 },
     { repeatCount: 2 }, { detectedTokenCount: 0 }, { expectedTokenCount: 0 }, { expectedCoverage: NaN }]) {
-    assert.equal(getAiMediaNativeDialogueDeliveryDecision(dkAudit({ metrics: { ...metrics, ...patch } })).status, "blocked", JSON.stringify(patch));
+    assert.equal(getAiMediaNativeDialogueDeliveryDecision(dkAudit({ metrics: { ...metrics, ...patch } })).status, "warning", JSON.stringify(patch));
   }
   for (const finalFrameLayout of ["rejected", "unavailable"] as const) {
-    assert.equal(getAiMediaNativeDialogueDeliveryDecision(dkAudit({ finalFrameLayout })).status, "blocked");
+    assert.equal(getAiMediaNativeDialogueDeliveryDecision(dkAudit({ finalFrameLayout })).status, "warning");
   }
-  assert.equal(getAiMediaNativeDialogueDeliveryDecision({ ...dkAudit(), status: "unavailable" }).status, "blocked");
-  assert.equal(getAiMediaNativeDialogueDeliveryDecision(null).status, "blocked");
+  const inconclusive = { ...dkAudit({ status: "unavailable", issues: ["transcription_inconclusive"] }), status: "unavailable" } as const;
+  assert.equal(getAiMediaNativeDialogueDeliveryDecision(inconclusive).status, "warning");
+  assert.equal(inconclusive.status, "unavailable");
+  assert.equal(getAiMediaNativeDialogueDeliveryDecision(null).status, "warning");
 });
 
-test("every clip must qualify, and delivery metadata contains only bounded fixed categories", () => {
+test("delivery metadata is bounded and private-safe even when a clip is unusable or QA contains invalid metrics", () => {
   const audit = dkAudit();
   audit.clips.push({ ...audit.clips[0], sceneIndex: 1, status: "passed", issues: [] });
   const contaminated = Object.assign(audit, { transcript: "PRIVATE_TRANSCRIPT", url: "https://private.invalid?token=secret" });
@@ -58,7 +60,26 @@ test("every clip must qualify, and delivery metadata contains only bounded fixed
   assert.equal(decision.status, "warning");
   assert.doesNotMatch(JSON.stringify(decision), /PRIVATE|https:|secret|transcript|metrics|elapsed/);
   audit.clips[1] = { ...audit.clips[1], status: "rejected", issues: ["spoken_dialogue_missing"] };
-  assert.equal(getAiMediaNativeDialogueDeliveryDecision(audit).status, "blocked");
-  assert.equal(getAiMediaNativeDialogueDeliveryDecision(dkAudit({ sceneIndex: 400 })).status, "blocked");
-  assert.equal(getAiMediaNativeDialogueDeliveryDecision({ ...dkAudit(), clips: Array(5).fill(dkAudit().clips[0]) }).status, "blocked");
+  assert.equal(getAiMediaNativeDialogueDeliveryDecision(audit).status, "warning");
+  const invalidIndex = getAiMediaNativeDialogueDeliveryDecision(dkAudit({ sceneIndex: 400 }));
+  assert.equal(invalidIndex.status, "warning");
+  if (invalidIndex.status === "warning") assert.deepEqual(invalidIndex.sceneIndexes, []);
+  const manyClips = getAiMediaNativeDialogueDeliveryDecision({ ...dkAudit(), clips: Array.from({ length: 20 }, (_, sceneIndex) => ({ ...dkAudit().clips[0], sceneIndex })) });
+  assert.equal(manyClips.status, "warning");
+  if (manyClips.status === "warning") assert.deepEqual(manyClips.sceneIndexes, [0, 1, 2, 3]);
+});
+
+test("advisory QA listens once and retains its rejected verdict without paid confirmation, coherence or pronunciation calls", async () => {
+  let reads = 0; let extraChecks = 0;
+  const result = await auditAiMediaNativeDialogueClips({ advisoryOnly: true,
+    clips: [{ sceneIndex: 0, buffer: Buffer.from("synthetic-video"), durationSeconds: 8,
+      expectedLine: "Notre entreprise prend soin de votre jardin.", automaticDialogueContext: "Présentez notre entreprise." }],
+    transcribe: async () => { reads++; return { text: "Une tout autre histoire commence et se termine ailleurs." }; },
+    confirm: async () => { extraChecks++; return { text: "Notre entreprise prend soin de votre jardin." }; },
+    verifyAutomaticDialogue: async () => { extraChecks++; return { status: "passed" }; },
+    verifyPronunciation: async () => { extraChecks++; return { status: "verified" }; },
+  });
+  assert.equal(reads, 1); assert.equal(extraChecks, 0);
+  assert.equal(result.status, "rejected"); assert.equal(result.clips[0].audioCheckCount, 1);
+  assert.equal(getAiMediaNativeDialogueDeliveryDecision(result).status, "warning");
 });

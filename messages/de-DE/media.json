@@ -1178,5 +1178,5 @@
   "ai_generator_reference_memory_save_error": "Medien konnten nicht gespeichert werden. Prüfen Sie Fotos und Stimmen und versuchen Sie es erneut.",
   "ai_generator_reference_memory_forget_error": "Medien konnten nicht vergessen werden. Versuchen Sie es erneut.",
   "ai_generator_reference_memory_forget_hint": "Diese Auswahl für meine nächsten Kreationen vergessen.",
-  "ai_generator_speech_review_warning": "Prüfen Sie den gesprochenen Text, bevor Sie das Video verwenden."
+  "ai_generator_speech_review_warning": "Video prüfen: Sehen und hören Sie sich das Ergebnis vor der Verwendung an."
 }

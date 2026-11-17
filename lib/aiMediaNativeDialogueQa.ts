@@ -93,39 +93,29 @@ export type AiMediaNativeDialogueQaResult = {
 };
 
 export type AiMediaNativeDialogueDeliveryDecision =
-  | { version: 1; status: "passed" | "blocked" }
+  | { version: 1; status: "passed" }
   | { version: 1; status: "warning"; code: "native_speech_review_recommended";
-      issues: ["spoken_critical_value_mismatch"]; sceneIndexes: number[] };
+      issues: AiMediaNativeDialogueQaIssue[]; sceneIndexes: number[] };
 
-/** Keep a near-complete paid take for review without declaring its words exact.
- * Missing/truncated speech, repeats, uncertain audits and visual defects still block.
- * This is a delivery decision only: the independent QA verdict stays unchanged. */
+/** Quality is advisory once a provider has produced a technically readable video.
+ * Keep the original QA verdict and native track; never certify a failed/unknown
+ * comparison as passed, discard the paid take or buy a replacement to satisfy QA.
+ * File decoding, provider safety, consent and credit guards remain separate. */
 export function getAiMediaNativeDialogueDeliveryDecision(
   result: AiMediaNativeDialogueQaResult | null,
 ): AiMediaNativeDialogueDeliveryDecision {
-  if (result?.status === "passed") return { version: 1, status: "passed" };
-  const blocked = { version: 1, status: "blocked" } as const;
-  if (result?.status !== "rejected" || !result.clips.length || result.clips.length > 4) return blocked;
-  const sceneIndexes: number[] = [];
-  for (const clip of result.clips) {
-    if (!Number.isInteger(clip.sceneIndex) || clip.sceneIndex < 0 || clip.sceneIndex > 3 ||
-      clip.finalFrameLayout && clip.finalFrameLayout !== "passed" ||
-      clip.finalFrameIssue && clip.finalFrameIssue !== "none") return blocked;
-    if (clip.status === "passed" && !clip.issues.length) continue;
-    if (clip.status !== "rejected" || clip.issues.length !== 1 || clip.issues[0] !== "spoken_critical_value_mismatch") return blocked;
-    const metrics = clip.metrics;
-    if (!metrics || !Object.values(metrics).every(Number.isFinite) ||
-      !Number.isInteger(metrics.expectedTokenCount) || metrics.expectedTokenCount < 5 || metrics.expectedTokenCount > 4_000 ||
-      !Number.isInteger(metrics.detectedTokenCount) || metrics.detectedTokenCount < metrics.expectedTokenCount * 0.95 ||
-      metrics.detectedTokenCount > metrics.expectedTokenCount + 2 ||
-      metrics.expectedCoverage < 0.95 || metrics.expectedCoverage > 1 ||
-      metrics.bestWindowSimilarity < 0.90 || metrics.bestWindowSimilarity > 1 ||
-      !Number.isInteger(metrics.extraTokenCount) || metrics.extraTokenCount < 0 || metrics.extraTokenCount > 2 ||
-      !Number.isInteger(metrics.repeatCount) || metrics.repeatCount < 0 || metrics.repeatCount > 1) return blocked;
-    sceneIndexes.push(clip.sceneIndex);
+  const clips = result?.clips.slice(0, 4) || [];
+  const hasFrameConcern = (clip: AiMediaNativeDialogueQaClipResult) => Boolean(clip.finalFrameLayout && clip.finalFrameLayout !== "passed");
+  if (result?.status === "passed" && clips.every(clip => clip.status === "passed" && !clip.issues.length && !hasFrameConcern(clip))) {
+    return { version: 1, status: "passed" };
   }
-  return sceneIndexes.length ? { version: 1, status: "warning", code: "native_speech_review_recommended",
-    issues: ["spoken_critical_value_mismatch"], sceneIndexes: [...new Set(sceneIndexes)] } : blocked;
+  const issues: AiMediaNativeDialogueQaIssue[] = [...new Set(clips.flatMap(clip => [...clip.issues,
+    ...(hasFrameConcern(clip) ? [clip.finalFrameLayout === "rejected" ? "unexpected_visual_fragmentation" : "final_frame_unverified"] as const : []),
+  ]).filter((issue): issue is AiMediaNativeDialogueQaIssue => QA_ISSUES.has(issue)))];
+  const sceneIndexes = [...new Set(clips.filter(clip => clip.status !== "passed" || hasFrameConcern(clip)).map(clip => clip.sceneIndex)
+    .filter(index => Number.isInteger(index) && index >= 0 && index <= 3))];
+  return { version: 1, status: "warning", code: "native_speech_review_recommended",
+    issues: issues.length ? issues : ["transcription_unavailable"], sceneIndexes };
 }
 
 export type AiMediaNativeDialogueQaDiagnostic = {
@@ -857,6 +847,8 @@ export async function auditAiMediaNativeDialogueClips(args: {
   language?: string;
   pronunciationAliases?: readonly AiMediaPronunciationAlias[];
   transcribe: AiMediaNativeDialogueTranscriber;
+  /** Delivery advisory: one listen, no paid confirmations or wording adjudication. */
+  advisoryOnly?: boolean;
   /** Script-blind confirmation; a fresh passing pair can resolve conflicting reads, with at most four audio checks. */
   confirm?: AiMediaNativeDialogueTranscriber;
   /** Optional audio proof for one isolated, undeclared camel-case brand only. */
@@ -902,7 +894,7 @@ export async function auditAiMediaNativeDialogueClips(args: {
     // In automatic mode, a coherent second reply may exceed the planner's
     // provisional wording. Amounts, names, negations, cut endings, loops and
     // silence are decided locally first and cannot be waived by this check.
-    if (typeof clip.automaticDialogueContext === "string" && clip.expectedLine.trim() && !clip.expectSilence &&
+    if (!args.advisoryOnly && typeof clip.automaticDialogueContext === "string" && clip.expectedLine.trim() && !clip.expectSilence &&
       result.issues.length === 1 && result.issues[0] === "spoken_dialogue_mismatch") {
       try {
         const verdict = await args.verifyAutomaticDialogue?.(clip, { transcript: text, language, signal: args.signal });
@@ -952,7 +944,7 @@ export async function auditAiMediaNativeDialogueClips(args: {
       }
       const initialText = transcription.text;
       let pronunciationModel: string | undefined;
-      if (result.status === "rejected" && args.confirm) {
+      if (!args.advisoryOnly && result.status === "rejected" && args.confirm) {
         // The adapter sends audio only. No expected script or first transcript
         // biases the fresh listen, and no video/voice generation is retried.
         try {
@@ -1025,7 +1017,7 @@ export async function auditAiMediaNativeDialogueClips(args: {
           result = { ...result, status: "unavailable", issues: ["transcription_unavailable"], confirmation: "unavailable" };
           confirmationDecision = "confirmation_unavailable";
         }
-      } else if (result.status === "rejected") {
+      } else if (!args.advisoryOnly && result.status === "rejected") {
         result = { ...result, status: "unavailable", issues: ["transcription_unavailable"], confirmation: "unavailable" };
       }
       if (audioCheckCount === 2 && args.verifyPronunciation && result.status === "rejected" && result.confirmation === "rejected" &&

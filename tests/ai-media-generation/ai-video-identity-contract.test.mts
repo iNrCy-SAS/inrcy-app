@@ -298,7 +298,12 @@ test("le montage audio préserve le dialogue natif sans jamais recoller un TTS s
   assert.match(composer, /args\.nativeAudioMode === "dialogue"[\s\S]*?"1\.0"/);
   assert.match(composer, /args\.nativeAudioMode === "dialogue"[\s\S]*?"0\.035"/);
   assert.match(composer, /ai_original_video_dialogue_narration_conflict/);
-  assert.match(composer, /ai_original_video_native_dialogue_missing/);
+  assert.doesNotMatch(composer, /throw new Error\("ai_original_video_native_dialogue_missing"\)/,
+    "une vidéo décodable sans piste native reste disponible à vérifier");
+  assert.match(composer, /sourceHasNativeAudio = probes\.some\(\(probe\) => probe\.hasAudio\)/,
+    "une piste native présente dans un seul segment doit être conservée");
+  assert.match(composer, /args\.clipHasNativeAudio\?\.\[index\] === false[\s\S]*?anullsrc/,
+    "seul le segment dépourvu de piste reçoit du silence technique");
   assert.match(
     composer,
     /const nativeAudioMode = args\.narration\s*\? "mute"\s*:\s*requestedNativeAudioMode/,
@@ -308,13 +313,15 @@ test("le montage audio préserve le dialogue natif sans jamais recoller un TTS s
   assert.doesNotMatch(server, /native_character_dialogue_qa_(?:rejected_native_audio_muted|unavailable_native_audio_preserved)/);
   assert.match(
     server,
-    /characterDialogueRequested &&[\s\S]*?!characterDialogueProviderFallback &&[\s\S]*?nativeDialogueQa\?\.status === "passed"/,
+    /nativeCharacterDialoguePreserved\s*=\s*characterDialogueRequested &&\s*!characterDialogueProviderFallback/,
   );
   assert.doesNotMatch(server, /character_dialogue_fallback_narration/);
   assert.doesNotMatch(server, /character_dialogue_audio_fallback/);
   assert.doesNotMatch(server, /identity_team_character_dialogue_fallback_voiceover/);
-  assert.match(server, /nativeDialogueQa\?\.status !== "passed"/);
-  assert.match(server, /ai_media_native_speech_verification_unavailable/);
+  assert.match(server, /nativeDialogueDelivery\.status === "warning"\) pipelineWarnings\.push\(nativeDialogueDelivery\.code\)/);
+  assert.match(server, /native_dialogue_delivery: characterDialogueRequested \? nativeDialogueDelivery/);
+  assert.doesNotMatch(server, /nativeDialogueDelivery\.status === "blocked"/);
+  assert.doesNotMatch(server, /throw new AiMediaNativeDialogueVerificationUnavailableError/);
   assert.doesNotMatch(server, /ai_media_character_dialogue_quality_unverified/);
   assert.match(server, /minimalNativeDialogueSucceeded/);
   assert.match(server, /video_composition_minimal_native_dialogue/);

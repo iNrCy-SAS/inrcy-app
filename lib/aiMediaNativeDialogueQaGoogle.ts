@@ -512,6 +512,7 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
   clips: AiMediaNativeDialogueQaClip[];
   language?: string;
   pronunciationAliases?: readonly AiMediaPronunciationAlias[];
+  advisoryOnly?: boolean;
   signal?: AbortSignal;
 }): Promise<AiMediaNativeDialogueQaResult> {
   const startedAt = Date.now();
@@ -626,6 +627,7 @@ export async function auditAiMediaNativeDialogueWithGoogle(args: {
     };
     const result = await auditAiMediaNativeDialogueClips({
       clips: args.clips,
+      advisoryOnly: args.advisoryOnly,
       language: args.language,
       pronunciationAliases: args.pronunciationAliases,
       // A QA deadline makes an unconfirmed rejection inconclusive. Only the

@@ -35,6 +35,7 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
   providerStatus?: number;
   nestedProviderStatus?: number;
   reserveFails?: "limit" | "unavailable";
+  advisoryOnly?: boolean;
 } = {}) {
   const expectedLine = overrides.expectedLine ?? line;
   const firstTranscript = overrides.firstTranscript ?? cut;
@@ -126,9 +127,19 @@ function adapter(outcome: "complete" | "still-cut" | "deadline", firstComplete =
     assert.ok(id.startsWith("node:"), `Unexpected production dependency: ${id}`); return native(id);
   }, { env: { GEMINI_API_KEY: overrides.missingCredentials ? "" : "offline-test-only" } }, { timeout: () => qaDeadline.signal, any: AbortSignal.any }, { warn: (...values: unknown[]) => warnings.push(values) });
   return { calls, reservations, extractionArgs, costs, warnings, rollbacks: () => rollbacks, cleaned: () => cleaned, extractions: () => extractions,
-    audit: (durationSeconds = 8) => record.exports.auditAiMediaNativeDialogueWithGoogle({ accountId: "test-account", language: "fr", pronunciationAliases: overrides.pronunciationAliases, clips: [{ sceneIndex: 0, buffer: Buffer.from("synthetic-video"), mediaType: "video/mp4", durationSeconds, expectedLine, automaticDialogueContext: overrides.automaticDialogueContext, expectedContinuation: overrides.expectedContinuation, checkFinalFrameLayout: overrides.checkFinalFrameLayout, sourceStartSeconds: overrides.sourceStartSeconds }] }),
+    audit: (durationSeconds = 8) => record.exports.auditAiMediaNativeDialogueWithGoogle({ accountId: "test-account", language: "fr", advisoryOnly: overrides.advisoryOnly, pronunciationAliases: overrides.pronunciationAliases, clips: [{ sceneIndex: 0, buffer: Buffer.from("synthetic-video"), mediaType: "video/mp4", durationSeconds, expectedLine, automaticDialogueContext: overrides.automaticDialogueContext, expectedContinuation: overrides.expectedContinuation, checkFinalFrameLayout: overrides.checkFinalFrameLayout, sourceStartSeconds: overrides.sourceStartSeconds }] }),
   };
 }
+
+test("advisory Google QA buys one blind listen only and preserves its rejected verdict for user review", async () => {
+  const h = adapter("complete", false, { advisoryOnly: true, automaticDialogueContext: "Présentez l’entreprise." });
+  const result = await h.audit(16);
+  assert.equal(result.status, "rejected"); assert.equal(result.clips[0].audioCheckCount, 1);
+  assert.equal(h.calls.length, 1); assert.equal(h.reservations.length, 1); assert.equal(h.costs.length, 1);
+  assert.equal(h.extractions(), 1); assert.equal(h.cleaned(), 1);
+  assert.equal(dialogue.getAiMediaNativeDialogueDeliveryDecision(result).status, "warning");
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_|synthetic-video|transcript"/);
+});
 
 test("missing Google credentials and SDK construction failures roll back the audio reservation before any provider call", async () => {
   for (const overrides of [{ missingCredentials: true }, { constructorThrows: true }]) {

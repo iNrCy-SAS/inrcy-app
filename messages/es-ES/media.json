@@ -1178,5 +1178,5 @@
   "ai_generator_reference_memory_save_error": "No se pudieron guardar estos medios. Comprueba las fotos y las voces e inténtalo de nuevo.",
   "ai_generator_reference_memory_forget_error": "No se pudieron olvidar estos medios. Inténtalo de nuevo.",
   "ai_generator_reference_memory_forget_hint": "Olvidar esta selección para mis próximas creaciones.",
-  "ai_generator_speech_review_warning": "Revise lo que se dice antes de utilizar este vídeo."
+  "ai_generator_speech_review_warning": "Vídeo a revisar: vea y escuche el resultado antes de utilizarlo."
 }

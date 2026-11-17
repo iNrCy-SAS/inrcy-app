@@ -449,7 +449,7 @@ test("le compositeur refuse explicitement trois clips ou une durée hors de 4 à
   }), /ai_original_video_clip_count_invalid/);
 });
 
-test("un clip natif iNrAgent conserve tout son cadre et refuse une conversion qui rognerait l’image", async () => {
+test("un clip natif iNrAgent conserve tout son cadre, y compris lorsque le format cible demande des marges", async () => {
   const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
   const directory = await mkdtemp(path.join(tmpdir(), "inrcy-agent-native-frame-"));
   const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
@@ -465,7 +465,46 @@ test("un clip natif iNrAgent conserve tout son cadre et refuse une conversion qu
     assert.deepEqual([probe.orientedWidth, probe.orientedHeight], [360, 640]);
     assert.ok(Math.abs(probe.durationSeconds - 4) < 0.25);
     const squareOverlay = await sharp({ create: { width: 320, height: 320, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
-    await assert.rejects(runtime.composeOriginalAiVideo({ clips: [clip], overlays: [squareOverlay], width: 320, height: 320, durationSeconds: 4, nativeAudioMode: "mute", preserveComposition: true }), /ai_original_video_native_frame_mismatch/);
+    const square = await runtime.composeOriginalAiVideo({ clips: [clip], overlays: [squareOverlay], width: 320, height: 320, durationSeconds: 4, nativeAudioMode: "mute", preserveComposition: true });
+    const squarePath = path.join(directory, "square-output.mp4"); await writeFile(squarePath, square.buffer);
+    const squareProbe = await probeVideoSource({ ffmpegPath, inputPath: squarePath, timeoutMs: 30_000 });
+    assert.deepEqual([squareProbe.orientedWidth, squareProbe.orientedHeight], [320, 320]);
+    const framePath = path.join(directory, "square-frame.png");
+    await execFileAsync(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-y", "-ss", "1", "-i", squarePath, "-frames:v", "1", framePath], { windowsHide: true, timeout: 30_000 });
+    const { data, info } = await sharp(await readFile(framePath)).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const pixel = (x: number, y: number) => Array.from(data.subarray((y * info.width + x) * info.channels, (y * info.width + x) * info.channels + 3));
+    assert.ok(pixel(10, 160).every(value => value < 10), "portrait remains complete with side margins, instead of stretching or cropping");
+    assert.ok(pixel(160, 100).some(value => value > 30), "the original picture remains visible inside those margins");
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
+
+test("readable silent native clips are delivered and mixed clips preserve the audio that actually exists", async () => {
+  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
+  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-native-optional-audio-"));
+  const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
+  try {
+    const silentPath = path.join(directory, "silent.mp4"), voicedPath = path.join(directory, "voiced.mp4");
+    await execFileAsync(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=320x320:r=30:d=4",
+      "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-an", silentPath], { windowsHide: true, timeout: 30_000 });
+    await execFileAsync(ffmpegPath, ["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:s=320x320:r=30:d=4",
+      "-f", "lavfi", "-i", "sine=frequency=770:sample_rate=48000:duration=4", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", voicedPath], { windowsHide: true, timeout: 30_000 });
+    const overlay = await sharp({ create: { width: 320, height: 320, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    const silentClip = { buffer: await readFile(silentPath), durationSeconds: 4 };
+    const silent = await runtime.composeOriginalAiVideo({ clips: [silentClip], overlays: [overlay], width: 320, height: 320, durationSeconds: 4, nativeAudioMode: "dialogue" });
+    const silentOutput = path.join(directory, "silent-output.mp4"); await writeFile(silentOutput, silent.buffer);
+    const silentProbe = await probeVideoSource({ ffmpegPath, inputPath: silentOutput, timeoutMs: 30_000 });
+    assert.equal(silentProbe.hasAudio, false, "no fabricated speech or empty replacement track is added");
+    assert.ok(Math.abs(silentProbe.durationSeconds - 4) < 0.25);
+    const mixed = await runtime.composeOriginalAiVideo({ clips: [{ buffer: await readFile(voicedPath), durationSeconds: 4 }, silentClip],
+      overlays: [overlay, overlay], width: 320, height: 320, durationSeconds: 8, nativeAudioMode: "dialogue" });
+    const mixedOutput = path.join(directory, "mixed-output.mp4"); await writeFile(mixedOutput, mixed.buffer);
+    const mixedProbe = await probeVideoSource({ ffmpegPath, inputPath: mixedOutput, timeoutMs: 30_000 });
+    assert.equal(mixedProbe.hasAudio, true); assert.ok(Math.abs(mixedProbe.durationSeconds - 8) < 0.25);
+    const audioProbe = createAudioProbe(ffmpegPath, directory), pcm = await audioProbe.decodeAudio(mixedOutput, "mixed");
+    assert.ok(audioProbe.toneAmplitude(pcm, 770, 1, 1) > 0.05, "the first clip's real native sound remains audible");
+    assert.ok(audioProbe.toneAmplitude(pcm, 770, 5, 1) < 0.001, "the absent second track is not replaced or repeated");
+    await assert.rejects(runtime.composeOriginalAiVideo({ clips: [{ buffer: Buffer.from("not-a-readable-video"), durationSeconds: 4 }],
+      overlays: [overlay], width: 320, height: 320, durationSeconds: 4, nativeAudioMode: "dialogue" }), "an undecodable provider file remains a technical failure");
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
 

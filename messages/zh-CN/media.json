@@ -1178,5 +1178,5 @@
   "ai_generator_reference_memory_save_error": "无法记住这些媒体。请检查照片和声音后重试。",
   "ai_generator_reference_memory_forget_error": "无法忘记这些媒体。请重试。",
   "ai_generator_reference_memory_forget_hint": "在下次创作中不再保留此选择。",
-  "ai_generator_speech_review_warning": "使用视频前，请核对其中的台词。"
+  "ai_generator_speech_review_warning": "使用前，请观看并聆听视频，核对结果。"
 }

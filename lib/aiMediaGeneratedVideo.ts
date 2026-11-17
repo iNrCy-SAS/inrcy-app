@@ -369,6 +369,7 @@ function buildFilter(args: {
   height: number;
   durationSeconds: number;
   hasNativeAudio: boolean;
+  clipHasNativeAudio?: boolean[];
   soundtrackInputIndex: number | null;
   narrationInputIndex: number | null;
   narrationDurationSeconds: number | null;
@@ -397,14 +398,16 @@ function buildFilter(args: {
     // verticales. La composition du prompt protège déjà le sujet dans la zone
     // sûre ; le crop est donc préférable à une vidéo visuellement réduite.
     const framing = args.preserveComposition
-      ? `scale=${args.width}:${args.height}`
+      ? `scale=${args.width}:${args.height}:force_original_aspect_ratio=decrease,pad=${args.width}:${args.height}:(ow-iw)/2:(oh-ih)/2`
       : `scale=${args.width}:${args.height}:force_original_aspect_ratio=increase:force_divisible_by=2,crop=${args.width}:${args.height}:(in_w-out_w)/2:${verticalCropY}`;
     filters.push(
       `[${index}:v]trim=start=${sourceStartSeconds}:duration=${clipSeconds},setpts=PTS-STARTPTS,${removeMatte}${framing},fps=30,setsar=1,format=yuv420p[base${index}]`,
       `[base${index}][${overlayIndex}:v]overlay=0:0:shortest=1,tpad=stop_mode=clone:stop_duration=${clipSeconds},trim=duration=${clipSeconds},setpts=PTS-STARTPTS[v${index}]`
     );
     if (args.hasNativeAudio) {
-      filters.push(
+      filters.push(args.clipHasNativeAudio?.[index] === false
+        ? `anullsrc=r=48000:cl=stereo,atrim=duration=${clipSeconds},asetpts=PTS-STARTPTS[a${index}]`
+        :
         `[${index}:a]atrim=start=${sourceStartSeconds}:duration=${clipSeconds},asetpts=PTS-STARTPTS,aresample=48000,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad=pad_dur=${clipSeconds},atrim=duration=${clipSeconds}[a${index}]`
       );
     }
@@ -604,21 +607,15 @@ export async function composeOriginalAiVideo(args: {
       durationSeconds: args.clips[index].durationSeconds, signal: args.signal,
     })));
     args.signal?.throwIfAborted();
-    if (args.preserveComposition && probes.some((probe, index) => {
-      const width = clipCrops[index]?.width || probe.orientedWidth;
-      const height = clipCrops[index]?.height || probe.orientedHeight;
-      return Math.abs(width * args.height - height * args.width) > 1;
-    })) throw new Error("ai_original_video_native_frame_mismatch");
     // Une piste Veo dite « ambiance » peut malgré le prompt contenir une voix
     // résiduelle. Dès qu'une voix off iNrCy existe, couper toute la piste
     // native garantit qu'aucune seconde voix ne puisse se superposer.
     const nativeAudioMode = args.narration
       ? "mute"
       : requestedNativeAudioMode;
-    const sourceHasNativeAudio = probes.every((probe) => probe.hasAudio);
-    if (nativeAudioMode === "dialogue" && !sourceHasNativeAudio) {
-      throw new Error("ai_original_video_native_dialogue_missing");
-    }
+    // Preserve every existing native track; an absent track is a quality
+    // warning, not an unreadable video. Never synthesize replacement speech.
+    const sourceHasNativeAudio = probes.some((probe) => probe.hasAudio);
     const hasNativeAudio = nativeAudioMode !== "mute" && sourceHasNativeAudio;
 
     const command = ["-hide_banner", "-nostdin", "-y"];
@@ -675,6 +672,7 @@ export async function composeOriginalAiVideo(args: {
         height: args.height,
         durationSeconds: args.durationSeconds,
         hasNativeAudio,
+        clipHasNativeAudio: probes.map(probe => probe.hasAudio),
         soundtrackInputIndex,
         narrationInputIndex,
         narrationDurationSeconds,

@@ -74,7 +74,7 @@ import {
   createReferenceTeamFallbackVideo,
   createReferenceTeamMontage,
 } from "@/lib/aiMediaReferenceTeam";
-import { shouldAuditAiMediaNativeFinalFrame, assertAiMediaNativeFinalFrameLayout, recoverAiMediaNativeDialogueVerification, getAiMediaAutomaticDialogueContext, getAiMediaNativeDialogueDeliveryDecision, AiMediaNativeDialogueVerificationUnavailableError } from "@/lib/aiMediaNativeDialogueQa";
+import { shouldAuditAiMediaNativeFinalFrame, getAiMediaAutomaticDialogueContext, getAiMediaNativeDialogueDeliveryDecision, type AiMediaNativeDialogueQaResult } from "@/lib/aiMediaNativeDialogueQa";
 import { auditAiMediaNativeDialogueWithGoogle } from "@/lib/aiMediaNativeDialogueQaGoogle";
 import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
 import {
@@ -101,7 +101,6 @@ import { generateOriginalAiVideoClips, preflightKlingAiVideoAccess } from "@/lib
 import { generateInrAgentVideoWithFallback } from "./inrAgentVideoFallback.ts";
 import { classifyVeoFailure } from "@/lib/aiVideoReliability";
 import {
-  AiVideoProviderBillableFailure,
   getAiVideoProviderRecoverableStatus,
   isAiVideoProviderBillableFailure,
   type AiVideoProviderGenerationArgs,
@@ -1685,18 +1684,8 @@ export async function generateAndSaveAiMedia(args: {
     }
     args.signal?.throwIfAborted();
 
-    const nativeFinalFrameFailure = (error: unknown) => new AiVideoProviderBillableFailure({
-      provider: videoGateway.provider, model: videoGateway.model,
-      stage: "native_final_frame_qa", details: safeAiMediaErrorMessage(error, 160), cause: error,
-    });
-    const assertNativeFinalFrameQa = (qa: Parameters<typeof assertAiMediaNativeFinalFrameLayout>[0]) => {
-      try { assertAiMediaNativeFinalFrameLayout(qa); }
-      catch (error) {
-        // The existing clip has already been produced and accounted for.
-        // A QA refusal must never permit another video or audio fallback.
-        throw nativeFinalFrameFailure(error);
-      }
-    };
+    const unavailableNativeQa: AiMediaNativeDialogueQaResult = { version: 1, status: "unavailable", clips: [], elapsedMs: 0,
+      diagnostics: [{ stage: "setup", reason: "unclassified_failure", status: 0, retryable: null }] };
     const characterDialogueProviderFallback =
       characterDialogueRequested && videoGateway.provider.startsWith("inrcy-");
     const nativeDialogueQa =
@@ -1704,6 +1693,7 @@ export async function generateAndSaveAiMedia(args: {
         ? await measure("native_character_dialogue_qa", () => {
             const audit = (signal = args.signal) => auditAiMediaNativeDialogueWithGoogle({
               accountId: args.accountId,
+              advisoryOnly: true,
               language: speechLanguage,
               pronunciationAliases: isFreeCreation ? extractAiMediaPronunciationAliases(providerRequest.freePrompt || "") : undefined,
               signal,
@@ -1721,70 +1711,23 @@ export async function generateAndSaveAiMedia(args: {
                   expectedDialogueLines.slice(index + 1).some((line) => Boolean(line.trim())),
               })),
             });
-            return providerRequest.videoEngine === "wan27" || providerRequest.videoEngine === "kling" || providerRequest.videoEngine === "kling-flash"
-              ? recoverAiMediaNativeDialogueVerification({ audit, signal: args.signal })
-              : audit();
+            return audit();
           }).catch(() => {
             args.signal?.throwIfAborted();
-            if (shouldAuditAiMediaNativeFinalFrame(providerRequest, videoGateway.provider)) {
-              throw nativeFinalFrameFailure(new Error("ai_media_native_visual_verification_unavailable"));
-            }
-            throw new Error("ai_media_native_speech_verification_unavailable");
+            return unavailableNativeQa;
           })
         : null;
-    assertNativeFinalFrameQa(nativeDialogueQa);
     const nativeDialogueDelivery = getAiMediaNativeDialogueDeliveryDecision(nativeDialogueQa);
-    // A bounded wording difference keeps the original paid take for user review;
-    // unusable speech still stops here and is never replaced with another voice.
+    // Quality describes the paid take; it never authorizes discarding it,
+    // changing its original voice or submitting another provider generation.
     args.signal?.throwIfAborted();
-    if (characterDialogueRequested && (
-      characterDialogueProviderFallback || nativeDialogueQa?.status === "rejected" && nativeDialogueDelivery.status === "blocked"
-    )) {
-      // Only QA issue codes leave this boundary, never the spoken transcript
-      // or the professional's prompt. The API can explain a failed retry
-      // without exposing any private audio or image data.
-      const issues = characterDialogueProviderFallback
-        ? ["provider_fallback"]
-        : [...new Set(nativeDialogueQa?.clips.flatMap((clip) => clip.issues) || [])];
-      console.warn("[ai-media] native character speech rejected", JSON.stringify({
-        jobId: args.jobId,
-        provider: videoGateway.provider,
-        verificationAttempts: nativeDialogueQa?.verificationAttempts,
-        diagnostics: nativeDialogueQa?.diagnostics,
-        clips: nativeDialogueQa?.clips.map((clip) => ({
-          sceneIndex: clip.sceneIndex,
-          status: clip.status,
-          issues: clip.issues,
-          metrics: clip.metrics,
-          audioCheckCount: clip.audioCheckCount, readOutcomes: clip.readOutcomes, confirmationDecision: clip.confirmationDecision,
-        })) || [],
-      }));
-      throw new Error(
-        `ai_media_free_native_character_speech_unusable:${issues.join(",") || "quality_rejected"}`
-      );
-    }
-    // A technical or inconclusive audit proves neither conformity nor a
-    // provider mistake. Stop before composition/persistence; never regenerate
-    // a paid clip or replace its native voice just to retry verification.
-    if (characterDialogueRequested && nativeDialogueDelivery.status === "blocked") {
-      console.warn("[ai-media] native character speech verification unavailable", JSON.stringify({
-        jobId: args.jobId, provider: videoGateway.provider, elapsedMs: nativeDialogueQa?.elapsedMs,
-        verificationAttempts: nativeDialogueQa?.verificationAttempts,
-        diagnostics: nativeDialogueQa?.diagnostics,
-        clips: nativeDialogueQa?.clips.map(clip => ({
-          sceneIndex: clip.sceneIndex, status: clip.status, issues: clip.issues,
-          confirmation: clip.confirmation, pronunciationVerification: clip.pronunciationVerification,
-          audioCheckCount: clip.audioCheckCount, readOutcomes: clip.readOutcomes, confirmationDecision: clip.confirmationDecision,
-        })) || [],
-      }));
-      throw new AiMediaNativeDialogueVerificationUnavailableError(nativeDialogueQa);
-    }
-    if (nativeDialogueDelivery.status === "warning") pipelineWarnings.push(nativeDialogueDelivery.code);
+    if (characterDialogueRequested && nativeDialogueDelivery.status === "warning") pipelineWarnings.push(nativeDialogueDelivery.code);
     const nativeVoiceoverQa = nativeVoiceoverRequested &&
       !videoGateway.provider.startsWith("inrcy-")
       ? await measure("native_voiceover_qa", () =>
           auditAiMediaNativeDialogueWithGoogle({
             accountId: args.accountId,
+            advisoryOnly: true,
             language: nativeVoiceoverNarration?.language || profile.preferences.language,
             pronunciationAliases: isFreeCreation ? extractAiMediaPronunciationAliases(providerRequest.freePrompt || "") : undefined,
             signal: args.signal,
@@ -1801,34 +1744,15 @@ export async function generateAndSaveAiMedia(args: {
             })),
           })).catch(() => {
             args.signal?.throwIfAborted();
-            throw new Error("ai_media_native_speech_verification_unavailable");
+            return unavailableNativeQa;
           })
       : null;
     args.signal?.throwIfAborted();
-    assertNativeFinalFrameQa(nativeVoiceoverQa);
     const nativeVoiceoverDelivery = getAiMediaNativeDialogueDeliveryDecision(nativeVoiceoverQa);
-    if (nativeVoiceoverRequested && (
-      videoGateway.provider.startsWith("inrcy-") || nativeVoiceoverQa?.status === "rejected" && nativeVoiceoverDelivery.status === "blocked"
-    )) {
-      const issues = [...new Set(nativeVoiceoverQa?.clips.flatMap((clip) => clip.issues) || [])];
-      throw new Error(`ai_media_free_native_character_speech_unusable:${issues.join(",") || "provider_fallback"}`);
-    }
-    if (nativeVoiceoverRequested && nativeVoiceoverDelivery.status === "blocked") {
-      console.warn("[ai-media] native voiceover verification unavailable", JSON.stringify({
-        jobId: args.jobId, provider: videoGateway.provider, elapsedMs: nativeVoiceoverQa?.elapsedMs,
-        diagnostics: nativeVoiceoverQa?.diagnostics,
-        clips: nativeVoiceoverQa?.clips.map(clip => ({
-          sceneIndex: clip.sceneIndex, status: clip.status, issues: clip.issues,
-          confirmation: clip.confirmation, pronunciationVerification: clip.pronunciationVerification,
-          audioCheckCount: clip.audioCheckCount, readOutcomes: clip.readOutcomes, confirmationDecision: clip.confirmationDecision,
-        })) || [],
-      }));
-      throw new AiMediaNativeDialogueVerificationUnavailableError(nativeVoiceoverQa);
-    }
-    if (nativeVoiceoverDelivery.status === "warning") pipelineWarnings.push(nativeVoiceoverDelivery.code);
+    if (nativeVoiceoverRequested && nativeVoiceoverDelivery.status === "warning") pipelineWarnings.push(nativeVoiceoverDelivery.code);
     // Accepted native speech keeps its original track, including a review warning.
     const nativeVoiceoverPreserved = nativeVoiceoverRequested &&
-      !videoGateway.provider.startsWith("inrcy-") && nativeVoiceoverDelivery.status !== "blocked";
+      !videoGateway.provider.startsWith("inrcy-");
     const narrationJoinStartedAt = performance.now();
     const narrationResult = await waitForOptionalTaskWithinGrace({
           task: narrationTask,
@@ -1881,8 +1805,7 @@ export async function generateAndSaveAiMedia(args: {
     let narrationAudio = narrationResult?.audio || null;
     let nativeCharacterDialoguePreserved =
       characterDialogueRequested &&
-      !characterDialogueProviderFallback &&
-      nativeDialogueDelivery.status !== "blocked";
+      !characterDialogueProviderFallback;
 
     const clips = videoGateway.clips.map((clip) => ({
       buffer: clip.buffer,
@@ -2104,6 +2027,7 @@ export async function generateAndSaveAiMedia(args: {
       timeoutMs: 4_000,
     }));
     pipelineWarnings.push(...inspectedVideoQa.advisories.map((advisory) => `video_local_qa_${advisory}`));
+    if (inspectedVideoQa.advisories.length) pipelineWarnings.push("native_speech_review_recommended");
     const finalVideoQa = {
       ...inspectedVideoQa,
       checks: ["duration", "frame_layout", "audio_policy"] as const,

@@ -252,7 +252,8 @@ export async function recoverNextAiMediaCompositionCheckpoint(): Promise<AiMedia
     metadata.video_engine_result ||= provider.startsWith("inrcy-") ? "local_fallback"
       : metadata.video_engine === "veo" && provider.includes("google-gemini-omni") ? "veo_omni_fallback"
       : provider.includes("+") ? "omni_veo_fallback" : provider === "google-gemini-omni" ? "omni" : metadata.video_engine || "veo";
-    const warnings = [...(Array.isArray(metadata.warnings) ? metadata.warnings : []), ...qa.advisories.map(code => `video_local_qa_${code}`)];
+    const warnings = [...(Array.isArray(metadata.warnings) ? metadata.warnings : []), ...qa.advisories.map(code => `video_local_qa_${code}`),
+      ...(qa.advisories.length ? ["native_speech_review_recommended"] : [])];
     const item = await saveGeneratedAiMediaDraft({ ...checkpoint, authUserId: uuid(row.actor_auth_user_id), title: "Vidéo générée par iNrCy", media,
       metadata: {
         provenance: { source: "inrcy_original_ai_video_engine", recovered_composition: true,

@@ -1,6 +1,6 @@
 import * as nativeQa from "../../lib/aiMediaNativeDialogueQa.ts";
 import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
-import { AiVideoProviderBillableFailure, isAiVideoProviderBillableFailure } from "../../lib/aiVideoProviderTypes.ts";
+import { AiVideoProviderBillableFailure } from "../../lib/aiVideoProviderTypes.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import { loadNarrationPreparationRuntime } from "./narration-preparation-runtime.mjs";
 import assert from "node:assert/strict";
@@ -139,9 +139,9 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
       if (options.nativeQaError) throw options.nativeQaError;
       if (options.nativeQaAudit) return options.nativeQaAudit(args);
       const status = options.nativeQaStatuses?.[Math.min(nativeQaCalls.length - 1, options.nativeQaStatuses.length - 1)] || options.nativeQaStatus || "passed";
-      return { version: 1, status, clips: options.finalFrameLayout ? [{ sceneIndex: 0, status: "passed", finalFrameLayout: options.finalFrameLayout, issues: [] }] : status === "passed" ? [] : [{ sceneIndex: 0, status,
-        issues: status === "rejected" ? ["spoken_critical_value_mismatch"] : ["qa_unavailable"],
-        transcript: "PRIVATE_TRANSCRIPT", reason: "PRIVATE_DIAGNOSTIC https://private.invalid/?token=secret" }] };
+      const qaStatus = status === "inconclusive" ? "unavailable" : status;
+      return { version: 1, status: qaStatus, clips: options.finalFrameLayout ? [{ sceneIndex: 0, status: "passed", finalFrameLayout: options.finalFrameLayout, issues: [] }] : status === "passed" ? [] : [{ sceneIndex: 0, status: qaStatus,
+        issues: status === "rejected" ? ["spoken_critical_value_mismatch"] : [status === "inconclusive" ? "transcription_inconclusive" : "transcription_unavailable"] }] };
     } }],
     ["@/lib/aiMediaDialogue", { resolveAiMediaDialogueSequence: () => ["Bonjour, je façonne un vase."] }],
     ["@/lib/aiMediaGenerationPrompt", { AI_MEDIA_PROMPT_VERSION: "test-guided-version", buildAiMediaPrompt: (args: { request: contracts.AiMediaGenerationRequest }) => {
@@ -179,7 +179,7 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
 
 for (const nativeMode of ["characters", "voiceover"] as const) {
   for (const status of ["passed", "rejected", "unavailable", "inconclusive", "throws"] as const) {
-    test(`native ${nativeMode}: ${status} audit requires proof before composition and persistence without another paid video or TTS`, async () => {
+    test(`native ${nativeMode}: ${status} audit is advisory and preserves the paid clip without another video or TTS`, async () => {
       const env = harness(undefined, false, {
         nativeVoiceover: nativeMode === "voiceover",
         nativeQaStatus: status === "throws" ? undefined : status,
@@ -195,37 +195,17 @@ for (const nativeMode of ["characters", "voiceover"] as const) {
         onBillableWorkStarted: async () => { billingStarts += 1; },
         onCompositionReady: async (value: Row) => { checkpoints.push(value); },
       });
-      if (status === "passed") {
-        await task;
-        assert.equal(env.saved.length, 1);
-        assert.equal(env.composeCalls.length, 1);
-        assert.equal(checkpoints.length, 1);
-        assert.equal(env.composeCalls[0].nativeAudioMode, "dialogue");
-        assert.equal(env.composeCalls[0].narration, null);
-        const clips = env.composeCalls[0].clips as Array<{ buffer: Buffer }>;
-        assert.deepEqual(clips[0].buffer, Buffer.from("synthetic-native-video"), "the original native track is composed unchanged");
-      } else {
-        await assert.rejects(task, (error: Error) => {
-          const result = publicErrors.getAiMediaGenerationPublicError(error);
-          assert.equal(result.status, status === "rejected" ? 422 : 503);
-          assert.equal(result.code, status === "rejected" ? "AI_MEDIA_VIDEO_SPEECH_MISMATCH" : "AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE");
-          assert.doesNotMatch(JSON.stringify({ error: error.message, result }), /PRIVATE|https:|secret|transcript|token/);
-          if (status !== "rejected") {
-            assert.equal(classifyVeoFailure(error).retryable, false);
-            assert.equal(classifyVeoFailure(error).modelFallbackEligible, false);
-          }
-          return true;
-        });
-        assert.equal(env.saved.length, 0);
-        assert.equal(env.composeCalls.length, 0);
-        assert.equal(checkpoints.length, 0, "unverified paid assets cannot enter composition recovery");
-        if (status === "unavailable" || status === "inconclusive") {
-          const diagnostic = env.warnings.find(values => String(values[0]).includes("verification unavailable"));
-          assert.ok(diagnostic, "an inconclusive audit leaves an actionable diagnostic");
-          assert.match(JSON.stringify(diagnostic), /qa_unavailable/);
-          assert.doesNotMatch(JSON.stringify(diagnostic), /PRIVATE|https:|secret|transcript|token/);
-        }
-      }
+      await task;
+      assert.equal(env.saved.length, 1); assert.equal(env.composeCalls.length, 1); assert.equal(checkpoints.length, 1);
+      assert.equal(env.composeCalls[0].nativeAudioMode, "dialogue"); assert.equal(env.composeCalls[0].narration, null);
+      const clips = env.composeCalls[0].clips as Array<{ buffer: Buffer }>;
+      assert.deepEqual(clips[0].buffer, Buffer.from("synthetic-native-video"), "the original native track is composed unchanged");
+      const qa = ((env.saved[0].metadata as Row).gateway as Row).quality_assurance as Row;
+      const key = nativeMode === "characters" ? "native_dialogue" : "native_voiceover";
+      assert.equal((qa[key] as Row).status, status === "inconclusive" || status === "throws" ? "unavailable" : status);
+      assert.equal((qa[`${key}_delivery`] as Row).status, status === "passed" ? "passed" : "warning");
+      assert.doesNotMatch(JSON.stringify(qa), /PRIVATE|https:|secret|transcript"/);
+      assert.equal(env.nativeQaCalls[0].advisoryOnly, true);
       assert.equal(billingStarts, 1);
       assert.equal(env.videoCalls.length, 1, "QA cannot submit a paid regeneration or engine fallback");
       assert.equal(env.events.filter((event) => event === "native-qa").length, 1);
@@ -265,7 +245,7 @@ for (const nativeMode of ["characters", "voiceover"] as const) test(`native ${na
   assert.doesNotMatch(JSON.stringify(qa[`${key}_delivery`]), /transcript|expectedLine|PRIVATE|https:/);
 });
 
-for (const automaticSpeech of [true, false]) test(`Wan image + supplied voice recovers unavailable ${automaticSpeech ? "automatic" : "exact"} speech verification using the same paid clip`, async () => {
+for (const automaticSpeech of [true, false]) test(`Wan image + supplied voice preserves unavailable ${automaticSpeech ? "automatic" : "exact"} speech as review without repeated audits`, async () => {
   const env = harness(undefined, false, { nativeQaStatuses: ["unavailable", "passed", "passed"] });
   const now = Date.now();
   const original = request("wan27", {
@@ -280,7 +260,7 @@ for (const automaticSpeech of [true, false]) test(`Wan image + supplied voice re
   await env.generate(original);
   assert.equal(typeof original.spokenScript, automaticSpeech ? "undefined" : "string");
   assert.equal(env.videoCalls.length, 1);
-  assert.equal(env.nativeQaCalls.length, 3);
+  assert.equal(env.nativeQaCalls.length, 1);
   const firstClips = env.nativeQaCalls[0].clips as Row[];
   for (const call of env.nativeQaCalls) {
     const clips = call.clips as Row[];
@@ -295,37 +275,35 @@ for (const automaticSpeech of [true, false]) test(`Wan image + supplied voice re
   assert.equal(env.saved.length, 1);
 });
 
-test("the real server preserves unavailable QA categories on its error before composition or another provider submission", async () => {
+test("the real server retains an inconclusive QA verdict but delivers the same native video with a review warning", async () => {
   const diagnostic = { stage: "automatic_dialogue", reason: "verification_inconclusive", status: 0, retryable: null } as const;
   const env = harness(undefined, false, { nativeQaAudit: async () => ({ version: 1, status: "unavailable", elapsedMs: 50,
     diagnostics: [diagnostic], clips: [{ sceneIndex: 0, status: "unavailable", issues: ["transcription_inconclusive"], automaticDialogueVerification: "unavailable",
       metrics: { expectedTokenCount: 5, detectedTokenCount: 5, expectedCoverage: 0.8, bestWindowSimilarity: 0.8, extraTokenCount: 1, repeatCount: 0 } }] }) });
-  await assert.rejects(env.generate(request("wan27", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false })), error => {
-    assert.ok(error instanceof nativeQa.AiMediaNativeDialogueVerificationUnavailableError);
-    const metadata = nativeQa.getAiMediaNativeDialogueQaFailureMetadata(error);
-    assert.deepEqual(metadata?.diagnostics, [{ ...diagnostic, auditAttempt: 1 }, { ...diagnostic, auditAttempt: 2 }]);
-    assert.deepEqual(metadata?.clips, [{ sceneIndex: 0, status: "unavailable", issues: ["transcription_inconclusive"], automaticDialogueVerification: "unavailable" }]);
-    assert.doesNotMatch(JSON.stringify(metadata), /expectedLine|transcript"|https:|buffer|spokenLine|metrics/);
-    return true;
-  });
-  assert.equal(env.nativeQaCalls.length, 2); assert.equal(env.videoCalls.length, 1);
-  assert.equal(env.composeCalls.length, 0); assert.equal(env.saved.length, 0); assert.equal(env.ttsCalls.length, 0);
+  await env.generate(request("wan27", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false }));
+  const quality = ((env.saved[0].metadata as Row).gateway as Row).quality_assurance as Row;
+  assert.equal((quality.native_dialogue as Row).status, "unavailable");
+  assert.deepEqual((quality.native_dialogue as Row).diagnostics, [diagnostic]);
+  assert.equal((quality.native_dialogue_delivery as Row).status, "warning");
+  assert.doesNotMatch(JSON.stringify(quality.native_dialogue_delivery), /expectedLine|transcript"|https:|buffer|spokenLine|metrics/);
+  assert.equal(env.nativeQaCalls.length, 1); assert.equal(env.videoCalls.length, 1);
+  assert.equal(env.composeCalls.length, 1); assert.equal(env.saved.length, 1); assert.equal(env.ttsCalls.length, 0);
 });
 
 for (const statuses of [["unavailable", "passed", "unavailable"], ["unavailable", "rejected"], ["unavailable", "unavailable"]] as const) {
-  test(`Wan recovery ${statuses.join("/")} never delivers unverified speech or resubmits the video`, async () => {
+  test(`Wan never buys the next QA in ${statuses.join("/")} and keeps the existing video for review`, async () => {
     const env = harness(undefined, false, { nativeQaStatuses: [...statuses] });
     const original = request("wan27", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false });
-    await assert.rejects(env.generate(original), statuses.some(status => status === "rejected") ? /native_character_speech_unusable/ : /speech_verification_unavailable/);
-    assert.equal(env.nativeQaCalls.length, statuses.length);
+    await env.generate(original);
+    assert.equal(env.nativeQaCalls.length, 1);
     assert.equal(env.videoCalls.length, 1);
-    assert.equal(env.composeCalls.length, 0);
-    assert.equal(env.saved.length, 0);
+    assert.equal(env.composeCalls.length, 1);
+    assert.equal(env.saved.length, 1);
     assert.equal(env.ttsCalls.length, 0);
   });
 }
 
-test("Wan delivers only a real fresh passing consensus and never regenerates or replaces the native character voice", async () => {
+test("Wan retains a rejected first read as advisory and never buys consensus or replaces the native character voice", async () => {
   let reads = 0;
   const env = harness(undefined, false, { nativeVideoProvider: "vercel-ai-gateway:alibaba", nativeQaAudit: async args => {
     const clips = args.clips as nativeQa.AiMediaNativeDialogueQaClip[];
@@ -333,16 +311,18 @@ test("Wan delivers only a real fresh passing consensus and never regenerates or 
       reads++;
       return { text: reads === 1 ? "Une tout autre histoire commence ici." : reads === 2 ? "Les paroles changent pour un voyage différent." : clip.expectedLine };
     };
-    return nativeQa.auditAiMediaNativeDialogueClips({ clips, transcribe: listen, confirm: listen, signal: args.signal as AbortSignal | undefined });
+    return nativeQa.auditAiMediaNativeDialogueClips({ clips, advisoryOnly: args.advisoryOnly === true,
+      transcribe: listen, confirm: listen, signal: args.signal as AbortSignal | undefined });
   } });
   await env.generate(request("wan27", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false, spokenScript: "Bonjour, je façonne un vase." }));
-  assert.equal(reads, 4); assert.equal(env.nativeQaCalls.length, 1); assert.equal(env.videoCalls.length, 1);
+  assert.equal(reads, 1); assert.equal(env.nativeQaCalls.length, 1); assert.equal(env.videoCalls.length, 1);
   assert.equal(env.ttsCalls.length, 0); assert.equal(env.localFallbackCalls.length, 0);
   assert.equal(env.composeCalls.length, 1); assert.equal(env.composeCalls[0].nativeAudioMode, "dialogue");
   assert.equal(env.saved.length, 1);
   const savedQa = ((env.saved[0].metadata as Row).gateway as Row).quality_assurance as { native_dialogue: nativeQa.AiMediaNativeDialogueQaResult };
-  assert.equal(savedQa.native_dialogue.clips[0].audioCheckCount, 4);
-  assert.equal(savedQa.native_dialogue.clips[0].confirmationDecision, "conflicting_reads_confirmed_pass");
+  assert.equal(savedQa.native_dialogue.status, "rejected");
+  assert.equal(savedQa.native_dialogue.clips[0].audioCheckCount, 1);
+  assert.equal(savedQa.native_dialogue.clips[0].confirmationDecision, undefined);
 });
 
 for (const engine of ["wan27", "heygen"] as const) {
@@ -713,24 +693,20 @@ test("other free engines retain their existing reference-frame Google fallback",
 });
 
 
-enabledComparisonTest("Google final-image refusal stays billable and cannot trigger video, local, TTS or composition recovery", async () => {
+enabledComparisonTest("Google final-image concerns are advisory and keep the same paid clip without video, local or TTS replacement", async () => {
   for (const finalFrameLayout of ["rejected", "unavailable"] as const) {
     const env = harness(undefined, false, { nativeVideoProvider: "vercel-ai-gateway:google", finalFrameLayout });
     const original = request("veo", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false,
       freePrompt: "Une femme présente un jardin face caméra." });
     const checkpoints: Row[] = []; let billingStarts = 0;
-    await assert.rejects(env.generate(original, { onBillableWorkStarted: async () => { billingStarts++; }, onCompositionReady: async (value: Row) => { checkpoints.push(value); } }), (error: unknown) => {
-      assert.equal(isAiVideoProviderBillableFailure(error), true);
-      assert.equal(getAiVideoProviderRecoverableStatus(error), 0);
-      const explanation = publicErrors.getAiMediaGenerationPublicError(error);
-      assert.equal(explanation.code, finalFrameLayout === "rejected" ? "AI_MEDIA_VIDEO_VISUAL_LAYOUT_INVALID" : "AI_MEDIA_VIDEO_VISUAL_VERIFICATION_UNAVAILABLE");
-      assert.equal(classifyVeoFailure(error).modelFallbackEligible, false);
-      return true;
-    });
+    await env.generate(original, { onBillableWorkStarted: async () => { billingStarts++; }, onCompositionReady: async (value: Row) => { checkpoints.push(value); } });
     assert.equal(billingStarts, 1); assert.equal(env.videoCalls.length, 1); assert.equal(env.ttsCalls.length, 0);
     assert.equal(env.googleFallbackCalls.length, 0); assert.equal(env.localFallbackCalls.length, 0);
-    assert.equal(env.composeCalls.length, 0); assert.equal(env.saved.length, 0); assert.equal(checkpoints.length, 0);
+    assert.equal(env.composeCalls.length, 1); assert.equal(env.saved.length, 1); assert.equal(checkpoints.length, 1);
     assert.equal((env.nativeQaCalls[0].clips as Row[])[0].checkFinalFrameLayout, true);
+    const quality = ((env.saved[0].metadata as Row).gateway as Row).quality_assurance as Row;
+    assert.equal((quality.native_dialogue_delivery as Row).status, "warning");
+    assert.equal(((quality.native_dialogue as Row).clips as Row[])[0].finalFrameLayout, finalFrameLayout);
   }
 });
 
@@ -743,18 +719,18 @@ enabledComparisonTest("native Google success and requested fragmentation retain 
   }
 });
 
-enabledComparisonTest("a gated adapter exception is billable and nonrecoverable before all audio and video fallback paths", async () => {
+enabledComparisonTest("a failed quality adapter leaves an unavailable advisory without replacing any audio or video", async () => {
   const env = harness(undefined, false, { nativeVideoProvider: "vercel-ai-gateway:google", nativeQaError: new Error("PRIVATE_UNKNOWN_FAILURE") });
-  await assert.rejects(env.generate(request("veo", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false,
-    freePrompt: "Une femme présente un jardin. Aucun écran partagé, sans transition." })), (error: unknown) => {
-    assert.equal(isAiVideoProviderBillableFailure(error), true); assert.equal(getAiVideoProviderRecoverableStatus(error), 0);
-    assert.equal(publicErrors.getAiMediaGenerationPublicError(error).code, "AI_MEDIA_VIDEO_VISUAL_VERIFICATION_UNAVAILABLE");
-    assert.equal(classifyVeoFailure(error).modelFallbackEligible, false); return true;
-  });
+  await env.generate(request("veo", { durationSeconds: 8, teamVideoSpeechMode: "characters", withNarration: false,
+    freePrompt: "Une femme présente un jardin. Aucun écran partagé, sans transition." }));
   assert.equal((env.nativeQaCalls[0].clips as Row[])[0].checkFinalFrameLayout, true);
   assert.equal(env.videoCalls.length, 1); assert.equal(env.ttsCalls.length, 0);
   assert.equal(env.googleFallbackCalls.length, 0); assert.equal(env.localFallbackCalls.length, 0);
-  assert.equal(env.composeCalls.length, 0); assert.equal(env.saved.length, 0);
+  assert.equal(env.composeCalls.length, 1); assert.equal(env.saved.length, 1);
+  const quality = ((env.saved[0].metadata as Row).gateway as Row).quality_assurance as Row;
+  assert.equal((quality.native_dialogue as Row).status, "unavailable");
+  assert.equal((quality.native_dialogue_delivery as Row).status, "warning");
+  assert.doesNotMatch(JSON.stringify(quality), /PRIVATE/);
 });
 
 
@@ -770,19 +746,18 @@ test("default-off comparison adds no image request policy to a normal native Goo
 });
 
 
-enabledComparisonTest("audio-only native voiceover exception keeps its audio error while comparison flag is enabled", async () => {
+enabledComparisonTest("audio-only native voiceover audit exceptions remain review warnings while comparison flag is enabled", async () => {
   const env = harness(undefined, false, { nativeVoiceover: true, nativeVideoProvider: "vercel-ai-gateway:google",
     nativeQaError: new Error("PRIVATE_VOICEOVER_FAILURE") });
-  await assert.rejects(env.generate(request("veo", { durationSeconds: 8, teamVideoSpeechMode: "voiceover", withNarration: true,
-    freePrompt: "Un jardin filmé en plein cadre." })), (error: Error) => {
-    assert.equal(publicErrors.getAiMediaGenerationPublicError(error).code, "AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE");
-    assert.equal(classifyVeoFailure(error).modelFallbackEligible, false);
-    assert.doesNotMatch(error.message, /visual|PRIVATE/);
-    return true;
-  });
+  await env.generate(request("veo", { durationSeconds: 8, teamVideoSpeechMode: "voiceover", withNarration: true,
+    freePrompt: "Un jardin filmé en plein cadre." }));
   assert.equal(env.nativeQaCalls.length, 1);
   assert.equal((env.nativeQaCalls[0].clips as Row[])[0].checkFinalFrameLayout, undefined);
   assert.equal(env.videoCalls.length, 1); assert.equal(env.ttsCalls.length, 0);
   assert.equal(env.googleFallbackCalls.length, 0); assert.equal(env.localFallbackCalls.length, 0);
-  assert.equal(env.composeCalls.length, 0); assert.equal(env.saved.length, 0);
+  assert.equal(env.composeCalls.length, 1); assert.equal(env.saved.length, 1);
+  const quality = ((env.saved[0].metadata as Row).gateway as Row).quality_assurance as Row;
+  assert.equal((quality.native_voiceover as Row).status, "unavailable");
+  assert.equal((quality.native_voiceover_delivery as Row).status, "warning");
+  assert.doesNotMatch(JSON.stringify(quality), /PRIVATE/);
 });

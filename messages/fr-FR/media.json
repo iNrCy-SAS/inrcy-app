@@ -1178,5 +1178,5 @@
   "ai_generator_reference_memory_save_error": "Mémorisation impossible. Vérifiez les photos et les voix, puis réessayez.",
   "ai_generator_reference_memory_forget_error": "Impossible d’oublier ces médias. Réessayez.",
   "ai_generator_reference_memory_forget_hint": "Oublier cette sélection pour mes prochaines créations.",
-  "ai_generator_speech_review_warning": "Paroles à vérifier : écoutez la vidéo avant de l’utiliser."
+  "ai_generator_speech_review_warning": "Vidéo à vérifier : regardez et écoutez le résultat avant de l’utiliser."
 }

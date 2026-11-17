@@ -148,15 +148,18 @@ test("le prompt Veo transmet la réplique complète et réserve une fin silencie
   assert.match(server, /expectedLine: expectedDialogueLines\[index\] \|\| ""/);
   assert.match(
     server,
-    /nativeCharacterDialoguePreserved\s*=\s*characterDialogueRequested &&[\s\S]*?!characterDialogueProviderFallback &&[\s\S]*?nativeDialogueQa\?\.status === "passed"/,
-    "seul un contrôle concluant autorise la livraison de la voix native"
+    /nativeCharacterDialoguePreserved\s*=\s*characterDialogueRequested &&\s*!characterDialogueProviderFallback/,
+    "la piste native existante reste livrée même quand son contrôle qualité est rejeté ou incertain"
   );
   assert.doesNotMatch(
     server,
     /ai_media_character_dialogue_quality_unverified/,
-    "une vérification indisponible possède une erreur technique distincte d’un rejet qualité"
+    "un avis qualité ne remplace pas la piste native par une nouvelle synthèse"
   );
-  assert.match(server, /ai_media_native_speech_verification_unavailable/);
+  assert.match(server, /advisoryOnly: true/);
+  assert.match(server, /nativeDialogueDelivery\.status === "warning"\) pipelineWarnings\.push\(nativeDialogueDelivery\.code\)/);
+  assert.doesNotMatch(server, /throw new AiMediaNativeDialogueVerificationUnavailableError/);
+  assert.doesNotMatch(server, /recoverAiMediaNativeDialogueVerification\(\{|assertNativeFinalFrameQa\(/);
   assert.match(
     server,
     /providerRequest\.inputMode === "essential" &&[\s\S]*?providerRequest\.withNarration &&[\s\S]*?ai_media_narration_unavailable/,

@@ -53,7 +53,7 @@ Menus indépendants : Personnages/Voix off/Sans paroles ; Auto/Exact ; IA/Réell
 Voix off IA : Femme/Homme, style. Voix réelle : 3 vocaux max, Ajouter → Importer/Enregistrer/Médiathèque → usage/genre. Voix off sans photo : Chatterbox hors moteur vidéo, 5 à 10 s, un narrateur actif. Personnages : Wan 2.7/Kling Omni, un vocal/personne ; Kling 5 à 10 s, un locuteur/vocal. Timbre réel, genre descriptif ; droits/import/enregistrement humains.
 En Libre, paroles exactes compatibles et piste réelle trop longue : une resynthèse supplémentaire, mêmes paroles/vocal ; jamais après erreur réseau/soumission incertaine, ni substitution de voix.
 Sous-titres : durée mesurée, départ estimé, pas d’alignement mot à mot. Barre et ≈% vidéo estimés, sans délai garanti.
-Coût/solde → Générer ; Enregistrer/Utiliser conserve ; régénérer peut débiter. Petit écart : vidéo disponible avec « Paroles à vérifier ».
+Coût/solde → Générer ; Enregistrer/Utiliser conserve ; régénérer peut débiter. Qualité : avis non bloquant « Vidéo à vérifier ».
 Vérifier mon média : même tentative, sans relance. Pause/fermeture garde l’identifiant ; critères restent modifiables. Une nouvelle génération attend sa résolution. Annuler la génération : confirmation distincte ; arrêt ≠ absence de débit.
 Basique sans crédits mensuels ; les recharges permettent de générer sans changer d’offre. Booster : type/format fixés.`,
     sourceFiles: [

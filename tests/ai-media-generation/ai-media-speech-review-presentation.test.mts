@@ -4,6 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
 import * as models from "../../lib/aiMediaModelCatalog.ts";
+import { getAiMediaNativeDialogueDeliveryDecision, type AiMediaNativeDialogueQaIssue, type AiMediaNativeDialogueQaResult } from "../../lib/aiMediaNativeDialogueQa.ts";
 import { catalogTranslator } from "../helpers/catalog-translator.mts";
 
 type Row = Record<string, unknown>;
@@ -35,6 +36,30 @@ function row(metadata: unknown, accepted = false, mediaType = "video"): Row {
     source: accepted ? sourceConstants.GENERATED_SOURCE : sourceConstants.GENERATED_DRAFT_SOURCE, media_metadata: metadata };
 }
 const decision = { version: 1, status: "warning", code: "native_speech_review_recommended", issues: ["spoken_critical_value_mismatch"], sceneIndexes: [0] };
+const reviewCases: ReadonlyArray<{ status: "rejected" | "unavailable"; issue: AiMediaNativeDialogueQaIssue }> = [
+  { status: "rejected", issue: "expected_dialogue_missing" },
+  { status: "rejected", issue: "spoken_dialogue_missing" },
+  { status: "rejected", issue: "spoken_dialogue_incomplete" },
+  { status: "rejected", issue: "spoken_dialogue_mismatch" },
+  { status: "rejected", issue: "spoken_critical_value_mismatch" },
+  { status: "rejected", issue: "spoken_dialogue_repeated" },
+  { status: "rejected", issue: "unexpected_visual_fragmentation" },
+  { status: "unavailable", issue: "final_frame_unverified" },
+  { status: "unavailable", issue: "transcription_unavailable" },
+  { status: "unavailable", issue: "transcription_inconclusive" },
+];
+function reviewMetadata(entry: typeof reviewCases[number], kind: "native_dialogue" | "native_voiceover" = "native_dialogue") {
+  const qa: AiMediaNativeDialogueQaResult = { version: 1, status: entry.status, elapsedMs: 100,
+    clips: [{ sceneIndex: 0, status: entry.status, issues: [entry.issue],
+      metrics: { expectedTokenCount: 20, detectedTokenCount: 22, expectedCoverage: 1, bestWindowSimilarity: 0.9, extraTokenCount: 2, repeatCount: 1 },
+      ...(entry.issue === "unexpected_visual_fragmentation" ? { finalFrameLayout: "rejected" as const, finalFrameIssue: "unexpected_partial_transition" as const } : {}),
+      ...(entry.issue === "final_frame_unverified" ? { finalFrameLayout: "unavailable" as const, finalFrameIssue: "unavailable" as const } : {}),
+    }] };
+  const before = structuredClone(qa), delivery = getAiMediaNativeDialogueDeliveryDecision(qa);
+  assert.equal(delivery.status, "warning", `The backend explicitly delivers ${entry.issue} for review`);
+  assert.deepEqual(qa, before, "A delivery decision must preserve the independent raw QA verdict");
+  return { gateway: { quality_assurance: { [kind]: { ...qa, privateTranscript: "PRIVATE_QA_CANARY" }, [`${kind}_delivery`]: delivery } } };
+}
 
 test("fresh, accepted and composition-recovered videos expose only a safe review flag while preserving rejected raw QA", async () => {
   const metadata = { gateway: { quality_assurance: { native_dialogue: { status: "rejected", privateTranscript: "PRIVATE_SPEECH_CANARY" }, native_dialogue_delivery: decision } } };
@@ -56,11 +81,29 @@ test("fresh, accepted and composition-recovered videos expose only a safe review
 test("ordinary, malformed, unknown-warning and image results keep their existing public contract", async () => {
   for (const metadata of [null, {}, { gateway: [] }, { gateway: { warnings: ["another_warning", "native_speech_review_recommended_extra"] } },
     { gateway: { quality_assurance: { native_dialogue: { status: "rejected" } } } },
+    { gateway: { quality_assurance: { native_dialogue: { status: "unavailable", issues: ["transcription_inconclusive"] } } } },
     ...[{ ...decision, version: 2 }, { ...decision, status: "passed" }, { ...decision, code: "another_warning" }]
       .map(value => ({ gateway: { quality_assurance: { native_dialogue_delivery: value } } }))]) {
     assert.equal(Object.hasOwn(await serialize(row(metadata)), "speech_review_recommended"), false);
   }
   assert.equal(Object.hasOwn(await serialize(row({ gateway: { quality_assurance: { native_dialogue_delivery: decision } } }, false, "image")), "speech_review_recommended"), false);
+});
+
+test("all qualitative warning decisions pass through serialization and recovery without exposing or rewriting raw QA", async () => {
+  for (const entry of reviewCases) for (const kind of ["native_dialogue", "native_voiceover"] as const) {
+    const metadata = reviewMetadata(entry, kind), before = structuredClone(metadata);
+    for (const accepted of [false, true]) {
+      const item = await serialize(row(metadata, accepted));
+      assert.equal(item.speech_review_recommended, true, `${kind}: ${entry.issue}`);
+      assert.ok(item.signed_url?.startsWith("/api/"));
+      assert.equal(Object.hasOwn(item, "media_metadata"), false);
+      assert.equal(JSON.stringify(item).includes("PRIVATE_QA_CANARY"), false);
+      assert.equal(JSON.stringify(item).includes(entry.issue), false, "Only the fixed public flag crosses the server boundary");
+    }
+    assert.deepEqual(metadata, before);
+    const recovered = await serialize(row({ gateway: { warnings: ["native_speech_review_recommended"], quality_assurance: { final_video: { status: "ok" } } } }));
+    assert.equal(recovered.speech_review_recommended, true, "The fixed checkpoint code retains the warning without raw QA");
+  }
 });
 
 function ui() {
@@ -97,8 +140,12 @@ const text = (tree: unknown): string => Array.isArray(tree) ? tree.map(text).joi
 
 test("the actual shared result shows one compact notice only for flagged videos and keeps preview and acceptance available", async () => {
   const render = ui(), t = catalogTranslator("media");
-  const item = await serialize(row({ gateway: { warnings: ["native_speech_review_recommended"] } }));
-  for (const variant of ["full", "embedded"]) for (const recovered of [false, true]) {
+  const items = await Promise.all([
+    serialize(row({ gateway: { warnings: ["native_speech_review_recommended"] } })),
+    serialize(row(reviewMetadata({ status: "unavailable", issue: "transcription_inconclusive" }))),
+    serialize(row(reviewMetadata({ status: "rejected", issue: "unexpected_visual_fragmentation" }))),
+  ]);
+  for (const item of items) for (const variant of ["full", "embedded"]) for (const recovered of [false, true]) {
     let accepts = 0, generations = 0;
     const result = { item, format: "story", draft: true, recovered, videoEngineResult: "kling", quota: { accountId: "account-a" } };
     const props = { accountId: "account-a", variant, kind: "video", format: "story", durationSeconds: 16, progress: 100, operationLocked: false,
