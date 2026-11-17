@@ -7,6 +7,7 @@ import ts from "typescript";
 import { AI_MEDIA_INSPIRATION_MAX_COUNT, normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationContracts.ts";
 import { assertStudioInspirationImageMetadata, StudioInspirationImageOnlyError } from "../../lib/studioInspirationImagePolicy.ts";
 import { projectMediaExactDialogueRows } from "../../lib/mediaExactDialogueEditor.ts";
+import { getAiMediaNativeDialogueDeliveryDecision, type AiMediaNativeDialogueQaClipResult } from "../../lib/aiMediaNativeDialogueQa.ts";
 
 const read = (path: string) =>
   readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -595,7 +596,7 @@ test("un échec Libre conserve l'autorisation de la même demande, un succès la
   }
 });
 
-test("les rejets de voix native exposent une cause utile sans transcript", () => {
+test("les avis de voix native restent nonbloquants sans transcript et les erreurs historiques restent expliquées", () => {
   const route = read("app/api/media-generation/generate/route.ts");
   const publicErrors = read("lib/aiMediaGenerationPublicErrors.ts");
   const server = read("lib/aiMediaGenerationServer.ts");
@@ -605,6 +606,15 @@ test("les rejets de voix native exposent une cause utile sans transcript", () =>
   assert.match(publicErrors, /spoken_dialogue_repeated/);
   assert.match(publicErrors, /spoken_dialogue_incomplete/);
   assert.match(publicErrors, /spoken_dialogue_mismatch/);
-  assert.match(server, /nativeDialogueQa\?\.clips\.flatMap\(\(clip\) => clip\.issues\)/);
-  assert.doesNotMatch(server.slice(server.indexOf("const issues = characterDialogueProviderFallback"), server.indexOf("const nativeVoiceoverQa")), /clip\.transcript/);
+  assert.match(server, /getAiMediaNativeDialogueDeliveryDecision\(nativeDialogueQa\)/);
+  for (const status of ["rejected", "unavailable"] as const) {
+    const issue = status === "rejected" ? "spoken_dialogue_mismatch" : "transcription_inconclusive";
+    const clip: AiMediaNativeDialogueQaClipResult & { transcript: string } = { sceneIndex: 0, status, issues: [issue],
+      metrics: { expectedTokenCount: 5, detectedTokenCount: 4, expectedCoverage: 0.8, bestWindowSimilarity: 0.8, extraTokenCount: 0, repeatCount: 0 },
+      transcript: "PRIVATE_AUDIO_TRANSCRIPT https://private.invalid/?token=secret",
+    };
+    const decision = getAiMediaNativeDialogueDeliveryDecision({ version: 1, status, elapsedMs: 10, clips: [clip] });
+    assert.deepEqual(decision, { version: 1, status: "warning", code: "native_speech_review_recommended", issues: [issue], sceneIndexes: [0] });
+    assert.doesNotMatch(JSON.stringify(decision), /PRIVATE_|private\.invalid|secret|"transcript"|"metrics"/);
+  }
 });
