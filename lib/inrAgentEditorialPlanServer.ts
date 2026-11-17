@@ -4,6 +4,12 @@ import { INR_AGENT_ADMIN_PUBLISH_MODE, inrAgentAdminMarkerMatchesOptIn, inrAgent
 import { isInrAgentAdminAutomaticPublicationAuthorized, parkInrAgentAdminAutomaticPublications } from "@/lib/inrAgentAdminPublishServer";
 
 import { createHash } from "node:crypto";
+import {
+  filterInrAgentPublicationChannels,
+  inrAgentManualReviewPublicationChannels,
+  preparedInrAgentPublicationChannels,
+  withInrAgentPublicationChannelReview,
+} from "@/lib/inrAgentPublicationChannelSelection";
 
 import { buildInternalCronHeaders } from "@/lib/cronAuth";
 import {
@@ -1554,17 +1560,49 @@ export async function scheduleReadyInrAgentAdminPublications(args: {
   origin: string;
 }) {
   const { data, error } = await args.supabase.from("inr_agent_actions")
-    .select("id,payload,metadata").eq("user_id", args.userId).eq("automation_key", "publish")
+    .select("id,payload,metadata,target_channels,last_error,updated_at").eq("user_id", args.userId).eq("automation_key", "publish")
     .eq("status", "prepared").eq("execution_policy", "automatic_after_settings").eq("validation_required", false)
     .order("scheduled_for", { ascending: true }).limit(30);
   if (error) throw error;
-  const results: Array<{ actionId: string; status: "scheduled" | "parked" | "retry" }> = [];
+  const results: Array<{ actionId: string; status: "scheduled" | "parked" | "retry" | "manual_review" }> = [];
   for (const row of Array.isArray(data) ? data : []) {
     const marker = readInrAgentAdminAutomaticPublish(asRecord(row.metadata).adminAutomaticPublish);
     if (!marker || !await isInrAgentAdminAutomaticPublicationAuthorized({ supabase: args.supabase,
       accountId: args.userId, isCron: true, marker, sourceActionId: row.id })) {
       await parkInrAgentAdminAutomaticPublications({ supabase: args.supabase, accountId: args.userId, optInId: marker?.optInId, actionId: row.id });
       results.push({ actionId: row.id, status: "parked" });
+      continue;
+    }
+    // Read the provider exception freshly; it never authorizes automatic TikTok.
+    const automation = await args.supabase.from("inr_agent_automation_settings")
+      .select("enabled,validation_mode,metadata").eq("user_id", args.userId).eq("automation_key", "publish").maybeSingle();
+    if (automation.error || automation.data?.enabled !== true || automation.data.validation_mode !== INR_AGENT_ADMIN_PUBLISH_MODE
+      || !inrAgentAdminMarkerMatchesOptIn(marker, automation.data.metadata?.adminPublishOptIn, args.userId)) {
+      results.push({ actionId: row.id, status: "retry" });
+      continue;
+    }
+    const reviewChannels = inrAgentManualReviewPublicationChannels(automation.data.metadata);
+    const payload = asRecord(row.payload);
+    const preparedChannels = preparedInrAgentPublicationChannels(payload, row.target_channels || []);
+    const reviewedPayload = withInrAgentPublicationChannelReview(payload, preparedChannels, reviewChannels);
+    const onlyManualChannels = reviewChannels.length > 0
+      && filterInrAgentPublicationChannels(reviewedPayload, preparedChannels).length === 0;
+    const manualReviewError = "TikTok attend la validation de ses paramètres avant programmation.";
+    if (reviewedPayload !== payload || (onlyManualChannels && row.last_error !== manualReviewError)) {
+      const { data: updated, error: updateError } = await args.supabase.from("inr_agent_actions")
+        .update({ payload: reviewedPayload,
+          ...(onlyManualChannels ? { last_error: manualReviewError } : {}),
+          updated_at: new Date().toISOString() })
+        .eq("id", row.id).eq("user_id", args.userId).eq("status", "prepared")
+        .eq("execution_policy", "automatic_after_settings").eq("validation_required", false)
+        .eq("updated_at", row.updated_at).select("id").maybeSingle();
+      if (updateError || !updated) {
+        results.push({ actionId: row.id, status: "retry" });
+        continue;
+      }
+    }
+    if (onlyManualChannels) {
+      results.push({ actionId: row.id, status: "manual_review" });
       continue;
     }
     const response = await fetch(`${args.origin.replace(/\/$/, "")}/api/agent/actions/schedule`, {

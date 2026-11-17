@@ -1,4 +1,4 @@
-import { filterInrAgentPublicationChannels, pendingInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
+import { canDeferInrAgentTiktokPublicationReview, filterInrAgentPublicationChannels, inrAgentManualReviewPublicationChannels, pendingInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels } from "@/lib/inrAgentPublicationChannelSelection";
 import { isMetaChannelPilotEnabledForAccount, isMetaChannelPilotEnabledForActorAndAccount, metaChannelPilotDeniedResponse } from "@/lib/metaChannelRolloutServer";
 import { NextResponse } from "next/server";
 import { resolveInrAgentActionRequest } from "@/lib/inrAgentRequest";
@@ -12,7 +12,7 @@ import { isStandardAgentActionDescriptor } from "@/lib/standardAgentPolicy";
 import { inrAgentPublicationNeedsRevisionReview, inrAgentPublicationRevisionSchedule } from "@/lib/inrAgentPublicationRevision";
 import { ACTION_SELECT, SCHEDULED_ACTION_SELECT, EDITORIAL_VALIDATION_EXPIRED_MESSAGE, schedulableStatuses, asRecord, cleanText, sanitizeFutureDate, sanitizeAutomaticScheduledDate, normalizeScheduleSelections, isMissingTableError, normalizeBoosterChannels, isManualEditorialPublicationAction } from "@/lib/inrAgentSchedulePolicy";
 import { scheduleValidatedInrAgentAction } from "@/lib/inrAgentScheduleService";
-import { readInrAgentAdminAutomaticPublish } from "@/lib/inrAgentAdminPublishPolicy";
+import { INR_AGENT_ADMIN_PUBLISH_MODE, inrAgentAdminMarkerMatchesOptIn, readInrAgentAdminAutomaticPublish } from "@/lib/inrAgentAdminPublishPolicy";
 import { isInrAgentAdminAutomaticPublicationAuthorized } from "@/lib/inrAgentAdminPublishServer";
 
 export const runtime = "nodejs";
@@ -81,7 +81,21 @@ async function scheduleAgentActionHandler(request: Request) {
     || !await isInrAgentAdminAutomaticPublicationAuthorized({ supabase: supabaseAdmin, accountId: activeUserId, isCron: true, marker: adminAutomaticPublish }))) {
     return NextResponse.json({ error: "Cette publication attend une validation manuelle.", code: "INR_AGENT_ADMIN_AUTOMATIC_PUBLISH_FORBIDDEN" }, { status: 403 });
   }
-  if (action.automationKey === "publish" && (pendingInrAgentPublicationChannels(action.payload).length || unvalidatedInrAgentPublicationChannels(action.payload).length)) return NextResponse.json({ error: "Un canal sélectionné est vide ou attend sa validation.", code: "INR_AGENT_CHANNEL_REVIEW_REQUIRED" }, { status: 409 });
+  if (action.automationKey === "publish" && (pendingInrAgentPublicationChannels(action.payload).length || unvalidatedInrAgentPublicationChannels(action.payload).length)) {
+    let deferredTiktokReview = false;
+    if (automaticExecution && isCron && adminAutomaticPublish) {
+      const automation = await supabaseAdmin.from("inr_agent_automation_settings")
+        .select("enabled,validation_mode,metadata").eq("user_id", activeUserId).eq("automation_key", "publish").maybeSingle();
+      deferredTiktokReview = !automation.error && automation.data?.enabled === true
+        && automation.data.validation_mode === INR_AGENT_ADMIN_PUBLISH_MODE
+        && inrAgentAdminMarkerMatchesOptIn(adminAutomaticPublish, automation.data.metadata?.adminPublishOptIn, activeUserId)
+        && canDeferInrAgentTiktokPublicationReview(action.payload, inrAgentManualReviewPublicationChannels(automation.data.metadata));
+    }
+    if (!deferredTiktokReview || !filterInrAgentPublicationChannels(action.payload,
+      normalizeBoosterChannels(action.payload.selectedChannels || action.payload.channels || action.targetChannels)).length) {
+      return NextResponse.json({ error: "Un canal sélectionné est vide ou attend sa validation.", code: "INR_AGENT_CHANNEL_REVIEW_REQUIRED" }, { status: 409 });
+    }
+  }
   if (filterInrAgentPublicationChannels(action.payload, normalizeBoosterChannels(action.payload?.selectedChannels || action.payload?.channels || action.targetChannels)).includes("threads") && !(await (isCron ? isMetaChannelPilotEnabledForAccount(supabaseAdmin, activeUserId) : isMetaChannelPilotEnabledForActorAndAccount(supabaseAdmin, activeUserId)))) return metaChannelPilotDeniedResponse();
   if (standardMode && !isStandardAgentActionDescriptor(action)) {
     return premiumRequiredApiResponse();

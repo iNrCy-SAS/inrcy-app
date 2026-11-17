@@ -58,7 +58,7 @@
       }
     },
     "agents": {
-      "guideDigest": "9e265350b4ea2aa78371ba76da016782498cfa45f0ff0d218dec7c95c71351d8",
+      "guideDigest": "cf718633ebb220a26210861207e98317f1b336d29e5196fae3a778949de928bc",
       "sources": {
         "app/api/agent/settings/route.ts": "fa72cfe89317dfc354d5ddeaa83c6ae6405e0c0c258b3a68c649789f648772b5",
         "app/dashboard/agent/AgentClient.tsx": "a2aeb1da58d2d66ebdadbef7904fb0cce39105ad01a47389d0cc568992aef6e3",

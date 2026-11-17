@@ -68,3 +68,33 @@ export function withInrAgentPublicationChannelSelection(
     },
   };
 }
+
+/** Only TikTok can be held for its provider-specific per-content review. */
+export function inrAgentManualReviewPublicationChannels(metadata: unknown): string[] {
+  const requested = record(metadata).manualReviewChannels;
+  return Array.isArray(requested) && requested.includes("tiktok") ? ["tiktok"] : [];
+}
+
+/** Mark prepared channels for review without losing their checked state or assets. */
+export function withInrAgentPublicationChannelReview(
+  payload: Payload,
+  preparedChannels: readonly string[],
+  manualReviewChannels: readonly string[],
+): Payload {
+  const available = preparedInrAgentPublicationChannels(payload, preparedChannels);
+  const selected = selectedInrAgentPublicationChannels(payload, available);
+  const held = channels(manualReviewChannels).filter(value => value === "tiktok" && available.includes(value) && selected.includes(value));
+  if (!held.length) return payload;
+  const next = withInrAgentPublicationChannelSelection(payload, available, selected);
+  const selection = record(next.publicationChannelSelection);
+  const unvalidatedChannels = channels([...channels(selection.unvalidatedChannels), ...held]);
+  const reviewed = { ...next, publicationChannelSelection: { ...selection, unvalidatedChannels } };
+  return JSON.stringify(reviewed.publicationChannelSelection) === JSON.stringify(payload.publicationChannelSelection) ? payload : reviewed;
+}
+
+/** Pending/empty channels and any other channel review must still block scheduling. */
+export function canDeferInrAgentTiktokPublicationReview(payload: unknown, manualReviewChannels: readonly string[]): boolean {
+  const unvalidated = unvalidatedInrAgentPublicationChannels(payload);
+  return pendingInrAgentPublicationChannels(payload).length === 0 && unvalidated.length > 0
+    && manualReviewChannels.includes("tiktok") && unvalidated.every(value => value === "tiktok");
+}
