@@ -257,7 +257,7 @@
         "lib/inrAssistantMediaLibraryTools.ts": "4a08f0e1a2081ce5d21b81efdf65b1f97e3c457781eb89b79366b262e373d567",
         "lib/inrAssistantMediaUiTools.ts": "2f15e337d2db730aae585760d3d98b392b52f7876aa6005f33744298ccb29ebf",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
-        "messages/fr-FR/media.json": "70cdc34bdf13f3676471f5b7c85b8842d2ff9630fb3d224c70a2c96b653be870"
+        "messages/fr-FR/media.json": "f430c381ee8d504ab860edc16193e94a6839968bf6dc2b221a8779fc533fc6e1"
       }
     },
     "basic-reputation": {
@@ -297,7 +297,7 @@
       }
     },
     "basic-studio-create": {
-      "guideDigest": "8f58262dea959882d8590ce4f4b30bf0545e21e9868fb876396f770508838f07",
+      "guideDigest": "85702585b3912e5386fa823fe91b0c119b2dc073dcc21bc4e526ae09688d8c7d",
       "sources": {
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e0fdc77a25455ea2b186b55e2b6fecd1e92be9a4c4a1a48f28326760e8521a98",
         "app/dashboard/_components/MediaEngineCreditControls.tsx": "00de563f9885c82623a95c21865f23d162a6b5daa4dbef091546084c31d4402a",
@@ -313,9 +313,9 @@
         "lib/aiMediaFreeDnaContext.ts": "5daf8a16404c0aa7c70fdaca2fe0067c6372a9a9916c11bb94687f2c9b91db2d",
         "lib/aiMediaFreeGenerationPlan.ts": "c2e96a0b283921d18f5726f2f31189261483681602520340ba6fde42b3bc9ca4",
         "lib/aiMediaFreeGenerationPrompt.ts": "1cd0118c9cea3ed1a928fedd141b28570ee1ce89cf7934d188bafe976f36c8c0",
-        "lib/aiMediaGeneratedVideo.ts": "6a2d74c2cf79151ec9ce2fdb015f730d5164f54f4c85ccfcfeb15b7dda5a6924",
+        "lib/aiMediaGeneratedVideo.ts": "ec348b5bf41d07460e206629a94993b9848a1baee1980cf2ebf3a117eaaeef15",
         "lib/aiMediaGenerationContracts.ts": "da4f44faece8d67ea4d39dcd8d1c00e635df702934f87ad71cb92049ceb8dec0",
-        "lib/aiMediaGenerationServer.ts": "50b0113b9dc6f705a30949278f9236c746f78daa6bf76feac9ac1d9ec0eb1700",
+        "lib/aiMediaGenerationServer.ts": "6f2158757b60e2839090cbd962da3357a752e12e5bd50739877c39ab86eb09a6",
         "lib/aiMediaGlobalConstraints.ts": "cd7221213bb54cb8da142a8564e562cffea7ad62c4dbba6bbd0c4d921f003545",
         "lib/aiMediaLocalLogoCompositionPrompt.ts": "6fe9191934382c128a48edaa7536dfe965a20593d9101e54367ffdc36c8dffd4",
         "lib/aiMediaModelCatalog.ts": "8b7d159af2e863aae5eccba8bdf3c9f114f137674f1b901440058525dae61271",
@@ -335,7 +335,7 @@
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
         "lib/studioInspirationImagePolicy.ts": "0ab78c05540a02cc11912ed154430592824fa53492768bd0efb9c62772f8c3c0",
-        "messages/fr-FR/media.json": "70cdc34bdf13f3676471f5b7c85b8842d2ff9630fb3d224c70a2c96b653be870"
+        "messages/fr-FR/media.json": "f430c381ee8d504ab860edc16193e94a6839968bf6dc2b221a8779fc533fc6e1"
       }
     },
     "basic-studio-edit": {
@@ -351,7 +351,7 @@
         "lib/inrAssistantStudioUiCommands.ts": "9838413a08c3207b019d3756e5adb7d447d3378018c60bca2e665345db436fa1",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
-        "messages/fr-FR/media.json": "70cdc34bdf13f3676471f5b7c85b8842d2ff9630fb3d224c70a2c96b653be870"
+        "messages/fr-FR/media.json": "f430c381ee8d504ab860edc16193e94a6839968bf6dc2b221a8779fc533fc6e1"
       }
     },
     "basic-studio-preview": {
@@ -685,7 +685,7 @@
         "lib/inrAssistantMediaLibraryTools.ts": "4a08f0e1a2081ce5d21b81efdf65b1f97e3c457781eb89b79366b262e373d567",
         "lib/inrAssistantMediaUiTools.ts": "2f15e337d2db730aae585760d3d98b392b52f7876aa6005f33744298ccb29ebf",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
-        "messages/fr-FR/media.json": "70cdc34bdf13f3676471f5b7c85b8842d2ff9630fb3d224c70a2c96b653be870"
+        "messages/fr-FR/media.json": "f430c381ee8d504ab860edc16193e94a6839968bf6dc2b221a8779fc533fc6e1"
       }
     },
     "notifications": {
@@ -816,7 +816,7 @@
       }
     },
     "studio-create": {
-      "guideDigest": "8c9cbc2af34a8cd20d0abe44b0748edef3ec4a84a140e6bccb95b654836c17c7",
+      "guideDigest": "1d02cbb2aadd3e026c05bb34ab00658a2e030431ddaa5ea47b8f2c2a6050ba4e",
       "sources": {
         "app/api/media-generation/references/route.ts": "71067e9a7e4c698b3ff2e561f28fec604d9e5e0fcf2c9ab3b8269dce4ed42c7b",
         "app/dashboard/_components/MediaCharacterVoiceInput.tsx": "e0fdc77a25455ea2b186b55e2b6fecd1e92be9a4c4a1a48f28326760e8521a98",
@@ -835,9 +835,9 @@
         "lib/aiMediaFreeDnaContext.ts": "5daf8a16404c0aa7c70fdaca2fe0067c6372a9a9916c11bb94687f2c9b91db2d",
         "lib/aiMediaFreeGenerationPlan.ts": "c2e96a0b283921d18f5726f2f31189261483681602520340ba6fde42b3bc9ca4",
         "lib/aiMediaFreeGenerationPrompt.ts": "1cd0118c9cea3ed1a928fedd141b28570ee1ce89cf7934d188bafe976f36c8c0",
-        "lib/aiMediaGeneratedVideo.ts": "6a2d74c2cf79151ec9ce2fdb015f730d5164f54f4c85ccfcfeb15b7dda5a6924",
+        "lib/aiMediaGeneratedVideo.ts": "ec348b5bf41d07460e206629a94993b9848a1baee1980cf2ebf3a117eaaeef15",
         "lib/aiMediaGenerationContracts.ts": "da4f44faece8d67ea4d39dcd8d1c00e635df702934f87ad71cb92049ceb8dec0",
-        "lib/aiMediaGenerationServer.ts": "50b0113b9dc6f705a30949278f9236c746f78daa6bf76feac9ac1d9ec0eb1700",
+        "lib/aiMediaGenerationServer.ts": "6f2158757b60e2839090cbd962da3357a752e12e5bd50739877c39ab86eb09a6",
         "lib/aiMediaGenerationSoundtracks.ts": "4fae5eae20652b2db8e924fee6f91813acd4433dad6317aca579af1a268da9fe",
         "lib/aiMediaGlobalConstraints.ts": "cd7221213bb54cb8da142a8564e562cffea7ad62c4dbba6bbd0c4d921f003545",
         "lib/aiMediaLocalLogoCompositionPrompt.ts": "6fe9191934382c128a48edaa7536dfe965a20593d9101e54367ffdc36c8dffd4",
@@ -863,7 +863,7 @@
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
         "lib/studioInspirationImagePolicy.ts": "0ab78c05540a02cc11912ed154430592824fa53492768bd0efb9c62772f8c3c0",
         "lib/studioReferences.ts": "39804ce1dbae0c150c707aa20701379594c27440929aff583b09304807394b72",
-        "messages/fr-FR/media.json": "70cdc34bdf13f3676471f5b7c85b8842d2ff9630fb3d224c70a2c96b653be870"
+        "messages/fr-FR/media.json": "f430c381ee8d504ab860edc16193e94a6839968bf6dc2b221a8779fc533fc6e1"
       }
     },
     "studio-edit": {
@@ -879,7 +879,7 @@
         "lib/inrAssistantStudioUiCommands.ts": "9838413a08c3207b019d3756e5adb7d447d3378018c60bca2e665345db436fa1",
         "lib/inrStudioModalPolicy.ts": "5d19deaa55cb56782d3b0b24faac54826430d7153bb2e165916b0bf30cc15948",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
-        "messages/fr-FR/media.json": "70cdc34bdf13f3676471f5b7c85b8842d2ff9630fb3d224c70a2c96b653be870"
+        "messages/fr-FR/media.json": "f430c381ee8d504ab860edc16193e94a6839968bf6dc2b221a8779fc533fc6e1"
       }
     },
     "studio-transfer-recovery": {
@@ -969,7 +969,7 @@
         "lib/aiMediaCharacterVoices.ts": "03f6d0d0ab72d67922c8d2f9736f7fe3db77f6ec11e11985beed92c0b281c0b0",
         "lib/aiMediaModelCatalog.ts": "8b7d159af2e863aae5eccba8bdf3c9f114f137674f1b901440058525dae61271",
         "lib/inrAssistantStudioFacts.ts": "f1d4b0047d00b7b4961524f7415cabff4b0f8ddb2e94c5af13fdf0b4e8ae630e",
-        "messages/fr-FR/media.json": "70cdc34bdf13f3676471f5b7c85b8842d2ff9630fb3d224c70a2c96b653be870"
+        "messages/fr-FR/media.json": "f430c381ee8d504ab860edc16193e94a6839968bf6dc2b221a8779fc533fc6e1"
       }
     },
     "studio-reference-memory": {
