@@ -15,7 +15,8 @@ jobs:
     # Keep the runner compatible with the pinned Playwright browser dependencies.
     runs-on: ubuntu-24.04
     # The contract suite also verifies iPad layouts with WebKit.
-    timeout-minutes: 40
+    # Full contracts now exceed 25 minutes before the production build.
+    timeout-minutes: 60
 
     env:
       # Supabase
