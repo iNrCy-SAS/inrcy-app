@@ -12,11 +12,12 @@ function harness(authorized: boolean, fail = false) {
   const dependencies: Record<string, unknown> = {
     "next/server": { NextResponse: { json: Response.json } },
     "@/lib/cronAuth": { isAuthorizedCronRequest: () => authorized },
+    "@/lib/aiVideoHeygenApi": { createHeygenApiClient: () => ({ errorMetrics: async (start: number, end: number) => { assert.equal(end-start,3600); calls.push("metrics"); return []; } }) },
     "@/lib/aiMediaCompositionRecovery": { recoverNextAiMediaCompositionCheckpoint: async () => { calls.push("recover"); if (fail) throw new Error("internal storage diagnostics"); return { status: "idle" }; } },
     "@/lib/aiMediaGenerationQuota": { expireAiMediaGenerationReservations: async (args: unknown) => { assert.deepEqual(args, { batchSize: 100 }); calls.push("expire"); return 0; } },
   };
   new Function("module", "exports", "require", "console", source)(record, record.exports, (id: string) => { assert.ok(id in dependencies); return dependencies[id]; }, { info() {}, error() {} });
-  return { calls, run: () => record.exports.GET(new Request("https://example.invalid/api/cron/media-generation-recovery")) };
+  return { calls, run: (query = "") => record.exports.GET(new Request("https://example.invalid/api/cron/media-generation-recovery" + query)) };
 }
 
 test("recovery cron authenticates before claiming work, handles one montage and expires orphaned reservations", async () => {
@@ -29,4 +30,12 @@ test("recovery cron returns an explicit generic failure without provider calls o
   const h = harness(true, true); const response = await h.run(); assert.equal(response.status, 503);
   assert.deepEqual(await response.json(), { ok: false, code: "AI_MEDIA_RECOVERY_UNAVAILABLE" });
   assert.deepEqual(h.calls, ["recover"]);
+});
+
+test("HeyGen support diagnostics require cron authentication and never claim, compose, bill or expire work", async () => {
+  const rejected = harness(false);
+  assert.equal((await rejected.run("?diagnostic=heygen")).status, 401); assert.deepEqual(rejected.calls, []);
+  const accepted = harness(true); const response = await accepted.run("?diagnostic=heygen");
+  assert.equal(response.status, 200); assert.deepEqual(await response.json(), { ok: true, metrics: [] });
+  assert.match(response.headers.get("cache-control")!, /no-store/); assert.deepEqual(accepted.calls, ["metrics"]);
 });

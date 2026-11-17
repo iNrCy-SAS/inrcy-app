@@ -11,8 +11,8 @@ export type HeygenStudioScene =
 export type HeygenVideoState = { id: string; status: "pending" | "processing" | "completed" | "failed"; videoUrl?: string; durationSeconds?: number; failureCode?: string };
 
 export class HeygenApiError extends Error {
-  constructor(readonly statusCode: number, readonly upstreamCode: string, readonly uncertain = false) {
-    super(`ai_video_heygen_${upstreamCode}:${statusCode}`);
+  constructor(readonly statusCode: number, readonly upstreamCode: string, readonly uncertain = false, diagnostic?: { operation: string; parameter?: string; reason?: string }) {
+    super(`ai_video_heygen_${upstreamCode}:${statusCode}`, diagnostic ? { cause: new Error(["ai_video_heygen_request_" + diagnostic.operation, diagnostic.parameter, diagnostic.reason].filter(Boolean).join(":")) } : undefined);
     this.name = "HeygenApiError";
   }
 }
@@ -58,6 +58,8 @@ export function createHeygenApiClient(options: { apiKey: string; fetch?: typeof 
   async function request<T>(path: string, input: { method?: "GET" | "POST" | "DELETE"; json?: unknown; form?: FormData; idempotencyKey?: string; signal?: AbortSignal } = {}): Promise<T> {
     if (!path.startsWith("/v3/") || path.includes("..") || path.includes("#")) throw new HeygenApiError(0, "path_invalid");
     const method = input.method ?? "GET";
+    const route = path.split("?", 1)[0];
+    const operation = method.toLowerCase() + "_" + (route === "/v3/models/audio/voices" ? "voices" : route === "/v3/avatars" ? "avatars" : route === "/v3/assets" ? "assets" : route === "/v3/videos" ? "videos" : route === "/v3/usage/errors" ? "usage_errors" : route.startsWith("/v3/models/audio/voices/") ? "voice" : route.startsWith("/v3/videos/") ? "video" : route.startsWith("/v3/avatars/") ? "avatar" : "resource");
     const signal = AbortSignal.any([...(input.signal ? [input.signal] : []), AbortSignal.timeout(30_000)]);
     let response: Response;
     try {
@@ -68,18 +70,28 @@ export function createHeygenApiClient(options: { apiKey: string; fetch?: typeof 
         ...(input.json ? { body: JSON.stringify(input.json) } : input.form ? { body: input.form } : {}),
       });
     } catch { throw new HeygenApiError(0, "transport_failed", method === "POST"); }
-    let body: { data?: T; error?: { code?: unknown } };
+    let body: { data?: T; error?: { code?: unknown; param?: unknown; message?: unknown } };
     if (response.status === 204 && method === "DELETE") return undefined as T;
     try { body = JSON.parse((await bounded(response, MAX_JSON_BYTES)).toString("utf8")); }
     catch { throw new HeygenApiError(response.status, "response_invalid", method === "POST"); }
     if (!response.ok) {
       const publicCode = ({ 401: "credentials_rejected", 403: "permission_denied", 402: "insufficient_balance", 429: "rate_limited" } as Record<number,string>)[response.status];
-      throw new HeygenApiError(response.status, publicCode || code(body.error?.code), method === "POST" && response.status >= 500);
+      const parameter = typeof body.error?.param === "string" && /^[a-z_][a-z0-9_.\[\]-]{0,159}$/i.test(body.error.param) ? body.error.param : undefined;
+      const message = typeof body.error?.message === "string" ? body.error.message.slice(0,2000) : "";
+      const reason = /voice|clon/i.test(message) && /quota|limit|maximum/i.test(message) ? "voice_clone_limit" : /avatar/i.test(message) && /quota|limit|maximum/i.test(message) ? "avatar_limit" : /motion/i.test(message) && /support|invalid/i.test(message) ? "motion_unsupported" : undefined;
+      throw new HeygenApiError(response.status, publicCode || code(body.error?.code), method === "POST" && response.status >= 500, { operation, parameter, reason });
     }
     if (body.data === undefined) throw new HeygenApiError(response.status, "response_invalid", method === "POST");
     return body.data;
   }
   return {
+    async errorMetrics(startTime: number, endTime: number, signal?: AbortSignal) {
+      if (!Number.isSafeInteger(startTime) || !Number.isSafeInteger(endTime) || startTime < 0 || endTime <= startTime || endTime - startTime > 3600) throw new HeygenApiError(0, "diagnostic_window_invalid");
+      const rows = await request<Array<{ endpoint?: unknown; total?: unknown; failed?: unknown; failed_4xx?: unknown; failed_5xx?: unknown }>>(`/v3/usage/errors?start_time=${startTime}&end_time=${endTime}&group_by=endpoint`, { signal });
+      if (!Array.isArray(rows)) throw new HeygenApiError(0, "diagnostic_response_invalid");
+      return rows.slice(0,100).flatMap(row => typeof row.endpoint === "string" && /^(?:[A-Z]{3,6} )?\/v3\/[a-z0-9_/{}/-]{1,120}$/i.test(row.endpoint) && [row.total,row.failed,row.failed_4xx,row.failed_5xx].every(n => typeof n === "number" && Number.isSafeInteger(n) && n >= 0)
+        ? [{ endpoint: row.endpoint, total: row.total as number, failed: row.failed as number, failed4xx: row.failed_4xx as number, failed5xx: row.failed_5xx as number }] : []);
+    },
     async uploadImage(buffer: Buffer, signal?: AbortSignal): Promise<HeygenAsset> {
       if (!buffer.length || buffer.length > 4 * 1024 * 1024) throw new HeygenApiError(0, "image_size_invalid");
       const form = new FormData(); form.append("file", new Blob([new Uint8Array(buffer)], { type: "image/png" }), "person.png");

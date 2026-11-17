@@ -171,3 +171,30 @@ test("pending provider tasks contain only bounded private identifiers, never URL
   assert.ok(!pending.isAiMediaPendingVideo({ ...valid, temporaryVoiceIds: Array(5).fill("voice") }));
   assert.ok(!pending.isAiMediaPendingVideo({ ...valid, estimatedCostMicroUsd: -1 }));
 });
+
+test("HeyGen rejected parameters retain the exact operation and field without storing request values", async () => {
+  const client = api.createHeygenApiClient({ apiKey: "test-key", fetch: async () => Response.json({ error: {
+    code: "invalid_parameter", param: "scenes[0].input.motion_prompt", message: "Private user speech at https://signed.invalid?token=secret"
+  } }, { status: 400 }) });
+  await assert.rejects(client.submitVideo({ title: "Test", resolution: "1080p", aspect_ratio: "9:16", scenes: [] }, "job"), error => {
+    assert.ok(error instanceof api.HeygenApiError);
+    assert.equal((error.cause as Error).message, "ai_video_heygen_request_post_videos:scenes[0].input.motion_prompt");
+    assert.doesNotMatch(JSON.stringify(error) + String(error.cause), /Private user|signed.invalid|token=secret/);
+    return true;
+  });
+});
+test("HeyGen support metrics read only a bounded window and exclude unexpected payloads", async () => {
+  const calls: string[] = [];
+  const client = api.createHeygenApiClient({ apiKey: "test-key", fetch: async (url, options) => {
+    calls.push(String(url)); assert.equal(options!.method, "GET");
+    return Response.json({ data: [
+      { endpoint: "/v3/videos", total: 2, failed: 2, failed_4xx: 2, failed_5xx: 0, prompt: "private" },
+      { endpoint: "https://private.invalid?secret=value", total: 2, failed: 2, failed_4xx: 2, failed_5xx: 0 },
+      { endpoint: "/v3/avatars", total: -1, failed: 0, failed_4xx: 0, failed_5xx: 0 }
+    ] });
+  } });
+  assert.deepEqual(await client.errorMetrics(100, 200), [{ endpoint: "/v3/videos", total: 2, failed: 2, failed4xx: 2, failed5xx: 0 }]);
+  assert.equal(calls.length, 1);
+  await assert.rejects(client.errorMetrics(100, 5000), /diagnostic_window_invalid/);
+  assert.equal(calls.length, 1);
+});

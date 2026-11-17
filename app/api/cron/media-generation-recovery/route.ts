@@ -12,6 +12,12 @@ export async function GET(request: Request) {
   if (!isAuthorizedCronRequest(request)) return NextResponse.json({ ok: false }, { status: 401 });
   const started = Date.now();
   try {
+    if (new URL(request.url).searchParams.get("diagnostic") === "heygen") {
+      const { createHeygenApiClient } = await import("@/lib/aiVideoHeygenApi");
+      const end = Math.floor(Date.now() / 1000);
+      const metrics = await createHeygenApiClient({ apiKey: process.env.HEYGEN_API_KEY || "" }).errorMetrics(end - 3600, end);
+      return NextResponse.json({ ok: true, metrics }, { headers: { "Cache-Control": "private, no-store" } });
+    }
     const result = await recoverNextAiMediaCompositionCheckpoint();
     const expired = await expireAiMediaGenerationReservations({ batchSize: 100 });
     console.info("[ai-media] composition recovery processed", {

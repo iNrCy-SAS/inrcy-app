@@ -851,7 +851,7 @@
         "lib/aiMediaSoundtrackDefinitions.ts": "4da4fc754f542b7b43d74b5aa27f30de9cc33756ef57a7201fe4292f6fa2b924",
         "lib/aiMediaVideoClientOptions.ts": "a6c1dd77fb096aede945d8def2c3fe334a2ffb1f284c56c276d5da343cfdceb4",
         "lib/aiMediaVideoSpeechBudget.ts": "2aa09362b95acc093e51006ecfb31cdff1a6d1a1a4b2b652605b8f1c1b910bfc",
-        "lib/aiVideoHeygenApi.ts": "b928926962e4193f0d00285c3e398d5a0e585d327c2584210659a4a6f3b5454d",
+        "lib/aiVideoHeygenApi.ts": "b891861d4f48a617627937c41b44c7dae6f7a761d73276fd56afd2146c6d5a35",
         "lib/aiVideoKlingApi.ts": "5398f30bdc2d6f5a5c49fd235183701675ae6173d01e62642772e857d5a1753f",
         "lib/aiVideoProvider.ts": "71eebf4c50e870f8f00e9912cd32e269ddc91245418d3c251258e5682811485a",
         "lib/aiVideoProviderGateway.ts": "7403f89d46039dceb651573782234c0045e1ec0911eb8a91c17edc2e40ed4793",
