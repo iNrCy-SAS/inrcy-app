@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
+import * as models from "../../lib/aiMediaModelCatalog.ts";
 import type { MediaGenerationQuota } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
 import type { MediaCreditQuoteInput } from "../../app/dashboard/_hooks/useMediaCreditQuote.ts";
 
@@ -48,6 +49,7 @@ function harness(initialInput = input(), initialQuota = quota()) {
     if (specifier === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
     if (specifier === "react") return react;
     if (specifier === "@/lib/aiMediaCreditsPricing") return pricing;
+    if (specifier === "@/lib/aiMediaModelCatalog") return models;
     if (specifier === "@/lib/multicompte/constants") return { ACTIVE_INRCY_ACCOUNT_EVENT: "account-change" };
     throw new Error(`Unexpected quote dependency: ${specifier}`);
   };
@@ -209,4 +211,58 @@ test("inline HeyGen speech reaches the quote unchanged and editing it invalidate
   h.runTimers();assert.equal(h.requests[1].input.freePrompt,replacement.freePrompt);
   h.respond(1,"account-a",5000);await h.flush();assert.equal(h.status().quote?.totalCredits,pricing.quoteAiMediaCredits(replacement).totalCredits);
   assert.ok(h.status().quote!.totalCredits<expected.totalCredits);h.dispose();
+});
+
+
+test("typing an ordinary Gemini visual brief keeps the admin's confirmed price and action stable", async () => {
+  const first = { ...input(), withNarration: true, freePrompt: "fais moi une video de plusieurs" };
+  const adminQuota = { ...quota(), unlimited: true };
+  const h = harness(first, adminQuota);
+  h.runTimers(); h.respond(0, "account-a"); await h.flush();
+  const originalAuthorization = h.status().authorization;
+  const fullPrompt = "fais moi une video de plusieurs personnes dans une agence de communication qui discute de notre application iNertie !";
+  for (let length = first.freePrompt.length; length <= fullPrompt.length; length++) {
+    const next = { ...first, freePrompt: fullPrompt.slice(0, length) };
+    const before = structuredClone(next);
+    h.update(next, adminQuota); h.runTimers();
+    assert.equal(h.status().ready, true, "valid visual typing must not disable generation");
+    assert.equal(h.status().loading, false);
+    assert.equal(h.status().quote?.totalCredits, 87);
+    assert.deepEqual(h.status().authorization, originalAuthorization);
+    assert.equal(h.requests.length, 1);
+    assert.equal(h.requests[0].signal.aborted, false);
+    assert.deepEqual(next, before, "quote normalization must not change the actual generation prompt");
+  }
+  assert.equal(h.requests[0].input.freePrompt, undefined);
+  h.dispose();
+});
+
+test("ordinary visual edits do not cancel the first pending quote or spend another request", async () => {
+  const first = { ...input("wan27"), videoResolution: "1080p" as const, inspirationImagesCount: 1, withNarration: true, freePrompt: "Une équipe dans une agence." };
+  const h = harness(first); h.runTimers();
+  h.update({ ...first, freePrompt: "Plusieurs personnes discutent de notre application dans une agence." });
+  h.runTimers();
+  assert.equal(h.requests.length, 1); assert.equal(h.requests[0].signal.aborted, false);
+  h.respond(0, "account-a"); await h.flush();
+  assert.equal(h.status().ready, true); h.dispose();
+});
+
+test("HeyGen external voiceover visual edits preserve the fixed-duration quote", async () => {
+  const first = { ...input("heygen-avatar"), withNarration: true, freePrompt: "Une personne dans un jardin." };
+  const h = harness(first); h.runTimers(); h.respond(0, "account-a"); await h.flush();
+  const authorization = h.status().authorization;
+  h.update({ ...first, freePrompt: 'Une personne dit : « '+"mot ".repeat(50)+'» dans une agence.' }); h.runTimers();
+  assert.equal(h.status().ready, true); assert.deepEqual(h.status().authorization, authorization);
+  assert.equal(h.requests.length, 1); h.dispose();
+});
+
+test("dedicated HeyGen dialogue keeps visual edits stable and invalidates when its billable words change", async () => {
+  const first: MediaCreditQuoteInput = { ...input("heygen-avatar"), teamVideoSpeechMode: "characters", spokenScript: "Bienvenue !", freePrompt: "Une personne dans un jardin." };
+  const h = harness(first); h.runTimers(); h.respond(0, "account-a"); await h.flush();
+  h.update({ ...first, freePrompt: "Une personne devant son agence." }); h.runTimers();
+  assert.equal(h.status().ready, true); assert.equal(h.requests.length, 1);
+  h.update({ ...first, spokenScript: "mot ".repeat(80) });
+  assert.equal(h.status().ready, false); assert.deepEqual(h.status().authorization, {});
+  h.runTimers(); h.respond(1, "account-a"); await h.flush();
+  assert.equal(h.status().ready, true); assert.ok(h.status().quote!.totalCredits > 100); h.dispose();
 });

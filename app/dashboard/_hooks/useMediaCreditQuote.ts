@@ -5,6 +5,7 @@ import { getClientAiMediaGenerationErrorMessage } from "@/lib/aiMediaGenerationP
 import { useEffect, useRef, useState } from "react";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { quoteAiMediaCredits } from "@/lib/aiMediaCreditsPricing";
+import { AI_MEDIA_VIDEO_MODELS, normalizeAiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
 import type { MediaGenerationQuota, MediaGenerationRequest } from "./useMediaGeneration";
 
 export type MediaCreditQuoteInput = Pick<MediaGenerationRequest,
@@ -28,9 +29,16 @@ export type ConfirmedMediaCreditQuote = {
 export default function useMediaCreditQuote(input: MediaCreditQuoteInput, quota: MediaGenerationQuota | null, eligible = true) {
   const [accountEpoch, setAccountEpoch] = useState(0);
   const [scopeInvalidated, setScopeInvalidated] = useState(false);
-  const requestBody = JSON.stringify(input);
+  // Only native HeyGen dialogue can price speech embedded in the visual brief.
+  // Ordinary visual edits keep the current confirmed quote and pending request.
+  const inlineSpeechAffectsPrice = input.kind === "video" &&
+    AI_MEDIA_VIDEO_MODELS.find(model => model.id === normalizeAiMediaVideoEngine(input.videoEngine ?? "omni"))?.transport === "heygen-direct" &&
+    input.teamVideoSpeechMode === "characters" && input.spokenScript === undefined && !input.exactDialogue?.length;
+  const quoteInput = { ...input };
+  if (!inlineSpeechAffectsPrice) delete quoteInput.freePrompt;
+  const requestBody = JSON.stringify(quoteInput);
   const accountId = quota?.accountId;
-  const key = JSON.stringify({ accountId: quota?.accountId, accountEpoch, eligible, availableCredits: quota?.credits.remaining, reservedCredits: quota?.credits.reserved, ...input });
+  const key = JSON.stringify({ accountId: quota?.accountId, accountEpoch, eligible, availableCredits: quota?.credits.remaining, reservedCredits: quota?.credits.reserved, ...quoteInput });
   const [state, setState] = useState<{ key: string; quote: ConfirmedMediaCreditQuote | null; error: string; loading: boolean; remaining?: number | null }>({ key: "", quote: null, error: "", loading: false });
   const [retryEpoch, setRetryEpoch] = useState(0);
   const previousQuota = useRef(quota);
@@ -70,7 +78,7 @@ export default function useMediaCreditQuote(input: MediaCreditQuoteInput, quota:
   // Depend on the serialized payload so equivalent input objects do not refetch.
   }, [key, requestBody, accountId, quota?.creditsReady, scopeInvalidated, retryEpoch, eligible]);
   let estimate: ReturnType<typeof quoteAiMediaCredits> | null = null;
-  try { if (eligible) estimate = quoteAiMediaCredits(input); } catch { /* The confirmed quote reports unsupported settings. */ }
+  try { if (eligible) estimate = quoteAiMediaCredits(quoteInput); } catch { /* The confirmed quote reports unsupported settings. */ }
   const matching = eligible && state.key === key && !scopeInvalidated && quota?.creditsReady === true;
   const quote = matching ? state.quote : null;
   const remaining = quota?.unlimited ? null : matching && state.remaining !== undefined ? state.remaining : quota?.credits.remaining ?? null;

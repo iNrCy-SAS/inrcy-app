@@ -8,7 +8,7 @@ import type * as Background from "../../lib/aiVideoHeygenBackground.ts";
 import type * as Worker from "../../lib/aiMediaPendingVideoWorker.ts";
 import type { AiVideoProviderGenerationArgs } from "../../lib/aiVideoProviderTypes.ts";
 
-function load<T>(file:string,dependencies:Record<string,unknown>,clock=Date):T {
+function load<T>(file:string,dependencies:Record<string,unknown>,clock: Pick<DateConstructor, "now"> = Date):T {
  const js=ts.transpileModule(readFileSync(new URL("../../lib/"+file,import.meta.url),"utf8"),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText;
  const record={exports:{}};new Function("module","exports","require","Date",js)(record,record.exports,(id:string)=>{if(id==="server-only")return {};assert.ok(id in dependencies,"unexpected import "+id);return dependencies[id];},clock);return record.exports as T;
 }
