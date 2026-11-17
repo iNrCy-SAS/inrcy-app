@@ -53,6 +53,32 @@ test("unknown diagnostics and codes hidden in user content never reach the clien
   }
 });
 
+test("rejected client promises retain only an allowlisted media code and reviewed localized copy", () => {
+  const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  try {
+    for (const locale of locales) {
+      Object.defineProperty(globalThis, "window", { configurable: true, value: { localStorage: { getItem: () => locale } } });
+      for (const code of codes) {
+        const failure = helpers.createClientAiMediaGenerationError({ code,
+          error: "PRIVATE_PROVIDER_TRANSCRIPT sk_live_hidden https://private.invalid/?token=secret",
+          reason: "PRIVATE_DIAGNOSTIC", error_details: [{ raw: "PRIVATE_AUDIO_SAMPLE" }],
+        }, "Safe fallback", 422);
+        assert.equal(failure.code, code);
+        assert.equal(failure.message, copyModule.AI_MEDIA_PUBLIC_ERROR_COPY[locale.slice(0, 2)][code]);
+        assert.equal(helpers.getClientAiMediaGenerationErrorMessage(failure, "Safe fallback"), failure.message);
+        assert.equal(Object.hasOwn(failure, "cause"), false);
+        assert.equal(Object.hasOwn(failure, "error_details"), false);
+        assert.doesNotMatch(failure.message + JSON.stringify(failure), /PRIVATE|sk_live|private\.invalid/);
+      }
+    }
+    const unknown = helpers.createClientAiMediaGenerationError({ code: "PRIVATE_UNKNOWN_CODE", error: "PRIVATE_PROVIDER_STATE sk_live_hidden" }, "Safe fallback");
+    assert.equal(Object.hasOwn(unknown, "code"), false);
+    assert.equal(unknown.message, "Safe fallback");
+  } finally {
+    if (previousWindow) Object.defineProperty(globalThis, "window", previousWindow); else Reflect.deleteProperty(globalThis, "window");
+  }
+});
+
 test("client media failures follow the saved application locale and tolerate blocked storage", () => {
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const previousDocument = Object.getOwnPropertyDescriptor(globalThis, "document");

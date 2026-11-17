@@ -38,6 +38,7 @@ test('compact Exact rows keep two columns, real speech budget, controls and both
         await page.locator('[data-media-settings-dialog="images"] input[type="file"]').setInputFiles({ name, mimeType: 'image/png', buffer: Buffer.from('synthetic-local-image') });
         await page.locator('[data-media-settings-dialog="images"]').waitFor({ state: 'hidden' });
       }
+      await page.locator('select[id$="-video-speech-mode"]').selectOption('characters');
       await page.locator('select[id$="-spoken-script-mode"]').selectOption('exact');
       const settings = await page.evaluate(() => {
         const exact = document.querySelector<HTMLElement>('[data-exact-dialogue-settings]')!, voice = document.querySelector<HTMLElement>('[data-video-audio-button]')!, frame = document.querySelector<HTMLElement>('[data-video-speech-frame]')!;

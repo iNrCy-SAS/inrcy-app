@@ -1177,5 +1177,6 @@
   "ai_generator_reference_memory_load_error": "Remembered media are unavailable. Reopen the Studio to try again.",
   "ai_generator_reference_memory_save_error": "Could not remember these media. Check the photos and voices, then try again.",
   "ai_generator_reference_memory_forget_error": "Could not forget these media. Try again.",
-  "ai_generator_reference_memory_forget_hint": "Forget this selection for my next creations."
+  "ai_generator_reference_memory_forget_hint": "Forget this selection for my next creations.",
+  "ai_generator_speech_review_warning": "Check the spoken words before using this video."
 }

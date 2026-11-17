@@ -1,5 +1,6 @@
 "use client";
 import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
+import { getClientAiMediaGenerationErrorMessage } from "@/lib/aiMediaGenerationPublicErrorI18n";
 
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
@@ -1044,7 +1045,7 @@ export default function MediaFreeGenerator({
       ) {
         retryableFailure = true;
         setActionError(
-          getSafeClientErrorMessage(caught, t("ai_generator_error"))
+          getClientAiMediaGenerationErrorMessage(caught, getSafeClientErrorMessage(caught, t("ai_generator_error")))
         );
       }
     } finally {
@@ -1082,7 +1083,7 @@ export default function MediaFreeGenerator({
       }
     } catch (caught) {
       if (sequence.current === currentSequence && !(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
-        setActionError(getSafeClientErrorMessage(caught, t("ai_generator_error")));
+        setActionError(getClientAiMediaGenerationErrorMessage(caught, getSafeClientErrorMessage(caught, t("ai_generator_error"))));
       }
     } finally {
       if (sequence.current === currentSequence) operationInFlight.current = false;
@@ -1103,7 +1104,7 @@ export default function MediaFreeGenerator({
       }
     } catch (caught) {
       if (sequence.current === currentSequence && !(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
-        setActionError(getSafeClientErrorMessage(caught, t("ai_generator_error")));
+        setActionError(getClientAiMediaGenerationErrorMessage(caught, getSafeClientErrorMessage(caught, t("ai_generator_error"))));
       }
     } finally {
       if (sequence.current === currentSequence) operationInFlight.current = false;

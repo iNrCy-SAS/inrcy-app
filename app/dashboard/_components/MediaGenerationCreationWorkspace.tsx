@@ -401,6 +401,11 @@ export default function MediaGenerationCreationWorkspace({
                     : "ai_generator_image_ready_title"
                 )}
               </h3>
+              {previewKind === "video" && generationResult.item.speech_review_recommended === true ? (
+                <p className={styles.speechReviewNotice} role="status" data-media-speech-review-warning>
+                  <span aria-hidden="true">⚠ </span>{t("ai_generator_speech_review_warning")}
+                </p>
+              ) : null}
             </div>
             <div className={styles.reviewBadges}>
               {generationResult.item.signed_url ? <button type="button" className={editorStyles.expandButton}

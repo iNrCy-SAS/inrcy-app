@@ -374,6 +374,8 @@ export type AiMediaLibraryPickerItem = {
   duration_seconds: number | null;
   created_at: string | null;
   signed_url: string | null;
+  /** A non-blocking server QA notice; raw transcripts and diagnostics stay private. */
+  speech_review_recommended?: true;
 };
 
 export type AiMediaSoundtrackResponse = {

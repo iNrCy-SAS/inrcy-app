@@ -1,5 +1,5 @@
 import { catalogTranslator } from "../helpers/catalog-translator.mts";
-import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
+import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -32,6 +32,7 @@ function initializer(name: string) {
 
 function evaluate(expression: ts.Expression, context: Record<string, unknown>) {
   context.getSafeClientErrorMessage ??= userFacingErrorsFixture.getClientUserFacingErrorMessage;
+  context.getClientAiMediaGenerationErrorMessage ??= aiMediaPublicErrorsFixture.getClientAiMediaGenerationErrorMessage;
   const code = ts.transpileModule(`const run = ${expression.getText(parsed)};`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   }).outputText;

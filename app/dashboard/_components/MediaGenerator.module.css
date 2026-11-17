@@ -3357,6 +3357,16 @@
   font-size: clamp(26px, 2.6vw, 38px);
 }
 
+.reviewHeading p.speechReviewNotice {
+  margin: 6px 0 0;
+  color: #ffdf9a;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  letter-spacing: normal;
+  text-transform: none;
+}
+
 .reviewBadges {
   display: flex;
   flex-wrap: wrap;

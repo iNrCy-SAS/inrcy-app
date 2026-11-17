@@ -92,6 +92,42 @@ export type AiMediaNativeDialogueQaResult = {
   diagnostics?: AiMediaNativeDialogueQaDiagnostic[];
 };
 
+export type AiMediaNativeDialogueDeliveryDecision =
+  | { version: 1; status: "passed" | "blocked" }
+  | { version: 1; status: "warning"; code: "native_speech_review_recommended";
+      issues: ["spoken_critical_value_mismatch"]; sceneIndexes: number[] };
+
+/** Keep a near-complete paid take for review without declaring its words exact.
+ * Missing/truncated speech, repeats, uncertain audits and visual defects still block.
+ * This is a delivery decision only: the independent QA verdict stays unchanged. */
+export function getAiMediaNativeDialogueDeliveryDecision(
+  result: AiMediaNativeDialogueQaResult | null,
+): AiMediaNativeDialogueDeliveryDecision {
+  if (result?.status === "passed") return { version: 1, status: "passed" };
+  const blocked = { version: 1, status: "blocked" } as const;
+  if (result?.status !== "rejected" || !result.clips.length || result.clips.length > 4) return blocked;
+  const sceneIndexes: number[] = [];
+  for (const clip of result.clips) {
+    if (!Number.isInteger(clip.sceneIndex) || clip.sceneIndex < 0 || clip.sceneIndex > 3 ||
+      clip.finalFrameLayout && clip.finalFrameLayout !== "passed" ||
+      clip.finalFrameIssue && clip.finalFrameIssue !== "none") return blocked;
+    if (clip.status === "passed" && !clip.issues.length) continue;
+    if (clip.status !== "rejected" || clip.issues.length !== 1 || clip.issues[0] !== "spoken_critical_value_mismatch") return blocked;
+    const metrics = clip.metrics;
+    if (!metrics || !Object.values(metrics).every(Number.isFinite) ||
+      !Number.isInteger(metrics.expectedTokenCount) || metrics.expectedTokenCount < 5 || metrics.expectedTokenCount > 4_000 ||
+      !Number.isInteger(metrics.detectedTokenCount) || metrics.detectedTokenCount < metrics.expectedTokenCount * 0.95 ||
+      metrics.detectedTokenCount > metrics.expectedTokenCount + 2 ||
+      metrics.expectedCoverage < 0.95 || metrics.expectedCoverage > 1 ||
+      metrics.bestWindowSimilarity < 0.90 || metrics.bestWindowSimilarity > 1 ||
+      !Number.isInteger(metrics.extraTokenCount) || metrics.extraTokenCount < 0 || metrics.extraTokenCount > 2 ||
+      !Number.isInteger(metrics.repeatCount) || metrics.repeatCount < 0 || metrics.repeatCount > 1) return blocked;
+    sceneIndexes.push(clip.sceneIndex);
+  }
+  return sceneIndexes.length ? { version: 1, status: "warning", code: "native_speech_review_recommended",
+    issues: ["spoken_critical_value_mismatch"], sceneIndexes: [...new Set(sceneIndexes)] } : blocked;
+}
+
 export type AiMediaNativeDialogueQaDiagnostic = {
   stage: "extract" | "transcribe" | "pronunciation" | "automatic_dialogue" | "setup" | "comparison";
   reason: "credentials_missing" | "automatic_input_invalid" | "extractor_missing" |

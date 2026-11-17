@@ -1,5 +1,6 @@
 "use client";
 import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
+import { getClientAiMediaGenerationErrorMessage } from "@/lib/aiMediaGenerationPublicErrorI18n";
 
 import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -1206,7 +1207,7 @@ export default function MediaGenerator({
         return;
       }
       setActionError(
-        getSafeClientErrorMessage(caught, t("ai_generator_error"))
+        getClientAiMediaGenerationErrorMessage(caught, getSafeClientErrorMessage(caught, t("ai_generator_error")))
       );
     } finally {
       // L'accord porte sur un essai de génération précis. Une nouvelle
@@ -1270,7 +1271,7 @@ export default function MediaGenerator({
       await retryRecovery();
     } catch (caught) {
       if (sequence === generationSequenceRef.current && !(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
-        setActionError(getSafeClientErrorMessage(caught, t("ai_generator_error")));
+        setActionError(getClientAiMediaGenerationErrorMessage(caught, getSafeClientErrorMessage(caught, t("ai_generator_error"))));
       }
     } finally {
       if (sequence === generationSequenceRef.current) recoveryInFlightRef.current = false;
@@ -1287,7 +1288,7 @@ export default function MediaGenerator({
       if (sequence === generationSequenceRef.current && !recovered) setCreationScreen(false);
     } catch (caught) {
       if (sequence === generationSequenceRef.current && !(caught instanceof MediaGenerationAccountChangedError) && !(caught instanceof Error && caught.name === "MediaGenerationRecoveryPausedError")) {
-        setActionError(getSafeClientErrorMessage(caught, t("ai_generator_error")));
+        setActionError(getClientAiMediaGenerationErrorMessage(caught, getSafeClientErrorMessage(caught, t("ai_generator_error"))));
       }
     } finally {
       if (sequence === generationSequenceRef.current) recoveryInFlightRef.current = false;

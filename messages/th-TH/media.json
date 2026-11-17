@@ -1177,5 +1177,6 @@
   "ai_generator_reference_memory_load_error": "สื่อที่จดจำไว้ไม่พร้อมใช้งาน โปรดเปิด Studio ใหม่เพื่อลองอีกครั้ง",
   "ai_generator_reference_memory_save_error": "ไม่สามารถจดจำสื่อได้ ตรวจสอบรูปภาพและเสียงแล้วลองอีกครั้ง",
   "ai_generator_reference_memory_forget_error": "ไม่สามารถลืมสื่อเหล่านี้ได้ โปรดลองอีกครั้ง",
-  "ai_generator_reference_memory_forget_hint": "ลืมการเลือกนี้สำหรับการสร้างครั้งถัดไป"
+  "ai_generator_reference_memory_forget_hint": "ลืมการเลือกนี้สำหรับการสร้างครั้งถัดไป",
+  "ai_generator_speech_review_warning": "โปรดตรวจสอบคำพูดในวิดีโอก่อนใช้งาน"
 }

@@ -1177,5 +1177,6 @@
   "ai_generator_reference_memory_load_error": "I media memorizzati non sono disponibili. Riapri lo Studio per riprovare.",
   "ai_generator_reference_memory_save_error": "Impossibile memorizzare i media. Controlla foto e voci e riprova.",
   "ai_generator_reference_memory_forget_error": "Impossibile dimenticare questi media. Riprova.",
-  "ai_generator_reference_memory_forget_hint": "Dimenticare questa selezione per le mie prossime creazioni."
+  "ai_generator_reference_memory_forget_hint": "Dimenticare questa selezione per le mie prossime creazioni.",
+  "ai_generator_speech_review_warning": "Controlla le parole pronunciate prima di usare il video."
 }

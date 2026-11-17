@@ -136,6 +136,7 @@ const css = read("app/dashboard/_components/DashboardAssistantProvider.module.cs
 const studioSources = {
   ...sources,
   ...browserLibSources("userFacingErrors"),
+  ...browserLibSources("aiMediaGenerationPublicErrorI18n"),
   studio: compile("app/dashboard/generer-media/MediaGeneratorStudioClient.tsx"),
   "@/app/dashboard/_components/MediaGeneratorModal": compile("app/dashboard/_components/MediaGeneratorModal.tsx"),
   "./MediaFreeGenerator": compile("app/dashboard/_components/MediaFreeGenerator.tsx"),

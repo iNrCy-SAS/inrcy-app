@@ -1,4 +1,4 @@
-import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
+import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import { studioReferenceMemoryFixture, studioReferenceLibraryUploadFixture } from "../helpers/studio-reference-memory-fixture.mts";
 import * as speechBudget from "../../lib/aiMediaVideoSpeechBudget.ts";
 import * as inspirationImagePolicy from "../../lib/studioInspirationImagePolicy.ts";
@@ -51,6 +51,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
   };
   const modules = new Map(dependencies);
   modules.set("@/lib/userFacingErrors", userFacingErrorsFixture);
+  modules.set("@/lib/aiMediaGenerationPublicErrorI18n", aiMediaPublicErrorsFixture);
   modules.set("@/lib/studioReferenceMemoryClient", studioReferenceMemoryFixture);
   modules.set("@/lib/mediaLibraryUploadClient", studioReferenceLibraryUploadFixture);
   modules.set("react", react); modules.set("react/jsx-runtime", { jsx, jsxs: jsx });

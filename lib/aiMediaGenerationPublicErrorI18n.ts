@@ -11,8 +11,10 @@ function publicCode(input: unknown, depth = 0): AiMediaPublicErrorCode | null {
   if (!input || typeof input !== "object" || depth >= 3) return null;
   const value = input as Record<string, unknown>;
   for (const field of ["code", "error_code", "errorCode", "error", "message"]) {
-    const code = publicCode(value[field], depth + 1);
-    if (code) return code;
+    try {
+      const code = publicCode(value[field], depth + 1);
+      if (code) return code;
+    } catch { /* Unreadable diagnostic fields cannot become public copy. */ }
   }
   return null;
 }
@@ -30,4 +32,14 @@ export function getLocalizedAiMediaGenerationErrorMessage(input: unknown, langua
 
 export function getClientAiMediaGenerationErrorMessage(input: unknown, fallback?: string): string {
   return getLocalizedAiMediaGenerationErrorMessage(input, getClientErrorLanguage(), fallback);
+}
+
+/** Carry only reviewed copy and an allowlisted code across rejected client promises. */
+export function createClientAiMediaGenerationError(input: unknown, fallback?: string, status?: number): Error & { code?: AiMediaPublicErrorCode } {
+  const error: Error & { code?: AiMediaPublicErrorCode } = new Error(
+    getClientAiMediaGenerationErrorMessage(status ? { error: input, status } : input, fallback),
+  );
+  const code = publicCode(input);
+  if (code) error.code = code;
+  return error;
 }

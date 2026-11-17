@@ -1,6 +1,6 @@
 "use client";
 import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
-import { getClientAiMediaGenerationErrorMessage } from "@/lib/aiMediaGenerationPublicErrorI18n";
+import { createClientAiMediaGenerationError, getClientAiMediaGenerationErrorMessage } from "@/lib/aiMediaGenerationPublicErrorI18n";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useInrAssistantRefresh } from "./useInrAssistantRefresh";
@@ -915,9 +915,7 @@ export default function useMediaGeneration() {
           if (!shouldKeepGenerationRequestId(publicResponse.status, errorCode)) {
             clearCurrentAttempt();
           }
-          throw new Error(
-            readErrorMessage(payload, "La génération du média a échoué.", publicResponse.status)
-          );
+          throw createClientAiMediaGenerationError(payload, "La génération du média a échoué.", publicResponse.status);
         }
         // Une réponse 2xx tronquée reste incertaine : le serveur a pu enregistrer
         // le média. Conserver l'id permet au retry de rejouer le job au lieu de
@@ -929,9 +927,7 @@ export default function useMediaGeneration() {
         }
         const data = payload as Record<string, unknown>;
         if (data.ok !== true || !data.item || typeof data.item !== "object") {
-          throw new Error(
-            readErrorMessage(payload, "Le média généré est incomplet.")
-          );
+          throw createClientAiMediaGenerationError(payload, "Le média généré est incomplet.");
         }
         if (!mountedRef.current || requestEpoch !== accountEpochRef.current) {
           if (mountedRef.current) {
@@ -1066,8 +1062,8 @@ export default function useMediaGeneration() {
         if (!mountedRef.current || requestEpoch !== accountEpochRef.current) {
           throw new MediaGenerationAccountChangedError();
         }
-        const message =
-          getSafeClientErrorMessage(caught, "La génération du média a échoué.");
+        const message = getClientAiMediaGenerationErrorMessage(caught,
+          getSafeClientErrorMessage(caught, "La génération du média a échoué."));
         if (mountedRef.current) {
           completionStartedRef.current = false;
           setError(message);

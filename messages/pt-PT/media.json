@@ -1177,5 +1177,6 @@
   "ai_generator_reference_memory_load_error": "Os conteúdos memorizados não estão disponíveis. Reabra o Studio para tentar novamente.",
   "ai_generator_reference_memory_save_error": "Não foi possível memorizar os conteúdos. Verifique as fotografias e as vozes e tente novamente.",
   "ai_generator_reference_memory_forget_error": "Não foi possível esquecer estes conteúdos. Tente novamente.",
-  "ai_generator_reference_memory_forget_hint": "Esquecer esta seleção para as minhas próximas criações."
+  "ai_generator_reference_memory_forget_hint": "Esquecer esta seleção para as minhas próximas criações.",
+  "ai_generator_speech_review_warning": "Verifique as falas antes de utilizar este vídeo."
 }

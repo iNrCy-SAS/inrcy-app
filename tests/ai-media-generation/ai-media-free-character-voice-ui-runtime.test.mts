@@ -20,7 +20,7 @@ import * as requestClient from "../../lib/mediaGenerationClientRequest.ts";
 import * as soundtracks from "../../lib/mediaSoundtrackSelection.ts";
 import { quoteAiMediaCredits, type AiMediaCreditsQuoteInput } from "../../lib/aiMediaCreditsPricing.ts";
 import type { MediaGenerationRequest } from "../../app/dashboard/_hooks/useMediaGeneration.ts";
-import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
+import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import { studioReferenceMemoryFixture, studioReferenceLibraryUploadFixture } from "../helpers/studio-reference-memory-fixture.mts";
 
 type Props = Record<string, unknown>;
@@ -51,7 +51,7 @@ const find = (tree: unknown, predicate: (node: Element) => boolean) => { const n
 const text = (tree: unknown): string => Array.isArray(tree) ? tree.map(text).join("") : typeof tree === "string" || typeof tree === "number" ? String(tree) : tree && typeof tree === "object" && "props" in tree ? text((tree as Element).props.children) : "";
 
 /** Execute the real Free editor, reusable voice input and engine controls; only external IO is mocked. */
-function harness(kind: "video" | "image" = "video", initialEngine: models.AiMediaVideoEngine = "omni", sampleDurationSeconds = 2, options: { initialPrompt?: string; locale?: string; realEnginePreference?: boolean } = {}) {
+function harness(kind: "video" | "image" = "video", initialEngine: models.AiMediaVideoEngine = "omni", sampleDurationSeconds = 2, options: { initialPrompt?: string; locale?: string; realEnginePreference?: boolean; generationError?: Error } = {}) {
   const parentSlots: Slot[] = []; const childSlots = new Map<string, Slot[]>();
   let slots = parentSlots; let cursor = 0; let dirty = false; let tree!: Element;
   const effects: Array<() => void> = []; const listeners = new Map<string, Set<() => void>>();
@@ -96,6 +96,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     pauseRecovery() { if (!hook.canPauseRecovery) return false; hook.busy = false; hook.recovering = false; hook.canPauseRecovery = false; hook.canRecover = true; return true; },
     generate: async (request: MediaGenerationRequest): Promise<void> => {
       requests.push(request);
+      if (options.generationError) throw options.generationError;
       if (failGenerationForRecovery) { failGenerationForRecovery = false; hook.canRecover = true; hook.recoveryContext = { kind, format: request.format }; throw new Error("A paid generation needs recovery"); }
     },
     retryRecovery: async (): Promise<RecoveredResult> => {
@@ -114,6 +115,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
   const interfaces = new Map<string, Props>(), nativeEntries = new Map<string, NativeEntry>();
   const modules = new Map<string, unknown>([
     ["@/lib/userFacingErrors", userFacingErrorsFixture],
+    ["@/lib/aiMediaGenerationPublicErrorI18n", aiMediaPublicErrorsFixture],
     ["@/lib/studioReferenceMemoryClient", studioReferenceMemoryFixture], ["@/lib/mediaLibraryUploadClient", studioReferenceLibraryUploadFixture],
     ["../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface(id: string, snapshot: Props, handlers: NativeEntry["handlers"], enabled = true, locked = false) { interfaces.set(id, snapshot); nativeEntries.set(id, { snapshot, handlers, enabled, locked }); } }],
     ["@/lib/inrAssistantStudioFormSelection", studioForm],
@@ -352,6 +354,17 @@ function businessDnaCheckbox(h: ReturnType<typeof harness>) {
   const label = find(h.tree(), node => node.type === "label" && text(node).includes("ai_generator_use_business_dna_label"));
   return find(label, node => node.type === "input" && node.props.type === "checkbox");
 }
+
+test("the real Free generation catch preserves reviewed QA copy even before the hook error state is rendered", async () => {
+  const code = "AI_MEDIA_VIDEO_SPEECH_MISMATCH";
+  const failure = aiMediaPublicErrorsFixture.createClientAiMediaGenerationError({ code, error: "PRIVATE_TRANSCRIPT sk_live_hidden" });
+  const h = harness("image", "omni", 2, { initialPrompt: "Un jardin au soleil.", generationError: failure });
+  await h.generate();
+  assert.equal(h.requests.length, 1);
+  const preview = find(h.tree(), node => node.type === "preview");
+  assert.equal(preview.props.actionError, failure.message);
+  assert.doesNotMatch(String(preview.props.actionError), /PRIVATE|sk_live/); h.dispose();
+});
 
 test("new Studio image and video creations visibly select business DNA and submit the selected default", async () => {
   for (const kind of ["image", "video"] as const) {

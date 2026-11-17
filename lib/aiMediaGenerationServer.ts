@@ -74,7 +74,7 @@ import {
   createReferenceTeamFallbackVideo,
   createReferenceTeamMontage,
 } from "@/lib/aiMediaReferenceTeam";
-import { shouldAuditAiMediaNativeFinalFrame, assertAiMediaNativeFinalFrameLayout, recoverAiMediaNativeDialogueVerification, getAiMediaAutomaticDialogueContext, AiMediaNativeDialogueVerificationUnavailableError } from "@/lib/aiMediaNativeDialogueQa";
+import { shouldAuditAiMediaNativeFinalFrame, assertAiMediaNativeFinalFrameLayout, recoverAiMediaNativeDialogueVerification, getAiMediaAutomaticDialogueContext, getAiMediaNativeDialogueDeliveryDecision, AiMediaNativeDialogueVerificationUnavailableError } from "@/lib/aiMediaNativeDialogueQa";
 import { auditAiMediaNativeDialogueWithGoogle } from "@/lib/aiMediaNativeDialogueQaGoogle";
 import { resolveAiMediaDialogueSequence } from "@/lib/aiMediaDialogue";
 import {
@@ -1733,11 +1733,12 @@ export async function generateAndSaveAiMedia(args: {
           })
         : null;
     assertNativeFinalFrameQa(nativeDialogueQa);
-    // Une bouche qui bouge sans voix ou une réplique rejetée ne constitue pas
-    // un média Libre valide. Ne jamais coller une voix TTS sur ces lèvres.
+    const nativeDialogueDelivery = getAiMediaNativeDialogueDeliveryDecision(nativeDialogueQa);
+    // A bounded wording difference keeps the original paid take for user review;
+    // unusable speech still stops here and is never replaced with another voice.
     args.signal?.throwIfAborted();
     if (characterDialogueRequested && (
-      characterDialogueProviderFallback || nativeDialogueQa?.status === "rejected"
+      characterDialogueProviderFallback || nativeDialogueQa?.status === "rejected" && nativeDialogueDelivery.status === "blocked"
     )) {
       // Only QA issue codes leave this boundary, never the spoken transcript
       // or the professional's prompt. The API can explain a failed retry
@@ -1765,7 +1766,7 @@ export async function generateAndSaveAiMedia(args: {
     // A technical or inconclusive audit proves neither conformity nor a
     // provider mistake. Stop before composition/persistence; never regenerate
     // a paid clip or replace its native voice just to retry verification.
-    if (characterDialogueRequested && nativeDialogueQa?.status !== "passed") {
+    if (characterDialogueRequested && nativeDialogueDelivery.status === "blocked") {
       console.warn("[ai-media] native character speech verification unavailable", JSON.stringify({
         jobId: args.jobId, provider: videoGateway.provider, elapsedMs: nativeDialogueQa?.elapsedMs,
         verificationAttempts: nativeDialogueQa?.verificationAttempts,
@@ -1778,6 +1779,7 @@ export async function generateAndSaveAiMedia(args: {
       }));
       throw new AiMediaNativeDialogueVerificationUnavailableError(nativeDialogueQa);
     }
+    if (nativeDialogueDelivery.status === "warning") pipelineWarnings.push(nativeDialogueDelivery.code);
     const nativeVoiceoverQa = nativeVoiceoverRequested &&
       !videoGateway.provider.startsWith("inrcy-")
       ? await measure("native_voiceover_qa", () =>
@@ -1804,13 +1806,14 @@ export async function generateAndSaveAiMedia(args: {
       : null;
     args.signal?.throwIfAborted();
     assertNativeFinalFrameQa(nativeVoiceoverQa);
+    const nativeVoiceoverDelivery = getAiMediaNativeDialogueDeliveryDecision(nativeVoiceoverQa);
     if (nativeVoiceoverRequested && (
-      videoGateway.provider.startsWith("inrcy-") || nativeVoiceoverQa?.status === "rejected"
+      videoGateway.provider.startsWith("inrcy-") || nativeVoiceoverQa?.status === "rejected" && nativeVoiceoverDelivery.status === "blocked"
     )) {
       const issues = [...new Set(nativeVoiceoverQa?.clips.flatMap((clip) => clip.issues) || [])];
       throw new Error(`ai_media_free_native_character_speech_unusable:${issues.join(",") || "provider_fallback"}`);
     }
-    if (nativeVoiceoverRequested && nativeVoiceoverQa?.status !== "passed") {
+    if (nativeVoiceoverRequested && nativeVoiceoverDelivery.status === "blocked") {
       console.warn("[ai-media] native voiceover verification unavailable", JSON.stringify({
         jobId: args.jobId, provider: videoGateway.provider, elapsedMs: nativeVoiceoverQa?.elapsedMs,
         diagnostics: nativeVoiceoverQa?.diagnostics,
@@ -1822,9 +1825,10 @@ export async function generateAndSaveAiMedia(args: {
       }));
       throw new AiMediaNativeDialogueVerificationUnavailableError(nativeVoiceoverQa);
     }
-    // Only verified native speech reaches composition, with its original voice.
+    if (nativeVoiceoverDelivery.status === "warning") pipelineWarnings.push(nativeVoiceoverDelivery.code);
+    // Accepted native speech keeps its original track, including a review warning.
     const nativeVoiceoverPreserved = nativeVoiceoverRequested &&
-      !videoGateway.provider.startsWith("inrcy-") && nativeVoiceoverQa?.status === "passed";
+      !videoGateway.provider.startsWith("inrcy-") && nativeVoiceoverDelivery.status !== "blocked";
     const narrationJoinStartedAt = performance.now();
     const narrationResult = await waitForOptionalTaskWithinGrace({
           task: narrationTask,
@@ -1878,7 +1882,7 @@ export async function generateAndSaveAiMedia(args: {
     let nativeCharacterDialoguePreserved =
       characterDialogueRequested &&
       !characterDialogueProviderFallback &&
-      nativeDialogueQa?.status === "passed";
+      nativeDialogueDelivery.status !== "blocked";
 
     const clips = videoGateway.clips.map((clip) => ({
       buffer: clip.buffer,
@@ -2139,6 +2143,8 @@ export async function generateAndSaveAiMedia(args: {
       native_character_dialogue_preserved: nativeCharacterDialoguePreserved,
       native_voiceover_preserved: nativeVoiceoverPreserved,
       quality_assurance: {
+        native_dialogue_delivery: characterDialogueRequested ? nativeDialogueDelivery : { version: 1, status: "not_requested" },
+        native_voiceover_delivery: nativeVoiceoverRequested ? nativeVoiceoverDelivery : { version: 1, status: "not_requested" },
         native_dialogue: characterDialogueRequested
           ? nativeDialogueQa || {
               version: 1,

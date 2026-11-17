@@ -255,6 +255,32 @@ test("a recovered failure keeps its actionable server explanation without postin
   assert.equal(h.attempts.length, 1); assert.equal(h.status().canRecover, false); h.dispose();
 });
 
+test("streamed, JSON and recovered QA failures keep their public code and specific hook error without private diagnostics or another generation", async () => {
+  for (const mode of ["stream", "json", "recovery"] as const) {
+    const h = harness();
+    const task = h.status().generate(input()).catch((error: Error & { code?: string }) => error); h.render();
+    const code = mode === "recovery" ? "AI_MEDIA_VIDEO_SPEECH_VERIFICATION_UNAVAILABLE" : "AI_MEDIA_VIDEO_SPEECH_MISMATCH";
+    const payload = { ok: false, code, error: "PRIVATE_TRANSCRIPT sk_live_hidden https://private.invalid/?token=secret", error_details: [{ raw: "PRIVATE_AUDIO" }] };
+    if (mode === "json") h.attempts[0].resolve(Response.json(payload, { status: 422 }));
+    else {
+      const stream = h.startStream(0);
+      if (mode === "recovery") stream.send({ type: "billing_locked" });
+      else stream.send({ type: "result", status: 422, payload });
+      stream.close();
+      if (mode === "recovery") { await h.flush(); h.recoveries[0].resolve(Response.json({ ...payload, ok: true, status: "failed" })); }
+    }
+    const failure = await task;
+    assert.ok(failure instanceof Error);
+    assert.equal(failure.code, code);
+    const expected = aiMediaPublicErrorsFixture.getClientAiMediaGenerationErrorMessage({ code });
+    assert.equal(failure.message, expected); await h.flush();
+    assert.equal(h.status().error, expected);
+    assert.doesNotMatch(h.status().error, /PRIVATE|sk_live|private\.invalid/);
+    assert.equal(h.status().canRecover, false); assert.equal(h.attempts.length, 1);
+    assert.equal(h.recoveries.length, mode === "recovery" ? 1 : 0); h.dispose();
+  }
+});
+
 test("an incomplete success or an in-progress replay retrieves the existing attempt without a second POST", async () => {
   for (const response of [Response.json({ ok: true }), Response.json({ ok: false, code: "AI_MEDIA_GENERATION_IN_PROGRESS" }, { status: 409 })]) {
     const h = harness(); const task = h.status().generate(input()); h.render(); h.attempts[0].resolve(response); await h.flush();

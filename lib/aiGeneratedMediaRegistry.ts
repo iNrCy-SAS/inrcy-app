@@ -67,6 +67,21 @@ function buildStoragePath(args: {
   return `users/${safePathSegment(args.accountId, "account")}/ai-generated/${args.kind}/${year}/${month}/${safePathSegment(args.jobId, "job")}.${args.extension}`;
 }
 
+/** Only a fixed server decision reaches clients, never raw QA or speech text. */
+function hasSpeechReviewWarning(metadata: Record<string, unknown> | null | undefined): boolean {
+  const object = (value: unknown): Record<string, unknown> =>
+    value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const gateway = object(metadata?.gateway);
+  // Durable composition recovery retains the server's warning codes even when
+  // the original per-clip QA details are no longer in the recovered manifest.
+  if (Array.isArray(gateway.warnings) && gateway.warnings.includes("native_speech_review_recommended")) return true;
+  const quality = object(gateway.quality_assurance);
+  return ["native_dialogue_delivery", "native_voiceover_delivery"].some(key => {
+    const delivery = object(quality[key]);
+    return delivery.version === 1 && delivery.status === "warning" && delivery.code === "native_speech_review_recommended";
+  });
+}
+
 async function toPickerItem(row: RegistryRow): Promise<AiMediaLibraryPickerItem> {
   // La signature est un confort de réponse court terme, pas une condition de
   // persistance. Une panne Storage après l'INSERT ne doit jamais faire croire
@@ -102,6 +117,7 @@ async function toPickerItem(row: RegistryRow): Promise<AiMediaLibraryPickerItem>
     duration_seconds: Number(row.duration_seconds || 0) || null,
     created_at: row.created_at || null,
     signed_url: signedUrl,
+    ...(row.media_type === "video" && hasSpeechReviewWarning(row.media_metadata) ? { speech_review_recommended: true as const } : {}),
   };
 }
 

@@ -235,6 +235,36 @@ for (const nativeMode of ["characters", "voiceover"] as const) {
   }
 }
 
+for (const nativeMode of ["characters", "voiceover"] as const) test(`native ${nativeMode}: a bounded speech warning keeps the same paid clip and its audio available for review`, async () => {
+  const audit: nativeQa.AiMediaNativeDialogueQaResult = { version: 1, status: "rejected", elapsedMs: 120,
+    clips: [{ sceneIndex: 0, status: "rejected", issues: ["spoken_critical_value_mismatch"], confirmationDecision: "confirmed_defect",
+      audioCheckCount: 2, metrics: { expectedTokenCount: 20, detectedTokenCount: 22, expectedCoverage: 1,
+        bestWindowSimilarity: 0.9091, extraTokenCount: 2, repeatCount: 0 } }] };
+  const env = harness(undefined, false, { nativeVoiceover: nativeMode === "voiceover", nativeQaAudit: async () => structuredClone(audit) });
+  const checkpoints: Row[] = [];
+  await env.generate(request("kling", { durationSeconds: 16, videoResolution: "1080p", teamVideoSpeechMode: nativeMode,
+    withNarration: nativeMode === "voiceover", freePrompt: "Deux personnes présentent les services de leur entreprise." }),
+    { onCompositionReady: async (value: Row) => { checkpoints.push(value); } });
+  assert.equal(env.videoCalls.length, 1, "review never submits another paid take");
+  assert.equal(env.nativeQaCalls.length, 1, "the delivery decision does not buy another audio audit");
+  assert.equal(env.ttsCalls.length, 0, "the generated voices stay intact");
+  assert.equal(env.localFallbackCalls.length, 0);
+  assert.equal(env.composeCalls.length, 1); assert.equal(checkpoints.length, 1);
+  assert.equal(env.composeCalls[0].nativeAudioMode, "dialogue");
+  assert.equal(env.composeCalls[0].narration, null);
+  assert.deepEqual((env.composeCalls[0].clips as Row[])[0].buffer, Buffer.from("synthetic-native-video"));
+  assert.equal(env.saved.length, 1, "the professional receives the video instead of losing the paid take");
+  const gateway = (env.saved[0].metadata as Row).gateway as Row;
+  const qa = gateway.quality_assurance as Row;
+  const key = nativeMode === "characters" ? "native_dialogue" : "native_voiceover";
+  assert.deepEqual(qa[key], audit, "the underlying QA remains rejected, never presented as Exact passed");
+  assert.deepEqual(qa[`${key}_delivery`], { version: 1, status: "warning", code: "native_speech_review_recommended",
+    issues: ["spoken_critical_value_mismatch"], sceneIndexes: [0] });
+  assert.ok((gateway.warnings as string[]).includes("native_speech_review_recommended"));
+  assert.equal(gateway[nativeMode === "characters" ? "native_character_dialogue_preserved" : "native_voiceover_preserved"], true);
+  assert.doesNotMatch(JSON.stringify(qa[`${key}_delivery`]), /transcript|expectedLine|PRIVATE|https:/);
+});
+
 for (const automaticSpeech of [true, false]) test(`Wan image + supplied voice recovers unavailable ${automaticSpeech ? "automatic" : "exact"} speech verification using the same paid clip`, async () => {
   const env = harness(undefined, false, { nativeQaStatuses: ["unavailable", "passed", "passed"] });
   const now = Date.now();
