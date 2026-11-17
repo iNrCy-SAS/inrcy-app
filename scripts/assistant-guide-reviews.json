@@ -831,7 +831,7 @@
         "app/dashboard/generer-media/MediaGeneratorStudioClient.tsx": "5ecaf5325711c7b8093154067cf905e279f6fdf3b13dc083fb9a30f3175f06e8",
         "app/dashboard/generer-media/page.tsx": "f54b22c7dd115ad020cf0e8697ca169838fccaaeef9a8b421c2cc6cacff5c6ea",
         "lib/aiMediaBrandRenderer.ts": "24eb17eb07e5cfb4c22a8319eeb9ebaa8c7ab80b6dbb62e80a6abced99acde01",
-        "lib/aiMediaCompositionRecovery.ts": "f39c282725127c3fdb46cc30e72514e0021880337b47324be7c09a33dd1274cf",
+        "lib/aiMediaCompositionRecovery.ts": "c91b3a5e0ee546d6b5c1a92399a2df4dc43340f7e2578924070a94e74e75389f",
         "lib/aiMediaCreditsPricing.ts": "0208e6df438fdd6ea6675bb6367d193d3a8298363205138d0b099ddf1b1069ad",
         "lib/aiMediaFreeDnaContext.ts": "5daf8a16404c0aa7c70fdaca2fe0067c6372a9a9916c11bb94687f2c9b91db2d",
         "lib/aiMediaFreeGenerationPlan.ts": "c2e96a0b283921d18f5726f2f31189261483681602520340ba6fde42b3bc9ca4",

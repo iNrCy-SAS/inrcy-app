@@ -186,7 +186,7 @@ export async function finishAiMediaCompositionCheckpoint(checkpoint: AiMediaComp
   return (await rpc("finish_ai_media_composition_checkpoint", parameters(checkpoint))) === true;
 }
 
-/** An account-bound status request may claim only its existing private montage. */
+/** An after-generation task may claim only its existing private montage. */
 async function claimScopedCheckpoint(scope: { accountId: string; jobId: string }) {
   const job = await supabaseAdmin.from("ai_media_generation_jobs").select("status")
     .eq("account_id", uuid(scope.accountId)).eq("id", uuid(scope.jobId)).maybeSingle();
@@ -284,6 +284,8 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
         return { status: "failed", accountId: checkpoint.accountId, jobId: checkpoint.jobId };
       }
       stage = "provider_download";
+      console.info("[ai-media] HeyGen render ready", { jobId: checkpoint.jobId, durationSeconds: result.durationSeconds,
+        requestedDurationSeconds: manifest.durationSeconds });
       providerVideo = await client.downloadVideo(result.videoUrl!);
     }
     const clips = [];
@@ -342,8 +344,10 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
       await cleanupHeygenTemporaryResources(pendingProvider).catch(() => undefined);
     }
     return { status: "completed", accountId: checkpoint.accountId, jobId: checkpoint.jobId, mediaId: item.id };
-  } catch {
-    console.warn("[ai-media] composition recovery deferred", { accountId: checkpoint.accountId, jobId: checkpoint.jobId, stage });
+  } catch (error) {
+    const prefix = error instanceof Error ? error.message.split(":", 1)[0] : "";
+    const code = /^(?:ai_media_[a-z_]+|ai_original_video_[a-z_]+|ai_video_heygen_[a-z_]+|ffmpeg_unavailable)$/.test(prefix) ? prefix : "unclassified_failure";
+    console.warn("[ai-media] composition recovery deferred", { accountId: checkpoint.accountId, jobId: checkpoint.jobId, stage, code });
     if (pendingProvider && ["provider_status", "provider_download"].includes(stage)) {
       await deferProviderCheckpoint(checkpoint, row.attempts);
       return { status: "retry_pending", accountId: checkpoint.accountId, jobId: checkpoint.jobId };

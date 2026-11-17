@@ -129,3 +129,16 @@ test("the registry recovery helper reads the scoped lifecycle without promoting 
     assert.equal(result.item.signed_url, draft ? "/api/media-generation/drafts/media-a/content" : "/api/media-library/media-a/content");
   }
 });
+
+
+test("HeyGen polling only reads the existing job; the packaged cron owns composition and its retry budget", async () => {
+  for (const status of ["reserved", "processing"]) {
+    const current = route({ job: { id: "heygen-job", status, metadata: { video_engine: "heygen-avatar" } } });
+    for (let poll = 0; poll < 8; poll++) {
+      const response = await current.get();
+      assert.equal(response.status,202);
+      assert.deepEqual(await response.json(),{ok:true,status:"processing"});
+    }
+    assert.equal(current.selections(),8); assert.equal(current.mediaReads.length,0);
+  }
+});

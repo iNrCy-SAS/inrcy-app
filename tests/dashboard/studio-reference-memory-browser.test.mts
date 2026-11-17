@@ -242,7 +242,8 @@ test("real stored engine hydration keeps the DOM selection, effective provider a
       assert.equal(restored.disabled, !preference); assert.equal(restored.stored, storedBefore); assert.equal(restored.generationCalls, 0);
       assert.equal(restored.notices.some(notice => notice.includes(suppliedVoiceReason)), !preference);
       assert.equal(restored.title.includes(suppliedVoiceReason), !preference);
-      for (const value of restored.selectable) assert.match(value, /^(?:wan27|kling):/);
+      for (const value of restored.selectable) assert.match(value, /^(?:wan27|kling|heygen-avatar):/);
+      assert.ok(restored.selectable.includes("heygen-avatar:1080p"), "HeyGen remains available with the remembered characters and their supplied voices");
       assert.ok(restored.label?.includes(preference ? "Wan 2.7" : "Gemini Omni"));
       if (!preference) {
         await page.locator('[data-media-engine-controls] select[id$="-engine"]').selectOption("kling:720p");
