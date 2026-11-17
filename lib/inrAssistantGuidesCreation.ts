@@ -45,15 +45,15 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
     id: "studio-create",
     title: "iNrStudio : générer une image ou une vidéo",
     keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits", "voix", "vocal", "musiques", "narration", "sous-titres"],
-    content: `${productNavigationSummary("studio", false)} Image/Vidéo : format, moteur, durée (s), plans automatiques en Studio Libre ; choix explicite conservé. Moteurs disponibles ; Wan 3 et MiniMax H3 retirés de tous les parcours de génération.
+    content: `${productNavigationSummary("studio", false)} Image/Vidéo : format, moteur, durée (s), plans automatiques en Studio Libre ; choix explicite conservé. Moteurs compatibles avec les références originales et les vocaux fournis ; seules les qualités coûtant au maximum 16 crédits/seconde sont proposées. Wan 3 et MiniMax H3 restent retirés. En vidéo Libre, le prompt est transmis intégralement au moteur avec ses références, sans image de remplacement ni analyse IA bloquant le résultat.
 Visuel : vidéo 500 caractères, image 4 000 ; paroles séparées. Utiliser mon ADN coché par défaut ; sinon libre sans marque ni logo automatiques, sauf demande explicite. Consignes ET Interdictions de Ma communication intégrales ; interdictions priment. Booster illustre le sujet sans copie. Logo en zone sûre, sinon refus ; coordonnées sur demande.
 Références : Inspiration/Personnage/Décor/Produit, rôle puis Importer/Médiathèque images. Inspiration facultative, autres obligatoires ; vérifier identités/doublons.
 Musique iNrCy : Automatique/Sans musique/piste, préécoute ; hors vocaux.
 Menus indépendants : Personnages/Voix off/Sans paroles ; Auto/Exact ; IA/Réelle globale. Textes/vocaux/moteur conservés. Exact : Réglages, locuteur/texte par ligne, ajout/retrait/ordre. Voix off projette le narrateur ; retour Personnages restaure les attributions, mix IA hors champ possible. Vide/cible absente/incompatible : bloqué, sans moteur automatique. Sans paroles omet les paroles. Durée estimée non bloquante ; texte conservé.
-Voix off IA : Femme/Homme, style. Voix réelle : 3 vocaux max, Ajouter → Importer/Enregistrer/Médiathèque → usage/genre. Voix off sans photo : Chatterbox hors moteur vidéo, 5 à 10 s, un narrateur actif. Personnages : Wan 2.7/Kling Omni/HeyGen Avatar, un vocal/personne ; Kling 5 à 10 s, un locuteur/vocal. Timbre réel, genre descriptif ; droits/import/enregistrement humains.
+Voix off IA native du moteur : Femme/Homme, style demandé dans le prompt. Voix réelle : 3 vocaux max, Ajouter → Importer/Enregistrer/Médiathèque → usage/genre. Voix off sans photo : Chatterbox hors moteur vidéo, 5 à 10 s, un narrateur actif. Personnages : Wan 2.7/Kling Omni/HeyGen Avatar, un vocal/personne ; Kling 5 à 10 s, un locuteur/vocal. Timbre réel, genre descriptif ; droits/import/enregistrement humains.
 En Libre, paroles exactes compatibles et piste réelle trop longue : une resynthèse supplémentaire, mêmes paroles/vocal ; jamais après erreur réseau/soumission incertaine, ni substitution de voix.
 Sous-titres : durée mesurée, départ estimé, pas d’alignement mot à mot. Barre et ≈% vidéo estimés, sans délai garanti.
-Coût/solde → Générer ; Enregistrer/Utiliser conserve ; régénérer peut débiter. Rendu moteur sans analyse IA. HeyGen : décor séparé ; coût Exact selon durée audio estimée.
+Coût/solde → Générer ; Enregistrer/Utiliser conserve ; régénérer peut débiter. Rendu moteur sans analyse IA. HeyGen adapte le parcours : scène cinématique native sans portrait parlant ; avatar avec photo en mode Personnages. La scène cinématique conserve sa durée sélectionnée ; seul l’avatar parlant estime le coût selon l’audio exact.
 Rendu normal : Génération en cours, puis résultat. Vérifier mon média : reprise sans relance. Pause/fermeture garde l’identifiant ; critères restent modifiables. Une nouvelle génération attend sa résolution. Annuler la génération : confirmation distincte ; arrêt ≠ absence de débit.
 Basique sans crédits mensuels ; les recharges permettent de générer sans changer d’offre. Booster : type/format fixés.`,
     sourceFiles: [
@@ -79,6 +79,10 @@ Basique sans crédits mensuels ; les recharges permettent de générer sans chan
       "lib/aiMediaGenerationContracts.ts",
       "lib/aiMediaVideoSpeechBudget.ts",
       "lib/aiMediaHeygenBilling.ts",
+      "lib/aiMediaDirectVideoPipeline.ts",
+      "lib/aiMediaDirectAvatarDialogue.ts",
+      "lib/aiMediaHeygenRoute.ts",
+      "lib/aiVideoHeygenCinematic.ts",
       "lib/aiVideoHeygenBackground.ts",
       "lib/aiMediaPendingVideo.ts",
       "lib/aiMediaPendingVideoWorker.ts",

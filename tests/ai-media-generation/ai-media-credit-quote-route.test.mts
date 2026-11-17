@@ -7,6 +7,8 @@ import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
 import * as exactDialogue from "../../lib/aiMediaExactDialogue.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import * as models from "../../lib/aiMediaModelCatalog.ts";
+import * as videoOptions from "../../lib/aiMediaVideoClientOptions.ts";
+import * as heygenRoute from "../../lib/aiMediaHeygenRoute.ts";
 import * as policy from "../../lib/aiMediaGenerationQuotaPolicy.ts";
 
 type Row=Record<string,unknown>;
@@ -19,7 +21,7 @@ function load<T>(path:string,modules:Record<string,unknown>):T {
   return runtime.exports;
 }
 const quotes=load<{createAiMediaServerQuote(accountId:string,input:pricing.AiMediaCreditsQuoteInput):pricing.AiMediaCreditsQuote & {quoteId:string}}>("lib/aiMediaCreditQuoteServer.ts",{
-  "server-only":{},"node:crypto":crypto,"./aiMediaCreditsPricing.ts":pricing,"./aiMediaCharacterVoices.ts":characterVoices,"./aiMediaModelCatalog.ts":models,"./aiMediaExactDialogue.ts":exactDialogue,
+  "server-only":{},"node:crypto":crypto,"./aiMediaCreditsPricing.ts":pricing,"./aiMediaCharacterVoices.ts":characterVoices,"./aiMediaModelCatalog.ts":models,"./aiMediaExactDialogue.ts":exactDialogue,"./aiMediaVideoClientOptions.ts":videoOptions,"./aiMediaHeygenRoute.ts":heygenRoute,
 });
 const presentation=load<{presentAiMediaQuotaCounter(counter:Row,unlimited:boolean):Row}>("lib/aiMediaQuotaPresentation.ts",{"@/lib/aiMediaGenerationQuotaPolicy":policy});
 function fixture(options:{authenticated?:boolean;creditsReady?:boolean;unlimited?:boolean;maxDuration?:number;accountId?:string}={}) {
@@ -51,7 +53,7 @@ test("quote rejects unauthenticated callers before wallet or edition access",asy
 test("quote refuses an unavailable migration with no paid or reservation operation",async()=>{
   const f=fixture({creditsReady:false});const response=await f.post(fourSeconds);
   assert.equal(response.status,503);assert.equal((await response.json()).code,"AI_MEDIA_CREDITS_NOT_READY");
-  assert.ok(f.calls.every(call=>["wallet","edition"].includes(String(call.type))));
+  assert.ok(f.calls.every(call=>["wallet","edition","entitlement"].includes(String(call.type))));
 });
 test("invalid engines and unsupported durations cannot obtain a usable quote",async()=>{
   for(const body of [{...fourSeconds,videoEngine:"unreviewed-engine"},{...fourSeconds,durationSeconds:0},{...fourSeconds,videoEngine:"omni",durationSeconds:21},{kind:"image",imageEngine:"unreviewed-engine"}]) {
@@ -68,7 +70,7 @@ test("retired HeyGen cannot obtain a new quote while its historical catalogue en
     assert.equal(response.status,400);
     assert.equal(output.code,"AI_MEDIA_QUOTE_INVALID");
     assert.equal(output.quote,undefined);
-    assert.ok(f.calls.every(call=>["wallet","edition"].includes(String(call.type))),"retirement rejects before entitlement or paid work");
+    assert.ok(f.calls.every(call=>["wallet","edition","entitlement"].includes(String(call.type))),"retirement rejects before entitlement or paid work");
   }
 });
 test("a silent four-second clip costs twelve credits and quote identity belongs to the active account",async()=>{
@@ -139,4 +141,42 @@ test("retired Wan3 and MiniMax H3 are rejected before wallet edition entitlement
     }
     assert.equal(models.getAiMediaVideoModel(videoEngine).modelId,modelId,"historical metadata remains readable");
   }
+});
+
+
+test("new quotes enforce the sixteen-credit video rate before they can authorize a reservation", async () => {
+  for (const [videoEngine, videoResolution, permitted] of [["kling", "720p", true], ["kling", "1080p", false], ["heygen-avatar", "1080p", true], ["grok", "1080p", false]] as const) {
+    const previous = process.env.KLING_API_KEY; process.env.KLING_API_KEY = "synthetic-test-key";
+    try {
+      const f = fixture(); const response = await f.post({kind:"video",creationMode:"free",videoEngine,videoResolution,durationSeconds:8,inspirationImagesCount:0,teamVideoSpeechMode:"voiceover",withNarration:true});
+      const body = await response.json();
+      assert.equal(response.status, permitted ? 200 : 400, videoEngine+videoResolution);
+      if (!permitted) { assert.equal(body.code,"AI_MEDIA_VIDEO_CREDIT_RATE_LIMIT"); assert.equal(body.quote,undefined); }
+      assert.ok(f.calls.every(call=>["wallet","edition","entitlement"].includes(String(call.type))));
+    } finally { if (previous===undefined) delete process.env.KLING_API_KEY; else process.env.KLING_API_KEY=previous; }
+  }
+});
+
+test("direct media quotes reject unsupported originals and voice references without a usable quote", async () => {
+  for (const options of [{videoEngine:"grok-lite",inspirationImagesCount:2},{videoEngine:"wan27",inspirationImagesCount:0},{videoEngine:"omni",inspirationImagesCount:1,hasProvidedCharacterVoice:true}]) {
+    const f=fixture(); const response=await f.post({kind:"video",creationMode:"free",durationSeconds:8,videoResolution:"720p",...options});
+    const body=await response.json();assert.equal(response.status,400);assert.equal(body.quote,undefined);
+    assert.match(body.code,/^AI_MEDIA_VIDEO_(?:REFERENCE_LIMIT|PHOTO_REQUIRED|VOICE_ENGINE_UNSUPPORTED)$/);
+    assert.ok(f.calls.every(call=>["wallet","edition","entitlement"].includes(String(call.type))));
+  }
+});
+
+
+test("native HeyGen quotes validate real cinematic durations and resolution before authorizing a render", async () => {
+  for (const options of [{durationSeconds:4,videoResolution:"720p",format:"story"},{durationSeconds:8,videoResolution:"1080p",format:"square"}]) {
+    const f=fixture();const response=await f.post({kind:"video",creationMode:"free",videoEngine:"heygen-avatar",inspirationImagesCount:0,teamVideoSpeechMode:"voiceover",withNarration:true,...options});
+    const body=await response.json();assert.equal(response.status,400);assert.equal(body.quote,undefined);
+  }
+});
+
+test("multi-reference Veo validates every native segment before offering a quote",async()=>{
+ for(const [durationSeconds,permitted] of [[8,true],[14,false],[16,true]] as const){
+  const response=await fixture().post({kind:"video",creationMode:"free",videoEngine:"veo",videoResolution:"720p",durationSeconds,sceneMode:"single",inspirationImagesCount:2,withNarration:false});
+  assert.equal(response.status,permitted?200:400);if(!permitted)assert.equal((await response.json()).code,"AI_MEDIA_VIDEO_REFERENCE_DURATION_UNSUPPORTED");
+ }
 });

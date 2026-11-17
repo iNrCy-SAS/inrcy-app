@@ -16,6 +16,7 @@ import {
 } from "@/lib/aiMediaGenerationContracts";
 import { classifyAiMediaGenerationError, getAiMediaGenerationPublicError } from "@/lib/aiMediaGenerationPublicErrors";
 import { AI_MEDIA_PROMPT_VERSION } from "@/lib/aiMediaGenerationPrompt";
+import { AI_MEDIA_DIRECT_VIDEO_PROMPT_VERSION } from "@/lib/aiMediaDirectVideoPipeline";
 import { AI_MEDIA_FREE_PROMPT_VERSION, assertAiMediaFreeExactNarrationFits } from "@/lib/aiMediaFreeGenerationPrompt";
 import type { PreparedAiMediaNarrationVoice } from "@/lib/aiMediaNarrationVoicePreflight";
 import {
@@ -159,7 +160,9 @@ async function readRequestBody(request: Request) {
 function generationFingerprint(request: AiMediaGenerationRequest) {
   return createAiMediaRequestFingerprint({
     contract: "inrcy-ai-media-generation-v13-structured-studio",
-    promptVersion: request.creationMode === "free" ? AI_MEDIA_FREE_PROMPT_VERSION : AI_MEDIA_PROMPT_VERSION,
+    promptVersion: request.creationMode === "free"
+      ? request.kind === "video" ? AI_MEDIA_DIRECT_VIDEO_PROMPT_VERSION : AI_MEDIA_FREE_PROMPT_VERSION
+      : AI_MEDIA_PROMPT_VERSION,
     creationMode: request.creationMode || "guided",
     freePrompt: request.creationMode === "free" ? request.freePrompt : undefined,
     ...(request.creationMode === "free" && request.kind === "image" && request.publicationSubject ? { publicationSubject: request.publicationSubject } : {}),
@@ -417,7 +420,10 @@ async function executeGenerate(request: Request, options: GenerationExecutionOpt
     let quote: ReturnType<typeof quoteAiMediaRequest>;
     try {
       quote = quoteAiMediaRequest(context.accountId, normalizedRequest);
-    } catch {
+    } catch (error) {
+      if (error instanceof TypeError && "code" in error && typeof error.code === "string" && /^AI_MEDIA_VIDEO_(?:CREDIT_RATE_LIMIT|RESOLUTION_UNSUPPORTED|REFERENCE_COUNT_INVALID|CHARACTER_VOICE_COUNT_INVALID|VOICE_ENGINE_UNSUPPORTED|PHOTO_REQUIRED|REFERENCES_UNSUPPORTED|REFERENCE_LIMIT|REFERENCE_DURATION_UNSUPPORTED)$/.test(error.code)) {
+        return jsonError({ status: 400, code: error.code, message: error.message });
+      }
       throw new AiMediaRequestValidationError("Ces paramètres ne sont pas disponibles pour le moteur choisi. Actualisez le devis ou choisissez une autre durée.");
     }
     if (!assertAiMediaCreditQuote(normalizedRequest, quote)) {

@@ -42,7 +42,7 @@ test('photo preparation and both client/server idempotency fingerprints preserve
  const node=ast.statements.find(item=>ts.isFunctionDeclaration(item)&&item.name?.text==='generationFingerprint');assert.ok(node);
  const compiled=ts.transpileModule(`${node.getText(ast)}\nexports.fingerprint=generationFingerprint;`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
  const exports={} as {fingerprint:(value:unknown)=>string};
- new Function('exports','createAiMediaRequestFingerprint','AI_MEDIA_FREE_PROMPT_VERSION','AI_MEDIA_PROMPT_VERSION',compiled)(exports,createAiMediaRequestFingerprint,'test-free','test-guided');
+ new Function('exports','createAiMediaRequestFingerprint','AI_MEDIA_FREE_PROMPT_VERSION','AI_MEDIA_PROMPT_VERSION','AI_MEDIA_DIRECT_VIDEO_PROMPT_VERSION',compiled)(exports,createAiMediaRequestFingerprint,'test-free','test-guided','test-direct');
  assert.notEqual(exports.fingerprint(input),exports.fingerprint(swapped));
  const contract=buildAiMediaVideoProviderContract({request:input,durationSeconds:16,brandColors:[]});
  assert.match(contract.references,/character-1\/name="Alex"/);assert.match(contract.references,/character-2\/name="Léa"/);

@@ -163,15 +163,16 @@ test("approved team portraits are priced as one composed video reference and ret
   assert.equal(quoteAiMediaCredits({ ...group, identityMode: "auto", inputMode: "essential" }).totalCredits, 29);
 });
 
-test("Libre video includes creative preparation and replaces it with the first-frame package when references are added", () => {
+test("Free video prices original references with a fixed preparation and finishing fee", () => {
   const freeVideo = { kind: "video", videoEngine: "grok-lite", durationSeconds: 5, creationMode: "free", inputMode: "essential" };
   const noReferences = quoteAiMediaCredits(freeVideo);
   assert.equal(noReferences.totalCredits, 22);
   assert.deepEqual(noReferences.breakdown.map((item) => [item.key, item.credits]), [["video", 15], ["preparation", 7]]);
-  assert.equal(noReferences.breakdown[1].label, "Préparation créative");
-  const withReferences = quoteAiMediaCredits({ ...freeVideo, inspirationImagesCount: 3 });
-  assert.equal(withReferences.totalCredits, 29);
-  assert.deepEqual(withReferences.breakdown.map((item) => [item.key, item.credits]), [["video", 15], ["preparation", 13], ["references", 1]]);
+  assert.equal(noReferences.breakdown[1].label, "Préparation et finition");
+  const withReferences = quoteAiMediaCredits({ ...freeVideo, inspirationImagesCount: 1 });
+  assert.equal(withReferences.totalCredits, 23);
+  assert.deepEqual(withReferences.breakdown.map((item) => [item.key, item.credits]), [["video", 15], ["preparation", 7], ["references", 1]]);
+  assert.throws(() => quoteAiMediaCredits({ ...freeVideo, inspirationImagesCount: 3 }), /references_unsupported/);
   assert.equal(quoteAiMediaCredits({ ...freeVideo, kind: "image" }).totalCredits, 7);
   assert.equal(quoteAiMediaCredits({ ...freeVideo, creationMode: "guided" }).totalCredits, 15);
   assert.equal(estimateAiMediaVideoSupplierCostMicroUsd(freeVideo), 150_000);

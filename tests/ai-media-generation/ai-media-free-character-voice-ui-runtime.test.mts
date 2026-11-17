@@ -122,7 +122,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     ["react", react], ["react/jsx-runtime", { jsx, jsxs: jsx }],
     ["react-dom", { createPortal: (content: Element) => content }],
     ["next-intl", { useLocale: () => options.locale || "fr-FR", useTranslations: () => (key: string, values?: Record<string, string | number>) => {
-      if (key.startsWith("ai_generator_video_") || key === "ai_generator_character_voice_engine_required" || key === "ai_generator_character_voice_kling_reference_limits") return (frenchMessages[key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
+      if (key.startsWith("ai_generator_video_") || key === "ai_generator_model_reference_duration_available" || key === "ai_generator_character_voice_engine_required" || key === "ai_generator_character_voice_kling_reference_limits") return (frenchMessages[key] || key).replace(/\{(\w+)\}/g, (_, name: string) => String(values?.[name] ?? `{${name}}`));
       if (key === "ai_generator_final_authorization_images_label" || key === "ai_generator_final_authorization_voices_label") return frenchMessages[key].replace("{provider}", String(values?.provider || ""));
       if (key === "ai_generator_final_authorization_short" || key === "ai_generator_final_authorization_details") return frenchMessages[key];
       return values?.credits ? `${key} ${values.credits}` : key;
@@ -1291,10 +1291,10 @@ test("switching back to AI restores regular engines, and pending voice uploads l
 
 test("two supplied voices follow stable photos when Exact starts from the explicit character choice",async()=>{
  const h=harness('video','kling',7,{initialPrompt:'Deux personnes entretiennent un jardin.'});try{
- await h.addPhoto('homme.png','character');await h.addPhoto('femme.png','character');h.chooseVoice(0,'provided');await h.uploadVoice(0);h.chooseVoice(1,'provided');await h.uploadVoice(1);h.closePool();h.selectEngine('kling','1080p');h.setDuration(16);h.setSound('characters');
+ await h.addPhoto('homme.png','character');await h.addPhoto('femme.png','character');h.chooseVoice(0,'provided');await h.uploadVoice(0);h.chooseVoice(1,'provided');await h.uploadVoice(1);h.closePool();h.selectEngine('kling','720p');h.setDuration(16);h.setSound('characters');
  const first='Les feuilles tombent et votre jardin a besoin d’entretien',second='Nous sommes là pour vous donner un coup de main !';h.enterSpeech(first);h.setExactCharacter(0,1);h.addExactRow();h.setExactText(1,second);h.setExactCharacter(1,2);
  const expected=[{speaker:'character',characterIndex:1,text:first},{speaker:'character',characterIndex:2,text:second}];assert.equal(h.quoteInputs.at(-1)!.enabled,true,'the same canonical photo slots pass the actual speech preflight');assert.equal(h.quoteInputs.at(-1)!.withNarration,false);assert.equal(h.quoteInputs.at(-1)!.hasProvidedCharacterVoice,true);assert.deepEqual(h.quoteInputs.at(-1)!.exactDialogue,expected);assert.deepEqual(h.quoteInputs.at(-1)!.inspirationImages,[{role:'character',characterIndex:1},{role:'character',characterIndex:2}]);assert.equal(h.voiceSnapshot().speechMode,'characters','Exact retains the selected global speech mode');h.consent();await h.generate();assert.equal(h.requests.length,1);
- const actual=h.requests[0];assert.deepEqual(actual.exactDialogue,expected);assert.equal(Object.hasOwn(actual,'spokenScript'),false);assert.equal(actual.withNarration,false);assert.equal(actual.teamVideoSpeechMode,'characters');assert.equal(actual.videoEngine,'kling');assert.equal(actual.videoResolution,'1080p');assert.equal(actual.durationSeconds,16);assert.deepEqual(actual.inspirationImages!.map(image=>[image.characterIndex,image.voiceSample!.path]),[[1,h.uploadedSamples[0].path],[2,h.uploadedSamples[1].path]]);
+ const actual=h.requests[0];assert.deepEqual(actual.exactDialogue,expected);assert.equal(Object.hasOwn(actual,'spokenScript'),false);assert.equal(actual.withNarration,false);assert.equal(actual.teamVideoSpeechMode,'characters');assert.equal(actual.videoEngine,'kling');assert.equal(actual.videoResolution,'720p');assert.equal(actual.durationSeconds,16);assert.deepEqual(actual.inspirationImages!.map(image=>[image.characterIndex,image.voiceSample!.path]),[[1,h.uploadedSamples[0].path],[2,h.uploadedSamples[1].path]]);
  const normalized=contracts.normalizeAiMediaGenerationRequest({...actual,requestId:'synthetic-structured-parent',inspirationImages:actual.inspirationImages!.map(image=>({...image,data:'A'.repeat(64)}))});assert.deepEqual(normalized.exactDialogue,expected);assert.equal(normalized.withNarration,false);
  }finally{h.dispose();}
 });
@@ -1367,4 +1367,43 @@ test("the Free video quote and generation receive the same effective brief while
     assert.equal(h.quoteInputs.at(-1)!.freePrompt,'David accueille les clients dans le jardin au soleil.');
   } finally {h.dispose();}
   const image=harness('image');try {assert.equal(Object.hasOwn(image.quoteInputs.at(-1)!,'freePrompt'),false);}finally{image.dispose();}
+});
+
+test("HeyGen narrow-canvas Free requests resolve 720p before quoting, while real speaking portraits retain 1080p", async () => {
+  for (const format of ["square", "portrait"]) {
+    const h = harness("video", "heygen-avatar", 8, { initialPrompt: "Un atelier de jardinage lumineux.", realEnginePreference: true });
+    try {
+      const before = h.quoteInputs.length;
+      h.formNative().handlers.select.invoke(JSON.stringify({ field: "format", value: format })); h.render();
+      assert.ok(h.quoteInputs.slice(before).every(quote => quote.videoResolution === "720p"), "no unavailable 1080p quote can precede the preference update");
+      assert.equal(h.quoteInputs.at(-1)!.videoResolution, "720p");
+      assert.equal(h.storedEnginePreference().videoResolution, "720p");
+      await h.addPhoto("David.png", "character"); h.setSound("characters"); h.selectEngine("heygen-avatar", "1080p");
+      assert.equal(h.quoteInputs.at(-1)!.videoResolution, "1080p");
+      assert.equal((h.quoteInputs.at(-1)!.inspirationImages as Array<{ role: string }>)[0].role, "character");
+      const returning = h.quoteInputs.length;
+      h.setSound("voiceover");
+      assert.ok(h.quoteInputs.slice(returning).every(quote => quote.videoResolution === "720p"));
+      assert.equal(h.storedEnginePreference().videoResolution, "720p");
+      assert.equal(h.requests.length, 0, "the proof uses only local pricing without generating a video");
+    } finally { h.dispose(); }
+  }
+});
+test("Veo original-photo timing blocks the quote visibly until an explicit compatible duration is chosen", async () => {
+  const h = harness("video", "omni", 8, { initialPrompt: "Une visite dans un jardin fleuri." });
+  try {
+    await h.addPhoto("premiere.png", "inspiration"); await h.addPhoto("seconde.png", "environment"); h.setDuration(10);
+    h.selectEngine("veo", "720p");
+    assert.equal(h.quoteInputs.at(-1)!.videoEngine, "omni"); assert.equal(h.quoteInputs.at(-1)!.durationSeconds, 10);
+    h.changePreferredVideoEngine("veo");
+    assert.equal(h.quoteInputs.at(-1)!.videoEngine, "veo"); assert.equal(h.quoteInputs.at(-1)!.durationSeconds, 10);
+    assert.equal(h.quoteInputs.at(-1)!.enabled, false, "no impossible 6+4-second quote can be requested");
+    const engines = h.renderEngines();
+    assert.ok(text(engines).includes("Avec plusieurs photos, durées disponibles :"));
+    assert.equal(h.quoteInputs.at(-1)!.durationSeconds, 10, "rendering does not silently alter the professional's duration");
+    const duration = find(engines, node => node.type === "select" && String(node.props.id).endsWith("-duration"));
+    (duration.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "8:single" } }); h.render();
+    assert.equal(h.quoteInputs.at(-1)!.durationSeconds, 8); assert.equal(h.quoteInputs.at(-1)!.enabled, true);
+    assert.equal(h.requests.length, 0);
+  } finally { h.dispose(); }
 });

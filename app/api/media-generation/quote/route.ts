@@ -40,6 +40,9 @@ export async function POST(request: Request) {
     }
     return NextResponse.json({ ok: true, quote, credits: presentAiMediaQuotaCounter(quota.credits, unlimited), creditsReady: true }, { headers });
   } catch (error) {
+    if (error instanceof TypeError && "code" in error && typeof error.code === "string" && /^AI_MEDIA_VIDEO_(?:CREDIT_RATE_LIMIT|RESOLUTION_UNSUPPORTED|REFERENCE_COUNT_INVALID|CHARACTER_VOICE_COUNT_INVALID|VOICE_ENGINE_UNSUPPORTED|PHOTO_REQUIRED|REFERENCES_UNSUPPORTED|REFERENCE_LIMIT|REFERENCE_DURATION_UNSUPPORTED)$/.test(error.code)) {
+      return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: 400, headers });
+    }
     if (error instanceof Error && error.message === "ai_video_kling_credentials_missing") return NextResponse.json({ ok: false, code: "AI_MEDIA_VIDEO_ENGINE_UNAVAILABLE", error: "Kling n’est pas encore activé. Choisissez un autre moteur pour cette création." }, { status: 503, headers });
     if (error instanceof AiMediaGenerationQuotaError) return NextResponse.json({ ok: false, code: error.code, error: error.message }, { status: error.httpStatus, headers });
     if (error instanceof TypeError || error instanceof SyntaxError || error instanceof RangeError || (error instanceof Error && error.message.startsWith("ai_media_"))) return NextResponse.json({ ok: false, code: "AI_MEDIA_QUOTE_INVALID", error: "Ces paramètres ne sont pas disponibles pour le moteur choisi." }, { status: 400, headers });

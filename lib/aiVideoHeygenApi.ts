@@ -6,10 +6,17 @@ const ORIGIN = "https://api.heygen.com";
 const ID = /^[a-zA-Z0-9_-]{1,180}$/;
 const MAX_JSON_BYTES = 1024 * 1024;
 export type HeygenAsset = { type: "asset_id"; asset_id: string };
+export type HeygenCinematicVideoRequest = {
+  model: "heygen-video-1"; prompt: string; duration: number;
+  resolution: "480p" | "768p" | "1080p" | "2k";
+  aspect_ratio: "21:9" | "16:9" | "4:3" | "1:1" | "3:4" | "9:16";
+  prompt_enhancement: "quality" | "turbo" | "disabled" | "ultraquality";
+} & ({ mode: "text_to_video"; reference_images?: never } |
+  { mode: "reference_to_video"; reference_images: HeygenAsset[] });
 export type HeygenStudioScene =
   | { type: "avatar_video"; input: { type: "avatar"; avatar_id: string; motion_prompt?: string; expressiveness?: "low"; background?: { type: "image"; source: HeygenAsset }; remove_background?: boolean } & ({ script: string; voice_id: string; audio_asset_id?: never } | { audio_asset_id: string; script?: never; voice_id?: never }) }
   | { type: "image"; source: HeygenAsset; script?: string; voice_id?: string; duration?: number };
-export type HeygenVideoState = { id: string; status: "pending" | "processing" | "completed" | "failed"; videoUrl?: string; durationSeconds?: number; failureCode?: string };
+export type HeygenVideoState = { id: string; status: "pending" | "processing" | "completed" | "failed"; videoUrl?: string; durationSeconds?: number; width?: number; height?: number; failureCode?: string };
 
 export class HeygenApiError extends Error {
   constructor(readonly statusCode: number, readonly upstreamCode: string, readonly uncertain = false, diagnostic?: { operation: string; parameter?: string; reason?: string }) {
@@ -33,6 +40,29 @@ export function isHeygenMediaUrl(value: unknown): value is string {
       ["heygen.ai", "heygen.com", "heygenusercontent.com"].some(domain => url.hostname === domain || url.hostname.endsWith(`.${domain}`));
   } catch { return false; }
 }
+function assertHeygenCinematicRequest(input: HeygenCinematicVideoRequest): void {
+  const allowed = ["model", "mode", "prompt", "duration", "resolution", "aspect_ratio", "prompt_enhancement", "reference_images"];
+  if (Object.keys(input).some(key => !allowed.includes(key)) || input.model !== "heygen-video-1" ||
+      !["text_to_video", "reference_to_video"].includes(input.mode) ||
+      typeof input.prompt !== "string" || !input.prompt.trim() || Array.from(input.prompt).length > 16_000 ||
+      !Number.isInteger(input.duration) || input.duration < 5 || input.duration > 30 ||
+      !["480p", "768p", "1080p", "2k"].includes(input.resolution) ||
+      !["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"].includes(input.aspect_ratio) ||
+      !["quality", "turbo", "disabled", "ultraquality"].includes(input.prompt_enhancement) ||
+      input.duration > 15 && !["quality", "turbo"].includes(input.prompt_enhancement) ||
+      ["1080p", "2k"].includes(input.resolution) && !["16:9", "9:16"].includes(input.aspect_ratio)) {
+    throw new HeygenApiError(0, "cinematic_input_invalid");
+  }
+  if (input.mode === "text_to_video") {
+    if (input.reference_images !== undefined) throw new HeygenApiError(0, "cinematic_input_invalid");
+  } else if (!Array.isArray(input.reference_images) || input.reference_images.length < 1 || input.reference_images.length > 9 ||
+      input.reference_images.some(asset => !asset || asset.type !== "asset_id" ||
+        typeof asset.asset_id !== "string" || !ID.test(asset.asset_id) ||
+        Object.keys(asset).some(key => !["type", "asset_id"].includes(key)))) {
+    throw new HeygenApiError(0, "cinematic_input_invalid");
+  }
+}
+
 async function bounded(response: Response, maximum: number): Promise<Buffer> {
   if (!response.body || Number(response.headers.get("content-length")) > maximum) {
     await response.body?.cancel(); throw new HeygenApiError(0, "response_size_invalid");
@@ -60,7 +90,7 @@ export function createHeygenApiClient(options: { apiKey: string; fetch?: typeof 
     if (!path.startsWith("/v3/") || path.includes("..") || path.includes("#")) throw new HeygenApiError(0, "path_invalid");
     const method = input.method ?? "GET";
     const route = path.split("?", 1)[0];
-    const operation = method.toLowerCase() + "_" + (route === "/v3/models/audio/voices" ? "voices" : route === "/v3/avatars" ? "avatars" : route === "/v3/assets" ? "assets" : route === "/v3/videos" ? "videos" : route === "/v3/usage/errors" ? "usage_errors" : route.startsWith("/v3/models/audio/voices/") ? "voice" : route.startsWith("/v3/videos/") ? "video" : route.startsWith("/v3/avatars/") ? "avatar" : "resource");
+    const operation = method.toLowerCase() + "_" + (route === "/v3/models/audio/voices" ? "voices" : route === "/v3/avatars" ? "avatars" : route === "/v3/assets" ? "assets" : route === "/v3/videos" ? "videos" : route === "/v3/models/videos" ? "cinematic_videos" : route.startsWith("/v3/models/videos/") ? "cinematic_video" : route === "/v3/usage/errors" ? "usage_errors" : route.startsWith("/v3/models/audio/voices/") ? "voice" : route.startsWith("/v3/videos/") ? "video" : route.startsWith("/v3/avatars/") ? "avatar" : "resource");
     const signal = AbortSignal.any([...(input.signal ? [input.signal] : []), AbortSignal.timeout(30_000)]);
     let response: Response;
     try {
@@ -160,6 +190,33 @@ export function createHeygenApiClient(options: { apiKey: string; fetch?: typeof 
       const result = await request<{ video_id?: unknown }>("/v3/videos", { method: "POST", idempotencyKey, signal, json: { type: "studio", ...input } });
       try { return heygenIdentifier(result.video_id); }
       catch { throw new HeygenApiError(200, "submission_unconfirmed", true); }
+    },
+    async submitCinematicVideo(input: HeygenCinematicVideoRequest, idempotencyKey: string, signal?: AbortSignal) {
+      assertHeygenCinematicRequest(input);
+      const result = await request<{ video_id?: unknown }>("/v3/models/videos", {
+        method: "POST", idempotencyKey, signal, json: input,
+      });
+      try { return heygenIdentifier(result.video_id); }
+      catch { throw new HeygenApiError(202, "submission_unconfirmed", true); }
+    },
+    async getCinematicVideo(videoId: string, signal?: AbortSignal): Promise<HeygenVideoState> {
+      const id = heygenIdentifier(videoId);
+      const result = await request<{ video_id?: unknown; model?: unknown; status?: unknown; video_url?: unknown;
+        duration?: unknown; width?: unknown; height?: unknown; failure_code?: unknown }>(`/v3/models/videos/${id}`, { signal });
+      if (result.video_id !== id || result.model !== "heygen-video-1" ||
+          !["pending", "processing", "completed", "failed", "cancelled"].includes(String(result.status))) {
+        throw new HeygenApiError(0, "video_response_invalid");
+      }
+      if (result.status === "completed" && (!isHeygenMediaUrl(result.video_url) ||
+          typeof result.duration !== "number" || !Number.isFinite(result.duration) || result.duration <= 0 ||
+          result.duration > AI_MEDIA_MAX_PROVIDER_VIDEO_DURATION_SECONDS)) throw new HeygenApiError(0, "video_output_invalid");
+      const dimension = (value: unknown) => typeof value === "number" && Number.isInteger(value) && value > 0 && value <= 16_384;
+      return { id, status: result.status === "cancelled" ? "failed" : result.status as HeygenVideoState["status"],
+        ...(isHeygenMediaUrl(result.video_url) ? { videoUrl: result.video_url } : {}),
+        ...(typeof result.duration === "number" ? { durationSeconds: result.duration } : {}),
+        ...(dimension(result.width) && dimension(result.height) ? { width: result.width as number, height: result.height as number } : {}),
+        ...(result.status === "failed" || result.status === "cancelled" ? { failureCode: code(result.failure_code || (result.status === "cancelled" ? "generation_cancelled" : "generation_failed")) } : {}),
+      };
     },
     async getVideo(videoId: string, signal?: AbortSignal): Promise<HeygenVideoState> {
       const id = heygenIdentifier(videoId);

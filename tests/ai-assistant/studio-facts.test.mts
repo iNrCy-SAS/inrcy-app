@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { inrAssistantStudioFacts, verifiedInrAssistantStudioCatalogueAnswer } from "../../lib/inrAssistantStudioFacts.ts";
 import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, AI_MEDIA_IMAGE_MODELS, AI_MEDIA_VIDEO_MODELS } from "../../lib/aiMediaModelCatalog.ts";
+import { getMediaVideoEngineQualityChoices } from "../../lib/aiMediaVideoClientOptions.ts";
 import { AI_MEDIA_CHARACTER_VOICE_MAX_SECONDS, AI_MEDIA_CHARACTER_VOICE_MIN_SECONDS, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, hasTooShortAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine } from "../../lib/aiMediaCharacterVoices.ts";
 
 const voiceCatalogueQuestion = "Dans iNrStudio, quels moteurs actuellement proposés peuvent faire parler mon personnage à partir de ma photo et de mon propre vocal ? Donne le parcours et les limites, sans créer de média.";
@@ -47,7 +48,7 @@ test("native retired-model FAQ lists all current alternatives without transferri
     assert.equal(answer.includes(`| ${model.label} |`), false);
   }
   assert.match(answer, /\| Kling 4\.0 Flash \| 4–20 s \| 720p \|/);
-  assert.match(answer, /\| Kling 4\.0 Omni \| 4–30 s \| 720p\/1080p \|/);
+  assert.match(answer, /\| Kling 4\.0 Omni \| 4–30 s \| 720p \|/);
   assert.match(answer, /\| Wan 2\.6 Flash \| 4–30 s \|/);
   assert.match(answer, /\| Wan 2\.7 R2V \| 4–20 s \|/);
   assert.match(answer, /aucun moteur de remplacement n’est sélectionné automatiquement/);
@@ -146,4 +147,26 @@ test("abbreviated Studio knowledge retains voice compatibility before unrelated 
   assert.match(facts, /OPTIONNEL/);
   assert.match(facts, /Wan : 1 à 10 s, minimum Kling non applicable/);
   assert.equal(inrAssistantStudioFacts("Quelle est la météo ?"), "");
+});
+
+
+test("assistant facts follow offered qualities and HeyGen duration/context instead of raw historical resolutions", () => {
+  const answer = verifiedInrAssistantStudioCatalogueAnswer(retiredCatalogueQuestion)!;
+  const facts = inrAssistantStudioFacts("moteurs vidéo", 5000);
+  for (const output of [answer, facts]) {
+    assert.match(output, /HeyGen Avatar[^\n]*5–30 s/);
+    assert.match(output, /1080p en Story\/Paysage ou avec une photo de personnage qui parle, sinon 720p en Carré\/Portrait/);
+    assert.doesNotMatch(output, /Kling 4\.0 Omni[^)\n]*1080p/);
+    assert.doesNotMatch(output, /Grok Imagine 1\.5[^)\n]*1080p/);
+    assert.doesNotMatch(output, /meilleur|moins bon|garantit|le plus performant/i);
+  }
+  for (const model of AI_MEDIA_AVAILABLE_VIDEO_MODELS) {
+    const resolutions = getMediaVideoEngineQualityChoices().filter(choice => choice.engine === model.id).map(choice => choice.resolution).join("/");
+    const row = answer.split("\n").find(line => line.startsWith(`| ${model.label} |`));
+    assert.ok(row?.includes(resolutions), model.label);
+    assert.ok(getMediaVideoEngineQualityChoices().filter(choice => choice.engine === model.id).every(choice => choice.creditsPerSecond <= 16));
+  }
+  const voiceAnswer = verifiedInrAssistantStudioCatalogueAnswer(voiceCatalogueQuestion)!;
+  assert.match(voiceAnswer, /HeyGen Avatar[^\n]*vidéo de 5–30 s/);
+  assert.doesNotMatch(voiceAnswer, /Kling 4\.0 Omni[^)\n]*1080p/);
 });

@@ -1,3 +1,4 @@
+import * as heygenRoute from "../../lib/aiMediaHeygenRoute.ts";
 import { userFacingErrorsFixture, aiMediaPublicErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -47,6 +48,7 @@ function harness(initialInput = input(), initialQuota = quota()) {
   const require = (specifier: string) => {
     if (specifier === "@/lib/userFacingErrors") return userFacingErrorsFixture;
     if (specifier === "@/lib/aiMediaGenerationPublicErrorI18n") return aiMediaPublicErrorsFixture;
+    if (specifier === "@/lib/aiMediaHeygenRoute") return heygenRoute;
     if (specifier === "react") return react;
     if (specifier === "@/lib/aiMediaCreditsPricing") return pricing;
     if (specifier === "@/lib/aiMediaModelCatalog") return models;
@@ -170,15 +172,15 @@ test("changing image format requires a fresh quote even when the credit price st
 });
 
 test("changing HeyGen from AI to supplied voices invalidates its base-route authorization and requests the reference tariff", async () => {
-  const base: MediaCreditQuoteInput = { ...input("heygen"), videoResolution: "1080p", inspirationImagesCount: 2, teamVideoSpeechMode: "characters", hasProvidedCharacterVoice: false };
+  const base: MediaCreditQuoteInput = { ...input("heygen"), videoResolution: "1080p", inspirationImagesCount: 1, teamVideoSpeechMode: "characters", hasProvidedCharacterVoice: false };
   const h = harness(base); h.runTimers(); h.respond(0, "account-a"); await h.flush();
-  assert.equal(h.status().quote?.totalCredits, 95);
+  assert.equal(h.status().quote?.totalCredits, 91);
   h.update({ ...base, hasProvidedCharacterVoice: true });
   assert.equal(h.status().ready, false); assert.deepEqual(h.status().authorization, {});
-  assert.equal(h.status().estimate?.totalCredits, 159);
+  assert.equal(h.status().estimate?.totalCredits, 155);
   h.runTimers(); assert.equal(h.requests[1].input.hasProvidedCharacterVoice, true);
   h.respond(1, "account-a"); await h.flush();
-  assert.equal(h.status().ready, true); assert.equal(h.status().quote?.totalCredits, 159);
+  assert.equal(h.status().ready, true); assert.equal(h.status().quote?.totalCredits, 155);
   assert.equal(h.status().authorization.creditTariffVersion, pricing.AI_MEDIA_CREDIT_TARIFF_VERSION);
   h.update(base); assert.equal(h.status().ready, false); assert.deepEqual(h.status().authorization, {});
   h.dispose();
@@ -199,7 +201,7 @@ test("equivalent input objects preserve a pending and then confirmed quote witho
 
 
 test("inline HeyGen speech reaches the quote unchanged and editing it invalidates the old authorization", async () => {
-  const first: MediaCreditQuoteInput = { ...input("heygen-avatar"), videoResolution:"1080p", teamVideoSpeechMode:"characters",
+  const first: MediaCreditQuoteInput = { ...input("heygen-avatar"), videoResolution:"1080p", teamVideoSpeechMode:"characters", inspirationImagesCount:1,inspirationImages:[{role:"character",characterIndex:1}],
     freePrompt:'Une personne dit : « '+Array(100).fill('mot').join(' ')+' » dans un jardin.' };
   const h=harness(first,quota("account-a",5000));
   h.runTimers();assert.equal(h.requests[0].input.freePrompt,first.freePrompt);
@@ -257,7 +259,7 @@ test("HeyGen external voiceover visual edits preserve the fixed-duration quote",
 });
 
 test("dedicated HeyGen dialogue keeps visual edits stable and invalidates when its billable words change", async () => {
-  const first: MediaCreditQuoteInput = { ...input("heygen-avatar"), teamVideoSpeechMode: "characters", spokenScript: "Bienvenue !", freePrompt: "Une personne dans un jardin." };
+  const first: MediaCreditQuoteInput = { ...input("heygen-avatar"), teamVideoSpeechMode: "characters", inspirationImagesCount:1, inspirationImages:[{role:"character",characterIndex:1}], spokenScript: "Bienvenue !", freePrompt: "Une personne dans un jardin." };
   const h = harness(first); h.runTimers(); h.respond(0, "account-a"); await h.flush();
   h.update({ ...first, freePrompt: "Une personne devant son agence." }); h.runTimers();
   assert.equal(h.status().ready, true); assert.equal(h.requests.length, 1);
@@ -265,4 +267,11 @@ test("dedicated HeyGen dialogue keeps visual edits stable and invalidates when i
   assert.equal(h.status().ready, false); assert.deepEqual(h.status().authorization, {});
   h.runTimers(); h.respond(1, "account-a"); await h.flush();
   assert.equal(h.status().ready, true); assert.ok(h.status().quote!.totalCredits > 100); h.dispose();
+});
+
+test("HeyGen cinematic character typing without a portrait keeps its fixed confirmed quote",async()=>{
+ const first:MediaCreditQuoteInput={...input("heygen-avatar"),teamVideoSpeechMode:"characters",freePrompt:"Une équipe discute dans une agence."};
+ const h=harness(first);h.runTimers();h.respond(0,"account-a");await h.flush();const authorization=h.status().authorization;
+ for(let length=1;length<=100;length++){h.update({...first,freePrompt:"Une équipe parle de notre application. "+"mot ".repeat(length)});h.runTimers();assert.equal(h.status().ready,true);assert.deepEqual(h.status().authorization,authorization);assert.equal(h.requests.length,1);}
+ assert.equal(h.requests[0].input.freePrompt,undefined);h.dispose();
 });

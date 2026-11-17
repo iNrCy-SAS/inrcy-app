@@ -1,3 +1,5 @@
+import { getAiMediaNativeNarrationTone as nativeNarrationTone } from "./aiMediaNarrationVoices.ts";
+import { buildAiMediaDirectVideoScenePrompt } from "./aiMediaDirectVideoPipeline.ts";
 import { getAiMediaFreeSpeechBudget, getAiMediaFreeRequestedLanguage, getAiMediaFreeRequestedDialogue, splitAiMediaFreeQuotedSpeech, getAiMediaVideoSpeechState, splitAiMediaExactDialogueScenes } from "./aiMediaVideoSpeechBudget.ts";
 import { AI_MEDIA_EXACT_DIALOGUE_MAX_TURNS, AI_MEDIA_OFFSCREEN_NARRATOR, assertAiMediaExactDialogueBindings } from "./aiMediaExactDialogue.ts";
 import { normalizeAiMediaCharacterName } from "./aiMediaCharacterVoices.ts";
@@ -150,18 +152,6 @@ export function splitAiMediaFreeNarrationByScene(script: string, sceneCount: num
 
 export function hashAiMediaFreeNarrationLines(lines: readonly string[]) {
   return createHash("sha256").update(lines.join("\n")).digest("hex");
-}
-
-function nativeNarrationTone(variant: AiMediaGenerationRequest["narrationVoiceVariant"]): string {
-  switch (variant) {
-    case "Kore": return "confident, composed and professional";
-    case "Aoede": return "natural, fluid and spontaneous";
-    case "Sulafat": return "warm, gentle and welcoming";
-    case "Charon": return "calm, clear and informative";
-    case "Orus": return "assertive, direct and professional";
-    case "Puck": return "upbeat, positive and energetic";
-    default: return "natural and professional";
-  }
 }
 
 /** A dedicated script is authoritative; legacy quoted dialogue remains supported when absent. */
@@ -624,7 +614,7 @@ export function buildAiMediaFreeSceneFramePrompt(args: AiMediaPromptBuilderArgs,
 
 /** Free Omni/Veo transport never invokes the guided visual/speech prompt rules. */
 type FreeVideoScenePromptArgs = Pick<AiVideoProviderGenerationArgs,
-  "request" | "plan" | "providerContract" | "contentLanguage" | "nativeNarrationLines" | "subtitleLines" | "businessDnaDirection">;
+  "request" | "plan" | "providerContract" | "contentLanguage" | "nativeNarrationLines" | "subtitleLines" | "businessDnaDirection" | "directVideo">;
 
 function renderAiMediaFreeVideoScenePrompt(
   args: FreeVideoScenePromptArgs,
@@ -760,6 +750,7 @@ export function buildAiMediaFreeVideoScenePrompt(
   durationSeconds: number,
   options: { continuation?: boolean; continuationFrame?: boolean; firstFrameTag?: boolean; compactEnvelope?: boolean } = {},
 ) {
+  if (args.directVideo) return buildAiMediaDirectVideoScenePrompt(args,index,durationSeconds,Boolean(options.continuation || options.continuationFrame));
   const { prompt, reservedCharacters, maximum } = renderAiMediaFreeVideoScenePrompt(args, index, durationSeconds, options);
   // The measured suffix is appended unchanged by the Gateway afterwards.
   if (prompt.length + reservedCharacters > maximum) throw new Error(`ai_video_instruction_contract_too_long:${prompt.length + reservedCharacters}:${maximum}`);
@@ -791,7 +782,7 @@ function renderAiMediaFreeWanFlashPrompt(args: FreeVideoScenePromptArgs, index: 
 /** The same complete Flash wire format is measured by the planner and sent by
  * the Gateway. Only generated ACTION copy is eligible for bounded rewriting. */
 export function buildAiMediaFreeWanFlashPrompt(args: FreeVideoScenePromptArgs, index: number, duration: number, continuation = false) {
-  const prompt = renderAiMediaFreeWanFlashPrompt(args, index, duration, continuation);
+  const prompt = args.directVideo ? buildAiMediaDirectVideoScenePrompt(args,index,duration,continuation) : renderAiMediaFreeWanFlashPrompt(args, index, duration, continuation);
   if (prompt.length > 1_500) throw new Error(`ai_video_instruction_contract_too_long:${prompt.length}:1500`);
   return prompt;
 }

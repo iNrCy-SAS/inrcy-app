@@ -60,7 +60,7 @@ import useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
 import MediaEngineCreditControls, { isMediaVideoReferenceCompatible, MediaCreditQuoteSummary, MediaRecoveredCreditSummary, MediaGenerationActions } from "./MediaEngineCreditControls";
 import { getAiMediaImageModel, getAiMediaVideoModel, getAiMediaVideoModelForCharacterVoice, isAiMediaImageModelCompatible } from "@/lib/aiMediaModelCatalog";
 import { canGenerateAiMediaVideoDuration } from "@/lib/aiMediaVideoTimeline";
-import { getMediaVideoDurationChoices, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
+import { getMediaVideoDurationChoices, getMediaVideoContextResolution, getAiMediaVideoReferenceCompatibilityIssue, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
 import { recommendAiMediaModel } from "@/lib/aiMediaModelRecommendation";
 import styles from "./MediaFreeGenerator.module.css";
 
@@ -361,6 +361,7 @@ export default function MediaFreeGenerator({
     const { voiceMode: _voiceMode, voiceSample: _voiceSample, ...withoutInactiveVoice } = reference;
     return withoutInactiveVoice;
   }) : projectedReferences;
+  const providedCharacterVoicesCount = generationReferences.filter(reference => reference.voiceMode === "provided" && reference.voiceSample).length;
   const names = projectedReferences.filter(reference => reference.role === "character").map(reference => normalizeAiMediaCharacterName(reference.characterName ?? ""));
   const namedCharacters = names.filter((name): name is string => Boolean(name));
   const characterNameInvalid = names.some(name => name === null) || new Set(namedCharacters.map(name => name.toLowerCase())).size !== namedCharacters.length;
@@ -375,8 +376,17 @@ export default function MediaFreeGenerator({
   const selectedVideoEngine = enginePreference.videoEngine;
   const characterVoiceEngineUnsupported = characterVoiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(selectedVideoEngine);
   const videoModel = getAiMediaVideoModelForCharacterVoice(selectedVideoEngine, characterVoiceSelection.hasProvidedVoice);
-  const videoResolution = videoModel.resolutions.includes(enginePreference.videoResolution)
-    ? enginePreference.videoResolution : videoModel.defaultResolution;
+  const requestSpeechMode: MediaGenerationTeamVideoSpeechMode =
+    !explicitlyEmptySpokenScript && speechMode === "characters" ? "characters" : "voiceover";
+  const hasCharacterReferences = generationReferences.some(reference => reference.role === "character");
+  const videoResolution = getMediaVideoContextResolution(selectedVideoEngine, enginePreference.videoResolution,
+    { format: fixedFormat || format, teamVideoSpeechMode: requestSpeechMode, hasCharacterReferences });
+  const preferredVideoResolution = enginePreference.videoResolution;
+  const updateEnginePreference = enginePreference.update;
+  useEffect(() => {
+    if (kind !== "video" || locked || result || recoveryPending || videoResolution === preferredVideoResolution) return;
+    updateEnginePreference({ videoEngine: selectedVideoEngine, videoResolution });
+  }, [kind, locked, result, recoveryPending, videoResolution, preferredVideoResolution, selectedVideoEngine, updateEnginePreference]);
   const aiVoiceSettingsAvailable = kind === "video" && selectedVoiceMode === "ai" && voiceConfigurationMode !== "silent" &&
     (voiceConfigurationMode === "voiceover" || voiceReferences.length > 1);
   useInrAssistantLocalInterface("studio_video_audio", { open: mediaSettingsDialog === "audio" }, {
@@ -413,8 +423,6 @@ export default function MediaFreeGenerator({
     kind === "video" && !explicitlyEmptySpokenScript && speechMode === "voiceover";
   const effectiveWithSubtitles =
     kind === "video" && !explicitlyEmptySpokenScript && speechMode !== "silent" && withSubtitles;
-  const requestSpeechMode: MediaGenerationTeamVideoSpeechMode =
-    !explicitlyEmptySpokenScript && speechMode === "characters" ? "characters" : "voiceover";
   const referenceCriteriaIncomplete = references.some(
     (reference) => !reference.role || !reference.usage
   );
@@ -444,7 +452,9 @@ export default function MediaFreeGenerator({
       : speechState.issue?.code === "AI_MEDIA_INVALID_SPEECH_MODE"
       ? t("ai_generator_spoken_script_silent_help") : t("ai_generator_video_speech_too_long");
   const durationUnavailable = kind === "video" && (!durations.includes(duration) || !canGenerateAiMediaVideoDuration(selectedVideoEngine, duration, videoResolution, sceneMode));
-  const referenceCompatible = kind === "video" ? !characterVoiceEngineUnsupported && isMediaVideoReferenceCompatible(selectedVideoEngine, references.length, characterVoiceSelection.hasProvidedVoice) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: references.length });
+  const referenceCompatible = kind === "video" ? !characterVoiceEngineUnsupported && isMediaVideoReferenceCompatible(selectedVideoEngine, references.length, characterVoiceSelection.hasProvidedVoice, providedCharacterVoicesCount) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: references.length });
+  const referenceDurationUnsupported = kind === "video" && getAiMediaVideoReferenceCompatibilityIssue(selectedVideoEngine,
+    { inspirationImagesCount: references.length, durationSeconds: duration, videoResolution, sceneMode: sceneMode })?.code === "AI_MEDIA_VIDEO_REFERENCE_DURATION_UNSUPPORTED";
   const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(selectedVideoEngine, effectivePrompt);
   const promptReady = prompt.trim().length >= 3 && prompt.length <= maxUserPromptLength;
   const promptWarning = operationLocked ? "" : kind === "video" && prompt.length > maxUserPromptLength
@@ -501,11 +511,14 @@ export default function MediaFreeGenerator({
     videoResolution, durationSeconds: kind === "video" ? duration : undefined,
     sceneMode: kind === "video" ? sceneMode : undefined,
     inspirationImagesCount: references.length, withNarration: effectiveWithNarration,
-    hasProvidedCharacterVoice: characterVoiceSelection.hasProvidedVoice,
+    ...(kind === "video" ? { narrationVoiceMode: providedNarrationVoiceActive ? "provided" : narrationVoiceMode } : {}),
+    hasProvidedCharacterVoice: characterVoiceSelection.hasProvidedVoice, providedCharacterVoicesCount,
     teamVideoSpeechMode: requestSpeechMode,
-    ...(kind === "video" ? { freePrompt: effectivePrompt, withSubtitles: effectiveWithSubtitles } : {}),
+    ...(kind === "video" ? { freePrompt: effectivePrompt, withSubtitles: effectiveWithSubtitles,
+      inspirationImages: referencesForRequest(generationReferences, exactSpeechEditorVisible ? exactHasCharacters : speechMode === "characters", exactSpeechEditorVisible ? exactCharacters : undefined)
+        .map(reference => ({ role: reference.role, characterIndex: reference.characterIndex, characterName: reference.characterName })) } : {}),
     ...(exactSpeechActive && !serializedExact.issue ? { exactDialogue: serializedExact.turns, inspirationImages: exactCharacters.map(character => ({ role: "character" as const, characterIndex: character.characterIndex })) } : {}),
-  }, quota, !exactInvalid && !characterNameInvalid && !durationUnavailable && referenceCompatible && briefCompatible && !realVoiceNeedsPerson && !characterVoiceSelection.missingSample && !providedVoiceWithEmptyScript && !characterVoiceTooShort && !narrationVoiceMissing && !narrationVoiceTooShort && !narrationVoiceUnauthorized && (kind !== "video" || !speechInvalid && !misplacedSpeechBlocking && promptReady));
+  }, quota, !exactInvalid && !characterNameInvalid && !durationUnavailable && !referenceDurationUnsupported && referenceCompatible && briefCompatible && !realVoiceNeedsPerson && !characterVoiceSelection.missingSample && !providedVoiceWithEmptyScript && !characterVoiceTooShort && !narrationVoiceMissing && !narrationVoiceTooShort && !narrationVoiceUnauthorized && (kind !== "video" || !speechInvalid && !misplacedSpeechBlocking && promptReady));
   const creditInsufficient = creditQuote.insufficient;
   const modelRecommendation = recommendAiMediaModel({ kind, format: fixedFormat || format, operation: "generate", brief: effectivePrompt,
     ...(source === "studio" ? { recommendationContext: "studio-free" as const } : {}),
@@ -522,6 +535,7 @@ export default function MediaFreeGenerator({
     quota?.studioEnabled !== false &&
     !exhausted &&
     !durationUnavailable &&
+    !referenceDurationUnsupported &&
     !creditInsufficient &&
     creditQuote.ready &&
     referenceCompatible &&
@@ -1505,6 +1519,9 @@ export default function MediaFreeGenerator({
             allowedVideoEnginesReason={characterVoiceSelection.hasProvidedVoice ? t("ai_generator_character_voice_engine_required") : undefined}
             unavailableVideoEngineReasons={wan3VoiceDurationExceeded ? { wan3: t("ai_generator_character_voice_wan3_duration_limit") } : undefined}
             hasProvidedCharacterVoice={characterVoiceSelection.hasProvidedVoice}
+            providedCharacterVoicesCount={providedCharacterVoicesCount}
+            hasCharacterReferences={hasCharacterReferences}
+            videoAudioChoice={{ creationMode: "free", teamVideoSpeechMode: requestSpeechMode, withNarration: effectiveWithNarration, narrationVoiceMode: providedNarrationVoiceActive ? "provided" : narrationVoiceMode }}
             onVideoEngineChange={(videoEngine, resolution) => { resetConsent(); enginePreference.update({ videoEngine, videoResolution: resolution ?? getAiMediaVideoModel(videoEngine).defaultResolution }); }}
             onImageEngineChange={(imageEngine) => { resetConsent(); enginePreference.update({ imageEngine }); }}
             onResolutionChange={(resolution) => { resetConsent(); enginePreference.update({ videoEngine: selectedVideoEngine, videoResolution: resolution }); }} />

@@ -1,3 +1,4 @@
+import { buildAiMediaDirectVideoPlan } from "../../lib/aiMediaDirectVideoPipeline.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -71,43 +72,46 @@ function harness(configuredProvider = "auto", rejectSdk = false) {
   return { registry, sdk, counts, reservations, commits };
 }
 
-function args(engine: "veo" | "veo-lite", resolution: "720p" | "1080p", mode: "silent" | "voiceover" | "characters" = "silent") {
-  const spokenScript = mode === "silent" ? "" : "Ce jardin devient un lieu calme pour profiter ensemble.";
+function args(engine: "veo" | "veo-lite", resolution: "720p" | "1080p", mode: "silent" | "voiceover" | "auto_voiceover" | "characters" = "silent") {
+  const spokenScript = mode === "silent" ? "" : mode === "auto_voiceover" ? undefined : "Ce jardin devient un lieu calme pour profiter ensemble.";
   const request = contracts.normalizeAiMediaGenerationRequest({
     requestId: "offline-veo-route-test", source: "studio", operation: "generate", creationMode: "free",
     kind: "video", videoEngine: engine, videoResolution: resolution, durationSeconds: 8, sceneMode: "single",
     format: "landscape", freePrompt: "Un jardin calme au soleil, léger mouvement de caméra, sans texte.",
-    withNarration: mode === "voiceover", teamVideoSpeechMode: mode === "characters" ? "characters" : "voiceover",
+    withNarration: mode === "voiceover" || mode === "auto_voiceover", teamVideoSpeechMode: mode === "characters" ? "characters" : "voiceover",
     withMusic: false, spokenScript, inspirationImages: [],
   });
   const canonicalPrompt = "offline canonical contract";
-  return { accountId: "offline-account", request, canonicalPrompt,
+  const nativeNarrationLines = mode === "voiceover" && spokenScript ? [spokenScript] : undefined;
+  return { accountId: "offline-account", request, canonicalPrompt, directVideo: true, nativeNarrationLines,
     canonicalPromptSha256: boundary.hashAiMediaCanonicalPrompt(canonicalPrompt),
-    providerContract: boundary.buildAiMediaVideoProviderContract({ request, durationSeconds: 8, brandColors: [] }),
-    contentLanguage: "fr", plan: { headline: "", subline: "Un jardin au soleil.", companyName: "", cta: "",
-      scenes: [{ visualBrief: "La caméra avance vers les fleurs.", eyebrow: "", title: "", body: "", spokenLine: mode === "characters" ? spokenScript : "", spokenReply: "", layout: "hero" }] },
+    providerContract: boundary.buildAiMediaVideoProviderContract({ request, durationSeconds: 8, brandColors: [], nativeNarrationLines }),
+    contentLanguage: "fr", plan: buildAiMediaDirectVideoPlan(request),
   } as providerTypes.AiVideoProviderGenerationArgs;
 }
 
 test("the real registry and Gateway preserve Fast and Lite model resolution duration audio and zero retries without a Gemini preview call", async () => {
   const runtime = harness();
-  for (const engine of ["veo", "veo-lite"] as const) for (const resolution of ["720p", "1080p"] as const) for (const mode of ["silent", "voiceover", "characters"] as const) {
+  for (const engine of ["veo", "veo-lite"] as const) for (const resolution of ["720p", "1080p"] as const) for (const mode of ["silent", "voiceover", "auto_voiceover", "characters"] as const) {
     const input = args(engine, resolution, mode), original = JSON.stringify(input);
     const result = await runtime.registry.generateOriginalAiVideoClips(input);
     const wire = runtime.sdk.at(-1)!;
     assert.equal(wire.model, engine === "veo" ? "google/veo-3.1-fast-generate-001" : "google/veo-3.1-lite-generate-001");
     assert.equal(wire.resolution, resolution === "1080p" ? "1920x1080" : "1280x720");
     assert.equal(wire.duration, 8); assert.equal(wire.aspectRatio, "16:9");
-    assert.equal(wire.generateAudio, mode === "characters", "Only native talking characters request chargeable Veo audio; Studio owns voiceover.");
+    assert.equal(wire.generateAudio, mode !== "silent", "Both IA offscreen narration and character speech are native provider audio.");
     assert.equal(wire.maxRetries, 0); assert.equal(wire.n, 1);
-    assert.match(String(wire.prompt), /THIS SHOT|CREATIVE DIRECTION/);
+    assert.ok(String(wire.prompt).startsWith(input.request.freePrompt!));
+    if (mode === "auto_voiceover") assert.match(String(wire.prompt), /Create natural off-screen narration/);
+    if (mode === "voiceover") assert.ok(String(wire.prompt).includes(input.request.spokenScript!));
+    if (mode === "silent") assert.match(String(wire.prompt), /No speech/);
     assert.doesNotMatch(String(wire.model), /preview/);
     assert.equal(result.provider, "vercel-ai-gateway:google"); assert.equal(result.model, wire.model);
     assert.equal(result.clips.length, 1); assert.equal(result.clips[0].durationSeconds, 8);
     assert.equal(JSON.stringify(input), original, "The selected engine and full caller request remain unchanged.");
   }
   assert.equal(runtime.counts.legacyGemini, 0); assert.equal(runtime.counts.omni, 0);
-  assert.equal(runtime.sdk.length, 12); assert.equal(runtime.reservations.length, 12);
+  assert.equal(runtime.sdk.length, 16); assert.equal(runtime.reservations.length, 16);
   assert.deepEqual(runtime.commits, runtime.reservations);
 });
 

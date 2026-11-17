@@ -1182,5 +1182,6 @@
   "ai_generator_speech_review_warning": "Vidéo à vérifier : regardez et écoutez le résultat avant de l’utiliser.",
   "ai_generator_model_description_heygen-avatar": "Portraits parlants et dialogues avec vos photos et vos voix.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Présentations face caméra et échanges en plans successifs.",
-  "ai_generator_engine_info_video_limits_heygen-avatar": "Chaque personne parle dans son propre plan. Ce mode avatar ne compose pas une scène de groupe. La durée finale suit les paroles ; la durée choisie est indicative."
+  "ai_generator_engine_info_video_limits_heygen-avatar": "Chaque personne parle dans son propre plan. Ce mode avatar ne compose pas une scène de groupe. La durée finale suit les paroles ; la durée choisie est indicative.",
+  "ai_generator_model_reference_duration_available": "Avec plusieurs photos, durées disponibles : {durations}."
 }

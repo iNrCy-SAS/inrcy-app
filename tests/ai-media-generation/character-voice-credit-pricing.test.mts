@@ -1,3 +1,5 @@
+import * as directQuoteOptions from "../../lib/aiMediaVideoClientOptions.ts";
+import * as directQuoteHeygenRoute from "../../lib/aiMediaHeygenRoute.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
@@ -10,7 +12,7 @@ import { load, sample } from "./character-voice-runtime-fixtures.mts";
 const server = load<typeof import("../../lib/aiMediaCreditQuoteServer.ts")>("lib/aiMediaCreditQuoteServer.ts", {
   "./aiMediaCreditsPricing.ts": pricing,
   "./aiMediaExactDialogue.ts": exactDialogue,
-  "./aiMediaModelCatalog.ts": models,
+  "./aiMediaModelCatalog.ts": models, "./aiMediaVideoClientOptions.ts": directQuoteOptions, "./aiMediaHeygenRoute.ts": directQuoteHeygenRoute,
 });
 const voiceInput = { kind: "video", creationMode: "free", inputMode: "essential", teamVideoSpeechMode: "characters", durationSeconds: 8, inspirationImagesCount: 2, hasProvidedCharacterVoice: true };
 
@@ -50,17 +52,18 @@ test("retired HeyGen tariffs remain absent from new engine choices with AI or su
   }
 });
 
-test("voice quotes preserve original references and charge only the free creative director, never a composed frame", () => {
-  assert.equal(pricing.AI_MEDIA_CREDIT_TARIFF_VERSION, "inrstudio-media-credits-2026-11-v7");
+test("voice quotes preserve original references and charge only the fixed preparation and finishing fee, never a composed frame", () => {
+  assert.equal(pricing.AI_MEDIA_CREDIT_TARIFF_VERSION, "inrstudio-media-credits-2026-11-v8");
   for (const videoEngine of ["wan27", "wan3", "heygen"]) {
     const quote = pricing.quoteAiMediaCredits({ ...voiceInput, videoEngine });
     assert.equal(quote.totalCredits, videoEngine === "heygen" ? 95 : 87);
-    assert.deepEqual(quote.breakdown.filter((item) => item.key === "preparation").map((item) => [item.label, item.credits]), [["Préparation créative", 7]]);
+    assert.deepEqual(quote.breakdown.filter((item) => item.key === "preparation").map((item) => [item.label, item.credits]), [["Préparation et finition", 7]]);
     assert.equal(pricing.estimateAiMediaVideoSupplierCostMicroUsd({ ...voiceInput, videoEngine }), videoEngine === "heygen" ? 880_000 : 800_000);
   }
   assert.equal(pricing.quoteAiMediaCredits({ ...voiceInput, videoEngine: "heygen", videoResolution: "1080p" }).totalCredits, 159);
   assert.equal(pricing.estimateAiMediaVideoSupplierCostMicroUsd({ ...voiceInput, videoEngine: "heygen", videoResolution: "1080p" }), 1_520_000);
-  assert.equal(pricing.quoteAiMediaCredits({ ...voiceInput, videoEngine: "heygen", hasProvidedCharacterVoice: false }).totalCredits, 47);
+  assert.throws(() => pricing.quoteAiMediaCredits({ ...voiceInput, videoEngine: "heygen", hasProvidedCharacterVoice: false }), /references_unsupported/);
+  assert.equal(pricing.quoteAiMediaCredits({ ...voiceInput, videoEngine: "heygen", inspirationImagesCount: 1, hasProvidedCharacterVoice: false }).totalCredits, 43);
 });
 
 test("HeyGen's independent and connected voice clips include each original image per clip without a first-frame surcharge", () => {
@@ -87,7 +90,7 @@ test("the generation server derives supplied voice from normalized references an
   const checkedServer = load<typeof server>("lib/aiMediaCreditQuoteServer.ts", {
     "./aiMediaExactDialogue.ts": exactDialogue,
     "./aiMediaCreditsPricing.ts": { ...pricing, quoteAiMediaCredits: (input: pricing.AiMediaCreditsQuoteInput) => { quoteInputs.push(input); return pricing.quoteAiMediaCredits(input); } },
-    "./aiMediaModelCatalog.ts": models,
+    "./aiMediaModelCatalog.ts": models, "./aiMediaVideoClientOptions.ts": directQuoteOptions, "./aiMediaHeygenRoute.ts": directQuoteHeygenRoute,
   });
   const real = checkedServer.quoteAiMediaRequest("account-test", request);
   assert.equal(quoteInputs[0].hasProvidedCharacterVoice, true, "the server derives this flag from the normalized audio descriptors");
@@ -108,7 +111,7 @@ test("the server refuses retired HeyGen quotes for both AI and supplied voices w
   });
   for (const hasProvidedCharacterVoice of [false, true]) {
     const input = { ...request, inspirationImagesCount: 1, hasProvidedCharacterVoice };
-    assert.equal(pricing.quoteAiMediaCredits(input).totalCredits, hasProvidedCharacterVoice ? 91 : 45);
+    assert.equal(pricing.quoteAiMediaCredits(input).totalCredits, hasProvidedCharacterVoice ? 91 : 43);
     assert.throws(() => server.createAiMediaServerQuote("account-test", input), /ai_media_video_engine_unavailable/);
     const normalized = hasProvidedCharacterVoice ? request : {
       ...request, inspirationImages: request.inspirationImages.map((image) => ({ ...image, voiceMode: "ai" as const, voiceSample: undefined })),

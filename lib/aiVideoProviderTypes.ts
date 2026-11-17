@@ -1,6 +1,7 @@
 import type { AiMediaCreativePlan } from "@/lib/aiMediaCreativePlan";
 import type { AiMediaGenerationRequest } from "@/lib/aiMediaGenerationContracts";
 import type { AiMediaVideoProviderContract } from "@/lib/aiMediaVideoProviderContract";
+import { getAiMediaVideoModel } from "./aiMediaModelCatalog.ts";
 import { hasProvidedAiMediaCharacterVoice, isAiMediaCharacterVoiceEngine } from "./aiMediaCharacterVoices.ts";
 import { isAiMediaProviderBillingFailure } from "./aiMediaGenerationPublicErrors.ts";
 import { safeAiVideoProviderFailureDiagnostics, type AiVideoProviderFailureDiagnostics } from "./aiMediaSensitiveText.ts";
@@ -115,6 +116,8 @@ export type AiVideoProviderGenerationArgs = {
   jobId?: string;
   request: AiMediaGenerationRequest;
   plan: AiMediaCreativePlan;
+  /** Trusted server marker: raw Studio video request, no visual planner or substitute frame. */
+  directVideo?: boolean;
   /**
    * Prompt Studio complet compilé par le serveur. Il reste disponible pour
    * l'audit et son empreinte empêche tout remplacement silencieux au moment du
@@ -138,8 +141,8 @@ export type AiVideoProviderGenerationArgs = {
   /**
    * Marqueur interne exclusivement positionné par le serveur après avoir
    * transformé 2–3 portraits distincts en une seule composition de groupe.
-   * Sans ce marqueur, les providers refusent `reference_team` afin qu'aucun
-   * appel direct ne puisse leur transmettre les portraits séparément.
+   * Ce marqueur concerne le parcours historique. Le parcours Free direct
+   * transmet les originaux avec son propre contrôle de destination et capacité.
    */
   identityTeamPrecomposed?: boolean;
   /** Nombre d'adultes réunis dans l'image de groupe, sans autre attribut. */
@@ -161,21 +164,51 @@ export type AiVideoProviderGenerationArgs = {
   deadlineAt?: number;
 };
 
-/**
- * Garde réseau commune aux providers Google. Elle doit être appelée avant la
- * création de leur client afin qu'une équipe ne puisse quitter iNrCy qu'après
- * précomposition et consentement explicite pour cette tentative.
- */
+type ReferenceTeamEgressArgs = Pick<AiVideoProviderGenerationArgs,
+  "request" | "directVideo" | "identityTeamPrecomposed" |
+  "identityTeamGoogleEgressConsent" | "identityTeamProviderEgressConsent">;
+
+type ReferenceTeamProvider = "google" | "minimax" | "alibaba" | "spacexai" | "heygen" | "kling";
+
+/** Only the server's new Free pipeline can send the original portrait set.
+ * Browser fields are normalized into request and cannot set directVideo. */
+function assertDirectReferenceTeamEgress(args: ReferenceTeamEgressArgs, provider: ReferenceTeamProvider): boolean {
+  const request = args.request;
+  if (args.directVideo !== true || request.creationMode !== "free" || request.kind !== "video" || request.operation !== "generate") return false;
+  if (args.identityTeamPrecomposed !== undefined && args.identityTeamPrecomposed !== false) throw new Error("ai_video_direct_reference_provenance_invalid");
+  if (request.identityConsent !== true || request.teamVideoMode !== "cinematic") throw new Error("ai_video_reference_team_identity_consent_required");
+
+  const model = getAiMediaVideoModel(request.videoEngine);
+  const resolution = request.videoResolution || model.defaultResolution;
+  if (model.id !== request.videoEngine || model.provider !== provider ||
+    !model.supportsImageToVideo || !model.resolutions.includes(resolution) ||
+    request.inspirationImages.length > model.maxReferenceImages ||
+    (model.id === "grok" && resolution === "1080p" && request.inspirationImages.length > 1)) {
+    throw new Error("ai_media_video_references_unsupported");
+  }
+  const characters = request.inspirationImages.filter(image => image.role === "character" && image.usage === "required");
+  const indices = characters.map(image => image.characterIndex);
+  if (characters.length < 2 || characters.length > 3 ||
+    indices.some(index => index !== 1 && index !== 2 && index !== 3) ||
+    new Set(indices).size !== indices.length ||
+    characters.some(image => !image.data || !["image/png", "image/jpeg", "image/webp"].includes(image.mimeType))) {
+    throw new Error("ai_video_direct_reference_team_invalid");
+  }
+  const engineConsent = args.identityTeamProviderEgressConsent === request.videoEngine && request.teamVideoProviderConsent === request.videoEngine;
+  const googleConsent = provider === "google" && args.identityTeamGoogleEgressConsent === true && request.teamVideoVeoConsent === true;
+  if (!engineConsent && !googleConsent) {
+    throw new Error(provider === "google" ? "ai_video_reference_team_google_consent_required" : "ai_video_reference_team_provider_consent_required");
+  }
+  return true;
+}
+
+/** New Free videos retain native original references; legacy groups retain
+ * their existing precomposition and one-attempt destination consent. */
 export function assertAiVideoReferenceTeamGoogleEgress(
-  args: Pick<
-    AiVideoProviderGenerationArgs,
-    | "request"
-    | "identityTeamPrecomposed"
-    | "identityTeamGoogleEgressConsent"
-    | "identityTeamProviderEgressConsent"
-  >,
+  args: ReferenceTeamEgressArgs,
 ) {
   if (args.request.identityMode !== "reference_team") return;
+  if (assertDirectReferenceTeamEgress(args, "google")) return;
   if (!args.identityTeamPrecomposed) {
     throw new Error("ai_video_reference_team_precomposition_required");
   }
@@ -188,11 +221,12 @@ export function assertAiVideoReferenceTeamGoogleEgress(
 }
 
 export function assertAiVideoReferenceTeamProviderEgress(
-  args: Pick<AiVideoProviderGenerationArgs, "request" | "identityTeamPrecomposed" | "identityTeamProviderEgressConsent" | "identityTeamGoogleEgressConsent">,
-  provider: "google" | "minimax" | "alibaba" | "spacexai" | "heygen" | "kling",
+  args: ReferenceTeamEgressArgs,
+  provider: ReferenceTeamProvider,
 ) {
   if (args.request.identityMode !== "reference_team") return;
   if (provider === "google") return assertAiVideoReferenceTeamGoogleEgress(args);
+  if (assertDirectReferenceTeamEgress(args, provider)) return;
   // Wan R2V binds each original subject image to its own optional voice.
   // A composed team frame would destroy that association. Keep the existing
   // one-attempt provider consent, without pretending these were precomposed.

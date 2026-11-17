@@ -1182,5 +1182,6 @@
   "ai_generator_speech_review_warning": "使用前，请观看并聆听视频，核对结果。",
   "ai_generator_model_description_heygen-avatar": "使用您的照片和声音生成会说话的肖像与对话。",
   "ai_generator_engine_info_video_use_heygen-avatar": "适合面对镜头的演示以及分镜对话。",
-  "ai_generator_engine_info_video_limits_heygen-avatar": "每个人在单独的镜头中说话。虚拟形象模式不会生成多人同框场景。最终时长以语音为准，所选时长仅供参考。"
+  "ai_generator_engine_info_video_limits_heygen-avatar": "每个人在单独的镜头中说话。虚拟形象模式不会生成多人同框场景。最终时长以语音为准，所选时长仅供参考。",
+  "ai_generator_model_reference_duration_available": "使用多张照片时，可选时长为：{durations}。"
 }

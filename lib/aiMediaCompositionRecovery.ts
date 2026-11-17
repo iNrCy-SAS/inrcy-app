@@ -211,7 +211,7 @@ export async function persistAiMediaCompositionCheckpoint(args: {
       delete metadata.soundtrack_id;
       const fallback: PendingReceipt = { version:1, accountId:checkpoint.accountId, jobId:checkpoint.jobId, actorAuthUserId:uuid(args.authUserId), manifestPath:folder+"manifest.json",
         manifest: { version:2, accountId:checkpoint.accountId, jobId:checkpoint.jobId, width:args.input.width, height:args.input.height, durationSeconds:args.input.durationSeconds,
-          nativeAudioMode:layout.nativeAudioMode,preserveComposition:true,
+          nativeAudioMode:layout.nativeAudioMode,preserveComposition:task.model === "heygen-avatar-iv",
           pendingProvider:{provider:task.provider,model:task.model,videoId:task.videoId,temporaryVoiceIds:[...task.temporaryVoiceIds],temporaryAvatarGroupIds:[...task.temporaryAvatarGroupIds],temporaryAssetIds:[...task.temporaryAssetIds],estimatedCostMicroUsd:task.estimatedCostMicroUsd},
           clips:args.input.clips.map((clip,index)=>({file:"clip-"+index+".mp4",bytes:0,sha256:"0".repeat(64),durationSeconds:clip.durationSeconds,...(clip.sourceStartSeconds===undefined?{}:{sourceStartSeconds:clip.sourceStartSeconds})})),
           overlays:args.input.clips.map((_,index)=>({file:"overlay-"+index+".png",bytes:0,sha256:"0".repeat(64)})),narration:null,soundtrack:null,metadata } };
@@ -267,7 +267,7 @@ export async function persistAiMediaCompositionCheckpoint(args: {
     const manifest: Manifest = { version: args.pendingProvider ? 2 : 1, accountId: checkpoint.accountId, jobId: checkpoint.jobId,
       ...(args.pendingProvider ? { pendingProvider: args.pendingProvider } : {}),
       width: args.input.width, height: args.input.height, durationSeconds: args.input.durationSeconds, nativeAudioMode: layout.nativeAudioMode,
-      preserveComposition: args.input.preserveComposition === true,
+      preserveComposition: args.pendingProvider ? args.pendingProvider.model === "heygen-avatar-iv" : args.input.preserveComposition === true,
       ...(args.input.subtitles ? { subtitles: { script: args.input.subtitles.script, ...(args.input.subtitles.source === "native" ? {source:"native" as const} : {}) } } : {}),
       clips, overlays, narration, soundtrack, metadata: safeMetadata(args.metadata) };
     stage = "manifest";
@@ -405,12 +405,15 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
       return buffer;
     };
     let providerVideo: Buffer | undefined;
+    let providerDimensions: { width: number; height: number } | undefined;
     let compositionDurationSeconds = manifest.durationSeconds;
     if (pendingProvider) {
       stage = "provider_status";
       const { createHeygenApiClient } = await import("./aiVideoHeygenApi.ts");
       const client = createHeygenApiClient({ apiKey: process.env.HEYGEN_API_KEY || "" });
-      const result = await client.getVideo(pendingProvider.videoId);
+      const result = pendingProvider.model === "heygen-video-1"
+        ? await client.getCinematicVideo(pendingProvider.videoId)
+        : await client.getVideo(pendingProvider.videoId);
       if (result.status === "pending" || result.status === "processing") {
         await deferProviderCheckpoint(checkpoint, row.attempts);
         return { status: "retry_pending", accountId: checkpoint.accountId, jobId: checkpoint.jobId };
@@ -434,6 +437,7 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
         throw new Error("ai_media_composition_provider_duration_invalid");
       }
       compositionDurationSeconds = result.durationSeconds;
+      if (result.width && result.height) providerDimensions = { width: result.width, height: result.height };
       providerVideo = await client.downloadVideo(result.videoUrl!);
     }
     const clips = [];
@@ -446,8 +450,8 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
     stage = "compose";
     const originalProviderMedia: NormalizedAiVideo | undefined = providerVideo ? {
       kind: "video", buffer: providerVideo, extension: "mp4", mimeType: "video/mp4",
-      width: Math.round(manifest.width * (manifest.metadata.video_resolution === "720p" ? 2/3 : 1)),
-      height: Math.round(manifest.height * (manifest.metadata.video_resolution === "720p" ? 2/3 : 1)),
+      width: providerDimensions?.width ?? Math.round(manifest.width * (manifest.metadata.video_resolution === "720p" ? 2/3 : 1)),
+      height: providerDimensions?.height ?? Math.round(manifest.height * (manifest.metadata.video_resolution === "720p" ? 2/3 : 1)),
       durationSeconds: compositionDurationSeconds,
     } : undefined;
     let finishingUnavailable = false;
@@ -477,7 +481,7 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
           durationSeconds: compositionDurationSeconds, nativeAudioMode: manifest.nativeAudioMode, soundtrack, narration,
           ...(pendingProvider ? { durationFromAudio: true } : {}),
           ...(manifest.subtitles ? { subtitles: { script: manifest.subtitles.script, ...(manifest.subtitles.source === "native" ? {source:"native" as const} : {}) } } : {}),
-          preserveComposition: Boolean(pendingProvider) || manifest.preserveComposition === true });
+          preserveComposition: pendingProvider ? pendingProvider.model === "heygen-avatar-iv" : manifest.preserveComposition === true });
       } catch (error) {
         if (!originalProviderMedia) throw error;
         // Optional finishing cannot discard a successful paid provider render.

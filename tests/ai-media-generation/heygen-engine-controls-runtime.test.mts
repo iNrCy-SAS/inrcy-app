@@ -84,15 +84,20 @@ test("available engine and quality choices continue to reach the selection callb
   assert.equal(find(controls().render(), (element) => element.type === "select" && String(element.props.id).endsWith("-engine")).props.value, "omni:720p");
 });
 
-test("personal character voices offer only Wan 2.7 and Kling Omni with an explicit engine choice", () => {
+test("personal character voices offer only engines at most sixteen credits per second with an explicit choice", () => {
   const runtime = controls({ videoEngine: "wan27", referenceCount: 2, hasProvidedCharacterVoice: true,
-    allowedVideoEngines: ["wan27", "kling"], allowedVideoEnginesReason: "Wan 2.7 ou Kling Omni" });
+    allowedVideoEngines: ["wan27", "kling"], allowedVideoEnginesReason: "Moteur avec voix fournie" });
   const select = find(runtime.render(), element => element.type === "select" && String(element.props.id).endsWith("-engine"));
   const options = elements(select).filter(element => element.type === "option");
   assert.deepEqual([...new Set(options.map(option => String(option.props.value).split(":")[0]))].sort(), ["kling", "wan27"]);
   assert.ok(options.every(option => option.props.disabled === false));
+  (select.props.onChange as (event: {target:{value:string}}) => void)({target:{value:"kling:1080p"}});
+  assert.deepEqual(runtime.changes, [], "a forced expensive option cannot trigger a selection");
   (select.props.onChange as (event: {target:{value:string}}) => void)({target:{value:"kling:720p"}});
   assert.deepEqual(runtime.changes, [["engine", "kling", "720p"]]);
+  runtime.changes.length = 0;
+  (select.props.onChange as (event: {target:{value:string}}) => void)({target:{value:"wan27:1080p"}});
+  assert.deepEqual(runtime.changes, [["resolution", "1080p"]]);
 });
 
 test("the information guide excludes retired HeyGen at every account duration and remains closable", () => {
@@ -136,5 +141,17 @@ test("the compact guide keeps every model accessible while showing one translate
       }
       assert.deepEqual(runtime.changes, [], "Browsing information must not alter generation settings");
     }
+  }
+});
+
+test("the HeyGen quality menu follows the canvas and speaking-character route without hiding prompt-only 720p", () => {
+  for (const format of ["square", "portrait"] as const) for (const hasCharacterReferences of [false, true]) for (const teamVideoSpeechMode of ["voiceover", "characters"] as const) {
+    const tree = controls({ format, videoEngine: "heygen-avatar", resolution: "1080p", referenceCount: hasCharacterReferences ? 1 : 0,
+      hasCharacterReferences, videoAudioChoice: { creationMode: "free", teamVideoSpeechMode, withNarration: teamVideoSpeechMode === "voiceover" } }).render();
+    const select = find(tree, node => node.type === "select" && String(node.props.id).endsWith("-engine"));
+    const avatar = hasCharacterReferences && teamVideoSpeechMode === "characters";
+    assert.equal(select.props.value, avatar ? "heygen-avatar:1080p" : "heygen-avatar:720p");
+    assert.equal(elements(select).some(node => node.type === "option" && node.props.value === "heygen-avatar:1080p"), avatar);
+    assert.equal(find(select, node => node.type === "option" && node.props.value === "heygen-avatar:720p").props.disabled, false);
   }
 });

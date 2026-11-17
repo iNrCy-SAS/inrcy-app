@@ -1,3 +1,6 @@
+import { buildAiMediaDirectVideoPlan } from "../../lib/aiMediaDirectVideoPipeline.ts";
+import * as directQuoteOptions from "../../lib/aiMediaVideoClientOptions.ts";
+import * as directQuoteHeygenRoute from "../../lib/aiMediaHeygenRoute.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -825,26 +828,38 @@ for (const mode of ["second-rejected", "frame-failed"] as const) {
 }
 
 
-test("Veo quotes and the actual Gateway reserve charge the same audio variant while preserving the exact chosen model", async () => {
+test("Veo quotes and the actual direct Gateway reserve the same native IA audio variant and original model", async () => {
   for (const engine of ["veo", "veo-lite"] as const) for (const resolution of ["720p", "1080p"] as const) for (const mode of ["characters", "voiceover", "silent"] as const) {
-    const context = loadRuntime(); const args = argsFor(engine, 0, 8);
-    Object.assign(args.request, { creationMode: "free", videoResolution: resolution, withNarration: mode === "voiceover", teamVideoSpeechMode: mode === "characters" ? "characters" : "voiceover", spokenScript: mode === "silent" ? "" : "Bienvenue dans notre atelier." });
-    const original = JSON.stringify(args.request);
-    const quoteInput = { ...args.request, inspirationImagesCount: 0 };
-    const quote = pricing.quoteAiMediaCredits(quoteInput);
-    const expectedRate = engine === "veo" ? mode === "characters" ? 0.15 : 0.10 : mode === "characters" ? resolution === "720p" ? 0.05 : 0.08 : resolution === "720p" ? 0.03 : 0.05;
+    const context = loadRuntime(), args = argsFor(engine, 0, 8);
+    Object.assign(args.request, { operation: "generate", creationMode: "free", freePrompt: "Un artisan présente son atelier.", videoResolution: resolution,
+      narrationVoiceMode: "ai", withNarration: mode === "voiceover", teamVideoSpeechMode: mode === "characters" ? "characters" : "voiceover",
+      spokenScript: mode === "silent" ? "" : "Bienvenue dans notre atelier." });
+    args.directVideo = true;
+    args.plan = buildAiMediaDirectVideoPlan(args.request);
+    args.nativeNarrationLines = mode === "voiceover" ? [args.request.spokenScript!] : undefined;
+    args.providerContract = boundary.buildAiMediaVideoProviderContract({ request: args.request, durationSeconds: 8, brandColors: [], nativeNarrationLines: args.nativeNarrationLines });
+    const original = JSON.stringify(args.request), quoteInput = { ...args.request, inspirationImagesCount: 0 };
+    const quote = pricing.quoteAiMediaCredits(quoteInput), audible = mode !== "silent";
+    const expectedRate = engine === "veo" ? audible ? 0.15 : 0.10 : audible ? resolution === "720p" ? 0.05 : 0.08 : resolution === "720p" ? 0.03 : 0.05;
     const expectedCost = Math.round(expectedRate * 8 * 1_000_000);
     const result = await context.runtime.createGatewayAiVideoProvider(engine).generate(args);
     assert.equal(quote.totalCredits, Math.round(expectedRate * 8 * 100) + 7);
     assert.equal(pricing.estimateAiMediaVideoSupplierCostMicroUsd(quoteInput), expectedCost);
-    assert.deepEqual(context.reservedCosts, [expectedCost]); assert.deepEqual(context.costs, [expectedCost]); assert.equal(result.estimatedCostMicroUsd, expectedCost);
-    const input = context.observed()!; assert.equal(input.model, engine === "veo" ? "google/veo-3.1-fast-generate-001" : "google/veo-3.1-lite-generate-001");
-    assert.equal(input.generateAudio, mode === "characters"); assert.equal(input.duration, 8); assert.equal(input.resolution, resolution === "720p" ? "1280x720" : "1920x1080");
-    assert.deepEqual(input.providerOptions, { gateway: { only: ["vertex"] } }); assert.equal(input.maxRetries, 0);
-    assert.match(String(input.prompt), /THIS SHOT: Avancée lente\./);
-    if (mode === "characters") assert.ok(String(input.prompt).includes("says exactly once: “Bienvenue dans notre atelier.”"));
-    else assert.match(String(input.prompt), /No native voices or dialogue/);
-    assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 1, rollbacks: 0 }); assert.equal(JSON.stringify(args.request), original, "transport and quotes never rewrite the original narration/script choice");
+    assert.deepEqual(context.reservedCosts, [expectedCost]);
+    assert.deepEqual(context.costs, [expectedCost]);
+    assert.equal(result.estimatedCostMicroUsd, expectedCost);
+    const wire = context.observed()!;
+    assert.equal(wire.model, engine === "veo" ? "google/veo-3.1-fast-generate-001" : "google/veo-3.1-lite-generate-001");
+    assert.equal(wire.generateAudio, audible);
+    assert.equal(wire.duration, 8);
+    assert.equal(wire.resolution, resolution === "720p" ? "1280x720" : "1920x1080");
+    assert.deepEqual(wire.providerOptions, { gateway: { only: ["vertex"] } });
+    assert.equal(wire.maxRetries, 0);
+    assert.ok(String(wire.prompt).startsWith(args.request.freePrompt!));
+    if (audible) assert.ok(String(wire.prompt).includes(args.request.spokenScript!));
+    else assert.match(String(wire.prompt), /No speech/);
+    assert.deepEqual(context.counters, { requests: 1, reservations: 1, commits: 1, rollbacks: 0 });
+    assert.equal(JSON.stringify(args.request), original);
   }
 });
 
@@ -858,7 +873,7 @@ test("Veo native character speech and explicit silence keep distinct server quot
   const dependencies: Record<string, unknown> = {
     "server-only": {}, "./aiMediaCreditsPricing.ts": pricing,
     "./aiMediaExactDialogue.ts": exactDialogue,
-    "./aiMediaModelCatalog.ts": catalog, "./aiMediaCharacterVoices.ts": characterVoices,
+    "./aiMediaModelCatalog.ts": catalog, "./aiMediaVideoClientOptions.ts": directQuoteOptions, "./aiMediaHeygenRoute.ts": directQuoteHeygenRoute, "./aiMediaCharacterVoices.ts": characterVoices,
   };
   new Function("exports", "require", "module", javascript)(record.exports, (specifier: string) => {
     if (specifier in dependencies) return dependencies[specifier];
@@ -1195,4 +1210,34 @@ test("a lost Wan transport response cannot reset supplier spend as though the vi
   await assert.rejects(context.runtime.createGatewayAiVideoProvider("wan27").generate(argsFor("wan27",1,8)),providerTypes.isAiVideoProviderBillableFailure);
   assert.deepEqual(context.counters,{requests:1,reservations:1,commits:1,rollbacks:0});
  });
+});
+
+for (const engine of ["veo", "grok"] as const) test(engine + ": real Gateway sends both original portraits in direct Free after scoped consent", async () => {
+  await withMockCredentials(async () => {
+    const context = loadRuntime();
+    const portraitBytes = await Promise.all(["#357a6b", "#48638f"].map(background => sharp({ create: { width: 96, height: 64, channels: 3, background } }).png().toBuffer()));
+    const original = normalizeAiMediaGenerationRequest({ requestId: "direct-native-reference-gateway", source: "studio", operation: "generate", creationMode: "free",
+      kind: "video", videoEngine: engine, durationSeconds: 8, videoResolution: "720p", format: "story", freePrompt: "David et Kathia présentent leur jardin en marchant.",
+      identityConsent: true, teamVideoProviderConsent: engine, teamVideoSpeechMode: "voiceover", withNarration: true,
+      inspirationImages: [1, 2].map(characterIndex => ({ role: "character", usage: "required", characterIndex, mimeType: "image/png", data: portraitBytes[characterIndex - 1].toString("base64") })) });
+    const args = { ...argsFor(engine, 2, 8), request: original, directVideo: true, plan: buildAiMediaDirectVideoPlan(original),
+      canonicalPrompt: original.freePrompt!, canonicalPromptSha256: boundary.hashAiMediaCanonicalPrompt(original.freePrompt!),
+      providerContract: boundary.buildAiMediaVideoProviderContract({ request: original, durationSeconds: 8, brandColors: [] }), identityTeamProviderEgressConsent: engine };
+    const before = structuredClone(args.request);
+    await context.runtime.createGatewayAiVideoProvider(engine).generate(args);
+    assert.equal(context.counters.requests, 1);
+    assert.equal(context.counters.reservations, 1);
+    const sent = context.submissions[0];
+    assert.equal((sent.inputReferences as unknown[]).length, 2);
+    assert.equal(sent.generateAudio, true);
+    assert.ok(String(sent.prompt).startsWith(original.freePrompt!));
+    assert.deepEqual(args.request, before);
+    assert.equal(args.identityTeamPrecomposed, undefined);
+    for (const patch of [{ identityTeamProviderEgressConsent: undefined }, { identityTeamProviderEgressConsent: "kling" as const }, { directVideo: false }]) {
+      const blocked = loadRuntime();
+      await assert.rejects(blocked.runtime.createGatewayAiVideoProvider(engine).generate({ ...args, ...patch }), /consent_required|precomposition_required/);
+      assert.equal(blocked.counters.requests, 0);
+      assert.equal(blocked.counters.reservations, 0);
+    }
+  });
 });

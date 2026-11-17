@@ -1,8 +1,21 @@
-import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, AI_MEDIA_IMAGE_MODELS, AI_MEDIA_VIDEO_MODELS, getAiMediaVideoDurations } from "./aiMediaModelCatalog.ts";
+import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, AI_MEDIA_IMAGE_MODELS, AI_MEDIA_VIDEO_MODELS } from "./aiMediaModelCatalog.ts";
+import { getMediaVideoEngineQualityChoices, getAutomaticMediaVideoDurationOptions } from "./aiMediaVideoClientOptions.ts";
 import { AI_MEDIA_CHARACTER_VOICE_MAX_SECONDS, AI_MEDIA_CHARACTER_VOICE_MIN_SECONDS, AI_MEDIA_NARRATION_VOICE_MIN_SECONDS, isAiMediaCharacterVoiceEngine } from "./aiMediaCharacterVoices.ts";
 
-function videoCatalogueRange(model: typeof AI_MEDIA_AVAILABLE_VIDEO_MODELS[number]): string {
-  const durations = [...new Set(model.resolutions.flatMap(resolution => ["single", "multi"].flatMap(mode => getAiMediaVideoDurations(model.id, resolution, mode as "single" | "multi"))))].filter(seconds => seconds >= 4 && seconds <= 30).sort((a, b) => a - b);
+function publicVideoResolutions(model: typeof AI_MEDIA_AVAILABLE_VIDEO_MODELS[number], suppliedVoice = false) {
+  return getMediaVideoEngineQualityChoices(suppliedVoice).filter(choice => choice.engine === model.id).map(choice => choice.resolution);
+}
+
+function publicVideoResolutionSummary(model: typeof AI_MEDIA_AVAILABLE_VIDEO_MODELS[number], suppliedVoice = false): string {
+  const resolutions = publicVideoResolutions(model, suppliedVoice).join("/");
+  return model.transport === "heygen-direct" && resolutions.includes("1080p")
+    ? `${resolutions} ; 1080p en Story/Paysage ou avec une photo de personnage qui parle, sinon 720p en Carré/Portrait`
+    : resolutions;
+}
+
+function videoCatalogueRange(model: typeof AI_MEDIA_AVAILABLE_VIDEO_MODELS[number], suppliedVoice = false): string {
+  const durations = [...new Set(publicVideoResolutions(model, suppliedVoice).flatMap(resolution =>
+    getAutomaticMediaVideoDurationOptions(model.id, resolution).map(option => option.durationSeconds)))].sort((a, b) => a - b);
   return `${durations[0]}–${durations.at(-1)} s`;
 }
 
@@ -33,14 +46,14 @@ export function verifiedInrAssistantStudioCatalogueAnswer(message: string): stri
     ...AI_MEDIA_IMAGE_MODELS.map(model => `**${model.label}** : ${model.description} Références : ${model.supportsReferences ? `jusqu’à ${model.maxReferenceImages} images` : "non prises en charge"}. Retouche : ${model.supportsModify ? "prise en charge" : "non prise en charge"}.`),
     "Ces caractéristiques décrivent le parcours disponible ; elles ne constituent pas un classement de qualité. Aucune génération n’a été lancée.",
   ].join("\n\n");
-  const provided = AI_MEDIA_AVAILABLE_VIDEO_MODELS.filter(model => isAiMediaCharacterVoiceEngine(model.id));
-  const voiceLines = provided.map(model => `${model.label} : échantillon vocal fourni de ${model.id === "kling" ? AI_MEDIA_NARRATION_VOICE_MIN_SECONDS : AI_MEDIA_CHARACTER_VOICE_MIN_SECONDS} à ${AI_MEDIA_CHARACTER_VOICE_MAX_SECONDS} secondes ; vidéo de ${videoCatalogueRange(model)} ; ${model.resolutions.join("/")}.`);
+  const provided = AI_MEDIA_AVAILABLE_VIDEO_MODELS.filter(model => isAiMediaCharacterVoiceEngine(model.id) && publicVideoResolutions(model, true).length > 0);
+  const voiceLines = provided.map(model => `${model.label} : échantillon vocal fourni de ${model.id === "kling" ? AI_MEDIA_NARRATION_VOICE_MIN_SECONDS : AI_MEDIA_CHARACTER_VOICE_MIN_SECONDS} à ${AI_MEDIA_CHARACTER_VOICE_MAX_SECONDS} secondes ; vidéo de ${videoCatalogueRange(model, true)} ; ${publicVideoResolutionSummary(model, true)}.`);
   const voiceNotes = [
     "Le vocal réel fourni est facultatif pour une génération ordinaire. Il devient nécessaire si vous choisissez ce mode : sa durée et celle du clip sont distinctes. Un minimum de cinq secondes chez Kling ne s’applique pas à Wan. Un clip peut dépasser l’échantillon ; aucune boucle ou troncature n’est déduite de ces durées.",
     "Parcours : Studio → Voix → Ajouter un vocal → Importer, Enregistrer ou Médiathèque, puis affecter le vocal au personnage. Confirmez personnellement vos droits sur la voix. Le timbre de référence et les paroles à prononcer sont distincts ; la voix off dispose d’un parcours séparé sans personnage imposé.",
   ];
   if (voice && !retiredQuestion) return ["Pour faire parler un personnage à partir d’une photo avec votre propre vocal, les moteurs actuellement proposés compatibles sont :", ...voiceLines, ...voiceNotes].join("\n\n");
-  const rows = AI_MEDIA_AVAILABLE_VIDEO_MODELS.map(model => `| ${model.label} | ${videoCatalogueRange(model)} | ${model.resolutions.join("/")} | ${model.supportsTextToVideo ? "Oui" : "Image requise"} | ${isAiMediaCharacterVoiceEngine(model.id) ? "Oui, facultatif" : "Non dans ce parcours"} |`);
+  const rows = AI_MEDIA_AVAILABLE_VIDEO_MODELS.map(model => `| ${model.label} | ${videoCatalogueRange(model)} | ${publicVideoResolutionSummary(model)} | ${model.supportsTextToVideo ? "Oui" : "Image requise"} | ${isAiMediaCharacterVoiceEngine(model.id) ? "Oui, facultatif" : "Non dans ce parcours"} |`);
   return [
     `${retired.map(model => model.label).join(", ")} ne sont plus proposés pour une nouvelle génération. Les anciens résultats restent consultables ; aucun moteur de remplacement n’est sélectionné automatiquement.`,
     "Alternatives actuellement proposées, sans classement de qualité :\n| Moteur | Durée du clip | Résolutions | Texte seul | Vocal réel fourni |\n|---|---|---|---|---|\n" + rows.join("\n"),
@@ -55,9 +68,9 @@ export function inrAssistantStudioFacts(query: string, maxChars = 1_600): string
   const text = query.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
   if (!/studio|moteurs?|models?|modeles?|voix|vocal|voice|image|video|kling|\bwan\b|veo|minimax|heygen/.test(text)) return "";
   if (!/moteurs?|models?|modeles?|compatib|voix|vocal|voice|lip.?sync|options?|choix|possibil|alternativ|retir|disponib|duree|secondes?/.test(text)) return "";
-  const provided = AI_MEDIA_AVAILABLE_VIDEO_MODELS.filter(model => isAiMediaCharacterVoiceEngine(model.id));
+  const provided = AI_MEDIA_AVAILABLE_VIDEO_MODELS.filter(model => isAiMediaCharacterVoiceEngine(model.id) && publicVideoResolutions(model, true).length > 0);
   const videoRange = videoCatalogueRange;
-  const videos = AI_MEDIA_AVAILABLE_VIDEO_MODELS.map(model => `${model.label} (${videoRange(model)} ; ${model.resolutions.join("/")})`);
+  const videos = AI_MEDIA_AVAILABLE_VIDEO_MODELS.map(model => `${model.label} (${videoRange(model)} ; ${publicVideoResolutionSummary(model)})`);
   const retired = AI_MEDIA_VIDEO_MODELS.filter(model => !AI_MEDIA_AVAILABLE_VIDEO_MODELS.some(available => available.id === model.id));
   const voiceQuestion = /voix|vocal|voice|lip.?sync/.test(text);
   const positiveMediaText = text.replace(/\b(?:pas de|aucune?|sans|no)\s+videos?\b/g, " ");

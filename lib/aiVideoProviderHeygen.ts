@@ -7,6 +7,8 @@ import {
 import { createHeygenApiClient, HeygenApiError, type HeygenAsset, type HeygenStudioScene } from "./aiVideoHeygenApi.ts";
 import { AiVideoProviderPending, isAiMediaPendingVideo, AI_MEDIA_HEYGEN_MAX_ESTIMATED_COST_MICRO_USD, type AiMediaPendingVideo } from "./aiMediaPendingVideo.ts";
 import { estimateHeygenBillableDurationSeconds } from "./aiMediaHeygenBilling.ts";
+import { usesHeygenAvatarRoute } from "./aiMediaHeygenRoute.ts";
+import { generateHeygenCinematicVideo } from "./aiVideoHeygenCinematic.ts";
 import { prepareAiMediaIdentityReferences } from "./aiMediaIdentityReferences.ts";
 import { prepareHeygenBackground, prepareHeygenAvatarImage, createHeygenSilenceWav } from "./aiVideoHeygenBackground.ts";
 import { getAiMediaCharacterVoiceSignedUrls } from "./aiMediaCharacterVoiceStorage.ts";
@@ -59,6 +61,7 @@ export const heygenAiVideoProvider: AiVideoProvider = {
     if (args.request.videoEngine !== "heygen-avatar") throw new Error("ai_video_heygen_engine_mismatch");
     args.signal?.throwIfAborted();
     assertAiVideoReferenceTeamProviderEgress(args, "heygen");
+    if (!usesHeygenAvatarRoute(args.request)) return generateHeygenCinematicVideo(args);
     const turns = buildHeygenDialogueTurns(args);
     const language = (args.contentLanguage || "fr").split(/[-_]/)[0];
     const client = createHeygenApiClient({ apiKey: process.env.HEYGEN_API_KEY || "" });
@@ -164,10 +167,12 @@ export const heygenAiVideoProvider: AiVideoProvider = {
       const videoId = await client.submitVideo({ title: key, resolution, scenes,
         aspect_ratio: ({ square: "1:1", portrait: "4:5", story: "9:16", landscape: "16:9" } as const)[args.request.format] }, key, args.signal);
       videoSubmitted = true;
-      await commit().catch(() => console.warn("[ai-media] HeyGen supplier accounting pending", { jobId: args.jobId }));
+
       // The caller persists the montage inputs and returns immediately. Only GET
       // status/download requests will run in recovery; no second video is submitted.
-      throw new AiVideoProviderPending({ ...pendingTask, videoId });
+      throw new AiVideoProviderPending({ ...pendingTask, videoId }, async () => {
+        await commit().catch(() => console.warn("[ai-media] HeyGen supplier accounting pending", { jobId: args.jobId }));
+      });
     } catch (error) {
       if (error instanceof AiVideoProviderPending) throw error;
       await recordAiGatewayAccountFailure({ accountId: args.accountId, feature: "media.video", model: "heygen-avatar-iv" }).catch(() => undefined);

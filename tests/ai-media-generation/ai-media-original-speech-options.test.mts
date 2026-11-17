@@ -7,6 +7,15 @@ import { buildAiMediaVideoProviderContract } from "../../lib/aiMediaVideoProvide
 import type { AiVideoProviderGenerationArgs } from "../../lib/aiVideoProviderTypes.ts";
 
 const script = "Bonjour, notre application crée vos contenus et les publie partout.";
+// These planner/visual-isolation fixtures exercise the supplied external narrator.
+// IA narration is native in the direct pipeline and has its own runtime coverage.
+function providedNarratorFixture() {
+  const timestamp = Date.now();
+  return { narrationVoiceMode: "provided" as const, narrationVoiceConsent: true,
+    narrationVoiceSample: { mimeType: "audio/wav" as const, name: "offline-narrator.wav", durationSeconds: 6, sizeBytes: 192_044,
+      path: "_studio-voice-references/" + new Date(timestamp).toISOString().slice(0, 10) + "/offline-test__" + timestamp + "__00000000-0000-4000-8000-000000000001.wav" } };
+}
+
 function provider(overrides: Record<string, unknown> = {}, subtitleLines?: string[]) {
   const request = normalizeAiMediaGenerationRequest({
     requestId: "original-speech-options", source: "studio", creationMode: "free", kind: "video",
@@ -72,9 +81,9 @@ test("the prepared first frame never draws the dedicated speech or pre-burns cap
 });
 
 test("separate voiceover captions are opt-in and bound to the prepared narration", () => {
-  const off = provider({ withNarration: true, teamVideoSpeechMode: "voiceover" }, [script]);
+  const off = provider({ ...providedNarratorFixture(), withNarration: true, teamVideoSpeechMode: "voiceover" }, [script]);
   assert.ok(!buildAiMediaFreeVideoScenePrompt(off, 0, 8).includes(script));
-  const on = provider({ withNarration: true, teamVideoSpeechMode: "voiceover", withSubtitles: true }, [script]);
+  const on = provider({ ...providedNarratorFixture(), withNarration: true, teamVideoSpeechMode: "voiceover", withSubtitles: true }, [script]);
   const prompt = buildAiMediaFreeVideoScenePrompt(on, 0, 8);
   assert.match(prompt, /EXTERNAL VOICEOVER CAPTIONS:/);
   assert.match(prompt, /No native voices or dialogue/);

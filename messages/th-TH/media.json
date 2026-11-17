@@ -1182,5 +1182,6 @@
   "ai_generator_speech_review_warning": "โปรดตรวจสอบวิดีโอโดยดูและฟังผลลัพธ์ก่อนใช้งาน",
   "ai_generator_model_description_heygen-avatar": "สร้างภาพบุคคลพูดและบทสนทนาด้วยภาพถ่ายและเสียงของคุณ",
   "ai_generator_engine_info_video_use_heygen-avatar": "เหมาะสำหรับการนำเสนอต่อหน้ากล้องและบทสนทนาแบบสลับภาพ",
-  "ai_generator_engine_info_video_limits_heygen-avatar": "แต่ละคนพูดในภาพของตนเอง โหมดอวตารไม่สร้างฉากกลุ่ม ความยาวจริงขึ้นอยู่กับคำพูด ระยะเวลาที่เลือกเป็นเพียงแนวทาง"
+  "ai_generator_engine_info_video_limits_heygen-avatar": "แต่ละคนพูดในภาพของตนเอง โหมดอวตารไม่สร้างฉากกลุ่ม ความยาวจริงขึ้นอยู่กับคำพูด ระยะเวลาที่เลือกเป็นเพียงแนวทาง",
+  "ai_generator_model_reference_duration_available": "เมื่อใช้หลายรูป ระยะเวลาที่ใช้ได้คือ {durations}"
 }

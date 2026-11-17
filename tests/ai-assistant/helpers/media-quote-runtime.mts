@@ -1,3 +1,4 @@
+import * as directQuoteHeygenRoute from "../../../lib/aiMediaHeygenRoute.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -31,8 +32,15 @@ function load<T>(file:string, dependencies:Record<string,unknown>):T {
 /** Real SDK, MediaTools, normalization and native server pricing. Only session,
  * quota and HTTP routes are fixtures; no provider, database or filesystem write. */
 export function createNativeMediaQuoteFixture(currentUserMessage:string, remaining:number|null=50) {
-  const native=load<typeof NativeQuote>("aiMediaCreditQuoteServer.ts",{"server-only":{},"node:crypto":{createHash},
-    "./aiMediaCreditsPricing.ts":pricing,"./aiMediaCharacterVoices.ts":{hasProvidedAiMediaCharacterVoice:()=>false},"./aiMediaExactDialogue.ts":exactDialogue,"./aiMediaModelCatalog.ts":catalogue});
+  const native = load<typeof NativeQuote>("aiMediaCreditQuoteServer.ts", {
+    "server-only": {}, "node:crypto": { createHash },
+    "./aiMediaCreditsPricing.ts": pricing,
+    "./aiMediaCharacterVoices.ts": { hasProvidedAiMediaCharacterVoice: () => false },
+    "./aiMediaExactDialogue.ts": exactDialogue,
+    "./aiMediaModelCatalog.ts": catalogue,
+    "./aiMediaVideoClientOptions.ts": durations,
+    "./aiMediaHeygenRoute.ts": directQuoteHeygenRoute,
+  });
   const calls:Array<{stage:string;body?:Record<string,unknown>}>=[], outputs:MediaTools.InrAssistantMediaResult[]=[];
   const forbid=async()=>{calls.push({stage:"forbidden_mutation"});assert.fail("Quote cannot dispatch media work or change a draft");};
   const mediaRuntime=load<typeof MediaTools>("inrAssistantMediaTools.ts",{"server-only":{},ai:sdk,

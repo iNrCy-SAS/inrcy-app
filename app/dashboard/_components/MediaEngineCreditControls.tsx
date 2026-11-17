@@ -2,9 +2,9 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useLocale, useTranslations } from "next-intl";
-import { AI_MEDIA_IMAGE_MODELS, AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaImageBaseCredits, getAiMediaImageModel, getAiMediaVideoDurations, getAiMediaVideoModel, getAiMediaVideoModelForCharacterVoice, isAiMediaImageModelCompatible, normalizeAiMediaImageEngine, type AiMediaImageEngine, type AiMediaVideoEngine, type AiMediaVideoResolution, type AiMediaVideoSceneMode } from "@/lib/aiMediaModelCatalog";
+import { AI_MEDIA_IMAGE_MODELS, AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaImageBaseCredits, getAiMediaImageModel, getAiMediaVideoDurations, getAiMediaVideoModel, getAiMediaVideoModelForCharacterVoice, getAiMediaVideoCreditRate, getAiMediaVideoCreditRateLimitIssue, isAiMediaImageModelCompatible, normalizeAiMediaImageEngine, type AiMediaImageEngine, type AiMediaVideoAudioChoice, type AiMediaVideoEngine, type AiMediaVideoResolution, type AiMediaVideoSceneMode } from "@/lib/aiMediaModelCatalog";
 import { getAiMediaVideoDurationSceneOptions, type AiMediaVideoDurationSceneOption } from "@/lib/aiMediaVideoTimeline";
-import { getAutomaticMediaVideoDurationOptions, getMediaVideoEngineQualityChoices, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
+import { getAutomaticMediaVideoDurationOptions, getMediaVideoEngineQualityChoices, getMediaVideoContextResolution, getAiMediaVideoReferenceCompatibilityIssue, isMediaVideoBriefCompatible, type AiMediaVideoReferenceChoice } from "@/lib/aiMediaVideoClientOptions";
 import type { AiMediaModelRecommendation } from "@/lib/aiMediaModelRecommendation";
 import type { MediaGenerationFormat, MediaGenerationQuota } from "../_hooks/useMediaGeneration";
 import type useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
@@ -31,6 +31,9 @@ type Props = {
   allowedVideoEnginesReason?: string;
   unavailableVideoEngineReasons?: Partial<Record<AiMediaVideoEngine, string>>;
   hasProvidedCharacterVoice?: boolean;
+  providedCharacterVoicesCount?: number;
+  hasCharacterReferences?: boolean;
+  videoAudioChoice?: AiMediaVideoAudioChoice;
   disabled: boolean;
   onVideoEngineChange: (engine: AiMediaVideoEngine, resolution?: AiMediaVideoResolution) => void;
   onImageEngineChange: (engine: AiMediaImageEngine) => void;
@@ -43,16 +46,15 @@ function closestDurationSceneOption(options: readonly AiMediaVideoDurationSceneO
     || first.durationSeconds - second.durationSeconds || first.sceneCount - second.sceneCount)[0];
 }
 
-function availableDurationOptions(engine: AiMediaVideoEngine, resolution: AiMediaVideoResolution, maximumDuration: number, automatic = false) {
+function availableDurationOptions(engine: AiMediaVideoEngine, resolution: AiMediaVideoResolution, maximumDuration: number, automatic = false, referenceCount = 0) {
   return (automatic ? getAutomaticMediaVideoDurationOptions(engine, resolution) : getAiMediaVideoDurationSceneOptions(engine, resolution))
-    .filter((option) => option.durationSeconds <= maximumDuration);
+    .filter((option) => option.durationSeconds <= maximumDuration && (getAiMediaVideoModel(engine).transport !== "heygen-direct" || option.durationSeconds >= 5) &&
+      getAiMediaVideoReferenceCompatibilityIssue(engine, { inspirationImagesCount: referenceCount, durationSeconds: option.durationSeconds,
+        videoResolution: resolution, sceneMode: option.sceneMode })?.code !== "AI_MEDIA_VIDEO_REFERENCE_DURATION_UNSUPPORTED");
 }
 
-export function isMediaVideoReferenceCompatible(engine: AiMediaVideoEngine, referenceCount: number, hasProvidedCharacterVoice = false) {
-  const model = getAiMediaVideoModelForCharacterVoice(engine, hasProvidedCharacterVoice);
-  // Visual-only requests are composed into one frame; voices retain the original references.
-  return referenceCount === 0 ? model.supportsTextToVideo : model.supportsImageToVideo &&
-    (!hasProvidedCharacterVoice || referenceCount <= model.maxReferenceImages);
+export function isMediaVideoReferenceCompatible(engine: AiMediaVideoEngine, referenceCount: number, hasProvidedCharacterVoice = false, providedCharacterVoicesCount?: number, context: Pick<AiMediaVideoReferenceChoice, "durationSeconds" | "videoResolution" | "sceneMode"> = {}) {
+  return !getAiMediaVideoReferenceCompatibilityIssue(engine, { inspirationImagesCount: referenceCount, hasProvidedCharacterVoice, providedCharacterVoicesCount, ...context });
 }
 
 export function MediaVideoDurationSelect({ value, durations, disabled, onChange, hideLabel }: { value: number; durations: readonly number[]; disabled: boolean; onChange: (value: number) => void; hideLabel?: boolean }) {
@@ -66,7 +68,7 @@ export function MediaVideoDurationSelect({ value, durations, disabled, onChange,
   </div>;
 }
 
-function MediaEngineInfoModal({ kind, activeEngine, format, videoMaxDurationSeconds, hasProvidedCharacterVoice = false, onClose }: { kind: "image" | "video"; activeEngine: string; format?: MediaGenerationFormat; videoMaxDurationSeconds: number; hasProvidedCharacterVoice?: boolean; onClose: () => void }) {
+function MediaEngineInfoModal({ kind, activeEngine, format, videoMaxDurationSeconds, hasProvidedCharacterVoice = false, hasCharacterReferences, videoAudioChoice, onClose }: { kind: "image" | "video"; activeEngine: string; format?: MediaGenerationFormat; videoMaxDurationSeconds: number; hasProvidedCharacterVoice?: boolean; hasCharacterReferences?: boolean; videoAudioChoice?: AiMediaVideoAudioChoice; onClose: () => void }) {
   const t = useTranslations("media");
   const locale = useLocale();
   const titleId = useId();
@@ -75,7 +77,12 @@ function MediaEngineInfoModal({ kind, activeEngine, format, videoMaxDurationSeco
   const closeRef = useRef<HTMLButtonElement>(null);
   const [viewedEngine, setViewedEngine] = useState(activeEngine);
   const number = (value: number) => new Intl.NumberFormat(locale).format(value);
-  const videoModels = AI_MEDIA_AVAILABLE_VIDEO_MODELS.map((option) => getAiMediaVideoModelForCharacterVoice(option.id, hasProvidedCharacterVoice));
+  const videoChoices = getMediaVideoEngineQualityChoices(hasProvidedCharacterVoice, videoAudioChoice, { format, hasCharacterReferences });
+  const videoModels = AI_MEDIA_AVAILABLE_VIDEO_MODELS.flatMap((option) => {
+    const model = getAiMediaVideoModelForCharacterVoice(option.id, hasProvidedCharacterVoice);
+    const resolutions = videoChoices.filter(choice => choice.engine === model.id).map(choice => choice.resolution);
+    return resolutions.length ? [{ ...model, resolutions }] : [];
+  });
   const models = kind === "video" ? videoModels : AI_MEDIA_IMAGE_MODELS;
   const viewedModel = models.find((model) => model.id === viewedEngine) ?? models[0];
 
@@ -143,7 +150,7 @@ function MediaEngineInfoModal({ kind, activeEngine, format, videoMaxDurationSeco
           {option.id === "heygen" && assembledDuration > 15 ? <p>{t("ai_generator_engine_info_assembled_duration", { seconds: number(assembledDuration) })}</p> : null}
           <ul className={styles.engineInfoRates}>{option.resolutions.map((resolution) => {
             const durations = getAiMediaVideoDurations(option.id, resolution);
-            return <li key={resolution}><strong>{resolution}</strong><span>{t("ai_generator_model_credit_rate_short", { credits: number(option.creditsByResolution[resolution] ?? option.creditsPerSecond) })}</span><span>{t("ai_generator_engine_info_max_duration", { seconds: number(Math.max(...durations)) })}</span></li>;
+            return <li key={resolution}><strong>{resolution}</strong><span>{t("ai_generator_model_credit_rate_short", { credits: number(getAiMediaVideoCreditRate(option.id, resolution, { ...videoAudioChoice, hasProvidedCharacterVoice })) })}</span><span>{t("ai_generator_engine_info_max_duration", { seconds: number(Math.max(...durations)) })}</span></li>;
           })}</ul>
           <div className={styles.engineInfoCapabilities}>
             <span>{t(option.supportsTextToVideo ? "ai_generator_engine_info_text_photo" : "ai_generator_engine_info_photo_required")}</span>
@@ -185,55 +192,84 @@ export default function MediaEngineCreditControls(props: Props) {
     if (props.referenceCount > option.maxReferenceImages) return t("ai_generator_model_reference_limit", { count: option.maxReferenceImages });
     return "";
   };
-  const videoCompatibilityReason = (engine: AiMediaVideoEngine) => {
+  const referenceDurationReason = (engine: AiMediaVideoEngine, resolution: AiMediaVideoResolution) => {
+    const durations = availableDurationOptions(engine, resolution, props.videoMaxDurationSeconds ?? 30, props.automaticSceneMode, props.referenceCount);
+    return t("ai_generator_model_reference_duration_available", { durations: [...new Set(durations.map(option => option.durationSeconds))]
+      .map(seconds => t("ai_generator_duration_seconds", { seconds })).join(" / ") || t("ai_generator_model_unavailable_short") });
+  };
+  const videoCompatibilityReason = (engine: AiMediaVideoEngine, resolution = getAiMediaVideoModel(engine).defaultResolution) => {
     if (props.requiredVideoEngine && engine !== props.requiredVideoEngine) return props.requiredVideoEngineReason || "";
     if (props.allowedVideoEngines && !props.allowedVideoEngines.includes(engine)) return props.allowedVideoEnginesReason || "";
     if (props.unavailableVideoEngineReasons?.[engine]) return props.unavailableVideoEngineReasons[engine] || "";
     const option = getAiMediaVideoModelForCharacterVoice(engine, props.hasProvidedCharacterVoice);
+    const referenceIssue = getAiMediaVideoReferenceCompatibilityIssue(engine, { inspirationImagesCount: props.referenceCount,
+      hasProvidedCharacterVoice: props.hasProvidedCharacterVoice, providedCharacterVoicesCount: props.providedCharacterVoicesCount,
+      durationSeconds: props.durationSeconds ?? 8, videoResolution: resolution, sceneMode: props.sceneMode ?? "single" });
+    if (referenceIssue?.code === "AI_MEDIA_VIDEO_REFERENCE_DURATION_UNSUPPORTED") return referenceDurationReason(engine, resolution);
+    if (referenceIssue?.code === "AI_MEDIA_VIDEO_VOICE_ENGINE_UNSUPPORTED") return t("ai_generator_character_voice_engine_required");
+    if (referenceIssue?.code === "AI_MEDIA_VIDEO_CHARACTER_VOICE_COUNT_INVALID") return t("ai_generator_free_role_limit");
     if (props.referenceCount === 0 && !option.supportsTextToVideo) return t("ai_generator_model_photo_required");
     if (props.referenceCount > 0 && !option.supportsImageToVideo) return t("ai_generator_model_text_only");
-    if (!isMediaVideoReferenceCompatible(engine, props.referenceCount, props.hasProvidedCharacterVoice)) return t("ai_generator_model_reference_limit", { count: option.maxReferenceImages });
+    if (!isMediaVideoReferenceCompatible(engine, props.referenceCount, props.hasProvidedCharacterVoice, props.providedCharacterVoicesCount)) return t("ai_generator_model_reference_limit", { count: option.maxReferenceImages });
     if (!isMediaVideoBriefCompatible(engine, props.brief ?? "")) return t("ai_generator_engine_brief_too_long");
     return "";
   };
   const model = getAiMediaVideoModelForCharacterVoice(props.videoEngine, props.hasProvidedCharacterVoice);
-  const selectedResolution = model.resolutions.includes(props.resolution) ? props.resolution : model.defaultResolution;
-  const compatible = props.kind !== "video" || isMediaVideoReferenceCompatible(props.videoEngine, props.referenceCount, props.hasProvidedCharacterVoice);
+  const selectedResolution = getMediaVideoContextResolution(props.videoEngine, props.resolution,
+    { format: props.format, teamVideoSpeechMode: props.videoAudioChoice?.teamVideoSpeechMode, hasCharacterReferences: props.hasCharacterReferences });
+  const compatible = props.kind !== "video" || isMediaVideoReferenceCompatible(props.videoEngine, props.referenceCount, props.hasProvidedCharacterVoice, props.providedCharacterVoicesCount);
   const duration = props.durationSeconds ?? 8;
   const sceneMode = props.sceneMode ?? "single";
   const maximumDuration = props.videoMaxDurationSeconds ?? 30;
-  const durationSceneOptions = availableDurationOptions(props.videoEngine, selectedResolution, maximumDuration, props.automaticSceneMode);
+  const durationSceneOptions = availableDurationOptions(props.videoEngine, selectedResolution, maximumDuration, props.automaticSceneMode, props.referenceCount);
   const displayedSceneMode = props.automaticSceneMode
     ? durationSceneOptions.find((option) => option.durationSeconds === duration)?.sceneMode ?? sceneMode
     : sceneMode;
+  const referenceDurationUnsupported = getAiMediaVideoReferenceCompatibilityIssue(props.videoEngine, { inspirationImagesCount: props.referenceCount,
+    durationSeconds: duration, videoResolution: selectedResolution, sceneMode })?.code === "AI_MEDIA_VIDEO_REFERENCE_DURATION_UNSUPPORTED";
   const changeDurationScene = props.onDurationSceneChange;
   useEffect(() => {
-    if (props.kind !== "video" || !changeDurationScene || props.disabled) return;
-    const options = availableDurationOptions(props.videoEngine, selectedResolution, maximumDuration, props.automaticSceneMode);
+    if (props.kind !== "video" || !changeDurationScene || props.disabled || referenceDurationUnsupported) return;
+    const options = availableDurationOptions(props.videoEngine, selectedResolution, maximumDuration, props.automaticSceneMode, props.referenceCount);
     if (options.some((option) => option.durationSeconds === duration && option.sceneMode === sceneMode)) return;
     const next = closestDurationSceneOption(options, duration, sceneMode);
     if (next) changeDurationScene(next.durationSeconds, next.sceneMode);
-  }, [props.kind, props.videoEngine, selectedResolution, maximumDuration, duration, sceneMode, changeDurationScene, props.automaticSceneMode, props.disabled]);
-  const choices = getMediaVideoEngineQualityChoices(props.hasProvidedCharacterVoice)
+  }, [props.kind, props.videoEngine, selectedResolution, maximumDuration, duration, sceneMode, changeDurationScene, props.automaticSceneMode, props.disabled, props.referenceCount, referenceDurationUnsupported]);
+  const choices = getMediaVideoEngineQualityChoices(props.hasProvidedCharacterVoice, props.videoAudioChoice, { format: props.format, hasCharacterReferences: props.hasCharacterReferences })
     .filter(choice => !props.hasProvidedCharacterVoice || !props.allowedVideoEngines || props.allowedVideoEngines.includes(choice.engine));
   const videoEngineAllowed = (engine: AiMediaVideoEngine) =>
     (!props.requiredVideoEngine || engine === props.requiredVideoEngine) &&
     (!props.allowedVideoEngines || props.allowedVideoEngines.includes(engine)) &&
     !props.unavailableVideoEngineReasons?.[engine];
   const pairSelectable = (engine: AiMediaVideoEngine, resolution: AiMediaVideoResolution) =>
-    videoEngineAllowed(engine) && getAiMediaVideoModelForCharacterVoice(engine, props.hasProvidedCharacterVoice).resolutions.includes(resolution) && isMediaVideoReferenceCompatible(engine, props.referenceCount, props.hasProvidedCharacterVoice) && isMediaVideoBriefCompatible(engine, props.brief ?? "");
-  const selectable = (engine: AiMediaVideoEngine) => videoEngineAllowed(engine) && isMediaVideoReferenceCompatible(engine, props.referenceCount, props.hasProvidedCharacterVoice) && isMediaVideoBriefCompatible(engine, props.brief ?? "");
+    videoEngineAllowed(engine) && choices.some(choice => choice.engine === engine && choice.resolution === resolution) && isMediaVideoReferenceCompatible(engine, props.referenceCount, props.hasProvidedCharacterVoice, props.providedCharacterVoicesCount, { durationSeconds: duration, videoResolution: resolution, sceneMode }) && isMediaVideoBriefCompatible(engine, props.brief ?? "");
+  const budgetReplacement = props.resolution !== selectedResolution || getAiMediaVideoCreditRateLimitIssue(props.videoEngine, selectedResolution,
+    { ...props.videoAudioChoice, hasProvidedCharacterVoice: props.hasProvidedCharacterVoice })
+    ? choices.find(choice => choice.engine === props.videoEngine && choice.resolution === selectedResolution && pairSelectable(choice.engine, choice.resolution))
+      ?? choices.find(choice => choice.engine === props.videoEngine && pairSelectable(choice.engine, choice.resolution))
+      ?? choices.find(choice => choice.engine === "omni" && pairSelectable(choice.engine, choice.resolution))
+      ?? choices.find(choice => pairSelectable(choice.engine, choice.resolution))
+    : undefined;
+  const replacementEngine = budgetReplacement?.engine;
+  const replacementResolution = budgetReplacement?.resolution;
+  const { kind, disabled, videoEngine, onResolutionChange, onVideoEngineChange } = props;
+  useEffect(() => {
+    if (kind !== "video" || disabled || !replacementEngine || !replacementResolution) return;
+    if (replacementEngine === videoEngine) onResolutionChange(replacementResolution);
+    else onVideoEngineChange(replacementEngine, replacementResolution);
+  }, [kind, disabled, videoEngine, replacementEngine, replacementResolution, onResolutionChange, onVideoEngineChange]);
+  const selectable = (engine: AiMediaVideoEngine) => choices.some(choice => choice.engine === engine && pairSelectable(choice.engine, choice.resolution));
   const recommended = (props.kind === "video" ? AI_MEDIA_AVAILABLE_VIDEO_MODELS : AI_MEDIA_IMAGE_MODELS).find((option) => option.id === props.recommendation?.engine);
   const recommendedPairs = choices.filter((choice) => choice.engine === props.recommendation?.engine && pairSelectable(choice.engine, choice.resolution));
   const recommendedPair = recommendedPairs.find((choice) => choice.resolution === getAiMediaVideoModel(choice.engine).defaultResolution) ??
     recommendedPairs.sort((first, second) => first.creditsPerSecond - second.creditsPerSecond)[0];
   const selectDescription = [
-    videoCompatibilityReason(props.videoEngine),
+    videoCompatibilityReason(props.videoEngine, selectedResolution),
     recommended && props.recommendation ? t("ai_generator_model_recommendation", { model: recommended.label, reason: t(`ai_generator_model_recommendation_${props.recommendation.reason}`) }) : "",
   ].filter(Boolean).join(" ");
   const selectVideoPair = (engine: AiMediaVideoEngine, resolution: AiMediaVideoResolution) => {
     if (!pairSelectable(engine, resolution)) return;
-    const options = availableDurationOptions(engine, resolution, maximumDuration, props.automaticSceneMode);
+    const options = availableDurationOptions(engine, resolution, maximumDuration, props.automaticSceneMode, props.referenceCount);
     const next = closestDurationSceneOption(options, duration, sceneMode);
     if (next && (next.durationSeconds !== duration || next.sceneMode !== sceneMode)) {
       changeDurationScene?.(next.durationSeconds, next.sceneMode);
@@ -253,13 +289,13 @@ export default function MediaEngineCreditControls(props: Props) {
       const choice = choices.find((option) => option.value === event.target.value);
       if (choice) selectVideoPair(choice.engine, choice.resolution);
     }}>
-      {!choices.some(option => option.value === `${props.videoEngine}:${selectedResolution}`) ? <option value={`${props.videoEngine}:${selectedResolution}`} disabled title={videoCompatibilityReason(props.videoEngine)}>
+      {!choices.some(option => option.value === `${props.videoEngine}:${selectedResolution}`) ? <option value={`${props.videoEngine}:${selectedResolution}`} disabled title={videoCompatibilityReason(props.videoEngine, selectedResolution)}>
         {model.label} · {selectedResolution} · {t("ai_generator_model_unavailable_short")}
       </option> : null}
       {[...new Set(choices.map((option) => option.family))].map((family) => <optgroup key={family} label={family}>
         {choices.filter((option) => option.family === family).map((option) => <option key={option.value} value={option.value} disabled={!pairSelectable(option.engine, option.resolution)}>
           {option.label} · {option.resolution} · {t("ai_generator_model_credit_rate_short", { credits: new Intl.NumberFormat(locale).format(option.creditsPerSecond) })}
-          {!pairSelectable(option.engine, option.resolution) ? ` · ${videoCompatibilityReason(option.engine)}` : ""}
+          {!pairSelectable(option.engine, option.resolution) ? ` · ${videoCompatibilityReason(option.engine, option.resolution)}` : ""}
           {recommendedPair?.value === option.value ? ` · ${t("ai_generator_model_recommended_short")}` : ""}
         </option>)}
       </optgroup>)}
@@ -273,11 +309,13 @@ export default function MediaEngineCreditControls(props: Props) {
         const option = durationSceneOptions.find((candidate) => `${candidate.durationSeconds}:${candidate.sceneMode}` === event.target.value);
         if (option) { changeDurationScene?.(option.durationSeconds, option.sceneMode); setDurationNotice(""); }
       }}>
+        {referenceDurationUnsupported ? <option value={`${duration}:${displayedSceneMode}`} disabled>{t("ai_generator_duration_seconds", { seconds: duration })} · {t("ai_generator_model_unavailable_short")}</option> : null}
         {durationSceneOptions.map((option) => <option key={`${option.durationSeconds}:${option.sceneMode}`} value={`${option.durationSeconds}:${option.sceneMode}`}>{t(props.automaticSceneMode ? "ai_generator_duration_seconds" : option.sceneMode === "single" ? "ai_generator_duration_scene_single" : "ai_generator_duration_scene_multi", { seconds: option.durationSeconds })}</option>)}
       </select>
       <span className={styles.visuallyHidden} role="status" aria-live="polite">{durationNotice}</span>
     </div> : null}
     {props.kind === "video" ? <>
+      {referenceDurationUnsupported ? <p className={styles.notice} role="status">{referenceDurationReason(props.videoEngine, selectedResolution)}</p> : null}
       {props.requiredVideoEngine && props.videoEngine !== props.requiredVideoEngine && props.requiredVideoEngineReason ? <p className={styles.notice} role="status">{props.requiredVideoEngineReason}</p> : null}
       {props.allowedVideoEngines && !props.allowedVideoEngines.includes(props.videoEngine) && props.allowedVideoEnginesReason ? <p className={styles.notice} role="status">{props.allowedVideoEnginesReason}</p> : null}
       {props.unavailableVideoEngineReasons?.[props.videoEngine] ? <p className={styles.notice} role="status">{props.unavailableVideoEngineReasons[props.videoEngine]}</p> : null}
@@ -285,7 +323,7 @@ export default function MediaEngineCreditControls(props: Props) {
       {!isMediaVideoBriefCompatible(props.videoEngine, props.brief ?? "") ? <p className={styles.notice} role="status">{t("ai_generator_engine_brief_too_long")}</p> : null}
     </> : null}
     {recommended && props.recommendation && (props.kind === "image" || selectable(recommended.id as AiMediaVideoEngine)) ? <small className={styles.recommendation} title={t("ai_generator_model_recommendation", { model: recommended.label, reason: t(`ai_generator_model_recommendation_${props.recommendation.reason}`) })}>{t("ai_generator_model_recommendation", { model: recommended.label, reason: t(`ai_generator_model_recommendation_${props.recommendation.reason}`) })}</small> : null}
-  </fieldset>{infoOpen ? <MediaEngineInfoModal kind={props.kind} activeEngine={props.kind === "video" ? props.videoEngine : props.imageEngine} format={props.format} videoMaxDurationSeconds={maximumDuration} hasProvidedCharacterVoice={props.hasProvidedCharacterVoice} onClose={() => setInfoOpen(false)} /> : null}</>;
+  </fieldset>{infoOpen ? <MediaEngineInfoModal kind={props.kind} activeEngine={props.kind === "video" ? props.videoEngine : props.imageEngine} format={props.format} videoMaxDurationSeconds={maximumDuration} hasProvidedCharacterVoice={props.hasProvidedCharacterVoice} hasCharacterReferences={props.hasCharacterReferences} videoAudioChoice={props.videoAudioChoice} onClose={() => setInfoOpen(false)} /> : null}</>;
 }
 
 /** Model, confirmed price and action stay together in every Studio path. */

@@ -1,3 +1,5 @@
+import { AI_MEDIA_DIRECT_VIDEO_PROMPT_VERSION, buildAiMediaDirectVideoPlan, getAiMediaDirectExactSpeech } from "./aiMediaDirectVideoPipeline.ts";
+import { prepareAiMediaDirectAvatarDialogue } from "./aiMediaDirectAvatarDialogue.ts";
 import "server-only";
 import { isAiVideoProviderPending, type AiMediaPendingVideo } from "./aiMediaPendingVideo.ts";
 
@@ -465,7 +467,8 @@ export async function generateAndSaveAiMedia(args: {
     }
   }
   const isFreeCreation = providerRequest.creationMode === "free";
-  const activePromptVersion = isFreeCreation ? AI_MEDIA_FREE_PROMPT_VERSION : AI_MEDIA_PROMPT_VERSION;
+  const isDirectVideo = isFreeCreation && providerRequest.kind === "video";
+  const activePromptVersion = isDirectVideo ? AI_MEDIA_DIRECT_VIDEO_PROMPT_VERSION : isFreeCreation ? AI_MEDIA_FREE_PROMPT_VERSION : AI_MEDIA_PROMPT_VERSION;
   const castingEligible = chooseAiMediaCastingVariation({
     request: providerRequest,
   });
@@ -544,7 +547,7 @@ export async function generateAndSaveAiMedia(args: {
     providerRequest.operation !== "modify" &&
     providerRequest.kind === "image" &&
     (providerRequest.withText || useExactContactComposition);
-  const initialCreativePlan = isFreeCreation ? buildAiMediaFreeBasePlan(providerRequest) : buildAiMediaCreativePlan({
+  const initialCreativePlan = isDirectVideo ? buildAiMediaDirectVideoPlan(providerRequest) : isFreeCreation ? buildAiMediaFreeBasePlan(providerRequest) : buildAiMediaCreativePlan({
     request: providerRequest,
     profile,
     recentPublications: generationContext.recentPublications,
@@ -556,6 +559,7 @@ export async function generateAndSaveAiMedia(args: {
     throw new AiMediaRequestValidationError("Le logo enregistré dans votre Profil est absent ou illisible. Ajoutez-le à nouveau dans votre Profil, puis relancez la création. Aucun logo de remplacement ne sera inventé.");
   }
   const creativePlanTask =
+    isDirectVideo ? measure("direct_video_inputs",()=>prepareAiMediaDirectAvatarDialogue({accountId:args.accountId,request:providerRequest,profile,businessDnaContext,globalMediaConstraints,signal:args.signal,onBillableWorkStarted:beginBillableWork})) :
     isFreeCreation
       ? measure("free_creative_plan", async () => {
           if (!useFreeDna) return prepareAiMediaFreeCreativePlan({ accountId: args.accountId, request: providerRequest, profile, signal: args.signal });
@@ -599,7 +603,7 @@ export async function generateAndSaveAiMedia(args: {
         recentVariantKeys: await castingHistoryTask,
       })
     : null;
-  const compiledPrompt = buildAiMediaPrompt({
+  const compiledPrompt = isDirectVideo ? providerRequest.freePrompt || "" : buildAiMediaPrompt({
     request: providerRequest,
     profile,
     recentPublications: generationContext.recentPublications,
@@ -611,7 +615,7 @@ export async function generateAndSaveAiMedia(args: {
     copy: creativePlan,
     castingDirection: castingVariation?.direction,
   });
-  const prompt = localLogoOnlyComposition
+  const prompt = isDirectVideo ? compiledPrompt : localLogoOnlyComposition
     ? `${compiledPrompt}\n\n${buildAiMediaLocalLogoCompositionPrompt({ operation: providerRequest.operation || "generate", logoBrief, logoPlacement: freeLogoPlacement, imageLogoReservation })}`
     : `${compiledPrompt}${profileLogoRequested && !officialLogo ? "\n\nAucun fichier de logo officiel n’est disponible : ne pas en inventer ni en dessiner un. Conserver les autres éléments demandés." : ""}`;
   const promptHash = promptSha256(prompt);
@@ -709,9 +713,9 @@ export async function generateAndSaveAiMedia(args: {
         )}. Aucun texte ni logo.`
       : "";
   const essentialScenePrecompositionPrompt =
-    isFreeCreation && providerRequest.kind === "video" && (providerRequest.inspirationImages.length || (officialLogo && !localDnaLogo) || needsControlledAiMediaFreeFirstFrame(providerRequest))
+    !isDirectVideo && isFreeCreation && providerRequest.kind === "video" && (providerRequest.inspirationImages.length || (officialLogo && !localDnaLogo) || needsControlledAiMediaFreeFirstFrame(providerRequest))
       ? buildAiMediaFreeSceneFramePrompt({ request: providerRequest, profile, brandColors: useFreeDna ? promptBrandColors : effectiveColors, hasLogo: Boolean(officialLogo) && !localDnaLogo, businessDnaContext, logoComposedLocally: localDnaLogo }, creativePlan.scenes[0])
-      : providerRequest.inputMode === "essential" &&
+      : !isDirectVideo && providerRequest.inputMode === "essential" &&
     providerRequest.kind === "video" &&
     providerRequest.inspirationImages.length
       ? `${buildAiMediaPrompt({
@@ -1013,17 +1017,18 @@ export async function generateAndSaveAiMedia(args: {
       !usesSeparateAiMediaFreeVoiceover(providerRequest);
     // La voix off Libre est préparée séparément pour tous les moteurs, avant
     // tout appel vidéo facturé. Seuls les personnages demandent une voix native.
-    const nativeVoiceoverNarration = nativeVoiceoverRequested
+    const directExactSpeech = isDirectVideo ? getAiMediaDirectExactSpeech(providerRequest) : undefined;
+    const nativeVoiceoverNarration = nativeVoiceoverRequested && (!isDirectVideo || typeof directExactSpeech === "string")
       ? await measure("native_voiceover_copy", () => writeAiMediaFreeNarration({
           accountId: args.accountId,
-          request: providerRequest,
+          request: isDirectVideo ? {...providerRequest,spokenScript:directExactSpeech} : providerRequest,
           profile,
           plan: creativePlan,
           businessDnaContext,
           maximumSpeechUnits: segmentDurations.reduce((sum, duration) => sum + Math.floor((duration - 1) * 2), 0),
         }))
       : null;
-    if (nativeVoiceoverRequested && !nativeVoiceoverNarration) {
+    if (nativeVoiceoverRequested && !isDirectVideo && !nativeVoiceoverNarration) {
       throw new Error("ai_media_native_voiceover_copy_unavailable");
     }
     const nativeNarrationLines = nativeVoiceoverNarration
@@ -1144,6 +1149,7 @@ export async function generateAndSaveAiMedia(args: {
         jobId: args.jobId,
         request: modelRequest,
         plan: creativePlan,
+        ...(isDirectVideo ? { directVideo: true, identityTeamGoogleEgressConsent: request.teamVideoVeoConsent === true } : {}),
         canonicalPrompt: prompt,
         canonicalPromptSha256: promptHash,
         providerContract,
@@ -1156,9 +1162,10 @@ export async function generateAndSaveAiMedia(args: {
         contentLanguage: speechLanguage,
         nativeNarrationLines,
         subtitleLines,
-        ...(useFreeDna ? { businessDnaDirection: buildAiMediaFreeVideoBusinessDnaDirection({
-          colors: promptBrandColors, hasLocalLogo: Boolean(localDnaLogo),
-        }) } : {}),
+        ...(useFreeDna ? { businessDnaDirection: [
+          ...(isDirectVideo ? [buildAiMediaVideoDnaBrief(profile), businessDnaContext ? JSON.stringify(businessDnaContext) : ""] : []),
+          buildAiMediaFreeVideoBusinessDnaDirection({ colors: promptBrandColors, hasLocalLogo: Boolean(localDnaLogo) }),
+        ].filter(Boolean).join("\n") } : {}),
         ...overrides,
         identityTeamProviderEgressConsent: request.teamVideoProviderConsent,
         signal: args.signal,
@@ -1170,6 +1177,7 @@ export async function generateAndSaveAiMedia(args: {
           : await generateOriginalAiVideoClips(providerArgs);
       } catch (primaryError) {
         if (isAiVideoProviderPending(primaryError)) throw primaryError;
+        if (isDirectVideo) throw primaryError;
         args.signal?.throwIfAborted();
         recordVideoEngineFailure({
           engine: request.videoEngine || "omni",
@@ -1228,6 +1236,9 @@ export async function generateAndSaveAiMedia(args: {
     // Le préflight TTS de Grok Libre et du parcours Guidé précède les appels
     // image/vidéo. Les autres moteurs Libre conservent leur voix native.
     const generateVideoGateway = () => measure("video_generation", async () => {
+      if (isDirectVideo) return await generateProviderVideo(providerRequest, providerRequest.identityMode === "reference_team"
+        ? { identityTeamMemberCount: preparedCharacterBuffers.length as 2 | 3 }
+        : {});
       // R2V composes the scene itself. Original images must remain separate:
       // each character's voice reference belongs to that exact image.
       if (providerRequest.videoEngine === "heygen-avatar" || providerRequest.videoEngine === "wan27" || providerRequest.videoEngine === "kling" || providerRequest.videoEngine === "kling-flash" || (hasProvidedAiMediaCharacterVoice(providerRequest.inspirationImages) && isAiMediaCharacterVoiceEngine(providerRequest.videoEngine))) {
@@ -1565,7 +1576,7 @@ export async function generateAndSaveAiMedia(args: {
     // citation plus longue : elle relève du rédacteur de narration, jamais du
     // contrat court imposé aux mouvements de bouche des personnages.
     const expectedDialogueLines = characterDialogueRequested
-      ? isFreeCreation
+      ? isDirectVideo ? creativePlan.scenes.map(scene=>scene.spokenLine) : isFreeCreation
         ? resolveAiMediaFreeDialogueSequence({ request: providerRequest, plan: creativePlan })
         : resolveAiMediaDialogueSequence({
           scenes: creativePlan.scenes,
@@ -1692,6 +1703,7 @@ export async function generateAndSaveAiMedia(args: {
           native_character_dialogue_preserved:characterDialogueRequested,native_voiceover_preserved:nativeVoiceoverRequested};
         const finishingTasks = [soundtrackTask,overlaysTask,narrationTask] as const;
         if (!args.onCompositionReady) {
+          await error.recordAcceptance?.().catch(() => console.warn("[ai-media] accepted render supplier accounting deferred", { jobId: args.jobId }));
           void Promise.allSettled(finishingTasks);
           args.signal?.removeEventListener("abort",abortNarrationFromCaller);
           throw error;
@@ -1699,6 +1711,7 @@ export async function generateAndSaveAiMedia(args: {
         // First make the accepted provider ID durable. No optional PNG/audio preparation can erase it.
         try { await args.onCompositionReady({pendingProvider:error.task,providerReceiptOnly:true,input:pendingInput,metadata:pendingMetadata}); }
         catch { console.warn("[ai-media] accepted render checkpoint pending",{jobId:args.jobId,providerVideoId:error.task.videoId}); }
+        await error.recordAcceptance?.().catch(()=>console.warn("[ai-media] accepted render supplier accounting deferred",{jobId:args.jobId}));
         if (finishingRequested) {
           const [track,overlay,voice] = await Promise.allSettled(finishingTasks);
           if (track.status === "fulfilled" && overlay.status === "fulfilled" && voice.status === "fulfilled" && overlay.value.value && !overlay.value.error) {
@@ -2032,16 +2045,14 @@ export async function generateAndSaveAiMedia(args: {
         final_video: { version: 1, status: "not_requested", blocking: false },
       },
       narration:
-        nativeVoiceoverPreserved && nativeVoiceoverNarration
+        nativeVoiceoverPreserved
           ? {
               enabled: true,
               delivery: "native",
               model: videoGateway.model,
               voice: providerRequest.narrationVoice,
-              language: nativeVoiceoverNarration.language,
-              word_count: nativeVoiceoverNarration.wordCount,
-              script_source: nativeVoiceoverNarration.source,
-              script_sha256: nativeVoiceoverNarration.sha256,
+              language: nativeVoiceoverNarration?.language || speechLanguage,
+              ...(nativeVoiceoverNarration ? {word_count:nativeVoiceoverNarration.wordCount,script_source:nativeVoiceoverNarration.source,script_sha256:nativeVoiceoverNarration.sha256} : {script_source:"provider_auto"}),
             }
           : narration && narrationAudio
           ? {

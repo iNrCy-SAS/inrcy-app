@@ -140,30 +140,31 @@ test("une référence active Wan et le changement de moteur adapte ensuite la du
   selectEngine(thirtySeconds.tree, "wan-flash:720p");
   assert.deepEqual(thirtySeconds.changes, [["duration", 30, "multi"], ["engine", "wan-flash", "720p"]], "Trente secondes exigent deux scènes avec Wan.");
   const multiple = controls({ referenceCount: 5 });
-  assert.equal(engineOption(multiple.tree, "wan-flash:720p").props.disabled, false, "Les références Studio sont composées dans une seule première image.");
+  assert.equal(engineOption(multiple.tree, "wan-flash:720p").props.disabled, true, "The original five references cannot bypass the native single-photo limit.");
+  assert.ok(text(engineOption(multiple.tree, "wan-flash:720p")).includes(t("ai_generator_model_reference_limit", { count: 1 })));
+  selectEngine(multiple.tree, "wan-flash:720p"); assert.deepEqual(multiple.changes, []);
   const tooLong = controls({ referenceCount: 1, brief: "x".repeat(1501) });
   assert.equal(engineOption(tooLong.tree, "wan-flash:720p").props.disabled, true);
   assert.ok(text(engineOption(tooLong.tree, "wan-flash:720p")).includes(t("ai_generator_engine_brief_too_long")));
 });
 
-test("les références précomposées ne bloquent pas artificiellement la résolution Grok", () => {
+test("original reference counts keep affordable Grok available and migrate an expensive stored quality", () => {
   for (const referenceCount of [2, 5]) {
     const runtime = controls({ referenceCount });
     assert.equal(engineOption(runtime.tree, "grok:720p").props.disabled, false);
-    assert.equal(engineOption(runtime.tree, "grok:1080p").props.disabled, false);
-    selectEngine(runtime.tree, "grok:1080p"); assert.deepEqual(runtime.changes, [["engine", "grok", "1080p"]]);
+    assert.equal(elements(runtime.tree).some(node => node.type === "option" && node.props.value === "grok:1080p"), false);
+    selectEngine(runtime.tree, "grok:720p"); assert.deepEqual(runtime.changes, [["engine", "grok", "720p"]]);
   }
-  assert.equal(engineOption(controls({ referenceCount: 1 }).tree, "grok:1080p").props.disabled, false);
   const automatic = controls({ videoEngine: "grok", resolution: "1080p", referenceCount: 2 });
-  automatic.effects.forEach((effect) => effect()); assert.deepEqual(automatic.changes, [], "Le nombre de photos Studio ne réduit pas silencieusement la qualité.");
+  automatic.effects.forEach((effect) => effect()); assert.deepEqual(automatic.changes, [["resolution", "720p"]], "an expensive saved quality migrates within its existing engine");
   const compatible = controls({ videoEngine: "grok", resolution: "720p", referenceCount: 2 });
   compatible.effects.forEach((effect) => effect()); assert.deepEqual(compatible.changes, []);
   const locked = controls({ videoEngine: "grok", resolution: "1080p", referenceCount: 2, disabled: true });
-  locked.effects.forEach((effect) => effect()); assert.deepEqual(locked.changes, [], "La génération en cours conserve son contrat.");
+  locked.effects.forEach((effect) => effect()); assert.deepEqual(locked.changes, [], "an in-flight generation keeps its original contract");
 });
 
 test("Studio offers one translated duration and upgrades old montage presets without changing their length", () => {
-  const runtime = controls({ videoEngine: "wan3", resolution: "1080p", automaticSceneMode: true, durationSeconds: 8, sceneMode: "multi" });
+  const runtime = controls({ videoEngine: "wan3", resolution: "720p", automaticSceneMode: true, durationSeconds: 8, sceneMode: "multi" });
   const select = find(runtime.tree, (node) => node.type === "select" && String(node.props.id).endsWith("-duration"));
   const options = elements(select).filter((node) => node.type === "option");
   assert.equal(select.props.value, "8:single", "a legacy selection still displays its own duration during normalization");
@@ -179,13 +180,13 @@ test("Studio offers one translated duration and upgrades old montage presets wit
 });
 
 test("automatic duration respects account limits, locked jobs and callers retaining explicit scene choices", () => {
-  const limited = controls({ videoEngine: "wan3", resolution: "1080p", automaticSceneMode: true, videoMaxDurationSeconds: 15 });
+  const limited = controls({ videoEngine: "wan3", resolution: "720p", automaticSceneMode: true, videoMaxDurationSeconds: 15 });
   const select = find(limited.tree, (node) => node.type === "select" && String(node.props.id).endsWith("-duration"));
   assert.ok(elements(select).filter((node) => node.type === "option").every((node) => Number(String(node.props.value).split(":")[0]) <= 15));
-  const locked = controls({ videoEngine: "wan3", resolution: "1080p", automaticSceneMode: true, durationSeconds: 8, sceneMode: "multi", disabled: true });
+  const locked = controls({ videoEngine: "wan3", resolution: "720p", automaticSceneMode: true, durationSeconds: 8, sceneMode: "multi", disabled: true });
   locked.effects.forEach((effect) => effect());
   assert.deepEqual(locked.changes, [], "an in-flight request is never edited by presentation cleanup");
-  const guided = controls({ videoEngine: "wan3", resolution: "1080p", durationSeconds: 8, sceneMode: "multi" });
+  const guided = controls({ videoEngine: "wan3", resolution: "720p", durationSeconds: 8, sceneMode: "multi" });
   const guidedSelect = find(guided.tree, (node) => node.type === "select" && String(node.props.id).endsWith("-duration"));
   assert.equal(guidedSelect.props.value, "8:multi");
   for (const value of ["8:single", "8:multi"]) assert.ok(elements(guidedSelect).some((node) => node.type === "option" && node.props.value === value));
@@ -309,4 +310,23 @@ test("les avertissements du panneau unique distinguent les références, la cons
   const locked = freeEditor({ engine: "wan-flash", busy: true }).render(); assert.equal(promptError(locked), ""); assert.equal(imagesWarning(locked), ""); assert.equal(imagesLauncher(locked).props.disabled, true);
   const image = freeEditor({ kind: "image", imageEngine: "recraft", references: [reference(1, "product", "required")] }).render();
   assert.equal(imagesWarning(image), t("ai_generator_image_references_unavailable"));
+});
+
+test("Veo with two original photos explains unsupported durations without silently changing another selected engine", () => {
+  for (const durationSeconds of [5, 10]) {
+    const runtime = controls({ videoEngine: "omni", referenceCount: 2, durationSeconds, automaticSceneMode: true });
+    const option = engineOption(runtime.tree, "veo:720p");
+    assert.equal(option.props.disabled, true);
+    assert.ok(text(option).includes(t("ai_generator_model_reference_duration_available", { durations: `${t("ai_generator_duration_seconds", { seconds: 8 })} / ${t("ai_generator_duration_seconds", { seconds: 16 })}` })));
+    selectEngine(runtime.tree, "veo:720p"); runtime.effects.forEach(effect => effect());
+    assert.deepEqual(runtime.changes, [], "neither the duration nor engine changes for an incompatible alternative");
+  }
+  const active = controls({ videoEngine: "veo", referenceCount: 2, durationSeconds: 10, sceneMode: "multi", automaticSceneMode: true });
+  const select = find(active.tree, node => node.type === "select" && String(node.props.id).endsWith("-duration"));
+  assert.deepEqual(elements(select).filter(node => node.type === "option" && !node.props.disabled).map(node => node.props.value), ["8:single", "16:multi"]);
+  assert.equal(select.props.value, "10:multi", "an old invalid duration remains visible until the professional chooses");
+  assert.ok(elements(active.tree).some(node => node.props.role === "status" && text(node).includes("8 secondes / 16 secondes") && node.props.className !== "visuallyHidden"));
+  active.effects.forEach(effect => effect()); assert.deepEqual(active.changes, []);
+  (select.props.onChange as (event: { target: { value: string } }) => void)({ target: { value: "8:single" } });
+  assert.deepEqual(active.changes, [["duration", 8, "single"]]);
 });

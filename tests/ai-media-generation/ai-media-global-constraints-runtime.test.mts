@@ -1,6 +1,7 @@
 import * as nativeQa from "../../lib/aiMediaNativeDialogueQa.ts";
 import * as sensitive from "../../lib/aiMediaSensitiveText.ts";
 import assert from "node:assert/strict";
+import * as directVideo from "../../lib/aiMediaDirectVideoPipeline.ts";
 import { existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -91,6 +92,8 @@ function harness(activeProfile = profile(), failVideo = false, allowGeneratedFra
   const normalizedVideo = { ...normalizedImage, kind: "video", mimeType: "video/mp4", extension: "mp4", durationSeconds: 8 };
   const forbidFallback = async (args: Row) => { rawFallbackCalls.push(args); throw new Error("raw_fallback_must_not_run"); };
   const modules = new Map<string, Row>([
+    ["./aiMediaDirectVideoPipeline.ts", directVideo],
+    ["./aiMediaDirectAvatarDialogue.ts", { prepareAiMediaDirectAvatarDialogue: async (args: {request: contracts.AiMediaGenerationRequest}) => directVideo.buildAiMediaDirectVideoPlan(args.request) }],
     ["@/lib/aiMediaNativeDialogueQa", nativeQa],
     ["@/lib/aiMediaSensitiveText", sensitive],
     ["@/lib/aiMediaBusinessDna", real.load<Row>("lib/aiMediaBusinessDna.ts")],

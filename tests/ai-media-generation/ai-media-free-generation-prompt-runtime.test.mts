@@ -36,8 +36,20 @@ const profile = {
 const freeGeneratorSource = readFileSync(new URL("../../app/dashboard/_components/MediaFreeGenerator.tsx", import.meta.url), "utf8");
 const freeGeneratorStyles = readFileSync(new URL("../../app/dashboard/_components/MediaFreeGenerator.module.css", import.meta.url), "utf8");
 
+// These planner/visual-isolation fixtures exercise the supplied external narrator.
+// IA narration is native in the direct pipeline and has its own runtime coverage.
+function providedNarratorFixture() {
+  const timestamp = Date.now();
+  return { narrationVoiceMode: "provided" as const, narrationVoiceConsent: true,
+    narrationVoiceSample: { mimeType: "audio/wav" as const, name: "offline-narrator.wav", durationSeconds: 6, sizeBytes: 192_044,
+      path: "_studio-voice-references/" + new Date(timestamp).toISOString().slice(0, 10) + "/offline-test__" + timestamp + "__00000000-0000-4000-8000-000000000001.wav" } };
+}
+
 function request(overrides: Record<string, unknown> = {}) {
+  const externalNarrator = overrides.kind === "video" && overrides.withNarration === true && overrides.teamVideoSpeechMode !== "characters" &&
+    (typeof overrides.spokenScript !== "string" || Boolean(overrides.spokenScript.trim()));
   return contracts.normalizeAiMediaGenerationRequest({
+    ...(externalNarrator ? providedNarratorFixture() : {}),
     requestId: "free-prompt-runtime-0001", source: "studio", operation: "generate",
     creationMode: "free", kind: "image", freePrompt: "Un monde dessiné à la main, avec des baleines dans les nuages.",
     format: "story", ...overrides,

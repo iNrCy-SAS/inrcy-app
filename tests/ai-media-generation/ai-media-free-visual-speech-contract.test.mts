@@ -10,12 +10,22 @@ const narration = "Notre équipe prépare votre projet avec soin.";
 const direction = "La femme présente son agence en parlant à la caméra.";
 const action = "La femme parle face caméra et articule chaque mot, puis sourit en prenant son café.";
 
+// These planner/visual-isolation fixtures exercise the supplied external narrator.
+// IA narration is native in the direct pipeline and has its own runtime coverage.
+function providedNarratorFixture() {
+  const timestamp = Date.now();
+  return { narrationVoiceMode: "provided" as const, narrationVoiceConsent: true,
+    narrationVoiceSample: { mimeType: "audio/wav" as const, name: "offline-narrator.wav", durationSeconds: 6, sizeBytes: 192_044,
+      path: "_studio-voice-references/" + new Date(timestamp).toISOString().slice(0, 10) + "/offline-test__" + timestamp + "__00000000-0000-4000-8000-000000000001.wav" } };
+}
+
 function provider(engine: AiMediaVideoEngine, speech: "silent" | "voiceover" | "characters") {
   const model = getAiMediaVideoModel(engine);
   const request = normalizeAiMediaGenerationRequest({
     requestId: "visual-speech-contract-test", source: "studio", operation: "generate", creationMode: "free",
     kind: "video", videoEngine: engine, videoResolution: model.defaultResolution, format: "story",
     durationSeconds: 8, sceneMode: "single", freePrompt: "Une femme accompagne ses collègues et prend un café.",
+    ...(speech === "voiceover" ? providedNarratorFixture() : {}),
     withNarration: speech === "voiceover", withMusic: false,
     teamVideoSpeechMode: speech === "characters" ? "characters" : "voiceover",
     inspirationImages: model.supportsTextToVideo ? [] : [{ data: "A".repeat(64), mimeType: "image/png", role: "environment", usage: "required" }],

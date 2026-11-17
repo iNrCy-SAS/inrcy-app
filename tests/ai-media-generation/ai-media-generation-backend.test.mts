@@ -955,7 +955,7 @@ test("les médias IA verrouillent les textes visibles et la narration dans la la
   assert.match(narration, /hasAiLanguageMismatch\(language, value\)/);
   assert.match(
     server,
-    /const creativePlanTask =\s*isFreeCreation\s*\? measure\("free_creative_plan", async \(\) => \{[\s\S]*?if \(!useFreeDna\) return prepareAiMediaFreeCreativePlan\([\s\S]*?\}\)\s*: providerRequest\.withText \|\|[\s\S]*?teamVideoSpeechMode === "characters"/
+    /const creativePlanTask =\s*isDirectVideo\s*\? measure\("direct_video_inputs",[\s\S]*?prepareAiMediaDirectAvatarDialogue\([\s\S]*?:\s*isFreeCreation\s*\? measure\("free_creative_plan", async \(\) => \{[\s\S]*?if \(!useFreeDna\) return prepareAiMediaFreeCreativePlan\([\s\S]*?\}\)\s*: providerRequest\.withText \|\|[\s\S]*?teamVideoSpeechMode === "characters"/
   );
 });
 

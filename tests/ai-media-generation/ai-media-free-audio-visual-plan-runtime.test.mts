@@ -23,8 +23,20 @@ const profile = {
   preferences: { language: "fr" },
 } as unknown as NormalizedAiGenerationProfile;
 
+// These planner/visual-isolation fixtures exercise the supplied external narrator.
+// IA narration is native in the direct pipeline and has its own runtime coverage.
+function providedNarratorFixture() {
+  const timestamp = Date.now();
+  return { narrationVoiceMode: "provided" as const, narrationVoiceConsent: true,
+    narrationVoiceSample: { mimeType: "audio/wav" as const, name: "offline-narrator.wav", durationSeconds: 6, sizeBytes: 192_044,
+      path: "_studio-voice-references/" + new Date(timestamp).toISOString().slice(0, 10) + "/offline-test__" + timestamp + "__00000000-0000-4000-8000-000000000001.wav" } };
+}
+
 function request(overrides: Record<string, unknown> = {}) {
+  const externalNarrator = overrides.withNarration !== false && overrides.teamVideoSpeechMode !== "characters" &&
+    (typeof overrides.spokenScript !== "string" || Boolean(overrides.spokenScript.trim()));
   return contracts.normalizeAiMediaGenerationRequest({
+    ...(externalNarrator ? providedNarratorFixture() : {}),
     requestId: "audio-visual-plan-test-0001", source: "studio", operation: "generate", creationMode: "free",
     kind: "video", format: "story", videoEngine: "grok-lite", durationSeconds: 15, sceneMode: "single",
     freePrompt: "Une femme marche avec ses collègues dans une agence.", withNarration: true, withMusic: false,

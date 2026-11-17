@@ -1,3 +1,5 @@
+import * as directQuoteOptions from "../lib/aiMediaVideoClientOptions.ts";
+import * as directQuoteHeygenRoute from "../lib/aiMediaHeygenRoute.ts";
 import { adsComponentModules } from "./helpers/ads-component-runtime.mts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -32,7 +34,7 @@ const serverQuotes = compile(readFileSync(new URL("../lib/aiMediaCreditQuoteServ
   "./aiMediaCreditsPricing.ts": pricing,
   "./aiMediaCharacterVoices.ts": characterVoices,
   "./aiMediaExactDialogue.ts": exactDialogue,
-  "./aiMediaModelCatalog.ts": models,
+  "./aiMediaModelCatalog.ts": models, "./aiMediaVideoClientOptions.ts": directQuoteOptions, "./aiMediaHeygenRoute.ts": directQuoteHeygenRoute,
 }) as {
   createAiMediaServerQuote: (account: string, input: pricing.AiMediaCreditsQuoteInput) => Quote;
   quoteAiMediaRequest: (account: string, request: contracts.AiMediaGenerationRequest) => Quote;

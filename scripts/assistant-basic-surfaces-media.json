@@ -1202,7 +1202,7 @@
       "quoteMediaGeneration"
     ],
     "mode": "form",
-    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : props.kind === \"video\". Le devis natif courant (tarif v5) distingue audio natif Personnages et vidéo sans audio Veo quand la voix off est produite séparément. Montants lus du devis, jamais du seul libellé catalogue ; aucun ancien devis réutilisé après changement.",
+    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : props.kind === \"video\". Le devis natif courant (tarif v8) distingue paroles IA natives, personnages et narration réelle fournie externe. La sélection publique respecte le plafond de 16 crédits par seconde et les capacités réelles de résolution, format, photos originales et vocaux. Montants lus du devis, jamais du seul libellé catalogue ; aucun ancien devis réutilisé après changement.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -1218,7 +1218,7 @@
       },
       {
         "file": "tests/ai-media-generation/character-voice-credit-pricing.test.mts",
-        "testAnchor": "voice quotes preserve original references and charge only the free creative director, never a composed frame"
+        "testAnchor": "voice quotes preserve original references and charge only the fixed preparation and finishing fee, never a composed frame"
       },
       {
         "file": "tests/ai-media-generation/veo-gateway-routing-runtime.test.mts",
@@ -1239,13 +1239,13 @@
       "lib/aiMediaModelCatalog.ts",
       "lib/aiMediaCreditsPricing.ts"
     ],
-    "sourceAnchor": "<option key={option.value} value={option.value} disabled={!pairSelectable(option.engine, option.resolution)}>\n          {option.label} · {option.resolution} · {t(\"ai_generator_model_credit_rate_short\", { credits: new Intl.NumberFormat(locale).format(option.creditsPerSecond) })}\n          {!pairSelectable(option.engine, option.resolution) ? ` · ${videoCompatibilityReason(option.engine)}` : \"\"}\n          {recommendedPair?.value === option.value ? ` · ${t(\"ai_generator_model_recommended_short\")}` : \"\"}\n        </option>",
+    "sourceAnchor": "<option key={option.value} value={option.value} disabled={!pairSelectable(option.engine, option.resolution)}>\n          {option.label} · {option.resolution} · {t(\"ai_generator_model_credit_rate_short\", { credits: new Intl.NumberFormat(locale).format(option.creditsPerSecond) })}\n          {!pairSelectable(option.engine, option.resolution) ? ` · ${videoCompatibilityReason(option.engine, option.resolution)}` : \"\"}\n          {recommendedPair?.value === option.value ? ` · ${t(\"ai_generator_model_recommended_short\")}` : \"\"}\n        </option>",
     "capabilityId": "studio.quote",
     "toolNames": [
       "quoteMediaGeneration"
     ],
     "mode": "form",
-    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : props.kind === \"video\". Le devis natif courant (tarif v5) distingue audio natif Personnages et vidéo sans audio Veo quand la voix off est produite séparément. Montants lus du devis, jamais du seul libellé catalogue ; aucun ancien devis réutilisé après changement. Une valeur courante incompatible reste uniquement affichée disabled/Indisponible pour ne pas montrer un autre moteur par défaut. Cette option ne peut pas être choisie par le callback et n’autorise aucun devis ni génération ; le choix explicite d’un moteur compatible reste nécessaire.",
+    "notes": "Choix explicite d’un moteur et d’une qualité du catalogue public, puis devis natif v8 uniquement ; aucune génération. Les qualités de plus de 16 crédits/seconde sont absentes et les références originales restent soumises aux capacités du moteur. HeyGen cinématique en Carré/Portrait est résolu en 720p avant devis, tandis que les personnages photographiés parlants gardent Avatar 1080p. Une ancienne qualité retirée est normalisée hors opération en cours, sans changer de fournisseur. Les autres valeurs courantes incompatibles restent affichées désactivées avec une raison ; une option non sélectionnable ne déclenche aucun setter ni devis. Les photos multiples de Veo exigent des segments de huit secondes : une durée incompatible ne change pas silencieusement le moteur ou la durée, et les choix valides restent explicites. Le chemin serveur équivalent ne prétend pas modifier un écran monté.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts",
       "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts",
@@ -1255,7 +1255,7 @@
     "coverageStatus": "server_equivalent",
     "controlIds": [
       "app/dashboard/_components/MediaEngineCreditControls.tsx#option:73b995fe9ae912d0:1",
-      "app/dashboard/_components/MediaEngineCreditControls.tsx#option:c5a34ced5b0eda13:1"
+      "app/dashboard/_components/MediaEngineCreditControls.tsx#option:3a10705ba3112996:1"
     ],
     "additionalProofs": [
       {
@@ -1264,7 +1264,7 @@
       },
       {
         "file": "tests/ai-media-generation/character-voice-credit-pricing.test.mts",
-        "testAnchor": "voice quotes preserve original references and charge only the free creative director, never a composed frame"
+        "testAnchor": "voice quotes preserve original references and charge only the fixed preparation and finishing fee, never a composed frame"
       },
       {
         "file": "tests/ai-media-generation/veo-gateway-routing-runtime.test.mts",
@@ -1345,13 +1345,13 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaEngineCreditControls.tsx"
     ],
-    "sourceAnchor": "<select id={`${id}-duration`} value={`${duration}:${displayedSceneMode}`} disabled={props.disabled} onChange={(event) => {\n        const option = durationSceneOptions.find((candidate) => `${candidate.durationSeconds}:${candidate.sceneMode}` === event.target.value);\n        if (option) { changeDurationScene?.(option.durationSeconds, option.sceneMode); setDurationNotice(\"\"); }\n      }}>\n        {durationSceneOptions.map((option) => <option key={`${option.durationSeconds}:${option.sceneMode}`} value={`${option.durationSeconds}:${option.sceneMode}`}>{t(props.automaticSceneMode ? \"ai_generator_duration_seconds\" : option.sceneMode === \"single\" ? \"ai_generator_duration_scene_single\" : \"ai_generator_duration_scene_multi\", { seconds: option.durationSeconds })}</option>)}\n      </select>",
+    "sourceAnchor": "<select id={`${id}-duration`} value={`${duration}:${displayedSceneMode}`} disabled={props.disabled} onChange={(event) => {\n        const option = durationSceneOptions.find((candidate) => `${candidate.durationSeconds}:${candidate.sceneMode}` === event.target.value);\n        if (option) { changeDurationScene?.(option.durationSeconds, option.sceneMode); setDurationNotice(\"\"); }\n      }}>\n        {referenceDurationUnsupported ? <option value={`${duration}:${displayedSceneMode}`} disabled>{t(\"ai_generator_duration_seconds\", { seconds: duration })} · {t(\"ai_generator_model_unavailable_short\")}</option> : null}\n        {durationSceneOptions.map((option) => <option key={`${option.durationSeconds}:${option.sceneMode}`} value={`${option.durationSeconds}:${option.sceneMode}`}>{t(props.automaticSceneMode ? \"ai_generator_duration_seconds\" : option.sceneMode === \"single\" ? \"ai_generator_duration_scene_single\" : \"ai_generator_duration_scene_multi\", { seconds: option.durationSeconds })}</option>)}\n      </select>",
     "capabilityId": "studio.form",
     "toolNames": [
       "controlLocalInterface"
     ],
     "mode": "form",
-    "notes": "Le formulaire monté accepte la durée demandée en secondes ; le même catalogue que le sélecteur calcule le couple durée/plans en Studio. Le vrai callback doit commettre les deux valeurs avant acquittement. Verrous, moteur disponible, résolution, budget de paroles et droits restent contrôlés ; aucune génération ni autorisation implicite. Les parcours guidés gardent leur choix natif de scènes.",
+    "notes": "Le formulaire monté accepte la durée demandée en secondes ; le même catalogue que le sélecteur calcule le couple durée/plans en Studio. Le vrai callback doit commettre les deux valeurs avant acquittement. Verrous, moteur disponible, résolution, budget de paroles et droits restent contrôlés ; aucune génération ni autorisation implicite. Les parcours guidés gardent leur choix natif de scènes. Révision des capacités directes : HeyGen propose cinq à trente secondes ; Veo avec plusieurs photos propose huit ou seize secondes, chaque segment natif durant huit secondes. Une ancienne durée incompatible reste un libellé désactivé avec une explication traduite et attend un choix explicite ; le callback ne commet que durationSceneOptions. Aucun changement silencieux vers un autre moteur.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts"
     ],
@@ -1380,6 +1380,14 @@
       {
         "file": "tests/ai-assistant/media-tools.test.mts",
         "testAnchor": "a Studio cost question calls the native quote only and never accepts an existing draft"
+      },
+      {
+        "file": "tests/ai-media-generation/media-engine-unavailable-reasons-runtime.test.mts",
+        "testAnchor": "Veo with two original photos explains unsupported durations without silently changing another selected engine"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
+        "testAnchor": "Veo original-photo timing blocks the quote visibly until an explicit compatible duration is chosen"
       }
     ]
   },
@@ -1443,7 +1451,7 @@
       "quoteMediaGeneration"
     ],
     "mode": "form",
-    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel. Le devis natif courant (tarif v5) distingue audio natif Personnages et vidéo sans audio Veo quand la voix off est produite séparément. Montants lus du devis, jamais du seul libellé catalogue ; aucun ancien devis réutilisé après changement.",
+    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel. Le devis natif courant (tarif v8) distingue paroles IA natives, personnages et narration réelle fournie externe. La sélection publique respecte le plafond de 16 crédits par seconde et les capacités réelles de résolution, format, photos originales et vocaux. Montants lus du devis, jamais du seul libellé catalogue ; aucun ancien devis réutilisé après changement.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -1459,7 +1467,7 @@
       },
       {
         "file": "tests/ai-media-generation/character-voice-credit-pricing.test.mts",
-        "testAnchor": "voice quotes preserve original references and charge only the free creative director, never a composed frame"
+        "testAnchor": "voice quotes preserve original references and charge only the fixed preparation and finishing fee, never a composed frame"
       },
       {
         "file": "tests/ai-media-generation/veo-gateway-routing-runtime.test.mts",
@@ -1482,7 +1490,7 @@
       "quoteMediaGeneration"
     ],
     "mode": "form",
-    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : !status.ready ; status.loading ; quota?.creditsReady === false. Le devis natif courant (tarif v5) distingue audio natif Personnages et vidéo sans audio Veo quand la voix off est produite séparément. Montants lus du devis, jamais du seul libellé catalogue ; aucun ancien devis réutilisé après changement.",
+    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : !status.ready ; status.loading ; quota?.creditsReady === false. Le devis natif courant (tarif v8) distingue paroles IA natives, personnages et narration réelle fournie externe. La sélection publique respecte le plafond de 16 crédits par seconde et les capacités réelles de résolution, format, photos originales et vocaux. Montants lus du devis, jamais du seul libellé catalogue ; aucun ancien devis réutilisé après changement.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
@@ -1498,7 +1506,7 @@
       },
       {
         "file": "tests/ai-media-generation/character-voice-credit-pricing.test.mts",
-        "testAnchor": "voice quotes preserve original references and charge only the free creative director, never a composed frame"
+        "testAnchor": "voice quotes preserve original references and charge only the fixed preparation and finishing fee, never a composed frame"
       },
       {
         "file": "tests/ai-media-generation/veo-gateway-routing-runtime.test.mts",
@@ -2013,7 +2021,7 @@
       },
       {
         "file": "tests/ai-media-generation/ai-media-free-grok-voiceover-runtime.test.mts",
-        "testAnchor": "voiceover subtitles reach local composition with Exact words while the silent provider cannot draw duplicates"
+        "testAnchor": "provided offscreen narration is prepared before video; its exact local captions never duplicate native captions"
       },
       {
         "file": "tests/ai-media-generation/ai-media-video-composition-runtime.test.mts",
@@ -2030,6 +2038,10 @@
       {
         "file": "tests/ai-assistant/studio-exact-dialogue-native.test.mts",
         "testAnchor": "the Exact native form follows editable global speech choices while keeping speaker numbers and structured budgets"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-free-grok-voiceover-runtime.test.mts",
+        "testAnchor": "native exact narration keeps its words and selected speaker settings without synthesizing another voice"
       }
     ]
   },
@@ -15429,7 +15441,7 @@
       "app/dashboard/_components/MediaFreeGenerator.tsx#button:a89e5c7563f605be:1",
       "app/dashboard/_components/MediaFreeGenerator.tsx#button:5b28ef8b6e55cab2:1"
     ],
-    "notes": "studio_media_images.open(role:inspiration|character|environment|product) déduit le rôle avant ajout, sans select À ajouter. Snapshot open+pendingReferenceRole confirmé ; open(null) ouvre Inspiration. Nouvelles inspirations facultatives, trois autres rôles Obligatoires, existants conservés. Fenêtre Importer/Médiathèque fermée après ajout réussi ; limites, compte et verrou natifs. Aucune importation, génération, identité fidèle ou voix autorisée implicitement. Un template natif présente quatre choix, sans inventer quatre contrôles par image ou compte. En mode Personnages, Ajouter un personnage depuis les réglages Voix ouvre ce même parcours d’ajout ; aucune photo nécessaire à une voix off réelle. Le rôle Personnage obligatoire reste attaché à l’image maître même avec identité automatique. Le contrat distingue identités et nombre de fichiers/plans : pas de double involontaire dans un même cadre, groupes conservés. Ceci renforce les consignes ; seul un contrôle visuel du résultat peut confirmer sa qualité.",
+    "notes": "studio_media_images.open(role:inspiration|character|environment|product) déduit le rôle avant ajout, sans select À ajouter. Snapshot open+pendingReferenceRole confirmé ; open(null) ouvre Inspiration. Nouvelles inspirations facultatives, trois autres rôles Obligatoires, existants conservés. Fenêtre Importer/Médiathèque fermée après ajout réussi ; limites, compte et verrou natifs. Aucune importation, génération, identité fidèle ou voix autorisée implicitement. Un template natif présente quatre choix, sans inventer quatre contrôles par image ou compte. En mode Personnages, Ajouter un personnage depuis les réglages Voix ouvre ce même parcours d’ajout ; aucune photo nécessaire à une voix off réelle. Le rôle Personnage reste attaché à sa photo originale même avec identité automatique. Les originaux, leurs rôles et les droits du compte sont transmis directement ; aucun cadre synthétique ne remplace les médias. Le contrat distingue identités et nombre de fichiers/plans : pas de double involontaire dans un même cadre, groupes conservés. Ceci renforce les consignes ; seul un contrôle visuel du résultat peut confirmer sa qualité.",
     "testFiles": [
       "tests/ai-assistant/studio-native-form-controls.test.mts",
       "tests/ai-media-generation/ai-media-free-character-voice-ui-runtime.test.mts",
@@ -15446,16 +15458,20 @@
         "testAnchor": "the compact Image panel retains 4000 characters, four role launchers and real assistant focus without video audio controls"
       },
       {
-        "file": "tests/ai-media-generation/ai-media-free-identity-auto-master-frame-runtime.test.mts",
-        "testAnchor": "essential Free auto identity retains a required character master frame and the real cast rule in both available-engine shots"
+        "file": "tests/ai-media-generation/ai-media-free-grok-voiceover-runtime.test.mts",
+        "testAnchor": "original product and character references keep their roles, bytes and account consent in direct Free"
       },
       {
-        "file": "tests/ai-media-generation/ai-media-free-identity-auto-master-frame-runtime.test.mts",
-        "testAnchor": "one required group photo retains its full data and distinct people without treating one master frame as one person"
+        "file": "tests/ai-media-generation/ai-media-free-generation-prompt-runtime.test.mts",
+        "testAnchor": "the video cast rule preserves group photos and repeated reference identities without overriding explicit creative copies"
       },
       {
         "file": "tests/ai-media-generation/ai-media-free-generation-prompt-runtime.test.mts",
         "testAnchor": "one required portrait keeps one distinct identity per frame through the real planner first frame and both available-engine shots"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-direct-video-pipeline-runtime.test.mts",
+        "testAnchor": "the actual Free prompt adaptor starts with the unchanged brief and forwards exact words and original role labels"
       }
     ]
   },

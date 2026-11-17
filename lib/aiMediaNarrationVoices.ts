@@ -37,3 +37,25 @@ export function isAiMediaNarrationVoiceVariantForGender(
     )
   );
 }
+
+export function getAiMediaNativeNarrationTone(variant: AiMediaNarrationVoiceVariant | null | undefined): string {
+  switch (variant) {
+    case "Kore": return "confident, composed and professional";
+    case "Aoede": return "natural, fluid and spontaneous";
+    case "Sulafat": return "warm, gentle and welcoming";
+    case "Charon": return "calm, clear and informative";
+    case "Orus": return "assertive, direct and professional";
+    case "Puck": return "upbeat, positive and energetic";
+    default: return "natural and professional";
+  }
+}
+
+/** These selections are style directions, not proprietary voice identities or clones. */
+export function buildAiMediaNativeNarratorVoiceDirection(input: {
+  narrationVoice?: "female" | "male" | null;
+  narrationVoiceVariant?: AiMediaNarrationVoiceVariant | null;
+  narrationVoiceGender?: "auto" | "female" | "male";
+}): string {
+  const gender = input.narrationVoice || (input.narrationVoiceGender === "female" || input.narrationVoiceGender === "male" ? input.narrationVoiceGender : "");
+  return (gender ? gender + " " : "") + "off-screen narrator; " + getAiMediaNativeNarrationTone(input.narrationVoiceVariant) + " tone; keep one consistent voice across clips.";
+}

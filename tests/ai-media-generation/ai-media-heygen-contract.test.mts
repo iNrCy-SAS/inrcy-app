@@ -1,3 +1,5 @@
+import * as directQuoteOptions from "../../lib/aiMediaVideoClientOptions.ts";
+import * as directQuoteHeygenRoute from "../../lib/aiMediaHeygenRoute.ts";
 import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -52,6 +54,8 @@ function quoteServer() {
     if (id === "./aiMediaExactDialogue.ts") return exactDialogue;
     if (id === "./aiMediaCharacterVoices.ts") return characterVoices;
     if (id === "./aiMediaModelCatalog.ts") return models;
+  if (id === "./aiMediaVideoClientOptions.ts") return directQuoteOptions;
+  if (id === "./aiMediaHeygenRoute.ts") return directQuoteHeygenRoute;
     throw new Error(`Unisolated quote dependency: ${id}`);
   });
   return record.exports;

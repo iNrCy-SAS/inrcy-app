@@ -49,7 +49,8 @@ test("le bandeau propose les combinaisons valides et le bloc 3 reste consacré a
   assert.match(controls, /durationSceneOptions\.map\(\(option\) => <option/);
   assert.match(controls, /closestDurationSceneOption\(options, duration, sceneMode\)/);
   const modelAvailability = controls.slice(controls.indexOf("const pairSelectable"), controls.indexOf("const selectable"));
-  assert.doesNotMatch(modelAvailability, /duration|canGenerateAiMediaVideoDuration/);
+  assert.match(modelAvailability, /isMediaVideoReferenceCompatible\(engine, props\.referenceCount,[\s\S]*?durationSeconds: duration, videoResolution: resolution, sceneMode/);
+  assert.doesNotMatch(modelAvailability, /changeDurationScene|onDurationSceneChange|setDurationSeconds/, "availability checks never silently mutate the requested duration");
   assert.match(modelAvailability, /isMediaVideoReferenceCompatible/);
   assert.match(modelAvailability, /isMediaVideoBriefCompatible/);
   assert.match(styles, /data-direction-control="format"\] \{ grid-column:1;grid-row:2; \}/);

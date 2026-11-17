@@ -21,7 +21,7 @@ test("le type reste dans le header et les combinaisons durée/scènes dans le ba
   assert.doesNotMatch(source.slice(directionCard), /<MediaVideoDurationSelect|styles\.sceneModeChoices/);
   assert.match(source, /onDurationSceneChange=\{\(seconds, mode\) => \{ setDurationSeconds\(seconds\); setVideoSceneMode\(mode\); \}\}/);
   assert.match(source, /<MediaGenerationActions>[\s\S]*?\{engineControls\}/);
-  assert.match(controls, /availableDurationOptions\(props\.videoEngine, selectedResolution, maximumDuration, props\.automaticSceneMode\)/);
+  assert.match(controls, /availableDurationOptions\(props\.videoEngine, selectedResolution, maximumDuration, props\.automaticSceneMode, props\.referenceCount\)/);
   assert.match(controls, /value=\{`\$\{duration\}:\$\{displayedSceneMode\}`\}/);
   const automatic = getAutomaticMediaVideoDurationOptions("wan3", "720p");
   assert.equal(new Set(automatic.map(option => option.durationSeconds)).size, automatic.length);

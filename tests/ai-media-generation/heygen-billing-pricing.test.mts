@@ -95,3 +95,12 @@ test("an Auto visual brief and genuine external voiceover quotes retain their se
  const freePrompt="Une personne dit : « "+"mot ".repeat(100).trim()+" ».";
  assert.equal(quoteAiMediaCredits({...base,teamVideoSpeechMode:"voiceover",withNarration:true,freePrompt}).totalCredits,135);
 });
+
+test("cinematic HeyGen retains the selected duration even when inline character copy would lengthen an avatar",()=>{
+ const freePrompt="Une équipe dit : « "+"mot ".repeat(100).trim()+" » dans un jardin.";
+ for(const input of [{...base,inspirationImagesCount:0,inspirationImages:[],freePrompt},{...base,inspirationImages:[{role:"decor"}],freePrompt}]){
+  const quote=quoteAiMediaCredits(input);
+  assert.equal(quote.billableDurationSeconds,8);assert.equal(quote.totalCredits,135);
+  assert.equal(estimateAiMediaVideoSupplierCostMicroUsd(input),1280000);
+ }
+});

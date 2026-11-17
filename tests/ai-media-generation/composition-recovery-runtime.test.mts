@@ -94,6 +94,7 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
     "./aiMediaPendingVideo.ts": pending,
     "./aiVideoHeygenApi.ts": { createHeygenApiClient: () => ({
       getVideo: async (id: string) => { events.push(`provider-get:${id}`); if (options.providerStatusFails) throw new Error("private upstream transport"); return { id, status: options.providerState || "processing", durationSeconds: options.providerDuration ?? 8, videoUrl: "https://resource2.heygen.ai/paid.mp4" }; },
+      getCinematicVideo: async (id: string) => { events.push(`cinematic-get:${id}`); if (options.providerStatusFails) throw new Error("private upstream transport"); return { id, status: options.providerState || "processing", durationSeconds: options.providerDuration ?? 8, videoUrl: "https://resource2.heygen.ai/paid.mp4", width:768, height:1344 }; },
       downloadVideo: async () => { events.push("provider-download"); return Buffer.from("paid-heygen-mp4"); },
     }) },
     "./aiVideoProviderHeygen.ts": { cleanupHeygenTemporaryResources: async () => { events.push("provider-cleanup"); } },
@@ -498,4 +499,39 @@ test("a provider receipt can be completed with its requested native captions und
   assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"completed");
   assert.equal(h.composed!.subtitles!.source,"native");assert.equal(h.composed!.nativeAudioMode,"dialogue");assert.equal(h.composed!.narration,null);
   assert.equal(h.events.filter(event=>event==="receipt-cas").length,1);assert.equal(h.events.filter(event=>event==="provider-download").length,1);
+});
+
+test("cinematic pending jobs poll their own model endpoint and fill the final canvas without changing avatar framing", async () => {
+  const h=harness({providerState:"completed"});
+  await h.runtime.persistAiMediaCompositionCheckpoint({accountId,jobId,authUserId,
+    input:{...input,narration:null,nativeAudioMode:"dialogue",preserveComposition:true},
+    pendingProvider:{...pendingTask(),model:"heygen-video-1"},
+    metadata:{provider:"heygen-direct",model:"heygen-video-1",video_engine:"heygen-avatar",video_finishing_requested:true}});
+  const manifest=JSON.parse([...h.objects.entries()].find(([key])=>key.endsWith("manifest.json"))![1].toString());
+  assert.equal(manifest.pendingProvider.model,"heygen-video-1");assert.equal(manifest.preserveComposition,false);
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"completed");
+  assert.equal(h.events.filter(event=>event==="cinematic-get:accepted-video").length,1);
+  assert.ok(!h.events.some(event=>event.startsWith("provider-get:")));
+  assert.equal(h.composed?.preserveComposition,false);assert.equal(h.composed?.nativeAudioMode,"dialogue");
+  assert.equal(h.events.filter(event=>event==="provider-download").length,1);
+});
+test("cinematic recovery reports the provider's real dimensions when optional finishing is not requested", async () => {
+  const h=harness({providerState:"completed"});
+  await h.runtime.persistAiMediaCompositionCheckpoint({accountId,jobId,authUserId,
+    input:{...input,narration:null,nativeAudioMode:"dialogue"},
+    pendingProvider:{...pendingTask(),model:"heygen-video-1"},
+    metadata:{provider:"heygen-direct",model:"heygen-video-1",video_engine:"heygen-avatar",video_resolution:"720p",video_finishing_requested:false}});
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"completed");
+  assert.equal((h.media as unknown as {width:number}).width,768);
+  assert.equal((h.media as unknown as {height:number}).height,1344);
+  assert.ok(!h.events.includes("compose"));assert.equal(h.events.filter(event=>event==="provider-download").length,1);
+});
+test("cinematic polling preserves the accepted ID across normal pending checks and never resubmits", async () => {
+  const h=harness({providerState:"processing"});
+  await h.runtime.persistAiMediaCompositionCheckpoint({accountId,jobId,authUserId,
+    input:{...input,narration:null,nativeAudioMode:"dialogue"},
+    pendingProvider:{...pendingTask(),model:"heygen-video-1"},metadata:{provider:"heygen-direct",model:"heygen-video-1",video_engine:"heygen-avatar"}});
+  for(let index=0;index<4;index++)assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status,"retry_pending");
+  assert.equal(h.events.filter(event=>event==="cinematic-get:accepted-video").length,4);
+  assert.ok(!h.events.some(event=>["compose","save","complete","fail","provider-cleanup"].includes(event)));
 });

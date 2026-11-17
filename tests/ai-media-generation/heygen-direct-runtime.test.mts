@@ -1,3 +1,4 @@
+import * as nativeNarrationVoices from "../../lib/aiMediaNarrationVoices.ts";
 import assert from "node:assert/strict";
 import * as crypto from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -6,6 +7,9 @@ import test from "node:test";
 import ts from "typescript";
 import * as pending from "../../lib/aiMediaPendingVideo.ts";
 import * as billing from "../../lib/aiMediaHeygenBilling.ts";
+import * as routes from "../../lib/aiMediaHeygenRoute.ts";
+import * as boundary from "../../lib/aiMediaVideoProviderContract.ts";
+import type * as Cinematic from "../../lib/aiVideoHeygenCinematic.ts";
 import * as catalog from "../../lib/aiMediaModelCatalog.ts";
 import * as types from "../../lib/aiVideoProviderTypes.ts";
 import { getAiMediaGenerationPublicError, isAiMediaProviderBillingFailure } from "../../lib/aiMediaGenerationPublicErrors.ts";
@@ -99,15 +103,19 @@ test("an accepted voice is tracked before its activation check and a failed clon
 });
 
 function args(): types.AiVideoProviderGenerationArgs {
-  return { accountId: "account-1", jobId: "job-1", canonicalPromptSha256: "a".repeat(64), contentLanguage: "fr", brandColors: ["#123456"],
-    request: { videoEngine: "heygen-avatar", format: "story", durationSeconds: 16, videoResolution: "720p", teamVideoSpeechMode: "characters", withNarration: false,
+  const result = { accountId: "account-1", jobId: "job-1", canonicalPromptSha256: "a".repeat(64), contentLanguage: "fr", brandColors: ["#123456"],
+    request: { creationMode: "free", operation: "generate", kind: "video", videoEngine: "heygen-avatar", freePrompt: "David et Kathia dans un jardin.", format: "story", durationSeconds: 16, videoResolution: "720p", teamVideoSpeechMode: "characters", withNarration: false,
       inspirationImages: [{ role: "character", characterIndex: 2, voiceMode: "provided" }, { role: "environment" }, { role: "character", characterIndex: 1, voiceMode: "provided" }],
       exactDialogue: [{ speaker: "character", characterIndex: 1, text: "Bonjour, je suis David." }, { speaker: "character", characterIndex: 2, text: "Bonjour, je suis Kathia." }] },
     plan: { scenes: [{ visualBrief: "Jardin", spokenTurns: [{ reference: 3, text: "David" }, { reference: 1, text: "Kathia" }] }] },
   } as unknown as types.AiVideoProviderGenerationArgs;
+  result.canonicalPrompt="offline canonical prompt";result.canonicalPromptSha256=boundary.hashAiMediaCanonicalPrompt(result.canonicalPrompt);
+  result.providerContract=boundary.buildAiMediaVideoProviderContract({request:result.request,durationSeconds:16,brandColors:[]});
+  return result;
 }
 function providerHarness(options: { submission?: "rejected" | "uncertain"; invalidTemporaryIds?: boolean } = {}) {
   const events: string[] = [], submitted: Array<{ scenes: Api.HeygenStudioScene[] }> = [];
+  const cinematicSubmitted: Api.HeygenCinematicVideoRequest[] = [];
   const audioUploads: Buffer[] = [], clonedVoices: string[] = [], signedImages: Array<unknown[]> = [];
   const reservations: Array<{estimatedCostMicroUsd:number}> = [], commits: Array<{actualCostMicroUsd:number}> = [];
   const client = {
@@ -118,20 +126,23 @@ function providerHarness(options: { submission?: "rejected" | "uncertain"; inval
     publicVoices: async () => { events.push("public-voices"); return ["ai-voice"]; },
     publicAvatar: async () => "public-avatar",
     submitVideo: async (input: { scenes: Api.HeygenStudioScene[] }) => { submitted.push(input); if (options.submission) throw new api.HeygenApiError(options.submission === "rejected" ? 402 : 503, "request_failed", options.submission === "uncertain"); return "video-1"; },
+    submitCinematicVideo: async (input: Api.HeygenCinematicVideoRequest) => { cinematicSubmitted.push(input); return "cinematic-1"; },
     deleteVoice: async (id: string) => { events.push(`delete:${id}`); }, deleteAvatarGroup: async (id: string) => { events.push(`delete:${id}`); }, deleteAsset: async (id: string) => { events.push(`delete:${id}`); },
   };
-  const provider = load<typeof Provider>("aiVideoProviderHeygen.ts", {
+  const dependencies = {
     "node:crypto": crypto, "@/lib/aiGatewayAccountGuard": {
       reserveAiGatewayAccountAttempt: async (_account:string,input:{estimatedCostMicroUsd:number}) => { reservations.push(input); events.push("reserve"); return {}; },
       commitAiGatewayAccountAttempt: async (input:{actualCostMicroUsd:number}) => { commits.push(input); events.push("commit"); }, rollbackAiGatewayAccountAttempt: async () => { events.push("rollback"); }, recordAiGatewayAccountFailure: async () => {},
     }, "./aiVideoHeygenApi.ts": { ...api, createHeygenApiClient: () => client }, "./aiMediaPendingVideo.ts": pending,
-    "./aiVideoHeygenBackground.ts": { prepareHeygenBackground: async () => Buffer.from("garden"), prepareHeygenAvatarImage: async (buffer:Buffer) => buffer, createHeygenSilenceWav: (duration:number) => Buffer.from("silence:"+duration) },
+    "./aiVideoHeygenBackground.ts": { prepareHeygenBackground: async () => { events.push("background"); return Buffer.from("garden"); }, prepareHeygenAvatarImage: async (buffer:Buffer) => buffer, createHeygenSilenceWav: (duration:number) => Buffer.from("silence:"+duration) },
     "./aiMediaIdentityReferences.ts": { prepareAiMediaIdentityReferences: async (images:unknown[]) => ({ buffers: images.map((_,i)=>Buffer.from(i===1?"garden":i===0?"person2":i===2?"person1":"person3")) }) },
     "./aiMediaCharacterVoiceStorage.ts": { getAiMediaCharacterVoiceSignedUrls: async (input:{images:Array<{voiceMode?:string}>}) => { signedImages.push(input.images); return input.images.map((image,i)=>image.voiceMode==="provided"?"voice"+(i===0?2:i===2?1:3):null); } },
     "./aiMediaHeygenBilling.ts": billing,
     "./aiMediaModelCatalog.ts": catalog, "./aiVideoProviderTypes.ts": { ...types, assertAiVideoReferenceTeamProviderEgress: () => {} },
-  });
-  return { provider, submitted, events, audioUploads, clonedVoices, signedImages, reservations, commits };
+  };
+  const cinematic=load<typeof Cinematic>("aiVideoHeygenCinematic.ts", {...dependencies,"./aiMediaHeygenRoute.ts":routes,"./aiMediaVideoProviderContract.ts":boundary,"./aiMediaNarrationVoices.ts":nativeNarrationVoices});
+  const provider=load<typeof Provider>("aiVideoProviderHeygen.ts", {...dependencies,"./aiMediaHeygenRoute.ts":routes,"./aiVideoHeygenCinematic.ts":cinematic});
+  return { provider, submitted, cinematicSubmitted, events, audioUploads, clonedVoices, signedImages, reservations, commits };
 }
 
 test("dialogue slots keep their own original photo and voice even when references are reordered around a decor", async () => {
@@ -151,7 +162,8 @@ test("dialogue slots keep their own original photo and voice even when reference
   assert.ok(scenes.every(scene => scene.input.background?.source.asset_id === "garden"));
   assert.ok(scenes.every(scene => scene.input.motion_prompt === undefined));
   assert.ok(!h.events.includes("public-voices"));
-  assert.deepEqual(h.events, ["reserve","ready:avatar-person1","ready:avatar-person2","commit"]);
+  assert.deepEqual(h.events, ["reserve","background","ready:avatar-person1","ready:avatar-person2"]);
+  assert.equal(h.commits.length,0,"the accepted ID reaches the caller before accounting");
 });
 
 test("automatic two-person turns preserve attribution; an unbound speaker never spends", () => {
@@ -225,34 +237,29 @@ test("HeyGen support metrics read only a bounded window and exclude unexpected p
   assert.equal(h.provider.buildHeygenDialogueTurns(input).length,14);
  });
 
-test("external voiceover keeps both original portraits in their garden as silent avatar scenes",async()=>{
+test("external voiceover sends both original portraits and decor to cinematic reference video",async()=>{
  const h=providerHarness(),input=args();delete input.request.exactDialogue;
  input.request.teamVideoSpeechMode="voiceover";input.request.withNarration=false;
  await assert.rejects(h.provider.heygenAiVideoProvider.generate(input),error=>{
   assert.ok(pending.isAiVideoProviderPending(error));assert.equal(error.task.temporaryVoiceIds.length,0);
-  assert.equal(error.task.temporaryAssetIds.length,4);return true;
+  assert.equal(error.task.model,"heygen-video-1");assert.equal(error.task.temporaryAssetIds.length,3);return true;
  });
- const scenes=h.submitted[0].scenes;
- assert.deepEqual(scenes.map(scene=>scene.type==="avatar_video"?scene.input.avatar_id:null),["avatar-person2","avatar-person1"]);
- for(const scene of scenes){assert.equal(scene.type,"avatar_video");if(scene.type!=="avatar_video")continue;
-  assert.equal(scene.input.audio_asset_id,"silence");assert.equal(scene.input.script,undefined);assert.equal(scene.input.voice_id,undefined);
-  assert.equal(scene.input.background?.source.asset_id,"garden");assert.equal(scene.input.remove_background,true);
- }
- assert.equal(h.audioUploads.length,1);assert.equal(h.audioUploads[0].toString(),"silence:8");
- assert.equal(h.clonedVoices.length,0);assert.ok(!h.events.includes("public-voices"));
- assert.ok(h.signedImages[0].every(image=>(image as {voiceMode?:string}).voiceMode==="ai"));
- assert.equal(h.submitted.length,1);
+ assert.equal(h.submitted.length,0);assert.equal(h.cinematicSubmitted.length,1);
+ const submitted=h.cinematicSubmitted[0];assert.equal(submitted.mode,"reference_to_video");
+ assert.deepEqual(submitted.reference_images,[{type:"asset_id",asset_id:"person2"},{type:"asset_id",asset_id:"garden"},{type:"asset_id",asset_id:"person1"}]);
+ assert.equal(h.audioUploads.length,0);assert.equal(h.clonedVoices.length,0);assert.equal(h.signedImages.length,0);
+ assert.ok(!h.events.includes("public-voices")&&!h.events.includes("background"));
 });
 
-test("three silent portraits share one audio asset and stay inside the private cleanup five-asset limit",async()=>{
+test("three offscreen portraits keep their original references without avatar or silence assets",async()=>{
  const h=providerHarness(),input=args();delete input.request.exactDialogue;
  input.request.teamVideoSpeechMode="voiceover";input.request.withNarration=false;
  input.request.inspirationImages.push({role:"character",characterIndex:3,voiceMode:"provided",data:"A".repeat(64),mimeType:"image/png"});
  await assert.rejects(h.provider.heygenAiVideoProvider.generate(input),error=>{
   assert.ok(pending.isAiVideoProviderPending(error));assert.ok(pending.isAiMediaPendingVideo(error.task));
-  assert.equal(error.task.temporaryAvatarGroupIds.length,3);assert.equal(error.task.temporaryAssetIds.length,5);return true;
+  assert.equal(error.task.temporaryAvatarGroupIds.length,0);assert.equal(error.task.temporaryAssetIds.length,4);return true;
  });
- assert.equal(h.submitted[0].scenes.length,3);assert.equal(h.audioUploads.length,1);assert.equal(h.clonedVoices.length,0);
+ assert.equal(h.submitted.length,0);assert.equal(h.cinematicSubmitted.length,1);assert.equal(h.audioUploads.length,0);assert.equal(h.clonedVoices.length,0);
 });
 
 test("a silent exact-dialogue tail keeps both portraits visible instead of requiring an invented speaker",async()=>{
@@ -275,11 +282,13 @@ test("an exact offscreen AI turn remains separate from the two real speakers wit
  assert.equal(h.audioUploads.length,0);assert.equal(h.clonedVoices.length,2);
 });
 
-test("voiceover without a portrait keeps its decor and does not create an unrequested public avatar",async()=>{
+test("voiceover without a portrait generates a native moving scene instead of a still image or public avatar",async()=>{
  const h=providerHarness(),input=args();delete input.request.exactDialogue;
  input.request.teamVideoSpeechMode="voiceover";input.request.withNarration=false;input.request.inspirationImages=[];
  await assert.rejects(h.provider.heygenAiVideoProvider.generate(input),pending.isAiVideoProviderPending);
- assert.deepEqual(h.submitted[0].scenes,[{type:"image",source:{type:"asset_id",asset_id:"garden"},duration:16}]);
+ assert.equal(h.submitted.length,0);assert.equal(h.cinematicSubmitted.length,1);
+ assert.equal(h.cinematicSubmitted[0].mode,"text_to_video");assert.equal(h.cinematicSubmitted[0].resolution,"768p");
+ assert.equal(h.cinematicSubmitted[0].aspect_ratio,"9:16");assert.ok(!h.events.includes("background"));
  assert.equal(h.audioUploads.length,0);assert.equal(h.clonedVoices.length,0);assert.ok(!h.events.includes("public-voices"));
 });
 
@@ -287,10 +296,12 @@ test("supplier reservation uses the actual prepared Auto words instead of the se
  const h=providerHarness(),input=args();delete input.request.exactDialogue;
  input.request.durationSeconds=8;input.request.videoResolution="1080p";
  const text="Bonjour à tous. ".repeat(50);input.plan.scenes[0].spokenTurns=[{reference:3,speaker:"David",text}];
+ let accepted: pending.AiVideoProviderPending | undefined;
  await assert.rejects(h.provider.heygenAiVideoProvider.generate(input),error=>{
-  assert.ok(pending.isAiVideoProviderPending(error));assert.equal(error.task.estimatedCostMicroUsd,12_160_000);return true;
+  assert.ok(pending.isAiVideoProviderPending(error));accepted=error;assert.equal(error.task.estimatedCostMicroUsd,12_160_000);return true;
  });
- assert.equal(h.reservations[0].estimatedCostMicroUsd,12_160_000);assert.equal(h.commits[0].actualCostMicroUsd,12_160_000);
+ assert.equal(h.reservations[0].estimatedCostMicroUsd,12_160_000);assert.equal(h.commits.length,0,"accepted ID is exposed before supplier accounting awaits");
+ await accepted!.recordAcceptance();assert.equal(h.commits[0].actualCostMicroUsd,12_160_000);
  assert.equal(h.submitted.length,1);const scene=h.submitted[0].scenes[0];assert.equal(scene.type,"avatar_video");
  if(scene.type==="avatar_video")assert.equal(scene.input.script,text);
 });

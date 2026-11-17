@@ -73,11 +73,17 @@
   },
   "app/dashboard/_components/MediaEngineCreditControls.tsx": {
     "disposition": "basic",
-    "reason": "Révision explicite : avec des vocaux de personnages, le sélecteur montre les moteurs autorisés du catalogue actif, Wan 2.7 et Kling Omni, avec leurs qualités. Le changement explicite conserve les setters natifs, l'ajustement de durée et la remise à zéro du consentement par l'appelant ; aucun débit ni envoi de média par cette sélection. Sans vocal personnel, le catalogue courant reste proposé.",
+    "reason": "Révision explicite des contrôles natifs de moteur, qualité et durée : catalogue public au plus 16 crédits/seconde, résolution HeyGen adaptée au format avant devis, photos originales dans la capacité réelle et trois vocaux maximum. Les qualités courantes retirées sont normalisées hors opération, les incompatibilités de durée/références restent visibles et attendent un choix explicite ; aucun autre fournisseur ni débit. Avec des vocaux de personnages, Wan 2.7, Kling Omni 720p et HeyGen Avatar restent soumis aux capacités et consentements du compte. Les setters et callbacks de durée natifs sont conservés, sans génération ni autorisation implicite.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
-    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+    "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+    "exclusions": {
+      "app/dashboard/_components/MediaEngineCreditControls.tsx#option:9deabac3d3697e6e:1": {
+        "reason": "Option toujours désactivée : elle affiche une ancienne durée Veo devenue incompatible avec les photos, sans constituer une action sélectionnable. Le onChange du select ne commet que les valeurs présentes dans durationSceneOptions ; une valeur héritée absente ne peut pas déclencher de setter, de devis ou de génération.",
+        "gateAnchor": "<option value={`${duration}:${displayedSceneMode}`} disabled>"
+      }
+    }
   },
   "app/dashboard/_components/MediaFreeGenerator.tsx": {
     "disposition": "basic",

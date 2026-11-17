@@ -67,7 +67,7 @@ import useMediaCreditQuote from "../_hooks/useMediaCreditQuote";
 import MediaEngineCreditControls, { isMediaVideoReferenceCompatible, MediaCreditQuoteSummary, MediaGenerationActions } from "./MediaEngineCreditControls";
 import { getAiMediaVideoModel, getAiMediaVideoModelForCharacterVoice, isAiMediaImageModelCompatible } from "@/lib/aiMediaModelCatalog";
 import { canGenerateAiMediaVideoDuration } from "@/lib/aiMediaVideoTimeline";
-import { getMediaVideoDurationChoices, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
+import { getMediaVideoDurationChoices, getMediaVideoContextResolution, getAiMediaVideoReferenceCompatibilityIssue, isMediaVideoBriefCompatible } from "@/lib/aiMediaVideoClientOptions";
 import { recommendAiMediaModel } from "@/lib/aiMediaModelRecommendation";
 
 import styles from "./MediaGenerator.module.css";
@@ -408,8 +408,15 @@ export default function MediaGenerator({
   const selectedVideoEngine = characterVoiceSelection.hasProvidedVoice && !isAiMediaCharacterVoiceEngine(enginePreference.videoEngine)
     ? "wan27" : enginePreference.videoEngine;
   const videoModel = getAiMediaVideoModelForCharacterVoice(selectedVideoEngine, characterVoiceSelection.hasProvidedVoice);
-  const videoResolution = videoModel.resolutions.includes(enginePreference.videoResolution)
-    ? enginePreference.videoResolution : videoModel.defaultResolution;
+  const hasCharacterReferences = mediaSourceMode === "real" && inspirationImages.some(reference => reference.role === "character");
+  const videoResolution = getMediaVideoContextResolution(selectedVideoEngine, enginePreference.videoResolution,
+    { format, teamVideoSpeechMode, hasCharacterReferences });
+  const preferredVideoResolution = enginePreference.videoResolution;
+  const updateEnginePreference = enginePreference.update;
+  useEffect(() => {
+    if (kind !== "video" || operationLocked || generationResult || recoveryPending || videoResolution === preferredVideoResolution) return;
+    updateEnginePreference({ videoEngine: selectedVideoEngine, videoResolution });
+  }, [kind, operationLocked, generationResult, recoveryPending, videoResolution, preferredVideoResolution, selectedVideoEngine, updateEnginePreference]);
   const characterVoiceSpeechConflict = characterVoiceSelection.hasProvidedVoice && teamVideoSpeechMode !== "characters";
   const activeVoiceReferences = kind === "video" && mediaSourceMode === "real" ? inspirationImages : [];
   const wan3VoiceDurationExceeded = exceedsAiMediaCharacterVoiceEngineDuration("wan3", activeVoiceReferences);
@@ -696,7 +703,10 @@ export default function MediaGenerator({
     kind === "video" && effectiveIdentityMode === "reference_team";
   const effectiveWithNarration = kind === "video" && !animatedCharactersSpeak;
   const referenceCount = mediaSourceMode === "real" ? inspirationImages.length : 0;
-  const referenceCompatible = kind === "video" ? isMediaVideoReferenceCompatible(selectedVideoEngine, referenceCount, characterVoiceSelection.hasProvidedVoice) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: referenceCount });
+  const providedCharacterVoicesCount = activeVoiceReferences.filter(reference => reference.voiceMode === "provided" && reference.voiceSample).length;
+  const referenceCompatible = kind === "video" ? isMediaVideoReferenceCompatible(selectedVideoEngine, referenceCount, characterVoiceSelection.hasProvidedVoice, providedCharacterVoicesCount) : isAiMediaImageModelCompatible({ engine: enginePreference.imageEngine, operation: "generate", inspirationImagesCount: referenceCount });
+  const referenceDurationUnsupported = kind === "video" && getAiMediaVideoReferenceCompatibilityIssue(selectedVideoEngine,
+    { inspirationImagesCount: referenceCount, durationSeconds: durationSeconds, videoResolution, sceneMode: videoSceneMode })?.code === "AI_MEDIA_VIDEO_REFERENCE_DURATION_UNSUPPORTED";
   const briefCompatible = kind !== "video" || isMediaVideoBriefCompatible(selectedVideoEngine, modelBrief);
   const creditQuote = useMediaCreditQuote({ kind, format, operation: "generate", creationMode: "guided",
     inputMode: "essential", identityMode: effectiveIdentityMode,
@@ -704,9 +714,10 @@ export default function MediaGenerator({
     videoResolution, durationSeconds: kind === "video" ? durationSeconds : undefined,
     sceneMode: kind === "video" ? videoSceneMode : undefined,
     inspirationImagesCount: referenceCount, withNarration: effectiveWithNarration,
-    hasProvidedCharacterVoice: characterVoiceSelection.hasProvidedVoice,
+    hasProvidedCharacterVoice: characterVoiceSelection.hasProvidedVoice, providedCharacterVoicesCount,
+    ...(kind === "video" ? { inspirationImages: (mediaSourceMode === "real" ? inspirationImages : []).map(reference => ({ role: reference.role, characterIndex: reference.characterIndex, characterName: reference.characterName })) } : {}),
     teamVideoSpeechMode,
-  }, quota, !videoDurationUnavailable && referenceCompatible && briefCompatible && !creativeBriefTooLong);
+  }, quota, !videoDurationUnavailable && !referenceDurationUnsupported && referenceCompatible && briefCompatible && !creativeBriefTooLong);
   const videoCreditInsufficient = creditQuote.insufficient;
   const modelRecommendation = recommendAiMediaModel({ kind, format, operation: "generate", brief: modelBrief,
     durationSeconds, sceneMode: videoSceneMode, withNarration: effectiveWithNarration,
@@ -739,6 +750,7 @@ export default function MediaGenerator({
     videoCreditInsufficient ||
     !creditQuote.ready ||
     !referenceCompatible ||
+    referenceDurationUnsupported ||
     !briefCompatible ||
     creativeBriefTooLong ||
     characterVoiceSelection.missingSample ||
@@ -1606,6 +1618,9 @@ export default function MediaGenerator({
               allowedVideoEnginesReason={characterVoiceSelection.hasProvidedVoice ? t("ai_generator_character_voice_engine_required") : undefined}
               unavailableVideoEngineReasons={wan3VoiceDurationExceeded ? { wan3: t("ai_generator_character_voice_wan3_duration_limit") } : undefined}
               hasProvidedCharacterVoice={characterVoiceSelection.hasProvidedVoice}
+            providedCharacterVoicesCount={providedCharacterVoicesCount}
+            hasCharacterReferences={hasCharacterReferences}
+            videoAudioChoice={{ creationMode: "guided", teamVideoSpeechMode, withNarration: effectiveWithNarration }}
               onVideoEngineChange={(videoEngine, resolution) => { setTeamVideoVeoConsent(false); setTeamVideoConsentOpen(false); enginePreference.update({ videoEngine, videoResolution: resolution ?? getAiMediaVideoModel(videoEngine).defaultResolution }); }}
               onImageEngineChange={(imageEngine) => enginePreference.update({ imageEngine })}
               onResolutionChange={(resolution) => enginePreference.update({ videoResolution: resolution })} />

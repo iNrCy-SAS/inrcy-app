@@ -6,11 +6,12 @@ import { useEffect, useRef, useState } from "react";
 import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { quoteAiMediaCredits } from "@/lib/aiMediaCreditsPricing";
 import { AI_MEDIA_VIDEO_MODELS, normalizeAiMediaVideoEngine } from "@/lib/aiMediaModelCatalog";
+import { usesHeygenAvatarRoute } from "@/lib/aiMediaHeygenRoute";
 import type { MediaGenerationQuota, MediaGenerationRequest } from "./useMediaGeneration";
 
 export type MediaCreditQuoteInput = Pick<MediaGenerationRequest,
-  "kind" | "operation" | "creationMode" | "freePrompt" | "spokenScript" | "withSubtitles" | "videoEngine" | "imageEngine" | "format" | "durationSeconds" | "sceneMode" | "videoResolution" | "withNarration" | "teamVideoSpeechMode" | "identityMode" | "inputMode"
-> & { inspirationImagesCount: number; hasProvidedCharacterVoice?: boolean;
+  "kind" | "operation" | "creationMode" | "freePrompt" | "spokenScript" | "withSubtitles" | "videoEngine" | "imageEngine" | "format" | "durationSeconds" | "sceneMode" | "videoResolution" | "withNarration" | "teamVideoSpeechMode" | "narrationVoiceMode" | "identityMode" | "inputMode"
+> & { inspirationImagesCount: number; hasProvidedCharacterVoice?: boolean; providedCharacterVoicesCount?: number;
   exactDialogue?: import("@/lib/aiMediaExactDialogue").AiMediaExactDialogueTurn[];
   inspirationImages?: readonly { role?: string; characterIndex?: number }[] };
 export type ConfirmedMediaCreditQuote = {
@@ -33,7 +34,7 @@ export default function useMediaCreditQuote(input: MediaCreditQuoteInput, quota:
   // Ordinary visual edits keep the current confirmed quote and pending request.
   const inlineSpeechAffectsPrice = input.kind === "video" &&
     AI_MEDIA_VIDEO_MODELS.find(model => model.id === normalizeAiMediaVideoEngine(input.videoEngine ?? "omni"))?.transport === "heygen-direct" &&
-    input.teamVideoSpeechMode === "characters" && input.spokenScript === undefined && !input.exactDialogue?.length;
+    usesHeygenAvatarRoute(input) && input.spokenScript === undefined && !input.exactDialogue?.length;
   const quoteInput = { ...input };
   if (!inlineSpeechAffectsPrice) delete quoteInput.freePrompt;
   const requestBody = JSON.stringify(quoteInput);

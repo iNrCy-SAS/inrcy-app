@@ -20,9 +20,10 @@ import { isAiMediaCharacterVoiceEngine } from "./aiMediaCharacterVoices.ts";
 import { normalizeAiMediaExactDialogue, assertAiMediaExactDialogueBindings } from "./aiMediaExactDialogue.ts";
 import { getAiMediaVideoSpeechState } from "./aiMediaVideoSpeechBudget.ts";
 import { getHeygenQuotedBillableDurationSeconds } from "./aiMediaHeygenBilling.ts";
+import { usesHeygenAvatarRoute } from "./aiMediaHeygenRoute.ts";
 
 /** Commercial credit units, independent of supplier USD and credit pack prices. */
-export const AI_MEDIA_CREDIT_TARIFF_VERSION = "inrstudio-media-credits-2026-11-v7" as const;
+export const AI_MEDIA_CREDIT_TARIFF_VERSION = "inrstudio-media-credits-2026-11-v8" as const;
 export type AiMediaCreditsQuoteInput = {
   kind: string;
   operation?: string;
@@ -37,6 +38,8 @@ export type AiMediaCreditsQuoteInput = {
   withNarration?: boolean;
   voiceMode?: string;
   teamVideoSpeechMode?: string;
+  narrationVoiceMode?: string;
+  providedCharacterVoicesCount?: number;
   spokenScript?: string;
   freePrompt?: string;
   exactDialogue?: import("./aiMediaExactDialogue.ts").AiMediaExactDialogueTurn[];
@@ -90,7 +93,7 @@ export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCre
   const videoModel = input.kind === "video" ? getAiMediaVideoModelForCharacterVoice(input.videoEngine ?? "omni", hasProvidedVoice) : null;
   if (hasProvidedVoice && (input.kind !== "video" || !isAiMediaCharacterVoiceEngine(videoModel?.id))) throw new Error("ai_media_video_voice_engine_unsupported");
   // R2V retains each original portrait and its voice binding. Other engines use a composed first frame.
-  const composeFirstFrame = input.kind === "video" && videoModel?.id !== "wan27" && videoModel?.transport !== "kling-direct" && videoModel?.transport !== "heygen-direct" && !hasProvidedVoice &&
+  const composeFirstFrame = input.creationMode !== "free" && input.kind === "video" && videoModel?.id !== "wan27" && videoModel?.transport !== "kling-direct" && videoModel?.transport !== "heygen-direct" && !hasProvidedVoice &&
     (input.identityMode === "reference_team" || input.inputMode === "essential") && inputReferences > 0;
   const references = composeFirstFrame ? 1 : inputReferences;
   if (input.kind === "image") {
@@ -128,15 +131,14 @@ export function quoteAiMediaCredits(input: AiMediaCreditsQuoteInput): AiMediaCre
   if (!references && (hasProvidedVoice || !model.supportsTextToVideo)) throw new Error("ai_media_video_reference_required");
   if (references && (!model.supportsImageToVideo || references > model.maxReferenceImages)) throw new Error("ai_media_video_references_unsupported");
   if (model.id === "veo" && references > 1 &&
-    (input.sceneMode === "multi" ? segments.some((duration) => duration !== 8) : segments[0] !== 8)) throw new Error("ai_media_video_references_require_eight_seconds");
-  const billableDurationSeconds = model.transport === "heygen-direct" ? getHeygenQuotedBillableDurationSeconds(input) : durationSeconds;
+    segments.some((duration) => duration !== 8)) throw new Error("ai_media_video_references_require_eight_seconds");
+  const billableDurationSeconds = model.transport === "heygen-direct" && usesHeygenAvatarRoute(input) ? getHeygenQuotedBillableDurationSeconds(input) : durationSeconds;
   const videoCredits = Math.ceil(billableDurationSeconds * getAiMediaVideoCreditRate(model.id, resolution, input));
   const transmittedReferences = transmittedVideoReferences(input, model, references, segments.length);
   const referenceCredits = transmittedReferences * model.referenceInputCredits;
-  // Libre always runs the creative director; this also covers optional logo preparation.
-  // With uploaded references the first-frame package replaces, rather than adds to, that fee.
+  // Free video has a fixed preparation/finishing fee. Only guided mode composes a first frame.
   const preparationCredits = composeFirstFrame ? 7 + inputReferences * 2 : input.creationMode === "free" ? 7 : 0;
-  const preparationLabel = composeFirstFrame ? "Préparation de la première image" : "Préparation créative";
+  const preparationLabel = composeFirstFrame ? "Préparation de la première image" : "Préparation et finition";
   const nativeDialogue = input.teamVideoSpeechMode === "characters" || input.voiceMode === "characters";
   const narrationCredits = input.withNarration && input.creationMode !== "free" && !nativeDialogue ? 2 : 0;
   return {
@@ -173,7 +175,7 @@ export function estimateAiMediaVideoSupplierCostMicroUsd(input: AiMediaCreditsQu
   const model = getAiMediaVideoModelForCharacterVoice(quote.engine, input.hasProvidedCharacterVoice);
   const rate = getAiMediaVideoSupplierRate(model.id, quote.resolution!, input);
   const rawReferences = input.inspirationImagesCount ?? 0;
-  const effectiveReferences = model.id !== "wan27" && model.transport !== "kling-direct" && model.transport !== "heygen-direct" && !input.hasProvidedCharacterVoice && (input.identityMode === "reference_team" || input.inputMode === "essential") && rawReferences > 0 ? 1 : rawReferences;
+  const effectiveReferences = input.creationMode !== "free" && model.id !== "wan27" && model.transport !== "kling-direct" && model.transport !== "heygen-direct" && !input.hasProvidedCharacterVoice && (input.identityMode === "reference_team" || input.inputMode === "essential") && rawReferences > 0 ? 1 : rawReferences;
   const segments = getAiMediaVideoSegmentDurations(quote.durationSeconds!, model.id, quote.resolution, input.sceneMode as AiMediaVideoSceneMode);
   const referenceCount = transmittedVideoReferences(input, model, effectiveReferences, segments.length);
   return Math.ceil((quote.billableDurationSeconds ?? quote.durationSeconds ?? 0) * rate * 1_000_000)

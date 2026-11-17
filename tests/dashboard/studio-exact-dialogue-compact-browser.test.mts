@@ -28,7 +28,7 @@ test('compact Exact rows keep two columns, real speech budget, controls and both
   try {
     for (const viewport of [{ width: 320, height: 720 }, { width: 375, height: 812 }, { width: 768, height: 1024 }, { width: 1440, height: 900 }]) {
       const page = await browser.newPage({ viewport }); const errors = await mount(page);
-      await page.locator('select[id$="-engine"]').selectOption('kling:1080p');
+      await page.locator('select[id$="-engine"]').selectOption('kling:720p');
       await page.evaluate(() => {
         const fixture = window as unknown as { fixtureReferencePreparationEnabled: boolean; fixtureStudioInterfaces: Record<string, { handlers: Record<string, { invoke(value: string): void }> }> };
         fixture.fixtureReferencePreparationEnabled = true;

@@ -1,3 +1,6 @@
+import * as directVideoPipeline from "../../lib/aiMediaDirectVideoPipeline.ts";
+import * as directQuoteOptions from "../../lib/aiMediaVideoClientOptions.ts";
+import * as directQuoteHeygenRoute from "../../lib/aiMediaHeygenRoute.ts";
 import * as pendingVideo from "../../lib/aiMediaPendingVideo.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -35,6 +38,8 @@ new Function("module", "exports", "require", quoteOutput)(quoteRecord, quoteReco
   if (id === "./aiMediaCharacterVoices.ts") return characterVoices;
   if (id === "./aiMediaExactDialogue.ts") return exactDialogue;
   if (id === "./aiMediaModelCatalog.ts") return models;
+  if (id === "./aiMediaVideoClientOptions.ts") return directQuoteOptions;
+  if (id === "./aiMediaHeygenRoute.ts") return directQuoteHeygenRoute;
   throw new Error(`Unisolated quote dependency: ${id}`);
 });
 
@@ -101,6 +106,7 @@ function loadRoute(options: { authenticated?: boolean; authentication?: Promise<
     ["@/lib/aiGatewayAccountGuard", { AiGatewayAccountLimitError: AccountLimitError, AiGatewayGuardUnavailableError: GuardUnavailableError }],
     ["@/lib/aiMediaGenerationContracts", contracts],
     ["@/lib/aiMediaCreditQuoteServer", quoteRecord.exports],
+    ["@/lib/aiMediaDirectVideoPipeline", directVideoPipeline],
     ["@/lib/aiMediaGenerationPrompt", { AI_MEDIA_PROMPT_VERSION: "test-version" }],
     ["@/lib/aiMediaFreeGenerationPrompt", { AI_MEDIA_FREE_PROMPT_VERSION: "test-free-version", assertAiMediaFreeExactNarrationFits }],
     ["@/lib/aiMediaGenerationQuota", {
@@ -684,7 +690,7 @@ test("une migration absente bloque avant le fournisseur, même avec un devis val
 });
 
 test("chaque fournisseur accepte une durée compatible avec deux clips maximum et débite le devis du serveur", async () => {
-  for (const [videoEngine, durationSeconds, expectedCredits] of [["grok-lite", 4, 19], ["grok", 30, 428], ["omni", 20, 207], ["veo", 16, 167], ["wan-flash", 30, 159], ["wan27", 20, 207], ["veo-lite", 16, 55]] as const) {
+  for (const [videoEngine, durationSeconds, expectedCredits] of [["grok-lite", 4, 19], ["grok", 30, 428], ["omni", 20, 207], ["veo", 16, 167], ["wan-flash", 30, 157], ["wan27", 20, 207], ["veo-lite", 16, 55]] as const) {
     const route = loadRoute({ maximumDuration: 30 });
     const response = await route.post(body({ kind: "video", videoEngine, durationSeconds, withNarration: false, teamVideoSpeechMode: "voiceover",
       ...(videoEngine === "wan27" || videoEngine === "wan-flash" ? { identityReferenceSetId: "11111111-1111-4111-8111-111111111111", inspirationImages: [{ mimeType: "image/png", data: "A".repeat(88), role: "product", usage: "inspiration" }] } : {}) }));

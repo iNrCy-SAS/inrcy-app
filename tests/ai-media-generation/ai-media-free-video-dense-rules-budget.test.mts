@@ -15,9 +15,19 @@ const profile={preferences:{customInstructions:instructions,forbiddenInstruction
 const rules=buildAiMediaGlobalConstraints(profile);
 const visual='Alex et Léa entretiennent ensemble un jardin en automne. Les feuilles tombent. Visages fidèles aux références. Alex parle, puis Léa.';
 const timestamp=Date.now(),day=new Date(timestamp).toISOString().slice(0,10);
+// These planner/visual-isolation fixtures exercise the supplied external narrator.
+// IA narration is native in the direct pipeline and has its own runtime coverage.
+function providedNarratorFixture() {
+  const timestamp = Date.now();
+  return { narrationVoiceMode: "provided" as const, narrationVoiceConsent: true,
+    narrationVoiceSample: { mimeType: "audio/wav" as const, name: "offline-narrator.wav", durationSeconds: 6, sizeBytes: 192_044,
+      path: "_studio-voice-references/" + new Date(timestamp).toISOString().slice(0, 10) + "/offline-test__" + timestamp + "__00000000-0000-4000-8000-000000000001.wav" } };
+}
+
 function request(engine:'veo'|'omni'|'grok-lite'|'wan-flash'|'wan27'|'wan3'|'kling'|'heygen',provided=false) {
   return normalizeAiMediaGenerationRequest({requestId:`dense-rules-${engine}-${provided}`,source:'studio',operation:'generate',creationMode:'free',kind:'video',
     format:'story',videoEngine:engine,durationSeconds:16,videoResolution:'720p',sceneMode:'single',freePrompt:visual,
+    ...(!provided ? providedNarratorFixture() : {}),
     useBusinessDna:false,withNarration:!provided,withMusic:false,withSubtitles:false,teamVideoSpeechMode:provided?'characters':'voiceover',
     identityMode:'reference_team',identityConsent:true,teamVideoProviderConsent:engine,
     inspirationImages:[1,2].map(characterIndex=>({mimeType:'image/png',data:'A'.repeat(64),role:'character',usage:'required',characterIndex,

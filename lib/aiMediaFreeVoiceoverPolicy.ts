@@ -8,14 +8,11 @@ export function needsControlledAiMediaFreeFirstFrame(request: Pick<AiMediaGenera
     (request.videoEngine === "grok" || request.videoEngine === "grok-lite");
 }
 
-/** Legacy/provided narration stays with Studio TTS; Kling Exact AI narration is explicitly native. */
+/** Only a supplied off-screen narrator needs a separate voice-clone adapter.
+ * Other Studio IA narration is generated natively by the selected video engine. */
 export function usesSeparateAiMediaFreeVoiceover(request: Pick<AiMediaGenerationRequest,
   "creationMode" | "operation" | "kind" | "withNarration" | "teamVideoSpeechMode" | "videoEngine" | "exactDialogue"
->): boolean {
-  // Structured Exact explicitly requests Kling's native off-screen narrator.
-  // Auto and legacy raw-script requests retain their existing TTS ownership.
-  if (request.exactDialogue?.length && request.exactDialogue.every(turn => turn.speaker === "ai_voice") &&
-    (request.videoEngine === "kling" || request.videoEngine === "kling-flash")) return false;
+> & {narrationVoiceMode?:AiMediaGenerationRequest["narrationVoiceMode"]}): boolean {
   return request.creationMode === "free" && request.operation !== "modify" && request.kind === "video" && request.withNarration &&
-    request.teamVideoSpeechMode !== "characters";
+    request.teamVideoSpeechMode !== "characters" && request.narrationVoiceMode === "provided";
 }

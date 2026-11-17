@@ -196,10 +196,15 @@ export const AI_MEDIA_VIDEO_MODELS: readonly AiMediaVideoModel[] = Object.freeze
   },
 ].map((model) => Object.freeze(model)) as AiMediaVideoModel[]);
 
+/** Maximum selectable video tariff; fixed preparation costs are quoted separately. */
+export const AI_MEDIA_MAX_VIDEO_CREDITS_PER_SECOND = 16;
+
 // Retired engines remain in the canonical catalogue for saved results and jobs.
 // New selections and quotes must use this availability list.
 export const AI_MEDIA_AVAILABLE_VIDEO_MODELS = Object.freeze(
-  AI_MEDIA_VIDEO_MODELS.filter((model) => model.id !== "heygen" && model.id !== "wan3" && model.id !== "minimax-h3"),
+  AI_MEDIA_VIDEO_MODELS.filter((model) => model.id !== "heygen" && model.id !== "wan3" && model.id !== "minimax-h3" &&
+    model.resolutions.some(resolution => Math.min(model.creditsByResolution[resolution] ?? model.creditsPerSecond,
+      model.silentCreditsByResolution?.[resolution] ?? Number.POSITIVE_INFINITY) <= AI_MEDIA_MAX_VIDEO_CREDITS_PER_SECOND)),
 );
 
 export function isAiMediaVideoEngineAvailable(engine: unknown): boolean {
@@ -222,10 +227,13 @@ export function restoreAiMediaVideoPreference(engine: unknown, resolution: unkno
   videoEngine: AiMediaVideoEngine; videoResolution: AiMediaVideoResolution;
 } {
   const model = getAiMediaVideoModel(isAiMediaVideoEngineAvailable(engine) ? engine : "omni");
+  const permitted = model.resolutions.filter(candidate => !getAiMediaVideoCreditRateLimitIssue(model.id, candidate));
+  const restored = permitted.length ? model : getAiMediaVideoModel("omni");
+  const candidates = permitted.length ? permitted : restored.resolutions;
   return {
-    videoEngine: model.id,
-    videoResolution: model.resolutions.includes(resolution as AiMediaVideoResolution)
-      ? resolution as AiMediaVideoResolution : model.defaultResolution,
+    videoEngine: restored.id,
+    videoResolution: candidates.includes(resolution as AiMediaVideoResolution)
+      ? resolution as AiMediaVideoResolution : candidates.includes(restored.defaultResolution) ? restored.defaultResolution : candidates[0],
   };
 }
 
@@ -341,6 +349,8 @@ export function getAiMediaVideoResolution(engine: unknown, resolution?: unknown)
 }
 
 export type AiMediaVideoAudioChoice = {
+  creationMode?: unknown;
+  narrationVoiceMode?: unknown;
   teamVideoSpeechMode?: unknown;
   voiceMode?: unknown;
   withNarration?: unknown;
@@ -348,13 +358,14 @@ export type AiMediaVideoAudioChoice = {
   hasProvidedCharacterVoice?: boolean;
 };
 
-/** Studio owns voice-over through TTS. Only talking characters need Veo audio.
- * An incomplete legacy quote retains the conservative audio-inclusive rate. */
+/** Free AI speech goes directly to native provider audio; a supplied narrator
+ * remains external. Guided and incomplete legacy quotes retain their semantics. */
 export function getAiMediaVideoNativeAudio(engine: unknown, input: AiMediaVideoAudioChoice): boolean {
   const model = getAiMediaVideoModel(engine);
   if (!model.nativeAudio || !["veo", "veo-lite"].includes(model.id)) return model.nativeAudio;
   if (input.teamVideoSpeechMode === undefined && input.voiceMode === undefined && input.withNarration === undefined && input.spokenScript === undefined) return true;
   if (typeof input.spokenScript === "string" && !input.spokenScript.trim()) return false;
+  if (input.creationMode === "free" && input.withNarration === true && input.narrationVoiceMode !== "provided") return true;
   return input.teamVideoSpeechMode === "characters" || input.voiceMode === "characters";
 }
 
@@ -362,6 +373,18 @@ export function getAiMediaVideoCreditRate(engine: unknown, resolution: AiMediaVi
   const model = getAiMediaVideoModelForCharacterVoice(engine, input.hasProvidedCharacterVoice === true);
   return (!getAiMediaVideoNativeAudio(engine, input) ? model.silentCreditsByResolution?.[resolution] : undefined)
     ?? model.creditsByResolution[resolution] ?? model.creditsPerSecond;
+}
+
+/** The same effective-rate policy protects UI choices and new server submissions.
+ * Canonical metadata and already-submitted jobs remain readable. */
+export function getAiMediaVideoCreditRateLimitIssue(engine: unknown, resolution?: unknown, input: AiMediaVideoAudioChoice = {}): {
+  code: "AI_MEDIA_VIDEO_CREDIT_RATE_LIMIT"; message: string;
+} | null {
+  const model = getAiMediaVideoModel(engine);
+  const selectedResolution = getAiMediaVideoResolution(model.id, resolution);
+  return getAiMediaVideoCreditRate(model.id, selectedResolution, input) > AI_MEDIA_MAX_VIDEO_CREDITS_PER_SECOND
+    ? { code: "AI_MEDIA_VIDEO_CREDIT_RATE_LIMIT", message: `${model.label} en ${selectedResolution} dépasse le plafond de ${AI_MEDIA_MAX_VIDEO_CREDITS_PER_SECOND} crédits par seconde. Choisissez une autre qualité ou un autre moteur ; vos autres réglages sont conservés.` }
+    : null;
 }
 
 export function getAiMediaVideoSupplierRate(engine: unknown, resolution: AiMediaVideoResolution, input: AiMediaVideoAudioChoice): number {

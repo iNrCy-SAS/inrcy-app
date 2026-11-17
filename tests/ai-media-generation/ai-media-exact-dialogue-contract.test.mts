@@ -29,7 +29,7 @@ const pictures = [
 ];
 function raw(overrides: Record<string, unknown> = {}) {
   return { requestId: "exact-dialogue-offline-test", creationMode: "free", source: "studio", kind: "video", format: "story",
-    videoEngine: "kling", videoResolution: "1080p", durationSeconds: 16, freePrompt: "Deux personnes dans un jardin.",
+    videoEngine: "kling", videoResolution: "720p", durationSeconds: 16, freePrompt: "Deux personnes dans un jardin.",
     identityConsent: true, teamVideoProviderConsent: "kling", exactDialogue: lines, inspirationImages: pictures, ...overrides };
 }
 const profile = { business: { companyName: "Atelier", services: [], customerTypologies: [], strengths: [], interventionZones: [] },
@@ -108,7 +108,7 @@ test("Auto and legacy raw Exact retain the old contract while structured order a
   const fn = ast.statements.find(item => ts.isFunctionDeclaration(item) && item.name?.text === "generationFingerprint"); assert.ok(fn);
   const output = ts.transpileModule(`${fn.getText(ast)}\nexports.fingerprint=generationFingerprint;`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   const record = {} as { fingerprint: (request: typeof a) => string };
-  new Function("exports", "createAiMediaRequestFingerprint", "AI_MEDIA_FREE_PROMPT_VERSION", "AI_MEDIA_PROMPT_VERSION", output)(record, createAiMediaRequestFingerprint, "test-free", "test-guided");
+  new Function("exports", "createAiMediaRequestFingerprint", "AI_MEDIA_FREE_PROMPT_VERSION", "AI_MEDIA_PROMPT_VERSION", "AI_MEDIA_DIRECT_VIDEO_PROMPT_VERSION", output)(record, createAiMediaRequestFingerprint, "test-free", "test-guided", "test-direct");
   assert.notEqual(record.fingerprint(a), record.fingerprint(b));
   const contract = buildAiMediaVideoProviderContract({ request: a, durationSeconds: 16, brandColors: [] });
   assert.match(contract.parameters, /;voiceover=native;/, "the signed envelope must not forbid its explicitly requested off-screen narrator");
@@ -120,7 +120,7 @@ test("the confirmed price quote binds structured speaker order as well as the mo
   const quotes = runtimeModules()<typeof import("../../lib/aiMediaCreditQuoteServer.ts")>("lib/aiMediaCreditQuoteServer.ts");
   const previous = process.env.KLING_API_KEY; process.env.KLING_API_KEY = "offline-test-key-only";
   try {
-    const input = { kind: "video", creationMode: "free", videoEngine: "kling", durationSeconds: 16, videoResolution: "1080p", exactDialogue: lines,
+    const input = { kind: "video", creationMode: "free", videoEngine: "kling", durationSeconds: 16, videoResolution: "720p", exactDialogue: lines,
       inspirationImagesCount: pictures.length, inspirationImages: pictures.map(({ role, characterIndex }) => ({ role, characterIndex })) };
     const quote = quotes.createAiMediaServerQuote("account-a", input);
     const normalized = normalizeAiMediaGenerationRequest(raw({ withNarration: true, teamVideoSpeechMode: "voiceover" }));

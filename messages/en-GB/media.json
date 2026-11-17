@@ -1182,5 +1182,6 @@
   "ai_generator_speech_review_warning": "Check this video: watch and listen before using it.",
   "ai_generator_model_description_heygen-avatar": "Talking portraits and dialogue with your photos and voices.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Presentations to camera and conversations in successive shots.",
-  "ai_generator_engine_info_video_limits_heygen-avatar": "Each person speaks in a separate shot. Avatar mode does not compose a group scene. Final length follows the speech; the selected duration is a guide."
+  "ai_generator_engine_info_video_limits_heygen-avatar": "Each person speaks in a separate shot. Avatar mode does not compose a group scene. Final length follows the speech; the selected duration is a guide.",
+  "ai_generator_model_reference_duration_available": "With multiple photos, available durations: {durations}."
 }

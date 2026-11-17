@@ -1,3 +1,4 @@
+import * as directVideoPipeline from "../../lib/aiMediaDirectVideoPipeline.ts";
 import * as pendingVideo from "../../lib/aiMediaPendingVideo.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -24,6 +25,7 @@ function route() {
     ["@/lib/aiMediaGenerationTransport", transport],
     ["@/lib/aiMediaGenerationPublicErrors", publicErrors],
     ["@/lib/aiGatewayAccountGuard", { AiGatewayAccountLimitError: TestError, AiGatewayGuardUnavailableError: TestError }],
+    ["@/lib/aiMediaDirectVideoPipeline", directVideoPipeline],
     ["@/lib/aiMediaGenerationPrompt", { AI_MEDIA_PROMPT_VERSION: "test" }],
     ["@/lib/aiMediaFreeGenerationPrompt", { AI_MEDIA_FREE_PROMPT_VERSION: "test-free", assertAiMediaFreeExactNarrationFits }],
     ["@/lib/aiMediaGenerationQuota", {

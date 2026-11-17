@@ -92,8 +92,8 @@ function fingerprintFunction() {
   const node = file.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === "generationFingerprint");
   assert.ok(node);
   const emitted = ts.transpileModule(node.getText(file), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
-  return new Function("createAiMediaRequestFingerprint", "AI_MEDIA_FREE_PROMPT_VERSION", "AI_MEDIA_PROMPT_VERSION", emitted + ";return generationFingerprint;")(
-    createAiMediaRequestFingerprint, "fixture-free-version", "fixture-guided-version",
+  return new Function("createAiMediaRequestFingerprint", "AI_MEDIA_FREE_PROMPT_VERSION", "AI_MEDIA_PROMPT_VERSION", "AI_MEDIA_DIRECT_VIDEO_PROMPT_VERSION", emitted + ";return generationFingerprint;")(
+    createAiMediaRequestFingerprint, "fixture-free-version", "fixture-guided-version", "fixture-direct-version",
   ) as (request: AiMediaGenerationRequest) => string;
 }
 
