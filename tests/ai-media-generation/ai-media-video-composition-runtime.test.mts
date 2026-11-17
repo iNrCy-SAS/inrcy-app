@@ -35,6 +35,7 @@ type ComposerModule = {
     height: number;
     durationSeconds: number;
     nativeAudioMode?: "ambience" | "dialogue" | "mute";
+    durationFromAudio?: boolean;
     preserveComposition?: boolean;
     subtitles?: { script: string } | null;
     narration?: {
@@ -230,6 +231,31 @@ function transpileRuntimeModule<T>(relativePath: string, observeProbe?: (options
   execute(moduleRecord, moduleRecord.exports, localRequire);
   return moduleRecord.exports as T;
 }
+
+test("fractional avatar speech keeps its complete audio and real duration in the encoded MP4", async () => {
+  const runtime = transpileRuntimeModule<ComposerModule>("../../lib/aiMediaGeneratedVideo.ts");
+  const directory = await mkdtemp(path.join(tmpdir(), "inrcy-avatar-speech-duration-"));
+  const ffmpegPath = await resolveVideoNormalizationFfmpegPath();
+  const durationSeconds = 10.3184;
+  try {
+    const source = path.join(directory, "avatar.mp4");
+    await execFileAsync(ffmpegPath, ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", `testsrc2=s=320x320:r=30:d=${durationSeconds}`,
+      "-f", "lavfi", "-i", `sine=frequency=770:sample_rate=48000:duration=${durationSeconds}`, "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", source],
+    { windowsHide: true, timeout: 30_000 });
+    const overlay = await sharp({ create: { width: 320, height: 320, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } }).png().toBuffer();
+    const clips = [{ buffer: await readFile(source), durationSeconds }];
+    const output = await runtime.composeOriginalAiVideo({ clips, overlays: [overlay], width: 320, height: 320, durationSeconds,
+      nativeAudioMode: "dialogue", durationFromAudio: true });
+    const file = path.join(directory, "complete-avatar.mp4"); await writeFile(file, output.buffer);
+    const probe = await probeVideoSource({ ffmpegPath, inputPath: file, timeoutMs: 30_000 });
+    assert.ok(Math.abs(probe.durationSeconds - durationSeconds) < 0.1);
+    assert.equal(probe.hasAudio, true);
+    const audio = createAudioProbe(ffmpegPath, directory), pcm = await audio.decodeAudio(file, "avatar");
+    assert.ok(audio.toneAmplitude(pcm, 770, 10, 0.2) > 0.05, "the final words remain audible");
+    await assert.rejects(runtime.composeOriginalAiVideo({ clips, overlays: [overlay], width: 320, height: 320, durationSeconds, nativeAudioMode: "dialogue" }),
+      /ai_original_video_clip_count_invalid/, "only the internal speech duration path accepts fractional provider timings");
+  } finally { await rm(directory, { recursive: true, force: true }); }
+});
 
 test("le compositeur conserve les durées natives de 4, 5, 15 et 30 secondes, avec audio", async () => {
   const controller = new AbortController(); let probes = 0;

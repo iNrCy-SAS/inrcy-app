@@ -1181,5 +1181,5 @@
   "ai_generator_speech_review_warning": "Video prüfen: Sehen und hören Sie sich das Ergebnis vor der Verwendung an.",
   "ai_generator_model_description_heygen-avatar": "Sprechende Porträts und Dialoge mit Ihren Fotos und Stimmen.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Präsentationen vor der Kamera und Gespräche in aufeinanderfolgenden Einstellungen.",
-  "ai_generator_engine_info_video_limits_heygen-avatar": "Jede Person spricht in einer eigenen Einstellung. Der Avatar-Modus erstellt keine Gruppenszene."
+  "ai_generator_engine_info_video_limits_heygen-avatar": "Jede Person spricht in einer eigenen Einstellung. Der Avatar-Modus erstellt keine Gruppenszene. Die endgültige Länge folgt der Sprache; die gewählte Dauer ist ein Richtwert."
 }

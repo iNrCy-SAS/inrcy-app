@@ -1181,5 +1181,5 @@
   "ai_generator_speech_review_warning": "Controleer de video: bekijk en beluister het resultaat voordat u het gebruikt.",
   "ai_generator_model_description_heygen-avatar": "Sprekende portretten en dialogen met je foto’s en stemmen.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Presentaties voor de camera en gesprekken in opeenvolgende beelden.",
-  "ai_generator_engine_info_video_limits_heygen-avatar": "Iedere persoon spreekt in een eigen beeld. De avatarmodus maakt geen groepsscène."
+  "ai_generator_engine_info_video_limits_heygen-avatar": "Iedere persoon spreekt in een eigen beeld. De avatarmodus maakt geen groepsscène. De uiteindelijke duur volgt de spraak; de gekozen duur is een richtlijn."
 }

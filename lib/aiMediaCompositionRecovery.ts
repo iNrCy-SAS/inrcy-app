@@ -264,6 +264,7 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
       return buffer;
     };
     let providerVideo: Buffer | undefined;
+    let compositionDurationSeconds = manifest.durationSeconds;
     if (pendingProvider) {
       stage = "provider_status";
       const { createHeygenApiClient } = await import("./aiVideoHeygenApi.ts");
@@ -286,10 +287,19 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
       stage = "provider_download";
       console.info("[ai-media] HeyGen render ready", { jobId: checkpoint.jobId, durationSeconds: result.durationSeconds,
         requestedDurationSeconds: manifest.durationSeconds });
+      // Studio avatar scenes follow their speech. Keep the whole existing render,
+      // including fractional seconds, instead of rejecting or cutting its dialogue.
+      if (typeof result.durationSeconds !== "number" || !Number.isFinite(result.durationSeconds) || result.durationSeconds <= 0 || result.durationSeconds > 180) {
+        throw new Error("ai_media_composition_provider_duration_invalid");
+      }
+      compositionDurationSeconds = result.durationSeconds;
       providerVideo = await client.downloadVideo(result.videoUrl!);
     }
     const clips = [];
-    for (const [i, clip] of manifest.clips.entries()) clips.push({ buffer: providerVideo || await readAsset(clip, `clip-${i}.mp4`, MAX_CLIP_BYTES), durationSeconds: clip.durationSeconds, sourceStartSeconds: clip.sourceStartSeconds });
+    const durationScale = compositionDurationSeconds / manifest.durationSeconds;
+    for (const [i, clip] of manifest.clips.entries()) clips.push({ buffer: providerVideo || await readAsset(clip, `clip-${i}.mp4`, MAX_CLIP_BYTES),
+      durationSeconds: clip.durationSeconds * durationScale,
+      sourceStartSeconds: clip.sourceStartSeconds === undefined ? undefined : clip.sourceStartSeconds * durationScale });
     const overlays = [];
     for (const [i, overlay] of manifest.overlays.entries()) overlays.push(await readAsset(overlay, `overlay-${i}.png`));
     let soundtrack: AiMediaCompositionInput["soundtrack"] = null;
@@ -311,13 +321,18 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
     await rpc("assert_ai_media_composition_lease", parameters(checkpoint));
     stage = "compose";
     const media = await composeOriginalAiVideo({ clips, overlays, width: manifest.width, height: manifest.height,
-      durationSeconds: manifest.durationSeconds, nativeAudioMode: manifest.nativeAudioMode, soundtrack, narration,
+      durationSeconds: compositionDurationSeconds, nativeAudioMode: manifest.nativeAudioMode, soundtrack, narration,
+      ...(pendingProvider ? { durationFromAudio: true } : {}),
       ...(manifest.subtitles ? { subtitles: { script: manifest.subtitles.script } } : {}), preserveComposition: manifest.preserveComposition === true });
-    const qa = await inspectAiMediaVideoBufferLocally({ buffer: media.buffer, expectedDurationSeconds: manifest.durationSeconds,
+    const qa = await inspectAiMediaVideoBufferLocally({ buffer: media.buffer, expectedDurationSeconds: compositionDurationSeconds,
       audioExpectation: manifest.nativeAudioMode === "dialogue" || narration ? "required" : "optional", timeoutMs: 4_000 });
     await rpc("assert_ai_media_composition_lease", parameters(checkpoint));
     stage = "persist";
     const metadata = safeMetadata(manifest.metadata || {});
+    if (pendingProvider) {
+      metadata.duration_seconds = compositionDurationSeconds;
+      metadata.requested_duration_seconds = manifest.durationSeconds;
+    }
     const provider = String(metadata.provider || "");
     metadata.video_engine_result ||= provider.startsWith("inrcy-") ? "local_fallback"
       : metadata.video_engine === "veo" && provider.includes("google-gemini-omni") ? "veo_omni_fallback"
@@ -329,7 +344,8 @@ export async function recoverNextAiMediaCompositionCheckpoint(scope?: { accountI
         provenance: { source: "inrcy_original_ai_video_engine", recovered_composition: true,
           prompt_version: metadata.prompt_version, prompt_sha256: metadata.prompt_sha256, casting_variant_key: metadata.casting_variant_key,
           format: metadata.format, video_engine: metadata.video_engine, video_resolution: metadata.video_resolution, creation_mode: metadata.creation_mode,
-          duration_seconds: manifest.durationSeconds, active_account_id: checkpoint.accountId, actor_auth_user_id: row.actor_auth_user_id },
+          duration_seconds: compositionDurationSeconds, ...(pendingProvider ? { requested_duration_seconds: manifest.durationSeconds } : {}),
+          active_account_id: checkpoint.accountId, actor_auth_user_id: row.actor_auth_user_id },
         gateway: { provider: metadata.provider, model: metadata.model, provider_request_ids: metadata.provider_request_ids,
           native_character_dialogue_preserved: metadata.native_character_dialogue_preserved, native_voiceover_preserved: metadata.native_voiceover_preserved,
           estimated_cost_micro_usd: metadata.estimated_cost_micro_usd, warnings, quality_assurance: { final_video: qa } },

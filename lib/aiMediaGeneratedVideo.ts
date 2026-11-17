@@ -523,6 +523,8 @@ export async function composeOriginalAiVideo(args: {
   subtitles?: { script: string } | null;
   /** Préserve les dialogues/lip-sync natifs à leur niveau de parole. */
   nativeAudioMode?: AiMediaNativeAudioMode;
+  /** Avatar speech has a measured fractional duration, independent of the requested creative budget. */
+  durationFromAudio?: boolean;
   /** Agent clips must already match their destination; no picture may be cut. */
   preserveComposition?: boolean;
   signal?: AbortSignal;
@@ -537,11 +539,15 @@ export async function composeOriginalAiVideo(args: {
     (total, clip) => total + clip.durationSeconds,
     0
   );
+  const validDuration = (seconds: number) => Number.isFinite(seconds) &&
+    (args.durationFromAudio === true
+      ? seconds > 0 && seconds <= 180
+      : Number.isInteger(seconds) && seconds >= 4 && seconds <= 30);
   if (
-    !Number.isInteger(args.durationSeconds) || args.durationSeconds < 4 || args.durationSeconds > 30 ||
-    args.clips.some((clip) => !Number.isInteger(clip.durationSeconds) || clip.durationSeconds < 4 || clip.durationSeconds > 30) ||
+    !validDuration(args.durationSeconds) ||
+    args.clips.some((clip) => !validDuration(clip.durationSeconds)) ||
     args.overlays.length !== args.clips.length ||
-    clipDurationTotal !== args.durationSeconds ||
+    Math.abs(clipDurationTotal - args.durationSeconds) > 0.000001 ||
     args.clips.length < 1 ||
     args.clips.length > 2
   ) {

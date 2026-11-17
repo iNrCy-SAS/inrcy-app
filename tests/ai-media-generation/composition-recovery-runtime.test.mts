@@ -11,7 +11,7 @@ import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 import * as pending from "../../lib/aiMediaPendingVideo.ts";
 
 const accountId = "11111111-1111-4111-8111-111111111111", jobId = "22222222-2222-4222-8222-222222222222", authUserId = "33333333-3333-4333-8333-333333333333";
-function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; leaseLost?: boolean; cleanupRows?: Array<{storage_bucket:string;storage_path:string}>; providerState?: "processing" | "completed" | "failed"; providerStatusFails?: boolean } = {}) {
+function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; leaseLost?: boolean; composeFails?: string; cleanupRows?: Array<{storage_bucket:string;storage_path:string}>; providerState?: "processing" | "completed" | "failed"; providerDuration?: number; providerStatusFails?: boolean } = {}) {
   const objects = new Map<string, Buffer>();
   const events: string[] = [];
   const warnings: unknown[][] = [];
@@ -70,13 +70,14 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
   const stubs: Record<string, unknown> = {
     "./aiMediaPendingVideo.ts": pending,
     "./aiVideoHeygenApi.ts": { createHeygenApiClient: () => ({
-      getVideo: async (id: string) => { events.push(`provider-get:${id}`); if (options.providerStatusFails) throw new Error("private upstream transport"); return { id, status: options.providerState || "processing", videoUrl: "https://resource2.heygen.ai/paid.mp4" }; },
+      getVideo: async (id: string) => { events.push(`provider-get:${id}`); if (options.providerStatusFails) throw new Error("private upstream transport"); return { id, status: options.providerState || "processing", durationSeconds: options.providerDuration ?? 8, videoUrl: "https://resource2.heygen.ai/paid.mp4" }; },
       downloadVideo: async () => { events.push("provider-download"); return Buffer.from("paid-heygen-mp4"); },
     }) },
     "./aiVideoProviderHeygen.ts": { cleanupHeygenTemporaryResources: async () => { events.push("provider-cleanup"); } },
     "server-only": {}, "@/lib/supabaseAdmin": { supabaseAdmin },
     "@/lib/aiMediaGeneratedVideo": { composeOriginalAiVideo: async (input: Recovery.AiMediaCompositionInput) => {
       events.push("compose"); composed = input;
+      if (options.composeFails) throw new Error(options.composeFails);
       if (input.soundtrack) composedSoundtrack = readFileSync(input.soundtrack.absolutePath);
       return { kind: "video", buffer: Buffer.from("recovered-mp4"), extension: "mp4", mimeType: "video/mp4", width: input.width, height: input.height, durationSeconds: input.durationSeconds };
     } },
@@ -94,7 +95,7 @@ function harness(options: { uploadFails?: boolean; corruptAsset?: boolean; lease
   const source = readFileSync(new URL("../../lib/aiMediaCompositionRecovery.ts", import.meta.url), "utf8");
   const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const nativeRequire = createRequire(import.meta.url);
-  vm.runInNewContext(`(function(require,module,exports){${js}\n})`, { Buffer, process: { cwd: process.cwd, env: { HEYGEN_API_KEY: "synthetic-key" } }, console: {...console,warn:(...args:unknown[])=>warnings.push(args)} })((id: string) => {
+  vm.runInNewContext(`(function(require,module,exports){${js}\n})`, { Buffer, Error, process: { cwd: process.cwd, env: { HEYGEN_API_KEY: "synthetic-key" } }, console: {...console,warn:(...args:unknown[])=>warnings.push(args)} })((id: string) => {
     if (id.startsWith("node:")) return nativeRequire(id);
     if (!(id in stubs)) throw new Error(`Unexpected dependency (provider imports forbidden): ${id}`);
     return stubs[id];
@@ -110,9 +111,9 @@ const heygenTask = { provider: "heygen-direct", model: "heygen-avatar-iv", video
   temporaryAvatarGroupIds: ["group-1"], temporaryAssetIds: ["asset-1"], estimatedCostMicroUsd: 640_000 } as const;
 const pendingTask = () => ({ ...heygenTask, temporaryVoiceIds: [...heygenTask.temporaryVoiceIds],
   temporaryAvatarGroupIds: [...heygenTask.temporaryAvatarGroupIds], temporaryAssetIds: [...heygenTask.temporaryAssetIds] });
-async function saveHeygenCheckpoint(h: ReturnType<typeof harness>) {
+async function saveHeygenCheckpoint(h: ReturnType<typeof harness>, durationSeconds = 8) {
   await h.runtime.persistAiMediaCompositionCheckpoint({ accountId, jobId, authUserId,
-    input: { ...input, clips: [{ buffer: Buffer.alloc(0), durationSeconds: 8 }], nativeAudioMode: "dialogue", narration: null },
+    input: { ...input, durationSeconds, clips: [{ buffer: Buffer.alloc(0), durationSeconds }], nativeAudioMode: "dialogue", narration: null },
     pendingProvider: pendingTask(), metadata: { provider: "heygen-direct", video_engine: "heygen-avatar", prompt: "private brief" } });
 }
 test("pending HeyGen checkpoints persist the remote ID and montage privately without uploading an empty video", async () => {
@@ -152,6 +153,43 @@ test("a completed HeyGen render is downloaded once and keeps its native voices t
   assert.equal(h.composed!.nativeAudioMode,"dialogue"); assert.equal(h.composed!.narration,null);
   assert.equal(h.composed!.clips[0].buffer.toString(),"paid-heygen-mp4");
   assert.ok(h.events.indexOf("provider-cleanup") > h.events.indexOf("complete"));
+});
+
+test("a HeyGen montage failure reports only its machine category and preserves the existing paid render", async () => {
+  const h = harness({ providerState: "completed", composeFails: "ai_original_video_clip_contract_failed:https://private.invalid?token=secret" });
+  await saveHeygenCheckpoint(h);
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status, "retry_pending");
+  assert.match(JSON.stringify(h.warnings), /ai_original_video_clip_contract_failed/);
+  assert.doesNotMatch(JSON.stringify(h.warnings), /private.invalid|token=secret/);
+  assert.ok(!h.events.some(event => ["save", "complete", "fail", "provider-cleanup"].includes(event)));
+});
+
+for (const durationSeconds of [2.65, 10.3184, 19.7681, 31.2]) test(`HeyGen preserves all ${durationSeconds}s of spoken video instead of enforcing the requested 16s`, async () => {
+  const h = harness({ providerState: "completed", providerDuration: durationSeconds });
+  await saveHeygenCheckpoint(h, 16);
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status, "completed");
+  assert.equal(h.composed!.durationSeconds, durationSeconds);
+  assert.equal(h.composed!.clips[0].durationSeconds, durationSeconds);
+  assert.equal(h.composed!.durationFromAudio, true);
+  assert.equal(h.composed!.nativeAudioMode, "dialogue");
+  assert.equal((h.metadata!.provenance as Record<string, unknown>).duration_seconds, durationSeconds);
+  assert.equal((h.metadata!.provenance as Record<string, unknown>).requested_duration_seconds, 16);
+  assert.equal(h.events.filter(event => event === "provider-download").length, 1);
+  assert.equal(h.events.filter(event => event === "complete").length, 1);
+});
+
+test("HeyGen's existing multi-cut montage reads the entire rendered dialogue once without repeating its start", async () => {
+  const h = harness({ providerState: "completed", providerDuration: 10.3184 });
+  await h.runtime.persistAiMediaCompositionCheckpoint({ accountId, jobId, authUserId,
+    input: { ...input, durationSeconds: 16, clips: [{ buffer: Buffer.alloc(0), durationSeconds: 8, sourceStartSeconds: 0 },
+      { buffer: Buffer.alloc(0), durationSeconds: 8, sourceStartSeconds: 8 }], overlays: [Buffer.from("first"), Buffer.from("second")],
+      nativeAudioMode: "dialogue", narration: null }, pendingProvider: pendingTask(), metadata: { provider: "heygen-direct", video_engine: "heygen-avatar" } });
+  assert.equal((await h.runtime.recoverNextAiMediaCompositionCheckpoint()).status, "completed");
+  assert.equal(h.composed!.clips.length, 2);
+  assert.equal(h.composed!.clips[0].durationSeconds, 5.1592);
+  assert.equal(h.composed!.clips[1].sourceStartSeconds, 5.1592);
+  assert.equal(h.composed!.clips[1].buffer, h.composed!.clips[0].buffer);
+  assert.equal(h.events.filter(event => event === "provider-download").length, 1);
 });
 test("an unclaimed completed/discarded checkpoint causes no composition or upload", async () => {
   const h = harness();
