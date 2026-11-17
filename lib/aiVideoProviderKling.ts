@@ -29,8 +29,24 @@ function assertKlingFlashVoices(args: Pick<AiVideoProviderGenerationArgs, "reque
 const PROVIDER = "kling-direct";
 const downloadClip = createDownload({ maxBytes: 128 * 1024 * 1024 });
 const VOICE_COST_MICRO_USD = 10_000; // Conservative bound above the official $0.007/profile.
+const gatewayGuardCode = (error: unknown) => {
+  if (!(error instanceof Error)) return null;
+  const code = (error as Error & { code?: unknown }).code;
+  if (error.name === "AiGatewayAccountLimitError" && code === "ai_gateway_account_limit_reached") return code;
+  if (error.name === "AiGatewayGuardUnavailableError" && code === "ai_gateway_guard_unavailable") return code;
+  return null;
+};
 const failureCode = (error: unknown) => error instanceof KlingApiError ? error.message
-  : error instanceof Error && /^ai_[a-z0-9_:.-]+$/.test(error.message) ? error.message : "ai_video_kling_processing_failed";
+  : gatewayGuardCode(error) ?? (error instanceof Error && /^ai_[a-z0-9_:.-]+$/.test(error.message) ? error.message : "ai_video_kling_processing_failed");
+
+/** Retain the local phase and a fixed error category, never a supplier message or stack. */
+function safeFailureContext(error: unknown, stage: string) {
+  const cause = new Error(`ai_video_kling_stage:${stage}`);
+  const names = ["Error", "TypeError", "ReferenceError", "RangeError", "AbortError", "TimeoutError", "KlingApiError",
+    "AiGatewayAccountLimitError", "AiGatewayGuardUnavailableError"];
+  if (error instanceof Error && names.includes(error.name)) cause.name = error.name;
+  return cause;
+}
 
 export function klingVideoExternalId(args: Pick<AiVideoProviderGenerationArgs, "accountId" | "request">) {
   // Leave room for the voice/attempt suffix while staying below 64 characters.
@@ -116,21 +132,36 @@ function createKlingAiVideoProvider(engine: KlingVideoEngine): AiVideoProvider {
     const voiceIds: (string | null)[] = images.map(() => null);
     const voiceAttempt = randomUUID().replace(/-/g, "").slice(0, 12);
     let stage = "input_validation";
+    const errorStages = new WeakMap<object, string>();
     let billableVideo = false;
     let pendingVideo = false;
     let estimatedCostMicroUsd = 0;
     const clips: AiVideoProviderClip[] = [];
     const paid = async <T>(cost: number, operation: () => Promise<T>, video: boolean): Promise<T> => {
       signal.throwIfAborted();
+      const operationStage = video ? "provider_submission" : "voice_setup";
+      const reservationStage = video ? "video_cost_reservation" : "voice_cost_reservation";
+      stage = reservationStage;
       const reservation = await reserveAiGatewayAccountAttempt(args.accountId, {
         feature: "media.video", estimatedInputTokens: 0, reservedOutputTokens: 0, estimatedCostMicroUsd: cost,
+      }).catch(error => {
+        if (error && typeof error === "object") errorStages.set(error, reservationStage);
+        throw error;
       });
+      stage = operationStage;
       let committed = false;
       let attempted = false;
       const commit = async () => {
         if (committed) return;
+        const previousStage = video ? stage : "voice_setup";
+        const commitStage = video ? "video_cost_commit" : "voice_cost_commit";
+        stage = commitStage;
         await commitAiGatewayAccountAttempt({ reservation, feature: "media.video", model: video ? model : "kling-custom-voice",
-          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, actualCostMicroUsd: cost });
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, actualCostMicroUsd: cost }).catch(error => {
+          if (error && typeof error === "object") errorStages.set(error, commitStage);
+          throw error;
+        });
+        stage = previousStage;
         committed = true;
       };
       try {
@@ -155,17 +186,22 @@ function createKlingAiVideoProvider(engine: KlingVideoEngine): AiVideoProvider {
       }
     };
     try {
+      stage = "input_preparation";
       const prepared = await prepareAiMediaIdentityReferences(images, { format: "png", signal });
+      stage = "input_metadata";
       for (const buffer of prepared.buffers) {
         const metadata = await sharp(buffer).metadata();
         if (!metadata.width || !metadata.height || metadata.width < 300 || metadata.height < 300 ||
           metadata.width / metadata.height < 0.4 || metadata.width / metadata.height > 2.5) throw new Error("ai_media_kling_reference_dimensions_invalid");
       }
+      stage = "voice_url_signing";
       const voiceUrls = engine === "kling-flash" ? images.map(() => null)
         : await getAiMediaCharacterVoiceSignedUrls({ accountId: args.accountId, images, videoEngine: engine, signal });
       // Recover by a deterministic account/request ID before provisioning anything.
+      stage = "task_lookup";
       const existingTasks = await Promise.all(durations.map((_, i) => client.findVideo(`${klingVideoExternalId(args)}-${i + 1}`, signal)));
       const needsNewVideo = existingTasks.some(task => !task);
+      stage = "image_upload";
       const imageUrls = needsNewVideo ? await store.uploadImages(prepared.providerImages) : [];
       if (needsNewVideo) {
         stage = "voice_setup";
@@ -208,9 +244,17 @@ function createKlingAiVideoProvider(engine: KlingVideoEngine): AiVideoProvider {
       return { provider: PROVIDER, model, clips, estimatedCostMicroUsd, warnings: clips.flatMap(clip => clip.warnings) };
     } catch (error) {
       await recordAiGatewayAccountFailure({ accountId: args.accountId, feature: "media.video", model }).catch(() => undefined);
+      stage = error && typeof error === "object" ? errorStages.get(error) ?? stage : stage;
       const details = signal.aborted ? "ai_video_kling_timeout_or_cancelled" : failureCode(error);
-      if (billableVideo || pendingVideo) throw new AiVideoProviderBillableFailure({ provider: PROVIDER, model, stage, details });
-      throw new Error(details);
+      const cause = safeFailureContext(error, stage);
+      console.error("[ai-media] kling_generation_failed", { stage, category: cause.name,
+        code: gatewayGuardCode(error) ?? details.match(/^ai_[a-z_]+/)?.[0] ?? "ai_video_kling_processing_failed" });
+      if (billableVideo || pendingVideo) throw new AiVideoProviderBillableFailure({ provider: PROVIDER, model, stage, details, cause });
+      if (gatewayGuardCode(error) && error instanceof Error) {
+        error.cause = cause;
+        throw error; // Preserve the typed guard and its retryAfterSeconds for the existing route mapper.
+      }
+      throw new Error(details, { cause });
     } finally {
       // Pending tasks retain their profiles; the bounded daily cleanup expires them.
       if (!pendingVideo) for (const voiceId of voiceIds) {

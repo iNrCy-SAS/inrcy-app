@@ -853,7 +853,7 @@
         "lib/aiVideoKlingApi.ts": "5398f30bdc2d6f5a5c49fd235183701675ae6173d01e62642772e857d5a1753f",
         "lib/aiVideoProvider.ts": "551b64a198d5c4eea59430bfa37aba7b5c443ef1ff27065ab19c9728edb64c4c",
         "lib/aiVideoProviderGateway.ts": "7403f89d46039dceb651573782234c0045e1ec0911eb8a91c17edc2e40ed4793",
-        "lib/aiVideoProviderKling.ts": "437e7f1c50352f0cac4b017746907b193a0ea5c3988f30024a01e72c360396da",
+        "lib/aiVideoProviderKling.ts": "ca60d5c2e625d7a6a8271f73c178a66e49bc449e0ba3c817e4493fada030b653",
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
         "lib/inrAssistantLocalInterface.ts": "6dd57f2407c91aff3191a92d00a38ccae33a4d5df7491c0a969c1258ecdbb8a5",
         "lib/inrAssistantLocalInterfaceTools.ts": "6558e1549a8c743135cc1b11061902ba26252a7a9ea797d3e6be41ba4ddabaaa",

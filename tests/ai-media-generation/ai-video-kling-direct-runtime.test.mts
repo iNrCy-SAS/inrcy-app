@@ -15,19 +15,20 @@ import { normalizeAiMediaGenerationRequest } from "../../lib/aiMediaGenerationCo
 import * as providerTypes from "../../lib/aiVideoProviderTypes.ts";
 import { prepareAiMediaIdentityReferences } from "../../lib/aiMediaIdentityReferences.ts";
 import { getAiMediaGenerationPublicError, isAiMediaProviderBillingFailure } from "../../lib/aiMediaGenerationPublicErrors.ts";
+import { safeAiMediaErrorDetails } from "../../lib/aiMediaSensitiveText.ts";
 import type { KlingVideoRequest, KlingVideoTask } from "../../lib/aiVideoKlingApi.ts";
 import type * as KlingApi from "../../lib/aiVideoKlingApi.ts";
 import type * as KlingProvider from "../../lib/aiVideoProviderKling.ts";
 
-function runtime<T>(file: string, imports: Record<string, unknown>): T {
+function runtime<T>(file: string, imports: Record<string, unknown>, logger: Pick<Console, 'error' | 'warn'> = console): T {
   const source = readFileSync(path.join(process.cwd(), "lib", file), "utf8");
   const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true } }).outputText;
   const commonJsModule = { exports: {} };
-  vm.runInThisContext(`(function(exports,require,module){${compiled}\n})`)(commonJsModule.exports, (name: string) => {
+  vm.runInThisContext(`(function(exports,require,module,console){${compiled}\n})`)(commonJsModule.exports, (name: string) => {
     if (name === "server-only") return {};
     if (!(name in imports)) throw new Error(`Unexpected import ${name}`);
     return imports[name];
-  }, commonJsModule);
+  }, commonJsModule, logger);
   return commonJsModule.exports as T;
 }
 const api = runtime<typeof KlingApi>("aiVideoKlingApi.ts", { "node:timers/promises": { setTimeout: async () => undefined } });
@@ -160,7 +161,7 @@ function flashArgs(duration = 8): providerTypes.AiVideoProviderGenerationArgs {
 }
 
 type Mode = "success" | "voice-failed" | "lost-ack" | "lost-ack-unconfirmed" | "download-failed" | "rejected" | "polling-failed" | "polling-unauthorized" | "existing" | "pending-cancel";
-function context(mode: Mode = "success", cancel?: AbortController, voiceControl?: { onPoll: (number: number) => Promise<void> }) {
+function context(mode: Mode = "success", cancel?: AbortController, voiceControl?: { onPoll: (number: number) => Promise<void> }, faults: { reserveVideo?: Error; preparation?: Error; signing?: Error; upload?: Error } = {}) {
   const requests: { url: string; method: string; body?: Record<string, unknown> }[] = [];
   const videoBodies: KlingVideoRequest[] = [];
   const profiles: { url: string; externalId: string; id: string; name: string }[] = [];
@@ -169,6 +170,7 @@ function context(mode: Mode = "success", cancel?: AbortController, voiceControl?
   const counts = { reserved: 0, committed: 0, rolledBack: 0, uploads: 0, cleanups: 0, downloads: 0, signedVoiceLookups: 0 };
   const costs: number[] = [];
   const committedModels: string[] = [];
+  const logs: unknown[][] = [];
   const ok = (data: unknown) => Response.json({ code: 0, data });
   const completed = (id = "video-1", duration = 8): KlingVideoTask => ({ id, status: "succeeded", outputs: [{ type: "video", url: "https://test.klingai.com/video.mp4", duration }] });
   const fetcher: typeof fetch = async (input, init) => {
@@ -226,16 +228,18 @@ function context(mode: Mode = "success", cancel?: AbortController, voiceControl?
       return { data: mp4, mediaType: "video/mp4" };
     } },
     "@/lib/aiGatewayAccountGuard": {
-      reserveAiGatewayAccountAttempt: async (_id: string, input: { estimatedCostMicroUsd: number }) => { counts.reserved++; costs.push(input.estimatedCostMicroUsd); return {}; },
+      reserveAiGatewayAccountAttempt: async (_id: string, input: { estimatedCostMicroUsd: number }) => { counts.reserved++; costs.push(input.estimatedCostMicroUsd); if (faults.reserveVideo && input.estimatedCostMicroUsd > 10_000) throw faults.reserveVideo; return {}; },
       commitAiGatewayAccountAttempt: async ({ model }: { model: string }) => { counts.committed++; committedModels.push(model); }, rollbackAiGatewayAccountAttempt: async () => { counts.rolledBack++; }, recordAiGatewayAccountFailure: async () => {},
     },
-    "./aiMediaIdentityReferences.ts": { prepareAiMediaIdentityReferences },
+    "./aiMediaIdentityReferences.ts": { prepareAiMediaIdentityReferences: (...args: Parameters<typeof prepareAiMediaIdentityReferences>) => { if (faults.preparation) throw faults.preparation; return prepareAiMediaIdentityReferences(...args); } },
     "./aiMediaCharacterVoiceStorage.ts": { getAiMediaCharacterVoiceSignedUrls: async ({ images }: { images: voices.AiMediaCharacterVoiceReference[] }) => {
       counts.signedVoiceLookups++;
+      if (faults.signing) throw faults.signing;
       return images.map((image, i) => image.voiceMode === "provided" ? `https://private.example/voice-${i + 1}.wav` : null);
     } },
     "./aiMediaVideoTemporaryImages.ts": { createAiMediaVideoTemporaryImageStore: () => ({ uploadImages: async (images: { mimeType: string; data: string }[]) => {
       counts.uploads++; assert.ok(images.every(image => image.mimeType === "image/png"));
+      if (faults.upload) throw faults.upload;
       for (const image of images) assert.equal((await sharp(Buffer.from(image.data, "base64")).metadata()).exif, undefined);
       return images.map((_, i) => `https://private.example/image-${i + 1}.png`);
     }, cleanup: async () => { counts.cleanups++; } }) },
@@ -244,8 +248,8 @@ function context(mode: Mode = "success", cancel?: AbortController, voiceControl?
     "./aiVideoProviderGoogleVeo.ts": { buildGoogleVideoScenePrompt: prompts.buildAiMediaFreeVideoScenePrompt },
     "./aiVideoProviderTypes.ts": providerTypes,
     "./aiVideoKlingApi.ts": { ...api, createKlingApiClient: ({ apiKey, videoModel }: Parameters<typeof api.createKlingApiClient>[0]) => api.createKlingApiClient({ apiKey, videoModel, fetch: fetcher, sleep: async () => undefined }) },
-  });
-  return { provider, requests, videoBodies, profiles, deleted, counts, costs, committedModels };
+  }, { error: (...entries: unknown[]) => { logs.push(entries); }, warn: (...entries: unknown[]) => { logs.push(entries); } });
+  return { provider, requests, videoBodies, profiles, deleted, counts, costs, committedModels, logs };
 }
 async function withKey(run: () => Promise<void>) {
   const previous = process.env.KLING_API_KEY; process.env.KLING_API_KEY = "test-only-kling-key";
@@ -353,10 +357,37 @@ test("a failed Kling task releases its video reservation without a second submis
   assert.equal(c.videoBodies.length, 1); assert.equal(c.counts.rolledBack, 1); assert.equal(c.deleted.length, 2);
 }));
 
+test('a typed economic guard after both voice profiles stays identifiable before any video submission',async()=>withKey(async()=>{
+ for(const [name,code,publicCode]of [['AiGatewayAccountLimitError','ai_gateway_account_limit_reached','AI_MEDIA_ACCOUNT_SAFETY_LIMIT'],['AiGatewayGuardUnavailableError','ai_gateway_guard_unavailable','AI_MEDIA_GUARD_UNAVAILABLE']]){
+  const guard=Object.assign(new Error('La protection économique de ce compte bloque la tentative.'),{name,code,retryAfterSeconds:321,cause:new Error('PRIVATE https://secret.invalid/path?token=SECRET Bearer SECRET')});
+  const c=context('success',undefined,undefined,{reserveVideo:guard});
+  await assert.rejects(c.provider.klingAiVideoProvider.generate(argsFor()),error=>{
+   assert.equal(error,guard,'the route retains the same typed error and its retry delay');assert.equal(guard.retryAfterSeconds,321);assert.equal(getAiMediaGenerationPublicError(error).code,publicCode);assert.equal(providerTypes.isAiVideoProviderBillableFailure(error),false);assert.equal(providerTypes.getAiVideoProviderRecoverableStatus(error),0,'an account guard cannot authorize a provider fallback');
+   const details=JSON.stringify(safeAiMediaErrorDetails(error));assert.match(details,/video_cost_reservation/);assert.doesNotMatch(details,/PRIVATE|SECRET|https:|secret\.invalid|Bearer/);return true;
+  });
+  assert.equal(c.profiles.length,2);assert.equal(c.counts.committed,2);assert.equal(c.counts.reserved,3);assert.equal(c.videoBodies.length,0);assert.deepEqual(c.deleted,['speaker-1','speaker-2']);assert.equal(c.counts.cleanups,1);
+  const log=JSON.stringify(c.logs);assert.match(log,/video_cost_reservation/);assert.ok(log.includes(code));assert.doesNotMatch(log,/PRIVATE|SECRET|https:|secret\.invalid|Bearer/);
+ }
+}));
+
+test('pre-submission failures retain only the precise safe stage and error category without supplier text or extra attempts',async()=>withKey(async()=>{
+ for(const [field,stage]of [['preparation','input_preparation'],['signing','voice_url_signing'],['upload','image_upload']] as const){
+  const privateError=Object.assign(new TypeError('PRIVATE https://secret.invalid/private/path?token=SECRET Bearer SECRET prompt=PRIVATE'),{code:'PRIVATE',cause:new Error('PRIVATE nested provider body')});
+  const c=context('success',undefined,undefined,{[field]:privateError});
+  await assert.rejects(c.provider.klingAiVideoProvider.generate(argsFor()),error=>{
+   assert.ok(error instanceof Error);assert.equal(error.message,'ai_video_kling_processing_failed');assert.notEqual(error.cause,privateError);
+   const details=JSON.stringify(safeAiMediaErrorDetails(error));assert.ok(details.includes(stage));assert.match(details,/TypeError/);assert.doesNotMatch(details,/PRIVATE|SECRET|https:|secret\.invalid|Bearer/);return true;
+  });
+  assert.equal(c.videoBodies.length,0);assert.equal(c.profiles.length,0);assert.equal(c.counts.reserved,0);assert.equal(c.counts.committed,0);assert.equal(c.counts.cleanups,1);
+  const log=JSON.stringify(c.logs);assert.ok(log.includes(stage));assert.doesNotMatch(log,/PRIVATE|SECRET|https:|secret\.invalid|Bearer/);
+ }
+}));
+
 test("download failure after successful generation remains billable and cannot cause fallback", async () => withKey(async () => {
   const c = context("download-failed"); await assert.rejects(c.provider.klingAiVideoProvider.generate(argsFor()), error => {
     assert.equal(providerTypes.isAiVideoProviderBillableFailure(error), true);
-    assert.doesNotMatch(String(error), /PRIVATE|secret.invalid/); return true;
+    assert.match(JSON.stringify(safeAiMediaErrorDetails(error)),/asset_download/);
+    assert.doesNotMatch(JSON.stringify(safeAiMediaErrorDetails(error)), /PRIVATE|secret.invalid|https:/); return true;
   });
   assert.equal(c.videoBodies.length, 1); assert.equal(c.counts.committed, 3); assert.equal(c.counts.rolledBack, 0);
 }));
