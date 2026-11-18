@@ -398,7 +398,7 @@
       }
     },
     "booster": {
-      "guideDigest": "ea807d77608250768702371b59becf0e7378554b71980e0c58bd107ce717f16b",
+      "guideDigest": "c4bfc26ad1006694763ece9fdef35d8ff2013d685236bc1d0b3ba99ffd7a8c62",
       "sources": {
         "app/api/booster/connected-channels/route.ts": "0e5912b9d042e8bb9639b01cd376ec898b55ae8c7d141623670b177586acd3ad",
         "app/dashboard/_components/DashboardBoosterModalLayer.tsx": "3bc282e860f5c83ffbf25d2177c9abfc7629ec771c40aeb19896f1303be5818d",
