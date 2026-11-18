@@ -18,6 +18,7 @@ import { classifyBoosterPublicationResult } from "@/lib/boosterPublicationOutcom
 import { resolveMediaPreparationDisplayState } from "@/lib/mediaPreparationDisplay";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getPublicationTargetPredecessor } from "@/lib/boosterPublicationSequence";
+import { classifyMetaPublicationRestriction, normalizeMetaPublicationRestrictionResult } from "@/lib/metaGraphErrorClassification";
 import type {
   BoosterPublicationTarget,
   MetaPublicationPlacement,
@@ -174,7 +175,8 @@ export function buildAsyncPublicationSummary(
     const targets: Array<[string | null, JsonRecord]> = placements.length
       ? placements.map(([placement, result]) => [placement, asRecord(result)])
       : [[meta ? String(channelResult.placement || "classic") : null, channelResult]];
-    return targets.map(([placement, value]) => {
+    return targets.map(([placement, rawValue]) => {
+      const value = normalizeMetaPublicationRestrictionResult(rawValue, channel);
       const outcome = classifyBoosterPublicationResult(value.status === "processing" ? { ...value, pending: true } : value);
       const ok = outcome.ok;
       const code = cleanString(value.code) || null;
@@ -618,7 +620,7 @@ async function loadAsyncChannelStates(params: {
       placement: target.placement,
       eventId,
       status: cleanString(payload.status) || "queued",
-      result: { ...asRecord(payload.result), ...(target.channel === "threads" ? {
+      result: { ...normalizeMetaPublicationRestrictionResult(payload.result, target.channel), ...(target.channel === "threads" ? {
         threads_publication_mode: asRecord(payload.result).threads_publication_mode || payload.threadsPublicationMode ||
           asRecord(asRecord(payload.dispatchRequest).threadsPublicationSettings).mode || "classic",
       } : {}) },
@@ -843,12 +845,40 @@ function buildCompletedPublicationStatus(
   publicationId: string,
   payload: JsonRecord,
 ) {
+  // Old receipts retained provider diagnostics but lost their non-retryable
+  // classification in the summary. Repair the response without changing history.
+  const results = { ...asRecord(payload.results) };
+  for (const channel of ["facebook", "instagram"]) {
+    if (results[channel]) results[channel] = normalizeMetaPublicationRestrictionResult(results[channel], channel);
+  }
+  const previousSummary = asRecord(payload.summary);
+  const entries = Array.isArray(previousSummary.entries) ? previousSummary.entries.map((value) => {
+    const entry = asRecord(value);
+    const channel = cleanString(entry.channel);
+    if (entry.ok === true || (channel !== "facebook" && channel !== "instagram")) return value;
+    const result = asRecord(results[channel]);
+    const placements = asRecord(result.placements);
+    const placement = cleanString(entry.placement) || cleanString(entry.targetKey).split(":")[1] ||
+      (Object.keys(placements).length === 1 ? Object.keys(placements)[0] : "");
+    const target = placement && Object.keys(placements).length ? placements[placement] : result;
+    const restriction = classifyMetaPublicationRestriction(target, channel);
+    return restriction ? { ...entry, code: restriction.code, retryable: false } : value;
+  }) : null;
   return {
     ok: String(payload.status || "") !== "failed",
     done: true,
     queued: false,
     publication_id: publicationId,
     ...payload,
+    ...(payload.results ? { results } : {}),
+    ...(entries ? { summary: { ...previousSummary, entries,
+      ...(Object.prototype.hasOwnProperty.call(previousSummary, "retryableFailureCount") ? {
+        retryableFailureCount: entries.filter((value) => {
+          const entry = asRecord(value);
+          return entry.ok === false && isBoosterPublishFailureRetryable({ ok: false, code: entry.code, retryable: entry.retryable });
+        }).length,
+      } : {}),
+    } } : {}),
   };
 }
 
@@ -869,7 +899,7 @@ function buildProcessingPublicationStatus(
     const states = channelStates.filter((state) => state.channel === channel);
     return (states.length ? states : [{ channel, targetKey: channel, placement: null, eventId: "", status: "preparing", result: {} }]).map(state => {
       const terminal = TERMINAL_CHANNEL_STATUSES.has(state.status);
-      const result = state.result;
+      const result = normalizeMetaPublicationRestrictionResult(state.result, channel);
       const outcome = terminal ? classifyBoosterPublicationResult(result) : null;
       const placement = channel === "facebook" || channel === "instagram" ? state.placement || "classic" : null;
       const technicalStatus = terminal ? outcome?.ok ? "completed" : "failed" : state.status;

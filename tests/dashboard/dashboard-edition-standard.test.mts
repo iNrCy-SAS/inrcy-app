@@ -527,7 +527,7 @@ test("le cockpit reflète le parcours communication et les bilans utilisent le b
     /Production de prospects et de clients dès qu.un module est connecté/,
   );
   assert.doesNotMatch(publicationResultModalSource, /canal\$\{[^\n]*"aux/);
-  assert.match(publicationResultModalSource, /i18nT\("execution_result_online", \{ count: publishedCount \}\)/);
+  assert.match(publicationResultModalSource, /const \{ publishedCount, totalCount,[^\n]*\} = getPublicationResultCounts\(summary, publicationDestinations\)/);
   assert.match(publicationResultModalSource, /i18nT\("execution_result_compact_count", \{ count: publishedCount, total: totalCount \}\)/);
   assert.match(publicationResultModalSource, /data-publication-result-footer>[\s\S]*<PublicationResultSummary summary=\{summary\} publicationDestinations=\{publicationDestinations\} compact/);
   assert.match(publicationResultModalSource, /!embedded \? <PublicationResultSummary/);

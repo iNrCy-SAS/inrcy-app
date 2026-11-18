@@ -1,4 +1,5 @@
 import { isBoosterPublicationPendingStatus } from "./boosterPublicationStatus.ts";
+import { classifyMetaPublicationRestriction } from "./metaGraphErrorClassification.ts";
 
 type Row = Record<string, unknown>;
 const row = (value: unknown): Row => value && typeof value === "object" && !Array.isArray(value) ? value as Row : {};
@@ -15,10 +16,20 @@ export function publicationStorySequenceCounts(value: unknown): { confirmed: num
 }
 
 /** A Reel may be published while its ordered Story sequence still needs repair. */
+export function publicationEntryRequiresAccountAction(value: unknown): boolean {
+  const entry = row(value);
+  const statuses = [entry.status, entry.technicalStatus].map(value => String(value || "").toLowerCase());
+  if (entry.warning_kind === "pending" || statuses.some(isBoosterPublicationPendingStatus) || statuses.includes("skipped")) return false;
+  return (entry.ok === false || statuses.some(status => status === "failed" || status === "error")) &&
+    Boolean(classifyMetaPublicationRestriction(entry, String(entry.channel || "")));
+}
+
+/** Frontend manual retry eligibility; account actions require UI confirmation. */
 export function isRetryablePublicationEntry(value: unknown): boolean {
   const entry = row(value), status = String(entry.status || "").toLowerCase(), technical = String(entry.technicalStatus || "").toLowerCase();
   const hasCheckpoint = entry.story_sequence_resume_ref !== undefined && entry.story_sequence_resume_ref !== null;
   const reference = publicationStorySequenceResumeRef(entry.story_sequence_resume_ref);
+  if (publicationEntryRequiresAccountAction(entry)) return !hasCheckpoint || Boolean(reference);
   if (hasCheckpoint && (!reference || entry.retryable !== true || (entry.channel !== "facebook" && entry.channel !== "instagram"))) return false;
   if (entry.retryable === false || entry.warning_kind === "pending" || isBoosterPublicationPendingStatus(status) || isBoosterPublicationPendingStatus(technical) || status === "skipped") return false;
   if (entry.ok === false || [status, technical].some(item => item === "failed" || item === "error")) return true;

@@ -1,4 +1,7 @@
 {
+  "execution_result_account_action_confirm_message": "คุณได้ดำเนินการตรวจสอบที่ Facebook ขอ หรือเปิดใช้งานหรือปลดบล็อกบัญชี Instagram แล้วหรือไม่ ระบบจะลองใหม่เฉพาะโพสต์ที่ล้มเหลวเท่านั้น",
+  "execution_result_account_action_confirm_title": "ตรวจสอบบัญชีแล้ว",
+  "execution_result_account_action_retry": "แก้ไขปัญหาแล้ว ลองอีกครั้ง",
   "publication_pending_count_confirmation": "{count, plural, one {# โพสต์ยังอยู่ระหว่างดำเนินการขั้นสุดท้าย} other {# โพสต์ยังอยู่ระหว่างดำเนินการขั้นสุดท้าย}} · รอการยืนยันจากแพลตฟอร์ม",
   "studio_open_unavailable": "ไม่สามารถเปิด iNrStudio ได้ในขณะนี้ การเปลี่ยนแปลงของคุณยังคงอยู่ใน Booster โปรดลองอีกครั้ง",
   "adjust_title": "ปรับเนื้อหาที่สร้าง",

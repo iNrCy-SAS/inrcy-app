@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 import { deflateRawSync } from "node:zlib";
 import ts from "typescript";
+import { classifyMetaPublicationRestriction } from "../../lib/metaGraphErrorClassification.ts";
 
 import * as memory from "../../lib/aiMemory.ts";
 import { getAiFeaturePolicy } from "../../lib/aiGatewayPolicy.ts";
@@ -33,7 +34,7 @@ function loadModule<T extends object>(path: string, dependencies: Record<string,
 const { getSimpleFrenchErrorMessage } = loadModule<typeof import("../../lib/userFacingErrors.ts")>("lib/userFacingErrors.ts", {
   "@/lib/appLanguage": { normalizeAppLanguage: () => "fr-FR" },
   "@/lib/publicationErrorFrench": { getProviderPublicationErrorMessage: () => null, looksLikeEnglishErrorMessage: () => false },
-  "@/lib/metaGraphErrorClassification": { isMetaRateLimitError: () => false },
+  "@/lib/metaGraphErrorClassification": { isMetaRateLimitError: () => false, classifyMetaPublicationRestriction },
 });
 
 test("une analyse lente conserve les mêmes plafonds de coût et assez de temps pour ses secours", () => {

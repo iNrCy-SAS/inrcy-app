@@ -62,6 +62,7 @@ const modules = {
   "@/lib/appLanguage": compile(read("lib/appLanguage.ts")),
   "@/lib/publicationErrorFrench": compile(read("lib/publicationErrorFrench.ts")),
   "@/lib/metaGraphErrorClassification": compile(read("lib/metaGraphErrorClassification.ts")),
+  "./metaGraphErrorClassification.ts": compile(read("lib/metaGraphErrorClassification.ts")),
 };
 
 async function setup(page: Page) {

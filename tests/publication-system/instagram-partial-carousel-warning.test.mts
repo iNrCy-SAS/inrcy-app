@@ -28,7 +28,7 @@ async function loadInstagramPublishModule() {
     ),
     fs.writeFile(
       path.join(tempDir, "metaGraphErrorClassificationStub.ts"),
-      "export function isMetaAuthorizationError() { return false; }\nexport function isMetaRateLimitError() { return false; }\n",
+      await fs.readFile(path.join(ROOT, "lib/metaGraphErrorClassification.ts"), "utf8"),
     ),
   ]);
 

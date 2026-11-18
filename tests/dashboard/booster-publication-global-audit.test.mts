@@ -48,7 +48,8 @@ test("stage 4 keeps partial results, retry scope and mobile modal state", () => 
   assert.equal(new IntlMessageFormat(boosterMessages.execution_result_compact_count, "fr-FR").format({ count: 2, total: 3 }), "2/3 publiés");
   assert.match(resultModal, /<strong>\{failedOrSkippedCount\}<\/strong><span>\{i18nT\("execution_result_review"\)\}<\/span>/);
   assert.equal(boosterMessages.execution_result_review, "à revoir");
-  assert.match(resultModal, /entries\.filter\(isRetryablePublicationEntry\)/);
+  assert.match(resultModal, /const resultEntries = getPublicationResultCounts\(summary, publicationDestinations\)\.entries/);
+  assert.match(resultModal, /resultEntries\.filter\(isRetryablePublicationEntry\)/);
   assert.equal(isRetryablePublicationEntry({ channel: "facebook", ok: false, status: "failed", retryable: true }), true);
   assert.equal(isRetryablePublicationEntry({ channel: "facebook", ok: false, status: "failed", retryable: false }), false);
   assert.equal(isRetryablePublicationEntry({ channel: "facebook", ok: true, status: "processing" }), false);

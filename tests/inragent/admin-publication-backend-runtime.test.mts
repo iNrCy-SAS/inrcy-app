@@ -394,8 +394,14 @@ test('the real durable worker cancels after enqueue and keeps a terminal marker 
   assert.equal(result.allowed, false); assert.equal(result.code, 'inr_agent_admin_authorization_revoked');
   const parent = db.tables.app_events.find(row => row.id === parentId)!;
   assert.equal(parent.type, 'publish'); assert.ok(parent.payload.inrAgentAuthorizationRevokedAt);
-  assert.equal(parent.payload.results.facebook.code, 'inr_agent_admin_authorization_revoked');
-  assert.equal(parent.payload.results.facebook.retryable, false); assert.equal(terminalCommits, 1);
+  const facebookResult = parent.payload.results.facebook;
+  assert.equal(facebookResult.ok, false);
+  assert.equal(facebookResult.retryable, false);
+  const placementResults = Object.values(facebookResult.placements) as Row[];
+  assert.equal(placementResults.length, 1);
+  assert.equal(placementResults[0].code, 'inr_agent_admin_authorization_revoked');
+  assert.equal(placementResults[0].retryable, false);
+  assert.equal(terminalCommits, 1);
   assert.equal(db.tables.app_events.some(row => row.id === childId), false);
   db.tables.profiles[0].role = 'admin';
   assert.equal((await worker.guardInrAgentAdminBoosterPublication(args)).allowed, false, 'restoring a role cannot revive stopped durable work');

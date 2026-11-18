@@ -6,6 +6,7 @@ import { classifyBoosterPublicationResult } from "../../lib/boosterPublicationOu
 import { isBoosterPublishFailureRetryable } from "../../lib/boosterPublicationPolicy.ts";
 import { selectAiMediaSoundtrack } from "../../lib/aiMediaSoundtrackCatalog.ts";
 import { runtimeModules } from "../inragent/runtime-module-loader.mts";
+import { normalizeMetaPublicationRestrictionResult } from "../../lib/metaGraphErrorClassification.ts";
 
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
 const routePath = "app/api/booster/publish-now/route.ts";
@@ -125,7 +126,7 @@ test("partial Stories retain their confirmed IDs and resumable state beside a de
     assert.equal(result.ok, false); assert.equal(result.retryable, true); assert.equal(result.story_sequence_resume_ref, ref);
     assert.deepEqual(result.external_ids, ["reel-already-published", "story-0", "story-1", "story-2"]);
     for (const [file, name] of [["lib/boosterAsyncPublication.ts", "buildAsyncPublicationSummary"], ["app/api/booster/publish-now/publishNow.foundations.ts", "buildResultsSummary"]]) {
-      const summary = callable<(results: unknown, selected: string[]) => { entries: Array<Record<string, unknown>> }>(file, name, { asRecord: obj, cleanString, CHANNEL_LABELS: labels, classifyBoosterPublicationResult, isBoosterPublishFailureRetryable });
+      const summary = callable<(results: unknown, selected: string[]) => { entries: Array<Record<string, unknown>> }>(file, name, { asRecord: obj, cleanString, CHANNEL_LABELS: labels, classifyBoosterPublicationResult, isBoosterPublishFailureRetryable, normalizeMetaPublicationRestrictionResult });
       const entry = summary({ [channel]: result }, [channel]).entries.find(value => value.placement === "story")!;
       assert.equal(entry.story_sequence_resume_ref, ref); assert.equal(entry.retryable, true); assert.equal(entry.published_image_count, 3); assert.equal(entry.expected_image_count, 5);
     }

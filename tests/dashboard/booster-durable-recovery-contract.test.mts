@@ -94,7 +94,7 @@ test("red target channels are durable but never dispatchable", () => {
   );
   assert.match(
     ingress,
-    /status: clientPreflightFailuresByChannel\[target\.channel\][\s\S]*\? "failed"[\s\S]*: "preparing"/,
+    /status: \(clientPreflightFailuresByTarget\[`\$\{target\.channel\}:\$\{target\.placement\}`\] \|\| clientPreflightFailuresByChannel\[target\.channel\]\)[\s\S]*\? "failed"[\s\S]*: "preparing"/,
   );
   assert.match(
     route,

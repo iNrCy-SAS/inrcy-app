@@ -1,4 +1,7 @@
 {
+  "execution_result_account_action_confirm_message": "您是否已完成 Facebook 要求的核验，或已激活或解除 Instagram 账户的限制？仅会重试发布失败的内容。",
+  "execution_result_account_action_confirm_title": "已完成账户核验",
+  "execution_result_account_action_retry": "我已解决问题，重试",
   "publication_pending_count_confirmation": "{count, plural, one {# 条发布内容仍在完成中} other {# 条发布内容仍在完成中}} · 等待平台确认",
   "studio_open_unavailable": "暂时无法打开 iNrStudio。您的更改仍保留在 Booster 中，请重试。",
   "adjust_title": "调整生成内容",

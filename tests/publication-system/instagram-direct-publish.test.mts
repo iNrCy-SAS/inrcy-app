@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
-import { isMetaAuthorizationError, isMetaRateLimitError } from "../../lib/metaGraphErrorClassification.ts";
+import * as metaGraphClassification from "../../lib/metaGraphErrorClassification.ts";
 
 type RecordLike = Record<string, unknown>;
 type Publish = (params: RecordLike) => Promise<RecordLike>;
@@ -13,7 +13,7 @@ const compiled = ts.transpileModule(source, { compilerOptions: { module: ts.Modu
 const requireFromTest = createRequire(import.meta.url);
 new Function("module", "exports", "require", compiled)(moduleRecord, moduleRecord.exports, (specifier: string) => {
   if (specifier === "@/lib/instagramAuthMode") return { buildInstagramGraphUrl: (path: string, authMode = "facebook_login") => `https://${authMode === "instagram_login" ? "graph.instagram.com" : "graph.facebook.com"}/v25.0/${path}` };
-  if (specifier === "@/lib/metaGraphErrorClassification") return { isMetaAuthorizationError, isMetaRateLimitError };
+  if (specifier === "@/lib/metaGraphErrorClassification") return metaGraphClassification;
   return requireFromTest(specifier);
 });
 const publish = moduleRecord.exports.instagramPublishImagesBestEffortWithTokenFallback as Publish;

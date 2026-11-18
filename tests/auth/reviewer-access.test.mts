@@ -7,6 +7,7 @@ import { isMetaChannelPilotEnabled } from "../../lib/metaChannelRollout.ts";
 import * as editions from "../../lib/dashboardEdition.ts";
 import { FULL_PRODUCT_REVIEWER_ACCOUNT_ID } from "../../lib/reviewerAccess.ts";
 import * as reviewerAccess from "../../lib/reviewerAccess.ts";
+import * as metaGraphClassification from "../../lib/metaGraphErrorClassification.ts";
 
 function load(file: string, dependencies: Record<string, any> = {}): any {
   const source = ts.transpileModule(readFileSync(new URL(`../../${file}`, import.meta.url), "utf8"), {
@@ -115,7 +116,7 @@ test("Ads pilot grants product testing to reviewer while admin APIs still deny i
     const query={select(){return this;},eq(){return this;},async maybeSingle(){return {data:{role},error:null};}};
     const deps:Record<string,any>={
       "next/server":{NextResponse:{}},"@/lib/roles":base.roles,"@/lib/supabaseAdmin":{supabaseAdmin:{from:()=>query}},"@/lib/reviewerAccess":reviewerAccess,
-      "@/lib/requireUser":{},"@/lib/oauthCrypto":{},"@/lib/metaGraphApi":{},"@/lib/metaGraphErrorClassification":{},
+      "@/lib/requireUser":{},"@/lib/oauthCrypto":{},"@/lib/metaGraphApi":{},"@/lib/metaGraphErrorClassification":metaGraphClassification,
       "@/lib/metaBusinessAssets":{},"@/lib/adsGoogleApiError":{},"@/lib/dashboardEditionServer":{},"@/lib/adsAccessPolicy":{},
     };
     const ads=load("lib/adsServer.ts",deps);

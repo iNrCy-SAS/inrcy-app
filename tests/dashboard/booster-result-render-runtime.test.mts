@@ -10,6 +10,7 @@ import { IntlMessageFormat } from "intl-messageformat";
 import * as storyRetry from "../../lib/publicationStorySequenceRetry.ts";
 import { classifyBoosterPublicationResult } from "../../lib/boosterPublicationOutcome.ts";
 import { isBoosterPublishFailureRetryable } from "../../lib/boosterPublicationPolicy.ts";
+import { normalizeMetaPublicationRestrictionResult } from "../../lib/metaGraphErrorClassification.ts";
 
 const nodeRequire = createRequire(import.meta.url);
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
@@ -21,6 +22,7 @@ const load = (path: string, dependencies: Record<string, any>, globals: Record<s
     target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
   } }).outputText;
   const require = (name: string) => {
+    if (name === "./metaGraphErrorClassification.ts") return load("lib/metaGraphErrorClassification.ts", {});
     if (name in dependencies) return dependencies[name];
     if (name === "react" || name === "react/jsx-runtime") return nodeRequire(name);
     throw new Error(`Unexpected renderer dependency: ${name}`);
@@ -41,6 +43,7 @@ const userFacingErrors = load("lib/userFacingErrors.ts", {
   "@/lib/metaGraphErrorClassification": load("lib/metaGraphErrorClassification.ts", {}),
 });
 const resultDependencies = {
+  "@/lib/inrcyDialog": { confirmInrcy: async () => false },
   "@/lib/publicationStorySequenceRetry": storyRetry,
   "./DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ metaPilotEnabled: true }) },
   "@/lib/metaChannelUiAccess": { isMetaPilotChannelVisible: () => true },
@@ -66,6 +69,28 @@ const render = (summary: Record<string, unknown> | null, options: Record<string,
 const renderCompactActions = (summary: Record<string, unknown> | null, publicationDestinations: Array<{ key: string; label: string }> = []) => renderToStaticMarkup(createElement(Actions, {
   summary, publicationDestinations, compact: true, onRetryFailed() {}, onOpenInrSend() {},
 }));
+
+test("the real MPS result cards show separate localized account actions and retain successful channels", () => {
+  const entries = [
+    { channel: "facebook", targetKey: "facebook:classic", placement: "classic", label: "Facebook", ok: false, status: "failed", retryable: false, code: "facebook_identity_confirmation_required", error: "PRIVATE_PROVIDER_TOKEN Bearer secret" },
+    { channel: "instagram", targetKey: "instagram:classic", placement: "classic", label: "Instagram", ok: false, status: "failed", retryable: false, code: "instagram_account_restricted", error: "PRIVATE_PROVIDER_TOKEN Bearer secret" },
+    { channel: "gmb", label: "Google Business", ok: true, status: "published" },
+    { channel: "site_web", label: "Site web", ok: true, status: "published" },
+  ];
+  for (const locale of Object.keys(catalogs)) {
+    activeLocale = locale;
+    try {
+      const html = render({ entries }, { onRetryFailed() {} });
+      for (const code of ["facebook_identity_confirmation_required", "instagram_account_restricted"]) {
+        const copy = userFacingErrors.getLocalizedErrorMessage({ code }, locale);
+        assert.ok(html.includes(copy), `${locale}: ${code}`);
+      }
+      assert.ok(html.includes(catalogs[locale].execution_result_account_action_retry));
+      assert.doesNotMatch(html, /PRIVATE|Bearer|secret|OAuthException|2207050/);
+      assert.match(html, /2\/4/);
+    } finally { activeLocale = "fr-FR"; }
+  }
+});
 
 test("standalone and shared result headers count every selected Meta placement and retain failed blocks", () => {
   const facebook = [
@@ -93,7 +118,7 @@ test("real aggregation and both backend summaries carry 5/5 Story success into t
     let found: ts.FunctionDeclaration | undefined;
     const visit = (node: ts.Node) => { if (ts.isFunctionDeclaration(node) && node.name?.text === name) found = node; ts.forEachChild(node, visit); };
     visit(source); assert.ok(found, name);
-    const context = { cleanString: (value: unknown) => String(value ?? "").trim(), asRecord: (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value : {}, CHANNEL_LABELS: { facebook: "Facebook", instagram: "Instagram" }, getTargetResultLabel: (state: { placement: string }) => state.placement, classifyBoosterPublicationResult, isBoosterPublishFailureRetryable };
+    const context = { cleanString: (value: unknown) => String(value ?? "").trim(), asRecord: (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value : {}, CHANNEL_LABELS: { facebook: "Facebook", instagram: "Instagram" }, getTargetResultLabel: (state: { placement: string }) => state.placement, classifyBoosterPublicationResult, isBoosterPublishFailureRetryable, normalizeMetaPublicationRestrictionResult };
     const code = ts.transpileModule(`return (${found.getText(source).replace(/^export\s+/, "")});`, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
     return new Function(...Object.keys(context), code)(...Object.values(context));
   }
@@ -400,7 +425,10 @@ test("exported result actions preserve retry eligibility, busy state and the iNr
   assert.doesNotMatch(renderActions({ onRetryFailed: undefined }), /class="retryButton"/);
   let retries = 0;
   let navigations = 0;
-  const actions = Actions({
+  const IsolatedActions = load("app/dashboard/_components/PublishExecutionResultModal.tsx", {
+    ...resultDependencies, react: { ...nodeRequire("react"), useRef: () => ({ current: false }) },
+  }).PublishExecutionResultActions;
+  const actions = IsolatedActions({
     summary: { retryableFailureCount: 1 },
     onRetryFailed: () => { retries += 1; },
     onOpenInrSend: () => { navigations += 1; },

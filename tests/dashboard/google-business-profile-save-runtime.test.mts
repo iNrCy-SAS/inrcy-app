@@ -12,7 +12,10 @@ const require = createRequire(import.meta.url);
 function loadErrorDependency(file: string, dependencies: Record<string, unknown> = {}) {
   const exports: Record<string, unknown> = {};
   const code = ts.transpileModule(readFileSync(file, "utf8"), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
-  new Function("require", "exports", code)((name: string) => { assert.ok(name in dependencies, name); return dependencies[name]; }, exports);
+  new Function("require", "exports", code)((name: string) => {
+    if (name === "./metaGraphErrorClassification.ts") return loadErrorDependency("lib/metaGraphErrorClassification.ts");
+    assert.ok(name in dependencies, name); return dependencies[name];
+  }, exports);
   return exports;
 }
 const userFacingErrors = loadErrorDependency("lib/userFacingErrors.ts", {

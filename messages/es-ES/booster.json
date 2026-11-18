@@ -1,4 +1,7 @@
 {
+  "execution_result_account_action_confirm_message": "¿Ha completado la verificación solicitada en Facebook o activado o desbloqueado su cuenta de Instagram? Solo se volverán a intentar las publicaciones con error.",
+  "execution_result_account_action_confirm_title": "Verificación de la cuenta completada",
+  "execution_result_account_action_retry": "He resuelto el problema, reintentar",
   "publication_pending_count_confirmation": "{count, plural, one {# publicación sigue finalizándose} other {# publicaciones siguen finalizándose}} · Confirmación de las plataformas",
   "studio_open_unavailable": "No se puede abrir iNrStudio en este momento. Tus cambios se conservan en Booster. Inténtalo de nuevo.",
   "adjust_title": "Ajustar la generación",

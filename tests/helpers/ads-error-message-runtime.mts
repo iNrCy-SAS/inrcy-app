@@ -8,6 +8,7 @@ function load(file: string, dependencies: Record<string, unknown> = {}) {
   const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   new Function("require", "exports", code)((name: string) => {
+    if (name === "./metaGraphErrorClassification.ts") return load("lib/metaGraphErrorClassification.ts");
     assert.ok(name in dependencies, `Unexpected ADS test dependency: ${name}`);
     return dependencies[name];
   }, exports);

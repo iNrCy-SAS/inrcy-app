@@ -8,6 +8,7 @@ function load(file: string, dependencies: Record<string, unknown> = {}): Record<
   const source = readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
   new Function("require", "exports", code)((name: string) => {
+    if (name === "./metaGraphErrorClassification.ts") return load("lib/metaGraphErrorClassification.ts");
     if (name in dependencies) return dependencies[name];
     throw new Error(`Unexpected test dependency: ${name}`);
   }, exports);

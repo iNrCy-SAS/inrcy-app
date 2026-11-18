@@ -5,7 +5,7 @@ import test from "node:test";
 
 import ts from "typescript";
 
-import { isMetaAuthorizationError } from "../../lib/metaGraphErrorClassification.ts";
+import * as metaGraphClassification from "../../lib/metaGraphErrorClassification.ts";
 
 type UnknownRecord = Record<string, unknown>;
 type PhaseResult = {
@@ -49,7 +49,7 @@ execute(moduleRecord, moduleRecord.exports, (specifier: string) => {
     };
   }
   if (specifier === "@/lib/metaGraphErrorClassification") {
-    return { isMetaAuthorizationError };
+    return metaGraphClassification;
   }
   return requireFromTest(specifier);
 });

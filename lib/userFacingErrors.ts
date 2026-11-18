@@ -1,9 +1,11 @@
 import { normalizeAppLanguage, type AppLanguageCode } from "@/lib/appLanguage";
 import {
+  FACEBOOK_IDENTITY_CONFIRMATION_USER_MESSAGE,
+  INSTAGRAM_ACCOUNT_RESTRICTED_USER_MESSAGE,
   getProviderPublicationErrorMessage,
   looksLikeEnglishErrorMessage,
 } from "@/lib/publicationErrorFrench";
-import { isMetaRateLimitError } from "@/lib/metaGraphErrorClassification";
+import { classifyMetaPublicationRestriction, isMetaRateLimitError } from "@/lib/metaGraphErrorClassification";
 
 export const FACEBOOK_RECONNECT_USER_MESSAGE = "Facebook à reconnecter. Rendez-vous dans Canaux.";
 export const INSTAGRAM_RECONNECT_USER_MESSAGE = "Instagram à reconnecter. Rendez-vous dans Canaux.";
@@ -38,6 +40,8 @@ type UserFacingErrorKey =
   | "media_missing"
   | "facebook_reconnect"
   | "instagram_reconnect"
+  | "facebook_identity_confirmation_required"
+  | "instagram_account_restricted"
   | "linkedin_reconnect"
   | "google_business_reconnect";
 
@@ -70,6 +74,8 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     media_missing: "Le média enregistré n’est plus disponible. Choisissez un autre média ou lancez une nouvelle création.",
     facebook_reconnect: FACEBOOK_RECONNECT_USER_MESSAGE,
     instagram_reconnect: INSTAGRAM_RECONNECT_USER_MESSAGE,
+    facebook_identity_confirmation_required: FACEBOOK_IDENTITY_CONFIRMATION_USER_MESSAGE,
+    instagram_account_restricted: INSTAGRAM_ACCOUNT_RESTRICTED_USER_MESSAGE,
     linkedin_reconnect: LINKEDIN_RECONNECT_USER_MESSAGE,
     google_business_reconnect: GOOGLE_BUSINESS_RECONNECT_USER_MESSAGE,
   },
@@ -101,6 +107,8 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     media_missing: "The saved media is no longer available. Choose another media item or start a new creation.",
     facebook_reconnect: "Facebook needs to be reconnected. Go to Channels.",
     instagram_reconnect: "Instagram needs to be reconnected. Go to Channels.",
+    facebook_identity_confirmation_required: "Facebook requires identity confirmation. Open the Facebook mobile app with the profile that manages the Page and complete the requested check. Once it is complete, retry the post in iNrCy.",
+    instagram_account_restricted: "Instagram is not allowing this account to publish yet. The account may be inactive, awaiting a security check or restricted. Open the Instagram app, sign in and complete the required actions. If needed, also review Account Status. Once the account is activated or unblocked, retry the post in iNrCy.",
     linkedin_reconnect: "LinkedIn needs to be reconnected. Go to Channels.",
     google_business_reconnect: "The Google Business connection needs updating. Reconnect it and select every permission requested by Google.",
   },
@@ -132,6 +140,8 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     media_missing: "El archivo guardado ya no está disponible. Elige otro archivo multimedia o inicia una nueva creación.",
     facebook_reconnect: "Hay que volver a conectar Facebook. Ve a Canales.",
     instagram_reconnect: "Hay que volver a conectar Instagram. Ve a Canales.",
+    facebook_identity_confirmation_required: "Facebook requiere confirmar tu identidad. Abre la aplicación móvil de Facebook con el perfil que administra la página y completa la verificación solicitada. Cuando termines, vuelve a intentar la publicación en iNrCy.",
+    instagram_account_restricted: "Instagram aún no permite publicar desde esta cuenta. Puede estar inactiva, pendiente de una verificación de seguridad o restringida. Abre la aplicación de Instagram, inicia sesión y completa las acciones solicitadas. Si es necesario, consulta también Estado de la cuenta. Una vez activada o desbloqueada, vuelve a intentar la publicación en iNrCy.",
     linkedin_reconnect: "Hay que volver a conectar LinkedIn. Ve a Canales.",
     google_business_reconnect: "Hay que actualizar la conexión de Google Business. Vuelve a conectarla y marca todos los permisos solicitados por Google.",
   },
@@ -163,6 +173,8 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     media_missing: "Il contenuto multimediale salvato non è più disponibile. Scegline un altro o avvia una nuova creazione.",
     facebook_reconnect: "Facebook deve essere ricollegato. Vai su Canali.",
     instagram_reconnect: "Instagram deve essere ricollegato. Vai su Canali.",
+    facebook_identity_confirmation_required: "Facebook richiede la conferma dell’identità. Apri l’app mobile di Facebook con il profilo che gestisce la Pagina e completa la verifica richiesta. Al termine, riprova a pubblicare in iNrCy.",
+    instagram_account_restricted: "Instagram non consente ancora a questo account di pubblicare. Potrebbe essere inattivo, in attesa di una verifica di sicurezza o soggetto a restrizioni. Apri l’app Instagram, accedi e completa le azioni richieste. Se necessario, consulta anche Stato dell’account. Dopo l’attivazione o lo sblocco, riprova a pubblicare in iNrCy.",
     linkedin_reconnect: "LinkedIn deve essere ricollegato. Vai su Canali.",
     google_business_reconnect: "La connessione Google Business deve essere aggiornata. Ricollegala e seleziona tutte le autorizzazioni richieste da Google.",
   },
@@ -194,6 +206,8 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     media_missing: "Das gespeicherte Medium ist nicht mehr verfügbar. Wählen Sie ein anderes Medium oder starten Sie eine neue Erstellung.",
     facebook_reconnect: "Facebook muss erneut verbunden werden. Öffnen Sie Kanäle.",
     instagram_reconnect: "Instagram muss erneut verbunden werden. Öffnen Sie Kanäle.",
+    facebook_identity_confirmation_required: "Facebook verlangt eine Identitätsbestätigung. Öffnen Sie die Facebook-App auf Ihrem Smartphone mit dem Profil, das die Seite verwaltet, und schließen Sie die angeforderte Prüfung ab. Versuchen Sie danach die Veröffentlichung in iNrCy erneut.",
+    instagram_account_restricted: "Instagram erlaubt diesem Konto noch keine Veröffentlichungen. Es kann inaktiv sein, eine Sicherheitsprüfung erfordern oder eingeschränkt sein. Öffnen Sie die Instagram-App, melden Sie sich an und führen Sie die geforderten Schritte aus. Prüfen Sie bei Bedarf auch den Kontostatus. Versuchen Sie die Veröffentlichung nach Aktivierung oder Freigabe erneut in iNrCy.",
     linkedin_reconnect: "LinkedIn muss erneut verbunden werden. Öffnen Sie Kanäle.",
     google_business_reconnect: "Die Google-Business-Verbindung muss aktualisiert werden. Verbinden Sie sie erneut und wählen Sie alle von Google angeforderten Berechtigungen aus.",
   },
@@ -225,6 +239,8 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     media_missing: "Het opgeslagen mediabestand is niet meer beschikbaar. Kies een ander mediabestand of start een nieuwe creatie.",
     facebook_reconnect: "Facebook moet opnieuw worden verbonden. Ga naar Kanalen.",
     instagram_reconnect: "Instagram moet opnieuw worden verbonden. Ga naar Kanalen.",
+    facebook_identity_confirmation_required: "Facebook vraagt om identiteitsbevestiging. Open de mobiele Facebook-app met het profiel dat de pagina beheert en voltooi de gevraagde controle. Probeer daarna de publicatie opnieuw in iNrCy.",
+    instagram_account_restricted: "Instagram staat dit account nog niet toe om te publiceren. Het account kan inactief zijn, op een veiligheidscontrole wachten of beperkt zijn. Open de Instagram-app, log in en voltooi de gevraagde stappen. Bekijk zo nodig ook Accountstatus. Probeer na activering of deblokkering opnieuw te publiceren in iNrCy.",
     linkedin_reconnect: "LinkedIn moet opnieuw worden verbonden. Ga naar Kanalen.",
     google_business_reconnect: "De Google Business-verbinding moet worden bijgewerkt. Verbind opnieuw en selecteer alle door Google gevraagde toestemmingen.",
   },
@@ -256,6 +272,8 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     media_missing: "O ficheiro multimédia guardado já não está disponível. Escolha outro ficheiro ou inicie uma nova criação.",
     facebook_reconnect: "É necessário ligar novamente o Facebook. Aceda a Canais.",
     instagram_reconnect: "É necessário ligar novamente o Instagram. Aceda a Canais.",
+    facebook_identity_confirmation_required: "O Facebook exige a confirmação da identidade. Abra a aplicação móvel do Facebook com o perfil que gere a Página e conclua a verificação solicitada. Depois, tente publicar novamente no iNrCy.",
+    instagram_account_restricted: "O Instagram ainda não permite publicar nesta conta. A conta pode estar inativa, aguardar uma verificação de segurança ou estar restrita. Abra a aplicação Instagram, inicie sessão e conclua as ações solicitadas. Se necessário, consulte também Estado da conta. Após a ativação ou o desbloqueio, tente publicar novamente no iNrCy.",
     linkedin_reconnect: "É necessário ligar novamente o LinkedIn. Aceda a Canais.",
     google_business_reconnect: "É necessário atualizar a ligação ao Google Business. Ligue novamente e selecione todas as autorizações pedidas pela Google.",
   },
@@ -287,6 +305,8 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     media_missing: "สื่อที่บันทึกไว้ไม่พร้อมใช้งานแล้ว โปรดเลือกสื่ออื่นหรือเริ่มสร้างใหม่",
     facebook_reconnect: "ต้องเชื่อมต่อ Facebook ใหม่ ไปที่เมนูช่องทาง",
     instagram_reconnect: "ต้องเชื่อมต่อ Instagram ใหม่ ไปที่เมนูช่องทาง",
+    facebook_identity_confirmation_required: "Facebook ต้องการให้ยืนยันตัวตน เปิดแอป Facebook บนมือถือด้วยโปรไฟล์ที่จัดการเพจและทำการตรวจสอบตามที่ร้องขอให้เสร็จ จากนั้นลองเผยแพร่อีกครั้งใน iNrCy",
+    instagram_account_restricted: "Instagram ยังไม่อนุญาตให้บัญชีนี้เผยแพร่ บัญชีอาจยังไม่เปิดใช้งาน รอการตรวจสอบความปลอดภัย หรือถูกจำกัด เปิดแอป Instagram เข้าสู่ระบบ และทำตามขั้นตอนที่ร้องขอให้เสร็จ หากจำเป็น ให้ตรวจสอบสถานะบัญชีด้วย เมื่อเปิดใช้งานหรือปลดบล็อกแล้ว ให้ลองเผยแพร่อีกครั้งใน iNrCy",
     linkedin_reconnect: "ต้องเชื่อมต่อ LinkedIn ใหม่ ไปที่เมนูช่องทาง",
     google_business_reconnect: "ต้องอัปเดตการเชื่อมต่อ Google Business โปรดเชื่อมต่อใหม่และเลือกสิทธิ์ทั้งหมดที่ Google ร้องขอ",
   },
@@ -318,6 +338,8 @@ const LOCALIZED_ERROR_COPY: Record<AppLanguageCode, Record<UserFacingErrorKey, s
     media_missing: "已保存的媒体不再可用。请选择其他媒体或重新创建。",
     facebook_reconnect: "需要重新连接 Facebook。请前往“渠道”。",
     instagram_reconnect: "需要重新连接 Instagram。请前往“渠道”。",
+    facebook_identity_confirmation_required: "Facebook 要求确认身份。请在手机上打开 Facebook 应用，使用管理该主页的个人账号完成要求的验证。完成后，请在 iNrCy 中重试发布。",
+    instagram_account_restricted: "Instagram 暂不允许此账号发布内容。账号可能尚未激活、正在等待安全验证或受到限制。请打开 Instagram 应用，登录并完成要求的操作。如有需要，也请查看“账号状态”。账号激活或解除限制后，请在 iNrCy 中重试发布。",
     linkedin_reconnect: "需要重新连接 LinkedIn。请前往“渠道”。",
     google_business_reconnect: "需要更新 Google Business 连接。请重新连接，并勾选 Google 要求的全部权限。",
   },
@@ -753,6 +775,8 @@ function looksLikeFrenchMessage(raw: string): boolean {
 
 /** Codes/statuses are classification inputs only. They are never UI copy. */
 function resolveExplicitErrorCodeKey(input: unknown): UserFacingErrorKey | null {
+  const restriction = classifyMetaPublicationRestriction(input);
+  if (restriction) return restriction.code;
   const record = input && typeof input === "object" ? input as Record<string, unknown> : {};
   const nested = record.error && typeof record.error === "object" ? record.error as Record<string, unknown> : {};
   const code = record.error_code || record.code || record.errorCode || nested.error_code || nested.code || nested.errorCode

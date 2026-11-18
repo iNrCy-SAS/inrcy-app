@@ -25,7 +25,7 @@ test("partial publishing retries only retryable failed channels and keeps the wo
   assert.match(withUiCopy(submission), /isRetryablePublicationEntry\(entry\)/);
   assert.match(withUiCopy(publicationRetry), /entry\.ok === false/);
   assert.match(withUiCopy(publicationRetry), /entry\.retryable === false/);
-  assert.match(withUiCopy(submission), /const channels = \(retryPreviousSummary\.entries \|\| \[\]\)/);
+  assert.match(withUiCopy(submission), /const channels = \[\.\.\.new Set\(\(retryPreviousSummary\.entries \|\| \[\]\)[\s\S]*?\.filter\(isRetryablePublicationEntry\)[\s\S]*?\.map\(\(entry\) => entry\.channel as ChannelKey\)\)\]/);
   assert.match(withUiCopy(submission), /const retryPreviousSummary = latestPublicationSummaryRef\.current \|\| completedSummary/);
   assert.match(withUiCopy(submission), /filter\(isRetryablePublicationEntry\)/);
   assert.match(withUiCopy(submission), /if \(publicationComplete\) \{[\s\S]*archivePersistentMediaWorkspace/);
@@ -36,8 +36,8 @@ test("the result modal exposes a dedicated retry for failed channels", () => {
   assert.match(withUiCopy(modalLayer), /publishRetryFailedRef/);
   assert.match(withUiCopy(resultModal), /i18nT\("execution_result_retry", \{ count: retryableFailureCount \}\)/);
   const message = JSON.parse(read("messages/fr-FR/booster.json")).execution_result_retry;
-  assert.equal(new IntlMessageFormat(message, "fr-FR").format({ count: 1 }), "Retenter 1 canal en échec");
-  assert.equal(new IntlMessageFormat(message, "fr-FR").format({ count: 2 }), "Retenter 2 canaux en échec");
+  assert.equal(new IntlMessageFormat(message, "fr-FR").format({ count: 1 }), "Retenter 1 publication en échec");
+  assert.equal(new IntlMessageFormat(message, "fr-FR").format({ count: 2 }), "Retenter 2 publications en échec");
   assert.match(withUiCopy(resultModal), /onRetryFailed/);
 });
 

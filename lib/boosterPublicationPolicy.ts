@@ -49,6 +49,8 @@ export const NON_RETRYABLE_BOOSTER_PUBLISH_CODES = new Set([
   "video_duration_long_upload_not_allowed",
   "video_payload_invalid",
   "video_required",
+  "facebook_identity_confirmation_required",
+  "instagram_account_restricted",
 ]);
 
 export function isBoosterPublicationChannel(

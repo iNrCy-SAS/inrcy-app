@@ -1,4 +1,7 @@
 {
+  "execution_result_account_action_confirm_message": "Hai completato la verifica richiesta su Facebook o attivato o sbloccato il tuo account Instagram? Verranno riprovate solo le pubblicazioni non riuscite.",
+  "execution_result_account_action_confirm_title": "Verifica dell’account completata",
+  "execution_result_account_action_retry": "Ho risolto il problema, riprova",
   "publication_pending_count_confirmation": "{count, plural, one {# pubblicazione è ancora in fase di finalizzazione} other {# pubblicazioni sono ancora in fase di finalizzazione}} · Conferma delle piattaforme",
   "studio_open_unavailable": "Al momento non è possibile aprire iNrStudio. Le tue modifiche restano in Booster. Riprova.",
   "adjust_title": "Modifica la generazione",

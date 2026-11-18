@@ -2,7 +2,8 @@
 
 import { useDashboardViewerAccess } from "./DashboardViewerAccessProvider";
 import { isMetaPilotChannelVisible } from "@/lib/metaChannelUiAccess";
-import { isRetryablePublicationEntry, publicationStorySequenceCounts } from "@/lib/publicationStorySequenceRetry";
+import { isRetryablePublicationEntry, publicationEntryRequiresAccountAction, publicationStorySequenceCounts } from "@/lib/publicationStorySequenceRetry";
+import { confirmInrcy } from "@/lib/inrcyDialog";
 import { useLocale, useTranslations } from "next-intl";
 import PublishWizardFrame, { PublishWizardScreen } from "../booster/publier/components/PublishWizardFrame";
 import type { PublishWizardStep } from "../booster/publier/components/publishWizard";
@@ -266,9 +267,28 @@ export function PublishExecutionResultActions({
 }) {
   const i18nT = useTranslations("booster");
   const resultEntries = getPublicationResultCounts(summary, publicationDestinations).entries;
+  const retryInFlightRef = useRef(false);
+  const requiresAccountAction = resultEntries.some(publicationEntryRequiresAccountAction);
   const retryableFailureCount = resultEntries.length
     ? resultEntries.filter(isRetryablePublicationEntry).length
     : Math.max(0, Number(summary?.retryableFailureCount || 0));
+  const requestRetry = async () => {
+    if (retrying || retryInFlightRef.current || !onRetryFailed) return;
+    retryInFlightRef.current = true;
+    try {
+      if (requiresAccountAction && !(await confirmInrcy({
+        title: i18nT("execution_result_account_action_confirm_title"),
+        message: i18nT("execution_result_account_action_confirm_message"),
+        confirmLabel: i18nT("execution_result_account_action_retry"),
+        variant: "warning",
+      }))) return;
+      await onRetryFailed();
+    } finally {
+      retryInFlightRef.current = false;
+    }
+  };
+  const retryLabel = requiresAccountAction ? i18nT("execution_result_account_action_retry")
+    : i18nT("execution_result_retry", { count: retryableFailureCount });
 
   const actions = (
     <div className={resultCss.actions} data-publish-result-actions data-compact={compact}>
@@ -276,15 +296,15 @@ export function PublishExecutionResultActions({
         <button
           type="button"
           className={resultCss.retryButton}
-          onClick={() => void onRetryFailed()}
+          onClick={() => void requestRetry()}
           disabled={retrying}
           aria-busy={retrying}
-          aria-label={retrying ? i18nT("relance_en_cours_82dfaae8") : i18nT("execution_result_retry", { count: retryableFailureCount })}
+          aria-label={retrying ? i18nT("relance_en_cours_82dfaae8") : retryLabel}
         >
           <span aria-hidden="true">↻</span>
           <span className={resultCss.actionFullLabel}>{retrying
             ? i18nT("relance_en_cours_82dfaae8")
-            : i18nT("execution_result_retry", { count: retryableFailureCount })}</span>
+            : retryLabel}</span>
           {compact ? <span className={resultCss.actionCompactLabel} aria-hidden="true">{retrying ? i18nT("execution_result_retrying_short") : i18nT("execution_result_failures", { count: retryableFailureCount })}</span> : null}
         </button>
       ) : null}
@@ -709,10 +729,11 @@ export default function PublishExecutionResultModal({
 
   // Raw provider diagnostics stay in the result payload for internal diagnosis.
   // Render known public guidance or a localized next step, including in tooltips.
-  const diagnostic = (input: string, fallback: string, code?: string | null, provider?: string) => {
-    if (["publication_failed", "pending"].includes(input)) return fallback;
-    const knownMessage = getLocalizedErrorMessage({ message: input, code }, locale, fallback, { allowUnknownMessage: false });
+  const diagnostic = (input: unknown, fallback: string, code?: string | null, provider?: string) => {
+    const context = { ...(input && typeof input === "object" ? input : { message: input }), code, channel: provider ? publicationChannelKey(provider).split(":")[0] : undefined };
+    const knownMessage = getLocalizedErrorMessage(context, locale, fallback, { allowUnknownMessage: false });
     if (knownMessage !== fallback) return knownMessage;
+    if (typeof input === "string" && ["publication_failed", "pending"].includes(input)) return fallback;
     const providerMessage = provider ? getProviderPublicationErrorMessage(publicationChannelKey(provider) as PublicationErrorProvider, input) : null;
     if (providerMessage) return getLocalizedErrorMessage(providerMessage, locale, fallback);
     return fallback;
@@ -724,7 +745,7 @@ export default function PublishExecutionResultModal({
     const errorFallback = i18nT("execution_result_failed_message", { channel: label });
     const errorInput = status !== "pending" ? entry.error || (status === "failed" ? "publication_failed" : "") : "";
     const ruleMessage = metaVideoRuleMessage(entry, label);
-    const error = errorInput ? ruleMessage || diagnostic(errorInput, errorFallback, entry.code, entry.channel) : "";
+    const error = errorInput ? ruleMessage || diagnostic({ ...entry, message: errorInput }, errorFallback, entry.code, entry.channel) : "";
     const rawWarning = String(entry.warning_message || (entry.warning !== "pending" ? entry.warning || "" : "")).trim();
     const warningFallback = i18nT(status === "pending" ? "execution_result_pending_message" : "execution_result_warning_message", { channel: label });
     const warning = rawWarning ? ruleMessage || diagnostic(rawWarning, warningFallback) : "";

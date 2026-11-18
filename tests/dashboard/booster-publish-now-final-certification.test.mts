@@ -307,7 +307,7 @@ test("the dispatch loop preserves semantic channel isolation and safe provider f
     "for (const ch of selected)",
     "if (internalAsyncDispatch)",
   );
-  assert.match(dispatchLoop, /const preflightFailure = preflightFailuresByChannel\[ch\]/);
+  assert.match(dispatchLoop, /const preflightFailure = \(ch === "facebook" \|\| ch === "instagram"[\s\S]*clientPreflightFailuresByTarget\[`\$\{ch\}:[\s\S]*\|\| preflightFailuresByChannel\[ch\]/);
   assert.match(dispatchLoop, /if \(preflightFailure\)/);
   assert.match(dispatchLoop, /continue/);
   assert.match(dispatchLoop, /ch === "site_web"/);

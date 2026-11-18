@@ -8,6 +8,7 @@ function load<T>(file: string, dependencies: Record<string, unknown> = {}): T {
   const code = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
   const loaded = { exports: {} as T };
   new Function("module", "exports", "require", code)(loaded, loaded.exports, (id: string) => {
+    if (id === "./metaGraphErrorClassification.ts") return load("lib/metaGraphErrorClassification.ts");
     assert.ok(Object.hasOwn(dependencies, id), `Unexpected dependency: ${id}`);
     return dependencies[id];
   });

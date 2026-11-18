@@ -1,4 +1,7 @@
 {
+  "execution_result_account_action_confirm_message": "Avez-vous terminé la vérification demandée sur Facebook ou activé ou débloqué votre compte Instagram ? Seules les publications en échec seront relancées.",
+  "execution_result_account_action_confirm_title": "Vérification du compte effectuée",
+  "execution_result_account_action_retry": "J’ai résolu le problème, réessayer",
   "publication_pending_count_confirmation": "{count, plural, one {# publication en cours de finalisation} other {# publications en cours de finalisation}} · Confirmation des plateformes",
   "0_0_auto_18ba0b6e": "0 0 auto",
   "0_30px_90px_rgba_0_0_ac2833c1": "0 30px 90px rgba(0,0,0,0.62)",

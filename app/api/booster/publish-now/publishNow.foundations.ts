@@ -12,6 +12,7 @@ import {
   type BoosterPublicationChannelKey,
 } from "@/lib/boosterPublicationPolicy";
 import { classifyBoosterPublicationResult } from "@/lib/boosterPublicationOutcome";
+import { normalizeMetaPublicationRestrictionResult } from "@/lib/metaGraphErrorClassification";
 
 export type ChannelKey = BoosterPublicationChannelKey;
 
@@ -93,7 +94,8 @@ export function buildResultsSummary(
     const targets: Array<[string | null, JsonRecord]> = placements.length
       ? placements.map(([placement, result]) => [placement, asRecord(result)])
       : [[meta ? String(channelResult.placement || "classic") : null, channelResult]];
-    return targets.map(([placement, value]) => {
+    return targets.map(([placement, rawValue]) => {
+      const value = normalizeMetaPublicationRestrictionResult(rawValue, channel);
       const outcome = classifyBoosterPublicationResult(value.status === "processing" ? { ...value, pending: true } : value);
       const ok = outcome.ok;
       const code = String(value?.code || "").trim() || null;

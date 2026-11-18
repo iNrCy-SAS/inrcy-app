@@ -1669,7 +1669,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                   const activePublicationDeleted = isDeletedChannelResult(activePublicationResult);
                   const activePublicationFailed = isFailedChannelResult(activePublicationResult);
                   const activePublicationFailureMessage = activePublicationFailed
-                    ? getSafeClientErrorMessage(activePublicationResult, i18nT("la_publication_n_a_pas_abouti_9368e2ed"), { allowUnknownMessage: false })
+                    ? getSafeClientErrorMessage({ ...activePublicationResult, channel: activePublicationEntry?.key }, i18nT("la_publication_n_a_pas_abouti_9368e2ed"), { allowUnknownMessage: false })
                     : "";
                   const activePublicationWarning = isWarningChannelResult(
                     activePublicationResult,
@@ -2445,7 +2445,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                             </div>
                           ) : null}
 
-                          {(detailsItem.error || campaignBusinessReason) && !activeInstagramDeletionUnconfirmed ? (
+                          {(detailsItem.error || campaignBusinessReason) && !activeInstagramDeletionUnconfirmed && (detailsItem.source !== "app_events" || !activePublicationFailed || !activePublicationFailureMessage) ? (
                             <div className={styles.detailsError}>
                               <b>{i18nT("detail_fd53c22d")}</b> {detailsItem.source !== "app_events" ? campaignBusinessReason || i18nT("mail_action_failed") : visiblePublicationItemError}
                             </div>

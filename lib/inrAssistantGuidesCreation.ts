@@ -15,13 +15,13 @@ export const INR_ASSISTANT_CREATION_GUIDES: readonly InrAssistantCreationGuide[]
     title: "Booster : créer, publier ou programmer un contenu",
     keywords: ["booster", "publier", "publication", "programmer", "réseaux", "contenus", "brouillon", "tiktok", "musique", "stories", "reel"],
     content: `${productNavigationSummary("publish", false)} Parcours : Préparation → Idée → Contenus → Médias → Validation → Bilan ; Idée disparaît en Manuel.
-1. Préparation : choisir les canaux disponibles, Automatique ou Manuel, puis Continuer. Indisponible : lire la raison dans Mes canaux. Google Business doit être validé ; reconnecter seulement si l’accès le demande.
-2. Automatique : sujet et références dans Idée, puis « ✨ Générer avec iNrCy ». Manuel : rédiger dans Contenus. « Ajuster la génération » reprend sujet/consigne ; choisir les canaux puis « Adapter les contenus ». Les textes actuels sont adaptés ; canaux décochés et médias conservés. Annuler ne change rien.
-3. Médias : importer, choisir dans la Médiathèque ou générer dans iNrStudio. « Modifier » ouvre la modification IA de l’image choisie ; « Retoucher » ouvre l’édition manuelle. Stories : 4 s/image ; Reel : 3 s/image (5 images = 15 s). Vérifier chaque aperçu ; les reprises conservent musique et Stories validées.
+1. Préparation : choisir canaux, Automatique ou Manuel, puis Continuer. Indisponible : lire la raison dans Mes canaux. Google Business validé ; reconnecter si demandé.
+2. Automatique : sujet/références dans Idée, puis « ✨ Générer avec iNrCy ». Manuel : rédiger dans Contenus. « Ajuster la génération » reprend sujet/consigne ; choisir les canaux puis « Adapter les contenus ». Canaux décochés et médias conservés ; Annuler ne change rien.
+3. Médias : importer, Médiathèque ou générer dans iNrStudio. « Modifier » : modification IA de l’image ; « Retoucher » : édition manuelle. Stories : 4 s/image ; Reel : 3 s/image (5 images = 15 s). Vérifier les aperçus ; reprises : musique et Stories validées conservées.
 4. Validation : vérifier les alertes, formats Facebook/Instagram, case Story, tableau Pinterest et mode Threads. « Musique » : réservée aux Stories/Reels ; Auto ou 30 sons avec préécoute, une piste par canal. Photos Google Business/Threads et son des vidéos importées conservés ; TikTok garde la musique native des photos. « Publier » ouvre « Confirmer la publication ? » ; confirmer avec « Publier ». « 🕒 Programmer » ouvre date/heure. TikTok peut demander sa validation ; YouTube exige une vidéo.
-5. Bilan par type/canal (Classique/Reel/Story, Threads classique/éphémère) : vert publié, rouge échec, attente. Total = blocs : Facebook + Story = 2 ; avec Instagram + Story = 4. Reprendre seulement les échecs ; les succès restent acquis. Brouillons : rouvrir ; sauvegarder : « Enregistrer le brouillon publication ».
-Programmation : terminer le transfert original. Enregistrement confirmé : les adaptations continuent même écran fermé. Vérifier le statut dans Planning ; ne pas promettre l’envoi d’un média en échec.
-Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles des canaux. Planning permet consulter, modifier, reprogrammer, annuler et publier maintenant, y compris en Basique ; l’automatisation IA reste exclue en Basique. Générer/modifier un média IA passe par iNrStudio avec assez de crédits pour son devis ; ouvrir Studio ne débite rien. Import personnel, retouche manuelle et texte restent utilisables sans crédits IA.`,
+5. Bilan par type/canal (Classique/Reel/Story, Threads classique/éphémère) : vert publié, rouge échec, attente. Total = blocs : Facebook + Story = 2 ; avec Instagram + Story = 4. « J’ai résolu le problème, réessayer » cible les échecs après confirmation, sans renvoyer les succès. Facebook : terminer la vérification d’identité dans l’app mobile avec le profil gestionnaire. Instagram : ouvrir l’app, terminer l’activation/vérification demandée ou résoudre la restriction (Statut du compte), puis relancer. Reconnecter ne suffit pas. Brouillons : rouvrir ; sauvegarder : « Enregistrer le brouillon publication ».
+Programmation : finir le transfert original. Après confirmation, adaptations même écran fermé ; vérifier Planning, sans promettre l’envoi d’un média en échec.
+Accès : Basique, Standard/essai, Premium selon connexions/règles. Planning : consulter, modifier, reprogrammer, annuler, publier maintenant, même en Basique ; automatisation IA exclue en Basique. Média IA : iNrStudio avec crédits selon devis ; ouvrir Studio ne débite rien. Import, retouche manuelle et texte sans crédits IA.`,
     sourceFiles: ["lib/inrAssistantPublicationTools.ts", "lib/inrAssistantScheduledPublicationTools.ts", "lib/inrAssistantScheduledPublicationEdit.ts", "lib/productNavigation.ts", "app/api/booster/connected-channels/route.ts", "lib/googleBusinessPublicationGate.ts",
       "app/dashboard/_components/dashboardMobileMenuModel.ts",
       "app/dashboard/booster/publier/PublishModal.tsx",
@@ -40,6 +40,7 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
       "app/dashboard/booster/publier/publicationExitProtection.ts",
       "app/dashboard/booster/publier/publicationDraftSession.ts",
       "app/dashboard/_components/PublishExecutionResultModal.tsx",
+      "lib/metaGraphErrorClassification.ts",
       "lib/metaPlacementVideoPolicy.ts",
       "lib/boosterPublicationSequence.ts"],
   },

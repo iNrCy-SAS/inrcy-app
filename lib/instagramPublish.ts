@@ -2,6 +2,7 @@ import { buildInstagramGraphUrl, type InstagramAuthMode } from "@/lib/instagramA
 import {
   isMetaAuthorizationError,
   isMetaRateLimitError,
+  classifyMetaPublicationRestriction,
 } from "@/lib/metaGraphErrorClassification";
 
 type PublishOk = {
@@ -140,7 +141,7 @@ function extractGraphErrors(value: unknown, depth = 0): InstagramPublishAttempt[
 }
 
 export function isInstagramAuthorizationErrorResult(result: InstagramPublishResult): boolean {
-  if (result.ok) return false;
+  if (result.ok || classifyMetaPublicationRestriction(result, "instagram")) return false;
   const graphErrors = extractGraphErrors(result.diagnostics) || [];
   return [
     { message: result.error },
@@ -154,7 +155,7 @@ export function isInstagramAuthorizationErrorResult(result: InstagramPublishResu
 }
 
 export function isInstagramRateLimitErrorResult(result: InstagramPublishResult): boolean {
-  if (result.ok) return false;
+  if (result.ok || classifyMetaPublicationRestriction(result, "instagram")) return false;
   if (result.code === "instagram_rate_limited") return true;
   const graphErrors = extractGraphErrors(result.diagnostics) || [];
   return [
@@ -181,8 +182,10 @@ function withTokenFallbackDiagnostics<T extends InstagramPublishResult>(
       },
     } as T;
   }
+  const restriction = classifyMetaPublicationRestriction(result, "instagram");
   return {
     ...result,
+    ...(restriction ? { code: restriction.code, retryable: false } : {}),
     diagnostics: {
       ...(result.diagnostics || {}),
       tokenFallbackAttempts: attempts,
@@ -210,6 +213,8 @@ function buildInstagramGraphFailure(params: {
       String(graphError["message"] || "").trim() || params.fallbackMessage,
     diagnostics: params.diagnostics,
   };
+  const restriction = classifyMetaPublicationRestriction(response, "instagram");
+  if (restriction) return { ...failure, code: restriction.code, retryable: false };
   const rateLimited = isMetaRateLimitError({
     message: graphError["message"],
     type: graphError["type"],
@@ -657,6 +662,7 @@ export async function instagramPublishCarousel(params: {
             diagnostics: { childCreateResponses, childFailures },
           });
           if (
+            classifyMetaPublicationRestriction(providerFailure, "instagram") ||
             isInstagramAuthorizationErrorResult(providerFailure) ||
             isInstagramRateLimitErrorResult(providerFailure)
           ) {
@@ -701,6 +707,11 @@ export async function instagramPublishCarousel(params: {
         checks: waitResult.checks,
       });
       if (!waitResult.ok) {
+        const restriction = classifyMetaPublicationRestriction(waitResult, "instagram");
+        if (restriction) return {
+          ok: false, error: waitResult.error, code: restriction.code, retryable: false,
+          diagnostics: { childCreateResponses, childStatusChecks, childFailures },
+        };
         childFailures.push({
           index: child.index + 1,
           stage: "ready",
@@ -977,6 +988,7 @@ function canSafelyFallbackFromCarouselToPhoto(
 ): boolean {
   if (
     result.ok ||
+    classifyMetaPublicationRestriction(result, "instagram") ||
     isInstagramAuthorizationErrorResult(result) ||
     isInstagramRateLimitErrorResult(result)
   ) {

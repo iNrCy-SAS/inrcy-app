@@ -9,6 +9,7 @@ import { isBoosterPublishFailureRetryable } from "../../lib/boosterPublicationPo
 import * as storyRetry from "../../lib/publicationStorySequenceRetry.ts";
 import { buildMetaPublicationSelection, normalizeMetaPublicationPlacement } from "../../lib/metaPublicationTargets.ts";
 import { getMetaPlacementVideoIssues } from "../../lib/metaPlacementVideoPolicy.ts";
+import { normalizeMetaPublicationRestrictionResult } from "../../lib/metaGraphErrorClassification.ts";
 
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 function productionFunction(path: string, name: string, scope: Record<string, unknown> = {}): any {
@@ -25,7 +26,7 @@ function productionFunction(path: string, name: string, scope: Record<string, un
     cleanString: (value: unknown) => String(value ?? "").trim(),
     asRecord: (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value : {},
     CHANNEL_LABELS: { facebook: "Facebook", instagram: "Instagram", threads: "Threads", linkedin: "LinkedIn" },
-    classifyBoosterPublicationResult, isBoosterPublishFailureRetryable, isBoosterPublicationPendingStatus,
+    classifyBoosterPublicationResult, isBoosterPublishFailureRetryable, isBoosterPublicationPendingStatus, normalizeMetaPublicationRestrictionResult,
     mergePreflightFailuresIntoPublicationSummary, ...scope,
   };
   const code = ts.transpileModule(`return (${found.getText(source).replace(/^export\s+/, "")});`, {

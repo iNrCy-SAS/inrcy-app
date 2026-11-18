@@ -5,6 +5,7 @@ import { threadsPublish, buildThreadsMediaSourceIdentity } from "@/lib/threadsPu
 import { parseThreadsPublicationSettings, hasSelectedThreadsPublicationMedia, type ThreadsPublicationSettings } from "@/lib/threadsPublicationPreferences";
 import { getThreadsPublicationPreflightFailure } from "@/lib/threadsPublicationPreferencesServer";
 import { getMetaPreparedVideoFailure } from "@/lib/metaPlacementPreparedVideo";
+import { classifyMetaPublicationRestriction, normalizeMetaPublicationRestrictionResult } from "@/lib/metaGraphErrorClassification";
 import { getPublicationTargetPredecessor, runPublicationJobsInChannelOrder } from "@/lib/boosterPublicationSequence";
 import { NextResponse, after } from "next/server";
 import { inrAgentImagesForPlacement } from "@/lib/inrAgentMediaFormats";
@@ -5082,9 +5083,9 @@ async function publishNowHandler(req: Request) {
           });
 
           if (!resp.ok) {
-            const instagramRateLimited =
+            const instagramRateLimited = !classifyMetaPublicationRestriction(resp, "instagram") && (
               resp.code === "instagram_rate_limited" ||
-              isInstagramRateLimitErrorResult(resp);
+              isInstagramRateLimitErrorResult(resp));
             if (instagramRateLimited) {
               const queuedRetry = await queueInstagramRateLimitRetry({
                 error: resp.error,
@@ -7179,6 +7180,10 @@ async function publishNowHandler(req: Request) {
             : {}),
         };
       }
+    }
+
+    for (const channel of ["facebook", "instagram"] as const) {
+      if (Object.keys(asRecord(results[channel])).length) results[channel] = normalizeMetaPublicationRestrictionResult(results[channel], channel);
     }
 
     if (internalAsyncDispatch) {

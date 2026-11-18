@@ -43,7 +43,7 @@ test("the publication balance highlights successes and keeps independent process
   assert.match(modal, /<PublicationVisualHub/);
   assert.match(modal, /progress=\{100\}/);
   assert.match(modal, /centerLabel=\{i18nT\("execution_result_ready"\)\}/);
-  assert.match(modal, /execution_result_online", \{ count: publishedCount \}/);
+  assert.match(modal, /execution_result_compact_count", \{ count: publishedCount, total: totalCount \}/);
   assert.match(modal, /pendingCount[\s\S]*?execution_result_processing/);
   assert.match(modal, /failedOrSkippedCount[\s\S]*?execution_result_review/);
   assert.match(resultCss, /\.channelGrid \{ grid-template-columns: minmax\(0, 1fr\)/);

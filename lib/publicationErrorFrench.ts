@@ -1,3 +1,8 @@
+import { classifyMetaPublicationRestriction } from "./metaGraphErrorClassification.ts";
+
+export const FACEBOOK_IDENTITY_CONFIRMATION_USER_MESSAGE = "Facebook demande une confirmation d’identité. Ouvrez l’application Facebook sur votre mobile avec le profil qui gère la Page et terminez la vérification demandée. Une fois celle-ci terminée, relancez la publication dans iNrCy.";
+export const INSTAGRAM_ACCOUNT_RESTRICTED_USER_MESSAGE = "Instagram n’autorise pas encore la publication sur ce compte. Il peut être inactif, en attente d’une vérification de sécurité ou restreint. Ouvrez l’application Instagram, connectez-vous et terminez les actions demandées. Si nécessaire, consultez aussi le Statut du compte. Une fois le compte activé ou débloqué, relancez la publication dans iNrCy.";
+
 export type PublicationErrorProvider =
   | "facebook"
   | "instagram"
@@ -31,6 +36,9 @@ export function getProviderPublicationErrorMessage(
   input: unknown,
   context?: { mediaKind?: PublicationErrorMediaKind },
 ): string | null {
+  const restriction = classifyMetaPublicationRestriction(input, provider);
+  if (restriction?.code === "facebook_identity_confirmation_required") return FACEBOOK_IDENTITY_CONFIRMATION_USER_MESSAGE;
+  if (restriction?.code === "instagram_account_restricted") return INSTAGRAM_ACCOUNT_RESTRICTED_USER_MESSAGE;
   const raw = normalizeErrorText(input);
   const message = raw.toLowerCase();
   if (!message) return null;

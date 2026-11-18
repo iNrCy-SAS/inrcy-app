@@ -119,6 +119,7 @@ test("per-channel content, video and explicit partial-image policy remain active
   assert.match(channelContext, /urls\.length >= expected/);
   assert.match(channelContext, /allowPartial/);
   assert.match(route, /getPublicationVideoForChannel\(ch\)/);
-  assert.match(route, /getChannelPost\(ch\)/);
+  assert.match(route, /const metaPlacement = ch === "facebook" \? facebookPublicationSettings\?\.placement[\s\S]*ch === "instagram" \? instagramPublicationSettings\?\.placement : null/);
+  assert.match(route, /const channelPost = getChannelPostForPlacement\(ch, metaPlacement\)/);
   assert.match(route, /pickCompleteChannelImageUrls\(\{/);
 });
