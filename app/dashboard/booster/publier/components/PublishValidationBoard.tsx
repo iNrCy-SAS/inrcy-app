@@ -34,17 +34,20 @@ function Eye() { return <svg width="17" height="17" viewBox="0 0 24 24" fill="no
 
 function Settings() { return <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m9.5 3-.5 2-2 .8-1.8-1-2.5 4.4 1.6 1.4v2.8l-1.6 1.4 2.5 4.4 1.8-1 2 .8.5 2h5l.5-2 2-.8 1.8 1 2.5-4.4-1.6-1.4v-2.8l1.6-1.4-2.5-4.4-1.8 1-2-.8-.5-2z"/><circle cx="12" cy="12" r="3"/></svg>; }
 
-function ReviewStatus({ tone, label, hint, messages, id, open, onToggle }: {
-  tone: "ready" | "warning" | "blocked"; label: string; hint?: string; messages: string[]; id: string; open: boolean; onToggle: () => void;
+function ReviewStatus({ tone, label, hint, readyLabel, messages, id, open, onToggle }: {
+  tone: "ready" | "warning" | "blocked"; label: string; hint?: string; readyLabel?: string; messages: string[]; id: string; open: boolean; onToggle: () => void;
 }) {
   if (tone === "ready") return <span className={css.state} data-tone="ready">{label}</span>;
-  return <span className={css.warningWrap} data-tone={tone} data-open={open} data-validation-warning>
+  const notice = <span className={css.warningWrap} data-tone={tone} data-open={open} data-validation-warning>
     <button type="button" className={css.warningButton} aria-label={[hint || label, ...messages].join(" · ")} aria-describedby={id} aria-controls={id} aria-expanded={open} onClick={onToggle}>
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10.3 3.6 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></svg>
       {hint ? <span>{hint}</span> : null}
     </button>
     <span className={css.warningPanel} id={id} role="tooltip">{messages.length ? messages.map((message) => <span key={message}>{message}</span>) : label}</span>
   </span>;
+  return tone === "warning" && readyLabel ? <span className={css.readyWithWarning}>
+    <span className={css.state} data-tone="ready">{readyLabel}</span>{notice}
+  </span> : notice;
 }
 
 export default function PublishValidationBoard({ items, imageKeys, previewByKey, videoPreviewUrl, getMode, getSelectedImageKeys, onModeChange, onToggleImage, onAddImage, onReorderImage, onOpenMediaPool, onSelectChannel, activePreview, disabled, soundtrackByChannel, soundtrackScopeKey, canSelectSoundtrack, onSoundtrackChange, isSoundtrackLocked, renderChannelOptions }: Props) {
@@ -127,6 +130,7 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
         const contentWarnings = item.contentWarnings || [];
         const mediaBlockers = item.mediaBlockers || [];
         const mediaWarnings = item.mediaWarnings || [];
+        const mediaReady = !item.mediaBlockerCodes?.length && !mediaBlockers.length && Boolean(mode === "none" || mode === "images" && keys.length || mode === "video" && videoPreviewUrl);
         const contentTone = contentBlockers.length ? "blocked" : contentWarnings.length || !item.hasText ? "warning" : "ready";
         const mediaTone = item.mediaBlockerCodes?.length || mediaBlockers.length ? "blocked" : mediaWarnings.length ? "warning" : mode === "none" || mode === "images" && keys.length || mode === "video" && videoPreviewUrl ? "ready" : "blocked";
         const contentMessages = [...contentBlockers, ...contentWarnings];
@@ -149,7 +153,7 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
               <button type="button" disabled={disabled || !imageKeys.length} data-active={mode === "images"} aria-pressed={mode === "images"} aria-label={t("wizard_pool_images")} title={t("wizard_pool_images")} onClick={() => onModeChange(item.channel, "images")}><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 6"/></svg></button>
               <button type="button" disabled={disabled || !videoPreviewUrl} data-active={mode === "video"} aria-pressed={mode === "video"} aria-label={t("video_304f6ca4")} title={t("video_304f6ca4")} onClick={() => onModeChange(item.channel, "video")}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="2" y="5" width="13" height="14" rx="3"/><path d="m15 10 7-4v12l-7-4"/></svg></button>
             </span> : null}
-          </span><ReviewStatus tone={mediaTone} label={status(mediaTone)} hint={item.channel === "youtube_shorts" && item.mediaBlockerCodes?.includes("youtube_video_required") ? t("wizard_video_required") : undefined} messages={mediaMessages} id={`${warningId}-${item.channel}-media`} open={warning === `${item.channel}-media`} onToggle={() => setWarning(warning === `${item.channel}-media` ? null : `${item.channel}-media`)} /></div>
+          </span><ReviewStatus tone={mediaTone} label={status(mediaTone)} readyLabel={mediaReady ? status("ready") : undefined} hint={item.channel === "youtube_shorts" && item.mediaBlockerCodes?.includes("youtube_video_required") ? t("wizard_video_required") : undefined} messages={mediaMessages} id={`${warningId}-${item.channel}-media`} open={warning === `${item.channel}-media`} onToggle={() => setWarning(warning === `${item.channel}-media` ? null : `${item.channel}-media`)} /></div>
           {item.placementReviews?.map((review) => {
             const tone = item.channelBlockers?.length || review.blockers.length ? "blocked" : review.warnings.length ? "warning" : "ready";
             const warningKey = `${review.targetKey}-placement`;

@@ -135,7 +135,7 @@
       }
     },
     "basic-booster": {
-      "guideDigest": "7b59f414028163a457368ecf8ef19ba0de195c35841e1d1df95a5a73ad34cf0b",
+      "guideDigest": "c964dc7e2a83c3280a71bc419d270e0b460fa9b7c379d60069cf8c2d9c00b427",
       "sources": {
         "app/dashboard/_components/DashboardBoosterModalLayer.tsx": "3bc282e860f5c83ffbf25d2177c9abfc7629ec771c40aeb19896f1303be5818d",
         "app/dashboard/_components/PublishExecutionResultModal.tsx": "8832a9c82e9c573fdf5173326af10483d2a6293e4488aa09a0e09edca6d4565f",
@@ -148,6 +148,7 @@
         "app/dashboard/booster/publier/components/PublishFinalReviewModal.tsx": "2c19ba30f7ef2bd44000cdd858e54059e8844f19ef4a860c622089ca049b7dcd",
         "app/dashboard/booster/publier/components/PublishFooterActions.tsx": "c7f75dceda93c07fb0a84eb7e328d4c673daf130e67b4a2399bda9cfc3b8a690",
         "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": "f9c563d388c0514f716dff041c6ac68c0cded723de1b24f44047ba6b7b3aa1a9",
+        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx": "758f9699dece5882dd6371030241317a029de1982023d311bf1a9f97610fd93d",
         "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx": "71ecc8e4d34e9c2eb90493a4ae327017e0bd5271f8bc3944be2d74afbf675251",
         "app/dashboard/booster/publier/components/publishWizard.ts": "b54f29d7b57a1252946984a4f3b3c8a31669bc64b45eb986aae44eff8e6b2f35",
         "app/dashboard/booster/publier/publicationDraftSession.ts": "8223a25ebfba01f942ff2c8f33326c8a8022b50ba6ee0fe45fad2fd9e053d561",
@@ -398,7 +399,7 @@
       }
     },
     "booster": {
-      "guideDigest": "c4bfc26ad1006694763ece9fdef35d8ff2013d685236bc1d0b3ba99ffd7a8c62",
+      "guideDigest": "2586bc8153ff0b9c660e58931642dec27afde53b852918b2e4dbad6b1b7529fb",
       "sources": {
         "app/api/booster/connected-channels/route.ts": "0e5912b9d042e8bb9639b01cd376ec898b55ae8c7d141623670b177586acd3ad",
         "app/dashboard/_components/DashboardBoosterModalLayer.tsx": "3bc282e860f5c83ffbf25d2177c9abfc7629ec771c40aeb19896f1303be5818d",
@@ -411,6 +412,7 @@
         "app/dashboard/booster/publier/components/PublishFinalReviewModal.tsx": "2c19ba30f7ef2bd44000cdd858e54059e8844f19ef4a860c622089ca049b7dcd",
         "app/dashboard/booster/publier/components/PublishFooterActions.tsx": "c7f75dceda93c07fb0a84eb7e328d4c673daf130e67b4a2399bda9cfc3b8a690",
         "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": "f9c563d388c0514f716dff041c6ac68c0cded723de1b24f44047ba6b7b3aa1a9",
+        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx": "758f9699dece5882dd6371030241317a029de1982023d311bf1a9f97610fd93d",
         "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx": "71ecc8e4d34e9c2eb90493a4ae327017e0bd5271f8bc3944be2d74afbf675251",
         "app/dashboard/booster/publier/components/publishWizard.ts": "b54f29d7b57a1252946984a4f3b3c8a31669bc64b45eb986aae44eff8e6b2f35",
         "app/dashboard/booster/publier/publicationDraftSession.ts": "8223a25ebfba01f942ff2c8f33326c8a8022b50ba6ee0fe45fad2fd9e053d561",

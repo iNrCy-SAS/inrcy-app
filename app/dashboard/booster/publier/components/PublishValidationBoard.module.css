@@ -24,6 +24,7 @@
 .state[data-tone="blocked"] { color: #f38b9f; }
 .state[data-tone="ready"]::before { background: #47d8ab; box-shadow: 0 0 7px #47d8ab3b; }
 .state[data-tone="blocked"]::before { background: #f2778e; }
+.readyWithWarning { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
 .warningWrap { position: relative; display: inline-flex; flex: 0 0 auto; color: #eeb861; }
 .warningWrap[data-tone="blocked"] { color: #f2778e; }
 .warningButton { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-width: 26px; height: 22px; padding: 0; color: inherit; background: transparent; border: 0; border-radius: 6px; cursor: pointer; font: inherit; font-size: 11px; white-space: nowrap; }

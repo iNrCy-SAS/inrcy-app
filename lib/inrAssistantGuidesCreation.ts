@@ -33,6 +33,7 @@ Accès : Basique, Standard/essai, Premium selon connexions/règles. Planning : c
       "app/dashboard/booster/publier/components/PublishFooterActions.tsx",
       "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx",
       "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx",
+      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx",
       "messages/fr-FR/booster.json",
       "lib/dashboardEdition.ts",
       "app/dashboard/_components/DashboardBoosterModalLayer.tsx",

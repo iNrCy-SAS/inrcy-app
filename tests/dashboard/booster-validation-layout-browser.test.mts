@@ -71,6 +71,35 @@ const html = `<html><head><meta charset="utf-8"><meta name="viewport" content="w
 *{box-sizing:border-box}body{margin:0;padding:16px;background:#080c22;font:14px Arial;color:#fff;height:100dvh}button{font-family:inherit}.wizard{height:100%}.progress{min-height:50px}.footer{min-height:56px}.instruction{min-height:26px}
 </style></head><body><div class="wizard" data-current-step="control"><nav class="progress">Validation</nav><div class="workspace"><p class="instruction">Vérifiez vos canaux avant publication.</p><div class="body" tabindex="0"><section class="screen" data-wizard-screen="control"><div id="root"></div></section></div></div><footer class="footer">Étape précédente · Continuer</footer></div></body></html>`;
 
+test("ready Story media keeps its readiness label beside the useful notice while genuine blockers stay blocked", async () => {
+ const browser=await chromium.launch({headless:true});
+ try {
+  const page=await browser.newPage();
+  await page.route("**/*",route=>route.abort());
+  await page.setContent(html);await page.addScriptTag({content:fixture});
+  const storyNotice=messages.instagram_review_media_only_warning.replace('{mode}',messages.instagram_stories);
+  const item=(channel:string,extra:Record<string,unknown>={})=>({channel,label:channel,hasText:true,blockers:[],warnings:[],contentBlockers:[],contentWarnings:[],mediaBlockers:[],mediaWarnings:[],mediaBlockerCodes:[],...extra});
+  const reviewItems=[item('instagram',{mediaWarnings:[storyNotice]}),item('youtube_shorts',{mediaBlockers:['Ajoutez une vidéo pour ce canal.'],mediaBlockerCodes:['youtube_video_required']}),item('facebook',{mediaWarnings:[storyNotice],mediaBlockers:['Format vidéo incompatible.'],mediaBlockerCodes:['facebook_story_video_aspect_ratio']})];
+  await page.evaluate(items=>(window as unknown as {renderFixture:(count:number,patch:unknown)=>void}).renderFixture(3,{reviewItems:items,modes:{instagram:'images',youtube_shorts:'none',facebook:'images'}}),reviewItems);
+  const media=(channel:string)=>page.locator(`[data-channel="${channel}"] .statusLine`).nth(1);
+  const ready=media('instagram').locator('[data-tone="ready"]');
+  await ready.waitFor();
+  assert.equal(await ready.textContent(),messages.wizard_ready_to_publish);
+  const notice=media('instagram').locator('[data-validation-warning][data-tone="warning"]');
+  assert.equal(await notice.count(),1);
+  await notice.locator('button').click();
+  assert.equal(await notice.getByRole('tooltip').textContent(),storyNotice);
+  assert.equal(await notice.getByRole('tooltip').isVisible(),true);
+  assert.equal(await media('youtube_shorts').locator('[data-tone="ready"]').count(),0);
+  assert.equal(await media('youtube_shorts').locator('[data-tone="blocked"]').count(),1);
+  assert.ok((await media('youtube_shorts').textContent())?.includes(messages.wizard_video_required));
+  assert.equal(await media('facebook').locator('[data-tone="ready"]').count(),0);
+  assert.equal(await media('facebook').locator('[data-tone="blocked"]').count(),1);
+  assert.ok((await media('facebook').locator('.warningButton').getAttribute('aria-label'))?.includes('Format vidéo incompatible.'));
+  assert.equal(await page.evaluate(()=>(window as unknown as {nativeCalls:number}).nativeCalls),0);
+ } finally {await browser.close();}
+});
+
 test("a duration-invalid video displays a red media warning and its reason, then clears at the valid boundary", async () => {
  const browser=await chromium.launch({headless:true});
  try {
