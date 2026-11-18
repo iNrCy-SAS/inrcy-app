@@ -53,7 +53,8 @@ test("Les erreurs Pinterest et TikTok sont normalisées en français", () => {
   assert.match(diagnostics, /ensureFrenchPublicationErrorMessage/);
   assert.match(resultModal, /import \{ getLocalizedErrorMessage \} from "@\/lib\/userFacingErrors"/);
   assert.match(resultModal, /const locale = useLocale\(\)/);
-  assert.match(resultModal, /getLocalizedErrorMessage\(\{ message: input, code \}, locale, fallback, \{ allowUnknownMessage: false \}\)/);
+  assert.match(resultModal, /const context = \{ \.\.\.\(input && typeof input === "object" \? input : \{ message: input \}\), code, channel: provider \? publicationChannelKey\(provider\)\.split\(":"\)\[0\] : undefined \}/);
+  assert.match(resultModal, /getLocalizedErrorMessage\(context, locale, fallback, \{ allowUnknownMessage: false \}\)/);
   assert.match(resultModal, /visibleWarning/);
   assert.match(resultModal, /visibleBlockers/);
   assert.match(mailboxPhase, /getFrenchPublicationErrorMessage/);
