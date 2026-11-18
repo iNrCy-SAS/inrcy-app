@@ -97,7 +97,13 @@ export function normalizeMailDeliveryError(
     ...patch,
   });
 
-  if (hasAny(rawLower, ["erroraccountsuspend", "account suspended", "verdict is suspend", "wascl useraction", "account is suspended"])) {
+  // WASCL is used for several outbound verdicts, including quota and transient
+  // failures. A specific quota verdict can accompany the broader suspension
+  // wrapper. Preserve a genuine suspension when its verdict is explicit.
+  const quotaVerdict = /\bverdict\s+is\s+refusequota\b/i.test(rawMessage);
+  const suspensionVerdict = /\bverdict\s+is\s+suspend(?:ed)?\b/i.test(rawMessage);
+  const explicitSuspension = suspensionVerdict || hasAny(rawLower, ["account suspended", "account is suspended"]);
+  if (explicitSuspension || (rawLower.includes("erroraccountsuspend") && !quotaVerdict)) {
     return build({
       kind: "account_blocked",
       title: `Compte ${label} temporairement bloqué`,
@@ -171,6 +177,7 @@ export function normalizeMailDeliveryError(
     "ratelimitexceeded",
     "quota exceeded",
     "quotaexceeded",
+    "refusequota",
     "send quota",
     "sending limit",
     "too many messages",
@@ -179,7 +186,7 @@ export function normalizeMailDeliveryError(
     "throttl",
   ])) {
     return build({
-      kind: rawLower.includes("rate") || rawLower.includes("throttl") || rawLower.includes("too many") || rawLower.includes("toomany") ? "rate_limited" : "quota_exceeded",
+      kind: statusCode === 429 || rawLower.includes("rate") || rawLower.includes("throttl") || rawLower.includes("too many") || rawLower.includes("toomany") ? "rate_limited" : "quota_exceeded",
       title: `Limite d’envoi ${label} atteinte`,
       message: `La limite d’envoi de cette boîte ${label} est atteinte pour le moment. Attendez le délai imposé par le fournisseur, puis relancez les échecs.`,
       action: "Attendez le délai fournisseur avant de relancer.",

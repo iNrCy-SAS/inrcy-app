@@ -1,4 +1,5 @@
 import { getClientUserFacingErrorMessage as getSafeClientErrorMessage } from "@/lib/userFacingErrors";
+import { formatMailCampaignReason, formatMailCampaignResumeTime } from "@/lib/mailCampaignUiFeedback";
 import { useDashboardViewerAccess } from "../../_components/DashboardViewerAccessProvider";
 import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
 import { THREADS_PUBLICATION_CAPABILITIES } from "@/lib/inrsend/threadsCapabilities";
@@ -230,10 +231,8 @@ function localizedOutboxStatus(item: any, locale: string, t: MailsTranslator) {
     if (status === "queued") return withDetail(t("en_attente_5231158f"), progress);
     if (status === "processing") return withDetail(t("distribution_en_cours_3ee8c273"), progress);
     if (status === "paused") {
-      const resumeAt = raw.resume_at ? new Date(raw.resume_at) : null;
-      return resumeAt && Number.isFinite(resumeAt.getTime())
-        ? t("campaign_paused_resume_at", { date: resumeAt.toLocaleString(locale) })
-        : withDetail(t("campagne_en_pause_2fc0292a"), progress);
+      const nextCheck = formatMailCampaignResumeTime(raw, t, locale);
+      return withDetail(t("campagne_en_pause_2fc0292a"), nextCheck || progress);
     }
     if (status === "partial") return withDetail(t("terminee_avec_des_erreurs_ea43b1a5"), progress);
     if (status === "failed") return withDetail(t("campagne_en_echec_bc6f6841"), progress);
@@ -1685,6 +1684,8 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                     detailsItem.source === "app_events" && detailsItem.error
                       ? i18nT("mail_action_failed")
                       : "";
+                  const campaignBusinessReason = detailsItem.source === "mail_campaigns"
+                    ? formatMailCampaignReason(detailsItem.raw, i18nT, locale) : "";
                   const isTiktokPublicationEntry = activePublicationEntry?.key === "tiktok";
                   const isXPublicationEntry = activePublicationEntry?.key === "x";
                   const isYoutubeShortsPublicationEntry = activePublicationEntry?.key === "youtube_shorts";
@@ -2009,9 +2010,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                   <div className={styles.metaRow}>
                                     <div className={styles.metaKey}>{i18nT("reprise_a0a582ef")}</div>
                                     <div className={styles.metaVal}>
-                                      {(detailsItem as any).raw?.resume_at
-                                        ? i18nT("automatique_le_value_a5b6b0dc", { value0: new Date((detailsItem as any).raw.resume_at).toLocaleString(locale) })
-                                        : i18nT("manuelle_apres_correction_de_la_boite_43502c57")}
+                                      {formatMailCampaignResumeTime(detailsItem.raw, i18nT, locale) || i18nT("rafraichir_le_suivi_02fcaec9")}
                                     </div>
                                   </div>
                                 ) : null}
@@ -2353,7 +2352,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                               <b>{i18nT("action_7392d4ef")}</b>{" "}
                               {detailsItem.source === "app_events"
                                 ? detailsActionError
-                                : i18nT("mail_action_failed")}
+                                : campaignBusinessReason || i18nT("mail_action_failed")}
                             </div>
                           ) : null}
 
@@ -2446,9 +2445,9 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                             </div>
                           ) : null}
 
-                          {detailsItem.error && !activeInstagramDeletionUnconfirmed ? (
+                          {(detailsItem.error || campaignBusinessReason) && !activeInstagramDeletionUnconfirmed ? (
                             <div className={styles.detailsError}>
-                              <b>{i18nT("detail_fd53c22d")}</b> {detailsItem.source !== "app_events" ? i18nT("mail_action_failed") : visiblePublicationItemError}
+                              <b>{i18nT("detail_fd53c22d")}</b> {detailsItem.source !== "app_events" ? campaignBusinessReason || i18nT("mail_action_failed") : visiblePublicationItemError}
                             </div>
                           ) : null}
                         </section>
@@ -3412,7 +3411,7 @@ export default function MailboxDetailsModal(props: MailboxDetailsModalProps) {
                                       <span className={styles.attachmentMeta}>{statusLabel}</span>
                                       {attemptLabel ? <span className={styles.attachmentMeta}>{attemptLabel}</span> : null}
                                       {recipient.last_error || recipient.error ? (
-                                        <span className={styles.attachmentMeta} style={{ color: "#ffb0b0" }}>{i18nT("mail_action_failed")}</span>
+                                        <span className={styles.attachmentMeta} style={{ color: "#ffb0b0" }}>{formatMailCampaignReason(recipient, i18nT, locale) || i18nT("mail_action_failed")}</span>
                                       ) : null}
                                     </div>
                                   );

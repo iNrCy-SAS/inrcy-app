@@ -240,7 +240,8 @@ Dans l’action, choisir un modèle dans « Choisir un modèle », modifier Obje
 « Suivant » transmet la préparation à iNr’Send, sans envoyer immédiatement le mail. Choisir une boîte d’envoi connectée, renseigner/vérifier les destinataires, objet, message et pièces jointes. Selon l’action, des contacts ou destinataires peuvent être préparés : contrôler la liste finale et éviter les doublons.
 Dans cette finalisation, « Envoyer » effectue l’envoi réel ; « Programmer » ouvre une date/heure et programme l’envoi avec iNr’Agent. Demander la validation du professionnel avant envoi ou programmation, puis annoncer seulement le résultat confirmé. Un brouillon ou une mise en file d’envoi ne prouve pas que tous les mails ont été livrés.
 Historique : [Propulsions dans iNr’Send](/dashboard/mails?folder=propulsions) et [Fidélisations dans iNr’Send](/dashboard/mails?folder=fidelisations). Les finalisations Informer/Suivre/Enquêter utilisent respectivement les dossiers informations/suivis/enquetes. Le header permet de passer de Propulser à Fidéliser et inversement.
-Pour les campagnes récurrentes, ouvrir [Agent Emailings](/dashboard/agent/campagnes-mails), modes Prospection / Fidélisation. Préparer un modèle manuellement et activer une automatisation sont deux opérations différentes.`,
+Pour les campagnes récurrentes, ouvrir [Agent Emailings](/dashboard/agent/campagnes-mails), modes Prospection / Fidélisation. Préparer un modèle manuellement et activer une automatisation sont deux opérations différentes.
+Campagne en pause : lire le motif et le délai dans ses détails avant « Reprendre ». Reconnecter la boîte n’efface pas un délai fournisseur. Une reprise conserve les destinataires déjà acceptés.`,
     sourceFiles: ["lib/productNavigation.ts",
       "app/dashboard/_components/DashboardModulesCard.tsx",
       "app/dashboard/propulser/page.tsx",
@@ -252,6 +253,11 @@ Pour les campagnes récurrentes, ouvrir [Agent Emailings](/dashboard/agent/campa
       "app/dashboard/fideliser/components/suivre/SuivreModal.tsx",
       "app/dashboard/fideliser/components/enqueter/EnqueterModal.tsx",
       "app/dashboard/mails/_components/MailboxComposeModal.tsx",
+      "app/dashboard/mails/MailboxClient.tsx",
+      "app/dashboard/mails/_components/MailboxDetailsModal.tsx",
+      "app/api/crm/campaigns/[id]/retry/route.ts",
+      "lib/mailCampaignUiFeedback.ts",
+      "lib/mailDeliveryErrors.ts",
       "messages/fr-FR/growth.json",
       "messages/fr-FR/mails.json",
       "lib/dashboardEdition.ts",

@@ -574,13 +574,13 @@
     "app/dashboard/gps/gpsEditionPolicy.ts": "b25d5ad31e90b04f87ad9474dd80bc009bb20edfdbd871f6151f64fcecd61878",
     "app/dashboard/gps/noticeContent.ts": "f1f67cef69089570fbb5a08cd62ee3a9b39e11c646ed018ae2bb9a2348d2e2ce",
     "app/dashboard/layout.tsx": "ce8cef5c2117c33f0b16fd5c273eb06960749d937ad60af94e4c9ea1692a299d",
-    "app/dashboard/mails/MailboxClient.tsx": "684017df24b55ff79ec164b08a15da2aadb6e58b6b6a6b7e9393c85be362751f",
+    "app/dashboard/mails/MailboxClient.tsx": "ac4bf68a7d57ad48e1b7c20044d14ffa9118bf990bb41566999f3c8ed83379dd",
     "app/dashboard/mails/_components/AdsCampaignDetailsModal.tsx": "d8e3aa55d0ad0d7c647f6653ecb48811556921e428aba151ce09b2ab3862052a",
     "app/dashboard/mails/_components/AdsCampaignsFolder.module.css": "a3d407efc29c4064a111aa9de4484214232d8b8597442c52c7bf930eb9aed64d",
     "app/dashboard/mails/_components/AdsCampaignsFolder.tsx": "87b93f970bcb3dfbe6ce53fb8f1bb7670e682819362f317994d3ead5e3f719ed",
     "app/dashboard/mails/_components/FolderTabs.tsx": "c3c54d4970dfea49feffbc4668f6329f547ba8f063f06a8f653649e365d062bc",
     "app/dashboard/mails/_components/MailboxComposeModal.tsx": "705335558ad402d035b151a6efd2b06734a31f10a09e4c1739650b2dd3e241da",
-    "app/dashboard/mails/_components/MailboxDetailsModal.tsx": "9a67a80fe1fd122ca2b1f94ffdacd2d2617e6a848ed35baffe11c8d1db4c6273",
+    "app/dashboard/mails/_components/MailboxDetailsModal.tsx": "48f3692af8db853bfcbcdd9f228961b1f88486e492fcb877b3769359849ca4a1",
     "app/dashboard/mails/_components/MailboxHeader.tsx": "86ddcda894e410d0e9821b48a818faee8ceae64d7b92bddc69a9c911629e90ca",
     "app/dashboard/mails/_components/MailboxList.tsx": "0dfacc0218302a8b8fe674a0eb88894bd41a4d0f005e07ae990cc334e6a5bc83",
     "app/dashboard/mails/_components/MailboxSearchPanel.tsx": "9eedceca2294d31463a20cd245288465068fcf9ffe0f8c31d961d0bfe9411613",
@@ -1219,7 +1219,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "7fd133db7107bbfcbf4cbd0a62d4cdc11ad8119eedac34db1e45e2f27c091fb4",
+    "lib/inrAssistantCodeIndex.generated.ts": "699b41a4095838f910b8dff4284e41c473cf44f2daa7a0da5767f9c7d58ab11a",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -1250,10 +1250,10 @@
     "lib/inrAssistantGoogleBusinessDraftUiTools.ts": "cf6e0c4c8e0700629517bf1ab91e06387520f5d76325ad8ef05370b45a7bfa55",
     "lib/inrAssistantGoogleReviewDraftIntent.ts": "bb7a17f0441ef4b812427babe3a80b5cdc268b784867cf4a05d533ada27fd538",
     "lib/inrAssistantGoogleReviewTools.ts": "320906763262c5363b5a4072db20c6ef6f88442f5cdbe3578496f7e15c6d01bc",
-    "lib/inrAssistantGuidesAccount.ts": "c5f12cf190db2ed7f406c0f97487b798228fa6439dd8f5118e96334ed4c4b8a3",
+    "lib/inrAssistantGuidesAccount.ts": "d7aa71b01c99416ea12c393bc7e80d84474ef856a5434d8886ccd830ae11d8e4",
     "lib/inrAssistantGuidesBasic.ts": "dd1ffae425395135b0ecea8a316914c4c356c6dae0facfa1923d12e171066361",
     "lib/inrAssistantGuidesContentLimits.ts": "dcdba643d6a24d46c2f73a93c18759086f570182a051fec07a797013ab533d53",
-    "lib/inrAssistantGuidesCreation.ts": "b4c1e4f8e50aab63a2044c98aaedb97a8af81a9c9f64d19a348c384dadbffbd7",
+    "lib/inrAssistantGuidesCreation.ts": "2c6d8785a0747ad5852657278521ea4b434b5c9dbcd826faa87a905d4886e928",
     "lib/inrAssistantGuidesManagement.ts": "1131a3a1d6ba536232493684f3ea0ab31ae44a94e208e25435eed22e2f27b069",
     "lib/inrAssistantGuidesRecovery.ts": "c358fbf35f7b6dd6747752708f5135e130c685f1f08c5d8dff5950e4cf2fdc87",
     "lib/inrAssistantHistoryUiSelection.ts": "8c50a751e1ebbdea554c89c8d573b501b5d89d70f8dfabe603495ea43a0d2c69",
@@ -1434,7 +1434,8 @@
     "lib/mailCampaignPacing.ts": "7d933405d4382d4f4412f3107270650d3c2609cc1142e11c5448d14a45c26a7f",
     "lib/mailCampaignReport.ts": "6a3a2d357d20acd58bfe4ab754726619e12327577dffe919f4b0002f94483578",
     "lib/mailCampaignReportServer.ts": "f7df6f14b597bcc3c1954b382d59272a279994d7454be189c1d1614c4c48e4bf",
-    "lib/mailDeliveryErrors.ts": "3d7143774533a4613fd64584cf16e414a90a5c197cc31b79397c7636954a3898",
+    "lib/mailCampaignUiFeedback.ts": "5efda1d642ff2e1cbc05b39d268444e443e084d364c6fcee731f237274e0b2aa",
+    "lib/mailDeliveryErrors.ts": "4a4b576ea3ac8828c167beaa8a59315817bcdfc243cad65900f4a6e177a0f344",
     "lib/mailEncoding.ts": "b70ddca98f3c95e9c942086b0db5b9b4d508fa0c3e36abcd6ee5e1c6bcad42b6",
     "lib/mailRichText.ts": "b0146d441e2a326dda812dc56cc63902c00228e0d6c68900ad456348ff4381a3",
     "lib/mailSuppression.ts": "f1e74f5498797d1936e57d7155091ac08aac913260476600dfdfcd143f36dae9",
@@ -7677,7 +7678,7 @@
           ]
         }
       },
-      "sourceDigest": "684017df24b55ff79ec164b08a15da2aadb6e58b6b6a6b7e9393c85be362751f",
+      "sourceDigest": "ac4bf68a7d57ad48e1b7c20044d14ffa9118bf990bb41566999f3c8ed83379dd",
       "controlIds": [
         "app/dashboard/mails/MailboxClient.tsx#MailboxSearchPanel:109f36f9255688d2:1",
         "app/dashboard/mails/MailboxClient.tsx#button:7c716f5e7598755f:1"
@@ -7925,7 +7926,7 @@
           ]
         }
       },
-      "sourceDigest": "9a67a80fe1fd122ca2b1f94ffdacd2d2617e6a848ed35baffe11c8d1db4c6273",
+      "sourceDigest": "48f3692af8db853bfcbcdd9f228961b1f88486e492fcb877b3769359849ca4a1",
       "controlIds": [
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#button:2c21cdb4246c7584:1",
         "app/dashboard/mails/_components/MailboxDetailsModal.tsx#div:27537defa7f82816:1",

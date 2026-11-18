@@ -14,7 +14,8 @@ import { useDashboardViewerAccess } from "../_components/DashboardViewerAccessPr
 import { filterMetaPilotPayload } from "@/lib/metaChannelUiAccess";
 import { useLocale, useTranslations } from "next-intl";
 
-import { resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { getActiveBrowserUserId, resolveActiveBrowserUserId } from "@/lib/browserAccountCache";
+import { formatMailCampaignReason, formatMailCampaignRetryResult } from "@/lib/mailCampaignUiFeedback";
 
 import { readWorkflowMailPrefillAttachments } from "@/app/dashboard/_lib/workflowMailPrefillAttachments";
 import {
@@ -156,7 +157,7 @@ export default function MailboxClient({
   founderMode?: boolean;
   adsEnabled?: boolean;
 }) {
-  const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId, actorUserId } = useDashboardViewerAccess();
   const i18nT = useTranslations("mails");
   const locale = useLocale();
   const [helpOpen, setHelpOpen] = useState(false);
@@ -280,6 +281,15 @@ export default function MailboxClient({
   const [campaignActionBusyId, setCampaignActionBusyId] = useState<
     string | null
   >(null);
+  const campaignActionScopeRef = useRef({ actorUserId, accountId: activeAccountId });
+  campaignActionScopeRef.current = { actorUserId, accountId: activeAccountId };
+  const campaignActionRequestRef = useRef<object | null>(null);
+  useEffect(() => {
+    campaignActionRequestRef.current = null;
+    setCampaignActionBusyId(null);
+    setCampaignRecipientsLoading(false);
+    setCampaignHealthLoading(false);
+  }, [actorUserId, activeAccountId]);
   const [publicationEditForm, setPublicationEditForm] =
     useState<PublicationEditForm>({
       title: "",
@@ -1032,6 +1042,7 @@ export default function MailboxClient({
       campaignId: string,
       targetPage = campaignRecipientsPage,
       targetFilter = campaignRecipientsFilter,
+      isCurrent: () => boolean = () => true,
     ) => {
       if (!campaignId) {
         setCampaignRecipients([]);
@@ -1042,6 +1053,7 @@ export default function MailboxClient({
       setCampaignRecipientsLoading(true);
       try {
         const { data: auth } = await supabase.auth.getUser();
+        if (!isCurrent()) return;
         const userId = auth?.user?.id ? resolveActiveBrowserUserId(auth.user.id) : null;
         if (!userId) throw new Error(i18nT("active_establishment_unavailable"));
 
@@ -1059,6 +1071,7 @@ export default function MailboxClient({
           .order("created_at", { ascending: true });
         query = applyCampaignRecipientsFilter(query, targetFilter);
         const { data, error, count } = await query.range(from, to);
+        if (!isCurrent()) return;
         if (error) throw error;
         const total = Math.max(0, Number(count || 0));
         setCampaignRecipients(
@@ -1094,19 +1107,20 @@ export default function MailboxClient({
           Math.max(1, Math.ceil(total / MAILBOX_RECIPIENTS_PAGE_SIZE)),
         );
       } catch (error) {
+        if (!isCurrent()) return;
         console.error(error);
         setCampaignRecipients([]);
         setCampaignRecipientsTotal(0);
         setCampaignRecipientsPageCount(1);
       } finally {
-        setCampaignRecipientsLoading(false);
+        if (isCurrent()) setCampaignRecipientsLoading(false);
       }
     },
     [campaignRecipientsFilter, campaignRecipientsPage, i18nT, supabase],
   );
 
   const loadCampaignHealth = useCallback(
-    async (campaignId: string, raw?: any) => {
+    async (campaignId: string, raw?: any, isCurrent: () => boolean = () => true) => {
       if (!campaignId) {
         setCampaignReport(null);
         setCampaignHealth(null);
@@ -1121,6 +1135,7 @@ export default function MailboxClient({
           { cache: "no-store" },
         );
         const data = await response.json().catch(() => ({}));
+        if (!isCurrent()) return;
         if (!response.ok || !data?.report) {
           throw new Error(getSafeClientErrorMessage(data, "Suivi de campagne indisponible."));
         }
@@ -1159,6 +1174,7 @@ export default function MailboxClient({
           }),
         );
       } catch (error) {
+        if (!isCurrent()) return;
         console.error(error);
         setCampaignReport(null);
         setCampaignHealth({
@@ -1169,7 +1185,7 @@ export default function MailboxClient({
           retryable: Math.max(0, baseCounts.failed),
         });
       } finally {
-        setCampaignHealthLoading(false);
+        if (isCurrent()) setCampaignHealthLoading(false);
       }
     },
     [setItems],
@@ -3595,57 +3611,57 @@ export default function MailboxClient({
   }
 
   async function retryCampaignFailedRecipients(campaignId: string) {
-    if (!campaignId) return;
+    if (!campaignId || campaignActionRequestRef.current) return;
+    const scope = { ...campaignActionScopeRef.current };
+    const isCurrent = () => campaignActionScopeRef.current.actorUserId === scope.actorUserId &&
+      campaignActionScopeRef.current.accountId === scope.accountId &&
+      (getActiveBrowserUserId() || campaignActionScopeRef.current.accountId) === scope.accountId;
+    if (!scope.actorUserId || !scope.accountId || !isCurrent()) return;
+    const request = {};
+    campaignActionRequestRef.current = request;
     setCampaignActionBusyId(campaignId);
+    let receivedResult = false;
     try {
       const res = await fetch(
         `/api/crm/campaigns/${encodeURIComponent(campaignId)}/retry`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
         },
       );
+      if (!isCurrent()) return;
       const data = await res.json().catch(() => ({}));
+      if (!isCurrent()) return;
       if (!res.ok) {
         setToast(
+          formatMailCampaignReason(data, i18nT, locale) ||
           getClientUserFacingErrorMessage(
-            data?.error,
-            i18nT("campaign_retry_failed"),
+            { status: res.status, code: data?.code },
+            i18nT("campaign_resume_failed"),
+            { allowUnknownMessage: false },
           ),
         );
         return;
       }
-      const blocked = Math.max(0, Number(data?.blocked ?? 0));
-      const deliveryState = String(data?.campaignStatus || "").toLowerCase();
-      const batchSize = Math.max(1, Number(data?.batchSize || 50));
-      const baseRetryMessage = data?.retried
-        ? [
-            i18nT("campaign_retry_contacts", { count: Number(data.retried) }),
-            blocked > 0
-              ? i18nT("campaign_retry_blocked", { count: blocked })
-              : "",
-          ]
-            .filter(Boolean)
-            .join(" ")
-        : data?.resumed
-          ? i18nT("campaign_resumed")
-          : i18nT("campaign_failures_retried");
-      const stateMessage =
-        deliveryState === "paused"
-          ? i18nT("campaign_auto_paused")
-          : deliveryState === "queued"
-            ? i18nT("campaign_requeued")
-            : i18nT("campaign_retry_batches", { count: batchSize });
-      setToast(`${baseRetryMessage} ${stateMessage}`.trim());
+      receivedResult = data?.success === true;
+      setToast(formatMailCampaignRetryResult(data, i18nT, locale));
       await loadHistory();
+      if (!isCurrent()) return;
       if (detailsOpen && detailsId === campaignId) {
         await Promise.all([
-          loadCampaignRecipients(campaignId, 1, campaignRecipientsFilter),
-          loadCampaignHealth(campaignId, (detailsItem as any)?.raw || {}),
+          loadCampaignRecipients(campaignId, 1, campaignRecipientsFilter, isCurrent),
+          loadCampaignHealth(campaignId, (detailsItem as any)?.raw || {}, isCurrent),
         ]);
       }
+    } catch {
+      // A history refresh failure does not undo the server's confirmed outcome.
+      if (isCurrent() && !receivedResult) setToast(i18nT("campaign_resume_network_error"));
     } finally {
-      setCampaignActionBusyId(null);
+      if (campaignActionRequestRef.current === request) {
+        campaignActionRequestRef.current = null;
+        if (isCurrent()) setCampaignActionBusyId(null);
+      }
     }
   }
 
