@@ -24,6 +24,7 @@ async function setup(page: Page, componentFile: string, fixture: string, mocks =
     "../_hooks/useInrAssistantRefresh": compile("app/dashboard/_hooks/useInrAssistantRefresh.ts"),
     "@/lib/inrAssistantRefresh": compile("lib/inrAssistantRefresh.ts"),
     ...Object.fromEntries(["userFacingErrors", "appLanguage", "publicationErrorFrench", "metaGraphErrorClassification"].map(name => ["@/lib/" + name, compile("lib/" + name + ".ts")])),
+    "./metaGraphErrorClassification.ts": compile("lib/metaGraphErrorClassification.ts"),
   };
   await page.route("**/*", route => route.abort());
   await page.setContent('<!doctype html><html><body><div id="root"></div><button id="outside">Outside</button></body></html>');
