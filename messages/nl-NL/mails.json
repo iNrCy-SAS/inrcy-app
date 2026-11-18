@@ -1,4 +1,8 @@
 {
+  "mail_oauth_configuration_failed": "De Microsoft-verbinding is niet beschikbaar door een probleem aan de kant van iNrCy. Neem contact op met iNrCy-support om deze te herstellen.",
+  "mail_oauth_failed": "De verbinding met {provider} kon niet worden voltooid. Probeer het opnieuw vanuit deze bubbel. Neem contact op met iNrCy als het probleem aanhoudt.",
+  "mail_oauth_expired": "Dit verzoek om een e-mailverbinding is verlopen of niet meer geldig. Begin opnieuw vanuit deze bubbel.",
+  "mail_oauth_provider": "e-mail",
   "1_a_20_zones_les_noms_a5d15c7d": "1 tot 20 gebieden. De namen worden opnieuw door het platform gecontroleerd.",
   "1_canal_0f99221a": "1 kanaal",
   "1_video_maximum_pour_ea9b1d35": "maximaal 1 video voor",

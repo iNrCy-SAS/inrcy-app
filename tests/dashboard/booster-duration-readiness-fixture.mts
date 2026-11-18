@@ -6,6 +6,7 @@ import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 import { getActionablePublicationWarningCodes } from "../../app/dashboard/booster/publier/publicationMediaPool.ts";
 
 const load = runtimeModules();
+const placementReview = load<typeof import("../../app/dashboard/booster/publier/publicationPlacementReview.ts")>("app/dashboard/booster/publier/publicationPlacementReview.ts");
 const require = createRequire(import.meta.url);
 const sharedExports = {};
 const sharedSource = ts.transpileModule(readFileSync(new URL("../../app/dashboard/booster/publier/publishModal.shared.tsx", import.meta.url), "utf8"), { fileName: "publishModal.shared.tsx", compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
@@ -26,6 +27,7 @@ const translate = (key: string, args: Record<string, unknown> = {}) => Object.en
 /** Execute the actual modal review builder and its real duration policy. */
 export function durationReviewItems(durationSeconds: number) {
   const scope = {
+    ...placementReview,
     selectedChannels: ["facebook", "gmb"], connected: { facebook: true, gmb: true },
     resolveChannelMediaMode: (channel: string) => channel === "gmb" ? "video" : "none",
     getReviewPostForChannel: () => ({ title: "Fixture", content: "Ready" }),

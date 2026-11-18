@@ -1,4 +1,8 @@
 {
+  "mail_oauth_configuration_failed": "La connessione a Microsoft non è disponibile a causa di un problema lato iNrCy. Contatta l’assistenza iNrCy per ripristinarla.",
+  "mail_oauth_failed": "Non è stato possibile completare la connessione a {provider}. Riprova da questa bolla. Se il problema persiste, contatta iNrCy.",
+  "mail_oauth_expired": "Questa richiesta di connessione email è scaduta o non è più valida. Ricomincia da questa bolla.",
+  "mail_oauth_provider": "email",
   "1_a_20_zones_les_noms_a5d15c7d": "Da 1 a 20 aree. La piattaforma verifica nuovamente i nomi.",
   "1_canal_0f99221a": "1 canale",
   "1_video_maximum_pour_ea9b1d35": "Massimo 1 video per",

@@ -973,6 +973,7 @@ function cachedRowToVideoVariant(
         : null,
     width: Number.isFinite(Number(row.width)) && Number(row.width) > 0 ? Number(row.width) : null,
     height: Number.isFinite(Number(row.height)) && Number(row.height) > 0 ? Number(row.height) : null,
+    frameRate: normalizeVideoFrameRate(metadata.output_frame_rate),
     generatedAt: String(metadata.generatedAt || new Date().toISOString()),
     quality: getVideoTransformQualityProfile(plan.format, plan.publicationProfile),
   };
@@ -988,6 +989,7 @@ async function persistVideoVariant(params: {
   duration: number | null;
   width: number | null;
   height: number | null;
+  frameRate: number | null;
   generatedAt: string;
 }) {
   const signature = buildPersistentSignature(params.plan);
@@ -1020,7 +1022,7 @@ async function persistVideoVariant(params: {
       plan: params.plan,
       output_video_codec: "h264",
       output_audio_codec: "aac",
-      output_frame_rate: 30,
+      output_frame_rate: params.frameRate,
     },
     error_code: null,
     error_message: null,
@@ -1187,6 +1189,7 @@ export async function prepareBoosterVideoVariantsOnServer(params: {
         duration: emptySource.duration,
         width: emptySource.width,
         height: emptySource.height,
+        frameRate: emptySource.frameRate,
         generatedAt: new Date().toISOString(),
         quality: getVideoTransformQualityProfile("original", variant.publicationProfile),
       });
@@ -1331,6 +1334,7 @@ export async function prepareBoosterVideoVariantsOnServer(params: {
               duration,
               width: sourceWidth,
               height: sourceHeight,
+              frameRate: probedSource.frameRate,
               generatedAt,
               quality: getVideoTransformQualityProfile(
                 "original",
@@ -1405,6 +1409,7 @@ export async function prepareBoosterVideoVariantsOnServer(params: {
             duration: outputMetadata.duration || duration,
             width: outputMetadata.width,
             height: outputMetadata.height,
+            frameRate: outputMetadata.frameRate,
             generatedAt,
           });
           cached.set(buildPersistentSignature(variant), saved);
@@ -1418,6 +1423,7 @@ export async function prepareBoosterVideoVariantsOnServer(params: {
           duration: outputMetadata.duration || duration,
           width: outputMetadata.width,
           height: outputMetadata.height,
+          frameRate: outputMetadata.frameRate,
           generatedAt,
           quality,
         });

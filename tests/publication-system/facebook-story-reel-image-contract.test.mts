@@ -128,7 +128,7 @@ test("immediate, scheduled and single-channel continuation payloads keep the Fac
 test("Facebook Reel and Story require media and use per-image timing for their 9:16 music videos", () => {
   assert.match(
     submission,
-    /publishableChannels\.includes\("facebook"\)[\s\S]*?facebookPublicationPlacement === "reel" \|\| facebookStoryEnabled[\s\S]*?facebookMode === "none"/,
+    /publishableChannels\.includes\("facebook"\)[\s\S]*?facebookPublicationPlacement === "reel" \|\| facebookPublicationPlacement === "story"[\s\S]*?facebookMode === "none"/,
   );
   assert.match(
     route,

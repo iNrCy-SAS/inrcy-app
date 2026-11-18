@@ -972,7 +972,7 @@
   "ai_generator_duration_scene_single": "{seconds} s · 1 cena",
   "ai_generator_duration_scene_multi": "{seconds} s · 2 cenas",
   "ai_generator_duration_adjusted": "{model}: duração ajustada para {seconds} segundos, {scenes}.",
-  "ai_generator_engine_info_logo_overlay": "O logótipo oficial é adicionado no canto superior direito após a geração.",
+  "ai_generator_engine_info_logo_overlay": "O modelo recebe o logótipo guardado como referência e tenta integrá-lo na imagem. Verifique a fidelidade do resultado.",
   "ai_generator_editor_settings_label": "Definições do conteúdo",
   "ai_generator_editor_tab_criteria": "Critérios",
   "ai_generator_editor_tab_prompt": "Prompt",
@@ -991,7 +991,7 @@
   "ai_generator_use_business_dna_info_label": "Como funciona o ADN da minha empresa?",
   "ai_generator_use_business_dna_info_close": "Fechar as informações sobre o ADN",
   "ai_generator_use_business_dna_info_sources": "A IA utiliza as informações profissionais guardadas e relevantes para o seu pedido: perfil, ADN da empresa, documentos de referência, site e redes, serviços, zona, pontos fortes e preços indicados.",
-  "ai_generator_use_business_dna_info_identity": "O ADN aplica as cores da sua marca e, nas imagens, o logótipo guardado, salvo indicação contrária no seu prompt.",
+  "ai_generator_use_business_dna_info_identity": "O ADN fornece as cores da sua marca e, para as imagens, o logótipo guardado como referência ao modelo, salvo indicação contrária no prompt. Verifique a sua representação.",
   "ai_generator_use_business_dna_info_contacts": "Os seus contactos e ligações são adicionados ao conteúdo apenas se os pedir, sem ter de os escrever novamente.",
   "ai_generator_use_business_dna_info_freedom": "Com o ADN desmarcado, o logótipo e as cores da empresa não são aplicados automaticamente. Pode pedi-los no seu prompt. As instruções e proibições de A minha comunicação continuam a aplicar-se.",
   "ai_generator_prompt_helper_title_image": "Como descrever bem a sua imagem?",
@@ -1183,5 +1183,7 @@
   "ai_generator_model_description_heygen-avatar": "Retratos falantes e diálogos com as suas fotografias e vozes.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Apresentações à câmara e conversas em planos sucessivos.",
   "ai_generator_engine_info_video_limits_heygen-avatar": "Cada pessoa fala no seu próprio plano. O modo avatar não compõe uma cena de grupo. A duração final acompanha a fala; a duração escolhida é indicativa.",
-  "ai_generator_model_reference_duration_available": "Com várias fotos, as durações disponíveis são: {durations}."
+  "ai_generator_model_reference_duration_available": "Com várias fotos, as durações disponíveis são: {durations}.",
+  "ai_generator_image_logo_reference_limit": "Se o logótipo guardado for utilizado, conta para as {count} imagens de referência permitidas.",
+  "ai_generator_image_logo_unavailable": "Para incluir o logótipo guardado, escolha um modelo que aceite imagens de referência."
 }

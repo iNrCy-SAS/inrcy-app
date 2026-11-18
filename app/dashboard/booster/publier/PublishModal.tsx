@@ -1,4 +1,5 @@
 import { createPublicationSubmission } from "./publicationSubmission";
+import { buildPublicationPlacementReviews, getPublicationTargetFailures } from "./publicationPlacementReview";
 import { loadPublicationDraft, savePublicationDraft } from "./publicationDraftSession";
 import { shouldProtectPublicationExit } from "./publicationExitProtection";
 import { useBoosterGeneration } from "./useBoosterGeneration";
@@ -4505,10 +4506,6 @@ export default function PublishModal({
         channel === "instagram" && instagramPublicationPlacement === "story";
       const instagramStoryPublished =
         instagramStoryAlsoPublished || instagramStoryOnlyPublished;
-      const facebookVerticalFormat =
-        channel === "facebook" &&
-        ((facebookPublicationPlacement === "reel" || facebookStoryEnabled) ||
-          facebookPublicationPlacement === "story");
       const facebookStoryAlsoPublished =
         channel === "facebook" && facebookStoryEnabled;
       const facebookStoryOnlyPublished =
@@ -4544,18 +4541,6 @@ export default function PublishModal({
               hashtagsInput: xHashtagsInput,
             })
           : [];
-      const effectiveVideoDuration = Number(
-        videoDurationSeconds ?? videoSourceMetadata?.duration ?? 0,
-      );
-      const facebookMaximumDuration =
-        facebookStoryPublished ? 60 : 90;
-      const facebookVerticalDurationInvalid =
-        facebookVerticalFormat &&
-        hasVideo &&
-        Number.isFinite(effectiveVideoDuration) &&
-        effectiveVideoDuration > 0 &&
-        (effectiveVideoDuration < 3 ||
-          effectiveVideoDuration > facebookMaximumDuration);
       const threadsTextTooLong = channel === "threads" && getBoosterPublicationTextPreview("threads", post, { websiteUrl: getWebsiteUrlForChannel(channel, ctaDefaults), phone: ctaDefaults?.phone || "" }).count > 500;
       const requirements = getChannelPublicationRequirements({
         channel,
@@ -4600,6 +4585,17 @@ export default function PublishModal({
         (state) => state.status === "failed",
       );
       const hasMediaUploadBlocker = workspaceSourceExpected && !!failedWorkspaceState;
+      const placementReviews = buildPublicationPlacementReviews({
+        channel, channelLabel: getLocalizedChannelLabel(channel, runtimeT),
+        primaryPlacement: channel === "instagram" ? instagramPublicationPlacement : facebookPublicationPlacement,
+        includeStory: channel === "instagram" ? instagramStoryEnabled : facebookStoryEnabled,
+        hasImage, hasVideo, durationSeconds: videoDurationSeconds ?? videoSourceMetadata?.duration ?? null,
+        source: videoSourceMetadata, sizeBytes: videoFile?.size, format: requestedVideoFormat,
+        placementLabels: { classic: i18nT("instagram_classic"), reel: i18nT("instagram_reels"), story: i18nT("instagram_stories") },
+      });
+      const targetFailures = getPublicationTargetFailures(placementReviews);
+      const allPlacementsBlocked = placementReviews.length > 0 && placementReviews.every((review) => review.blockers.length > 0);
+      const placementBlockers = allPlacementsBlocked ? placementReviews.flatMap((review) => review.blockers) : [];
       const blockerCodes = [
         ...(threadsModeIssue ? [threadsModeIssue] : []),
         ...(threadsTextTooLong ? ["threads_text_too_long"] : []),
@@ -4610,36 +4606,23 @@ export default function PublishModal({
           ? ["pinterest_board_required"]
           : []),
         ...(xForbiddenUrlFields.length ? ["x_url_forbidden"] : []),
-        ...(facebookVerticalFormat && !hasImage && !hasVideo
-          ? ["facebook_vertical_media_required"]
-          : []),
-        ...(facebookVerticalDurationInvalid
-          ? ["facebook_vertical_duration_invalid"]
-          : []),
       ];
       const mediaBlockerCodes = [
         ...requirements.mediaBlockerCodes,
         ...(hasVideoPreparationBlocker ? ["video_conversion_failed"] : []),
         ...(hasMediaUploadBlocker ? ["media_upload_pending"] : []),
-        ...(facebookVerticalFormat && !hasImage && !hasVideo ? ["facebook_vertical_media_required"] : []),
-        ...(facebookVerticalDurationInvalid ? ["facebook_vertical_duration_invalid"] : []),
       ];
       const localizeRequirement = (code: string) =>
         code === "threads_ghost_preferences_loading" || code === "threads_ghost_preferences_error" || code === "threads_ghost_disabled" || code === "threads_text_too_long"
           ? i18nT(code)
           : code === "x_url_forbidden"
           ? getBoosterXUrlBlockerMessage(xForbiddenUrlFields)
-          : code === "facebook_vertical_media_required"
-          ? "Facebook Reel/Story nécessite une image ou une vidéo."
-          : code === "facebook_vertical_duration_invalid"
-            ? facebookStoryPublished
-              ? "Une Story Facebook doit durer entre 3 et 60 secondes."
-              : "Un Reel Facebook doit durer entre 3 et 90 secondes."
           : getLocalizedChannelPublicationRequirement(
               { code, channel, imageCount: imageKeysToPublish.length },
               runtimeT,
             );
-      const blockers = blockerCodes.map(localizeRequirement);
+      const channelBlockers = blockerCodes.map(localizeRequirement);
+      const blockers = [...channelBlockers, ...placementBlockers];
       const actionableWarningCodes = getActionablePublicationWarningCodes(requirements.warningCodes);
 
       return {
@@ -4655,8 +4638,12 @@ export default function PublishModal({
                 })
               : i18nT("media_label_text_only"),
         imageCount: imageKeysToPublish.length,
+        placementReviews,
+        targetFailures,
+        channelBlockers,
         warnings: [
           ...requirements.warningCodes.map(localizeRequirement),
+          ...placementReviews.flatMap((review) => [...review.warnings, ...(allPlacementsBlocked ? [] : review.blockers)]),
           ...(channel === "threads" && threadsPublicationMode === "ghost" ? [i18nT("threads_ghost_help")] : []),
           ...(instagramStoryPublished
             ? [
@@ -4700,10 +4687,11 @@ export default function PublishModal({
         contentWarnings: actionableWarningCodes.filter((code) => /content|title|text|url|board/.test(code)).map(localizeRequirement),
         mediaWarnings: [
           ...actionableWarningCodes.filter((code) => !/content|title|text|url|board/.test(code)).map(localizeRequirement),
+          ...placementReviews.flatMap((review) => [...review.warnings, ...(allPlacementsBlocked ? [] : review.blockers)]),
           ...(instagramStoryPublished ? [i18nT("instagram_review_media_only_warning", { mode: i18nT("instagram_stories") })] : []),
           ...(facebookStoryPublished ? [i18nT("instagram_review_media_only_warning", { mode: i18nT("instagram_stories") })] : []),
         ],
-        mediaBlockers: mediaBlockerCodes.map(localizeRequirement),
+        mediaBlockers: [...mediaBlockerCodes.map(localizeRequirement), ...placementBlockers],
         mediaBlockerCodes,
         publishable: blockers.length === 0,
         tiktokParametersValidated:
@@ -4725,7 +4713,7 @@ export default function PublishModal({
       )
     : [];
   const finalReviewBlockers = finalReviewItems.flatMap((item) => item.blockers);
-  const hasFinalReviewBlockers = finalReviewBlockers.length > 0;
+  const hasFinalReviewBlockers = finalReviewBlockers.length > 0 || finalReviewItems.some((item) => Object.keys(item.targetFailures).length > 0);
   const finalReviewPublishableCount = finalReviewItems.filter(
     (item) => item.blockers.length === 0,
   ).length;

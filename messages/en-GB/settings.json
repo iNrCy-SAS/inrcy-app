@@ -1003,5 +1003,6 @@
   "x_disconnected_notice": "X account disconnected.",
   "x_public_link_saved": "Public X link saved.",
   "x_public_profile_link": "Public X profile link",
-  "x_view_profile": "View profile"
+  "x_view_profile": "View profile",
+  "subscription_no_further_renewal": "No further renewal is scheduled."
 }

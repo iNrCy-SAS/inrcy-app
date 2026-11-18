@@ -830,7 +830,7 @@ test("une demande de téléphone utilise le profil local sans exposer ses coordo
   assert.match(server, /cleanAiMediaProfilePhone\(profile\.business\.phone\)/);
   assert.match(
     server,
-    /officialLogo: useDeterministicImageComposition \|\| localLogoOnlyComposition \? null : officialLogo/
+    /buildAiMediaImageProviderRequest\(\{[\s\S]*?officialLogo,/
   );
   assert.match(server, /profile_phone_display_applied/);
   assert.match(detector, /isAiMediaProfilePhoneDisplayRequested/);

@@ -65,6 +65,7 @@ export type BoosterVideoTransformedVariant =
     duration: number | null;
     width?: number | null;
     height?: number | null;
+    frameRate?: number | null;
     generatedAt: string;
     quality?: BoosterVideoQualityProfile;
     // Compatibilité avec les anciennes données / payloads côté UI.

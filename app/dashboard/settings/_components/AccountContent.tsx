@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useEffect, useId, useMemo, useState, type CSSProperties } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { readCurrentAccountSubscription } from "@/lib/accountBillingSubscriptionClient";
+import { getSubscriptionBillingPresentation } from "@/lib/subscriptionBillingPresentation";
 import type { DashboardEdition } from "@/lib/dashboardEdition";
 import { evaluatePassword } from "@/lib/passwordPolicy";
 import { getTemporaryPasswordMetadata } from "@/lib/temporaryPasswordPolicy";
@@ -46,8 +47,11 @@ function accountPlanPresentation(
   locale: string,
 ) {
   const status = String(subscription?.status ?? "").trim().toLowerCase();
+  const billingPresentation = getSubscriptionBillingPresentation(subscription);
   const statusView =
-    status === "trialing"
+    billingPresentation.cancellationScheduled
+      ? { label: i18nT("resiliation_programmee_09802990"), color: "#ffd38f" }
+      : status === "trialing"
       ? { label: i18nT("essai_21_jours_3095df3f"), color: "#8feaff" }
       : status === "active"
         ? { label: i18nT("actif_2eb75f84"), color: "#8ff7d0" }
@@ -82,10 +86,12 @@ function accountPlanPresentation(
         : i18nT("passez_du_pilotage_de_votre_visibilite_37fbfe56");
 
   const trialEnd = formatSubscriptionDate(subscription?.trial_end_at, locale);
-  const renewal = formatSubscriptionDate(subscription?.next_renewal_date, locale);
+  const renewal = formatSubscriptionDate(billingPresentation.nextChargeDate, locale);
   const accessEnd = formatSubscriptionDate(subscription?.end_date, locale);
   const detail =
-    status === "trialing" && trialEnd
+    billingPresentation.ended
+      ? i18nT("subscription_no_further_renewal")
+      : status === "trialing" && trialEnd
       ? `${i18nT("fin_de_votre_essai_f1bae9e9")} ${trialEnd}`
       : subscription?.cancel_requested_at && accessEnd
         ? `${i18nT("votre_acces_restera_actif_jusqu_au_1da564dd")} ${accessEnd}`

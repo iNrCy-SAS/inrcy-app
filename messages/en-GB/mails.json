@@ -1,4 +1,8 @@
 {
+  "mail_oauth_configuration_failed": "The Microsoft connection is unavailable on iNrCy’s side. Contact iNrCy support to restore it.",
+  "mail_oauth_failed": "The {provider} connection could not be completed. Try again from this bubble. If the problem persists, contact iNrCy.",
+  "mail_oauth_expired": "This email connection request has expired or is no longer valid. Start again from this bubble.",
+  "mail_oauth_provider": "email",
   "1_a_20_zones_les_noms_a5d15c7d": "1 to 20 areas. The platform checks the names again.",
   "1_canal_0f99221a": "1 channel",
   "1_video_maximum_pour_ea9b1d35": "1 video maximum for",

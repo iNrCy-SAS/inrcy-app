@@ -85,7 +85,7 @@ test("publication isolates red channels and dispatches the ready subset for one 
   assert.match(submission, /preflightFailedChannels,/);
   assert.match(
     publishRoute,
-    /after\(async \(\) => \{[\s\S]*Promise\.allSettled\([\s\S]*queuedChannelRows\.map/,
+    /after\(async \(\) => \{[\s\S]*runPublicationJobsInChannelOrder\([\s\S]*queuedChannelRows/,
   );
   assert.match(
     publishRoute,

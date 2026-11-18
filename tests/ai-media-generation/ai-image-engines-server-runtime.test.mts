@@ -11,7 +11,6 @@ import path from "node:path";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
-import sharp from "sharp";
 import * as catalog from "../../lib/aiMediaModelCatalog.ts";
 import * as pricing from "../../lib/aiMediaCreditsPricing.ts";
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
@@ -23,9 +22,6 @@ import * as agentVideoFallback from "../../lib/inrAgentVideoFallback.ts";
 import * as publicErrors from "../../lib/aiMediaGenerationPublicErrors.ts";
 import * as spokenScript from "../../lib/aiMediaSpokenScript.ts";
 import * as pronunciation from "../../lib/aiMediaPronunciation.ts";
-import * as localLogoComposition from "../../lib/aiMediaLocalLogoCompositionPrompt.ts";
-import * as videoLayout from "../../lib/aiMediaVideoLayout.ts";
-import * as textIntegrity from "../../lib/aiMediaTextIntegrity.ts";
 import * as globalConstraints from "../../lib/aiMediaGlobalConstraints.ts";
 
 type RecordValue = Record<string, unknown>;
@@ -73,7 +69,7 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
     const references = args.identityReferences as Buffer[];
     return { kind: "image", provider: "vercel-ai-gateway", engine, upstreamProvider: catalog.getAiMediaImageModel(engine).provider,
       model: catalog.getAiMediaImageModel(engine).modelId, buffer: options.providerImage || Buffer.from("provider-output"), mediaType: "image/jpeg",
-      referenceImagesCount: references.length, identityReferenceImagesCount: 0, genericReferenceImagesCount: references.length,
+      referenceImagesCount: references.length + Number(Boolean(args.officialLogo)), identityReferenceImagesCount: 0, genericReferenceImagesCount: references.length,
       officialLogoIncluded: Boolean(args.officialLogo), warnings: [], usage: null };
   };
   const overrides: Array<[string, unknown]> = [
@@ -83,7 +79,6 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
     ["./aiMediaGlobalConstraints.ts", globalConstraints],
     ["./aiMediaSpokenScript.ts", spokenScript],
     ["./aiMediaPronunciation.ts", pronunciation],
-    ["./aiMediaLocalLogoCompositionPrompt.ts", localLogoComposition],
     ["./inrAgentVideoFallback.ts", agentVideoFallback],
     ["./aiMediaGenerationPublicErrors.ts", publicErrors],
     ["server-only", {}], ["./aiMediaCharacterVoices.ts", characterVoices], ["@/lib/aiMediaCharacterVoices", characterVoices], ["sharp", {}],
@@ -102,6 +97,7 @@ function serverHarness(providerFailure: boolean | Error = false, options: { logo
     ["@/lib/aiGeneratedMediaRegistry", { getExistingGeneratedAiMedia: async () => null, saveGeneratedAiMedia: async (args: RecordValue) => { counts.saved += 1; saved.push(args); return { id: "test-media", media_type: "image" }; } }],
     ["@/lib/boosterGenerationContext", { getBoosterGenerationContext: async () => ({ profile: {}, business: {}, recentPublications: [], cacheSource: "test" }) }],
     ["@/lib/aiMediaGenerationContracts", contracts],
+    ["@/lib/aiMediaModelCatalog", catalog],
     ["@/lib/aiMediaGateway", { generateAiMediaImage: image, generateAiMediaImageWithGoogle: async (args: RecordValue) => {
       if (args.imageEngine === "gemini") return image(args);
       counts.fallback += 1; throw new Error("unexpected_google_fallback");
@@ -132,539 +128,270 @@ async function withCredentials(run: () => Promise<void>) {
   try { await run(); } finally { if (original === undefined) delete process.env.AI_GATEWAY_API_KEY; else process.env.AI_GATEWAY_API_KEY = original; }
 }
 
-test("a legacy automatic image fallback never changes supplier after a safety refusal", async () => {
-  await withCredentials(async () => {
-    const error = new Error("Your request was rejected by the safety system.");
-    const h = serverHarness(error);
-    const input = request("openai", { logoMode: "none" });
-    input.imageEngine = undefined;
-    await assert.rejects(h.generate(input), value => value === error);
-    assert.equal(h.counts.provider, 1); assert.equal(h.counts.fallback, 0);
-    assert.equal(h.counts.saved, 0);
-  });
-});
+const nativeLogoEngines = ["openai", "gemini", "flux", "grok"] as const;
+function assertNativeLogo(h: ReturnType<typeof serverHarness>) {
+  assert.equal(h.providerCalls[0].officialLogo, h.logo, "The actual saved asset must reach the image provider");
+  const metadata = h.saved[0].metadata as { gateway: RecordValue; provenance: RecordValue };
+  assert.equal(metadata.gateway.official_logo_included, true);
+  assert.equal(metadata.gateway.local_logo_composition_applied, false);
+  assert.equal(metadata.gateway.logo_application_method, "provider_reference");
+  assert.equal(metadata.provenance.logo_application_method, "provider_reference");
+  assert.equal(metadata.provenance.official_logo_source, "account_profile");
+  assert.equal(metadata.provenance.official_logo_reference_sha256, createHash("sha256").update(h.logo!).digest("hex"));
+  assert.equal(metadata.provenance.official_logo_reference_version, "test");
+  assert.equal(metadata.provenance.exact_logo_applied, false, "A supplied reference is not proof of exact pixels in the result");
+  assert.equal(metadata.provenance.local_logo_composition_applied, false);
+  assert.equal(metadata.provenance.image_logo_layout, undefined);
+  assert.equal(metadata.provenance.official_logo_sha256, undefined);
+  assert.equal(metadata.provenance.logo_version_applied, null);
+  assert.equal(h.promptCalls[0].hasLogo, true);
+  assert.equal(h.promptCalls[0].logoComposedLocally, false);
+  assert.doesNotMatch(String(h.providerCalls[0].prompt), /ZONE RÉSERVÉE AU LOGO FINAL|Ne pas dessiner, imiter, réinterpréter ni inventer de logo/);
+  assert.equal(h.counts.provider, 1); assert.equal(h.counts.fallback, 0); assert.equal(h.counts.saved, 1);
+}
 
-for (const engine of ["flux", "grok", "recraft"] as const) {
+for (const engine of nativeLogoEngines) {
   for (const withText of [false, true]) {
-    test(`${engine}: guided image ${withText ? "with" : "without"} text keeps logo local and selected metadata`, async () => {
+    test(`${engine}: guided images send the real logo to the selected provider while ${withText ? "preserving exact copy separately" : "keeping the generated result intact"}`, async () => {
       await withCredentials(async () => {
-        const harness = serverHarness();
-        await harness.generate(request(engine, { withText, textMode: withText ? "ai" : "none" }));
-        assert.equal(harness.providerCalls.length, 1);
-        assert.equal(harness.providerCalls[0].imageEngine, engine);
-        assert.equal(harness.providerCalls[0].format, "landscape");
-        assert.equal(harness.providerCalls[0].officialLogo, null);
-        assert.deepEqual(harness.providerCalls[0].identityReferences, []);
-        assert.equal(harness.composerCalls.length, 1);
-        assert.equal(harness.composerCalls[0].logo, harness.logo);
-        const metadata = harness.saved[0].metadata as { gateway: RecordValue; provenance: RecordValue };
+        const h = serverHarness();
+        await h.generate(request(engine, { withText, textMode: withText ? "ai" : "none" }));
+        assertNativeLogo(h);
+        assert.deepEqual(h.providerCalls[0].identityReferences, []);
+        assert.equal(h.composerCalls.length, withText ? 1 : 0);
+        if (withText) {
+          assert.equal(h.composerCalls[0].logo, null);
+          assert.equal(h.composerCalls[0].requireLogo, false);
+          assert.equal(h.composerCalls[0].logoMode, "none");
+          assert.equal(h.composerCalls[0].withText, true);
+        } else assert.deepEqual((h.saved[0].media as RecordValue).buffer, Buffer.from("provider-output"));
+        const metadata = h.saved[0].metadata as { gateway: RecordValue };
         assert.equal(metadata.gateway.engine, engine);
-        assert.equal(metadata.gateway.upstream_provider, catalog.getAiMediaImageModel(engine).provider);
-        assert.equal(metadata.gateway.model, catalog.getAiMediaImageModel(engine).modelId);
-        assert.equal(metadata.gateway.reference_images_count, 0);
-        assert.equal(metadata.provenance.local_logo_composition_applied, true);
-        assert.equal(metadata.provenance.branding_policy_version, freePrompt.AI_MEDIA_IMAGE_BRANDING_POLICY_VERSION);
-        assert.equal(harness.counts.fallback, 0);
+        assert.equal(metadata.gateway.reference_images_count, 1);
       });
     });
   }
 }
 
-test("incompatible Recraft/Grok references are rejected before creative preparation or provider call", async () => {
+test("checked ADN supplies the existing profile logo on all four compatible engines without changing the free request", async () => {
   await withCredentials(async () => {
-    for (const [engine, count] of [["recraft", 1], ["grok", 4]] as const) {
-      const harness = serverHarness();
-      const invalid = { ...request(engine, { creationMode: "free", freePrompt: "Créer une affiche artisanale originale." }), inspirationImages: Array.from({ length: count }, ref) };
-      await assert.rejects(harness.generate(invalid), /reference.*unsupported/);
-      assert.equal(harness.counts.creative, 0);
-      assert.equal(harness.counts.headline, 0);
-      assert.equal(harness.counts.provider, 0);
-      assert.equal(harness.counts.saved, 0);
-    }
-  });
-});
-
-test("free official logo is composed only when explicitly requested, without hidden references", async () => {
-  await withCredentials(async () => {
-    for (const useLogo of [false, true]) {
-      const harness = serverHarness();
-      await harness.generate(request("recraft", { creationMode: "free", freePrompt: useLogo ? "Créer une illustration et ajouter mon logo officiel discrètement." : "Créer une illustration sans logo." }));
-      assert.equal(harness.providerCalls[0].officialLogo, null);
-      assert.deepEqual(harness.providerCalls[0].identityReferences, []);
-      assert.equal(harness.counts.creative, 1);
-      assert.equal(harness.composerCalls.length, useLogo ? 1 : 0);
-      const metadata = harness.saved[0].metadata as { provenance: RecordValue };
-      assert.equal(metadata.provenance.local_logo_composition_applied, useLogo);
-      assert.equal(metadata.provenance.business_dna_requested, false);
-      assert.equal(metadata.provenance.business_dna_used, undefined, "an explicit logo request does not claim ADN enrichment");
-    }
-  });
-});
-
-test("checked ADN preserves the free request and selected engine while composing the exact logo locally on every image engine", async () => {
-  await withCredentials(async () => {
-    for (const engine of ["openai", "gemini", "flux", "grok", "recraft"] as const) {
-      const harness = serverHarness();
-      const input = request(engine, { creationMode: "free", useBusinessDna: true, freePrompt: "Une création artisanale originale avec mon téléphone et le lien du site." });
-      const original = structuredClone(input);
-      await harness.generate(input);
-      assert.deepEqual(input, original);
-      assert.equal(harness.providerCalls.length, 1);
-      assert.equal(harness.providerCalls[0].imageEngine, engine);
-      assert.equal(harness.providerCalls[0].officialLogo, null);
-      assert.deepEqual(harness.providerCalls[0].identityReferences, []);
-      assert.equal(harness.counts.headline, 0);
-      assert.equal(harness.counts.fallback, 0);
-      assert.equal(harness.composerCalls.length, 1);
-      assert.equal(harness.composerCalls[0].logo, harness.logo);
-      assert.equal(harness.composerCalls[0].withText, false);
-      const context = harness.promptCalls[0].businessDnaContext as { coordonnees: RecordValue; liens: RecordValue };
-      assert.equal(context.coordonnees.telephone, "01 23 45 67 89");
-      assert.equal(context.liens.site_web, "https://atelier.example/");
-      assert.deepEqual(harness.promptCalls[0].brandColors, ["#112233", "#445566", "#778899"]);
-      const provenance = (harness.saved[0].metadata as { provenance: RecordValue }).provenance;
-      assert.equal(provenance.business_dna_requested, true);
-      assert.equal(provenance.branding_policy_version, freePrompt.AI_MEDIA_IMAGE_BRANDING_POLICY_VERSION);
-      assert.equal(provenance.business_dna_used, true);
-    }
-  });
-});
-
-test("square free images reserve the same logo rectangle in the provider prompt and compositor on every engine", async () => {
-  await withCredentials(async () => {
-    for (const imageEngine of ["openai", "gemini", "flux", "grok", "recraft"] as const) {
-      const h = serverHarness();
-      await h.generate(request(imageEngine, { creationMode: "free", format: "square", freePrompt: "Une affiche avec une accroche originale et notre logo en bas à gauche." }));
-      assert.equal(h.providerCalls.length, 1, "reserving a logo must not add a generation");
-      const reservation = localLogoComposition.resolveAiMediaImageLogoReservation({ width: 1080, height: 1080, placement: { horizontal: "left", vertical: "bottom" } });
-      assert.deepEqual(h.composerCalls[0].imageLogoReservation, reservation);
-      const policy = localLogoComposition.buildAiMediaLocalLogoCompositionPrompt({ operation: "generate", logoBrief: "", imageLogoReservation: reservation });
-      assert.ok(String(h.providerCalls[0].prompt).endsWith(policy));
-      assert.match(policy, /aucun texte, lettre, prix, coordonnée, titre, accroche/);
-      assert.equal(h.composerCalls[0].withText, false);
-    }
-    const noLogo = serverHarness();
-    await noLogo.generate(request("openai", { creationMode: "free", format: "square", freePrompt: "Une photo sans logo." }));
-    assert.doesNotMatch(String(noLogo.providerCalls[0].prompt), /ZONE RÉSERVÉE AU LOGO FINAL/);
-    assert.equal(noLogo.composerCalls.length, 0);
-  });
-});
-
-test("checked ADN respects a request without a logo", async () => {
-  await withCredentials(async () => {
-    const harness = serverHarness();
-    await harness.generate(request("recraft", { creationMode: "free", useBusinessDna: true, freePrompt: "Une création sans logo et sans charte." }));
-    assert.equal(harness.counts.provider, 1);
-    assert.equal(harness.composerCalls.length, 0);
-    assert.deepEqual(harness.promptCalls[0].brandColors, []);
-  });
-});
-
-test("explicit exclusions, new logos and attached client logos cannot be replaced by the profile asset", async () => {
-  await withCredentials(async () => {
-    for (const useBusinessDna of [false, true]) {
-      for (const freePrompt of [
-        "Une photographie sans notre logo.",
-        "Une photographie sans identité de marque.",
-        "Crée un nouveau logo pour mon entreprise.",
-        "Une affiche avec le logo de mon client.",
-        "Une affiche avec le logo joint de mon client.",
-      ]) {
-        const attached = freePrompt.includes("joint");
-        const h = serverHarness();
-        await h.generate(request("gemini", { creationMode: "free", useBusinessDna, freePrompt,
-          inspirationImages: attached ? [ref()] : [] }));
-        assert.equal(h.providerCalls.length, 1, freePrompt);
-        assert.equal(h.providerCalls[0].officialLogo, null, freePrompt);
-        assert.equal((h.providerCalls[0].identityReferences as Buffer[]).length, attached ? 1 : 0);
-        assert.equal(h.composerCalls.length, 0, freePrompt);
-        assert.doesNotMatch(String(h.providerCalls[0].prompt), /ZONE RÉSERVÉE AU LOGO FINAL/);
-        const provenance = (h.saved[0].metadata as { provenance: RecordValue }).provenance;
-        assert.equal(provenance.business_dna_requested, useBusinessDna);
-        assert.equal(provenance.exact_logo_applied, false);
-        assert.equal(provenance.official_logo_source, undefined);
-        assert.equal(h.counts.fallback, 0);
-        assert.equal(h.counts.saved, 1);
-      }
-    }
-  });
-});
-
-test("successful local logo fitting records display dimensions after a single image generation", async () => {
-  await withCredentials(async () => {
-    const layout = { width: 189, height: 44, left: 766, top: 36, scale: 0.7 };
-    const h = serverHarness(false, { logoLayout: layout });
-    await h.generate(request("gemini", { creationMode: "free", useBusinessDna: true,
-      freePrompt: "Une affiche pour notre atelier avec le logo officiel." }));
-    const metadata = h.saved[0].metadata as { provenance: RecordValue };
-    assert.equal(h.counts.provider, 1);
-    assert.equal(h.counts.branded, 1);
-    assert.equal(h.counts.fallback, 0);
-    assert.equal(h.counts.saved, 1);
-    assert.deepEqual(metadata.provenance.image_logo_layout, layout);
-    assert.equal(metadata.provenance.exact_logo_applied, true);
-    assert.equal(metadata.provenance.official_logo_sha256, createHash("sha256").update(h.logo!).digest("hex"));
-  });
-});
-
-test("an unsafe logo placement rejects after one image call without fallback or saved success", async () => {
-  await withCredentials(async () => {
-    const noSafePlacement = new Error("ai_media_logo_no_safe_placement");
-    for (const explicitEngine of [true, false]) {
-      const h = serverHarness(false, { composerFailure: noSafePlacement });
-      const input = request("gemini", { creationMode: "free", useBusinessDna: true,
-        freePrompt: "Une affiche pour notre atelier." });
-      if (!explicitEngine) input.imageEngine = undefined;
-      await assert.rejects(h.generate(input), value => value === noSafePlacement);
-      assert.equal(h.counts.provider, 1);
-      assert.equal(h.composerCalls.length, 1);
-      assert.equal(h.counts.fallback, 0, "a composition refusal cannot trigger another model");
-      assert.equal(h.counts.saved, 0);
-    }
-  });
-});
-
-test("the saved profile logo is composed from its real bytes, with or without the ADN toggle", async () => {
-  await withCredentials(async () => {
-    for (const useBusinessDna of [false, true]) {
-      for (const engine of ["openai", "gemini", "flux", "grok", "recraft"] as const) {
-        const h = serverHarness();
-        await h.generate(request(engine, { creationMode: "free", useBusinessDna, freePrompt: "Une affiche avec le logo du profil en haut au centre. N’invente pas un nouveau logo." }));
-        assert.equal(h.composerCalls[0].logo, h.logo);
-        assert.equal(h.composerCalls[0].requireLogo, true);
-        assert.deepEqual(h.composerCalls[0].logoPlacement, { horizontal: "center", vertical: "top" });
-        assert.equal(h.providerCalls[0].officialLogo, null, "the model must not redraw the official asset");
-        assert.match(String(h.providerCalls[0].prompt), /Ne pas dessiner, imiter, réinterpréter ni inventer de logo/);
-        const metadata = h.saved[0].metadata as { provenance: RecordValue };
-        assert.equal(metadata.provenance.exact_logo_applied, true);
-        assert.equal(metadata.provenance.official_logo_source, "account_profile");
-        assert.match(String(metadata.provenance.official_logo_sha256), /^[a-f0-9]{64}$/);
-      }
-    }
-  });
-});
-
-test("an unchecked ADN still permits an explicit selection of the existing profile logo instead of a redesign", async () => {
-  await withCredentials(async () => {
-    for (const externalOwner of [false, true]) {
-      const h = serverHarness();
-      await h.generate(request("flux", { creationMode: "free", useBusinessDna: false,
-        freePrompt: `Ne crée pas un nouveau logo, utilise celui du profil${externalOwner ? " de mon client" : ""}.` }));
-      assert.equal(h.providerCalls.length, 1);
-      assert.equal(h.composerCalls.length, externalOwner ? 0 : 1);
-      if (!externalOwner) assert.equal(h.composerCalls[0].logo, h.logo);
-      const provenance = (h.saved[0].metadata as { provenance: RecordValue }).provenance;
-      assert.equal(provenance.business_dna_requested, false);
-      assert.equal(provenance.exact_logo_applied, !externalOwner);
-      assert.equal(provenance.business_dna_used, undefined);
-    }
-  });
-});
-
-test("an unchecked ADN profile portrait or phone selection never authorizes account-logo composition", async () => {
-  await withCredentials(async () => {
-    for (const object of ["portrait", "numéro"]) {
-      const h = serverHarness();
-      await h.generate(request("flux", { creationMode: "free", useBusinessDna: false,
-        freePrompt: `Ne crée pas un nouveau ${object}, utilise celui du profil.` }));
-      assert.equal(h.providerCalls.length, 1);
-      assert.equal(h.providerCalls[0].officialLogo, null);
-      assert.deepEqual(h.providerCalls[0].identityReferences, []);
-      assert.equal(h.composerCalls.length, 0);
-      assert.deepEqual(h.promptCalls[0].brandColors, []);
-      assert.equal(h.promptCalls[0].businessDnaContext, undefined);
-      assert.equal((h.saved[0].metadata as { provenance: RecordValue }).provenance.exact_logo_applied, false);
-    }
-  });
-});
-
-test("guided phone images compose exact phone copy then the real adaptive logo once on the actual canvas", async () => {
-  const officialFile = await sharp({ create: { width: 120, height: 40, channels: 4, background: "#ed1f8a" } }).png().toBuffer();
-  await withCredentials(async () => {
-    for (const engine of ["openai", "gemini", "flux", "grok", "recraft"] as const) {
-      const h = serverHarness(false, { phone: "06 31 26 08 12", logo: officialFile, normalizedCanvas: { width: 840, height: 1200 } });
-      await h.generate(request(engine, { format: "portrait", withText: true, textMode: "ai", aiInstruction: "Ajoute mon téléphone et mon logo en bas à droite." }));
-      assert.equal(h.providerCalls[0].officialLogo, null, engine);
-      assert.equal(h.contactCalls.length, 1, engine);
-      assert.equal(h.contactCalls[0].phone, "06 31 26 08 12");
-      assert.equal(h.contactCalls[0].officialLogo, null, "the phone compositor must not add a second logo or a plate");
-      assert.equal(h.contactCalls[0].requireLogo, false);
-      assert.equal(h.contactCalls[0].logoMode, "none");
-      assert.equal(h.contactCalls[0].width, 840); assert.equal(h.contactCalls[0].height, 1200);
-      assert.equal(h.composerCalls.length, 1, engine);
-      assert.deepEqual(h.composerCalls[0].input, Buffer.from("locally-contacted-output"), "logo composition retains the exact phone copy");
-      assert.equal(h.composerCalls[0].logo, officialFile);
-      assert.equal(h.composerCalls[0].requireLogo, true);
-      assert.equal(h.composerCalls[0].withText, false, "phone/headline copy must not be drawn twice");
-      assert.equal(h.composerCalls[0].width, 840); assert.equal(h.composerCalls[0].height, 1200);
-      assert.deepEqual(h.composerCalls[0].logoPlacement, { horizontal: "right", vertical: "bottom" });
-      const metadata = h.saved[0].metadata as { provenance: RecordValue; gateway: RecordValue };
-      assert.equal(metadata.provenance.exact_contact_composition_applied, true);
-      assert.equal(metadata.provenance.exact_logo_applied, true);
-      assert.equal(metadata.provenance.official_logo_source, "account_profile");
-      assert.equal(metadata.provenance.official_logo_sha256, createHash("sha256").update(officialFile).digest("hex"));
-      assert.equal(metadata.gateway.local_logo_composition_applied, true);
-      assert.equal(metadata.gateway.profile_phone_applied, true);
-      assert.deepEqual((h.saved[0].media as RecordValue).buffer, Buffer.from("locally-branded-output"));
-    }
-  });
-});
-
-test("phone branding honors no-logo requests and cannot save success when required logo composition fails", async () => {
-  await withCredentials(async () => {
-    const excluded = serverHarness(false, { phone: "06 31 26 08 12" });
-    await excluded.generate(request("gemini", { logoMode: "none", aiInstruction: "Ajoute mon téléphone sans logo." }));
-    assert.equal(excluded.contactCalls.length, 1);
-    assert.equal(excluded.composerCalls.length, 0);
-    const metadata = excluded.saved[0].metadata as { provenance: RecordValue };
-    assert.equal(metadata.provenance.exact_contact_composition_applied, true);
-    assert.equal(metadata.provenance.exact_logo_applied, false);
-    const failed = serverHarness(false, { phone: "06 31 26 08 12", composerFailure: true });
-    await assert.rejects(failed.generate(request("gemini", { aiInstruction: "Ajoute mon téléphone et mon logo." })), /ai_image_exact_contact_composition_failed/);
-    assert.equal(failed.contactCalls.length, 1);
-    assert.equal(failed.counts.saved, 0);
-  });
-});
-
-test("Modify replaces a fake logo with the profile asset while retaining the source canvas and reference", async () => {
-  await withCredentials(async () => {
-    for (const engine of ["openai", "gemini", "flux", "grok"] as const) {
-      const h = serverHarness();
-      await h.generate(request(engine, { operation: "modify", aiInstruction: "Remplace le faux logo par le logo du profil en haut au centre, conserve le reste.",
-        modificationSourceWidth: 840, modificationSourceHeight: 1200, inspirationImages: [{ ...ref(), role: "inspiration", usage: "inspiration" }] }));
-      assert.equal(h.providerCalls[0].operation, "modify");
-      assert.deepEqual(h.providerCalls[0].identityReferences, [Buffer.from("sanitized-image")]);
-      assert.equal(h.providerCalls[0].officialLogo, null);
-      assert.match(String(h.providerCalls[0].prompt), /Retirer l'ancien logo ou le faux logo/);
-      assert.equal(h.composerCalls.length, 1);
-      assert.equal(h.composerCalls[0].logo, h.logo);
-      assert.equal(h.composerCalls[0].width, 840);
-      assert.equal(h.composerCalls[0].height, 1200);
-      assert.equal(h.composerCalls[0].withText, false);
-      assert.equal(h.composerCalls[0].logoMode, "visible");
-      assert.deepEqual(h.composerCalls[0].logoPlacement, { horizontal: "center", vertical: "top" });
-      const metadata = h.saved[0].metadata as { provenance: RecordValue };
-      assert.equal(metadata.provenance.exact_logo_applied, true);
-      assert.equal(metadata.provenance.business_dna_used, undefined);
-      assert.equal(h.counts.headline, 0);
-    }
-  });
-});
-
-test("Modify does not insert account branding for unrelated edits, exclusions, preservation or another owner", async () => {
-  await withCredentials(async () => {
-    for (const aiInstruction of ["Éclaircis la photographie.", "Retire mon logo.", "Conserve mon logo et change le fond.", "Ne remplace pas mon logo.", "Ajoute le logo du profil de mon client.", "Ajoute le logo du profil de Nike.", "Ajoute le logo officiel de Nike.", "Crée un nouveau logo pour mon entreprise."]) {
-      const h = serverHarness();
-      await h.generate(request("gemini", { operation: "modify", aiInstruction, inspirationImages: [{ ...ref(), role: "inspiration", usage: "inspiration" }] }));
-      assert.equal(h.composerCalls.length, 0, aiInstruction);
-      assert.equal(h.providerCalls[0].officialLogo, null, aiInstruction);
-      const metadata = h.saved[0].metadata as { provenance: RecordValue };
-      assert.equal(metadata.provenance.exact_logo_applied, false, aiInstruction);
-    }
-  });
-});
-
-test("unchecked ADN keeps Studio images free of automatic account logo, reservation, palette and context on every engine", async () => {
-  await withCredentials(async () => {
-    for (const engine of ["openai", "gemini", "flux", "grok", "recraft"] as const) {
-      const h = serverHarness();
-      const input = request(engine, { creationMode: "free", useBusinessDna: false, useBrandColors: true, logoMode: "visible",
+    for (const engine of nativeLogoEngines) {
+      const h = serverHarness(false, { composerFailure: new Error("ai_media_logo_no_safe_placement") });
+      const input = request(engine, { creationMode: "free", useBusinessDna: true,
         freePrompt: "Une équipe de nettoyage au travail dans un bureau lumineux." });
-      assert.equal(input.logoMode, "none", "free mode cannot inherit a saved guided logo control");
-      assert.equal(input.useBrandColors, false);
       const original = structuredClone(input);
       await h.generate(input);
       assert.deepEqual(input, original);
-      assert.equal(h.counts.provider, 1, engine);
-      assert.equal(h.counts.creative, 1);
-      assert.equal(h.counts.headline, 0);
-      assert.equal(h.counts.fallback, 0);
-      assert.equal(h.providerCalls[0].officialLogo, null, "the model must not redraw the profile logo");
-      assert.deepEqual(h.providerCalls[0].identityReferences, []);
-      assert.equal(h.composerCalls.length, 0, engine);
-      assert.doesNotMatch(String(h.providerCalls[0].prompt), /ZONE RÉSERVÉE AU LOGO FINAL|Le logo officiel de l'entreprise sera ajouté/);
-      assert.deepEqual(h.promptCalls[0].brandColors, []);
-      assert.equal(h.promptCalls[0].businessDnaContext, undefined);
-      assert.equal(h.promptCalls[0].hasLogo, false);
-      assert.equal(h.promptCalls[0].logoComposedLocally, false);
+      assert.equal(input.logoMode, "none", "The inactive guided control does not suppress an ADN logo");
+      assertNativeLogo(h);
+      assert.equal(h.composerCalls.length, 0, "There is no post-generation logo placement or pixel rejection");
+      assert.deepEqual((h.saved[0].media as RecordValue).buffer, Buffer.from("provider-output"));
       const provenance = (h.saved[0].metadata as { provenance: RecordValue }).provenance;
-      assert.equal(provenance.business_dna_requested, false, "an explicitly unchecked choice is persisted as a boolean");
-      assert.equal(provenance.branding_policy_version, freePrompt.AI_MEDIA_IMAGE_BRANDING_POLICY_VERSION);
-      assert.equal(provenance.business_dna_used, undefined, "absence of historic usage is not rewritten as false");
-      assert.equal(provenance.exact_logo_applied, false);
-      assert.equal(provenance.local_logo_composition_applied, false);
-      assert.equal(provenance.effective_logo_mode, "none");
-      assert.equal(provenance.official_logo_source, undefined);
-      assert.equal(provenance.official_logo_sha256, undefined);
-      assert.deepEqual(provenance.brand_palette_applied, []);
-      assert.equal(h.counts.saved, 1);
+      assert.equal(provenance.business_dna_requested, true);
+      assert.equal(provenance.business_dna_used, true);
+      const context = h.promptCalls[0].businessDnaContext as { coordonnees: RecordValue; liens: RecordValue };
+      assert.equal(context.coordonnees.telephone, "01 23 45 67 89");
+      assert.equal(context.liens.site_web, "https://atelier.example/");
     }
   });
 });
 
-test("an image without a saved logo does not fabricate a replacement", async () => {
+test("explicit logo placement stays in the creative request instead of adding a reserved local rectangle", async () => {
   await withCredentials(async () => {
-    const h = serverHarness(false, { logo: null });
-    await h.generate(request("gemini", { creationMode: "free", useBusinessDna: true,
-      freePrompt: "Une photographie d’un jardin fleuri." }));
-    assert.equal(h.composerCalls.length, 0);
-    assert.equal(h.providerCalls[0].officialLogo, null);
-    assert.match(String(h.providerCalls[0].prompt), /Aucun fichier de logo officiel.*ne pas en inventer/);
+    for (const engine of nativeLogoEngines) {
+      const h = serverHarness();
+      await h.generate(request(engine, { creationMode: "free", useBusinessDna: false, format: "square",
+        freePrompt: "Une affiche avec le logo du profil en bas à gauche. N’invente pas un nouveau logo." }));
+      assertNativeLogo(h);
+      assert.equal(h.composerCalls.length, 0);
+      assert.equal(h.promptCalls[0].request && (h.promptCalls[0].request as contracts.AiMediaGenerationRequest).freePrompt?.includes("en bas à gauche"), true);
+      assert.equal((h.saved[0].metadata as { provenance: RecordValue }).provenance.business_dna_used, undefined);
+    }
   });
 });
 
-test("guided copy honors an explicit profile logo even when the inherited logo control is off", async () => {
+test("a logo reference uses one of the selected engine's slots and fails before billing when the total exceeds its capacity", async () => {
   await withCredentials(async () => {
-    const h = serverHarness();
-    await h.generate(request("gemini", { logoMode: "none", withText: true, textMode: "ai", aiInstruction: "Ajoute mon logo en haut à gauche et une accroche." }));
-    assert.equal(h.composerCalls.length, 1);
-    assert.equal(h.composerCalls[0].logo, h.logo);
-    assert.equal(h.composerCalls[0].requireLogo, true);
-    assert.equal(h.composerCalls[0].logoMode, "visible");
-    assert.deepEqual(h.composerCalls[0].logoPlacement, { horizontal: "left", vertical: "top" });
-    assert.equal(h.counts.saved, 1);
+    for (const engine of nativeLogoEngines) {
+      const maximum = catalog.getAiMediaImageModel(engine).maxReferenceImages;
+      for (const overLimit of [false, true]) {
+        const h = serverHarness(); let billable = 0;
+        const photoCount = maximum - 1 + Number(overLimit);
+        const input = request(engine, { creationMode: "free", useBusinessDna: true,
+          freePrompt: "Une photographie présentant tous les produits fournis.",
+          inspirationImages: Array.from({ length: photoCount }, ref) });
+        const run = h.generate(input, { onBillableWorkStarted: () => { billable++; } });
+        if (overLimit) {
+          await assert.rejects(run, /au maximum.*logo compris/);
+          assert.equal(billable, 0); assert.equal(h.counts.creative, 0); assert.equal(h.counts.provider, 0); assert.equal(h.counts.saved, 0);
+        } else {
+          await run; assertNativeLogo(h);
+          assert.equal((h.providerCalls[0].identityReferences as Buffer[]).length, photoCount);
+          assert.equal((h.saved[0].metadata as { gateway: RecordValue }).gateway.reference_images_count, maximum);
+          assert.equal(billable, 1);
+          assert.equal(h.composerCalls.length, 0);
+        }
+      }
+    }
   });
 });
 
-test("a guided request without a logo never requires a missing logo because of the default control", async () => {
+test("Recraft refuses an effective account-logo reference before billing and never substitutes another engine or a local overlay", async () => {
   await withCredentials(async () => {
-    const h = serverHarness(false, { logo: null });
-    await h.generate(request("gemini", { logoMode: "discreet", aiInstruction: "Une photographie sans logo." }));
-    assert.equal(h.composerCalls.length, 0);
-    assert.equal(h.counts.provider, 1);
-    assert.equal(h.counts.saved, 1);
+    for (const controls of [
+      { creationMode: "free", useBusinessDna: true, freePrompt: "Une affiche pour notre atelier." },
+      { creationMode: "free", useBusinessDna: false, freePrompt: "Ajoute mon logo officiel à cette illustration." },
+      { creationMode: "guided", logoMode: "visible" },
+    ]) {
+      const h = serverHarness(); let billable = 0;
+      await assert.rejects(h.generate(request("recraft", controls), { onBillableWorkStarted: () => { billable++; } }), /Recraft.*fichier de votre logo/);
+      assert.equal(billable, 0); assert.equal(h.counts.creative, 0); assert.equal(h.counts.headline, 0);
+      assert.equal(h.counts.provider, 0); assert.equal(h.counts.fallback, 0); assert.equal(h.counts.saved, 0); assert.equal(h.composerCalls.length, 0);
+    }
   });
 });
 
-test("an explicitly requested unavailable logo fails before any billable preparation and cannot be silently omitted", async () => {
+test("Recraft still creates images when no account logo is used", async () => {
   await withCredentials(async () => {
+    for (const controls of [
+      { creationMode: "free", useBusinessDna: false, freePrompt: "Une illustration originale." },
+      { creationMode: "free", useBusinessDna: true, freePrompt: "Une création sans logo et sans charte." },
+      { creationMode: "free", useBusinessDna: true, freePrompt: "Crée un nouveau logo pour mon entreprise." },
+    ]) {
+      const h = serverHarness(); await h.generate(request("recraft", controls));
+      assert.equal(h.counts.provider, 1); assert.equal(h.counts.saved, 1);
+      assert.equal(h.providerCalls[0].officialLogo, null); assert.equal(h.composerCalls.length, 0);
+    }
+  });
+});
+
+test("explicit exclusions, source-logo preservation and another owner's logo never inject the profile asset", async () => {
+  await withCredentials(async () => {
+    for (const useBusinessDna of [false, true]) {
+      for (const freePrompt of ["Une photographie sans notre logo.", "Une photographie sans logos.", "Retire le logo.", "Supprime les logos.", "Enlève le logo.",
+        "Une affiche avec le logo de mon client.", "Une affiche avec le logo joint de mon client.", "Conserve le logo de la photo et change le décor."]) {
+        const h = serverHarness();
+        await h.generate(request("gemini", { creationMode: "free", useBusinessDna, freePrompt, inspirationImages: [ref()] }));
+        assert.equal(h.providerCalls[0].officialLogo, null, freePrompt);
+        assert.equal((h.providerCalls[0].identityReferences as Buffer[]).length, 1);
+        assert.equal(h.composerCalls.length, 0);
+        const metadata = h.saved[0].metadata as { provenance: RecordValue; gateway: RecordValue };
+        assert.equal(metadata.provenance.exact_logo_applied, false);
+        assert.equal(metadata.provenance.official_logo_reference_sha256, undefined);
+        assert.equal(metadata.gateway.official_logo_included, false);
+      }
+    }
+  });
+});
+
+test("unchecked ADN does not add hidden logo, palette, business context or a provider reference", async () => {
+  await withCredentials(async () => {
+    for (const engine of [...nativeLogoEngines, "recraft"] as const) {
+      const h = serverHarness();
+      await h.generate(request(engine, { creationMode: "free", useBusinessDna: false, useBrandColors: true, logoMode: "visible",
+        freePrompt: "Une équipe de nettoyage au travail dans un bureau lumineux." }));
+      assert.equal(h.providerCalls[0].officialLogo, null); assert.equal(h.composerCalls.length, 0);
+      assert.equal(h.promptCalls[0].hasLogo, false); assert.equal(h.promptCalls[0].logoComposedLocally, false);
+      assert.deepEqual(h.promptCalls[0].brandColors, []); assert.equal(h.promptCalls[0].businessDnaContext, undefined);
+      assert.equal((h.saved[0].metadata as { provenance: RecordValue }).provenance.business_dna_requested, false);
+    }
+  });
+});
+
+test("a missing optional account logo is not invented and an explicit missing asset fails before billable work", async () => {
+  await withCredentials(async () => {
+    const optional = serverHarness(false, { logo: null });
+    await optional.generate(request("gemini", { creationMode: "free", useBusinessDna: true, freePrompt: "Une photographie d’un jardin fleuri." }));
+    assert.equal(optional.providerCalls[0].officialLogo, null);
+    assert.match(String(optional.providerCalls[0].prompt), /Aucun fichier de logo officiel.*ne pas en inventer/);
     for (const input of [
-      request("gemini", { creationMode: "free", useBusinessDna: true, freePrompt: "Une affiche avec le logo du profil." }),
+      request("gemini", { creationMode: "free", freePrompt: "Une affiche avec le logo du profil." }),
       request("gemini", { operation: "modify", aiInstruction: "Remplace le logo par mon logo enregistré dans le Profil.", inspirationImages: [{ ...ref(), role: "inspiration", usage: "inspiration" }] }),
     ]) {
-      const h = serverHarness(false, { logo: null });
-      let billable = 0;
+      const h = serverHarness(false, { logo: null }); let billable = 0;
       await assert.rejects(h.generate(input, { onBillableWorkStarted: () => { billable++; } }), /logo enregistré.*Profil.*absent ou illisible/);
-      assert.equal(billable, 0);
-      assert.equal(h.counts.creative, 0); assert.equal(h.counts.headline, 0);
-      assert.equal(h.counts.provider, 0); assert.equal(h.counts.saved, 0);
+      assert.equal(billable, 0); assert.equal(h.counts.creative, 0); assert.equal(h.counts.provider, 0); assert.equal(h.counts.saved, 0);
     }
-    const h = serverHarness(false, { composerFailure: true });
-    await assert.rejects(h.generate(request("gemini", { creationMode: "free", freePrompt: "Ajoute le logo du profil." })), /required_logo_not_composed/);
-    assert.equal(h.counts.saved, 0, "an omitted logo must never produce a saved success");
   });
 });
 
-test("an explicit new image engine failure does not invoke Google fallback or persist another image", async () => {
+test("Modify sends its source canvas and the separate official asset to the same selected provider without a local logo pass", async () => {
   await withCredentials(async () => {
-    const harness = serverHarness(true);
-    await assert.rejects(harness.generate(request("flux")), /selected_provider_failed/);
-    assert.equal(harness.counts.provider, 1);
-    assert.equal(harness.counts.fallback, 0);
-    assert.equal(harness.counts.saved, 0);
+    for (const engine of nativeLogoEngines) {
+      const h = serverHarness();
+      await h.generate(request(engine, { operation: "modify", aiInstruction: "Remplace le faux logo par le logo du profil en haut au centre, conserve le reste.",
+        inspirationImages: [{ ...ref(), role: "inspiration", usage: "inspiration" }] }));
+      assertNativeLogo(h);
+      assert.equal(h.providerCalls[0].operation, "modify");
+      assert.deepEqual(h.providerCalls[0].identityReferences, [Buffer.from("sanitized-image")]);
+      assert.equal(h.providerCalls[0].size, "848x1200");
+      assert.equal((h.saved[0].media as RecordValue).width, 840);
+      assert.equal((h.saved[0].media as RecordValue).height, 1200);
+      assert.equal(h.composerCalls.length, 0); assert.equal(h.counts.headline, 0);
+    }
   });
 });
 
-test("the server locks cancellation once, before the first billable plan or image request", async () => {
+test("Modify preserves source marks or removes them without attaching an unrelated profile logo", async () => {
+  await withCredentials(async () => {
+    for (const aiInstruction of ["Éclaircis la photographie.", "Retire mon logo.", "Conserve mon logo et change le fond.", "Ne remplace pas mon logo.", "Ajoute le logo du profil de mon client.", "Crée un nouveau logo pour mon entreprise."]) {
+      const h = serverHarness();
+      await h.generate(request("gemini", { operation: "modify", aiInstruction, inspirationImages: [{ ...ref(), role: "inspiration", usage: "inspiration" }] }));
+      assert.equal(h.providerCalls[0].officialLogo, null, aiInstruction); assert.equal(h.composerCalls.length, 0);
+    }
+  });
+});
+
+test("exact phone composition remains independent from the logo integrated by the image provider", async () => {
+  await withCredentials(async () => {
+    for (const engine of nativeLogoEngines) {
+      const h = serverHarness(false, { phone: "06 31 26 08 12", normalizedCanvas: { width: 840, height: 1200 } });
+      await h.generate(request(engine, { format: "portrait", withText: true, textMode: "ai", aiInstruction: "Ajoute mon téléphone et mon logo en bas à droite." }));
+      assertNativeLogo(h);
+      assert.equal(h.contactCalls.length, 1); assert.equal(h.composerCalls.length, 0);
+      assert.equal(h.contactCalls[0].phone, "06 31 26 08 12");
+      assert.equal(h.contactCalls[0].officialLogo, null); assert.equal(h.contactCalls[0].requireLogo, false); assert.equal(h.contactCalls[0].logoMode, "none");
+      assert.equal(h.contactCalls[0].width, 840); assert.equal(h.contactCalls[0].height, 1200);
+      const metadata = h.saved[0].metadata as { provenance: RecordValue; gateway: RecordValue };
+      assert.equal(metadata.provenance.exact_contact_composition_applied, true);
+      assert.equal(metadata.gateway.profile_phone_applied, true);
+      assert.deepEqual((h.saved[0].media as RecordValue).buffer, Buffer.from("locally-contacted-output"));
+    }
+  });
+});
+
+test("an independent exact-copy composition failure cannot trigger another image provider or save a false success", async () => {
+  await withCredentials(async () => {
+    const h = serverHarness(false, { composerFailure: true });
+    await assert.rejects(h.generate(request("gemini", { withText: true, textMode: "ai", aiInstruction: "Ajoute une accroche et mon logo." })), /ai_image_exact_copy_composition_failed/);
+    assert.equal(h.providerCalls[0].officialLogo, h.logo);
+    assert.equal(h.composerCalls[0].logo, null);
+    assert.equal(h.counts.provider, 1); assert.equal(h.counts.fallback, 0); assert.equal(h.counts.saved, 0);
+  });
+});
+
+test("a provider safety refusal never changes supplier or saves another image", async () => {
+  await withCredentials(async () => {
+    const error = new Error("Your request was rejected by the safety system.");
+    const h = serverHarness(error); const input = request("openai", { logoMode: "none" }); input.imageEngine = undefined;
+    await assert.rejects(h.generate(input), value => value === error);
+    assert.equal(h.counts.provider, 1); assert.equal(h.counts.fallback, 0); assert.equal(h.counts.saved, 0);
+  });
+});
+
+test("the server locks cancellation once before the first billable plan or image request", async () => {
   await withCredentials(async () => {
     for (const creationMode of ["guided", "free"] as const) {
-      const harness = serverHarness();
-      let locks = 0;
-      await harness.generate(request("grok", {
-        creationMode,
-        freePrompt: creationMode === "free" ? "Photographie d'une tasse turquoise sans logo." : undefined,
-      }), { onBillableWorkStarted: async () => {
-        locks += 1;
-        assert.equal(harness.counts.creative, 0);
-        assert.equal(harness.counts.headline, 0);
-        assert.equal(harness.counts.provider, 0);
-      } });
-      assert.equal(locks, 1);
-      assert.equal(harness.counts.provider, 1);
-      assert.equal(harness.counts.saved, 1);
+      const h = serverHarness(); let locks = 0;
+      await h.generate(request("grok", { creationMode, freePrompt: creationMode === "free" ? "Photographie d'une tasse sans logo." : undefined }), {
+        onBillableWorkStarted: () => { locks++; assert.equal(h.counts.creative, 0); assert.equal(h.counts.headline, 0); assert.equal(h.counts.provider, 0); },
+      });
+      assert.equal(locks, 1); assert.equal(h.counts.provider, 1); assert.equal(h.counts.saved, 1);
     }
-  });
-});
-
-test("a cancellation at the paid-work gate cannot reach a creative plan or provider", async () => {
-  await withCredentials(async () => {
-    const harness = serverHarness();
-    const controller = new AbortController();
-    await assert.rejects(harness.generate(request("grok", { creationMode: "free", freePrompt: "Photographie d'une tasse." }), {
-      signal: controller.signal,
-      onBillableWorkStarted: () => controller.abort(new DOMException("Preparation cancelled", "AbortError")),
+    const h = serverHarness(); const controller = new AbortController();
+    await assert.rejects(h.generate(request("grok", { creationMode: "free", freePrompt: "Photographie d'une tasse." }), {
+      signal: controller.signal, onBillableWorkStarted: () => controller.abort(new DOMException("Preparation cancelled", "AbortError")),
     }), { name: "AbortError" });
-    assert.equal(harness.counts.creative, 0);
-    assert.equal(harness.counts.provider, 0);
-    assert.equal(harness.counts.saved, 0);
-  });
-});
-
-
-function realBrandedImageComposer() {
-  const runtime = compile("lib/aiMediaBrandRenderer.ts", new Map<string, unknown>([
-    ["server-only", {}], ["sharp", sharp], ["@/lib/aiMediaVideoLayout", videoLayout], ["@/lib/aiMediaTextIntegrity", textIntegrity],
-  ])) as unknown as { composeAiMediaBrandedImage: (args: RecordValue) => Promise<Buffer> };
-  return runtime.composeAiMediaBrandedImage;
-}
-
-async function crowdedImageBackground() {
-  return sharp(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800"><defs><pattern id="busy" width="16" height="16" patternUnits="userSpaceOnUse"><rect width="16" height="16" fill="white"/><rect width="8" height="8" fill="black"/><rect x="8" y="8" width="8" height="8" fill="black"/></pattern></defs><rect width="1000" height="800" fill="url(#busy)"/></svg>')).png().toBuffer();
-}
-
-test("a discreet optional logo cannot discard a generated crowded image or claim branding that was omitted", async () => {
-  await withCredentials(async () => {
-    const h = serverHarness(false, { composer: realBrandedImageComposer(), providerImage: await crowdedImageBackground(),
-      logo: await sharp({ create: { width: 600, height: 140, channels: 4, background: "#ed1f8a" } }).png().toBuffer() });
-    await h.generate(request("gemini", { source: "booster", logoMode: "discreet" }));
-    assert.equal(h.counts.provider, 1);
-    assert.equal(h.counts.fallback, 0);
-    assert.equal(h.counts.saved, 1);
-    assert.equal(h.composerCalls[0].requireLogo, false);
-    const metadata = h.saved[0].metadata as { provenance: RecordValue; gateway: RecordValue };
-    assert.equal(metadata.provenance.exact_logo_applied, false);
-    assert.equal(metadata.provenance.local_logo_composition_applied, false);
-    assert.equal(metadata.provenance.logo_version_applied, null);
-    assert.equal(metadata.provenance.official_logo_source, undefined);
-    assert.equal(metadata.provenance.official_logo_sha256, undefined);
-    assert.equal(metadata.provenance.image_logo_layout, undefined);
-    assert.equal(metadata.gateway.local_logo_composition_applied, false);
-    assert.ok((metadata.gateway.warnings as string[]).includes("image_optional_logo_omitted"));
-    const delivered = await sharp((h.saved[0].media as { buffer: Buffer }).buffer).metadata();
-    assert.equal(delivered.format, "jpeg");
-    assert.equal(delivered.width, 1920);
-    assert.equal(delivered.height, 1080);
-  });
-});
-
-test("a visible or explicitly requested image logo keeps its safe-placement requirement", async () => {
-  await withCredentials(async () => {
-    for (const controls of [{ logoMode: "visible" }, { logoMode: "discreet", aiInstruction: "Ajoute mon logo officiel en haut à droite." }]) {
-      const h = serverHarness(false, { composer: realBrandedImageComposer(), providerImage: await crowdedImageBackground(),
-        logo: await sharp({ create: { width: 600, height: 140, channels: 4, background: "#ed1f8a" } }).png().toBuffer() });
-      await assert.rejects(h.generate(request("gemini", controls)), /ai_media_logo_no_safe_placement/);
-      assert.equal(h.composerCalls[0].requireLogo, true);
-      assert.equal(h.counts.provider, 1);
-      assert.equal(h.counts.fallback, 0);
-      assert.equal(h.counts.saved, 0);
-    }
-  });
-});
-
-test("a discreet optional logo is still applied and attributed when the generated image has safe space", async () => {
-  await withCredentials(async () => {
-    const h = serverHarness(false, { composer: realBrandedImageComposer(),
-      providerImage: await sharp({ create: { width: 1920, height: 1080, channels: 3, background: "#17263e" } }).png().toBuffer(),
-      logo: await sharp({ create: { width: 600, height: 140, channels: 4, background: "#ed1f8a" } }).png().toBuffer() });
-    await h.generate(request("gemini", { source: "booster", logoMode: "discreet" }));
-    assert.equal(h.composerCalls[0].requireLogo, false);
-    assert.equal(h.counts.provider, 1);
-    assert.equal(h.counts.saved, 1);
-    const metadata = h.saved[0].metadata as { provenance: RecordValue; gateway: RecordValue };
-    assert.equal(metadata.provenance.exact_logo_applied, true);
-    assert.equal(metadata.provenance.local_logo_composition_applied, true);
-    assert.equal(metadata.provenance.official_logo_sha256, createHash("sha256").update(h.logo!).digest("hex"));
-    assert.ok(metadata.provenance.image_logo_layout);
-    assert.ok(!(metadata.gateway.warnings as string[]).includes("image_optional_logo_omitted"));
+    assert.equal(h.counts.creative, 0); assert.equal(h.counts.provider, 0); assert.equal(h.counts.saved, 0);
   });
 });

@@ -3,15 +3,29 @@ import { getPublicationDestinationStatus } from "../../_components/PublishExecut
 import { mergePreflightFailuresIntoPublicationSummary } from "@/lib/boosterPublicationOutcome";
 import { isRetryablePublicationEntry, publicationStorySequenceResumeRef, publicationStorySequenceCounts } from "@/lib/publicationStorySequenceRetry";
 import { type ChannelKey } from "./publishModal.shared";
+import { normalizeMetaPublicationPlacement } from "@/lib/metaPublicationTargets";
+
+export function publicationSummaryTargetKey(entry: { channel?: unknown; targetKey?: unknown; placement?: unknown }) {
+  return String(entry.targetKey || (entry.placement ? `${entry.channel}:${entry.placement}` : entry.channel) || "").trim();
+}
+
+export function getRetryPublicationTargets(summary: PublishExecutionSummary, channels: readonly string[]) {
+  return (summary.entries || []).filter((entry) => channels.includes(entry.channel) && isRetryablePublicationEntry(entry)).map((entry) => ({
+    key: publicationSummaryTargetKey(entry), channel: entry.channel,
+    placement: entry.channel === "facebook" || entry.channel === "instagram"
+      ? normalizeMetaPublicationPlacement(entry.placement || entry.targetKey?.split(":")[1])
+      : null,
+  }));
+}
 
 export function mergeRetriedPublicationSummary(
   previous: PublishExecutionSummary | undefined,
   next: PublishExecutionSummary | ReturnType<typeof mergePreflightFailuresIntoPublicationSummary>,
   publicationId: string | null,
   retriedChannels: readonly string[],
-): PublishExecutionSummary & { total: number; allSucceeded: boolean; failedChannels: string[] } {
-  const entriesByChannel = new Map(
-    (previous?.entries || []).map((entry) => [entry.channel, {
+): PublishExecutionSummary & { entries: NonNullable<PublishExecutionSummary["entries"]>; total: number; allSucceeded: boolean; failedChannels: string[] } {
+  const entriesByChannel = new Map<string, NonNullable<PublishExecutionSummary["entries"]>[number]>(
+    (previous?.entries || []).map((entry) => [publicationSummaryTargetKey(entry), {
       ...entry,
       publicationId: entry.publicationId || previous?.publicationId || previous?.publication_id || null,
     }]),
@@ -20,9 +34,16 @@ export function mergeRetriedPublicationSummary(
   for (const entry of next.entries || []) {
     const channel = String(entry.channel || "").trim();
     if (!channel || (previous && !retried.has(channel))) continue;
+    const targetKey = publicationSummaryTargetKey(entry);
+    const prior = entriesByChannel.get(targetKey);
+    if (previous && prior && !isRetryablePublicationEntry(prior) && ["published", "warning"].includes(getPublicationDestinationStatus(prior))) continue;
+    if (targetKey !== channel && entriesByChannel.has(channel) && isRetryablePublicationEntry(entriesByChannel.get(channel)!)) entriesByChannel.delete(channel);
     const storyCounts = publicationStorySequenceCounts(entry);
-    entriesByChannel.set(channel, {
+    entriesByChannel.set(targetKey, {
       channel,
+      targetKey: typeof entry.targetKey === "string" ? entry.targetKey : undefined,
+      placement: typeof entry.placement === "string" ? entry.placement : undefined,
+      threads_publication_mode: typeof entry.threads_publication_mode === "string" ? entry.threads_publication_mode : undefined,
       label: String(entry.label || channel),
       publicationId,
       ok: typeof entry.ok === "boolean" ? entry.ok : undefined,
@@ -40,10 +61,14 @@ export function mergeRetriedPublicationSummary(
       blockers: Array.isArray(entry.blockers) ? entry.blockers.filter((blocker): blocker is string => typeof blocker === "string") : undefined,
     });
   }
-  const entries = [...entriesByChannel.values()];
+  const detailedKeys = [...entriesByChannel.keys()].filter((key) => key.includes(":"));
+  const entries = [...entriesByChannel.values()].filter((entry) => {
+    const key = publicationSummaryTargetKey(entry);
+    return key.includes(":") || !detailedKeys.some((target) => target.startsWith(`${key}:`));
+  });
   const statuses = entries.map(getPublicationDestinationStatus);
   const pendingCount = statuses.filter((status) => status === "pending").length;
-  const successCount = statuses.filter((status) => ["published", "warning", "pending"].includes(status)).length;
+  const successCount = statuses.filter((status) => ["published", "warning"].includes(status)).length;
   const failureCount = statuses.filter((status) => status === "failed").length;
   return {
     ...previous,
@@ -59,8 +84,8 @@ export function mergeRetriedPublicationSummary(
     mediaWarningCount: entries.filter((entry) => entry.warning_kind === "media_degraded").length,
     total: entries.length,
     allSucceeded: entries.length > 0 && statuses.every((status) => status === "published" || status === "warning"),
-    failedChannels: entries.filter((entry) => ["failed", "skipped"].includes(getPublicationDestinationStatus(entry))).map((entry) => entry.channel),
-    allFailed: entries.length > 0 && successCount === 0 && failureCount > 0,
+    failedChannels: [...new Set(entries.filter((entry) => ["failed", "skipped"].includes(getPublicationDestinationStatus(entry))).map((entry) => entry.channel))],
+    allFailed: entries.length > 0 && successCount === 0 && failureCount > 0 && pendingCount === 0,
   };
 }
 

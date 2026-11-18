@@ -1287,25 +1287,29 @@
     "sourceFiles": [
       "app/dashboard/_components/MediaEngineCreditControls.tsx"
     ],
-    "sourceAnchor": "<select id={`${id}-engine`} value={props.imageEngine} disabled={props.disabled} title={imageCompatibilityReason(props.imageEngine) || undefined} onChange={(event) => { const engine = normalizeAiMediaImageEngine(event.target.value); if (engine && imageSelectable(engine)) props.onImageEngineChange(engine); }}>\n      {AI_MEDIA_IMAGE_MODELS.map((option) => <option key={option.id} value={option.id} disabled={!imageSelectable(option.id)}>{option.label} · {t(\"ai_generator_model_image_credits\", { credits: new Intl.NumberFormat(locale).format(getAiMediaImageBaseCredits(option.id, props.format)) })}{!imageSelectable(option.id) ? ` · ${imageCompatibilityReason(option.id)}` : \"\"}{props.recommendation?.engine === option.id ? ` · ${t(\"ai_generator_model_recommended_short\")}` : \"\"}</option>)}\n    </select>",
+    "sourceAnchor": "<select id={`${id}-engine`} value={props.imageEngine} disabled={props.disabled} aria-describedby={`${id}-image-logo-reference`} title={imageCompatibilityReason(props.imageEngine) || undefined} onChange={(event) => { const engine = normalizeAiMediaImageEngine(event.target.value); if (engine && imageSelectable(engine)) props.onImageEngineChange(engine); }}>\n      {AI_MEDIA_IMAGE_MODELS.map((option) => <option key={option.id} value={option.id} disabled={!imageSelectable(option.id)}>{option.label} · {t(\"ai_generator_model_image_credits\", { credits: new Intl.NumberFormat(locale).format(getAiMediaImageBaseCredits(option.id, props.format)) })}{!imageSelectable(option.id) ? ` · ${imageCompatibilityReason(option.id)}` : \"\"}{props.recommendation?.engine === option.id ? ` · ${t(\"ai_generator_model_recommended_short\")}` : \"\"}</option>)}\n    </select>",
     "capabilityId": "studio.quote",
     "toolNames": [
       "quoteMediaGeneration"
     ],
     "mode": "form",
-    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : props.kind === \"video\".",
+    "notes": "Choix d’un moteur/résolution/durée natif compatible puis devis des crédits, sans génération. Les options dépendent du catalogue réel et des droits du compte. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : props.kind === \"image\". Le logo enregistré, s’il est utilisé, compte dans le plafond des références ; l’aide distingue les moteurs sans références.",
     "testFiles": [
       "tests/ai-assistant/media-tools.test.mts"
     ],
     "testAnchor": "a Studio cost question calls the native quote only and never accepts an existing draft",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/MediaEngineCreditControls.tsx#select:d36889af5bdb26ea:1"
+      "app/dashboard/_components/MediaEngineCreditControls.tsx#select:b97d72f246839378:1"
     ],
     "additionalProofs": [
       {
         "file": "tests/ai-media-generation/video-engine-retirement-runtime.test.mts",
         "testAnchor": "all client choices and recommendation contexts exclude retired generation engines"
+      },
+      {
+        "file": "tests/ai-media-generation/ai-media-native-image-logo-ui-runtime.test.mts",
+        "testAnchor": "all image engines explain the saved-logo reference limit beside their real selector in nine languages"
       }
     ]
   },
@@ -5903,14 +5907,14 @@
       "editPublication"
     ],
     "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : hasFailureDetails ; !embedded && entries.length. Les détails affichent uniquement des messages publics localisés ; aucun diagnostic fournisseur brut n’est rendu dans le panneau ou ses infobulles.",
+    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : hasFailureDetails ; !embedded && entries.length. Les détails affichent uniquement des messages publics localisés ; aucun diagnostic fournisseur brut n’est rendu dans le panneau ou ses infobulles. Les détails restent propres à la cible Classique/Reel/Story, même lorsque plusieurs cartes appartiennent au même canal.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/_components/PublishExecutionResultModal.tsx#button:9ce1a80d770d6367:1"
+      "app/dashboard/_components/PublishExecutionResultModal.tsx#button:52715fd5f95671c5:1"
     ],
     "additionalProofs": [
       {

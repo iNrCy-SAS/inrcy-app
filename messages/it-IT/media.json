@@ -972,7 +972,7 @@
   "ai_generator_duration_scene_single": "{seconds} s · 1 scena",
   "ai_generator_duration_scene_multi": "{seconds} s · 2 scene",
   "ai_generator_duration_adjusted": "{model}: durata adattata a {seconds} secondi, {scenes}.",
-  "ai_generator_engine_info_logo_overlay": "Il logo ufficiale viene aggiunto nell’angolo in alto a destra dopo la generazione.",
+  "ai_generator_engine_info_logo_overlay": "Il modello riceve il logo salvato come riferimento e cerca di integrarlo nell’immagine. Verifica la fedeltà del risultato.",
   "ai_generator_editor_settings_label": "Impostazioni del contenuto",
   "ai_generator_editor_tab_criteria": "Criteri",
   "ai_generator_editor_tab_prompt": "Prompt",
@@ -991,7 +991,7 @@
   "ai_generator_use_business_dna_info_label": "Come funziona il mio DNA aziendale?",
   "ai_generator_use_business_dna_info_close": "Chiudi le informazioni sul DNA aziendale",
   "ai_generator_use_business_dna_info_sources": "L’IA usa le informazioni professionali salvate e pertinenti alla richiesta: profilo, DNA aziendale, documenti di riferimento, sito e social, servizi, zona, punti di forza e tariffe indicate.",
-  "ai_generator_use_business_dna_info_identity": "Il DNA aziendale applica i colori del tuo marchio e, nelle immagini, il logo salvato, salvo indicazioni diverse nel prompt.",
+  "ai_generator_use_business_dna_info_identity": "Il DNA aziendale fornisce i colori del marchio e, per le immagini, il logo salvato come riferimento al modello, salvo indicazioni diverse nel prompt. Verifica come viene riprodotto.",
   "ai_generator_use_business_dna_info_contacts": "I tuoi contatti e link vengono aggiunti al contenuto solo se lo richiedi, senza doverli riscrivere.",
   "ai_generator_use_business_dna_info_freedom": "Con il DNA disattivato, il logo e i colori aziendali non vengono applicati automaticamente. Puoi richiederli nel prompt. Le istruzioni e i divieti di La mia comunicazione restano validi.",
   "ai_generator_prompt_helper_title_image": "Come descrivere bene la tua immagine?",
@@ -1183,5 +1183,7 @@
   "ai_generator_model_description_heygen-avatar": "Ritratti parlanti e dialoghi con le tue foto e voci.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Presentazioni in camera e conversazioni in inquadrature successive.",
   "ai_generator_engine_info_video_limits_heygen-avatar": "Ogni persona parla nella propria inquadratura. La modalità avatar non compone una scena di gruppo. La durata finale segue il parlato; la durata scelta è indicativa.",
-  "ai_generator_model_reference_duration_available": "Con più foto, le durate disponibili sono: {durations}."
+  "ai_generator_model_reference_duration_available": "Con più foto, le durate disponibili sono: {durations}.",
+  "ai_generator_image_logo_reference_limit": "Se viene utilizzato il logo salvato, viene conteggiato tra le {count} immagini di riferimento consentite.",
+  "ai_generator_image_logo_unavailable": "Per includere il logo salvato, scegli un modello che accetti immagini di riferimento."
 }

@@ -1,4 +1,8 @@
 {
+  "mail_oauth_configuration_failed": "A ligação à Microsoft está indisponível devido a um problema do lado da iNrCy. Contacte o apoio da iNrCy para a restabelecer.",
+  "mail_oauth_failed": "Não foi possível concluir a ligação a {provider}. Tente novamente a partir desta bolha. Se o problema persistir, contacte a iNrCy.",
+  "mail_oauth_expired": "Este pedido de ligação de email expirou ou já não é válido. Recomece a partir desta bolha.",
+  "mail_oauth_provider": "email",
   "1_a_20_zones_les_noms_a5d15c7d": "1 a 20 zonas. Os nomes são revalidados pela plataforma.",
   "1_canal_0f99221a": "1 canal",
   "1_video_maximum_pour_ea9b1d35": "1 vídeo no máximo para",

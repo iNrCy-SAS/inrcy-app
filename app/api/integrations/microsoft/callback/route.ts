@@ -34,7 +34,34 @@ function computeExpiresAt(expires_in?: number | null) {
   return new Date(Date.now() + Number(expires_in) * 1000).toISOString();
 }
 
+const MICROSOFT_SAFE_TOKEN_ERRORS = new Set([
+  "invalid_request", "invalid_client", "invalid_grant", "unauthorized_client",
+  "unsupported_grant_type", "invalid_scope", "access_denied", "server_error",
+  "temporarily_unavailable", "interaction_required", "consent_required", "login_required",
+]);
+
+function tokenFailureDiagnostics(data: TokenResponse) {
+  const record = asRecord(data);
+  const providerError = asString(record["error"]);
+  const codes = Array.isArray(record["error_codes"]) ? record["error_codes"] : [];
+  const aadstsCodes: number[] = [];
+  for (const code of codes) {
+    if (typeof code === "number" && Number.isSafeInteger(code) && code > 0 && code <= 999_999_999) aadstsCodes.push(code);
+  }
+  // Some Microsoft responses omit error_codes. Extract only the numeric AADSTS
+  // identifier; never log the description, trace details or returned payload.
+  if (!aadstsCodes.length) {
+    const description = (asString(record["error_description"]) || "").slice(0, 8_000);
+    for (const match of description.matchAll(/\bAADSTS(\d{3,9})\b/g)) aadstsCodes.push(Number(match[1]));
+  }
+  return {
+    ...(providerError && MICROSOFT_SAFE_TOKEN_ERRORS.has(providerError) ? { provider_error: providerError } : {}),
+    aadsts_codes: Array.from(new Set(aadstsCodes)).slice(0, 8),
+  };
+}
+
 export async function GET(req: Request) {
+  let callbackUserId: string | undefined;
   try {
     const { searchParams } = new URL(req.url);
     const code = searchParams.get("code");
@@ -51,12 +78,18 @@ export async function GET(req: Request) {
       return res;
     };
 
-    const fail = (error: string, message?: string) => {
-      oauthCallbackEvent(req, { provider: "microsoft", outcome: "failed", error, message, return_to: returnTo, capture_in_sentry: true });
+    const fail = (error: string, message?: string, details: {
+      public_error?: string;
+      status_code?: number;
+      provider_error?: string;
+      aadsts_codes?: number[];
+    } = {}) => {
+      const { public_error: publicError, ...diagnostics } = details;
+      oauthCallbackEvent(req, { provider: "microsoft", outcome: "failed", error, message, user_id: callbackUserId, return_to: returnTo, capture_in_sentry: true, ...diagnostics });
       const finalUrl = new URL(returnTo, origin);
       finalUrl.searchParams.set("linked", "microsoft");
       finalUrl.searchParams.set("ok", "0");
-      finalUrl.searchParams.set("error", error);
+      finalUrl.searchParams.set("error", publicError || error);
       if (message) finalUrl.searchParams.set("message", getSimpleFrenchErrorMessage(message, "La connexion n'a pas pu être finalisée.").slice(0, 200));
       return clearStateCookie(NextResponse.redirect(finalUrl));
     };
@@ -96,6 +129,7 @@ export async function GET(req: Request) {
       return clearStateCookie(NextResponse.redirect(finalUrl));
     }
     const userId = await resolveOAuthBoundInrcyAccountId(supabase, authData.user.id, st.state.accountId);
+    callbackUserId = userId;
 
     const rlUser = await enforceRateLimit({
       name: "oauth_microsoft_cb",
@@ -130,9 +164,17 @@ export async function GET(req: Request) {
       }
     );
 
-    const tokenData = (await tokenRes.json().catch(() => ({}))) as TokenResponse;
+    const tokenData = asRecord(await tokenRes.json().catch(() => ({}))) as TokenResponse;
     if (!tokenRes.ok || !tokenData.access_token) {
-      return fail("token_exchange_failed", asString(asRecord(tokenData)["error_description"]) || asString(asRecord(tokenData)["error"]) || "La connexion au compte a échoué. Merci de réessayer.");
+      const diagnostics = tokenFailureDiagnostics(tokenData);
+      const configurationFailure = diagnostics.aadsts_codes.some((code) => code === 7000222 || code === 7000215);
+      const authorizationExpired = diagnostics.aadsts_codes.some((code) => code === 700082 || code === 70043);
+      return fail("token_exchange_failed", undefined, {
+        ...diagnostics,
+        status_code: tokenRes.status,
+        ...(configurationFailure ? { public_error: "microsoft_oauth_configuration_error" }
+          : authorizationExpired ? { public_error: "microsoft_oauth_authorization_expired" } : {}),
+      });
     }
 
     // Fetch /me
@@ -206,7 +248,7 @@ export async function GET(req: Request) {
     oauthCallbackEvent(req, { provider: "microsoft", outcome: "success", user_id: userId, return_to: returnTo });
     return clearStateCookie(NextResponse.redirect(finalUrl));
   } catch (e: unknown) {
-    oauthCallbackException(req, "microsoft", e, { error: "oauth_callback_failed", return_to: "/dashboard?panel=mails" });
+    oauthCallbackException(req, "microsoft", e, { error: "oauth_callback_failed", user_id: callbackUserId, return_to: "/dashboard?panel=mails" });
     const origin = process.env.NEXT_PUBLIC_SITE_URL || new URL(req.url).origin;
     const finalUrl = new URL("/dashboard?panel=mails", origin);
     finalUrl.searchParams.set("linked", "microsoft");

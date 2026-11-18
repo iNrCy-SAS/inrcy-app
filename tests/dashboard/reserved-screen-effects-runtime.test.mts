@@ -11,7 +11,7 @@ const root = path.resolve(import.meta.dirname, "../..");
 const screens = {
   agenda: ["app/dashboard/agenda/AgendaClient.tsx", "AgendaClient", "rdvOpen,rdvSummary,rdvEventId,rdvMode,rdvRemindersEnabled,setRdvSummary,openCreateRdv,openEditRdv,selectedDate"],
   reviews: ["app/dashboard/e-reputation/EReputationReviewsClient.tsx", "EReputationReviewsClient", "replyText,selectedId,detailsOpen,refreshing,publishing,setReplyText,setPublishing,openDetails,items"],
-  memory: ["app/dashboard/settings/_components/AiMemoryContent.tsx", "AiMemoryContent", "loaded,memory,analysisJob,analyzing,analysisProgress,workspaceSaving,autoSaveState,setField,setAnalysisProgress,discardAllWorkspaceChanges,saveWorkspace"],
+  memory: ["app/dashboard/settings/_components/AiMemoryContent.tsx", "AiMemoryContent", "loaded,memory,analysisJob,analyzing,analysisProgress,workspaceSaving,autoSaveState,setField,setAnalysisProgress,discardAllWorkspaceChanges,saveWorkspace,companyCompletion,completionContext"],
 } as const;
 
 function compile(file: string, screen?: keyof typeof screens) {
@@ -40,6 +40,9 @@ const sources: Record<string, string> = {
   scheduler: packageSource("scheduler", "scheduler.production.js"),
 };
 for (const file of ["app/dashboard/_hooks/useInrAssistantLocalInterface.ts", "app/dashboard/_hooks/useInrAssistantLocalClose.ts", "app/dashboard/_hooks/useInrAssistantBusinessFormCommands.ts", "app/dashboard/_hooks/useInrAssistantRefresh.ts", "app/dashboard/_components/DashboardAssistantCommandContext.tsx", "app/dashboard/_components/DashboardAssistantScreenContext.tsx", "lib/inrAssistantLocalInterface.ts", "lib/inrAssistantBusinessFormUiCommands.ts", "lib/inrAssistantRequestClauses.ts", "lib/inrAssistantRefresh.ts", "app/dashboard/agenda/agenda.shared.ts", "lib/inrCalendarGoogleSyncConstants.ts", "lib/visioAppointmentLifecycle.ts", "lib/aiMemory.ts", "lib/businessDnaRichText.ts", "lib/businessWeeklySchedule.ts", "lib/aiPromptBudget.ts", "lib/businessDnaManualAnalysisJob.ts", "lib/businessDnaChannelAvailability.ts", "lib/reconcileSavedDraft.ts", "app/dashboard/e-reputation/review-page-cache.ts"]) sources[file] = compile(file);
+// The live memory controller now calculates completion from these pure native
+// modules. Load the real functions instead of an unmounted-view placeholder.
+for (const file of ["lib/personalizationCompletion.ts", "lib/aiChannelCtaPreferences.ts", "lib/ctaPhoneNumbers.ts", "lib/boosterWhatsappCta.ts", "lib/siteWebChannel.ts", "lib/boosterCtaActions.ts"]) sources[file] = compile(file);
 
 async function setup(page: Page, screen: keyof typeof screens, scenario = "") {
   await page.clock.install();
@@ -107,6 +110,7 @@ test("ADN autosave survives unrelated renders, writes once and cancels a discard
     const page = await browser.newPage();
     await setup(page, "memory");
     await page.waitForFunction("window.screenState.loaded");
+    assert.equal(await page.evaluate("window.screenState.companyCompletion.maxPoints"), 75);
     await page.evaluate("window.screenState.setField('mission','New mission')");
     await page.waitForFunction("window.screenState.autoSaveState === 'scheduled'");
     await page.clock.runFor(900);

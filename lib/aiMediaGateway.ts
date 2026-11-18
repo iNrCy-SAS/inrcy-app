@@ -20,7 +20,7 @@ import type {
   AiMediaOperation,
   AiMediaOutputFormat,
 } from "@/lib/aiMediaGenerationContracts";
-import type { AiMediaImageEngine } from "./aiMediaModelCatalog.ts";
+import { getAiMediaImageModel, type AiMediaImageEngine } from "./aiMediaModelCatalog.ts";
 import { generateAiMediaImageWithGatewayModel } from "./aiMediaImageProviderGateway.ts";
 import { redactAiMediaSensitiveText } from "@/lib/aiMediaSensitiveText";
 
@@ -140,6 +140,7 @@ function googleImageApiKey() {
 }
 
 function prepareImageProviderInput(args: {
+  imageEngine?: AiMediaImageEngine;
   identityMode: AiMediaIdentityMode;
   identityReferences?: readonly Buffer[];
   referenceRoles?: ReadonlyArray<
@@ -147,9 +148,16 @@ function prepareImageProviderInput(args: {
   >;
   officialLogo?: Buffer | null;
 }): AiMediaImageProviderInput {
-  const providedReferences = (args.identityReferences || [])
-    .filter((image) => image.byteLength > 0)
-    .slice(0, 5);
+  const providedReferences = [...(args.identityReferences || [])];
+  const model = getAiMediaImageModel(args.imageEngine || "openai");
+  const totalReferences = providedReferences.length + (args.officialLogo?.byteLength ? 1 : 0);
+  if (providedReferences.some((image) => !image.byteLength) ||
+    totalReferences > model.maxReferenceImages) {
+    throw new Error("ai_image_gateway_reference_count_unsupported");
+  }
+  if (totalReferences > 0 && !model.supportsReferences) {
+    throw new Error("ai_image_gateway_references_unsupported");
+  }
   const legacyStrictIdentity =
     args.identityMode === "professional" ||
     args.identityMode === "brand_avatar" ||
@@ -225,6 +233,9 @@ function buildImageReferenceRoleRules(args: {
       "- Image 1 est l’image source exacte à modifier. Elle n’est ni une inspiration, ni un simple guide, ni un élément à intégrer dans une nouvelle scène.",
       "- Partir de cette image comme canvas. Appliquer strictement la consigne utilisateur aux seules zones nécessaires et conserver tous les pixels, sujets, identités, objets, cadrages et détails non concernés aussi fidèlement que possible.",
       "- Ne jamais produire une nouvelle scène libre, un collage, une planche avant/après, un cadre ou une variante seulement inspirée de la source.",
+      officialLogoIncluded
+        ? `- Image ${referenceImagesCount} est exclusivement le logo officiel à intégrer dans la retouche demandée, en préservant son dessin, ses proportions, ses couleurs et ses lettres. Elle ne remplace jamais le canvas de l’image 1 et n’est ni une personne ni un décor.`
+        : "",
     ].join("\n");
   }
   if (args.creationMode === "free") {
@@ -395,7 +406,6 @@ export async function generateAiMediaImage(args: {
   args.signal?.throwIfAborted();
   if (args.imageEngine === "gemini") return generateAiMediaImageWithGoogle(args);
   if (args.imageEngine === "flux" || args.imageEngine === "grok" || args.imageEngine === "recraft") {
-    if ((args.identityReferences || []).length > 5 || (args.identityReferences || []).some((buffer) => !buffer.byteLength)) throw new Error("ai_image_gateway_reference_count_unsupported");
     const input = prepareImageProviderInput(args);
     return generateAiMediaImageWithGatewayModel({ ...args, engine: args.imageEngine, input,
       referenceRoleRules: buildImageReferenceRoleRules({ ...args, input }) });
@@ -427,6 +437,7 @@ export async function generateAiMediaImage(args: {
     300_000
   );
 
+  let referenceInputIgnored = false;
   return await withEconomicGuard({
     accountId: args.accountId,
     model: providerModel,
@@ -470,6 +481,9 @@ export async function generateAiMediaImage(args: {
       if (image.uint8Array.byteLength > MAX_IMAGE_BYTES) {
         throw new Error("ai_image_too_large");
       }
+      referenceInputIgnored = referenceImagesCount > 0 && (result.warnings || []).some(
+        (warning) => warning.type === "unsupported" && /image|file|reference|edit/i.test(warning.feature)
+      );
       return {
         kind: "image",
         provider: "vercel-ai-gateway",
@@ -490,6 +504,12 @@ export async function generateAiMediaImage(args: {
         usage: cleanUsage(result.usage),
       };
     },
+  }).then((result) => {
+    // A returned image has already incurred a supplier cost, even if the SDK
+    // reports that the required source or logo was ignored. Keep that cost
+    // recorded, but never save this output as a successful branded image.
+    if (referenceInputIgnored) throw new Error("ai_image_gateway_references_unsupported");
+    return result;
   }).catch((error) => {
     if (NoImageGeneratedError.isInstance(error)) {
       throw new Error(
@@ -525,7 +545,7 @@ export async function generateAiMediaImageWithGoogle(args: {
   args.signal?.throwIfAborted();
   const key = googleImageApiKey();
   const model = resolveGoogleImageModel();
-  const input = prepareImageProviderInput(args);
+  const input = prepareImageProviderInput({ ...args, imageEngine: "gemini" });
   const timeoutMs = positiveInt(
     process.env.AI_MEDIA_GOOGLE_IMAGE_TIMEOUT_MS ||
       process.env.AI_MEDIA_IMAGE_TIMEOUT_MS,

@@ -43,6 +43,8 @@ type RenderBaseArgs = {
   exactText?: string;
   /** Numéro vérifié du profil, composé localement avec le texte exact. */
   contactPhone?: string;
+  /** Image-only copy stays in its promised half, preserving a provider-integrated logo. */
+  nativeLogoTextSafeZone?: boolean;
 };
 
 export type AiMediaImageCompositionCopy = {
@@ -723,10 +725,12 @@ function resolveExactTextLayout(args: RenderBaseArgs) {
   const portrait = args.height > args.width * 1.12;
   const marginX = Math.max(14, Math.round(args.width * (portrait ? 0.065 : 0.075)));
   const marginY = Math.max(14, Math.round(args.height * 0.065));
+  const copyRegionWidth = args.nativeLogoTextSafeZone && !portrait ? Math.round(args.width * 0.5) : args.width;
+  const copyRegionHeight = args.nativeLogoTextSafeZone && portrait ? Math.round(args.height * 0.5) : args.height;
   const panelLeft = marginX;
-  const panelTop = marginY;
-  const panelWidth = Math.max(1, args.width - marginX * 2);
-  const panelHeight = Math.max(1, args.height - marginY * 2);
+  const panelTop = args.height - copyRegionHeight + marginY;
+  const panelWidth = Math.max(1, copyRegionWidth - marginX * 2);
+  const panelHeight = Math.max(1, copyRegionHeight - marginY * 2);
   const padding = Math.max(14, Math.round(minimumDimension * 0.035));
   const contentWidth = Math.max(1, panelWidth - padding * 2);
   const eyebrowSize = Math.max(9, Math.round(minimumDimension * 0.018));
@@ -823,7 +827,7 @@ function exactTextBackdropSvg(args: RenderBaseArgs, layout: ExactTextLayout) {
           <stop offset="1" stop-color="${args.colors[2]}"/>
         </linearGradient>
       </defs>
-      <rect width="${args.width}" height="${args.height}" fill="url(#pageShade)"/>
+      ${args.nativeLogoTextSafeZone ? "" : `<rect width="${args.width}" height="${args.height}" fill="url(#pageShade)"/>`}
       <rect x="${layout.panelLeft}" y="${layout.panelTop}" width="${layout.panelWidth}"
         height="${layout.panelHeight}" rx="${radius}" fill="#061225" fill-opacity="0.86"
         stroke="#ffffff" stroke-opacity="0.18"/>
@@ -1351,12 +1355,25 @@ export async function composeAiMediaBrandedImage(
   // Image logos have their own sizing and scene-aware placement. Rendering
   // copy separately keeps every video overlay and its dimensions unchanged.
   const copyArgs = { ...args, logo: null, requireLogo: false, logoMode: "none" as const };
-  const overlay =
+  const portrait = args.height > args.width * 1.12;
+  const restrictCopy = args.nativeLogoTextSafeZone && !args.exactText?.trim();
+  const copyCanvasArgs = restrictCopy ? { ...copyArgs,
+    width: portrait ? args.width : Math.round(args.width * 0.5),
+    height: portrait ? Math.round(args.height * 0.5) : args.height,
+    nativeLogoTextSafeZone: false,
+  } : copyArgs;
+  let overlay =
     args.withText && args.exactText?.trim()
       ? await renderAiMediaVideoOverlay(copyArgs)
       : isStructuredCommercialImagePurpose(args.imagePurpose)
-      ? await renderAiMediaStructuredCommercialOverlay(copyArgs)
-      : await renderAiMediaVideoOverlay(copyArgs);
+      ? await renderAiMediaStructuredCommercialOverlay(copyCanvasArgs)
+      : await renderAiMediaVideoOverlay(copyCanvasArgs);
+  if (restrictCopy) {
+    overlay = await sharp({ create: { width: args.width, height: args.height, channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: overlay, left: 0, top: portrait ? args.height - copyCanvasArgs.height : 0 }])
+      .png().toBuffer();
+  }
   const imageWithCopy = await sharp(args.input, {
     failOn: "error",
     limitInputPixels: 50_000_000,

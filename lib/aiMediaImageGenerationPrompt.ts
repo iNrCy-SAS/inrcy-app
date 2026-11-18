@@ -60,7 +60,7 @@ function buildImageGenerationModeContract(args: AiMediaPromptBuilderArgs) {
       people,
       setting,
       focus,
-      "Aucun fichier de référence n’est fourni dans ce mode.",
+      args.hasLogo ? "Aucun média de référence n’est fourni dans ce mode, à l’exception du logo officiel joint." : "Aucun fichier de référence n’est fourni dans ce mode.",
     ].join("\n");
   }
   if (request.generationMode === "inspiration") {
@@ -98,7 +98,9 @@ function buildImagePurposeContract(args: AiMediaPromptBuilderArgs) {
         ? "RENDU AFFICHE GRAPHIQUE AUTORITAIRE : formes, aplats, cartes, séparateurs et typographie structurent le visuel ; la photographie éventuelle reste secondaire."
         : "Le rendu choisi complète cette architecture commerciale sans la remplacer.",
       args.deferVisibleElementsToComposer
-        ? "Le fournisseur livre uniquement un arrière-plan commercial propre, sans texte, sans lettre, sans chiffre, sans carte tarifaire, sans tableau, sans bouton et sans panneau vide. La grille complète du flyer sera ensuite composée avec les mots et chiffres exacts."
+        ? args.hasLogo
+          ? "Le fournisseur livre un arrière-plan commercial propre avec le logo officiel joint déjà intégré. Aucun autre texte, lettre, chiffre, carte tarifaire, tableau, bouton ou panneau vide : la grille du flyer et les mots et chiffres éditoriaux seront composés ensuite. Préserver les lettres présentes dans le logo."
+          : "Le fournisseur livre uniquement un arrière-plan commercial propre, sans texte, sans lettre, sans chiffre, sans carte tarifaire, sans tableau, sans bouton et sans panneau vide. La grille complète du flyer sera ensuite composée avec les mots et chiffres exacts."
         : "Composer chaque information lisible dans la zone graphique qui lui est réservée.",
     ].join("\n");
   }
@@ -245,11 +247,22 @@ function buildImageReferenceContract(args: AiMediaPromptBuilderArgs) {
             : "discrètement"
         }, dans une zone sûre ; il ne doit jamais devenir le sujet principal ni occuper plus de ${
           request.logoMode === "visible" ? "22" : "12"
-        } % du visuel.`
+        } % du visuel. ${buildNativeImageLogoContract(args)}`
       : "Aucun logo n’est fourni : ne créer aucun logo, monogramme, emblème ou pseudo-logo.",
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+function buildNativeImageLogoContract(args: AiMediaPromptBuilderArgs, compact = false) {
+  if (!args.hasLogo) return "";
+  const safeZone = args.deferVisibleElementsToComposer
+    ? args.request.format === "portrait" || args.request.format === "story"
+      ? " Logo dans la moitié haute, hors copie/contact ajoutés dans la moitié basse."
+      : " Logo dans la moitié droite, hors copie/contact ajoutés dans la moitié gauche."
+    : "";
+  if (compact) return `INTÉGRATION NATIVE DU LOGO : dernier fichier, UNE SEULE FOIS, forme/couleurs/proportions/lettres fidèles ; taille/position du brief. Pas d’ajout ultérieur.${safeZone}`;
+  return `INTÉGRATION NATIVE DU LOGO : le dernier fichier joint est le logo officiel. L’intégrer naturellement UNE SEULE FOIS dans le rendu du moteur, en respectant sa forme, ses couleurs, ses proportions et l’orthographe de ses lettres. Respecter la position et la taille demandées dans le brief ; sinon privilégier un emplacement lisible et cohérent qui ne masque pas le sujet. Ne pas le réinventer ni le dupliquer. Le logo ne sera pas ajouté après la génération ; ses lettres font exception aux interdictions de texte éditorial.${safeZone}`;
 }
 
 function buildCompactImagePurposeContract(args: AiMediaPromptBuilderArgs) {
@@ -300,7 +313,7 @@ function buildCompactImageReferenceContract(args: AiMediaPromptBuilderArgs) {
   return [
     request.inspirationImages.length
       ? `INVENTAIRE AUTORITAIRE DES RÉFÉRENCES IMAGE — conserver chaque couple rôle/usage : ${inventory}.`
-      : "Aucune référence image : inventer une scène originale guidée par le brief.",
+      : args.hasLogo ? "Le logo officiel est le seul fichier de référence : inventer une scène originale guidée par le brief et y intégrer ce logo." : "Aucune référence image : inventer une scène originale guidée par le brief.",
     characterReferences.length
       ? "RÉFÉRENCE OBLIGATOIRE — PERSONNAGES : détecter et préserver séparément toutes les personnes distinctes des fichiers requis (visage, traits, silhouette, proportions et signes distinctifs) ; toutes doivent rester reconnaissables et en action, sans omission, fusion, permutation, duplication, substitution ni fallback. La pose et le décor source ne sont pas imposés."
       : "",
@@ -323,7 +336,7 @@ function buildCompactImageReferenceContract(args: AiMediaPromptBuilderArgs) {
       ? "INSPIRATION UNIQUEMENT — rôle Inspiration libre : guider ambiance, palette, rythme et composition sans imposer identité, produit, décor, pose ni cadrage exact."
       : "",
     args.hasLogo
-      ? `LOGO OFFICIEL FOURNI SÉPARÉMENT : fidélité stricte, une seule occurrence ${request.logoMode}, en zone sûre.`
+      ? `LOGO OFFICIEL FOURNI SÉPARÉMENT : ${request.logoMode === "visible" ? "visible" : "discret"}. ${buildNativeImageLogoContract(args, true)}`
       : "AUCUN LOGO FOURNI : ne créer aucun logo, monogramme, emblème ni pseudo-logo.",
   ]
     .filter(Boolean)
@@ -347,12 +360,20 @@ function buildImageTextContract(args: AiMediaPromptBuilderArgs) {
         ? "MODE TEXTE EXACT : une copie exacte validée est conservée hors du prompt fournisseur puis composée localement, sans reformulation, traduction, correction, ajout ni omission. Ne jamais tenter de la deviner, de la reproduire ni de réserver des glyphes factices."
         : textMode === "ai" && aiVisibleHeadline
         ? `MODE TEXTE IA CONTEXTUALISÉ : une accroche originale validée est conservée hors du prompt fournisseur puis composée localement. Ne jamais tenter de la deviner, de la reproduire ni d’ajouter un slogan générique. Clichés interdits : ${AI_MEDIA_GENERIC_HEADLINE_BLACKLIST}.`
-        : "MODE SANS TEXTE : aucun habillage lisible ne sera ajouté ; tout mot, lettre, chiffre, slogan, enseigne, sous-titre, légende, CTA ou interface est interdit.";
+        : args.hasLogo
+          ? "MODE SANS TEXTE ÉDITORIAL : seuls les mots et lettres du logo officiel joint sont autorisés ; aucun slogan, enseigne, sous-titre, légende, CTA ni interface."
+          : "MODE SANS TEXTE : aucun habillage lisible ne sera ajouté ; tout mot, lettre, chiffre, slogan, enseigne, sous-titre, légende, CTA ou interface est interdit.";
     return [
-      "COMPOSITION LOCALE DU TEXTE ET DU LOGO : les éléments lisibles exacts seront ajoutés après la génération.",
+      "COMPOSITION LOCALE DU TEXTE : les éléments éditoriaux lisibles exacts seront ajoutés après la génération.",
       localTextMode,
-      `Le fournisseur crée uniquement le fond dans la langue de contexte ${targetLanguage} : aucun mot, texte, lettre, chiffre, slogan, enseigne, sous-titre, légende, CTA, interface, écran lisible, téléphone, coordonnées, logo, monogramme ni pseudo-logo.`,
-      request.imagePurpose === "flyer"
+      args.hasLogo
+        ? `Le fournisseur crée le fond dans la langue de contexte ${targetLanguage} et y intègre le logo officiel joint, en conservant ses lettres. Aucun autre mot, texte, lettre, chiffre, slogan, enseigne, sous-titre, légende, CTA, interface, écran lisible, téléphone ou coordonnée ; ne pas inventer de logo ni de monogramme.`
+        : `Le fournisseur crée uniquement le fond dans la langue de contexte ${targetLanguage} : aucun mot, texte, lettre, chiffre, slogan, enseigne, sous-titre, légende, CTA, interface, écran lisible, téléphone, coordonnées, logo, monogramme ni pseudo-logo.`,
+      args.hasLogo
+        ? request.format === "portrait" || request.format === "story"
+          ? "Réserver la moitié basse uniquement aux textes et contacts ajoutés ensuite ; garder le logo et le sujet essentiel dans la moitié haute."
+          : "Réserver la moitié gauche uniquement aux textes et contacts ajoutés ensuite ; garder le logo et le sujet essentiel dans la moitié droite."
+        : request.imagePurpose === "flyer"
         ? "Réserver des zones graphiques calmes et distinctes pour le titre, les cartes d’offres, leurs prix/bénéfices et le CTA ; ne pas remplir ces panneaux avec une photo."
         : request.format === "portrait" || request.format === "story"
         ? "Réserver une zone visuellement calme dans la partie inférieure et garder le sujet principal dans la moitié supérieure."
@@ -365,6 +386,7 @@ function buildImageTextContract(args: AiMediaPromptBuilderArgs) {
       "TEXTE EXACT — CONTRAINTE ABSOLUE : composer le texte fourni sans reformulation, correction, traduction, abréviation ni ajout.",
       `Afficher exclusivement « ${exactVisibleText} » en respectant chaque mot, la casse et la ponctuation.`,
       "Ne créer aucun autre titre, slogan, sous-titre, enseigne, légende, CTA, interface, lettre ou chiffre ; garantir une lecture parfaite et des marges sûres.",
+      args.hasLogo ? "Les lettres du logo officiel joint font exception à la restriction du texte éditorial : les préserver lors de son intégration." : "",
     ].join("\n");
   }
   if (textMode === "ai" && aiVisibleHeadline) {
@@ -378,6 +400,7 @@ function buildImageTextContract(args: AiMediaPromptBuilderArgs) {
             .join(", ")}.`
         : "Aucun mot-clé supplémentaire n’a été imposé.",
       "Ne jamais ajouter de slogan, sous-titre, paragraphe, enseigne, légende, CTA, interface ni autre texte ; éloigner chaque lettre des bords.",
+      args.hasLogo ? "Les lettres du logo officiel joint font exception à la restriction du texte éditorial : les préserver lors de son intégration." : "",
     ].join("\n");
   }
   return `AUCUN TEXTE VISIBLE — contrainte absolue : Aucun texte visible ne doit être créé ; ne créer ni recopier aucun mot, lettre, chiffre, slogan, enseigne, sous-titre, légende, CTA, interface, écran lisible, téléphone ou coordonnée dans l’image, hors texte déjà présent dans un éventuel logo officiel. La langue configurée est ${targetLanguage}. Toute accroche, même plausible ou générique, est interdite.`;
@@ -409,15 +432,21 @@ function buildCompactImageTextContract(args: AiMediaPromptBuilderArgs) {
         ? "MODE TEXTE IA : accroche validée conservée hors du prompt fournisseur ; elle sera composée localement."
         : "MODE SANS TEXTE : aucun habillage lisible ne sera ajouté.";
   const safeZone =
-    request.imagePurpose === "flyer"
+    args.hasLogo
+      ? request.format === "portrait" || request.format === "story"
+        ? "Copie/contact locaux : moitié basse ; logo et sujet essentiel : moitié haute."
+        : "Copie/contact locaux : moitié gauche ; logo et sujet essentiel : moitié droite."
+      : request.imagePurpose === "flyer"
       ? "Réserver des zones graphiques calmes distinctes pour titre, offres, bénéfices/prix et CTA."
       : request.format === "portrait" || request.format === "story"
         ? "Réserver une zone calme en bas et garder le sujet essentiel dans la moitié supérieure."
         : "Réserver une zone calme à gauche et garder le sujet essentiel à droite.";
   return [
-    "COMPOSITION LOCALE DU TEXTE ET DU LOGO : les éléments lisibles seront ajoutés après génération.",
+    "COMPOSITION LOCALE DU TEXTE : les éléments éditoriaux lisibles seront ajoutés après génération.",
     localMode,
-    `FOND FOURNISSEUR (${targetLanguage}) : aucun mot, lettre, chiffre, slogan, enseigne, sous-titre, légende, CTA, interface, écran lisible, téléphone, coordonnée, logo ni pseudo-logo. Ne jamais deviner le contenu demandé.`,
+    args.hasLogo
+      ? `FOND FOURNISSEUR (${targetLanguage}) : intégrer le logo joint avec ses lettres. Aucun autre texte, chiffre, téléphone, coordonnée, slogan, CTA ou interface ; ne pas deviner la copie éditoriale.`
+      : `FOND FOURNISSEUR (${targetLanguage}) : aucun mot, lettre, chiffre, slogan, enseigne, sous-titre, légende, CTA, interface, écran lisible, téléphone, coordonnée, logo ni pseudo-logo. Ne jamais deviner le contenu demandé.`,
     safeZone,
   ].join("\n");
 }
@@ -524,7 +553,9 @@ export function buildAiMediaImageGenerationPrompt(
     "Les paramètres techniques et couleurs de marque sont des instructions de réalisation, jamais des éléments à afficher. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat. Ne pas recopier les annotations techniques autour du sujet des références.",
     buildAiMediaPromptSafetyRules(),
     args.deferVisibleElementsToComposer
-      ? "COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo. La consigne ponctuelle peut demander leur présence, mais le fournisseur ne doit jamais les dessiner : les valeurs exactes seront ajoutées ensuite sans les transmettre au moteur."
+      ? args.hasLogo
+        ? "COMPOSITION LOCALE DU TEXTE ÉDITORIAL — RÈGLE FINALE PRIORITAIRE : produire le fond avec le logo officiel joint déjà intégré, en préservant ses lettres. Ne pas dessiner les autres textes, chiffres, téléphones ni coordonnées demandés : ces valeurs exactes seront composées ensuite sans être transmises au moteur."
+        : "COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo. La consigne ponctuelle peut demander leur présence, mais le fournisseur ne doit jamais les dessiner : les valeurs exactes seront ajoutées ensuite sans les transmettre au moteur."
       : "",
     "CONTRÔLE FINAL IMAGE — vérifier silencieusement : sujet reconnaissable ; consigne exécutée ; références obligatoires fidèles ; inspirations non copiées ; format exact ; texte et identité conformes ; originalité des aspects laissés libres ; aucun slogan générique ; aucun élément parasite. Produire une seule image finale plein cadre, sans explication.",
   ]
@@ -572,7 +603,9 @@ export function buildAiMediaImageGenerationPrompt(
     "RÈGLES TECHNIQUES IMAGE — ne jamais afficher paramètres, couleurs ni annotations des références. Aucun nuancier, échantillon de couleur, code hexadécimal, légende technique ou planche de style ajouté au résultat.",
     buildAiMediaPromptSafetyRules(true),
     args.deferVisibleElementsToComposer
-      ? "COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo. Les valeurs exactes restent hors du prompt fournisseur et seront posées localement."
+      ? args.hasLogo
+        ? "COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — TEXTE ÉDITORIAL : fond avec logo officiel joint déjà intégré. Préserver ses lettres ; autres textes privés, composés localement."
+        : "COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE : produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo. Les valeurs exactes restent hors du prompt fournisseur et seront posées localement."
       : "",
     "CONTRÔLE FINAL — sujet, consigne, références, format, texte, identité, palette et logo conformes ; inspirations non copiées ; une image finale sans explication.",
   ]

@@ -7,6 +7,7 @@ import { canOpenPublishWizardStep } from "../../app/dashboard/booster/publier/co
 import { mergePreflightFailuresIntoPublicationSummary } from "../../lib/boosterPublicationOutcome.ts";
 import { isBoosterPublicationPendingStatus } from "../../lib/boosterPublicationStatus.ts";
 import * as storyRetry from "../../lib/publicationStorySequenceRetry.ts";
+import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 
 const parse = (path: string) => ts.createSourceFile(path, readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
 const modal = ts.createSourceFile("BoosterPublicationWorkflow.tsx", ["app/dashboard/booster/publier/PublishModal.tsx", "app/dashboard/booster/publier/publicationSubmission.ts", "app/dashboard/booster/publier/publicationSubmissionPayload.ts"].map(file => parse(file).text).join("\n"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
@@ -43,7 +44,8 @@ function callback(name: string, scope: Record<string, unknown>) {
   return evaluate(variable(layer, name).getText(layer), { useCallback: (fn: unknown) => fn, ...scope });
 }
 const destinationStatus = evaluate(find(progress, node => ts.isFunctionDeclaration(node) && node.name?.text === "getPublicationDestinationStatus").getText(progress).replace(/^export\s+/, ""), { isBoosterPublicationPendingStatus });
-const mergeRetrySummary = evaluate(find(modal, node => ts.isFunctionDeclaration(node) && node.name?.text === "mergeRetriedPublicationSummary").getText(modal).replace(/^export\s+/, ""), { getPublicationDestinationStatus: destinationStatus });
+const submissionPayload = runtimeModules({ "../../_components/PublishExecutionProgress": { getPublicationDestinationStatus: destinationStatus } })<typeof import("../../app/dashboard/booster/publier/publicationSubmissionPayload.ts")>("app/dashboard/booster/publier/publicationSubmissionPayload.ts");
+const mergeRetrySummary = submissionPayload.mergeRetriedPublicationSummary;
 function resultProps(scope: Record<string, unknown>) {
   return evaluate(attribute(layer, "PublishModal", "publicationResult").getText(layer), {
     publishSuccessOpen: true, publishSummary: { publicationId: "previous" }, publishRetrying: false,
@@ -99,6 +101,8 @@ test("retry executes only its failed targets and explicitly carries the previous
   const update = evaluate(destinationUpdate.arguments[0].getText(modal), {
     publicationResult: undefined, options: calls[0], publishTargetChannels: ["gmb"],
     CHANNEL_LABELS: { gmb: "Google Business" }, getPublicationDestinationStatus: destinationStatus,
+    publicationTargetDestinations: submissionPayload.getRetryPublicationTargets(completedSummary, ["gmb"]),
+    publicationSummaryTargetKey: submissionPayload.publicationSummaryTargetKey,
   });
   const destinations = completedSummary.entries.map(({ channel, label }) => ({ key: channel, label }));
   const next = update(destinations);
@@ -160,7 +164,7 @@ test("retry summary replaces only retried channels and preserves successes, pref
   assert.deepEqual(merged.entries.map((entry: any) => entry.channel), previous.entries.map(entry => entry.channel));
   assert.deepEqual(merged.entries.map((entry: any) => entry.status), ["published", "published", "processing", "failed"]);
   assert.deepEqual(merged.entries.map((entry: any) => entry.publicationId), ["publication-A", "publication-B", "publication-A", "publication-A"]);
-  assert.equal(merged.successCount, 3);
+  assert.equal(merged.successCount, 2, "The still processing publication is pending, not a confirmed success");
   assert.equal(merged.pendingCount, 1);
   assert.equal(merged.failureCount, 1);
   assert.equal(merged.total, 4);

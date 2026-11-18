@@ -6,6 +6,7 @@ import test from "node:test";
 import vm from "node:vm";
 
 import ts from "typescript";
+import * as imageCatalog from "../../lib/aiMediaModelCatalog.ts";
 
 import {
   AI_MEDIA_MODIFICATION_INSTRUCTION_MAX_CHARS,
@@ -182,6 +183,7 @@ function loadImageGatewayBoundaryRuntime() {
       { bufferFromUint8ArrayView: (value: Uint8Array) => Buffer.from(value) },
     ],
     ["@/lib/aiMediaGenerationContracts", {}],
+    ["./aiMediaModelCatalog.ts", imageCatalog],
     [
       "@/lib/aiMediaSensitiveText",
       { redactAiMediaSensitiveText: (value: unknown) => String(value || "") },

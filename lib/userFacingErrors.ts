@@ -470,7 +470,7 @@ export function getSimpleFrenchErrorMessage(input: unknown, fallback = "Cette ac
     "invalid_client_secret",
     "invalid_client_id"
   ])) {
-    return "Configuration LinkedIn incorrecte : vérifiez Client ID, Client Secret et URL de redirection.";
+    return LOCALIZED_ERROR_COPY.fr.service_unavailable;
   }
 
   if (matches(message, ["authentication failed", "invalid login", "invalid credentials for smtp", "username and password not accepted", "535 5.7.1", "login failed"])) {

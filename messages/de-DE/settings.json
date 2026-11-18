@@ -1003,5 +1003,6 @@
   "x_disconnected_notice": "X-Konto getrennt.",
   "x_public_link_saved": "Öffentlicher X-Link gespeichert.",
   "x_public_profile_link": "Öffentlicher Link zum X-Profil",
-  "x_view_profile": "Profil ansehen"
+  "x_view_profile": "Profil ansehen",
+  "subscription_no_further_renewal": "Es ist keine weitere Verlängerung vorgesehen."
 }

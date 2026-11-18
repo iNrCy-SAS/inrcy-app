@@ -1003,5 +1003,6 @@
   "x_disconnected_notice": "X 账号已断开连接。",
   "x_public_link_saved": "X 公开链接已保存。",
   "x_public_profile_link": "X 个人资料公开链接",
-  "x_view_profile": "查看个人资料"
+  "x_view_profile": "查看个人资料",
+  "subscription_no_further_renewal": "没有安排后续续订。"
 }

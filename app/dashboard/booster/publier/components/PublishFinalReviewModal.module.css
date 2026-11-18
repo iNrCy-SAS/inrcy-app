@@ -4,6 +4,9 @@
 .dialog h2 { font-size: 21px; line-height: 1.3; margin: 0 0 8px; letter-spacing: -.4px; }
 .dialog p { margin: 0; font-size: 13px; color: #a4b9d4; line-height: 1.5; }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; margin-top: 25px; }
+.placementWarnings { display: grid; gap: 10px; margin: 16px 0 0; padding: 0; list-style: none; font-size: 12px; line-height: 1.5; }
+.placementWarnings li { display: grid; gap: 4px; padding: 10px; border: 1px solid #f5839755; border-radius: 10px; background: #f5839710; }
+.placementWarnings strong { color: #ffc5ce; }
 .actions button { min-height: 40px; min-width: 104px; padding: 10px 17px; border-radius: 999px; font-size: 13px; }
 .actions button:focus-visible { outline: 2px solid #94ddff; outline-offset: 3px; }
 .actions button:disabled { opacity: .5; cursor: default; }

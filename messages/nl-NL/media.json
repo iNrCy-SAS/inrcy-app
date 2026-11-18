@@ -972,7 +972,7 @@
   "ai_generator_duration_scene_single": "{seconds} s · 1 scène",
   "ai_generator_duration_scene_multi": "{seconds} s · 2 scènes",
   "ai_generator_duration_adjusted": "{model}: aangepast naar {seconds} seconden, {scenes}.",
-  "ai_generator_engine_info_logo_overlay": "Het officiële logo wordt na het genereren rechtsboven toegevoegd.",
+  "ai_generator_engine_info_logo_overlay": "Het model ontvangt je opgeslagen logo als referentie en probeert het in de afbeelding te verwerken. Controleer of het resultaat overeenkomt.",
   "ai_generator_editor_settings_label": "Media-instellingen",
   "ai_generator_editor_tab_criteria": "Criteria",
   "ai_generator_editor_tab_prompt": "Prompt",
@@ -991,7 +991,7 @@
   "ai_generator_use_business_dna_info_label": "Hoe werkt mijn bedrijfs-DNA?",
   "ai_generator_use_business_dna_info_close": "Informatie over bedrijfs-DNA sluiten",
   "ai_generator_use_business_dna_info_sources": "AI gebruikt opgeslagen zakelijke informatie die relevant is voor je verzoek: profiel, bedrijfs-DNA, referentiedocumenten, website en sociale profielen, diensten, werkgebied, sterke punten en vermelde tarieven.",
-  "ai_generator_use_business_dna_info_identity": "Je bedrijfs-DNA past je merkkleuren en bij afbeeldingen je opgeslagen logo toe, tenzij je prompt iets anders aangeeft.",
+  "ai_generator_use_business_dna_info_identity": "Je bedrijfs-DNA levert je merkkleuren en bij afbeeldingen je opgeslagen logo als modelreferentie, tenzij je prompt iets anders aangeeft. Controleer de weergave.",
   "ai_generator_use_business_dna_info_contacts": "Je contactgegevens en links worden alleen op verzoek aan de media toegevoegd, zonder ze opnieuw in te voeren.",
   "ai_generator_use_business_dna_info_freedom": "Als bedrijfs-DNA uitgevinkt is, worden je bedrijfslogo en kleuren niet automatisch toegepast. Je kunt er in je prompt om vragen. De instructies en verboden uit Mijn communicatie blijven gelden.",
   "ai_generator_prompt_helper_title_image": "Hoe beschrijft u uw afbeelding?",
@@ -1183,5 +1183,7 @@
   "ai_generator_model_description_heygen-avatar": "Sprekende portretten en dialogen met je foto’s en stemmen.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Presentaties voor de camera en gesprekken in opeenvolgende beelden.",
   "ai_generator_engine_info_video_limits_heygen-avatar": "Iedere persoon spreekt in een eigen beeld. De avatarmodus maakt geen groepsscène. De uiteindelijke duur volgt de spraak; de gekozen duur is een richtlijn.",
-  "ai_generator_model_reference_duration_available": "Bij meerdere foto's zijn deze lengtes beschikbaar: {durations}."
+  "ai_generator_model_reference_duration_available": "Bij meerdere foto's zijn deze lengtes beschikbaar: {durations}.",
+  "ai_generator_image_logo_reference_limit": "Als je opgeslagen logo wordt gebruikt, telt het mee voor de {count} toegestane referentieafbeeldingen.",
+  "ai_generator_image_logo_unavailable": "Kies een model dat referentieafbeeldingen ondersteunt om je opgeslagen logo toe te voegen."
 }

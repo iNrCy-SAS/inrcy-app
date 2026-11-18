@@ -972,7 +972,7 @@
   "ai_generator_duration_scene_single": "{seconds} วินาที · 1 ฉาก",
   "ai_generator_duration_scene_multi": "{seconds} วินาที · 2 ฉาก",
   "ai_generator_duration_adjusted": "{model}: ปรับความยาวเป็น {seconds} วินาที {scenes}",
-  "ai_generator_engine_info_logo_overlay": "โลโก้ทางการจะถูกเพิ่มที่มุมขวาบนหลังจากสร้างภาพแล้ว",
+  "ai_generator_engine_info_logo_overlay": "โมเดลจะได้รับโลโก้ที่บันทึกไว้เป็นภาพอ้างอิงและพยายามผสานลงในภาพ โปรดตรวจสอบความถูกต้องของผลลัพธ์",
   "ai_generator_editor_settings_label": "การตั้งค่าสื่อ",
   "ai_generator_editor_tab_criteria": "เกณฑ์",
   "ai_generator_editor_tab_prompt": "พรอมต์",
@@ -991,7 +991,7 @@
   "ai_generator_use_business_dna_info_label": "ข้อมูลธุรกิจของฉันทำงานอย่างไร",
   "ai_generator_use_business_dna_info_close": "ปิดข้อมูลเกี่ยวกับธุรกิจ",
   "ai_generator_use_business_dna_info_sources": "AI ใช้ข้อมูลธุรกิจที่บันทึกไว้และเกี่ยวข้องกับคำขอของคุณ เช่น โปรไฟล์ ข้อมูลธุรกิจ เอกสารอ้างอิง เว็บไซต์และโซเชียล บริการ พื้นที่ จุดเด่น และราคาที่ระบุไว้",
-  "ai_generator_use_business_dna_info_identity": "ADN ใช้สีของแบรนด์และโลโก้ที่บันทึกไว้สำหรับภาพ เว้นแต่พรอมต์ของคุณจะระบุเป็นอย่างอื่น",
+  "ai_generator_use_business_dna_info_identity": "ADN จะส่งสีของแบรนด์และโลโก้ที่บันทึกไว้เป็นภาพอ้างอิงสำหรับการสร้างภาพ เว้นแต่พรอมต์ของคุณจะระบุเป็นอย่างอื่น โปรดตรวจสอบรูปแบบที่ได้",
   "ai_generator_use_business_dna_info_contacts": "ข้อมูลติดต่อและลิงก์จะถูกเพิ่มลงในสื่อเมื่อคุณร้องขอเท่านั้น โดยไม่ต้องกรอกใหม่",
   "ai_generator_use_business_dna_info_freedom": "เมื่อยกเลิกการเลือก ADN ระบบจะไม่ใช้โลโก้และสีของธุรกิจโดยอัตโนมัติ คุณสามารถระบุให้ใช้ในพรอมต์ได้ คำแนะนำและข้อห้ามในการสื่อสารของคุณยังคงมีผล",
   "ai_generator_prompt_helper_title_image": "เขียนคำอธิบายภาพอย่างไรดี",
@@ -1183,5 +1183,7 @@
   "ai_generator_model_description_heygen-avatar": "สร้างภาพบุคคลพูดและบทสนทนาด้วยภาพถ่ายและเสียงของคุณ",
   "ai_generator_engine_info_video_use_heygen-avatar": "เหมาะสำหรับการนำเสนอต่อหน้ากล้องและบทสนทนาแบบสลับภาพ",
   "ai_generator_engine_info_video_limits_heygen-avatar": "แต่ละคนพูดในภาพของตนเอง โหมดอวตารไม่สร้างฉากกลุ่ม ความยาวจริงขึ้นอยู่กับคำพูด ระยะเวลาที่เลือกเป็นเพียงแนวทาง",
-  "ai_generator_model_reference_duration_available": "เมื่อใช้หลายรูป ระยะเวลาที่ใช้ได้คือ {durations}"
+  "ai_generator_model_reference_duration_available": "เมื่อใช้หลายรูป ระยะเวลาที่ใช้ได้คือ {durations}",
+  "ai_generator_image_logo_reference_limit": "หากใช้โลโก้ที่บันทึกไว้ โลโก้จะนับเป็นหนึ่งในภาพอ้างอิงที่อนุญาต {count} ภาพ",
+  "ai_generator_image_logo_unavailable": "หากต้องการใส่โลโก้ที่บันทึกไว้ ให้เลือกโมเดลที่รองรับภาพอ้างอิง"
 }

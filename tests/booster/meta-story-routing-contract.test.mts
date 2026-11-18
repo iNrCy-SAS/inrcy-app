@@ -48,6 +48,46 @@ test("a Story resume validates UUID/channel and forces Story-only before ingress
   }
 });
 
+test("retrying a failed primary beside an incomplete Story preserves both targets and scopes the checkpoint to the Story worker", () => {
+  const source = read(routePath);
+  const start = source.indexOf("const storyResumeByChannel =");
+  const end = source.indexOf("const requestedInstagramPublicationSelection", start);
+  const modules = runtimeModules();
+  const { buildBoosterPublicationTargets } = modules<typeof import("../../lib/metaPublicationTargets.ts")>("lib/metaPublicationTargets.ts");
+  const normalizeMediaType = callable<(value: unknown) => string>("app/api/booster/publish-now/publishNow.foundations.ts", "normalizePublicationMediaType", {});
+  const run = (body: Record<string, unknown>, selected: string[]) => execute<Record<string, unknown>>(`${source.slice(start, end)};return body;`, {
+    body, selected, asRecord: obj, normalizePublicationMediaType: normalizeMediaType, internalAsyncWorkerDispatch: false,
+    buildBoosterPublicationTargets, NextResponse: { json: (value: unknown) => ({ rejected: value }) },
+  });
+  const ast = ts.createSourceFile(routePath, source, ts.ScriptTarget.Latest, true);
+  let checkpointSpread = "";
+  function visit(node: ts.Node) {
+    if (ts.isSpreadAssignment(node) && node.expression.getText(ast).includes("storySequenceResumeByChannel:")) checkpointSpread = node.expression.getText(ast);
+    ts.forEachChild(node, visit);
+  }
+  visit(ast); assert.ok(checkpointSpread);
+  for (const channel of ["facebook", "instagram"]) {
+    for (const primary of ["classic", "reel"]) {
+      const body = run({ storySequenceResumeByChannel: { [channel]: ref }, mediaType: "images",
+        [`${channel}PublicationSettings`]: { primaryPlacement: primary, includeStory: true },
+        publicationTargets: [{ channel, placement: primary }, { channel, placement: "story" }],
+      }, [channel]);
+      assert.equal(body.rejected, undefined, `${channel} retries must not reject the failed primary`);
+      assert.deepEqual(body[`${channel}PublicationSettings`], { placements: [primary, "story"] });
+      const checkpoint = (placement: string) => execute<Record<string, unknown>>(`return (${checkpointSpread});`, {
+        target: { placement }, channel, storyResumeByChannel: { [channel]: ref },
+      });
+      assert.deepEqual(checkpoint(primary), {}, "Primary workers must not inherit Story-only retry semantics");
+      assert.deepEqual(checkpoint("story"), { storySequenceResumeByChannel: { [channel]: ref } });
+    }
+    const storyOnly = run({ storySequenceResumeByChannel: { [channel]: ref }, mediaType: "images",
+      [`${channel}PublicationSettings`]: { primaryPlacement: "classic", includeStory: true },
+      publicationTargets: [{ channel, placement: "story" }],
+    }, [channel]);
+    assert.deepEqual(storyOnly[`${channel}PublicationSettings`], { placements: ["story"] }, "An already successful primary remains absent");
+  }
+});
+
 test("the real Story dispatch stages all five photos then delegates durable video sequencing with worker deadline and token fallback", async () => {
   const calls: Array<{ kind: string; input: Record<string, unknown> }> = [];
   const paths = [0, 1, 2, 3, 4].map(index => `account/${index}.jpg`);
@@ -86,7 +126,7 @@ test("partial Stories retain their confirmed IDs and resumable state beside a de
     assert.deepEqual(result.external_ids, ["reel-already-published", "story-0", "story-1", "story-2"]);
     for (const [file, name] of [["lib/boosterAsyncPublication.ts", "buildAsyncPublicationSummary"], ["app/api/booster/publish-now/publishNow.foundations.ts", "buildResultsSummary"]]) {
       const summary = callable<(results: unknown, selected: string[]) => { entries: Array<Record<string, unknown>> }>(file, name, { asRecord: obj, cleanString, CHANNEL_LABELS: labels, classifyBoosterPublicationResult, isBoosterPublishFailureRetryable });
-      const entry = summary({ [channel]: result }, [channel]).entries[0];
+      const entry = summary({ [channel]: result }, [channel]).entries.find(value => value.placement === "story")!;
       assert.equal(entry.story_sequence_resume_ref, ref); assert.equal(entry.retryable, true); assert.equal(entry.published_image_count, 3); assert.equal(entry.expected_image_count, 5);
     }
   }

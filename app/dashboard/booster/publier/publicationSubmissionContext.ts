@@ -17,6 +17,7 @@ import type { PersistentWorkspaceMediaState } from "./usePersistentMediaWorkspac
 import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
 import type { ThreadsPublicationMode } from "@/lib/threadsPublicationPreferences";
 import type usePublishVideoController from "./usePublishVideoController";
+import type { PublicationTargetFailure } from "./publicationPlacementReview";
 
 type BoosterSubmissionTranslations = ReturnType<typeof useTranslations<"booster">>;
 
@@ -76,7 +77,7 @@ export type PublicationSubmissionContext = {
     getImagePreparationIssue: (channelsToReview: readonly ChannelKey[], purpose?: "publish" | "schedule") => string;
     resolveChannelMediaMode: (channel: ChannelKey) => ChannelMediaMode;
     waitForPersistentWorkspaceIdle: ReturnType<typeof usePersistentMediaWorkspace>["waitForIdle"];
-    buildFinalReviewItems: (preparedPostsByChannel: Partial<Record<ChannelKey, ChannelPost>>, channelsToReview?: ChannelKey[], workspaceStatesOverride?: readonly PersistentWorkspaceMediaState[]) => { channel: ChannelKey; label: string; mediaType: "video" | "images"; mediaLabel: string; imageCount: number; warnings: string[]; details: string[]; blockers: string[]; blockerCodes: string[]; contentBlockers: string[]; contentWarnings: string[]; mediaWarnings: string[]; mediaBlockers: string[]; mediaBlockerCodes: string[]; publishable: boolean; tiktokParametersValidated: boolean; hasContent: boolean; hasTitle: boolean; hasText: boolean; hasImage: boolean; }[];
+    buildFinalReviewItems: (preparedPostsByChannel: Partial<Record<ChannelKey, ChannelPost>>, channelsToReview?: ChannelKey[], workspaceStatesOverride?: readonly PersistentWorkspaceMediaState[]) => { channel: ChannelKey; label: string; mediaType: "video" | "images"; mediaLabel: string; imageCount: number; warnings: string[]; details: string[]; blockers: string[]; blockerCodes: string[]; channelBlockers?: string[]; targetFailures?: Record<string, PublicationTargetFailure>; contentBlockers: string[]; contentWarnings: string[]; mediaWarnings: string[]; mediaBlockers: string[]; mediaBlockerCodes: string[]; publishable: boolean; tiktokParametersValidated: boolean; hasContent: boolean; hasTitle: boolean; hasText: boolean; hasImage: boolean; }[];
     waitForPersistentWorkspaceReadiness: (purpose: "generate" | "publish" | "schedule", onProgress?: (progress: number, label: string) => void, requiredMediaTypes?: readonly ("image" | "video")[], timeoutMs?: number) => Promise<string | null>;
     buildChannelImageSettingsPayload: ReturnType<typeof usePublishImageController>["buildChannelImageSettingsPayload"];
     buildChannelImagesPayload: ReturnType<typeof usePublishImageController>["buildChannelImagesPayload"];

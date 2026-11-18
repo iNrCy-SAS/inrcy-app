@@ -142,7 +142,7 @@ test("duration-invalid channels turn red before dispatch and are reported as fai
     /<PublishValidationBoard\s+items=\{publishReadinessItems\}/,
   );
   assert.match(modal, /const publishReadinessItems = buildFinalReviewItems\(\s*buildPreparedPostsByChannel\(\)/);
-  assert.match(validationBoard, /item\.mediaBlockerCodes\?\.length \? "blocked"/);
+  assert.match(validationBoard, /item\.mediaBlockerCodes\?\.length \|\| mediaBlockers\.length \? "blocked"/);
   assert.match(validationBoard, /<ReviewStatus tone=\{mediaTone\}/);
   assert.match(validationBoard, /aria-describedby=\{id\} aria-controls=\{id\}/);
   assert.match(validationBoard, /messages\.map\(\(message\) =>/);

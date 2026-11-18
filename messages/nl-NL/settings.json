@@ -1003,5 +1003,6 @@
   "x_disconnected_notice": "X-account losgekoppeld.",
   "x_public_link_saved": "Openbare X-link opgeslagen.",
   "x_public_profile_link": "Openbare link naar het X-profiel",
-  "x_view_profile": "Profiel bekijken"
+  "x_view_profile": "Profiel bekijken",
+  "subscription_no_further_renewal": "Er staat geen verdere verlenging gepland."
 }

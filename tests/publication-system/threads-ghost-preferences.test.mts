@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import * as preferences from "../../lib/threadsPublicationPreferences.ts";
+import { getPublicationTargetPredecessor } from "../../lib/boosterPublicationSequence.ts";
 
 test("Threads preferences preserve Classic compatibility and normalize disabled Ghost defaults", () => {
   assert.deepEqual(preferences.normalizeThreadsPublicationPreferences(undefined), { version: 1, ghostEnabled: true, defaultMode: "classic" });
@@ -134,6 +135,7 @@ test("Durable Booster ingress persists Ghost and effective media choices rather 
     "@/lib/boosterPublicationPolicy": { BOOSTER_PUBLICATION_CHANNEL_LABELS: { threads: "Threads", instagram: "Instagram" } },
     "@/lib/boosterAsyncPublication": { BOOSTER_ASYNC_CHANNEL_EVENT_TYPE: "channel", BOOSTER_ASYNC_JOB_EVENT_TYPE: "parent" },
     "@/lib/metaPublicationTargets": { buildBoosterPublicationTargets: ({ channels }: { channels: string[] }) => channels.map((channel: string) => ({ channel, key: channel, placement: "classic" })), stripMetaStoryOnlyPostContent: (value: unknown) => value },
+    "@/lib/boosterPublicationSequence": { getPublicationTargetPredecessor },
     "@/lib/supabaseAdmin": { supabaseAdmin: database },
   });
   const result = await ingress.enqueueBoosterPublication({ userId: "account", channels: ["threads", "instagram"], body: {

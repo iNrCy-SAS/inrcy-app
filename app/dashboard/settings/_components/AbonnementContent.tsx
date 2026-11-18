@@ -8,6 +8,7 @@ import { confirmInrcy } from "@/lib/inrcyDialog";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabaseClient";
 import { readCurrentAccountSubscription } from "@/lib/accountBillingSubscriptionClient";
+import { getSubscriptionBillingPresentation } from "@/lib/subscriptionBillingPresentation";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   FOUNDER_OFFER_MONTHLY_PRICE_EXCL_TAX_EUR,
@@ -326,10 +327,9 @@ useEffect(() => {
     const trialEndsWithinStripeMinimum = trialEnd.getTime() <= now.getTime() + 2 * 24 * 60 * 60 * 1000;
 
     const cancelEnd = sub.end_date ? parseYMD(sub.end_date) : null;
-    const cancellationScheduled = !!sub.cancel_requested_at && !!cancelEnd && cancelEnd.getTime() > now.getTime();
-    const monthlyNoticeCancellation = Boolean(
-      cancellationScheduled && cancelEnd && renewal && cancelEnd.getTime() > renewal.getTime(),
-    );
+    const billingPresentation = getSubscriptionBillingPresentation(sub, Number.isFinite(renewal.getTime()) ? renewal.toISOString() : null);
+    const cancellationScheduled = billingPresentation.cancellationScheduled;
+    const monthlyNoticeCancellation = billingPresentation.finalChargeBeforeEnd;
 
     const hasStripeSub = !!sub.stripe_subscription_id;
     const annualPayment =
@@ -396,12 +396,15 @@ useEffect(() => {
       cancelEndLabel: cancelEnd ? frDate(cancelEnd, locale) : null,
       cancellationScheduled,
       monthlyNoticeCancellation,
+      noFurtherRenewal: billingPresentation.noFurtherRenewal,
+      nextChargeDate: billingPresentation.nextChargeDate,
+      ended: billingPresentation.ended,
       priceLabel: `${displayedPrice} €`,
       pricePeriodLabel: [taxLabel, i18nT(annualPayment ? "standard_per_year" : "standard_per_month")]
         .filter(Boolean)
         .join(" / "),
       annualPayment,
-      statusText: isTrialPlan ? i18nT("essai_21_jours_3095df3f") : statusLabel(statusNorm, i18nT),
+      statusText: cancellationScheduled ? i18nT("resiliation_programmee_09802990") : billingPresentation.ended ? statusLabel(statusNorm, i18nT) : isTrialPlan ? i18nT("essai_21_jours_3095df3f") : statusLabel(statusNorm, i18nT),
       hasStripeSub: hasScheduledSubscription,
       scheduledPlanLabel: planShortLabel(scheduledPlan, i18nT),
       planNormalized,
@@ -795,15 +798,18 @@ useEffect(() => {
                 <div className={styles.dateLabel}><span><SubscriptionSummaryIcon kind="start" /></span>{i18nT("actualisation_d386fa8d")}</div>
                 <strong>{computed.startLabel}</strong>
               </div>
-              <div className={styles.dateTile}>
+              {computed.nextChargeDate ? <div className={styles.dateTile}>
                 <div className={styles.dateLabel}><span><SubscriptionSummaryIcon kind="renew" /></span>{computed.annualPayment ? i18nT("renouvellement_annuel_ffcc422c") : i18nT("renouvellement_5b961f3a")}</div>
                 <strong>{computed.renewalLabel}</strong>
-              </div>
-              <div className={styles.dateTile}>
-                <div className={styles.dateLabel}><span><SubscriptionSummaryIcon kind="end" /></span>{computed.annualPayment ? i18nT("formule_1bb7d659") : i18nT("fin_previsionnelle_682cf200")}</div>
-                <strong>{computed.annualPayment && !computed.cancellationScheduled ? i18nT("annuelle_0e25612c") : computed.cancellationScheduled && computed.cancelEndLabel ? computed.cancelEndLabel : computed.endEstLabel}</strong>
-                <small>{computed.cancellationScheduled ? i18nT("resiliation_programmee_09802990") : computed.annualPayment ? i18nT("resiliable_avant_echeance_7d2a6c32") : i18nT("preavis_inclus_1_mois_4e679006")}</small>
-              </div>
+              </div> : computed.noFurtherRenewal ? <div className={styles.dateTile}>
+                <div className={styles.dateLabel}><span><SubscriptionSummaryIcon kind="renew" /></span>{i18nT("renouvellement_5b961f3a")}</div>
+                <strong>{i18nT("subscription_no_further_renewal")}</strong>
+              </div> : null}
+              {!computed.ended || computed.cancelEndLabel ? <div className={styles.dateTile}>
+                <div className={styles.dateLabel}><span><SubscriptionSummaryIcon kind="end" /></span>{computed.ended ? i18nT("resilie_1ca48fe3") : computed.annualPayment ? i18nT("formule_1bb7d659") : i18nT("fin_previsionnelle_682cf200")}</div>
+                <strong>{(computed.cancellationScheduled || computed.ended) && computed.cancelEndLabel ? computed.cancelEndLabel : computed.annualPayment ? i18nT("annuelle_0e25612c") : computed.endEstLabel}</strong>
+                <small>{computed.cancellationScheduled ? i18nT("resiliation_programmee_09802990") : computed.ended ? null : computed.annualPayment ? i18nT("resiliable_avant_echeance_7d2a6c32") : i18nT("preavis_inclus_1_mois_4e679006")}</small>
+              </div> : null}
             </>
           )}
         </div>

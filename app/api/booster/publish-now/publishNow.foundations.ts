@@ -86,18 +86,27 @@ export function buildResultsSummary(
   results: Record<string, any>,
   selected: ChannelKey[],
 ) {
-  const entries = selected.map((channel) => {
-    const value = results[channel] || {};
-    const outcome = classifyBoosterPublicationResult(value);
-    const ok = outcome.ok;
-    const code = String(value?.code || "").trim() || null;
-    const retryable = isBoosterPublishFailureRetryable({
-      ok,
-      code,
-      retryable: value?.retryable,
+  const entries = selected.flatMap((channel) => {
+    const channelResult = asRecord(results[channel]);
+    const meta = channel === "facebook" || channel === "instagram";
+    const placements = meta ? Object.entries(asRecord(channelResult.placements)) : [];
+    const targets: Array<[string | null, JsonRecord]> = placements.length
+      ? placements.map(([placement, result]) => [placement, asRecord(result)])
+      : [[meta ? String(channelResult.placement || "classic") : null, channelResult]];
+    return targets.map(([placement, value]) => {
+      const outcome = classifyBoosterPublicationResult(value.status === "processing" ? { ...value, pending: true } : value);
+      const ok = outcome.ok;
+      const code = String(value?.code || "").trim() || null;
+      const retryable = isBoosterPublishFailureRetryable({
+        ok,
+        code,
+        retryable: value?.retryable,
     });
     return {
       channel,
+      targetKey: placement ? `${channel}:${placement}` : channel,
+      placement,
+      ...(channel === "threads" ? { threads_publication_mode: value.threads_publication_mode || "classic" } : {}),
       label: CHANNEL_LABELS[channel] || channel,
       ok,
       status: outcome.status,
@@ -109,9 +118,10 @@ export function buildResultsSummary(
       warning_message: outcome.warningMessage,
       ...(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value?.story_sequence_resume_ref || "")) ? { story_sequence_resume_ref: value.story_sequence_resume_ref, published_image_count: value.published_image_count, expected_image_count: value.expected_image_count } : {}),
     };
+    });
   });
 
-  const successes = entries.filter((entry) => entry.ok);
+  const successes = entries.filter((entry) => entry.ok && entry.status !== "processing");
   const failures = entries.filter((entry) => !entry.ok);
   const warnings = entries.filter(
     (entry) => entry.status === "published_with_warning",
@@ -127,11 +137,11 @@ export function buildResultsSummary(
       (entry) => entry.warning_kind === "media_degraded",
     ).length,
     pendingCount: pending.length,
-    allSucceeded: failures.length === 0,
-    allFailed: successes.length === 0,
+    allSucceeded: failures.length === 0 && pending.length === 0,
+    allFailed: failures.length > 0 && successes.length === 0 && pending.length === 0,
     entries,
-    successChannels: successes.map((entry) => entry.channel),
-    failedChannels: failures.map((entry) => entry.channel),
+    successChannels: Array.from(new Set(successes.map((entry) => entry.channel))),
+    failedChannels: Array.from(new Set(failures.map((entry) => entry.channel))),
   };
 }
 
@@ -438,27 +448,48 @@ export function buildAsyncPreparedImagePayloads(
   });
 }
 
-export function buildQueuedPublicationSummary(selected: ChannelKey[]) {
-  return {
-    total: selected.length,
-    successCount: 0,
-    failureCount: 0,
-    pendingCount: selected.length,
-    allSucceeded: false,
-    allFailed: false,
-    entries: selected.map((channel) => ({
-      channel,
+export function buildQueuedPublicationSummary(
+  selected: ChannelKey[],
+  targets: readonly { key: string; channel: ChannelKey; placement: string | null }[] = selected.map(channel => ({
+    key: channel, channel, placement: channel === "facebook" || channel === "instagram" ? "classic" : null,
+  })),
+  statesByTarget: Readonly<Record<string, unknown>> = {},
+) {
+  const entriesByTarget = new Map<string, {
+    channel: ChannelKey; targetKey: string; placement: string | null; label: string;
+    ok: false | null; status: string; technicalStatus: string; code: unknown;
+    retryable: boolean; error: unknown; warning: null; warning_message: null;
+    threads_publication_mode?: string;
+  }>();
+  for (const target of targets) {
+    const channel = target.channel;
+    if (!selected.includes(channel)) continue;
+    const placement = channel === "facebook" || channel === "instagram" ? target.placement || "classic" : null;
+    const targetKey = placement ? `${channel}:${placement}` : channel;
+    const state = asRecord(statesByTarget[targetKey] || statesByTarget[target.key]);
+    const failed = state.ok === false || state.status === "failed";
+    const status = failed ? "failed" : String(state.status || "queued");
+    entriesByTarget.set(targetKey, {
+      channel, targetKey, placement,
       label: CHANNEL_LABELS[channel] || channel,
-      ok: null,
-      status: "queued",
-      code: null,
-      retryable: false,
-      error: null,
-      warning: null,
-      warning_message: null,
-    })),
+      ...(channel === "threads" ? { threads_publication_mode: String(state.threads_publication_mode || "classic") } : {}),
+      ok: failed ? false : null, status, technicalStatus: String(state.technicalStatus || status),
+      code: state.code || null, retryable: failed && state.retryable === true,
+      error: failed ? state.error || null : null, warning: null, warning_message: null,
+    });
+  }
+  const entries = [...entriesByTarget.values()];
+  const failedEntries = entries.filter(entry => entry.ok === false);
+  return {
+    total: entries.length,
+    successCount: 0,
+    failureCount: failedEntries.length,
+    pendingCount: entries.length - failedEntries.length,
+    allSucceeded: false,
+    allFailed: entries.length > 0 && failedEntries.length === entries.length,
+    entries,
     successChannels: [] as ChannelKey[],
-    failedChannels: [] as ChannelKey[],
+    failedChannels: Array.from(new Set(failedEntries.map(entry => entry.channel))),
   };
 }
 

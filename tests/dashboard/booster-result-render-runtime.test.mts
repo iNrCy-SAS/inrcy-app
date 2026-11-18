@@ -67,6 +67,26 @@ const renderCompactActions = (summary: Record<string, unknown> | null, publicati
   summary, publicationDestinations, compact: true, onRetryFailed() {}, onOpenInrSend() {},
 }));
 
+test("standalone and shared result headers count every selected Meta placement and retain failed blocks", () => {
+  const facebook = [
+    { channel: "facebook", targetKey: "facebook:classic", placement: "classic", label: "Facebook", status: "published", ok: true },
+    { channel: "facebook", targetKey: "facebook:story", placement: "story", label: "Facebook", status: "published", ok: true },
+  ];
+  const instagram = [
+    { channel: "instagram", targetKey: "instagram:reel", placement: "reel", label: "Instagram", status: "published", ok: true },
+    { channel: "instagram", targetKey: "instagram:story", placement: "story", label: "Instagram", status: "published", ok: true },
+  ];
+  for (const entries of [facebook, [...facebook, ...instagram]]) {
+    const summary = { total: 1, successCount: 1, entries };
+    const expected = new RegExp(`${entries.length}/${entries.length} publiés`);
+    assert.match(render(summary), expected);
+    assert.match(renderCompactActions(summary), expected);
+  }
+  const partial = { entries: [facebook[0], { ...facebook[1], status: "failed", ok: false }] };
+  assert.match(render(partial), /1\/2 publié/);
+  assert.match(renderCompactActions(partial), /1\/2 publié/);
+});
+
 test("real aggregation and both backend summaries carry 5/5 Story success into the result cards without offering retry", () => {
   function callable<T>(file: string, name: string): T {
     const source = ts.createSourceFile(file, read(file), ts.ScriptTarget.ES2022, true);
@@ -90,8 +110,9 @@ test("real aggregation and both backend summaries carry 5/5 Story success into t
     assert.equal(combined.published_image_count, 5); assert.equal(combined.expected_image_count, 5);
     for (const [file, name] of [["lib/boosterAsyncPublication.ts", "buildAsyncPublicationSummary"], ["app/api/booster/publish-now/publishNow.foundations.ts", "buildResultsSummary"]]) {
       const summary = callable<(results: unknown, selected: string[]) => { entries: Array<Record<string, unknown>> }>(file, name)({ [channel]: combined }, [channel]);
-      assert.equal(summary.entries[0].story_sequence_resume_ref, reference);
-      assert.deepEqual(storyRetry.publicationStorySequenceCounts(summary.entries[0]), { confirmed: 5, expected: 5 });
+      const storyEntry = summary.entries.find((entry) => entry.story_sequence_resume_ref === reference);
+      assert.ok(storyEntry, "The Story target retains its own confirmation checkpoint");
+      assert.deepEqual(storyRetry.publicationStorySequenceCounts(storyEntry), { confirmed: 5, expected: 5 });
       for (const embedded of [false, true]) {
         const html = render(summary, { embedded, onRetryFailed() {} });
         assert.match(html, /data-story-confirmed-count[^>]*>5\/5 Stories confirmées/);
@@ -129,7 +150,7 @@ test("a published Reel with a retryable incomplete Story sequence exposes target
 
 test("result renders real published channels, their logos and external destination without duplicating the CTA", () => {
   const html = render({ successCount: 1, entries: [{ channel: "facebook", label: "Facebook", ok: true, status: "published" }], channelLinks: { facebook: "https://www.facebook.com/example/posts/1" } }, { wizardSteps: ["channels", "content", "publication"] });
-  assert.match(html, /1 publication en ligne/);
+  assert.match(html, /1\/1 publié/);
   assert.match(html, /data-result-tone="published"/);
   assert.match(html, /src="\/icons\/facebook.png"/);
   assert.match(html, /Facebook — Publié/);
@@ -140,11 +161,76 @@ test("result renders real published channels, their logos and external destinati
 
 test("pending jobs with ok=true are never rendered as published", () => {
   const html = render({ successCount: 1, pendingCount: 1, entries: [{ channel: "tiktok", label: "TikTok", ok: true, status: "processing", warning_kind: "pending" }] });
-  assert.match(html, /Bilan de publication/);
+  assert.match(html, /0\/1 publié/);
   assert.match(html, /data-result-tone="pending"/);
   assert.match(html, /TikTok — En attente/);
   assert.match(html, /Suivi en direct/);
   assert.doesNotMatch(html, /publication[s]? en ligne|TikTok — Publié|Tout est en ligne/);
+});
+
+test("each Meta format keeps its own result card, logo and count when another format on the same channel fails", () => {
+  const entries = [
+    { channel: "facebook", label: "Facebook", targetKey: "facebook:classic", placement: "classic", ok: true, status: "published" },
+    { channel: "facebook", label: "Facebook", targetKey: "facebook:story", placement: "story", ok: false, status: "failed" },
+    { channel: "instagram", label: "Instagram", targetKey: "instagram:reel", placement: "reel", ok: true, status: "published" },
+    { channel: "instagram", label: "Instagram", targetKey: "instagram:story", placement: "story", ok: true, status: "processing" },
+    { channel: "threads", label: "Threads", targetKey: "threads", threads_publication_mode: "ghost", ok: true, status: "published" },
+  ];
+  const destinations = ["facebook", "instagram", "threads"].map((key) => ({ key, label: key }));
+  const summary = { entries, successCount: 3, failureCount: 1, pendingCount: 1 };
+  for (const embedded of [false, true]) {
+    const html = render(summary, { embedded, publicationDestinations: destinations });
+    for (const [label, status] of [["Facebook · Classique", "Publié"], ["Facebook · Stories", "Échec"], ["Instagram · Reels", "Publié"], ["Instagram · Stories", "En attente"], ["Threads · Ghost", "Publié"]]) {
+      assert.ok(html.includes(`${label} — ${status}`), `${label} retains ${status}`);
+    }
+    assert.equal((html.match(/src="\/icons\/facebook.png"/g) || []).length, 2);
+    assert.equal((html.match(/src="\/icons\/instagram.jpg"/g) || []).length, 2);
+    if (embedded) {
+      assert.match(html, /data-channel="facebook:classic" data-status="published"/);
+      assert.match(html, /data-channel="facebook:story" data-status="failed"/);
+      assert.equal((html.match(/<li\b[^>]+data-channel=/g) || []).length, 5);
+    } else {
+      assert.match(html, /data-tone="published" data-channel="facebook" data-target-key="facebook:classic"/);
+      assert.match(html, /data-tone="failed" data-channel="facebook" data-target-key="facebook:story"/);
+      assert.equal((html.match(/class="channelCard"/g) || []).length, 5);
+    }
+  }
+  assert.match(renderCompactActions(summary, destinations), /3\/5 publiés/);
+});
+
+test("known video rule codes render concrete localized requirements while provider diagnostics stay private", () => {
+  const originalLocale = activeLocale;
+  try {
+    for (const locale of Object.keys(catalogs)) {
+      activeLocale = locale;
+      const message = (key: string, values: Record<string, string | number>) => new IntlMessageFormat(catalogs[locale][key], locale).format(values) as string;
+      for (const channel of ["facebook", "instagram"]) {
+        const label = `${channel === "facebook" ? "Facebook" : "Instagram"} · ${catalogs[locale].instagram_stories}`;
+        const html = render({ entries: [{ channel, label: channel === "facebook" ? "Facebook" : "Instagram", placement: "story", targetKey: `${channel}:story`, ok: false, status: "failed",
+          code: `${channel}_story_video_duration_out_of_range`, error: "Facebook — Story : la vidéo dure 69,58 s. private-provider-token=do-not-display" }] }, { embedded: true });
+        assert.ok(html.includes(message("execution_result_video_duration_rule", { channel: label, min: 3, max: 60 })), locale);
+        assert.ok(html.includes(message("execution_result_video_measured_duration", { duration: new Intl.NumberFormat(locale, { maximumFractionDigits: 2 }).format(69.58) })), locale);
+        assert.doesNotMatch(html, /private-provider-token|do-not-display/);
+      }
+    }
+    activeLocale = "fr-FR";
+    for (const [code, placement, expected] of [
+      ["facebook_vertical_duration_invalid", "story", "3 à 60 s"],
+      ["facebook_reel_video_duration_out_of_range", "reel", "3 à 90 s"],
+      ["facebook_story_video_resolution", "story", "540 × 960 px"],
+      ["facebook_story_video_aspect_ratio", "story", "verticale au format 9:16"],
+      ["facebook_story_video_frame_rate", "story", "24 à 60 images/s"],
+      ["instagram_story_video_frame_rate", "story", "23 à 60 images/s"],
+      ["instagram_story_video_size", "story", "100 Mo maximum"],
+      ["instagram_story_video_width", "story", "1920 px maximum"],
+      ["instagram_story_video_aspect_ratio", "story", "entre 0,1:1 et 10:1"],
+    ]) {
+      const channel = code.startsWith("facebook") ? "facebook" : "instagram";
+      const html = render({ entries: [{ channel, label: channel, placement, code, ok: false, status: "failed", error: "private-provider-diagnostic" }] }, { embedded: true });
+      assert.ok(html.includes(expected), code);
+      assert.doesNotMatch(html, /private-provider-diagnostic/);
+    }
+  } finally { activeLocale = originalLocale; }
 });
 
 test("mixed outcomes preserve each status, expandable failure details and the targeted retry action", () => {
@@ -153,7 +239,7 @@ test("mixed outcomes preserve each status, expandable failure details and the ta
     { channel: "tiktok", label: "TikTok", ok: true, status: "queued" },
     { channel: "gmb", label: "Google Business", ok: false, status: "failed", error: "Une erreur empêche la publication." },
   ] }, { onRetryFailed() {}, retrying: true });
-  assert.match(html, /1 publication en ligne/);
+  assert.match(html, /1\/3 publié/);
   assert.match(html, /Facebook — Publié/);
   assert.match(html, /TikTok — En attente/);
   assert.match(html, /Google Business — Échec/);
@@ -164,7 +250,7 @@ test("mixed outcomes preserve each status, expandable failure details and the ta
 
 test("failed, skipped and warning outcomes remain distinct and an absent summary never announces success", () => {
   const failed = render({ allFailed: true, failureCount: 1, entries: [{ channel: "x", label: "X", status: "failed", ok: false }] });
-  assert.match(failed, /Bilan de publication/);
+  assert.match(failed, /0\/1 publié/);
   assert.match(failed, /data-result-tone="failed"/);
   assert.doesNotMatch(failed, /publication[s]? en ligne/);
   const skipped = render({ skippedCount: 1, entries: [{ channel: "youtube", label: "YouTube", status: "skipped", ok: false, blockers: ["Vidéo obligatoire"] }] });
@@ -172,7 +258,7 @@ test("failed, skipped and warning outcomes remain distinct and an absent summary
   assert.match(skipped, /YouTube — Ignoré avant envoi/);
   assert.match(skipped, /Ajoutez une vidéo avant de publier/);
   const warning = render({ successCount: 1, warningCount: 1, entries: [{ channel: "pinterest", label: "Pinterest", status: "published_with_warning", ok: true, warning_message: "Un média n’a pas été publié." }] });
-  assert.match(warning, /1 publication en ligne/);
+  assert.match(warning, /1\/1 publié/);
   assert.match(warning, /Publié avec avertissement/);
   assert.doesNotMatch(warning, /Tout est en ligne/);
   const empty = render(null);
@@ -268,7 +354,7 @@ test("unknown results stay pending while confirmed technical outcomes retain the
       assert.doesNotMatch(html, /1\/4 publié|data-publication-hub-summary/);
       assert.match(renderCompactActions(summary), /1\/4 publié/);
     } else {
-      assert.match(html, /1 publication en ligne/);
+      assert.match(html, /1\/4 publié/);
     }
   }
 });
@@ -296,7 +382,7 @@ test("the compact footer updates real publication counts and retry eligibility a
   const failureFooter = renderCompactActions(failed, destinations);
   assert.match(failureFooter, /0\/1 publié/);
   assert.match(failureFooter, /class="retryButton"/);
-  assert.match(failureFooter, /aria-label="Retenter 1 canal en échec"/);
+  assert.match(failureFooter, /aria-label="Retenter 1 publication en échec"/);
   assert.doesNotMatch(failureFooter, /en traitement/);
 });
 
@@ -306,7 +392,7 @@ test("exported result actions preserve retry eligibility, busy state and the iNr
   }));
   const ready = renderActions();
   assert.equal((ready.match(/class="inrSendButton"/g) || []).length, 1);
-  assert.match(ready, /Retenter 2 canaux en échec/);
+  assert.match(ready, /Retenter 2 publications en échec/);
   assert.doesNotMatch(ready, /data-publication-hub-summary|class="footerRecap"/);
   assert.doesNotMatch(ready, /disabled=""/);
   assert.match(renderActions({ retrying: true }), /class="retryButton" disabled="" aria-busy="true"/);
@@ -331,7 +417,7 @@ test("compact result actions retain full accessible retry wording and expose a s
     summary: { retryableFailureCount: 1 }, compact: true, onRetryFailed() {}, onOpenInrSend() {},
   }));
   assert.match(html, /data-compact="true"/);
-  assert.match(html, /aria-label="Retenter 1 canal en échec"/);
+  assert.match(html, /aria-label="Retenter 1 publication en échec"/);
   assert.match(html, /class="actionCompactLabel" aria-hidden="true">1 échec/);
   assert.match(html, /Voir dans iNr’Send/);
 });
@@ -397,7 +483,7 @@ test("standalone, embedded and compact results render localized copy and real IC
       const html = render(summary, { onRetryFailed() {} });
       const embedded = render(summary, { embedded: true });
       const footer = renderCompactActions(summary);
-      assert.ok(html.includes(format("execution_result_online", { count: 2 })), locale);
+      assert.ok(html.includes(format("execution_result_compact_count", { count: 2, total: 5 })), locale);
       assert.ok(footer.includes(format("execution_result_compact_count", { count: 2, total: 5 })), locale);
       assert.ok(html.includes(format("execution_result_published_warning")), locale);
       assert.ok(html.includes(format("execution_result_not_sent")), locale);
@@ -409,8 +495,8 @@ test("standalone, embedded and compact results render localized copy and real IC
       }
     }
     activeLocale = "en-GB";
-    assert.match(renderCompactActions({ retryableFailureCount: 2 }), /Retry 2 failed channels/);
-    assert.match(render({ entries: [{ channel: "facebook", label: "Facebook", status: "published", ok: true }] }), /1 post live/);
+    assert.match(renderCompactActions({ retryableFailureCount: 2 }), /Retry 2 failed posts/);
+    assert.match(render({ entries: [{ channel: "facebook", label: "Facebook", status: "published", ok: true }] }), /1\/1 published/);
   } finally {
     activeLocale = "fr-FR";
   }

@@ -15,6 +15,8 @@ type JsonRecord = Record<string, unknown>;
 export type BoosterPreflightFailedChannel = {
   channel?: unknown;
   label?: unknown;
+  targetKey?: unknown;
+  placement?: unknown;
   code?: unknown;
   blockers?: readonly unknown[] | null;
 };
@@ -75,15 +77,19 @@ export function mergePreflightFailuresIntoPublicationSummary(
         )
         .map((entry) => ({ ...entry }))
     : [];
+  const targetKey = (entry: BoosterPreflightFailedChannel) => cleanString(entry.targetKey) ||
+    (entry.placement ? `${cleanString(entry.channel)}:${cleanString(entry.placement)}` : cleanString(entry.channel));
   const existingChannels = new Set(
-    entries.map((entry) => cleanString(entry.channel)).filter(Boolean),
+    entries.map(targetKey).filter(Boolean),
   );
   const preflightFailureEntries: JsonRecord[] = [];
 
   for (const candidate of failedChannelsValue || []) {
     const channel = cleanString(candidate?.channel);
-    if (!channel || existingChannels.has(channel)) continue;
-    existingChannels.add(channel);
+    const key = targetKey(candidate);
+    if (!channel || existingChannels.has(key)) continue;
+    if (!candidate.targetKey && !candidate.placement && [...existingChannels].some((existing) => existing.startsWith(`${channel}:`))) continue;
+    existingChannels.add(key);
     const blockers = Array.from(
       new Set(
         (Array.isArray(candidate?.blockers) ? candidate.blockers : [])
@@ -95,6 +101,8 @@ export function mergePreflightFailuresIntoPublicationSummary(
     preflightFailureEntries.push({
       channel,
       label,
+      ...(candidate.targetKey ? { targetKey: cleanString(candidate.targetKey) } : {}),
+      ...(candidate.placement ? { placement: cleanString(candidate.placement) } : {}),
       ok: false,
       status: "failed",
       code: cleanString(candidate?.code) || "prepublish_validation_failed",
@@ -107,14 +115,18 @@ export function mergePreflightFailuresIntoPublicationSummary(
   }
 
   const mergedEntries = [...entries, ...preflightFailureEntries];
-  const baseSuccessCount = nonNegativeNumber(
-    summary.successCount,
-    entries.filter((entry) => entry.ok !== false).length,
-  );
-  const baseFailureCount = nonNegativeNumber(
-    summary.failureCount,
-    entries.filter((entry) => entry.ok === false).length,
-  );
+  const entryStatus = (entry: JsonRecord) => {
+    const statuses = [entry.status, entry.technicalStatus].map((value) => cleanString(value).toLowerCase());
+    if (entry.warning_kind === "pending" || statuses.some((status) => ["pending", "queued", "processing", "preparing", "finalizing", "awaiting_platform", "dispatching"].includes(status))) return "pending";
+    if (statuses.includes("skipped")) return "skipped";
+    if (entry.ok === false || statuses.some((status) => status === "failed" || status === "error")) return "failed";
+    return statuses.some((status) => ["published", "published_with_warning", "completed", "success", "succeeded"].includes(status)) ? "published" : "pending";
+  };
+  const statuses = entries.map(entryStatus);
+  const baseSuccessCount = entries.length ? statuses.filter((status) => status === "published").length : nonNegativeNumber(summary.successCount, 0);
+  const baseFailureCount = entries.length ? statuses.filter((status) => status === "failed").length : nonNegativeNumber(summary.failureCount, 0);
+  const pendingCount = entries.length ? statuses.filter((status) => status === "pending").length : nonNegativeNumber(summary.pendingCount, 0);
+  const skippedCount = entries.length ? statuses.filter((status) => status === "skipped").length : nonNegativeNumber(summary.skippedCount, 0);
   const failureCount = baseFailureCount + preflightFailureEntries.length;
   const failedChannels = Array.from(
     new Set([
@@ -133,12 +145,14 @@ export function mergePreflightFailuresIntoPublicationSummary(
   return {
     ...summary,
     total:
-      nonNegativeNumber(summary.total, entries.length) +
+      (entries.length || nonNegativeNumber(summary.total, 0)) +
       preflightFailureEntries.length,
     successCount: baseSuccessCount,
     failureCount,
-    allSucceeded: failureCount === 0,
-    allFailed: failureCount > 0 && baseSuccessCount === 0,
+    pendingCount,
+    skippedCount,
+    allSucceeded: failureCount === 0 && skippedCount === 0 && pendingCount === 0,
+    allFailed: failureCount + skippedCount > 0 && baseSuccessCount === 0 && pendingCount === 0,
     entries: mergedEntries,
     failedChannels,
   };

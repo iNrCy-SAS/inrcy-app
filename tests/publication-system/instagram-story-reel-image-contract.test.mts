@@ -314,7 +314,7 @@ test("publish-now enforces account Instagram preferences only for Reel and Story
   );
   assert.match(
     requestGuard,
-    /for \(const placement of requestedInstagramPlacements\)[\s\S]*?if \(placement === "classic"\) continue[\s\S]*?getInstagramPlacementPreflightFailure\(\{ userId, placement \}\)[\s\S]*?clientPreflightFailuresByChannel\.instagram = instagramPreflightFailure/,
+    /for \(const placement of requestedInstagramPlacements\)[\s\S]*?if \(placement === "classic"\) continue[\s\S]*?getInstagramPlacementPreflightFailure\(\{ userId, placement \}\)[\s\S]*?clientPreflightFailuresByTarget\[`instagram:\$\{placement\}`\] = instagramPreflightFailure/,
   );
   assert.ok(
     requestGuardStart < route.indexOf("enqueueBoosterPublication({"),

@@ -8,6 +8,8 @@ import css from "./PublishExecutionProgress.module.css";
 type DashboardStyles = Readonly<Record<string, string>>;
 export type PublicationProgressDestination = {
   key: string;
+  channel?: string;
+  placement?: string | null;
   label: string;
   status?: "published" | "pending" | "failed" | "warning" | "skipped";
   href?: string;
@@ -107,8 +109,9 @@ export function PublicationVisualHub({
           const statusConfig = destination.status ? DESTINATION_STATUS[destination.status] : null;
           const status = statusConfig ? { ...statusConfig, label: i18nT(statusConfig.labelKey) } : null;
           const hasDetails = Boolean(status && destination.details);
+          const channelLogo = CHANNEL_LOGOS[destination.channel || destination.key.split(":")[0]];
           const identity = <>
-            {CHANNEL_LOGOS[destination.key] ? <img src={CHANNEL_LOGOS[destination.key]} alt="" width={38} height={38} /> : <span>{destination.label.slice(0, 1)}</span>}
+            {channelLogo ? <img src={channelLogo} alt="" width={38} height={38} /> : <span>{destination.label.slice(0, 1)}</span>}
             <span className={css.destinationText}><strong>{destination.label}</strong>{status ? <small>{status.label}</small> : null}{destination.storyProgressLabel ? <small data-story-confirmed-count>{destination.storyProgressLabel}</small> : null}</span>
             {status && !hasDetails ? <span className={css.destinationBadge} aria-hidden="true">{status.icon}</span> : null}
           </>;

@@ -1,4 +1,8 @@
 {
+  "mail_oauth_configuration_failed": "La conexión con Microsoft no está disponible por un problema en iNrCy. Contacta con el soporte de iNrCy para restablecerla.",
+  "mail_oauth_failed": "No se ha podido completar la conexión con {provider}. Vuelve a intentarlo desde esta burbuja. Si el problema persiste, contacta con iNrCy.",
+  "mail_oauth_expired": "Esta solicitud de conexión de correo ha caducado o ya no es válida. Empieza de nuevo desde esta burbuja.",
+  "mail_oauth_provider": "correo",
   "1_a_20_zones_les_noms_a5d15c7d": "De 1 a 20 zonas. La plataforma vuelve a validar los nombres.",
   "1_canal_0f99221a": "1 canal",
   "1_video_maximum_pour_ea9b1d35": "1 vídeo máximo para",

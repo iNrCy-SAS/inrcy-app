@@ -96,6 +96,9 @@ export function createPublishNowVideoContext(params: {
         duration: variant.duration ?? publicationVideo.duration ?? null,
         width: variant.width ?? null,
         height: variant.height ?? null,
+        // The original FPS describes different bytes. Only use output proof.
+        frameRate: variant.frameRate ?? null,
+        fps: variant.frameRate ?? null,
       },
       transformedVariant: variant,
       sourceVideo: {

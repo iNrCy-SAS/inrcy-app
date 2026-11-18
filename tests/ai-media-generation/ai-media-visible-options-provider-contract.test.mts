@@ -14,6 +14,7 @@ import * as freePrompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as promptShared from "../../lib/aiMediaPromptShared.ts";
 import * as dialogue from "../../lib/aiMediaDialogue.ts";
 import * as characterVoices from "../../lib/aiMediaCharacterVoices.ts";
+import * as imageCatalog from "../../lib/aiMediaModelCatalog.ts";
 import {
   normalizeAiMediaGenerationRequest,
   type AiMediaGenerationRequest,
@@ -150,13 +151,15 @@ test("le prompt image transmet la variation de casting au fournisseur", () => {
   assert.match(prompt, /VARIÉTÉ DE PERSONNAGES IA : visage et coiffure distincts/);
 });
 
-function loadImageGatewayRuntime() {
+function loadImageGatewayRuntime(warnings: Array<{ type: string; feature: string }> = []) {
   const filename = path.join(LIB_ROOT, "aiMediaGateway.ts");
   const captures: {
     nominal?: string;
     google?: string;
     nominalImages?: number;
     googleImages?: number;
+    committed?: number;
+    rolledBack?: number;
   } = {};
   const output = ts.transpileModule(readFileSync(filename, "utf8"), {
     fileName: filename,
@@ -168,6 +171,7 @@ function loadImageGatewayRuntime() {
   }).outputText;
   const stubs = new Map<string, unknown>([
     ["server-only", {}],
+    ["./aiMediaModelCatalog.ts", imageCatalog],
     ["./aiMediaImageProviderGateway.ts", {
       generateAiMediaImageWithGatewayModel: () => { throw new Error("unexpected_new_image_engine_in_legacy_test"); },
       assertAiMediaGatewayImageInputs: () => { throw new Error("unexpected_new_image_engine_in_legacy_test"); },
@@ -195,7 +199,7 @@ function loadImageGatewayRuntime() {
               mediaType: "image/jpeg",
             },
             images: [],
-            warnings: [],
+            warnings,
             usage: {},
           };
         },
@@ -230,8 +234,8 @@ function loadImageGatewayRuntime() {
       "@/lib/aiGatewayAccountGuard",
       {
         reserveAiGatewayAccountAttempt: async () => ({}),
-        commitAiGatewayAccountAttempt: async () => undefined,
-        rollbackAiGatewayAccountAttempt: async () => undefined,
+        commitAiGatewayAccountAttempt: async () => { captures.committed = (captures.committed || 0) + 1; },
+        rollbackAiGatewayAccountAttempt: async () => { captures.rolledBack = (captures.rolledBack || 0) + 1; },
         recordAiGatewayAccountFailure: async () => undefined,
       },
     ],
@@ -857,7 +861,7 @@ test("la composition locale garde les valeurs de texte hors du prompt fournisseu
   );
   assert.match(
     BRAND_RENDERER_SOURCE,
-    /isStructuredCommercialImagePurpose\(args\.imagePurpose\)[\s\S]*?renderAiMediaStructuredCommercialOverlay\(copyArgs\)/,
+    /isStructuredCommercialImagePurpose\(args\.imagePurpose\)[\s\S]*?renderAiMediaStructuredCommercialOverlay\(copyCanvasArgs\)/,
   );
   for (const imagePurpose of [
     "flyer",
@@ -1352,6 +1356,79 @@ test("les deux fournisseurs reçoivent les mêmes références, rôles, usages e
     captures.nominal || "",
     /L'image 4 est exclusivement le logo officiel/,
   );
+});
+
+test("une pièce jointe ignorée par OpenAI ne devient pas une réussite et son coût reste comptabilisé", async () => {
+  const { runtime, captures } = loadImageGatewayRuntime([{ type: "unsupported", feature: "input images" }]);
+  const previousKey = process.env.AI_GATEWAY_API_KEY;
+  process.env.AI_GATEWAY_API_KEY = "test-key";
+  try {
+    await assert.rejects(runtime.generateAiMediaImage({
+      accountId: "native-logo-ignored", prompt: "Intégrer le logo fourni.",
+      identityMode: "auto", officialLogo: Buffer.alloc(48, 2),
+    }), /ai_image_gateway_references_unsupported/);
+    assert.equal(captures.nominalImages, 1);
+    assert.equal(captures.committed, 1);
+    assert.equal(captures.rolledBack || 0, 0);
+  } finally {
+    if (previousKey === undefined) delete process.env.AI_GATEWAY_API_KEY;
+    else process.env.AI_GATEWAY_API_KEY = previousKey;
+  }
+});
+
+test("la retouche distingue le canvas source du logo natif chez les deux fournisseurs", async () => {
+  const { runtime, captures } = loadImageGatewayRuntime();
+  const keys = [process.env.AI_GATEWAY_API_KEY, process.env.GEMINI_API_KEY];
+  process.env.AI_GATEWAY_API_KEY = "test-key";
+  process.env.GEMINI_API_KEY = "test-key";
+  try {
+    const request = {
+      accountId: "native-logo-edit", operation: "modify" as const,
+      prompt: "Ajouter le logo officiel au tablier.", identityMode: "auto" as const,
+      identityReferences: [Buffer.alloc(64, 1)], officialLogo: Buffer.alloc(48, 2),
+    };
+    await runtime.generateAiMediaImage(request);
+    await runtime.generateAiMediaImageWithGoogle(request);
+    assert.equal(captures.nominal, captures.google);
+    assert.equal(captures.nominalImages, 2);
+    assert.equal(captures.googleImages, 2);
+    assert.match(captures.nominal!, /Image 1 est l’image source exacte/);
+    assert.match(captures.nominal!, /Image 2 est exclusivement le logo officiel/);
+    assert.match(captures.nominal!, /ne remplace jamais le canvas/);
+  } finally {
+    if (keys[0] === undefined) delete process.env.AI_GATEWAY_API_KEY;
+    else process.env.AI_GATEWAY_API_KEY = keys[0];
+    if (keys[1] === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = keys[1];
+  }
+});
+
+test("le logo compte dans la limite de références sans troncature ni appel payant", async () => {
+  const { runtime, captures } = loadImageGatewayRuntime();
+  const keys = [process.env.AI_GATEWAY_API_KEY, process.env.GEMINI_API_KEY];
+  process.env.AI_GATEWAY_API_KEY = "test-key";
+  process.env.GEMINI_API_KEY = "test-key";
+  const request = {
+    accountId: "native-logo-capacity", prompt: "Créer le visuel.", identityMode: "auto" as const,
+    identityReferences: Array.from({ length: 5 }, () => Buffer.alloc(64, 1)),
+    officialLogo: Buffer.alloc(48, 2),
+  };
+  try {
+    await assert.rejects(runtime.generateAiMediaImage(request), /reference_count_unsupported/);
+    await assert.rejects(runtime.generateAiMediaImageWithGoogle(request), /reference_count_unsupported/);
+    assert.equal(captures.nominalImages, undefined);
+    assert.equal(captures.googleImages, undefined);
+    request.identityReferences.pop();
+    await runtime.generateAiMediaImage(request);
+    await runtime.generateAiMediaImageWithGoogle(request);
+    assert.equal(captures.nominalImages, 5);
+    assert.equal(captures.googleImages, 5);
+  } finally {
+    if (keys[0] === undefined) delete process.env.AI_GATEWAY_API_KEY;
+    else process.env.AI_GATEWAY_API_KEY = keys[0];
+    if (keys[1] === undefined) delete process.env.GEMINI_API_KEY;
+    else process.env.GEMINI_API_KEY = keys[1];
+  }
 });
 
 test("les moteurs image conservent l’identité requise sans figer sa mise en scène par défaut", async () => {

@@ -16,11 +16,11 @@ export const INR_ASSISTANT_CREATION_GUIDES: readonly InrAssistantCreationGuide[]
     keywords: ["booster", "publier", "publication", "programmer", "réseaux", "contenus", "brouillon", "tiktok", "musique", "stories", "reel"],
     content: `${productNavigationSummary("publish", false)} Parcours : Préparation → Idée → Contenus → Médias → Validation → Bilan ; Idée disparaît en Manuel.
 1. Préparation : choisir les canaux disponibles, Automatique ou Manuel, puis Continuer. Indisponible : lire la raison dans Mes canaux. Google Business doit être validé ; reconnecter seulement si l’accès le demande.
-2. Automatique : décrire le sujet dans Idée, joindre les références et cliquer « ✨ Générer avec iNrCy ». Manuel : rédiger dans Contenus. « Ajuster la génération » reprend le sujet et la consigne ; choisir les canaux puis « Adapter les contenus ». Les textes actuels, même modifiés, sont adaptés ; les canaux décochés et les médias sont conservés. Annuler ne change rien.
+2. Automatique : sujet et références dans Idée, puis « ✨ Générer avec iNrCy ». Manuel : rédiger dans Contenus. « Ajuster la génération » reprend sujet/consigne ; choisir les canaux puis « Adapter les contenus ». Les textes actuels sont adaptés ; canaux décochés et médias conservés. Annuler ne change rien.
 3. Médias : importer, choisir dans la Médiathèque ou générer dans iNrStudio. « Modifier » ouvre la modification IA de l’image choisie ; « Retoucher » ouvre l’édition manuelle. Stories : 4 s/image ; Reel : 3 s/image (5 images = 15 s). Vérifier chaque aperçu ; les reprises conservent musique et Stories validées.
 4. Validation : vérifier les alertes, formats Facebook/Instagram, case Story, tableau Pinterest et mode Threads. « Musique » : réservée aux Stories/Reels ; Auto ou 30 sons avec préécoute, une piste par canal. Photos Google Business/Threads et son des vidéos importées conservés ; TikTok garde la musique native des photos. « Publier » ouvre « Confirmer la publication ? » ; confirmer avec « Publier ». « 🕒 Programmer » ouvre date/heure. TikTok peut demander sa validation ; YouTube exige une vidéo.
-5. Bilan : contrôler chaque canal avant d’annoncer un succès. Un succès partiel ne signifie pas que tous ont publié. « Brouillons » rouvre les brouillons ; sauvegarde : « Enregistrer le brouillon publication ».
-Programmation : terminer le transfert original. Après confirmation de l’enregistrement, les adaptations continuent en arrière-plan ; fermer l’écran conserve la programmation. Vérifier le statut dans Planning ; ne pas promettre l’envoi d’un média en échec.
+5. Bilan par type/canal (Classique/Reel/Story, Threads classique/éphémère) : vert publié, rouge échec, attente. Total = blocs : Facebook + Story = 2 ; avec Instagram + Story = 4. Reprendre seulement les échecs ; les succès restent acquis. Brouillons : rouvrir ; sauvegarder : « Enregistrer le brouillon publication ».
+Programmation : terminer le transfert original. Enregistrement confirmé : les adaptations continuent même écran fermé. Vérifier le statut dans Planning ; ne pas promettre l’envoi d’un média en échec.
 Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles des canaux. Planning permet consulter, modifier, reprogrammer, annuler et publier maintenant, y compris en Basique ; l’automatisation IA reste exclue en Basique. Générer/modifier un média IA passe par iNrStudio avec assez de crédits pour son devis ; ouvrir Studio ne débite rien. Import personnel, retouche manuelle et texte restent utilisables sans crédits IA.`,
     sourceFiles: ["lib/inrAssistantPublicationTools.ts", "lib/inrAssistantScheduledPublicationTools.ts", "lib/inrAssistantScheduledPublicationEdit.ts", "lib/productNavigation.ts", "app/api/booster/connected-channels/route.ts", "lib/googleBusinessPublicationGate.ts",
       "app/dashboard/_components/dashboardMobileMenuModel.ts",
@@ -38,8 +38,10 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
       "app/dashboard/_components/DashboardBoosterModalLayer.tsx",
       "app/dashboard/_hooks/useUnsavedExitGuard.ts",
       "app/dashboard/booster/publier/publicationExitProtection.ts",
-      "app/dashboard/booster/publier/publicationDraftSession.ts"
-    ],
+      "app/dashboard/booster/publier/publicationDraftSession.ts",
+      "app/dashboard/_components/PublishExecutionResultModal.tsx",
+      "lib/metaPlacementVideoPolicy.ts",
+      "lib/boosterPublicationSequence.ts"],
   },
   {
     id: "studio-create",
@@ -47,7 +49,7 @@ Accès : Basique, Standard (essai inclus), Premium, selon connexions et règles 
     keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits", "voix", "vocal", "musiques", "narration", "sous-titres"],
     content: `${productNavigationSummary("studio", false)} Format/moteur/durée, plans automatiques en Studio Libre, choix explicite conservé. Moteurs disponibles compatibles références/vocaux originaux, ≤16 crédits/s. Wan 3 et MiniMax H3 retirés de tous les parcours de génération.
 Libre : prompt vidéo intégral + références au moteur, sans image substituée ni analyse IA bloquante.
-Vidéo/image : 500/4 000 caractères ; paroles à part. Utiliser mon ADN coché ; sinon marque/logo sur demande. Consignes ET Interdictions intégrales de Ma communication ; interdictions priment. Booster illustre sans copie ; logo discret facultatif omis sans zone sûre ; logo visible/demandé : zone sûre ou refus. Coordonnées sur demande.
+Vidéo/image : 500/4 000 caractères ; paroles à part. Utiliser mon ADN coché ; sinon marque/logo sur demande. Consignes ET Interdictions intégrales de Ma communication ; interdictions priment. Booster sans copie. Image : logo en référence au moteur (+1 photo ; Recraft incompatible), fidélité à vérifier. Vidéo : habillage local. Coordonnées sur demande.
 Inspiration facultative ; Personnage/Décor/Produit requis. Importer/Médiathèque : vérifier identités/doublons.
 Musique iNrCy Auto/Sans/piste : préécoute, hors vocaux.
 Menus indépendants Personnages/Voix off/Sans paroles, Auto/Exact, IA/Réelle globale ; textes/vocaux/moteur gardés. Exact→Réglages : ligne locuteur/texte, ajout/retrait/ordre. Voix off→narrateur ; Personnages restaure voix/mix IA hors champ. Vide/cible absente/incompatible : bloqué sans moteur automatique. Sans paroles omet texte ; durée estimée non bloquante.
@@ -98,6 +100,8 @@ Basique sans crédits mensuels ; recharges permettent de générer sans changer 
       "app/dashboard/_components/MediaModifier.tsx",
       "lib/aiMediaGlobalConstraints.ts",
       "lib/aiMediaGenerationServer.ts",
+      "lib/aiMediaGateway.ts",
+      "lib/aiMediaImageGenerationPrompt.ts",
       "lib/aiMediaFreeGenerationPrompt.ts",
       "lib/aiMediaFreeDnaContext.ts",
       "lib/aiMediaLocalLogoCompositionPrompt.ts",

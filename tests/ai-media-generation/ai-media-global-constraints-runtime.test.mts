@@ -9,6 +9,7 @@ import test from "node:test";
 import ts from "typescript";
 
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
+import * as imageCatalog from "../../lib/aiMediaModelCatalog.ts";
 import * as globals from "../../lib/aiMediaGlobalConstraints.ts";
 import * as freePrompts from "../../lib/aiMediaFreeGenerationPrompt.ts";
 import * as providerContracts from "../../lib/aiMediaVideoProviderContract.ts";
@@ -110,6 +111,7 @@ function harness(activeProfile = profile(), failVideo = false, allowGeneratedFra
     ["@/lib/aiMediaCopywriter", { writeAiMediaHeadline: async () => structuredClone(plan) }],
     ["@/lib/aiMediaCastingVariation", { chooseAiMediaCastingVariation: () => null }],
     ["@/lib/aiMediaGenerationPrompt", prompts], ["@/lib/aiMediaGenerationContracts", contracts],
+    ["@/lib/aiMediaModelCatalog", imageCatalog],
     ["@/lib/aiMediaFreeGenerationPrompt", freePrompts], ["@/lib/aiMediaVideoProviderContract", providerContracts],
     ["@/lib/aiMediaFreeVoiceoverPolicy", real.load("lib/aiMediaFreeVoiceoverPolicy.ts")],
     ["@/lib/aiMediaImageProviderRequest", real.load("lib/aiMediaImageProviderRequest.ts")],

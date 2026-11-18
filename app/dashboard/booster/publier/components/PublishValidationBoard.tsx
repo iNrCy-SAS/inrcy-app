@@ -128,7 +128,7 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
         const mediaBlockers = item.mediaBlockers || [];
         const mediaWarnings = item.mediaWarnings || [];
         const contentTone = contentBlockers.length ? "blocked" : contentWarnings.length || !item.hasText ? "warning" : "ready";
-        const mediaTone = item.mediaBlockerCodes?.length ? "blocked" : mediaWarnings.length ? "warning" : mode === "none" || mode === "images" && keys.length || mode === "video" && videoPreviewUrl ? "ready" : "blocked";
+        const mediaTone = item.mediaBlockerCodes?.length || mediaBlockers.length ? "blocked" : mediaWarnings.length ? "warning" : mode === "none" || mode === "images" && keys.length || mode === "video" && videoPreviewUrl ? "ready" : "blocked";
         const contentMessages = [...contentBlockers, ...contentWarnings];
         const mediaMessages = [...mediaBlockers, ...mediaWarnings];
         const maxImages = getBoosterMaxImageCountForChannel(item.channel);
@@ -150,6 +150,14 @@ export default function PublishValidationBoard({ items, imageKeys, previewByKey,
               <button type="button" disabled={disabled || !videoPreviewUrl} data-active={mode === "video"} aria-pressed={mode === "video"} aria-label={t("video_304f6ca4")} title={t("video_304f6ca4")} onClick={() => onModeChange(item.channel, "video")}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><rect x="2" y="5" width="13" height="14" rx="3"/><path d="m15 10 7-4v12l-7-4"/></svg></button>
             </span> : null}
           </span><ReviewStatus tone={mediaTone} label={status(mediaTone)} hint={item.channel === "youtube_shorts" && item.mediaBlockerCodes?.includes("youtube_video_required") ? t("wizard_video_required") : undefined} messages={mediaMessages} id={`${warningId}-${item.channel}-media`} open={warning === `${item.channel}-media`} onToggle={() => setWarning(warning === `${item.channel}-media` ? null : `${item.channel}-media`)} /></div>
+          {item.placementReviews?.map((review) => {
+            const tone = item.channelBlockers?.length || review.blockers.length ? "blocked" : review.warnings.length ? "warning" : "ready";
+            const warningKey = `${review.targetKey}-placement`;
+            return <div key={review.targetKey} className={css.statusLine} data-publication-target={review.targetKey} data-tone={tone}>
+              <span>{review.label.split(" · ").slice(1).join(" · ")}</span>
+              <ReviewStatus tone={tone} label={status(tone)} messages={[...(item.channelBlockers || []), ...review.blockers, ...review.warnings]} id={`${warningId}-${warningKey}`} open={warning === warningKey} onToggle={() => setWarning(warning === warningKey ? null : warningKey)} />
+            </div>;
+          })}
           <div className={css.thumbnails}>
             {keys.map((key, index) => {
               return <div key={key} className={css.image} data-validation-image={key} data-drag-over={dragTarget === key} draggable={!disabled && keys.length > 1}

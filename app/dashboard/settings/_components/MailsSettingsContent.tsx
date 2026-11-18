@@ -158,6 +158,7 @@ function useMailsSettingsController({ onUnsavedChange }: SignatureSettingsProps)
   const [loading, setLoading] = React.useState(true);
   const [mailAccounts, setMailAccounts] = React.useState<MailAccount[]>(() => readChannelWorkspaceSnapshot("mails", []));
   const [error, setError] = React.useState<string | null>(null);
+  const [oauthFeedbackError, setOAuthFeedbackError] = React.useState<string | null>(null);
   const [toast, setToast] = React.useState<string | null>(null);
   const [busyDisconnect, setBusyDisconnect] = React.useState<string | null>(null);
   const mailAccountsRef = React.useRef(mailAccounts);
@@ -420,13 +421,48 @@ function useMailsSettingsController({ onUnsavedChange }: SignatureSettingsProps)
 React.useEffect(() => {
   const url = new URL(window.location.href);
   const t = url.searchParams.get("toast");
+  const linked = url.searchParams.get("linked");
+  const ok = url.searchParams.get("ok");
+  const provider = linked === "microsoft" ? "Microsoft" : linked === "google" || linked === "gmail" ? "Gmail" : null;
+  const oauthError = url.searchParams.get("error");
+  // Google configuration errors predate the `linked` parameter. Both mail
+  // callbacks also return a provider-less toast when their state has expired.
+  const isMailOAuthReturn = Boolean(provider && (ok === "0" || ok === "1"))
+    || t === "oauth_state"
+    || (!linked && ok === "0" && oauthError === "oauth_config_missing");
+
+  if (isMailOAuthReturn) {
+    setToast(null);
+    if (t === "oauth_state" || ["invalid_state", "state_mismatch", "flow_state_expired", "microsoft_oauth_authorization_expired"].includes(oauthError || "")) {
+      setOAuthFeedbackError(i18nT("mail_oauth_expired"));
+    } else if (oauthError === "microsoft_oauth_configuration_error") {
+      setOAuthFeedbackError(i18nT("mail_oauth_configuration_failed"));
+    } else if (ok === "1") {
+      setError(null);
+      setOAuthFeedbackError(null);
+      setToast("connected");
+    } else {
+      const code = oauthError === "not_authenticated" ? "session_expired" : oauthError || "oauth_callback_failed";
+      setOAuthFeedbackError(getLocalizedErrorMessage(
+        { code, error: url.searchParams.get("message") || code },
+        locale,
+        i18nT("mail_oauth_failed", { provider: provider || i18nT("mail_oauth_provider") }),
+        { allowUnknownMessage: false },
+      ));
+    }
+    // Keep the panel and other navigation choices, but remove callback
+    // diagnostics and authorization parameters from the visible URL/history.
+    for (const key of ["linked", "ok", "error", "message", "error_description", "toast", "code", "state", "session_state"]) url.searchParams.delete(key);
+    window.history.replaceState({}, "", url.toString());
+    return;
+  }
 
   if (t) {
     setToast(t);
     url.searchParams.delete("toast");
     window.history.replaceState({}, "", url.toString());
   }
-}, []);
+}, [i18nT, locale]);
 
   React.useEffect(() => {
     let alive = true;
@@ -475,6 +511,7 @@ React.useEffect(() => {
     try {
       setBusyDisconnect(acc.id);
       setError(null);
+      setOAuthFeedbackError(null);
       setToast(null);
       const endpoint = acc.provider === "gmail"
         ? "/api/integrations/google/disconnect"
@@ -1038,7 +1075,7 @@ React.useEffect(() => {
       accountConnected: mailAccounts.length > 0,
       resourceLabel: "",
       mailboxes: mailboxSlots,
-      loading, busy: Boolean(busyDisconnect), error, notice: bubbleNotice,
+      loading, busy: Boolean(busyDisconnect), error: error || oauthFeedbackError, notice: bubbleNotice,
       parameters, parametersOwnHeading: true,
     },
   };

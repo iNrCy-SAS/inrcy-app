@@ -46,6 +46,7 @@ test("les moteurs image reçoivent les références sans repli photo silencieux"
   const publicErrors = read("lib/aiMediaGenerationPublicErrors.ts");
   const imageBranchStart = server.indexOf(
     'if (providerRequest.kind === "image")',
+    server.indexOf("let normalized:"),
   );
   const imageBranchEnd = server.indexOf("\n  } else {", imageBranchStart);
   const imageBranch = server.slice(imageBranchStart, imageBranchEnd);

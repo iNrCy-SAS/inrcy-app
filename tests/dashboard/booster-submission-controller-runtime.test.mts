@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import * as storyRetry from "../../lib/publicationStorySequenceRetry.ts";
+import * as metaPublicationTargets from "../../lib/metaPublicationTargets.ts";
 import { mergePreflightFailuresIntoPublicationSummary } from "../../lib/boosterPublicationOutcome.ts";
 import { isBoosterPublicationPendingStatus } from "../../lib/boosterPublicationStatus.ts";
 import { mapProgressRange, resolvePublicationBilanProgress } from "../../lib/boosterProgressPhases.ts";
@@ -57,7 +58,7 @@ function fixture() {
     "@/lib/boosterPublicationStatus": { isBoosterPublicationPendingStatus },
     "./publishModal.shared": { CHANNEL_LABELS: { facebook: "Facebook", gmb: "Google" }, clampPercent: (value: number) => Math.max(0, Math.min(100, Math.round(value))), getAutomaticVideoSettingsForPublication: () => ({ format: "original", adaptationMode: "fit" }), uploadPreparedImages: async () => { throw new Error("Unexpected media upload"); } },
     "./publishModal.foundations": { EMPTY_CHANNEL_DETAILS: {}, normalizeExternalHref: (value: string) => value || "" },
-    "@/lib/metaPublicationTargets": { buildMetaPublicationSelection: (primaryPlacement: string, includeStory: boolean) => ({ primaryPlacement, includeStory }) },
+    "@/lib/metaPublicationTargets": metaPublicationTargets,
     "@/lib/mediaWorkspaceTimeout": { MEDIA_WORKSPACE_READINESS_TIMEOUT_MS: 35_000 },
   };
   let timerId = 0;

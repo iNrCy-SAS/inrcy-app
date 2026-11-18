@@ -168,7 +168,7 @@ function MediaEngineInfoModal({ kind, activeEngine, format, videoMaxDurationSeco
             <span>{t(option.supportsModify ? "ai_generator_image_creation_editing" : "ai_generator_image_generation_only")}</span>
             <span>{option.supportsReferences ? t("ai_generator_model_reference_limit", { count: option.maxReferenceImages }) : t("ai_generator_image_references_unavailable")}</span>
           </div>
-          {option.transport === "gateway-image" ? <p>{t("ai_generator_engine_info_logo_overlay")}</p> : null}
+          <p>{t(option.supportsReferences ? "ai_generator_engine_info_logo_overlay" : "ai_generator_image_logo_unavailable")}</p>
         </section>)}
       <p className={styles.engineInfoNote}>{t(kind === "video" ? "ai_generator_engine_info_cost_note" : "ai_generator_image_model_hint")}</p>
       {kind === "video" ? <p className={styles.engineInfoNote}>{t("ai_generator_engine_info_settings_note")}</p> : null}
@@ -299,9 +299,12 @@ export default function MediaEngineCreditControls(props: Props) {
           {recommendedPair?.value === option.value ? ` · ${t("ai_generator_model_recommended_short")}` : ""}
         </option>)}
       </optgroup>)}
-    </select> : <select id={`${id}-engine`} value={props.imageEngine} disabled={props.disabled} title={imageCompatibilityReason(props.imageEngine) || undefined} onChange={(event) => { const engine = normalizeAiMediaImageEngine(event.target.value); if (engine && imageSelectable(engine)) props.onImageEngineChange(engine); }}>
+    </select> : <select id={`${id}-engine`} value={props.imageEngine} disabled={props.disabled} aria-describedby={`${id}-image-logo-reference`} title={imageCompatibilityReason(props.imageEngine) || undefined} onChange={(event) => { const engine = normalizeAiMediaImageEngine(event.target.value); if (engine && imageSelectable(engine)) props.onImageEngineChange(engine); }}>
       {AI_MEDIA_IMAGE_MODELS.map((option) => <option key={option.id} value={option.id} disabled={!imageSelectable(option.id)}>{option.label} · {t("ai_generator_model_image_credits", { credits: new Intl.NumberFormat(locale).format(getAiMediaImageBaseCredits(option.id, props.format)) })}{!imageSelectable(option.id) ? ` · ${imageCompatibilityReason(option.id)}` : ""}{props.recommendation?.engine === option.id ? ` · ${t("ai_generator_model_recommended_short")}` : ""}</option>)}
     </select>}
+    {props.kind === "image" ? <small id={`${id}-image-logo-reference`} className={styles.imageLogoHint} data-image-logo-reference-hint>
+      {t(getAiMediaImageModel(props.imageEngine).supportsReferences ? "ai_generator_image_logo_reference_limit" : "ai_generator_image_logo_unavailable", { count: getAiMediaImageModel(props.imageEngine).maxReferenceImages })}
+    </small> : null}
     </div>
     {props.kind === "video" ? <div className={styles.durationField}>
       <label htmlFor={`${id}-duration`}>{t("ai_generator_free_duration_label")}</label>

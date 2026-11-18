@@ -8,6 +8,7 @@ import ts from "typescript";
 import * as retry from "../../lib/publicationStorySequenceRetry.ts";
 import { isBoosterPublicationPendingStatus } from "../../lib/boosterPublicationStatus.ts";
 import * as motionTiming from "../../lib/metaImageMotionTiming.ts";
+import { runtimeModules } from "../inragent/runtime-module-loader.mts";
 
 const require = createRequire(import.meta.url);
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
@@ -31,6 +32,7 @@ function productionFunction<T>(source: ts.SourceFile, name: string, scope: Recor
   return evaluate(find(source, node => ts.isFunctionDeclaration(node) && node.name?.text === name).getText(source).replace(/^export\s+/, ""), scope);
 }
 const getPublicationDestinationStatus = productionFunction<(entry: unknown) => string>(parse("app/dashboard/_components/PublishExecutionProgress.tsx"), "getPublicationDestinationStatus");
+const submissionPayload = runtimeModules({ "../../_components/PublishExecutionProgress": { getPublicationDestinationStatus } })<typeof import("../../app/dashboard/booster/publier/publicationSubmissionPayload.ts")>("app/dashboard/booster/publier/publicationSubmissionPayload.ts");
 const facebookRef = "10000000-0000-4000-8000-000000000001", instagramRef = "10000000-0000-4000-8000-000000000002";
 const failed = { channel: "facebook", label: "Facebook", status: "failed", ok: false, retryable: true, story_sequence_resume_ref: facebookRef };
 const partial = { channel: "instagram", label: "Instagram", status: "published_with_warning", ok: true, retryable: true, warning: "meta_placement_partial_failure", story_sequence_resume_ref: instagramRef };
@@ -69,7 +71,7 @@ test("the current retry callback includes the partial Story channel and refuses 
 });
 
 test("retry summary and polling retain the partial checkpoint and clear it after a completed retry", () => {
-  const merge = productionFunction<(previous: unknown, next: unknown, id: string, channels: string[]) => { entries: typeof partial[]; retryableFailureCount: number }>(modal, "mergeRetriedPublicationSummary", { getPublicationDestinationStatus });
+  const merge = submissionPayload.mergeRetriedPublicationSummary;
   const first = merge(undefined, { entries: [{ ...partial, published_image_count: 3, expected_image_count: 5 }] }, "publication-a", ["instagram"]);
   assert.equal(first.entries[0].story_sequence_resume_ref, instagramRef); assert.equal(first.retryableFailureCount, 1);
   assert.deepEqual(retry.publicationStorySequenceCounts(first.entries[0]), { confirmed: 3, expected: 5 });

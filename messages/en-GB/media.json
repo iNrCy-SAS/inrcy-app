@@ -972,7 +972,7 @@
   "ai_generator_duration_scene_single": "{seconds} s · 1 scene",
   "ai_generator_duration_scene_multi": "{seconds} s · 2 scenes",
   "ai_generator_duration_adjusted": "{model}: adjusted to {seconds} seconds, {scenes}.",
-  "ai_generator_engine_info_logo_overlay": "The official logo is added in the top-right corner after generation.",
+  "ai_generator_engine_info_logo_overlay": "The model receives your saved logo as a reference and attempts to integrate it into the image. Check the result for accuracy.",
   "ai_generator_editor_settings_label": "Media settings",
   "ai_generator_editor_tab_criteria": "Criteria",
   "ai_generator_editor_tab_prompt": "Prompt",
@@ -991,7 +991,7 @@
   "ai_generator_use_business_dna_info_label": "How does my business DNA work?",
   "ai_generator_use_business_dna_info_close": "Close business DNA information",
   "ai_generator_use_business_dna_info_sources": "AI uses the professional information saved and relevant to your request: profile, business DNA, reference documents, website and social profiles, services, area, strengths and listed prices.",
-  "ai_generator_use_business_dna_info_identity": "Business DNA applies your brand colours and, for images, your saved logo, unless your prompt says otherwise.",
+  "ai_generator_use_business_dna_info_identity": "Business DNA provides your brand colours and, for images, your saved logo as a model reference, unless your prompt says otherwise. Check how it is rendered.",
   "ai_generator_use_business_dna_info_contacts": "Your contact details and links are added to the media only when you request them, without having to enter them again.",
   "ai_generator_use_business_dna_info_freedom": "With business DNA unticked, your business logo and colours are not applied automatically. You can request them in your prompt. Instructions and prohibitions from My communication still apply.",
   "ai_generator_prompt_helper_title_image": "How to describe your image",
@@ -1183,5 +1183,7 @@
   "ai_generator_model_description_heygen-avatar": "Talking portraits and dialogue with your photos and voices.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Presentations to camera and conversations in successive shots.",
   "ai_generator_engine_info_video_limits_heygen-avatar": "Each person speaks in a separate shot. Avatar mode does not compose a group scene. Final length follows the speech; the selected duration is a guide.",
-  "ai_generator_model_reference_duration_available": "With multiple photos, available durations: {durations}."
+  "ai_generator_model_reference_duration_available": "With multiple photos, available durations: {durations}.",
+  "ai_generator_image_logo_reference_limit": "If your saved logo is used, it counts towards the {count} reference images allowed.",
+  "ai_generator_image_logo_unavailable": "To include your saved logo, choose a model that accepts reference images."
 }

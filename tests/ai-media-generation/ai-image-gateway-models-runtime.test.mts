@@ -66,6 +66,7 @@ function loadGatewayRouter(runtime: Runtime) {
     ["@google/genai", { GoogleGenAI: forbiddenLegacy }], ["@/lib/aiGatewayAccountGuard", {}],
     ["@/lib/aiMediaBuffer", { bufferFromUint8ArrayView }], ["@/lib/aiMediaSensitiveText", sensitiveText],
     ["./aiMediaImageProviderGateway.ts", runtime],
+    ["./aiMediaModelCatalog.ts", catalog],
   ]);
   const runtimeModule = { exports: {} };
   vm.runInThisContext(`(function(exports,require,module){${javascript}\n})`)(runtimeModule.exports, (specifier: string) => {

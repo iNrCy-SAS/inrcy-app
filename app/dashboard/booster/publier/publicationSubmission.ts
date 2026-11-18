@@ -12,9 +12,9 @@ import { CHANNEL_LABELS, clampPercent, getAutomaticVideoSettingsForPublication, 
 import { EMPTY_CHANNEL_DETAILS, normalizeExternalHref, type PendingImmediatePublishAfterSchedule } from "./publishModal.foundations";
 import { type TiktokPublicationSettings } from "./components/TiktokPublicationSettingsModal";
 import { type PublishScheduleSelection } from "./components/PublishScheduleModal";
-import { buildMetaPublicationSelection } from "@/lib/metaPublicationTargets";
+import { buildBoosterPublicationTargets, buildMetaPublicationSelection } from "@/lib/metaPublicationTargets";
 import { MEDIA_WORKSPACE_READINESS_TIMEOUT_MS } from "@/lib/mediaWorkspaceTimeout";
-import { buildChannelRecord, buildChannelUnknownRecord, mergeRetriedPublicationSummary } from "./publicationSubmissionPayload";
+import { buildChannelRecord, buildChannelUnknownRecord, getRetryPublicationTargets, mergeRetriedPublicationSummary, publicationSummaryTargetKey } from "./publicationSubmissionPayload";
 import type { PublicationSubmissionContext } from "./publicationSubmissionContext";
 
 const BOOSTER_PUBLISH_VISIBLE_CAP_MS = 60_000;
@@ -153,6 +153,20 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
         options?.channels !== undefined ? options.channels : selectedChannels,
       ),
     ).filter((channel): channel is ChannelKey => Boolean(channel));
+    const retryTargets = options?.retryPreviousSummary ? getRetryPublicationTargets(options.retryPreviousSummary, publishTargetChannels) : undefined;
+    const publicationTargetDestinations = (retryTargets || buildBoosterPublicationTargets({
+      channels: publishTargetChannels,
+      facebookPublicationSettings: buildMetaPublicationSelection(facebookPublicationPlacement, facebookStoryEnabled),
+      instagramPublicationSettings: buildMetaPublicationSelection(instagramPublicationPlacement, instagramStoryEnabled),
+    })).map((target) => ({
+      key: target.placement ? `${target.channel}:${target.placement}` : target.channel,
+      channel: target.channel, placement: target.placement,
+      label: `${CHANNEL_LABELS[target.channel as ChannelKey]}${target.placement ? ` · ${i18nT(target.placement === "story" ? "instagram_stories" : target.placement === "reel" ? "instagram_reels" : "instagram_classic")}` : target.channel === "threads" ? ` · ${i18nT(threadsPublicationMode === "ghost" ? "threads_ghost" : "threads_classic")}` : ""}`,
+    }));
+    const publicationAllTargetKeys = [...new Set([
+      ...(options?.retryPreviousSummary?.entries || []).map(publicationSummaryTargetKey),
+      ...publicationTargetDestinations.map((target) => target.key),
+    ])].filter((key, _index, keys) => key.includes(":") || !keys.some((target) => target.startsWith(`${key}:`)));
 
     setPublishError("");
     setDraftMessage("");
@@ -180,10 +194,10 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
     setPublicationDestinations((current) => {
       const destinations = options?.retryPreviousSummary && current.length
         ? current
-        : publishTargetChannels.map((key) => ({ key, label: CHANNEL_LABELS[key] }));
+        : publicationTargetDestinations;
       return destinations.map<PublicationProgressDestination>((destination) => {
-        if (publishTargetChannels.includes(destination.key as ChannelKey)) return { ...destination, status: "pending", details: undefined, href: undefined };
-        const previousEntry = options?.retryPreviousSummary?.entries?.find((entry) => entry.channel === destination.key);
+        if (publicationTargetDestinations.some((target) => target.key === destination.key)) return { ...destination, status: "pending", details: undefined, href: undefined };
+        const previousEntry = options?.retryPreviousSummary?.entries?.find((entry) => publicationSummaryTargetKey(entry) === destination.key);
         return previousEntry ? { ...destination, status: getPublicationDestinationStatus(previousEntry) } : destination;
       });
     });
@@ -240,13 +254,16 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
         21,
       );
     const preflightFailedChannels = reviewItems
-      .filter((item) => item.blockers.length > 0)
+      .filter((item) => (item.channelBlockers || item.blockers).length > 0)
       .map((item) => ({
         channel: item.channel,
         label: item.label,
-        blockers: item.blockers,
+        blockers: item.channelBlockers || item.blockers,
         code: item.blockerCodes?.[0] || "prepublish_validation_failed",
       }));
+    const preflightFailedTargets = preflightFailedChannels.flatMap((failure) => publicationTargetDestinations
+      .filter((target) => target.channel === failure.channel)
+      .map((target) => ({ ...failure, targetKey: target.key, placement: target.placement, label: target.label })));
 
     const publishableChannels = reviewItems
       .filter((item) => item.blockers.length === 0)
@@ -274,6 +291,7 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
         },
       ]),
     );
+    const clientPreflightFailuresByTarget = Object.assign({}, ...reviewItems.map((item) => item.targetFailures || {}));
     const publishTargetMediaModeByChannel = Object.fromEntries(
       publishTargetChannels.map((channel) => [
         channel,
@@ -390,8 +408,7 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
 
     if (
       publishableChannels.includes("facebook") &&
-      ((facebookPublicationPlacement === "reel" || facebookStoryEnabled) ||
-        facebookPublicationPlacement === "story")
+      (facebookPublicationPlacement === "reel" || facebookPublicationPlacement === "story")
     ) {
       const facebookMode = publishMediaModeByChannel.facebook || "none";
       const facebookImages = channelImageEditors.facebook?.imageKeys || [];
@@ -483,38 +500,33 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
               Boolean(entry && typeof entry === "object"),
           ) as Record<string, any>[])
         : [];
-      const terminalChannels = new Set<string>(preflightFailureChannels);
+      const terminalChannels = new Set<string>([
+        ...(options?.retryPreviousSummary?.entries || []).filter((entry) =>
+          !publicationTargetDestinations.some((target) => target.key === publicationSummaryTargetKey(entry)) &&
+          ["published", "warning", "failed", "skipped"].includes(getPublicationDestinationStatus(entry))).map(publicationSummaryTargetKey),
+        ...publicationTargetDestinations.filter((target) => preflightFailureChannels.has(target.channel as ChannelKey) || clientPreflightFailuresByTarget[target.key]).map((target) => target.key),
+      ]);
       // Reuse the existing server snapshots for display only; accepted jobs remain pending.
       setPublicationDestinations((current) => current.map((destination) => {
-        if (!publishTargetChannels.includes(destination.key as ChannelKey)) return destination;
-        const entry = entries.find((item) => item.channel === destination.key);
-        if (!entry) return preflightFailureChannels.has(destination.key as ChannelKey)
+        if (!publicationTargetDestinations.some((target) => target.key === destination.key)) return destination;
+        const entry = entries.find((item) => publicationSummaryTargetKey(item) === destination.key) || entries.find((item) => item.channel === (destination.channel || destination.key) && !item.placement && !item.targetKey?.includes(":"));
+        if (!entry) return preflightFailureChannels.has((destination.channel || destination.key) as ChannelKey) || clientPreflightFailuresByTarget[destination.key]
           ? { ...destination, status: "skipped" }
           : destination;
         return { ...destination, status: getPublicationDestinationStatus(entry) };
       }));
       let preparingCount = 0;
       entries.forEach((entry) => {
-        const channel = String(entry.channel || "");
+        const channel = publicationSummaryTargetKey(entry);
         const status = String(
           entry.technicalStatus || entry.status || "",
         ).toLowerCase();
-        const terminal =
-          typeof entry.ok === "boolean" ||
-          [
-            "failed",
-            "error",
-            "published",
-            "published_with_warning",
-            "completed",
-            "success",
-            "succeeded",
-          ].includes(status);
-        if (terminal) terminalChannels.add(channel);
+        const terminal = ["published", "warning", "failed", "skipped"].includes(getPublicationDestinationStatus(entry));
+        if (terminal && publicationAllTargetKeys.includes(channel)) terminalChannels.add(channel);
         if (status === "preparing") preparingCount += 1;
       });
 
-      const totalCount = Math.max(1, publishTargetChannels.length);
+      const totalCount = Math.max(1, publicationAllTargetKeys.length);
       const terminalCount = Math.min(totalCount, terminalChannels.size);
       const mediaPreparationInProgress =
         preparingCount > 0 ||
@@ -553,7 +565,7 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
       if (update.stage === "released_to_background") {
         setPublicationProgressPhase(
           "status_collection",
-          i18nT("publication_pending_channels_confirmation", { value0: Math.max(0, totalCount - terminalCount), value1: totalCount - terminalCount > 1 ? "canaux finalisent" : "canal finalise" }),
+          i18nT("publication_pending_count_confirmation", { count: Math.max(0, totalCount - terminalCount) }),
           93,
         );
         return;
@@ -583,12 +595,7 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
           return;
         }
         armPublicationFinalWait();
-        const nextChannel = publishTargetChannels.find(
-          (channel) => !terminalChannels.has(channel),
-        );
-        const nextChannelLabel = nextChannel
-          ? CHANNEL_LABELS[nextChannel] || nextChannel
-          : "le prochain canal";
+        const nextChannelLabel = publicationTargetDestinations.find((target) => !terminalChannels.has(target.key))?.label || "la prochaine publication";
         setPublicationProgressPhase(
           "publication_finalization",
           i18nT("publication_channel_progress", { value0: Math.min(totalCount, terminalCount + 1), value1: totalCount, value2: nextChannelLabel }),
@@ -606,10 +613,7 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
           return;
         }
         armPublicationFinalWait();
-        const firstChannel = publishTargetChannels[0];
-        const firstChannelLabel = firstChannel
-          ? CHANNEL_LABELS[firstChannel] || firstChannel
-          : "le canal sélectionné";
+        const firstChannelLabel = publicationTargetDestinations[0]?.label || "la publication sélectionnée";
         setPublicationProgressPhase(
           "channel_dispatch",
           i18nT("publication_first_channel_progress", { value0: totalCount, value1: firstChannelLabel }),
@@ -834,10 +838,12 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
         idea: idea.trim(),
         theme,
         channels: publishTargetChannels,
+        publicationTargets: retryTargets,
         storySequenceResumeByChannel: options?.retryPreviousSummary
           ? buildStorySequenceResumeByChannel(options.retryPreviousSummary, publishTargetChannels)
           : undefined,
         clientPreflightFailuresByChannel,
+        clientPreflightFailuresByTarget,
         postByChannel: filterPostsForSelectedChannels(
           preparedPostsByChannel,
           publishTargetChannels,
@@ -950,7 +956,7 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
 
       setPublicationProgressPhase(
         "status_collection",
-        pendingCount > 0 ? pendingCount > 1 ? i18nT("publication_pending_multiple", { value0: pendingCount }) : i18nT("publication_pending_one") : i18nT("publication_platform_confirmation_count", { value0: publishableChannels.length, value1: publishableChannels.length }),
+        pendingCount > 0 ? pendingCount > 1 ? i18nT("publication_pending_multiple", { value0: pendingCount }) : i18nT("publication_pending_one") : i18nT("publication_platform_confirmation_count", { value0: publicationAllTargetKeys.length, value1: publicationAllTargetKeys.length }),
         93,
       );
       await new Promise((resolve) => window.setTimeout(resolve, 220));
@@ -1037,22 +1043,22 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
 
       const completedSummary = mergeRetriedPublicationSummary(
         options?.retryPreviousSummary,
-        mergePreflightFailuresIntoPublicationSummary(result?.summary, preflightFailedChannels),
+        mergePreflightFailuresIntoPublicationSummary(result?.summary, preflightFailedTargets),
         String(result?.publication_id || result?.publicationId || "").trim() || null,
         publishTargetChannels,
       );
       completedSummary.channelLinks = channelLinks;
       latestPublicationSummaryRef.current = completedSummary;
-      const remainingRetryChannels = (completedSummary.entries || [])
+      const remainingRetryChannels = [...new Set((completedSummary.entries || [])
         .filter(isRetryablePublicationEntry)
-        .map((entry) => entry.channel as ChannelKey);
+        .map((entry) => entry.channel as ChannelKey))];
       const retryFailed = remainingRetryChannels.length || completedSummary.pendingCount
         ? async () => {
             if (!isCurrentPublishScope()) return;
             const retryPreviousSummary = latestPublicationSummaryRef.current || completedSummary;
-            const channels = (retryPreviousSummary.entries || [])
+            const channels = [...new Set((retryPreviousSummary.entries || [])
               .filter(isRetryablePublicationEntry)
-              .map((entry) => entry.channel as ChannelKey);
+              .map((entry) => entry.channel as ChannelKey))];
             if (!channels.length) return;
             await runPublish({
               channels,
@@ -1580,6 +1586,7 @@ export function createPublicationSubmission(readContext: () => PublicationSubmis
                 idea: idea.trim(),
                 theme,
                 channels: groupChannels,
+                clientPreflightFailuresByTarget: Object.assign({}, ...reviewItems.filter((item) => groupChannels.includes(item.channel)).map((item) => item.targetFailures || {})),
                 postByChannel: filterPostsForSelectedChannels(
                   preparedPostsByChannel,
                   groupChannels,

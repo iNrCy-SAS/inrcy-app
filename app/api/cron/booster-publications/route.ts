@@ -17,6 +17,7 @@ import {
   failPreparingAsyncPublicationChannels,
   finalizeAsyncPublicationIfReady,
   isAsyncPublicationMarkedSubscriptionInactive,
+  isAsyncPublicationTargetReady,
   terminateAsyncPublicationForInactiveSubscription,
   updateAsyncChannelEvent,
   updateAsyncPublicationJobEvent,
@@ -24,6 +25,7 @@ import {
 import { getBoosterCronSweepPlan } from "@/lib/boosterCronScheduling";
 import { parseBoosterDispatchRetryAfterMs } from "@/lib/boosterCronDispatchPolicy";
 import { log } from "@/lib/observability/logger";
+import { runPublicationJobsInChannelOrder } from "@/lib/boosterPublicationSequence";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -536,6 +538,8 @@ async function dispatchChannelJob(job: AsyncDispatchJob, appOrigin: string) {
         ? job.pinterestContinuationAttempt >=
           MAX_PINTEREST_VIDEO_CONTINUATION_ATTEMPTS
         : job.attempt >= MAX_ASYNC_DISPATCH_ATTEMPTS;
+  // Waiting for the primary does not consume the Story's retry budget.
+  if (!(await isAsyncPublicationTargetReady({ userId: job.userId, publicationId: job.publicationId, eventId: job.id }))) return;
   if (attemptsExhausted) {
     const errorMessage =
       "Le canal n'a pas pu être relancé automatiquement après plusieurs tentatives.";
@@ -971,7 +975,10 @@ export async function GET(request: Request) {
         ...preparationJobs.map((job) =>
           dispatchPreparationJob(job, appOrigin),
         ),
-        ...dispatchJobs.map((job) => dispatchChannelJob(job, appOrigin)),
+        runPublicationJobsInChannelOrder(dispatchJobs,
+          job => `${job.userId}:${job.publicationId}:${job.channel}`,
+          job => job.dispatchRequest._asyncTargetPlacement,
+          job => dispatchChannelJob(job, appOrigin)),
         ...markedJobs.map((job) =>
           terminateAsyncPublicationForInactiveSubscription({
             userId: job.userId,

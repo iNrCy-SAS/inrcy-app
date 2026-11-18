@@ -1003,5 +1003,6 @@
   "x_disconnected_notice": "ยกเลิกการเชื่อมต่อบัญชี X แล้ว",
   "x_public_link_saved": "บันทึกลิงก์สาธารณะ X แล้ว",
   "x_public_profile_link": "ลิงก์โปรไฟล์ X สาธารณะ",
-  "x_view_profile": "ดูโปรไฟล์"
+  "x_view_profile": "ดูโปรไฟล์",
+  "subscription_no_further_renewal": "ไม่มีกำหนดการต่ออายุเพิ่มเติม"
 }

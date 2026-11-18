@@ -1,4 +1,8 @@
 {
+  "mail_oauth_configuration_failed": "Die Microsoft-Verbindung ist auf der Seite von iNrCy nicht verfügbar. Wenden Sie sich an den iNrCy-Support, um sie wiederherzustellen.",
+  "mail_oauth_failed": "Die Verbindung zu {provider} konnte nicht abgeschlossen werden. Starten Sie erneut über diese Blase. Falls das Problem weiterhin besteht, kontaktieren Sie iNrCy.",
+  "mail_oauth_expired": "Diese E-Mail-Verbindungsanfrage ist abgelaufen oder nicht mehr gültig. Starten Sie erneut über diese Blase.",
+  "mail_oauth_provider": "E-Mail",
   "1_a_20_zones_les_noms_a5d15c7d": "1 bis 20 Gebiete. Die Plattform prüft die Namen erneut.",
   "1_canal_0f99221a": "1 Kanal",
   "1_video_maximum_pour_ea9b1d35": "Maximal 1 Video für",

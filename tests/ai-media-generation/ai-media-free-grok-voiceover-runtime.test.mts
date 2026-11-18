@@ -14,7 +14,7 @@ import test from "node:test";
 import ts from "typescript";
 
 import * as contracts from "../../lib/aiMediaGenerationContracts.ts";
-import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel } from "../../lib/aiMediaModelCatalog.ts";
+import { AI_MEDIA_AVAILABLE_VIDEO_MODELS, getAiMediaVideoModel, getAiMediaImageModel } from "../../lib/aiMediaModelCatalog.ts";
 import { needsControlledAiMediaFreeFirstFrame, usesSeparateAiMediaFreeVoiceover } from "../../lib/aiMediaFreeVoiceoverPolicy.ts";
 import * as sensitive from "../../lib/aiMediaSensitiveText.ts";
 import * as agentVideoFallback from "../../lib/inrAgentVideoFallback.ts";
@@ -111,6 +111,7 @@ function harness(failure?: "tts" | "audio-preflight" | "voice-preflight" | "seed
     } }],
     ["@/lib/boosterGenerationContext", { getBoosterGenerationContext: async () => ({ profile: {}, business: {}, recentPublications: [], cacheSource: "test" }) }],
     ["@/lib/aiMediaGenerationContracts", contracts], ["./aiMediaImageProviderGateway.ts", {}],
+    ["@/lib/aiMediaModelCatalog", { getAiMediaImageModel }],
     ["@/lib/aiMediaGateway", { generateAiMediaImage: async (args: Row) => {
       events.push("seed"); seedCalls.push(args); if (failure === "seed") throw new Error("synthetic-seed-unavailable");
       return { buffer: Buffer.from("synthetic-seed-image"), model: "test-image", provider: "test", warnings: [], referenceImagesCount: 0 };

@@ -18,6 +18,7 @@ import {
   stripMetaStoryOnlyPostContent,
 } from "@/lib/metaPublicationTargets";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getPublicationTargetPredecessor } from "@/lib/boosterPublicationSequence";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -78,6 +79,32 @@ export function normalizeClientPreflightFailuresByChannel(
   ) as Partial<Record<BoosterPublicationChannelKey, JsonRecord>>;
 }
 
+/** Optional placements fail independently from the other formats on a channel. */
+export function normalizeClientPreflightFailuresByTarget(
+  value: unknown,
+  channels: BoosterPublicationChannelKey[],
+) {
+  const source = asRecord(value);
+  const failures: Record<string, JsonRecord> = {};
+  for (const channel of channels) {
+    if (channel !== "facebook" && channel !== "instagram") continue;
+    for (const placement of ["classic", "reel", "story"]) {
+      const key = `${channel}:${placement}`;
+      const raw = asRecord(source[key]);
+      if (!Object.keys(raw).length) continue;
+      failures[key] = {
+        ok: false,
+        code: String(raw.code || "prepublish_validation_failed").slice(0, 100),
+        error: String(raw.error || raw.message || "Ce format n'est pas prêt à publier.").slice(0, 600),
+        retryable: false,
+        source: "client_preflight",
+        placement,
+      };
+    }
+  }
+  return failures;
+}
+
 export function buildDurablePreparationInput(body: JsonRecord) {
   const rawPostsByChannel = asRecord(body.postByChannel);
   const facebookPost = asRecord(rawPostsByChannel.facebook);
@@ -127,6 +154,8 @@ export function buildDurablePreparationInput(body: JsonRecord) {
     tiktokPublicationSettings: body.tiktokPublicationSettings,
     instagramPublicationSettings: body.instagramPublicationSettings,
     facebookPublicationSettings: body.facebookPublicationSettings,
+    publicationTargets: body.publicationTargets,
+    clientPreflightFailuresByTarget: body.clientPreflightFailuresByTarget,
     storySequenceResumeByChannel: body.storySequenceResumeByChannel,
     soundtrackId: body.soundtrackId,
     soundtrackByChannel: body.soundtrackByChannel,
@@ -140,19 +169,30 @@ export function buildDurablePreparationInput(body: JsonRecord) {
 function queuedSummary(
   channels: BoosterPublicationChannelKey[],
   failuresByChannel: Partial<Record<BoosterPublicationChannelKey, JsonRecord>>,
+  targets: Array<{ key: string; channel: BoosterPublicationChannelKey; placement: string | null }> = channels.map(channel => ({ key: channel, channel, placement: null })),
+  failuresByTarget: Record<string, JsonRecord> = {},
+  threadsMode: unknown = "classic",
 ) {
-  const entries = channels.map((channel) => ({
+  const entries = targets.map(target => {
+    const channel = target.channel;
+    const placement = channel === "facebook" || channel === "instagram" ? target.placement || "classic" : null;
+    const failure = failuresByTarget[`${channel}:${placement}`] || failuresByChannel[channel];
+    return {
     channel,
+    targetKey: placement ? `${channel}:${placement}` : channel,
+    placement,
+    ...(channel === "threads" ? { threads_publication_mode: threadsMode || "classic" } : {}),
     label: BOOSTER_PUBLICATION_CHANNEL_LABELS[channel],
-    ok: failuresByChannel[channel] ? false : null,
-    status: failuresByChannel[channel] ? "failed" : "preparing",
-    technicalStatus: failuresByChannel[channel] ? "failed" : "preparing",
-    code: failuresByChannel[channel]?.code || null,
-    retryable: failuresByChannel[channel]?.retryable === true,
-    error: failuresByChannel[channel]?.error || null,
+    ok: failure ? false : null,
+    status: failure ? "failed" : "preparing",
+    technicalStatus: failure ? "failed" : "preparing",
+    code: failure?.code || null,
+    retryable: failure?.retryable === true,
+    error: failure?.error || null,
     warning: null,
     warning_message: null,
-  }));
+    };
+  });
   const failedChannels = entries
     .filter((entry) => entry.ok === false)
     .map((entry) => entry.channel);
@@ -166,7 +206,7 @@ function queuedSummary(
     allFailed: pendingCount === 0,
     entries,
     successChannels: [] as BoosterPublicationChannelKey[],
-    failedChannels,
+    failedChannels: Array.from(new Set(failedChannels)),
   };
 }
 
@@ -175,6 +215,9 @@ function acceptedResponse(
   channels: BoosterPublicationChannelKey[],
   idempotencyKey: string,
   failuresByChannel: Partial<Record<BoosterPublicationChannelKey, JsonRecord>>,
+  targets?: Array<{ key: string; channel: BoosterPublicationChannelKey; placement: string | null }>,
+  failuresByTarget: Record<string, JsonRecord> = {},
+  threadsMode: unknown = "classic",
 ) {
   return {
     ok: true,
@@ -195,7 +238,7 @@ function acceptedResponse(
         },
       ]),
     ),
-    summary: queuedSummary(channels, failuresByChannel),
+    summary: queuedSummary(channels, failuresByChannel, targets, failuresByTarget, threadsMode),
   };
 }
 
@@ -235,6 +278,9 @@ function acceptedFromParent(params: {
         persistedChannels,
         params.idempotencyKey,
         failuresByChannel,
+        Array.isArray(payload.publicationTargets) ? payload.publicationTargets as Array<{ key: string; channel: BoosterPublicationChannelKey; placement: string | null }> : undefined,
+        normalizeClientPreflightFailuresByTarget(payload.clientPreflightFailuresByTarget, persistedChannels),
+        asRecord(preparationRequest.threadsPublicationSettings).mode,
       ),
       idempotent: true,
     },
@@ -346,10 +392,14 @@ export async function enqueueBoosterPublication(params: {
       params.body.clientPreflightFailuresByChannel,
       params.channels,
     );
+  const clientPreflightFailuresByTarget = normalizeClientPreflightFailuresByTarget(
+    params.body.clientPreflightFailuresByTarget, params.channels,
+  );
   const preparationRequest = {
     ...durableBody,
     channels: params.channels,
     clientPreflightFailuresByChannel,
+    clientPreflightFailuresByTarget,
     _asyncPreparationDispatch: true,
     _asyncPublicationId: publicationId,
     _asyncParentEventId: publicationId,
@@ -369,6 +419,7 @@ export async function enqueueBoosterPublication(params: {
     channels: params.channels,
     publicationTargets,
     clientPreflightFailuresByChannel,
+    clientPreflightFailuresByTarget,
     channelEventIds,
     deliveryIds,
     finalEventType: params.finalEventType,
@@ -402,21 +453,23 @@ export async function enqueueBoosterPublication(params: {
       module: params.module,
       type: BOOSTER_ASYNC_CHANNEL_EVENT_TYPE,
       payload: {
-        status: clientPreflightFailuresByChannel[target.channel]
+        status: (clientPreflightFailuresByTarget[`${target.channel}:${target.placement}`] || clientPreflightFailuresByChannel[target.channel])
           ? "failed"
           : "preparing",
         publication_id: publicationId,
         parentEventId: publicationId,
         channel: target.channel,
+        ...(target.channel === "threads" ? { threadsPublicationMode: asRecord(durableBody.threadsPublicationSettings).mode || "classic" } : {}),
         targetKey: target.key,
         placement: target.placement,
+        dependsOnEventId: getPublicationTargetPredecessor(target, publicationTargets, channelEventIds),
         targetCount: publicationTargets.filter(
           (candidate) => candidate.channel === target.channel,
         ).length,
         attempt: 0,
-        ...(clientPreflightFailuresByChannel[target.channel]
+        ...((clientPreflightFailuresByTarget[`${target.channel}:${target.placement}`] || clientPreflightFailuresByChannel[target.channel])
           ? {
-              result: clientPreflightFailuresByChannel[target.channel],
+              result: clientPreflightFailuresByTarget[`${target.channel}:${target.placement}`] || clientPreflightFailuresByChannel[target.channel],
               completedAt: nowIso,
             }
           : {}),
@@ -466,6 +519,9 @@ export async function enqueueBoosterPublication(params: {
       params.channels,
       params.idempotencyKey,
       clientPreflightFailuresByChannel,
+      publicationTargets,
+      clientPreflightFailuresByTarget,
+      asRecord(durableBody.threadsPublicationSettings).mode,
     ),
   };
 }

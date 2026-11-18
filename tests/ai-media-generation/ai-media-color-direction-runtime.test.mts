@@ -220,7 +220,7 @@ test("le prompt compilé ne retient que quatre accents et ignore une palette ent
   }
 });
 
-test("sans texte ou avec composition différée, les règles d’absence de texte et de logo restent explicites", () => {
+test("la copie différée reste sans texte éditorial et le logo image joint est intégré nativement", () => {
   for (const kind of ["image", "video"] as const) {
     const withoutText = buildAiMediaPrompt({
       request: requestFixture({ kind, withText: false, logoMode: "none" }),
@@ -239,9 +239,13 @@ test("sans texte ou avec composition différée, les règles d’absence de text
     assert.match(
       deferred,
       kind === "image"
-        ? /produire exclusivement le fond sans texte, chiffre, téléphone, coordonnées ni logo/
+        ? /produire le fond avec le logo officiel joint déjà intégré/
         : /produire des plans sans texte, chiffre, téléphone, coordonnées ni logo/,
     );
+    if (kind === "image") {
+      assert.match(deferred, /INTÉGRATION NATIVE DU LOGO/);
+      assert.doesNotMatch(deferred, /coordonnées ni logo/);
+    }
     assert.doesNotMatch(deferred, /Accroche originale sélectionnée/);
     assert.ok(deferred.includes(ANTI_SWATCH_RULE));
     assert.doesNotMatch(deferred, HEX_CODE);
@@ -303,7 +307,8 @@ test("un ADN et un brief longs ne peuvent supprimer la garde anti-nuancier du pr
     if (kind === "video") {
       assert.match(prompt, /HABILLAGE LOCAL : plans sans texte, chiffre, téléphone, coordonnée, logo, enseigne ni interface lisible ; seul l’habillage validé est ajouté au montage/);
     } else {
-      assert.match(prompt, /COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — RÈGLE FINALE PRIORITAIRE/);
+      assert.match(prompt, /COMPOSITION EXACTE PRISE EN CHARGE LOCALEMENT APRÈS GÉNÉRATION — TEXTE ÉDITORIAL/);
+      assert.match(prompt, /logo officiel joint déjà intégré/);
     }
     assert.doesNotMatch(prompt, HEX_CODE);
   }

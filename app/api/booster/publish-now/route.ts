@@ -4,6 +4,8 @@ import { ensureMetaDirectAccessToken } from "@/lib/metaDirectTokens";
 import { threadsPublish, buildThreadsMediaSourceIdentity } from "@/lib/threadsPublish";
 import { parseThreadsPublicationSettings, hasSelectedThreadsPublicationMedia, type ThreadsPublicationSettings } from "@/lib/threadsPublicationPreferences";
 import { getThreadsPublicationPreflightFailure } from "@/lib/threadsPublicationPreferencesServer";
+import { getMetaPreparedVideoFailure } from "@/lib/metaPlacementPreparedVideo";
+import { getPublicationTargetPredecessor, runPublicationJobsInChannelOrder } from "@/lib/boosterPublicationSequence";
 import { NextResponse, after } from "next/server";
 import { inrAgentImagesForPlacement } from "@/lib/inrAgentMediaFormats";
 import { requireUser } from "@/lib/requireUser";
@@ -216,6 +218,7 @@ import {
   failAsyncPublicationPreparationLease,
   finalizeAsyncPublicationIfReady,
   isAsyncPublicationMarkedSubscriptionInactive,
+  isAsyncPublicationTargetReady,
   materializePreparingAsyncChannelEvent,
   terminateAsyncPublicationForInactiveSubscription,
   updateAsyncChannelEvent,
@@ -224,6 +227,7 @@ import {
 import {
   enqueueBoosterPublication,
   normalizeClientPreflightFailuresByChannel,
+  normalizeClientPreflightFailuresByTarget,
 } from "@/lib/boosterPublicationIngress";
 import {
   buildBoosterPreparationDispatchReference,
@@ -250,8 +254,10 @@ import {
 } from "@/lib/instagramPublicationPreferences";
 import {
   getMetaTargetSettings,
+  buildBoosterPublicationTargets,
   normalizeBoosterPublicationTargets,
   normalizeMetaPublicationSelection,
+  stripMetaStoryOnlyPostContent,
 } from "@/lib/metaPublicationTargets";
 
 import {
@@ -768,10 +774,35 @@ async function publishNowHandler(req: Request) {
       ...storyResumeMediaModes,
       ...Object.fromEntries(Object.keys(storyResumeByChannel).map(channel => [channel, "images"])),
     };
-    // A retry of remaining Stories never republishes an already delivered Reel
-    // or feed post, even when the old editor snapshot selected both formats.
-    if (storyResumeByChannel.facebook) body.facebookPublicationSettings = { placement: "story" };
-    if (storyResumeByChannel.instagram) body.instagramPublicationSettings = { placement: "story" };
+    // Legacy Story repairs remain Story-only. An explicit retry may also
+    // contain a failed primary; retain that independently requested format.
+    const explicitRetryTargets = Array.isArray(body.publicationTargets) ? body.publicationTargets.map(asRecord) : [];
+    for (const channel of Object.keys(storyResumeByChannel)) {
+      const retriesPrimary = explicitRetryTargets.some((target: JsonRecord) =>
+        target.channel === channel && (target.placement === "classic" || target.placement === "reel"));
+      if (!retriesPrimary) body[`${channel}PublicationSettings`] = { placement: "story" };
+    }
+    if (body.publicationTargets !== undefined && !internalAsyncWorkerDispatch) {
+      const allowedTargets = buildBoosterPublicationTargets({ channels: selected,
+        facebookPublicationSettings: body.facebookPublicationSettings,
+        instagramPublicationSettings: body.instagramPublicationSettings });
+      const requestedTargets = Array.isArray(body.publicationTargets) ? body.publicationTargets.map(asRecord)
+        .map((target: JsonRecord) => ({ ...target, placement: target.placement ??
+          allowedTargets.find(candidate => candidate.channel === target.channel)?.placement ?? null })) : [];
+      const targetAllowed = (target: JsonRecord) => allowedTargets.some(candidate =>
+        candidate.channel === target.channel && candidate.placement === (target.placement ?? null));
+      if (!requestedTargets.length || requestedTargets.some((target: JsonRecord) => !targetAllowed(target)) ||
+        selected.some(channel => !requestedTargets.some((target: JsonRecord) => target.channel === channel))) {
+        return NextResponse.json({ ok: false, code: "publication_targets_invalid", retryable: false,
+          error: "Choisissez uniquement les formats de publication à envoyer." }, { status: 400 });
+      }
+      // A targeted retry cannot recreate a format that already succeeded.
+      for (const channel of ["facebook", "instagram"] as const) {
+        if (!selected.includes(channel)) continue;
+        body[`${channel}PublicationSettings`] = { placements: requestedTargets
+          .filter((target: JsonRecord) => target.channel === channel).map((target: JsonRecord) => target.placement) };
+      }
+    }
     const requestedInstagramPublicationSelection =
       normalizeMetaPublicationSelection(body.instagramPublicationSettings);
     const requestedFacebookPublicationSelection =
@@ -804,6 +835,15 @@ async function publishNowHandler(req: Request) {
         body.clientPreflightFailuresByChannel,
         selected,
       );
+    const clientPreflightFailuresByTarget = normalizeClientPreflightFailuresByTarget(
+      body.clientPreflightFailuresByTarget, selected,
+    );
+    // Older clients sent this Story-only incompatibility as a channel failure.
+    if (clientPreflightFailuresByChannel.facebook?.code === "facebook_vertical_duration_invalid") {
+      const placement = requestedFacebookPlacements.includes("story") ? "story" : "reel";
+      clientPreflightFailuresByTarget[`facebook:${placement}`] = clientPreflightFailuresByChannel.facebook;
+      delete clientPreflightFailuresByChannel.facebook;
+    }
     if (threadsPreflightFailure) clientPreflightFailuresByChannel.threads = {
       ok: false, source: "server_preflight", threads_publication_mode: threadsPublicationSettings?.mode,
       ...threadsPreflightFailure,
@@ -814,8 +854,7 @@ async function publishNowHandler(req: Request) {
         const instagramPreflightFailure =
           await getInstagramPlacementPreflightFailure({ userId, placement });
         if (instagramPreflightFailure) {
-          clientPreflightFailuresByChannel.instagram = instagramPreflightFailure;
-          break;
+          clientPreflightFailuresByTarget[`instagram:${placement}`] = instagramPreflightFailure;
         }
       }
     }
@@ -825,14 +864,15 @@ async function publishNowHandler(req: Request) {
         const facebookPreflightFailure =
           await getFacebookPlacementPreflightFailure({ userId, placement });
         if (facebookPreflightFailure) {
-          clientPreflightFailuresByChannel.facebook = facebookPreflightFailure;
-          break;
+          clientPreflightFailuresByTarget[`facebook:${placement}`] = facebookPreflightFailure;
         }
       }
     }
     const dispatchableSelected = selected.filter(
       (channel) => !clientPreflightFailuresByChannel[channel],
     );
+    body.clientPreflightFailuresByChannel = clientPreflightFailuresByChannel;
+    body.clientPreflightFailuresByTarget = clientPreflightFailuresByTarget;
     const mediaWorkspaceId = String(body.mediaWorkspaceId || "").trim();
     const strictMediaCutover =
       body.mediaPipelineCutoverV1 === true &&
@@ -2304,6 +2344,11 @@ async function publishNowHandler(req: Request) {
 
     if (internalAsyncDispatch) {
       const channel = selected[0];
+      if (!(await isAsyncPublicationTargetReady({ userId, publicationId, eventId: asyncChannelEventId }))) {
+        return NextResponse.json({ ok: true, done: false, queued: true, asyncDispatch: true,
+          publication_id: publicationId, channel, code: "publication_target_waiting_for_primary",
+          pollAfterMs: 3_000 }, { status: 202, headers: { "Retry-After": "3" } });
+      }
       const threadsContinuationAttempt = Math.max(0, Math.floor(Number(body._threadsContinuationAttempt || 0)));
       const instagramVideoContinuationAttempt = Math.max(
         0,
@@ -2439,6 +2484,9 @@ async function publishNowHandler(req: Request) {
       channel: ChannelKey,
       placement: string | null | undefined,
     ) => {
+      if ((channel === "facebook" || channel === "instagram") && placement === "story") {
+        return stripMetaStoryOnlyPostContent(resolveChannelPost(channel), { placement: "story" });
+      }
       if (channel !== "facebook") return getChannelPost(channel);
       const channelImages = Array.isArray(imagesByChannel?.[channel])
         ? (imagesByChannel[channel] as ImagePayload[])
@@ -2867,7 +2915,7 @@ async function publishNowHandler(req: Request) {
           const targetImages = inrAgentImagesForPlacement<ImagePayload>({ source: requestedOriginSource,
             imagesByPlacement: body.imagesByPlacement, channel, placement: target.placement,
             fallback: preparedImagesByChannel[channel] || [] });
-          const preflightFailure = preflightFailuresByChannel[channel] || null;
+          let preflightFailure: JsonRecord | null = clientPreflightFailuresByTarget[`${channel}:${target.placement}`] || preflightFailuresByChannel[channel] || null;
           const preparationDeferred =
             deferredPreparationChannels.has(channel);
           const channelPost = getChannelPostForPlacement(
@@ -2878,6 +2926,7 @@ async function publishNowHandler(req: Request) {
             mediaModeByChannel[channel] === "video"
               ? getPublicationVideoForChannel(channel)
               : null;
+          preflightFailure ||= getMetaPreparedVideoFailure(channel, target.placement, channelPreparedVideo);
           const channelDispatchVideo = channelPreparedVideo
             ? {
                 ...channelPreparedVideo,
@@ -2898,6 +2947,7 @@ async function publishNowHandler(req: Request) {
             channel === "facebook"
               ? getMetaTargetSettings(target.placement)
               : null;
+          const dependsOnEventId = getPublicationTargetPredecessor(target, publicationTargets, channelEventIds);
           const channelDispatchRequest = {
             workflowTool: body.workflowTool,
             workflowAction: body.workflowAction,
@@ -2955,7 +3005,7 @@ async function publishNowHandler(req: Request) {
                 }
               : {}),
             ...(channel === "threads" ? { threadsPublicationSettings } : {}),
-            ...(Object.hasOwn(storyResumeByChannel, channel) ? { storySequenceResumeByChannel: { [channel]: storyResumeByChannel[channel] } } : {}),
+            ...(target.placement === "story" && Object.hasOwn(storyResumeByChannel, channel) ? { storySequenceResumeByChannel: { [channel]: storyResumeByChannel[channel] } } : {}),
             ...(channel === "facebook" || channel === "instagram" ? {
               soundtrackId: publicationSoundtrackByChannel[channel],
               soundtrackByChannel: { [channel]: publicationSoundtrackByChannel[channel] },
@@ -2995,8 +3045,10 @@ async function publishNowHandler(req: Request) {
                   parentEventId: publicationId,
                   channel,
                   targetKey: target.key,
+                  ...(channel === "threads" ? { threadsPublicationMode: threadsPublicationSettings?.mode || "classic" } : {}),
                   placement: target.placement,
                   targetCount: targetCountByChannel[channel] || 1,
+                  dependsOnEventId,
                   attempt: 0,
                   result: preflightFailure,
                   completedAt: new Date().toISOString(),
@@ -3009,8 +3061,10 @@ async function publishNowHandler(req: Request) {
                     parentEventId: publicationId,
                     channel,
                     targetKey: target.key,
+                    ...(channel === "threads" ? { threadsPublicationMode: threadsPublicationSettings?.mode || "classic" } : {}),
                     placement: target.placement,
                     targetCount: targetCountByChannel[channel] || 1,
+                    dependsOnEventId,
                     attempt: 0,
                     preparationPending: true,
                     createdAt: new Date().toISOString(),
@@ -3021,8 +3075,10 @@ async function publishNowHandler(req: Request) {
                   parentEventId: publicationId,
                   channel,
                   targetKey: target.key,
+                  ...(channel === "threads" ? { threadsPublicationMode: threadsPublicationSettings?.mode || "classic" } : {}),
                   placement: target.placement,
                   targetCount: targetCountByChannel[channel] || 1,
+                  dependsOnEventId,
                   attempt: 1,
                   dispatchRequest: channelDispatchRequest,
                   createdAt: new Date().toISOString(),
@@ -3126,8 +3182,11 @@ async function publishNowHandler(req: Request) {
           const appOrigin = getAppOriginFromRequest(req);
           const internalHeaders = buildInternalCronHeaders(userId);
           after(async () => {
-            await Promise.allSettled(
-              queuedChannelRows.map(async (row) => {
+            await runPublicationJobsInChannelOrder(
+              queuedChannelRows,
+              row => String(asRecord(row.payload).channel),
+              row => asRecord(row.payload).placement,
+              async (row) => {
                 const dispatchRequest = asRecord(row.payload).dispatchRequest;
                 try {
                   await fetch(`${appOrigin}/api/booster/publish-now`, {
@@ -3146,50 +3205,23 @@ async function publishNowHandler(req: Request) {
                         : String(dispatchError || ""),
                   });
                 }
-              }),
+              },
             );
           });
 
-          const queuedSummaryBase = buildQueuedPublicationSummary(selected);
-          const failedChannels = selected.filter((channel) =>
-            Boolean(preflightFailuresByChannel[channel]),
-          );
-          const pendingBaseChannels = new Set(
-            [...queuedChannelRows, ...deferredChannelRows]
-              .map((row) => String(asRecord(row.payload).channel || "").trim())
-              .filter(Boolean),
-          );
-          const queuedSummary = {
-            ...queuedSummaryBase,
-            failureCount: failedChannels.length,
-            // The UI reports one status per public channel even when Meta is
-            // dispatched through two technical targets (feed/reel + Story).
-            pendingCount: pendingBaseChannels.size,
-            entries: queuedSummaryBase.entries.map((entry) => {
-              const failure = preflightFailuresByChannel[entry.channel];
-              if (failure) {
-                return {
-                  ...entry,
-                  ok: false,
-                  status: "failed",
-                  technicalStatus: "failed",
-                  code: String(failure.code || "media_preflight_failed"),
-                  retryable: failure.retryable !== false,
-                  error: String(failure.error || "Échec du préflight média."),
-                };
-              }
-              if (deferredPreparationChannels.has(entry.channel)) {
-                return {
-                  ...entry,
-                  ok: null,
-                  status: "preparing",
-                  technicalStatus: "preparing",
-                };
-              }
-              return entry;
-            }),
-            failedChannels,
-          };
+          const queuedEntries = durableChannelRows.map(row => {
+            const payload = asRecord(row.payload);
+            const channel = String(payload.channel) as ChannelKey;
+            const placement = channel === "facebook" || channel === "instagram" ? String(payload.placement || "classic") : null;
+            const failure = payload.status === "failed" ? asRecord(payload.result) : null;
+            return { channel, targetKey: placement ? `${channel}:${placement}` : channel, placement,
+              label: PUBLICATION_CHANNEL_LABELS[channel],
+              ...(channel === "threads" ? { threads_publication_mode: threadsPublicationSettings?.mode || "classic" } : {}),
+              ok: failure ? false : null, status: String(payload.status), technicalStatus: String(payload.status),
+              code: failure?.code || null, retryable: failure?.retryable === true, error: failure?.error || null };
+          });
+          const queuedSummary = buildQueuedPublicationSummary(selected, publicationTargets,
+            Object.fromEntries(queuedEntries.map(entry => [entry.targetKey, entry])));
           return NextResponse.json(
             {
               ok: true,
@@ -3715,7 +3747,9 @@ async function publishNowHandler(req: Request) {
           continue;
         }
 
-        const preflightFailure = preflightFailuresByChannel[ch];
+        const preflightFailure = (ch === "facebook" || ch === "instagram"
+          ? clientPreflightFailuresByTarget[`${ch}:${ch === "facebook" ? facebookPublicationSettings?.placement || "classic" : instagramPublicationSettings?.placement || "classic"}`]
+          : null) || preflightFailuresByChannel[ch];
         if (preflightFailure) {
           await setDelivery(ch, {
             status: "failed",
@@ -3746,7 +3780,9 @@ async function publishNowHandler(req: Request) {
           continue;
         }
 
-        const channelPost = getChannelPost(ch);
+        const metaPlacement = ch === "facebook" ? facebookPublicationSettings?.placement
+          : ch === "instagram" ? instagramPublicationSettings?.placement : null;
+        const channelPost = getChannelPostForPlacement(ch, metaPlacement);
         const canonMessage = buildBoosterMessage(ch, channelPost, {
           websiteUrl: getPublicationWebsiteUrl(ch),
           phone: businessPhone,
@@ -3755,6 +3791,12 @@ async function publishNowHandler(req: Request) {
           mediaModeByChannel[ch] === "video"
             ? getPublicationVideoForChannel(ch)
             : null;
+        const metaVideoFailure = getMetaPreparedVideoFailure(ch, metaPlacement, channelVideo);
+        if (metaVideoFailure) {
+          await setDelivery(ch, { status: "failed", error: metaVideoFailure.error });
+          results[ch] = metaVideoFailure;
+          continue;
+        }
 
         if (ch === "site_web") {
           // Store the website article for the installed customer connector or widget.

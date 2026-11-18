@@ -1,4 +1,8 @@
 {
+  "mail_oauth_configuration_failed": "由于 iNrCy 端的问题，Microsoft 连接暂不可用。请联系 iNrCy 支持以恢复连接。",
+  "mail_oauth_failed": "无法完成 {provider} 连接。请从此气泡重新尝试。如果问题仍然存在，请联系 iNrCy。",
+  "mail_oauth_expired": "此邮件连接请求已过期或失效。请从此气泡重新开始。",
+  "mail_oauth_provider": "邮件",
   "1_a_20_zones_les_noms_a5d15c7d": "1 至 20 个区域。平台会重新验证区域名称。",
   "1_canal_0f99221a": "1 个频道",
   "1_video_maximum_pour_ea9b1d35": "最多 1 个视频",

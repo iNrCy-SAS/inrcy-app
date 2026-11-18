@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useInrAssistantLocalClose } from "../../../_hooks/useInrAssistantLocalClose";
 import type { ChannelKey, PublicationMediaType } from "../publishModal.shared";
 import css from "./PublishFinalReviewModal.module.css";
+import type { PublicationPlacementReview, PublicationTargetFailure } from "../publicationPlacementReview";
 
 export type PublishFinalReviewItem = {
   channel: ChannelKey;
@@ -11,6 +12,9 @@ export type PublishFinalReviewItem = {
   mediaType: PublicationMediaType;
   mediaLabel: string;
   imageCount: number;
+  placementReviews?: PublicationPlacementReview[];
+  targetFailures?: Record<string, PublicationTargetFailure>;
+  channelBlockers?: string[];
   details?: string[];
   warnings: string[];
   blockers: string[];
@@ -63,12 +67,14 @@ export default function PublishFinalReviewModal({
     return () => { document.removeEventListener("keydown", keydown, true); previous?.focus({ preventScroll: true }); };
   }, [open, onClose, saving]);
   if (!open) return null;
+  const placementWarnings = items.flatMap((item) => (item.placementReviews || []).filter((review) => review.blockers.length > 0));
   return createPortal(
     <div className={css.overlay} onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}>
       <div className={css.dialog} ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId} aria-busy={saving} tabIndex={-1}>
         <span className={css.mark} aria-hidden="true"><svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="m21 3-7 18-4-7-7-4Z"/><path d="m10 14 5-5"/></svg></span>
         <h2 id={titleId}>{t("wizard_confirm_publication")}</h2>
         <p id={descriptionId}>{hasBlockers ? t("publier_les_value_canal_aux_prets_400cb943", { value0: publishableCount }) : t("value_canal_aux_selectionne_s_e508e84f", { value0: items.length })}</p>
+        {placementWarnings.length ? <ul className={css.placementWarnings}>{placementWarnings.map((review) => <li key={review.targetKey}><strong>{review.label}</strong><span>{review.blockers[0]}</span></li>)}</ul> : null}
         <div className={css.actions}>
           <button type="button" className={styles.secondaryBtn} onClick={onClose} disabled={saving}>{t("annuler_49ba3292")}</button>
           <button type="button" className={styles.primaryBtn} onClick={onConfirm} disabled={!publishableCount || saving}>{t("publier_34e6b19e")}</button>

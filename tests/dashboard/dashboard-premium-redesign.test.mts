@@ -282,7 +282,9 @@ test("le cockpit réunit deux étapes cliquables et garde son solde UI, les mét
   assert.doesNotMatch(generator, /onOpenGeneratorSettings|settingsAria|settingsTitle/);
   assert.match(generator, /onClick=\{onOpenGeneratorHelp\}/);
   assert.match(modules, /startModuleNavigation\("\/dashboard\/stats", onOpenStats\)/);
-  assert.match(hero, /role="progressbar"[\s\S]*?aria-valuenow=\{step\.value\}/);
+  assert.match(hero, /role="progressbar"[\s\S]*?aria-valuemin=\{0\}[\s\S]*?aria-valuemax=\{100\}[\s\S]*?aria-valuenow=\{step\.known \? step\.value : undefined\}/);
+  assert.match(hero, /aria-label=\{step\.known \? `\$\{step\.title\} \$\{step\.value\}%` : step\.title\}/);
+  assert.match(hero, /<b>\{step\.known \? `\$\{step\.value\}%` : "—"\}<\/b>/);
   assert.match(heroCss, /\.hero\s*\{[^}]*grid-area: cockpit;[^}]*min-width: 0/);
   assert.match(toolsCss, /@media \(max-width: 1100px\)[\s\S]*?\.lowerRow\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
 });

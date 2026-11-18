@@ -121,7 +121,7 @@ before(async () => {
       const account = request.headers["x-fixture-account"] || "account-a";
       if (account === "account-a") await new Promise(resolve => setTimeout(resolve, 150));
       response.writeHead(200, { "Content-Type": "application/json" });
-      response.end(JSON.stringify(account === "account-a" ? { siteWebUrl: "https://account-a.example.test", preferredWebsiteUrl: "https://account-a.example.test", phone: "0612345678" } : { phone: "0698765432" })); return;
+      response.end(JSON.stringify(account === "account-a" ? { accountId: account, siteWebUrl: "https://account-a.example.test", preferredWebsiteUrl: "https://account-a.example.test", phone: "0612345678" } : { accountId: account, phone: "0698765432" })); return;
     }
     response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     response.end(`<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><style>body{background:#0c1120;color:#fff;font:15px system-ui;margin:20px}${css}</style></head><body><div id="root"></div><script>const nativeFetch=window.fetch;window.fetch=(url,options)=>nativeFetch(url,{...options,headers:{...options?.headers,'x-fixture-account':window.fixtureScope.account}});</script><script>${fixture.replaceAll("</script", "<\\/script")}</script></body></html>`);
@@ -200,14 +200,15 @@ test("real CTA settings offer added actions on every compatible channel and pres
   const errors: string[] = [];page.on("pageerror", error => errors.push(error.message));
   await page.goto(`${origin}/cta`);
   assert.deepEqual(errors, [], "CTA browser module must mount without runtime errors");
-  await page.getByText("Par défaut", { exact: true }).waitFor({ timeout: 4000 }).catch(async error => { throw new Error(`${error.message}\n${await page.locator('body').innerText()}\n${JSON.stringify(errors)}`); });
+  await page.waitForSelector('[data-ai-section="channel-ctas"]', { timeout: 4000 });
   for (const label of ["Site web", "Google Business", "Facebook", "Instagram", "Threads", "LinkedIn", "X", "TikTok", "YouTube", "Pinterest"]) {
     await page.getByRole("tab", { name: label, exact: true }).click();
     const menu = page.getByRole("button", { name: "Action à proposer", exact: true });
-    assert.match(await menu.innerText(), /Voir le site/);
+    assert.match(await menu.innerText(), /Aucun CTA/, "A destination must never invent an unselected action");
     await menu.click();
     for (const name of ["Réserver", "Commander", "Acheter", "S’inscrire", "Écrire sur WhatsApp", "Lien personnalisé"]) assert.equal(await page.getByRole("option").filter({ hasText: name }).count(), 1, `${label}/${name}`);
-    await page.keyboard.press("Escape");
+    await page.getByRole("option").filter({ hasText: "Voir le site" }).click();
+    assert.match(await menu.innerText(), /Voir le site/);
   }
   await page.getByRole("tab", { name: "Instagram", exact: true }).click();
   await page.getByRole("button", { name: "Action à proposer", exact: true }).click();
@@ -229,14 +230,41 @@ test("real CTA settings offer added actions on every compatible channel and pres
 test("CTA defaults ignore an old account response after switching accounts", { timeout: 30000 }, async () => {
   const page = await browser.newPage();
   const errors: string[] = [];page.on("pageerror", error => errors.push(error.message));
+  // Complete the old transport after B, even when the component aborts it:
+  // this exercises stale-response guards rather than relying on a 150ms race.
+  await page.addInitScript(() => {
+    const nativeFetch = window.fetch;
+    window.fetch = (url, options) => nativeFetch(url, { ...options, signal: undefined });
+  });
+  let releaseOld!: () => void;
+  const oldGate = new Promise<void>(resolve => { releaseOld = resolve; });
+  let oldStarted!: () => void;
+  const oldRequest = new Promise<void>(resolve => { oldStarted = resolve; });
+  await page.route("**/api/booster/cta-defaults", async route => {
+    if (route.request().headers()["x-fixture-account"] !== "account-a") return route.continue();
+    oldStarted();
+    await oldGate;
+    await route.fulfill({ json: { accountId: "account-a", preferredWebsiteUrl: "https://account-a.example.test", phone: "0612345678" } });
+  });
+  try {
   await page.goto(`${origin}/cta`, { waitUntil: "domcontentloaded" });
   assert.deepEqual(errors, []);
   await page.waitForSelector('[data-ai-section="channel-ctas"]', { timeout: 4000 });
+  await oldRequest;
+  await page.getByRole("button", { name: "Action à proposer", exact: true }).click();
+  await page.getByRole("option").filter({ hasText: "Appeler" }).click();
   await page.evaluate(() => { const w=window as unknown as FixtureWindow;w.fixtureScope.account='account-b';window.dispatchEvent(new Event('fixture-account-change'));w.draw(); });
   await page.getByRole("button", { name: "Action à proposer", exact: true }).filter({ hasText: "Appeler" }).waitFor();
   await page.waitForFunction(() => document.body.textContent?.includes('0698765432'));
-  await page.evaluate(() => new Promise(resolve => setTimeout(resolve, 200)));
-  assert.equal((await page.locator("body").innerText()).includes("account-a.example.test"), false);
+  const staleResponse = page.waitForResponse(async response => response.url().endsWith("/api/booster/cta-defaults") && (await response.json()).accountId === "account-a");
+  releaseOld();
+  await (await staleResponse).finished();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const text = await page.locator("body").innerText();
+  assert.equal(text.includes("account-a.example.test"), false);
+  assert.equal(text.includes("0612345678"), false, "The delayed A phone must not replace B's destination");
+  assert.equal(text.includes("0698765432"), true, "B's destination must survive the old response");
   assert.match(await page.getByRole("button", { name: "Action à proposer", exact: true }).innerText(), /Appeler/);
-  await page.close();
+  assert.deepEqual(errors, []);
+  } finally { releaseOld(); await page.close(); }
 });

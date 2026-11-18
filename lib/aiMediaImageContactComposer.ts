@@ -56,12 +56,14 @@ export async function composeAiMediaContactImage(args: {
   requireLogo?: boolean;
   logoMode: AiMediaLogoMode;
   brandColors?: readonly string[];
+  /** Match the provider prompt's reserved half when the logo is already in the image. */
+  nativeLogoTextSafeZone?: boolean;
 }) {
   const width = Math.max(320, Math.min(2_048, Math.trunc(args.width)));
   const height = Math.max(320, Math.min(2_048, Math.trunc(args.height)));
   const isTall = height / width >= 1.25;
   const margin = Math.round(width * 0.062);
-  const panelWidth = isTall ? width : Math.round(width * 0.53);
+  const panelWidth = isTall ? width : Math.round(width * (args.nativeLogoTextSafeZone ? 0.5 : 0.53));
   const panelTop = isTall ? Math.round(height * 0.5) : 0;
   const panelHeight = height - panelTop;
   const colorA = safeHex(args.brandColors?.[0], "#21b8ef");

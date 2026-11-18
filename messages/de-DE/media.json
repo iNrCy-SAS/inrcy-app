@@ -972,7 +972,7 @@
   "ai_generator_duration_scene_single": "{seconds} s · 1 Szene",
   "ai_generator_duration_scene_multi": "{seconds} s · 2 Szenen",
   "ai_generator_duration_adjusted": "{model}: auf {seconds} Sekunden angepasst, {scenes}.",
-  "ai_generator_engine_info_logo_overlay": "Das offizielle Logo wird nach der Generierung oben rechts hinzugefügt.",
+  "ai_generator_engine_info_logo_overlay": "Das Modell erhält Ihr gespeichertes Logo als Referenz und versucht, es in das Bild zu integrieren. Prüfen Sie die Genauigkeit des Ergebnisses.",
   "ai_generator_editor_settings_label": "Medieneinstellungen",
   "ai_generator_editor_tab_criteria": "Kriterien",
   "ai_generator_editor_tab_prompt": "Prompt",
@@ -991,7 +991,7 @@
   "ai_generator_use_business_dna_info_label": "Wie funktioniert meine Unternehmens-DNA?",
   "ai_generator_use_business_dna_info_close": "Informationen zur Unternehmens-DNA schließen",
   "ai_generator_use_business_dna_info_sources": "Die KI nutzt gespeicherte berufliche Informationen, die für Ihre Anfrage relevant sind: Profil, Unternehmens-DNA, Referenzdokumente, Website und soziale Profile, Leistungen, Gebiet, Stärken und hinterlegte Preise.",
-  "ai_generator_use_business_dna_info_identity": "Die Unternehmens-DNA übernimmt Ihre Markenfarben und bei Bildern Ihr gespeichertes Logo, sofern Ihr Prompt nichts anderes vorgibt.",
+  "ai_generator_use_business_dna_info_identity": "Die Unternehmens-DNA liefert Ihre Markenfarben und bei Bildern das gespeicherte Logo als Modellreferenz, sofern Ihr Prompt nichts anderes vorgibt. Prüfen Sie die Darstellung.",
   "ai_generator_use_business_dna_info_contacts": "Ihre Kontaktdaten und Links werden nur auf Wunsch in das Medium aufgenommen, ohne erneute Eingabe.",
   "ai_generator_use_business_dna_info_freedom": "Bei deaktivierter Unternehmens-DNA werden Ihr Logo und Ihre Unternehmensfarben nicht automatisch angewendet. Sie können diese in Ihrem Prompt anfordern. Die Anweisungen und Verbote aus Meine Kommunikation gelten weiterhin.",
   "ai_generator_prompt_helper_title_image": "Wie beschreiben Sie Ihr Bild?",
@@ -1183,5 +1183,7 @@
   "ai_generator_model_description_heygen-avatar": "Sprechende Porträts und Dialoge mit Ihren Fotos und Stimmen.",
   "ai_generator_engine_info_video_use_heygen-avatar": "Präsentationen vor der Kamera und Gespräche in aufeinanderfolgenden Einstellungen.",
   "ai_generator_engine_info_video_limits_heygen-avatar": "Jede Person spricht in einer eigenen Einstellung. Der Avatar-Modus erstellt keine Gruppenszene. Die endgültige Länge folgt der Sprache; die gewählte Dauer ist ein Richtwert.",
-  "ai_generator_model_reference_duration_available": "Bei mehreren Fotos sind diese Dauern verfügbar: {durations}."
+  "ai_generator_model_reference_duration_available": "Bei mehreren Fotos sind diese Dauern verfügbar: {durations}.",
+  "ai_generator_image_logo_reference_limit": "Wenn Ihr gespeichertes Logo verwendet wird, zählt es zu den {count} erlaubten Referenzbildern.",
+  "ai_generator_image_logo_unavailable": "Um Ihr gespeichertes Logo einzufügen, wählen Sie ein Modell, das Referenzbilder unterstützt."
 }

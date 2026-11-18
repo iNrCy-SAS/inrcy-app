@@ -972,7 +972,7 @@
   "ai_generator_duration_scene_single": "{seconds} 秒 · 1 个场景",
   "ai_generator_duration_scene_multi": "{seconds} 秒 · 2 个场景",
   "ai_generator_duration_adjusted": "{model}：时长已调整为 {seconds} 秒，{scenes}。",
-  "ai_generator_engine_info_logo_overlay": "生成完成后，官方标志会添加在右上角。",
+  "ai_generator_engine_info_logo_overlay": "模型会接收已保存的标志作为参考，并尝试将其融入图片。请检查结果是否准确。",
   "ai_generator_editor_settings_label": "媒体设置",
   "ai_generator_editor_tab_criteria": "条件",
   "ai_generator_editor_tab_prompt": "提示词",
@@ -991,7 +991,7 @@
   "ai_generator_use_business_dna_info_label": "企业资料如何使用？",
   "ai_generator_use_business_dna_info_close": "关闭企业资料说明",
   "ai_generator_use_business_dna_info_sources": "AI 会使用已保存且与请求相关的企业信息：企业档案、企业资料、参考文档、网站和社交账号、服务、区域、优势以及已填写的价格。",
-  "ai_generator_use_business_dna_info_identity": "企业 ADN 会应用品牌配色，并在图片中使用已保存的企业标志，除非你的提示词另有要求。",
+  "ai_generator_use_business_dna_info_identity": "企业 ADN 会提供品牌配色，并在生成图片时将已保存的标志作为模型参考，除非提示词另有要求。请检查其呈现效果。",
   "ai_generator_use_business_dna_info_contacts": "仅在你提出要求时，才会将联系方式和链接加入媒体，无需重新输入。",
   "ai_generator_use_business_dna_info_freedom": "取消勾选企业 ADN 后，不会自动使用企业标志和配色。你可以在提示词中明确要求使用。“我的沟通”中的指示和禁令仍然适用。",
   "ai_generator_prompt_helper_title_image": "如何描述您想要的图片？",
@@ -1183,5 +1183,7 @@
   "ai_generator_model_description_heygen-avatar": "使用您的照片和声音生成会说话的肖像与对话。",
   "ai_generator_engine_info_video_use_heygen-avatar": "适合面对镜头的演示以及分镜对话。",
   "ai_generator_engine_info_video_limits_heygen-avatar": "每个人在单独的镜头中说话。虚拟形象模式不会生成多人同框场景。最终时长以语音为准，所选时长仅供参考。",
-  "ai_generator_model_reference_duration_available": "使用多张照片时，可选时长为：{durations}。"
+  "ai_generator_model_reference_duration_available": "使用多张照片时，可选时长为：{durations}。",
+  "ai_generator_image_logo_reference_limit": "如果使用已保存的标志，它将占用允许的 {count} 张参考图片中的一张。",
+  "ai_generator_image_logo_unavailable": "如需加入已保存的标志，请选择支持参考图片的模型。"
 }

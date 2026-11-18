@@ -27,6 +27,7 @@ import {
   type StandardSubscriptionStorePrices,
 } from "@/lib/clientSubscriptionBilling";
 import { openNativeSubscriptionManagement } from "@/lib/nativeBillingManagement";
+import { getSubscriptionBillingPresentation } from "@/lib/subscriptionBillingPresentation";
 import SubscriptionWorkspace, { SubscriptionDetails } from "./SubscriptionWorkspace";
 import { SubscriptionPlanFeatures } from "./SubscriptionComparison";
 import BasicSubscriptionCard from "./BasicSubscriptionCard";
@@ -98,6 +99,7 @@ function formatEur(value: number, locale: string): string {
 
 function statusPresentation(subscription: SubscriptionData | null, i18nT: (key: string) => string) {
   const status = normalizeStatus(subscription?.status);
+  if (getSubscriptionBillingPresentation(subscription).cancellationScheduled) return { label: i18nT("resiliation_programmee_09802990"), color: "#ffd38f" };
   if (status === "trialing") return { label: i18nT("essai_21_jours_3095df3f"), color: "#8feaff" };
   if (status === "active") return { label: i18nT("actif_2eb75f84"), color: "#8ff7d0" };
   if (status === "past_due" || status === "unpaid") return { label: i18nT("a_regulariser_7046f900"), color: "#ffd38f" };
@@ -271,7 +273,8 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       (billingProvider === "stripe" || !billingProvider) &&
       Boolean(subscription?.stripe_subscription_id) &&
       !reusableStatuses.includes(status);
-    const cancellationScheduled = Boolean(subscription?.cancel_requested_at && subscription?.end_date);
+    const billingPresentation = getSubscriptionBillingPresentation(subscription);
+    const cancellationScheduled = billingPresentation.cancellationScheduled;
     const canStartCheckout = canStartSubscriptionCheckout(subscription, "Standard");
     const canStartPremiumCheckout = canStartSubscriptionCheckout(subscription, "Premium");
     const needsBillingRecovery = ["past_due", "unpaid", "incomplete"].includes(status);
@@ -282,11 +285,13 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
       hasNativeSubscription,
       billingProvider,
       cancellationScheduled,
+      finalChargeBeforeEnd: billingPresentation.finalChargeBeforeEnd,
+      noFurtherRenewal: billingPresentation.noFurtherRenewal,
       canStartCheckout,
       canStartPremiumCheckout,
       needsBillingRecovery,
       trialEndLabel: formatDate(subscription?.trial_end_at, locale),
-      renewalLabel: formatDate(subscription?.next_renewal_date, locale),
+      renewalLabel: formatDate(billingPresentation.nextChargeDate, locale),
       endLabel: formatDate(subscription?.end_date, locale),
       billingCycle: subscription?.billing_cycle,
       presentation: statusPresentation(subscription, i18nT),
@@ -638,9 +643,10 @@ export default function StandardSubscriptionContent({ onOpenContact }: Props) {
     <strong>iNrCy {view.edition === "basic" ? i18nT("subscription_basic_name") : view.edition === "premium" ? "Premium" : "Standard"}</strong>
     <p style={{ color: view.presentation.color }}>{view.presentation.label}</p>
     {view.trialEndLabel && view.status === "trialing" ? <p>{i18nT("fin_de_votre_essai_f1bae9e9")} <strong>{view.trialEndLabel}</strong></p> : null}
-    {view.renewalLabel ? <p>{i18nT("premium_next_renewal_label", { date: view.renewalLabel })}</p> : null}
+    {view.renewalLabel && (!view.cancellationScheduled || view.billingCycle !== "monthly") ? <p>{i18nT("premium_next_renewal_label", { date: view.renewalLabel })}</p> : null}
     {view.cancellationScheduled && view.endLabel ? <p>{i18nT("acces_maintenu_jusqu_au_4270c8d3")} <strong>{view.endLabel}</strong>.</p> : null}
-    {view.cancellationScheduled && view.billingCycle === "monthly" && view.renewalLabel ? <p>{i18nT("derniere_mensualite_prevue_le_f3d69894")} <strong>{view.renewalLabel}</strong>.</p> : null}
+    {view.finalChargeBeforeEnd && view.billingCycle === "monthly" && view.renewalLabel ? <p>{i18nT("derniere_mensualite_prevue_le_f3d69894")} <strong>{view.renewalLabel}</strong>.</p> : null}
+    {view.noFurtherRenewal ? <p>{i18nT("subscription_no_further_renewal")}</p> : null}
     {(view.hasStripeSubscription || view.hasNativeSubscription) ? <button type="button" onClick={openPortal} style={secondaryButton} disabled={busyAction !== null}>{view.needsBillingRecovery ? i18nT("regulariser_mon_paiement_00ae072e") : i18nT("gerer_ma_facturation_dc5027ac")}</button> : null}
     {view.hasNativeSubscription ? <p className={styles.finePrint}>{i18nT("native_subscription_managed_by_store", { store: view.billingProvider === "app_store" ? "App Store" : "Google Play" })}</p> : null}
     {(view.edition === "basic" || view.edition === "standard" || view.status === "trialing") && view.hasStripeSubscription && !view.needsBillingRecovery ? <>

@@ -1003,5 +1003,6 @@
   "x_disconnected_notice": "Account X disconnesso.",
   "x_public_link_saved": "Link pubblico X salvato.",
   "x_public_profile_link": "Link pubblico del profilo X",
-  "x_view_profile": "Visualizza profilo"
+  "x_view_profile": "Visualizza profilo",
+  "subscription_no_further_renewal": "Non sono previsti ulteriori rinnovi."
 }
