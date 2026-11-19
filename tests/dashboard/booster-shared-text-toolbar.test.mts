@@ -35,6 +35,8 @@ test("content duplication and reporting stay available together in the footer fo
   assert.match(text, /createPortal\(footerActions, actionsContainer\)/);
   assert.match(text, /disabled=\{displayCards\.length < 2 \|\| voiceBusy\}/);
   assert.match(text, /role=\{duplicateFeedback\.kind === "error" \? "alert" : "status"\}/);
+  assert.match(footer, /data-publish-duplicate-feedback=\{duplicateFeedback\.kind\}/, "Duplication feedback shares the footer portal, outside the editable fields");
+  assert.equal((text.match(/data-publish-duplicate-feedback=/g) || []).length, 1);
   const css = readFileSync("app/dashboard/booster/publier/components/PublishContentEditorPanel.module.css", "utf8");
   assert.match(css, /\.duplicateButton\s*\{[^}]*white-space:\s*nowrap/);
 });

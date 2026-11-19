@@ -218,34 +218,8 @@ test("inline channel previews remain exclusive and stop when the account, lock o
  }finally{await browser.close()}
 });
 
-test("the actual Contents format row places inline music next to Meta formats on desktop and keeps it usable on mobile",async()=>{
- const editor=ts.createSourceFile('PublishContentEditorPanel.tsx',read('app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx'),ts.ScriptTarget.ES2022,true,ts.ScriptKind.TSX);
- let formats:ts.JsxElement|undefined;const find=(node:ts.Node)=>{if(ts.isJsxElement(node)&&node.openingElement.attributes.properties.some(property=>ts.isJsxAttribute(property)&&property.name.getText(editor)==='className'&&property.initializer?.getText(editor)==='{css.publicationFormats}'))formats=node;ts.forEachChild(node,find)};find(editor);assert.ok(formats);
- const controls=editor.statements.find(node=>ts.isFunctionDeclaration(node)&&node.name?.text==='MetaPublicationFormatControls');assert.ok(controls);
- // Execute the real format-controls declaration and row JSX; unrelated rich
- // text, dictation and report tools are outside this focused layout fixture.
- const compiled=ts.transpileModule(`const React=require('react'),css=require('./PublishContentEditorPanel.module.css').default,Selector=require('selector').default;
- const pillBtn={display:'inline-flex',alignItems:'center',borderRadius:20},darkOptionStyle={},darkSelectStyle={};
- ${controls.getText(editor)}
- exports.default=function ContentFormats(){const [activeCard,setActive]=React.useState('facebook'),[choices,setChoices]=React.useState({facebook:null,instagram:null});window.changeContentChannel=setActive;const [placement,setPlacement]=React.useState('reel');
- const voiceBusy=false,isMobile=innerWidth<=700,i18nT=(key)=>messages[key]||key,pinterestBoards=[],pinterestBoardId='',pinterestBoardsLoading=false,onPinterestBoardChange=()=>{},ThreadsPublicationModeControls=()=>null;
- const instagramPublicationPlacement=placement,facebookPublicationPlacement=placement,instagramStoryEnabled=false,facebookStoryEnabled=false,instagramPublicationPreferences={reelsEnabled:true,storiesEnabled:true},facebookPublicationPreferences=instagramPublicationPreferences;
- const onInstagramPublicationPlacementChange=setPlacement,onFacebookPublicationPlacementChange=setPlacement,onInstagramStoryEnabledChange=()=>{},onFacebookStoryEnabledChange=()=>{};
- const renderChannelSoundtrack=(channel,disabled)=>React.createElement(Selector,{key:channel,inline:true,channelLabel:channel==='facebook'?'Facebook':'Instagram',scopeKey:'actor:account:'+channel,soundtrackId:choices[channel],onChange:id=>setChoices(previous=>({...previous,[channel]:id})),disabled});
- return <div className={css.editor} style={{'--editor-accent':'#4597ff','--editor-rgb':'69,151,255',height:'auto'}}><div className={css.editorTopbar}>${formats.getText(editor)}</div></div>};`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText;
- const browser=await chromium.launch({headless:true});
- try{for(const viewport of [{width:1280,height:900},{width:390,height:844}]){
-  const page=await browser.newPage({viewport}),errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));await page.route('**/*',route=>route.abort());await page.setContent(html);await page.addStyleTag({content:read('app/dashboard/booster/publier/components/PublishContentEditorPanel.module.css').replace(/:global\(([^)]+)\)/g,'$1')});await page.addScriptTag({content:fixture+`sources.contentFormats=${JSON.stringify(compiled)};root.render(React.createElement(require('contentFormats').default));`});
-  const row=page.locator('.publicationFormats'),field=page.locator('[data-publish-content-soundtrack="facebook"]'),formatsGroup=row.getByRole('group'),combo=field.getByRole('combobox');await combo.waitFor();
-  const groupBounds=await formatsGroup.boundingBox(),fieldBounds=await field.boundingBox();assert.ok(groupBounds&&fieldBounds);
-  if(process.env.INRCY_MUSIC_LAYOUT_PROOF)await page.screenshot({path:`${process.env.INRCY_MUSIC_LAYOUT_PROOF}-contents-${viewport.width}.png`});
-  if(viewport.width>700){assert.ok(fieldBounds.x>=groupBounds.x+groupBounds.width,`Desktop music follows the format buttons: ${JSON.stringify({groupBounds,fieldBounds})}`);assert.ok(Math.abs(fieldBounds.y-groupBounds.y)<12,'Desktop controls share the same row');}
-  else assert.ok(fieldBounds.x>=0&&fieldBounds.x+fieldBounds.width<=viewport.width,'Mobile music stays inside the viewport');
-  assert.equal(await row.getByRole('button',{name:'Reels',exact:true}).getAttribute('aria-pressed'),'true');await combo.click();await field.getByRole('option',{name:catalogue[0].label,exact:true}).click();await field.locator('.preview').click();assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),1);
-  await page.evaluate(()=>(window as unknown as {changeContentChannel:(channel:string)=>void}).changeContentChannel('instagram'));await page.locator('[data-publish-content-soundtrack="instagram"]').waitFor();assert.equal(await page.evaluate(()=>(window as unknown as FixtureState).activeAudio.size),0);assert.equal(await page.getByRole('dialog').count(),0);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-  if(process.env.INRCY_MUSIC_LAYOUT_PROOF)await page.screenshot({path:`${process.env.INRCY_MUSIC_LAYOUT_PROOF}-contents-${viewport.width}.png`});assert.deepEqual(errors,[]);assert.deepEqual(await page.evaluate(()=>(window as unknown as FixtureState).otherCalls),[]);await page.close();
- }}finally{await browser.close()}
-});
+// The complete inline channel-options layout is exercised with the actual
+// Validation board in booster-validation-layout-browser.test.mts.
 
 test("actual Booster payloads preserve per-channel draft choices and filter publish or schedule music to generated Meta media",()=>{
  const source=ts.createSourceFile("BoosterDraftAndSubmission.tsx",[read("app/dashboard/booster/publier/PublishModal.tsx"),read("app/dashboard/booster/publier/publicationDraftSession.ts"),read("app/dashboard/booster/publier/publicationSubmission.ts"),read("app/dashboard/booster/publier/publicationSubmissionPayload.ts")].join("\n"),ts.ScriptTarget.ES2022,true,ts.ScriptKind.TSX);
@@ -291,7 +265,8 @@ test("actual Booster payloads preserve per-channel draft choices and filter publ
  }
  assert.match(source.text,/setSoundtrackByChannel\(nextSoundtrackByChannel\)/);
  assert.match(source.text,/isSoundtrackLocked=\{\(channel\) => Boolean\(publicationSummaryForActions\?\.entries\?\.some\(entry => entry\.channel === channel && publicationStorySequenceResumeRef\(entry\.story_sequence_resume_ref\)\)\)\}/);
- const selectors:ts.JsxOpeningLikeElement[]=[];const find=(node:ts.Node)=>{if((ts.isJsxOpeningElement(node)||ts.isJsxSelfClosingElement(node))&&node.tagName.getText(source)==='MediaSoundtrackSelector')selectors.push(node);ts.forEachChild(node,find)};find(source);assert.equal(selectors.length,1,'Contents has a single controlled inline music renderer');
- const selector=selectors[0].getText(source);assert.match(selector,/\binline\b/);assert.match(selector,/soundtrackByChannel\[channel\]/);assert.match(selector,/setSoundtrackByChannel/);
- const contentPanel=read('app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx');assert.match(contentPanel,/data-publish-content-soundtrack/);assert.match(contentPanel,/renderChannelSoundtrack\(activeCard/);
+ const contentPanel=read('app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx');assert.doesNotMatch(contentPanel,/renderChannelSoundtrack|data-publish-content-soundtrack/);
+ const board=read('app/dashboard/booster/publier/components/PublishValidationBoard.tsx');assert.match(board,/<MediaSoundtrackSelector inline/);assert.match(board,/soundtrackByChannel\?\.\[musicChannel\]/);assert.match(board,/onChange=\{id => onSoundtrackChange\(musicChannel, id\)\}/);
+ assert.match(source.text,/onSoundtrackChange=\{\(channel, id\) => setSoundtrackByChannel\(current => \(\{ \.\.\.current, \[channel\]: id \}\)\)\}/);
+
 });

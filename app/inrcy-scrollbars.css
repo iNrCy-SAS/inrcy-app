@@ -1,0 +1,80 @@
+/* One native scrollbar theme for iNrCy pages, editors and body-mounted dialogs. */
+html {
+  --inrcy-scrollbar-track: #101a2c;
+  --inrcy-scrollbar-thumb: #827ac7;
+  --inrcy-scrollbar-thumb-hover: #65b5de;
+}
+
+html[data-inrcy-color-mode="light"] {
+  --inrcy-scrollbar-track: #e7e9f4;
+  --inrcy-scrollbar-thumb: #8578bd;
+  --inrcy-scrollbar-thumb-hover: #508bb9;
+}
+
+:where(html, body, body *) {
+  scrollbar-width: thin;
+}
+
+html,
+body,
+body * {
+  scrollbar-color: var(--inrcy-scrollbar-thumb) var(--inrcy-scrollbar-track) !important;
+}
+
+html:hover,
+body *:hover {
+  scrollbar-color: var(--inrcy-scrollbar-thumb-hover) var(--inrcy-scrollbar-track) !important;
+}
+
+body ::-webkit-scrollbar,
+html::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+body ::-webkit-scrollbar-track,
+html::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: var(--inrcy-scrollbar-track);
+}
+
+body ::-webkit-scrollbar-thumb,
+html::-webkit-scrollbar-thumb {
+  min-height: 28px;
+  min-width: 28px;
+  border: 2px solid var(--inrcy-scrollbar-track);
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--inrcy-scrollbar-thumb), #5b9fc6);
+}
+
+body ::-webkit-scrollbar-thumb:hover,
+html::-webkit-scrollbar-thumb:hover {
+  background: var(--inrcy-scrollbar-thumb-hover);
+}
+
+body ::-webkit-scrollbar-corner,
+html::-webkit-scrollbar-corner {
+  background: var(--inrcy-scrollbar-track);
+}
+
+@media (forced-colors: active) {
+  html,
+  body,
+  body * {
+    scrollbar-width: auto;
+    scrollbar-color: auto !important;
+  }
+
+  body ::-webkit-scrollbar-track,
+  body ::-webkit-scrollbar-corner,
+  html::-webkit-scrollbar-track,
+  html::-webkit-scrollbar-corner {
+    background: Canvas;
+  }
+
+  body ::-webkit-scrollbar-thumb,
+  html::-webkit-scrollbar-thumb {
+    background: CanvasText;
+    border-color: Canvas;
+  }
+}

@@ -8401,30 +8401,6 @@
     ]
   },
   {
-    "id": "basic.media.0352",
-    "label": "Action Change",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/PublishModal.tsx"
-    ],
-    "sourceAnchor": "<MediaSoundtrackSelector key={channel} inline assistantUiScope=\"booster\"\n                channelLabel={getLocalizedChannelLabel(channel, runtimeT)}\n                soundtrackId={soundtrackByChannel[channel] ?? null}\n                onChange={(id) => setSoundtrackByChannel(current => ({ ...current, [channel]: id }))}\n                scopeKey={`${actorUserId}:${activeAccountId}:${channel}`}\n                disabled={disabled || wizardBusy}\n                selectionLocked={Boolean(publicationSummaryForActions?.entries?.some(entry => entry.channel === channel && publicationStorySequenceResumeRef(entry.story_sequence_resume_ref)))}\n                unavailableHint={canConfigureChannelSoundtrack(channel) ? undefined : i18nT(\"publication_music_reserved_hint\")} />",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : activeWizardStep === \"content\" ; showContentWorkspace && workflowSteps.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/PublishModal.tsx#MediaSoundtrackSelector:3884df2d7ece117c:1"
-    ]
-  },
-  {
     "id": "basic.media.0353",
     "label": "Action button",
     "domain": "publication",
@@ -9110,102 +9086,6 @@
     ]
   },
   {
-    "id": "basic.media.0381",
-    "label": "Action button",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
-    ],
-    "sourceAnchor": "<button\n        type=\"button\"\n        aria-pressed={primaryPlacement === \"classic\"}\n        onClick={() => onPrimaryPlacementChange(\"classic\")}\n        disabled={disabled}\n        style={optionStyle(primaryPlacement === \"classic\")}\n      >\n        {classicLabel}\n      </button>",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:e391021927617496:1"
-    ]
-  },
-  {
-    "id": "basic.media.0382",
-    "label": "Action button",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
-    ],
-    "sourceAnchor": "<button\n          type=\"button\"\n          aria-pressed={primaryPlacement === \"reel\"}\n          onClick={() => onPrimaryPlacementChange(\"reel\")}\n          disabled={disabled}\n          style={optionStyle(primaryPlacement === \"reel\")}\n        >\n          {reelLabel}\n        </button>",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : reelsEnabled.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:6115b92d078e4eff:1"
-    ]
-  },
-  {
-    "id": "basic.media.0383",
-    "label": "Action button",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
-    ],
-    "sourceAnchor": "<button\n            type=\"button\"\n            aria-pressed={primaryPlacement === \"story\"}\n            onClick={() => {\n              onPrimaryPlacementChange(\"story\");\n              onStoryEnabledChange(false);\n            }}\n            disabled={disabled}\n            style={optionStyle(primaryPlacement === \"story\")}\n          >\n            {storyLabel}\n          </button>",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : storiesEnabled.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:403e2983e1330086:1"
-    ]
-  },
-  {
-    "id": "basic.media.0384",
-    "label": "Renseigner checkbox",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
-    ],
-    "sourceAnchor": "<input\n                type=\"checkbox\"\n                checked={storyEnabled}\n                onChange={(event) => onStoryEnabledChange(event.target.checked)}\n                disabled={disabled}\n                style={{ accentColor: \"#38bdf8\" }}\n              />",
-    "capabilityId": "publication.prepare",
-    "toolNames": [
-      "preparePublication",
-      "editPublication"
-    ],
-    "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : primaryPlacement !== \"story\" ; storiesEnabled.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#input:6d8d68044dfe1d96:1"
-    ]
-  },
-  {
     "id": "basic.media.0385",
     "label": "Disponible uniquement pour le site web",
     "domain": "publication",
@@ -9374,126 +9254,6 @@
     ]
   },
   {
-    "id": "basic.media.0392",
-    "label": "Tableau Pinterest",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
-    ],
-    "sourceAnchor": "<select\n                  value={pinterestBoardId}\n                  onChange={(event) =>\n                    onPinterestBoardChange(event.target.value)\n                  }\n                  disabled={pinterestBoardsLoading || !pinterestBoards.length}\n                  aria-label={i18nT(\"tableau_pinterest_1af82867\")}\n                  title={i18nT(\"tableau_pinterest_1af82867\")}\n                  style={{\n                    ...darkSelectStyle,\n                    width: isMobile ? \"min(58vw, 220px)\" : \"min(360px, 45%)\",\n                    minWidth: isMobile ? 150 : 200,\n                    maxWidth: \"100%\",\n                    flex: \"0 1 auto\",\n                  }}\n                >",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : activeCard === \"pinterest\" ; displayCards.length.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#select:f1be06ec6a7a96fb:1"
-    ]
-  },
-  {
-    "id": "basic.media.0393",
-    "label": "Aucun tableau",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
-    ],
-    "sourceAnchor": "<option value=\"\" style={darkOptionStyle}>\n                      {pinterestBoardsLoading ? i18nT(\"chargement_01cba1df\") : i18nT(\"aucun_tableau_d327ddcf\")}\n                    </option>",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : !pinterestBoards.length ; activeCard === \"pinterest\" ; displayCards.length.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#option:b4aa96ccf8bd617c:1"
-    ]
-  },
-  {
-    "id": "basic.media.0394",
-    "label": "Choisir un tableau",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
-    ],
-    "sourceAnchor": "<option value=\"\" style={darkOptionStyle}>\n                      {i18nT(\"choisir_un_tableau_77f9de39\")}{\" \"}</option>",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : !pinterestBoardId ; !pinterestBoards.length ; activeCard === \"pinterest\" ; displayCards.length.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#option:b4aa96ccf8bd617c:2"
-    ]
-  },
-  {
-    "id": "basic.media.0395",
-    "label": "Choisir board.id",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
-    ],
-    "sourceAnchor": "<option\n                      key={board.id}\n                      value={board.id}\n                      style={darkOptionStyle}\n                    >\n                      {board.name}\n                    </option>",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : activeCard === \"pinterest\" ; displayCards.length.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#option:565fcb3929dc76ca:1"
-    ]
-  },
-  {
-    "id": "basic.media.0396",
-    "label": "Action Change",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
-    ],
-    "sourceAnchor": "<ThreadsPublicationModeControls inline mode={threadsPublicationMode} preferences={threadsPublicationPreferences} loading={threadsPreferencesLoading} failed={threadsPreferencesFailed} disabled={voiceBusy} onChange={onThreadsPublicationModeChange} />",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : activeCard === \"threads\" ; displayCards.length.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#ThreadsPublicationModeControls:9b7044f9fd55cc7f:1"
-    ]
-  },
-  {
     "id": "basic.media.0397",
     "label": "Action Busy Change",
     "domain": "publication",
@@ -9524,21 +9284,21 @@
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx"
     ],
-    "sourceAnchor": "<button\n                    type=\"button\"\n                    onClick={() => {\n                      const invalidFields = new Set(\n                        xForbiddenCtaUrlFields.map((field) => field.field),\n                      );\n                      updatePost(\n                        \"x\",\n                        {\n                          ...(invalidFields.has(\"cta\") ? { cta: \"\" } : {}),\n                          ...(invalidFields.has(\"ctaUrl\")\n                            ? { ctaUrl: \"\" }\n                            : {}),\n                          ...(invalidFields.has(\"ctaPhone\")\n                            ? { ctaPhone: \"\" }\n                            : {}),\n                        },\n                        { sanitize: false },\n                      );\n                    }}\n                    style={{\n                      ...pillBtn,\n                      border: \"1px solid rgba(248,113,113,0.44)\",\n                      background: \"rgba(127,29,29,0.34)\",\n                      color: \"#fee2e2\",\n                      flex: \"0 0 auto\",\n                    }}\n                  >",
+    "sourceAnchor": "<button\n                    data-x-remove-cta-url\n                    type=\"button\"\n                    onClick={() => {\n                      const invalidFields = new Set(\n                        xForbiddenCtaUrlFields.map((field) => field.field),\n                      );\n                      updatePost(\n                        \"x\",\n                        {\n                          ...(invalidFields.has(\"cta\") ? { cta: \"\" } : {}),\n                          ...(invalidFields.has(\"ctaUrl\")\n                            ? { ctaUrl: \"\" }\n                            : {}),\n                          ...(invalidFields.has(\"ctaPhone\")\n                            ? { ctaPhone: \"\" }\n                            : {}),\n                        },\n                        { sanitize: false },\n                      );\n                    }}\n                    style={{\n                      ...pillBtn,\n                      border: \"1px solid rgba(248,113,113,0.44)\",\n                      background: \"rgba(127,29,29,0.34)\",\n                      color: \"#fee2e2\",\n                      justifySelf: \"start\",\n                      flex: \"0 0 auto\",\n                    }}\n                  >\n                    {i18nT(\"retirer_le_lien_du_cta_754fb2a5\")}{\" \"}</button>",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
       "editPublication"
     ],
     "mode": "form",
-    "notes": "CTA propre à la publication, valeurs et destinations disponibles explicitement fournies ; ne change pas le CTA global de l’entreprise. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : xForbiddenCtaUrlFields.length ; activeCard === \"x\" && xForbiddenUrlFields.length ; displayCards.length.",
+    "notes": "Correction locale du CTA X conservée dans la zone CTA après retrait de la bannière : retire uniquement les champs CTA/URL/téléphone signalés par la politique native X, sans changer le CTA global ni les autres canaux. Visible seulement si le CTA du brouillon X contient un lien interdit. L’équivalent serveur ne prouve pas à lui seul l’interaction avec l’écran monté.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "per-publication CTA uses native modes and destinations, survives execution and never replaces the global preference",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:89df1316cfcb1c25:1"
+      "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:9361a0cc73ea6b17:1"
     ]
   },
   {
@@ -11027,50 +10787,34 @@
   },
   {
     "id": "basic.media.0461",
-    "label": "Action button",
+    "label": "Statut global du canal",
     "domain": "publication",
     "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx"
+      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx",
+      "app/_components/AppAppearanceThemeBridge.tsx",
+      "app/inrcy-scrollbars.css"
     ],
-    "sourceAnchor": "<button type=\"button\" className={css.warningButton} aria-label={[hint || label, ...messages].join(\" · \")} aria-describedby={id} aria-controls={id} aria-expanded={open} onClick={onToggle}>\n      <svg width=\"19\" height=\"19\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.7\" strokeLinecap=\"round\" strokeLinejoin=\"round\" aria-hidden=\"true\"><path d=\"M10.3 3.6 2 18a2 2 0 0 0 1.7 3h16.6a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z\"/><path d=\"M12 9v4m0 4h.01\"/></svg>\n      {hint ? <span>{hint}</span> : null}\n    </button>",
+    "sourceAnchor": "<button type=\"button\" className={css.warningButton} aria-label={[tone === \"warning\" ? warningLabel : label, ...messages].join(\" · \")} aria-describedby={id} aria-controls={id} aria-expanded={open} onClick={onToggle}>\n      {tone === \"warning\" ? <WarningTriangle /> : <span>{label}</span>}\n    </button>",
     "capabilityId": "publication.prepare",
     "toolNames": [
       "preparePublication",
       "editPublication"
     ],
     "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel.",
+    "notes": "Statut unique dans l’en-tête Validation : regroupe contenu, médias, formats et avertissements d’options. Ouvrir le statut affiche les raisons sans modifier le brouillon ni publier. Les lignes internes n’exposent aucun statut répété. L’équivalent serveur ne certifie pas à lui seul l’interaction avec l’écran monté.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:043d86513d73edbd:1"
-    ]
-  },
-  {
-    "id": "basic.media.0462",
-    "label": "Réglages",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx"
+      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:61517f245208ecb2:1"
     ],
-    "sourceAnchor": "<button type=\"button\" data-channel-settings-trigger={item.channel} disabled={disabled} aria-label={`${t(\"tiktok_review_settings\")} · ${item.label}`} title={`${t(\"tiktok_review_settings\")} · ${item.label}`} aria-haspopup=\"dialog\" aria-expanded={modal === \"settings\" && settingsChannel === item.channel} aria-controls={settingsDialogId} onClick={() => openSettings(item.channel)}><Settings /></button>",
-    "capabilityId": "publication.prepare",
-    "toolNames": [
-      "preparePublication",
-      "editPublication"
-    ],
-    "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : hasSettings.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:81469d0846a56705:1"
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/booster-validation-layout-browser.test.mts",
+        "testAnchor": "one header status aggregates content, media, format and option alerts while the detail rows stay simple"
+      }
     ]
   },
   {
@@ -11362,195 +11106,123 @@
     ]
   },
   {
-    "id": "basic.media.0475",
-    "label": "Fermer",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx"
-    ],
-    "sourceAnchor": "<button type=\"button\" onClick={() => setModal(null)} aria-label={t(\"fermer_5ab4ec64\")}>×</button>",
-    "capabilityId": "publication.prepare",
-    "toolNames": [
-      "preparePublication",
-      "editPublication"
-    ],
-    "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : modal === \"settings\" && settingsItem && settingsIdentity.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:fe39dc4df3360b18:2"
-    ]
-  },
-  {
     "id": "basic.media.0476",
-    "label": "Action Change",
+    "label": "Musique du canal dans Validation",
     "domain": "publication",
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishValidationBoard.tsx"
     ],
-    "sourceAnchor": "<MediaSoundtrackSelector\n            inline assistantUiScope=\"booster\" channelLabel={settingsItem.label} soundtrackId={soundtrackByChannel?.[settingsMusicChannel] ?? null}\n            channelStyle={{ \"--channel-color\": settingsIdentity.color, \"--channel-rgb\": settingsIdentity.rgb, \"--channel-gradient\": settingsIdentity.gradient } as CSSProperties}\n            onChange={id => onSoundtrackChange(settingsMusicChannel, id)}\n            unavailableHint={canSelectSoundtrack?.(settingsMusicChannel) ? undefined : t(\"publication_music_reserved_hint\")}\n            scopeKey={`${soundtrackScopeKey || \"\"}:${settingsMusicChannel}`} disabled={disabled} selectionLocked={isSoundtrackLocked?.(settingsMusicChannel)} />",
+    "sourceAnchor": "<MediaSoundtrackSelector inline assistantUiScope=\"booster\" channelLabel={item.label} soundtrackId={soundtrackByChannel?.[musicChannel] ?? null}\n                  channelStyle={{ \"--channel-color\": identity.color, \"--channel-rgb\": identity.rgb, \"--channel-gradient\": identity.gradient } as CSSProperties}\n                  onChange={id => onSoundtrackChange(musicChannel, id)}\n                  unavailableHint={canSelectSoundtrack?.(musicChannel) ? undefined : t(\"publication_music_reserved_hint\")}\n                  scopeKey={`${soundtrackScopeKey || \"\"}:${musicChannel}`} disabled={disabled} selectionLocked={isSoundtrackLocked?.(musicChannel)} />",
     "capabilityId": "publication.options",
     "toolNames": [
       "readPublicationOptions",
       "preparePublication"
     ],
     "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : settingsMusicChannel && onSoundtrackChange ; modal === \"settings\" && settingsItem && settingsIdentity.",
+    "notes": "Sélecteur de musique visible directement dans les blocs Facebook et Instagram de Validation. Même état contrôlé par canal, catalogue, préécoute, disponibilité Stories/Reels et verrouillage d’une reprise ; aucun effet sur les préférences globales. L’équivalent serveur conserve les choix mais ne certifie pas à lui seul l’interaction avec l’écran monté.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#MediaSoundtrackSelector:1625a60b85605705:1"
-    ]
-  },
-  {
-    "id": "basic.media.0477",
-    "label": "Action button",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx"
+      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#MediaSoundtrackSelector:d332d2e74af21563:1"
     ],
-    "sourceAnchor": "<button type=\"button\" onClick={() => setModal(null)}>{t(\"publication_music_done\")}</button>",
-    "capabilityId": "publication.prepare",
-    "toolNames": [
-      "preparePublication",
-      "editPublication"
-    ],
-    "mode": "form",
-    "notes": "Création/édition du brouillon natif, texte et canaux explicites, champs omis conservés. L’équivalent serveur n’atteste pas le déplacement visuel entre champs du wizard. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : modal === \"settings\" && settingsItem && settingsIdentity.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "preparation records a real Booster draft with owned media, preserving auth and exposing no private media URL",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:378819b8e47c6e7e:1"
-    ]
-  },
-  {
-    "id": "basic.media.0478",
-    "label": "Classique",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx"
-    ],
-    "sourceAnchor": "<select aria-label={t(facebook ? \"facebook_publication_format\" : \"instagram_publication_format\")} value={placement}\n          title={durationHint} disabled={disabled} onChange={event => changePlacement(event.target.value)}>\n          <option value=\"classic\">{t(\"instagram_classic\")}</option>\n          {preferences.reelsEnabled || placement === \"reel\" ? <option value=\"reel\" disabled={!preferences.reelsEnabled}>{t(\"instagram_reels\")}</option> : null}\n          {preferences.storiesEnabled || placement === \"story\" ? <option value=\"story\" disabled={!preferences.storiesEnabled}>{t(\"instagram_stories\")}</option> : null}\n        </select>",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : channel === \"facebook\" || channel === \"instagram\".",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#select:cac176296bdeae70:1"
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/booster-validation-layout-browser.test.mts",
+        "testAnchor": "visible options stay controlled across formats, boards, Threads, music and account or step changes"
+      }
     ]
   },
   {
     "id": "basic.media.0479",
-    "label": "Classique",
+    "label": "Classique Facebook/Instagram",
     "domain": "publication",
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx"
     ],
-    "sourceAnchor": "<option value=\"classic\">{t(\"instagram_classic\")}</option>",
+    "sourceAnchor": "<input type=\"radio\" name={`booster-${channel}-placement`} value=\"classic\" checked={placement === \"classic\"} disabled={disabled} onChange={() => changePlacement(\"classic\")} />",
     "capabilityId": "publication.options",
     "toolNames": [
       "readPublicationOptions",
       "preparePublication"
     ],
     "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : channel === \"facebook\" || channel === \"instagram\".",
+    "notes": "Choix de typologie visible dans le bloc Validation du canal : Classique et Réel exclusifs sur Facebook/Instagram, Story associée indépendante ; classique et éphémère exclusifs sur Threads. Mêmes valeurs contrôlées, contraintes de préférences, état de chargement et callbacks natifs. Une ancienne Story seule conserve ses médias et sa Story lors de l’ajout d’un format principal. Aucun effet sur les préférences globales. L’équivalent serveur conserve les options ; la preuve navigateur vérifie les interactions locales.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:7c2d00cd2bd4ceb1:1"
+      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#input:e5c9deaad2e4e3c0:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/booster-validation-options-runtime.test.mts",
+        "testAnchor": "the actual Validation options remain controlled across external updates, Meta formats, Pinterest boards and Threads preferences"
+      }
     ]
   },
   {
     "id": "basic.media.0480",
-    "label": "Reels",
+    "label": "Réel Facebook/Instagram",
     "domain": "publication",
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx"
     ],
-    "sourceAnchor": "<option value=\"reel\" disabled={!preferences.reelsEnabled}>{t(\"instagram_reels\")}</option>",
+    "sourceAnchor": "<input type=\"radio\" name={`booster-${channel}-placement`} value=\"reel\" checked={placement === \"reel\"} disabled={disabled || !preferences.reelsEnabled} onChange={() => changePlacement(\"reel\")} />",
     "capabilityId": "publication.options",
     "toolNames": [
       "readPublicationOptions",
       "preparePublication"
     ],
     "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : preferences.reelsEnabled || placement === \"reel\" ; channel === \"facebook\" || channel === \"instagram\".",
+    "notes": "Choix de typologie visible dans le bloc Validation du canal : Classique et Réel exclusifs sur Facebook/Instagram, Story associée indépendante ; classique et éphémère exclusifs sur Threads. Mêmes valeurs contrôlées, contraintes de préférences, état de chargement et callbacks natifs. Une ancienne Story seule conserve ses médias et sa Story lors de l’ajout d’un format principal. Aucun effet sur les préférences globales. L’équivalent serveur conserve les options ; la preuve navigateur vérifie les interactions locales.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:15894f9bf4fedd4d:1"
-    ]
-  },
-  {
-    "id": "basic.media.0481",
-    "label": "Stories",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx"
+      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#input:1cef3c991b924f86:1"
     ],
-    "sourceAnchor": "<option value=\"story\" disabled={!preferences.storiesEnabled}>{t(\"instagram_stories\")}</option>",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : preferences.storiesEnabled || placement === \"story\" ; channel === \"facebook\" || channel === \"instagram\".",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:4ebfde46960c4e75:1"
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/booster-validation-options-runtime.test.mts",
+        "testAnchor": "the actual Validation options remain controlled across external updates, Meta formats, Pinterest boards and Threads preferences"
+      }
     ]
   },
   {
     "id": "basic.media.0482",
-    "label": "Renseigner checkbox",
+    "label": "Story Facebook/Instagram",
     "domain": "publication",
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx"
     ],
-    "sourceAnchor": "<input type=\"checkbox\" checked={storyEnabled}\n        disabled={disabled || !preferences.storiesEnabled} onChange={event => onStory(event.target.checked)} />",
+    "sourceAnchor": "<input type=\"checkbox\" checked={placement === \"story\" || storyEnabled}\n        disabled={disabled || !preferences.storiesEnabled} onChange={event => {\n          if (placement === \"story\" && !event.target.checked) onPlacement(\"classic\");\n          onStory(event.target.checked);\n        }} />",
     "capabilityId": "publication.options",
     "toolNames": [
       "readPublicationOptions",
       "preparePublication"
     ],
     "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : placement !== \"story\" ; channel === \"facebook\" || channel === \"instagram\".",
+    "notes": "Choix de typologie visible dans le bloc Validation du canal : Classique et Réel exclusifs sur Facebook/Instagram, Story associée indépendante ; classique et éphémère exclusifs sur Threads. Mêmes valeurs contrôlées, contraintes de préférences, état de chargement et callbacks natifs. Une ancienne Story seule conserve ses médias et sa Story lors de l’ajout d’un format principal. Aucun effet sur les préférences globales. L’équivalent serveur conserve les options ; la preuve navigateur vérifie les interactions locales.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#input:549f81ed9b2226f5:1"
+      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#input:ee588111a0e392d9:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/booster-validation-options-runtime.test.mts",
+        "testAnchor": "the actual Validation options remain controlled across external updates, Meta formats, Pinterest boards and Threads preferences"
+      }
     ]
   },
   {
@@ -11650,75 +11322,63 @@
     ]
   },
   {
-    "id": "basic.media.0487",
-    "label": "Format Threads",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx"
-    ],
-    "sourceAnchor": "<select aria-label={t(\"threads_publication_format\")} value={props.threadsPublicationMode} disabled={disabled}\n          title={props.threadsPublicationMode === \"ghost\" ? t(\"threads_ghost_help\") : undefined}\n          onChange={event => {\n            const value = event.target.value;\n            if (value === \"classic\" || value === \"ghost\" && !ghostDisabled) props.onThreadsPublicationModeChange(value);\n          }}>\n          <option value=\"classic\">{t(\"threads_classic\")}</option>\n          <option value=\"ghost\" disabled={ghostDisabled}>{t(\"threads_ghost\")}</option>\n        </select>",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : channel === \"threads\".",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#select:e1ea4971f8eb3afe:1"
-    ]
-  },
-  {
     "id": "basic.media.0488",
-    "label": "Classique",
+    "label": "Threads classique",
     "domain": "publication",
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx"
     ],
-    "sourceAnchor": "<option value=\"classic\">{t(\"threads_classic\")}</option>",
+    "sourceAnchor": "<input type=\"radio\" name=\"booster-threads-mode\" value=\"classic\" checked={props.threadsPublicationMode === \"classic\"} disabled={disabled} onChange={() => props.onThreadsPublicationModeChange(\"classic\")} />",
     "capabilityId": "publication.options",
     "toolNames": [
       "readPublicationOptions",
       "preparePublication"
     ],
     "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : channel === \"threads\".",
+    "notes": "Choix de typologie visible dans le bloc Validation du canal : Classique et Réel exclusifs sur Facebook/Instagram, Story associée indépendante ; classique et éphémère exclusifs sur Threads. Mêmes valeurs contrôlées, contraintes de préférences, état de chargement et callbacks natifs. Une ancienne Story seule conserve ses médias et sa Story lors de l’ajout d’un format principal. Aucun effet sur les préférences globales. L’équivalent serveur conserve les options ; la preuve navigateur vérifie les interactions locales.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:7c2d00cd2bd4ceb1:2"
+      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#input:a566edd38a8ca8a2:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/booster-validation-options-runtime.test.mts",
+        "testAnchor": "the actual Validation options remain controlled across external updates, Meta formats, Pinterest boards and Threads preferences"
+      }
     ]
   },
   {
     "id": "basic.media.0489",
-    "label": "Ghost",
+    "label": "Threads éphémère",
     "domain": "publication",
     "sourceFiles": [
       "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx"
     ],
-    "sourceAnchor": "<option value=\"ghost\" disabled={ghostDisabled}>{t(\"threads_ghost\")}</option>",
+    "sourceAnchor": "<input type=\"radio\" name=\"booster-threads-mode\" value=\"ghost\" checked={props.threadsPublicationMode === \"ghost\"} disabled={disabled || ghostDisabled} onChange={() => { if (!ghostDisabled) props.onThreadsPublicationModeChange(\"ghost\"); }} />",
     "capabilityId": "publication.options",
     "toolNames": [
       "readPublicationOptions",
       "preparePublication"
     ],
     "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : channel === \"threads\".",
+    "notes": "Choix de typologie visible dans le bloc Validation du canal : Classique et Réel exclusifs sur Facebook/Instagram, Story associée indépendante ; classique et éphémère exclusifs sur Threads. Mêmes valeurs contrôlées, contraintes de préférences, état de chargement et callbacks natifs. Une ancienne Story seule conserve ses médias et sa Story lors de l’ajout d’un format principal. Aucun effet sur les préférences globales. L’équivalent serveur conserve les options ; la preuve navigateur vérifie les interactions locales.",
     "testFiles": [
       "tests/ai-assistant/publication-tools.test.mts"
     ],
     "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
     "coverageStatus": "server_equivalent",
     "controlIds": [
-      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:fe30eccc1f63b2d3:1"
+      "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#input:6692ada5e941e429:1"
+    ],
+    "additionalProofs": [
+      {
+        "file": "tests/dashboard/booster-validation-options-runtime.test.mts",
+        "testAnchor": "the actual Validation options remain controlled across external updates, Meta formats, Pinterest boards and Threads preferences"
+      }
     ]
   },
   {
@@ -11978,30 +11638,6 @@
     "coverageStatus": "server_equivalent",
     "controlIds": [
       "app/dashboard/booster/publier/components/RichSiteContentEditor.tsx#div:f8e0a877edfa0c54:1"
-    ]
-  },
-  {
-    "id": "basic.media.0501",
-    "label": "Action button",
-    "domain": "publication",
-    "sourceFiles": [
-      "app/dashboard/booster/publier/components/ThreadsPublicationModeControls.tsx"
-    ],
-    "sourceAnchor": "<button key={choice} type=\"button\" aria-pressed={mode === choice} disabled={disabled || (choice === \"ghost\" && (loading || failed || !preferences.ghostEnabled))} onClick={() => onChange(choice)} style={{ ...pillBtn, ...(mode === choice ? pillBtnActive : {}) }}>\n            {t(choice === \"ghost\" ? \"threads_ghost\" : \"threads_classic\")}\n          </button>",
-    "capabilityId": "publication.options",
-    "toolNames": [
-      "readPublicationOptions",
-      "preparePublication"
-    ],
-    "mode": "form",
-    "notes": "Options natives par publication et canal : choix de ressources réellement listées, placements/musique/tableaux et médias compatibles ; garde les autres options. Aucun effet sur les préférences globales. Action locale du formulaire : l’équivalent serveur indiqué ne prouve pas une modification de l’écran monté. Contraintes UI : contrôle présent dans ce composant manuel.",
-    "testFiles": [
-      "tests/ai-assistant/publication-tools.test.mts"
-    ],
-    "testAnchor": "native Booster options survive draft and actual dispatch, with owned channel-specific images",
-    "coverageStatus": "server_equivalent",
-    "controlIds": [
-      "app/dashboard/booster/publier/components/ThreadsPublicationModeControls.tsx#button:9e27430ae62b1c17:1"
     ]
   },
   {

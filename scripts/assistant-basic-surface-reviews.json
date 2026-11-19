@@ -1,7 +1,8 @@
 {
   "formatVersion": 3,
-  "fragmentsDigest": "1c99a0f6002605472a53ecc42bc0a38ad6f9cbc1dd2c04f8dbe4123c2cf72c77",
+  "fragmentsDigest": "84f49f278eefb55c9289421590c9499cf43bcc318a2773b3542924ca0e82655d",
   "evidenceDigests": {
+    "app/_components/AppAppearanceThemeBridge.tsx": "5228069f0705822520d98d528d851a7cf3c65daad0c5fab496fd4f9f8d6cb385",
     "app/_components/CookieConsentBanner.tsx": "b8e8f644160ee0ba81a0ff7b887386aa119fff1e99c60f6973a872354eb37ccc",
     "app/_components/InrcyDialogProvider.tsx": "4b8d457b85b0ee368f2d3fc0fb061e9f9fa247bcb749aaa531b850f83992b74d",
     "app/_components/PullToRefresh.tsx": "fa33925a67d1e4041a13d9ff20b9fbe7766424ee611579c43e716236a58fac2c",
@@ -480,7 +481,7 @@
     "app/dashboard/agent/_lib/agent.workspace-messages.ts": "9d3627308c0172d6116c8242a8d1611465e21f7ea66d9e7b91b1d69e966e9ecd",
     "app/dashboard/agent/agent.module.css": "cf01a588db6ff9deda734ddba4785444dcf5899406588fac6a4269c893ea8826",
     "app/dashboard/booster/booster.module.css": "ea2b444d2441244c09d5540240a299db8471f88e467271a2432e5e7b85871814",
-    "app/dashboard/booster/publier/PublishModal.tsx": "f9caa025845037d8643e4456c6293b7c62cd74070722e324ac18ee435c2c30f7",
+    "app/dashboard/booster/publier/PublishModal.tsx": "80346f157786bb24814f3c86515357b87ab351385a5cab30860eb3a105be972f",
     "app/dashboard/booster/publier/boosterGenerationContext.ts": "67db37577540f7dbf65accd792ab332045bd1fb31454c78b8ba477d1831346c1",
     "app/dashboard/booster/publier/components/BoosterVideoFormatManager.tsx": "fb3738064d1f848691182c9cf7557c8875b78428634df59749c766d6fdb0c8d4",
     "app/dashboard/booster/publier/components/ChannelNavigationRail.module.css": "8990dad7b6cdc715acd1c4f736733b1bc1aceec9c73816f1d34f2451f9c34698",
@@ -492,8 +493,8 @@
     "app/dashboard/booster/publier/components/PublishChannelSelector.tsx": "15f5fc17ab975013ecac81da520af52b51cdd86ae159080dd7af8affc973e122",
     "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.module.css": "ac426d4bc423ba3f7a0f65108cca71e773fce375f6c55d682c955f24220bd003",
     "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx": "2504f63d0f193489a4388d61aeecf2e39acf57de9b82a7d3022109f82a6d20bc",
-    "app/dashboard/booster/publier/components/PublishContentEditorPanel.module.css": "03f1e11bff7d29f0e7ca3ab744e97f07a1c91f8fe6d1936049e7ce805945182f",
-    "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx": "a09680076c49bab3d72d8d3a170da71d051d05fd8f503544f4602bf9d7e94305",
+    "app/dashboard/booster/publier/components/PublishContentEditorPanel.module.css": "6dfc02f541fc796fc56acdf6a84afec8603449be0ee28d0523c4e25b628ca815",
+    "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx": "ebaa9d413b12c8c59279276aea88bb66f8fcf2d6a3448f4c9d0bf99c5e2fecc2",
     "app/dashboard/booster/publier/components/PublishCreationModePanel.module.css": "c23e5873d6447597991347e8d6bc3aa0066348a8b3acd789ecbba04e7dc89f7a",
     "app/dashboard/booster/publier/components/PublishCreationModePanel.tsx": "65d8bff38f722386bad77711881c4ca58c484b8e1fb590a1457217237b986973",
     "app/dashboard/booster/publier/components/PublishDraftHeaderMenu.tsx": "89390e61920b197b799292de8e436e903a46a696f79fe6c286261b9433a902f6",
@@ -503,19 +504,19 @@
     "app/dashboard/booster/publier/components/PublishHelpModal.tsx": "b6f006b4c4f139c0a6352e118f4ef3178e99f4bbadf3b7f4f4e5dbdbd7e554d0",
     "app/dashboard/booster/publier/components/PublishIntentPanel.module.css": "f24df97aab58e5ddbab0c28877cd2c1750527d4e4dcca8133f717ef94f3423bc",
     "app/dashboard/booster/publier/components/PublishIntentPanel.tsx": "8b1030fde38c1ad3b21874b6baa23777f0ad63f832123edc61fb4ec32ddbf8ec",
-    "app/dashboard/booster/publier/components/PublishMediaPoolPanel.module.css": "63b4ece7771938b7e1bc81f2d4892e7dd7b043c520c8ff4d16fa46dbfeb3d0bc",
-    "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": "f9c563d388c0514f716dff041c6ac68c0cded723de1b24f44047ba6b7b3aa1a9",
+    "app/dashboard/booster/publier/components/PublishMediaPoolPanel.module.css": "c4253979d8257c5c8bd29599d500ee4d4277aea273cb018847079ef040596e00",
+    "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": "592c026adab9eebf6d7222e4f4402589f66dcf2b0faef1db3147df1312d27936",
     "app/dashboard/booster/publier/components/PublishReferencePicker.module.css": "36e1094ac4930510fcb2b01e49d8a52b5691baaba69672eaced9afb11b7e8696",
     "app/dashboard/booster/publier/components/PublishReferencePicker.tsx": "ee7e6cd1a18b247b1633f6216815418fb8e9ce7a9f685d6f20da37f0f60829dd",
     "app/dashboard/booster/publier/components/PublishScheduleModal.tsx": "800ec16a316bb08b574eca0f4e4e6c081af540f458cca933de626aaedd99139d",
     "app/dashboard/booster/publier/components/PublishStepTitle.tsx": "9b621e7f018b48612060b135fb725f7bb02ad811ae132cd09250b2dfdd1643ee",
-    "app/dashboard/booster/publier/components/PublishValidationBoard.module.css": "a83f91ebfe9f40ab38b23c455337cb295e0961ba905b8aa7b0dc638d044053dc",
-    "app/dashboard/booster/publier/components/PublishValidationBoard.tsx": "758f9699dece5882dd6371030241317a029de1982023d311bf1a9f97610fd93d",
-    "app/dashboard/booster/publier/components/PublishValidationChannelOptions.module.css": "23f2fad182ce7ebdc2cdc3e69832ced606cfe78b7de80f54685c4a43c925996a",
-    "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx": "71ecc8e4d34e9c2eb90493a4ae327017e0bd5271f8bc3944be2d74afbf675251",
+    "app/dashboard/booster/publier/components/PublishValidationBoard.module.css": "da8bf2eac2853766dd55d1b61942f6eee8059c5a6169dc1eafbb2b207bf81c8f",
+    "app/dashboard/booster/publier/components/PublishValidationBoard.tsx": "97f134d407670ca06f8287c09b20986ebb32015bfde3f8bb36da37fe28606302",
+    "app/dashboard/booster/publier/components/PublishValidationChannelOptions.module.css": "ad52eb049ba4d6a83ecef565120c2fc76bd69878d586e3ac02f071392480505c",
+    "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx": "7e54fbd1ca4657cbf03b3ca4bea0aa352f3e8e8c03742cf2e2c50ec5b698c747",
     "app/dashboard/booster/publier/components/PublishVideoAdapterPanel.tsx": "a04df86374c4bfc488ef3fb9f250ccf486fb255cdebef32f65c79014d1c55b75",
     "app/dashboard/booster/publier/components/PublishWarningModals.tsx": "48eb951bd149601cbf03a885ee36719eb1bdac6bafd844aeaa4e43e68b76606c",
-    "app/dashboard/booster/publier/components/PublishWizardFrame.tsx": "cc53d102bbfe50eef67f6774539b2ffa193979800cd305e193ae0cdb10610983",
+    "app/dashboard/booster/publier/components/PublishWizardFrame.tsx": "01859ed24504a11925f896e795e2a495ac97a3a4051fdf25d88df5355f8150ac",
     "app/dashboard/booster/publier/components/RichSiteContentEditor.tsx": "b332b4327508bc04ac52ce9ffb695fe4e5852241d74698581a367f6d9de95149",
     "app/dashboard/booster/publier/components/ThreadsPublicationModeControls.tsx": "c6fb8f3f6dd7218708dfe349ebbc584cc71b4f9b47d0fd8c789160b47716410d",
     "app/dashboard/booster/publier/components/TiktokPublicationSettingsModal.module.css": "44076f21cdbcdfbe927f1742e9803deab887fd8ca5e35a3d33ad4680f78a2bfd",
@@ -524,7 +525,7 @@
     "app/dashboard/booster/publier/components/TiktokReviewCheckbox.tsx": "8ffc4110dd31574db6636a9d84a8a87d09830c6fc5a9bfa044728c31dee27232",
     "app/dashboard/booster/publier/components/publishChannelIdentity.ts": "aadf64c9eaaa53ba2a0a62904aa1b78b5f567e37b7d8db3b023e65417feeeaae",
     "app/dashboard/booster/publier/components/publishDraftHeaderMenu.module.css": "2aa811efa621c57bbebc3f4840ef46adfff28a435aeb8c051d5eed419b5a143b",
-    "app/dashboard/booster/publier/components/publishWizard.module.css": "20f709146d4688af198a288c1ac28f7ed043f1aaaa45eaa7a1609e69176815b1",
+    "app/dashboard/booster/publier/components/publishWizard.module.css": "033caf4eef2660f85a2196a344974ec3b49fe0cc1e1a4a776ea68cdc210a0ec7",
     "app/dashboard/booster/publier/components/publishWizard.ts": "b54f29d7b57a1252946984a4f3b3c8a31669bc64b45eb986aae44eff8e6b2f35",
     "app/dashboard/booster/publier/generationMediaSelection.ts": "79ec4dfd1b70c293c1c253cd5ca19d2c720cf6bd2d7063a28d68cda1ebdf16b6",
     "app/dashboard/booster/publier/imageChannelAssignment.ts": "81ed09824efd994f1dfd6b8ab066a38de3b73a794677201d2d3e2237598ac3ab",
@@ -700,6 +701,7 @@
     "app/dashboard/stats/stats.visibility.ts": "683b5e418d4cd9d70b5df2708da6076c9f9d4ac15afa95bac54a6fa4ad34b0b3",
     "app/dashboard/stats/statsPanorama.module.css": "06c433f82369c86ae30bf60190509d158db36bfec47a8a945b2350579ca8871c",
     "app/globals.css": "4e6a276755beca758cefa09e56b435308ba73429588d6fa2245962c1b80f75e5",
+    "app/inrcy-scrollbars.css": "bccd23f6c4aa3bdedb19357b3a04b4a2e3d09526e110bb1abaaa2262f790ed20",
     "app/legal/_components/CgaContent.tsx": "712915590e854a55bacacc0d2804edff56361518496c2ddbd9f7f430b3b8dbf2",
     "app/legal/_components/ConfidentialiteContent.tsx": "172cd0b54491aeac4b24dabd224696d814209ee7bc4e48e4922bebf395c095d7",
     "app/legal/_components/LegalTextContent.tsx": "543272f1d82ffeed72500efb1cb976b7de4cce7d598c34ce708cda5183563982",
@@ -1219,7 +1221,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "4e4b7b696d96ef497517f79ae8556450156f06a390ab0ba750730f27cc37a0b6",
+    "lib/inrAssistantCodeIndex.generated.ts": "449361a0017a5c5443ef9f872ee38d3c885e65b6972a895f6765f56671f02bd1",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -1251,9 +1253,9 @@
     "lib/inrAssistantGoogleReviewDraftIntent.ts": "bb7a17f0441ef4b812427babe3a80b5cdc268b784867cf4a05d533ada27fd538",
     "lib/inrAssistantGoogleReviewTools.ts": "320906763262c5363b5a4072db20c6ef6f88442f5cdbe3578496f7e15c6d01bc",
     "lib/inrAssistantGuidesAccount.ts": "a29ae6a7acd8c357b216f9c68cfbfa912c75c502d758d3ea85ec17e400f86661",
-    "lib/inrAssistantGuidesBasic.ts": "2295fe65bf09c189f76fb2e55a9e7b351190adfd45ee354ea03a3d786c3baa7d",
+    "lib/inrAssistantGuidesBasic.ts": "b2638493bd44d0d2e5dd361a1d02e31cb456f90b597e60217a9b5603ee5bd225",
     "lib/inrAssistantGuidesContentLimits.ts": "dcdba643d6a24d46c2f73a93c18759086f570182a051fec07a797013ab533d53",
-    "lib/inrAssistantGuidesCreation.ts": "fbe02abef7bf5ab5ef8b5526f496c95d588dcb57faf30cd0709c5b1eea493e9d",
+    "lib/inrAssistantGuidesCreation.ts": "16d70ce1314c26c9e47b8405666d901fb02e2cc58c526a7e4654820cd6a85381",
     "lib/inrAssistantGuidesManagement.ts": "a7cc27031cac14b1bd45f81fce59d88f5c289336279433b274c5728dfb43a5c7",
     "lib/inrAssistantGuidesRecovery.ts": "c358fbf35f7b6dd6747752708f5135e130c685f1f08c5d8dff5950e4cf2fdc87",
     "lib/inrAssistantHistoryUiSelection.ts": "8c50a751e1ebbdea554c89c8d573b501b5d89d70f8dfabe603495ea43a0d2c69",
@@ -2090,7 +2092,10 @@
     "tests/dashboard/account-local-controls-browser.test.mts": "81b83d8a3f987f9be961dc56046fbc3ce77413d812992fe2c9b535d8e41fac95",
     "tests/dashboard/badge-logo-theme-browser.test.mts": "fda7a92273e9b859739d361806e07f2585b6c388b1f28914b00ef08262b49d40",
     "tests/dashboard/booster-channel-account-labels.test.mts": "db8d3af6ffac4cdf2d6af7d5e679beb15db227391ca4e43e014329b8e61d26dc",
+    "tests/dashboard/booster-duration-readiness-fixture.mts": "ac809b7b347a2f42fe06ce166ce415b52684ed3e41c6e2a7fb6e7672458c522b",
     "tests/dashboard/booster-result-render-runtime.test.mts": "68e0b5462028a4b068939745e808152147a60b2a4d935a78d7f3408ed1860c09",
+    "tests/dashboard/booster-validation-layout-browser.test.mts": "ae5fd4c28c1418b827640dca3af0e13a7c0470c90070a68e2e8652119b39ff69",
+    "tests/dashboard/booster-validation-options-runtime.test.mts": "aa703d51e6462c6a6f0ae130fa9a9f34094c02acbd51d0213595cff63c0fe80a",
     "tests/dashboard/channel-actions-hover-browser.test.mts": "94de8666974201834ec13aca15f9d08fc271879d54b2522de32af5e617813075",
     "tests/dashboard/channel-bubble-workspace-runtime.test.mts": "2d8759d71db1471bb8f96bf179feac589da3e583061d53d207d3a37576f8a88f",
     "tests/dashboard/channels-mobile-dock-runtime.test.mts": "ce604f6585ccfafca8ff92d053980b2b1eeb623244142ac05c37872df4f00309",
@@ -6681,12 +6686,11 @@
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "f9caa025845037d8643e4456c6293b7c62cd74070722e324ac18ee435c2c30f7",
+      "sourceDigest": "80346f157786bb24814f3c86515357b87ab351385a5cab30860eb3a105be972f",
       "controlIds": [
         "app/dashboard/booster/publier/PublishModal.tsx#TiktokReviewCheckbox:98b762a092bc9c8d:1",
         "app/dashboard/booster/publier/PublishModal.tsx#input:1a65af1a209ac64e:1",
-        "app/dashboard/booster/publier/PublishModal.tsx#input:64017f9628c30bec:1",
-        "app/dashboard/booster/publier/PublishModal.tsx#MediaSoundtrackSelector:3884df2d7ece117c:1"
+        "app/dashboard/booster/publier/PublishModal.tsx#input:64017f9628c30bec:1"
       ]
     },
     "app/dashboard/booster/publier/components/BoosterVideoFormatManager.tsx": {
@@ -6799,17 +6803,13 @@
     },
     "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Éditeur manuel Basique : titre, texte, hashtags et CTA ; les options de diffusion sont déplacées dans Validation. Les restrictions Story, limites et handlers d’édition existants restent applicables. La hauteur exploite la zone disponible et conserve un parcours mobile défilant.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "a09680076c49bab3d72d8d3a170da71d051d05fd8f503544f4602bf9d7e94305",
+      "sourceDigest": "ebaa9d413b12c8c59279276aea88bb66f8fcf2d6a3448f4c9d0bf99c5e2fecc2",
       "controlIds": [
-        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:e391021927617496:1",
-        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:6115b92d078e4eff:1",
-        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:403e2983e1330086:1",
-        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#input:6d8d68044dfe1d96:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:ef412b264cf85728:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#EmojiPickerButton:b7dc1a3443e25b44:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:1abf5b9a0025087e:1",
@@ -6817,17 +6817,12 @@
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:e56c71e338589e8c:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#ChannelNavigationRail:36dcf5eb97b2e5fe:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:bda0103dfda54eea:1",
-        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#select:f1be06ec6a7a96fb:1",
-        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#option:b4aa96ccf8bd617c:1",
-        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#option:b4aa96ccf8bd617c:2",
-        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#option:565fcb3929dc76ca:1",
-        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#ThreadsPublicationModeControls:9b7044f9fd55cc7f:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#MediaSubjectVoiceButton:56d46c8039dc02eb:1",
-        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:89df1316cfcb1c25:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#RichSiteContentEditor:d46b99f49546d153:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#TitleControl:479b0c20c3bde09f:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#RichSiteContentEditor:7407890ebdf12997:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#textarea:3aa3be5b8b885e6f:1",
+        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#button:9361a0cc73ea6b17:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#select:7213e7b49248accd:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#option:200680f51e4e9814:1",
         "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx#input:02b509e7dcb1cbbf:1",
@@ -6923,12 +6918,12 @@
     },
     "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Pool médias du parcours Basique : mêmes imports, outils et limites natives. Les en-têtes Images et Vidéo sont renforcés sans modifier les effets ni droits des commandes.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "f9c563d388c0514f716dff041c6ac68c0cded723de1b24f44047ba6b7b3aa1a9",
+      "sourceDigest": "592c026adab9eebf6d7222e4f4402589f66dcf2b0faef1db3147df1312d27936",
       "controlIds": [
         "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx#button:5263b90abdafd975:1",
         "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx#button:70f9c3557042fd4f:1",
@@ -6967,16 +6962,16 @@
     },
     "app/dashboard/booster/publier/components/PublishValidationBoard.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Validation Basique : un statut global par canal regroupe les alertes ; contenu, options et médias restent distincts. Les options Facebook/Instagram/Threads/Pinterest et la musique sont directement visibles, avec mêmes callbacks, disponibilité et verrouillage de reprise. Aperçu et actions média restent locaux au brouillon.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "758f9699dece5882dd6371030241317a029de1982023d311bf1a9f97610fd93d",
+      "sourceDigest": "97f134d407670ca06f8287c09b20986ebb32015bfde3f8bb36da37fe28606302",
       "controlIds": [
-        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:043d86513d73edbd:1",
-        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:81469d0846a56705:1",
+        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:61517f245208ecb2:1",
         "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:48241e12d2d2c941:1",
+        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#MediaSoundtrackSelector:d332d2e74af21563:1",
         "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:e0d04b3b334b74a4:1",
         "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:8110ecc0291a6d34:1",
         "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:e316dc8172b90c62:1",
@@ -6987,33 +6982,27 @@
         "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:6dc01d9f78e68fd0:1",
         "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:d165207bb83e8fda:1",
         "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#PublicationPreviewDeviceTabs:0e9a705fc5e35705:1",
-        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:fe39dc4df3360b18:1",
-        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:fe39dc4df3360b18:2",
-        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#MediaSoundtrackSelector:1625a60b85605705:1",
-        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:378819b8e47c6e7e:1"
+        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx#button:fe39dc4df3360b18:1"
       ]
     },
     "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx": {
       "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "reason": "Options contrôlées et visibles dans les blocs Validation Basique : formats Meta, Story associée, tableau Pinterest réellement listé et mode Threads. Les préférences, états de chargement et callbacks natifs conservent leurs restrictions ; aucun accès ni effet fournisseur supplémentaire.",
       "gateFiles": [
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "71ecc8e4d34e9c2eb90493a4ae327017e0bd5271f8bc3944be2d74afbf675251",
+      "sourceDigest": "7e54fbd1ca4657cbf03b3ca4bea0aa352f3e8e8c03742cf2e2c50ec5b698c747",
       "controlIds": [
-        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#select:cac176296bdeae70:1",
-        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:7c2d00cd2bd4ceb1:1",
-        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:15894f9bf4fedd4d:1",
-        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:4ebfde46960c4e75:1",
-        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#input:549f81ed9b2226f5:1",
+        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#input:e5c9deaad2e4e3c0:1",
+        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#input:1cef3c991b924f86:1",
+        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#input:ee588111a0e392d9:1",
         "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#select:50fbef0779fa4995:1",
         "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:8e4cf7ba06fd9291:1",
         "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:8e4cf7ba06fd9291:2",
         "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:29c1912defd14427:1",
-        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#select:e1ea4971f8eb3afe:1",
-        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:7c2d00cd2bd4ceb1:2",
-        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#option:fe30eccc1f63b2d3:1"
+        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#input:a566edd38a8ca8a2:1",
+        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx#input:6692ada5e941e429:1"
       ]
     },
     "app/dashboard/booster/publier/components/PublishVideoAdapterPanel.tsx": {
@@ -7052,7 +7041,7 @@
         "lib/dashboardEdition.ts"
       ],
       "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
-      "sourceDigest": "cc53d102bbfe50eef67f6774539b2ffa193979800cd305e193ae0cdb10610983",
+      "sourceDigest": "01859ed24504a11925f896e795e2a495ac97a3a4051fdf25d88df5355f8150ac",
       "controlIds": [
         "app/dashboard/booster/publier/components/PublishWizardFrame.tsx#button:10d81fa63071415f:1",
         "app/dashboard/booster/publier/components/PublishWizardFrame.tsx#button:9b34323c797570b6:1",
@@ -7072,12 +7061,16 @@
       ]
     },
     "app/dashboard/booster/publier/components/ThreadsPublicationModeControls.tsx": {
-      "disposition": "basic",
-      "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+      "disposition": "infrastructure",
+      "reason": "Ancien composant Threads non monté après le déplacement des choix de typologie dans PublishValidationChannelOptions. Aucune importation ni utilisation de rendu dans app/lib ; la preuve structurelle est recalculée à chaque garde. Aucun droit ni contrôle actif Basique exclu.",
       "gateFiles": [
-        "lib/dashboardEdition.ts"
+        "app/dashboard/booster/publier/components/ThreadsPublicationModeControls.tsx"
       ],
-      "gateAnchor": "export function isDashboardRouteAllowedForEdition(",
+      "gateAnchor": "export default function ThreadsPublicationModeControls(",
+      "structuralProof": {
+        "kind": "unmounted_component",
+        "exportName": "ThreadsPublicationModeControls"
+      },
       "sourceDigest": "c6fb8f3f6dd7218708dfe349ebbc584cc71b4f9b47d0fd8c789160b47716410d",
       "controlIds": [
         "app/dashboard/booster/publier/components/ThreadsPublicationModeControls.tsx#button:9e27430ae62b1c17:1"

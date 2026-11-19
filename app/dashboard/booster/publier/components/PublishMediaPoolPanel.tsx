@@ -65,7 +65,7 @@ export default function PublishMediaPoolPanel({
       {error ? <div role="alert" className={css.error}>{error}</div> : null}
       <div className={css.workspace}>
       <section className={css.imageGroup} aria-label={t("wizard_pool_images")}>
-      <div className={css.count}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 6"/></svg><span>{t("wizard_pool_images")}</span><strong>{images.length} <span>/ {BOOSTER_MAX_IMAGE_COUNT}</span></strong></div>
+      <div className={css.count}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 4 3-3 6 6"/></svg><h2>{t("wizard_pool_images")}</h2><strong>{images.length} <span>/ {BOOSTER_MAX_IMAGE_COUNT}</span></strong></div>
       <div className={css.images}>
         {Array.from({ length: BOOSTER_MAX_IMAGE_COUNT }, (_, index) => images[index] ? (
           <figure key={imageKeys[index]} className={css.image} data-pool-image-key={imageKeys[index]} data-drag-over={dragTarget === imageKeys[index]} draggable={images.length > 1}
@@ -102,7 +102,7 @@ export default function PublishMediaPoolPanel({
       </div>
       </section>
       <section className={css.videoGroup} aria-label={t("video_304f6ca4")}>
-        <div className={css.count}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="2" y="5" width="13" height="14" rx="3"/><path d="m15 10 7-4v12l-7-4"/></svg><span>{t("video_304f6ca4")}</span><strong>{hasVideo ? 1 : 0} <span>/ 1</span></strong></div>
+        <div className={css.count}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><rect x="2" y="5" width="13" height="14" rx="3"/><path d="m15 10 7-4v12l-7-4"/></svg><h2>{t("video_304f6ca4")}</h2><strong>{hasVideo ? 1 : 0} <span>/ 1</span></strong></div>
         <div className={css.video} data-filled={hasVideo} data-active={!hasVideo && videoActionsOpen}>
           {hasVideo ? <>
             <div className={css.videoVisual}><video src={videoPreviewUrl} controls playsInline preload="metadata" /></div>

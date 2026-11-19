@@ -78,7 +78,9 @@ test("Booster keeps forbidden X URLs visible and blocks only X", () => {
     modal,
     /Ne jamais la retirer silencieusement[\s\S]*?key === "x"[\s\S]*?normalizePost\(prepared\[key\]\)/,
   );
-  assert.match(editor, /data-x-url-blocker="true"/);
+  assert.doesNotMatch(editor, /data-x-url-blocker="true"/);
+  assert.match(editor, /data-x-remove-cta-url/);
+  assert.match(editor, /data-content-state=\{xUrlBlocked \? "blocked"/);
   assert.match(editor, /const i18nT = useTranslations\("booster"\)/);
   assert.match(editor, /\{i18nT\("retirer_le_lien_du_cta_754fb2a5"\)\}/);
   assert.match(editor, /xUrlBlocked\s*\? i18nT\("editor_x_link_format_blocked"\)/);

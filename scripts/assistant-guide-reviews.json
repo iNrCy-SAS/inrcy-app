@@ -135,21 +135,22 @@
       }
     },
     "basic-booster": {
-      "guideDigest": "c964dc7e2a83c3280a71bc419d270e0b460fa9b7c379d60069cf8c2d9c00b427",
+      "guideDigest": "695152b97d96b3cc6c05136dbd74893970b0d2c69cb2d0c789d557882d225483",
       "sources": {
         "app/dashboard/_components/DashboardBoosterModalLayer.tsx": "3bc282e860f5c83ffbf25d2177c9abfc7629ec771c40aeb19896f1303be5818d",
         "app/dashboard/_components/PublishExecutionResultModal.tsx": "8832a9c82e9c573fdf5173326af10483d2a6293e4488aa09a0e09edca6d4565f",
         "app/dashboard/_components/dashboardMobileMenuModel.ts": "c4d9be815f9b6064e2498e4b23d907265e325d0ddfd14b167b8056c57a6deb88",
         "app/dashboard/_hooks/useInrAssistantScheduledPublicationControls.ts": "b2821f84dc12790da8378f745023dfcc84444bd9c6408f48f726772e61192ef2",
         "app/dashboard/_hooks/useUnsavedExitGuard.ts": "4e2ca6bd1df1311ef91c154ae9f5a13ebf162c533892dc01df9f600b6a2c5b6c",
-        "app/dashboard/booster/publier/PublishModal.tsx": "f9caa025845037d8643e4456c6293b7c62cd74070722e324ac18ee435c2c30f7",
+        "app/dashboard/booster/publier/PublishModal.tsx": "80346f157786bb24814f3c86515357b87ab351385a5cab30860eb3a105be972f",
         "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx": "2504f63d0f193489a4388d61aeecf2e39acf57de9b82a7d3022109f82a6d20bc",
+        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx": "ebaa9d413b12c8c59279276aea88bb66f8fcf2d6a3448f4c9d0bf99c5e2fecc2",
         "app/dashboard/booster/publier/components/PublishCreationModePanel.tsx": "65d8bff38f722386bad77711881c4ca58c484b8e1fb590a1457217237b986973",
         "app/dashboard/booster/publier/components/PublishFinalReviewModal.tsx": "2c19ba30f7ef2bd44000cdd858e54059e8844f19ef4a860c622089ca049b7dcd",
         "app/dashboard/booster/publier/components/PublishFooterActions.tsx": "c7f75dceda93c07fb0a84eb7e328d4c673daf130e67b4a2399bda9cfc3b8a690",
-        "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": "f9c563d388c0514f716dff041c6ac68c0cded723de1b24f44047ba6b7b3aa1a9",
-        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx": "758f9699dece5882dd6371030241317a029de1982023d311bf1a9f97610fd93d",
-        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx": "71ecc8e4d34e9c2eb90493a4ae327017e0bd5271f8bc3944be2d74afbf675251",
+        "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": "592c026adab9eebf6d7222e4f4402589f66dcf2b0faef1db3147df1312d27936",
+        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx": "97f134d407670ca06f8287c09b20986ebb32015bfde3f8bb36da37fe28606302",
+        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx": "7e54fbd1ca4657cbf03b3ca4bea0aa352f3e8e8c03742cf2e2c50ec5b698c747",
         "app/dashboard/booster/publier/components/publishWizard.ts": "b54f29d7b57a1252946984a4f3b3c8a31669bc64b45eb986aae44eff8e6b2f35",
         "app/dashboard/booster/publier/publicationDraftSession.ts": "8223a25ebfba01f942ff2c8f33326c8a8022b50ba6ee0fe45fad2fd9e053d561",
         "app/dashboard/booster/publier/publicationExitProtection.ts": "9083419b9e3829da46b9aaab4e85451a63f78131c93d89c43b20545f4bc5e311",
@@ -168,7 +169,7 @@
         "lib/pinterestTextLimits.ts": "28771bd0581ee73e9ed2a19ad93a0e40a8a8a0456ea81cf9b2a84e6b56f35089",
         "lib/pinterestTextRules.ts": "7bba0e1ebc5199e7655564afd93d3e4595969e53dc38bfa6a9740091bd7d0e98",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
-        "messages/fr-FR/booster.json": "f0a307729f991f410f4645edeccfe668a56531f1c1d40593825227fb419d7468"
+        "messages/fr-FR/booster.json": "d0952e94b141a66924c4e217e41312bf260715571766e324ed59210d930195ed"
       }
     },
     "basic-business-dna": {
@@ -399,21 +400,22 @@
       }
     },
     "booster": {
-      "guideDigest": "2586bc8153ff0b9c660e58931642dec27afde53b852918b2e4dbad6b1b7529fb",
+      "guideDigest": "7fea9b55eabf29d6f6b169500a7d250abf04c7b1cb8913d66ff7b36128221c4c",
       "sources": {
         "app/api/booster/connected-channels/route.ts": "0e5912b9d042e8bb9639b01cd376ec898b55ae8c7d141623670b177586acd3ad",
         "app/dashboard/_components/DashboardBoosterModalLayer.tsx": "3bc282e860f5c83ffbf25d2177c9abfc7629ec771c40aeb19896f1303be5818d",
         "app/dashboard/_components/PublishExecutionResultModal.tsx": "8832a9c82e9c573fdf5173326af10483d2a6293e4488aa09a0e09edca6d4565f",
         "app/dashboard/_components/dashboardMobileMenuModel.ts": "c4d9be815f9b6064e2498e4b23d907265e325d0ddfd14b167b8056c57a6deb88",
         "app/dashboard/_hooks/useUnsavedExitGuard.ts": "4e2ca6bd1df1311ef91c154ae9f5a13ebf162c533892dc01df9f600b6a2c5b6c",
-        "app/dashboard/booster/publier/PublishModal.tsx": "f9caa025845037d8643e4456c6293b7c62cd74070722e324ac18ee435c2c30f7",
+        "app/dashboard/booster/publier/PublishModal.tsx": "80346f157786bb24814f3c86515357b87ab351385a5cab30860eb3a105be972f",
         "app/dashboard/booster/publier/components/PublishContentAdjustmentModal.tsx": "2504f63d0f193489a4388d61aeecf2e39acf57de9b82a7d3022109f82a6d20bc",
+        "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx": "ebaa9d413b12c8c59279276aea88bb66f8fcf2d6a3448f4c9d0bf99c5e2fecc2",
         "app/dashboard/booster/publier/components/PublishCreationModePanel.tsx": "65d8bff38f722386bad77711881c4ca58c484b8e1fb590a1457217237b986973",
         "app/dashboard/booster/publier/components/PublishFinalReviewModal.tsx": "2c19ba30f7ef2bd44000cdd858e54059e8844f19ef4a860c622089ca049b7dcd",
         "app/dashboard/booster/publier/components/PublishFooterActions.tsx": "c7f75dceda93c07fb0a84eb7e328d4c673daf130e67b4a2399bda9cfc3b8a690",
-        "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": "f9c563d388c0514f716dff041c6ac68c0cded723de1b24f44047ba6b7b3aa1a9",
-        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx": "758f9699dece5882dd6371030241317a029de1982023d311bf1a9f97610fd93d",
-        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx": "71ecc8e4d34e9c2eb90493a4ae327017e0bd5271f8bc3944be2d74afbf675251",
+        "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": "592c026adab9eebf6d7222e4f4402589f66dcf2b0faef1db3147df1312d27936",
+        "app/dashboard/booster/publier/components/PublishValidationBoard.tsx": "97f134d407670ca06f8287c09b20986ebb32015bfde3f8bb36da37fe28606302",
+        "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx": "7e54fbd1ca4657cbf03b3ca4bea0aa352f3e8e8c03742cf2e2c50ec5b698c747",
         "app/dashboard/booster/publier/components/publishWizard.ts": "b54f29d7b57a1252946984a4f3b3c8a31669bc64b45eb986aae44eff8e6b2f35",
         "app/dashboard/booster/publier/publicationDraftSession.ts": "8223a25ebfba01f942ff2c8f33326c8a8022b50ba6ee0fe45fad2fd9e053d561",
         "app/dashboard/booster/publier/publicationExitProtection.ts": "9083419b9e3829da46b9aaab4e85451a63f78131c93d89c43b20545f4bc5e311",
@@ -427,7 +429,7 @@
         "lib/metaGraphErrorClassification.ts": "6e1068bc52cf70dafc9c12af9b38cd9cc0ec0bee11d2a5b606b4ada0ef52ab3c",
         "lib/metaPlacementVideoPolicy.ts": "77356b653a93558d0f593b14ccba55b3ae0f572c0e1ffd294cfbb20ecc422538",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
-        "messages/fr-FR/booster.json": "f0a307729f991f410f4645edeccfe668a56531f1c1d40593825227fb419d7468"
+        "messages/fr-FR/booster.json": "d0952e94b141a66924c4e217e41312bf260715571766e324ed59210d930195ed"
       }
     },
     "business-dna": {
@@ -945,9 +947,9 @@
       "guideDigest": "efd9e058a43a2c27c81cc8efe1a3055f53123eec28fbd8ba892dc355dcb991f4",
       "sources": {
         "app/dashboard/_hooks/useInrStudioSession.tsx": "d6aeb230b1a82b4878df64b390dbde07bc25058bb228c2c655cc5653545d640a",
-        "app/dashboard/booster/publier/PublishModal.tsx": "f9caa025845037d8643e4456c6293b7c62cd74070722e324ac18ee435c2c30f7",
+        "app/dashboard/booster/publier/PublishModal.tsx": "80346f157786bb24814f3c86515357b87ab351385a5cab30860eb3a105be972f",
         "lib/inrStudioNavigation.ts": "4586467a30adf62611b9e1c0a7aff2b60da0d2cd724f5fb34321a06152b082bb",
-        "messages/fr-FR/booster.json": "f0a307729f991f410f4645edeccfe668a56531f1c1d40593825227fb419d7468"
+        "messages/fr-FR/booster.json": "d0952e94b141a66924c4e217e41312bf260715571766e324ed59210d930195ed"
       }
     },
     "subscription": {

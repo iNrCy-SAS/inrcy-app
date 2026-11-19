@@ -361,7 +361,7 @@
   },
   "app/dashboard/booster/publier/components/PublishContentEditorPanel.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Éditeur manuel Basique : titre, texte, hashtags et CTA ; les options de diffusion sont déplacées dans Validation. Les restrictions Story, limites et handlers d’édition existants restent applicables. La hauteur exploite la zone disponible et conserve un parcours mobile défilant.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -409,7 +409,7 @@
   },
   "app/dashboard/booster/publier/components/PublishMediaPoolPanel.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Pool médias du parcours Basique : mêmes imports, outils et limites natives. Les en-têtes Images et Vidéo sont renforcés sans modifier les effets ni droits des commandes.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -425,7 +425,7 @@
   },
   "app/dashboard/booster/publier/components/PublishValidationBoard.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Validation Basique : un statut global par canal regroupe les alertes ; contenu, options et médias restent distincts. Les options Facebook/Instagram/Threads/Pinterest et la musique sont directement visibles, avec mêmes callbacks, disponibilité et verrouillage de reprise. Aperçu et actions média restent locaux au brouillon.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -433,7 +433,7 @@
   },
   "app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx": {
     "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "reason": "Options contrôlées et visibles dans les blocs Validation Basique : formats Meta, Story associée, tableau Pinterest réellement listé et mode Threads. Les préférences, états de chargement et callbacks natifs conservent leurs restrictions ; aucun accès ni effet fournisseur supplémentaire.",
     "gateFiles": [
       "lib/dashboardEdition.ts"
     ],
@@ -472,12 +472,16 @@
     "gateAnchor": "export function isDashboardRouteAllowedForEdition("
   },
   "app/dashboard/booster/publier/components/ThreadsPublicationModeControls.tsx": {
-    "disposition": "basic",
-    "reason": "Outil manuel ou composant partagé monté par un parcours Basique ; les restrictions locales et validations natives restent applicables.",
+    "disposition": "infrastructure",
+    "reason": "Ancien composant Threads non monté après le déplacement des choix de typologie dans PublishValidationChannelOptions. Aucune importation ni utilisation de rendu dans app/lib ; la preuve structurelle est recalculée à chaque garde. Aucun droit ni contrôle actif Basique exclu.",
     "gateFiles": [
-      "lib/dashboardEdition.ts"
+      "app/dashboard/booster/publier/components/ThreadsPublicationModeControls.tsx"
     ],
-    "gateAnchor": "export function isDashboardRouteAllowedForEdition("
+    "gateAnchor": "export default function ThreadsPublicationModeControls(",
+    "structuralProof": {
+      "kind": "unmounted_component",
+      "exportName": "ThreadsPublicationModeControls"
+    }
   },
   "app/dashboard/booster/publier/components/TiktokPublicationSettingsModal.tsx": {
     "disposition": "basic",

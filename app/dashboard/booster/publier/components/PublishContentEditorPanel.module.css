@@ -1,4 +1,4 @@
-.editor { display: grid; grid-template-rows: auto minmax(min-content, 1fr); flex: 1 0 auto; height: auto; min-height: min-content; min-width: 0; gap: 16px; }
+.editor { display: grid; grid-template-rows: auto minmax(0, 1fr); flex: 1 1 auto; height: 100%; min-height: 0; min-width: 0; gap: 16px; }
 .rail { min-width: 0; }
 .adjustButton { display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; min-height: 42px; padding: 8px 13px; font-size: 13px; }
 @media (max-width: 600px) { .adjustButton { min-height: 40px; padding: 8px; font-size: 11px; } }
@@ -13,15 +13,12 @@
 .channelDot { position: absolute; top: 5px; right: 5px; width: 4px; height: 4px; border-radius: 50%; background: #e8bd6e; }
 [data-content-state="ready"] .channelDot { background: #60dfba; }
 [data-content-state="blocked"] .channelDot { background: #ff859a; }
-.card { display: flex; flex-direction: column; min-height: min-content; min-width: 0; padding: 0 !important; border: 0 !important; background: transparent !important; gap: 12px; }
+.card { display: flex; flex-direction: column; min-height: 0; min-width: 0; padding: 0 !important; border: 0 !important; background: transparent !important; gap: 12px; }
 .editorTopbar { display: flex !important; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px !important; min-height: 38px; margin-bottom: 0 !important; }
-.publicationFormats { display: flex; flex: 1 1 auto; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; max-width: 100%; }
-.publicationFormats:empty { display: none; }
-.soundtrackField { --channel-color: var(--editor-accent); --channel-rgb: var(--editor-rgb); flex: 0 1 260px; min-width: min(200px, 100%); max-width: 100%; }
 .sharedTools { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; min-height: 38px; }
 .toolTarget { min-width: 48px; color: #c1d2ed; text-align: right; font-size: 12px; font-weight: 650; }
 .toolTarget::before { content: ""; display: inline-block; width: 5px; height: 5px; margin: 0 7px 2px 0; border-radius: 50%; background: var(--editor-accent); box-shadow: 0 0 10px rgba(var(--editor-rgb), .3); }
-.fields { display: grid !important; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(220px, 1fr) auto; gap: 14px !important; flex: 1; min-height: min-content; min-width: 0; }
+.fields { display: grid !important; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(min-content, 1fr) auto; gap: 14px !important; flex: 1; min-height: 0; min-width: 0; }
 .titleField { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 14px; }
 .titleField > div:first-child { display: contents !important; }
 .titleField > div:first-child > :first-child { grid-column: 1; grid-row: 1; font-size: 13px !important; font-weight: 650; color: #c6d6ef; }
@@ -33,10 +30,8 @@
 .formatTools > button:hover:not(:disabled) { border-color: rgba(var(--editor-rgb), .7) !important; background: rgba(var(--editor-rgb), .16) !important; }
 .formatTools > button:focus-visible { outline: 2px solid var(--editor-accent); outline-offset: 2px; }
 .formatTools > button:disabled { opacity: .4; cursor: default; }
-.boardField { display: flex; align-items: center; gap: 12px; color: #b6c9e3; font-size: 13px; min-width: 0; }
-.boardField select { flex: 1 !important; }
 .titleField > :last-child { grid-column: 3; grid-row: 1; margin-top: 0 !important; font-size: 11px !important; white-space: nowrap; }
-.bodyField { display: flex; flex-direction: column; min-height: 0; min-width: 0; border: 1px solid #94b5e138; border-radius: 17px; background: linear-gradient(115deg, #15273d75, #211d3852); box-shadow: inset 0 1px 0 #ffffff05; transition: border-color .18s, box-shadow .18s; }
+.bodyField { display: flex; flex-direction: column; min-height: 220px; min-width: 0; overflow: auto; resize: vertical; border: 1px solid #94b5e138; border-radius: 17px; background: linear-gradient(115deg, #15273d75, #211d3852); box-shadow: inset 0 1px 0 #ffffff05; transition: border-color .18s, box-shadow .18s; }
 .bodyField:focus-within { border-color: rgba(var(--editor-rgb), .7); box-shadow: 0 0 0 3px rgba(var(--editor-rgb), .06); }
 .bodyField > div:first-child { min-height: 0; padding: 13px 18px 0; margin-bottom: 4px !important; }
 .bodyField > div:first-child > div { color: #b9cce5; font-size: 12px !important; font-weight: 650; }
@@ -47,7 +42,7 @@
 .editor :global(textarea), .editor :global([contenteditable]) { font-size: 16px; line-height: 1.65 !important; padding: 16px 18px !important; }
 .editor .titleField > .titleRichField { padding: 11px 16px !important; line-height: 22px !important; font-size: 17px; }
 .editor :global(input:focus), .editor :global(textarea:focus), .editor :global([contenteditable]:focus), .editor :global(select:focus-visible) { border-color: rgba(var(--editor-rgb), .7) !important; box-shadow: 0 0 0 3px rgba(var(--editor-rgb), .07); outline: none; }
-.options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 0; min-height: 0; min-width: 0; }
+.options { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 0; min-height: min-content; min-width: 0; }
 .options :global(input), .options :global(select) { width: 100%; min-width: 0; font-size: 14px !important; min-height: 42px !important; padding: 10px 13px !important; }
 .options :global(select) { border-color: rgba(var(--editor-rgb), .38) !important; background: linear-gradient(115deg, rgba(var(--editor-rgb), .1), #17253e61) !important; font-weight: 650; }
 .ctaGrid { gap: 12px !important; }
@@ -56,7 +51,7 @@
 .ctaGrid > div:first-child > div:first-child::before { content: ""; display: inline-block; width: 3px; height: 11px; margin: 0 7px -1px 0; border-radius: 3px; background: linear-gradient(#ef9acb, #a48bff); }
 .options :global([data-publish-field-help]) { display: none; }
 .footerActions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; }
-.duplicateFeedback { color: #a8e1ca; font-size: 12px; line-height: 1.45; text-align: right; }
+.duplicateFeedback { flex: 1 0 100%; order: -1; min-width: 0; max-width: 100%; color: #a8e1ca; font-size: 12px; line-height: 1.45; text-align: right; overflow-wrap: anywhere; }
 .duplicateFeedback[data-publish-duplicate-feedback="error"] { color: #ffb4b4; }
 .duplicateButton { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; gap: 7px; width: auto; padding: 8px 13px; min-height: 38px; border-color: #b6a3e345; color: #d4d0f4; font-size: 12px; white-space: nowrap; background: linear-gradient(110deg, #7162b21c, #a762c115); }
 .duplicateButton:hover:not(:disabled) { border-color: #c3a2ef80; background: #a978e524; }
@@ -68,20 +63,15 @@
  .card { flex: 0 0 auto; }
  .fields { display: flex !important; flex-direction: column; gap: 14px !important; }
  .editorTopbar { gap: 10px !important; }
- .publicationFormats { width: 100%; }
- .soundtrackField { flex-basis: 100%; min-width: 0; }
  .sharedTools { margin-left: 0; width: 100%; justify-content: flex-end; gap: 8px; }
  .toolTarget { margin-right: auto; text-align: left; }
- .metaFormats { display: grid !important; grid-auto-flow: column; grid-auto-columns: minmax(0,1fr); width: 100%; gap: 5px !important; }
- .metaFormats > button, .metaFormats > label { justify-content: center; min-height: 36px !important; padding: 6px 4px !important; gap: 4px !important; font-size: 11px !important; white-space: nowrap; }
- .metaFormats input { margin: 0; width: 12px; height: 12px; }
  .titleField { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
  .titleField > div:first-child > :first-child { grid-column: 1; grid-row: 1; }
  .editor .titleField > input, .editor .titleField > textarea, .editor .titleField > .titleRichField { grid-column: 1 / -1; grid-row: 2; height: 72px !important; min-height: 72px !important; padding: 13px 12px !important; font-size: 16px; line-height: 22px !important; box-sizing: border-box; resize: none; overflow-y: auto; }
  .titleField > :last-child { grid-column: 2; grid-row: 1; }
  .formatTools { gap: 5px; }
  .formatTools > button { min-width: 34px !important; height: 36px !important; }
- .bodyField { min-height: 0; }
+ .bodyField { min-height: 0; resize: none; }
  .bodyField > div:first-child { padding: 12px 13px 0; }
  .bodyField > :last-child { padding: 5px 13px 10px; }
  .editor .bodyField > :global(textarea), .editor .bodyField > :global([contenteditable]) { flex: 0 0 auto; height: 210px !important; min-height: 210px !important; padding: 8px 13px 12px !important; }

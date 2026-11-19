@@ -22,19 +22,27 @@ function callback(name: string, scope: Record<string, unknown>) {
   return new Function(...Object.keys(scope), `${transpile(`const callback=(${expression.getText(modal)});`)};return callback;`)(...Object.values(scope)) as (value: unknown) => void;
 }
 
-test("Contents and Validation bind the same four controlled channel states and real parent callbacks preserve touched preferences", () => {
+test("Validation owns the four controlled channel options and real parent callbacks preserve touched preferences", () => {
   const bindings = new Map<string, Map<string, string>>();
   function visit(node: ts.Node) {
-    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && ["PublishContentEditorPanel", "PublishValidationChannelOptions"].includes(node.tagName.getText(modal))) {
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && ["PublishContentEditorPanel", "PublishValidationChannelOptions", "PublishValidationBoard"].includes(node.tagName.getText(modal))) {
       bindings.set(node.tagName.getText(modal), new Map(node.attributes.properties.filter(ts.isJsxAttribute).map(attribute => [attribute.name.getText(modal), attribute.initializer && ts.isJsxExpression(attribute.initializer) ? attribute.initializer.expression?.getText(modal) || "" : ""])));
     }
     ts.forEachChild(node, visit);
   }
-  visit(modal); assert.equal(bindings.size, 2);
-  for (const prop of ["pinterestBoards", "pinterestBoardId", "pinterestBoardsLoading", "pinterestBoardsError", "onPinterestBoardChange", "threadsPublicationMode", "threadsPublicationPreferences", "threadsPreferencesLoading", "threadsPreferencesFailed", "onThreadsPublicationModeChange", "facebookPublicationPlacement", "facebookStoryEnabled", "facebookPublicationPreferences", "onFacebookPublicationPlacementChange", "onFacebookStoryEnabledChange", "instagramPublicationPlacement", "instagramStoryEnabled", "instagramPublicationPreferences", "onInstagramPublicationPlacementChange", "onInstagramStoryEnabledChange"]) {
-    const value = bindings.get("PublishContentEditorPanel")!.get(prop);
-    assert.ok(value, `Contents must expose ${prop}`); assert.equal(bindings.get("PublishValidationChannelOptions")!.get(prop), value, `${prop} must share a single parent binding in both directions`);
+  visit(modal); assert.equal(bindings.size, 3);
+  const summaryBinding = bindings.get("PublishValidationBoard")!.get("summaryContainer"); assert.ok(summaryBinding);
+  const container = {id: "validation-footer"};
+  for (const step of ["channels", "intention", "content", "media", "control", "publication", "results"]) {
+    const current: unknown = new Function("activeWizardStep", "contentActionsContainer", `${transpile(`const value=(${summaryBinding});`)};return value;`)(step, container);
+    assert.equal(current, step === "control" ? container : null, "The actual parent permits the summary portal only in Validation");
   }
+  const expectedBindings = { pinterestBoards: "pinterestBoards", pinterestBoardId: "pinterestBoardId", pinterestBoardsLoading: "pinterestBoardsLoading", pinterestBoardsError: "pinterestBoardsError", onPinterestBoardChange: "onPinterestBoardChange", threadsPublicationMode: "threadsPublicationMode", threadsPublicationPreferences: "threadsPublicationPreferences", threadsPreferencesLoading: "threadsPreferencesLoading", threadsPreferencesFailed: "threadsPreferencesFailed", onThreadsPublicationModeChange: "onThreadsPublicationModeChange", facebookPublicationPlacement: "facebookPublicationPlacement", facebookStoryEnabled: "facebookStoryEnabled", facebookPublicationPreferences: "facebookPublicationPreferences", onFacebookPublicationPlacementChange: "changeFacebookPublicationPlacement", onFacebookStoryEnabledChange: "changeFacebookStoryEnabled", instagramPublicationPlacement: "instagramPublicationPlacement", instagramStoryEnabled: "instagramStoryEnabled", instagramPublicationPreferences: "instagramPublicationPreferences", onInstagramPublicationPlacementChange: "changeInstagramPublicationPlacement", onInstagramStoryEnabledChange: "changeInstagramStoryEnabled" };
+  for (const [prop, value] of Object.entries(expectedBindings)) {
+    assert.equal(bindings.get("PublishValidationChannelOptions")!.get(prop), value, `${prop} must use the existing parent state or guarded callback`);
+    if (!["facebookPublicationPlacement", "facebookStoryEnabled", "instagramPublicationPlacement", "instagramStoryEnabled"].includes(prop)) assert.equal(bindings.get("PublishContentEditorPanel")!.has(prop), false, `Contents no longer exposes the ${prop} option`);
+  }
+  assert.equal(bindings.get("PublishContentEditorPanel")!.has("renderChannelSoundtrack"), false, "Music configuration belongs to Validation");
   for (const channel of ["Facebook", "Instagram"]) {
     const lower = channel.toLowerCase(), touched = { current: false }, preferences = { current: { reelsEnabled: true, storiesEnabled: true } };
     const state: { placement: unknown; includeStory: unknown } = { placement: "classic", includeStory: false };
@@ -83,29 +91,42 @@ test("the actual Validation options remain controlled across external updates, M
     await page.setContent(`<style>*{box-sizing:border-box;margin:0;padding:0}${read("app/dashboard/booster/publier/components/PublishValidationChannelOptions.module.css")}body{background:#101b2d;color:white;font:14px Arial;padding:24px}main{display:grid;gap:16px;width:400px}</style><div id="root"></div>`); await page.addScriptTag({ content: fixture });
     await page.locator('[data-channel-validation-options="facebook"]').waitFor(); assert.equal(await page.locator('[data-channel-validation-options]').count(), 4); assert.equal(await page.locator('[data-channel-validation-options="gmb"]').count(), 0);
     for (const channel of ["facebook", "instagram"]) {
-      const row = page.locator(`[data-channel-validation-options="${channel}"]`), select = row.getByRole("combobox"), story = row.getByRole("checkbox");
+      const row = page.locator(`[data-channel-validation-options="${channel}"]`), classic = row.locator('input[type="radio"][value="classic"]'), reel = row.locator('input[type="radio"][value="reel"]'), story = row.getByRole("checkbox");
       await page.evaluate(channel => (window as unknown as FixtureState).replaceValues({ [`${channel}PublicationPlacement`]: "reel", [`${channel}StoryEnabled`]: true }), channel);
-      await page.waitForFunction(channel => (document.querySelector(`[data-channel-validation-options="${channel}"] select`) as HTMLSelectElement)?.value === "reel", channel); assert.equal(await story.isChecked(), true);
-      await select.selectOption("story"); assert.equal(await story.count(), 0); assert.equal(await page.evaluate(channel => (window as unknown as FixtureState).values[`${channel}StoryEnabled`], channel), false);
-      await select.selectOption("classic"); assert.equal(await story.isChecked(), false); await story.check(); assert.equal(await page.evaluate(channel => (window as unknown as FixtureState).values[`${channel}StoryEnabled`], channel), true);
+      await page.waitForFunction(channel => (document.querySelector(`[data-channel-validation-options="${channel}"] input[value="reel"]`) as HTMLInputElement)?.checked, channel); assert.equal(await story.isChecked(), true);
+      await classic.check(); assert.equal(await reel.isChecked(), false); assert.equal(await story.isChecked(), true, "The independent Story choice survives a primary format change");
+      await story.uncheck(); assert.equal(await page.evaluate(channel => (window as unknown as FixtureState).values[`${channel}StoryEnabled`], channel), false);
+      await page.evaluate(channel => (window as unknown as FixtureState).replaceValues({ [`${channel}PublicationPlacement`]: "story", [`${channel}StoryEnabled`]: false }), channel);
+      await page.waitForFunction(channel => !(document.querySelector(`[data-channel-validation-options="${channel}"] input[value="classic"]`) as HTMLInputElement)?.checked, channel);
+      assert.equal(await story.isChecked(), true, "A saved Story-only draft keeps its intent visible"); assert.equal(await reel.isChecked(), false);
+      await reel.check(); assert.equal(await classic.isChecked(), false); assert.equal(await story.isChecked(), true); assert.equal(await page.evaluate(channel => (window as unknown as FixtureState).values[`${channel}StoryEnabled`], channel), true);
+      await page.evaluate(channel => (window as unknown as FixtureState).replaceValues({ [`${channel}PublicationPlacement`]: "story", [`${channel}StoryEnabled`]: false }), channel);
+      await page.waitForFunction(channel => !(document.querySelector(`[data-channel-validation-options="${channel}"] input[value="reel"]`) as HTMLInputElement)?.checked, channel);
+      await story.uncheck(); assert.equal(await classic.isChecked(), true); assert.equal(await page.evaluate(channel => (window as unknown as FixtureState).values[`${channel}PublicationPlacement`], channel), "classic");
       await page.evaluate(channel => (window as unknown as FixtureState).configure({ [`${channel}PublicationPreferences`]: { reelsEnabled: false, storiesEnabled: false } }), channel);
-      await page.waitForFunction(channel => !document.querySelector(`[data-channel-validation-options="${channel}"] option[value="reel"]`), channel);
-      assert.equal(await select.locator('option[value="reel"]').count(), 0); assert.equal(await select.locator('option[value="story"]').count(), 0); assert.equal(await story.isDisabled(), true);
+      await page.waitForFunction(channel => !document.querySelector(`[data-channel-validation-options="${channel}"] input[value="reel"]`), channel);
+      assert.equal(await reel.count(), 0); assert.equal(await story.isDisabled(), true);
+      await page.evaluate(channel => (window as unknown as FixtureState).replaceValues({ [`${channel}PublicationPlacement`]: "reel" }), channel);
+      await reel.waitFor(); assert.equal(await reel.isChecked(), true); assert.equal(await reel.isDisabled(), true, "A previously selected unavailable Reel is not silently converted");
     }
     const pinterest = page.locator('[data-channel-validation-options="pinterest"] select'); await pinterest.selectOption("board-two"); assert.equal(await page.evaluate(() => (window as unknown as FixtureState).values.pinterestBoardId), "board-two");
     await page.evaluate(() => (window as unknown as FixtureState).replaceValues({ pinterestBoardId: "board-one" })); await page.waitForFunction(() => (document.querySelector('[data-channel-validation-options="pinterest"] select') as HTMLSelectElement)?.value === "board-one");
     await page.evaluate(() => (window as unknown as FixtureState).configure({ pinterestBoardsLoading: true })); await page.waitForFunction(() => (document.querySelector('[data-channel-validation-options="pinterest"] select') as HTMLSelectElement)?.disabled); assert.equal(await pinterest.isDisabled(), true);
     await page.evaluate(() => (window as unknown as FixtureState).configure({ pinterestBoardsLoading: false, pinterestBoards: [] })); await page.waitForFunction(() => document.querySelectorAll('[data-channel-validation-options="pinterest"] option').length === 1); assert.equal(await pinterest.isDisabled(), true);
-    const threads = page.locator('[data-channel-validation-options="threads"] select'); await threads.selectOption("ghost"); assert.equal(await page.evaluate(() => (window as unknown as FixtureState).values.threadsPublicationMode), "ghost");
-    await page.evaluate(() => (window as unknown as FixtureState).replaceValues({ threadsPublicationMode: "classic" })); await page.waitForFunction(() => (document.querySelector('[data-channel-validation-options="threads"] select') as HTMLSelectElement)?.value === "classic");
+    const threads = page.locator('[data-channel-validation-options="threads"]'), ghost = threads.locator('input[value="ghost"]'), classic = threads.locator('input[value="classic"]'); await ghost.check(); assert.equal(await page.evaluate(() => (window as unknown as FixtureState).values.threadsPublicationMode), "ghost"); assert.equal(await classic.isChecked(), false);
+    await page.evaluate(() => (window as unknown as FixtureState).replaceValues({ threadsPublicationMode: "classic" })); await page.waitForFunction(() => (document.querySelector('[data-channel-validation-options="threads"] input[value="classic"]') as HTMLInputElement)?.checked); assert.equal(await ghost.isChecked(), false);
     for (const config of [{ threadsPreferencesLoading: true }, { threadsPreferencesLoading: false, threadsPreferencesFailed: true }, { threadsPreferencesFailed: false, threadsPublicationPreferences: { ghostEnabled: false } }]) {
       await page.evaluate(() => (window as unknown as FixtureState).configure({ threadsPreferencesLoading: false, threadsPreferencesFailed: false, threadsPublicationPreferences: { ghostEnabled: true } }));
-      await page.waitForFunction(() => (document.querySelector('[data-channel-validation-options="threads"] option[value="ghost"]') as HTMLOptionElement)?.disabled === false);
-      await page.evaluate(config => (window as unknown as FixtureState).configure(config), config); await page.waitForFunction(() => (document.querySelector('[data-channel-validation-options="threads"] option[value="ghost"]') as HTMLOptionElement)?.disabled); // Playwright follows the enclosing label to the enabled select; inspect the native option instead.
-      assert.equal(await threads.locator('option[value="ghost"]').evaluate(option => (option as HTMLOptionElement).disabled), true);
-      assert.equal(await threads.isEnabled(), true, "Classic remains available when Ghost is blocked");
+      await page.waitForFunction(() => (document.querySelector('[data-channel-validation-options="threads"] input[value="ghost"]') as HTMLInputElement)?.disabled === false);
+      await page.evaluate(config => (window as unknown as FixtureState).configure(config), config); await page.waitForFunction(() => (document.querySelector('[data-channel-validation-options="threads"] input[value="ghost"]') as HTMLInputElement)?.disabled);
+      assert.equal(await ghost.isDisabled(), true); assert.equal(await classic.isEnabled(), true, "Classic remains available when Ghost is blocked");
+      assert.equal(await threads.getByRole('status').count(), 0, "Classic does not display the technical Ghost loading notice");
     }
-    await page.evaluate(() => (window as unknown as FixtureState).configure({ disabled: true })); await page.waitForFunction(() => Array.from(document.querySelectorAll('select')).every(select => select.disabled)); for (const select of await page.getByRole("combobox").all()) assert.equal(await select.isDisabled(), true);
+    await page.evaluate(() => {const state = window as unknown as FixtureState; state.configure({threadsPreferencesLoading: true, threadsPreferencesFailed: false, threadsPublicationPreferences: {ghostEnabled: true}}); state.replaceValues({threadsPublicationMode: 'ghost'});});
+    await threads.getByRole('status').waitFor(); assert.equal(await ghost.isChecked(), true); assert.equal(await ghost.isDisabled(), true);
+    assert.equal(await threads.getByRole('status').textContent(), (JSON.parse(read('messages/fr-FR/booster.json')) as Record<string, string>).threads_ghost_preferences_loading);
+    await classic.check(); await page.waitForFunction(() => !document.querySelector('[data-channel-validation-options="threads"] [role="status"]'));
+    await page.evaluate(() => (window as unknown as FixtureState).configure({ disabled: true })); await page.waitForFunction(() => Array.from(document.querySelectorAll('select,input')).every(control => (control as HTMLInputElement).disabled)); for (const control of await page.locator('select,input').all()) assert.equal(await control.isDisabled(), true);
     assert.deepEqual(await page.evaluate(() => (window as unknown as FixtureState).requests), []); assert.deepEqual(errors, []); await page.close();
   } finally { await browser.close(); }
 });

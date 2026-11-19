@@ -1,5 +1,3 @@
-import type { ThreadsPublicationMode, ThreadsPublicationPreferences } from "@/lib/threadsPublicationPreferences";
-import ThreadsPublicationModeControls from "./ThreadsPublicationModeControls";
 import { useTranslations } from "next-intl";
 import { createPortal } from "react-dom";
 import type {
@@ -7,19 +5,14 @@ import type {
   Dispatch,
   KeyboardEvent,
   MutableRefObject,
-  ReactNode,
   SetStateAction,
 } from "react";
 import { useEffect, useRef, useState } from "react";
 import type { BoosterCreationMode } from "@/lib/boosterCreationMode";
-import type { InstagramPublicationPreferences } from "@/lib/instagramPublicationPreferences";
-import type { FacebookPublicationPreferences } from "@/lib/facebookPublicationPreferences";
 import type { MetaPrimaryPublicationPlacement } from "@/lib/metaPublicationTargets";
-import { getMetaImageMotionDuration } from "@/lib/metaImageMotionTiming";
 import { buildCtaTextForChannel, getCtaPhone } from "@/lib/boosterCta";
 import {
   getBoosterXForbiddenUrlFields,
-  getBoosterXUrlBlockerMessage,
 } from "@/lib/boosterXUrlPolicy";
 import {
   buildBoosterWhatsAppUrl,
@@ -48,7 +41,6 @@ import {
   type BoosterCtaDefaults,
   type BoosterPreferredCta,
   type ChannelKey,
-  type ChannelMediaMode,
   type ChannelPost,
   type DisplayKey,
 } from "../publishModal.shared";
@@ -83,125 +75,8 @@ type ManualVoiceTarget = {
 const INSTAGRAM_HASHTAGS_INPUT_MAX_LENGTH = 20 * (40 + 2);
 const X_HASHTAGS_INPUT_MAX_LENGTH = 2 * (40 + 2);
 
-function MetaPublicationFormatControls({
-  label,
-  primaryPlacement,
-  reelsEnabled,
-  storyEnabled,
-  storiesEnabled,
-  disabled,
-  classicLabel,
-  reelLabel,
-  storyLabel,
-  onPrimaryPlacementChange,
-  onStoryEnabledChange,
-}: {
-  label: string;
-  primaryPlacement: MetaPrimaryPublicationPlacement;
-  reelsEnabled: boolean;
-  storyEnabled: boolean;
-  storiesEnabled: boolean;
-  disabled: boolean;
-  classicLabel: string;
-  reelLabel: string;
-  storyLabel: string;
-  onPrimaryPlacementChange: (
-    placement: MetaPrimaryPublicationPlacement,
-  ) => void;
-  onStoryEnabledChange: (enabled: boolean) => void;
-}) {
-  const optionStyle = (active: boolean) => ({
-    ...pillBtn,
-    minHeight: 36,
-    padding: "7px 13px",
-    border: active
-      ? "1px solid rgba(76,195,255,0.68)"
-      : "1px solid rgba(148,163,184,0.28)",
-    background: active
-      ? "linear-gradient(135deg, rgba(32,151,217,0.34), rgba(151,71,255,0.28))"
-      : "rgba(8,20,46,0.58)",
-    color: active ? "#f8fbff" : "rgba(226,232,240,0.78)",
-    opacity: disabled ? 0.55 : 1,
-  });
-
-  return (
-    <div
-      aria-label={label}
-      role="group"
-      className={css.metaFormats}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "flex-end",
-        gap: 7,
-        flexWrap: "wrap",
-        minWidth: 0,
-      }}
-    >
-      <button
-        type="button"
-        aria-pressed={primaryPlacement === "classic"}
-        onClick={() => onPrimaryPlacementChange("classic")}
-        disabled={disabled}
-        style={optionStyle(primaryPlacement === "classic")}
-      >
-        {classicLabel}
-      </button>
-      {reelsEnabled ? (
-        <button
-          type="button"
-          aria-pressed={primaryPlacement === "reel"}
-          onClick={() => onPrimaryPlacementChange("reel")}
-          disabled={disabled}
-          style={optionStyle(primaryPlacement === "reel")}
-        >
-          {reelLabel}
-        </button>
-      ) : null}
-      {storiesEnabled ? (
-        <>
-          <button
-            type="button"
-            aria-pressed={primaryPlacement === "story"}
-            onClick={() => {
-              onPrimaryPlacementChange("story");
-              onStoryEnabledChange(false);
-            }}
-            disabled={disabled}
-            style={optionStyle(primaryPlacement === "story")}
-          >
-            {storyLabel}
-          </button>
-          {primaryPlacement !== "story" ? (
-            <label
-              style={{
-                ...optionStyle(storyEnabled),
-                cursor: disabled ? "not-allowed" : "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 7,
-                fontWeight: 800,
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={storyEnabled}
-                onChange={(event) => onStoryEnabledChange(event.target.checked)}
-                disabled={disabled}
-                style={{ accentColor: "#38bdf8" }}
-              />
-              + {storyLabel}
-            </label>
-          ) : null}
-        </>
-      ) : null}
-    </div>
-  );
-}
-
 type PublishContentEditorPanelProps = {
   actionsContainer?: HTMLElement | null;
-  renderChannelSoundtrack?: (channel: "facebook" | "instagram", disabled: boolean) => ReactNode;
   styles: PublishModalStyles;
   isMobile: boolean;
   creationMode: BoosterCreationMode | null;
@@ -232,40 +107,13 @@ type PublishContentEditorPanelProps = {
   onDuplicateContentToAllChannels: () => void;
   onAdjustGeneration?: () => void;
   adjustmentDisabled?: boolean;
-  pinterestBoards: Array<{ id: string; name: string }>;
-  pinterestBoardId: string;
-  pinterestBoardsLoading: boolean;
-  pinterestBoardsError: string;
-  onPinterestBoardChange: (boardId: string) => void;
-  threadsPublicationMode: ThreadsPublicationMode;
-  threadsPublicationPreferences: ThreadsPublicationPreferences;
-  threadsPreferencesLoading: boolean;
-  threadsPreferencesFailed: boolean;
-  onThreadsPublicationModeChange: (mode: ThreadsPublicationMode) => void;
   instagramPublicationPlacement: MetaPrimaryPublicationPlacement;
-  instagramStoryEnabled: boolean;
-  instagramPublicationPreferences: InstagramPublicationPreferences;
-  instagramMediaMode: ChannelMediaMode;
-  instagramImageCount?: number;
-  onInstagramPublicationPlacementChange: (
-    placement: MetaPrimaryPublicationPlacement,
-  ) => void;
-  onInstagramStoryEnabledChange: (enabled: boolean) => void;
   facebookPublicationPlacement: MetaPrimaryPublicationPlacement;
-  facebookStoryEnabled: boolean;
-  facebookPublicationPreferences: FacebookPublicationPreferences;
-  facebookMediaMode: ChannelMediaMode;
-  facebookImageCount?: number;
-  onFacebookPublicationPlacementChange: (
-    placement: MetaPrimaryPublicationPlacement,
-  ) => void;
-  onFacebookStoryEnabledChange: (enabled: boolean) => void;
   onVoiceBusyChange?: (busy: boolean) => void;
 };
 
 export default function PublishContentEditorPanel({
   actionsContainer,
-  renderChannelSoundtrack,
   styles,
   isMobile,
   creationMode,
@@ -289,30 +137,8 @@ export default function PublishContentEditorPanel({
   onDuplicateContentToAllChannels,
   onAdjustGeneration,
   adjustmentDisabled = false,
-  pinterestBoards,
-  pinterestBoardId,
-  pinterestBoardsLoading,
-  pinterestBoardsError,
-  onPinterestBoardChange,
-  threadsPublicationMode,
-  threadsPublicationPreferences,
-  threadsPreferencesLoading,
-  threadsPreferencesFailed,
-  onThreadsPublicationModeChange,
   instagramPublicationPlacement,
-  instagramStoryEnabled,
-  instagramPublicationPreferences,
-  instagramMediaMode,
-  instagramImageCount = 0,
-  onInstagramPublicationPlacementChange,
-  onInstagramStoryEnabledChange,
   facebookPublicationPlacement,
-  facebookStoryEnabled,
-  facebookPublicationPreferences,
-  facebookMediaMode,
-  facebookImageCount = 0,
-  onFacebookPublicationPlacementChange,
-  onFacebookStoryEnabledChange,
   onVoiceBusyChange,
 }: PublishContentEditorPanelProps) {
   const i18nT = useTranslations("booster");
@@ -563,32 +389,10 @@ export default function PublishContentEditorPanel({
   const xForbiddenCtaUrlFields = xForbiddenUrlFields.filter((field) =>
     ["cta", "ctaUrl", "ctaPhone"].includes(field.field),
   );
-  const instagramVerticalFormat =
-    activeCard === "instagram" &&
-    instagramPublicationPlacement === "reel";
-  const facebookVerticalFormat =
-    activeCard === "facebook" &&
-    facebookPublicationPlacement === "reel";
-  const activeStoryEnabled =
-    (activeCard === "instagram" && instagramStoryEnabled) ||
-    (activeCard === "instagram" && instagramPublicationPlacement === "story") ||
-    (activeCard === "facebook" && facebookStoryEnabled) ||
-    (activeCard === "facebook" && facebookPublicationPlacement === "story");
   const activeStoryOnly =
     (activeCard === "instagram" &&
       instagramPublicationPlacement === "story") ||
     (activeCard === "facebook" && facebookPublicationPlacement === "story");
-  const activeMediaMode =
-    activeCard === "instagram"
-      ? instagramMediaMode
-      : activeCard === "facebook"
-        ? facebookMediaMode
-        : "none";
-  const activeVerticalImageMotion =
-    (instagramVerticalFormat || facebookVerticalFormat) &&
-    activeMediaMode === "images";
-  const activeStoryImageSequence = activeStoryEnabled && activeMediaMode === "images";
-  const activeImageCount = activeCard === "instagram" ? instagramImageCount : activeCard === "facebook" ? facebookImageCount : 0;
   const activeTextGuidelines = CHANNEL_TEXT_GUIDELINES[activeCard];
   const titleVoiceMaxLength = Math.max(
     activePost.title.length,
@@ -629,6 +433,13 @@ export default function PublishContentEditorPanel({
       />
       {duplicateAction}
       {onAdjustGeneration ? <button type="button" className={`${styles.secondaryBtn} ${css.adjustButton}`} data-publish-adjust-action onClick={onAdjustGeneration} disabled={voiceBusy || adjustmentDisabled}><span aria-hidden="true">✧</span>{i18nT("adjust_title")}</button> : null}
+      {duplicateFeedback ? (
+        <div className={css.duplicateFeedback}
+          role={duplicateFeedback.kind === "error" ? "alert" : "status"}
+          data-publish-duplicate-feedback={duplicateFeedback.kind}>
+          {duplicateFeedback.message}
+        </div>
+      ) : null}
     </div>
   );
 
@@ -775,8 +586,7 @@ export default function PublishContentEditorPanel({
             <div
               className={css.editorTopbar}
               style={{
-                display: activeCard === "threads" ? "grid" : "flex",
-                gridTemplateColumns: activeCard === "threads" ? "auto minmax(0, 1fr)" : undefined,
+                display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
                 gap: 10,
@@ -784,87 +594,6 @@ export default function PublishContentEditorPanel({
                 minWidth: 0,
               }}
             >
-              <div className={css.publicationFormats}>
-              {activeCard === "pinterest" ? (
-                <label className={css.boardField}>
-                <span>{i18nT("wizard_board")}</span>
-                <select
-                  value={pinterestBoardId}
-                  onChange={(event) =>
-                    onPinterestBoardChange(event.target.value)
-                  }
-                  disabled={pinterestBoardsLoading || !pinterestBoards.length}
-                  aria-label={i18nT("tableau_pinterest_1af82867")}
-                  title={i18nT("tableau_pinterest_1af82867")}
-                  style={{
-                    ...darkSelectStyle,
-                    width: isMobile ? "min(58vw, 220px)" : "min(360px, 45%)",
-                    minWidth: isMobile ? 150 : 200,
-                    maxWidth: "100%",
-                    flex: "0 1 auto",
-                  }}
-                >
-                  {!pinterestBoards.length ? (
-                    <option value="" style={darkOptionStyle}>
-                      {pinterestBoardsLoading ? i18nT("chargement_01cba1df") : i18nT("aucun_tableau_d327ddcf")}
-                    </option>
-                  ) : !pinterestBoardId ? (
-                    <option value="" style={darkOptionStyle}>
-                      {i18nT("choisir_un_tableau_77f9de39")}{" "}</option>
-                  ) : null}
-                  {pinterestBoards.map((board) => (
-                    <option
-                      key={board.id}
-                      value={board.id}
-                      style={darkOptionStyle}
-                    >
-                      {board.name}
-                    </option>
-                  ))}
-                </select>
-                </label>
-              ) : null}
-              {activeCard === "threads" ? <ThreadsPublicationModeControls inline mode={threadsPublicationMode} preferences={threadsPublicationPreferences} loading={threadsPreferencesLoading} failed={threadsPreferencesFailed} disabled={voiceBusy} onChange={onThreadsPublicationModeChange} /> : null}
-              {activeCard === "instagram" ? (
-                <MetaPublicationFormatControls
-                  label={i18nT("instagram_publication_format")}
-                  primaryPlacement={instagramPublicationPlacement}
-                  reelsEnabled={instagramPublicationPreferences.reelsEnabled}
-                  storyEnabled={instagramStoryEnabled}
-                  storiesEnabled={instagramPublicationPreferences.storiesEnabled}
-                  disabled={voiceBusy}
-                  classicLabel={i18nT("instagram_classic")}
-                  reelLabel={i18nT("instagram_reels")}
-                  storyLabel={i18nT("instagram_stories")}
-                  onPrimaryPlacementChange={
-                    onInstagramPublicationPlacementChange
-                  }
-                  onStoryEnabledChange={onInstagramStoryEnabledChange}
-                />
-              ) : null}
-              {activeCard === "facebook" ? (
-                <MetaPublicationFormatControls
-                  label={i18nT("facebook_publication_format")}
-                  primaryPlacement={facebookPublicationPlacement}
-                  reelsEnabled={facebookPublicationPreferences.reelsEnabled}
-                  storyEnabled={facebookStoryEnabled}
-                  storiesEnabled={facebookPublicationPreferences.storiesEnabled}
-                  disabled={voiceBusy}
-                  classicLabel={i18nT("instagram_classic")}
-                  reelLabel={i18nT("instagram_reels")}
-                  storyLabel={i18nT("instagram_stories")}
-                  onPrimaryPlacementChange={
-                    onFacebookPublicationPlacementChange
-                  }
-                  onStoryEnabledChange={onFacebookStoryEnabledChange}
-                />
-              ) : null}
-              {(activeCard === "facebook" || activeCard === "instagram") && renderChannelSoundtrack ? (
-                <div className={css.soundtrackField} data-publish-content-soundtrack={activeCard}>
-                  {renderChannelSoundtrack(activeCard, voiceBusy)}
-                </div>
-              ) : null}
-              </div>
               <div className={css.sharedTools} data-publish-shared-toolbar data-active-field={activeTextField}>
                 <span className={css.toolTarget} aria-live="polite">{i18nT(activeTextField === "title" ? "titre_eb97899a" : "contenu_f3cb82af")}</span>
                 {renderFormattingTools(activeTextField)}
@@ -883,93 +612,6 @@ export default function PublishContentEditorPanel({
                 ) : null}
               </div>
             </div>
-            {activeCard === "pinterest" && pinterestBoardsError ? (
-              <div style={{ marginBottom: 8, fontSize: 12, color: "#fecaca" }}>
-                {pinterestBoardsError}
-              </div>
-            ) : activeCard === "pinterest" &&
-              !pinterestBoardsLoading &&
-              !pinterestBoards.length ? (
-              <div style={{ marginBottom: 8, fontSize: 12, opacity: 0.72 }}>
-                {i18nT("aucun_tableau_disponible_creez_en_un_fdb1c0ea")}{" "}</div>
-            ) : null}
-            {activeVerticalImageMotion || activeStoryEnabled ? (
-              <div
-                role="status"
-                style={{
-                  marginBottom: 10,
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid rgba(76,195,255,0.28)",
-                  background: "rgba(76,195,255,0.08)",
-                  color: "rgba(226,247,255,0.92)",
-                  fontSize: 12,
-                  lineHeight: 1.45,
-                }}
-              >
-                {activeVerticalImageMotion && activeImageCount > 0 ? <p data-meta-reel-image-notice style={{ margin: "0 0 6px" }}>{i18nT("instagram_image_motion_notice", { secondsPerImage: getMetaImageMotionDuration(1, "reel"), duration: getMetaImageMotionDuration(activeImageCount, "reel") })}</p> : null}
-                {activeStoryImageSequence && activeImageCount > 0 ? <p data-meta-story-image-notice style={{ margin: "0 0 6px" }}>{i18nT("instagram_image_story_sequence_notice", { secondsPerImage: getMetaImageMotionDuration(1, "story") })}</p> : null}
-                {activeStoryEnabled
-                  ? i18nT("instagram_review_media_only_warning", {
-                      mode: i18nT("instagram_stories"),
-                    })
-                  : null}
-              </div>
-            ) : null}
-            {activeCard === "x" && xForbiddenUrlFields.length ? (
-              <div
-                role="alert"
-                data-x-url-blocker="true"
-                style={{
-                  marginBottom: 10,
-                  padding: "10px 12px",
-                  borderRadius: 12,
-                  border: "1px solid rgba(248,113,113,0.42)",
-                  background: "rgba(248,113,113,0.12)",
-                  color: "#fecaca",
-                  fontSize: 12,
-                  lineHeight: 1.45,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  flexWrap: "wrap",
-                }}
-              >
-                <span>{getBoosterXUrlBlockerMessage(xForbiddenUrlFields)}</span>
-                {xForbiddenCtaUrlFields.length ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const invalidFields = new Set(
-                        xForbiddenCtaUrlFields.map((field) => field.field),
-                      );
-                      updatePost(
-                        "x",
-                        {
-                          ...(invalidFields.has("cta") ? { cta: "" } : {}),
-                          ...(invalidFields.has("ctaUrl")
-                            ? { ctaUrl: "" }
-                            : {}),
-                          ...(invalidFields.has("ctaPhone")
-                            ? { ctaPhone: "" }
-                            : {}),
-                        },
-                        { sanitize: false },
-                      );
-                    }}
-                    style={{
-                      ...pillBtn,
-                      border: "1px solid rgba(248,113,113,0.44)",
-                      background: "rgba(127,29,29,0.34)",
-                      color: "#fee2e2",
-                      flex: "0 0 auto",
-                    }}
-                  >
-                    {i18nT("retirer_le_lien_du_cta_754fb2a5")}{" "}</button>
-                ) : null}
-              </div>
-            ) : null}
             <fieldset
               className={css.fields}
               disabled={activeStoryOnly}
@@ -1111,6 +753,39 @@ export default function PublishContentEditorPanel({
                 )}
               </div>
               <aside className={css.options}>
+                {xForbiddenCtaUrlFields.length ? (
+                  <button
+                    data-x-remove-cta-url
+                    type="button"
+                    onClick={() => {
+                      const invalidFields = new Set(
+                        xForbiddenCtaUrlFields.map((field) => field.field),
+                      );
+                      updatePost(
+                        "x",
+                        {
+                          ...(invalidFields.has("cta") ? { cta: "" } : {}),
+                          ...(invalidFields.has("ctaUrl")
+                            ? { ctaUrl: "" }
+                            : {}),
+                          ...(invalidFields.has("ctaPhone")
+                            ? { ctaPhone: "" }
+                            : {}),
+                        },
+                        { sanitize: false },
+                      );
+                    }}
+                    style={{
+                      ...pillBtn,
+                      border: "1px solid rgba(248,113,113,0.44)",
+                      background: "rgba(127,29,29,0.34)",
+                      color: "#fee2e2",
+                      justifySelf: "start",
+                      flex: "0 0 auto",
+                    }}
+                  >
+                    {i18nT("retirer_le_lien_du_cta_754fb2a5")}{" "}</button>
+                ) : null}
               <div>
                 {(() => {
                   const currentPost = getDisplayPost(activeCard);
@@ -1583,13 +1258,6 @@ export default function PublishContentEditorPanel({
               ) : null}
               </aside>
             </fieldset>
-            {duplicateFeedback ? (
-              <div className={css.duplicateFeedback}
-                role={duplicateFeedback.kind === "error" ? "alert" : "status"}
-                data-publish-duplicate-feedback={duplicateFeedback.kind}>
-                {duplicateFeedback.message}
-              </div>
-            ) : null}
           </div>
           {actionsContainer ? createPortal(footerActions, actionsContainer) : footerActions}
         </>

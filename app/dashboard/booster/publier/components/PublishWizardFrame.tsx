@@ -13,12 +13,13 @@ type Props = {
   onNext?: () => void;
   nextDisabled?: boolean;
   footer?: ReactNode;
+  footerSummary?: ReactNode;
   children: ReactNode;
 };
 
 export default function PublishWizardFrame({
   step, steps, canOpenStep, onOpenStep, onPrevious, onNext,
-  nextDisabled, footer, children,
+  nextDisabled, footer, footerSummary, children,
 }: Props) {
   const t = useTranslations("booster");
   const visibleStep = getVisiblePublishWizardStep(step);
@@ -84,12 +85,13 @@ export default function PublishWizardFrame({
           {children}
         </div>
       </div>
-      {onPrevious || onNext || footer ? <footer className={css.footer}>
+      {onPrevious || onNext || footer || footerSummary ? <footer className={css.footer} data-has-summary={Boolean(footerSummary)}>
         <div>
           {onPrevious ? <button type="button" className={css.previous} onClick={onPrevious} aria-label={t("wizard_previous")}>
             <span aria-hidden="true">←</span> <span className={css.previousLabel}>{t("wizard_previous")}</span>
           </button> : null}
         </div>
+        {footerSummary ? <div className={css.footerSummary}>{footerSummary}</div> : null}
         <div className={css.footerActions}>
           {footer}
           {onNext ? <button type="button" className={css.next} onClick={onNext} disabled={nextDisabled}>

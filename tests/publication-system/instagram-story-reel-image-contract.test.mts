@@ -44,39 +44,14 @@ const preferencesPostflight = read(
   "ops/sql/2026-09-07_instagram_publication_preferences_postflight_read_only.sql",
 );
 
-test("Instagram exposes a primary format plus an independent Story option", () => {
-  assert.match(
-    editor,
-    /activeCard === "instagram" \? \([\s\S]*?<MetaPublicationFormatControls[\s\S]*?label=\{i18nT\("instagram_publication_format"\)\}/,
-  );
-  assert.doesNotMatch(
-    editor,
-    /activeCard === "instagram" && instagramMediaMode !== "none" \? \(/,
-  );
-  assert.match(editor, /primaryPlacement=\{instagramPublicationPlacement\}/);
-  assert.match(editor, /storyEnabled=\{instagramStoryEnabled\}/);
-  assert.match(editor, /type="checkbox"/);
-  assert.match(
-    editor,
-    /const activeStoryEnabled =[\s\S]*?activeCard === "instagram" && instagramStoryEnabled/,
-  );
-  assert.doesNotMatch(
-    editor,
-    /const instagramMediaOnly =[\s\S]*?instagramMediaMode !== "none";/,
-  );
-  assert.doesNotMatch(editor, /activeMediaOnly/);
-  assert.match(
-    editor,
-    /const activeVerticalImageMotion =[\s\S]*?activeMediaMode === "images";/,
-  );
-  assert.match(
-    editor,
-    /activeVerticalImageMotion[\s\S]*?instagram_image_motion_notice/,
-  );
-  assert.doesNotMatch(
-    editor,
-    /activeCard === "instagram" && instagramMediaMode === "video"/,
-  );
+test("Validation exposes Instagram formats and an independent Story option while Contents preserves Story-only protection", () => {
+  const options=read('app/dashboard/booster/publier/components/PublishValidationChannelOptions.tsx');
+  assert.match(options,/data-channel-validation-options=\{channel\}/);assert.match(options,/role="radiogroup"/);
+  assert.match(options,/value="classic" checked=\{placement === "classic"\}/);assert.match(options,/value="reel" checked=\{placement === "reel"\}/);
+  assert.match(options,/type="checkbox" checked=\{placement === "story" \|\| storyEnabled\}/);assert.match(options,/onPlacement\(value\)/);assert.match(options,/onStory\(event.target.checked\)/);
+  assert.match(options,/publication_reel_duration_hint/);assert.match(options,/publication_story_duration_hint/);
+  assert.doesNotMatch(editor,/MetaPublicationFormatControls|instagram_image_motion_notice|instagram_image_story_sequence_notice/);
+  assert.match(editor,/const activeStoryOnly =/);assert.match(editor,/disabled=\{activeStoryOnly\}/);assert.match(editor,/data-meta-story-only-content/);
 });
 
 test("Instagram publication is blocked without the selected image or video in every mode", () => {

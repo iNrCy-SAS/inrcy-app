@@ -1,5 +1,6 @@
 "use client";
 
+import "../inrcy-scrollbars.css";
 import { useEffect } from "react";
 
 import {

@@ -37,7 +37,6 @@ import { type PublicationProgressDestination } from "../../_components/PublishEx
 
 import { publicationStorySequenceResumeRef } from "@/lib/publicationStorySequenceRetry";
 import { type MediaSoundtrackByChannel } from "@/lib/mediaSoundtrackSelection";
-import MediaSoundtrackSelector from "@/app/dashboard/_components/MediaSoundtrackSelector";
 import { subscribeToChannelConnectionUpdates } from "@/lib/channelConnectionUpdates";
 import { createClient } from "@/lib/supabaseClient";
 import { prewarmBoosterGenerationContextClient } from "@/lib/boosterGenerationContextClient";
@@ -5418,6 +5417,7 @@ export default function PublishModal({
         onPrevious={previousWizardStep ? () => openWizardStep(previousWizardStep) : undefined}
         onNext={nextWizardStep ? () => openWizardStep(nextWizardStep) : undefined}
         nextDisabled={nextWizardStep ? !canOpenWizardStep(nextWizardStep) : false}
+        footerSummary={activeWizardStep === "control" ? <div ref={setContentActionsContainer} /> : undefined}
         footer={activeWizardStep === "intention" ? (
           <div ref={setIntentActionsContainer} className={wizardStyles.intentActions} />
         ) : activeWizardStep === "content" ? <div ref={setContentActionsContainer} /> : activeWizardStep === "control" ? publicationActions : activeWizardStep === "results" && publicationResult ? <PublishExecutionResultActions {...publicationResult} summary={publicationSummaryForActions} publicationDestinations={publicationVisualDestinations} compact /> : undefined}
@@ -5610,15 +5610,7 @@ export default function PublishModal({
             ) : null}
             <div style={{ flex: 1, minWidth: 0, minHeight: 0 }}>
             <PublishContentEditorPanel
-              actionsContainer={contentActionsContainer}
-              renderChannelSoundtrack={(channel, disabled) => activeWizardStep === "content" ? <MediaSoundtrackSelector key={channel} inline assistantUiScope="booster"
-                channelLabel={getLocalizedChannelLabel(channel, runtimeT)}
-                soundtrackId={soundtrackByChannel[channel] ?? null}
-                onChange={(id) => setSoundtrackByChannel(current => ({ ...current, [channel]: id }))}
-                scopeKey={`${actorUserId}:${activeAccountId}:${channel}`}
-                disabled={disabled || wizardBusy}
-                selectionLocked={Boolean(publicationSummaryForActions?.entries?.some(entry => entry.channel === channel && publicationStorySequenceResumeRef(entry.story_sequence_resume_ref)))}
-                unavailableHint={canConfigureChannelSoundtrack(channel) ? undefined : i18nT("publication_music_reserved_hint")} /> : null}
+              actionsContainer={activeWizardStep === "content" ? contentActionsContainer : null}
               styles={styles}
               isMobile={isMobile}
               creationMode={creationMode}
@@ -5645,30 +5637,8 @@ export default function PublishModal({
                 setGenError("");
                 setContentAdjustmentSession({ idea, instruction: publicationInstruction, channels: selectedForGeneration.filter(channel => Boolean(getDisplayPost(channel).content.trim())) });
               } : undefined}
-              pinterestBoards={pinterestBoards}
-              pinterestBoardId={pinterestBoardId}
-              pinterestBoardsLoading={pinterestBoardsLoading}
-              pinterestBoardsError={pinterestBoardsError}
-              onPinterestBoardChange={onPinterestBoardChange}
-              threadsPublicationMode={threadsPublicationMode}
-              threadsPublicationPreferences={threadsPublicationPreferences}
-              threadsPreferencesLoading={threadsPreferencesLoading}
-              threadsPreferencesFailed={threadsPreferencesFailed}
-              onThreadsPublicationModeChange={onThreadsPublicationModeChange}
               instagramPublicationPlacement={instagramPublicationPlacement}
-              instagramStoryEnabled={instagramStoryEnabled}
-              instagramPublicationPreferences={instagramPublicationPreferences}
-              instagramMediaMode={resolveChannelMediaMode("instagram")}
-              instagramImageCount={getPublishImageKeysForChannel("instagram").length}
-              onInstagramPublicationPlacementChange={changeInstagramPublicationPlacement}
-              onInstagramStoryEnabledChange={changeInstagramStoryEnabled}
               facebookPublicationPlacement={facebookPublicationPlacement}
-              facebookStoryEnabled={facebookStoryEnabled}
-              facebookPublicationPreferences={facebookPublicationPreferences}
-              facebookMediaMode={resolveChannelMediaMode("facebook")}
-              facebookImageCount={getPublishImageKeysForChannel("facebook").length}
-              onFacebookPublicationPlacementChange={changeFacebookPublicationPlacement}
-              onFacebookStoryEnabledChange={changeFacebookStoryEnabled}
               onVoiceBusyChange={setContentVoiceBusy}
             />
             </div>
@@ -5690,6 +5660,8 @@ export default function PublishModal({
           </PublishWizardScreen>
           <PublishWizardScreen active={activeWizardStep === "control"} step="control">
             <PublishValidationBoard items={publishReadinessItems} imageKeys={imageKeys} previewByKey={previewByKey} videoPreviewUrl={videoPreviewUrl}
+              summaryContainer={activeWizardStep === "control" ? contentActionsContainer : null}
+              optionWarningsByChannel={{ pinterest: pinterestBoardsError ? [pinterestBoardsError] : [], threads: threadsPreferencesFailed ? [i18nT("threads_ghost_preferences_error")] : [] }}
               renderChannelOptions={(channel) => <PublishValidationChannelOptions channel={channel} disabled={wizardBusy}
                 instagramMediaMode={resolveChannelMediaMode("instagram")} instagramImageCount={getPublishImageKeysForChannel("instagram").length}
                 facebookMediaMode={resolveChannelMediaMode("facebook")} facebookImageCount={getPublishImageKeysForChannel("facebook").length}
