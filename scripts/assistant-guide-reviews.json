@@ -962,7 +962,7 @@
       "guideDigest": "5ab3c857fd7813eea991e3db839b542434fadbca777a1cef85e57c59a2fef44d",
       "sources": {
         "app/api/billing/account-subscription/route.ts": "40d5817b65a3cc6803933b08c92885ffa3aa0e728dd16aa6b38b6747afc1af64",
-        "app/api/billing/checkout/route.ts": "486022aadd262f1e7f169dc04be820b55dfdf4f2f42268129bac762308b2885b",
+        "app/api/billing/checkout/route.ts": "fa2aab312cdc46eb7ce668120f1dee0734f23145cd9bd117c607a0eaf4a4a08a",
         "app/api/billing/portal/route.ts": "a43a5d29715dbcb7b0cc9992c90b99848e86d9a119994a0122cabb91daa5b116",
         "app/compte-bloque/BlockedBillingActions.tsx": "0d491f81c976769625d22b30787b615e5fd4b97a867fafc23690ddd7119f2af4",
         "app/compte-bloque/page.tsx": "4aa3c7f295c009a43aed4df289a436cbf751bebb4a771c8c0282df3546cb6adc",

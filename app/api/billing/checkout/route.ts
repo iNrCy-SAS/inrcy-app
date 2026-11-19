@@ -13,7 +13,7 @@ import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { canStartSubscriptionCheckout } from "@/lib/subscriptionCheckoutPolicy";
 import { findLiveStripeSubscriptions, inspectComplimentaryCheckout } from "@/lib/stripeCheckoutPreflight";
 import { CheckoutGuardError, withStripeCheckoutGuard } from "@/lib/stripeCheckoutSessionGuard";
-import { DIRECT_SIGNUP_ACTIVATION_PATH, getDirectSignupCheckoutSubmitMessage, getDirectSignupMetadata, isDirectSignupPaid } from "@/lib/directSignupPolicy";
+import { DIRECT_SIGNUP_ACTIVATION_PATH, getDirectSignupMetadata, isDirectSignupPaid } from "@/lib/directSignupPolicy";
 
 export const runtime = "nodejs";
 
@@ -387,10 +387,6 @@ export async function POST(req: Request) {
       sessionParams.set("customer_update[address]", "auto");
       sessionParams.set("customer_update[name]", "auto");
       sessionParams.set("payment_method_collection", "always");
-      if (directSignup) {
-        sessionParams.set("custom_text[submit][message]", getDirectSignupCheckoutSubmitMessage(billingCycle, user.user_metadata));
-      }
-
       const checkoutCustomerId = customerId;
       const session = await guard.resolveSession({
         customerId: checkoutCustomerId,

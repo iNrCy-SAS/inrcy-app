@@ -166,9 +166,7 @@ for (const plan of ["Basic", "Standard", "Premium"] as const) for (const cycle o
     const expected = plan === "Basic" ? cycle === "yearly" ? "BASIC_309HT_YEARLY" : "BASIC_29HT_MONTHLY" : `${plan === "Standard" ? "STANDARD_58HT" : "PREMIUM_108HT"}_${cycle.toUpperCase()}`;
     assert.equal(params.get("line_items[0][price]"), priceEnv[`STRIPE_PRICE_${expected}_ID`]);
     assert.equal(params.get("subscription_data[trial_end]"), null); assert.equal(params.get("subscription_data[trial_period_days]"), null);
-    assert.equal(params.get("custom_text[submit][message]"), cycle === "monthly"
-      ? "Sans période d’essai. Votre abonnement commence dès le paiement. En cas de résiliation, un renouvellement mensuel supplémentaire est prélevé avant la fin de l’abonnement."
-      : "Sans période d’essai. Votre abonnement commence dès le paiement. En cas de résiliation, il reste actif jusqu’à la fin de la période annuelle payée, sans nouveau prélèvement.");
+    assert.equal([...params.keys()].some(key => key.startsWith("custom_text[")), false, "direct Checkout sends no custom text block");
     assert.equal(params.get("subscription_data[metadata][plan]"), plan); assert.equal(params.get("client_reference_id"), USER);
     assert.match(params.get("success_url")!, new RegExp(`/activer-mon-compte\\?checkout=success&billing=${cycle}&checkout_plan=${plan}$`));
     assert.match(params.get("cancel_url")!, /\/activer-mon-compte\?checkout=cancel$/);
@@ -179,39 +177,20 @@ for (const plan of ["Basic", "Standard", "Premium"] as const) for (const cycle o
   });
 }
 
-test("direct Checkout notices support nine languages, normalize saved locales and fall back to French", () => {
-  for (const cycle of ["monthly", "yearly"] as const) {
-    const messages = ["fr", "en", "es", "it", "de", "nl", "pt", "th", "zh"].map(language => {
-      const canonical = direct.getDirectSignupCheckoutSubmitMessage(cycle, { app_language: language });
-      assert.ok(canonical.length > 20 && canonical.length <= 1200);
-      assert.equal(direct.getDirectSignupCheckoutSubmitMessage(cycle, { app_language: ` ${language.toUpperCase()}_XX ` }), canonical);
-      assert.equal(direct.getDirectSignupCheckoutSubmitMessage(cycle, { app_locale: `${language}-ZZ` }), canonical);
-      assert.notEqual(direct.getDirectSignupCheckoutSubmitMessage(cycle === "monthly" ? "yearly" : "monthly", { app_language: language }), canonical);
-      return canonical;
-    });
-    assert.equal(new Set(messages).size, 9, "every supported locale has a translated notice");
-    const french = messages[0];
-    for (const metadata of [undefined, null, "en", {}, { app_language: "xx", app_locale: "unsupported" }]) {
-      assert.equal(direct.getDirectSignupCheckoutSubmitMessage(cycle, metadata), french);
-    }
-    assert.equal(direct.getDirectSignupCheckoutSubmitMessage(cycle, { app_language: "en-GB", app_locale: "fr-FR" }), messages[1]);
-    assert.equal(direct.getDirectSignupCheckoutSubmitMessage(cycle, { app_language: "unsupported", app_locale: "en_GB" }), messages[1]);
-  }
-});
-
-test("saved notice language overrides the request body and a changed notice replaces rather than duplicates payable Checkout", async () => {
+test("saved language and request body cannot add custom Checkout text or create another payable session", async () => {
   const f = fixture(); assert.ok(f.auth.user);
   f.auth.user.user_metadata = { app_language: "en_GB", app_locale: "fr-FR" };
-  assert.equal((await f.checkout("Basic", "monthly", { app_language: "de", app_locale: "de-DE", locale: "de" })).status, 200);
-  assert.equal(f.creates()[0].params!.get("custom_text[submit][message]"), "No trial period. Your subscription starts upon payment. If you cancel, one additional monthly renewal is charged before your subscription ends.");
+  assert.equal((await f.checkout("Basic", "monthly", { app_language: "de", app_locale: "de-DE", locale: "de",
+    custom_text: { submit: { message: "Untrusted custom text" } }, "custom_text[submit][message]": "Untrusted form text" })).status, 200);
+  assert.equal([...f.creates()[0].params!.keys()].some(key => key.startsWith("custom_text[")), false);
+  assert.equal(f.creates()[0].params!.has("subscription_data[trial_end]"), false);
   assert.equal((await f.checkout("Basic", "monthly", { app_language: "zh", locale: "zh" })).status, 200);
   assert.equal(f.creates().length, 1, "body display preferences do not create another billing intent");
   f.auth.user.user_metadata = { app_language: "unsupported", app_locale: "nl-BE" };
   assert.equal((await f.checkout()).status, 200);
-  assert.equal(f.creates().length, 2);
-  assert.match(f.creates()[1].params!.get("custom_text[submit][message]")!, /^Geen proefperiode\./);
+  assert.equal(f.creates().length, 1, "a language change keeps the same text-free Checkout");
   assert.equal([...f.sessions.values()].filter(session => session.status === "open").length, 1);
-  assert.equal([...f.sessions.values()].filter(session => session.status === "expired").length, 1);
+  assert.equal([...f.sessions.values()].filter(session => session.status === "expired").length, 0);
   assert.equal(f.row.status, "incomplete"); assert.equal((await (await f.status()).json()).paid, false);
 });
 
