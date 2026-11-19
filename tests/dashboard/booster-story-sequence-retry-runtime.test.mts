@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import test from "node:test";
-import { renderToStaticMarkup } from "react-dom/server";
-import { createElement } from "react";
 import ts from "typescript";
 import * as retry from "../../lib/publicationStorySequenceRetry.ts";
 import { isBoosterPublicationPendingStatus } from "../../lib/boosterPublicationStatus.ts";
