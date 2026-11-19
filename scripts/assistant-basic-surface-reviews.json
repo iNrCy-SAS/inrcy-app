@@ -2126,7 +2126,7 @@
     "tests/dashboard/overlay-scroll-lock-runtime.test.mts": "c58d6e286dee5f2cf26d129d6b5ab502881de3bdba93091a2eade88cfbaa7837",
     "tests/dashboard/personalization-browser-fixture.mts": "88893268a79802034b2c847f6ffe54b2916179b5f1ac973666957b802cf3344b",
     "tests/dashboard/settings-drawer-tab-navigation-runtime.test.mts": "e02aa30e186c730bfed7b1474a3d5bcca2c39e090c27ed9e7cccd81838b0d847",
-    "tests/dashboard/studio-exact-dialogue-compact-browser.test.mts": "26f7a9c5fbbf08393db78aebc3d60e6718ddc799df57344317434dcb4c232a9d",
+    "tests/dashboard/studio-exact-dialogue-compact-browser.test.mts": "a91f29c13db9696830adcb997599c3384b2a5ebdae2f8b1210636852307e0394",
     "tests/dashboard/studio-reference-memory-browser.test.mts": "da034c19299a2dbba1342e542a42b58b620c63e4d95b77b5810bf4092d92a3fa",
     "tests/dashboard/studio-video-brief-speech-browser.test.mts": "44dbf72b04e878360997b665b2bd63eb24efff2b2cc12481a8f3bab3a793c4ab",
     "tests/helpers/assistant-native-local-hooks.mts": "913bc6871cfb650b68c03f96983b08dd42b104af1b96552af149b3a3fe822a30",
