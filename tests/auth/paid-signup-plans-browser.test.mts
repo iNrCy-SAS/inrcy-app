@@ -178,6 +178,45 @@ test("cancelled checkout preserves the account and lets the professional resume 
   } finally { await browser.close(); }
 });
 
+test("recovered payment polls without a success return, hides Checkout while waiting and supports retry after its deadline", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const checkout of [undefined, "cancel"] as const) {
+      const f = await fixture(browser, { temporary: false, checkout }); await choose(f.page);
+      await f.page.getByRole("button", { name: /^Continuer vers Stripe/ }).click();
+      await reply(f.page, BILLING, { recoveredSubscription: true, nextAction: "reload" });
+      await f.page.getByRole("status").filter({ hasText: "Confirmation de votre paiement" }).waitFor();
+      assert.equal(await f.page.getByRole("button", { name: /^Continuer vers Stripe/ }).count(), 0);
+      assert.equal(await f.page.getByRole("radio").count(), 0);
+      await reply(f.page, STATUS, { directSignup: true, paid: false, status: "incomplete" });
+      const next = await pending(f.page, STATUS);
+      assert.match(f.page.url(), /activer-mon-compte/);
+      assert.equal((await billingRequests(f.page)).length, 1);
+      await f.page.evaluate(index => (window as unknown as FixtureWindow).reply(index, { directSignup: true, paid: true, status: "active", plan: "Basic" }), next);
+      await f.page.waitForURL("https://app.example.invalid/dashboard");
+      await f.page.getByRole("heading", { name: "Authenticated dashboard destination" }).waitFor();
+      assert.equal(f.routes.some(url => url.startsWith("https://checkout.stripe.com")), false);
+      assert.deepEqual(f.errors, []); await f.page.close();
+    }
+    const delayed = await fixture(browser, { temporary: false, checkout: "cancel" }); await choose(delayed.page);
+    await delayed.page.getByRole("button", { name: /^Continuer vers Stripe/ }).click();
+    await reply(delayed.page, BILLING, { recoveredSubscription: true });
+    const check = await pending(delayed.page, STATUS);
+    await delayed.page.evaluate(() => { const now = Date.now; Date.now = () => now() + 61_000; });
+    await delayed.page.evaluate(index => (window as unknown as FixtureWindow).reply(index, { directSignup: true, paid: false, status: "incomplete" }), check);
+    await delayed.page.getByRole("status").filter({ hasText: "Votre paiement n’est pas encore confirmé" }).waitFor();
+    assert.equal(await delayed.page.getByRole("status").filter({ hasText: "Votre compte est conservé" }).count(), 0);
+    await delayed.page.getByRole("button", { name: "Vérifier mon abonnement", exact: true }).click();
+    await delayed.page.getByRole("status").filter({ hasText: "Confirmation de votre paiement" }).waitFor();
+    await reply(delayed.page, STATUS, { directSignup: true, paid: false, status: "incomplete" });
+    const retried = await pending(delayed.page, STATUS);
+    assert.equal((await billingRequests(delayed.page)).length, 1);
+    await delayed.page.evaluate(index => (window as unknown as FixtureWindow).reply(index, { directSignup: true, paid: true, status: "active", plan: "Basic" }), retried);
+    await delayed.page.waitForURL("https://app.example.invalid/dashboard");
+    assert.deepEqual(delayed.errors, []);
+  } finally { await browser.close(); }
+});
+
 test("real Basic features return to the originating control with Return and Escape without starting payment", async () => {
   const browser = await chromium.launch({ headless: true });
   try {

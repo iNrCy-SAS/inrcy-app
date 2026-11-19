@@ -2,12 +2,12 @@
 /**
  * Plugin Name: iNrCy — Inscription Basique sans essai
  * Description: Landing autonome /basique et inscription directe, avec accès immédiat au nouveau compte.
- * Version: 1.0.0
+ * Version: 1.0.1
  * Author: iNrCy
  */
 
 if (!defined('ABSPATH')) { exit; }
-define('INRCY_BASIC_SIGNUP_VERSION', '1.0.0');
+define('INRCY_BASIC_SIGNUP_VERSION', '1.0.1');
 define('INRCY_BASIC_SIGNUP_SECRET_OPTION', 'inrcy_basic_signup_server_secret');
 define('INRCY_BASIC_SIGNUP_PAGE_OPTION', 'inrcy_basic_signup_page_id');
 
@@ -117,7 +117,7 @@ add_shortcode('inrcy_basic_signup', function () {
         <header class="inrcy-basic-header"><a href="<?php echo esc_url(home_url('/')); ?>" class="inrcy-basic-brand"><img src="<?php echo esc_url(plugin_dir_url(__FILE__) . 'logo-inrcy-transparent.png'); ?>" alt="" width="44" height="44">iNrCy</a><a href="https://app.inrcy.com/login">Déjà inscrit ? Se connecter</a></header>
         <section class="inrcy-basic-hero" aria-labelledby="inrcy-basic-title"><div class="inrcy-basic-pitch">
             <p class="inrcy-basic-eyebrow">L’ESSENTIEL POUR VOTRE ACTIVITÉ</p><h1 id="inrcy-basic-title">Votre présence professionnelle commence ici.</h1>
-            <p class="inrcy-basic-price">Basique <strong>29 € HT<span>/mois</span></strong></p><p>Sans engagement mensuel. Sans période d’essai.</p>
+            <p class="inrcy-basic-price">Basique <strong>29 € HT<span>/mois</span></strong></p><p>Abonnement mensuel. Sans période d’essai.</p>
             <ol><li>Créez votre compte et retrouvez immédiatement vos accès.</li><li>Choisissez votre mot de passe dans l’application.</li><li>Comparez les trois packs, puis activez votre abonnement avec Stripe.</li></ol>
             <p class="inrcy-basic-note">La création du compte ne déclenche aucun paiement. Vous confirmez votre offre avant de payer.</p>
         </div><section class="inrcy-basic-card" aria-labelledby="inrcy-basic-form-title"><h2 id="inrcy-basic-form-title">Créer mon compte</h2><p>Vos accès s’affichent après votre inscription.</p>

@@ -1,4 +1,4 @@
-# Inscription directe Basique — 1.0.0
+# Inscription directe Basique — 1.0.1
 
 Plugin indépendant, prévu uniquement pour `/basique/`. Il ne modifie ni le relais Elementor existant, ni `/inscription/`, ni les comptes et essais existants.
 

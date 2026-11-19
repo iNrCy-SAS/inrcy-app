@@ -23,6 +23,8 @@ export default function DirectSignupPlans({ email, checkout }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [checkVersion, setCheckVersion] = useState(0);
+  const [awaitingRecoveredPayment, setAwaitingRecoveredPayment] = useState(false);
+  const awaitingPayment = checkout === "success" || awaitingRecoveredPayment;
   const submitting = useRef(false);
   const mounted = useRef(true);
   const request = useRef<AbortController | null>(null);
@@ -69,7 +71,7 @@ export default function DirectSignupPlans({ email, checkout }: Props) {
         if (cancelled) return;
         if (!response.ok || body?.directSignup !== true || typeof body?.paid !== "boolean") throw new Error("status_unavailable");
         if (body.paid === true) { window.location.replace("/dashboard"); return; }
-        if (checkout === "success" && Date.now() < deadline) {
+        if (awaitingPayment && Date.now() < deadline) {
           setPhase("waiting");
           timer = setTimeout(() => { void check(); }, 2000);
         } else setPhase("choosing");
@@ -78,10 +80,10 @@ export default function DirectSignupPlans({ email, checkout }: Props) {
       } finally { window.clearTimeout(timeout); }
     }
     setError("");
-    setPhase("checking");
+    setPhase(awaitingPayment ? "waiting" : "checking");
     void check();
     return () => { cancelled = true; controller.abort(); clearTimeout(timer); };
-  }, [checkout, checkVersion, t]);
+  }, [awaitingPayment, checkVersion, t]);
 
   useEffect(() => {
     mounted.current = true;
@@ -105,7 +107,12 @@ export default function DirectSignupPlans({ email, checkout }: Props) {
       const body = await response.json();
       if (!mounted.current) return;
       if (!response.ok || body?.trialExtended) throw new Error("checkout_unavailable");
-      if (body?.recoveredSubscription === true) { setCheckVersion(version => version + 1); return; }
+      if (body?.recoveredSubscription === true) {
+        setPhase("waiting");
+        setAwaitingRecoveredPayment(true);
+        setCheckVersion(version => version + 1);
+        return;
+      }
       const url = new URL(body?.url);
       if (url.protocol !== "https:" || !["checkout.stripe.com", "billing.stripe.com"].includes(url.hostname)) throw new Error("checkout_invalid");
       window.location.assign(url.toString());
@@ -136,8 +143,8 @@ export default function DirectSignupPlans({ email, checkout }: Props) {
           {!detailPlan ? <><p id="direct-signup-description">{t("body")}</p><p className={styles.email}>{email}</p></> : null}
         </header>
         {phase === "checking" || phase === "waiting" ? <div className={styles.status} role="status"><span className={styles.spinner} aria-hidden="true" />{t(phase === "waiting" ? "waiting" : "checking")}</div> : null}
-        {checkout === "cancel" && phase === "choosing" ? <p role="status" className={styles.notice}>{t("cancelled")}</p> : null}
-        {checkout === "success" && phase === "choosing" ? <p role="status" className={styles.notice}>{t("pending")}</p> : null}
+        {checkout === "cancel" && !awaitingPayment && phase === "choosing" ? <p role="status" className={styles.notice}>{t("cancelled")}</p> : null}
+        {awaitingPayment && phase === "choosing" ? <p role="status" className={styles.notice}>{t("pending")}</p> : null}
         {phase === "choosing" && detailPlan ? <div className={styles.detailView}>
           <section className={`${styles.detailCard} ${PLAN_STYLES[detailPlan]}`} aria-label={`iNrCy ${name(detailPlan)}`}>
             <header className={styles.detailHeading}>
@@ -173,7 +180,7 @@ export default function DirectSignupPlans({ email, checkout }: Props) {
           </footer>
         </> : null}
         {error ? <p role="alert" className={styles.error}>{error}</p> : null}
-        {phase === "error" || checkout === "success" && phase === "choosing" ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => setCheckVersion(version => version + 1)}>{t("retry")}</button> : null}
+        {phase === "error" || awaitingPayment && phase === "choosing" ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => setCheckVersion(version => version + 1)}>{t("retry")}</button> : null}
         <div className={styles.links}><a href="https://inrcy.com/contact/" target="_blank" rel="noopener noreferrer">{t("help")}</a><form action="/api/auth/sign-out" method="post"><button type="submit">{t("signOut")}</button></form></div>
       </div>
     </dialog>

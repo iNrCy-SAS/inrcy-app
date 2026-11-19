@@ -11,7 +11,7 @@ const markup = php.slice(php.indexOf('<main class="inrcy-basic-page">'), php.ind
   .replace(/<\?php if \(!\$configured\) : \?>[\s\S]*?<\?php endif; \?>/, "")
   .replace(/<\?php[\s\S]*?\?>/g, "");
 
-async function fixture(browser: Browser, failFirst = false, trialReceipt = false) {
+async function fixture(browser: Browser, failFirst = false, trialReceipt = false, themeCollision = false) {
   const context = await browser.newContext({ viewport: { width: 390, height: 700 } });
   const page = await context.newPage(), errors: string[] = [], posts: Array<{ url: string; body: string; headers: Record<string, string> }> = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -19,7 +19,7 @@ async function fixture(browser: Browser, failFirst = false, trialReceipt = false
   await context.route("**/*", async route => {
     const request = route.request(), url = request.url();
     if (url === "https://inrcy.com/basique/") {
-      await route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta charset="utf-8"><style>${read("ops/wordpress-basic-signup/basic-access.css")}${read("ops/wordpress-basic-signup/basic-signup.css")}</style></head><body class="inrcy-basic-standalone">${markup}<script>var callbacks=[];window.jQuery=function(target){return{on:function(name,cb){callbacks.push({name,cb});return this;},off:function(name){callbacks=callbacks.filter(item=>item.name!==name);return this;},trigger:function(name,args){callbacks.filter(item=>item.name.split('.')[0]===name).forEach(item=>item.cb({target},...(args||[])));}}};window.inrcyBasicSignupAccessConfig={showBooking:"",signupFormName:"inrcy_basic_signup"};window.inrcyBasicSignupConfig={ajaxUrl:"https://inrcy.com/wp-admin/admin-ajax.php",nonce:"synthetic-public-nonce"};</script><script>${read("ops/wordpress-basic-signup/basic-access.js")}</script><script>${read("ops/wordpress-meta-attribution/inrcy-meta-attribution.js")}</script><script>${read("ops/wordpress-basic-signup/basic-signup.js")}</script></body></html>` });
+      await route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta charset="utf-8"><style>${read("ops/wordpress-basic-signup/basic-access.css")}${read("ops/wordpress-basic-signup/basic-signup.css")}</style>${themeCollision ? '<style>body.elementor-kit-1363{color:white;background:transparent;font-family:Georgia,serif;font-size:21px;line-height:1.9}</style>' : ""}</head><body class="inrcy-basic-standalone${themeCollision ? " elementor-kit-1363" : ""}">${markup}<script>var callbacks=[];window.jQuery=function(target){return{on:function(name,cb){callbacks.push({name,cb});return this;},off:function(name){callbacks=callbacks.filter(item=>item.name!==name);return this;},trigger:function(name,args){callbacks.filter(item=>item.name.split('.')[0]===name).forEach(item=>item.cb({target},...(args||[])));}}};window.inrcyBasicSignupAccessConfig={showBooking:"",signupFormName:"inrcy_basic_signup"};window.inrcyBasicSignupConfig={ajaxUrl:"https://inrcy.com/wp-admin/admin-ajax.php",nonce:"synthetic-public-nonce"};</script><script>${read("ops/wordpress-basic-signup/basic-access.js")}</script><script>${read("ops/wordpress-meta-attribution/inrcy-meta-attribution.js")}</script><script>${read("ops/wordpress-basic-signup/basic-signup.js")}</script></body></html>` });
       return;
     }
     if (request.method() === "POST") posts.push({ url, body: request.postData() ?? "", headers: request.headers() });
@@ -96,5 +96,26 @@ test("a trial receipt cannot open the Basic account-access modal", async () => {
     assert.equal(await f.page.getByLabel("Votre mot de passe temporaire", { exact: true }).count(), 0);
     assert.equal(f.posts.length, 1);
     assert.deepEqual(f.errors, []);
+  } finally { await browser.close(); }
+});
+
+test("the Basic price and steps remain readable when Elementor applies white text and 21px typography after the plugin stylesheet", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const f = await fixture(browser, false, false, true);
+    const computed = await f.page.evaluate(() => {
+      const style = (selector: string) => getComputedStyle(document.querySelector(selector)!);
+      return { background: style("body").backgroundColor, price: style(".inrcy-basic-price").color,
+        steps: [...document.querySelectorAll(".inrcy-basic-pitch li")].map(element => getComputedStyle(element).color),
+        pageFontSize: style(".inrcy-basic-page").fontSize, heroFontSize: style(".inrcy-basic-hero").fontSize,
+        heroLineHeight: style(".inrcy-basic-hero").lineHeight, heroFontFamily: style(".inrcy-basic-hero").fontFamily };
+    });
+    assert.equal(computed.background, "rgb(244, 247, 252)");
+    assert.equal(computed.price, "rgb(19, 36, 66)");
+    assert.deepEqual(computed.steps, ["rgb(19, 36, 66)", "rgb(19, 36, 66)", "rgb(19, 36, 66)"]);
+    assert.equal(computed.pageFontSize, "16px"); assert.equal(computed.heroFontSize, "16px"); assert.equal(computed.heroLineHeight, "24px");
+    assert.match(computed.heroFontFamily, /Inter/);
+    await f.page.getByText("Abonnement mensuel. Sans période d’essai.", { exact: true }).waitFor();
+    assert.equal(f.posts.length, 0); assert.deepEqual(f.errors, []);
   } finally { await browser.close(); }
 });
