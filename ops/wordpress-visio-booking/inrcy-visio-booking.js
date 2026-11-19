@@ -12,6 +12,13 @@
   var bookingSurface = "signup_success";
   var bookingSessionId = "";
   var hasCompletedBooking = false;
+  // This new-account receipt exists only for this page lifetime. Never persist
+  // it, place it in a URL or include it in the booking/marketing telemetry.
+  var signupAccess = null;
+  var showingSignupAccess = false;
+  var lastSignupReceipt = "";
+  var signupPresentationTimer = null;
+  var SIGNUP_ACCESS_URL = "https://app.inrcy.com/api/auth/signup-access";
   var DAYS_PER_PAGE = 6;
   var BOOKING_TOKEN_STORAGE_KEY = "inrcy_visio_booking_token";
   var BOOKING_COMPLETED_STORAGE_KEY = "inrcy_visio_booking_completed_until";
@@ -44,6 +51,30 @@
       }
     }
     return "";
+  }
+
+  function findSignupAccess(value, depth) {
+    if (!value || depth > 5 || typeof value !== "object") return null;
+    if (Object.prototype.hasOwnProperty.call(value, "inrcy_signup_access")) {
+      var candidate = value.inrcy_signup_access;
+      if (!candidate || typeof candidate !== "object"
+          || typeof candidate.email !== "string" || candidate.email.length > 254
+          || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(candidate.email)
+          || typeof candidate.password !== "string" || !candidate.password || candidate.password.length > 128
+          || typeof candidate.ticket !== "string" || candidate.ticket.length > 16384
+          || candidate.login_url !== SIGNUP_ACCESS_URL
+          || typeof candidate.expires_at !== "string" || !Number.isFinite(Date.parse(candidate.expires_at))) return null;
+      return {
+        email: candidate.email, password: candidate.password, ticket: candidate.ticket,
+        expiresAt: Date.parse(candidate.expires_at),
+      };
+    }
+    var keys = Object.keys(value);
+    for (var index = 0; index < keys.length; index += 1) {
+      var found = findSignupAccess(value[keys[index]], depth + 1);
+      if (found) return found;
+    }
+    return null;
   }
 
   function randomUuid() {
@@ -163,7 +194,7 @@
   }
 
   function showReopenButton() {
-    if (hasCompletedBooking) return;
+    if (hasCompletedBooking || config.showBooking === false) return;
     removeReopenButton();
     var button = document.createElement("button");
     button.id = "inrcy-visio-reopen";
@@ -273,13 +304,103 @@
     if (!silent && !hasCompletedBooking) {
       trackFunnel(reason === "skip" ? "modal_skipped" : "modal_closed", currentStep);
     }
+    if (!silent && signupAccess && !showingSignupAccess) {
+      showSignupAccess();
+      return;
+    }
     dialogRoot.remove();
     dialogRoot = null;
+    if (!silent && showingSignupAccess) {
+      signupAccess = null;
+      showingSignupAccess = false;
+    }
     document.documentElement.classList.remove("inrcy-visio-open");
     if (previouslyFocused && typeof previouslyFocused.focus === "function") {
       previouslyFocused.focus();
     }
     if (!silent && !hasCompletedBooking) showReopenButton();
+  }
+
+  function showSignupAccess() {
+    if (!signupAccess) return;
+    if (!dialogRoot) {
+      previouslyFocused = document.activeElement;
+      dialogRoot = document.createElement("div");
+      dialogRoot.className = "inrcy-visio-overlay";
+      dialogRoot.innerHTML = '<section class="inrcy-visio-dialog" role="dialog" aria-modal="true" aria-labelledby="inrcy-visio-title"></section>';
+      document.body.appendChild(dialogRoot);
+      document.documentElement.classList.add("inrcy-visio-open");
+    }
+    showingSignupAccess = true;
+    setDialog([
+      '<div class="inrcy-visio-success-icon" aria-hidden="true">✓</div>',
+      '<p class="inrcy-visio-eyebrow">VOS ACCÈS INRCY</p>',
+      '<h2 id="inrcy-visio-title">Votre compte est prêt&nbsp;!</h2>',
+      '<p class="inrcy-visio-lead inrcy-visio-lead-compact">Accédez dès maintenant à votre espace, même si l’e-mail de bienvenue n’est pas encore arrivé.</p>',
+      '<div class="inrcy-signup-access" data-private="true" data-sentry-mask="true">',
+      '<label for="inrcy-access-email">Votre identifiant</label>',
+      '<input id="inrcy-access-email" type="text" readonly autocomplete="off" spellcheck="false" data-private="true">',
+      '<label for="inrcy-access-password">Votre mot de passe temporaire</label>',
+      '<input id="inrcy-access-password" type="password" readonly autocomplete="off" data-private="true" data-sentry-mask="true">',
+      '<div class="inrcy-signup-access-tools"><button type="button" data-action="access-reveal" aria-controls="inrcy-access-password" aria-pressed="false">Afficher</button>',
+      '<button type="button" data-action="access-copy">Copier le mot de passe</button></div>',
+      '</div>',
+      '<p class="inrcy-signup-access-hint">Conservez vos accès personnels. Vous pourrez choisir votre propre mot de passe dans l’application.</p>',
+      signupAccess.ticket
+        ? '<form class="inrcy-signup-access-form" method="post" action="' + SIGNUP_ACCESS_URL + '" target="_blank" rel="noopener" autocomplete="off"><button class="inrcy-visio-primary" type="submit"><span>Accéder à mon compte</span><i aria-hidden="true">↗</i></button></form>'
+        : '<a class="inrcy-visio-primary inrcy-signup-access-form" href="https://app.inrcy.com/login?email=' + encodeURIComponent(signupAccess.email) + '" target="_blank" rel="noopener"><span>Accéder à mon compte</span><i aria-hidden="true">↗</i></a>',
+      '<p class="inrcy-signup-access-status" role="status" aria-live="polite"></p>',
+    ].join(""), { step: 3 });
+    var passwordField = dialogRoot.querySelector("#inrcy-access-password");
+    var emailField = dialogRoot.querySelector("#inrcy-access-email");
+    var status = dialogRoot.querySelector(".inrcy-signup-access-status");
+    emailField.value = signupAccess.email;
+    passwordField.value = signupAccess.password;
+    dialogRoot.querySelector("[data-action='access-reveal']").addEventListener("click", function (event) {
+      var revealed = passwordField.type === "password";
+      passwordField.type = revealed ? "text" : "password";
+      event.currentTarget.textContent = revealed ? "Masquer" : "Afficher";
+      event.currentTarget.setAttribute("aria-pressed", String(revealed));
+    });
+    dialogRoot.querySelector("[data-action='access-copy']").addEventListener("click", function () {
+      if (!signupAccess) return;
+      if (!navigator.clipboard || !navigator.clipboard.writeText) {
+        passwordField.type = "text";
+        passwordField.select();
+        status.textContent = "Sélectionnez puis copiez votre mot de passe.";
+        return;
+      }
+      navigator.clipboard.writeText(signupAccess.password).then(function () {
+        status.textContent = "Mot de passe copié.";
+      }).catch(function () { status.textContent = "Utilisez Afficher pour recopier votre mot de passe."; });
+    });
+    var accessForm = dialogRoot.querySelector("form.inrcy-signup-access-form");
+    if (accessForm) accessForm.addEventListener("submit", function (event) {
+      var form = event.currentTarget;
+      if (!signupAccess) { event.preventDefault(); return; }
+      if (!signupAccess.ticket || signupAccess.expiresAt <= Date.now()) {
+        event.preventDefault();
+        status.textContent = "Utilisez les accès affichés pour vous connecter.";
+        var fallback = document.createElement("a");
+        fallback.href = "https://app.inrcy.com/login?email=" + encodeURIComponent(signupAccess.email);
+        fallback.target = "_blank";
+        fallback.rel = "noopener noreferrer";
+        fallback.textContent = "Ouvrir la connexion";
+        status.appendChild(document.createTextNode(" "));
+        status.appendChild(fallback);
+        return;
+      }
+      // Native user-initiated POST opens a separate tab. No password or ticket
+      // enters the URL, browser history or referrer of the application.
+      var ticket = document.createElement("input");
+      ticket.type = "hidden";
+      ticket.name = "ticket";
+      ticket.value = signupAccess.ticket;
+      form.appendChild(ticket);
+      window.setTimeout(function () { ticket.value = ""; ticket.remove(); }, 0);
+      status.textContent = "Votre espace s’ouvre dans un nouvel onglet.";
+    });
+    emailField.focus();
   }
 
   function loadingView() {
@@ -389,15 +510,18 @@
   }
 
   function loadAvailability() {
+    var requestSession = bookingSessionId;
     trackFunnel("booking_started", 2);
     loadingView();
     apiPost(config.availabilityUrl, { token: currentToken })
       .then(function (payload) {
+        if (requestSession !== bookingSessionId || showingSignupAccess || !dialogRoot) return;
         availability = Array.isArray(payload.days) ? payload.days : [];
         trackFunnel("availability_loaded", 2, { availabilityDays: availability.length });
         showAvailability();
       })
       .catch(function (error) {
+        if (requestSession !== bookingSessionId || showingSignupAccess || !dialogRoot) return;
         if (error && (error.code === "visio_booking_token_expired" || error.code === "visio_booking_token_invalid")) {
           forgetSessionBookingToken();
         }
@@ -408,6 +532,7 @@
 
   function bookSelected() {
     if (!selectedStart || !dialogRoot) return;
+    var requestSession = bookingSessionId;
     var button = dialogRoot.querySelector("[data-action='book']");
     button.disabled = true;
     button.classList.add("is-loading");
@@ -415,10 +540,20 @@
     trackFunnel("booking_submitted", 2, { slotStart: selectedStart });
     apiPost(config.bookingUrl, { token: currentToken, start: selectedStart })
       .then(function (payload) {
+        if (requestSession !== bookingSessionId) return;
         trackFunnel("booking_completed", 3, { slotStart: selectedStart });
+        if (showingSignupAccess || !dialogRoot) {
+          hasCompletedBooking = true;
+          rememberCompletedBooking();
+          removeReopenButton();
+          var status = dialogRoot && dialogRoot.querySelector(".inrcy-signup-access-status");
+          if (status) status.textContent = "Votre rendez-vous est confirmé. Vous pouvez accéder à votre compte.";
+          return;
+        }
         showConfirmation(payload.booking || {});
       })
       .catch(function (error) {
+        if (requestSession !== bookingSessionId || showingSignupAccess || !dialogRoot) return;
         if (error && (error.code === "visio_booking_token_expired" || error.code === "visio_booking_token_invalid")) {
           forgetSessionBookingToken();
         }
@@ -513,12 +648,24 @@
   if ($) {
     $(document).on("submit_success.inrcyVisioBooking", function (event, response) {
       var token = findBookingToken(response, 0);
-      if (!token) return;
-      window.setTimeout(function () { openDialog(token, "signup_success"); }, 180);
+      var access = findSignupAccess(response, 0);
+      var receiptKey = access ? access.ticket || access.email + ":" + access.expiresAt : "";
+      if (access && receiptKey === lastSignupReceipt) return;
+      if (access) {
+        lastSignupReceipt = receiptKey;
+      }
+      if (!token && !access) return;
+      window.clearTimeout(signupPresentationTimer);
+      signupPresentationTimer = window.setTimeout(function () {
+        if (access) { signupAccess = access; showingSignupAccess = false; }
+        if (token && config.showBooking !== false) openDialog(token, "signup_success");
+        else if (access) showSignupAccess();
+      }, 180);
     });
   }
 
   function openBookingLinkFromHash() {
+    if (config.showBooking === false) return;
     if (!window.location.hash) return;
     var parameters = new URLSearchParams(window.location.hash.slice(1));
     var token = parameters.get("inrcy-booking") || "";
@@ -536,4 +683,11 @@
     window.setTimeout(scrollToSignupForm, 120);
   }
   openBookingLinkFromHash();
+  window.addEventListener("pagehide", function () {
+    window.clearTimeout(signupPresentationTimer);
+    signupAccess = null;
+    lastSignupReceipt = "";
+    if (showingSignupAccess) closeDialog("", true);
+    showingSignupAccess = false;
+  });
 })(window.jQuery);

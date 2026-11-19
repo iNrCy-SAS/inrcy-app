@@ -30,6 +30,8 @@ import DashboardEditionProvider from "./_components/DashboardEditionProvider";
 import DashboardViewerAccessProvider from "./_components/DashboardViewerAccessProvider";
 import DashboardGeneratorStateProvider from "./_components/DashboardGeneratorStateProvider";
 import DashboardAssistantProvider from "./_components/DashboardAssistantProvider";
+import TemporaryPasswordWelcomeGate from "./_components/TemporaryPasswordWelcomeGate";
+import { getTemporaryPasswordMetadata } from "@/lib/temporaryPasswordPolicy";
 import { ADMIN_USER_IDS, getMyRole, isAdminRole } from "@/lib/roles";
 import { isMetaChannelPilotEnabled } from "@/lib/metaChannelRollout";
 import { hasFullProductReviewerAccess } from "@/lib/reviewerAccess";
@@ -190,6 +192,7 @@ export default async function DashboardLayout({
 
         <DashboardCompletionBypassProvider enabled={bypassCompletionChecks}>
           <DashboardUnsavedNavigationProvider>
+            <TemporaryPasswordWelcomeGate actorUserId={user.id} temporaryPasswordWelcomeId={getTemporaryPasswordMetadata(user.app_metadata)?.welcome_id ?? null} email={user.email ?? ""}>
             <DashboardAssistantProvider>
             <DashboardScrollMemory />
             <DashboardPullToRefresh />
@@ -198,6 +201,7 @@ export default async function DashboardLayout({
             </div>
             <ResponsiveBottomNav />
             </DashboardAssistantProvider>
+            </TemporaryPasswordWelcomeGate>
           </DashboardUnsavedNavigationProvider>
         </DashboardCompletionBypassProvider>
       </DashboardGeneratorStateProvider>

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 import { optionalEnv, requireEnv } from "@/lib/env";
 import { ensureNotificationPreferences, seedWelcomeNotifications } from "@/lib/notifications";
@@ -30,6 +30,7 @@ import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { TEMPORARY_PASSWORD_METADATA_KEY } from "@/lib/temporaryPasswordPolicy";
 import { prepareSignupWelcome, attachSignupWelcome, completeSignupWelcome, deliverSignupWelcome } from "@/lib/signupWelcomeMail";
 import { createVisioBookingToken } from "@/lib/visioBookingToken";
+import { createSignupImmediateAccess } from "@/lib/signupImmediateAccessServer";
 import { ensurePendingSignupCalendarReminder } from "@/lib/visioBookingGoogle";
 import {
   hasKnownInrcyAccountForEmail,
@@ -635,7 +636,17 @@ export async function POST(req: Request) {
     // Only send credentials once the account, access and trial really exist.
     stage = "welcome_email";
     await completeSignupWelcome(welcome.metadata.welcome_id, userId);
-    await deliverSignupWelcome(welcome.metadata.welcome_id);
+    const signupAccess = await createSignupImmediateAccess({
+      userId, email: payload.email, password: welcome.password,
+      metadata: welcome.metadata, language: payload.language,
+    });
+    after(async () => {
+      await deliverSignupWelcome(welcome.metadata.welcome_id).catch(() => {
+        // The outbox owns retries. A slow provider must not hold the signup
+        // response (and its immediate access) beyond WordPress's HTTP timeout.
+        console.error("[trial-signup][welcome]", "welcome_delivery_pending");
+      });
+    });
 
     let attributionPersisted = false;
     let persistedAttributionEventId = payload.attribution.eventId;
@@ -739,6 +750,7 @@ export async function POST(req: Request) {
       trial_days: trialDays,
       trial_end_at: end.toISOString(),
       booking_token: bookingToken,
+      signup_access: signupAccess,
       message: "Votre compte est prêt. L’e-mail de bienvenue avec votre mot de passe provisoire valable 30 jours est en cours d’acheminement.",
     });
   } catch (error: unknown) {

@@ -638,18 +638,24 @@
       }
     },
     "dashboard-navigation": {
-      "guideDigest": "26003a6fa81140929955e90c2bf554c4c4c4b070df9d247383f2c1fecc94a6d0",
+      "guideDigest": "6e6452331921b0b347d2473c74163a8cc24ff394583e9541ef4ae81942cd1834",
       "sources": {
+        "app/api/auth/change-password/route.ts": "ca282b3b817f5702f78597534b41e784ad3de952119306f652c038680b120491",
+        "app/api/auth/signup-access/password/route.ts": "b89b579889ebb26ac74fd2ec3a5c41ed6e834aeee6e77298e22a54e0e8ae9217",
         "app/api/dashboard/setup-intro/route.ts": "3eb289b65cfbe7e025eb0921ab1719e546c186624489bd8b30246ea17db99b5a",
         "app/dashboard/DashboardClient.tsx": "ec07674d5478a19c3ae30197800b7d41ae0b933d5009ea968646d731016281a5",
         "app/dashboard/_components/DashboardAssistantProvider.tsx": "29f658edaf8d3d9ccc31e668b0dde8d7240a76bd0147e55a7117e101c73ec595",
         "app/dashboard/_components/DashboardTopbar.tsx": "7f51f87106641ac8a53fb776019ff811718beb3c5a8f2e6c4385c0c9eb9ccd02",
         "app/dashboard/_components/GeneratorSettingsModal.tsx": "46846950ab4570bd362c430d3a38c08f94094086b55b3a9f226ee78ffc872e65",
         "app/dashboard/_components/ResponsiveBottomNav.tsx": "d094daa7d6b8904dae0fa555de752ca2182c5a4154fcadac0b6281f9c6c2f16a",
+        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx": "09dff53da40a30b8a20c3822779f76282dd9e2c2c76e0fd1b3a43a0b71842d7e",
         "app/dashboard/_components/dashboardMobileMenuModel.ts": "c4d9be815f9b6064e2498e4b23d907265e325d0ddfd14b167b8056c57a6deb88",
         "app/dashboard/_hooks/useAssistantFirstArrival.ts": "be478a57f9d176ad332ae22f09a7b350b65023edd323b6a6643d1f9fad7f1fb4",
         "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts": "56b27fde1ca2e52f613100a771942f462b8a10af3b0b9bef74ec1b4b8bc89492",
-        "app/dashboard/agent/_components/AgentActionModals.tsx": "3a811f07c9523a25143073d72a5ec646339b4370c0310abdb9100092c189ee77"
+        "app/dashboard/agent/_components/AgentActionModals.tsx": "3a811f07c9523a25143073d72a5ec646339b4370c0310abdb9100092c189ee77",
+        "app/dashboard/layout.tsx": "407078fd2f21beb36afe709044cce82e7cb2e0e7062edec0f5cbf1b82c5f2d0a",
+        "lib/temporaryPasswordPolicy.ts": "2fa6aa15125f617246ac996404d9e519ffaaa469ae68ba949f35f34cf271ffdd",
+        "messages/fr-FR/auth.json": "b79b1a2bd33be86b06264015623563893aee8798a795ce02e543681bf96b4be6"
       }
     },
     "emailing": {

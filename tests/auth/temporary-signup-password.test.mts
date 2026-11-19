@@ -65,14 +65,16 @@ test("presentation reads only server app metadata and recognises expired credent
   assert.doesNotMatch(login, /get\("password"\)/);
 });
 
-test("public signup sends welcome only after provisioning, never returns credentials or changes trial duration", () => {
-  const source = readFileSync("app/api/public/trial-signup/route.ts", "utf8");
+test("public signup returns immediate access only after provisioning and preserves the current trial duration", () => {
+  const source = readFileSync("app/api/public/trial-signup/route.ts", "utf8").replaceAll("\r\n", "\n");
   assert.doesNotMatch(source, /inviteUserByEmail/);
   assert.match(source, /auth\.admin\.createUser\(/);
   assert.ok(source.indexOf("await ensurePrincipalInrcyAccountProvisioned") < source.indexOf("await deliverSignupWelcome"));
   assert.ok(source.indexOf("await markPublicSignupTrialCompleted") < source.indexOf("await deliverSignupWelcome"));
   assert.match(source, /getTrialDays\(\)/);
   const response = source.slice(source.indexOf("return jsonResponse({\n      ok: true,\n      user_id:"));
-  assert.doesNotMatch(response.split("} catch")[0], /password:|welcome\.password|encrypted_password/);
+  assert.match(response.split("} catch")[0], /signup_access:/);
+  assert.doesNotMatch(response.split("} catch")[0], /encrypted_password/);
+  assert.ok(source.indexOf("await markPublicSignupTrialCompleted") < source.indexOf("await createSignupImmediateAccess"));
   assert.match(readFileSync("lib/trialSubscription.ts", "utf8"), /INRCY_TRIAL_DAYS", "21"/);
 });

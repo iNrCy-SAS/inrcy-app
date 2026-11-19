@@ -193,7 +193,8 @@ test("la route câble l'alerte uniquement dans son catch technique", () => {
   assert.match(route, /acceptedAttempt = true/);
   assert.match(route, /await sendSignupFailureAlert\(alertInput\)/);
   assert.match(route, /"X-InrCy-Signup-Alert": alertDelivery/);
-  assert.doesNotMatch(route, /after\(async/);
+  const failureCatch = route.slice(route.lastIndexOf("} catch (error: unknown) {"));
+  assert.doesNotMatch(failureCatch, /after\(/, "failure alerts remain awaited; only successful welcome mail may run after response");
   assert.match(route, /stage = "auth_account_creation"/);
   assert.match(route, /stage = "welcome_email"/);
   assert.match(route, /authUserCreated = true/);

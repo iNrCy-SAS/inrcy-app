@@ -3,6 +3,50 @@
   overflow: hidden !important;
 }
 
+.inrcy-signup-access {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 12px;
+  padding: 18px;
+  border: 1px solid rgba(118, 202, 255, .3);
+  border-radius: 18px;
+  background: rgba(0, 0, 0, .15);
+  text-align: left;
+}
+.inrcy-signup-access label { color: #d8e6ff; font-size: 14px; font-weight: 700; }
+.inrcy-signup-access input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(118, 202, 255, .4) !important;
+  border-radius: 10px !important;
+  padding: 11px 12px !important;
+  background: #101e40 !important;
+  color: #fff !important;
+  font-size: 16px !important;
+  line-height: 1.4;
+}
+.inrcy-signup-access-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+.inrcy-signup-access-tools button {
+  border: 1px solid rgba(118, 202, 255, .35) !important;
+  border-radius: 9px !important;
+  padding: 9px 12px !important;
+  background: rgba(255,255,255,.08) !important;
+  color: #fff !important;
+  font-size: 13px !important;
+  cursor: pointer;
+}
+.inrcy-signup-access-hint, .inrcy-signup-access-status {
+  color: #c8d8f4;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.inrcy-signup-access-status { min-height: 20px; margin: 10px 0 0; }
+.inrcy-signup-access-status a { color: #75e4ff; }
+.inrcy-signup-access-form { display: grid; margin: 15px 0 0; }
+.inrcy-signup-access-form .inrcy-visio-primary { width: 100%; }
+.inrcy-visio-dialog:has(.inrcy-signup-access) { overflow-y: auto; }
+
 .inrcy-visio-overlay {
   position: fixed;
   inset: 0;

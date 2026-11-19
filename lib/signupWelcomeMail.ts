@@ -1,7 +1,7 @@
 import "server-only";
 
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { authResendApiKey, sendPreparedAuthEmail } from "@/lib/authMailDelivery";
+import { sendPreparedAuthEmail } from "@/lib/authMailDelivery";
 import { getTemporaryPasswordMetadata } from "@/lib/temporaryPasswordPolicy";
 import { buildSignupWelcomeEmail, createTemporarySignupCredential, openSignupPassword, sealSignupPassword } from "@/lib/signupWelcomeMailPolicy";
 
@@ -26,8 +26,8 @@ function welcomeError(code: string) {
 }
 
 export async function prepareSignupWelcome(args: { email: string; firstName: string; language: string }) {
-  // Fail before creating an Auth account if sending or persistence is unavailable.
-  authResendApiKey();
+  // Persistence/encryption must succeed before account creation. Email transport
+  // may be temporarily unavailable: the immediate access screen and outbox remain.
   const credential = createTemporarySignupCredential();
   const { error } = await supabaseAdmin.from(TABLE).insert({
     id: credential.metadata.welcome_id,

@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: iNrCy — Rendez-vous visio après inscription
- * Description: Propose un créneau Google Meet après une inscription Elementor réussie.
- * Version: 1.5.1
+ * Description: Propose un créneau Google Meet puis les accès du nouveau compte après une inscription Elementor réussie.
+ * Version: 1.6.0
  * Author: iNrCy
  */
 
@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('INRCY_VISIO_BOOKING_VERSION', '1.5.1');
+define('INRCY_VISIO_BOOKING_VERSION', '1.6.0');
 define('INRCY_VISIO_BOOKING_FORM_ID', '405c24a');
 define('INRCY_VISIO_BOOKING_FORM_NAME', 'essai_inrcy_30j');
 define('INRCY_VISIO_BOOKING_PUBLIC_OPTION', 'inrcy_visio_booking_public_enabled');
@@ -124,7 +124,7 @@ function inrcy_visio_booking_render_settings_page() {
 add_action('http_api_debug', 'inrcy_visio_booking_capture_signup_response', 20, 5);
 function inrcy_visio_booking_capture_signup_response($response, $context, $class, $parsed_args, $url) {
     unset($class, $parsed_args);
-    if (!inrcy_visio_booking_frontend_enabled() || $context !== 'response' || is_wp_error($response)) {
+    if ($context !== 'response' || is_wp_error($response)) {
         return;
     }
 
@@ -143,12 +143,32 @@ function inrcy_visio_booking_capture_signup_response($response, $context, $class
     $token = is_array($body) ? (string) ($body['booking_token'] ?? '') : '';
     if ($status >= 200 && $status < 300 && !empty($body['ok']) && strlen($token) <= 4096) {
         $GLOBALS['inrcy_visio_booking_token'] = $token;
+        $access = inrcy_visio_booking_validate_signup_access($body['signup_access'] ?? null);
+        if ($access !== null) {
+            // Request-local transport only. Never write this receipt to options,
+            // sessions, transients, logs, analytics or a page cache.
+            $GLOBALS['inrcy_signup_access'] = $access;
+        }
     }
+}
+
+function inrcy_visio_booking_validate_signup_access($value) {
+    if (!is_array($value)
+        || !isset($value['email'], $value['password'], $value['ticket'], $value['expires_at'], $value['login_url'])
+        || !is_string($value['email']) || strlen($value['email']) > 254
+        || !is_email($value['email'])
+        || !is_string($value['password']) || strlen($value['password']) < 1 || strlen($value['password']) > 128
+        || !is_string($value['ticket']) || strlen($value['ticket']) > 16384
+        || !is_string($value['expires_at']) || strlen($value['expires_at']) > 40 || strtotime($value['expires_at']) === false
+        || $value['login_url'] !== 'https://app.inrcy.com/api/auth/signup-access') {
+        return null;
+    }
+    return array_intersect_key($value, array_flip(array('email', 'password', 'ticket', 'expires_at', 'login_url')));
 }
 
 add_action('elementor_pro/forms/validation', 'inrcy_visio_booking_add_success_data', PHP_INT_MAX, 2);
 function inrcy_visio_booking_add_success_data($record, $ajax_handler) {
-    if (!inrcy_visio_booking_frontend_enabled() || !is_object($record) || !is_object($ajax_handler)) {
+    if (!is_object($record) || !is_object($ajax_handler)) {
         return;
     }
     $form_id = (string) $record->get_form_settings('id');
@@ -160,15 +180,22 @@ function inrcy_visio_booking_add_success_data($record, $ajax_handler) {
     $token = isset($GLOBALS['inrcy_visio_booking_token'])
         ? (string) $GLOBALS['inrcy_visio_booking_token']
         : '';
-    if ($token === '' || !method_exists($ajax_handler, 'add_response_data')) {
+    if (!method_exists($ajax_handler, 'add_response_data')) {
         return;
     }
-    $ajax_handler->add_response_data('inrcy_booking_token', $token);
+    if ($token !== '' && inrcy_visio_booking_frontend_enabled()) {
+        $ajax_handler->add_response_data('inrcy_booking_token', $token);
+    }
+    if (isset($GLOBALS['inrcy_signup_access'])) {
+        nocache_headers();
+        $ajax_handler->add_response_data('inrcy_signup_access', $GLOBALS['inrcy_signup_access']);
+        unset($GLOBALS['inrcy_signup_access']);
+    }
 }
 
 add_action('wp_enqueue_scripts', 'inrcy_visio_booking_enqueue_assets', 30);
 function inrcy_visio_booking_enqueue_assets() {
-    if (is_admin() || !inrcy_visio_booking_frontend_enabled()) {
+    if (is_admin()) {
         return;
     }
     $base_url = plugin_dir_url(__FILE__);
@@ -192,6 +219,7 @@ function inrcy_visio_booking_enqueue_assets() {
         'logoUrl' => $base_url . 'logo-inrcy-transparent.png',
         'signupUrl' => add_query_arg('lang', 'fr', home_url('/inscription/')),
         'signupFormName' => INRCY_VISIO_BOOKING_FORM_NAME,
+        'showBooking' => inrcy_visio_booking_frontend_enabled(),
         'mode' => inrcy_visio_booking_is_test_request() ? 'test' : 'public',
     ));
 }

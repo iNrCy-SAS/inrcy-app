@@ -741,6 +741,9 @@ export async function proxy(req: NextRequest) {
   if (invalidAuthSession) {
     if (
       isAuthRecoveryPath(pathname)
+      // A fresh one-use signup ticket must also recover from a stale browser
+      // session. Its own route verifies the origin and grant before signing in.
+      || (pathname === "/api/auth/signup-access" && req.method.toUpperCase() === "POST")
       || isAnonymousPublicPagePath(pathname)
       || isAnonymousPublicApiPath(pathname)
     ) {

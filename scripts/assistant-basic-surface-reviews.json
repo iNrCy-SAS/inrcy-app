@@ -26,6 +26,8 @@
     "app/api/ai-memory/analyze-channels/route.ts": "b7c318e89504f0f0a2dbca23f87538073ee3ecda530c122a6031510e242281f0",
     "app/api/ai-memory/documents/route.ts": "b6df753d4a94ee02983b7faf73a27be55785276dc25fee4b171b3a539c2388ec",
     "app/api/ai-memory/route.ts": "aa09c4d5cfb49ba1bb30ece6617fdfd5f0c2788d57420ba1fc4f0d47dcf6dcfe",
+    "app/api/auth/change-password/route.ts": "ca282b3b817f5702f78597534b41e784ad3de952119306f652c038680b120491",
+    "app/api/auth/signup-access/password/route.ts": "b89b579889ebb26ac74fd2ec3a5c41ed6e834aeee6e77298e22a54e0e8ae9217",
     "app/api/billing/account-subscription/route.ts": "40d5817b65a3cc6803933b08c92885ffa3aa0e728dd16aa6b38b6747afc1af64",
     "app/api/billing/invoices/route.ts": "1ed75a37389b4bcf9fe2b38a26907874526dff932f8a0d5d5172f76bc9d41786",
     "app/api/booster/connected-channels/route.ts": "0e5912b9d042e8bb9639b01cd376ec898b55ae8c7d141623670b177586acd3ad",
@@ -314,6 +316,8 @@
     "app/dashboard/_components/StudioVoicePool.module.css": "57f6fac74c5a113e2445c969f9633eb21205c6fec84b6cda87349c9e837b1ee2",
     "app/dashboard/_components/StudioVoicePool.tsx": "a1546dfc0ef2ed9f85e2652435c3e673accf62ebbf92e6a2278298bd77eb8462",
     "app/dashboard/_components/TemplateSubjectInlineEditor.tsx": "fe5ca587c98139c9f24c64624860f4ee8262126f720bca11f7c7af77190985b5",
+    "app/dashboard/_components/TemporaryPasswordWelcomeGate.module.css": "03f40593f82d3a29463bf17ca165e92e11cf7c41649c28e028c9c65f6203e96c",
+    "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx": "09dff53da40a30b8a20c3822779f76282dd9e2c2c76e0fd1b3a43a0b71842d7e",
     "app/dashboard/_components/ThreadsPublicationSettings.tsx": "f2c75bc04c0ab4235871de5ed3451d4dc7c560e8b40588f68608ee6323095971",
     "app/dashboard/_components/VideoCreditRecharge.module.css": "d8e1a4c42d589223c64fa20d9d245294c4ee06643660de3f013d390c01db28a0",
     "app/dashboard/_components/VideoCreditRecharge.tsx": "12b8a15dff195454db70157ed3d10076379b92c007f3df8bcd40b985fb4b8c38",
@@ -574,7 +578,7 @@
     "app/dashboard/generer-media/mediaGeneratorStudio.module.css": "20223146bcce68c110e47e9a5d15d38a904ae39f510a5e18b5f349a2da7db620",
     "app/dashboard/gps/gpsEditionPolicy.ts": "b25d5ad31e90b04f87ad9474dd80bc009bb20edfdbd871f6151f64fcecd61878",
     "app/dashboard/gps/noticeContent.ts": "f1f67cef69089570fbb5a08cd62ee3a9b39e11c646ed018ae2bb9a2348d2e2ce",
-    "app/dashboard/layout.tsx": "ce8cef5c2117c33f0b16fd5c273eb06960749d937ad60af94e4c9ea1692a299d",
+    "app/dashboard/layout.tsx": "407078fd2f21beb36afe709044cce82e7cb2e0e7062edec0f5cbf1b82c5f2d0a",
     "app/dashboard/mails/MailboxClient.tsx": "ac4bf68a7d57ad48e1b7c20044d14ffa9118bf990bb41566999f3c8ed83379dd",
     "app/dashboard/mails/_components/AdsCampaignDetailsModal.tsx": "d8e3aa55d0ad0d7c647f6653ecb48811556921e428aba151ce09b2ab3862052a",
     "app/dashboard/mails/_components/AdsCampaignsFolder.module.css": "a3d407efc29c4064a111aa9de4484214232d8b8597442c52c7bf930eb9aed64d",
@@ -1221,7 +1225,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "449361a0017a5c5443ef9f872ee38d3c885e65b6972a895f6765f56671f02bd1",
+    "lib/inrAssistantCodeIndex.generated.ts": "aa7561999b34fe50a1289eadb78a474f0cf339b1c1076ef4a519a5d80b742bc5",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -1252,7 +1256,7 @@
     "lib/inrAssistantGoogleBusinessDraftUiTools.ts": "cf6e0c4c8e0700629517bf1ab91e06387520f5d76325ad8ef05370b45a7bfa55",
     "lib/inrAssistantGoogleReviewDraftIntent.ts": "bb7a17f0441ef4b812427babe3a80b5cdc268b784867cf4a05d533ada27fd538",
     "lib/inrAssistantGoogleReviewTools.ts": "320906763262c5363b5a4072db20c6ef6f88442f5cdbe3578496f7e15c6d01bc",
-    "lib/inrAssistantGuidesAccount.ts": "a29ae6a7acd8c357b216f9c68cfbfa912c75c502d758d3ea85ec17e400f86661",
+    "lib/inrAssistantGuidesAccount.ts": "3b1847bcfd7319911e8b558ec4d5860682194191f5442f8def17dd5f1103bf1f",
     "lib/inrAssistantGuidesBasic.ts": "b2638493bd44d0d2e5dd361a1d02e31cb456f90b597e60217a9b5603ee5bd225",
     "lib/inrAssistantGuidesContentLimits.ts": "dcdba643d6a24d46c2f73a93c18759086f570182a051fec07a797013ab533d53",
     "lib/inrAssistantGuidesCreation.ts": "16d70ce1314c26c9e47b8405666d901fb02e2cc58c526a7e4654820cd6a85381",
@@ -1574,6 +1578,8 @@
     "lib/scheduledPublicationMediaSnapshot.ts": "609490fa25b69b5094b5ee578c771b888a787dc7884f0fd4034134c4ed285cd0",
     "lib/scheduledPublicationWorkspacePreview.ts": "18fed61c6782505234e557220ee18b91d2444165e4e5bcb155b563971b95426e",
     "lib/security.ts": "bb221880ccd79eb548336d507923000e8b5acf4f2f9121625e177d1e05ff72e3",
+    "lib/signupImmediateAccessPolicy.ts": "910f3695621efcb18a7572599006a94418083ae59f8f990ebdb39906c1be3a5e",
+    "lib/signupImmediateAccessServer.ts": "08c33342d2a190614fb1267576e764661a26b819764c038c491aa5179cc05c39",
     "lib/sitePresenceSync.ts": "e48dc17b141dcc5676217add6c516783fb60c4eaed0a7a63f8b98ea30c98fa72",
     "lib/siteWebChannel.ts": "0a42f43f2ad470e89c53ee4c7e10cf41953b6bfad1d3ade11c6c0b05afafe807",
     "lib/siteWebPublications.ts": "3aff276bb49731c4323a3a44d98bee0981966a0e83b391160c1df0b758451207",
@@ -2014,7 +2020,7 @@
     "lib/youtubeShortsAnalytics.ts": "923caebae24cfbcc50428e4a2ece581a6fe2d5cbbcee317ae2049c0ad43e09eb",
     "lib/youtubeShortsOAuth.ts": "9e225fa7aad51eb599fb0c146a82ded5fafc657a941fe92d2b8b018baf4d80a8",
     "lib/youtubeShortsPublish.ts": "40d7f68f3a080915fceb4401abeba5dc4e4f5308513a0ffd18f1b4bba6dec807",
-    "proxy.ts": "0311a7bafcf0f059f8a4c03301ca93560aff71c98d93125834ed6af1f842aab5",
+    "proxy.ts": "956a08c753057bd662d1b5ef672e9152e840a868dff0fb3cb019cc918161b17d",
     "tests/ai-assistant/account-invoice-hosted.test.mts": "6dfa365d8f15e77b718f4490604c34c9de748e4ec83c23d2fb4ffc875444e208",
     "tests/ai-assistant/app-guides.test.mts": "c52ebe2cd1b388f1d93dd22b239f4b96bf639f78b8a60319a4cbe0d9af4a735a",
     "tests/ai-assistant/basic-account-services.test.mts": "7db5a14f9eaeba33c11fc3257946eaeae6d8a596ee7e0e069d799a6d740be268",
@@ -3967,6 +3973,27 @@
       "controlIds": [
         "app/dashboard/_components/TemplateSubjectInlineEditor.tsx#div:8edcca53b44d1aa6:1",
         "app/dashboard/_components/TemplateSubjectInlineEditor.tsx#span:67fb05c50c81597b:1"
+      ]
+    },
+    "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx": {
+      "disposition": "infrastructure",
+      "reason": "Accueil personnel de sécurité du titulaire : le remplacement du mot de passe provisoire, sa saisie, son affichage et le choix Plus tard appartiennent au professionnel. Ce composant suspend le montage de DashboardAssistantProvider jusqu’à la fin ou au report de la fenêtre ; aucun mot de passe, ticket de session ou contrôle de cette fenêtre ne devient une action iNrAssistant. La vérification du mot de passe actuel, de la session et de la double authentification reste dans le parcours natif.",
+      "gateFiles": [
+        "app/dashboard/layout.tsx",
+        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx",
+        "app/api/auth/signup-access/password/route.ts",
+        "app/api/auth/change-password/route.ts"
+      ],
+      "gateAnchor": "<TemporaryPasswordWelcomeGate",
+      "sourceDigest": "09dff53da40a30b8a20c3822779f76282dd9e2c2c76e0fd1b3a43a0b71842d7e",
+      "controlIds": [
+        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx#form:8fafce1af29b0a7b:1",
+        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx#input:6e99bb5858229ee2:1",
+        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx#input:00624d96f1233048:1",
+        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx#input:9f5b92c4dcc29cbc:1",
+        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx#input:d2e31e6a3e362e4e:1",
+        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx#button:9e0707f9fb50c355:1",
+        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx#button:d6d3e8bb229b48b8:1"
       ]
     },
     "app/dashboard/_components/ThreadsPublicationSettings.tsx": {

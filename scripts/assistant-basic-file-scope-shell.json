@@ -37,6 +37,17 @@
       }
     }
   },
+  "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx": {
+    "disposition": "infrastructure",
+    "reason": "Accueil personnel de sécurité du titulaire : le remplacement du mot de passe provisoire, sa saisie, son affichage et le choix Plus tard appartiennent au professionnel. Ce composant suspend le montage de DashboardAssistantProvider jusqu’à la fin ou au report de la fenêtre ; aucun mot de passe, ticket de session ou contrôle de cette fenêtre ne devient une action iNrAssistant. La vérification du mot de passe actuel, de la session et de la double authentification reste dans le parcours natif.",
+    "gateFiles": [
+      "app/dashboard/layout.tsx",
+      "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx",
+      "app/api/auth/signup-access/password/route.ts",
+      "app/api/auth/change-password/route.ts"
+    ],
+    "gateAnchor": "<TemporaryPasswordWelcomeGate"
+  },
   "app/dashboard/_components/AdsChannelInfoModal.tsx": {
     "disposition": "out_of_pack",
     "reason": "La fenêtre d’information Ads ne peut être ouverte par le professionnel Basique : son unique déclencheur partagé est disabled en mode standard/basic. Le menu Premium reste exclu par les droits natifs.",
