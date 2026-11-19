@@ -12,6 +12,8 @@ const require = createRequire(import.meta.url);
 const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
 const compile = (file: string) => ts.transpileModule(read(file), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true } }).outputText;
 const packageSource = (name: string, file: string) => readFileSync(join(dirname(require.resolve(`${name}/package.json`)), "cjs", file), "utf8");
+const moduleCss = (file: string, prefix: string) => read(file).replace(/\.[a-zA-Z_][a-zA-Z0-9_-]*/g, name => `.${prefix}${name.slice(1)}`);
+const globalCss = readFileSync(require.resolve("tailwindcss/preflight.css"), "utf8") + read("app/globals.css").replace('@import "tailwindcss";', "");
 const authMessages = JSON.parse(read("messages/fr-FR/auth.json"));
 const settings = JSON.parse(read("messages/fr-FR/settings.json"));
 const sources = {
@@ -30,7 +32,7 @@ async function fixture(browser: Browser, options: { temporary?: boolean; checkou
     return route.fulfill({ contentType: "text/html", body: url.endsWith("/dashboard") ? '<!doctype html><html><body><h1>Authenticated dashboard destination</h1></body></html>' : '<!doctype html><html><body><div id="root"></div></body></html>' });
   });
   await page.goto(`https://app.example.invalid/activer-mon-compte${options.checkout ? `?checkout=${options.checkout}` : ""}`);
-  await page.addStyleTag({ content: read("app/activer-mon-compte/activation.module.css") + read("app/dashboard/_components/TemporaryPasswordWelcomeGate.module.css") });
+  await page.addStyleTag({ content: globalCss + moduleCss("app/activer-mon-compte/activation.module.css", "plans_") + moduleCss("app/dashboard/_components/TemporaryPasswordWelcomeGate.module.css", "password_") });
   await page.addScriptTag({ content: `
     const sources=${JSON.stringify(sources)},catalogs=${JSON.stringify({ "auth.password": authMessages.password, "auth.directSignup": authMessages.directSignup, settings })},cache={},process={env:{NODE_ENV:'development'}};
     window.requests=[];
@@ -38,8 +40,8 @@ async function fixture(browser: Browser, options: { temporary?: boolean; checkou
     const modules={
       'next-intl':{useTranslations:namespace=>translators[namespace],useLocale:()=> 'fr-FR'},
       '@/app/dashboard/settings/_components/SubscriptionComparison':{SubscriptionPlanFeatures:({edition})=>require('react').createElement('p',{'data-features':edition},'Features '+edition)},
-      './activation.module.css':{default:new Proxy({},{get:(_,key)=>String(key)})},
-      './TemporaryPasswordWelcomeGate.module.css':{default:new Proxy({},{get:(_,key)=>String(key)})}
+      './activation.module.css':{__esModule:true,default:new Proxy({},{get:(_,key)=>'plans_'+String(key)})},
+      './TemporaryPasswordWelcomeGate.module.css':{__esModule:true,default:new Proxy({},{get:(_,key)=>'password_'+String(key)})}
     };
     function require(name){
       if(name==='@/lib/subscriptionOffers')return require('offers');if(name==='@/lib/passwordPolicy')return require('password');
@@ -92,6 +94,9 @@ test("temporary password Later precedes the three real monthly plans and no paym
     }
     assert.match(await f.page.locator("body").innerText(), /Sans période d’essai/);
     assert.equal((await billingRequests(f.page)).length, 0);
+    const dialog = f.page.getByRole("dialog");
+    const bounds = await dialog.boundingBox(); assert.ok(bounds && bounds.width <= 390 && bounds.x >= 0);
+    assert.equal(await dialog.evaluate(node => getComputedStyle(node).backgroundColor), "rgb(16, 28, 49)", "the real activation CSS is applied");
     assert.ok(await f.page.evaluate(() => document.documentElement.scrollWidth <= 390));
     assert.deepEqual(f.errors, []);
   } finally { await browser.close(); }
