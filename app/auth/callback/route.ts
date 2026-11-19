@@ -6,6 +6,7 @@ import { ensureNotificationPreferences } from "@/lib/notifications";
 import { ensureProfileRow } from "@/lib/ensureProfileRow";
 import { ACTIVE_USER_COOKIE } from "@/lib/browserAccountCache";
 import { appLanguageFromLocale, tryNormalizeAppLocale } from "@/i18n/config";
+import { isBasicNavigation, withBasicNavigation } from "@/lib/basicNavigation";
 
 function getFallbackPath(type?: string | null) {
   if (type === "recovery") return "/auth/finish-reset";
@@ -34,7 +35,7 @@ function localizeFinishPath(path: string, url: URL) {
   return language ? `${path}/${language}` : path;
 }
 
-function buildTargetUrl(origin: string, nextPath: string, expectedEmail?: string | null) {
+function buildTargetUrl(origin: string, nextPath: string, expectedEmail?: string | null, basicNavigation = false) {
   const target = new URL(nextPath, origin);
   const isPasswordRoute =
     target.pathname === "/set-password" ||
@@ -43,6 +44,7 @@ function buildTargetUrl(origin: string, nextPath: string, expectedEmail?: string
   if (expectedEmail && isPasswordRoute && !target.searchParams.get("email")) {
     target.searchParams.set("email", expectedEmail);
   }
+  if (basicNavigation && (isPasswordRoute || target.pathname === "/login")) target.searchParams.set("entry", "basique");
   return target;
 }
 
@@ -61,6 +63,7 @@ function redirectWithError(
   );
   if (code) url.searchParams.set("error_code", code);
   if (description) url.searchParams.set("error_description", description);
+  if (isBasicNavigation(requestUrl.searchParams.get("entry"))) url.searchParams.set("entry", "basique");
   return NextResponse.redirect(url);
 }
 
@@ -80,6 +83,7 @@ function buildSwitchAccountUrl(url: URL, currentEmail: string, expectedEmail: st
   switchUrl.searchParams.set("current_email", currentEmail);
   switchUrl.searchParams.set("expected_email", expectedEmail);
   switchUrl.searchParams.set("continue", `${url.pathname}${url.search}`);
+  if (isBasicNavigation(url.searchParams.get("entry"))) switchUrl.searchParams.set("entry", "basique");
   return switchUrl;
 }
 
@@ -89,6 +93,7 @@ function buildFinishUrl(url: URL, type: string, tokenHash: string, nextPath: str
   target.searchParams.set("token_hash", tokenHash);
   target.searchParams.set("type", type);
   target.searchParams.set("next", nextPath);
+  if (isBasicNavigation(url.searchParams.get("entry"))) target.searchParams.set("entry", "basique");
   if (expectedEmail) {
     target.searchParams.set("email", expectedEmail);
   }
@@ -101,6 +106,7 @@ function buildSessionFinishUrl(url: URL, type: string, nextPath: string, expecte
   target.searchParams.set("source", "session");
   target.searchParams.set("type", type);
   target.searchParams.set("next", nextPath);
+  if (isBasicNavigation(url.searchParams.get("entry"))) target.searchParams.set("entry", "basique");
   if (expectedEmail) target.searchParams.set("email", expectedEmail);
   return target;
 }
@@ -166,7 +172,7 @@ export async function GET(req: Request) {
       await ensureNotificationPreferences(userId).catch(() => null);
     }
 
-    const response = NextResponse.redirect(buildTargetUrl(url.origin, nextParam, expectedEmail || verifiedEmail));
+    const response = NextResponse.redirect(buildTargetUrl(url.origin, nextParam, expectedEmail || verifiedEmail, isBasicNavigation(searchParams.get("entry"))));
     return withActiveUserCookie(response, userId, url);
   }
 
@@ -191,10 +197,10 @@ export async function GET(req: Request) {
     const finishPath = getFinishPath(type);
     const target = finishPath
       ? buildSessionFinishUrl(url, type || "", nextParam, verifiedEmail)
-      : buildTargetUrl(url.origin, nextParam, verifiedEmail);
+      : buildTargetUrl(url.origin, nextParam, verifiedEmail, isBasicNavigation(searchParams.get("entry")));
     const response = NextResponse.redirect(target);
     return withActiveUserCookie(response, userId, url);
   }
 
-  return NextResponse.redirect(new URL("/login", url.origin));
+  return NextResponse.redirect(new URL(withBasicNavigation("/login", isBasicNavigation(searchParams.get("entry"))), url.origin));
 }

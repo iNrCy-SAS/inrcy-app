@@ -5,12 +5,14 @@ import ts from "typescript";
 import { createClient } from "@supabase/supabase-js";
 import * as policy from "../../lib/signupWelcomeMailPolicy.ts";
 import * as temporaryPolicy from "../../lib/temporaryPasswordPolicy.ts";
+import * as directSignupPolicy from "../../lib/directSignupPolicy.ts";
 import type { PreparedAuthEmail } from "../../lib/authMailPolicy.ts";
 const USER = "00000000-0000-4000-8000-000000000001";
 
 function fixture() {
   let row: Record<string, unknown> | null = null;
   let metadata: unknown = null;
+  let directSignup = false;
   let failures = 0;
   let uncertain = false;
   let deferredFailure: Record<string, unknown> | null = null;
@@ -24,7 +26,8 @@ function fixture() {
     global: { fetch: async (input, init) => {
       const url = new URL(String(input)); const method = init?.method || "GET";
       requests.push(`${method} ${url.pathname}`);
-      if (url.pathname === `/auth/v1/admin/users/${USER}`) return Response.json({ id: USER, email: "synthetic@example.com", app_metadata: { inrcy_temporary_password: metadata } });
+      if (url.pathname === `/auth/v1/admin/users/${USER}`) return Response.json({ id: USER, email: "synthetic@example.com", app_metadata: { inrcy_temporary_password: metadata,
+        ...(directSignup ? { inrcy_direct_signup_v1: { version: 1, entry: "basique", created_at: "2026-11-19T12:00:00.000Z" } } : {}) } });
       if (url.pathname === "/rest/v1/rpc/claim_signup_welcome_credentials") {
         const due = row && row.ready_at && row.user_id && row.encrypted_password && !row.delivered_at && !row.blocked_at
           && Date.parse(String(row.expires_at)) > now && (!row.retry_at || Date.parse(String(row.retry_at)) <= now);
@@ -45,6 +48,7 @@ function fixture() {
   const modules = new Map<string, unknown>([
     ["server-only", {}], ["@/lib/supabaseAdmin", { supabaseAdmin: client }],
     ["@/lib/signupWelcomeMailPolicy", policy], ["@/lib/temporaryPasswordPolicy", temporaryPolicy],
+    ["@/lib/directSignupPolicy", directSignupPolicy],
     ["@/lib/authMailDelivery", { authResendApiKey: () => "synthetic-provider-key", sendPreparedAuthEmail: async (mail: PreparedAuthEmail) => {
       attempted.push(mail);
       if (deferredFailure) { const error = deferredFailure; deferredFailure = null; throw Object.assign(new Error("synthetic quota refusal"), error); }
@@ -67,7 +71,7 @@ function fixture() {
     await server.attachSignupWelcome(credential.metadata.welcome_id, USER);
     return { server, credential };
   };
-  return { setup, load, sent, attempted, requests, getRow: () => row!, setMetadata: (value: unknown) => { metadata = value; }, failOnce: () => { failures = 1; }, uncertain: () => { uncertain = true; },
+  return { setup, load, sent, attempted, requests, getRow: () => row!, setMetadata: (value: unknown) => { metadata = value; }, setDirectSignup: () => { directSignup = true; }, failOnce: () => { failures = 1; }, uncertain: () => { uncertain = true; },
     deferOnce: () => { const retryAt = new Date(now + 3_600_000).toISOString(); deferredFailure = { code: "daily_quota_exceeded", httpStatus: 429, retryable: true, retryAt }; return retryAt; },
     advance: (ms: number) => { now += ms; }, now: () => now };
 }
@@ -80,9 +84,20 @@ test("real SDK transport keeps only ciphertext, forbids sending before provision
   await server.completeSignupWelcome(credential.metadata.welcome_id, USER);
   assert.deepEqual(await server.deliverSignupWelcome(credential.metadata.welcome_id), { delivered: true, uncertain: false });
   assert.equal(f.sent.length, 1); assert.ok(f.sent[0].text.includes(credential.password));
+  assert.equal(f.sent[0].text.includes("entry=basique"), false, "normal welcome links keep the existing signup context");
   assert.equal(f.getRow().encrypted_password, null);
   await f.load().deliverSignupWelcome(credential.metadata.welcome_id);
   assert.equal(f.sent.length, 1, "restart after acceptance must not resend");
+});
+
+test("welcome login presentation derives from the already-fetched fresh direct marker without another Auth call", async () => {
+  const f = fixture(); const { server, credential } = await f.setup();
+  await server.completeSignupWelcome(credential.metadata.welcome_id, USER); f.setDirectSignup();
+  assert.deepEqual(await server.deliverSignupWelcome(credential.metadata.welcome_id), { delivered: true, uncertain: false });
+  assert.equal(f.sent.length, 1);
+  assert.ok(f.sent[0].text.includes("https://app.inrcy.com/login?email=synthetic%40example.com&lang=fr&entry=basique"));
+  assert.equal(f.requests.filter(request => request === `GET /auth/v1/admin/users/${USER}`).length, 1);
+  assert.equal(f.requests.some(request => request.startsWith("PUT")), false);
 });
 
 test("restart after a pre-send failure reuses the original credential and stable email identity", async () => {

@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { log } from "@/lib/observability/logger";
 import { buildSupabaseEmailRedirectUrl } from "@/lib/authEmailLinks";
+import { basicResetPresentationPath, isBasicNavigation } from "@/lib/basicNavigation";
 import { hasEligibleInrcyAuthUser } from "@/lib/authInviteResendEligibility";
 import {
   findKnownInrcyAccountUserIdsForEmail,
@@ -29,6 +30,7 @@ type Body = {
   language?: string;
   lang?: string;
   locale?: string;
+  entry?: string;
 };
 
 function normalizeEmail(value: unknown) {
@@ -91,10 +93,14 @@ export async function POST(req: Request) {
     if (limited) return limited;
 
     const appOrigin = buildAppOrigin();
+    const basicNavigation = isBasicNavigation(body?.entry);
+    const resetRedirect = basicNavigation
+      ? buildSupabaseEmailRedirectUrl(appOrigin, basicResetPresentationPath(language))
+      : buildSupabaseEmailRedirectUrl(appOrigin, "/auth/finish-reset", language);
 
     if (mode === "reset") {
       const { error } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-        redirectTo: buildSupabaseEmailRedirectUrl(appOrigin, "/auth/finish-reset", language),
+        redirectTo: resetRedirect,
       });
 
       if (error) {
@@ -138,7 +144,7 @@ export async function POST(req: Request) {
 
     if (isExistingAuthUserError(inviteResult.error)) {
       const recoveryResult = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-        redirectTo: buildSupabaseEmailRedirectUrl(appOrigin, "/auth/finish-reset", language),
+        redirectTo: resetRedirect,
       });
 
       if (!recoveryResult.error) {

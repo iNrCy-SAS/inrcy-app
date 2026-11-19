@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { basicResetPresentationLanguage } from "./basicNavigation.ts";
 
 export const AUTH_EMAIL_ACTIONS = [
   "signup",
@@ -186,7 +187,10 @@ export function parseSupabaseAuthEmailHookPayload(
 
 function authLanguage(redirectTo: string) {
   try {
-    const parts = new URL(redirectTo).pathname.split("/").filter(Boolean);
+    const pathname = new URL(redirectTo).pathname;
+    const basicLanguage = basicResetPresentationLanguage(pathname);
+    if (basicLanguage) return basicLanguage;
+    const parts = pathname.split("/").filter(Boolean);
     const candidate = String(parts.at(-1) || "").toLowerCase();
     return LANGUAGE_PATTERN.test(candidate) ? candidate : "fr";
   } catch {
@@ -267,7 +271,8 @@ function buildAuthActionUrl(args: {
   const app = allowedAppOrigin(args.appOrigin);
 
   if (args.action === "invite" || args.action === "recovery") {
-    const target = new URL(localizedFinishPath(args.action, args.language), app);
+    const basicRecovery = args.action === "recovery" && basicResetPresentationLanguage(redirect.pathname) !== null;
+    const target = new URL(basicRecovery ? redirect.pathname : localizedFinishPath(args.action, args.language), app);
     target.searchParams.set("token_hash", args.tokenHash);
     target.searchParams.set("type", args.action);
     target.searchParams.set("email", args.recipient);

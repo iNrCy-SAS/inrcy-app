@@ -1,15 +1,19 @@
 <?php
 /**
  * Plugin Name: iNrCy — Inscription Basique sans essai
- * Description: Landing autonome /basique et inscription directe, avec accès immédiat au nouveau compte.
- * Version: 1.0.1
+ * Description: Espace Basique autonome dans WordPress et inscription directe avec accès immédiat.
+ * Version: 1.1.0
  * Author: iNrCy
  */
 
 if (!defined('ABSPATH')) { exit; }
-define('INRCY_BASIC_SIGNUP_VERSION', '1.0.1');
+define('INRCY_BASIC_SIGNUP_VERSION', '1.1.0');
 define('INRCY_BASIC_SIGNUP_SECRET_OPTION', 'inrcy_basic_signup_server_secret');
 define('INRCY_BASIC_SIGNUP_PAGE_OPTION', 'inrcy_basic_signup_page_id');
+require_once __DIR__ . '/includes/catalogue.php';
+require_once __DIR__ . '/includes/legal-content.php';
+require_once __DIR__ . '/includes/site.php';
+require_once __DIR__ . '/includes/seo.php';
 
 function inrcy_basic_signup_secret() {
     $configured = defined('INRCY_TRIAL_SIGNUP_TOKEN') ? trim((string) INRCY_TRIAL_SIGNUP_TOKEN) : '';
@@ -19,7 +23,7 @@ function inrcy_basic_signup_secret() {
 function inrcy_basic_signup_is_page() {
     if (!is_singular('page')) { return false; }
     $post = get_post();
-    return $post && has_shortcode((string) $post->post_content, 'inrcy_basic_signup');
+    return $post && (has_shortcode((string) $post->post_content, 'inrcy_basic_signup') || has_shortcode((string) $post->post_content, 'inrcy_basic_page'));
 }
 
 add_action('admin_menu', function () {
@@ -43,6 +47,7 @@ function inrcy_basic_signup_settings() {
             <p><label><input type="checkbox" name="clear_secret" value="1"> Effacer uniquement le secret de secours enregistré</label></p>
             <?php submit_button('Enregistrer'); ?>
         </form>
+        <?php inrcy_basic_site_settings(); ?>
         <hr><h2>Préparer la page /basique</h2>
         <p>Crée un brouillon avec le shortcode <code>[inrcy_basic_signup]</code> si le chemin est libre. Une page existante n’est jamais modifiée ni remplacée.</p>
         <form action="<?php echo esc_url(admin_url('admin-post.php')); ?>" method="post">
@@ -107,9 +112,16 @@ add_action('wp_enqueue_scripts', function () {
     wp_localize_script('inrcy-basic-access', 'inrcyBasicSignupAccessConfig', array('showBooking' => false, 'signupFormName' => 'inrcy_basic_signup', 'logoUrl' => $base . 'logo-inrcy-transparent.png', 'signupUrl' => home_url('/basique/')));
     wp_enqueue_script('inrcy-basic-signup', $base . 'basic-signup.js', array('jquery', 'inrcy-basic-access'), INRCY_BASIC_SIGNUP_VERSION, true);
     wp_localize_script('inrcy-basic-signup', 'inrcyBasicSignupConfig', array('ajaxUrl' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('inrcy_basic_signup')));
+    if (inrcy_basic_site_rendered()) {
+        wp_enqueue_style('inrcy-basic-site', $base . 'basic-site.css', array('inrcy-basic-signup'), INRCY_BASIC_SIGNUP_VERSION);
+        wp_enqueue_script('inrcy-basic-site', $base . 'basic-site.js', array(), INRCY_BASIC_SIGNUP_VERSION, true);
+        $site_links = array(); foreach (inrcy_basic_site_pages() as $key => $page) { $site_links[$key] = inrcy_basic_site_url($key); }
+        wp_localize_script('inrcy-basic-site', 'inrcyBasicSiteConfig', array('links' => $site_links));
+    }
 }, 100);
 
 add_shortcode('inrcy_basic_signup', function () {
+    if (inrcy_basic_site_rendered()) { return inrcy_basic_site_render(inrcy_basic_site_view()); }
     $configured = inrcy_basic_signup_secret() !== '';
     ob_start();
     ?>

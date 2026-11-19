@@ -6,6 +6,7 @@ import { NextResponse } from "next/server.js";
 import * as policy from "../../lib/signupImmediateAccessPolicy.ts";
 import * as temporary from "../../lib/temporaryPasswordPolicy.ts";
 import * as directSignupPolicy from "../../lib/directSignupPolicy.ts";
+import * as navigation from "../../lib/basicNavigation.ts";
 
 const secret = "synthetic-test-secret-32-characters-only";
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -69,6 +70,7 @@ function fixture() {
     "@/lib/multicompte/constants": { ACTIVE_INRCY_ACCOUNT_COOKIE: "active_account" },
     "@/lib/temporaryPasswordPolicy": temporary,
     "@/lib/directSignupPolicy": directSignupPolicy,
+    "@/lib/basicNavigation": navigation,
   };
   const route = compile<{ POST: (r: Request) => Promise<NextResponse> }>("app/api/auth/signup-access/route.ts", modules);
   const passwordRoute = compile<{ GET: (r: Request) => Promise<NextResponse> }>("app/api/auth/signup-access/password/route.ts", modules);
@@ -99,6 +101,18 @@ test("untrusted or absent origins and forged tickets cannot reach OTP verificati
     const f = fixture(); assert.equal((await f.route.POST(f.request(origin))).status, 403); assert.equal(f.otpCalls(), 0);
   }
   const f = fixture(); assert.equal((await f.route.POST(f.request("https://inrcy.com", "invalid"))).status, 400); assert.equal(f.otpCalls(), 0);
+});
+
+test("an expired Basic receipt keeps a contextual login link without changing OTP eligibility or normal receipts", async () => {
+  for (const entry of ["basique", "other", ""] as const) {
+    const f = fixture(), request = f.request("https://inrcy.com", "expired");
+    const url = new URL(request.url); if (entry) url.searchParams.set("entry", entry);
+    const response = await f.route.POST(new Request(url, request));
+    assert.equal(response.status, 400); assert.equal(f.otpCalls(), 0); assert.equal(f.writes.length, 0);
+    const body = await response.text();
+    assert.ok(body.includes(`href="/login${entry === "basique" ? "?entry=basique" : ""}"`));
+    assert.equal(body.includes(f.c.password), false);
+  }
 });
 test("changed password, expired metadata or an already connected different account never get replaced", async () => {
   for (const type of ["changed", "expired", "other"] as const) {

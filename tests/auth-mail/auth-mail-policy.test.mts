@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { BASIC_RESET_PRESENTATION_ROUTES } from "../../lib/basicNavigation.ts";
 
 import {
   AuthMailPayloadError,
@@ -131,6 +132,36 @@ test("keeps invitation links valid for every application language", () => {
     const urlText = message.text.match(/https:\/\/[^\s]+/)?.[0];
     assert.ok(urlText);
     assert.equal(new URL(urlText).pathname, `/auth/finish-invite/${language}`);
+  }
+});
+
+test("the real Send Email hook preserves every exact Basic recovery alias with authoritative token, type and email", () => {
+  for (const [path, language] of Object.entries(BASIC_RESET_PRESENTATION_ROUTES)) {
+    const source = rawPayload(); source.email_data.email_action_type = "recovery";
+    source.email_data.redirect_to = `https://app.inrcy.com${path}?token_hash=forged&type=invite&email=other%40example.invalid`;
+    const message = buildPreparedAuthEmails({ payload: parseSupabaseAuthEmailHookPayload(source), hookId: `basic-reset-${language}`, appOrigin: "https://app.inrcy.com" })[0];
+    const href = message.text.match(/https:\/\/[^\s]+/)?.[0]; assert.ok(href);
+    const target = new URL(href);
+    assert.equal(target.pathname, path);
+    assert.equal(target.searchParams.get("token_hash"), "hash-primary");
+    assert.equal(target.searchParams.get("type"), "recovery");
+    assert.equal(target.searchParams.get("email"), "pro@example.com");
+    assert.equal(target.searchParams.has("next"), false);
+    assert.equal((href.match(/\?/g) || []).length, 1);
+    assert.equal(message.html.includes(href.replaceAll("&", "&amp;")), true);
+  }
+});
+
+test("Basic recovery aliases cannot bypass the hook origin check and unknown aliases keep the normal reset target", () => {
+  const source = rawPayload(); source.email_data.email_action_type = "recovery";
+  source.email_data.redirect_to = "https://attacker.example/reset-basique-fr";
+  assert.throws(() => buildPreparedAuthEmails({ payload: parseSupabaseAuthEmailHookPayload(source), hookId: "external-basic-reset", appOrigin: "https://app.inrcy.com" }),
+    (error: unknown) => error instanceof AuthMailPayloadError && error.code === "invalid_redirect_origin");
+  for (const [input, expected] of [["/reset-basique-unknown", "/auth/finish-reset/fr"], ["/auth/finish-reset/en", "/auth/finish-reset/en"]]) {
+    source.email_data.redirect_to = `https://app.inrcy.com${input}`;
+    const message = buildPreparedAuthEmails({ payload: parseSupabaseAuthEmailHookPayload(source), hookId: "normal-reset", appOrigin: "https://app.inrcy.com" })[0];
+    const href = message.text.match(/https:\/\/[^\s]+/)?.[0]; assert.ok(href);
+    assert.equal(new URL(href).pathname, expected); assert.equal(new URL(href).searchParams.get("token_hash"), "hash-primary");
   }
 });
 

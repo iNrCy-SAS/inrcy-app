@@ -81,6 +81,7 @@ const sources = {
   "./useAdsErrorMessage": compile("app/dashboard/ads/useAdsErrorMessage.ts"),
   "./adsPublicErrorMessages": compile("app/dashboard/ads/adsPublicErrorMessages.ts"),
   ...clientLibSources("userFacingErrors"),
+  ...clientLibSources("basicNavigation"),
   react: packageSource("react", "react.production.js"), "react/jsx-runtime": packageSource("react", "react-jsx-runtime.production.js"),
   "react-dom": packageSource("react-dom", "react-dom.production.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.production.js"), scheduler: packageSource("scheduler", "scheduler.production.js"),
   provider: compile("app/dashboard/_components/DashboardAssistantProvider.tsx"),

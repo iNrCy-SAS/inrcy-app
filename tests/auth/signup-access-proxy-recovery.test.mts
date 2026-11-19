@@ -7,6 +7,7 @@ import * as edition from "../../lib/dashboardEdition.ts";
 import * as reviewer from "../../lib/reviewerAccess.ts";
 import * as accounts from "../../lib/multicompte/normalize.ts";
 import * as directSignupPolicy from "../../lib/directSignupPolicy.ts";
+import * as navigation from "../../lib/basicNavigation.ts";
 
 const source = ts.transpileModule(readFileSync("proxy.ts", "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -18,6 +19,7 @@ async function request(pathname: string, method = "POST") {
     "@supabase/ssr": { createServerClient: () => ({ auth: { getClaims: async () => ({ data: null, error: new Error("synthetic_stale_session") }) } }) },
     "./lib/dashboardEdition": edition, "./lib/reviewerAccess": reviewer, "./lib/multicompte/normalize": accounts,
     "./lib/directSignupPolicy": directSignupPolicy,
+    "./lib/basicNavigation": navigation,
     "./lib/multicompte/constants": { ACTIVE_INRCY_ACCOUNT_COOKIE: "inrcy_uid" },
     "./lib/rateLimit": { enforceQuota: async () => null, enforceRateLimit: async () => null },
     "./lib/actusWidgetEmbed": { isPublicEmbedPath: () => false },
@@ -59,5 +61,24 @@ test("the stale-session exception is limited to the exact signup POST and preser
     const response = await request(path, method);
     assert.equal(response.status, 401, `${method} ${path}`);
     assert.equal((await response.json()).code, "SESSION_EXPIRED");
+  }
+});
+
+test("expired activation sessions retain only the explicit Basic navigation entry and normal accounts keep their login", async () => {
+  for (const [path, basic] of [["/activer-mon-compte?checkout=cancel", true], ["/dashboard", false], ["/diagnostic?entry=basique", true]] as const) {
+    const response = await request(path, "GET"), target = new URL(response.headers.get("location")!);
+    assert.equal(target.pathname, "/login"); assert.equal(target.searchParams.get("reason"), "session-expired");
+    assert.equal(target.searchParams.get("entry"), basic ? "basique" : null);
+    assert.equal(target.searchParams.has("next"), false);
+    assert.equal(response.cookies.getAll().some(cookie => /nav|entry|basique/.test(cookie.name)), false);
+  }
+});
+
+test("all nine flat Basic recovery aliases retain token queries while clearing invalid sessions", async () => {
+  for (const [path] of Object.entries(navigation.BASIC_RESET_PRESENTATION_ROUTES)) {
+    const response = await request(`${path}?token_hash=synthetic-token&type=recovery`, "GET");
+    assert.equal(response.status, 200); assert.equal(response.headers.get("x-middleware-next"), "1");
+    assert.equal(response.headers.get("location"), null);
+    assert.equal(response.headers.get("x-middleware-request-cookie"), "preference=keep");
   }
 });

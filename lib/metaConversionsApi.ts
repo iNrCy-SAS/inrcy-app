@@ -78,16 +78,17 @@ function readErrorMessage(payload: unknown, fallback: string) {
 }
 
 function buildCustomData(input: MetaConversionInput) {
+  const basicSignup = input.attribution.formSource === "wordpress-basique";
   const eventDetails: Record<MetaConversionEventName, Record<string, string | number>> = {
     Lead: {
       content_name: "Inscription iNrCy",
-      content_category: "Essai gratuit 21 jours",
-      lead_type: "trial_signup",
+      content_category: basicSignup ? "Abonnement Basique" : "Essai gratuit 21 jours",
+      lead_type: basicSignup ? "basic_signup" : "trial_signup",
     },
     CompleteRegistration: {
       content_name: "Activation du compte iNrCy",
-      content_category: "Essai gratuit 21 jours",
-      registration_method: "email_invitation",
+      content_category: basicSignup ? "Abonnement Basique" : "Essai gratuit 21 jours",
+      registration_method: basicSignup ? "direct_signup" : "email_invitation",
     },
     Subscribe: {
       content_name: "Abonnement iNrCy",

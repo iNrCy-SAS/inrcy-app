@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { createClient } from "@/lib/supabaseClient";
 import {
@@ -22,6 +23,7 @@ import {
 } from "@/lib/loginFailureAlertClient";
 import AuthLanguageSelector from "@/app/auth/_components/AuthLanguageSelector";
 import styles from "./login.module.css";
+import { BASIC_NAVIGATION_LINKS, basicResetPresentationPath, isBasicNavigation, withBasicNavigation } from "@/lib/basicNavigation";
 
 type WanderDot = {
   left: string; // %
@@ -83,6 +85,12 @@ function resolvePostLoginHref(fallback: string) {
 }
 
 export default function LoginPage() {
+  return <Suspense fallback={null}><LoginContent /></Suspense>;
+}
+
+function LoginContent() {
+  const searchParams = useSearchParams();
+  const basicNavigation = isBasicNavigation(searchParams.get("entry"));
   const locale = useLocale();
   const t = useTranslations("auth.login");
   const appLanguage = appLanguageFromLocale(locale);
@@ -192,14 +200,14 @@ export default function LoginPage() {
   const redirectingToDashboardRef = useRef(false);
 
   const diagnosticHref = useMemo(() => {
-    if (!error?.diagnosticReason) return "/diagnostic";
+    if (!error?.diagnosticReason) return withBasicNavigation("/diagnostic", basicNavigation);
     const params = new URLSearchParams({
       from: "login",
       reason: error.diagnosticReason,
       auto: "1",
     });
-    return `/diagnostic?${params.toString()}`;
-  }, [error?.diagnosticReason]);
+    return withBasicNavigation(`/diagnostic?${params.toString()}`, basicNavigation);
+  }, [error?.diagnosticReason, basicNavigation]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !supabaseReady) return;
@@ -389,12 +397,12 @@ export default function LoginPage() {
       });
       const verifiedEmail = String(userData?.user?.email || "").trim().toLowerCase();
       if (verifiedEmail) targetParams.set("email", verifiedEmail);
-      const target = `${targetPath}?${targetParams.toString()}`;
+      const target = withBasicNavigation(`${targetPath}?${targetParams.toString()}`, basicNavigation);
 
       // hard redirect + on garde l'historique propre
       window.location.replace(target);
     })();
-  }, [appLanguage, localizedDashboardHref, supabaseReady]);
+  }, [appLanguage, localizedDashboardHref, supabaseReady, basicNavigation]);
 
   useEffect(() => {
     setMounted(true);
@@ -463,11 +471,9 @@ export default function LoginPage() {
         process.env.NEXT_PUBLIC_APP_URL || window.location.origin
       ).replace(/\/$/, "");
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: buildSupabaseEmailRedirectUrl(
-          appOrigin,
-          "/auth/finish-reset",
-          appLanguage,
-        ),
+        redirectTo: basicNavigation
+          ? buildSupabaseEmailRedirectUrl(appOrigin, basicResetPresentationPath(appLanguage))
+          : buildSupabaseEmailRedirectUrl(appOrigin, "/auth/finish-reset", appLanguage),
       });
 
       if (error) {
@@ -875,7 +881,7 @@ export default function LoginPage() {
               <span>{t("noAccount")}</span>
               <a
                 className={styles.signupLink}
-                href={PUBLIC_SIGNUP_HREF}
+                href={basicNavigation ? BASIC_NAVIGATION_LINKS.signup : PUBLIC_SIGNUP_HREF}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -916,7 +922,7 @@ export default function LoginPage() {
           </form>
 
           <div className="pt-4 text-center text-xs text-slate-500">
-            <a className="underline" href="/diagnostic?from=login">{t("needHelp")}</a> {" · "}
+            <a className="underline" href={withBasicNavigation("/diagnostic?from=login", basicNavigation)}>{t("needHelp")}</a> {" · "}
             <a className="underline" href="mailto:contact@inrcy.com">
               contact@inrcy.com
             </a>

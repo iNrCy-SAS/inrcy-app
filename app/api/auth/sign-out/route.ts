@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabaseServer";
+import { isBasicNavigation, withBasicNavigation } from "@/lib/basicNavigation";
 
 export const runtime = "nodejs";
 
@@ -16,5 +17,6 @@ export async function POST(request: Request) {
     // temporarily unavailable.
   }
 
-  return NextResponse.redirect(new URL("/login", request.url), { status: 303 });
+  const basicNavigation = isBasicNavigation(new URL(request.url).searchParams.get("entry"));
+  return NextResponse.redirect(new URL(withBasicNavigation("/login", basicNavigation), request.url), { status: 303 });
 }

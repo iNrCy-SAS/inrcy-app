@@ -1,47 +1,85 @@
-# Inscription directe Basique — 1.0.1
+# Espace Basique iNrCy — 1.1.0
 
-Plugin indépendant, prévu uniquement pour `/basique/`. Il ne modifie ni le relais Elementor existant, ni `/inscription/`, ni les comptes et essais existants.
+Mini-site dans le WordPress actuel, sous `/basique/`, sans nouveau domaine. L’offre présentée est Basique à **29 € HT par mois**, avec **50 crédits médias mensuels**. Les onze canaux et les outils proviennent des politiques réelles de l’application ; les comptes connectés doivent être compatibles. L’application conserve la comparaison des trois packs et l’activation après paiement.
 
-## Parcours
+## Pages et bascule
 
-La page affiche une landing et le formulaire `inrcy_basic_signup`. Après la création réussie du compte, les identifiants sont présentés avec le renderer d’accès 1.6.1 : mot de passe temporaire masqué, Afficher/Copier et ouverture de l’application par POST du ticket à usage unique. Aucun rendez-vous ni bouton flottant de réservation n’est proposé sur cette page. L’application prend ensuite en charge le changement du mot de passe, `/activer-mon-compte`, le choix des trois packs et Stripe.
+La racine existante, sa valeur `inrcy_basic_signup_page_id` et son shortcode `[inrcy_basic_signup]` sont conservés. **Le mini-site est désactivé par défaut.** Tant que sa bascule est OFF, la racine garde la landing existante. Les nouveaux enfants sont fermés aux visiteurs : réponse neutre 503, noindex et non mise en cache, sans formulaire ni navigation. Les aperçus d’administrateur authentifié restent disponibles. Le shortcode enfant lui-même refuse aussi un rendu public lorsque la bascule est OFF.
 
-Le backend doit traiter ce parcours comme une inscription sans essai et attendre le paiement avant d’activer les outils payants. La mention près du bouton est « Résiliation avec préavis : un renouvellement mensuel supplémentaire. » Ce plugin ne crée aucune session Stripe et ne modifie aucun e-mail.
+| Vue | URL | Shortcode enfant |
+| --- | --- | --- |
+| Accueil | /basique/ | Racine existante : [inrcy_basic_signup] |
+| Fonctionnalités | /basique/fonctionnalites/ | [inrcy_basic_page view="features"] |
+| Tarif | /basique/tarif/ | [inrcy_basic_page view="pricing"] |
+| FAQ | /basique/faq/ | [inrcy_basic_page view="faq"] |
+| Inscription | /basique/inscription/ | [inrcy_basic_page view="signup"] |
+| Contact | /basique/contact/ | [inrcy_basic_page view="contact"] |
+| Conditions | /basique/conditions/ | [inrcy_basic_page view="terms"] |
+| Confidentialité | /basique/confidentialite/ | [inrcy_basic_page view="privacy"] |
+| Cookies | /basique/cookies/ | [inrcy_basic_page view="cookies"] |
+| Mentions légales | /basique/mentions-legales/ | [inrcy_basic_page view="legal"] |
 
-## Configuration serveur
+Les boutons de préparation et de bascule exigent `manage_options` et un nonce. La préparation crée uniquement les enfants manquants **en brouillon**. Elle ne remplace ni contenu, ni statut d’une page existante. Un conflit de vue est signalé. Un verrou SQL `INSERT IGNORE` à propriétaire unique évite les créations concurrentes ; récupération après 300 secondes et libération par comparaison exacte.
 
-La constante existante `INRCY_TRIAL_SIGNUP_TOKEN` de `wp-config.php` est réutilisée en priorité. Si elle est absente ou vide, un administrateur peut enregistrer le secret du backend dans Réglages > Inscription Basique iNrCy. Cette option est écrite avec `autoload=false`. Le champ reste toujours vide à l’affichage ; laisser vide conserve la valeur enregistrée. Aucun import de secret depuis des snippets ou d’autres tables n’est réalisé.
+La bascule ON vérifie dans WordPress les dix chemins réels : tous doivent être publiés, non protégés par mot de passe, avec la vue attendue. Elle exige aussi les trois corps juridiques revus, le consentement et le shortcode Complianz. Elle ne publie jamais de page. Les trois textes dédiés sont embarqués en entier dans `includes/legal/` : 47 articles, 38 rubriques et 19 sections ; le renderer ne récupère aucun texte juridique sur Internet.
 
-Le secret ne figure ni dans le HTML, ni dans les URL, ni dans le JavaScript, ni dans une réponse AJAX. Il est envoyé exclusivement dans l’en-tête `x-trial-signup-secret` de la requête HTTPS serveur vers l’URL fixe `https://app.inrcy.com/api/public/basic-signup`. Les redirections de cette requête sont désactivées. Une configuration absente ferme le formulaire sans appeler le backend.
+## Parcours et accès
 
-## Contrat API
+Le formulaire conserve le contrat `inrcy_basic_signup`. Après succès : identifiant et mot de passe provisoire masqué, Afficher/Copier, puis ouverture de l’application dans un nouvel onglet par POST du ticket à usage unique. La réservation et son bouton flottant sont désactivés. Le mot de passe, le choix de l’offre et le paiement restent gérés dans l’application. La règle de résiliation est conservée dans les conditions et dans le parcours applicatif ; elle n’est pas répétée dans le bloc commercial du formulaire.
 
-Requête JSON : `signup_mode: "direct_basic"`, `source: "wordpress-basique"`, `language: "fr"`, `first_name`, `last_name`, `email`, `company_name`, `phone`, `consent: true`, `website: ""` et les champs d’attribution autorisés par liste blanche. Le mode et la source sont imposés par PHP ; les valeurs du navigateur ne les remplacent pas. Les noms `form_fields[...]` permettent au script d’attribution existant de reconnaître le formulaire et de fournir son identifiant d’événement, sans toucher au parcours existant.
+Le lien de connexion est `https://app.inrcy.com/login?entry=basique`. Le renderer d’accès reprend la version vérifiée 1.6.1 avec des différences bornées et testées : nom de fonction/configuration propres ; `?entry=basique` ajouté à **l’action** du POST ; même contexte dans les deux replis de connexion avec e-mail. Le `login_url` reçu et son contrôle d’égalité exact restent `https://app.inrcy.com/api/auth/signup-access`. Le corps de ce POST contient **uniquement ticket**. Aucun identifiant privé dans une URL, le stockage du navigateur ou le suivi. Fermer la modale/quitter la page efface le reçu en mémoire. Une réponse perdue après création appelle la récupération normale du compte ; aucun renvoi d’un mot de passe existant.
 
-Réponse attendue : `{ok: true, direct_signup: true, activation_required: true, trial_days: 0, trial_end_at: null, signup_access: {email, password, ticket, expires_at, login_url}}`, où `login_url` vaut exactement `https://app.inrcy.com/api/auth/signup-access`. Les quatre marqueurs du parcours sans essai sont contrôlés strictement avant transmission du reçu ; une réponse d’essai ou d’un ancien backend est rejetée. Un ticket vide reste accepté pour afficher les identifiants et ouvrir la connexion avec l’e-mail prérempli. L’e-mail doit correspondre à la demande. La réponse WordPress transmet seulement ces quatre marqueurs validés et `inrcy_signup_access`, jamais le reste de la réponse backend ni un jeton de réservation. Le contrôleur JavaScript vérifie à nouveau les marqueurs avant d’afficher les accès.
+## Backend et secret inchangés
 
-Les identifiants restent dans la réponse AJAX et la mémoire de la page. Ils ne sont pas persistés, envoyés au suivi ou placés en URL. Fermer la modale ou quitter la page les efface. Une perte de réponse après création nécessite la récupération normale du compte ; le plugin ne redemande jamais un mot de passe existant au backend.
+La constante serveur existante `INRCY_TRIAL_SIGNUP_TOKEN` est prioritaire. Si elle est vide ou absente, le réglage administrateur utilise une option `autoload=false`. Le champ secret reste vide à l’affichage ; aucune lecture d’autres snippets/tables, aucun secret dans HTML, configuration JS, URL, suivi ou réponse AJAX.
 
-## Installation et publication
+PHP impose `signup_mode: "direct_basic"`, `source: "wordpress-basique"`, `language: "fr"`. Les autres champs sont prénom, nom, e-mail, société facultative, téléphone, consentement et honeypot vide. L’attribution est filtrée par liste blanche. La requête serveur utilise uniquement l’URL HTTPS fixe `https://app.inrcy.com/api/public/basic-signup`, l’en-tête `x-trial-signup-secret`, un délai de 20 secondes et aucune redirection.
 
-1. Déployer d’abord le backend compatible et le parcours applicatif sans essai.
-2. Installer l’archive de ce plugin, sans remplacer le plugin Rendez-vous existant.
-3. Vérifier la configuration serveur dans sa page de réglages. Ne jamais saisir un secret dans un shortcode ou Elementor.
-4. Utiliser « Créer ou retrouver le brouillon ». L’action exige les droits administrateur et un nonce. Elle crée seulement un brouillon `/basique` avec `[inrcy_basic_signup]` si le chemin est libre. Si une page existe, elle est ouverte en édition sans être modifiée. Rien n’est publié automatiquement.
-5. Prévisualiser le brouillon et vérifier le formulaire, la modale d’accès, le nouvel onglet, le changement du mot de passe, les trois offres et Stripe. Vérifier en parallèle que `/inscription/` conserve son parcours d’essai et de rendez-vous.
-6. Publier la page via WordPress une fois ces contrôles terminés. Exclure `/basique/` du cache de page pour conserver un nonce frais ; la réponse AJAX est toujours non mise en cache.
+Le reçu backend doit avoir strictement `ok: true`, `direct_signup: true`, `activation_required: true`, `trial_days: 0`, `trial_end_at: null` et `signup_access: {email,password,ticket,expires_at,login_url}`. L’e-mail doit correspondre à la demande, l’endpoint doit être exact, et les champs supplémentaires sont supprimés. Un ticket vide autorise le repli manuel. PHP puis le contrôleur JS refusent les réponses d’un autre parcours. Aucun paiement n’est créé par le plugin. Aucun e-mail modifié.
 
-Le template autonome utilise `wp_head`, `wp_body_open` et `wp_footer` : les mécanismes de consentement existants peuvent continuer à fonctionner. Il n’inclut pas le header commercial de l’essai. Sur cette page seulement, les anciens handles `inrcy-visio-booking` sont désenregistrés de la file d’affichage. Le renderer copié utilise `inrcyBasicSignupAccessConfig` avec réservation désactivée. Les autres pages et réglages restent indépendants.
+## Attribution, cookies et métadonnées
 
-## Sources et archive
+La copie dédiée `basic-meta-attribution.js` est chargée **synchroniquement au début de wp_head**, seulement dans le nouveau mini-site. Elle pose le même guard que le snippet global inchangé : ce dernier ne démarre donc pas une deuxième fois dans cet espace. Son démarrage attend le DOM. Le formulaire public est reconnu par son nom exact ; le formulaire privé d’accès est exclu. Le Lead porte le libellé Basique et n’est envoyé au Pixel qu’avec consentement marketing. Le mécanisme Pixel lui-même et les anciennes pages ne sont pas modifiés. UTM, page d’arrivée, source de l’événement et identifiant de déduplication persistent pendant la navigation interne ; aucune navigation ne soumet de formulaire.
 
-`basic-access.js` et `basic-access.css` proviennent de l’accès immédiat WordPress 1.6.1. Seuls le nom de la fonction principale et le nom de configuration JS changent pour isoler la page. Le logo est identique. Les tests vérifient ces copies contre les sources existantes.
+La page Cookies utilise le moteur Complianz existant, via le shortcode exact `[cmplz-document type="cookie-statement" region="eu"]`. Elle conserve les conteneurs de liste des services et de gestion du consentement. Aucun inventaire statique, nouvelle catégorie ou modification de préférence globale. Les href connus du site général sont remappés vers les équivalents Basique côté PHP, y compris sans JS ; l’adaptation DOM ciblée couvre les liens de bandeau créés ensuite. Les ancres locales, requêtes, fragments, liens externes et contrôles restent fonctionnels. Les métadonnées de document canoniques globales de Complianz ne sont pas réassignées.
 
-Depuis la racine du dépôt :
+La source Complianz 7.5.7 confirme que sa détection automatique ne voit pas le shortcode contenu dans notre wrapper. Sur la seule vue Cookies rendue, le plugin charge donc explicitement le handle CSS natif `cmplz-document` ou `cmplz-document-grid`, selon le réglage existant, ainsi que ses styles personnalisés et la classe body `cmplz-document`. Le moteur de bandeau global initialise lui-même les commandes dans `.cmplz-manage-consent-container` ; la liste des services est produite côté serveur par `cmplz_used_cookies()`. Il n’existe pas de second script de document à inventer. Aucun identifiant de politique, méta de page ou réglage Complianz n’est écrit.
 
-```sh
-node ops/wordpress-basic-signup/build-package.mjs /chemin/absolu/vers/outputs
+Le template autonome appelle `wp_head`, `wp_body_open` et `wp_footer`. Les en-têtes/footer promotionnels Astra/Elementor ne sont pas inclus. Les anciens handles visio sont retirés uniquement des pages de ce plugin. Les filtres SEO sont limités au nouveau rendu : titre, description, canonical, OpenGraph et Twitter dédiés ; le graphe Rank Math général est remplacé par un JSON-LD Basique local (29 € HT mensuels et FAQ réelle). Aperçus administrateur : noindex et canonical public sans nonce. Les autres pages gardent leurs filtres et leur offre actuels.
+
+Sources primaires d’intégration : [Complianz document 7.5.7](https://github.com/complianz/complianz-gdpr/blob/v7.5.7/documents/class-document.php), [liste des services côté serveur](https://github.com/complianz/complianz-gdpr/blob/v7.5.7/functions.php#L1875-L2013), [moteur de bandeau](https://github.com/complianz/complianz-gdpr/blob/v7.5.7/cookiebanner/class-banner-loader.php), [initialisation navigateur](https://github.com/complianz/complianz-gdpr/blob/v7.5.7/cookiebanner/js/complianz.js), [Rank Math métadonnées](https://rankmath.com/docs/filters-and-hooks/frontend/meta-data/), [OpenGraph](https://rankmath.com/docs/filters-and-hooks/frontend/open-graph/), [JSON-LD](https://rankmath.com/docs/filters-and-hooks/frontend/rich-snippets/).
+
+## Déploiement contrôlé
+
+1. Préparer et vérifier l’application compatible avec les liens `entry=basique`, puis la déployer avant la bascule visiteurs. Le plugin OFF, les brouillons, leur aperçu et la publication des enfants encore fermés peuvent être préparés d’abord ; attendre ensuite que l’application soit READY avant ON, pour que ses nouveaux liens dédiés trouvent des pages prêtes. Conserver une sauvegarde du plugin 1.0.1 et les valeurs des options de bascule/pages, sans exporter de secret.
+2. Mettre **à jour le plugin existant** `inrcy-basic-signup` avec l’archive 1.1.0 ; ne pas installer une deuxième copie. Vérifier que la bascule est OFF. Aucune page n’est créée/publiée lors de l’activation du plugin.
+3. Dans Réglages > Inscription Basique iNrCy, vérifier le statut serveur, puis « Préparer les pages en brouillon ». La racine existante 12815 reste intacte. Résoudre manuellement tout conflit signalé : aucune page existante n’est écrasée.
+4. Ouvrir « Prévisualiser le mini-site » en administrateur, puis les dix vues via la navigation d’aperçu. Vérifier desktop/mobile, les textes intégraux et liens du consentement, le formulaire compact et l’identité Basique du login/reset. Le nonce d’aperçu ne remplace pas l’authentification administrateur.
+5. Dans le **vrai aperçu WordPress**, vérifier les assets Complianz, la liste des services/cookies et les commandes de préférences. Vérifier le bandeau dynamique et ses liens Basique. Les tests locaux vérifient l’intégration mais ne reproduisent pas les réglages du CMP de production. Vérifier Meta avec consentement refusé puis accepté, sans inscription réelle non autorisée.
+6. Après revue et autorisation de publication, publier les neuf enfants dans WordPress, avec leur shortcode exact et sans protection par mot de passe. La bascule encore OFF laisse leurs routes publiques fermées (503/noindex). Vérifier que les dix chemins sont prêts.
+7. Cocher « Activer le mini-site revu pour les visiteurs » puis enregistrer. L’action refuse toute page manquante, brouillon, conflit, protection ou dépendance absente ; l’unique option de bascule est modifiée après validation.
+8. Purger le cache WordPress/CDN et les CSS/JS. Exclure `/basique/` et ses enfants du cache de page pour conserver les nonces frais ; PHP pose aussi les protections de cache et l’AJAX est non mis en cache.
+9. Vérifier par HTTP et navigateur les dix routes publiques, versions/hash des assets, liens/aperçus sociaux, cookie manager et absence de sortie vers les pages commerciales générales. Si un test d’inscription est autorisé, contrôler reçu, nouvel onglet avec ticket seul, changement du mot de passe, trois offres et paiement explicite. Un contrôle d’interface seul ne vaut pas test de souscription réelle.
+10. Vérifier séparément que `/inscription/` garde son formulaire, ses assets visio 1.6.1, son parcours et ses rendez-vous. Ne modifier ni son contenu ni le snippet d’attribution global.
+
+**Retour arrière :** décocher la bascule puis enregistrer et purger les caches. La racine retrouve la landing existante ; les enfants repassent 503/noindex sans formulaire. Pour un retour arrière complet, coordonner aussi la restauration de la version applicative correspondante : une application qui utilise les nouveaux liens juridiques ne doit pas continuer à diriger vers des enfants fermés. Aucune page ni aucun compte n’est supprimé, et aucun abonnement n’est modifié. Dépublier les enfants reste une action WordPress explicite si souhaité. Le retour au ZIP précédent est possible après bascule OFF ; conserver les sauvegardes et vérifier l’ancienne racine avant de relancer une campagne.
+
+## Vérification et paquet
+
+Les tests rendent **les vrais fichiers PHP du plugin** dans un shim WordPress local ; aucun retrait de balises PHP par regex. Le binaire vient de `PHP_BINARY` ou de `php` dans PATH : son absence fait échouer clairement les tests. Ubuntu CI utilise son PHP ; Windows peut utiliser un runtime portable officiel sans l’ajouter au dépôt.
+
+```powershell
+$env:PHP_BINARY='C:/chemin/vers/php.exe'
 node --test --test-isolation=none --experimental-strip-types tests/wordpress-basic-signup/*.test.mts
+node ops/wordpress-basic-signup/build-package.mjs C:/chemin/absolu/outputs
 ```
 
-L’archive reproductible contient uniquement les fichiers du plugin, sous `inrcy-basic-signup/`, avec un manifeste SHA-256 séparé. Elle ne contient aucune valeur de configuration.
+Le preview local n’accède à aucun .env/wp-config/secret. Il sert une liste blanche de vues/assets depuis un docroot dédié et refuse tout POST. Bind local uniquement, depuis la racine du dépôt :
+
+```powershell
+& $env:PHP_BINARY -n -S 127.0.0.1:8789 -t tests/wordpress-basic-signup/preview-root tests/wordpress-basic-signup/preview-router.php
+```
+
+Puis ouvrir `http://127.0.0.1:8789/basique/`. Les documents sont les corps embarqués ; le CMP du shim reste synthétique et le formulaire ne peut soumettre aucune requête réelle.
+
+L’archive déterministe contient uniquement la liste explicite des fichiers du plugin sous `inrcy-basic-signup/`, dont les trois corps juridiques complets. Aucun test, source externe téléchargée, configuration, runtime PHP ou secret. Le builder contrôle les empreintes de chaque entrée après réouverture du ZIP et produit un manifeste SHA-256 séparé.

@@ -9,6 +9,7 @@ import { getClientUserFacingErrorMessage } from "@/lib/userFacingErrors";
 import ConnectionRecovery from "./ConnectionRecovery";
 
 import styles from "./diagnostic.module.css";
+import { isBasicNavigation, withBasicNavigation } from "@/lib/basicNavigation";
 
 type Severity = "ok" | "warn" | "error" | "running" | "pending";
 
@@ -235,6 +236,7 @@ export default function DiagnosticClient() {
   const i18nT = useTranslations("public");
   const locale = useLocale();
   const searchParams = useSearchParams();
+  const basicNavigation = isBasicNavigation(searchParams.get("entry"));
   const from = searchParams.get("from") || "direct";
   const reason = searchParams.get("reason") || "manual";
   const auto = searchParams.get("auto") === "1";
@@ -435,7 +437,7 @@ export default function DiagnosticClient() {
         </div>
       </section>
 
-      <ConnectionRecovery checks={checks} running={running} />
+      <ConnectionRecovery checks={checks} running={running} basicNavigation={basicNavigation} />
 
       <section className={styles.checkGrid}>
         {checks.map((check) => (
@@ -472,7 +474,7 @@ export default function DiagnosticClient() {
           <button type="button" className={styles.primaryButton} onClick={() => void sendReport(false)} disabled={sendState === "sending" || running}>
             {sendState === "sending" ? i18nT("envoi_en_cours_2de80069") : i18nT("envoyer_a_inrcy_3188b6db")}
           </button>
-          <a className={styles.backLink} href="/login">{i18nT("retour_connexion_a1ee2d62")}</a>
+          <a className={styles.backLink} href={withBasicNavigation("/login", basicNavigation)}>{i18nT("retour_connexion_a1ee2d62")}</a>
         </div>
 
         {sendMessage ? <div className={styles.sendStatus} data-state={sendState}>{sendMessage}</div> : null}

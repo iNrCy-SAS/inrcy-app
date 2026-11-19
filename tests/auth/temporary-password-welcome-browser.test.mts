@@ -30,6 +30,7 @@ const sources = {
   component: compile("app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx"),
   policy: compile("lib/passwordPolicy.ts"),
   arrival: compile("app/dashboard/_hooks/useAssistantFirstArrival.ts"),
+  navigation: compile("lib/basicNavigation.ts"),
 };
 
 async function setup(page: Page, props: Record<string, unknown> = {}, options: { authUserHangs?: boolean } = {}) {
@@ -56,6 +57,7 @@ async function setup(page: Page, props: Record<string, unknown> = {}, options: {
     };
     function require(name){
       if(name==='@/lib/passwordPolicy')return require('policy');
+      if(name==='@/lib/basicNavigation')return require('navigation');
       if(Object.hasOwn(modules,name))return modules[name];if(cache[name])return cache[name].exports;
       if(!Object.hasOwn(sources,name))throw Error('Unexpected import '+name);
       const module=cache[name]={exports:{}};new Function('require','module','exports','process',sources[name])(require,module,module.exports,process);return module.exports;

@@ -1,4 +1,5 @@
 import SwitchAccountClient from './SwitchAccountClient';
+import { isBasicNavigation } from "@/lib/basicNavigation";
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -19,6 +20,7 @@ export default async function SwitchAccountPage({ searchParams }: PageProps) {
       currentEmail={pickFirst(resolved.current_email)}
       expectedEmail={pickFirst(resolved.expected_email)}
       continuePath={pickFirst(resolved.continue)}
+      basicNavigation={isBasicNavigation(pickFirst(resolved.entry))}
     />
   );
 }

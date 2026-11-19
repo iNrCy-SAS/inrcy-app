@@ -1,121 +1,180 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { chromium, type Browser } from "@playwright/test";
+import { pages, read, render, type View } from "./php-fixture.mts";
 
-const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta.url), "utf8");
 const email = "synthetic+basic@example.invalid", password = "Synthetic!Password123", ticket = "synthetic-basic-private-ticket";
-const receipt = () => ({ email, password, ticket, expires_at: new Date(Date.now() + 3600000).toISOString(), login_url: "https://app.inrcy.com/api/auth/signup-access" });
-const php = read("ops/wordpress-basic-signup/inrcy-basic-signup.php");
-const markup = php.slice(php.indexOf('<main class="inrcy-basic-page">'), php.indexOf("</main>") + 7)
-  .replace(/<\?php if \(!\$configured\) : \?>[\s\S]*?<\?php endif; \?>/, "")
-  .replace(/<\?php[\s\S]*?\?>/g, "");
-
-async function fixture(browser: Browser, failFirst = false, trialReceipt = false, themeCollision = false) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 700 } });
-  const page = await context.newPage(), errors: string[] = [], posts: Array<{ url: string; body: string; headers: Record<string, string> }> = [];
+type FixtureOptions = { failFirst?: boolean; trialReceipt?: boolean; emptyTicket?: boolean; expiredTicket?: boolean; marketingConsent?: boolean; legacy?: boolean; preview?: boolean; noJS?: boolean };
+async function fixture(browser: Browser, options: FixtureOptions = {}) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, javaScriptEnabled: !options.noJS });
+  const page = await context.newPage(), errors: string[] = [], unexpected: string[] = [], posts: Array<{ url: string; body: string; headers: Record<string, string> }> = [];
+  const html = new Map<string, string>();
+  for (const [view, path] of Object.entries(pages)) html.set(path, render(view as View, { marketingConsent: options.marketingConsent, ...(options.legacy ? { options: { inrcy_basic_signup_page_id: 12815, inrcy_basic_site_enabled: "0" } } : {}), ...(options.preview ? { admin: true, preview: true } : {}) }));
   page.on("pageerror", error => errors.push(error.message));
   let attempts = 0;
   await context.route("**/*", async route => {
-    const request = route.request(), url = request.url();
-    if (url === "https://inrcy.com/basique/") {
-      await route.fulfill({ contentType: "text/html", body: `<!doctype html><html><head><meta charset="utf-8"><style>${read("ops/wordpress-basic-signup/basic-access.css")}${read("ops/wordpress-basic-signup/basic-signup.css")}</style>${themeCollision ? '<style>body.elementor-kit-1363{color:white;background:transparent;font-family:Georgia,serif;font-size:21px;line-height:1.9}</style>' : ""}</head><body class="inrcy-basic-standalone${themeCollision ? " elementor-kit-1363" : ""}">${markup}<script>var callbacks=[];window.jQuery=function(target){return{on:function(name,cb){callbacks.push({name,cb});return this;},off:function(name){callbacks=callbacks.filter(item=>item.name!==name);return this;},trigger:function(name,args){callbacks.filter(item=>item.name.split('.')[0]===name).forEach(item=>item.cb({target},...(args||[])));}}};window.inrcyBasicSignupAccessConfig={showBooking:"",signupFormName:"inrcy_basic_signup"};window.inrcyBasicSignupConfig={ajaxUrl:"https://inrcy.com/wp-admin/admin-ajax.php",nonce:"synthetic-public-nonce"};</script><script>${read("ops/wordpress-basic-signup/basic-access.js")}</script><script>${read("ops/wordpress-meta-attribution/inrcy-meta-attribution.js")}</script><script>${read("ops/wordpress-basic-signup/basic-signup.js")}</script></body></html>` });
+    const request = route.request(), url = new URL(request.url());
+    if (request.method() === "POST") posts.push({ url: request.url(), body: request.postData() ?? "", headers: request.headers() });
+    if (url.origin === "https://inrcy.com" && html.has(url.pathname)) {
+      if (options.preview && url.searchParams.has("inrcy_basic_view")) {
+        const view = url.searchParams.get("inrcy_basic_view") as View;
+        assert.ok(view in pages);
+        await route.fulfill({ contentType: "text/html", body: html.get(pages[view])! }); return;
+      }
+      await route.fulfill({ contentType: "text/html", body: html.get(url.pathname)! }); return;
+    }
+    if (url.pathname === "/wp-admin/admin-ajax.php" && request.method() === "POST") {
+      attempts += 1;
+      if (options.failFirst && attempts === 1) await route.fulfill({ status: 409, json: { success: false, data: { message: "Un compte existe déjà avec cet e-mail." } } });
+      else await route.fulfill({ json: { success: true, data: { direct_signup: !options.trialReceipt, activation_required: !options.trialReceipt, trial_days: options.trialReceipt ? 21 : 0, trial_end_at: options.trialReceipt ? "2099-01-01" : null, inrcy_signup_access: { email, password, ticket: options.emptyTicket ? "" : ticket, expires_at: options.expiredTicket ? "2000-01-01T00:00:00Z" : "2099-01-01T00:00:00Z", login_url: "https://app.inrcy.com/api/auth/signup-access" } } } });
       return;
     }
-    if (request.method() === "POST") posts.push({ url, body: request.postData() ?? "", headers: request.headers() });
-    if (url.endsWith("admin-ajax.php")) {
-      attempts += 1;
-      if (failFirst && attempts === 1) await route.fulfill({ status: 409, json: { success: false, data: { message: "Un compte existe déjà avec cet e-mail." } } });
-      else await route.fulfill({ json: { success: true, data: { direct_signup: !trialReceipt, activation_required: !trialReceipt, trial_days: trialReceipt ? 21 : 0, trial_end_at: trialReceipt ? new Date(Date.now() + 21 * 86400000).toISOString() : null, inrcy_signup_access: receipt() } } });
-    } else if (url.endsWith("/api/auth/signup-access")) await route.fulfill({ contentType: "text/html", body: "<h1>Synthetic Basic account</h1>" });
-    else await route.fulfill({ body: "" });
+    if (url.origin === "https://app.inrcy.com" && (url.pathname === "/api/auth/signup-access" || url.pathname === "/login")) { await route.fulfill({ contentType: "text/html", body: "<h1>Synthetic Basic account</h1>" }); return; }
+    const asset = url.pathname.split("/").at(-1)!;
+    if (url.pathname.startsWith("/wp-content/plugins/inrcy-basic-signup/") && ["basic-access.css", "basic-access.js", "basic-signup.css", "basic-signup.js", "basic-site.css", "basic-site.js", "basic-meta-attribution.js"].includes(asset)) {
+      await route.fulfill({ contentType: asset.endsWith(".css") ? "text/css" : "text/javascript", body: read("ops/wordpress-basic-signup/" + asset) }); return;
+    }
+    if (url.pathname === "/__basic-preview/meta-attribution.js") { await route.fulfill({ contentType: "text/javascript", body: read("ops/wordpress-meta-attribution/inrcy-meta-attribution.js") }); return; }
+    if (url.origin === "https://cmp.example.invalid" && /^\/assets\/css\/document(?:-grid)?\.min\.css$/.test(url.pathname)) { await route.fulfill({ contentType: "text/css", body: "/* synthetic CMP asset: production settings are verified separately */" }); return; }
+    if (asset === "logo-inrcy-transparent.png" || url.pathname === "/favicon.ico") { await route.fulfill({ status: 204 }); return; }
+    unexpected.push(request.method() + " " + request.url()); await route.abort();
   });
-  await page.goto("https://inrcy.com/basique/");
-  await page.getByLabel("Nom", { exact: true }).fill("Synthetic");
-  await page.getByLabel("Prénom", { exact: true }).fill("Basic");
-  await page.getByLabel("E-mail", { exact: true }).fill(email);
-  await page.getByLabel("Tél.", { exact: true }).fill("0102030405");
-  await page.getByRole("checkbox").check();
-  return { context, page, posts, errors };
+  await page.goto("https://inrcy.com/basique/inscription/");
+  const fill = async () => {
+    await page.getByLabel("Nom", { exact: true }).fill("Synthetic");
+    await page.getByLabel("Prénom", { exact: true }).fill("Basic");
+    await page.getByLabel("E-mail", { exact: true }).fill(email);
+    await page.getByLabel("Tél.", { exact: true }).fill("0102030405");
+    await page.getByRole("checkbox").check();
+  };
+  const clean = () => { assert.deepEqual(errors, []); assert.deepEqual(unexpected, []); };
+  return { context, page, posts, fill, clean };
 }
 
-test("Basic page submits once, preserves attribution and reveals access without an appointment; only its ticket enters the new tab", async () => {
+test("real PHP page submits once; dedicated plus unchanged global attribution never enriches the private ticket POST", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
-    const f = await fixture(browser);
-    await f.page.evaluate(() => {
-      const form = document.querySelector('form[name="inrcy_basic_signup"]') as HTMLFormElement;
-      form.requestSubmit(); form.requestSubmit();
-    });
+    const f = await fixture(browser, { marketingConsent: true }); await f.fill();
+    await f.page.evaluate(() => { const form = document.querySelector('form[name="inrcy_basic_signup"]') as HTMLFormElement; form.requestSubmit(); form.requestSubmit(); });
     await f.page.getByRole("heading", { name: "Votre compte est prêt !" }).waitFor();
-    assert.equal(f.posts.length, 1);
-    assert.match(f.posts[0].body, /form_fields\[event_id\]/);
-    assert.match(f.posts[0].body, /synthetic-public-nonce/);
+    assert.equal(f.posts.length, 1); assert.match(f.posts[0].body, /form_fields\[event_id\]/);
     assert.equal(f.posts[0].headers["x-trial-signup-secret"], undefined);
     assert.equal(await f.page.getByLabel("Votre mot de passe temporaire", { exact: true }).inputValue(), password);
     assert.equal(await f.page.getByLabel("Votre mot de passe temporaire", { exact: true }).getAttribute("type"), "password");
     assert.equal(await f.page.locator("#inrcy-visio-reopen").count(), 0);
-    assert.doesNotMatch(await f.page.locator("body").innerText(), /21 jours|Réserver ma mise en route/);
-    assert.match(await f.page.locator("body").innerText(), /Résiliation avec préavis : un renouvellement mensuel supplémentaire\./);
     const popup = f.context.waitForEvent("page");
     await f.page.getByRole("button", { name: "Accéder à mon compte" }).click();
-    const account = await popup;
-    await account.getByRole("heading", { name: "Synthetic Basic account" }).waitFor();
-    const post = f.posts.find(item => item.url.endsWith("/api/auth/signup-access"));
+    const account = await popup; await account.getByRole("heading", { name: "Synthetic Basic account" }).waitFor();
+    const post = f.posts.find(item => new URL(item.url).pathname === "/api/auth/signup-access")!;
     assert.ok(post); assert.deepEqual([...new URLSearchParams(post.body)], [["ticket", ticket]]);
-    assert.equal(post.headers.origin, "https://inrcy.com");
+    assert.equal(new URL(post.url).search, "?entry=basique"); assert.equal(post.headers.origin, "https://inrcy.com");
     assert.equal(await account.evaluate(() => window.opener), null);
-    const storage = await f.page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }));
-    assert.equal(storage.includes(password) || storage.includes(ticket), false);
-    assert.deepEqual(f.errors, []);
+    const persisted = await f.page.evaluate(() => JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage }, pixel: (window as unknown as { __basicPreviewPixel: unknown[] }).__basicPreviewPixel }));
+    assert.equal(persisted.includes(password) || persisted.includes(ticket), false);
+    f.clean();
   } finally { await browser.close(); }
 });
 
-test("a rejected Basic signup displays no credentials and leaves the form available to correct and retry", async () => {
+test("failed signup permits correction/retry and rejects a trial receipt without exposing credentials", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
-    const f = await fixture(browser, true), submit = f.page.getByRole("button", { name: "Créer mon compte et choisir mon offre" });
-    await submit.click();
-    await f.page.getByText("Un compte existe déjà avec cet e-mail.", { exact: true }).waitFor();
-    assert.equal(await f.page.getByRole("dialog").count(), 0);
-    assert.equal(await submit.isEnabled(), true);
-    await submit.click();
-    await f.page.getByRole("heading", { name: "Votre compte est prêt !" }).waitFor();
-    assert.equal(f.posts.length, 2);
-    assert.deepEqual(f.errors, []);
+    const retry = await fixture(browser, { failFirst: true }); await retry.fill();
+    const submit = retry.page.getByRole("button", { name: "Créer mon compte et choisir mon offre" });
+    await submit.click(); await retry.page.getByText("Un compte existe déjà avec cet e-mail.", { exact: true }).waitFor();
+    assert.equal(await retry.page.getByRole("dialog").count(), 0); assert.equal(await submit.isEnabled(), true);
+    await submit.click(); await retry.page.getByRole("heading", { name: "Votre compte est prêt !" }).waitFor(); assert.equal(retry.posts.length, 2); retry.clean();
+    const trial = await fixture(browser, { trialReceipt: true }); await trial.fill();
+    await trial.page.getByRole("button", { name: "Créer mon compte et choisir mon offre" }).click();
+    await trial.page.getByText("La création du compte n’a pas pu être confirmée. Réessayez plus tard.", { exact: true }).waitFor();
+    assert.equal(await trial.page.getByRole("dialog").count(), 0); trial.clean();
   } finally { await browser.close(); }
 });
 
-test("a trial receipt cannot open the Basic account-access modal", async () => {
+test("empty or expired tickets keep manual login in the Basic entry with only email, never a password", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
-    const f = await fixture(browser, false, true);
-    await f.page.getByRole("button", { name: "Créer mon compte et choisir mon offre" }).click();
-    await f.page.getByText("La création du compte n’a pas pu être confirmée. Réessayez plus tard.", { exact: true }).waitFor();
-    assert.equal(await f.page.getByRole("dialog").count(), 0);
-    assert.equal(await f.page.getByLabel("Votre mot de passe temporaire", { exact: true }).count(), 0);
-    assert.equal(f.posts.length, 1);
-    assert.deepEqual(f.errors, []);
+    for (const options of [{ emptyTicket: true }, { expiredTicket: true }]) {
+      const f = await fixture(browser, options); await f.fill();
+      await f.page.getByRole("button", { name: "Créer mon compte et choisir mon offre" }).click();
+      await f.page.getByRole("heading", { name: "Votre compte est prêt !" }).waitFor();
+      if (options.expiredTicket) await f.page.getByRole("button", { name: "Accéder à mon compte" }).click();
+      const link = f.page.getByRole("link", { name: options.expiredTicket ? "Ouvrir la connexion" : "Accéder à mon compte" });
+      await link.waitFor();
+      const url = new URL((await link.getAttribute("href"))!);
+      assert.equal(url.pathname, "/login"); assert.deepEqual([...url.searchParams], [["entry", "basique"], ["email", email]]);
+      assert.equal(f.posts.length, 1); f.clean();
+    }
   } finally { await browser.close(); }
 });
 
-test("the Basic price and steps remain readable when Elementor applies white text and 21px typography after the plugin stylesheet", async () => {
+test("mobile signup stays compact/readable despite Elementor typography, and the menu supports Escape/focus", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
-    const f = await fixture(browser, false, false, true);
-    const computed = await f.page.evaluate(() => {
-      const style = (selector: string) => getComputedStyle(document.querySelector(selector)!);
-      return { background: style("body").backgroundColor, price: style(".inrcy-basic-price").color,
-        steps: [...document.querySelectorAll(".inrcy-basic-pitch li")].map(element => getComputedStyle(element).color),
-        pageFontSize: style(".inrcy-basic-page").fontSize, heroFontSize: style(".inrcy-basic-hero").fontSize,
-        heroLineHeight: style(".inrcy-basic-hero").lineHeight, heroFontFamily: style(".inrcy-basic-hero").fontFamily };
-    });
-    assert.equal(computed.background, "rgb(244, 247, 252)");
-    assert.equal(computed.price, "rgb(19, 36, 66)");
-    assert.deepEqual(computed.steps, ["rgb(19, 36, 66)", "rgb(19, 36, 66)", "rgb(19, 36, 66)"]);
-    assert.equal(computed.pageFontSize, "16px"); assert.equal(computed.heroFontSize, "16px"); assert.equal(computed.heroLineHeight, "24px");
-    assert.match(computed.heroFontFamily, /Inter/);
-    await f.page.getByText("Abonnement mensuel. Sans période d’essai.", { exact: true }).waitFor();
-    assert.equal(f.posts.length, 0); assert.deepEqual(f.errors, []);
+    const f = await fixture(browser);
+    const first = await f.page.getByLabel("Nom", { exact: true }).boundingBox();
+    assert.ok(first && first.y < 400);
+    const dimensions = await f.page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, font: getComputedStyle(document.querySelector(".inrcy-basic-site")!).fontSize, color: getComputedStyle(document.querySelector(".basic-site-signup-inline-price")!).color }));
+    assert.equal(dimensions.client, dimensions.scroll); assert.equal(dimensions.font, "16px"); assert.notEqual(dimensions.color, "rgb(255, 255, 255)");
+    const menu = f.page.getByRole("button", { name: "Menu" }); await menu.click();
+    assert.equal(await menu.getAttribute("aria-expanded"), "true"); await f.page.keyboard.press("Escape");
+    assert.equal(await menu.getAttribute("aria-expanded"), "false"); assert.equal(await menu.evaluate(node => node === document.activeElement), true);
+    assert.equal(f.posts.length, 0); f.clean();
+  } finally { await browser.close(); }
+});
+
+test("cookie documents preserve exact shortcode controls and no-JS confinement; late manager links preserve query/fragment and click behavior", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const plain = await fixture(browser, { noJS: true }); await plain.page.goto("https://inrcy.com/basique/cookies/");
+    assert.equal(await plain.page.locator("#cmplz-document a").first().getAttribute("href"), "https://inrcy.com/basique/");
+    assert.equal(await plain.page.getByRole("link", { name: "Aller aux préférences" }).getAttribute("href"), "#cookie-preferences");
+    assert.equal(await plain.page.getByRole("link", { name: "Fournisseur externe" }).getAttribute("href"), "https://provider.example.invalid/privacy");
+    assert.equal(await plain.page.locator("#cmplz-cookies-overview").count(), 1); plain.clean();
+    for (const preview of [false, true]) {
+      const f = await fixture(browser, { preview }); await f.page.goto("https://inrcy.com/basique/cookies/");
+      await f.page.evaluate(() => {
+        const manager = document.getElementById("cmplz-manage-consent-container")!;
+        manager.insertAdjacentHTML("beforeend", '<a href="#cmplz-manage-consent-container" data-local>Gérer localement</a><a href="https://www.inrcy.com/politique-de-confidentialite/?lang=fr#details" data-policy>Document</a>');
+        manager.querySelector("[data-local]")!.addEventListener("click", event => { event.preventDefault(); manager.setAttribute("data-clicked", "1"); });
+        manager.querySelector("[data-cookie-choice=deny]")!.addEventListener("click", () => manager.setAttribute("data-choice", "deny"));
+      });
+      await f.page.waitForFunction(() => document.querySelector("[data-policy]")!.getAttribute("href")!.includes("/basique/"));
+      assert.equal(await f.page.locator("[data-local]").getAttribute("href"), "#cmplz-manage-consent-container");
+      const target = new URL((await f.page.locator("[data-policy]").getAttribute("href"))!);
+      assert.equal(target.searchParams.get("lang"), "fr"); assert.equal(target.hash, "#details");
+      assert.equal(preview ? target.searchParams.get("inrcy_basic_view") : target.pathname, preview ? "privacy" : "/basique/confidentialite/");
+      await f.page.locator("[data-local]").click(); assert.equal(await f.page.locator("#cmplz-manage-consent-container").getAttribute("data-clicked"), "1");
+      await f.page.locator("[data-cookie-choice=deny]").click(); assert.equal(await f.page.locator("#cmplz-manage-consent-container").getAttribute("data-choice"), "deny");
+      assert.equal(f.posts.length, 0); f.clean();
+    }
+  } finally { await browser.close(); }
+});
+
+test("navigation retains campaign landing and event source across home/features/signup, with marketing denied or accepted", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const ids: string[] = [];
+    for (const consent of [false, true]) {
+      const f = await fixture(browser, { marketingConsent: consent });
+      await f.page.goto("https://inrcy.com/basique/?utm_source=meta&utm_campaign=synthetic-campaign");
+      await f.page.setViewportSize({ width: 1200, height: 900 });
+      await f.page.locator("#basic-site-navigation").getByRole("link", { name: "Fonctionnalités", exact: true }).click();
+      await f.page.locator(".basic-site-header").getByRole("link", { name: "Créer mon compte", exact: true }).click();
+      assert.equal(f.posts.length, 0); await f.fill();
+      const fields = await f.page.locator('form[name="inrcy_basic_signup"]').evaluate(form => Object.fromEntries(new FormData(form as HTMLFormElement)));
+      assert.equal(fields["form_fields[utm_campaign]"], "synthetic-campaign");
+      assert.equal(fields["form_fields[landing_page_url]"], "https://inrcy.com/basique/?utm_source=meta&utm_campaign=synthetic-campaign");
+      assert.equal(new URL(String(fields["form_fields[event_source_url]"])).pathname, "/basique/inscription/");
+      assert.equal(fields["form_fields[meta_tracking_consent]"], String(consent));
+      ids.push(String(fields["form_fields[event_id]"]));
+      await f.page.getByRole("button", { name: "Créer mon compte et choisir mon offre" }).click();
+      await f.page.getByRole("heading", { name: "Votre compte est prêt !" }).waitFor();
+      const events = await f.page.evaluate(() => (window as unknown as { __basicPreviewPixel: unknown[][] }).__basicPreviewPixel);
+      const leads = events.filter(item => item[1] === "Lead");
+      assert.equal(leads.length, consent ? 1 : 0);
+      if (consent) { assert.equal((leads[0][3] as { eventID: string }).eventID, ids.at(-1)); assert.doesNotMatch(JSON.stringify(leads), /essai|21 jours|Synthetic!Password/i); }
+      f.clean();
+    }
+    assert.notEqual(ids[0], ids[1]); assert.ok(ids.every(id => id.startsWith("inrcy-lead-")));
   } finally { await browser.close(); }
 });

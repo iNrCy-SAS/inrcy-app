@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabaseClient";
 import { purgeAllBrowserAccountCaches, setActiveBrowserUserId } from "@/lib/browserAccountCache";
 import { appLanguageFromLocale } from "@/i18n/config";
 import AuthLanguageSelector from "@/app/auth/_components/AuthLanguageSelector";
+import { withBasicNavigation } from "@/lib/basicNavigation";
 
 function safeContinuePath(input: string | null) {
   if (!input) return "/login";
@@ -18,10 +19,14 @@ type Props = {
   currentEmail: string | null;
   expectedEmail: string | null;
   continuePath: string | null;
+  basicNavigation?: boolean;
 };
 
-export default function SwitchAccountClient({ currentEmail, expectedEmail, continuePath }: Props) {
-  const nextPath = useMemo(() => safeContinuePath(continuePath), [continuePath]);
+export default function SwitchAccountClient({ currentEmail, expectedEmail, continuePath, basicNavigation = false }: Props) {
+  const nextPath = useMemo(() => {
+    const path = safeContinuePath(continuePath);
+    return path === "/login" ? withBasicNavigation(path, basicNavigation) : path;
+  }, [continuePath, basicNavigation]);
   const locale = useLocale();
   const appLanguage = appLanguageFromLocale(locale);
   const t = useTranslations("auth.switchAccount");
@@ -78,7 +83,7 @@ export default function SwitchAccountClient({ currentEmail, expectedEmail, conti
             {loading ? t("signingOut") : t("continue")}
           </button>
           <Link
-            href={`/login?lang=${appLanguage}`}
+            href={withBasicNavigation(`/login?lang=${appLanguage}`, basicNavigation)}
             className="inline-flex items-center justify-center rounded-2xl border border-white/15 px-5 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5"
           >
             {t("backToLogin")}

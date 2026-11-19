@@ -37,7 +37,7 @@ test("a browser signed in as another account switches before consuming the one-t
 
   assert.ok(switchGuard >= 0, "the expected address must be checked even when a token is present");
   assert.ok(pendingToken > switchGuard, "account switching must precede the token-ready state");
-  assert.match(client.slice(switchGuard, pendingToken), /window\.location\.replace\(buildSwitchAccountUrl\(currentEmail, expectedEmail\)\);\s*return;/);
+  assert.match(client.slice(switchGuard, pendingToken), /window\.location\.replace\(buildSwitchAccountUrl\(currentEmail, expectedEmail, basicNavigation\)\);\s*return;/);
 });
 
 test("the final submit sends the token with the password or reuses a verified continuation", () => {

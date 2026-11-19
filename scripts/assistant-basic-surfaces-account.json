@@ -1,14 +1,14 @@
 [
   {
     "id": "account-1420bf785a73f96b",
-    "label": "CookieConsentBanner — a (ligne 170)",
+    "label": "CookieConsentBanner — a (ligne 173)",
     "domain": "account",
     "sourceFiles": [
       "app/_components/CookieConsentBanner.tsx"
     ],
-    "sourceAnchor": "<a href=\"/legal/confidentialite\" style={{ ...linkBtn, gridColumn: isMobile ? \"1 / -1\" : undefined }}>",
+    "sourceAnchor": "href={basicNavigation ? BASIC_NAVIGATION_LINKS.privacy : \"/legal/confidentialite\"}",
     "controlIds": [
-      "app/_components/CookieConsentBanner.tsx#a:f90b74863ae1c3c0:1"
+      "app/_components/CookieConsentBanner.tsx#a:ea5d5a49042e720d:1"
     ],
     "capabilityId": "navigation.local-controls",
     "toolNames": [
@@ -19,6 +19,12 @@
       "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts"
     ],
     "testAnchor": "Basic legal opens only a native document and verifies modal open and close after rendering",
+    "additionalProofs": [
+      {
+        "file": "tests/auth/basic-navigation-browser.test.mts",
+        "testAnchor": "diagnostic and cookie privacy links stay in the explicit Basic presentation without changing normal pages"
+      }
+    ],
     "verification": {
       "mapping": "source_bound",
       "contract": "related_domain_contract",
@@ -27,7 +33,7 @@
     },
     "coverageStatus": "server_equivalent",
     "status": "domain_contract_only",
-    "notes": "Document de confidentialité accessible par le panneau Infos légales puis ouverture native du même document. Équivalence de consultation documentée ; ce test ne prétend pas avoir cliqué le lien plein écran de la bannière."
+    "notes": "Dans le dashboard hors contexte d’acquisition, la confidentialité reste accessible par Infos légales puis ouverture native du document. Le contexte de présentation Basique pointe vers /basique/confidentialite/ ; cette destination est vérifiée en navigateur. Équivalence de consultation documentée ; les tests ne prétendent ni avoir cliqué le lien plein écran de la bannière ni certifier le contenu WordPress."
   },
   {
     "id": "account-943fbbd1a2decd9d",

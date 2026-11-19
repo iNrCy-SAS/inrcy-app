@@ -1,9 +1,9 @@
 {
   "formatVersion": 3,
-  "fragmentsDigest": "84f49f278eefb55c9289421590c9499cf43bcc318a2773b3542924ca0e82655d",
+  "fragmentsDigest": "d0bc8a6436388a3aeee7af305a0f2636d598c16ac7c1ddd1ae30d7111c161591",
   "evidenceDigests": {
     "app/_components/AppAppearanceThemeBridge.tsx": "5228069f0705822520d98d528d851a7cf3c65daad0c5fab496fd4f9f8d6cb385",
-    "app/_components/CookieConsentBanner.tsx": "b8e8f644160ee0ba81a0ff7b887386aa119fff1e99c60f6973a872354eb37ccc",
+    "app/_components/CookieConsentBanner.tsx": "4cc770134c68460e184b9b3275c18af250e8cca9135cf5cd2d73c8f964e2f5cf",
     "app/_components/InrcyDialogProvider.tsx": "4b8d457b85b0ee368f2d3fc0fb061e9f9fa247bcb749aaa531b850f83992b74d",
     "app/_components/PullToRefresh.tsx": "fa33925a67d1e4041a13d9ff20b9fbe7766424ee611579c43e716236a58fac2c",
     "app/api/account/export/route.ts": "dd00ffffdd03c845230a7b3beff99d0480dde80aa9bdfb2f16ae4f9edb76cd45",
@@ -317,7 +317,7 @@
     "app/dashboard/_components/StudioVoicePool.tsx": "a1546dfc0ef2ed9f85e2652435c3e673accf62ebbf92e6a2278298bd77eb8462",
     "app/dashboard/_components/TemplateSubjectInlineEditor.tsx": "fe5ca587c98139c9f24c64624860f4ee8262126f720bca11f7c7af77190985b5",
     "app/dashboard/_components/TemporaryPasswordWelcomeGate.module.css": "03f40593f82d3a29463bf17ca165e92e11cf7c41649c28e028c9c65f6203e96c",
-    "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx": "e775307f9ff04e5425f763ee0ffba9294eb37cf7214882ac3decea033278b7fd",
+    "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx": "33589fad12aee2ce7e08d00607da6304fd0622ccc1a944e889853894a57a15a6",
     "app/dashboard/_components/ThreadsPublicationSettings.tsx": "f2c75bc04c0ab4235871de5ed3451d4dc7c560e8b40588f68608ee6323095971",
     "app/dashboard/_components/VideoCreditRecharge.module.css": "d8e1a4c42d589223c64fa20d9d245294c4ee06643660de3f013d390c01db28a0",
     "app/dashboard/_components/VideoCreditRecharge.tsx": "12b8a15dff195454db70157ed3d10076379b92c007f3df8bcd40b985fb4b8c38",
@@ -946,6 +946,7 @@
     "lib/appAppearanceTheme.ts": "1a3aa6c8d1cc590311259a9c726d09225584222364cbce0f961cb88bca12e354",
     "lib/appBubbleAccessServer.ts": "9a752aa1a8c1256d761d2607cb47b933c9256cf0e851568138a5791942d63afb",
     "lib/appLanguage.ts": "4266146fdb0b0a78b10a3019ca1e56be21b1c2917f30ffec807c4a5596f757e3",
+    "lib/basicNavigation.ts": "87025eab7949247ba8dc41f67f55d7cd8dade20ff31efda20b8b8987af63323c",
     "lib/boosterAsianCtaLabels.ts": "3d55f28d9d2dbfc3d8efeb8fb56603b0af47b5d235e1adbfc7a4303e8f25bf28",
     "lib/boosterAsyncPublication.ts": "415a2cc7d27f73367aa0c94a0c8d5a37edf459191d3687d2ce18b54d57809dd6",
     "lib/boosterChannelImageSelection.ts": "e9688f766b9789dfd66d8393091921a027bb3ac4aea3cc29eebd8a553f5d8984",
@@ -1226,7 +1227,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "4cf53cd208c115a49cdddfa549b211a9b40a0ef66b54d416b2d93f21fbd5bc7f",
+    "lib/inrAssistantCodeIndex.generated.ts": "e5e8bf026c3faa7ddd0e8b09f02bfaddb334806a7b5443d61312d8c4189bbf06",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -2021,7 +2022,7 @@
     "lib/youtubeShortsAnalytics.ts": "923caebae24cfbcc50428e4a2ece581a6fe2d5cbbcee317ae2049c0ad43e09eb",
     "lib/youtubeShortsOAuth.ts": "9e225fa7aad51eb599fb0c146a82ded5fafc657a941fe92d2b8b018baf4d80a8",
     "lib/youtubeShortsPublish.ts": "40d7f68f3a080915fceb4401abeba5dc4e4f5308513a0ffd18f1b4bba6dec807",
-    "proxy.ts": "eed20fa9cc58e48ca9bcbd3adfa7e0acbbf24938222c08c3dbbd29fd0b147c1a",
+    "proxy.ts": "6b451d3d139e31de4fc08fbe7494f998409efe773ea9e26d48c9a29abbe92ff7",
     "tests/ai-assistant/account-invoice-hosted.test.mts": "6dfa365d8f15e77b718f4490604c34c9de748e4ec83c23d2fb4ffc875444e208",
     "tests/ai-assistant/app-guides.test.mts": "c52ebe2cd1b388f1d93dd22b239f4b96bf639f78b8a60319a4cbe0d9af4a735a",
     "tests/ai-assistant/basic-account-services.test.mts": "7db5a14f9eaeba33c11fc3257946eaeae6d8a596ee7e0e069d799a6d740be268",
@@ -2094,6 +2095,7 @@
     "tests/ai-media-generation/studio-reference-memory-ui-runtime.test.mts": "ec01e29e79a037f611573c4c8fdfa59d5d70de58b499c56469e63749f1b3d135",
     "tests/ai-media-generation/veo-gateway-routing-runtime.test.mts": "79ec93cef69d9a5908c4d1db68c91b9bd5644681ab79e9b1c08d81200a783617",
     "tests/ai-media-generation/video-engine-retirement-runtime.test.mts": "632d39bc8bc74e0932cb057927fc8c45e78f23f38620a1571b0c919a5d4841d3",
+    "tests/auth/basic-navigation-browser.test.mts": "3fa0dbded888faa58cd37589ffa2817a65786c7443bf6b7b5c5f284a4927c317",
     "tests/booster-inr-search/presentation-settings-browser.test.mts": "d3b806b0385b183289561ff05077ddd3a0aea30114abb086b4ab3c8eaca9bf28",
     "tests/boutique/media-credit-client.test.mjs": "17883da2a45a36a10856f97c6d364aca6760b91c088183888b67d4579a466b05",
     "tests/dashboard/account-local-controls-browser.test.mts": "81b83d8a3f987f9be961dc56046fbc3ce77413d812992fe2c9b535d8e41fac95",
@@ -2110,7 +2112,7 @@
     "tests/dashboard/dashboard-assistant-chat-runtime.test.mts": "61ca967aa6e70afd2ecdcf710932de711315602af0f02135f8e7482fc24dbab9",
     "tests/dashboard/dashboard-assistant-media-preview-runtime.test.mts": "3672e3a6e804c79c081faba3cb32ed3955d35e730304412c7b7fdb5bd776bb19",
     "tests/dashboard/dashboard-assistant-runtime-harness.mts": "fe1262393bb66c39820fa53813cc91f713d812aafa88b73239bb0d8652f70819",
-    "tests/dashboard/dashboard-assistant-ui-actions-browser.test.mts": "08c262cb433cc1671032b1b4cbf9b05bcbbba4348c0fa873ba546808020a9b7f",
+    "tests/dashboard/dashboard-assistant-ui-actions-browser.test.mts": "e88a3bff190c411963490a0e300d905f072c13f6b547424521bbc628c589d637",
     "tests/dashboard/dashboard-basic-local-controls-runtime.test.mts": "49112153a67cb63396ff3faf0bd0a099606b467ba6ecfa0fd41b18ccc0df1a94",
     "tests/dashboard/dashboard-header-tool-overlay-browser.test.mts": "e7182058080c0c8f8932516284e45e7b07a71908bf1b9a86588f106823b4cb27",
     "tests/dashboard/dashboard-help-navigation-runtime.test.mts": "1dc34057162fca356df952bb5c58f935b411e66a1cdce2f68e6d3a88e089b5d2",
@@ -2159,9 +2161,9 @@
           "gateAnchor": "<input type=\"checkbox\" checked readOnly />"
         }
       },
-      "sourceDigest": "b8e8f644160ee0ba81a0ff7b887386aa119fff1e99c60f6973a872354eb37ccc",
+      "sourceDigest": "4cc770134c68460e184b9b3275c18af250e8cca9135cf5cd2d73c8f964e2f5cf",
       "controlIds": [
-        "app/_components/CookieConsentBanner.tsx#a:f90b74863ae1c3c0:1",
+        "app/_components/CookieConsentBanner.tsx#a:ea5d5a49042e720d:1",
         "app/_components/CookieConsentBanner.tsx#button:b955448500e8b3c6:1",
         "app/_components/CookieConsentBanner.tsx#button:f38c5b137299abff:1",
         "app/_components/CookieConsentBanner.tsx#button:8183ebac3f77a759:1",
@@ -2192,10 +2194,10 @@
         "app/dashboard/layout.tsx"
       ],
       "gateAnchor": "<DashboardAssistantProvider>",
-      "sourceDigest": "d3cc52928dacaccaa9e058bf4d2ab8cf4ec2b0e9df07913a30b0fe4270ceda67",
+      "sourceDigest": "57fb9e67fed71b585581f7cf70be554133f4ad6d50920ebb4efeee93cd9ce944",
       "controlIds": [
         "app/auth/switch-account/SwitchAccountClient.tsx#button:cbd89fc2acabdb27:1",
-        "app/auth/switch-account/SwitchAccountClient.tsx#Link:0935baf69f3e95bc:1"
+        "app/auth/switch-account/SwitchAccountClient.tsx#Link:f5ded15168fa9bd2:1"
       ]
     },
     "app/dashboard/DashboardClient.tsx": {
@@ -3986,7 +3988,7 @@
         "app/api/auth/change-password/route.ts"
       ],
       "gateAnchor": "<TemporaryPasswordWelcomeGate",
-      "sourceDigest": "e775307f9ff04e5425f763ee0ffba9294eb37cf7214882ac3decea033278b7fd",
+      "sourceDigest": "33589fad12aee2ce7e08d00607da6304fd0622ccc1a944e889853894a57a15a6",
       "controlIds": [
         "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx#form:8fafce1af29b0a7b:1",
         "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx#input:6e99bb5858229ee2:1",

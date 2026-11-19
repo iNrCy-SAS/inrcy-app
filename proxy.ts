@@ -26,6 +26,7 @@ import { ACTIVE_INRCY_ACCOUNT_COOKIE } from "./lib/multicompte/constants";
 import { isUuidLike, normalizeAccountSummary, pickDefaultAccount } from "./lib/multicompte/normalize";
 import { hasFullProductReviewerAccess } from "./lib/reviewerAccess";
 import { DIRECT_SIGNUP_ACTIVATION_PATH, getDirectSignupMetadata, isDirectSignupPaid } from "./lib/directSignupPolicy";
+import { basicResetPresentationLanguage, isBasicNavigation } from "./lib/basicNavigation";
 
 const ADMIN_USER_IDS = ["670b527d-5e08-42b4-ba95-e58e812339eb"] as const;
 
@@ -455,6 +456,7 @@ function isAuthRecoveryPath(pathname: string): boolean {
     pathname === "/api/auth/password-link-status" ||
     pathname === "/api/auth/resend-link" ||
     pathname === "/api/auth/sign-out"
+    || basicResetPresentationLanguage(pathname) !== null
   );
 }
 
@@ -610,7 +612,7 @@ export async function proxy(req: NextRequest) {
     const authEmailLocale = pathname.match(
       /^\/auth\/finish-(?:invite|reset)\/([^/]+)\/?$/,
     )?.[1];
-    explicitlyRequestedLocale = tryNormalizeAppLocale(authEmailLocale);
+    explicitlyRequestedLocale = tryNormalizeAppLocale(authEmailLocale || basicResetPresentationLanguage(pathname));
   }
 
   const legacyLocale = tryNormalizeAppLocale(
@@ -782,6 +784,7 @@ export async function proxy(req: NextRequest) {
     }
 
     const loginUrl = req.nextUrl.clone();
+    if (isBasicNavigation(loginUrl.searchParams.get("entry"), pathname)) loginUrl.searchParams.set("entry", "basique");
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("reason", "session-expired");
     return applyResponseHeaders(NextResponse.redirect(loginUrl));

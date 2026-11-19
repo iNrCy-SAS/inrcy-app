@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useId, useLayoutEffect, useMemo, useState, useSyncExternalStore, type CSSProperties } from "react";
 import { usePathname } from "next/navigation";
 import { registerInrAssistantCookieOptions } from "@/lib/inrAssistantCookieOptions";
+import { BASIC_NAVIGATION_LINKS, isBasicNavigation } from "@/lib/basicNavigation";
 
 type Consent = {
   v: 1;
@@ -81,6 +82,8 @@ export default function CookieConsentBanner() {
   useLayoutEffect(() => () => registerInrAssistantCookieOptions(cookieOptionsId, null), [cookieOptionsId]);
 
   if (!isClient) return null;
+
+  const basicNavigation = isBasicNavigation(new URLSearchParams(window.location.search).get("entry"), pathname || "");
 
   const shouldHideOnThisPage = pathname?.startsWith("/login") || pathname?.startsWith("/legal");
   if (shouldHideOnThisPage) return null;
@@ -167,7 +170,7 @@ export default function CookieConsentBanner() {
         {i18nT("inrcy_utilise_des_cookies_be40ecb7")}{" "}<b>{i18nT("strictement_necessaires_396f10ee")}</b> {" "}{i18nT("au_fonctionnement_connexion_securite_les_cookies_d89c9d61")}{" "}</div>
 
       <div style={actionRow}>
-        <a href="/legal/confidentialite" style={{ ...linkBtn, gridColumn: isMobile ? "1 / -1" : undefined }}>
+        <a href={basicNavigation ? BASIC_NAVIGATION_LINKS.privacy : "/legal/confidentialite"} style={{ ...linkBtn, gridColumn: isMobile ? "1 / -1" : undefined }}>
           {i18nT("politique_de_confidentialite_42b0e51e")}{" "}</a>
         <button type="button" onClick={() => setOpen((v) => !v)} style={{ ...btn, width: isMobile ? "100%" : undefined }}>
           {open ? i18nT("fermer_les_reglages_354f1fa6") : i18nT("gerer_mes_cookies_7f8d3e65")}

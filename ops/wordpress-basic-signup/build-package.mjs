@@ -7,7 +7,10 @@ import { zipSync, unzipSync } from "fflate";
 const source = fileURLToPath(new URL("./", import.meta.url));
 const output = process.argv[2];
 if (!output || !path.isAbsolute(output)) throw new Error("Pass an absolute output directory.");
-const files = ["README.md", "inrcy-basic-signup.php", "basic-page.php", "basic-signup.js", "basic-signup.css", "basic-access.js", "basic-access.css", "logo-inrcy-transparent.png"];
+const files = ["README.md", "inrcy-basic-signup.php", "basic-page.php", "basic-signup.js", "basic-signup.css", "basic-access.js", "basic-access.css", "logo-inrcy-transparent.png", "basic-site.css", "basic-site.js", "basic-meta-attribution.js",
+  "includes/catalogue.php", "includes/legal-content.php", "includes/legal-reviewed.php", "includes/site.php", "includes/seo.php",
+  "includes/legal/terms.html", "includes/legal/privacy.html", "includes/legal/legal.html", "templates/site-shell.php", "templates/signup-form.php", "templates/unavailable.php",
+  ...["home", "features", "pricing", "faq", "signup", "contact", "legal", "cookies"].map(view => `templates/pages/${view}.php`)];
 const php = readFileSync(path.join(source, "inrcy-basic-signup.php"), "utf8");
 const version = php.match(/Version:\s*([\d.]+)/)?.[1];
 if (!version || !php.includes(`define('INRCY_BASIC_SIGNUP_VERSION', '${version}')`)) throw new Error("Plugin versions differ.");

@@ -6,6 +6,7 @@ import { currentSubscriptionOffer, type CommercialPlan } from "@/lib/subscriptio
 import { SubscriptionPlanFeatures } from "@/app/dashboard/settings/_components/SubscriptionComparison";
 import offerStyles from "@/app/dashboard/settings/_components/settingsContentLayout.module.css";
 import styles from "./activation.module.css";
+import { BASIC_NAVIGATION_LINKS, withBasicNavigation } from "@/lib/basicNavigation";
 
 const PLANS = ["Basic", "Standard", "Premium"] as const;
 const PLAN_STYLES = { Basic: offerStyles.basicCard, Standard: offerStyles.standardCard, Premium: offerStyles.premiumCard };
@@ -175,13 +176,13 @@ export default function DirectSignupPlans({ email, checkout }: Props) {
             <button type="button" className={styles.primary} onClick={() => { void subscribe(); }} disabled={busy}>{busy ? t("opening") : t("continue", { plan: name(plan), amount: money(currentSubscriptionOffer(plan).monthlyPriceEur) })}</button>
             <details className={styles.paymentTerms}>
               <summary>{t("paymentTerms")}</summary>
-              <div><p className={styles.cancellation}>{t("cancellationNotice")}</p><p>{t("paymentNotice")}</p><p>{s("standard_taxes_checkout")}</p><a href="https://inrcy.com/cga-conditions-generales-dabonnement/" target="_blank" rel="noopener noreferrer">{t("terms")}</a></div>
+              <div><p className={styles.cancellation}>{t("cancellationNotice")}</p><p>{t("paymentNotice")}</p><p>{s("standard_taxes_checkout")}</p><a href={BASIC_NAVIGATION_LINKS.terms} target="_blank" rel="noopener noreferrer">{t("terms")}</a></div>
             </details>
           </footer>
         </> : null}
         {error ? <p role="alert" className={styles.error}>{error}</p> : null}
         {phase === "error" || awaitingPayment && phase === "choosing" ? <button type="button" className={styles.secondary} disabled={busy} onClick={() => setCheckVersion(version => version + 1)}>{t("retry")}</button> : null}
-        <div className={styles.links}><a href="https://inrcy.com/contact/" target="_blank" rel="noopener noreferrer">{t("help")}</a><form action="/api/auth/sign-out" method="post"><button type="submit">{t("signOut")}</button></form></div>
+        <div className={styles.links}><a href={BASIC_NAVIGATION_LINKS.contact} target="_blank" rel="noopener noreferrer">{t("help")}</a><form action={withBasicNavigation("/api/auth/sign-out", true)} method="post"><button type="submit">{t("signOut")}</button></form></div>
       </div>
     </dialog>
   </main>;

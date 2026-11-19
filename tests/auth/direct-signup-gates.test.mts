@@ -4,6 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 import { NextRequest, NextResponse } from "next/server.js";
 import * as policy from "../../lib/directSignupPolicy.ts";
+import * as navigation from "../../lib/basicNavigation.ts";
 import * as editions from "../../lib/dashboardEdition.ts";
 import * as reviewer from "../../lib/reviewerAccess.ts";
 import * as normalize from "../../lib/multicompte/normalize.ts";
@@ -16,6 +17,7 @@ type Options = { legacyTrial?: boolean; paid?: boolean; activeWithoutContract?: 
 async function request(path: string, method = "POST", options: Options = {}) {
   const dependencies = {
     "next/server": { NextRequest, NextResponse }, "./lib/directSignupPolicy": policy,
+    "./lib/basicNavigation": navigation,
     "@supabase/ssr": { createServerClient: () => ({ auth: { getClaims: async () => ({ data: { claims: {
       sub: USER, app_metadata: options.legacyTrial ? {} : marker, user_metadata: { direct_signup: false, paid: true, plan: "Premium" },
     } }, error: null }) } }) },

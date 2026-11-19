@@ -3,6 +3,7 @@ import "server-only";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendPreparedAuthEmail } from "@/lib/authMailDelivery";
 import { getTemporaryPasswordMetadata } from "@/lib/temporaryPasswordPolicy";
+import { getDirectSignupMetadata } from "@/lib/directSignupPolicy";
 import { buildSignupWelcomeEmail, createTemporarySignupCredential, openSignupPassword, sealSignupPassword } from "@/lib/signupWelcomeMailPolicy";
 
 const TABLE = "signup_welcome_credentials";
@@ -76,6 +77,7 @@ async function deliver(row: WelcomeRow) {
   const message = buildSignupWelcomeEmail({
     welcomeId: row.id, userId: row.user_id, email: row.recipient_email, firstName: row.first_name,
     language: row.app_language, password, expiresAt: row.expires_at, appOrigin: appOrigin(),
+    navigationEntry: getDirectSignupMetadata(data.user.app_metadata) ? "basique" : undefined,
   });
   let result: Awaited<ReturnType<typeof sendPreparedAuthEmail>>;
   try { result = await sendPreparedAuthEmail(message); }

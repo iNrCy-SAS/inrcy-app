@@ -27,6 +27,7 @@ const sources = {
   offers: compile("lib/subscriptionOffers.ts"), password: compile("lib/passwordPolicy.ts"),
   comparison: compile("app/dashboard/settings/_components/SubscriptionComparison.tsx"), media: compile("lib/aiMediaPlanLimits.ts"),
   edition: compile("lib/dashboardEdition.ts"), reviewer: compile("lib/reviewerAccess.ts"),
+  navigation: compile("lib/basicNavigation.ts"),
 };
 
 async function fixture(browser: Browser, options: { temporary?: boolean; checkout?: "success" | "cancel"; mobile?: boolean } = {}) {
@@ -54,7 +55,7 @@ async function fixture(browser: Browser, options: { temporary?: boolean; checkou
     modules['@/app/dashboard/settings/_components/settingsContentLayout.module.css']=modules['./settingsContentLayout.module.css'];
     const aliases={'@/lib/subscriptionOffers':'offers','@/lib/passwordPolicy':'password',
       '@/app/dashboard/settings/_components/SubscriptionComparison':'comparison','@/lib/aiMediaPlanLimits':'media',
-      '@/lib/dashboardEdition':'edition','./reviewerAccess.ts':'reviewer'};
+      '@/lib/dashboardEdition':'edition','./reviewerAccess.ts':'reviewer','@/lib/basicNavigation':'navigation'};
     function require(name){
       if(aliases[name])return require(aliases[name]);
       if(Object.hasOwn(modules,name))return modules[name];if(cache[name])return cache[name].exports;
@@ -281,9 +282,11 @@ test("expandable payment terms preserve trial, renewal, taxes and CGA disclosure
     assert.match(await terms.innerText(), /Sans période d’essai\. Premier paiement aujourd’hui, puis renouvellement mensuel/);
     assert.equal(await terms.getByText(settings.standard_taxes_checkout, { exact: true }).isVisible(), true);
     const cga = terms.getByRole("link", { name: "Conditions d’abonnement", exact: true });
-    assert.equal(await cga.getAttribute("href"), "https://inrcy.com/cga-conditions-generales-dabonnement/");
+    assert.equal(await cga.getAttribute("href"), "https://inrcy.com/basique/conditions/");
     assert.equal(await cga.getAttribute("target"), "_blank");
     assert.match(await cga.getAttribute("rel") ?? "", /noopener/);
+    assert.equal(await f.page.getByRole("link", { name: "Besoin d’aide ?", exact: true }).getAttribute("href"), "https://inrcy.com/basique/contact/");
+    assert.equal(await f.page.locator('form[method="post"]').getAttribute("action"), "/api/auth/sign-out?entry=basique");
     await terms.locator("summary").click();
     assert.equal(await terms.evaluate(node => (node as HTMLDetailsElement).open), false);
     assert.equal((await billingRequests(f.page)).length, 0); assert.deepEqual(f.errors, []);

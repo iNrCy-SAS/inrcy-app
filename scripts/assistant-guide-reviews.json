@@ -616,9 +616,9 @@
     "connection-self-service": {
       "guideDigest": "c92e9371192918fd87afc232ebe15465f0427da5396c519faa4fd08e2a749b16",
       "sources": {
-        "app/diagnostic/ConnectionRecovery.tsx": "78758f407c897c458db7309ca5fc94a9c086c9d970677d60a5561666f0061dcf",
-        "app/diagnostic/DiagnosticClient.tsx": "71d3eadb1df15efba4eb179dff5b1e2f32cef4fb9a6f99e5552b5b5dbf86588b",
-        "app/login/page.tsx": "39ab84b9f5d61e413f1928dab0d2c8d1b2632a2669a21b96d1854effd8e6a84e",
+        "app/diagnostic/ConnectionRecovery.tsx": "0a530522355e41ae8a2af4de1ffa5dbce37f3901a95078db2e393483faa38b85",
+        "app/diagnostic/DiagnosticClient.tsx": "13be622ec1af9e21d371dc9f393e69bb5408e121a56015dda2d150b88a8eac69",
+        "app/login/page.tsx": "4e763ed82d2f3d8b21f8efc0dab045fdf75d44370503222ffc6f269819a571a1",
         "lib/connectionRecovery.ts": "621217cb3741b0d91219e932761b76bb9c89521aef145f8d987767d61bc223d6"
       }
     },
@@ -648,7 +648,7 @@
         "app/dashboard/_components/DashboardTopbar.tsx": "7f51f87106641ac8a53fb776019ff811718beb3c5a8f2e6c4385c0c9eb9ccd02",
         "app/dashboard/_components/GeneratorSettingsModal.tsx": "46846950ab4570bd362c430d3a38c08f94094086b55b3a9f226ee78ffc872e65",
         "app/dashboard/_components/ResponsiveBottomNav.tsx": "d094daa7d6b8904dae0fa555de752ca2182c5a4154fcadac0b6281f9c6c2f16a",
-        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx": "e775307f9ff04e5425f763ee0ffba9294eb37cf7214882ac3decea033278b7fd",
+        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx": "33589fad12aee2ce7e08d00607da6304fd0622ccc1a944e889853894a57a15a6",
         "app/dashboard/_components/dashboardMobileMenuModel.ts": "c4d9be815f9b6064e2498e4b23d907265e325d0ddfd14b167b8056c57a6deb88",
         "app/dashboard/_hooks/useAssistantFirstArrival.ts": "be478a57f9d176ad332ae22f09a7b350b65023edd323b6a6643d1f9fad7f1fb4",
         "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts": "56b27fde1ca2e52f613100a771942f462b8a10af3b0b9bef74ec1b4b8bc89492",

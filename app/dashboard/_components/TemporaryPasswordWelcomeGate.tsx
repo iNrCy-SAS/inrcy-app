@@ -4,21 +4,23 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { useTranslations } from "next-intl";
 import { evaluatePassword } from "@/lib/passwordPolicy";
 import styles from "./TemporaryPasswordWelcomeGate.module.css";
+import { isBasicNavigation, withBasicNavigation } from "@/lib/basicNavigation";
 
 type Props = {
   actorUserId: string;
   temporaryPasswordWelcomeId: string | null;
   email: string;
+  navigationEntry?: "basique";
   children: ReactNode;
 };
 
 /** The assistant's durable first-arrival claim starts only after this welcome. */
 export default function TemporaryPasswordWelcomeGate(props: Props) {
   if (!props.temporaryPasswordWelcomeId) return <>{props.children}</>;
-  return <TemporaryPasswordWelcomeScope key={`${props.actorUserId}:${props.temporaryPasswordWelcomeId}`} email={props.email}>{props.children}</TemporaryPasswordWelcomeScope>;
+  return <TemporaryPasswordWelcomeScope key={`${props.actorUserId}:${props.temporaryPasswordWelcomeId}`} email={props.email} navigationEntry={props.navigationEntry}>{props.children}</TemporaryPasswordWelcomeScope>;
 }
 
-function TemporaryPasswordWelcomeScope({ email, children }: Pick<Props, "email" | "children">) {
+function TemporaryPasswordWelcomeScope({ email, children, navigationEntry }: Pick<Props, "email" | "children" | "navigationEntry">) {
   const t = useTranslations("auth.password");
   const [phase, setPhase] = useState<"checking" | "open" | "done">("checking");
   const [currentPassword, setCurrentPassword] = useState("");
@@ -117,7 +119,7 @@ function TemporaryPasswordWelcomeScope({ email, children }: Pick<Props, "email" 
       setCurrentPassword(""); setPassword(""); setConfirmation("");
       checkRequestRef.current = null;
       if (result.requires_login === true) {
-        window.location.assign(`/login?email=${encodeURIComponent(email)}`);
+        window.location.assign(withBasicNavigation(`/login?email=${encodeURIComponent(email)}`, isBasicNavigation(navigationEntry)));
         return;
       }
       // The successful POST already restores the authenticated session cookies.

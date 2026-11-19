@@ -54,7 +54,7 @@ function escapeHtml(value: string) {
 
 export function buildSignupWelcomeEmail(args: {
   welcomeId: string; userId: string; email: string; firstName: string; language: string;
-  password: string; expiresAt: string; appOrigin: string;
+  password: string; expiresAt: string; appOrigin: string; navigationEntry?: "basique";
 }): PreparedAuthEmail {
   const loginUrl = new URL("/login", args.appOrigin);
   if (!((loginUrl.protocol === "https:") || (loginUrl.protocol === "http:" && ["localhost", "127.0.0.1"].includes(loginUrl.hostname)))) {
@@ -62,6 +62,7 @@ export function buildSignupWelcomeEmail(args: {
   }
   loginUrl.searchParams.set("email", args.email);
   loginUrl.searchParams.set("lang", args.language);
+  if (args.navigationEntry === "basique") loginUrl.searchParams.set("entry", "basique");
   const french = args.language === "fr";
   const subject = french ? "Bienvenue chez iNrCy : vos accès sont prêts" : "Welcome to iNrCy: your account is ready";
   const greeting = `${french ? "Bonjour" : "Hello"}${args.firstName ? ` ${args.firstName}` : ""},`;

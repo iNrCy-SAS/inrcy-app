@@ -21,6 +21,7 @@ import {
 } from "@/lib/authPasswordLinkCheck";
 import { evaluatePassword } from "@/lib/passwordPolicy";
 import AuthLanguageSelector from "./AuthLanguageSelector";
+import { isBasicNavigation, withBasicNavigation } from "@/lib/basicNavigation";
 
 type Mode = "invite" | "reset";
 
@@ -28,6 +29,7 @@ type Props = {
   mode: Mode;
   initialLanguage?: string;
   allowSessionFallback?: boolean;
+  navigationEntry?: "basique";
 };
 
 type SessionContinuation = {
@@ -72,11 +74,12 @@ function safeContinuePath(input: string | null, fallback: string) {
   return input;
 }
 
-function buildSwitchAccountUrl(currentEmail: string, expectedEmail: string) {
+function buildSwitchAccountUrl(currentEmail: string, expectedEmail: string, basicNavigation: boolean) {
   const url = new URL("/auth/switch-account", window.location.origin);
   url.searchParams.set("current_email", currentEmail);
   url.searchParams.set("expected_email", expectedEmail);
   url.searchParams.set("continue", `${window.location.pathname}${window.location.search}`);
+  if (basicNavigation) url.searchParams.set("entry", "basique");
   return url.toString();
 }
 
@@ -97,9 +100,11 @@ export default function FinishEmailLinkClient({
   mode,
   initialLanguage,
   allowSessionFallback = false,
+  navigationEntry,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const searchParams = useSearchParams();
+  const basicNavigation = isBasicNavigation(navigationEntry) || isBasicNavigation(searchParams.get("entry"));
   const currentLocale = useLocale();
   const emailLinkParams = useMemo(
     () => readAuthEmailLinkParams(searchParams),
@@ -109,6 +114,7 @@ export default function FinishEmailLinkClient({
     emailLinkParams.language || initialLanguage,
   );
   const appLanguage = appLanguageFromLocale(recoveredLocale || currentLocale);
+  const loginHref = withBasicNavigation(`/login?lang=${appLanguage}`, basicNavigation);
   const t = useTranslations("auth.password");
   const loginT = useTranslations("auth.login");
 
@@ -243,7 +249,7 @@ export default function FinishEmailLinkClient({
         // one-time operation: consuming it in the wrong browser session would
         // leave the account-switch screen with an already-used link.
         if (expectedEmail && currentEmail && currentEmail !== expectedEmail) {
-          window.location.replace(buildSwitchAccountUrl(currentEmail, expectedEmail));
+          window.location.replace(buildSwitchAccountUrl(currentEmail, expectedEmail, basicNavigation));
           return;
         }
 
@@ -351,6 +357,7 @@ export default function FinishEmailLinkClient({
       controller.abort();
     };
   }, [
+    basicNavigation,
     expectedEmail,
     hasIncomingLinkError,
     mode,
@@ -437,7 +444,7 @@ export default function FinishEmailLinkClient({
       const res = await fetch("/api/auth/resend-link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: resendEmail, mode, language: appLanguage }),
+        body: JSON.stringify({ email: resendEmail, mode, language: appLanguage, ...(basicNavigation ? { entry: "basique" } : {}) }),
       });
       await res.json().catch(() => null);
 
@@ -479,7 +486,7 @@ export default function FinishEmailLinkClient({
     // doit jamais obliger l’utilisateur à redemander un lien à usage unique.
     setSuccess(isInvite ? t("inviteLoginSuccess") : t("resetLoginSuccess"));
     window.setTimeout(() => {
-      window.location.replace(`/login?lang=${appLanguage}`);
+      window.location.replace(loginHref);
     }, 1200);
   }
 
@@ -499,7 +506,7 @@ export default function FinishEmailLinkClient({
     setActiveBrowserUserId(data.user.id);
     const serverSessionReady = await waitForServerAuthSession();
     setSuccess(isInvite ? t("inviteRedirectSuccess") : t("resetRedirectSuccess"));
-    window.location.replace(serverSessionReady ? nextPath : `/login?lang=${appLanguage}`);
+    window.location.replace(serverSessionReady ? nextPath : loginHref);
     return true;
   }
 
@@ -786,7 +793,7 @@ export default function FinishEmailLinkClient({
                 : t("resetPassword")}
             </button>
             <Link
-              href={`/login?lang=${appLanguage}`}
+              href={loginHref}
               className="inline-flex items-center justify-center rounded-2xl border border-white/15 px-5 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5"
             >
               {t("backToLogin")}
@@ -832,7 +839,7 @@ export default function FinishEmailLinkClient({
 
         {ready && !hasCredential ? (
           <Link
-            href={`/login?lang=${appLanguage}`}
+            href={loginHref}
             className="mt-5 inline-flex w-full items-center justify-center rounded-2xl border border-white/15 px-5 py-3 text-sm font-medium text-slate-200 transition hover:bg-white/5"
           >
             {t("backToLogin")}

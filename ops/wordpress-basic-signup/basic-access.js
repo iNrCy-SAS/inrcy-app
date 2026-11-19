@@ -350,8 +350,8 @@
       '</div>',
       '<p class="inrcy-signup-access-hint">Conservez vos accès personnels. Vous pourrez choisir votre propre mot de passe dans l’application.</p>',
       signupAccess.ticket
-        ? '<form class="inrcy-signup-access-form" method="post" action="' + SIGNUP_ACCESS_URL + '" target="_blank" rel="noopener" autocomplete="off"><button class="inrcy-visio-primary" type="submit"><span>Accéder à mon compte</span><i aria-hidden="true">↗</i></button></form>'
-        : '<a class="inrcy-visio-primary inrcy-signup-access-form" href="https://app.inrcy.com/login?email=' + encodeURIComponent(signupAccess.email) + '" target="_blank" rel="noopener"><span>Accéder à mon compte</span><i aria-hidden="true">↗</i></a>',
+        ? '<form class="inrcy-signup-access-form" method="post" action="' + SIGNUP_ACCESS_URL + '?entry=basique" target="_blank" rel="noopener" autocomplete="off"><button class="inrcy-visio-primary" type="submit"><span>Accéder à mon compte</span><i aria-hidden="true">↗</i></button></form>'
+        : '<a class="inrcy-visio-primary inrcy-signup-access-form" href="https://app.inrcy.com/login?entry=basique&email=' + encodeURIComponent(signupAccess.email) + '" target="_blank" rel="noopener"><span>Accéder à mon compte</span><i aria-hidden="true">↗</i></a>',
       '<p class="inrcy-signup-access-status" role="status" aria-live="polite"></p>',
     ].join(""), { step: 3 });
     var passwordField = dialogRoot.querySelector("#inrcy-access-password");
@@ -385,7 +385,7 @@
         event.preventDefault();
         status.textContent = "Utilisez les accès affichés pour vous connecter.";
         var fallback = document.createElement("a");
-        fallback.href = "https://app.inrcy.com/login?email=" + encodeURIComponent(signupAccess.email);
+        fallback.href = "https://app.inrcy.com/login?entry=basique&email=" + encodeURIComponent(signupAccess.email);
         fallback.target = "_blank";
         fallback.rel = "noopener noreferrer";
         fallback.textContent = "Ouvrir la connexion";
