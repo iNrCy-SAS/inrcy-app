@@ -2,6 +2,9 @@
   "use strict";
 
   var config = window.inrcyVisioBookingConfig || {};
+  // wp_localize_script serializes PHP booleans as "1" and "".
+  var bookingEnabled = config.showBooking !== false && config.showBooking !== ""
+    && config.showBooking !== "0" && config.showBooking !== "false";
   var currentToken = "";
   var dialogRoot = null;
   var previouslyFocused = null;
@@ -194,7 +197,7 @@
   }
 
   function showReopenButton() {
-    if (hasCompletedBooking || config.showBooking === false) return;
+    if (hasCompletedBooking || !bookingEnabled) return;
     removeReopenButton();
     var button = document.createElement("button");
     button.id = "inrcy-visio-reopen";
@@ -658,14 +661,14 @@
       window.clearTimeout(signupPresentationTimer);
       signupPresentationTimer = window.setTimeout(function () {
         if (access) { signupAccess = access; showingSignupAccess = false; }
-        if (token && config.showBooking !== false) openDialog(token, "signup_success");
+        if (token && bookingEnabled) openDialog(token, "signup_success");
         else if (access) showSignupAccess();
       }, 180);
     });
   }
 
   function openBookingLinkFromHash() {
-    if (config.showBooking === false) return;
+    if (!bookingEnabled) return;
     if (!window.location.hash) return;
     var parameters = new URLSearchParams(window.location.hash.slice(1));
     var token = parameters.get("inrcy-booking") || "";

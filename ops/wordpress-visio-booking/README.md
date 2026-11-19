@@ -26,7 +26,9 @@ Le nouvel onglet reçoit seulement le `ticket` dans un formulaire POST vers l’
 
 Si la connexion directe n’a pas pu être préparée (`ticket` vide) ou a expiré, les identifiants du nouveau compte restent affichés et un lien permet d’ouvrir la connexion avec l’e-mail prérempli. La réservation peut rester désactivée dans les réglages : l’écran d’accès est alors proposé directement après l’inscription. Un ancien lien de rendez-vous ou un rechargement de page ne permet jamais de récupérer les accès d’un compte existant.
 
-## Mise à jour 1.6.0
+## Mise à jour 1.6.1
+
+Le réglage de réservation accepte les booléens JavaScript et les valeurs sérialisées par WordPress (`"1"` pour activé, `""` pour désactivé). Une réservation désactivée ouvre directement les accès du nouveau compte.
 
 Déployer d’abord le backend d’inscription et de connexion de l’application, puis installer cette version de l’extension. Vérifier une nouvelle inscription dans les deux branches (sans rendez-vous et réservation confirmée), l’ouverture du nouvel onglet et la modale de changement du mot de passe temporaire dans l’application. En cas de retour à l’ancienne extension, le parcours de rendez-vous et l’e-mail de bienvenue restent utilisables.
 

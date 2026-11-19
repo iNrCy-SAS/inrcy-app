@@ -1,16 +1,16 @@
 {
   "schemaVersion": 1,
   "plugin": "inrcy-visio-booking",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "sourceDirectory": "ops/wordpress-visio-booking",
   "archivePath": "ops/inrcy-visio-booking.zip",
-  "archiveBytes": 84583,
-  "archiveSha256": "0984a54eea00186b1b1b876b28080882f4d9c138d67660abbfb4ba4f74964d0c",
+  "archiveBytes": 84984,
+  "archiveSha256": "811b52e23e283f88260131d781304a533e011573b3574e685d2ac9dcfebde509",
   "files": [
     {
       "path": "inrcy-visio-booking/README.md",
-      "bytes": 5691,
-      "sha256": "dfa879875177c14b59cbb2c08b895515459bfc021cd6b1fa18f8b35add607556"
+      "bytes": 5919,
+      "sha256": "9b5da2ae9db614ad1b5c72238077d770b4455a366776cdeb289ccd044081ce79"
     },
     {
       "path": "inrcy-visio-booking/inrcy-visio-booking.css",
@@ -19,13 +19,13 @@
     },
     {
       "path": "inrcy-visio-booking/inrcy-visio-booking.js",
-      "bytes": 32973,
-      "sha256": "c2504e0a99c6bab6d1b2834e1f963117f881a274ba46a48970197fb8b81d2ed6"
+      "bytes": 33146,
+      "sha256": "1e1620e21d66589a25aa155bcbc2f1ae3fdc2591d299eae7439e104bda3d8a97"
     },
     {
       "path": "inrcy-visio-booking/inrcy-visio-booking.php",
       "bytes": 9109,
-      "sha256": "e32a24cb5ad7a3ca2d6f642ea0d0fb571edb32067a7db273fc49f8010eea0cc6"
+      "sha256": "e1f7f5a5bfcca73081d995b482214b4b95cc2b87d57d244d2e40622491bdc185"
     },
     {
       "path": "inrcy-visio-booking/logo-inrcy-transparent.png",

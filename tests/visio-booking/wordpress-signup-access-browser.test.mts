@@ -9,7 +9,7 @@ const loginUrl = "https://app.inrcy.com/api/auth/signup-access";
 const access = () => ({ email, password, ticket, expires_at: new Date(Date.now() + 3_600_000).toISOString(), login_url: loginUrl });
 type State = { signupSuccess: (event: unknown, response: unknown) => void; calls: Array<{ url: string; body: string }>; };
 
-async function fixture(browser: Browser, options: { showBooking?: boolean; width?: number } = {}) {
+async function fixture(browser: Browser, options: { showBooking?: boolean | "1" | "" | "0" | "false"; width?: number } = {}) {
   const context = await browser.newContext({ viewport: { width: options.width ?? 1000, height: 900 } });
   const page = await context.newPage();
   const posts: Array<{ url: string; body: string; origin: string }> = [];
@@ -126,6 +126,27 @@ test("booking disabled still reveals access, expires to a normal login link, and
     const bounds = await f.page.getByRole("dialog").boundingBox(); assert.ok(bounds); assert.ok(bounds.x >= 0); assert.ok(bounds.width <= 390);
     const bodyWidth = await f.page.evaluate(() => document.documentElement.scrollWidth); assert.ok(bodyWidth <= 390);
     assert.deepEqual(f.errors, []);
+  } finally { await browser.close(); }
+});
+
+test("WordPress serialized booking flags keep the public offer enabled or open credentials directly when disabled", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const showBooking of ["1", "", "0", "false"] as const) {
+      const f = await fixture(browser, { showBooking });
+      try {
+        await signup(f.page);
+        if (showBooking === "1") {
+          await f.page.getByRole("button", { name: "Réserver ma mise en route offerte", exact: true }).waitFor();
+          assert.equal(await f.page.getByLabel("Votre mot de passe temporaire", { exact: true }).count(), 0);
+          await f.page.getByRole("button", { name: "Je choisirai plus tard" }).click();
+        }
+        await expectCredentials(f.page);
+        assert.equal(await f.page.getByRole("button", { name: "Réserver ma mise en route offerte", exact: true }).count(), 0);
+        if (showBooking !== "1") assert.equal(f.posts.length, 0, "disabled booking never calls its APIs or tracking");
+        assert.deepEqual(f.errors, []);
+      } finally { await f.context.close(); }
+    }
   } finally { await browser.close(); }
 });
 
