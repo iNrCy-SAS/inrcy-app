@@ -14,6 +14,10 @@ const compile = (file: string) => ts.transpileModule(read(file), { compilerOptio
 const packageSource = (name: string, file: string) => readFileSync(join(dirname(require.resolve(`${name}/package.json`)), "cjs", file), "utf8");
 const moduleCss = (file: string, prefix: string) => read(file).replace(/\.[a-zA-Z_][a-zA-Z0-9_-]*/g, name => `.${prefix}${name.slice(1)}`);
 const globalCss = readFileSync(require.resolve("tailwindcss/preflight.css"), "utf8") + read("app/globals.css").replace('@import "tailwindcss";', "");
+const productCss = globalCss + moduleCss("app/activer-mon-compte/activation.module.css", "plans_")
+  + moduleCss("app/dashboard/_components/TemporaryPasswordWelcomeGate.module.css", "password_")
+  + moduleCss("app/dashboard/settings/_components/subscriptionWorkspace.module.css", "compact_")
+  + moduleCss("app/dashboard/settings/_components/settingsContentLayout.module.css", "comparison_");
 const authMessages = JSON.parse(read("messages/fr-FR/auth.json"));
 const settings = JSON.parse(read("messages/fr-FR/settings.json"));
 const sources = {
@@ -21,6 +25,8 @@ const sources = {
   "react-dom": packageSource("react-dom", "react-dom.development.js"), "react-dom/client": packageSource("react-dom", "react-dom-client.development.js"), scheduler: packageSource("scheduler", "scheduler.development.js"),
   plans: compile("app/activer-mon-compte/DirectSignupPlans.tsx"), gate: compile("app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx"),
   offers: compile("lib/subscriptionOffers.ts"), password: compile("lib/passwordPolicy.ts"),
+  comparison: compile("app/dashboard/settings/_components/SubscriptionComparison.tsx"), media: compile("lib/aiMediaPlanLimits.ts"),
+  edition: compile("lib/dashboardEdition.ts"), reviewer: compile("lib/reviewerAccess.ts"),
 };
 
 async function fixture(browser: Browser, options: { temporary?: boolean; checkout?: "success" | "cancel"; mobile?: boolean } = {}) {
@@ -32,19 +38,25 @@ async function fixture(browser: Browser, options: { temporary?: boolean; checkou
     return route.fulfill({ contentType: "text/html", body: url.endsWith("/dashboard") ? '<!doctype html><html><body><h1>Authenticated dashboard destination</h1></body></html>' : '<!doctype html><html><body><div id="root"></div></body></html>' });
   });
   await page.goto(`https://app.example.invalid/activer-mon-compte${options.checkout ? `?checkout=${options.checkout}` : ""}`);
-  await page.addStyleTag({ content: globalCss + moduleCss("app/activer-mon-compte/activation.module.css", "plans_") + moduleCss("app/dashboard/_components/TemporaryPasswordWelcomeGate.module.css", "password_") });
+  await page.addStyleTag({ content: productCss });
   await page.addScriptTag({ content: `
     const sources=${JSON.stringify(sources)},catalogs=${JSON.stringify({ "auth.password": authMessages.password, "auth.directSignup": authMessages.directSignup, settings })},cache={},process={env:{NODE_ENV:'development'}};
     window.requests=[];
     const translators={};for(const [namespace,messages] of Object.entries(catalogs)){translators[namespace]=(key,args={})=>{if(typeof messages[key]!=='string')throw Error('Missing translation '+namespace+'.'+key);return Object.entries(args).reduce((text,[name,value])=>text.split('{'+name+'}').join(String(value)),messages[key])}};
     const modules={
       'next-intl':{useTranslations:namespace=>translators[namespace],useLocale:()=> 'fr-FR'},
-      '@/app/dashboard/settings/_components/SubscriptionComparison':{SubscriptionPlanFeatures:({edition})=>require('react').createElement('p',{'data-features':edition},'Features '+edition)},
+      './SubscriptionWorkspace':{SubscriptionDetails:()=>{throw Error('Unexpected Founder-only details')}},
       './activation.module.css':{__esModule:true,default:new Proxy({},{get:(_,key)=>'plans_'+String(key)})},
-      './TemporaryPasswordWelcomeGate.module.css':{__esModule:true,default:new Proxy({},{get:(_,key)=>'password_'+String(key)})}
+      './TemporaryPasswordWelcomeGate.module.css':{__esModule:true,default:new Proxy({},{get:(_,key)=>'password_'+String(key)})},
+      './subscriptionWorkspace.module.css':{__esModule:true,default:new Proxy({},{get:(_,key)=>'compact_'+String(key)})},
+      './settingsContentLayout.module.css':{__esModule:true,default:new Proxy({},{get:(_,key)=>'comparison_'+String(key)})}
     };
+    modules['@/app/dashboard/settings/_components/settingsContentLayout.module.css']=modules['./settingsContentLayout.module.css'];
+    const aliases={'@/lib/subscriptionOffers':'offers','@/lib/passwordPolicy':'password',
+      '@/app/dashboard/settings/_components/SubscriptionComparison':'comparison','@/lib/aiMediaPlanLimits':'media',
+      '@/lib/dashboardEdition':'edition','./reviewerAccess.ts':'reviewer'};
     function require(name){
-      if(name==='@/lib/subscriptionOffers')return require('offers');if(name==='@/lib/passwordPolicy')return require('password');
+      if(aliases[name])return require(aliases[name]);
       if(Object.hasOwn(modules,name))return modules[name];if(cache[name])return cache[name].exports;
       if(!Object.hasOwn(sources,name))throw Error('Unexpected product import '+name);
       const module=cache[name]={exports:{}};new Function('require','module','exports','process',sources[name])(require,module,module.exports,process);return module.exports;
@@ -92,11 +104,12 @@ test("temporary password Later precedes the three real monthly plans and no paym
       const card = f.page.locator("section").filter({ has: f.page.locator(`input[value="${plan}"]`) });
       assert.match(await card.innerText(), new RegExp(`${amount}[^0-9]*€`));
     }
-    assert.match(await f.page.locator("body").innerText(), /Sans période d’essai/);
+    assert.equal(await f.page.locator("footer").getByText(authMessages.directSignup.cancellationNotice, { exact: true }).isVisible(), false);
     assert.equal((await billingRequests(f.page)).length, 0);
     const dialog = f.page.getByRole("dialog");
     const bounds = await dialog.boundingBox(); assert.ok(bounds && bounds.width <= 390 && bounds.x >= 0);
-    assert.equal(await dialog.evaluate(node => getComputedStyle(node).backgroundColor), "rgb(16, 28, 49)", "the real activation CSS is applied");
+    assert.match(await dialog.evaluate(node => getComputedStyle(node).backgroundImage), /linear-gradient\(145deg/, "the real activation CSS is applied");
+    assert.match(await f.page.locator('section[data-selected="true"]').evaluate(node => getComputedStyle(node).backgroundImage), /gradient/, "the shared subscription card CSS is applied");
     assert.ok(await f.page.evaluate(() => document.documentElement.scrollWidth <= 390));
     assert.deepEqual(f.errors, []);
   } finally { await browser.close(); }
@@ -108,7 +121,7 @@ test("each explicit plan sends its exact monthly choice and double clicks produc
     for (const plan of ["Basic", "Standard", "Premium"] as const) {
       const f = await fixture(browser, { temporary: false }); await choose(f.page);
       await f.page.locator(`input[value="${plan}"]`).check();
-      const button = f.page.getByRole("button", { name: /^Continuer avec/ });
+      const button = f.page.getByRole("button", { name: /^Continuer vers Stripe/ });
       await button.evaluate(node => { (node as HTMLButtonElement).click(); (node as HTMLButtonElement).click(); });
       const index = await pending(f.page, BILLING); const requests = await billingRequests(f.page);
       assert.equal(requests.length, 1); assert.deepEqual(requests[0].body, { plan, billingCycle: "monthly" });
@@ -125,7 +138,7 @@ test("checkout errors retain the chosen plan for retry and non-Stripe payment UR
   try {
     const f = await fixture(browser, { temporary: false }); await choose(f.page);
     await f.page.locator('input[value="Premium"]').check();
-    const button = f.page.getByRole("button", { name: /^Continuer avec/ }); await button.click();
+    const button = f.page.getByRole("button", { name: /^Continuer vers Stripe/ }); await button.click();
     await reply(f.page, BILLING, { error: "synthetic unavailable" }, 503);
     await f.page.getByRole("alert").waitFor(); assert.equal(await f.page.locator('input[value="Premium"]').isChecked(), true);
     for (const url of ["https://evil.invalid/collect", "https://checkout.stripe.com.evil.invalid/pay", "http://checkout.stripe.com/pay", "javascript:alert(1)"]) {
@@ -159,9 +172,82 @@ test("cancelled checkout preserves the account and lets the professional resume 
     const f = await fixture(browser, { temporary: false, checkout: "cancel" }); await choose(f.page);
     await f.page.getByRole("status").filter({ hasText: "Votre compte est conservé" }).waitFor();
     assert.equal(await f.page.getByRole("radio").count(), 3); assert.equal((await billingRequests(f.page)).length, 0);
-    await f.page.getByRole("button", { name: /^Continuer avec/ }).click();
+    await f.page.getByRole("button", { name: /^Continuer vers Stripe/ }).click();
     const request = await pending(f.page, BILLING); assert.ok(request >= 0);
     assert.deepEqual((await billingRequests(f.page))[0].body, { plan: "Basic", billingCycle: "monthly" }); assert.deepEqual(f.errors, []);
+  } finally { await browser.close(); }
+});
+
+test("real Basic features return to the originating control with Return and Escape without starting payment", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const f = await fixture(browser, { temporary: false, mobile: true }); await choose(f.page);
+    const features = f.page.getByRole("button", { name: "Voir les fonctionnalités de Basique", exact: true });
+    for (const action of ["return", "escape"] as const) {
+      await features.click();
+      const heading = f.page.getByRole("heading", { name: "Fonctionnalités de Basique", exact: true }); await heading.waitFor();
+      assert.equal(await heading.evaluate(node => document.activeElement === node), true);
+      const tools = f.page.getByRole("table", { name: settings.subscription_basic_tools, exact: true });
+      assert.match(await tools.innerText(), /50[\s\S]*crédits médias \/ mois/);
+      assert.match(await tools.innerText(), /Publication sur 11 canaux/);
+      assert.equal(await tools.getAttribute("class"), "comparison_planTools");
+      assert.equal(await f.page.getByRole("radio").count(), 0);
+      assert.equal(await f.page.getByRole("button", { name: /^Continuer vers Stripe/ }).count(), 0);
+      assert.equal((await billingRequests(f.page)).length, 0);
+      assert.ok(await f.page.evaluate(() => document.documentElement.scrollWidth <= 390));
+      if (action === "return") await f.page.getByRole("button", { name: "Retour aux offres", exact: true }).click();
+      else await f.page.keyboard.press("Escape");
+      await features.waitFor();
+      assert.equal(await features.evaluate(node => document.activeElement === node), true);
+      assert.equal(await f.page.locator('input[value="Basic"]').isChecked(), true);
+      assert.equal(await f.page.getByRole("dialog").evaluate(node => (node as HTMLDialogElement).open), true);
+    }
+    assert.equal((await billingRequests(f.page)).length, 0); assert.deepEqual(f.errors, []);
+  } finally { await browser.close(); }
+});
+
+test("choosing Premium in its feature view selects and focuses that offer without creating a Checkout", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const f = await fixture(browser, { temporary: false }); await choose(f.page);
+    await f.page.getByRole("button", { name: "Voir les fonctionnalités de Premium", exact: true }).click();
+    await f.page.getByRole("heading", { name: "Fonctionnalités de Premium", exact: true }).waitFor();
+    assert.equal(await f.page.getByText(settings.subscription_standard_plus, { exact: true }).isVisible(), true);
+    await f.page.getByRole("table", { name: settings.subscription_premium_tools, exact: true }).waitFor();
+    assert.equal(await f.page.getByRole("button", { name: /^Continuer vers Stripe/ }).count(), 0);
+    await f.page.getByRole("button", { name: "Choisir Premium", exact: true }).click();
+    const selected = f.page.locator('input[value="Premium"]'); await selected.waitFor();
+    assert.equal(await selected.isChecked(), true);
+    assert.equal(await selected.evaluate(node => document.activeElement === node), true);
+    assert.equal(await f.page.getByRole("radio").count(), 3);
+    assert.match(await f.page.getByRole("button", { name: /^Continuer vers Stripe/ }).innerText(), /108[^0-9]*€ HT \/ mois/);
+    assert.equal((await billingRequests(f.page)).length, 0); assert.deepEqual(f.errors, []);
+  } finally { await browser.close(); }
+});
+
+test("expandable payment terms preserve trial, renewal, taxes and CGA disclosures without creating payment", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const f = await fixture(browser, { temporary: false }); await choose(f.page);
+    const footer = f.page.locator("footer"), terms = footer.locator("details");
+    assert.equal(await terms.evaluate(node => (node as HTMLDetailsElement).open), false);
+    const cancellation = terms.getByText(authMessages.directSignup.cancellationNotice, { exact: true });
+    assert.equal(await cancellation.count(), 1, "the renewal notice remains in the expandable terms");
+    assert.equal(await cancellation.isVisible(), false);
+    assert.equal(await terms.getByText(settings.standard_taxes_checkout, { exact: true }).isVisible(), false);
+    await terms.locator("summary").getByText("Paiement et conditions", { exact: true }).click();
+    assert.equal(await terms.evaluate(node => (node as HTMLDetailsElement).open), true);
+    assert.equal(await cancellation.isVisible(), true);
+    assert.match(await cancellation.innerText(), /Résiliation avec préavis : un renouvellement mensuel supplémentaire/);
+    assert.match(await terms.innerText(), /Sans période d’essai\. Premier paiement aujourd’hui, puis renouvellement mensuel/);
+    assert.equal(await terms.getByText(settings.standard_taxes_checkout, { exact: true }).isVisible(), true);
+    const cga = terms.getByRole("link", { name: "Conditions d’abonnement", exact: true });
+    assert.equal(await cga.getAttribute("href"), "https://inrcy.com/cga-conditions-generales-dabonnement/");
+    assert.equal(await cga.getAttribute("target"), "_blank");
+    assert.match(await cga.getAttribute("rel") ?? "", /noopener/);
+    await terms.locator("summary").click();
+    assert.equal(await terms.evaluate(node => (node as HTMLDetailsElement).open), false);
+    assert.equal((await billingRequests(f.page)).length, 0); assert.deepEqual(f.errors, []);
   } finally { await browser.close(); }
 });
 

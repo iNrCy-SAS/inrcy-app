@@ -1,43 +1,64 @@
-.page{min-height:100dvh;background:radial-gradient(ellipse at 15% 0,#28456b 0,transparent 50%),radial-gradient(ellipse at 95% 100%,#36265d 0,transparent 45%),#0b1325;color:#f4f7ff}
-.dialog{box-sizing:border-box;width:min(1080px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);margin:auto;padding:0;border:1px solid #4c5a76;border-radius:24px;background:#101c31;color:#f4f7ff;box-shadow:0 30px 100px #0008;overflow:auto}
-.dialog::backdrop{background:#03091699;backdrop-filter:blur(8px)}
+.page{min-height:100dvh;background:radial-gradient(ellipse at 10% 0,#22647d 0,transparent 50%),radial-gradient(ellipse at 95% 100%,#63377c 0,transparent 45%),#101d34;color:#f4f7ff}
+.dialog{box-sizing:border-box;width:min(1080px,calc(100vw - 32px));max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);margin:auto;padding:0;border:1px solid #647594;border-radius:26px;background:linear-gradient(145deg,#172c47,#17213a);color:#f4f7ff;box-shadow:0 30px 100px #0006;overflow:auto;scrollbar-width:thin;scrollbar-color:#7896b9 transparent}
+.dialog::backdrop{background:#07152c80;backdrop-filter:blur(8px)}
 .body{padding:clamp(20px,4vw,36px)}
 .header{text-align:center;margin:0 auto 26px;max-width:680px}
-.brand{margin:0 0 10px;color:#8cdfff;font-size:18px;font-weight:800;letter-spacing:.05em}
-.header h1{margin:0 0 12px;font-size:clamp(25px,5vw,36px);line-height:1.15;font-weight:750;text-wrap:balance}
-.header p:not(.brand){font-size:14px;line-height:1.6;color:#c5d1e4}
-.email{overflow-wrap:anywhere;color:#a8c3eb!important}
-.plans{margin:0;padding:0;border:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.brand{margin:0 0 10px;color:#92e6ec;font-size:18px;font-weight:850;letter-spacing:.05em}
+.header h1{margin:0 0 10px;font-size:clamp(26px,5vw,36px);line-height:1.15;font-weight:750;text-wrap:balance}
+.header p:not(.brand){margin:8px 0;font-size:14px;line-height:1.55;color:#d5dfed}
+.header p.email{margin-top:10px;font-size:12px;color:#9eb4ce;overflow-wrap:anywhere}
+.header.detailHeader{max-width:none;margin:0 auto 12px}
+.detailHeader h1{margin-bottom:0;font-size:clamp(24px,4vw,31px)}
+.plans{margin:0;padding:0;border:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
 .legend{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
-.card{min-width:0;border:1px solid #4c5a76;border-radius:17px;background:#0b1629;overflow:hidden}
-.card[data-selected=true]{border-color:#8cdfff;box-shadow:0 0 0 2px #8cdfff38;background:#11223b}
-.option{display:flex;flex-direction:column;gap:18px;padding:22px;cursor:pointer}
-.optionHeading{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:19px}
-.option input{width:20px;height:20px;accent-color:#8cdfff;flex:none}
-.price{font-size:32px;font-weight:750;line-height:1.2}
-.price small{font-size:12px;font-weight:500;color:#bfcde3;white-space:nowrap}
-.benefit{font-size:14px;line-height:1.5;color:#c5d1e4;min-height:42px}
-.details{margin:0 15px 15px}
-.details summary{padding:8px;color:#9ed9ff;font-size:13px;cursor:pointer}
-.details table{width:100%;font-size:12px;border-collapse:collapse}
-.details th,.details td{padding:10px 5px!important;vertical-align:top;text-align:left;overflow-wrap:anywhere}
-.details th{width:38%}
-.footer{margin:24px auto 0;text-align:center;max-width:700px}
-.footer p{margin:10px 0 16px;color:#c5d1e4;font-size:14px;line-height:1.6}
+.card{position:relative;min-width:0;display:flex;flex-direction:column;border-radius:20px;color:#fff;transition:transform .16s ease,outline-color .16s ease}
+.card[data-selected=true]{outline:2px solid #d5fff8;outline-offset:3px}
+.card:focus-within{outline-color:#fff}
+.option{display:flex;flex:1;flex-direction:column;gap:19px;padding:24px 22px 20px;cursor:pointer}
+.optionHeading{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:20px}
+.optionHeading strong{font-weight:800}
+.option input{width:20px;height:20px;margin:0;accent-color:#aaf3e6;flex:none}
+.price{margin:0;font-size:35px;font-weight:800;line-height:1.2;letter-spacing:-.04em;color:#fff}
+.price small{font-size:12px;font-weight:500;color:#edf6ff;white-space:nowrap;letter-spacing:0}
+.benefit{font-size:14px;line-height:1.5;color:#f1f6ff;min-height:42px}
+.featuresButton{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;margin:0 16px 16px;padding:11px 13px;border:1px solid #ffffff59;border-radius:11px;background:#ffffff17;color:#fff;font:inherit;font-size:12px;font-weight:650;text-align:left;cursor:pointer}
+.featuresButton:hover{background:#ffffff29;border-color:#ffffffa6}
+.featuresButton span{font-size:17px}
+.detailView{max-width:780px;margin:auto}
+.back{display:inline-flex;align-items:center;gap:9px;min-height:42px;padding:8px 0;margin:0 0 6px;border:0;background:none;color:#c7e8ff;font:inherit;font-size:14px;font-weight:650;cursor:pointer}
+.back span{font-size:20px}
+.detailCard{min-width:0;border-radius:22px;padding:25px;color:#fff}
+.detailHeading{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:10px}
+.detailHeading h2{margin:0 0 4px;font-size:26px;line-height:1.2}
+.detailHeading>div>p{margin:0;color:#f0f5ff;font-size:14px;line-height:1.5}
+.detailHeading .price{flex:none;text-align:right}
+.detailHeading .price small{display:block;margin-top:5px}
+.detailCard table{table-layout:fixed;width:100%;margin-top:8px;font-size:13px;line-height:1.5}
+.detailCard th,.detailCard td{overflow-wrap:anywhere}
+.choosePlan{display:flex;align-items:center;justify-content:center;gap:12px;width:100%;min-height:49px;margin-top:22px;padding:13px 18px;border:1px solid #fff;border-radius:12px;background:#fff;color:#173e64;font:inherit;font-size:15px;font-weight:750;cursor:pointer}
+.choosePlan:hover{background:#eafbff}
+.footer{margin:26px auto 0;text-align:center;max-width:680px}
 .primary,.secondary{min-height:48px;padding:13px 22px;border-radius:12px;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
-.primary{width:100%;border:1px solid #a198ff;background:linear-gradient(110deg,#6b55df,#466bd6);color:#fff}
+.primary{width:100%;min-height:52px;border:1px solid #b2c8ff;background:linear-gradient(110deg,#416bf0,#7652dd);color:#fff;box-shadow:0 8px 24px #0d173d33}
+.primary:hover:not(:disabled){filter:brightness(1.1)}
 .secondary{display:block;margin:14px auto;border:1px solid #6982a5;background:transparent;color:#c7d7f1}
 .primary:disabled,.secondary:disabled,.plans:disabled{opacity:.6;cursor:wait}
-.dialog :is(button,input,a,summary):focus-visible{outline:3px solid #8cdfff;outline-offset:4px}
-.footer .finePrint{font-size:12px;color:#aebfd9}
+.dialog :is(button,input,a,summary):focus-visible{outline:3px solid #adf3ff;outline-offset:4px}
+.header h1:focus{outline:none}
+.footer .cancellation{margin:12px 0 0;color:#cad8e9;font-size:12px;line-height:1.5}
+.paymentTerms{margin-top:10px;font-size:12px;line-height:1.6;color:#b8cbe3}
+.paymentTerms summary{width:fit-content;max-width:100%;margin:auto;padding:6px 8px;cursor:pointer;color:#d5e7fc}
+.paymentTerms>div{margin-top:8px;padding:14px 18px;border:1px solid #6a82a14d;border-radius:12px;background:#091b302e;text-align:left}
+.paymentTerms p{margin:0 0 10px}
+.paymentTerms a{text-decoration:underline;color:#bfeaff}
 .notice,.error{margin:15px 0;padding:12px 16px;border-radius:10px;font-size:14px;line-height:1.6}
-.notice{border:1px solid #576d8d;background:#18283f;color:#d9e7fa}
-.error{border:1px solid #9e526a;background:#472033;color:#ffdae4}
+.notice{border:1px solid #6d88aa;background:#1f3b57;color:#e0edff}
+.error{border:1px solid #b76785;background:#522b40;color:#ffe0ec}
 .status{display:flex;justify-content:center;align-items:center;gap:12px;padding:35px 0;color:#c5d1e4;font-size:15px;line-height:1.6}
 .spinner{width:20px;height:20px;flex:none;border:2px solid #8cdfff40;border-top-color:#8cdfff;border-radius:50%;animation:spin 1s linear infinite}
-.links{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:12px 24px;margin-top:22px;font-size:12px;color:#abc1df}
+.links{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:12px 24px;margin-top:20px;font-size:12px;color:#abc1df}
 .links form{margin:0}.links button{padding:0;border:0;background:none;color:inherit;font:inherit;text-decoration:underline;cursor:pointer}
 .links a{text-decoration:underline}
 @keyframes spin{to{transform:rotate(360deg)}}
-@media(max-width:720px){.plans{grid-template-columns:1fr}.option{gap:12px;padding:18px}.benefit{min-height:0}.header{margin-bottom:20px}.dialog{border-radius:18px}.footer{margin-top:18px}.price{font-size:28px}}
-@media(prefers-reduced-motion:reduce){.spinner{animation:none}}
+@media(max-width:720px){.plans{grid-template-columns:1fr;gap:16px}.option{gap:12px;padding:18px 18px 14px}.benefit{min-height:0}.header{margin-bottom:22px}.dialog{border-radius:20px;width:calc(100vw - 20px);max-width:calc(100vw - 20px);max-height:calc(100dvh - 20px)}.body{padding:22px 18px}.footer{margin-top:22px}.price{font-size:31px}.featuresButton{margin:0 14px 14px}.detailCard{padding:18px 14px}.detailHeading{gap:12px;flex-wrap:wrap;margin-bottom:8px}.detailHeading h2{font-size:24px}.detailHeading .price{text-align:left}.detailHeading .price small{display:inline;font-size:11px}.detailCard table{font-size:12px}.detailCard th{width:40%}.detailCard th,.detailCard td{padding-top:11px;padding-bottom:11px}.back{margin-bottom:4px}}
+@media(prefers-reduced-motion:reduce){.spinner{animation:none}.card{transition:none}}
