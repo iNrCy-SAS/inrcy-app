@@ -123,7 +123,7 @@ import {
   pendingSignupReminderEventId,
   type PendingSignupReminderInput,
 } from "@/lib/visioPendingSignupPolicy";
-import type { VisioBookingClaims } from "@/lib/visioBookingToken";
+import { verifyVisioBookingToken, type VisioBookingClaims } from "@/lib/visioBookingToken";
 
 const PRIVATE_BOOKING_KEY = "inrcyBooking";
 const PRIVATE_BOOKING_VALUE = "signup-visio";
@@ -2438,7 +2438,7 @@ export type PendingSignupCalendarReminderResult = {
  * the operational calendar to receive a new professional.
  */
 export async function ensurePendingSignupCalendarReminder(
-  input: Omit<PendingSignupReminderInput, "calendarId">,
+  input: Omit<PendingSignupReminderInput, "calendarId"> & { bookingToken?: string },
 ): Promise<PendingSignupCalendarReminderResult> {
   const calendarId = getVisioSharedCalendarId();
   const body = buildPendingSignupReminderCalendarEvent({
@@ -2449,6 +2449,62 @@ export async function ensurePendingSignupCalendarReminder(
   const eventPath = `/calendars/${encodeCalendarId(
     calendarId,
   )}/events/${encodeURIComponent(eventId)}`;
+  const booking = input.bookingToken === undefined ? null : verifyVisioBookingToken(input.bookingToken);
+  if (booking && (booking.sub !== input.userId.trim()
+    || booking.email.toLowerCase() !== input.email.trim().toLowerCase())) {
+    throw new Error("visio_pending_signup_booking_conflict");
+  }
+  const completedBooking = async () => {
+    if (!booking) return null;
+    // A listing (or a cached 404 from before the booking) is not sufficient:
+    // the response can now reach the professional before this reminder runs.
+    let event: GoogleCalendarEvent;
+    try {
+      // Bypass the event cache entirely, including its 410-as-missing recovery
+      // semantics. Only an authoritative 404 permits a new waiting reminder.
+      event = await googleCalendarRequest<GoogleCalendarEvent>(
+        `/calendars/${encodeCalendarId(getVisioPublicCalendarId())}/events/${encodeURIComponent(bookingEventId(booking.nonce))}`,
+        { method: "GET" },
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("visio_google_api_failed:404:")) return null;
+      throw error;
+    }
+    if (event.status === "cancelled") throw new Error("visio_pending_signup_booking_cancelled");
+    const properties = event.extendedProperties?.private || {};
+    if (event.id !== bookingEventId(booking.nonce) || properties[PRIVATE_BOOKING_KEY] !== PRIVATE_BOOKING_VALUE
+      || properties.prospectUserId !== booking.sub || properties.bookingNonce !== booking.nonce) {
+      throw new Error("visio_pending_signup_booking_conflict");
+    }
+    return event;
+  };
+  const finish = async (result: PendingSignupCalendarReminderResult, confirmedBooking?: GoogleCalendarEvent) => {
+    const booked = confirmedBooking || await completedBooking();
+    if (!booked) return result;
+    const pending = await getCalendarEvent(calendarId, eventId, { fresh: true });
+    if (pending && pending.status !== "cancelled"
+      && isPendingSignupReminderForProspect(pending, input.userId)
+      && lifecycleStatusForEvent(pending) === "signup_pending"
+      && !isTeamCalendarAutomationDetached(pending)
+      && !hasTeamCalendarAutomationSnapshotDiverged(pending)) {
+      const etag = (pending as GoogleCalendarEvent & { etag?: string }).etag;
+      if (!etag) throw new Error("visio_pending_signup_version_missing");
+      const cancelled = withTeamCalendarAutomationSnapshot({ ...pending, status: "cancelled" });
+      try {
+        // A booking can convert this very event after our read. Never cancel
+        // that appointment (or a human edit) using the old reminder snapshot.
+        await googleCalendarRequest<GoogleCalendarEvent>(`${eventPath}?sendUpdates=none`, {
+          method: "PATCH", headers: { "If-Match": etag },
+          body: JSON.stringify({ status: "cancelled", extendedProperties: cancelled.extendedProperties }),
+        });
+      } catch (error) {
+        if (!(error instanceof Error) || !error.message.startsWith("visio_google_api_failed:412:")) throw error;
+      }
+    }
+    return { status: "existing" as const, eventId: String(booked.id) };
+  };
+  const alreadyBooked = await completedBooking();
+  if (alreadyBooked) return finish({ status: "existing", eventId }, alreadyBooked);
 
   const assertOwnedEvent = (event: GoogleCalendarEvent) => {
     const prospectUserId = String(
@@ -2458,18 +2514,23 @@ export async function ensurePendingSignupCalendarReminder(
       throw new Error("visio_pending_signup_event_id_conflict");
     }
   };
+  const restore = async () => {
+    // A delayed/replayed new-signup task cannot undo a booking's cleanup or a
+    // human cancellation. Keep the historical no-token recovery unchanged.
+    if (booking) return { status: "existing" as const, eventId };
+    await googleCalendarRequest<GoogleCalendarEvent>(`${eventPath}?sendUpdates=none`, {
+      method: "PATCH", body: JSON.stringify(writableBody),
+    });
+    return finish({ status: "restored", eventId });
+  };
 
   const existing = await getCalendarEvent(calendarId, eventId);
   if (existing) {
     assertOwnedEvent(existing);
     if (existing.status !== "cancelled") {
-      return { status: "existing", eventId };
+      return finish({ status: "existing", eventId });
     }
-    await googleCalendarRequest<GoogleCalendarEvent>(
-      `${eventPath}?sendUpdates=none`,
-      { method: "PATCH", body: JSON.stringify(writableBody) },
-    );
-    return { status: "restored", eventId };
+    return restore();
   }
 
   try {
@@ -2477,7 +2538,7 @@ export async function ensurePendingSignupCalendarReminder(
       `/calendars/${encodeCalendarId(calendarId)}/events?sendUpdates=none`,
       { method: "POST", body: JSON.stringify(body) },
     );
-    return { status: "created", eventId };
+    return finish({ status: "created", eventId });
   } catch (error) {
     if (
       !(error instanceof Error) ||
@@ -2489,13 +2550,9 @@ export async function ensurePendingSignupCalendarReminder(
     if (!racedEvent) throw error;
     assertOwnedEvent(racedEvent);
     if (racedEvent.status !== "cancelled") {
-      return { status: "existing", eventId };
+      return finish({ status: "existing", eventId });
     }
-    await googleCalendarRequest<GoogleCalendarEvent>(
-      `${eventPath}?sendUpdates=none`,
-      { method: "PATCH", body: JSON.stringify(writableBody) },
-    );
-    return { status: "restored", eventId };
+    return restore();
   }
 }
 

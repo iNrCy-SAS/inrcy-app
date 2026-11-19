@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { evaluatePassword } from "@/lib/passwordPolicy";
-import { createClient } from "@/lib/supabaseClient";
 import styles from "./TemporaryPasswordWelcomeGate.module.css";
 
 type Props = {
@@ -121,7 +120,8 @@ function TemporaryPasswordWelcomeScope({ email, children }: Pick<Props, "email" 
         window.location.assign(`/login?email=${encodeURIComponent(email)}`);
         return;
       }
-      await createClient().auth.getUser().catch(() => null);
+      // The successful POST already restores the authenticated session cookies.
+      // Another Auth request could stall the completed welcome and its assistant.
       if (activeRef.current) setPhase("done");
     } catch {
       if (activeRef.current) setError(t("updateFailed"));

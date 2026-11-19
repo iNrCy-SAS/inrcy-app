@@ -10,6 +10,7 @@ type FixtureRequest = { url: string; settled: boolean; body: unknown; credential
 type BrowserFixture = Window & {
   requests: FixtureRequest[];
   arrivals: number;
+  authUserCalls: number;
   reply: (index: number, payload: unknown, status?: number) => void;
   render: (patch: Record<string, unknown>) => void;
 };
@@ -31,7 +32,7 @@ const sources = {
   arrival: compile("app/dashboard/_hooks/useAssistantFirstArrival.ts"),
 };
 
-async function setup(page: Page, props: Record<string, unknown> = {}) {
+async function setup(page: Page, props: Record<string, unknown> = {}, options: { authUserHangs?: boolean } = {}) {
   const errors: string[] = [], routes: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/*", route => {
@@ -43,11 +44,11 @@ async function setup(page: Page, props: Record<string, unknown> = {}) {
   await page.addStyleTag({ content: readFileSync(new URL("../../app/dashboard/_components/TemporaryPasswordWelcomeGate.module.css", import.meta.url), "utf8") });
   await page.addScriptTag({ content: `
     const sources=${JSON.stringify(sources)}, messages=${JSON.stringify(messages)},cache={},process={env:{NODE_ENV:'development'}};
-    window.requests=[];window.arrivals=0;window.childMounts=0;window.props={actorUserId:'actor-a',temporaryPasswordWelcomeId:'welcome-a',email:'new@example.com',...${JSON.stringify(props)}};
+    window.requests=[];window.arrivals=0;window.childMounts=0;window.authUserCalls=0;window.props={actorUserId:'actor-a',temporaryPasswordWelcomeId:'welcome-a',email:'new@example.com',...${JSON.stringify(props)}};
     const modules={
       'next-intl':{useTranslations:()=>key=>{if(typeof messages[key]!=='string')throw Error('Missing translation '+key);return messages[key]}},
       '@/lib/passwordPolicy':null,
-      '@/lib/supabaseClient':{createClient:()=>({auth:{getUser:async()=>({data:{user:{id:window.props.actorUserId}}})}})},
+      '@/lib/supabaseClient':{createClient:()=>({auth:{getUser:()=>{window.authUserCalls++;return ${Boolean(options.authUserHangs)}?new Promise(()=>{}):Promise.resolve({data:{user:{id:window.props.actorUserId}}})}}})},
       './TemporaryPasswordWelcomeGate.module.css':{default:new Proxy({},{get:(_,key)=>String(key)})},
       '@/lib/browserAccountCache':{getActiveBrowserUserId:()=>window.props.actorUserId},
       '@/lib/browserSignOutState':{BROWSER_SIGN_OUT_START_EVENT:'fixture-signout',isBrowserSignOutInProgress:()=>false},
@@ -141,6 +142,26 @@ test("failed handoff offers manual temporary password and Later still resumes on
     await page.locator("[data-normal-onboarding]").waitFor();
     await pending(page, "/api/dashboard/setup-intro");
     assert.equal(await page.evaluate(() => (window as unknown as BrowserFixture).requests.some((r: FixtureRequest) => r.url === "/api/auth/change-password")), false);
+    assert.deepEqual(f.errors, []);
+  } finally { await browser.close(); }
+});
+
+test("a completed password write resumes assistant arrival even when a subsequent Auth user call would never answer", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); const f = await setup(page, {}, { authUserHangs: true });
+    await answerWelcome(page, { required: true, currentPassword: "Old-Temporary42!" });
+    await page.getByLabel("Nouveau mot de passe", { exact: true }).fill("New-Password42!");
+    await page.getByLabel("Confirmez le mot de passe", { exact: true }).fill("New-Password42!");
+    await page.getByRole("button", { name: "Enregistrer et continuer" }).click();
+    const change = await pending(page, "/api/auth/change-password");
+    await page.evaluate(index => (window as unknown as BrowserFixture).reply(index, { ok: true, requires_login: false }), change);
+    await page.locator("[data-normal-onboarding]").waitFor();
+    const arrival = await pending(page, "/api/dashboard/setup-intro");
+    await page.evaluate(index => (window as unknown as BrowserFixture).reply(index, { accountId: "actor-a", show: true }), arrival);
+    await page.waitForFunction(() => (window as unknown as BrowserFixture).arrivals === 1);
+    assert.equal(await page.getByRole("dialog").count(), 0);
+    assert.equal(await page.evaluate(() => (window as unknown as BrowserFixture).authUserCalls), 0);
     assert.deepEqual(f.errors, []);
   } finally { await browser.close(); }
 });

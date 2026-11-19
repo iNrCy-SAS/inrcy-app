@@ -214,6 +214,7 @@ function createHarness(syncNow = now) {
     "@/lib/visioCalendarMirrorPolicy": mirrorPolicy,
     "@/lib/visioBookingPolicy": bookingPolicy,
     "@/lib/visioPendingSignupPolicy": pendingPolicy,
+    "@/lib/visioBookingToken": {},
   };
   const exports = {} as HarnessModule;
   const runtimeContext = {

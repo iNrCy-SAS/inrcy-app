@@ -465,7 +465,7 @@
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
         "lib/visioAppointmentLifecycle.ts": "84375db8bd67fea36fd99e0fefe23de0c706bdcfd41aa099ad0db40b663f7e26",
-        "lib/visioBookingGoogle.ts": "0aacd8f4db89bc0a25f99fb3f3a050580a4dd4dff7874c4eb3f2257f09809dd7",
+        "lib/visioBookingGoogle.ts": "51b7ac8d04267520ffaa0f0a474034920695d4eaa049bac95a695703c5cb6068",
         "lib/visioCalendarMirrorPolicy.ts": "e63786559cd304416e2c148affa7eb5ae1805ee4524f2078056cc386ec7ac224",
         "messages/fr-FR/agenda.json": "25ffae82cfe1cfe99e2cbd97da8b4054aa74d357c21234341c11cc3f44e967e6"
       }
@@ -648,7 +648,7 @@
         "app/dashboard/_components/DashboardTopbar.tsx": "7f51f87106641ac8a53fb776019ff811718beb3c5a8f2e6c4385c0c9eb9ccd02",
         "app/dashboard/_components/GeneratorSettingsModal.tsx": "46846950ab4570bd362c430d3a38c08f94094086b55b3a9f226ee78ffc872e65",
         "app/dashboard/_components/ResponsiveBottomNav.tsx": "d094daa7d6b8904dae0fa555de752ca2182c5a4154fcadac0b6281f9c6c2f16a",
-        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx": "09dff53da40a30b8a20c3822779f76282dd9e2c2c76e0fd1b3a43a0b71842d7e",
+        "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx": "e775307f9ff04e5425f763ee0ffba9294eb37cf7214882ac3decea033278b7fd",
         "app/dashboard/_components/dashboardMobileMenuModel.ts": "c4d9be815f9b6064e2498e4b23d907265e325d0ddfd14b167b8056c57a6deb88",
         "app/dashboard/_hooks/useAssistantFirstArrival.ts": "be478a57f9d176ad332ae22f09a7b350b65023edd323b6a6643d1f9fad7f1fb4",
         "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts": "56b27fde1ca2e52f613100a771942f462b8a10af3b0b9bef74ec1b4b8bc89492",

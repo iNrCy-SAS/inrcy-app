@@ -114,3 +114,13 @@ test("watch registration retains its webhook token, lifetime and encoded calenda
   assert.equal(f.requests[0].init?.method, "POST");
   assert.deepEqual(JSON.parse(String(f.requests[0].init?.body)), { id: "watch-a", type: "web_hook", address: "https://app.example.test/callback", token: "watch-secret", params: { ttl: "3600" } });
 });
+
+test("conditional Calendar writes retain If-Match and a changed ETag is terminal without a blind retry", async () => {
+  const f = fixture([() => Response.json({ error: { message: "version changed" } }, { status: 412 })]);
+  await assert.rejects(f.api.googleCalendarRequest("/calendars/team/events/pending", {
+    method: "PATCH", headers: { "If-Match": '"synthetic-version"' }, body: JSON.stringify({ status: "cancelled" }),
+  }), /visio_google_api_failed:412:/);
+  assert.equal(f.requests.length, 1);
+  assert.equal((f.requests[0].init?.headers as Record<string, string>)["If-Match"], '"synthetic-version"');
+  assert.deepEqual(f.delays, []);
+});

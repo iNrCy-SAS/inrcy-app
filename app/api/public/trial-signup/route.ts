@@ -579,7 +579,6 @@ export async function POST(req: Request) {
     const invitedUser = invite.user;
     userId = invitedUser?.id || null;
     if (!userId) throw new Error("supabase_signup_user_missing");
-    const signupUserId = userId;
     authUserCreated = true;
     await attachSignupWelcome(welcome.metadata.welcome_id, userId);
     const nowIso = new Date().toISOString();
@@ -640,8 +639,22 @@ export async function POST(req: Request) {
       userId, email: payload.email, password: welcome.password,
       metadata: welcome.metadata, language: payload.language,
     });
+    // The response and every independent post-response task belong to this
+    // completed signup, never to the mutable variables used by failure handling.
+    const completedUserId = userId;
+    const completedWelcomeId = welcome.metadata.welcome_id;
+    const completedTrialEndAt = end.toISOString();
+    const completedPayload = Object.freeze({
+      ...payload,
+      attribution: Object.freeze({ ...payload.attribution }),
+      browserMatch: Object.freeze({ ...payload.browserMatch }),
+    });
+    const bookingToken = createVisioBookingToken({
+      userId: completedUserId,
+      email: completedPayload.email,
+    });
     after(async () => {
-      await deliverSignupWelcome(welcome.metadata.welcome_id).catch(() => {
+      await deliverSignupWelcome(completedWelcomeId).catch(() => {
         // The outbox owns retries. A slow provider must not hold the signup
         // response (and its immediate access) beyond WordPress's HTTP timeout.
         console.error("[trial-signup][welcome]", "welcome_delivery_pending");
@@ -649,26 +662,30 @@ export async function POST(req: Request) {
     });
 
     let attributionPersisted = false;
-    let persistedAttributionEventId = payload.attribution.eventId;
+    let persistedAttributionEventId = completedPayload.attribution.eventId;
+    // Commit the idempotent attribution first: its insert trigger durably
+    // creates the Lead outbox entry even if the immediate CAPI attempt fails.
     await persistSignupAttribution({
-      userId,
-      attribution: payload.attribution,
-      browserMatch: payload.browserMatch,
+      userId: completedUserId,
+      attribution: completedPayload.attribution,
+      browserMatch: completedPayload.browserMatch,
     }).then((persisted) => {
       attributionPersisted = true;
       persistedAttributionEventId = persisted.eventId;
     }).catch((error: unknown) => {
       console.error(
         "[trial-signup][attribution]",
-        error instanceof Error ? error.message : "persistence_failed",
+        getSignupFailureErrorCode(error),
       );
     });
 
-    // The insert trigger creates the durable Lead event atomically with its
-    // consent record. Try it immediately; the cron worker owns every retry.
+    // External delivery must not delay the credentials/booking receipt. Each
+    // task has its own after callback so one slow provider cannot block another.
     if (attributionPersisted) {
+      // This is a database-only outbox write, not a Meta request. Commit it
+      // before returning so the cron can deliver CompleteRegistration later.
       await enqueueMetaConversionEvent({
-        userId,
+        userId: completedUserId,
         eventName: "CompleteRegistration",
         occurredAt: nowIso,
         source: "public_signup_temporary_password",
@@ -677,78 +694,78 @@ export async function POST(req: Request) {
       });
       const leadEventId = buildMetaConversionEventId(
         "Lead",
-        userId,
+        completedUserId,
         persistedAttributionEventId,
       );
-      await processMetaConversionEvents({ eventId: leadEventId, limit: 1 })
-        .catch((error: unknown) => {
-          console.error(
-            "[trial-signup][meta-lead]",
-            error instanceof Error ? error.message : "delivery_deferred",
-          );
-        });
+      after(async () => {
+        await processMetaConversionEvents({ eventId: leadEventId, limit: 1 })
+          .catch((error: unknown) => {
+            console.error("[trial-signup][meta-lead]", getSignupFailureErrorCode(error));
+          });
+      });
     }
 
     // The operational reminder is created from the authoritative successful
     // signup, not from an email scan. Calendar availability must never make
     // account creation fail; Apps Script remains a fallback if Google is down.
-    await ensurePendingSignupCalendarReminder({
-      userId: signupUserId,
-      email: payload.email,
-      firstName: payload.firstName,
-      lastName: payload.lastName,
-      company: payload.companyName,
-      phone: payload.phone,
-      createdAt: nowIso,
-    }).catch((error: unknown) => {
-      log.error("trial_signup_calendar_reminder_deferred", {
-        request_id: requestId,
-        route: "/api/public/trial-signup",
-        user_id: signupUserId,
-        error_code: getSignupFailureErrorCode(error),
-        error_message: getSignupFailureSafeMessage(error),
+    after(async () => {
+      await ensurePendingSignupCalendarReminder({
+        userId: completedUserId,
+        bookingToken,
+        email: completedPayload.email,
+        firstName: completedPayload.firstName,
+        lastName: completedPayload.lastName,
+        company: completedPayload.companyName,
+        phone: completedPayload.phone,
+        createdAt: nowIso,
+      }).catch((error: unknown) => {
+        log.error("trial_signup_calendar_reminder_deferred", {
+          request_id: requestId,
+          route: "/api/public/trial-signup",
+          user_id: completedUserId,
+          error_code: getSignupFailureErrorCode(error),
+        });
       });
     });
 
-    await sendAdminSubscriptionAlertForUser({
-      type: "trial_started",
-      source: payload.source || "wordpress-elementor",
-      userId,
-      accountEmail: payload.email,
-      profileContactEmail: payload.email,
-      plan: "Trial",
-      status: "trialing",
-      trialEndAt: end.toISOString(),
-      note: [
-        payload.firstName || payload.lastName
-          ? `Contact: ${[payload.firstName, payload.lastName].filter(Boolean).join(" ")}`
-          : null,
-        payload.companyName ? `Société: ${payload.companyName}` : null,
-        payload.phone ? `Téléphone: ${payload.phone}` : null,
-        `Acquisition: ${getSignupAttributionSourceLabel(payload.attribution)}`,
-        getSignupCampaignLabel(payload.attribution)
-          ? `Campagne: ${getSignupCampaignLabel(payload.attribution)}`
-          : null,
-        getSignupAdLabel(payload.attribution)
-          ? `Publicité: ${getSignupAdLabel(payload.attribution)}`
-          : null,
-        "Consentement RGPD coché",
-      ]
-        .filter(Boolean)
-        .join(" | "),
-    }).catch(() => null);
-
-    const bookingToken = createVisioBookingToken({
-      userId,
-      email: payload.email,
+    after(async () => {
+      await sendAdminSubscriptionAlertForUser({
+        type: "trial_started",
+        source: completedPayload.source || "wordpress-elementor",
+        userId: completedUserId,
+        accountEmail: completedPayload.email,
+        profileContactEmail: completedPayload.email,
+        plan: "Trial",
+        status: "trialing",
+        trialEndAt: completedTrialEndAt,
+        note: [
+          completedPayload.firstName || completedPayload.lastName
+            ? `Contact: ${[completedPayload.firstName, completedPayload.lastName].filter(Boolean).join(" ")}`
+            : null,
+          completedPayload.companyName ? `Société: ${completedPayload.companyName}` : null,
+          completedPayload.phone ? `Téléphone: ${completedPayload.phone}` : null,
+          `Acquisition: ${getSignupAttributionSourceLabel(completedPayload.attribution)}`,
+          getSignupCampaignLabel(completedPayload.attribution)
+            ? `Campagne: ${getSignupCampaignLabel(completedPayload.attribution)}`
+            : null,
+          getSignupAdLabel(completedPayload.attribution)
+            ? `Publicité: ${getSignupAdLabel(completedPayload.attribution)}`
+            : null,
+          "Consentement RGPD coché",
+        ]
+          .filter(Boolean)
+          .join(" | "),
+      }).catch((error: unknown) => {
+        console.error("[trial-signup][admin-alert]", getSignupFailureErrorCode(error));
+      });
     });
 
     return jsonResponse({
       ok: true,
-      user_id: userId,
+      user_id: completedUserId,
       app_edition: edition,
       trial_days: trialDays,
-      trial_end_at: end.toISOString(),
+      trial_end_at: completedTrialEndAt,
       booking_token: bookingToken,
       signup_access: signupAccess,
       message: "Votre compte est prêt. L’e-mail de bienvenue avec votre mot de passe provisoire valable 30 jours est en cours d’acheminement.",
