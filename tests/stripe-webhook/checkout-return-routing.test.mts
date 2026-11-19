@@ -5,6 +5,7 @@ import test from "node:test";
 import ts from "typescript";
 import * as routing from "../../lib/checkoutReturnRouting.ts";
 import * as offers from "../../lib/subscriptionOffers.ts";
+import * as directSignupPolicy from "../../lib/directSignupPolicy.ts";
 
 type Row = Record<string, unknown>;
 type Element = { type: unknown; props: Row };
@@ -54,6 +55,7 @@ function blockedPage(status: string) {
     "./compte-bloque.module.css": { default: {} },
     "@/lib/supabaseAdmin": { supabaseAdmin: { from: () => chain } },
     "@/lib/supabaseServer": { createSupabaseServer: async () => ({ auth: { getUser: async () => ({ data: { user: { id: "owner-1" } } }) } }) },
+    "@/lib/directSignupPolicy": directSignupPolicy,
     "@/lib/dashboardEdition": { resolveDashboardEdition: () => "standard" },
     "./BlockedBillingActions": { default: component },
     "@/lib/checkoutReturnRouting": routing,

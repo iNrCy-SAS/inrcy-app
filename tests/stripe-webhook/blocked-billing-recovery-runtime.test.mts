@@ -6,6 +6,7 @@ import { createRequire } from "node:module";
 import test from "node:test";
 import ts from "typescript";
 import * as offers from "../../lib/subscriptionOffers.ts";
+import * as directSignupPolicy from "../../lib/directSignupPolicy.ts";
 import * as edition from "../../lib/dashboardEdition.ts";
 import * as checkoutPolicy from "../../lib/subscriptionCheckoutPolicy.ts";
 import * as accountPolicy from "../../lib/accountSubscriptionPolicy.ts";
@@ -120,6 +121,7 @@ function billingFixture(options: {
     "@/lib/subscriptionOffers": offers,
     "@/lib/subscriptionCheckoutPolicy": checkoutPolicy,
     "@/lib/dashboardEdition": edition,
+    "@/lib/directSignupPolicy": directSignupPolicy,
     "@/lib/billingCatalog": catalog,
     "@/lib/trialSubscription": {
       getTrialDays: () => 21,
@@ -288,6 +290,7 @@ async function proxyResponse(path: string, status: string) {
     "next/server": { NextRequest, NextResponse },
     "@supabase/ssr": { createServerClient: () => ({ auth: { getClaims: async () => ({ data: { claims: { sub: actor } }, error: null }) } }) },
     "./lib/dashboardEdition": edition, "./lib/reviewerAccess": reviewerAccess,
+    "./lib/directSignupPolicy": directSignupPolicy,
     "./lib/multicompte/normalize": accountNormalization,
     "./lib/multicompte/constants": { ACTIVE_INRCY_ACCOUNT_COOKIE: "inrcy_uid" },
     "./lib/rateLimit": { enforceQuota: async () => null, enforceRateLimit: async () => null },

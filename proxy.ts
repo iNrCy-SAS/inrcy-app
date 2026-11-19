@@ -25,6 +25,7 @@ import { CHECKOUT_RETURN_HEADER, checkoutReturnQuery } from "./lib/checkoutRetur
 import { ACTIVE_INRCY_ACCOUNT_COOKIE } from "./lib/multicompte/constants";
 import { isUuidLike, normalizeAccountSummary, pickDefaultAccount } from "./lib/multicompte/normalize";
 import { hasFullProductReviewerAccess } from "./lib/reviewerAccess";
+import { DIRECT_SIGNUP_ACTIVATION_PATH, getDirectSignupMetadata, isDirectSignupPaid } from "./lib/directSignupPolicy";
 
 const ADMIN_USER_IDS = ["670b527d-5e08-42b4-ba95-e58e812339eb"] as const;
 
@@ -36,6 +37,7 @@ type MaintenanceRow = {
 };
 
 type SubscriptionGateRow = {
+  stripe_subscription_id?: string | null;
   status?: string | null;
   trial_end_at?: string | null;
   start_date?: string | null;
@@ -291,7 +293,7 @@ async function getSubscriptionGateRow(userId: string, accountId: string | null =
     // accountId is resolved from trusted memberships by this request, never
     // from the selection cookie alone. Private lookup errors fail closed.
     const approvedUrl = new URL(`${supabaseUrl}/rest/v1/inrcy_account_subscriptions`);
-    approvedUrl.searchParams.set("select", "account_id,auth_user_id,status,start_date,app_edition,plan");
+    approvedUrl.searchParams.set("select", "account_id,auth_user_id,status,start_date,app_edition,plan,stripe_subscription_id");
     approvedUrl.searchParams.set("account_id", `eq.${accountId}`);
     approvedUrl.searchParams.set("auth_user_id", `eq.${userId}`);
     approvedUrl.searchParams.set("limit", "1");
@@ -320,7 +322,7 @@ async function getSubscriptionGateRow(userId: string, accountId: string | null =
     }
 
     const url = new URL(`${supabaseUrl}/rest/v1/subscriptions`);
-    url.searchParams.set("select", "status,trial_end_at,start_date,app_edition,plan");
+    url.searchParams.set("select", "status,trial_end_at,start_date,app_edition,plan,stripe_subscription_id");
     url.searchParams.set("user_id", `eq.${userId}`);
     url.searchParams.set("limit", "1");
 
@@ -661,6 +663,7 @@ export async function proxy(req: NextRequest) {
   );
 
   let authenticatedUserId: string | null = null;
+  let directSignup = false;
   let invalidAuthSession = false;
   try {
     const { data, error } = await supabase.auth.getClaims();
@@ -668,6 +671,7 @@ export async function proxy(req: NextRequest) {
 
     if (!error && typeof claimSub === "string" && claimSub) {
       authenticatedUserId = claimSub;
+      directSignup = Boolean(getDirectSignupMetadata(data?.claims?.app_metadata));
     } else if (error && hasSupabaseAuthCookie) {
       invalidAuthSession = true;
     }
@@ -861,6 +865,11 @@ export async function proxy(req: NextRequest) {
         getCurrentSubscriptionGate(), getReviewerToolRole(),
       ]);
 
+      if (directSignup && await getCurrentActiveAccountId() === authenticatedUserId && !isDirectSignupPaid(currentSubscriptionGate)) {
+        const url = req.nextUrl.clone(); url.pathname = DIRECT_SIGNUP_ACTIVATION_PATH; url.search = "";
+        return applyResponseHeaders(NextResponse.redirect(url, 307));
+      }
+
       if (!isAllowedSubscription(currentSubscriptionGate)) {
         const url = req.nextUrl.clone();
         url.pathname = "/compte-bloque";
@@ -892,12 +901,19 @@ export async function proxy(req: NextRequest) {
     return applyResponseHeaders(res);
   }
 
-  const isSensitiveApi = isSensitiveApiPath(pathname);
+  // Existing accounts keep their current API/support flow. A direct purchase
+  // has no private product rights before payment, including unlisted routes
+  // called without mounting the activation page or dashboard interface.
+  const isSensitiveApi = isSensitiveApiPath(pathname)
+    || directSignup && pathname.startsWith("/api/") && !isApiBlockBypassPath(pathname);
 
   if (req.method.toUpperCase() !== "OPTIONS" && isSensitiveApi) {
     const currentUserId = await getCurrentUserId();
     const currentSubscriptionGate = currentUserId ? await getCurrentSubscriptionGate() : null;
 
+    if (currentUserId && directSignup && await getCurrentActiveAccountId() === currentUserId && !isDirectSignupPaid(currentSubscriptionGate)) {
+      return applyResponseHeaders(NextResponse.json({ code: "DIRECT_SIGNUP_PAYMENT_REQUIRED", error: "Paiement requis.", redirectTo: DIRECT_SIGNUP_ACTIVATION_PATH }, { status: 403 }));
+    }
     if (currentUserId && !isAllowedSubscription(currentSubscriptionGate)) {
       return applyResponseHeaders(blockedAccountApiResponse(currentSubscriptionGate));
     }

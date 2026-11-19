@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import ts from "typescript";
 import * as offers from "../../lib/subscriptionOffers.ts";
+import * as directSignupPolicy from "../../lib/directSignupPolicy.ts";
 import * as checkoutPolicy from "../../lib/subscriptionCheckoutPolicy.ts";
 import * as dashboardEdition from "../../lib/dashboardEdition.ts";
 import type { CommercialPriceMatch } from "../../lib/billingCatalog.ts";
@@ -77,6 +78,7 @@ function fixture(options: { createdAt?: string | null; row?: Row; missingPrice?:
     "next/server": { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } },
     "@/lib/billingCatalog": catalog,
     "@/lib/dashboardEdition": dashboardEdition,
+    "@/lib/directSignupPolicy": directSignupPolicy,
     "@/lib/subscriptionOffers": offers,
     "@/lib/subscriptionCheckoutPolicy": checkoutPolicy,
     "@/lib/stripeCheckoutSessionGuard": {

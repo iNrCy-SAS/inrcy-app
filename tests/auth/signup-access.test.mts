@@ -5,6 +5,7 @@ import ts from "typescript";
 import { NextResponse } from "next/server.js";
 import * as policy from "../../lib/signupImmediateAccessPolicy.ts";
 import * as temporary from "../../lib/temporaryPasswordPolicy.ts";
+import * as directSignupPolicy from "../../lib/directSignupPolicy.ts";
 
 const secret = "synthetic-test-secret-32-characters-only";
 const USER = "11111111-1111-4111-8111-111111111111";
@@ -67,6 +68,7 @@ function fixture() {
     "@/lib/signupImmediateAccessServer": { signupAccessSecret: () => secret },
     "@/lib/multicompte/constants": { ACTIVE_INRCY_ACCOUNT_COOKIE: "active_account" },
     "@/lib/temporaryPasswordPolicy": temporary,
+    "@/lib/directSignupPolicy": directSignupPolicy,
   };
   const route = compile<{ POST: (r: Request) => Promise<NextResponse> }>("app/api/auth/signup-access/route.ts", modules);
   const passwordRoute = compile<{ GET: (r: Request) => Promise<NextResponse> }>("app/api/auth/signup-access/password/route.ts", modules);

@@ -8,10 +8,12 @@ import { createSupabaseServer } from "@/lib/supabaseServer";
 import { resolveDashboardEdition } from "@/lib/dashboardEdition";
 import BlockedBillingActions from "./BlockedBillingActions";
 import { checkoutReturnQuery, dashboardCheckoutReturnUrl } from "@/lib/checkoutReturnRouting";
+import { DIRECT_SIGNUP_ACTIVATION_PATH, directSignupNeedsActivation } from "@/lib/directSignupPolicy";
 
 export const dynamic = "force-dynamic";
 
 type SubscriptionRow = {
+  stripe_subscription_id?: string | null;
   status?: string | null;
   plan?: string | null;
   trial_end_at?: string | null;
@@ -198,11 +200,14 @@ export default async function BlockedAccountPage({ searchParams }: {
 
   const { data } = await supabaseAdmin
     .from("subscriptions")
-    .select("status, plan, app_edition, trial_end_at, start_date, end_date, updated_at, stripe_customer_id")
+    .select("status, plan, app_edition, trial_end_at, start_date, end_date, updated_at, stripe_customer_id, stripe_subscription_id")
     .eq("user_id", user.id)
     .maybeSingle();
 
   const subscription = data as SubscriptionRow | null;
+  if (directSignupNeedsActivation(user.app_metadata, subscription)) {
+    redirect(`${DIRECT_SIGNUP_ACTIVATION_PATH}${checkoutQuery ? `?${checkoutQuery}` : ""}`);
+  }
   const status = getEffectiveStatus(subscription);
 
   if (hasDashboardAccess(subscription)) {

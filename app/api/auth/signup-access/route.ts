@@ -6,6 +6,7 @@ import { getClientIp, enforceRateLimit } from "@/lib/rateLimit";
 import { openSignupAccess, signupAccessMatchesUser, SIGNUP_ACCESS_COOKIE } from "@/lib/signupImmediateAccessPolicy";
 import { signupAccessSecret } from "@/lib/signupImmediateAccessServer";
 import { ACTIVE_INRCY_ACCOUNT_COOKIE } from "@/lib/multicompte/constants";
+import { DIRECT_SIGNUP_ACTIVATION_PATH, getDirectSignupMetadata } from "@/lib/directSignupPolicy";
 
 export const runtime = "nodejs";
 const headers = { "Cache-Control": "private, no-store, max-age=0", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" };
@@ -35,7 +36,8 @@ export async function POST(request: Request) {
     if (result.error || result.data.user?.id !== claims.userId || !result.data.session) return failure("Cet accès à usage unique a déjà été utilisé ou a expiré. Utilisez vos identifiants pour vous connecter.");
     const cookieStore = await cookies();
     cookieStore.set(SIGNUP_ACCESS_COOKIE, ticket!, { httpOnly: true, secure: ownOrigin.startsWith("https:"), sameSite: "strict", path: "/api/auth/signup-access", maxAge: Math.max(1, Math.floor((claims.expiresAt - Date.now()) / 1000)) });
-    const response = NextResponse.redirect(new URL(`/dashboard?lang=${claims.language}`, request.url), { status: 303, headers });
+    const destination = getDirectSignupMetadata(fresh.data.user.app_metadata) ? DIRECT_SIGNUP_ACTIVATION_PATH : "/dashboard";
+    const response = NextResponse.redirect(new URL(`${destination}?lang=${claims.language}`, request.url), { status: 303, headers });
     response.cookies.set(ACTIVE_INRCY_ACCOUNT_COOKIE, claims.userId, { path: "/", sameSite: "lax", secure: ownOrigin.startsWith("https:"), maxAge: 30 * 86400 });
     return response;
   } catch { return failure("La connexion automatique est momentanément indisponible. Utilisez les identifiants affichés après votre inscription.", 503); }

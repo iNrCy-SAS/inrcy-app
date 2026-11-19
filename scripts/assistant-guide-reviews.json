@@ -653,9 +653,9 @@
         "app/dashboard/_hooks/useAssistantFirstArrival.ts": "be478a57f9d176ad332ae22f09a7b350b65023edd323b6a6643d1f9fad7f1fb4",
         "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts": "56b27fde1ca2e52f613100a771942f462b8a10af3b0b9bef74ec1b4b8bc89492",
         "app/dashboard/agent/_components/AgentActionModals.tsx": "3a811f07c9523a25143073d72a5ec646339b4370c0310abdb9100092c189ee77",
-        "app/dashboard/layout.tsx": "407078fd2f21beb36afe709044cce82e7cb2e0e7062edec0f5cbf1b82c5f2d0a",
+        "app/dashboard/layout.tsx": "fcf807ba615e606e61cc9faec2afa71ed3bf1f856195daea83b6569eb1890e0e",
         "lib/temporaryPasswordPolicy.ts": "2fa6aa15125f617246ac996404d9e519ffaaa469ae68ba949f35f34cf271ffdd",
-        "messages/fr-FR/auth.json": "b79b1a2bd33be86b06264015623563893aee8798a795ce02e543681bf96b4be6"
+        "messages/fr-FR/auth.json": "fe39197240cb139725b9ca6dd6eb9d854c8c2e6491168e55821d946cceeee8c5"
       }
     },
     "emailing": {
@@ -962,10 +962,10 @@
       "guideDigest": "5ab3c857fd7813eea991e3db839b542434fadbca777a1cef85e57c59a2fef44d",
       "sources": {
         "app/api/billing/account-subscription/route.ts": "40d5817b65a3cc6803933b08c92885ffa3aa0e728dd16aa6b38b6747afc1af64",
-        "app/api/billing/checkout/route.ts": "43f053a9af6bec6ed097b80070ae735ae5714b534450acc8e5279d91fd024518",
+        "app/api/billing/checkout/route.ts": "778f02802b40dc77c30eb2886e110b06170c1d1ebc264afc135a503c2f38f143",
         "app/api/billing/portal/route.ts": "a43a5d29715dbcb7b0cc9992c90b99848e86d9a119994a0122cabb91daa5b116",
         "app/compte-bloque/BlockedBillingActions.tsx": "0d491f81c976769625d22b30787b615e5fd4b97a867fafc23690ddd7119f2af4",
-        "app/compte-bloque/page.tsx": "d3acf4ca8dc5434ada56d628f4d41dccd6d039dcced18f12c8e655c0500d1a0d",
+        "app/compte-bloque/page.tsx": "4aa3c7f295c009a43aed4df289a436cbf751bebb4a771c8c0282df3546cb6adc",
         "app/dashboard/settings/_components/AbonnementContent.tsx": "6f51e94cbe247beb1628f79630f4502d913f32ae48348437db15d0e1b1f7676b",
         "app/dashboard/settings/_components/BasicSubscriptionCard.tsx": "173d7d60c5fef2d893fc01456dfe28042b37a0f41092aae2920da1d839d9d39c",
         "app/dashboard/settings/_components/StandardSubscriptionContent.tsx": "7025ebbf4c805233dfef2f022c202a2081058f3bbb1cbd08236ad63274c3ff66",

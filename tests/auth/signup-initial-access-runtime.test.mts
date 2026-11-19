@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import ts from "typescript";
+import * as directSignupPolicy from "../../lib/directSignupPolicy.ts";
 
 const USER = "00000000-0000-4000-8000-000000000001";
 const EMAIL = "synthetic@example.com";
@@ -112,6 +113,8 @@ function fixture(options: FixtureOptions = {}) {
     "@/lib/signupImmediateAccessServer": { createSignupImmediateAccess: async (input: unknown) => {
       calls.push("create access"); accessInputs.push(input); return access;
     } },
+    "@/lib/directSignupPolicy": directSignupPolicy,
+    "@/lib/directSignupServer": { ensureDirectSignupPendingSubscription: () => assert.fail("legacy signup cannot enter direct purchase") },
     "@/lib/visioBookingToken": { createVisioBookingToken: () => "synthetic-booking-token" },
     "@/lib/visioBookingGoogle": { ensurePendingSignupCalendarReminder: (input: unknown) => external("calendar reminder", input) },
     "@/lib/supabaseAuthBusinessErrors": {

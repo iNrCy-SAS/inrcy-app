@@ -13,6 +13,7 @@ import { getSimpleFrenchErrorMessage } from "@/lib/userFacingErrors";
 import { canStartSubscriptionCheckout } from "@/lib/subscriptionCheckoutPolicy";
 import { findLiveStripeSubscriptions, inspectComplimentaryCheckout } from "@/lib/stripeCheckoutPreflight";
 import { CheckoutGuardError, withStripeCheckoutGuard } from "@/lib/stripeCheckoutSessionGuard";
+import { DIRECT_SIGNUP_ACTIVATION_PATH, getDirectSignupMetadata, isDirectSignupPaid } from "@/lib/directSignupPolicy";
 
 export const runtime = "nodejs";
 
@@ -94,6 +95,7 @@ export async function POST(req: Request) {
   try {
     const { supabase, user, errorResponse } = await requireUser();
     if (errorResponse) return errorResponse;
+    const directSignup = Boolean(getDirectSignupMetadata(user.app_metadata));
 
     const body: unknown = await req.json().catch(() => ({}));
     const requestedPlan = requestedCommercialPlan((body as { plan?: unknown } | null)?.plan);
@@ -101,6 +103,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Forfait inconnu." }, { status: 400 });
     }
     const premiumActivation = (body as { premiumActivation?: unknown } | null)?.premiumActivation;
+    if (directSignup && premiumActivation !== undefined) {
+      return NextResponse.json({ error: "Ce parcours commence sans période d’essai." }, { status: 400 });
+    }
     if (premiumActivation !== undefined &&
       (requestedPlan !== "Premium" || (premiumActivation !== "now" && premiumActivation !== "trial_end"))) {
       return NextResponse.json({ error: "Choix d’activation Premium invalide." }, { status: 400 });
@@ -258,7 +263,9 @@ export async function POST(req: Request) {
             stripe_customer_id: recovered.customerId,
             stripe_subscription_id: recovered.id,
             billing_provider: "stripe",
-            status: recovered.status,
+            // A pending direct purchase may recover its billing identity, but
+            // only the signed webhook may activate its application access.
+            status: directSignup && !isDirectSignupPaid(row) ? "incomplete" : recovered.status,
             updated_at: new Date().toISOString(),
           }).eq("user_id", userId).eq("status", row.status ?? "");
           update = row.stripe_subscription_id == null
@@ -307,7 +314,7 @@ export async function POST(req: Request) {
       const nowUnix = Math.floor(Date.now() / 1000);
       const trialStartAt = row.trial_start_at || null;
       let trialEndAt = row.trial_end_at || null;
-      if (currentStatus === "trialing" && !trialEndAt) {
+      if (!directSignup && currentStatus === "trialing" && !trialEndAt) {
         const startYmd = row.start_date || trialStartAt?.slice(0, 10) || null;
         if (startYmd) {
           const computed = computeTrialDatesFromStartDate(startYmd, getTrialDays());
@@ -316,14 +323,14 @@ export async function POST(req: Request) {
       }
 
       const rawTrialEndUnix = trialEndAt ? Math.floor(new Date(trialEndAt).getTime() / 1000) : NaN;
-      if (currentStatus === "trialing" && !Number.isFinite(rawTrialEndUnix)) {
+      if (!directSignup && currentStatus === "trialing" && !Number.isFinite(rawTrialEndUnix)) {
         return NextResponse.json({
           error: "La date de fin de votre essai doit être vérifiée avant de poursuivre. Aucun paiement n’a été créé.",
           code: "TRIAL_END_VERIFICATION_REQUIRED",
         }, { status: 409 });
       }
       const trialIsStillOpen =
-        currentStatus === "trialing" &&
+        !directSignup && currentStatus === "trialing" &&
         Number.isFinite(rawTrialEndUnix) &&
         rawTrialEndUnix > nowUnix;
       const immediatePremiumFromTrial = requestedPlan === "Premium" && trialIsStillOpen && premiumActivation === "now";
@@ -337,6 +344,8 @@ export async function POST(req: Request) {
       // The subscription webhook persists Stripe's actual trial dates after completion.
 
       const appUrl = getAppUrl(req);
+      const returnPath = directSignup ? DIRECT_SIGNUP_ACTIVATION_PATH : "/dashboard?panel=abonnement";
+      const returnSeparator = directSignup ? "?" : "&";
       const sessionParams = new URLSearchParams();
       sessionParams.set("mode", "subscription");
       sessionParams.set("customer", customerId);
@@ -344,9 +353,9 @@ export async function POST(req: Request) {
       sessionParams.set("line_items[0][quantity]", "1");
       sessionParams.set(
         "success_url",
-        `${appUrl}/dashboard?panel=abonnement&checkout=success&billing=${billingCycle}&checkout_plan=${requestedPlan}`,
+        `${appUrl}${returnPath}${returnSeparator}checkout=success&billing=${billingCycle}&checkout_plan=${requestedPlan}`,
       );
-      sessionParams.set("cancel_url", `${appUrl}/dashboard?panel=abonnement&checkout=cancel`);
+      sessionParams.set("cancel_url", `${appUrl}${returnPath}${returnSeparator}checkout=cancel`);
       sessionParams.set("client_reference_id", userId);
       sessionParams.set("metadata[user_id]", userId);
       sessionParams.set("metadata[plan]", requestedPlan);

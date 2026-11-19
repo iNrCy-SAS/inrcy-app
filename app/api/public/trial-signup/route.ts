@@ -31,6 +31,8 @@ import { TEMPORARY_PASSWORD_METADATA_KEY } from "@/lib/temporaryPasswordPolicy";
 import { prepareSignupWelcome, attachSignupWelcome, completeSignupWelcome, deliverSignupWelcome } from "@/lib/signupWelcomeMail";
 import { createVisioBookingToken } from "@/lib/visioBookingToken";
 import { createSignupImmediateAccess } from "@/lib/signupImmediateAccessServer";
+import { DIRECT_SIGNUP_METADATA_KEY } from "@/lib/directSignupPolicy";
+import { ensureDirectSignupPendingSubscription } from "@/lib/directSignupServer";
 import { ensurePendingSignupCalendarReminder } from "@/lib/visioBookingGoogle";
 import {
   hasKnownInrcyAccountForEmail,
@@ -468,6 +470,9 @@ function resolveSharedSecret(req: Request, body: LooseRecord) {
 }
 
 export async function POST(req: Request) {
+  // Only the dedicated server entry point selects paid onboarding. A submitted
+  // campaign/plan/URL field must never change the existing 21-day trial flow.
+  const directSignup = new URL(req.url).pathname.replace(/\/+$/, "") === "/api/public/basic-signup";
   const requestId = getRequestId(req) || randomUUID();
   let payload: SignupPayload | null = null;
   let acceptedAttempt = false;
@@ -534,8 +539,8 @@ export async function POST(req: Request) {
       phone: payload.phone,
       consent: payload.consent,
     });
-    const signedTrialDays = getTrialDays();
-    const signupRecoveryProof = createSignupRecoveryProof(
+    const signedTrialDays = directSignup ? 0 : getTrialDays();
+    const signupRecoveryProof = directSignup ? null : createSignupRecoveryProof(
       signupFormSnapshot,
       expectedSecret,
       { issuedAt: new Date().toISOString(), trialDays: signedTrialDays },
@@ -547,7 +552,9 @@ export async function POST(req: Request) {
       email: payload.email,
       password: welcome.password,
       email_confirm: true,
-      app_metadata: { [TEMPORARY_PASSWORD_METADATA_KEY]: welcome.metadata },
+      app_metadata: { [TEMPORARY_PASSWORD_METADATA_KEY]: welcome.metadata,
+        ...(directSignup ? { [DIRECT_SIGNUP_METADATA_KEY]: { version: 1, entry: "basique", created_at: new Date().toISOString() } } : {}),
+      },
       user_metadata: {
         first_name: payload.firstName || undefined,
         last_name: payload.lastName || undefined,
@@ -557,7 +564,7 @@ export async function POST(req: Request) {
         app_language: payload.language,
         app_locale: payload.locale,
         [SIGNUP_FORM_METADATA_KEY]: signupFormSnapshot,
-        [SIGNUP_RECOVERY_METADATA_KEY]: signupRecoveryProof,
+        ...(!directSignup ? { [SIGNUP_RECOVERY_METADATA_KEY]: signupRecoveryProof } : {}),
         [SIGNUP_ATTRIBUTION_METADATA_KEY]: payload.attribution,
       },
     });
@@ -630,8 +637,10 @@ export async function POST(req: Request) {
     stage = "welcome_notifications";
     await seedWelcomeNotifications(userId);
     stage = "trial_subscription";
-    const { edition, trialDays, end } = await ensureTrialSubscription(userId, payload.email, signedTrialDays);
-    await markPublicSignupTrialCompleted(userId);
+    const { edition, trialDays, end } = directSignup
+      ? await ensureDirectSignupPendingSubscription(userId, payload.email)
+      : await ensureTrialSubscription(userId, payload.email, signedTrialDays);
+    if (!directSignup) await markPublicSignupTrialCompleted(userId);
     // Only send credentials once the account, access and trial really exist.
     stage = "welcome_email";
     await completeSignupWelcome(welcome.metadata.welcome_id, userId);
@@ -643,13 +652,13 @@ export async function POST(req: Request) {
     // completed signup, never to the mutable variables used by failure handling.
     const completedUserId = userId;
     const completedWelcomeId = welcome.metadata.welcome_id;
-    const completedTrialEndAt = end.toISOString();
+    const completedTrialEndAt = end?.toISOString() ?? null;
     const completedPayload = Object.freeze({
       ...payload,
       attribution: Object.freeze({ ...payload.attribution }),
       browserMatch: Object.freeze({ ...payload.browserMatch }),
     });
-    const bookingToken = createVisioBookingToken({
+    const bookingToken = directSignup ? null : createVisioBookingToken({
       userId: completedUserId,
       email: completedPayload.email,
     });
@@ -708,10 +717,10 @@ export async function POST(req: Request) {
     // The operational reminder is created from the authoritative successful
     // signup, not from an email scan. Calendar availability must never make
     // account creation fail; Apps Script remains a fallback if Google is down.
-    after(async () => {
+    if (!directSignup) after(async () => {
       await ensurePendingSignupCalendarReminder({
         userId: completedUserId,
-        bookingToken,
+        bookingToken: bookingToken!,
         email: completedPayload.email,
         firstName: completedPayload.firstName,
         lastName: completedPayload.lastName,
@@ -728,7 +737,7 @@ export async function POST(req: Request) {
       });
     });
 
-    after(async () => {
+    if (!directSignup) after(async () => {
       await sendAdminSubscriptionAlertForUser({
         type: "trial_started",
         source: completedPayload.source || "wordpress-elementor",
@@ -766,7 +775,8 @@ export async function POST(req: Request) {
       app_edition: edition,
       trial_days: trialDays,
       trial_end_at: completedTrialEndAt,
-      booking_token: bookingToken,
+      ...(!directSignup ? { booking_token: bookingToken } : {}),
+      ...(directSignup ? { direct_signup: true, activation_required: true } : {}),
       signup_access: signupAccess,
       message: "Votre compte est prêt. L’e-mail de bienvenue avec votre mot de passe provisoire valable 30 jours est en cours d’acheminement.",
     });

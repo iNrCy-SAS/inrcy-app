@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server.js";
 import * as edition from "../../lib/dashboardEdition.ts";
 import * as reviewer from "../../lib/reviewerAccess.ts";
 import * as accounts from "../../lib/multicompte/normalize.ts";
+import * as directSignupPolicy from "../../lib/directSignupPolicy.ts";
 
 const source = ts.transpileModule(readFileSync("proxy.ts", "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -16,6 +17,7 @@ async function request(pathname: string, method = "POST") {
     "next/server": { NextRequest, NextResponse },
     "@supabase/ssr": { createServerClient: () => ({ auth: { getClaims: async () => ({ data: null, error: new Error("synthetic_stale_session") }) } }) },
     "./lib/dashboardEdition": edition, "./lib/reviewerAccess": reviewer, "./lib/multicompte/normalize": accounts,
+    "./lib/directSignupPolicy": directSignupPolicy,
     "./lib/multicompte/constants": { ACTIVE_INRCY_ACCOUNT_COOKIE: "inrcy_uid" },
     "./lib/rateLimit": { enforceQuota: async () => null, enforceRateLimit: async () => null },
     "./lib/actusWidgetEmbed": { isPublicEmbedPath: () => false },

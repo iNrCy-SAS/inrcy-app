@@ -23,6 +23,7 @@ import {
 } from "@/lib/signupRecoveryProof";
 import { markPublicSignupTrialCompleted } from "@/lib/signupTrialCompletion";
 import { log } from "@/lib/observability/logger";
+import { getDirectSignupMetadata } from "@/lib/directSignupPolicy";
 import {
   DEFAULT_APP_LOCALE,
   appLanguageFromLocale,
@@ -133,6 +134,7 @@ export async function recoverInterruptedPublicInviteSignupForUser(
   verifiedUser: User,
 ) {
   const verifiedEmail = verifiedUser.email?.trim().toLowerCase() || null;
+  if (getDirectSignupMetadata(verifiedUser.app_metadata)) return "ineligible";
   // Ordinary password resets have no public signup snapshot and need no
   // subscription lookup or provisioning work.
   if (!verifiedUser.user_metadata?.[SIGNUP_FORM_METADATA_KEY]) {

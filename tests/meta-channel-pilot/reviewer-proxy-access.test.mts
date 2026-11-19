@@ -7,6 +7,7 @@ import * as edition from "../../lib/dashboardEdition.ts";
 import { FULL_PRODUCT_REVIEWER_ACCOUNT_ID } from "../../lib/reviewerAccess.ts";
 import * as reviewerAccess from "../../lib/reviewerAccess.ts";
 import * as accountNormalization from "../../lib/multicompte/normalize.ts";
+import * as directSignupPolicy from "../../lib/directSignupPolicy.ts";
 
 const require = createRequire(import.meta.url);
 const { NextRequest, NextResponse } = require("next/server");
@@ -59,6 +60,7 @@ async function requestRoute(pathname: string, role: string, options: {
     return options.roleLookupFails ? Response.json({ error: "temporary failure" }, { status: 503 }) : Response.json([{ role }]);
   };
   const localRequire = (id: string) => {
+    if (id === "./lib/directSignupPolicy") return directSignupPolicy;
     if (id === "next/server") return { NextRequest, NextResponse };
     if (id === "@supabase/ssr") return { createServerClient: () => ({ auth: { getClaims: async () => ({ data: { claims: { sub: actorId, user_metadata: { role: "reviewer" } } }, error: null }) } }) };
     if (id === "./lib/dashboardEdition") return edition;

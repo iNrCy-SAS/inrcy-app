@@ -7,6 +7,7 @@ import { FULL_PRODUCT_REVIEWER_ACCOUNT_ID } from "../../lib/reviewerAccess.ts";
 import * as reviewerAccess from "../../lib/reviewerAccess.ts";
 import * as rollout from "../../lib/metaChannelRollout.ts";
 import * as temporaryPasswordPolicy from "../../lib/temporaryPasswordPolicy.ts";
+import * as directSignupPolicy from "../../lib/directSignupPolicy.ts";
 
 type Role = "admin" | "staff" | "user" | "reviewer";
 type RenderNode = { type: unknown; props: Record<string, unknown> };
@@ -44,6 +45,7 @@ async function renderLayout(actorRole: Role, accountRole: Role, options: { actor
     throw new Error("Unexpected role dependency " + id);
   });
   const localRequire = (id: string) => {
+    if (id === "@/lib/directSignupPolicy") return directSignupPolicy;
     if (id === "react/jsx-runtime") return { jsx, jsxs: jsx };
     if (id === "react") return {};
     if (id === "next/cache") return { unstable_noStore: () => undefined };
