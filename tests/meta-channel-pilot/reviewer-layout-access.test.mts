@@ -6,6 +6,7 @@ import * as edition from "../../lib/dashboardEdition.ts";
 import { FULL_PRODUCT_REVIEWER_ACCOUNT_ID } from "../../lib/reviewerAccess.ts";
 import * as reviewerAccess from "../../lib/reviewerAccess.ts";
 import * as rollout from "../../lib/metaChannelRollout.ts";
+import * as temporaryPasswordPolicy from "../../lib/temporaryPasswordPolicy.ts";
 
 type Role = "admin" | "staff" | "user" | "reviewer";
 type RenderNode = { type: unknown; props: Record<string, unknown> };
@@ -60,6 +61,7 @@ async function renderLayout(actorRole: Role, accountRole: Role, options: { actor
     if (id === "@/lib/metaChannelRollout") return rollout;
     if (id === "@/lib/dashboardEdition") return edition;
     if (id === "@/lib/reviewerAccess") return reviewerAccess;
+    if (id === "@/lib/temporaryPasswordPolicy") return temporaryPasswordPolicy;
     if (id === "@/lib/maintenance") return { getMaintenanceState: async () => ({ enabled: false }), isAdminUser: async () => false };
     if (id === "@/lib/ensureProfileRow") return { ensureProfileRow: async () => undefined };
     if (id === "@/lib/multicompte/server") return { resolveInrcyAccountScopeForUser: async () => ({ activeUserId: accountId }) };
