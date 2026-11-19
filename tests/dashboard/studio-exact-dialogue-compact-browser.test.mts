@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { chromium, webkit } from '@playwright/test';
+import { chromium, webkit, type Page } from '@playwright/test';
 import ts from 'typescript';
 
 // Reuse the real, network-blocked React/CSS fixture without registering its tests.
@@ -21,6 +21,18 @@ const compiled = ts.transpileModule(`${prefix}\nexport { mount };`, { compilerOp
 const { mount } = await import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
 const output = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../outputs');
 mkdirSync(output, { recursive: true });
+
+async function waitForCommittedDialogueRows(page: Page, expected: Array<{ text: string; speaker?: string; characterIndex?: number }>) {
+  // Native fill/select values can update before React commits the controlled rows.
+  // Wait for the real component's published snapshot before the next input or measurement.
+  await page.waitForFunction(expectedRows => {
+    const fixture = window as unknown as { fixtureStudioInterfaces: Record<string, { snapshot: { rows: Array<{ text: string; speaker: string; characterId?: string }>; characters: Array<{ id: string; characterIndex: number }> } }> };
+    const { rows, characters } = fixture.fixtureStudioInterfaces.studio_exact_dialogue.snapshot;
+    return rows.length === expectedRows.length && expectedRows.every((row, index) =>
+      rows[index].text === row.text && (!row.speaker || rows[index].speaker === row.speaker) &&
+      (!row.characterIndex || characters.some(character => character.characterIndex === row.characterIndex && character.id === rows[index].characterId)));
+  }, expected);
+}
 
 test('compact Exact rows keep two columns, real speech budget, controls and both replies visible on desktop and mobile', async () => {
   for (const browserType of [chromium, webkit]) {
@@ -59,24 +71,30 @@ test('compact Exact rows keep two columns, real speech budget, controls and both
         const exact = root.fixtureStudioInterfaces.studio_exact_dialogue.handlers.select;
         exact.invoke(JSON.stringify({ field: 'text', rowIndex: 0, value: 'Les feuilles brillent dans notre jardin.' }));
       });
+      await waitForCommittedDialogueRows(page, [{ text: 'Les feuilles brillent dans notre jardin.' }]);
       await dialog.locator('[data-exact-dialogue-row] select').first().selectOption({ label: 'Personnage 1' });
+      await waitForCommittedDialogueRows(page, [{ text: 'Les feuilles brillent dans notre jardin.', speaker: 'character', characterIndex: 1 }]);
       await dialog.locator('[data-exact-dialogue-add]').click();
       await dialog.locator('[data-exact-dialogue-row] textarea').nth(1).fill('Nous prenons soin de votre maison.');
+      await waitForCommittedDialogueRows(page, [{ text: 'Les feuilles brillent dans notre jardin.', speaker: 'character', characterIndex: 1 }, { text: 'Nous prenons soin de votre maison.' }]);
       await dialog.locator('[data-exact-dialogue-row] select').nth(1).selectOption({ label: 'Personnage 2' });
+      await waitForCommittedDialogueRows(page, [{ text: 'Les feuilles brillent dans notre jardin.', speaker: 'character', characterIndex: 1 }, { text: 'Nous prenons soin de votre maison.', speaker: 'character', characterIndex: 2 }]);
       const geometry = await dialog.evaluate(element => {
         const bound = element.getBoundingClientRect();
         const list = element.querySelector('ol')!;
+        const listBound = list.getBoundingClientRect();
         return { colorScheme: getComputedStyle(element).colorScheme, height: bound.height, top: bound.top, bottom: bound.bottom, viewport: innerHeight, overflow: element.scrollWidth > element.clientWidth,
-          listScroll: list.scrollHeight > list.clientHeight + 1,
+          listScroll: list.scrollHeight > list.clientHeight + 1, listTop: listBound.top, listBottom: listBound.bottom,
           rows: Array.from(element.querySelectorAll('[data-exact-dialogue-row]')).map(row => {
             const select = row.querySelector('select')!.getBoundingClientRect(), textarea = row.querySelector('textarea')!.getBoundingClientRect(), heading = row.querySelector('strong')!.getBoundingClientRect();
             return { top: row.getBoundingClientRect().top, bottom: row.getBoundingClientRect().bottom, selectLeft: select.left, selectWidth: select.width, textLeft: textarea.left, textWidth: textarea.width, textHeight: textarea.height, headingAbove: heading.bottom <= select.top + 1 };
           }), footerVisible: element.querySelector('footer')!.getBoundingClientRect().bottom <= bound.bottom + 1 };
       });
       assert.equal(geometry.colorScheme, "dark", "native Safari controls must retain readable dark styling"); assert.equal(geometry.overflow, false); assert.equal(geometry.listScroll, false); assert.ok(geometry.top >= 0 && geometry.bottom <= geometry.viewport); assert.equal(geometry.footerVisible, true); assert.equal(geometry.rows.length, 2);
-      for (const row of geometry.rows) { assert.ok(row.headingAbove); assert.ok(row.textLeft >= row.selectLeft + row.selectWidth); assert.ok(row.textHeight >= 52 && row.textHeight <= 62); assert.ok(row.textWidth >= 95); assert.ok(row.bottom - row.top <= (viewport.width <= 350 ? 128 : 120), JSON.stringify({viewport,geometry})); }
+      for (const row of geometry.rows) { assert.ok(row.headingAbove); assert.ok(row.textLeft >= row.selectLeft + row.selectWidth); assert.ok(row.textHeight >= 52 && row.textHeight <= 62); assert.ok(row.textWidth >= 95); assert.ok(row.bottom - row.top <= (viewport.width <= 350 ? 128 : 120), JSON.stringify({viewport,geometry})); assert.ok(row.top >= geometry.listTop - 1 && row.bottom <= geometry.listBottom + 1, 'each reply and its controls remain entirely inside the visible list'); }
       // At 320px the actions move below the two columns; all controls still fit the viewport.
-      assert.ok(geometry.height < (viewport.width <= 520 ? 450 : 400), `two compact replies fit without scrolling: ${JSON.stringify(geometry)}`);
+      // Include the mobile upper bound, which native font metrics can round to exactly 450px.
+      assert.ok(viewport.width <= 520 ? geometry.height <= 450 : geometry.height < 400, `two compact replies fit without scrolling: ${JSON.stringify(geometry)}`);
       assert.equal(await dialog.locator('textarea').first().getAttribute('maxlength'), null);
       await dialog.locator('textarea').first().fill('x'.repeat(4100)); assert.equal((await dialog.locator('textarea').first().inputValue()).length, 4100);
       assert.equal(await dialog.locator('[data-exact-dialogue-budget]').getAttribute('data-invalid'), 'true');

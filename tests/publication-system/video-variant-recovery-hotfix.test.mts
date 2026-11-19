@@ -3,6 +3,8 @@ const submission = readSubmissionSource(new URL("../../app/dashboard/booster/pub
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import ts from "typescript";
+import { durationReviewItems } from "../dashboard/booster-duration-readiness-fixture.mts";
 import {
   canContinueWithIsolatedVideoPreparationFailures,
   isVideoPreparationReady,
@@ -13,6 +15,23 @@ const ROOT = new URL("../../", import.meta.url);
 
 async function read(relativePath: string) {
   return await readFile(new URL(relativePath, ROOT), "utf8");
+}
+
+function validationReviews(source: string, items: ReturnType<typeof durationReviewItems>) {
+  const ast = ts.createSourceFile("PublishValidationBoard.tsx", source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
+  let expression: ts.Expression | undefined;
+  const visit = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === "reviews") expression = node.initializer;
+    ts.forEachChild(node, visit);
+  };
+  visit(ast); assert.ok(expression, "The real Validation aggregation must exist");
+  const compiled = ts.transpileModule(`const reviews = ${expression.getText(ast)};`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+  }).outputText;
+  const scope = { items, getMode: (channel: string) => channel === "gmb" ? "video" : "none", getSelectedImageKeys: () => [], imageKeys: [], videoPreviewUrl: "blob:fixture-video", optionWarningsByChannel: {}, t: (key: string) => key };
+  return new Function(...Object.keys(scope), `${compiled}\nreturn reviews;`)(...Object.values(scope)) as Array<{
+    item: ReturnType<typeof durationReviewItems>[number]; tone: string; messages: string[];
+  }>;
 }
 
 test("missing or incompatible variants are recoverable", () => {
@@ -116,7 +135,7 @@ test("publication and scheduling defer adaptations while keeping durable sources
   );
 });
 
-test("duration-invalid channels turn red before dispatch and are reported as failed", async () => {
+test("duration-invalid channels show one global refusal before dispatch and are reported as failed", async () => {
   const shared = await read(
     "app/dashboard/booster/publier/publishModal.shared.tsx",
   );
@@ -142,12 +161,23 @@ test("duration-invalid channels turn red before dispatch and are reported as fai
     /<PublishValidationBoard\s+items=\{publishReadinessItems\}/,
   );
   assert.match(modal, /const publishReadinessItems = buildFinalReviewItems\(\s*buildPreparedPostsByChannel\(\)/);
-  assert.match(validationBoard, /item\.mediaBlockerCodes\?\.length \|\| mediaBlockers\.length \? "blocked"/);
-  assert.match(validationBoard, /<ReviewStatus tone=\{mediaTone\}/);
+  const invalid = validationReviews(validationBoard, durationReviewItems(31));
+  const invalidGmb = invalid.find(review => review.item.channel === "gmb")!;
+  assert.equal(invalidGmb.item.publishable, false);
+  assert.ok(invalidGmb.item.mediaBlockerCodes.length > 0);
+  assert.ok(invalidGmb.item.mediaBlockers.length > 0);
+  assert.equal(invalidGmb.tone, "blocked", "The real duration policy reaches the global channel status");
+  for (const message of invalidGmb.item.mediaBlockers) assert.ok(invalidGmb.messages.includes(message), "The refusal preserves its actionable duration explanation");
+  assert.equal(invalid.find(review => review.item.channel === "facebook")!.tone, "ready", "A duration refusal remains isolated to its channel");
+  const validGmb = validationReviews(validationBoard, durationReviewItems(30)).find(review => review.item.channel === "gmb")!;
+  assert.equal(validGmb.item.publishable, true);
+  assert.equal(validGmb.tone, "ready", "The same channel becomes ready at its valid duration boundary");
+  assert.equal(validGmb.messages.length, 0);
+  assert.equal((validationBoard.match(/<ReviewStatus\s/g) || []).length, 1, "The card renders exactly one aggregate status");
+  assert.match(validationBoard, /data-channel-global-status data-tone=\{tone\}><ReviewStatus tone=\{tone\}/);
   assert.match(validationBoard, /aria-describedby=\{id\} aria-controls=\{id\}/);
   assert.match(validationBoard, /messages\.map\(\(message\) =>/);
-  assert.match(validationBoard, /messages=\{mediaMessages\}/);
-  assert.match(validationBoard, /\.\.\.mediaBlockers, \.\.\.mediaWarnings/);
+  assert.match(validationBoard, /messages=\{messages\}/);
   assert.match(validationBoard, /role="tooltip"/);
   assert.match(layer, /mergePreflightFailuresIntoPublicationSummary/);
   assert.doesNotMatch(layer, /status:\s*"skipped"/);
