@@ -8,6 +8,8 @@ import {
   AI_MEDIA_VIDEO_DURATION_OPTIONS,
   AI_MEDIA_LEGACY_VIDEO_DURATION_OPTIONS,
   AI_MEDIA_LEGACY_CREDIT_FACTORS,
+  AI_MEDIA_BASIC_MONTHLY_CREDITS,
+  getAiMediaMonthlyCredits,
   legacyAiMediaAmountToCredits,
   createAiMediaRequestFingerprint,
   getAiMediaMonthlyLimit,
@@ -18,6 +20,16 @@ import {
   normalizeAiMediaEdition,
   stableAiMediaRequestPayload,
 } from "../../lib/aiMediaGenerationQuotaPolicy.ts";
+
+test("Basic includes native shared credits while historic image/second units remain unchanged", () => {
+  assert.equal(AI_MEDIA_BASIC_MONTHLY_CREDITS, 50);
+  assert.equal(getAiMediaMonthlyCredits("basic"), 50);
+  assert.equal(getAiMediaMonthlyCredits("standard"), 735);
+  assert.equal(getAiMediaMonthlyCredits("premium"), 2530);
+  assert.equal(getAiMediaMonthlyCredits("founder"), 1390);
+  assert.equal(AI_MEDIA_MONTHLY_LIMITS.basic.image, 0);
+  assert.equal(AI_MEDIA_MONTHLY_LIMITS.basic.video, 0);
+});
 
 test("les plafonds mensuels sont propres a chaque edition", () => {
   assert.deepEqual(AI_MEDIA_MONTHLY_LIMITS, {

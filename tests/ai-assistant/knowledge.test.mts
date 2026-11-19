@@ -150,6 +150,17 @@ test("offer comparisons use the current public catalogue and explain existing ch
   assert.doesNotMatch(text, /aucun passage à Premium|contacter.*pour.*Premium/i);
 });
 
+test("Basic subscription knowledge describes the monthly common allowance and continued top-ups", () => {
+  const text = knowledge.getInrAssistantKnowledge("Combien de crédits sont inclus par mois dans le forfait Basique ?");
+  const guide = guides.INR_ASSISTANT_ACCOUNT_GUIDES.find(entry => entry.id === "subscription")!.content;
+  for (const content of [text, guide]) {
+    assert.match(content, /50 crédits médias inclus par mois/);
+    assert.match(content, /recharges/);
+    assert.match(content, /même portefeuille/);
+    assert.doesNotMatch(content, /zéro crédit|sans crédits médias mensuels inclus|Basique sans crédits mensuels/);
+  }
+});
+
 test("cancellation guides the real conditional actions and keeps store management separate", () => {
   const text = knowledge.getInrAssistantKnowledge("Je veux résilier mon abonnement et arrêter les prélèvements.");
   assert.match(text, /Programmer ma résiliation/);

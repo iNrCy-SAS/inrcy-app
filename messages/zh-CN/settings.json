@@ -11,7 +11,7 @@
   "subscription_premium_assistant": "指导与复杂任务执行",
   "subscription_basic_no_agents": "不含执行型 AI 代理",
   "subscription_basic_tools": "基础版包含的工具",
-  "subscription_basic_credit_hint": "可按需购买积分包。",
+  "subscription_basic_credit_hint": "体验 Studio，可按需购买积分包。",
   "subscription_basic_scheduled": "将于 {date} 切换到基础版。在此之前保留现有权限。",
   "subscription_basic_change": "选择基础版",
   "subscription_basic_native_unavailable": "此方案暂未在您的应用商店提供。",

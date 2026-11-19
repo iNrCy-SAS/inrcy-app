@@ -3,7 +3,7 @@ import test from "node:test";
 import fs from "node:fs";
 import { resolveDashboardEdition, isApiRouteAllowedForEdition, isDashboardRouteAllowedForEdition, hasAgentAutomationAccess, hasPremiumDashboardAccess } from "../../lib/dashboardEdition.ts";
 import { currentSubscriptionOffer, annualSubscriptionSavingRate } from "../../lib/subscriptionOffers.ts";
-import { AI_MEDIA_MONTHLY_LIMITS, legacyAiMediaAmountToCredits } from "../../lib/aiMediaPlanLimits.ts";
+import { AI_MEDIA_MONTHLY_LIMITS, getAiMediaMonthlyCredits } from "../../lib/aiMediaPlanLimits.ts";
 import { assistantToolsForEdition, isBasicAssistantExecutionRequest } from "../../lib/inrAssistantEditionPolicy.ts";
 import { canStartSubscriptionCheckout } from "../../lib/subscriptionCheckoutPolicy.ts";
 import { isCheckoutReturnSynchronized } from "../../lib/subscriptionCheckoutReturn.ts";
@@ -18,8 +18,8 @@ test("all new trials keep Standard for 21 days, even with Basic selected for lat
  assert.equal(resolveDashboardEdition({plan:"Trial",edition:"basic",production:true}),"standard");
  assert.equal(resolveDashboardEdition({plan:"Basic",edition:"premium",production:true}),"basic");
 });
-test("Basic has zero included media credits but can use the Studio with purchased credits",()=>{
- for(const [edition,expected] of [["basic",0],["standard",735],["premium",2530]] as const){const limit=AI_MEDIA_MONTHLY_LIMITS[edition];assert.equal(legacyAiMediaAmountToCredits("image",limit.image)+legacyAiMediaAmountToCredits("video",limit.video),expected);assert.equal(limit.studioEnabled,true);}
+test("Basic includes 50 common media credits per month and retains Studio top-ups",()=>{
+ for(const [edition,expected] of [["basic",50],["standard",735],["premium",2530]] as const){const limit=AI_MEDIA_MONTHLY_LIMITS[edition];assert.equal(getAiMediaMonthlyCredits(edition),expected);assert.equal(limit.studioEnabled,true);}
 });
 test("Basic permits manual tools and publication planning but blocks agent automation and Premium tools",()=>{
  for(const route of ["/dashboard","/dashboard/generer-media","/dashboard/mediatheque","/dashboard/stats","/dashboard/e-reputation","/dashboard/agent","/dashboard/agent/publications"]) assert.equal(isDashboardRouteAllowedForEdition(route,undefined,"basic"),true,route);

@@ -127,7 +127,7 @@ test("the actual Free Guided and Modifier recovery bridges check the same result
 test("the compact Studio guide distinguishes same-job verification, leaving the wait and confirmed cancellation while retaining ADN and recharge rules", () => {
   const guide = INR_ASSISTANT_CREATION_GUIDES.find(row => row.id === "studio-create")!;
   assert.ok(guide.content.length <= 2500);
-  for (const phrase of ["Vérifier mon média", "même tentative", "sans relance", "identifiant", "critères restent modifiables", "nouvelle génération attend sa résolution", "Annuler la génération", "confirmation distincte", "absence de débit", "Utiliser mon ADN", "Consignes ET Interdictions", "interdictions priment", "Basique sans crédits mensuels", "recharges permettent de générer sans changer d’offre"]) assert.ok(guide.content.toLowerCase().includes(phrase.toLowerCase()), phrase);
+  for (const phrase of ["Vérifier mon média", "même tentative", "sans relance", "identifiant", "critères restent modifiables", "nouvelle génération attend sa résolution", "Annuler la génération", "confirmation distincte", "absence de débit", "Utiliser mon ADN", "Consignes ET Interdictions", "interdictions priment", "Basique : 50 crédits/mois", "recharges permettent de générer sans changer d’offre"]) assert.ok(guide.content.toLowerCase().includes(phrase.toLowerCase()), phrase);
   assert.ok(guide.sourceFiles.includes("app/dashboard/_hooks/useMediaGeneration.ts"));
 });
 
@@ -139,7 +139,7 @@ test("both Studio guides retain recovery safeguards and the reviewed automatic-d
     assert.ok(guide.content.length <= 2500, guide.id);
     for (const phrase of ["même tentative", "sans relance", "critères restent modifiables", "nouvelle génération attend sa résolution",
       "Annuler la génération", "confirmation distincte", "absence de débit", "Consignes ET Interdictions", "interdictions priment",
-      "Basique sans crédits mensuels", "recharges permettent de générer sans changer d’offre", "plans automatiques en Studio Libre",
+      "Basique : 50 crédits/mois", "recharges permettent de générer sans changer d’offre", "plans automatiques en Studio Libre",
       "choix explicite conservé", "moteurs disponibles", "Wan 3 et MiniMax H3 retirés de tous les parcours de génération", "Voix off IA : Femme/Homme, style", "Voix réelle : 3 vocaux max",
       "voix off sans photo", "Chatterbox hors moteur vidéo", "Personnages : Wan 2.7/Kling Omni", "un vocal/personne", "Kling 5 à 10 s, un locuteur", "un narrateur actif", "droits/import/enregistrement humains",
       "une resynthèse supplémentaire", "mêmes paroles/vocal", "jamais après erreur réseau/soumission incertaine", "ni substitution de voix",

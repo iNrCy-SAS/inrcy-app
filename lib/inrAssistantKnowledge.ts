@@ -17,6 +17,7 @@ import { currentSubscriptionOffer, subscriptionChargeLabel } from "./subscriptio
 import { INR_ASSISTANT_ACCOUNT_GUIDES, INR_ASSISTANT_CHANNELS_HREF } from "./inrAssistantGuidesAccount.ts";
 import { productNavigationSummary } from "./productNavigation.ts";
 import { INR_ASSISTANT_MANAGEMENT_GUIDES } from "./inrAssistantGuidesManagement.ts";
+import { getAiMediaMonthlyCredits } from "./aiMediaPlanLimits.ts";
 
 export const INR_ASSISTANT_KNOWLEDGE_MAX_CHARS = 5_000;
 
@@ -83,7 +84,7 @@ function subscriptionHelp(query: string): string {
   const lines = [
     "Abonnement — parcours existant dans Mon compte, onglet Abonnement : /dashboard?panel=abonnement.",
     `Comparer les trois cartes Basique / Standard / Premium, choisir ${settingsFrench.subscription_cycle_monthly} ou ${settingsFrench.subscription_cycle_yearly}, puis utiliser l’action proposée dans la carte. « Forfait actuel » identifie l’offre du compte.`,
-    "Basique : Assistant et outils manuels inclus, sans agents d’automatisation et sans crédits médias mensuels inclus ; des recharges permettent de créer des médias dans iNr’Studio sans changer d’offre. Standard : accompagnement et réalisation, 735 crédits médias par mois et 3 agents. Premium : accompagnement et réalisation complexe, 2530 crédits médias par mois et 4 agents, plus les outils Premium. Les nouveaux essais restent Standard pendant 21 jours ; choisir Basique ne réduit pas l’essai.",
+    `Basique : Assistant et outils manuels inclus, sans agents d’automatisation, avec ${getAiMediaMonthlyCredits("basic")} crédits médias inclus par mois pour découvrir iNr’Studio ; les recharges permettent de continuer sans changer d’offre. Les images et vidéos utilisent le même portefeuille, selon le devis et le solde disponible. Standard : accompagnement et réalisation, ${getAiMediaMonthlyCredits("standard")} crédits médias par mois et 3 agents. Premium : accompagnement et réalisation complexe, ${getAiMediaMonthlyCredits("premium")} crédits médias par mois et 4 agents, plus les outils Premium. Les nouveaux essais restent Standard pendant 21 jours ; choisir Basique ne réduit pas l’essai.`,
     `${settingsFrench.subscription_standard_plus}. Standard : ${settingsFrench.subscription_ai_agents_included.replace("{count}", "3")}; Premium : ${settingsFrench.subscription_ai_agents_included.replace("{count}", "4")}. Les outils marqués Premium dans les repères complètent Standard.`,
     `Pour changer d’offre ou de périodicité : ${settingsFrench.subscription_change_quote_notice} ${settingsFrench.subscription_confirm_change}. Ne jamais annoncer le prorata ni la date personnelle sans les données vérifiées.`,
   ];

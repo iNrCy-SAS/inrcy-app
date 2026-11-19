@@ -24,6 +24,8 @@ export type AiMediaQuotaUnit = "item" | "second" | "credit";
 /** Conversion of existing rights; independent from engine prices. */
 export const AI_MEDIA_LEGACY_CREDIT_FACTORS = Object.freeze({ image: 7, video: 10 });
 export const AI_MEDIA_CREDIT_WALLET_VERSION = "media-credits-v1";
+/** Native shared-wallet allowance; Basic has no legacy image/second allocation. */
+export const AI_MEDIA_BASIC_MONTHLY_CREDITS = 50;
 
 export function legacyAiMediaAmountToCredits(kind: AiMediaKind, amount: number): number {
   if (!Number.isSafeInteger(amount) || amount < 0) throw new TypeError("Montant média invalide.");
@@ -82,4 +84,12 @@ export const AI_MEDIA_MONTHLY_LIMITS: Readonly<Record<AiMediaEdition, AiMediaPla
       videoMaxDurationSeconds: 30,
     }),
   });
+
+/** Commercial defaults in the common wallet, including native credit allowances. */
+export function getAiMediaMonthlyCredits(edition: AiMediaEdition): number {
+  const limits = AI_MEDIA_MONTHLY_LIMITS[edition];
+  return (edition === "basic" ? AI_MEDIA_BASIC_MONTHLY_CREDITS : 0)
+    + legacyAiMediaAmountToCredits("image", limits.image)
+    + legacyAiMediaAmountToCredits("video", limits.video);
+}
 

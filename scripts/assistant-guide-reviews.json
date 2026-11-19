@@ -93,7 +93,7 @@
         "lib/boosterCtaDefaultsServer.ts": "62c42eea39f70b377701d7762a0aa912bc3b00062694dfb46012898d8eedc9d0",
         "lib/personalizationCompletion.ts": "e28c4b15fc4ab515049b320467c2d2ab8e0c9dd368a71c02539c50abf523aa6a",
         "messages/fr-FR/dashboard.json": "7035be6e703ba3f2d78ccb30d377c410f8c37bfd724e951358079425530f9235",
-        "messages/fr-FR/settings.json": "9271be63f4bbf7f6eaafa7903e9d66a2e4f7105101041dd7c5b1b42612bec9ec"
+        "messages/fr-FR/settings.json": "347462a4bb1bb973ef3d0c260174aa00e3cf902e07b2170a6700e3d97ae426ee"
       }
     },
     "assistant-capabilities": {
@@ -304,7 +304,7 @@
       }
     },
     "basic-studio-create": {
-      "guideDigest": "8e1a6cb81d3d62079bfb01f5cdcb9277dcdc44017824f5e69a3a5d2e467c4274",
+      "guideDigest": "157be238965b83ec38678312452eced2dc75983ddde3a46ec1bb8795e0049d2b",
       "sources": {
         "app/api/media-generation/generate/route.ts": "27e3b8ad215a63917943999f675ea501e48b479ddb063ea81d17adbe132548ab",
         "app/api/media-generation/normalize-reference/route.ts": "16cfd97b92fb3ee618bab493d4933fa977a36100dc572679d3eb5b85b23642df",
@@ -858,7 +858,7 @@
       }
     },
     "studio-create": {
-      "guideDigest": "2bf4f4876a83a6e5d17fbe705a65bf6c8f031bccdcec18eee1ea1f15ebf0a423",
+      "guideDigest": "7fdada66ab236ca6087d030b68eba92e1570ca6e6c5f26378b04f2fbd26af8f0",
       "sources": {
         "app/api/media-generation/generate/route.ts": "27e3b8ad215a63917943999f675ea501e48b479ddb063ea81d17adbe132548ab",
         "app/api/media-generation/normalize-reference/route.ts": "16cfd97b92fb3ee618bab493d4933fa977a36100dc572679d3eb5b85b23642df",
@@ -951,7 +951,7 @@
       }
     },
     "subscription": {
-      "guideDigest": "a7bfbf7fdbf6eb739d34c5802dae762df69949a50dea2eb792d3953e451a1138",
+      "guideDigest": "5ab3c857fd7813eea991e3db839b542434fadbca777a1cef85e57c59a2fef44d",
       "sources": {
         "app/api/billing/account-subscription/route.ts": "40d5817b65a3cc6803933b08c92885ffa3aa0e728dd16aa6b38b6747afc1af64",
         "app/api/billing/checkout/route.ts": "43f053a9af6bec6ed097b80070ae735ae5714b534450acc8e5279d91fd024518",
@@ -961,10 +961,10 @@
         "app/dashboard/settings/_components/AbonnementContent.tsx": "6f51e94cbe247beb1628f79630f4502d913f32ae48348437db15d0e1b1f7676b",
         "app/dashboard/settings/_components/BasicSubscriptionCard.tsx": "173d7d60c5fef2d893fc01456dfe28042b37a0f41092aae2920da1d839d9d39c",
         "app/dashboard/settings/_components/StandardSubscriptionContent.tsx": "7025ebbf4c805233dfef2f022c202a2081058f3bbb1cbd08236ad63274c3ff66",
-        "app/dashboard/settings/_components/SubscriptionComparison.tsx": "7c0b307c97b78c51bf59f6bc3325028413e1324b1de8444871a59f30e2c6abac",
+        "app/dashboard/settings/_components/SubscriptionComparison.tsx": "11fdfcd1f80c7bf6a0a7dacd8649efeecc6a9809d7262ecec648a44464fb9193",
         "lib/accountBillingSubscriptionClient.ts": "3850a6dcb7bc51cda0100cf4bc3e02b3940efadf8eb461936617ad5500af4439",
         "lib/accountBillingSubscriptionServer.ts": "ceec40d7a9246341f09444a6d986f4b5ab73e0334f05ce74835ea81c3883ab53",
-        "lib/aiMediaPlanLimits.ts": "ba4ece34c0f19d5687f04de6e57a10b264594958253d0fa3e03cd1ab5e225e24",
+        "lib/aiMediaPlanLimits.ts": "c39c152c4c8a45a20791bda35aee3e6633b4ca9bc88091ad66c49da331046d75",
         "lib/stripeCheckoutPreflight.ts": "8f7b9de83cdbe1c8a18ed04c105461a70ac1730b6e8bf4115a2e30757ef3903b",
         "lib/subscriptionBillingPresentation.ts": "d62100ba4909259522322d7248c4f2662fd9b20d75adaf8a7713fc834c8483d7",
         "lib/subscriptionOffers.ts": "eaa7faa7d608b6cebb0a3a6d91aa57e613d3b60506c973c9936c46532e29a151"

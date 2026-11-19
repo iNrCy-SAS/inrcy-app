@@ -1,19 +1,17 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { AI_MEDIA_MONTHLY_LIMITS, legacyAiMediaAmountToCredits, type AiMediaEdition } from "@/lib/aiMediaPlanLimits";
+import { getAiMediaMonthlyCredits, type AiMediaEdition } from "@/lib/aiMediaPlanLimits";
 import { STANDARD_PUBLICATION_CHANNEL_KEYS } from "@/lib/dashboardEdition";
 import { SubscriptionDetails } from "./SubscriptionWorkspace";
 import compactStyles from "./subscriptionWorkspace.module.css";
 import offerStyles from "./settingsContentLayout.module.css";
 
-const monthlyCredits = (edition: AiMediaEdition) => legacyAiMediaAmountToCredits("image", AI_MEDIA_MONTHLY_LIMITS[edition].image) + legacyAiMediaAmountToCredits("video", AI_MEDIA_MONTHLY_LIMITS[edition].video);
-
 export function SubscriptionPlanFeatures({ edition }: { edition: AiMediaEdition }) {
   const t = useTranslations("settings");
   const styles = edition === "founder" ? compactStyles : offerStyles;
-  const credits = monthlyCredits(edition);
-  const standard = monthlyCredits("standard");
+  const credits = getAiMediaMonthlyCredits(edition);
+  const standard = getAiMediaMonthlyCredits("standard");
   const basicRows = [
     ["Booster", t("subscription_publication_channels", { count: STANDARD_PUBLICATION_CHANNEL_KEYS.length })],
     ["iNr’Assistant", t("subscription_basic_assistant")],
@@ -73,13 +71,13 @@ export function SubscriptionPlanFeatures({ edition }: { edition: AiMediaEdition 
 export function SubscriptionQuotaSummary({ edition }: { edition: AiMediaEdition }) {
   const t = useTranslations("settings");
   const styles = compactStyles;
-  const credits = monthlyCredits(edition);
-  const standard = monthlyCredits("standard");
+  const credits = getAiMediaMonthlyCredits(edition);
+  const standard = getAiMediaMonthlyCredits("standard");
   return <div className={styles.quotaSummary}>
     <div className={styles.quotaStat}>
       <div><strong>{credits}</strong>{edition === "premium" ? <span className={styles.quotaGain}>+{credits - standard}</span> : null}</div>
       <span>{t("subscription_media_month_label")}</span>
-      <small>{t("subscription_media_shared_hint")}</small>
+      <small>{t(edition === "basic" ? "subscription_basic_credit_hint" : "subscription_media_shared_hint")}</small>
     </div>
   </div>;
 }

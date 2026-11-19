@@ -4,6 +4,8 @@ Le système de crédits médias a été activé en production le 13 octobre 2026
 
 ## Portefeuille commun
 
+Le forfait **Basique inclut 50 crédits média par mois** pour découvrir iNrStudio, avec le même fonctionnement que les autres offres. Ces crédits appartiennent au portefeuille commun et peuvent financer des images ou des vidéos, selon le devis et le solde disponible. Les recharges restent disponibles et les droits des autres offres sont conservés.
+
 Une seconde vidéo historique devient **10 crédits**. Une image historique devient **7 crédits**. Les deux droits se réunissent dans le même portefeuille, utilisable pour des images ou des vidéos.
 
 Exemple : 56 secondes restantes et 25 images restantes donnent **735 crédits** : 560 + 175. La conversion porte sur les droits réellement enregistrés, y compris les recharges et réservations en cours ; elle ne remplace pas arbitrairement le solde par cet exemple.

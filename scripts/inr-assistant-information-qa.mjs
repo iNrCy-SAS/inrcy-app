@@ -22,6 +22,9 @@ export function evaluateInrAssistantInformationAnswer(contract, message) {
     require(/basique|basic/, 'missing_basic_offer');
     require(/studio/, 'missing_studio');
     require(/credit|recharg/, 'missing_credit_conditions');
+    require(/50[\s*]*credits?/, 'missing_basic_monthly_credits');
+    require(/par mois|mensuel|\/mois|per month|monthly/, 'missing_monthly_allowance');
+    forbid(/\b(?:aucun|zero|0)\s+credits?(?:\s+medias?)?(?:\s+mensuels?)?\s+inclus|sans credits?(?: medias?)? mensuels?/, 'obsolete_basic_zero_allowance');
     forbid(/(?:studio|generation|generer)[^.\n]{0,100}(?:reserve|uniquement|seulement|exclusif)[^.\n]{0,60}(?:standard|premium)|(?:basique|basic)[^.\n]{0,65}(?:ne permet pas|pas acces|cannot|not available)[^.\n]{0,40}(?:gener|studio|images?|medias?)/, 'obsolete_basic_studio_restriction');
   } else if (contract === 'subscription-invoices') {
     require(/(?:mon compte|my account)[\s\S]*(?:factures|invoices)/, 'missing_account_subscription_invoices_steps');

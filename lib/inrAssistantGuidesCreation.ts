@@ -60,7 +60,7 @@ Libre Exact compatible/audio réel trop long : une resynthèse supplémentaire, 
 Sous-titres : durée mesurée, départ estimé, pas d’alignement mot à mot ; ≈% vidéo estimés, sans délai garanti.
 Coût/solde→Générer→Enregistrer/Utiliser ; régénérer peut débiter. HeyGen : cinématique native sans portrait parlant, durée choisie ; Avatar photo/Personnages, coût/audio exact.
 Vérifier mon média : même tentative sans relance. Pause/fermeture garde l’identifiant ; critères restent modifiables ; nouvelle génération attend sa résolution. Annuler la génération : confirmation distincte ; arrêt ≠ absence de débit.
-Basique sans crédits mensuels ; recharges permettent de générer sans changer d’offre. Booster fixe type/format.`,
+Basique : 50 crédits/mois ; recharges permettent de générer sans changer d’offre. Booster fixe type/format.`,
     sourceFiles: [
       "lib/inrAssistantMediaTools.ts",
       "lib/studioReferences.ts",

@@ -13,8 +13,10 @@ test("navigation QA rejects the reproduced false answer despite a working legacy
 });
 
 test("offer QA distinguishes manual Studio access from included credits", () => {
-  assert.equal(evaluateInrAssistantInformationAnswer("basic-studio", "Oui, Basique donne accès à Studio. Aucun crédit inclus : les recharges permettent de générer selon le solde et les moteurs disponibles.").passed, true);
-  assert.equal(evaluateInrAssistantInformationAnswer("basic-studio", "Basique donne accès à Studio avec une recharge de crédits, mais ne permet pas d’activer les agents.").passed, true);
+  assert.equal(evaluateInrAssistantInformationAnswer("basic-studio", "Oui, Basique donne accès à Studio avec 50 crédits inclus par mois. Les recharges permettent de continuer selon le solde et les moteurs disponibles.").passed, true);
+  assert.equal(evaluateInrAssistantInformationAnswer("basic-studio", "Basic includes 50 credits per month for Studio, with credit top-ups available.").passed, true);
+  assert.equal(evaluateInrAssistantInformationAnswer("basic-studio", "Oui, Basique donne accès à Studio. Aucun crédit inclus : les recharges permettent de générer selon le solde et les moteurs disponibles.").passed, false);
+  assert.equal(evaluateInrAssistantInformationAnswer("basic-studio", "Basique donne accès à Studio avec une recharge de crédits, mais ne permet pas d’activer les agents.").passed, false);
   assert.equal(evaluateInrAssistantInformationAnswer("basic-studio", "Studio est réservé aux offres Standard et Premium ; le forfait Basique ne permet pas de générer, même avec des crédits.").passed, false);
 });
 

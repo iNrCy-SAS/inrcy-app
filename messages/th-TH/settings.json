@@ -11,7 +11,7 @@
   "subscription_premium_assistant": "ให้คำแนะนำและดำเนินงานที่ซับซ้อน",
   "subscription_basic_no_agents": "ไม่มีเอเจนต์ดำเนินงาน",
   "subscription_basic_tools": "เครื่องมือในแพ็กเกจพื้นฐาน",
-  "subscription_basic_credit_hint": "ซื้อเครดิตเพิ่มได้เมื่อต้องการ",
+  "subscription_basic_credit_hint": "ทดลองใช้ Studio และซื้อเครดิตเพิ่มได้เมื่อต้องการ",
   "subscription_basic_scheduled": "เปลี่ยนเป็นแพ็กเกจพื้นฐานในวันที่ {date} สิทธิ์ปัจจุบันจะคงอยู่จนถึงวันนั้น",
   "subscription_basic_change": "เลือกแพ็กเกจพื้นฐาน",
   "subscription_basic_native_unavailable": "แพ็กเกจนี้ยังไม่มีในร้านแอปของคุณ",
