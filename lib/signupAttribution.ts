@@ -215,3 +215,29 @@ export function getSignupAdsetLabel(attribution: SignupAttributionSnapshot) {
 export function getSignupAdLabel(attribution: SignupAttributionSnapshot) {
   return attribution.adName || attribution.utmContent || attribution.adId;
 }
+
+// Published Meta names for the internal signup alert. Keep the captured attribution intact.
+const signupAlertCampaigns = [{
+  id: "120253489463510279",
+  name: "Île-de-France | Prospects site | Vidéo 31 s + image",
+  adsets: [{
+    id: "120253489463550279",
+    name: "Île-de-France | Vidéo 31 s | Prospects site",
+    ads: [{ id: "120253489463530279", name: "Vidéo 31 s | Île-de-France | Prospects site" }],
+  }, {
+    id: "120253489463520279",
+    name: "Île-de-France | Image | Prospects site",
+    ads: [{ id: "120253489463560279", name: "Image | Île-de-France | Prospects site" }],
+  }],
+}];
+
+export function getSignupAlertLabels(attribution: SignupAttributionSnapshot) {
+  const campaign = signupAlertCampaigns.find(item => item.id === attribution.campaignId);
+  const adset = campaign?.adsets.find(item => item.id === attribution.adsetId);
+  const ad = adset?.ads.find(item => item.id === attribution.adId);
+  return {
+    campaign: campaign?.name ?? getSignupCampaignLabel(attribution),
+    adset: adset?.name ?? getSignupAdsetLabel(attribution),
+    ad: ad?.name ?? getSignupAdLabel(attribution),
+  };
+}

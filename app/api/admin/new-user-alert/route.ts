@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireSecretHeader } from "@/lib/adminSecurity";
 import { readSignupFormSnapshot } from "@/lib/signupFormSnapshot";
 import {
-  getSignupAdLabel,
-  getSignupAdsetLabel,
+  getSignupAlertLabels,
   getSignupAttributionSourceLabel,
-  getSignupCampaignLabel,
   readSignupAttributionSnapshot,
 } from "@/lib/signupAttribution";
 import { sendMonitoringMailWithResult } from "@/lib/txMailer";
@@ -136,9 +134,10 @@ export async function POST(req: NextRequest) {
     const phone = displayValue(signupForm.phone);
     const consent = signupForm.consent ? "Oui" : "Non renseigné";
     const acquisitionSource = getSignupAttributionSourceLabel(attribution);
-    const campaign = displayValue(getSignupCampaignLabel(attribution), "—");
-    const adset = displayValue(getSignupAdsetLabel(attribution), "—");
-    const ad = displayValue(getSignupAdLabel(attribution), "—");
+    const labels = getSignupAlertLabels(attribution);
+    const campaign = displayValue(labels.campaign, "—");
+    const adset = displayValue(labels.adset, "—");
+    const ad = displayValue(labels.ad, "—");
     const placement = displayValue(attribution.placement, "—");
     const landingPage = displayValue(attribution.landingPageUrl, "—");
     const eventSource = displayValue(attribution.eventSourceUrl, "—");
