@@ -29,6 +29,7 @@ import { useDashboardUnsavedNavigation } from "./DashboardUnsavedNavigationProvi
 import { DashboardAssistantScreenContext } from "./DashboardAssistantScreenContext";
 import { DashboardAssistantCommandContext, type InrAssistantScreenHandler } from "./DashboardAssistantCommandContext";
 import AssistantSession from "./DashboardAssistantSession";
+import PaidSignupBooking from "./PaidSignupBooking";
 import { clearActorSessions } from "./dashboardAssistantSessionState";
 
 type ContactDraft = { actorUserId: string; accountId: string; message: string };
@@ -83,6 +84,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
   const [onboardingWelcome, setOnboardingWelcome] = useState(false);
   const [unread, setUnread] = useState(false);
   const [assistantPending, setAssistantPending] = useState(false);
+  const [bookingToken, setBookingToken] = useState<string | null>(null);
   const visibleRef = useRef(false);
   const copy = dashboardAssistantCopy(useLocale());
   const allowed = Boolean(actorUserId && activeAccountId && browserActorId === actorUserId && browserAccountId === activeAccountId);
@@ -95,10 +97,18 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
     visibleRef.current = true;
     setUnread(false);
   }, [allowed, activeAccountId]);
-  const welcomeFirstArrival = useCallback(() => {
+  const welcomeFirstArrival = useCallback((token?: string) => {
+    if (token) {
+      setBookingToken(token);
+      return;
+    }
     setOnboardingWelcome(true);
     openAssistant();
   }, [openAssistant]);
+  const continueAfterBooking = useCallback(() => {
+    setBookingToken(null);
+    welcomeFirstArrival();
+  }, [welcomeFirstArrival]);
   useAssistantFirstArrival({ actorUserId, accountId: activeAccountId,
     enabled: allowed && pathname === "/dashboard" && !["panel", "action", "help", "generator", "stats"].some(key => searchParams.has(key)),
     onWelcome: welcomeFirstArrival });
@@ -404,6 +414,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
       setMinimized(false);
       setContactDraft(null);
       setOnboardingWelcome(false);
+      setBookingToken(null);
       setUnread(false);
       setAssistantPending(false);
       visibleRef.current = false;
@@ -426,6 +437,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
         setMinimized(false);
         setContactDraft(null);
         setOnboardingWelcome(false);
+        setBookingToken(null);
         setUnread(false);
         setAssistantPending(false);
       }
@@ -440,6 +452,7 @@ export default function DashboardAssistantProvider({ children }: { children: Rea
 
   return <AssistantContext.Provider value={controls}><DashboardAssistantScreenContext.Provider value={registerScreen}><DashboardAssistantCommandContext.Provider value={registerCommand}>
     {children}
+    {allowed && bookingToken && <PaidSignupBooking token={bookingToken} onContinue={continueAfterBooking} />}
     <AssistantSession
       key={`${actorUserId}:${activeAccountId}:${browserActorId}:${revision}`}
       actorUserId={actorUserId}

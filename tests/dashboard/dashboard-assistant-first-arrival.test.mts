@@ -27,7 +27,12 @@ function harness() {
   let activeAccount: string | null = accountA;
   let signingOut = false;
   let currentView: HookView | undefined;
-  const window = new EventTarget();
+  const timers = new Map<number, () => void>();
+  let timerId = 0;
+  const window = Object.assign(new EventTarget(), {
+    setTimeout(fn: () => void) { timers.set(++timerId, fn); return timerId; },
+    clearTimeout(id: number) { timers.delete(id); },
+  });
   const calls: FetchCall[] = [];
   const timeouts: { milliseconds: number; controller: AbortController }[] = [];
   const dependencies: Record<string, unknown> = {
@@ -105,7 +110,7 @@ function harness() {
     };
   };
   return {
-    calls, timeouts, mount,
+    calls, timeouts, mount, timers,
     account(value: string | null, notify = true) { activeAccount = value; if (notify) window.dispatchEvent(new Event(ACCOUNT_EVENT)); },
     signOut(value = true, notify = true) { signingOut = value; if (value && notify) window.dispatchEvent(new Event(SIGN_OUT_EVENT)); },
     notifyAccount() { window.dispatchEvent(new Event(ACCOUNT_EVENT)); },
@@ -133,6 +138,22 @@ test("a Strict Mode replacement mount subscribes to the existing claim without l
   h.respond(0, { accountId: accountA, show: true }); await flush();
   assert.equal(abandoned.welcomes, 0); assert.equal(replacement.welcomes, 1);
   replacement.unmount();
+});
+
+test("a delayed Stripe settlement can show the invitation without a refresh, and leaving cancels the retry", async () => {
+  for (const leave of [false, true]) {
+    const h = harness(), view = h.mount();
+    h.respond(0, { accountId: accountA, show: false, paymentPending: true }); await flush();
+    assert.equal(view.welcomes, 0); assert.equal(h.timers.size, 1);
+    if (leave) {
+      view.unmount();
+      assert.equal(h.timers.size, 0); assert.equal(h.calls.length, 1);
+    } else {
+      const retry = [...h.timers.values()][0]; h.timers.clear(); retry();
+      h.respond(1, { accountId: accountA, show: true, bookingToken: "synthetic" }); await flush();
+      assert.equal(view.welcomes, 1); assert.equal(h.timers.size, 0); view.unmount();
+    }
+  }
 });
 
 test("disabled, absent actor, absent account and unhydrated active cache cannot consume a first-arrival claim", async () => {

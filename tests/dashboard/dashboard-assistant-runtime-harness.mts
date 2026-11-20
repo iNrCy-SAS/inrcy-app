@@ -77,7 +77,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
   let uiHandler: UiHandler | undefined;
   let insertHandler: (value: studioDraft.InrAssistantStudioDraft) => Promise<boolean> = async () => true;
   const navigations: string[] = [];
-  let arrivalOptions: { actorUserId: string; accountId: string; enabled: boolean; onWelcome: () => void } | undefined;
+  let arrivalOptions: { actorUserId: string; accountId: string; enabled: boolean; onWelcome: (bookingToken?: string) => void } | undefined;
   let navigationAllowed = true;
   let deferredNavigation = false;
   let releaseNavigation: ((allowed: boolean) => void) | null = null;
@@ -168,7 +168,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
     } }) };
     if (name === "./dashboardAssistantCopy") return { dashboardAssistantCopy: () => ({ ...copy, insertStudioImage: "Insert into iNrStudio — Image", insertStudioVideo: "Insert into iNrStudio — Video", studioDraftInsertedImage: "Image prompt inserted; choose when to generate.", studioDraftInsertedVideo: "Video prompt inserted; choose when to generate.", studioDraftUnavailable: "Studio insertion unavailable; no generation started.", studioDraftBusy: "Studio is busy; retry later." }) };
     if (name === "./dashboardAssistantErrorCopy") return errorCopy;
-    if (name === "./DashboardAssistantMessageContent") return { __esModule: true, default: () => null };
+    if (name === "./DashboardAssistantMessageContent" || name === "./PaidSignupBooking") return { __esModule: true, default: () => null };
     if (name.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
     assert.fail(`Unexpected dependency ${name}`);
   };

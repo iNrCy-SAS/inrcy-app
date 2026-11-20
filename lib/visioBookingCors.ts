@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const DEFAULT_ALLOWED_ORIGINS = ["https://inrcy.com", "https://www.inrcy.com"];
+const DEFAULT_ALLOWED_ORIGINS = ["https://inrcy.com", "https://www.inrcy.com", "https://app.inrcy.com"];
 
 function configuredOrigins() {
   const extras = String(process.env.INRCY_VISIO_ALLOWED_ORIGINS || "")
