@@ -646,7 +646,7 @@
         "app/api/public/visio-booking/availability/route.ts": "0819cf14f34a75e50ef916d7bde4cd984abb7102bba3dd092843d2bc23da52df",
         "app/api/public/visio-booking/book/route.ts": "c9a9b7ae6d0ad367e6c43e3c158e9ff33fb55c44a123666dc17f0b395db1a0cb",
         "app/dashboard/DashboardClient.tsx": "ec07674d5478a19c3ae30197800b7d41ae0b933d5009ea968646d731016281a5",
-        "app/dashboard/_components/DashboardAssistantProvider.tsx": "9ae245de0970b044dbcda39db3a5f9fefb91e7e905a873fc83ae4a92aa183cee",
+        "app/dashboard/_components/DashboardAssistantProvider.tsx": "21d6583d747d2a60250ec46b9cc7417ec26d2e751d544794e38b5f019b30437b",
         "app/dashboard/_components/DashboardTopbar.tsx": "7f51f87106641ac8a53fb776019ff811718beb3c5a8f2e6c4385c0c9eb9ccd02",
         "app/dashboard/_components/GeneratorSettingsModal.tsx": "46846950ab4570bd362c430d3a38c08f94094086b55b3a9f226ee78ffc872e65",
         "app/dashboard/_components/PaidSignupBooking.tsx": "11c6fe034510989ebb2b93aa982ed055590ac4c0b90053a11225c879e7d05940",
