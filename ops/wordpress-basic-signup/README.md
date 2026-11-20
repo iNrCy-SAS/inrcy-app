@@ -1,4 +1,6 @@
-# Espace Basique iNrCy — 1.1.0
+# Espace Basique iNrCy — 1.2.0
+
+La présentation et la navigation reprennent le site iNrCy. Le formulaire, les liens d’accès à l’application et les textes d’abonnement restent propres à l’entrée Basique. La mise à jour depuis 1.1.0 ajoute les deux pages enfants Blog et iNr’Annuaire, à préparer via le réglage existant et à publier pour rendre les deux entrées du menu accessibles. L’annuaire utilise le shortcode de l’annuaire d’origine.
 
 Mini-site dans le WordPress actuel, sous `/basique/`, sans nouveau domaine. L’offre présentée est Basique à **29 € HT par mois**, avec **50 crédits médias mensuels**. Les onze canaux et les outils proviennent des politiques réelles de l’application ; les comptes connectés doivent être compatibles. L’application conserve la comparaison des trois packs et l’activation après paiement.
 
@@ -11,6 +13,8 @@ La racine existante, sa valeur `inrcy_basic_signup_page_id` et son shortcode `[i
 | Accueil | /basique/ | Racine existante : [inrcy_basic_signup] |
 | Fonctionnalités | /basique/fonctionnalites/ | [inrcy_basic_page view="features"] |
 | Tarif | /basique/tarif/ | [inrcy_basic_page view="pricing"] |
+| Blog | /basique/blog/ | [inrcy_basic_page view="blog"] |
+| iNr’Annuaire | /basique/annuaire/ | [inrcy_basic_page view="directory"] |
 | FAQ | /basique/faq/ | [inrcy_basic_page view="faq"] |
 | Inscription | /basique/inscription/ | [inrcy_basic_page view="signup"] |
 | Contact | /basique/contact/ | [inrcy_basic_page view="contact"] |
@@ -21,7 +25,7 @@ La racine existante, sa valeur `inrcy_basic_signup_page_id` et son shortcode `[i
 
 Les boutons de préparation et de bascule exigent `manage_options` et un nonce. La préparation crée uniquement les enfants manquants **en brouillon**. Elle ne remplace ni contenu, ni statut d’une page existante. Un conflit de vue est signalé. Un verrou SQL `INSERT IGNORE` à propriétaire unique évite les créations concurrentes ; récupération après 300 secondes et libération par comparaison exacte.
 
-La bascule ON vérifie dans WordPress les dix chemins réels : tous doivent être publiés, non protégés par mot de passe, avec la vue attendue. Elle exige aussi les trois corps juridiques revus, le consentement et le shortcode Complianz. Elle ne publie jamais de page. Les trois textes dédiés sont embarqués en entier dans `includes/legal/` : 47 articles, 38 rubriques et 19 sections ; le renderer ne récupère aucun texte juridique sur Internet.
+La bascule ON vérifie dans WordPress les douze chemins réels : tous doivent être publiés, non protégés par mot de passe, avec la vue attendue. Elle exige aussi les trois corps juridiques revus, le consentement et le shortcode Complianz. Elle ne publie jamais de page. Les trois textes dédiés sont embarqués en entier dans `includes/legal/` : 47 articles, 38 rubriques et 19 sections ; le renderer ne récupère aucun texte juridique sur Internet.
 
 ## Parcours et accès
 
@@ -49,7 +53,7 @@ Le template autonome appelle `wp_head`, `wp_body_open` et `wp_footer`. Les en-t�
 
 Sources primaires d’intégration : [Complianz document 7.5.7](https://github.com/complianz/complianz-gdpr/blob/v7.5.7/documents/class-document.php), [liste des services côté serveur](https://github.com/complianz/complianz-gdpr/blob/v7.5.7/functions.php#L1875-L2013), [moteur de bandeau](https://github.com/complianz/complianz-gdpr/blob/v7.5.7/cookiebanner/class-banner-loader.php), [initialisation navigateur](https://github.com/complianz/complianz-gdpr/blob/v7.5.7/cookiebanner/js/complianz.js), [Rank Math métadonnées](https://rankmath.com/docs/filters-and-hooks/frontend/meta-data/), [OpenGraph](https://rankmath.com/docs/filters-and-hooks/frontend/open-graph/), [JSON-LD](https://rankmath.com/docs/filters-and-hooks/frontend/rich-snippets/).
 
-## Déploiement contrôlé
+## Mise en service initiale de la version 1.1.0
 
 1. Préparer et vérifier l’application compatible avec les liens `entry=basique`, puis la déployer avant la bascule visiteurs. Le plugin OFF, les brouillons, leur aperçu et la publication des enfants encore fermés peuvent être préparés d’abord ; attendre ensuite que l’application soit READY avant ON, pour que ses nouveaux liens dédiés trouvent des pages prêtes. Conserver une sauvegarde du plugin 1.0.1 et les valeurs des options de bascule/pages, sans exporter de secret.
 2. Mettre **à jour le plugin existant** `inrcy-basic-signup` avec l’archive 1.1.0 ; ne pas installer une deuxième copie. Vérifier que la bascule est OFF. Aucune page n’est créée/publiée lors de l’activation du plugin.

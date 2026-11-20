@@ -26,7 +26,7 @@
     "site_source_name",
     "fbclid",
   ];
-  var SIGNUP_PATH = /^\/basique\/inscription\/?$/i;
+  var SIGNUP_PATH = /^\/(?:(?:fr|en|es|it|de|nl|pt|th|zh)\/)?basique\/inscription\/?$/i;
   var SESSION_STORAGE_KEY = "inrcy_signup_attribution_v1";
   var refreshTimer = null;
 

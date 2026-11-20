@@ -8,6 +8,8 @@ define('INRCY_BASIC_SITE_CREATION_LOCK_TTL', 300);
 function inrcy_basic_site_pages() {
     return array(
         'home' => array('slug' => '', 'title' => 'Accueil', 'heading' => 'iNrCy Basique'),
+        'blog' => array('slug' => 'blog', 'title' => 'Blog', 'heading' => 'Notre Blog'),
+        'directory' => array('slug' => 'annuaire', 'title' => 'iNr’Annuaire', 'heading' => 'iNr’Annuaire'),
         'features' => array('slug' => 'fonctionnalites', 'title' => 'Fonctionnalités', 'heading' => 'Les outils du pack Basique'),
         'pricing' => array('slug' => 'tarif', 'title' => 'Tarif', 'heading' => 'Un pack clair pour votre activité'),
         'faq' => array('slug' => 'faq', 'title' => 'FAQ', 'heading' => 'Vos questions, simplement'),
@@ -91,6 +93,23 @@ function inrcy_basic_site_url($view = 'home', $preview = null) {
     return home_url('/basique/' . ($pages[$view]['slug'] !== '' ? $pages[$view]['slug'] . '/' : ''));
 }
 
+function inrcy_basic_tools() {
+    return array(
+        'booster' => 'Booster', 'inr-studio' => 'iNr’Studio', 'inr-ads' => 'iNr’ADS',
+        'inr-agent' => 'iNr’Agent', 'inr-calendar' => 'iNr’Calendar', 'inr-badge' => 'iNr’Badge',
+        'emailing' => 'Emailing', 'reputation' => 'Réputation',
+    );
+}
+
+function inrcy_basic_current_tool() {
+    $tool = $_GET['outil'] ?? null;
+    return is_string($tool) && isset(inrcy_basic_tools()[$tool]) ? $tool : null;
+}
+
+function inrcy_basic_tool_url($slug, $preview = null) {
+    return add_query_arg(array('outil' => $slug), inrcy_basic_site_url('features', $preview));
+}
+
 function inrcy_basic_site_login_url() {
     return 'https://app.inrcy.com/login?entry=basique';
 }
@@ -121,7 +140,21 @@ add_action('wp_enqueue_scripts', function () {
         add_action('wp_head', array(COMPLIANZ::$document, 'inline_styles'), 100);
     }
 }, 101);
+// Ask the native directory to enqueue the exact CSS it uses for its public page.
+add_action('wp_enqueue_scripts', function () {
+    if (!inrcy_basic_site_rendered() || inrcy_basic_site_view() !== 'directory' || !function_exists('inrcy_directory_enqueue_styles')) { return; }
+    $source = get_page_by_path('annuaire', OBJECT, 'page');
+    if (!$source || $source->post_status !== 'publish' || !empty($source->post_password)) { return; }
+    $current = $GLOBALS['post'];
+    try {
+        $GLOBALS['post'] = $source;
+        inrcy_directory_enqueue_styles();
+    } finally {
+        $GLOBALS['post'] = $current;
+    }
+}, 101);
 add_filter('body_class', function ($classes) {
+    if (inrcy_basic_site_rendered() && inrcy_basic_site_view() === 'directory') { $classes[] = 'inrcy-directory-page'; }
     if (inrcy_basic_site_rendered() && inrcy_basic_site_view() === 'cookies' && !in_array('cmplz-document', $classes, true)) { $classes[] = 'cmplz-document'; }
     return $classes;
 });
@@ -129,12 +162,13 @@ add_filter('body_class', function ($classes) {
 /** Rebase only known iNrCy document destinations; policy text and controls stay intact. */
 function inrcy_basic_site_confine_document_links($html) {
     $routes = array('/' => 'home', '/nos-packs' => 'pricing', '/inscription' => 'signup', '/s-inscrire' => 'signup', '/contact' => 'contact',
+        '/annuaire' => 'directory', '/blog' => 'blog', '/blog-conseils-generateur' => 'blog', '/nos-outils' => 'features', '/faq' => 'faq',
         '/politique-de-cookies-ue' => 'cookies', '/politique-de-confidentialite' => 'privacy', '/cga-conditions-generales-dabonnement' => 'terms', '/mentions-legales' => 'legal');
     if (inrcy_basic_site_preview()) {
         foreach (inrcy_basic_site_pages() as $view => $page) { $routes['/basique' . ($page['slug'] !== '' ? '/' . $page['slug'] : '')] = $view; }
     }
-    return preg_replace_callback('/\bhref\s*=\s*(["\x27])([^"\x27]*)\1/i', function ($match) use ($routes) {
-        $url = html_entity_decode($match[2], ENT_QUOTES, 'UTF-8');
+    return preg_replace_callback('/(?<![\w:-])(href|action)\s*=\s*(["\x27])([^"\x27]*)\2/i', function ($match) use ($routes) {
+        $url = html_entity_decode($match[3], ENT_QUOTES, 'UTF-8');
         if ($url === '' || $url[0] === '#') { return $match[0]; }
         $parts = wp_parse_url($url);
         if (!is_array($parts)) { return $match[0]; }
@@ -145,7 +179,7 @@ function inrcy_basic_site_confine_document_links($html) {
         $destination = inrcy_basic_site_url($routes[$path]);
         if (!empty($parts['query'])) { $destination .= (strpos($destination, '?') === false ? '?' : '&') . $parts['query']; }
         if (isset($parts['fragment'])) { $destination .= '#' . $parts['fragment']; }
-        return 'href=' . $match[1] . esc_url($destination) . $match[1];
+        return $match[1] . '=' . $match[2] . esc_url($destination) . $match[2];
     }, (string) $html);
 }
 

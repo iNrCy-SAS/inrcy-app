@@ -8,20 +8,18 @@ type FixtureOptions = { failFirst?: boolean; trialReceipt?: boolean; emptyTicket
 async function fixture(browser: Browser, options: FixtureOptions = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, javaScriptEnabled: !options.noJS });
   const page = await context.newPage(), errors: string[] = [], unexpected: string[] = [], posts: Array<{ url: string; body: string; headers: Record<string, string> }> = [];
-  const html = new Map<string, string>();
-  for (const [view, path] of Object.entries(pages)) html.set(path, render(view as View, { marketingConsent: options.marketingConsent, ...(options.legacy ? { options: { inrcy_basic_signup_page_id: 12815, inrcy_basic_site_enabled: "0" } } : {}), ...(options.preview ? { admin: true, preview: true } : {}) }));
+  page.setDefaultTimeout(8000);
+  const paths = new Map(Object.entries(pages).map(([view, path]) => [String(path), view as View]));
+  const renderOptions = { marketingConsent: options.marketingConsent, ...(options.legacy ? { options: { inrcy_basic_signup_page_id: 12815, inrcy_basic_site_enabled: "0" } } : {}), ...(options.preview ? { admin: true, preview: true } : {}) };
   page.on("pageerror", error => errors.push(error.message));
   let attempts = 0;
   await context.route("**/*", async route => {
     const request = route.request(), url = new URL(request.url());
     if (request.method() === "POST") posts.push({ url: request.url(), body: request.postData() ?? "", headers: request.headers() });
-    if (url.origin === "https://inrcy.com" && html.has(url.pathname)) {
-      if (options.preview && url.searchParams.has("inrcy_basic_view")) {
-        const view = url.searchParams.get("inrcy_basic_view") as View;
-        assert.ok(view in pages);
-        await route.fulfill({ contentType: "text/html", body: html.get(pages[view])! }); return;
-      }
-      await route.fulfill({ contentType: "text/html", body: html.get(url.pathname)! }); return;
+    if (url.origin === "https://inrcy.com" && paths.has(url.pathname)) {
+      const view = (options.preview && url.searchParams.get("inrcy_basic_view") || paths.get(url.pathname)) as View;
+      assert.ok(Object.hasOwn(pages, view));
+      await route.fulfill({ contentType: "text/html", body: render(view, { ...renderOptions, query: Object.fromEntries(url.searchParams) }) }); return;
     }
     if (url.pathname === "/wp-admin/admin-ajax.php" && request.method() === "POST") {
       attempts += 1;
@@ -31,20 +29,21 @@ async function fixture(browser: Browser, options: FixtureOptions = {}) {
     }
     if (url.origin === "https://app.inrcy.com" && (url.pathname === "/api/auth/signup-access" || url.pathname === "/login")) { await route.fulfill({ contentType: "text/html", body: "<h1>Synthetic Basic account</h1>" }); return; }
     const asset = url.pathname.split("/").at(-1)!;
-    if (url.pathname.startsWith("/wp-content/plugins/inrcy-basic-signup/") && ["basic-access.css", "basic-access.js", "basic-signup.css", "basic-signup.js", "basic-site.css", "basic-site.js", "basic-meta-attribution.js"].includes(asset)) {
+    if (url.pathname.startsWith("/wp-content/plugins/inrcy-basic-signup/") && ["basic-access.css", "basic-access.js", "basic-signup.css", "basic-signup.js", "basic-site.css", "basic-home-native.css", "basic-site.js", "basic-meta-attribution.js"].includes(asset)) {
       await route.fulfill({ contentType: asset.endsWith(".css") ? "text/css" : "text/javascript", body: read("ops/wordpress-basic-signup/" + asset) }); return;
     }
     if (url.pathname === "/__basic-preview/meta-attribution.js") { await route.fulfill({ contentType: "text/javascript", body: read("ops/wordpress-meta-attribution/inrcy-meta-attribution.js") }); return; }
     if (url.origin === "https://cmp.example.invalid" && /^\/assets\/css\/document(?:-grid)?\.min\.css$/.test(url.pathname)) { await route.fulfill({ contentType: "text/css", body: "/* synthetic CMP asset: production settings are verified separately */" }); return; }
     if (asset === "logo-inrcy-transparent.png" || url.pathname === "/favicon.ico") { await route.fulfill({ status: 204 }); return; }
+    if (request.resourceType() === "image" && url.origin === "https://inrcy.com" && url.pathname.startsWith("/wp-content/uploads/")) { await route.fulfill({ status: 204 }); return; }
     unexpected.push(request.method() + " " + request.url()); await route.abort();
   });
   await page.goto("https://inrcy.com/basique/inscription/");
   const fill = async () => {
-    await page.getByLabel("Nom", { exact: true }).fill("Synthetic");
-    await page.getByLabel("Prénom", { exact: true }).fill("Basic");
-    await page.getByLabel("E-mail", { exact: true }).fill(email);
-    await page.getByLabel("Tél.", { exact: true }).fill("0102030405");
+    await page.getByRole("textbox", { name: "Nom", exact: true }).fill("Synthetic");
+    await page.getByRole("textbox", { name: "Prénom", exact: true }).fill("Basic");
+    await page.getByRole("textbox", { name: "E-mail", exact: true }).fill(email);
+    await page.getByRole("textbox", { name: "Tél.", exact: true }).fill("0102030405");
     await page.getByRole("checkbox").check();
   };
   const clean = () => { assert.deepEqual(errors, []); assert.deepEqual(unexpected, []); };
@@ -111,7 +110,7 @@ test("mobile signup stays compact/readable despite Elementor typography, and the
   const browser = await chromium.launch({ headless: true });
   try {
     const f = await fixture(browser);
-    const first = await f.page.getByLabel("Nom", { exact: true }).boundingBox();
+    const first = await f.page.getByRole("textbox", { name: "Nom", exact: true }).boundingBox();
     assert.ok(first && first.y < 400);
     const dimensions = await f.page.evaluate(() => ({ client: document.documentElement.clientWidth, scroll: document.documentElement.scrollWidth, font: getComputedStyle(document.querySelector(".inrcy-basic-site")!).fontSize, color: getComputedStyle(document.querySelector(".basic-site-signup-inline-price")!).color }));
     assert.equal(dimensions.client, dimensions.scroll); assert.equal(dimensions.font, "16px"); assert.notEqual(dimensions.color, "rgb(255, 255, 255)");
@@ -158,7 +157,7 @@ test("navigation retains campaign landing and event source across home/features/
       const f = await fixture(browser, { marketingConsent: consent });
       await f.page.goto("https://inrcy.com/basique/?utm_source=meta&utm_campaign=synthetic-campaign");
       await f.page.setViewportSize({ width: 1200, height: 900 });
-      await f.page.locator("#basic-site-navigation").getByRole("link", { name: "Fonctionnalités", exact: true }).click();
+      await f.page.locator("#basic-site-navigation").getByRole("link", { name: "Nos Outils", exact: true }).click();
       await f.page.locator(".basic-site-header").getByRole("link", { name: "Créer mon compte", exact: true }).click();
       assert.equal(f.posts.length, 0); await f.fill();
       const fields = await f.page.locator('form[name="inrcy_basic_signup"]').evaluate(form => Object.fromEntries(new FormData(form as HTMLFormElement)));
@@ -176,5 +175,48 @@ test("navigation retains campaign landing and event source across home/features/
       f.clean();
     }
     assert.notEqual(ids[0], ids[1]); assert.ok(ids.every(id => id.startsWith("inrcy-lead-")));
+  } finally { await browser.close(); }
+});
+
+test("original marketing widgets retain working comparison, FAQ and dedicated tool links", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const f = await fixture(browser);
+    await f.page.goto("https://inrcy.com" + pages.pricing);
+    const card = f.page.locator('[data-plan="basic"]');
+    const annual = card.getByRole("button", { name: /Annuel/i });
+    await annual.click();
+    assert.equal(await annual.getAttribute("aria-pressed"), "true");
+    assert.match(await card.locator("[data-price]").innerText(), /309/);
+    assert.match(await card.locator("[data-price-period]").innerText(), /an/);
+    await card.getByRole("button", { name: /Mensuel/i }).click();
+    assert.match(await card.locator("[data-price]").innerText(), /29/);
+
+    await f.page.goto("https://inrcy.com" + pages.faq);
+    const search = f.page.getByRole("searchbox");
+    await search.fill("Question inexistante 789xyz");
+    await f.page.getByText("Aucun résultat trouvé", { exact: true }).waitFor();
+    await search.fill("");
+    const question = f.page.locator('.ifaq-question[aria-expanded="false"]:visible').first();
+    const label = (await question.locator("strong").innerText()).trim();
+    await question.click();
+    assert.equal(await f.page.locator(".ifaq-question").filter({ hasText: label }).getAttribute("aria-expanded"), "true");
+
+    await f.page.goto("https://inrcy.com" + pages.features);
+    const tools = await f.page.locator('#nos-outils a[href*="outil="]').evaluateAll(anchors => anchors.map(a => (a as HTMLAnchorElement).href));
+    assert.equal(new Set(tools).size, 8);
+    const headings = new Set<string>();
+    for (const href of new Set(tools)) {
+      assert.equal(new URL(href).pathname, pages.features);
+      await f.page.goto(href);
+      headings.add((await f.page.locator("main h1").innerText()).trim());
+      assert.ok(await f.page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), href + " overflows on mobile");
+      assert.doesNotMatch(await f.page.locator("body").innerText(), /essai gratuit|essayer gratuitement|21\s*jours/i);
+      const leaked = await f.page.locator('a[href]').evaluateAll(anchors => anchors.map(a => new URL((a as HTMLAnchorElement).href)).filter(u => /^(?:www\.)?inrcy\.com$/.test(u.hostname) && !u.pathname.startsWith("/basique/")).map(u => u.href));
+      assert.deepEqual(leaked, [], href);
+    }
+    assert.equal(headings.size, 8, "Each tool must open its own content");
+    assert.equal(f.posts.length, 0);
+    f.clean();
   } finally { await browser.close(); }
 });

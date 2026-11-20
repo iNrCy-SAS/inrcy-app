@@ -2,18 +2,19 @@
 /**
  * Plugin Name: iNrCy — Inscription Basique sans essai
  * Description: Espace Basique autonome dans WordPress et inscription directe avec accès immédiat.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: iNrCy
  */
 
 if (!defined('ABSPATH')) { exit; }
-define('INRCY_BASIC_SIGNUP_VERSION', '1.1.0');
+define('INRCY_BASIC_SIGNUP_VERSION', '1.2.0');
 define('INRCY_BASIC_SIGNUP_SECRET_OPTION', 'inrcy_basic_signup_server_secret');
 define('INRCY_BASIC_SIGNUP_PAGE_OPTION', 'inrcy_basic_signup_page_id');
 require_once __DIR__ . '/includes/catalogue.php';
 require_once __DIR__ . '/includes/legal-content.php';
 require_once __DIR__ . '/includes/site.php';
 require_once __DIR__ . '/includes/seo.php';
+require_once __DIR__ . '/includes/editorial.php';
 
 function inrcy_basic_signup_secret() {
     $configured = defined('INRCY_TRIAL_SIGNUP_TOKEN') ? trim((string) INRCY_TRIAL_SIGNUP_TOKEN) : '';
@@ -114,6 +115,9 @@ add_action('wp_enqueue_scripts', function () {
     wp_localize_script('inrcy-basic-signup', 'inrcyBasicSignupConfig', array('ajaxUrl' => admin_url('admin-ajax.php'), 'nonce' => wp_create_nonce('inrcy_basic_signup')));
     if (inrcy_basic_site_rendered()) {
         wp_enqueue_style('inrcy-basic-site', $base . 'basic-site.css', array('inrcy-basic-signup'), INRCY_BASIC_SIGNUP_VERSION);
+        if (inrcy_basic_site_view() === 'home') {
+            wp_enqueue_style('inrcy-basic-home-native', $base . 'basic-home-native.css', array('inrcy-basic-site'), INRCY_BASIC_SIGNUP_VERSION);
+        }
         wp_enqueue_script('inrcy-basic-site', $base . 'basic-site.js', array(), INRCY_BASIC_SIGNUP_VERSION, true);
         $site_links = array(); foreach (inrcy_basic_site_pages() as $key => $page) { $site_links[$key] = inrcy_basic_site_url($key); }
         wp_localize_script('inrcy-basic-site', 'inrcyBasicSiteConfig', array('links' => $site_links));

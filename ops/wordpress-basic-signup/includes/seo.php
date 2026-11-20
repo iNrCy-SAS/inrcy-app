@@ -4,6 +4,8 @@ if (!defined('ABSPATH')) { exit; }
 function inrcy_basic_site_metadata() {
     $view = inrcy_basic_site_view();
     $descriptions = array(
+        'blog' => 'Les conseils, idées et stratégies d’iNrCy pour votre communication.',
+        'directory' => 'Trouvez un professionnel par métier et par lieu dans iNr’Annuaire.',
         'home' => 'iNrCy Basique : vos outils de création, publication et suivi à 29 € HT par mois, avec 50 crédits médias mensuels. Vous gardez la main.',
         'features' => 'Découvrez les outils du pack iNrCy Basique : 50 crédits médias mensuels, publication sur vos canaux connectés, assistant et suivi de votre activité.',
         'pricing' => 'Le pack iNrCy Basique à 29 € HT par mois : 50 crédits médias mensuels et vos outils essentiels. Abonnement mensuel, activation après paiement.',
@@ -16,8 +18,15 @@ function inrcy_basic_site_metadata() {
         'legal' => 'Consultez les mentions légales de votre espace iNrCy Basique.',
     );
     $pages = inrcy_basic_site_pages();
-    return array('title' => $view === 'home' ? 'iNrCy Basique · Vos outils à 29 € HT / mois' : $pages[$view]['title'] . ' · iNrCy Basique',
+    $tool = $view === 'features' ? inrcy_basic_current_tool() : null;
+    if ($tool !== null) {
+        $name = inrcy_basic_tools()[$tool];
+        return array('title' => $name . ' · Les outils iNrCy', 'description' => 'Découvrez ' . $name . ' et les packs iNrCy qui vous permettent de l’utiliser.',
+            'url' => inrcy_basic_tool_url($tool, false), 'image' => inrcy_basic_site_asset_url('logo-inrcy-transparent.png'));
+    }
+    $meta = array('title' => $view === 'home' ? 'iNrCy Basique · Vos outils à 29 € HT / mois' : $pages[$view]['title'] . ' · iNrCy Basique',
         'description' => $descriptions[$view], 'url' => inrcy_basic_site_url($view, false), 'image' => inrcy_basic_site_asset_url('logo-inrcy-transparent.png'));
+    return $view === 'blog' ? inrcy_basic_blog_meta($meta) : $meta;
 }
 
 function inrcy_basic_site_schema() {

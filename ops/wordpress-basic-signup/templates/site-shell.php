@@ -1,27 +1,53 @@
-<?php if (!defined('ABSPATH')) { exit; } ?>
+<?php
+if (!defined('ABSPATH')) { exit; }
+$menu = array('home' => 'Accueil', 'features' => 'Nos Outils', 'pricing' => 'Nos Packs', 'blog' => 'Blog', 'faq' => 'FAQ', 'contact' => 'Contact', 'directory' => "iNr'Annuaire");
+$signup_url = inrcy_basic_site_url('signup');
+$login_url = inrcy_basic_site_login_url();
+ob_start();
+include __DIR__ . '/language-switcher.php';
+$switcher = trim(ob_get_clean());
+?>
 <div class="inrcy-basic-site">
     <a class="basic-site-skip" href="#basic-site-content">Aller au contenu</a>
-    <?php if (inrcy_basic_site_preview()) : ?><div class="basic-site-preview">Prévisualisation administrateur · le mini-site n’est pas publié par cette vue.</div><?php endif; ?>
-    <header class="basic-site-header"><div class="basic-site-container basic-site-header-inner">
-        <a class="basic-site-brand" href="<?php echo esc_url(inrcy_basic_site_url()); ?>" aria-label="iNrCy Basique, accueil"><img src="<?php echo esc_url(inrcy_basic_site_asset_url('logo-inrcy-transparent.png')); ?>" alt="" width="40" height="40"><span>iNrCy <small>Basique</small></span></a>
-        <button class="basic-site-menu" type="button" aria-expanded="false" aria-controls="basic-site-navigation"><span>Menu</span><i aria-hidden="true"></i></button>
-        <nav class="basic-site-navigation" id="basic-site-navigation" aria-label="Navigation Basique">
-            <?php foreach (array('home', 'features', 'pricing', 'faq', 'contact') as $key) : ?><a href="<?php echo esc_url(inrcy_basic_site_url($key)); ?>" <?php echo $view === $key ? 'aria-current="page"' : ''; ?>><?php echo esc_html($pages[$key]['title']); ?></a><?php endforeach; ?>
-            <a class="basic-site-login" href="<?php echo esc_url(inrcy_basic_site_login_url()); ?>">Se connecter <span aria-hidden="true">↗</span></a>
-            <a class="basic-site-button basic-site-nav-cta" href="<?php echo esc_url(inrcy_basic_site_url('signup')); ?>" <?php echo $view === 'signup' ? 'aria-current="page"' : ''; ?>>Créer mon compte <span aria-hidden="true">→</span></a>
-        </nav>
-    </div></header>
-    <main class="inrcy-basic-page" id="basic-site-content">
+    <div class="inrcy-header-zone">
+        <header class="inrcy-fixed-header basic-site-header">
+            <div class="inrcy-header">
+                <a href="<?php echo esc_url(inrcy_basic_site_url()); ?>" class="inrcy-header-logo" aria-label="Accueil iNrCy">
+                    <span class="inrcy-header-brand">
+                        <span class="inrcy-logo-newton" aria-hidden="true"><span class="inrcy-logo-frame"></span><span class="inrcy-logo-ball inrcy-logo-b1"></span><span class="inrcy-logo-ball inrcy-logo-b2"></span><span class="inrcy-logo-ball inrcy-logo-b3"></span></span>
+                        <span class="inrcy-logo-word">iNrCy</span>
+                    </span>
+                </a>
+                <nav class="inrcy-nav" id="basic-site-navigation" aria-label="Navigation principale">
+                    <?php foreach ($menu as $key => $label) : ?>
+                        <?php if ($key === 'features') : ?><div class="inrcy-nav-group"><?php endif; ?>
+                        <a href="<?php echo esc_url(inrcy_basic_site_url($key)); ?>" class="inrcy-nav-link<?php echo $key === $view ? ' active' : ''; ?>" <?php echo $key === $view ? 'aria-current="page"' : ''; ?>><?php echo esc_html($label); ?></a>
+                        <?php if ($key === 'features') : ?>
+                            <button type="button" class="inrcy-submenu-toggle" aria-label="Afficher les outils iNrCy" aria-expanded="false" aria-controls="basic-site-tools"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m5 9 7 7 7-7"/></svg></button>
+                            <div class="inrcy-submenu" id="basic-site-tools" role="group" aria-label="Outils iNrCy">
+                                <?php foreach (inrcy_basic_tools() as $slug => $tool_label) : ?><a href="<?php echo esc_url(inrcy_basic_tool_url($slug)); ?>"><?php echo esc_html($tool_label); ?></a><?php endforeach; ?>
+                            </div></div>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                    <div class="inrcy-mobile-actions"><a href="<?php echo esc_url($login_url); ?>" class="inrcy-mobile-login">Connexion</a><a href="<?php echo esc_url($signup_url); ?>" class="inrcy-mobile-cta">Créer mon compte <span aria-hidden="true">→</span></a></div>
+                </nav>
+                <div class="inrcy-header-actions">
+                    <a href="<?php echo esc_url($login_url); ?>" class="inrcy-login">Connexion</a>
+                    <a href="<?php echo esc_url($signup_url); ?>" class="inrcy-header-cta">Créer mon compte <span class="inrcy-header-arrow" aria-hidden="true">→</span></a>
+                    <?php if ($switcher !== '') : ?><div class="basic-language-desktop"><?php echo $switcher; // Escaped in language-switcher.php. ?></div><?php endif; ?>
+                </div>
+                <button type="button" class="inrcy-mobile-toggle basic-site-menu" aria-label="Menu" aria-expanded="false" aria-controls="basic-site-navigation"><span></span><span></span><span></span></button>
+                <?php if ($switcher !== '') : ?><div class="basic-language-mobile"><?php echo $switcher; ?></div><?php endif; ?>
+            </div>
+        </header>
+        <div class="inrcy-header-spacer" aria-hidden="true"></div>
+    </div>
+    <?php if (inrcy_basic_site_preview()) : ?><div class="basic-site-preview">Prévisualisation administrateur</div><?php endif; ?>
+    <main id="basic-site-content">
         <?php
         $template = in_array($view, array('terms', 'privacy', 'legal'), true) ? 'legal' : $view;
         include __DIR__ . '/pages/' . $template . '.php';
         ?>
     </main>
-    <footer class="basic-site-footer"><div class="basic-site-container">
-        <div class="basic-site-footer-top"><div><a class="basic-site-brand" href="<?php echo esc_url(inrcy_basic_site_url()); ?>"><span>iNrCy <small>Basique</small></span></a><p>Gardez la main sur votre visibilité.</p></div>
-            <div><strong>Votre espace Basique</strong><a href="<?php echo esc_url(inrcy_basic_site_url('features')); ?>">Fonctionnalités</a><a href="<?php echo esc_url(inrcy_basic_site_url('pricing')); ?>">Tarif</a><a href="<?php echo esc_url(inrcy_basic_site_url('faq')); ?>">Questions fréquentes</a></div>
-            <div><strong>Pour vous accompagner</strong><a href="<?php echo esc_url(inrcy_basic_site_url('signup')); ?>">Créer mon compte</a><a href="<?php echo esc_url(inrcy_basic_site_login_url()); ?>">Connexion à l’application</a><a href="<?php echo esc_url(inrcy_basic_site_url('contact')); ?>">Nous contacter</a></div>
-        </div>
-        <div class="basic-site-footer-bottom"><span>© <?php echo esc_html(date('Y')); ?> iNrCy</span><div><?php foreach (array('terms', 'privacy', 'cookies', 'legal') as $key) : ?><a href="<?php echo esc_url(inrcy_basic_site_url($key)); ?>"><?php echo esc_html($pages[$key]['title']); ?></a><?php endforeach; ?></div></div>
-    </div></footer>
+    <?php include __DIR__ . '/site-footer.php'; ?>
 </div>

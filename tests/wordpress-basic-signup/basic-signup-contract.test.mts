@@ -33,18 +33,18 @@ test("access renderer retains explicit verified differences only, an exact recei
   assert.ok(plugin.includes("update_option(INRCY_BASIC_SIGNUP_SECRET_OPTION, $secret, false)"));
 });
 
-test("real PHP preserves the disabled legacy root; all ten new views isolate copy, links and full legal bodies", () => {
+test("real PHP preserves the disabled legacy root; all dedicated views isolate copy, links and full legal bodies", () => {
   const legacy = render("home", legacyOptions);
   assert.match(legacy, /Votre présence professionnelle commence ici/);
   assert.doesNotMatch(legacy, /basic-site\.css|basic-site-navigation/);
   for (const view of Object.keys(pages) as View[]) {
     const html = render(view);
     assert.match(html, /basic-site-navigation/);
-    assert.doesNotMatch(html, /21\s*jours|période d[’']essai|essai gratuit|synthetic-local-token-never-valid-in-production/i);
+    assert.doesNotMatch(html, /\b21\s*j(?:ours)?\b|période d[’']essai|essai gratuit|essayer gratuitement|synthetic-local-token-never-valid-in-production/i);
     assert.match(html, /app\.inrcy\.com\/login\?entry=basique/);
-    for (const match of html.matchAll(/<a\b[^>]*href="(https:\/\/(?:www\.)?inrcy\.com[^"#]*)/g)) {
-      const url = new URL(match[1].replaceAll("&amp;", "&"));
-      assert.ok(url.pathname.startsWith("/basique/"), view + " leaked " + url);
+    for (const match of html.matchAll(/<a\s[^>]*?\bhref\s*=\s*(["'])([^"']*)\1/gi)) {
+      const url = new URL(match[2].replaceAll("&amp;", "&"), "https://inrcy.com" + pages[view]);
+      if (/^(?:www\.)?inrcy\.com$/.test(url.hostname)) assert.ok(url.pathname.startsWith("/basique/"), view + " leaked " + url);
     }
     assert.ok(html.includes('"showBooking":""')); // WordPress converts false to "".
     assert.ok(html.includes('"signupFormName":"inrcy_basic_signup"'));
@@ -67,11 +67,11 @@ test("partial publication and rollback OFF close child templates and direct shor
 
 test("page preparation is idempotent, preserves root/conflicts and requires all correct children published before enable", () => {
   const result = phpJson("prepare");
-  assert.equal(result.rootUnchanged, true); assert.equal(result.inserts.length, 9);
+  assert.equal(result.rootUnchanged, true); assert.equal(result.inserts.length, Object.keys(children).length);
   assert.ok(result.inserts.every((page: { post_status: string; post_parent: number }) => page.post_status === "draft" && page.post_parent === 12815));
   assert.deepEqual(result.first.ids, result.second.ids); assert.equal(result.canEnable, false);
   const conflict = phpJson("prepare", { children: { features: { content: '[inrcy_basic_page view="faq"]', status: "publish" } } });
-  assert.equal(conflict.inserts.length, 8); assert.deepEqual(conflict.first.conflicts, ["Fonctionnalités"]);
+  assert.equal(conflict.inserts.length, Object.keys(children).length - 1); assert.deepEqual(conflict.first.conflicts, ["Fonctionnalités"]);
   assert.equal(phpJson("enable", { children }).canEnable, true);
   assert.equal(phpJson("enable", { children: { ...children, features: { content: '[inrcy_basic_page view="faq"]', status: "publish" } } }).canEnable, false);
   assert.equal(phpJson("enable", { children, legalUnavailable: true }).canEnable, false);
@@ -90,6 +90,26 @@ test("wrapped cookie page explicitly reuses vendor document/grid CSS, inline sty
   assert.match(render("cookies", { cmpGrid: true }), /assets\/css\/document-grid\.min\.css/);
   assert.doesNotMatch(render("home"), /cmp\.example\.invalid|basic-test-cmp-inline/);
   assert.doesNotMatch(read("ops/wordpress-basic-signup/includes/site.php"), /update_post_meta|cmplz_shortcode|cmplz_shortcode_/);
+});
+
+test("public directory and editorial pages retain dedicated filtering, pagination and publication boundaries", () => {
+  const directory = render("directory");
+  assert.match(directory, /action="https:\/\/inrcy\.com\/basique\/annuaire\/"/);
+  assert.match(directory, /\/basique\/annuaire\/\?inrcy_page=2&amp;ville=Bruxelles/);
+  assert.match(directory, /https:\/\/app\.inrcy\.com\/badge\/synthetic-public-business/);
+  const publicPost = { ID: 432, post_title: "Exemple de publication locale", post_name: "publication-locale", post_content: "Article de test", post_status: "publish", category: 90, fixturePage: 2 };
+  const article = { query: { article: "432" }, editorialPosts: [publicPost] };
+  const published = render("blog", article);
+  assert.match(published, /Exemple de publication locale/);
+  assert.match(published, /rel="canonical" href="https:\/\/inrcy\.com\/basique\/blog\/\?article=432"/);
+  for (const hidden of [{ post_status: "draft" }, { post_status: "private" }, { post_password: "protected" }, { post_type: "page" }]) {
+    const unavailable = render("blog", { ...article, editorialPosts: [{ ...publicPost, ...hidden }] });
+    assert.match(unavailable, /Contenu indisponible/);
+    assert.doesNotMatch(unavailable, /Exemple de publication locale/);
+  }
+  const category = render("blog", { editorialPosts: [publicPost], query: { rubrique: "publication", pageno: "2" } });
+  assert.match(category, /href="https:\/\/inrcy\.com\/basique\/blog\/\?article=432"/);
+  assert.match(category, /\/basique\/blog\/\?rubrique=publication&amp;pageno=3/);
 });
 
 test("admin capabilities/nonces fail closed; locks recover crashed workers conservatively and preview view accepts only enum strings", () => {

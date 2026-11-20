@@ -37,3 +37,30 @@ body.inrcy-basic-standalone { margin: 0; background: #f4f7fc !important; color: 
 .inrcy-basic-footer { display: flex; flex-wrap: wrap; gap: 16px 24px; justify-content: center; margin-top: 64px; padding: 24px 0 8px; font-size: 12px; color: #66758c; }
 @media (max-width: 760px) { .inrcy-basic-page { padding: 18px; } .inrcy-basic-header { margin-bottom: 26px; } .inrcy-basic-header > a:last-child { font-size: 12px; } .inrcy-basic-hero { grid-template-columns: 1fr; gap: 26px; } .inrcy-basic-pitch { padding-top: 0; } .inrcy-basic-pitch h1 { font-size: 38px; margin-bottom: 18px; } .inrcy-basic-card { padding: 22px 18px; } .inrcy-basic-footer { margin-top: 30px; } }
 @media (max-width: 360px) { .inrcy-basic-pair { grid-template-columns: 1fr; } .inrcy-basic-pitch h1 { font-size: 32px; } }
+
+/* The main signup page stacks its fields in a narrow white card. */
+.inrcy-basic-site .basic-direct-signup {
+  box-sizing: border-box;
+  width: min(582px, calc(100% - 32px));
+  margin: 22px auto 55px;
+  padding: 30px 29px;
+  border: 1px solid rgba(7,20,43,.055);
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 25px 65px rgba(7,20,43,.09), 0 4px 18px rgba(7,20,43,.035);
+}
+.basic-direct-signup .inrcy-basic-form { margin: 0; gap: 15px; font-family: Poppins, Arial, sans-serif; }
+.basic-direct-signup .inrcy-basic-form label { gap: 6px; font-size: 14px; font-weight: 600; line-height: 1.2; color: #475569; }
+.basic-direct-signup .inrcy-basic-form label > span { font-weight: inherit; }
+.basic-direct-signup b[aria-hidden] { color: #e52e53; margin-left: 2px; }
+.basic-direct-signup .inrcy-basic-form input:not([type="checkbox"]) {
+  min-height: 56px; border: 1px solid #cbd5e1; border-radius: 14px; padding: 0 15px; color: #1f2937;
+}
+.basic-direct-signup .inrcy-basic-form input:focus-visible { outline: 2px solid #5b5bff; outline-offset: 1px; }
+.basic-direct-signup .inrcy-basic-form .inrcy-basic-consent { font-size: 13px; font-weight: 400; line-height: 1.6; }
+.basic-direct-signup .inrcy-basic-form > button { min-height: 56px; border-radius: 18px; background: linear-gradient(90deg, #ff5aa5, #5b5bff); font: inherit; font-weight: 600; }
+.basic-direct-signup .basic-site-form-note { margin: 0; text-align: center; color: #475569; font-size: 12px; }
+.basic-direct-signup .inrcy-basic-status:empty { display: none; }
+@media (max-width: 600px) {
+  .inrcy-basic-site .basic-direct-signup { padding: 20px; margin: 16px auto 32px; }
+}

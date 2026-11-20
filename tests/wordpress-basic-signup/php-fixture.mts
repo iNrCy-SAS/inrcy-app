@@ -8,6 +8,7 @@ export const pages = {
   home: "/basique/", features: "/basique/fonctionnalites/", pricing: "/basique/tarif/", faq: "/basique/faq/",
   signup: "/basique/inscription/", contact: "/basique/contact/", terms: "/basique/conditions/",
   privacy: "/basique/confidentialite/", cookies: "/basique/cookies/", legal: "/basique/mentions-legales/",
+  blog: "/basique/blog/", directory: "/basique/annuaire/",
 } as const;
 export type View = keyof typeof pages;
 export const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8").replaceAll("\r\n", "\n");

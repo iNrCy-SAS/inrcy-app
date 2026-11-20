@@ -5,7 +5,7 @@ $authority = $_SERVER['HTTP_HOST'] ?? '';
 if (!preg_match('/^127\.0\.0\.1:([0-9]{1,5})$/D', $authority, $host_match) || (int) $host_match[1] < 1024 || (int) $host_match[1] > 65535) { http_response_code(400); echo 'Only the explicit local preview address is accepted.'; return; }
 $path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $plugin = dirname(__DIR__, 2) . '/ops/wordpress-basic-signup/';
-$assets = array('basic-access.css', 'basic-access.js', 'basic-signup.css', 'basic-signup.js', 'basic-site.css', 'basic-site.js', 'basic-meta-attribution.js', 'logo-inrcy-transparent.png');
+$assets = array('basic-access.css', 'basic-access.js', 'basic-signup.css', 'basic-signup.js', 'basic-site.css', 'basic-home-native.css', 'basic-site.js', 'basic-meta-attribution.js', 'logo-inrcy-transparent.png');
 foreach ($assets as $asset) {
     if ($path === '/wp-content/plugins/inrcy-basic-signup/' . $asset) { header('Content-Type: ' . (substr($asset, -4) === '.css' ? 'text/css' : (substr($asset, -3) === '.js' ? 'text/javascript' : 'image/png'))); readfile($plugin . $asset); return; }
 }
@@ -16,4 +16,4 @@ require __DIR__ . '/wp-runtime.php';
 $routes = array(); foreach (inrcy_basic_site_pages() as $view => $page) { $routes['/basique/' . ($page['slug'] ? $page['slug'] . '/' : '')] = $view; }
 if (!isset($routes[$path])) { http_response_code(404); echo 'Unknown local preview route.'; return; }
 header('Cache-Control: no-store'); header('Content-Type: text/html; charset=UTF-8'); header('X-Robots-Tag: noindex, nofollow');
-echo basic_test_render_document($routes[$path], array('origin' => 'http://' . $authority, 'useWorkLegal' => true));
+echo basic_test_render_document($routes[$path], array('origin' => 'http://' . $authority, 'useWorkLegal' => true, 'query' => $_GET));

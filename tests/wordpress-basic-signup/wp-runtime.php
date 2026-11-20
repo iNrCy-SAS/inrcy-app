@@ -65,6 +65,27 @@ function update_option($key, $value, $autoload = null) { $GLOBALS['basic_test_st
 function add_option($key, $value, $deprecated = '', $autoload = true) { if (array_key_exists($key, $GLOBALS['basic_test_state']['options'])) { return false; } return update_option($key, $value, $autoload); }
 function delete_option($key) { unset($GLOBALS['basic_test_state']['options'][$key]); return true; }
 function get_post($id = null) { $id = $id ? (is_object($id) ? $id->ID : $id) : $GLOBALS['basic_test_state']['currentId']; return $GLOBALS['basic_test_state']['posts'][(int) $id] ?? null; }
+function get_the_title($post) { return $post->post_title ?? ''; }
+function get_the_excerpt($post) { return $post->post_excerpt ?? ''; }
+function get_the_date($format, $post) { return '2026-11-20'; }
+function get_the_post_thumbnail($post, $size, $attrs = array()) { return ''; }
+function wp_strip_all_tags($value) { return strip_tags($value); }
+function wpautop($value) { return '<p>' . $value . '</p>'; }
+function strip_shortcodes($value) { return preg_replace('/\[[^\]]+\]/', '', $value); }
+function get_category_by_slug($slug) { return $slug === 'publication' ? (object) array('term_id' => 90, 'name' => 'Publication', 'slug' => 'publication') : false; }
+class WP_Query {
+    public $posts = array();
+    public $max_num_pages = 1;
+    public function __construct($args) {
+        if (($args['post_type'] ?? null) !== 'post' || ($args['post_status'] ?? null) !== 'publish' || ($args['has_password'] ?? null) !== false) { throw new Exception('Editorial listing requested non-public posts.'); }
+        if (isset($args['cat'])) {
+            $this->max_num_pages = 3;
+            foreach (($GLOBALS['basic_test_state']['editorialPosts'] ?? array()) as $entry) {
+                if (($entry['category'] ?? null) === $args['cat'] && ($entry['fixturePage'] ?? 1) === $args['paged']) { $this->posts[] = get_post($entry['ID']); }
+            }
+        }
+    }
+}
 function get_page_uri($post) { $post = get_post($post); return !$post ? '' : ($post->post_parent ? get_page_uri($post->post_parent) . '/' : '') . $post->post_name; }
 function get_page_by_path($path, $output = OBJECT, $type = 'page') { foreach ($GLOBALS['basic_test_state']['posts'] as $post) { if (get_page_uri($post) === trim($path, '/')) { return $post; } } return null; }
 function wp_insert_post($input, $error = false) { $id = count($GLOBALS['basic_test_state']['posts']) + 20000; $GLOBALS['basic_test_state']['posts'][$id] = (object) array_merge(array('ID' => $id, 'post_parent' => 0, 'post_status' => 'draft', 'post_content' => ''), $input); $GLOBALS['basic_test_state']['inserts'][] = $GLOBALS['basic_test_state']['posts'][$id]; return $id; }
@@ -78,6 +99,7 @@ function wp_verify_nonce($nonce, $action) { return $nonce === wp_create_nonce($a
 function check_admin_referer($action) { $nonce = $_POST['_wpnonce'] ?? ($_GET['_wpnonce'] ?? ''); if (!is_string($nonce) || !wp_verify_nonce($nonce, $action)) { throw new Exception('Synthetic admin nonce rejected'); } return true; }
 function check_ajax_referer($action, $key, $die = true) { return isset($_POST[$key]) && wp_verify_nonce($_POST[$key], $action); }
 function home_url($path = '') { return rtrim($GLOBALS['basic_test_state']['origin'], '/') . '/' . ltrim($path, '/'); }
+function get_permalink($post = null) { return home_url('/' . get_page_uri($post) . '/'); }
 function admin_url($path = '') { return home_url('/wp-admin/' . $path); }
 function plugin_dir_url($file) { return home_url('/wp-content/plugins/inrcy-basic-signup/'); }
 function add_query_arg($values, $url) { $separator = strpos($url, '?') === false ? '?' : '&'; return $url . $separator . http_build_query($values); }
@@ -132,13 +154,17 @@ function wp_remote_retrieve_response_code($response) { return $response['respons
 function wp_remote_retrieve_body($response) { return $response['body'] ?? ''; }
 
 require dirname(__DIR__, 2) . '/ops/wordpress-basic-signup/inrcy-basic-signup.php';
+add_shortcode('inrcy_directory', function () {
+    $url = esc_url(get_permalink());
+    return '<div class="inrcy-directory"><form class="inrcy-directory__filters" method="get" action="' . $url . '" role="search"><label>Recherche <input name="q"></label></form><a href="' . $url . '?inrcy_page=2&amp;ville=Bruxelles">Page 2</a><a href="https://app.inrcy.com/badge/synthetic-public-business">Ouvrir le badge</a></div>';
+});
 add_shortcode('cmplz-document', function ($attributes) {
     $GLOBALS['basic_test_state']['cookieShortcode'] = $attributes;
     return '<div id="cmplz-document" class="cmplz-document cookie-statement cmplz-document-eu"><h2>Préférences de cookies de test</h2><p><a href="https://inrcy.com/">Site iNrCy</a> <a href="https://www.inrcy.com/politique-de-confidentialite/">Confidentialité</a> <a href="https://inrcy.com/politique-de-cookies-ue/">Cookies</a></p><p><a href="#cookie-preferences">Aller aux préférences</a> <a href="https://provider.example.invalid/privacy">Fournisseur externe</a></p><div id="cmplz-cookies-overview"></div><div id="cmplz-manage-consent-container"><button type="button" data-cookie-choice="deny">Refuser</button><button type="button" data-cookie-choice="allow">Accepter</button></div><h3 id="cookie-preferences">Vos préférences de test</h3></div>';
 });
 
 function basic_test_reset($view = 'home', $options = array()) {
-    $_GET = array(); $_POST = array(); $_SERVER['REQUEST_METHOD'] = 'GET';
+    $_GET = $options['query'] ?? array(); $_POST = array(); $_SERVER['REQUEST_METHOD'] = 'GET';
     $pages = inrcy_basic_site_pages();
     if (!isset($pages[$view])) { throw new Exception('Unknown preview view.'); }
     $root = (object) array('ID' => 12815, 'post_name' => 'basique', 'post_parent' => 0, 'post_status' => 'publish', 'post_content' => '[inrcy_basic_signup]');
@@ -149,6 +175,9 @@ function basic_test_reset($view = 'home', $options = array()) {
     if (!empty($options['cmpMissing'])) { unset($GLOBALS['basic_test_shortcodes']['cmplz-document']); }
     if (!empty($options['rootPassword'])) { $root->post_password = $options['rootPassword']; }
     if (isset($options['rootContent'])) { $root->post_content = $options['rootContent']; }
+    foreach (($options['editorialPosts'] ?? array()) as $post) {
+        $GLOBALS['basic_test_state']['posts'][(int) $post['ID']] = (object) array_merge(array('post_type' => 'post', 'post_password' => '', 'post_parent' => 0), $post);
+    }
     if ($view !== 'home') { $id = 12900 + array_search($view, array_keys($pages), true); $GLOBALS['basic_test_state']['posts'][$id] = (object) array('ID' => $id, 'post_name' => $pages[$view]['slug'], 'post_parent' => 12815, 'post_status' => 'draft', 'post_content' => '[inrcy_basic_page view="' . $view . '"]'); $GLOBALS['basic_test_state']['currentId'] = $id; }
     foreach (($options['children'] ?? array()) as $key => $settings) {
         if (!isset($pages[$key]) || $key === 'home') { throw new Exception('Unknown fixture child.'); }
