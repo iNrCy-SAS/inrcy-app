@@ -638,22 +638,27 @@
       }
     },
     "dashboard-navigation": {
-      "guideDigest": "6e6452331921b0b347d2473c74163a8cc24ff394583e9541ef4ae81942cd1834",
+      "guideDigest": "51a0c590ba5ccbbcfecec896d7f3a6f29473d3bdf57623ea2180f0410574402f",
       "sources": {
         "app/api/auth/change-password/route.ts": "ca282b3b817f5702f78597534b41e784ad3de952119306f652c038680b120491",
         "app/api/auth/signup-access/password/route.ts": "b89b579889ebb26ac74fd2ec3a5c41ed6e834aeee6e77298e22a54e0e8ae9217",
-        "app/api/dashboard/setup-intro/route.ts": "3eb289b65cfbe7e025eb0921ab1719e546c186624489bd8b30246ea17db99b5a",
+        "app/api/dashboard/setup-intro/route.ts": "7ae46e9dbd4b781a85784b095196384dc816295937f44f0bd70c9c56557412fd",
+        "app/api/public/visio-booking/availability/route.ts": "0819cf14f34a75e50ef916d7bde4cd984abb7102bba3dd092843d2bc23da52df",
+        "app/api/public/visio-booking/book/route.ts": "c9a9b7ae6d0ad367e6c43e3c158e9ff33fb55c44a123666dc17f0b395db1a0cb",
         "app/dashboard/DashboardClient.tsx": "ec07674d5478a19c3ae30197800b7d41ae0b933d5009ea968646d731016281a5",
-        "app/dashboard/_components/DashboardAssistantProvider.tsx": "29f658edaf8d3d9ccc31e668b0dde8d7240a76bd0147e55a7117e101c73ec595",
+        "app/dashboard/_components/DashboardAssistantProvider.tsx": "9ae245de0970b044dbcda39db3a5f9fefb91e7e905a873fc83ae4a92aa183cee",
         "app/dashboard/_components/DashboardTopbar.tsx": "7f51f87106641ac8a53fb776019ff811718beb3c5a8f2e6c4385c0c9eb9ccd02",
         "app/dashboard/_components/GeneratorSettingsModal.tsx": "46846950ab4570bd362c430d3a38c08f94094086b55b3a9f226ee78ffc872e65",
+        "app/dashboard/_components/PaidSignupBooking.tsx": "11c6fe034510989ebb2b93aa982ed055590ac4c0b90053a11225c879e7d05940",
         "app/dashboard/_components/ResponsiveBottomNav.tsx": "d094daa7d6b8904dae0fa555de752ca2182c5a4154fcadac0b6281f9c6c2f16a",
         "app/dashboard/_components/TemporaryPasswordWelcomeGate.tsx": "33589fad12aee2ce7e08d00607da6304fd0622ccc1a944e889853894a57a15a6",
         "app/dashboard/_components/dashboardMobileMenuModel.ts": "c4d9be815f9b6064e2498e4b23d907265e325d0ddfd14b167b8056c57a6deb88",
-        "app/dashboard/_hooks/useAssistantFirstArrival.ts": "be478a57f9d176ad332ae22f09a7b350b65023edd323b6a6643d1f9fad7f1fb4",
+        "app/dashboard/_hooks/useAssistantFirstArrival.ts": "82b37ce30549d238d0804adff494f8e529ac7417475f9bb3557699cf1f4fe01b",
         "app/dashboard/_hooks/useDashboardToolOverlayOpen.ts": "56b27fde1ca2e52f613100a771942f462b8a10af3b0b9bef74ec1b4b8bc89492",
         "app/dashboard/agent/_components/AgentActionModals.tsx": "3a811f07c9523a25143073d72a5ec646339b4370c0310abdb9100092c189ee77",
         "app/dashboard/layout.tsx": "fcf807ba615e606e61cc9faec2afa71ed3bf1f856195daea83b6569eb1890e0e",
+        "lib/directSignupPolicy.ts": "23c37e05be8bbc351a1c867cdbef52cd5f5cf344fb84aee90fc3e901c4e61e26",
+        "lib/stripeWebhookPayload.ts": "6f6cf8d863fc73a96ff46cd420fc92bd71ab550208ff2eac8a2ba75bbfb7d531",
         "lib/temporaryPasswordPolicy.ts": "2fa6aa15125f617246ac996404d9e519ffaaa469ae68ba949f35f34cf271ffdd",
         "messages/fr-FR/auth.json": "48dbd5bd32257ff83251223e6a225018fd9b8141b53d228ba96fa0ae77f0c704"
       }
