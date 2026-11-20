@@ -23,7 +23,7 @@ test("the public catalogue agrees with real Basic credit and publication policie
 
 test("access renderer retains explicit verified differences only, an exact receipt endpoint and ticket-only body", () => {
   const original = read("ops/wordpress-visio-booking/inrcy-visio-booking.js")
-    .replace("function inrcyVisioBooking($)", "function inrcyBasicSignupAccess($)")
+    .replace("function inrcyVisioBooking(", "function inrcyBasicSignupAccess(")
     .replaceAll("window.inrcyVisioBookingConfig", "window.inrcyBasicSignupAccessConfig")
     .replace("action=\"' + SIGNUP_ACCESS_URL + '\" target=", "action=\"' + SIGNUP_ACCESS_URL + '?entry=basique\" target=")
     .replaceAll("https://app.inrcy.com/login?email=", "https://app.inrcy.com/login?entry=basique&email=");
