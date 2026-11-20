@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   createMetaBrowserMatch,
   createSignupAttributionSnapshot,
+  getSignupAlertLabels,
   getSignupAdLabel,
   getSignupAttributionSourceLabel,
   getSignupCampaignLabel,
@@ -13,6 +14,34 @@ import {
 } from "../../lib/signupAttribution.ts";
 
 const read = (relativePath: string) => readFileSync(relativePath, "utf8");
+
+test("les noms de diffusion de l’alerte suivent les ID et leurs parents sans réécrire les données du clic", () => {
+  const raw = Object.freeze(createSignupAttributionSnapshot({
+    campaignId: "120253489463510279", adsetId: "120253489463550279", adId: "120253489463530279",
+    campaignName: "Belgique campagne", adsetName: "Belgique ensemble", adName: "Belgique publicité",
+    utmCampaign: "utm historique", landingPageUrl: "https://inrcy.com/?utm_campaign=Belgique",
+  }));
+  const campaign = "Île-de-France | Prospects site | Vidéo 31 s + image";
+  const adset = "Île-de-France | Vidéo 31 s | Prospects site";
+  const ad = "Vidéo 31 s | Île-de-France | Prospects site";
+  assert.deepEqual(getSignupAlertLabels(raw), { campaign, adset, ad });
+  assert.deepEqual(getSignupAlertLabels({ ...raw, adsetId: "120253489463520279", adId: "120253489463560279" }), {
+    campaign, adset: "Île-de-France | Image | Prospects site", ad: "Image | Île-de-France | Prospects site",
+  });
+  assert.deepEqual(getSignupAlertLabels({ ...raw, adId: "120253489463560279" }), { campaign, adset, ad: raw.adName });
+  assert.equal(getSignupCampaignLabel(raw), "Belgique campagne");
+  assert.equal(raw.landingPageUrl, "https://inrcy.com/?utm_campaign=Belgique");
+  assert.deepEqual(getSignupAlertLabels({ ...raw, adsetId: "different" }), {
+    campaign, adset: raw.adsetName, ad: raw.adName,
+  });
+  assert.deepEqual(getSignupAlertLabels({ ...raw, campaignId: "", campaignName: "" }), {
+    campaign: raw.utmCampaign, adset: raw.adsetName, ad: raw.adName,
+  });
+  assert.deepEqual(getSignupAlertLabels({ ...raw, campaignId: "other-id" }), {
+    campaign: raw.campaignName, adset: raw.adsetName, ad: raw.adName,
+  });
+  assert.deepEqual(getSignupAlertLabels(createSignupAttributionSnapshot({})), { campaign: "", adset: "", ad: "" });
+});
 
 test("l'instantané d'attribution conserve les identifiants Meta sans conserver le fbclid", () => {
   const snapshot = createSignupAttributionSnapshot({
