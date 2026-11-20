@@ -1,4 +1,4 @@
-# Espace Basique iNrCy — 1.2.1
+# Espace Basique iNrCy — 1.2.2
 
 La présentation et la navigation reprennent le site iNrCy. Le formulaire, les liens d’accès à l’application et les textes d’abonnement restent propres à l’entrée Basique. La mise à jour depuis 1.1.0 ajoute les deux pages enfants Blog et iNr’Annuaire, à préparer via le réglage existant et à publier pour rendre les deux entrées du menu accessibles. L’annuaire utilise le shortcode de l’annuaire d’origine.
 

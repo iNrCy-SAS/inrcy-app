@@ -30,6 +30,21 @@ test("only the durable first-arrival callback opens the assistant and marks its 
   } finally { globalThis.fetch = originalFetch; }
 });
 
+test("a paid invitation finishes before the usual iNrAssist welcome opens", async () => {
+  const view = harness(true, undefined, undefined, { query: "" });
+  view.providerRender();
+  view.firstArrival()!.onWelcome("synthetic-private");
+  await tick();
+  let tree = view.providerRender();
+  assert.equal(controls(tree).assistantOpen, false);
+  const offer = find(tree, node => node.props.token === "synthetic-private");
+  invoke(offer, "onContinue");
+  tree = view.providerRender();
+  assert.equal(controls(tree).assistantOpen, true);
+  assert.equal(session(tree).props.onboardingWelcome, true);
+  assert.equal(elements(tree).some(node => node.props.token === "synthetic-private"), false);
+});
+
 test("tools, dashboard overlays and a changed establishment never consume an automatic welcome", () => {
   for (const options of [
     { pathname: "/dashboard/mediatheque", query: "" },

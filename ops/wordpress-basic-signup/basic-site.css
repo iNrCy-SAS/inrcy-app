@@ -34,6 +34,7 @@ body.inrcy-basic-standalone:has(.inrcy-basic-site) {
   .inrcy-basic-site .inrcy-header:has(.basic-site-language) { grid-template-columns: minmax(0,1fr) auto auto; }
 }
 @media(max-width:768px) {
+  .inrcy-basic-site:has(.basic-site-signup-form-wrap) { font-size: 1rem; }
   .basic-language-mobile summary { width: 43px; height: 43px; }
 }
 .admin-bar .basic-site-header { top: var(--wp-admin--admin-bar--height, 32px); }
