@@ -39,6 +39,7 @@ export type AutomationConfig = {
   time: string;
   scheduleSlots: Array<{ day: string; time: string }>;
   monthDays: number[];
+  monthlyScheduleSlots?: Array<{ day: number; time: string }>;
   channels: ChannelKey[];
   themes: string[];
   validation: string;
