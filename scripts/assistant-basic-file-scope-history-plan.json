@@ -545,6 +545,132 @@
         "gateFiles": [
           "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
         ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#section:4c6e281f2a56a377:1": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:9dc783458d7bdac3:1": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:9c47152240955118:1": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:a4f5c6e0ad39efc5:1": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:105819e616b53933:1": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:b0e1f5aa2f2533de:1": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:1d928ac34d76f5ae:1": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:5f7ad99fbd6f70a9:1": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:b0e1f5aa2f2533de:2": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:9a8bddc738ea4705:1": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#select:6d5da73df58bbc1e:1": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:40e8a293990e0317:1": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:2": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:6c926b8ea6f94d6d:2": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:a91b7ca95bfce06f:2": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:b5d1591557a59660:2": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:5": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:6": {
+        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
       }
     }
   },
