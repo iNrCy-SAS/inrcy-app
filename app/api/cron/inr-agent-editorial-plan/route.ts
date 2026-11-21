@@ -294,7 +294,7 @@ export async function POST(request: Request) {
           origin,
           now: new Date(),
         });
-        if (result.status !== "idle") generationAttempts += 1;
+        if (result.status !== "idle" && result.generationStarted !== false) generationAttempts += 1;
         if (result.status !== "idle") {
           generated.push({
             userId: entry.userId,

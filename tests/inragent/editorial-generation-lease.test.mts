@@ -1,13 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
+import ts from "typescript";
+import { inrAgentEditorialRetryDecision } from "../../lib/inrAgentEditorialRetryPolicy.ts";
+import { isAiMediaContentPolicyRejection } from "../../lib/aiMediaGenerationPublicErrors.ts";
 import {
   INR_AGENT_EDITORIAL_GENERATION_LEASE_MS,
   withInrAgentEditorialGenerationLease,
 } from "../../lib/inrAgentEditorialGenerationLease.ts";
 
 type Row = Record<string, unknown>;
-function database(options: { unavailable?: boolean; omitId?: boolean } = {}) {
+function database(options: {
+  unavailable?: boolean; omitId?: boolean; busyError?: boolean; busyThrow?: boolean;
+  candidateError?: boolean; candidateThrow?: boolean; claimError?: boolean; claimThrow?: boolean;
+  claimContended?: boolean; latestThrow?: boolean;
+} = {}) {
   const locks: Row[] = [];
   const actions: Row[] = [];
   const releases: Array<Record<string, unknown>> = [];
@@ -20,6 +27,15 @@ function database(options: { unavailable?: boolean; omitId?: boolean } = {}) {
       const rows = table === "execution_idempotency_locks" ? locks : actions;
       const run = (single = false) => {
         if (table === "execution_idempotency_locks" && options.unavailable) return { data: null, error: { code: "42P01", message: "lease storage unavailable" } };
+        if (table === "inr_agent_actions") {
+          const busy = !patch && equal.status === "executing";
+          const candidate = !patch && equal.status === "draft";
+          const claim = patch?.status === "executing" && equal.status === "draft";
+          if ((busy && options.busyThrow) || (candidate && options.candidateThrow) || (claim && options.claimThrow)) throw new Error("query threw before generation");
+          if ((busy && options.busyError) || (candidate && options.candidateError) || (claim && options.claimError)) return { data: null, error: { message: "query failed before generation" } };
+          if (claim && options.claimContended) return { data: null, error: null };
+          if (!patch && equal.id && !equal.status && options.latestThrow) throw new Error("post-claim recovery threw");
+        }
         if (inserted) {
           const prior = rows.find(row => row.user_id === inserted!.user_id && row.scope === inserted!.scope && row.idempotency_key === inserted!.idempotency_key);
           if (prior) return { data: [], error: null };
@@ -35,7 +51,7 @@ function database(options: { unavailable?: boolean; omitId?: boolean } = {}) {
         return { data: structuredClone(single ? matching[0] ?? null : matching), error: null };
       };
       const query = {
-        select() { return this; }, limit() { return this; },
+        select() { return this; }, limit() { return this; }, order() { return this; },
         upsert(value: Row) { inserted = value; return this; },
         update(value: Row) { patch = value; return this; },
         eq(key: string, value: unknown) {
@@ -86,8 +102,22 @@ test("unavailable lease storage or a claim without an id fails closed", async ()
     let calls = 0;
     const result = await withInrAgentEditorialGenerationLease({ supabase: db.client, userId: "account" }, async () => { calls++; return { status: "prepared" }; });
     assert.equal(result.status, "failed");
+    assert.ok("generationStarted" in result);
+    assert.equal(result.generationStarted, false);
     assert.equal(calls, 0);
   }
+});
+
+for (const options of [{ busyError: true }, { busyThrow: true }]) test(`a ${Object.keys(options)[0]} before generation does not consume budget and releases the lease`, async () => {
+  const db = database(options);
+  let calls = 0;
+  const result = await withInrAgentEditorialGenerationLease({ supabase: db.client, userId: "account" }, async () => { calls++; return { status: "prepared" }; });
+  assert.equal(result.status, "failed");
+  assert.ok("generationStarted" in result);
+  assert.equal(result.generationStarted, false);
+  assert.equal(calls, 0);
+  assert.equal(db.locks[0].status, "expired");
+  assert.equal(db.releases.length, 1);
 });
 
 test("an older executing editorial worker prevents a new generation and releases the acquired lease", async () => {
@@ -136,6 +166,75 @@ test("preparation errors release only the owned running lease and preserve the o
   assert.equal(db.locks[0].status, "expired");
   assert.equal(db.releases[0].scope, "inr_agent_editorial_generation");
   assert.equal(db.releases[0].idempotency_key, "account");
+});
+
+function coordinator(db: ReturnType<typeof database>, provider: "success" | "failure" | "contended" = "success") {
+  const source = readFileSync(new URL("../../lib/inrAgentEditorialPlanServer.ts", import.meta.url), "utf8");
+  const ast = ts.createSourceFile("inrAgentEditorialPlanServer.ts", source, ts.ScriptTarget.Latest, true);
+  const names = ["asRecord", "cleanText", "errorMessage", "rowEditorialPlan", "prepareNextInrAgentEditorialSlot"];
+  const declarations = names.map(name => {
+    const declaration = ast.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === name);
+    assert.ok(declaration, `the fixture must exercise the actual ${name} function`);
+    return declaration.getText(ast).replace(/^export\s+/, "");
+  });
+  const compiled = ts.transpileModule(declarations.join("\n"), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  let providerCalls = 0;
+  const fetch = async () => {
+    providerCalls++;
+    if (provider === "contended") db.actions[0].status = "prepared";
+    return new Response(provider === "success" ? "{}" : JSON.stringify({ error: "provider unavailable" }), { status: provider === "success" ? 200 : 503 });
+  };
+  const prepare = new Function("withInrAgentEditorialGenerationLease", "EDITORIAL_ACTION_SELECT", "buildInternalCronHeaders", "fetch", "inrAgentEditorialRetryDecision", "isAiMediaContentPolicyRejection", `${compiled};return prepareNextInrAgentEditorialSlot;`)(
+    withInrAgentEditorialGenerationLease, "id,status,metadata,payload", () => ({}), fetch, inrAgentEditorialRetryDecision, isAiMediaContentPolicyRejection,
+  ) as (args: { supabase: typeof db.client; userId: string; origin: string; now: Date }) => Promise<{ status: string; generationStarted: boolean; actionId?: string | null }>;
+  return { run: () => prepare({ supabase: db.client, userId: "account", origin: "https://isolated.invalid", now: new Date("2026-11-21T09:00:00Z") }), calls: () => providerCalls };
+}
+
+function queuedCandidate() {
+  return { id: "candidate", user_id: "account", automation_key: "publish", status: "draft", scheduled_for: "2026-11-22T09:00:00Z", metadata: { editorialPlan: true, editorialState: "queued", editorialAttempts: 0 }, payload: { editorialPlan: { slotKey: "fixture" } } };
+}
+
+for (const options of [{ candidateError: true }, { candidateThrow: true }, { claimError: true }, { claimThrow: true }]) test(`the real coordinator marks ${Object.keys(options)[0]} as a pre-generation failure`, async () => {
+  const db = database(options);
+  db.actions.push(queuedCandidate());
+  const h = coordinator(db);
+  const result = await h.run();
+  assert.equal(result.status, "failed");
+  assert.equal(result.generationStarted, false, "a read or failed CAS cannot consume provider budget");
+  assert.equal(h.calls(), 0);
+  assert.equal(db.actions[0].status, "draft");
+  assert.equal(db.locks[0].status, "expired");
+});
+
+test("a contended real coordinator claim leaves generation budget available", async () => {
+  const db = database({ claimContended: true });
+  db.actions.push(queuedCandidate());
+  const h = coordinator(db);
+  const result = await h.run();
+  assert.equal(result.status, "contended");
+  assert.equal(result.generationStarted, false);
+  assert.equal(h.calls(), 0);
+  assert.equal(db.locks[0].status, "expired");
+});
+
+for (const provider of ["success", "failure", "contended"] as const) test(`the real coordinator retains generation accounting after a confirmed claim and provider ${provider}`, async () => {
+  const db = database();
+  db.actions.push(queuedCandidate());
+  const h = coordinator(db, provider);
+  const result = await h.run();
+  assert.equal(result.status, provider === "success" ? "prepared" : provider === "failure" ? "retry" : "contended");
+  assert.equal(result.generationStarted, true, "once dispatched, success and failure both consume the attempt budget");
+  assert.equal(h.calls(), 1);
+  assert.equal(db.locks[0].status, "expired");
+});
+
+test("a post-claim recovery exception stays thrown and releases the lease", async () => {
+  const db = database({ latestThrow: true });
+  db.actions.push(queuedCandidate());
+  const h = coordinator(db, "failure");
+  await assert.rejects(h.run(), /post-claim recovery threw/);
+  assert.equal(h.calls(), 1, "the caller must conservatively account for this dispatched attempt");
+  assert.equal(db.locks[0].status, "expired");
 });
 
 test("the existing coordinator keeps its action CAS inside the account lease and the cron visits pages each minute", () => {

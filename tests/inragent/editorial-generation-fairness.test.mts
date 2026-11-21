@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
+import { withInrAgentEditorialGenerationLease } from "../../lib/inrAgentEditorialGenerationLease.ts";
 import {
   inrAgentEditorialGenerationRotationOffset,
   orderInrAgentEditorialGenerationAccounts,
@@ -80,7 +81,7 @@ function actualCronGenerationLoop(options: {
   now: Date;
   history: Attempt[];
   historyError?: { message: string };
-  prepare: (args: { now: Date; userId: string }) => Promise<{ status: string; actionId: string }>;
+  prepare: (args: { now: Date; userId: string }) => Promise<{ status: string; actionId: string | null; generationStarted?: boolean; error?: string }>;
   ClockDate?: DateConstructor;
 }) {
   const source = readFileSync(new URL("../../app/api/cron/inr-agent-editorial-plan/route.ts", import.meta.url), "utf8");
@@ -153,6 +154,87 @@ test("three old accounts that keep failing cannot starve any of forty accounts a
   }
   assert.equal(served.size, 40, "failed attempts must yield their turn even when lastPreparedAt never advances");
   assert.ok(rows.slice(0, 3).every(row => row.automation.lastPreparedAt === oldPrepared));
+});
+
+test("three permanent pre-generation lease failures retain diagnostics without starving three real preparations per cron window", async () => {
+  const rows = accounts(40);
+  rows.forEach((row, index) => { row.automation.lastPreparedAt = index < 3 ? "2026-01-01T00:00:00Z" : "2026-11-20T00:00:00Z"; });
+  const denied = new Set(["account-0", "account-1", "account-2"]);
+  const served = new Set<string>();
+  const refusedLeases: string[] = [];
+  let forbiddenCallbacks = 0;
+  let clock = Date.parse("2026-11-21T18:00:00Z");
+  const leaseDatabase = {
+    from(table: string) {
+      assert.equal(table, "execution_idempotency_locks");
+      return {
+        upsert(value: { user_id: string }) { refusedLeases.push(value.user_id); return this; },
+        async select() { return { data: null, error: { code: "23503", message: "Account lease rejected" } }; },
+      };
+    },
+  };
+  for (let visit = 0; visit < 14; visit++) {
+    let realPreparations = 0;
+    const fixture = actualCronGenerationLoop({ rows, now: new Date(clock), history: [],
+      prepare: async ({ userId }) => {
+        if (denied.has(userId)) {
+          return withInrAgentEditorialGenerationLease({ supabase: leaseDatabase, userId }, async () => {
+            forbiddenCallbacks++;
+            return { status: "prepared", actionId: userId, generationStarted: true };
+          });
+        }
+        realPreparations++;
+        served.add(userId);
+        rows.find(row => row.userId === userId)!.automation.lastPreparedAt = new Date(clock).toISOString();
+        return { status: "prepared", actionId: userId, generationStarted: true };
+      },
+    });
+    const results = await fixture.dispatch();
+    assert.equal(realPreparations, 3, "the provider budget remains three actual preparations");
+    assert.equal(results.length, 6, "all three failed accounts remain in the cron diagnostics");
+    assert.deepEqual(new Set(results.filter((row: { status: string }) => row.status === "failed").map((row: { userId: string }) => row.userId)), denied);
+    for (const failure of results.filter((row: { status: string }) => row.status === "failed")) {
+      assert.equal(failure.generationStarted, false);
+      assert.equal(failure.error, "editorial_generation_lease_unavailable");
+      assert.equal(failure.actionId, null);
+    }
+    clock += 60_000;
+  }
+  assert.equal(forbiddenCallbacks, 0, "a failed lease never invokes the generation callback");
+  assert.equal(refusedLeases.length, 42, "each refused account is inspected only once per bounded page visit");
+  assert.equal(served.size, 37, "all healthy accounts advance despite persistent older pre-generation failures");
+});
+
+test("pre-generation failures cannot turn a forty-account page into an unbounded retry loop", async () => {
+  const visited: string[] = [];
+  const fixture = actualCronGenerationLoop({ rows: accounts(40), now: new Date(), history: [],
+    prepare: async ({ userId }) => {
+      visited.push(userId);
+      return { status: "failed", actionId: null, generationStarted: false, error: "claim refused" };
+    },
+  });
+  const results = await fixture.dispatch();
+  assert.equal(results.length, 40);
+  assert.equal(visited.length, 40);
+  assert.equal(new Set(visited).size, 40);
+});
+
+test("started failures, unknown results and thrown preparation errors still consume the conservative budget", async () => {
+  let calls = 0;
+  const fixture = actualCronGenerationLoop({ rows: accounts(40), now: new Date(), history: [],
+    prepare: async ({ userId }) => {
+      calls++;
+      if (calls === 1) return { status: "failed", actionId: null, generationStarted: false, error: "pre-generation refusal" };
+      if (calls === 2) return { status: "retry", actionId: userId, generationStarted: true, error: "provider failure" };
+      if (calls === 3) throw new Error("ambiguous failure after starting");
+      return { status: "failed", actionId: userId, error: "unknown preparation failure" };
+    },
+  });
+  const results = await fixture.dispatch();
+  assert.equal(calls, 4, "only the explicit pre-generation refusal can leave a budget place unused");
+  assert.equal(results.length, 4);
+  assert.equal(results[2].status, "failed");
+  assert.equal(results[2].error, "ambiguous failure after starting");
 });
 
 test("the actual cron reads only bounded editorial attempt history for enabled publication accounts", async () => {

@@ -16,18 +16,23 @@ export async function withInrAgentEditorialGenerationLease<T>(
     idempotencyKey: KEY,
     ttlMs: INR_AGENT_EDITORIAL_GENERATION_LEASE_MS,
   });
-  if (claim.state === "running") return { status: "idle" as const, actionId: null };
+  if (claim.state === "running") return { status: "idle" as const, actionId: null, generationStarted: false as const };
   if (claim.state !== "acquired" || !claim.lock?.id || !claim.lock.locked_at || !claim.lock.expires_at) {
-    return { status: "failed" as const, actionId: null, error: "editorial_generation_lease_unavailable" };
+    return { status: "failed" as const, actionId: null, generationStarted: false as const, error: "editorial_generation_lease_unavailable" };
   }
   const lock = claim.lock;
   try {
     // Workers already running before this lease was introduced still own their action.
-    const { data, error } = await args.supabase.from("inr_agent_actions")
-      .select("id").eq("user_id", args.userId).eq("automation_key", "publish")
-      .eq("status", "executing").eq("metadata->>editorialPlan", "true").limit(1);
-    if (error) throw error;
-    if (Array.isArray(data) && data.length) return { status: "idle" as const, actionId: null };
+    try {
+      const { data, error } = await args.supabase.from("inr_agent_actions")
+        .select("id").eq("user_id", args.userId).eq("automation_key", "publish")
+        .eq("status", "executing").eq("metadata->>editorialPlan", "true").limit(1);
+      if (error) throw error;
+      if (Array.isArray(data) && data.length) return { status: "idle" as const, actionId: null, generationStarted: false as const };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String((error as { message?: unknown })?.message || error);
+      return { status: "failed" as const, actionId: null, generationStarted: false as const, error: message };
+    }
     return await prepare();
   } finally {
     // A late worker cannot release a newer lease recovered after its own expiry.

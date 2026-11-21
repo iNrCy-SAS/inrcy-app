@@ -1654,6 +1654,9 @@ export async function prepareNextInrAgentEditorialSlot(args: {
   now?: Date;
 }) {
   return withInrAgentEditorialGenerationLease(args, async () => {
+  let generationStarted = false;
+  let actionId: string | null = null;
+  try {
   const now = args.now ?? new Date();
   const { data, error } = await args.supabase
     .from("inr_agent_actions")
@@ -1674,7 +1677,8 @@ export async function prepareNextInrAgentEditorialSlot(args: {
       const retryAt = Date.parse(cleanText(metadata.editorialNextRetryAt, 80));
       return !Number.isFinite(retryAt) || retryAt <= now.getTime();
     })[0];
-  if (!candidate) return { status: "idle" as const, actionId: null };
+  if (!candidate) return { status: "idle" as const, actionId: null, generationStarted: false as const };
+  actionId = candidate.id;
 
   const metadata = asRecord(candidate.metadata);
   const attempts = Math.max(0, Number(metadata.editorialAttempts) || 0) + 1;
@@ -1701,7 +1705,8 @@ export async function prepareNextInrAgentEditorialSlot(args: {
     .select("id")
     .maybeSingle();
   if (claimError) throw claimError;
-  if (!claimed) return { status: "contended" as const, actionId: candidate.id };
+  if (!claimed) return { status: "contended" as const, actionId: candidate.id, generationStarted: false as const };
+  generationStarted = true;
 
   try {
     const endpoint = `${args.origin.replace(/\/$/, "")}/api/agent/actions/prepare-publish`;
@@ -1729,7 +1734,7 @@ export async function prepareNextInrAgentEditorialSlot(args: {
           `Préparation éditoriale refusée (${response.status}).`,
       ), { code: cleanText(parsed.code, 120) });
     }
-    return { status: "prepared" as const, actionId: candidate.id };
+    return { status: "prepared" as const, actionId: candidate.id, generationStarted: true as const };
   } catch (cause) {
     const message = errorMessage(cause);
     const retryDecision = inrAgentEditorialRetryDecision({
@@ -1744,7 +1749,7 @@ export async function prepareNextInrAgentEditorialSlot(args: {
       .select("metadata,status").eq("id", candidate.id).eq("user_id", args.userId).maybeSingle();
     if (latest.error) throw latest.error;
     if (!latest.data || latest.data.status !== "executing") {
-      return { status: "contended" as const, actionId: candidate.id };
+      return { status: "contended" as const, actionId: candidate.id, generationStarted: true as const };
     }
     await args.supabase
       .from("inr_agent_actions")
@@ -1771,7 +1776,13 @@ export async function prepareNextInrAgentEditorialSlot(args: {
       actionId: candidate.id,
       error: message,
       retryAt,
+      generationStarted: true as const,
     };
+  }
+  } catch (error) {
+    // Only a confirmed pre-generation refusal can leave the provider budget unused.
+    if (generationStarted) throw error;
+    return { status: "failed" as const, actionId, generationStarted: false as const, error: errorMessage(error) };
   }
   });
 }
