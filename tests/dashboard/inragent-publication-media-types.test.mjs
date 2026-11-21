@@ -41,6 +41,7 @@ const source = readFileSync(path.join(root, "app/dashboard/agent/AgentClient.tsx
 const css = readFileSync(path.join(root, "app/dashboard/agent/agent.module.css"), "utf8");
 const parsed = ts.createSourceFile("AgentClient.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
 let mediaRow;
+let preferenceStepFunction;
 const declarations = new Map();
 function inspect(node) {
   if (ts.isJsxElement(node)
@@ -48,19 +49,23 @@ function inspect(node) {
     mediaRow = node;
   }
   if (ts.isVariableDeclaration(node)
-    && ["settingsPublicationMediaTypes", "settingsSingleImagePercent"].includes(node.name.getText(parsed))) {
+    && ["settingsPublicationMediaTypes", "settingsSingleImagePercent", "settingsStudioMediaPreferenceStep", "STUDIO_MEDIA_PREFERENCE_DESCRIPTION_KEYS"].includes(node.name.getText(parsed))) {
     declarations.set(node.name.getText(parsed), node.getText(parsed));
   }
+  if (ts.isFunctionDeclaration(node) && node.name?.text === "studioMediaPreferenceStep") preferenceStepFunction = node.getText(parsed);
   ts.forEachChild(node, inspect);
 }
 inspect(parsed);
 assert.ok(mediaRow, "La vraie ligne de préférences média doit être rendue");
-assert.equal(declarations.size, 2);
+assert.equal(declarations.size, 4);
+assert.ok(preferenceStepFunction, "Le vrai normaliseur du pourcentage iNrStudio doit être utilisé");
 const fixtureSource = `
-const { normalizeInrAgentPublicationMediaTypes } = require("settings");
+const { normalizeInrAgentPublicationMediaTypes, normalizeInrAgentStudioMediaPreferencePercent, INR_AGENT_STUDIO_MEDIA_PREFERENCE_DEFAULT } = require("settings");
 const styles = new Proxy({}, {get: (_, key) => String(key)});
+${preferenceStepFunction}
 export function MediaPreferences({settingsConfig, updateConfig, messages}) {
   const settingsAutomation = {key:"publish"};
+  const saveState = "idle";
   const i18nT = (key) => messages[key] || key;
   ${[...declarations.values()].map((declaration) => `const ${declaration};`).join("\n")}
   return ${mediaRow.getText(parsed)};
@@ -108,6 +113,17 @@ test("les choix de formats se cumulent et gardent toujours l’image de base", (
   aiButton.props.onClick();
   assert.equal(config.preferredMediaSource, "ai_generation");
   assert.deepEqual(config.publicationMediaTypes, { singleImage: true, video: false, carousel: true });
+  const stepper = () => descendants(render(), element => element.type === "button" && ["−", "+"].includes(element.props.children));
+  assert.equal(stepper().length, 2);
+  for (let index = 0; index < 5; index++) stepper()[0].props.onClick();
+  assert.equal(config.studioMediaPreferencePercent, 0);
+  assert.equal(stepper()[0].props.disabled, true);
+  assert.equal(stepper()[1].props.disabled, false);
+  for (let index = 0; index < 5; index++) stepper()[1].props.onClick();
+  assert.equal(config.studioMediaPreferencePercent, 100);
+  assert.equal(stepper()[0].props.disabled, false);
+  assert.equal(stepper()[1].props.disabled, true);
+  assert.deepEqual(config.publicationMediaTypes, { singleImage: true, video: false, carousel: true }, "Le pourcentage iNrStudio ne modifie pas les formats");
   inputs()[2].props.onChange({ target: { checked: false } });
   assert.equal(imageShare(), 100);
 });
