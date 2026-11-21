@@ -5,8 +5,10 @@ import type { InrAgentAutomationKey, InrAgentFrequency } from "@/lib/inrAgentSet
 import {
   inrAgentMonthlyDateCount,
   inrAgentMonthlyOccurrenceIndex,
+  inrAgentMonthlyScheduleTimeForDate,
   isInrAgentScheduledMonthDay,
   normalizeInrAgentMonthDays,
+  normalizeInrAgentMonthScheduleSlots,
 } from "@/lib/inrAgentMonthSchedule";
 import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
 import { getActiveSubscriptionAccountIds } from "@/lib/accountSubscriptionAccess";
@@ -137,10 +139,11 @@ function timeParts(time: string) {
 function normalizeScheduleSlots(row: AutomationRow, frequency: InrAgentFrequency): AutomationScheduleSlot[] {
   const dayOfWeek = normalizeDay(row.day_of_week);
   const time = normalizeTime(row.time || "09:00");
-  const slotCount = frequency === "three_times_weekly" ? 3 : frequency === "twice_weekly" ? 2 : 1;
-  const offsets = slotCount === 3 ? [0, 2, 4] : slotCount === 2 ? [0, 3] : [0];
+  const slotCount = frequency === "daily" ? 7 : frequency === "three_times_weekly" ? 3 : frequency === "twice_weekly" ? 2 : 1;
+  const offsets = slotCount === 7
+    ? Array.from({ length: 7 }, (_, index) => index)
+    : slotCount === 3 ? [0, 2, 4] : slotCount === 2 ? [0, 3] : [0];
   const fallback = offsets.map((offset) => ({ dayOfWeek: (dayOfWeek + offset) % 7, time }));
-  if (slotCount === 1) return fallback;
   const metadata = asRecord(row.metadata);
   const rawSlots = Array.isArray(metadata.scheduleSlots) ? metadata.scheduleSlots : [];
   const slots = rawSlots
@@ -151,9 +154,18 @@ function normalizeScheduleSlots(row: AutomationRow, frequency: InrAgentFrequency
         time: normalizeTime(source.time),
       };
     })
-    .filter((slot, index, list) => list.findIndex((candidate) => candidate.dayOfWeek === slot.dayOfWeek && candidate.time === slot.time) === index)
+    .filter((slot, index, list) => list.findIndex((candidate) => candidate.dayOfWeek === slot.dayOfWeek) === index)
     .slice(0, slotCount);
   return slots.length >= slotCount ? slots : fallback;
+}
+
+function normalizeMonthlyScheduleSlots(row: AutomationRow, frequency: InrAgentFrequency, monthDays: number[]) {
+  const metadata = asRecord(row.metadata);
+  return normalizeInrAgentMonthScheduleSlots(
+    metadata.monthlyScheduleSlots ?? monthDays,
+    frequency,
+    normalizeTime(row.time || "09:00"),
+  );
 }
 
 function isFirstScheduledWeekdayOfMonth(local: ReturnType<typeof getLocalParts>, dayOfWeek: number) {
@@ -166,7 +178,7 @@ function isScheduledDate(
   dayOfWeek: number,
   monthDays: number[],
 ) {
-  if (frequency === "daily") return true;
+  if (frequency === "daily") return local.weekday === dayOfWeek;
   if (inrAgentMonthlyDateCount(frequency)) {
     return isInrAgentScheduledMonthDay(local, monthDays);
   }
@@ -213,11 +225,21 @@ function isDue(row: AutomationRow, now: Date, timeZone: string) {
   const local = getLocalParts(now, timeZone);
   const minuteNow = local.hour * 60 + local.minute;
   const slots = normalizeScheduleSlots(row, frequency);
-  const matchingSlot = slots.some((slot) => {
-    const schedule = timeParts(slot.time);
-    const minuteSchedule = schedule.hour * 60 + schedule.minute;
-    return minuteNow >= minuteSchedule && isScheduledDate(local, frequency, slot.dayOfWeek, monthDays);
-  });
+  const monthlyTime = inrAgentMonthlyDateCount(frequency)
+    ? inrAgentMonthlyScheduleTimeForDate(local, normalizeMonthlyScheduleSlots(row, frequency, monthDays))
+    : null;
+  const monthlySchedule = monthlyTime ? timeParts(monthlyTime) : null;
+  const matchingSlot = inrAgentMonthlyDateCount(frequency)
+    ? Boolean(
+        monthlySchedule &&
+        minuteNow >= monthlySchedule.hour * 60 + monthlySchedule.minute &&
+        isScheduledDate(local, frequency, local.weekday, monthDays)
+      )
+    : slots.some((slot) => {
+        const schedule = timeParts(slot.time);
+        const minuteSchedule = schedule.hour * 60 + schedule.minute;
+        return minuteNow >= minuteSchedule && isScheduledDate(local, frequency, slot.dayOfWeek, monthDays);
+      });
   if (!matchingSlot) return false;
 
   const ref = referenceDate(row);
@@ -235,9 +257,16 @@ function computeNextRunAt(row: AutomationRow, after: Date, timeZone: string) {
     asRecord(row.metadata).monthDays,
     frequency,
   );
+  const monthlySlots = normalizeMonthlyScheduleSlots(row, frequency, monthDays);
   for (let offset = 0; offset <= 110; offset += 1) {
     const localDate = addLocalDays(start, offset);
-    const candidates = slots
+    const monthlyTime = inrAgentMonthlyDateCount(frequency)
+      ? inrAgentMonthlyScheduleTimeForDate(localDate, monthlySlots)
+      : null;
+    const daySlots = inrAgentMonthlyDateCount(frequency)
+      ? monthlyTime ? [{ dayOfWeek: 0, time: monthlyTime }] : []
+      : slots;
+    const candidates = daySlots
       .map((slot) => {
         const schedule = timeParts(slot.time);
         const candidateUtc = zonedTimeToUtc({ ...localDate, ...schedule }, timeZone);
