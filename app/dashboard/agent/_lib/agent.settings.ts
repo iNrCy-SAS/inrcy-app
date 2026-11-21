@@ -13,6 +13,7 @@ import {
 import {
   inrAgentMonthlyDateCount,
   normalizeInrAgentMonthDays,
+  normalizeInrAgentMonthScheduleSlots,
 } from "@/lib/inrAgentMonthSchedule";
 import type {
   ChannelKey as BoosterChannelKey,
@@ -299,32 +300,53 @@ export function normalizeConfigScheduleSlots(
   config: Pick<AutomationConfig, "day" | "time"> &
     Partial<Pick<AutomationConfig, "frequency" | "scheduleSlots">>,
 ) {
+  const frequency = config.frequency || "";
   const slotCount =
-    config.frequency === "3 fois par semaine" ||
-    config.frequency === "three_times_weekly"
-      ? 3
-      : config.frequency === "2 fois par semaine" ||
-          config.frequency === "twice_weekly"
-        ? 2
-        : 1;
-  const offsets = slotCount === 3 ? [0, 2, 4] : slotCount === 2 ? [0, 3] : [0];
+    frequency === "Publier tous les jours" || frequency === "daily"
+      ? 7
+      : frequency === "3 fois par semaine" || frequency === "three_times_weekly"
+        ? 3
+        : frequency === "2 fois par semaine" || frequency === "twice_weekly"
+          ? 2
+          : 1;
   const first = config.scheduleSlots?.[0] || {
     day: config.day,
     time: config.time,
   };
-  return offsets.map((offset, index) => {
-    const fallbackDay = index === 0
-      ? config.day
-      : dayOffsetLabel(first.day || config.day, offset);
-    const slot = config.scheduleSlots?.[index] || {
-      day: fallbackDay,
-      time: first.time || config.time,
-    };
+  const offsets = slotCount === 3 ? [0, 2, 4] : slotCount === 2 ? [0, 3] : [0];
+  const chosen = new Set<string>();
+  return Array.from({ length: slotCount }, (_, index) => {
+    const fallbackDay = slotCount === 7
+      ? weekDays[index]
+      : index === 0
+        ? config.day
+        : dayOffsetLabel(first.day || config.day, offsets[index] ?? index);
+    const configured = slotCount === 7
+      ? config.scheduleSlots?.find((candidate) => candidate.day === fallbackDay)
+      : config.scheduleSlots?.[index];
+    let day = configured && weekDays.includes(configured.day) && !chosen.has(configured.day)
+      ? configured.day
+      : fallbackDay;
+    if (chosen.has(day)) day = weekDays.find((candidate) => !chosen.has(candidate)) || day;
+    chosen.add(day);
+    const time = configured?.time || (index === 0 ? first.time : config.time);
     return {
-      day: weekDays.includes(slot.day) ? slot.day : fallbackDay,
-      time: hourOptions.includes(slot.time) ? slot.time : config.time,
+      day,
+      time: hourOptions.includes(time) ? time : config.time,
     };
   });
+}
+
+export function normalizeConfigMonthScheduleSlots(
+  config: Pick<AutomationConfig, "frequency" | "time" | "monthDays" | "monthlyScheduleSlots">,
+) {
+  return normalizeInrAgentMonthScheduleSlots(
+    config.monthlyScheduleSlots?.length
+      ? config.monthlyScheduleSlots
+      : config.monthDays,
+    config.frequency,
+    config.time,
+  );
 }
 
 export function scheduleSlotsFromMetadata(
@@ -411,6 +433,11 @@ export function settingsToConfigs(
           source.metadata?.monthDays,
           frequency,
         ),
+        monthlyScheduleSlots: normalizeInrAgentMonthScheduleSlots(
+          source.metadata?.monthlyScheduleSlots ?? source.metadata?.monthDays,
+          frequency,
+          source.time || defaults.time,
+        ),
         channels: orderChannels(
           source.allowedChannels
             .map((channel) => apiToChannel[channel])
@@ -470,6 +497,7 @@ export function configToAutomationSettings(
   const metadataWithoutScheduleSlots = { ...(existing.metadata || {}) };
   delete metadataWithoutScheduleSlots.scheduleSlots;
   delete metadataWithoutScheduleSlots.monthDays;
+  delete metadataWithoutScheduleSlots.monthlyScheduleSlots;
   const monthlyDateCount = inrAgentMonthlyDateCount(frequency);
   const nextMetadata = {
     ...metadataWithoutScheduleSlots,
@@ -494,9 +522,9 @@ export function configToAutomationSettings(
     ...(key === "grow" || key === "loyalty"
       ? { signatureAutomatic: config.signatureAutomatic }
       : {}),
-    ...(frequency === "twice_weekly" || frequency === "three_times_weekly"
+    ...(frequency !== "one_off" && monthlyDateCount === 0
       ? {
-          scheduleSlots: normalizedSlots.slice(0, frequency === "three_times_weekly" ? 3 : 2).map((slot) => ({
+          scheduleSlots: normalizedSlots.map((slot) => ({
             day: slot.day,
             dayOfWeek: dayToApi[slot.day] ?? existing.dayOfWeek,
             time: slot.time,
@@ -504,9 +532,13 @@ export function configToAutomationSettings(
         }
       : {}),
     ...(monthlyDateCount
-      ? {
-          monthDays: normalizeInrAgentMonthDays(config.monthDays, frequency),
-        }
+      ? (() => {
+          const monthlySlots = normalizeConfigMonthScheduleSlots(config);
+          return {
+            monthDays: monthlySlots.map((slot) => slot.day),
+            monthlyScheduleSlots: monthlySlots,
+          };
+        })()
       : {}),
   };
 
@@ -517,7 +549,7 @@ export function configToAutomationSettings(
     dayOfWeek:
       dayToApi[normalizedSlots[0]?.day || config.day] ?? existing.dayOfWeek,
     time: monthlyDateCount
-      ? config.time
+      ? normalizeConfigMonthScheduleSlots(config)[0]?.time || config.time
       : normalizedSlots[0]?.time || config.time,
     validationMode: optionValue(
       options.validation,

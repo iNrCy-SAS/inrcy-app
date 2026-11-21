@@ -10,7 +10,9 @@ import {
   effectiveInrAgentMonthDays,
   inrAgentMonthlyDateCount,
   inrAgentMonthlyOccurrenceIndex,
+  inrAgentMonthlyScheduleTimeForDate,
   isInrAgentScheduledMonthDay,
+  normalizeInrAgentMonthScheduleSlots,
   normalizeInrAgentMonthDays,
 } from "./inrAgentMonthSchedule.ts";
 import {
@@ -181,20 +183,26 @@ function normalizeScheduleSlots(
 ): ScheduleSlot[] {
   const frequency = frequencyValue(automation.frequency);
   const slotCount =
-    frequency === "three_times_weekly"
-      ? 3
-      : frequency === "twice_weekly"
-        ? 2
-        : 1;
+    frequency === "daily"
+      ? 7
+      : frequency === "three_times_weekly"
+        ? 3
+        : frequency === "twice_weekly"
+          ? 2
+          : 1;
   const baseDay = normalizeDay(automation.dayOfWeek);
   const baseTime = normalizeTime(automation.time);
-  const offsets = slotCount === 3 ? [0, 2, 4] : slotCount === 2 ? [0, 3] : [0];
+  const offsets = slotCount === 7
+    ? Array.from({ length: 7 }, (_, index) => index)
+    : slotCount === 3
+      ? [0, 2, 4]
+      : slotCount === 2
+        ? [0, 3]
+        : [0];
   const fallback = offsets.map((offset) => ({
     dayOfWeek: (baseDay + offset) % 7,
     time: baseTime,
   }));
-  if (slotCount === 1) return fallback;
-
   const metadata = asRecord(automation.metadata);
   const raw = Array.isArray(metadata.scheduleSlots)
     ? metadata.scheduleSlots
@@ -209,14 +217,23 @@ function normalizeScheduleSlots(
     })
     .filter(
       (slot, index, list) =>
-        list.findIndex(
-          (candidate) =>
-            candidate.dayOfWeek === slot.dayOfWeek &&
-            candidate.time === slot.time,
-        ) === index,
+        list.findIndex((candidate) => candidate.dayOfWeek === slot.dayOfWeek) === index,
     )
     .slice(0, slotCount);
   return configured.length === slotCount ? configured : fallback;
+}
+
+function normalizeMonthlyScheduleSlots(
+  automation: InrAgentAutomationSettings,
+  frequency: InrAgentFrequency,
+  monthDays: number[],
+) {
+  const metadata = asRecord(automation.metadata);
+  return normalizeInrAgentMonthScheduleSlots(
+    metadata.monthlyScheduleSlots ?? monthDays,
+    frequency,
+    normalizeTime(automation.time),
+  );
 }
 
 function scheduledOnLocalDate(args: {
@@ -225,7 +242,7 @@ function scheduledOnLocalDate(args: {
   slot: ScheduleSlot;
   monthDays: number[];
 }) {
-  if (args.frequency === "daily") return true;
+  if (args.frequency === "daily") return args.local.weekday === args.slot.dayOfWeek;
   if (inrAgentMonthlyDateCount(args.frequency)) {
     return isInrAgentScheduledMonthDay(args.local, args.monthDays);
   }
@@ -330,6 +347,11 @@ export function getInrAgentEditorialPlanSignatures(args: {
     asRecord(args.automation.metadata).monthDays,
     frequency,
   );
+  const monthlyScheduleSlots = normalizeMonthlyScheduleSlots(
+    args.automation,
+    frequency,
+    monthDays,
+  );
   const mediaTypes = normalizeInrAgentPublicationMediaTypes(
     args.automation.publicationMediaTypes ?? asRecord(args.automation.metadata).publicationMediaTypes,
   );
@@ -346,6 +368,7 @@ export function getInrAgentEditorialPlanSignatures(args: {
       frequency,
       scheduleSlots,
       monthDays,
+      monthlyScheduleSlots,
       timezone,
     ]),
     // Preserve existing draft signatures on rollout when both options are off.
@@ -388,11 +411,24 @@ export function buildInrAgentEditorialPlan(args: {
     asRecord(automation.metadata).monthDays,
     frequency,
   );
+  const monthlyScheduleSlots = normalizeMonthlyScheduleSlots(
+    automation,
+    frequency,
+    monthDays,
+  );
   const occurrences: string[] = [];
 
   for (let offset = 0; offset <= horizonDays + 2; offset += 1) {
     const localDate = addLocalDays(localStart, offset);
-    for (const slot of scheduleSlots) {
+    const monthlyTime = inrAgentMonthlyDateCount(frequency)
+      ? inrAgentMonthlyScheduleTimeForDate(localDate, monthlyScheduleSlots)
+      : null;
+    const dayScheduleSlots = inrAgentMonthlyDateCount(frequency)
+      ? monthlyTime
+        ? [{ dayOfWeek: 0, time: monthlyTime }]
+        : []
+      : scheduleSlots;
+    for (const slot of dayScheduleSlots) {
       const [hour, minute] = slot.time.split(":").map(Number);
       const candidate = zonedTimeToUtc(
         { ...localDate, hour, minute },

@@ -92,3 +92,49 @@ export function inrAgentMonthlyOccurrenceIndex(
   const next = effectiveDays.findIndex((day) => day > local.day);
   return next < 0 ? Math.max(0, effectiveDays.length - 1) : Math.max(0, next - 1);
 }
+
+
+export type InrAgentMonthScheduleSlot = { day: number; time: string };
+
+export function normalizeInrAgentMonthScheduleSlots(
+  value: unknown,
+  frequency: unknown,
+  fallbackTime: string,
+): InrAgentMonthScheduleSlot[] {
+  const days = normalizeInrAgentMonthDays(
+    Array.isArray(value) ? value.map((slot) => {
+      const source = slot && typeof slot === "object" && !Array.isArray(slot)
+        ? slot as Record<string, unknown>
+        : {};
+      return typeof slot === "number" ? slot : source.day;
+    }) : [],
+    frequency,
+  );
+  const fallback = /^([01]\d|2[0-3]):[0-5]\d$/.test(fallbackTime)
+    ? fallbackTime
+    : "09:00";
+  const raw = Array.isArray(value) ? value : [];
+  const timeByDay = new Map<number, string>();
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const source = item as Record<string, unknown>;
+    const day = Math.min(31, Math.max(1, Math.floor(Number(source.day)) || 0));
+    const time = String(source.time || "").trim();
+    if (day >= 1 && !timeByDay.has(day) && /^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+      timeByDay.set(day, time);
+    }
+  }
+  return days.map((day) => ({ day, time: timeByDay.get(day) || fallback }));
+}
+
+export function inrAgentMonthlyScheduleTimeForDate(
+  local: { year: number; month: number; day: number },
+  slots: readonly InrAgentMonthScheduleSlot[],
+): string | null {
+  const lastDay = new Date(Date.UTC(local.year, local.month, 0, 12)).getUTCDate();
+  const match = slots
+    .map((slot) => ({ ...slot, effectiveDay: Math.min(lastDay, Math.max(1, slot.day)) }))
+    .filter((slot) => slot.effectiveDay === local.day)
+    .sort((left, right) => left.day - right.day)[0];
+  return match?.time ?? null;
+}

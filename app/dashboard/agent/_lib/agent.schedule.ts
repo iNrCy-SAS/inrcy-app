@@ -5,8 +5,9 @@ import { compactInrAgentScheduledPayload } from "@/lib/inrAgentScheduledPayload"
 import { isManualBoosterPublicationSchedule } from "@/lib/standardAgentPolicy";
 import {
   inrAgentMonthlyDateCount,
-  isInrAgentScheduledMonthDay,
+  inrAgentMonthlyScheduleTimeForDate,
   normalizeInrAgentMonthDays,
+  normalizeInrAgentMonthScheduleSlots,
 } from "@/lib/inrAgentMonthSchedule";
 import {
   applyInrAgentPublicationPlacement,
@@ -1266,53 +1267,61 @@ export function computeNextOccurrence(config: AutomationConfig): string | null {
     Vendredi: 5,
     Samedi: 6,
   };
-  const normalizedSlots =
-    config.frequency === "2 fois par semaine" ||
-    config.frequency === "3 fois par semaine"
-      ? normalizeConfigScheduleSlots(config).slice(
-          0,
-          config.frequency === "3 fois par semaine" ? 3 : 2,
-        )
-      : [{ day: config.day, time: config.time }];
   const monthlyDateCount = inrAgentMonthlyDateCount(config.frequency);
   const monthDays = normalizeInrAgentMonthDays(
     config.monthDays,
     config.frequency,
   );
+  const monthlyScheduleSlots = normalizeInrAgentMonthScheduleSlots(
+    config.monthlyScheduleSlots?.length
+      ? config.monthlyScheduleSlots
+      : monthDays,
+    config.frequency,
+    config.time,
+  );
+  const normalizedSlots = normalizeConfigScheduleSlots(config);
   const now = new Date();
+  const isDaily = config.frequency === "Publier tous les jours";
+  const isWeeklyMulti =
+    config.frequency === "2 fois par semaine" ||
+    config.frequency === "3 fois par semaine";
   const isFirstWeekday = (date: Date, targetDay: number) =>
     date.getDay() === targetDay && date.getDate() <= 7;
 
   for (let offset = 0; offset <= 120; offset += 1) {
-    const candidates = normalizedSlots
+    const date = new Date(now.getTime());
+    date.setSeconds(0, 0);
+    date.setDate(date.getDate() + offset);
+    const monthlyTime = monthlyDateCount > 0
+      ? inrAgentMonthlyScheduleTimeForDate(
+          { year: date.getFullYear(), month: date.getMonth() + 1, day: date.getDate() },
+          monthlyScheduleSlots,
+        )
+      : null;
+    const daySlots = monthlyDateCount > 0
+      ? monthlyTime ? [{ day: config.day, time: monthlyTime }] : []
+      : normalizedSlots;
+    const candidates = daySlots
       .map((slot) => {
         const targetDay = weekdayMap[slot.day] ?? 1;
         const [hour, minute] = slot.time
           .split(":")
           .map((value) => Number(value || 0));
-        const candidate = new Date(now.getTime());
-        candidate.setSeconds(0, 0);
-        candidate.setDate(candidate.getDate() + offset);
+        const candidate = new Date(date.getTime());
         candidate.setHours(hour, minute, 0, 0);
         if (candidate.getTime() <= now.getTime()) return null;
-        const ok =
+        const matches =
           monthlyDateCount > 0
-            ? isInrAgentScheduledMonthDay(
-                {
-                  year: candidate.getFullYear(),
-                  month: candidate.getMonth() + 1,
-                  day: candidate.getDate(),
-                },
-                monthDays,
-              )
-            : config.frequency === "2 fois par semaine" ||
-          config.frequency === "3 fois par semaine"
-            ? candidate.getDay() === targetDay
-            : config.frequency === "Chaque trimestre"
+            ? true
+            : isDaily
+              ? candidate.getDay() === targetDay
+              : isWeeklyMulti
+                ? candidate.getDay() === targetDay
+                : config.frequency === "Chaque trimestre"
                   ? [0, 3, 6, 9].includes(candidate.getMonth()) &&
                     isFirstWeekday(candidate, targetDay)
                   : candidate.getDay() === targetDay;
-        return ok ? candidate : null;
+        return matches ? candidate : null;
       })
       .filter((candidate): candidate is Date => Boolean(candidate))
       .sort((a, b) => a.getTime() - b.getTime());

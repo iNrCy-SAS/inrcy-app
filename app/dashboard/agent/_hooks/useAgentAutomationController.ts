@@ -16,6 +16,7 @@ import {
 import {
   inrAgentMonthlyDateCount,
   normalizeInrAgentMonthDays,
+  normalizeInrAgentMonthScheduleSlots,
 } from "@/lib/inrAgentMonthSchedule";
 import type {
   AutomationConfig,
@@ -136,10 +137,16 @@ export function useAgentAutomationController({
       const normalizedSlots = normalizeConfigScheduleSlots({
         ...currentConfig,
         frequency,
-        scheduleSlots: currentConfig.scheduleSlots?.slice(0, 1),
       });
+      const monthlyScheduleSlots = normalizeInrAgentMonthScheduleSlots(
+        currentConfig.monthlyScheduleSlots?.length
+          ? currentConfig.monthlyScheduleSlots
+          : currentConfig.monthDays,
+        frequency,
+        currentConfig.time,
+      );
       const monthDays = normalizeInrAgentMonthDays(
-        currentConfig.monthDays,
+        monthlyScheduleSlots.map((slot) => slot.day),
         frequency,
       );
       return {
@@ -149,6 +156,7 @@ export function useAgentAutomationController({
           frequency,
           scheduleSlots: normalizedSlots,
           monthDays,
+          monthlyScheduleSlots,
           day: normalizedSlots[0].day,
           time: normalizedSlots[0].time,
         },
@@ -166,6 +174,9 @@ export function useAgentAutomationController({
     setConfigs((current) => {
       const currentConfig = current[key];
       const slots = normalizeConfigScheduleSlots(currentConfig);
+      if (patch.day && slots.some((slot, slotIndex) => slotIndex !== index && slot.day === patch.day)) {
+        return current;
+      }
       slots[index] = { ...slots[index], ...patch };
       return {
         ...current,
@@ -180,34 +191,51 @@ export function useAgentAutomationController({
     setNotice(null);
   }
 
-  function updateConfigMonthDay(
+  function updateConfigMonthScheduleSlot(
     key: AutomationKey,
     index: number,
-    value: number,
+    patch: Partial<{ day: number; time: string }>,
   ) {
     setConfigs((current) => {
       const currentConfig = current[key];
       const count = inrAgentMonthlyDateCount(currentConfig.frequency);
       if (!count || index < 0 || index >= count) return current;
-      const monthDays = normalizeInrAgentMonthDays(
-        currentConfig.monthDays,
+      const slots = normalizeInrAgentMonthScheduleSlots(
+        currentConfig.monthlyScheduleSlots?.length
+          ? currentConfig.monthlyScheduleSlots
+          : currentConfig.monthDays,
         currentConfig.frequency,
+        currentConfig.time,
       );
-      const day = Math.min(31, Math.max(1, Math.floor(Number(value)) || 1));
-      if (monthDays.some((candidate, itemIndex) => itemIndex !== index && candidate === day)) {
+      const day = patch.day === undefined
+        ? slots[index].day
+        : Math.min(31, Math.max(1, Math.floor(Number(patch.day)) || 1));
+      if (patch.day !== undefined && slots.some((slot, slotIndex) => slotIndex !== index && slot.day === day)) {
         return current;
       }
-      monthDays[index] = day;
+      slots[index] = { ...slots[index], ...patch, day };
+      slots.sort((left, right) => left.day - right.day);
+      const monthDays = slots.map((slot) => slot.day);
       return {
         ...current,
         [key]: {
           ...currentConfig,
-          monthDays: monthDays.sort((a, b) => a - b),
+          monthDays,
+          monthlyScheduleSlots: slots,
+          ...(index === 0 && patch.time ? { time: patch.time } : {}),
         },
       };
     });
     setSaveState("idle");
     setNotice(null);
+  }
+
+  function updateConfigMonthDay(
+    key: AutomationKey,
+    index: number,
+    value: number,
+  ) {
+    updateConfigMonthScheduleSlot(key, index, { day: value });
   }
 
   async function persistSettings(
@@ -685,6 +713,7 @@ export function useAgentAutomationController({
     updateConfigFrequency,
     updateConfigScheduleSlot,
     updateConfigMonthDay,
+    updateConfigMonthScheduleSlot,
     saveSettings,
     setAutomationEnabled,
     confirmEditorialPlanSettings,

@@ -318,6 +318,7 @@ import {
   normalizeConfigsForConnectedChannels,
   dayOffsetLabel,
   normalizeConfigScheduleSlots,
+  normalizeConfigMonthScheduleSlots,
   settingsToConfigs,
   configsToSettings,
 } from "./_lib/agent.settings";
@@ -632,11 +633,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
   } | null>(null);
   const [settingsKey, setSettingsKey] = useState<AutomationKey | null>(null);
   const [agentReferenceBusy, setAgentReferenceBusy] = useState(false);
-  const settingsDialogRef = useRef<HTMLElement | null>(null);
-  const [settingsAutoCompact, setSettingsAutoCompact] = useState(false);
-  const [settingsCompactPanel, setSettingsCompactPanel] = useState<
-    "planning" | "channels" | "generation" | "references"
-  >("planning");
+  const [settingsPlanningOpen, setSettingsPlanningOpen] = useState(false);
   const [publicationIdeasOpen, setPublicationIdeasOpen] = useState(false);
   const [publicationIdeasDraft, setPublicationIdeasDraft] = useState<string[]>([]);
   const [publicationIdeasSaveState, setPublicationIdeasSaveState] = useState<
@@ -981,6 +978,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     updateConfigFrequency,
     updateConfigScheduleSlot,
     updateConfigMonthDay,
+    updateConfigMonthScheduleSlot,
     saveSettings,
     setAutomationEnabled,
     confirmEditorialPlanSettings,
@@ -1315,7 +1313,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     ? inrAgentMonthlyDateCount(settingsConfig.frequency)
     : 0;
   const settingsCanUseAdminPublishOptions = settingsAutomation?.key === "publish" && viewerIsAdmin;
-  const settingsAdminAutomaticAvailable = settingsCanUseAdminPublishOptions && Boolean(settingsConfig?.enabled && agentSettings.globalEnabled);
+  const settingsAdminAutomaticAvailable = settingsCanUseAdminPublishOptions;
   const settingsPublishDaily = settingsCanUseAdminPublishOptions && settingsConfig?.frequency ===
     settingsOptions.publish.frequency.find((option) => option.value === "daily")?.label;
   const settingsPublishWithoutApproval = settingsCanUseAdminPublishOptions && settingsConfig?.validation ===
@@ -1341,22 +1339,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     setPublicationIdeaVoiceIndex(null);
     setDraggedPublicationIdea(null);
     setPublicationIdeaDropTarget(null);
-    setSettingsCompactPanel("planning");
-    setSettingsAutoCompact(false);
-  }, [settingsKey, publicationIdeasOpen]);
-  useEffect(() => {
-    if (settingsKey !== "publish" || publicationIdeasOpen) return;
-    const dialog = settingsDialogRef.current;
-    if (!dialog) return;
-    const fit = () => {
-      if (dialog.scrollHeight > dialog.clientHeight + 2) setSettingsAutoCompact(true);
-    };
-    const observer = new ResizeObserver(fit);
-    observer.observe(dialog);
-    dialog.querySelectorAll("[data-settings-panel], header, footer").forEach(element => observer.observe(element));
-    window.addEventListener("resize", fit);
-    fit();
-    return () => { observer.disconnect(); window.removeEventListener("resize", fit); };
+    setSettingsPlanningOpen(false);
   }, [settingsKey, publicationIdeasOpen]);
   useEffect(() => {
     if (!publicationIdeasOpen) return;
@@ -3936,9 +3919,15 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     if (loadState === "loading" || saveState === "saving") return;
     if (configs[key].enabled) { void setAutomationEnabled(key, false); return; }
     openAgentConfirmDialog({
-      title: i18nT("automation_enable_confirm_title"),
-      message: i18nT("automation_enable_confirm_message"),
-      confirmLabel: i18nT("automation_enable_confirm_yes"),
+      title: key === "publish" && configs[key].validation === settingsOptions.publish.validation.find((option) => option.value === "admin_automatic_publish")?.label
+        ? i18nT("automatic_publish_confirm_title")
+        : i18nT("automation_enable_confirm_title"),
+      message: key === "publish" && configs[key].validation === settingsOptions.publish.validation.find((option) => option.value === "admin_automatic_publish")?.label
+        ? i18nT("automatic_publish_confirm_message")
+        : i18nT("automation_enable_confirm_message"),
+      confirmLabel: key === "publish" && configs[key].validation === settingsOptions.publish.validation.find((option) => option.value === "admin_automatic_publish")?.label
+        ? i18nT("automatic_publish_confirm_action")
+        : i18nT("automation_enable_confirm_yes"),
       alternateLabel: i18nT("automation_enable_confirm_verify"),
       hideCancel: true,
       onConfirm: async () => { await setAutomationEnabled(key, true); },
@@ -8193,14 +8182,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
         >
           <section data-inrcy-tool-dialog
             className={`${styles.settingsModal} ${styles.automationSettingsModal} ${publicationIdeasOpen ? styles.publicationIdeasWorkspace : ""} ${settingsAutomation.key === "publish" && !publicationIdeasOpen ? styles.publishSettingsCanvas : ""}`}
-            ref={settingsDialogRef}
             data-automation={settingsAutomation.key}
-            data-active-panel={settingsCompactPanel}
-            data-auto-compact={settingsAutoCompact || undefined}
-            onFocusCapture={(event) => {
-              const panel = (event.target as HTMLElement).closest<HTMLElement>("[data-settings-panel]")?.dataset.settingsPanel;
-              if (panel === "planning" || panel === "channels" || panel === "generation" || panel === "references") setSettingsCompactPanel(panel);
-            }}
             role="dialog"
             aria-modal="true"
             aria-label={publicationIdeasOpen
@@ -8244,24 +8226,309 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
               </div>
             </header>
 
-            {settingsAutomation.key === "publish" && !publicationIdeasOpen ? (
-              <nav className={styles.settingsSectionNav} aria-label={i18nT("settings_sections_label")}>
-                {(["planning", "channels", "generation", "references"] as const).map((panel) => (
-                  <button
-                    key={panel}
-                    type="button"
-                    aria-pressed={settingsCompactPanel === panel}
-                    onClick={() => setSettingsCompactPanel(panel)}
-                  >
-                    {i18nT(`settings_section_${panel}`)}
-                    {panel === "references" && settingsConfig.mediaReferences?.items.length ? (
-                      <span>{settingsConfig.mediaReferences.items.length}</span>
-                    ) : null}
-                  </button>
-                ))}
-              </nav>
-            ) : null}
+            {settingsAutomation.key === "publish" ? (
+              <div
+                className={`${styles.settingsModalLayout} ${styles.publishSettingsLayout}`}
+                style={{ display: publicationIdeasOpen ? "none" : undefined }}
+              >
+              <section className={`${styles.modalGrid} ${styles.settingsScheduleGrid}`}>
+                <h3 className={styles.settingsSectionHeading}>{i18nT("settings_section_planning")}</h3>
+                <div className={styles.settingsPlanningControls}>
+                  <label>
+                    <span>{i18nT("frequence_bafbfba7")}</span>
+                    <select
+                      value={settingsConfig.frequency}
+                      aria-describedby={settingsPublishDaily ? "agent-publish-daily-hint" : undefined}
+                      onChange={(event) => updateConfigFrequency(settingsAutomation.key, event.target.value)}
+                    >
+                      {settingsOptions.publish.frequency
+                        .filter((option) => option.value !== "daily" || settingsCanUseAdminPublishOptions)
+                        .map((frequency) => (
+                          <option key={frequency.value} value={frequency.label}>
+                            {agentFrequencyLabel(frequency.label, runtimeT)}
+                          </option>
+                        ))}
+                    </select>
+                    {settingsPublishDaily ? <small id="agent-publish-daily-hint">{i18nT("agent_admin_publish_daily_hint")}</small> : null}
+                  </label>
+                  <label>
+                    <span>{i18nT("contenus_prepares_a_l_avance_aa0119d0")}</span>
+                    <select
+                      value={settingsConfig.planningHorizonDays}
+                      onChange={(event) => updateConfig(settingsAutomation.key, {
+                        planningHorizonDays: Number(event.target.value) === 30 ? 30 : Number(event.target.value) === 7 ? 7 : 15,
+                      })}
+                    >
+                      <option value={7}>{i18nT("7_jours_a0f70b5c")}</option>
+                      <option value={15}>{i18nT("15_jours_recommande_9f4bc5ad")}</option>
+                      <option value={30}>{i18nT("1_mois_e5493c85")}</option>
+                    </select>
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  className={styles.settingsPlanningToggle}
+                  aria-expanded={settingsPlanningOpen}
+                  aria-controls="agent-publish-schedule-table"
+                  onClick={() => setSettingsPlanningOpen((open) => !open)}
+                >
+                  <span>{i18nT("settings_section_planning")}</span>
+                  <span aria-hidden="true">{settingsPlanningOpen ? "−" : "+"}</span>
+                </button>
+                {settingsPlanningOpen ? (
+                  <div id="agent-publish-schedule-table" className={styles.settingsScheduleSlotTable}>
+                    {settingsMonthlyDateCount > 0
+                      ? normalizeConfigMonthScheduleSlots(settingsConfig).map((slot, index, slots) => (
+                          <div className={styles.settingsScheduleSlotRow} key={`month-${index}`}>
+                            <label>
+                              <span>{i18nT("date_eb9a4bc1")}{settingsMonthlyDateCount > 1 ? ` ${index + 1}` : ""}</span>
+                              <select value={slot.day} onChange={(event) => updateConfigMonthScheduleSlot(settingsAutomation.key, index, { day: Number(event.target.value) })}>
+                                {Array.from({ length: 31 }, (_, optionIndex) => {
+                                  const day = optionIndex + 1;
+                                  const duplicate = slots.some((candidate, selectedIndex) => selectedIndex !== index && candidate.day === day);
+                                  return <option key={day} value={day} disabled={duplicate}>{day}</option>;
+                                })}
+                              </select>
+                            </label>
+                            <label>
+                              <span>{i18nT("horaire_db0addb3")}</span>
+                              <select value={slot.time} onChange={(event) => updateConfigMonthScheduleSlot(settingsAutomation.key, index, { time: event.target.value })}>
+                                {hourOptions.map((hour) => <option key={hour}>{hour}</option>)}
+                              </select>
+                            </label>
+                          </div>
+                        ))
+                      : normalizeConfigScheduleSlots(settingsConfig).map((slot, index, slots) => (
+                          <div className={styles.settingsScheduleSlotRow} key={`week-${index}`}>
+                            <label>
+                              <span>{i18nT("jour_240ce85d")}{!settingsPublishDaily && slots.length > 1 ? ` ${index + 1}` : ""}</span>
+                              {settingsPublishDaily ? (
+                                <output className={styles.settingsScheduleDay}>{agentWeekdayLabel(slot.day, runtimeT)}</output>
+                              ) : (
+                                <select value={slot.day} onChange={(event) => updateConfigScheduleSlot(settingsAutomation.key, index, { day: event.target.value })}>
+                                  {weekDays.map((day) => {
+                                    const duplicate = slots.some((candidate, selectedIndex) => selectedIndex !== index && candidate.day === day);
+                                    return <option key={day} value={day} disabled={duplicate}>{agentWeekdayLabel(day, runtimeT)}</option>;
+                                  })}
+                                </select>
+                              )}
+                            </label>
+                            <label>
+                              <span>{i18nT("horaire_db0addb3")}</span>
+                              <select value={slot.time} onChange={(event) => updateConfigScheduleSlot(settingsAutomation.key, index, { time: event.target.value })}>
+                                {hourOptions.map((hour) => <option key={hour}>{hour}</option>)}
+                              </select>
+                            </label>
+                          </div>
+                        ))}
+                  </div>
+                ) : null}
+              </section>
+              {settingsAutomation.key === "publish" && (
+                <div
+                  className={`${styles.modalSection} ${styles.settingsPreferredMediaFullWidth}`}
+                 
+                >
+                  <span>{i18nT("preferred_media_title")}</span>
+                  <p className={styles.modalHint}>
+                    {i18nT("preferred_media_hint")}
+                  </p>
+                  <div className={styles.settingsMediaPreferencesRow}>
+                    <div className={styles.choiceGrid}>
+                      {(
+                        [
+                          ["media_library", "preferred_media_library"],
+                          ["image_bank", "preferred_media_bank"],
+                          ["ai_generation", "preferred_media_ai"],
+                        ] as const
+                      ).map(([value, label]) => (
+                        <button
+                          type="button"
+                          key={value}
+                          aria-pressed={settingsConfig.preferredMediaSource === value}
+                          className={
+                            settingsConfig.preferredMediaSource === value
+                              ? styles.choiceActive
+                              : ""
+                          }
+                          onClick={() =>
+                            updateConfig(settingsAutomation.key, {
+                              preferredMediaSource: value,
+                            })
+                          }
+                        >
+                          {i18nT(label)}
+                        </button>
+                      ))}
+                    </div>
+                    <fieldset className={styles.publicationMediaTypes}>
+                      <legend>{i18nT("publication_media_types")}</legend>
+                      <label data-selected="true" data-required="true">
+                        <input type="checkbox" checked disabled />
+                        <span>{i18nT("publication_media_single_image")}</span>
+                        <small>{settingsSingleImagePercent} %</small>
+                      </label>
+                      <label data-selected={settingsPublicationMediaTypes.video || undefined}>
+                        <input
+                          type="checkbox"
+                          checked={settingsPublicationMediaTypes.video}
+                          onChange={(event) => updateConfig("publish", {
+                            publicationMediaTypes: {
+                              ...settingsPublicationMediaTypes,
+                              video: event.target.checked,
+                            },
+                          })}
+                        />
+                        <span>{i18nT("publication_media_video")}</span>
+                        <small>10 %</small>
+                      </label>
+                      <label data-selected={settingsPublicationMediaTypes.carousel || undefined}>
+                        <input
+                          type="checkbox"
+                          checked={settingsPublicationMediaTypes.carousel}
+                          onChange={(event) => updateConfig("publish", {
+                            publicationMediaTypes: {
+                              ...settingsPublicationMediaTypes,
+                              carousel: event.target.checked,
+                            },
+                          })}
+                        />
+                        <span>{i18nT("publication_media_carousel")}</span>
+                        <small>20 %</small>
+                      </label>
+                    </fieldset>
+                  </div>
+                  {settingsConfig.preferredMediaSource === "ai_generation" ? (
+                    <div className={styles.studioMediaMixControl}>
+                      <div className={styles.studioMediaMixHeader}>
+                        <span>{i18nT("studio_media_preference_title")}</span>
+                        <strong>{settingsStudioMediaPreferenceStep}%</strong>
+                      </div>
+                      <div className={styles.studioMediaMixRangeWrap}>
+                        <input
+                          className={styles.studioMediaMixRange}
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={20}
+                          list={`studio-media-preference-steps-${settingsAutomation.key}`}
+                          value={settingsStudioMediaPreferenceStep}
+                          aria-label={i18nT("studio_media_preference_title")}
+                          onChange={(event) =>
+                            updateConfig(settingsAutomation.key, {
+                              studioMediaPreferencePercent: Number(
+                                event.target.value
+                              ),
+                            })
+                          }
+                        />
+                        <datalist
+                          id={`studio-media-preference-steps-${settingsAutomation.key}`}
+                        >
+                          {INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS.map(
+                            (step) => (
+                              <option
+                                key={step}
+                                value={step}
+                                label={`${step}%`}
+                              />
+                            )
+                          )}
+                        </datalist>
+                        <div
+                          className={styles.studioMediaMixTicks}
+                          aria-hidden="true"
+                        >
+                          {INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS.map(
+                            (step) => (
+                              <span
+                                key={step}
+                                style={{ left: `${step}%` }}
+                                className={
+                                  step === settingsStudioMediaPreferenceStep
+                                    ? styles.studioMediaMixTickActive
+                                    : ""
+                                }
+                              >
+                                {step}%
+                              </span>
+                            )
+                          )}
+                        </div>
+                      </div>
+                      <p className={styles.studioMediaMixDescription}>
+                        {i18nT(
+                          STUDIO_MEDIA_PREFERENCE_DESCRIPTION_KEYS[
+                            settingsStudioMediaPreferenceStep
+                          ]
+                        )}
+                      </p>
+                      <p className={styles.modalHint}>
+                        {i18nT("studio_media_preference_hint")}
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
+              )}
 
+              <div className={styles.settingsContentColumn}>
+                <section className={`${styles.modalSection} ${styles.settingsOptionCard} ${styles.settingsChannelsCard}`}>
+                  <AgentSettingsMultiSelect
+                    label={i18nT("settings_section_channels")}
+                    disabled={saveState === "saving" || connectedChannelsLoadState === "loading"}
+                    selected={settingsConfig.channels}
+                    options={settingsDisplayedChannels.map(channelKey => ({
+                      value: channelKey,
+                      label: agentChannelLabel(channelKey, runtimeT),
+                      icon: channelOptions[channelKey].src,
+                      disabled: connectedChannelsLoadState === "ready" && !settingsAvailableChannels.includes(channelKey),
+                    }))}
+                    onToggle={value => {
+                      const channel = settingsDisplayedChannels.find(key => key === value);
+                      if (channel) updateConfig("publish", { channels: toggleChannelItem(settingsConfig.channels, channel, settingsAvailableChannels) });
+                    }}
+                  />
+                </section>
+                <section className={`${styles.modalSection} ${styles.settingsOptionCard} ${styles.settingsThemesCard}`}>
+                  <AgentSettingsMultiSelect
+                    label={i18nT("themes_5dfcd420")}
+                    disabled={saveState === "saving"}
+                    selected={settingsConfig.themes}
+                    options={settingsAvailableThemes.map(theme => ({ value: theme, label: agentThemeLabel(theme, runtimeT) }))}
+                    onToggle={theme => updateConfig("publish", { themes: toggleItem(settingsConfig.themes, theme) })}
+                  />
+                </section>
+              </div>
+              <section className={`${styles.settingsReferencesSection} ${styles.settingsReferenceCard}`}>
+                <h3 className={styles.settingsSectionHeading}>{i18nT("settings_section_references")} / documents</h3>
+                <AgentMediaReferences
+                  value={settingsConfig.mediaReferences}
+                  disabled={saveState === "saving"}
+                  videoEnabled={settingsPublicationMediaTypes.video}
+                  onChange={(mediaReferences) => updateConfig("publish", { mediaReferences })}
+                  onBusyChange={setAgentReferenceBusy}
+                />
+              </section>
+              <section className={`${styles.modalSection} ${styles.settingsValidationCard}`}>
+                <h3 className={styles.settingsSectionHeading}>{i18nT("validation_dd74d182")}</h3>
+                <label>
+                  <span>{i18nT("validation_dd74d182")}</span>
+                  <select
+                    value={settingsConfig.validation}
+                    aria-describedby={settingsPublishWithoutApproval ? "agent-publish-without-approval-hint" : undefined}
+                    onChange={(event) => updateConfig(settingsAutomation.key, { validation: event.target.value })}
+                  >
+                    {settingsOptions.publish.validation
+                      .filter((option) => option.value !== "admin_automatic_publish" || settingsCanUseAdminPublishOptions)
+                      .map((option) => (
+                        <option key={option.value} value={option.label}>{agentValidationLabel(option.label, runtimeT)}</option>
+                      ))}
+                  </select>
+                  {settingsPublishWithoutApproval ? <small id="agent-publish-without-approval-hint">{i18nT("agent_admin_publish_without_approval_hint")}</small> : null}
+                </label>
+              </section>
+              </div>
+            ) : (
             <div
               className={styles.settingsModalLayout}
               style={{
@@ -8272,7 +8539,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                 className={`${styles.modalGrid} ${styles.settingsScheduleGrid}`}
                 data-settings-panel="planning"
               >
-                {settingsAutomation.key === "publish" ? <h3 className={styles.settingsSectionHeading}>{i18nT("settings_section_planning")}</h3> : null}
+                <h3 className={styles.settingsSectionHeading}>{i18nT("settings_section_planning")}</h3>
                 <label>
                   <span>{i18nT("frequence_bafbfba7")}</span>
                   <select
@@ -8295,8 +8562,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                   </select>
                   {settingsPublishDaily ? <small id="agent-publish-daily-hint">{i18nT("agent_admin_publish_daily_hint")}</small> : null}
                 </label>
-                {settingsAutomation.key === "publish" ? (
-                  <label>
+                <label>
                     <span>
                       {i18nT("contenus_prepares_a_l_avance_aa0119d0")}
                     </span>
@@ -8317,8 +8583,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                       <option value={15}>{i18nT("15_jours_recommande_9f4bc5ad")}</option>
                       <option value={30}>{i18nT("1_mois_e5493c85")}</option>
                     </select>
-                  </label>
-                ) : null}
+                </label>
                 {settingsMonthlyDateCount > 0 ? (
                   <>
                     <div
@@ -8533,32 +8798,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
               </div>
 
               <div className={styles.settingsContentColumn} data-settings-panel="channels">
-                {settingsAutomation.key === "publish" ? (
-                  <>
-                    <AgentSettingsMultiSelect
-                      label={i18nT("settings_section_channels")}
-                      disabled={saveState === "saving" || connectedChannelsLoadState === "loading"}
-                      selected={settingsConfig.channels}
-                      options={settingsDisplayedChannels.map(channelKey => ({
-                        value: channelKey,
-                        label: agentChannelLabel(channelKey, runtimeT),
-                        icon: channelOptions[channelKey].src,
-                        disabled: connectedChannelsLoadState === "ready" && !settingsAvailableChannels.includes(channelKey),
-                      }))}
-                      onToggle={value => {
-                        const channel = settingsDisplayedChannels.find(key => key === value);
-                        if (channel) updateConfig("publish", { channels: toggleChannelItem(settingsConfig.channels, channel, settingsAvailableChannels) });
-                      }}
-                    />
-                    <AgentSettingsMultiSelect
-                      label={i18nT("themes_5dfcd420")}
-                      disabled={saveState === "saving"}
-                      selected={settingsConfig.themes}
-                      options={settingsAvailableThemes.map(theme => ({ value: theme, label: agentThemeLabel(theme, runtimeT) }))}
-                      onToggle={theme => updateConfig("publish", { themes: toggleItem(settingsConfig.themes, theme) })}
-                    />
-                  </>
-                ) : isCampaignAutomationKey(settingsAutomation.key) ? (
+                {isCampaignAutomationKey(settingsAutomation.key) ? (
                   <>
                     <div className={styles.campaignSettingsPair}>
                       <div className={styles.modalSection}>
@@ -8826,164 +9066,9 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                 )}
               </div>
 
-              {settingsAutomation.key === "publish" && (
-                <div
-                  className={`${styles.modalSection} ${styles.settingsPreferredMediaFullWidth}`}
-                  data-settings-panel="generation"
-                >
-                  <span>{i18nT("preferred_media_title")}</span>
-                  <p className={styles.modalHint}>
-                    {i18nT("preferred_media_hint")}
-                  </p>
-                  <div className={styles.settingsMediaPreferencesRow}>
-                    <div className={styles.choiceGrid}>
-                      {(
-                        [
-                          ["media_library", "preferred_media_library"],
-                          ["image_bank", "preferred_media_bank"],
-                          ["ai_generation", "preferred_media_ai"],
-                        ] as const
-                      ).map(([value, label]) => (
-                        <button
-                          type="button"
-                          key={value}
-                          aria-pressed={settingsConfig.preferredMediaSource === value}
-                          className={
-                            settingsConfig.preferredMediaSource === value
-                              ? styles.choiceActive
-                              : ""
-                          }
-                          onClick={() =>
-                            updateConfig(settingsAutomation.key, {
-                              preferredMediaSource: value,
-                            })
-                          }
-                        >
-                          {i18nT(label)}
-                        </button>
-                      ))}
-                    </div>
-                    <fieldset className={styles.publicationMediaTypes}>
-                      <legend>{i18nT("publication_media_types")}</legend>
-                      <label data-selected="true" data-required="true">
-                        <input type="checkbox" checked disabled />
-                        <span>{i18nT("publication_media_single_image")}</span>
-                        <small>{settingsSingleImagePercent} %</small>
-                      </label>
-                      <label data-selected={settingsPublicationMediaTypes.video || undefined}>
-                        <input
-                          type="checkbox"
-                          checked={settingsPublicationMediaTypes.video}
-                          onChange={(event) => updateConfig("publish", {
-                            publicationMediaTypes: {
-                              ...settingsPublicationMediaTypes,
-                              video: event.target.checked,
-                            },
-                          })}
-                        />
-                        <span>{i18nT("publication_media_video")}</span>
-                        <small>10 %</small>
-                      </label>
-                      <label data-selected={settingsPublicationMediaTypes.carousel || undefined}>
-                        <input
-                          type="checkbox"
-                          checked={settingsPublicationMediaTypes.carousel}
-                          onChange={(event) => updateConfig("publish", {
-                            publicationMediaTypes: {
-                              ...settingsPublicationMediaTypes,
-                              carousel: event.target.checked,
-                            },
-                          })}
-                        />
-                        <span>{i18nT("publication_media_carousel")}</span>
-                        <small>20 %</small>
-                      </label>
-                    </fieldset>
-                  </div>
-                  {settingsConfig.preferredMediaSource === "ai_generation" ? (
-                    <div className={styles.studioMediaMixControl}>
-                      <div className={styles.studioMediaMixHeader}>
-                        <span>{i18nT("studio_media_preference_title")}</span>
-                        <strong>{settingsStudioMediaPreferenceStep}%</strong>
-                      </div>
-                      <div className={styles.studioMediaMixRangeWrap}>
-                        <input
-                          className={styles.studioMediaMixRange}
-                          type="range"
-                          min={0}
-                          max={100}
-                          step={20}
-                          list={`studio-media-preference-steps-${settingsAutomation.key}`}
-                          value={settingsStudioMediaPreferenceStep}
-                          aria-label={i18nT("studio_media_preference_title")}
-                          onChange={(event) =>
-                            updateConfig(settingsAutomation.key, {
-                              studioMediaPreferencePercent: Number(
-                                event.target.value
-                              ),
-                            })
-                          }
-                        />
-                        <datalist
-                          id={`studio-media-preference-steps-${settingsAutomation.key}`}
-                        >
-                          {INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS.map(
-                            (step) => (
-                              <option
-                                key={step}
-                                value={step}
-                                label={`${step}%`}
-                              />
-                            )
-                          )}
-                        </datalist>
-                        <div
-                          className={styles.studioMediaMixTicks}
-                          aria-hidden="true"
-                        >
-                          {INR_AGENT_STUDIO_MEDIA_PREFERENCE_STEPS.map(
-                            (step) => (
-                              <span
-                                key={step}
-                                style={{ left: `${step}%` }}
-                                className={
-                                  step === settingsStudioMediaPreferenceStep
-                                    ? styles.studioMediaMixTickActive
-                                    : ""
-                                }
-                              >
-                                {step}%
-                              </span>
-                            )
-                          )}
-                        </div>
-                      </div>
-                      <p className={styles.studioMediaMixDescription}>
-                        {i18nT(
-                          STUDIO_MEDIA_PREFERENCE_DESCRIPTION_KEYS[
-                            settingsStudioMediaPreferenceStep
-                          ]
-                        )}
-                      </p>
-                      <p className={styles.modalHint}>
-                        {i18nT("studio_media_preference_hint")}
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-              )}
-              {settingsAutomation.key === "publish" ? (
-                <div className={styles.settingsReferencesSection} data-settings-panel="references">
-                  <AgentMediaReferences
-                    value={settingsConfig.mediaReferences}
-                    disabled={saveState === "saving"}
-                    videoEnabled={settingsPublicationMediaTypes.video}
-                    onChange={(mediaReferences) => updateConfig("publish", { mediaReferences })}
-                    onBusyChange={setAgentReferenceBusy}
-                  />
-                </div>
-              ) : null}
+
             </div>
+            )}
 
             {publicationIdeasOpen ? (
               <AgentPublicationIdeasEditor
