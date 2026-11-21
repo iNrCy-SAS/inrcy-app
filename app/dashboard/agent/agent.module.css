@@ -1676,25 +1676,6 @@
   line-height: 1.4;
 }
 
-.publicationPreparationNotice {
-  margin: 0;
-  padding: 10px 12px;
-  border: 1px solid rgba(103, 232, 249, 0.3);
-  border-radius: 12px;
-  color: #cffafe;
-  background: rgba(8, 47, 73, 0.35);
-  font-size: 13px;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-
-.publicationPreparationNotice[data-state="retry"],
-.publicationPreparationNotice[data-state="scheduling_retry"] {
-  border-color: rgba(251, 191, 36, 0.35);
-  color: #fef3c7;
-  background: rgba(120, 53, 15, 0.2);
-}
-
 /* Ajustements V2 — iNrAgent automatisations */
 
 .automationCard {
@@ -21818,6 +21799,36 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .workspaceEditBanner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 16px; border: 1px solid #b48cfa55; border-radius: 14px; background: #48356d3b; color: #dcd3ef; font-size: 12px; }
 .workspaceEditBanner > svg { width: 20px; height: 20px; }
 .workspaceEditBanner button { margin-left: auto; padding: 8px 12px; border: 1px solid #9b85d46b; border-radius: 10px; background: #38265c; color: #fff; font: inherit; cursor: pointer; }
+.publicationInfoBand {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  min-width: 0;
+  padding: 9px 14px;
+  border: 1px solid #51d4ef40;
+  border-radius: 12px;
+  background: linear-gradient(105deg, #0f4c8f30, #542b812e);
+  color: #bfe9f3;
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.publicationInfoBand > * { min-width: 0; max-width: 100%; }
+.publicationInfoBand > [data-state="retry"],
+.publicationInfoBand > [data-state="scheduling_retry"] { color: #f3d69d; }
+.publicationInfoBand > .publishTextUrlError {
+  flex: 0 1 auto;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  color: #ffb7c9;
+  font: inherit;
+}
+.publicationInfoBand > .workspaceEditBanner { padding: 0; border: 0; background: transparent; }
+.publicationInfoBand .workspaceEditBanner button { padding: 4px 9px; }
 .agentWorkspace[data-agent-workspace="campaigns"] .previewMeta { flex-wrap: wrap; }
 @media (max-width: 760px) {
   .agentWorkspace .agentCanvas, .agentWorkspace .mainGrid, .agentWorkspace .workColumn { height: auto !important; overflow: visible !important; }

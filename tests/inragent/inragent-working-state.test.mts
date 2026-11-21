@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import ts from "typescript";
 
 import { isInrAgentEditorialPreparationRunning } from "../../app/dashboard/agent/_lib/agent.utils.ts";
 
@@ -86,7 +87,21 @@ test("la roulette affiche la progression estimée sans annoncer 100 % avant la r
     styles,
     /\.robotWorkingProgress \{[\s\S]*?font-variant-numeric: tabular-nums/,
   );
-  assert.match(client, /status=\{[\s\S]*?agentWorkingLabel[\s\S]*?prepareProgress\.percent/);
+  const ast = ts.createSourceFile("AgentClient.tsx", client, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let status: ts.Expression | undefined;
+  const visit = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node) && node.name.getText(ast) === "workspaceStatus") status = node.initializer;
+    ts.forEachChild(node, visit);
+  };
+  visit(ast);
+  assert.ok(status, "the shared workspace status must include the actual working progression");
+  const readStatus = new Function("isInstantPublicationPreview", "loadState", "agentWorking", "agentWorkingLabel", "prepareProgress", "showEditorialCronWait", "workspace", "i18nT", `return (${status.getText(ast)});`);
+  for (const workspace of ["publications", "campaigns", "stats"]) {
+    assert.equal(readStatus(false, "ready", true, "Préparation", { percent: 37 }, false, workspace, (key: string) => key), "Préparation · 37%");
+    assert.equal(readStatus(false, "ready", true, "Préparation", null, false, workspace, (key: string) => key), "Préparation");
+  }
+  assert.match(client, /status=\{isPublishView \? undefined : workspaceStatus\}/, "other workspaces retain the shared status in the header");
+  assert.match(client, /className=\{styles\.publicationInfoBand\}[\s\S]*?<span role="status">\{workspaceStatus\}<\/span>/, "publication progression appears in the single info band");
   assert.match(controller, /current\.percent >= 99/);
   assert.match(controller, /Math\.min\(99, current\.percent \+ increment\)/);
   assert.match(

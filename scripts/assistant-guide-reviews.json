@@ -63,7 +63,7 @@
       "sources": {
         "app/api/agent/settings/route.ts": "47ea516c4f5a274a15d7dd26a874dfe67c9a3bb30a27aca276f0375095c1390b",
         "app/api/cron/inr-agent-editorial-plan/route.ts": "9d3c4d2f7fa1be16522131ac620fc9053d18fdfba452d0639c8c0461997138ef",
-        "app/dashboard/agent/AgentClient.tsx": "c30cb31f600517837bb52628f4ce60d5c4a30cb155e4369f44a092fa1eee9786",
+        "app/dashboard/agent/AgentClient.tsx": "62a2731cfe2f406325402e4f0c20970c7dfec2723e4c22f81c52cee4be2b376c",
         "app/dashboard/agent/_components/AgentCampaignAccess.tsx": "8e3f0f5b88450f9ee677423bd50267f22c258cbc138b6140cd73c50f3761b7f8",
         "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx": "1dc572dc23348d8f8593811b789935b1e3c908aae5fca57e645be2b02d320272",
         "app/dashboard/agent/_lib/agent.publish-preview.ts": "daeebe9fc5bfb3b524bb0f81713e684a5b079284a888deb7278527b4e22f96eb",

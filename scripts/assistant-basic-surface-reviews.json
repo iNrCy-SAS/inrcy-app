@@ -439,7 +439,7 @@
     "app/dashboard/ads/adsPublicErrorMessages.ts": "8820593eec6835f2e48c73fa09f34fa7f75092b346314dfc27feef89add642fe",
     "app/dashboard/ads/useAdsErrorMessage.ts": "69aaeed2e595a018bb34bb9c7b4e8387281ecca28a7cae11a0cdb311b6b16c93",
     "app/dashboard/agenda/agenda.shared.ts": "1ec7e04f3bcd33e326a96051664bc2f4d5a58276595e6bb1316f517d0b7d6b79",
-    "app/dashboard/agent/AgentClient.tsx": "c30cb31f600517837bb52628f4ce60d5c4a30cb155e4369f44a092fa1eee9786",
+    "app/dashboard/agent/AgentClient.tsx": "62a2731cfe2f406325402e4f0c20970c7dfec2723e4c22f81c52cee4be2b376c",
     "app/dashboard/agent/_components/AgentActionModals.tsx": "3a811f07c9523a25143073d72a5ec646339b4370c0310abdb9100092c189ee77",
     "app/dashboard/agent/_components/AgentCampaignAccess.tsx": "8e3f0f5b88450f9ee677423bd50267f22c258cbc138b6140cd73c50f3761b7f8",
     "app/dashboard/agent/_components/AgentCampaignEditors.tsx": "f062dd61bc4cfb19dca2c805a7b60d9c7dfe00fc3ddd5eb2ef069186c425afa3",
@@ -486,7 +486,7 @@
     "app/dashboard/agent/_lib/agent.types.ts": "0292278d42c7ba6ee655657d5f00b994e87bd11dc9a5c61288914949c7d29da0",
     "app/dashboard/agent/_lib/agent.utils.ts": "4e45342dd06c142e631b32da8ae01f8e10ac392005affd230190f725069bc98b",
     "app/dashboard/agent/_lib/agent.workspace-messages.ts": "9d3627308c0172d6116c8242a8d1611465e21f7ea66d9e7b91b1d69e966e9ecd",
-    "app/dashboard/agent/agent.module.css": "b416ce26192321391d8250caed7c27d26e97b2e235969fa0646b2c7b266f24af",
+    "app/dashboard/agent/agent.module.css": "d897518a31637c8353cde3abfa21e16456603447e38102af287f11f194226d03",
     "app/dashboard/booster/booster.module.css": "ea2b444d2441244c09d5540240a299db8471f88e467271a2432e5e7b85871814",
     "app/dashboard/booster/publier/PublishModal.tsx": "80346f157786bb24814f3c86515357b87ab351385a5cab30860eb3a105be972f",
     "app/dashboard/booster/publier/boosterGenerationContext.ts": "67db37577540f7dbf65accd792ab332045bd1fb31454c78b8ba477d1831346c1",
@@ -1231,7 +1231,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "43f5aaa3ddd79e893ffbc9c865dc5dd5250b02ed601891f816b79ab46865fca0",
+    "lib/inrAssistantCodeIndex.generated.ts": "726d39137caa7275ca14116944d0247c46ba309ce80831a4f662c783f0601794",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -5998,7 +5998,7 @@
           ]
         }
       },
-      "sourceDigest": "c30cb31f600517837bb52628f4ce60d5c4a30cb155e4369f44a092fa1eee9786",
+      "sourceDigest": "62a2731cfe2f406325402e4f0c20970c7dfec2723e4c22f81c52cee4be2b376c",
       "controlIds": [
         "app/dashboard/agent/AgentClient.tsx#button:380930998349ff4d:1",
         "app/dashboard/agent/AgentClient.tsx#a:0cac81d26c803ef6:1",

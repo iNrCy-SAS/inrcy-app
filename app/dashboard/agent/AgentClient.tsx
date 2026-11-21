@@ -5494,6 +5494,22 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     : actionMutationState === "saving"
     ? i18nT("agent_working_updating")
     : i18nT("agent_working_saving");
+  const workspaceStatus = isInstantPublicationPreview ? undefined : loadState === "loading"
+    ? i18nT("synchronisation_60a2d2da")
+    : agentWorking ? `${agentWorkingLabel}${prepareProgress ? ` · ${prepareProgress.percent}%` : ""}`
+    : showEditorialCronWait && workspace === "publications" ? i18nT("next_editorial_publication_in_a_few_minutes") : undefined;
+  const publicationPreparationMessage = !noMatchingPublications ? publishPreparationStatus : null;
+  const publicationErrorMessage = !noMatchingPublications ? publishFailureMessage : null;
+  const publicationFeedbackMessage = notice && ![workspaceStatus, publicationPreparationMessage, publicationErrorMessage].includes(notice)
+    ? notice : null;
+  const scheduledEditBanner = scheduledEditSession ? (
+    <div className={styles.workspaceEditBanner} role="status">
+      <PencilActionIcon />
+      <strong>{i18nT("action_programmee_ea2709b8")}</strong>
+      <span>{scheduledEditDirty ? i18nT("modifications_non_sauvegardees_ffc636a4") : i18nT("aucune_modification_pour_le_moment_909aff44")}</span>
+      <button type="button" onClick={() => exitScheduledEditSession()}>{i18nT("quitter_l_edition_08b3f0cb")}</button>
+    </div>
+  ) : null;
 
   return (
     <main className={`${styles.agentPage} ${styles.agentWorkspace}`} data-agent-workspace={workspace} data-manual-publications-planning={manualPlanningOnly || undefined}>
@@ -5560,18 +5576,20 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
             || (selected.key !== "stats" && connectedChannelsLoadState === "ready" && selectedAvailableChannels.length === 0)
             || (selected.key === "publish" && !manualCredits.availability?.allowed)}
           prepareHelp={selected.key === "publish" ? manualCreditHelp || i18nT("instant_publish_action_help") : undefined}
-          status={isInstantPublicationPreview ? undefined : loadState === "loading" ? i18nT("synchronisation_60a2d2da")
-            : agentWorking ? `${agentWorkingLabel}${prepareProgress ? ` · ${prepareProgress.percent}%` : ""}`
-            : showEditorialCronWait && workspace === "publications" ? i18nT("next_editorial_publication_in_a_few_minutes") : undefined}
+          status={isPublishView ? undefined : workspaceStatus}
         />
-        {scheduledEditSession ? (
-          <div className={styles.workspaceEditBanner} role="status">
-            <PencilActionIcon />
-            <strong>{i18nT("action_programmee_ea2709b8")}</strong>
-            <span>{scheduledEditDirty ? i18nT("modifications_non_sauvegardees_ffc636a4") : i18nT("aucune_modification_pour_le_moment_909aff44")}</span>
-            <button type="button" onClick={() => exitScheduledEditSession()}>{i18nT("quitter_l_edition_08b3f0cb")}</button>
+        {isPublishView && (workspaceStatus || publicationPreparationMessage || publicationErrorMessage || publicationFeedbackMessage || scheduledEditSession) ? (
+          <div className={styles.publicationInfoBand} data-publication-info>
+            {workspaceStatus ? <span role="status">{workspaceStatus}</span> : null}
+            {publicationPreparationMessage && publicationPreparationMessage !== workspaceStatus ? (
+              <span data-state={publishPreparationState} role="status">{publicationPreparationMessage}</span>
+            ) : null}
+            <PublicationFailureNotice message={publicationErrorMessage} />
+            {publicationFeedbackMessage ? <span role="status">{publicationFeedbackMessage}</span> : null}
+            {scheduledEditBanner}
           </div>
         ) : null}
+        {!isPublishView ? scheduledEditBanner : null}
         <div className={styles.mainGrid}>
           <div className={styles.workColumn}>
             <section
@@ -5933,11 +5951,6 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                       disabled={Boolean(scheduledEditSession) || publicationRestoreState === "saving" || actionMutationState === "saving" || validationScheduleState === "saving" || tiktokSessionCheckState === "checking"}
                       onFilterChange={(state, checked) => setPublicationStatusFilters(current => ({ ...current, [state]: checked }))}
                     />
-                    {!noMatchingPublications && publishPreparationStatus ? (
-                      <p className={styles.publicationPreparationNotice} data-state={publishPreparationState} role="status">
-                        {publishPreparationStatus}
-                      </p>
-                    ) : null}
                     {noMatchingPublications ? <div className={styles.publicationFilterEmpty} role="status"><span aria-hidden>☷</span><strong>{i18nT("publication_filter_empty")}</strong><p>{i18nT("publication_filter_empty_hint")}</p></div> : null}
                     {!noMatchingPublications && (<div className={`${styles.publishInfoGrid} ${styles.publishInfoGridWithFormat}`}>
                       <AgentPublicationChannelList key={selectedPreparedAction?.id || "empty"} channels={orderChannels([...new Set([...selected.availableChannels, ...preparedChannels])], selected.availableChannels).map(key => ({ key, label: agentChannelLabel(key, runtimeT), src: channelOptions[key].src, connected: Boolean(agentConnectedChannels?.[key]), prepared: preparedChannels.includes(key) }))} selectedChannels={selectedPublishChannels} disabled={!canEditPublicationChannels} saving={publishChannelSelectionSaving} preparingChannel={publicationChannelPreparing} onChange={channels => void savePublicationChannelSelection(channels)} />
@@ -6317,14 +6330,12 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                           ) : null}
                           {activePublicationChannelEmpty ? (
                             <div className={styles.publicationEmptyChannel} role="alert">
-                              <PublicationFailureNotice message={publishFailureMessage} />
                               <span aria-hidden>⚠</span>
                               <strong>{i18nT("publication_channel_empty")}</strong>
                               <p>{i18nT("publication_channel_empty_help")}</p>
                             </div>
                           ) : publishMediaOnly ? (
                             <div className={styles.publishMediaOnlyNotice}>
-                              <PublicationFailureNotice message={publishFailureMessage} />
                               <span aria-hidden>🎬</span>
                               <strong>
                                 {publishPlacement === "story"
@@ -6335,7 +6346,6 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                             </div>
                           ) : (
                             <div className={styles.publishPostText}>
-                              <PublicationFailureNotice message={publishFailureMessage} />
                               <div className={styles.publishTitleLine}>
                                 <span>{i18nT("titre_d03e0c7c")}</span>
                                 {publishPreparationInProgress && !isInstantPublicationPreview ? (
@@ -9342,7 +9352,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       )}
 
       {studio}
-      {notice && <div className={styles.notice} role="status">{notice}</div>}
+      {!isPublishView && notice && <div className={styles.notice} role="status">{notice}</div>}
     </main>
   );
 }
