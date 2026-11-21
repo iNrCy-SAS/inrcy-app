@@ -1309,5 +1309,14 @@
       "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
       "app/dashboard/agent/AgentClient.tsx"
     ]
+  },
+  "app/dashboard/agent/_components/AgentSettingsPopover.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Ce bouton ouvre les listes Planning, Canaux, Thèmes et les aides Références dans les réglages de publication automatisée. Le bouton Réglages est masqué en planning manuel Basique.",
+    "gateAnchor": "!props.manualPlanningOnly",
+    "gateFiles": [
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+      "app/dashboard/agent/AgentClient.tsx"
+    ]
   }
 }

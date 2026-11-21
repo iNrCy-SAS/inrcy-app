@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLocale, useTranslations } from "next-intl";
 import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 import MediaReferenceInputs from "../../_components/MediaReferenceInputs";
@@ -14,6 +15,7 @@ import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 import { INR_AGENT_VIDEO_ENGINE } from "@/lib/inrAgentVideoPolicy";
 import { emptyInrAgentMediaReferences, inrAgentReferencePreviewUrl,
   type InrAgentMediaReference, type InrAgentMediaReferences } from "@/lib/inrAgentMediaReferences";
+import AgentSettingsPopover from "./AgentSettingsPopover";
 import styles from "./AgentMediaReferences.module.css";
 
 const ACCEPT = [...INR_MEDIA_ALLOWED_IMAGE_MIME_TYPES, ...INR_MEDIA_ALLOWED_VIDEO_MIME_TYPES,
@@ -27,7 +29,8 @@ export default function AgentMediaReferences(props: {
   const locale = useLocale();
   const mediaT = useTranslations("media");
   const value = props.value || emptyInrAgentMediaReferences();
-  const [libraryOpen, setLibraryOpen] = useState(false);
+  const section = useRef<HTMLElement>(null);
+  const [libraryHost, setLibraryHost] = useState<HTMLElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const controllerRef = useRef<AbortController | null>(null);
@@ -82,14 +85,20 @@ export default function AgentMediaReferences(props: {
   const locked = busy || props.disabled;
   const teamAnimation = props.videoEnabled && value.items.filter((item) => item.role === "character" && item.usage === "required").length > 1;
   const tooManyCharacters = value.items.filter((item) => item.role === "character" && item.usage === "required").length > 3;
-  return <section className={styles.panel} aria-label={t("media_references_title")}>
+  function information(text: string) {
+    return <AgentSettingsPopover label={mediaT("ai_generator_reference_information")}
+      triggerClassName={styles.information} panelClassName={styles.informationPanel} preferredWidth={320}
+      triggerContent={<span aria-hidden="true">i</span>}><p>{text}</p></AgentSettingsPopover>;
+  }
+  return <section className={styles.panel} ref={section} aria-label={t("media_references_title")}>
     <header><strong>{t("media_references_title")}</strong>
-      <details className={styles.information}><summary aria-label={mediaT("ai_generator_reference_information")}>i</summary><p>{t("media_references_hint")}</p></details>
+      {information(t("media_references_hint"))}
       <span>{value.items.length}/{AI_MEDIA_INSPIRATION_MAX_COUNT}</span></header>
     <p>{t("media_references_summary")}</p>
     <MediaReferenceInputs references={value.items.map((item) => ({ ...item, previewUrl: inrAgentReferencePreviewUrl(item.id) }))}
-      accept={ACCEPT} compact disabled={locked} information={mediaT("ai_generator_essential_new_scene_image")}
-      onFiles={(files) => { void addFiles(files); }} onLibrary={() => setLibraryOpen(true)}
+      accept={ACCEPT} compact disabled={locked} informationControl={information(mediaT("ai_generator_essential_new_scene_image"))}
+      onFiles={(files) => { void addFiles(files); }}
+      onLibrary={() => setLibraryHost(section.current?.closest<HTMLElement>("[data-inrcy-tool-overlay]") ?? document.body)}
       onRemove={(index) => changeItems(value.items.filter((_, current) => current !== index))}
       onRole={(index, role) => changeItems(value.items.map((item, current) => current === index ? { ...item, role } : item))}
       onUsage={(index, usage) => changeItems(value.items.map((item, current) => current === index ? { ...item, usage } : item))} />
@@ -106,8 +115,8 @@ export default function AgentMediaReferences(props: {
         onChange={(event) => props.onChange({ ...value, animationProviderConsent: event.target.checked ? INR_AGENT_VIDEO_ENGINE : null })} />
       <span>{t("media_references_animation_consent", { provider: "Google Veo Lite" })}</span>
     </label> : null}
-    <MediaLibraryPickerModal open={libraryOpen} accept="all" multiple maxSelection={Math.max(1, AI_MEDIA_INSPIRATION_MAX_COUNT - value.items.length)}
+    {libraryHost && createPortal(<MediaLibraryPickerModal open accept="all" multiple maxSelection={Math.max(1, AI_MEDIA_INSPIRATION_MAX_COUNT - value.items.length)}
       title={mediaT("ai_generator_inspiration_library_title")} subtitle={mediaT("ai_generator_inspiration_library_subtitle")}
-      confirmLabel={mediaT("ai_generator_inspiration_library_confirm")} onClose={() => setLibraryOpen(false)} onConfirm={(items) => addFiles(items)} />
+      confirmLabel={mediaT("ai_generator_inspiration_library_confirm")} onClose={() => setLibraryHost(null)} onConfirm={(items) => addFiles(items)} />, libraryHost)}
   </section>;
 }

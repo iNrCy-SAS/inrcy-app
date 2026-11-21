@@ -21571,7 +21571,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .publishSettingsCanvas .settingsSectionNav { margin-bottom: 10px; gap: 2px; padding: 3px; }
   .publishSettingsCanvas .settingsSectionNav button { min-height: 38px; padding: 5px 3px; font-size: 10px; }
   .publishSettingsCanvas .settingsSectionNav button > span { min-width: 15px; height: 15px; font-size: 9px; }
-  .publishSettingsCanvas .settingsScheduleGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; padding: 12px; gap: 8px; }
+  .publishSettingsCanvas .settingsScheduleGrid { padding: 12px; gap: 8px; }
   .publishSettingsCanvas .settingsScheduleGrid .scheduleSlotPair { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px; }
   .publishSettingsCanvas .settingsScheduleGrid select { min-height: 38px; font-size: 12px; }
   .publishSettingsCanvas .settingsContentColumn { grid-template-columns: minmax(0, 1fr); gap: 8px; }
@@ -21886,7 +21886,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsOptionCard > div > button[aria-expanded="true"] { border-color: rgba(var(--card-accent), .5); background: rgba(var(--card-accent), .09); }
 .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsOptionCard > div > button > span:last-of-type { border-color: rgba(var(--card-accent), .25); background: rgba(var(--card-accent), .09); color: #cceaff; }
 
-.settingsModal.publishSettingsCanvas:not(.helpModal) .settingsPlanningControls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 10px; }
+.settingsModal.publishSettingsCanvas:not(.helpModal) .settingsPlanningControls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); align-items: start; gap: 10px; }
 .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsPlanningControls > label,
 .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsScheduleSlotRow > label,
 .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsValidationCard > label { display: grid; align-content: start; min-width: 0; gap: 6px; margin: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
@@ -21969,18 +21969,82 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .settingsModal.automationSettingsModal.publishSettingsCanvas { width: min(1100px, calc(100vw - 32px)); max-height: calc(100dvh - 24px); padding: 16px 20px !important; }
   .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsModalLayout.publishSettingsLayout { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "planning generation" "channels channels" "references validation"; align-items: stretch; }
 }
-@media (max-width: 760px) {
-  .settingsModal.automationSettingsModal.publishSettingsCanvas { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); padding: 13px !important; }
-  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsModalLayout.publishSettingsLayout { display: grid !important; grid-template-columns: minmax(0, 1fr); grid-template-areas: "planning" "generation" "channels" "references" "validation"; gap: 9px; }
-  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsContentColumn { grid-template-columns: minmax(0, 1fr); gap: 9px; }
-  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsPlanningControls { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsPlanningControls > label > span { min-height: 39px; }
-  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsScheduleSlotTable { max-height: 340px; }
-  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsModalFooter { margin-top: 9px; }
+@media (max-width: 1100px) {
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsModalHeader .modalClose { width: 44px; height: 44px; }
 }
-@media (max-width: 380px) {
-  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsPlanningControls { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 760px) {
+  /* The shared overlay already reserves the device safe areas and the bottom navigation. */
+  .settingsModal.automationSettingsModal.publishSettingsCanvas {
+    display: grid;
+    grid-template: auto minmax(0, 1fr) auto / minmax(0, 1fr);
+    padding: 12px !important;
+    overflow: clip !important;
+  }
+  .publishSettingsCanvas .settingsModalHeader {
+    grid-template-areas: "heading close";
+    align-items: center !important;
+    margin: 0 0 10px;
+  }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsModalLayout.publishSettingsLayout {
+    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "planning" "generation" "channels" "references" "validation";
+    gap: 10px;
+    padding: 0 0 2px;
+    overscroll-behavior-y: contain;
+  }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsContentColumn {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsOptionCard { margin: 0; }
   .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsPlanningControls > label > span { min-height: 0; }
+  .publishSettingsCanvas .settingsCardHeading,
+  .publishSettingsCanvas .settingsOptionCard > div > span { grid-column: 1 / -1; }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsPlanningControls select,
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsValidationCard select,
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsOptionCard > div > button,
+  .settingsModal.publishSettingsCanvas:not(.helpModal) button[aria-haspopup="dialog"] { min-height: 44px; }
+  .publishSettingsCanvas .settingsOptionCard button [id$="-value"] {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.35;
+  }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsMediaPreferencesRow > .choiceGrid,
+  .publishSettingsCanvas .publicationMediaTypes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 95px), 1fr));
+    gap: 6px;
+  }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsPreferredMediaFullWidth .choiceGrid button,
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .publicationMediaTypes label {
+    justify-content: center;
+    min-width: 0;
+    min-height: 44px;
+    padding: 6px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+    background-color: #132341;
+  }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsPreferredMediaFullWidth .choiceGrid button.choiceActive {
+    background: linear-gradient(135deg, #2453ab, #6042a7);
+  }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .publicationMediaTypes label[data-selected="true"] {
+    background-color: #1b365a;
+  }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .studioMediaCompactRow { flex-wrap: wrap; }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsPreferredMediaFullWidth .studioMediaPercentStepper { height: auto; }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsPreferredMediaFullWidth .studioMediaPercentStepper > button {
+    flex-basis: 44px;
+    width: 44px;
+    height: 44px;
+  }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .studioMediaCompactHint { flex: 1 1 160px; }
+  .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsModalFooter {
+    margin: 0;
+    padding-top: 10px;
+  }
 }
 @media (max-height: 540px) {
   .settingsModal.publishSettingsCanvas:not(.helpModal) .settingsScheduleSlotTable { max-height: 210px; }

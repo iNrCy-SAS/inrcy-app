@@ -19,6 +19,7 @@ export default function MediaReferenceInputs(props: {
   disabled?: boolean;
   compact?: boolean;
   information?: ReactNode;
+  informationControl?: ReactNode;
   characterVoices?: boolean;
   onFiles: (files: File[]) => void;
   onLibrary: () => void;
@@ -41,9 +42,9 @@ export default function MediaReferenceInputs(props: {
       <div className={styles.referenceDropzoneCopy}>
         <div className={styles.referenceDropzoneHeading}>
           <strong>{t("ai_generator_reference_drop_title")}</strong>
-          {props.information ? <details className={styles.referenceInfo}>
+          {props.informationControl ?? (props.information ? <details className={styles.referenceInfo}>
             <summary aria-label={t("ai_generator_reference_information")}>i</summary><p>{props.information}</p>
-          </details> : null}
+          </details> : null)}
         </div>
         <small>{t("ai_generator_reference_drop_hint")} · {props.references.length}/{AI_MEDIA_INSPIRATION_MAX_COUNT}</small>
       </div>
@@ -51,7 +52,10 @@ export default function MediaReferenceInputs(props: {
         <label htmlFor={inputId}>{t("ai_generator_free_import")}</label>
         <input id={inputId} type="file" accept={props.accept} multiple disabled={disabled}
           onChange={(event) => { const files = Array.from(event.currentTarget.files || []); event.currentTarget.value = ""; if (files.length) props.onFiles(files); }} />
-        <button type="button" disabled={disabled} onClick={props.onLibrary}>{t("ai_generator_free_library")}</button>
+        <button type="button" disabled={disabled} onClick={event => {
+          event.currentTarget.focus({ preventScroll: true });
+          props.onLibrary();
+        }}>{t("ai_generator_free_library")}</button>
       </span>
     </div>
     {props.compact && props.references.length > 1 ? <div className={sharedStyles.referenceTabs} aria-label={t("ai_generator_free_references_title")}>

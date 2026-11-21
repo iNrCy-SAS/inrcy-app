@@ -274,7 +274,7 @@
     "app/dashboard/_components/MediaQuotaSummary.module.css": "9b6d98b17b735d34ea44210b6a1a7181ca9ffcbcf8a00e7f28e914287ad2baab",
     "app/dashboard/_components/MediaQuotaSummary.tsx": "2f7df330146613e7b96980d545f8fcfe68d85d7238fbc574747358860d5a57f2",
     "app/dashboard/_components/MediaReferenceInputs.module.css": "470de387f85326f033048c3aed13eb69fd4d73f36f3be4c3d428a771114a802a",
-    "app/dashboard/_components/MediaReferenceInputs.tsx": "c921ac1ff8271bc8e56867ae53c58a1dc200ee2a5181f677dbc3d958f930e2f2",
+    "app/dashboard/_components/MediaReferenceInputs.tsx": "27ed2d52267315b8b7c0fbf543e2eae71b02845173cc8ec9832d62ba24a53b75",
     "app/dashboard/_components/MediaResultViewer.module.css": "f09bfb15c558960159e30d5e281e43de2ac0e2a080e4a650dd9e83c14e60a9e6",
     "app/dashboard/_components/MediaResultViewer.tsx": "7a5abd9975af0af8b80ac46ecb31c8aa5a523367562055cfde212faed8c0489d",
     "app/dashboard/_components/MediaRetoucher.module.css": "a21f268da6822b8ae2c9e0e913ef4e2be56a85ef27f3f6e25bb3ce2466eba6fa",
@@ -446,17 +446,19 @@
     "app/dashboard/agent/_components/AgentFeedbackModals.tsx": "0d398a1a405d94757dab7fe8a2409c5b9b3bbc47a7b6221fc90480bdd6aa5cfa",
     "app/dashboard/agent/_components/AgentMediaImage.module.css": "8794d486a5d6699363f13213669e74d10a48cebb3ba5299be1047877e56581c2",
     "app/dashboard/agent/_components/AgentMediaImage.tsx": "7319946dac51bdc0ea98ae2c13b09e7ccc7db7da95dac177d9a1deecb3ad38ae",
-    "app/dashboard/agent/_components/AgentMediaReferences.module.css": "ea5842ef87aad39f1644322f2e3f390267a27dae9387b678dc8896cf42213fde",
-    "app/dashboard/agent/_components/AgentMediaReferences.tsx": "30e95a89a918bcea59733b52a534550da49f901c870c0d2345c2e5a85433275a",
+    "app/dashboard/agent/_components/AgentMediaReferences.module.css": "48866be8393823f8a5e1448ea1db232fb8f8fbeb08f6cd4c5b270cb07b5b80e3",
+    "app/dashboard/agent/_components/AgentMediaReferences.tsx": "a1fb66b4ea5c99032ac94a8e39c352b408c7cb2a286431120f7333ab56226ab9",
     "app/dashboard/agent/_components/AgentPublicationChannelList.tsx": "c4d5623e421c2ad6f991f2846d1625d9f35e0345b55d914d17452aaa0b11f387",
     "app/dashboard/agent/_components/AgentPublicationIdeasEditor.tsx": "916565dd619a86f0140791ab9eef864d74c160a3a3ba4b8f1e31b25b9ce0c789",
     "app/dashboard/agent/_components/AgentPublicationNavigation.module.css": "84d5aed6e453a51be5977107d44d08ed29de030dc7d1b6f679fdad4a1c42b272",
     "app/dashboard/agent/_components/AgentPublicationNavigation.tsx": "b80ceadb78a9e64f0ae0e85fdb0832c1fc9fdc7dbca629cdd16a800b2a482b65",
     "app/dashboard/agent/_components/AgentRegenerationChoices.module.css": "cab5d116c85c4eb0b9545d7f0aaa9c2499bb6da8dd7b95201619f1a3a4b4d1e4",
-    "app/dashboard/agent/_components/AgentSchedulePopover.module.css": "b1889101a0a5a61b93e973fa06b82096bfeb783d6e27e67c4483d79102c72c54",
-    "app/dashboard/agent/_components/AgentSchedulePopover.tsx": "281ad3ad76b14bb746df8e09cd0a5389bbfce212d80d7f03160d92c994880d14",
-    "app/dashboard/agent/_components/AgentSettingsMultiSelect.module.css": "e55ded3c142ddc01b8f9f94f65db68d51132cf179ccf457ac1381502bc9b8817",
-    "app/dashboard/agent/_components/AgentSettingsMultiSelect.tsx": "02767770b1b969f8450c98e121bf0d18ab69c297ad33ab325f12ac0c2e935c70",
+    "app/dashboard/agent/_components/AgentSchedulePopover.module.css": "45e2ab009e38f2262d9db10c4e7b323897efa41e82e95ca74e09fb63d78330e2",
+    "app/dashboard/agent/_components/AgentSchedulePopover.tsx": "583a745bec8060e2e853fb7c1764e1485b50330487c797e30cef80f02a1b8844",
+    "app/dashboard/agent/_components/AgentSettingsMultiSelect.module.css": "70356181af25b336db4dd4b2b411ee76bac59733e7058b38cbe4aa97ef582fdc",
+    "app/dashboard/agent/_components/AgentSettingsMultiSelect.tsx": "2b1dfe28a579c2cb5d24fe3ffdc5d90738f1b525443dddb380fe5cc6b5dd7dac",
+    "app/dashboard/agent/_components/AgentSettingsPopover.module.css": "972bd72fb46b39f36906c979bb960ba34e04a205c6eba16975e680f9232804d0",
+    "app/dashboard/agent/_components/AgentSettingsPopover.tsx": "e391e3f0200049bcef028878fc90b712421b7dda7e76e70f5467a494ebe8d5fa",
     "app/dashboard/agent/_components/AgentVisuals.tsx": "5a92b727a95420ca7762d3bef28c59460198f51c07af30c1ecd87637621c68d3",
     "app/dashboard/agent/_components/AgentWorkspaceHeader.module.css": "e2bfbf5686d30d1fc086c1a6c055137885e7eba16ca5e73c973aac659b9d23b8",
     "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx": "1dc572dc23348d8f8593811b789935b1e3c908aae5fca57e645be2b02d320272",
@@ -486,7 +488,7 @@
     "app/dashboard/agent/_lib/agent.types.ts": "0292278d42c7ba6ee655657d5f00b994e87bd11dc9a5c61288914949c7d29da0",
     "app/dashboard/agent/_lib/agent.utils.ts": "4e45342dd06c142e631b32da8ae01f8e10ac392005affd230190f725069bc98b",
     "app/dashboard/agent/_lib/agent.workspace-messages.ts": "9d3627308c0172d6116c8242a8d1611465e21f7ea66d9e7b91b1d69e966e9ecd",
-    "app/dashboard/agent/agent.module.css": "4ec634d0fe343c06f8bc5303574ac5686a420912b2a5026343238cbe4fe1beab",
+    "app/dashboard/agent/agent.module.css": "188f182949eff21af2dc2b624e40f8fde2e0010af7746263b3a2527df9c54a1c",
     "app/dashboard/booster/booster.module.css": "ea2b444d2441244c09d5540240a299db8471f88e467271a2432e5e7b85871814",
     "app/dashboard/booster/publier/PublishModal.tsx": "80346f157786bb24814f3c86515357b87ab351385a5cab30860eb3a105be972f",
     "app/dashboard/booster/publier/boosterGenerationContext.ts": "67db37577540f7dbf65accd792ab332045bd1fb31454c78b8ba477d1831346c1",
@@ -1232,7 +1234,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "6bea13f57aa0366dc6afd6ed8682e604cb2c9efdad802f9b28e6f93d69228791",
+    "lib/inrAssistantCodeIndex.generated.ts": "5abf098986ecdf1c8ca527e8dc22859bf7595c4617cb2b0390e85bc43681791e",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -3576,11 +3578,11 @@
         "app/dashboard/agent/_hooks/useAgentAutomationController.ts"
       ],
       "gateAnchor": "manualPlanningOnly={edition === \"basic\"}",
-      "sourceDigest": "c921ac1ff8271bc8e56867ae53c58a1dc200ee2a5181f677dbc3d958f930e2f2",
+      "sourceDigest": "27ed2d52267315b8b7c0fbf543e2eae71b02845173cc8ec9832d62ba24a53b75",
       "controlIds": [
         "app/dashboard/_components/MediaReferenceInputs.tsx#summary:96d61df0a11608ad:1",
         "app/dashboard/_components/MediaReferenceInputs.tsx#input:db5b9281ceb79768:1",
-        "app/dashboard/_components/MediaReferenceInputs.tsx#button:413d3a46163cb90f:1",
+        "app/dashboard/_components/MediaReferenceInputs.tsx#button:c67430441f2fb9f1:1",
         "app/dashboard/_components/MediaReferenceInputs.tsx#button:18bd76e97a56d4dd:1",
         "app/dashboard/_components/MediaReferenceInputs.tsx#button:21bed32c2eaaa497:1",
         "app/dashboard/_components/MediaReferenceInputs.tsx#select:2bba0af170b2f05c:1",
@@ -6660,9 +6662,8 @@
       "gateFiles": [
         "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
       ],
-      "sourceDigest": "30e95a89a918bcea59733b52a534550da49f901c870c0d2345c2e5a85433275a",
+      "sourceDigest": "a1fb66b4ea5c99032ac94a8e39c352b408c7cb2a286431120f7333ab56226ab9",
       "controlIds": [
-        "app/dashboard/agent/_components/AgentMediaReferences.tsx#summary:45af911f2d9d57c4:1",
         "app/dashboard/agent/_components/AgentMediaReferences.tsx#input:f3f6832299f6cc0c:1",
         "app/dashboard/agent/_components/AgentMediaReferences.tsx#input:6e0b364da8fe3794:1"
       ]
@@ -6724,9 +6725,8 @@
         "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
         "app/dashboard/agent/AgentClient.tsx"
       ],
-      "sourceDigest": "281ad3ad76b14bb746df8e09cd0a5389bbfce212d80d7f03160d92c994880d14",
+      "sourceDigest": "583a745bec8060e2e853fb7c1764e1485b50330487c797e30cef80f02a1b8844",
       "controlIds": [
-        "app/dashboard/agent/_components/AgentSchedulePopover.tsx#button:6354fc5f81aa422c:1",
         "app/dashboard/agent/_components/AgentSchedulePopover.tsx#select:ab684b1b4690cbbd:1",
         "app/dashboard/agent/_components/AgentSchedulePopover.tsx#option:8a3e9de3a68c6aa7:1",
         "app/dashboard/agent/_components/AgentSchedulePopover.tsx#select:3aa3ad9e7ccbd497:1",
@@ -6740,10 +6740,22 @@
       "gateFiles": [
         "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
       ],
-      "sourceDigest": "02767770b1b969f8450c98e121bf0d18ab69c297ad33ab325f12ac0c2e935c70",
+      "sourceDigest": "2b1dfe28a579c2cb5d24fe3ffdc5d90738f1b525443dddb380fe5cc6b5dd7dac",
       "controlIds": [
-        "app/dashboard/agent/_components/AgentSettingsMultiSelect.tsx#button:6982d6098e421c14:1",
         "app/dashboard/agent/_components/AgentSettingsMultiSelect.tsx#input:b8cbdc6d07c6b5d1:1"
+      ]
+    },
+    "app/dashboard/agent/_components/AgentSettingsPopover.tsx": {
+      "disposition": "out_of_pack",
+      "reason": "Ce bouton ouvre les listes Planning, Canaux, Thèmes et les aides Références dans les réglages de publication automatisée. Le bouton Réglages est masqué en planning manuel Basique.",
+      "gateAnchor": "!props.manualPlanningOnly",
+      "gateFiles": [
+        "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+        "app/dashboard/agent/AgentClient.tsx"
+      ],
+      "sourceDigest": "e391e3f0200049bcef028878fc90b712421b7dda7e76e70f5467a494ebe8d5fa",
+      "controlIds": [
+        "app/dashboard/agent/_components/AgentSettingsPopover.tsx#button:f44457d3af909a70:1"
       ]
     },
     "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx": {
