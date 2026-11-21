@@ -1587,7 +1587,7 @@ export async function scheduleReadyInrAgentAdminPublications(args: {
     const reviewChannels = inrAgentManualReviewPublicationChannels(automation.data.metadata);
     const payload = asRecord(row.payload);
     const preparedChannels = preparedInrAgentPublicationChannels(payload, row.target_channels || []);
-    const reviewedPayload = withInrAgentPublicationChannelReview(payload, preparedChannels, reviewChannels);
+    const reviewedPayload = withInrAgentPublicationChannelReview(payload, preparedChannels, reviewChannels, row.id);
     const onlyManualChannels = reviewChannels.length > 0
       && filterInrAgentPublicationChannels(reviewedPayload, preparedChannels).length === 0;
     const manualReviewError = "TikTok attend la validation de ses paramètres avant programmation.";

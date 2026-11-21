@@ -106,14 +106,14 @@
           "app/dashboard/agent/AgentClient.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#button:a40628594aefd715:1": {
+      "app/dashboard/agent/AgentClient.tsx#button:bb855f1cb1522865:1": {
         "reason": "Mutation de choix des canaux explicitement refusée au Basic par la route native ; le rendu partagé ne confère aucun droit.",
         "gateAnchor": "if (standardMode || basicMode) return premiumRequiredApiResponse();",
         "gateFiles": [
           "app/api/agent/scheduled-actions/[id]/route.ts"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#button:7228219dad877897:1": {
+      "app/dashboard/agent/AgentClient.tsx#button:5243f498462316dd:1": {
         "reason": "Refuser et précédent/suivant des propositions Agent ne sont pas des contrôles du planning Basic : actions natives et cache Agent exclus en manualPlanningOnly, et !scheduledEditSession pour ces boutons.",
         "gateAnchor": "if (manualPlanningOnly) { setActions([]); return; }",
         "gateFiles": [

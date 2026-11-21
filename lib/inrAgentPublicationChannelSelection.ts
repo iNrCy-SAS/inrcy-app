@@ -75,14 +75,28 @@ export function inrAgentManualReviewPublicationChannels(metadata: unknown): stri
   return Array.isArray(requested) && requested.includes("tiktok") ? ["tiktok"] : [];
 }
 
+/** The channel confirmation RPC saves this action-bound proof with the professional's choices. */
+export function hasConfirmedInrAgentTiktokReview(payload: unknown, actionId?: string | null): boolean {
+  const source = record(payload);
+  const settings = record(source.tiktokPublicationSettings);
+  const selection = record(source.publicationChannelSelection);
+  return Boolean(actionId && settings.inrAgentReviewActionId === actionId
+    && settings.musicUsageConfirmed === true
+    && typeof settings.privacyLevel === "string" && settings.privacyLevel.trim()
+    && ["none", "self", "branded", "both"].includes(String(settings.commercialContent))
+    && selection.version === 1 && channels(selection.availableChannels).includes("tiktok")
+    && filterInrAgentPublicationChannels(source, ["tiktok"]).length > 0);
+}
+
 /** Mark prepared channels for review without losing their checked state or assets. */
 export function withInrAgentPublicationChannelReview(
   payload: Payload,
   preparedChannels: readonly string[],
   manualReviewChannels: readonly string[],
+  actionId: string,
 ): Payload {
   // Empty channels cannot be reclassified as provider review or silently approved.
-  if (pendingInrAgentPublicationChannels(payload).length) return payload;
+  if (pendingInrAgentPublicationChannels(payload).length || hasConfirmedInrAgentTiktokReview(payload, actionId)) return payload;
   const available = preparedInrAgentPublicationChannels(payload, preparedChannels);
   const selected = selectedInrAgentPublicationChannels(payload, available);
   const held = channels(manualReviewChannels).filter(value => value === "tiktok" && available.includes(value) && selected.includes(value));

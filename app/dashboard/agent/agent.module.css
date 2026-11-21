@@ -21302,26 +21302,22 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   flex: 0 1 240px;
   min-width: 180px;
   padding: 8px 16px;
-  border: 1px solid rgba(250, 204, 90, 0.3);
+  --status-color: #bacbe8;
+  border: 1px solid color-mix(in srgb, var(--status-color) 38%, transparent);
   border-radius: 16px;
-  background: linear-gradient(125deg, rgba(208, 132, 31, 0.13), rgba(105, 64, 183, 0.15));
+  background: color-mix(in srgb, var(--status-color) 12%, transparent);
 }
 
-.publishFooterStatus[data-validation-state="validated"] {
-  border-color: rgba(82, 221, 176, 0.38);
-  background: rgba(31, 143, 113, 0.14);
-}
+.publishFooterStatus[data-validation-state="validated"] { --status-color: var(--publication-validated); }
+.publishFooterStatus[data-validation-state="pending"] { --status-color: var(--publication-pending); }
+.publishFooterStatus[data-validation-state="creating"] { --status-color: var(--publication-creating); }
+.publishFooterStatus[data-validation-state="refused"] { --status-color: var(--publication-refused); }
 
-.publishFooterStatus[data-validation-state="refused"] {
-  border-color: rgba(248, 113, 113, 0.38);
-  background: rgba(174, 54, 89, 0.15);
-}
-
-.publishFooterStatusIcon { display: grid; place-items: center; color: #f3ce8d; }
+.publishFooterStatusIcon { display: grid; place-items: center; color: var(--status-color); }
 .publishFooterStatusIcon svg { width: 25px; height: 25px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .publishFooterStatusText { display: grid; gap: 2px; }
 .publishFooterStatusText small { color: #bacbe8; font-size: 11px; }
-.publishFooterStatusText strong { font-size: 16px; line-height: 1.2; }
+.publishFooterStatusText strong { color: var(--status-color); font-size: 16px; line-height: 1.2; }
 .publishFooterStatusCounter { margin-left: auto; color: #c3d2ed; font-size: 12px; white-space: nowrap; }
 
 /* Global navigation, followed by compact cards for the current publication. */
@@ -21703,7 +21699,13 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 }
 
 /* Three focused workspaces share the existing review components and runtime. */
-.agentWorkspace { position: relative; }
+.agentWorkspace {
+  position: relative;
+  --publication-validated: #69dfa1;
+  --publication-pending: #83baff;
+  --publication-creating: #f6d45e;
+  --publication-refused: #ff888d;
+}
 .agentWorkspace .agentCanvas {
   display: flex !important; flex-direction: column; grid-template-areas: none !important;
   grid-template-columns: minmax(0, 1fr) !important; grid-template-rows: none !important;

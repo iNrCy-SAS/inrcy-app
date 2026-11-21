@@ -21,7 +21,9 @@ export async function saveAgentPublicationChannels(args: {
     p_user_id: args.userId, p_action_id: args.actionId || null,
     p_scheduled_action_id: args.scheduledActionId || null,
     p_channels: args.channels, p_expected_updated_at: args.expectedUpdatedAt,
-    p_tiktok_settings: tiktokSettings,
+    p_tiktok_settings: tiktokSettings?.musicUsageConfirmed && args.confirmPending === true
+      && args.actionId && args.channels.includes("tiktok")
+      ? { ...tiktokSettings, inrAgentReviewActionId: args.actionId } : tiktokSettings,
     p_confirm_pending: args.confirmPending === true,
   });
   if (error) {

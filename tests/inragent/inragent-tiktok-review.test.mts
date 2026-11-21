@@ -203,11 +203,14 @@ test("l’édition programmée conserve les réglages TikTok réellement revus d
 function additionalTiktokChannelReview(args: {
   reusable?: typeof settings | null;
   inFlight?: boolean;
+  automaticPrepared?: boolean;
+  legacy?: boolean;
   afterCheck?: (signature: { current: string }) => void;
 } = {}) {
-  const prepared = { ...structuredClone(action), status: "scheduled",
+  const held = args.legacy ? [] : ["tiktok"];
+  const prepared = { ...structuredClone(action), status: args.automaticPrepared ? "prepared" : "scheduled",
     payload: { ...structuredClone(action.payload), publicationChannelSelection: {
-      version: 1, availableChannels: ["facebook", "tiktok"], excludedChannels: [], unvalidatedChannels: ["tiktok"],
+      version: 1, availableChannels: ["facebook", "tiktok"], excludedChannels: [], unvalidatedChannels: held,
     } } };
   const signature = signatureFor(prepared, ["facebook", "tiktok"]);
   const signatureRef = { current: signature };
@@ -218,7 +221,7 @@ function additionalTiktokChannelReview(args: {
     selectedPreparedAction: prepared, canEditPublicationChannels: true,
     publishChannelSelectionBusy: { current: false },
     preparedChannels: ["facebook", "tiktok"], selectedPublishChannels: ["facebook", "tiktok"],
-    unvalidatedPublicationChannels: ["tiktok"], scheduledEditSession: null,
+    unvalidatedPublicationChannels: held, automaticTiktokReview: args.automaticPrepared === true, scheduledEditSession: null,
     tiktokSessionCheckInFlightRef: { current: args.inFlight === true },
     tiktokCurrentReviewSignature: signature, tiktokReviewSignatureRef: signatureRef,
     resolveAgentTiktokSessionSettings: async () => {
@@ -261,6 +264,16 @@ test("valider TikTok différé sans session réutilisable ouvre la modale sans s
   assert.equal(h.checks(), 1);
   assert.deepEqual(h.modals, [{ kind: "channel_selection", channels: ["facebook", "tiktok"], confirmPending: true }]);
   assert.deepEqual(h.requests, []);
+});
+
+test("la validation TikTok d’une publication automatique préparée exige le consentement, y compris pour une ancienne fiche", async () => {
+  for (const legacy of [false, true]) {
+    const h = additionalTiktokChannelReview({ automaticPrepared: true, legacy });
+    await h.save(["facebook", "tiktok"], undefined, true);
+    assert.equal(h.checks(), 1);
+    assert.deepEqual(h.modals, [{ kind: "channel_selection", channels: ["facebook", "tiktok"], confirmPending: true }]);
+    assert.deepEqual(h.requests, []);
+  }
 });
 
 test("une vérification TikTok déjà en cours empêche une seconde validation du canal différé", async () => {

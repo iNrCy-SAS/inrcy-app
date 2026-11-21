@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { runtimeModules } from "./runtime-module-loader.mts";
 import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
-import { filterInrAgentPublicationChannels, selectedInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels } from "../../lib/inrAgentPublicationChannelSelection.ts";
+import { filterInrAgentPublicationChannels, hasConfirmedInrAgentTiktokReview, selectedInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels } from "../../lib/inrAgentPublicationChannelSelection.ts";
 
 // Heterogeneous PostgREST rows intentionally include malformed boundary fixtures.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -280,6 +280,74 @@ test("TikTok-only retries keep a clear manual review state without continually r
   const prepared = structuredClone(db.action()), writes = db.writes.length;
   const retry = await worker(db, h); assert.equal(retry.calls, 0); assert.equal(retry.result[0]?.status, "manual_review");
   assert.deepEqual(db.action(), prepared); assert.equal(db.writes.length, writes); assert.equal(h.built(), 0);
+});
+
+test("the channel API binds explicit TikTok confirmation to the action edited, and strips client-supplied proof", async () => {
+  let stored: Row | null = null;
+  const load = runtimeModules({
+    "next/server": { NextResponse: { json: Response.json.bind(Response) } },
+    "@/lib/inrAgentActions": {}, "@/lib/inrAgentScheduledActions": {},
+    "@/lib/supabaseAdmin": { supabaseAdmin: { rpc: async (_name: string, request: Row) => {
+      stored = request.p_tiktok_settings;
+      return { data: { outcome: "saved" }, error: null };
+    } } },
+  });
+  const { saveAgentPublicationChannels } = load<typeof import("../../lib/inrAgentPublicationChannelSelectionServer.ts")>("lib/inrAgentPublicationChannelSelectionServer.ts");
+  const options = { userId: ACCOUNT, actionId: ACTION, channels: ["tiktok"], expectedUpdatedAt: FUTURE,
+    tiktokPublicationSettings: { privacyLevel: "SELF_ONLY", commercialContent: "none", musicUsageConfirmed: true, inrAgentReviewActionId: "another-action" } };
+  const saved = async (changes: Partial<typeof options> & { confirmPending?: boolean }) => {
+    const response = await saveAgentPublicationChannels({ ...options, ...changes });
+    assert.equal(response.status, 200);
+    return stored as Row | null;
+  };
+  assert.equal((await saved({ confirmPending: true }))?.inrAgentReviewActionId, ACTION);
+  assert.equal((await saved({ confirmPending: false }))?.inrAgentReviewActionId, undefined);
+  assert.equal((await saved({ confirmPending: true, tiktokPublicationSettings: { ...options.tiktokPublicationSettings, musicUsageConfirmed: false } }))?.inrAgentReviewActionId, undefined);
+});
+
+for (const previouslyHeld of [false, true]) {
+  test(`TikTok-only confirmation releases a prepared publication with ${previouslyHeld ? "a previous channel hold" : "only its historical error"}`, async () => {
+    const db = fixture(), action = db.action(), h = harness(db);
+    action.target_channels = ["tiktok"]; action.payload.channels = ["tiktok"]; action.payload.selectedChannels = ["tiktok"];
+    action.last_error = "TikTok attend la validation de ses paramètres avant programmation.";
+    if (previouslyHeld) {
+      const held = await worker(db, h);
+      assert.equal(held.calls, 0); assert.deepEqual(unvalidatedInrAgentPublicationChannels(action.payload), ["tiktok"]);
+    }
+    // The RPC writes both values together only on a successful content confirmation.
+    action.payload.publicationChannelSelection = { version: 1, availableChannels: ["tiktok"], excludedChannels: [] };
+    action.payload.tiktokPublicationSettings = { inrAgentReviewActionId: ACTION, privacyLevel: "SELF_ONLY", commercialContent: "none", musicUsageConfirmed: true };
+    const before = structuredClone(action.payload);
+    assert.equal(hasConfirmedInrAgentTiktokReview(action.payload, ACTION), true);
+    assert.equal((await worker(db, h)).result[0]?.status, "scheduled");
+    assert.equal(action.last_error, null);
+    assert.deepEqual(action.payload.tiktokPublicationSettings, before.tiktokPublicationSettings);
+    assert.deepEqual(action.payload.postByChannel, before.postByChannel);
+    assert.deepEqual(db.tables.inr_agent_scheduled_actions.map(row => [row.channels, row.scheduled_at]), [[["tiktok"], FUTURE]]);
+    assert.equal((await worker(db, h)).calls, 0);
+  });
+}
+
+test("provider defaults, another action's consent and an active review never release TikTok", async () => {
+  const confirmed = { inrAgentReviewActionId: ACTION, privacyLevel: "SELF_ONLY", commercialContent: "none", musicUsageConfirmed: true };
+  for (const variant of ["defaults", "nested", "different-action", "still-held", "no-music", "no-privacy", "bad-disclosure"]) {
+    const db = fixture(), action = db.action(), h = harness(db);
+    action.target_channels = ["tiktok"]; action.payload.channels = ["tiktok"]; action.payload.selectedChannels = ["tiktok"];
+    action.payload.publicationChannelSelection = { version: 1, availableChannels: ["tiktok"], excludedChannels: [] };
+    action.payload.tiktokPublicationSettings = { ...confirmed };
+    if (variant === "defaults") delete action.payload.tiktokPublicationSettings.inrAgentReviewActionId;
+    if (variant === "nested") { delete action.payload.tiktokPublicationSettings; action.payload.publishPayload = { tiktokPublicationSettings: confirmed }; }
+    if (variant === "different-action") action.payload.tiktokPublicationSettings.inrAgentReviewActionId = "another-action";
+    if (variant === "still-held") action.payload.publicationChannelSelection.unvalidatedChannels = ["tiktok"];
+    if (variant === "no-music") action.payload.tiktokPublicationSettings.musicUsageConfirmed = false;
+    if (variant === "no-privacy") action.payload.tiktokPublicationSettings.privacyLevel = "";
+    if (variant === "bad-disclosure") action.payload.tiktokPublicationSettings.commercialContent = "invalid";
+    assert.equal(hasConfirmedInrAgentTiktokReview(action.payload, ACTION), false, variant);
+    const result = await worker(db, h);
+    assert.equal(result.calls, 0, variant); assert.equal(result.result[0]?.status, "manual_review", variant);
+    assert.deepEqual(unvalidatedInrAgentPublicationChannels(action.payload), ["tiktok"], variant);
+    assert.equal(db.tables.inr_agent_scheduled_actions.length, 0, variant);
+  }
 });
 
 test("a professional TikTok exclusion stays excluded instead of being selected by the automatic reviewer", async () => {

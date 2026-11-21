@@ -6,13 +6,13 @@ import ts from "typescript";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement, type ComponentType } from "react";
 import type { InrAgentAction } from "../../lib/inrAgentActions.ts";
-import { countPublicationValidationStates, filterPublicationsByValidation } from "../../app/dashboard/agent/_lib/agent.publication-validation.ts";
+import { countPublicationValidationStates, filterPublicationsByValidation, publicationChannelReviewState, publicationReviewStates } from "../../app/dashboard/agent/_lib/agent.publication-validation.ts";
 import { canRestoreRefusedPublication, isHiddenRefusedPublication } from "../../app/dashboard/agent/_lib/agent.publication-visibility.ts";
 import { buildPublicationViewerItems, nextPublicationViewerId } from "../../app/dashboard/agent/_lib/agent.publication-carousel.ts";
 import { runtimeModules } from "./runtime-module-loader.mts";
 import { createNativeLocalHookLoader } from "../helpers/assistant-native-local-hooks.mts";
 
-const all = { validated: true, pending: true, refused: true };
+const all = { validated: true, pending: true, creating: true, refused: true };
 const actions = [
   { id: "approved", status: "scheduled" as const, validatedAt: null },
   { id: "waiting", status: "pending_validation" as const, validatedAt: null },
@@ -21,20 +21,68 @@ const actions = [
 ];
 
 test("les compteurs restent globaux et tous les statuts cochés conservent l'ordre", () => {
-  assert.deepEqual(countPublicationValidationStates(actions), { validated: 2, pending: 1, refused: 1 });
+  assert.deepEqual(countPublicationValidationStates(actions), { validated: 2, pending: 1, creating: 0, refused: 1 });
   assert.deepEqual(filterPublicationsByValidation(actions, all), actions);
   assert.deepEqual(filterPublicationsByValidation(actions, { ...all, validated: false }).map(item => item.id), ["waiting", "refused"]);
-  assert.deepEqual(countPublicationValidationStates(actions), { validated: 2, pending: 1, refused: 1 });
+  assert.deepEqual(countPublicationValidationStates(actions), { validated: 2, pending: 1, creating: 0, refused: 1 });
 });
 
 test("la navigation ne visite que les statuts cochés et une sélection exclue ne reste pas affichée", () => {
-  const filtered = filterPublicationsByValidation(actions, { validated: false, pending: true, refused: true });
+  const filtered = filterPublicationsByValidation(actions, { ...all, validated: false });
   const selected = filtered.find(item => item.id === "approved") ?? filtered[0];
   const items = buildPublicationViewerItems(filtered, selected, false);
   assert.deepEqual(items.map(item => item.id), ["waiting", "refused"]);
   assert.equal(nextPublicationViewerId(items, "waiting", 1), "refused");
   assert.equal(nextPublicationViewerId(items, "refused", 1), "waiting");
-  assert.deepEqual(filterPublicationsByValidation(actions, { validated: false, pending: false, refused: false }), []);
+  assert.deepEqual(filterPublicationsByValidation(actions, { validated: false, pending: false, creating: false, refused: false }), []);
+});
+
+test("une même publication compte une fois par filtre, même si plusieurs canaux partagent un état", () => {
+  const clock = Date.parse("2027-01-01T10:00:00Z");
+  const deadline = new Date(clock + 60_000).toISOString();
+  const selection = { version: 1, availableChannels: ["site_web", "instagram", "tiktok", "linkedin"], excludedChannels: ["linkedin"], unvalidatedChannels: ["tiktok"] };
+  const payload = { publicationChannelSelection: selection, editorialPlan: { state: "ready" } };
+  const partial = { status: "scheduled", executionPolicy: "automatic_after_settings", validationRequired: false, scheduledFor: deadline, payload };
+  assert.deepEqual(countPublicationValidationStates([partial], clock), { validated: 1, pending: 1, creating: 0, refused: 0 });
+  assert.deepEqual(filterPublicationsByValidation([partial], all, clock), [partial]);
+  assert.equal(publicationChannelReviewState(partial, "tiktok", clock), "pending");
+  assert.equal(publicationChannelReviewState(partial, "instagram", clock), "validated");
+  assert.equal(publicationChannelReviewState(partial, "site_web", clock), "validated");
+  assert.equal(publicationChannelReviewState(partial, "linkedin", clock), undefined);
+  assert.deepEqual(publicationReviewStates(partial, Date.parse(deadline)), []);
+  const withSelection = (patch: Partial<typeof selection>) => ({ ...partial, payload: { ...payload, publicationChannelSelection: { ...selection, ...patch } } });
+  assert.deepEqual(publicationReviewStates(withSelection({ excludedChannels: ["linkedin", "tiktok"] }), clock), ["validated"]);
+  assert.deepEqual(publicationReviewStates(withSelection({ excludedChannels: ["linkedin", "instagram", "site_web"] }), clock), ["pending"]);
+  assert.deepEqual(publicationReviewStates(withSelection({ unvalidatedChannels: [] }), clock), ["validated"]);
+  const manualAddition = withSelection({ unvalidatedChannels: ["instagram"] });
+  assert.equal(publicationChannelReviewState(manualAddition, "instagram", clock), "pending");
+});
+
+test("l'état reflète le contenu préparé, la validation manuelle historique et les anciens refus TikTok explicites", () => {
+  const ready = { editorialPlan: { state: "ready" } };
+  const queued = { editorialPlan: { state: "queued" } };
+  for (const status of ["draft", "executing", "failed", "pending_validation"]) {
+    assert.deepEqual(publicationReviewStates({ status, payload: queued }), ["creating"], status);
+  }
+  assert.deepEqual(publicationReviewStates({ status: "draft", payload: ready }), ["pending"]);
+  assert.deepEqual(publicationReviewStates({ status: "prepared", payload: ready, validationRequired: false }), ["validated"]);
+  assert.deepEqual(publicationReviewStates({ status: "refused", payload: ready }), ["refused"]);
+  const legacy = { id: "ancienne-publication", status: "prepared", executionPolicy: "automatic_after_settings", targetChannels: ["facebook", "tiktok"],
+    lastError: "TikTok attend la validation de ses paramètres avant programmation." };
+  assert.deepEqual(publicationReviewStates(legacy), ["validated", "pending"]);
+  assert.deepEqual(publicationReviewStates({ ...legacy, lastError: "Échec réseau" }), ["validated"]);
+  assert.deepEqual(publicationReviewStates({ ...legacy, targetChannels: ["facebook"] }), ["validated"]);
+  const reviewed = {
+    ...legacy,
+    payload: {
+      publicationChannelSelection: { version: 1, availableChannels: legacy.targetChannels, excludedChannels: [] },
+      tiktokPublicationSettings: { inrAgentReviewActionId: legacy.id, privacyLevel: "PUBLIC_TO_EVERYONE", commercialContent: "none", musicUsageConfirmed: true },
+    },
+  };
+  assert.deepEqual(publicationReviewStates(reviewed), ["validated"]);
+  assert.deepEqual(publicationReviewStates({ ...reviewed, id: "autre-publication" }), ["validated", "pending"]);
+  const missing = { publicationChannelSelection: { version: 1, availableChannels: ["facebook"], pendingChannels: ["tiktok"] } };
+  assert.deepEqual(publicationReviewStates({ status: "prepared", payload: missing }), ["creating"]);
 });
 
 const now = Date.now();

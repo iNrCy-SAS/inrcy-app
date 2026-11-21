@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import type { PublicationValidationFilters, PublicationValidationState } from "../_lib/agent.publication-validation";
+import type { PublicationReviewState, PublicationValidationFilters } from "../_lib/agent.publication-validation";
 import css from "./AgentPublicationNavigation.module.css";
 
 type Props = {
@@ -7,15 +7,21 @@ type Props = {
   total: number;
   canNavigate: boolean;
   onMove: (offset: number) => void;
-  counts: Record<PublicationValidationState, number>;
+  counts: Record<PublicationReviewState, number>;
   filters: PublicationValidationFilters;
   disabled: boolean;
-  onFilterChange: (state: PublicationValidationState, checked: boolean) => void;
+  onFilterFocus: (state: PublicationReviewState) => void;
+  onFilterChange: (state: PublicationReviewState, checked: boolean) => void;
 };
-const states = ["validated", "pending", "refused"] as const;
-
-export default function AgentPublicationNavigation({ current, total, canNavigate, onMove, counts, filters, disabled, onFilterChange }: Props) {
+export default function AgentPublicationNavigation({ current, total, canNavigate, onMove, counts, filters, disabled, onFilterFocus, onFilterChange }: Props) {
   const t = useTranslations("agent");
+  const statuses = [
+    { state: "validated", label: t("action_status_validated") },
+    { state: "pending", label: t("publication_channel_review_pending") },
+    { state: "creating", label: t("publication_status_creating") },
+    { state: "refused", label: t("action_status_refused") },
+  ] as const;
+  const singleStatus = statuses.filter(({ state }) => filters[state]).length === 1;
   return <div className={css.bar}>
     <nav className={css.navigation} aria-label={t("publication_navigation")}>
       <button type="button" onClick={() => onMove(-1)} disabled={!canNavigate} aria-label={t("previous_publication")}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6" /></svg></button>
@@ -24,12 +30,21 @@ export default function AgentPublicationNavigation({ current, total, canNavigate
     </nav>
     <fieldset className={css.filters} disabled={disabled}>
       <legend className={css.legend}>{t("publication_filter_label")}</legend>
-      {states.map(state => <label key={state} data-state={state} data-active={filters[state]}>
-        <span className={css.dot} aria-hidden="true" />
-        <span>{t(state === "validated" ? "action_status_validated" : state === "pending" ? "publication_validation_pending" : "action_status_refused")}</span>
-        <span className={css.count}>({counts[state]})</span>
-        <input type="checkbox" checked={filters[state]} onChange={event => onFilterChange(state, event.currentTarget.checked)} />
-      </label>)}
+      {statuses.map(({ state, label }) => {
+        const focused = singleStatus && filters[state];
+        return <div className={css.filter} key={state} data-state={state} data-active={filters[state]}>
+          <button type="button" aria-pressed={focused} onClick={() => onFilterFocus(state)}
+            title={focused ? t("publication_filter_show_all") : t("publication_filter_show_only", { status: label })}>
+            <span className={css.dot} aria-hidden="true" />
+            <span>{label}</span>
+            <span className={css.count}>({counts[state]})</span>
+          </button>
+          <label className={css.checkboxTarget}>
+            <input type="checkbox" checked={filters[state]} aria-label={`${label} (${counts[state]})`}
+              onChange={event => onFilterChange(state, event.currentTarget.checked)} />
+          </label>
+        </div>;
+      })}
     </fieldset>
   </div>;
 }

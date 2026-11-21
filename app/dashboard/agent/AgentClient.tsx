@@ -370,7 +370,7 @@ import {
   computeNextOccurrence,
 } from "./_lib/agent.schedule";
 import { buildAgentScheduleItems } from "./_lib/agent.schedule-items";
-import { publicationValidationState, countPublicationValidationStates, filterPublicationsByValidation, type PublicationValidationFilters } from "./_lib/agent.publication-validation";
+import { publicationValidationState, publicationReviewStates, publicationChannelReviewState, countPublicationValidationStates, filterPublicationsByValidation, type PublicationValidationFilters } from "./_lib/agent.publication-validation";
 import AgentPublicationNavigation from "./_components/AgentPublicationNavigation";
 import {
   hasPublicationSchedulePassed,
@@ -629,7 +629,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
   >(null);
   const [publicationRestoreState, setPublicationRestoreState] = useState<"idle" | "saving">("idle");
   const publicationRestoreInFlightRef = useRef(false);
-  const [publicationStatusFilters, setPublicationStatusFilters] = useState<PublicationValidationFilters>({ validated: true, pending: true, refused: true });
+  const [publicationStatusFilters, setPublicationStatusFilters] = useState<PublicationValidationFilters>({ validated: true, pending: true, creating: true, refused: true });
   const publicationSwipeStartRef = useRef<{
     x: number;
     y: number;
@@ -1017,7 +1017,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     instantPublishPreparationInProgress &&
     selectedKey === "publish" &&
     selectedPreparedActionId === INSTANT_PUBLICATION_PREPARATION_ID &&
-    !scheduledEditSession && publicationStatusFilters.pending;
+    !scheduledEditSession && publicationStatusFilters.creating;
 
   const allPublicationCarouselActions = useMemo(
     () =>
@@ -1036,8 +1036,15 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     [actions, publicationVisibilityNow]
   );
 
-  const publicationStatusCounts = useMemo(() => countPublicationValidationStates(allPublicationCarouselActions), [allPublicationCarouselActions]);
-  const publicationCarouselActions = useMemo(() => filterPublicationsByValidation(allPublicationCarouselActions, publicationStatusFilters), [allPublicationCarouselActions, publicationStatusFilters]);
+  const publicationStatusCounts = useMemo(() => {
+    const counts = countPublicationValidationStates(allPublicationCarouselActions, publicationVisibilityNow);
+    if (instantPublishPreparationInProgress) counts.creating++;
+    return counts;
+  }, [allPublicationCarouselActions, publicationVisibilityNow, instantPublishPreparationInProgress]);
+  const publicationCarouselActions = useMemo(
+    () => filterPublicationsByValidation(allPublicationCarouselActions, publicationStatusFilters, publicationVisibilityNow),
+    [allPublicationCarouselActions, publicationStatusFilters, publicationVisibilityNow],
+  );
 
   const selectedPreparedActionFromActions = useMemo(() => {
     if (selectedKey === "publish") {
@@ -1047,7 +1054,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
           action.id === selectedPreparedActionId &&
           action.automationKey === "publish" &&
           action.actionType === "publication" &&
-          publicationStatusFilters[publicationValidationState(action)] &&
+          publicationReviewStates(action, publicationVisibilityNow).some(state => publicationStatusFilters[state]) &&
           !isHiddenRefusedPublication(action, publicationVisibilityNow)
       );
       return (
@@ -1117,7 +1124,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
   const publicationViewerActions = buildPublicationViewerItems(
     publicationCarouselActions,
     selectedKey === "publish" ? selectedPreparedAction : null,
-    instantPublishPreparationInProgress && publicationStatusFilters.pending,
+    instantPublishPreparationInProgress && publicationStatusFilters.creating,
   );
   const noMatchingPublications = selectedKey === "publish" && !scheduledEditSession && !isInstantPublicationPreview && !publicationCarouselActions.length && (allPublicationCarouselActions.length > 0 || Object.values(publicationStatusFilters).some(value => !value));
   const selectedPublicationIndex = publicationViewerActions.findIndex(
@@ -1490,9 +1497,15 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
   const pendingPublicationChannels = useMemo(() => pendingInrAgentPublicationChannels(selectedPreparedAction?.payload).map(key => apiChannelToUi[key]).filter((key): key is ChannelKey => Boolean(key)), [selectedPreparedAction?.payload]);
   const unvalidatedPublicationChannels = unvalidatedInrAgentPublicationChannels(selectedPreparedAction?.payload);
   const selectedPublishChannels = useMemo(() => selectedInrAgentPublicationChannels(selectedPreparedAction?.payload, preparedChannels).map(key => apiChannelToUi[key]).filter((key): key is ChannelKey => Boolean(key)), [selectedPreparedAction?.payload, preparedChannels]);
-  const publicationPreviewChannels = useMemo(() => orderChannels([...new Set([...preparedChannels, ...pendingPublicationChannels])], selectedAvailableChannels), [preparedChannels, pendingPublicationChannels, selectedAvailableChannels]);
+  const publicationPreviewChannels = useMemo(() => {
+    const channels = orderChannels([...new Set([...preparedChannels, ...pendingPublicationChannels])], selectedAvailableChannels);
+    if (!isPublishView || scheduledEditSession || Object.values(publicationStatusFilters).every(Boolean)) return channels;
+    return channels.filter(channel => {
+      const state = publicationChannelReviewState(selectedPreparedAction, boosterChannelKeyFromAgentChannel(channel), publicationVisibilityNow);
+      return Boolean(state && publicationStatusFilters[state] && selectedPublishChannels.includes(channel));
+    });
+  }, [isPublishView, scheduledEditSession, preparedChannels, pendingPublicationChannels, selectedAvailableChannels, selectedPublishChannels, selectedPreparedAction, publicationStatusFilters, publicationVisibilityNow]);
   const canEditPublicationChannels = Boolean(selectedPreparedAction && !publishChannelSelectionSaving && ["prepared", "pending_validation", "pending", "draft", "validated", "scheduled"].includes(selectedPreparedAction.status));
-  const canConfirmAdditionalChannels = canEditPublicationChannels && unvalidatedPublicationChannels.length > 0 && !pendingPublicationChannels.length;
   const selectablePreviewChannels = isInstantPublicationPreview
     ? []
     : hasPreparedAction
@@ -1538,6 +1551,13 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     ? (selectedAutomationChannel as ChannelKey)
     : placeholderPreviewChannels[0] ?? null;
   const activePublicationChannelEmpty = Boolean(isPublishView && activePreviewChannel && pendingPublicationChannels.includes(activePreviewChannel));
+  const activePublicationReviewState = isInstantPublicationPreview ? "creating"
+    : publicationChannelReviewState(selectedPreparedAction, activePreviewChannel && boosterChannelKeyFromAgentChannel(activePreviewChannel), publicationVisibilityNow);
+  const automaticTiktokReview = activePreviewChannel === "tiktok" && activePublicationReviewState === "pending"
+    && (selectedPreparedAction?.executionPolicy === "automatic_after_settings" || selectedPreparedAction?.validationRequired === false);
+  const canConfirmAdditionalChannels = canEditPublicationChannels && activePublicationReviewState === "pending"
+    && (automaticTiktokReview || Boolean(activePreviewChannel && unvalidatedPublicationChannels.includes(boosterChannelKeyFromAgentChannel(activePreviewChannel))))
+    && !pendingPublicationChannels.length;
   const activePreviewChannelLabel = isInstantPublicationPreview
     ? "—"
     : activePreviewChannel
@@ -1766,34 +1786,14 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       ? i18nT("titre_et_texte_7f7b4e2a")
       : i18nT("texte_seul_24210789")
     : "—";
-  const selectedPublicationIsAutomatic =
-    selectedPreparedAction?.executionPolicy === "automatic_after_settings";
-  const publishValidationLabel =
-    !isPublishView || !selectedPreparedAction
-      ? "—"
-      : pendingPublicationChannels.length
-      ? i18nT("publication_channel_empty")
-      : unvalidatedPublicationChannels.length
-      ? i18nT("publication_channel_review_pending")
-      : selectedPreparedAction.status === "failed"
-      ? agentActionStatusLabel(selectedPreparedAction.status, runtimeT)
-      : selectedPublicationIsAutomatic
-      ? agentActionStatusLabel(selectedPreparedAction.status, runtimeT)
-      : selectedPublicationValidationState === "refused"
-      ? i18nT("action_status_refused")
-      : selectedPublicationValidationState === "validated"
-      ? i18nT("action_status_validated")
-      : i18nT("publication_validation_pending");
-  const publishStatusClass =
-    pendingPublicationChannels.length || unvalidatedPublicationChannels.length
-      ? styles.publishStatusWarning
-      : selectedPreparedAction?.status === "failed" ||
-    selectedPublicationValidationState === "refused"
-      ? styles.publishStatusBlocked
-      : selectedPublicationIsAutomatic ||
-        selectedPublicationValidationState === "validated"
-      ? styles.publishStatusReady
-      : styles.publishStatusWarning;
+  const publishValidationLabel = activePublicationReviewState
+    ? i18nT({
+        validated: "action_status_validated",
+        pending: "publication_channel_review_pending",
+        creating: "publication_status_creating",
+        refused: "action_status_refused",
+      }[activePublicationReviewState])
+    : "—";
   const agentPublishScheduleItems = useMemo<PublishScheduleItem[]>(() => {
     if (!selectedPreparedAction || !isPublishView) return [];
     const seen = new Set<BoosterChannelKey>();
@@ -3810,7 +3810,9 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
   async function savePublicationChannelSelection(nextChannels: ChannelKey[], tiktokPublicationSettings?: TiktokPublicationSettings | null, confirmPending = false) {
     let action = selectedPreparedAction;
     if (!action || !canEditPublicationChannels || publishChannelSelectionBusy.current) return;
-    if (nextChannels.includes("tiktok") && preparedChannels.includes("tiktok") && (!selectedPublishChannels.includes("tiktok") || confirmPending && unvalidatedPublicationChannels.includes("tiktok")) && (scheduledEditSession || ["validated", "scheduled"].includes(action.status)) && !tiktokPublicationSettings) {
+    const confirmingTiktok = confirmPending && (unvalidatedPublicationChannels.includes("tiktok") || automaticTiktokReview);
+    const enablingScheduledTiktok = !selectedPublishChannels.includes("tiktok") && (scheduledEditSession || ["validated", "scheduled"].includes(action.status));
+    if (nextChannels.includes("tiktok") && preparedChannels.includes("tiktok") && (confirmingTiktok || enablingScheduledTiktok) && !tiktokPublicationSettings) {
       if (tiktokSessionCheckInFlightRef.current) return;
       const reviewSignature = tiktokCurrentReviewSignature;
       const reusableSettings = await resolveAgentTiktokSessionSettings();
@@ -5954,6 +5956,15 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                       counts={publicationStatusCounts} filters={publicationStatusFilters}
                       disabled={Boolean(scheduledEditSession) || publicationRestoreState === "saving" || actionMutationState === "saving" || validationScheduleState === "saving" || tiktokSessionCheckState === "checking"}
                       onFilterChange={(state, checked) => setPublicationStatusFilters(current => ({ ...current, [state]: checked }))}
+                      onFilterFocus={state => setPublicationStatusFilters(current => {
+                        const reset = current[state] && Object.values(current).filter(Boolean).length === 1;
+                        return {
+                          validated: reset || state === "validated",
+                          pending: reset || state === "pending",
+                          creating: reset || state === "creating",
+                          refused: reset || state === "refused",
+                        };
+                      })}
                     />
                     {noMatchingPublications ? (
                       <div className={styles.publicationFilterEmpty}>
@@ -6903,7 +6914,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                     {isPublishView ? (
                       <div
                         className={styles.publishFooterStatus}
-                        data-validation-state={selectedPublicationValidationState}
+                        data-validation-state={activePublicationReviewState}
                         aria-label={`${i18nT("statut_659499f3")} : ${publishValidationLabel}`}
                         role="status"
                       >
@@ -6912,7 +6923,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                         </span>
                         <span className={styles.publishFooterStatusText}>
                           <small>{i18nT("statut_659499f3")}</small>
-                          <strong className={publishStatusClass}>{publishValidationLabel}</strong>
+                          <strong>{publishValidationLabel}</strong>
                         </span>
                         {!scheduledEditSession && canReopenPublicationValidation(selectedPreparedAction, publicationVisibilityNow) ? (
                           <button type="button" className={styles.publicationRestoreButton}
@@ -6970,7 +6981,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                             type="button"
                             className={styles.validateButton}
                             disabled={
-                              !hasPreparedAction || (!canReviewSelectedAction && !canConfirmAdditionalChannels) || (isPublishView && (!selectedPublishChannels.length || pendingPublicationChannels.length > 0))
+                              !hasPreparedAction || (!canReviewSelectedAction && !canConfirmAdditionalChannels) || (isPublishView && (!selectedPublishChannels.length || pendingPublicationChannels.length > 0 || (!scheduledEditSession && activePublicationReviewState !== "pending")))
                             }
                             onClick={() => {
                               if (canConfirmAdditionalChannels) {
@@ -7012,7 +7023,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                               type="button"
                               className={styles.refuseButton}
                               disabled={
-                                !hasPreparedAction || !canReviewSelectedAction
+                                !hasPreparedAction || !canReviewSelectedAction || (isPublishView && activePublicationReviewState !== "pending")
                               }
                               onClick={() => updateActionStatus("refused")}
                             >
