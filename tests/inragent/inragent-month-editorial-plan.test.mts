@@ -275,7 +275,7 @@ test("les médias générés remplissent leur format avant l’adaptation iNrAge
   assert.match(client, /source:[\s\S]*?url: publishMediaPreview\.url/);
   assert.doesNotMatch(client, /ChannelImageAdapterModal/);
 
-  const inlineMediaStart = client.indexOf(") : publishMediaPreview?.url ? (");
+  const inlineMediaStart = client.indexOf("{!showPublicationSpinner && publishMediaPreview?.url ? (");
   assert.ok(inlineMediaStart > 0);
   const inlineStageStart = client.indexOf(
     "className={styles.publishInlineMediaStage}",

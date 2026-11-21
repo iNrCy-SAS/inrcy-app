@@ -76,7 +76,7 @@ test("la roulette affiche la progression estimée sans annoncer 100 % avant la r
     /className=\{styles\.robotWorkingProgress\}[\s\S]*?\{normalizedProgress\}%/,
   );
   assert.equal(
-    (client.match(/progress=\{prepareProgress\?\.percent\}/g) || []).length,
+    (client.match(/progress=\{isInstantPublicationPreview \? prepareProgress\?\.percent : undefined\}/g) || []).length,
     1,
   );
   assert.match(

@@ -415,7 +415,7 @@ test("l'espace Publier garde le média, la navigation et les commandes dans un c
   assert.match(client, /startPublicationSwipe/);
   assert.match(client, /movePublication\(-1\)/);
   assert.match(client, /movePublication\(1\)/);
-  assert.match(client, /data-has-media=\{isInstantPublicationPreview \|\| Boolean\(publishMediaPreview\?\.url\)\}/);
+  assert.match(client, /data-has-media=\{!showPublicationSpinner && Boolean\(publishMediaPreview\?\.url\)\}/);
   assert.match(client, /className=\{styles\.publishInlineMedia\}/);
   assert.match(client, /className=\{styles\.publishCtaStandalone\}/);
   assert.match(client, /<AgentWorkspaceHeader/);

@@ -542,11 +542,9 @@ function publicationActionSortGroup(action: AgentPreparedAction) {
 
 function AgentWorkingIndicator({
   title,
-  detail,
   progress,
 }: {
   title: string;
-  detail: string;
   progress?: number | null;
 }) {
   const normalizedProgress =
@@ -555,22 +553,17 @@ function AgentWorkingIndicator({
       : null;
 
   return (
-    <div
-      className={styles.robotWorkingBadge}
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
+    <span
+      className={styles.robotWorkingSpinner}
+      data-publication-spinner
+      role="progressbar"
+      aria-label={title}
+      aria-valuenow={normalizedProgress ?? undefined}
     >
-      <span className={styles.robotWorkingSpinner} aria-hidden>
-        {normalizedProgress !== null ? (
-          <b className={styles.robotWorkingProgress}>{normalizedProgress}%</b>
-        ) : null}
-      </span>
-      <span>
-        <strong>{title}</strong>
-        <small>{detail}</small>
-      </span>
-    </div>
+      {normalizedProgress !== null ? (
+        <b className={styles.robotWorkingProgress}>{normalizedProgress}%</b>
+      ) : null}
+    </span>
   );
 }
 
@@ -5477,7 +5470,9 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
   const showEditorialCronWait =
     !agentWorking &&
     !editorialGenerationActive &&
-    editorialQueueWaitingForCron;
+    editorialQueueWaitingForCron &&
+    !selectedPreparedAction &&
+    !noMatchingPublications;
   const agentWorkingLabel = publishRegeneration
     ? publishRegeneration.kind === "content"
       ? publishRegeneration.scope === "publication"
@@ -5498,9 +5493,16 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
     ? i18nT("synchronisation_60a2d2da")
     : agentWorking ? `${agentWorkingLabel}${prepareProgress ? ` · ${prepareProgress.percent}%` : ""}`
     : showEditorialCronWait && workspace === "publications" ? i18nT("next_editorial_publication_in_a_few_minutes") : undefined;
-  const publicationPreparationMessage = !noMatchingPublications ? publishPreparationStatus : null;
+  const showPublicationSpinner = isInstantPublicationPreview || publishPreparationState === "queued" || publishPreparationState === "generating";
+  const publicationAwaitingContent = showPublicationSpinner ||
+    publishPreparationState === "retry" ||
+    (publishPreparationState === "failed" && asRecord(selectedPreparedAction?.payload.editorialPlan)?.state !== "ready");
+  const showGenerationProgress = publishPreparationState === "generating" && agentWorking && loadState !== "loading";
+  const publicationPreparationMessage = isInstantPublicationPreview ? i18nT("agent_working_preparing")
+    : !noMatchingPublications && !showGenerationProgress ? publishPreparationStatus : null;
   const publicationErrorMessage = !noMatchingPublications ? publishFailureMessage : null;
-  const publicationFeedbackMessage = notice && ![workspaceStatus, publicationPreparationMessage, publicationErrorMessage].includes(notice)
+  const publicationChannelMessage = !noMatchingPublications && activePreviewChannel === "pinterest" ? pinterestBoardsError : null;
+  const publicationFeedbackMessage = notice && ![workspaceStatus, publicationPreparationMessage, publicationErrorMessage, publicationChannelMessage].includes(notice)
     ? notice : null;
   const scheduledEditBanner = scheduledEditSession ? (
     <div className={styles.workspaceEditBanner} role="status">
@@ -5508,6 +5510,19 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       <strong>{i18nT("action_programmee_ea2709b8")}</strong>
       <span>{scheduledEditDirty ? i18nT("modifications_non_sauvegardees_ffc636a4") : i18nT("aucune_modification_pour_le_moment_909aff44")}</span>
       <button type="button" onClick={() => exitScheduledEditSession()}>{i18nT("quitter_l_edition_08b3f0cb")}</button>
+    </div>
+  ) : null;
+
+  const publicationInfoBand = isPublishView && (workspaceStatus || publicationPreparationMessage || publicationErrorMessage || publicationChannelMessage || publicationFeedbackMessage || scheduledEditSession) ? (
+    <div className={styles.publicationInfoBand} data-publication-info>
+      {workspaceStatus ? <span role="status">{workspaceStatus}</span> : null}
+      {publicationPreparationMessage && publicationPreparationMessage !== workspaceStatus ? (
+        <span data-state={publishPreparationState} role="status">{publicationPreparationMessage}</span>
+      ) : null}
+      <PublicationFailureNotice message={publicationErrorMessage} />
+      {publicationChannelMessage && publicationChannelMessage !== publicationErrorMessage ? <span role="alert">{publicationChannelMessage}</span> : null}
+      {publicationFeedbackMessage ? <span role="status">{publicationFeedbackMessage}</span> : null}
+      {scheduledEditBanner}
     </div>
   ) : null;
 
@@ -5578,17 +5593,6 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
           prepareHelp={selected.key === "publish" ? manualCreditHelp || i18nT("instant_publish_action_help") : undefined}
           status={isPublishView ? undefined : workspaceStatus}
         />
-        {isPublishView && (workspaceStatus || publicationPreparationMessage || publicationErrorMessage || publicationFeedbackMessage || scheduledEditSession) ? (
-          <div className={styles.publicationInfoBand} data-publication-info>
-            {workspaceStatus ? <span role="status">{workspaceStatus}</span> : null}
-            {publicationPreparationMessage && publicationPreparationMessage !== workspaceStatus ? (
-              <span data-state={publishPreparationState} role="status">{publicationPreparationMessage}</span>
-            ) : null}
-            <PublicationFailureNotice message={publicationErrorMessage} />
-            {publicationFeedbackMessage ? <span role="status">{publicationFeedbackMessage}</span> : null}
-            {scheduledEditBanner}
-          </div>
-        ) : null}
         {!isPublishView ? scheduledEditBanner : null}
         <div className={styles.mainGrid}>
           <div className={styles.workColumn}>
@@ -5951,7 +5955,14 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                       disabled={Boolean(scheduledEditSession) || publicationRestoreState === "saving" || actionMutationState === "saving" || validationScheduleState === "saving" || tiktokSessionCheckState === "checking"}
                       onFilterChange={(state, checked) => setPublicationStatusFilters(current => ({ ...current, [state]: checked }))}
                     />
-                    {noMatchingPublications ? <div className={styles.publicationFilterEmpty} role="status"><span aria-hidden>☷</span><strong>{i18nT("publication_filter_empty")}</strong><p>{i18nT("publication_filter_empty_hint")}</p></div> : null}
+                    {noMatchingPublications ? (
+                      <div className={styles.publicationFilterEmpty}>
+                        {publicationInfoBand}
+                        <span aria-hidden>☷</span>
+                        <strong role="status">{i18nT("publication_filter_empty")}</strong>
+                        <p>{i18nT("publication_filter_empty_hint")}</p>
+                      </div>
+                    ) : null}
                     {!noMatchingPublications && (<div className={`${styles.publishInfoGrid} ${styles.publishInfoGridWithFormat}`}>
                       <AgentPublicationChannelList key={selectedPreparedAction?.id || "empty"} channels={orderChannels([...new Set([...selected.availableChannels, ...preparedChannels])], selected.availableChannels).map(key => ({ key, label: agentChannelLabel(key, runtimeT), src: channelOptions[key].src, connected: Boolean(agentConnectedChannels?.[key]), prepared: preparedChannels.includes(key) }))} selectedChannels={selectedPublishChannels} disabled={!canEditPublicationChannels} saving={publishChannelSelectionSaving} preparingChannel={publicationChannelPreparing} onChange={channels => void savePublicationChannelSelection(channels)} />
                       <article
@@ -6186,13 +6197,6 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                               ))}
                             </select>
                           ) : <span aria-hidden>—</span>}
-                          {activePreviewChannel === "pinterest" &&
-                          pinterestBoardsError ? (
-                            <small className={styles.publishPlacementError}>
-                              {pinterestBoardsError}
-                            </small>
-                          ) : null}
-
                         </div>
                       </article>
 
@@ -6213,17 +6217,11 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                       >
                         <article
                           className={styles.publishPostCard}
-                          data-has-media={isInstantPublicationPreview || Boolean(publishMediaPreview?.url)}
+                          data-has-media={!showPublicationSpinner && Boolean(publishMediaPreview?.url)}
                           data-media-only={publishMediaOnly}
-                          data-preparing={isInstantPublicationPreview}
-                          aria-busy={isInstantPublicationPreview || publishPreparationState === "generating"}
+                          data-preparing={showPublicationSpinner}
                         >
-                          {isInstantPublicationPreview ? (
-                            <section className={styles.publishInlineMedia} aria-hidden="true">
-                              <div className={styles.publishInlineMediaStage} />
-                              <div className={styles.publishInlineMediaCaption} />
-                            </section>
-                          ) : publishMediaPreview?.url ? (
+                          {!showPublicationSpinner && publishMediaPreview?.url ? (
                             <section
                               className={styles.publishInlineMedia}
                               data-media-kind={publishMediaPreview.kind}
@@ -6328,108 +6326,97 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                               ) : null}
                             </section>
                           ) : null}
-                          {activePublicationChannelEmpty ? (
-                            <div className={styles.publicationEmptyChannel} role="alert">
-                              <span aria-hidden>⚠</span>
-                              <strong>{i18nT("publication_channel_empty")}</strong>
-                              <p>{i18nT("publication_channel_empty_help")}</p>
-                            </div>
-                          ) : publishMediaOnly ? (
-                            <div className={styles.publishMediaOnlyNotice}>
-                              <span aria-hidden>🎬</span>
-                              <strong>
-                                {publishPlacement === "story"
-                                  ? i18nT("publication_mode_story")
-                                  : i18nT("publication_mode_reel")}
-                              </strong>
-                              <p>{i18nT("publication_mode_media_only_help")}</p>
-                            </div>
-                          ) : (
-                            <div className={styles.publishPostText}>
-                              <div className={styles.publishTitleLine}>
-                                <span>{i18nT("titre_d03e0c7c")}</span>
-                                {publishPreparationInProgress && !isInstantPublicationPreview ? (
-                                  <span
-                                    className={styles.publishTitleLoading}
-                                    role="status"
-                                    aria-label={i18nT(
-                                      "preparation_de_la_publication_inr_agent_56ab605b"
-                                    )}
-                                    title={i18nT(
-                                      "preparation_de_la_publication_inr_agent_56ab605b"
-                                    )}
-                                  />
-                                ) : null}
-                                <strong>
-                                  {preparedChannelPreview?.title ||
-                                    selectedPreparedAction?.title ||
-                                    "—"}
-                                </strong>
+                          <div className={styles.publicationContentColumn}>
+                            {showPublicationSpinner ? (
+                              <AgentWorkingIndicator
+                                title={isInstantPublicationPreview ? i18nT("agent_working_preparing") : publishPreparationStatus || agentWorkingLabel}
+                                progress={isInstantPublicationPreview ? prepareProgress?.percent : undefined}
+                              />
+                            ) : null}
+                            {publicationInfoBand}
+                            {publicationAwaitingContent ? null : activePublicationChannelEmpty ? (
+                              <div className={styles.publicationEmptyChannel} role="alert">
+                                <span aria-hidden>⚠</span>
+                                <strong>{i18nT("publication_channel_empty")}</strong>
+                                <p>{i18nT("publication_channel_empty_help")}</p>
                               </div>
-                              <div className={styles.publishPostContent}>
-                                {isInstantPublicationPreview ? (
-                                  <div className={styles.instantPublishLoading}>
-                                    <AgentWorkingIndicator
-                                      title={i18nT("agent_working_title")}
-                                      detail={i18nT("agent_working_preparing")}
-                                      progress={prepareProgress?.percent}
-                                    />
-                                  </div>
-                                ) : publishParagraphs.length > 0 ? (
-                                  publishParagraphs.map((paragraph, index) => (
-                                    <p
-                                      key={`${
-                                        selectedPreparedAction?.id ||
-                                        selected.key
-                                      }-${
-                                        activePreviewChannel || "global"
-                                      }-publish-paragraph-${index}`}
-                                    >
-                                      {renderRichInlineText(
-                                        paragraph,
-                                        `${
+                            ) : publishMediaOnly ? (
+                              <div className={styles.publishMediaOnlyNotice}>
+                                <span aria-hidden>🎬</span>
+                                <strong>
+                                  {publishPlacement === "story"
+                                    ? i18nT("publication_mode_story")
+                                    : i18nT("publication_mode_reel")}
+                                </strong>
+                                <p>{i18nT("publication_mode_media_only_help")}</p>
+                              </div>
+                            ) : (
+                              <div className={styles.publishPostText}>
+                                <div className={styles.publishTitleLine}>
+                                  <span>{i18nT("titre_d03e0c7c")}</span>
+                                  <strong>
+                                    {preparedChannelPreview?.title ||
+                                      selectedPreparedAction?.title ||
+                                      "—"}
+                                  </strong>
+                                </div>
+                                <div className={styles.publishPostContent}>
+                                  {publishParagraphs.length > 0 ? (
+                                    publishParagraphs.map((paragraph, index) => (
+                                      <p
+                                        key={`${
                                           selectedPreparedAction?.id ||
                                           selected.key
                                         }-${
                                           activePreviewChannel || "global"
-                                        }-publish-paragraph-${index}`
+                                        }-publish-paragraph-${index}`}
+                                      >
+                                        {renderRichInlineText(
+                                          paragraph,
+                                          `${
+                                            selectedPreparedAction?.id ||
+                                            selected.key
+                                          }-${
+                                            activePreviewChannel || "global"
+                                          }-publish-paragraph-${index}`
+                                        )}
+                                      </p>
+                                    ))
+                                  ) : selectedPreparedAction ? (
+                                    <p>
+                                      {renderRichInlineText(
+                                        selectedPreparedAction.summary,
+                                        `${selectedPreparedAction.id}-publish-summary`
                                       )}
                                     </p>
-                                  ))
-                                ) : selectedPreparedAction ? (
-                                  <p>
-                                    {renderRichInlineText(
-                                      selectedPreparedAction.summary,
-                                      `${selectedPreparedAction.id}-publish-summary`
-                                    )}
-                                  </p>
-                                ) : (
-                                  <div className={styles.publishEmptyHint}>
-                                    <strong>
-                                      {i18nT(
-                                        manualPlanningOnly ? "manual_planning_empty_title" : "aucune_publication_automatique_preparee_pour_le_a48148f5"
-                                      )}{" "}
-                                    </strong>
-                                    <span>
-                                      {i18nT(
-                                        manualPlanningOnly ? "manual_planning_empty_description" : "le_futur_contenu_du_canal_selectionne_1b1512d5"
-                                      )}{" "}
-                                    </span>
-                                  </div>
-                                )}
-                                {preparedChannelPreview?.hashtags.length ? (
-                                  <small className={styles.previewHashtags}>
-                                    {preparedChannelPreview.hashtags
-                                      .map(
-                                        (hashtag) =>
-                                          `#${hashtag.replace(/^#+/, "")}`
-                                      )
-                                      .join(" ")}
-                                  </small>
-                                ) : null}
+                                  ) : (
+                                    <div className={styles.publishEmptyHint}>
+                                      <strong>
+                                        {i18nT(
+                                          manualPlanningOnly ? "manual_planning_empty_title" : "aucune_publication_automatique_preparee_pour_le_a48148f5"
+                                        )}{" "}
+                                      </strong>
+                                      <span>
+                                        {i18nT(
+                                          manualPlanningOnly ? "manual_planning_empty_description" : "le_futur_contenu_du_canal_selectionne_1b1512d5"
+                                        )}{" "}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {preparedChannelPreview?.hashtags.length ? (
+                                    <small className={styles.previewHashtags}>
+                                      {preparedChannelPreview.hashtags
+                                        .map(
+                                          (hashtag) =>
+                                            `#${hashtag.replace(/^#+/, "")}`
+                                        )
+                                        .join(" ")}
+                                    </small>
+                                  ) : null}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </article>
                         {publishMediaOnly ? (
                           <div

@@ -119,7 +119,7 @@ test("the review UI exposes independent content and media regeneration controls"
   assert.match(ui, /i18nT\("agent_working_regenerating_media"\)/);
   assert.match(ui, /agent_working_regenerating/);
   assert.match(ui, /titre_et_texte_7f7b4e2a/);
-  assert.match(ui, /publishTitleLoading/);
+  assert.match(ui, /data-publication-spinner\s+role="progressbar"/);
   assert.match(ui, /publishPreparationInProgress/);
   assert.match(
     ui,
@@ -127,7 +127,7 @@ test("the review UI exposes independent content and media regeneration controls"
   );
   assert.match(ui, /<AgentWorkingIndicator/);
   assert.match(styles, /\.publishRegenerateButton/);
-  assert.match(styles, /\.publishTitleLoading/);
+  assert.match(styles, /\.publicationContentColumn > \[data-publication-spinner\]/);
   assert.match(styles, /\.robotWorkingBadge/);
   assert.match(styles, /\.robotHaloWorking > img/);
   assert.match(

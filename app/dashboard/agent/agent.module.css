@@ -10626,53 +10626,6 @@ button.campaignInfoRecipients:hover {
   font-weight: 950;
 }
 
-.publishTitleLoading {
-  position: relative;
-  width: 18px;
-  height: 18px;
-  flex: 0 0 18px !important;
-  margin: 0 2px 0 1px;
-  border: 2px solid rgba(125, 211, 252, 0.22);
-  border-top-color: #67e8f9;
-  border-right-color: #f472b6;
-  border-radius: 999px;
-  box-shadow: 0 0 12px rgba(103, 232, 249, 0.42),
-    inset 0 0 6px rgba(244, 114, 182, 0.22);
-  animation: publishTitleOrbit 0.9s linear infinite;
-}
-
-.publishTitleLoading::after {
-  content: "";
-  position: absolute;
-  inset: 4px;
-  border-radius: inherit;
-  background: radial-gradient(
-    circle,
-    #f8fbff 0 22%,
-    #67e8f9 24% 48%,
-    transparent 52%
-  );
-  box-shadow: 0 0 8px rgba(244, 114, 182, 0.8);
-  animation: publishTitlePulse 0.9s ease-in-out infinite alternate;
-}
-
-@keyframes publishTitleOrbit {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes publishTitlePulse {
-  from {
-    transform: scale(0.72);
-    opacity: 0.62;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
 .publishTitleLine strong,
 .publishCtaLine strong {
   min-width: 0;
@@ -14739,9 +14692,7 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   .robotWorkingSpinner::after,
   .robotWorkingBadge,
   .robotCronWaitPulse,
-  .publishRegenerateButton[data-busy="true"] span,
-  .publishTitleLoading,
-  .publishTitleLoading::after {
+  .publishRegenerateButton[data-busy="true"] span {
     animation: none !important;
   }
 }
@@ -21305,35 +21256,6 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   }
 }
 
-/* La publication en préparation conserve les cadres et sa place dans le carrousel. */
-.publishPostCard[data-preparing="true"] .publishPostText {
-  min-height: 260px;
-}
-
-.publishPostCard[data-preparing="true"] .publishPostContent {
-  position: relative;
-  min-height: 220px;
-}
-
-.instantPublishLoading {
-  position: absolute;
-  inset: 0;
-  min-height: 220px;
-}
-
-.instantPublishLoading .robotWorkingBadge {
-  background: transparent;
-  box-shadow: none;
-}
-
-.instantPublishLoading .robotWorkingBadge strong {
-  font-size: 20px;
-}
-
-.instantPublishLoading .robotWorkingBadge small {
-  font-size: 12px;
-}
-
 /* Publication review: editing, schedule, status, then the validation decision. */
 .previewMeta.previewMetaPublish.publishReviewFooter {
   display: flex !important;
@@ -21799,6 +21721,34 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
 .workspaceEditBanner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 16px; border: 1px solid #b48cfa55; border-radius: 14px; background: #48356d3b; color: #dcd3ef; font-size: 12px; }
 .workspaceEditBanner > svg { width: 20px; height: 20px; }
 .workspaceEditBanner button { margin-left: auto; padding: 8px 12px; border: 1px solid #9b85d46b; border-radius: 10px; background: #38265c; color: #fff; font: inherit; cursor: pointer; }
+.publicationContentColumn {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+.publicationContentColumn > .publishPostText {
+  flex: 1 1 auto;
+  height: auto;
+}
+.publishPostCard[data-preparing="true"] {
+  grid-template: minmax(0, 1fr) / minmax(0, 1fr) !important;
+}
+.publishPostCard[data-preparing="true"] > .publicationContentColumn {
+  display: grid;
+  grid-template-rows: 1fr auto 1fr;
+  justify-items: center;
+  min-height: 160px;
+}
+.publicationContentColumn > [data-publication-spinner] { grid-row: 2; }
+.publishPostCard[data-preparing="true"] .publicationInfoBand {
+  grid-row: 3;
+  align-self: start;
+  justify-content: center;
+  padding-top: 12px;
+  text-align: center;
+}
 .publicationInfoBand {
   display: flex;
   flex: 0 0 auto;
@@ -21806,15 +21756,12 @@ button.campaignInfoCard:focus-visible .campaignInfoEye {
   flex-wrap: wrap;
   gap: 6px 18px;
   min-width: 0;
-  padding: 9px 14px;
-  border: 1px solid #51d4ef40;
-  border-radius: 12px;
-  background: linear-gradient(105deg, #0f4c8f30, #542b812e);
   color: #bfe9f3;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
+.publicationInfoBand:not(:last-child) { margin-bottom: 12px; }
 .publicationInfoBand > * { min-width: 0; max-width: 100%; }
 .publicationInfoBand > [data-state="retry"],
 .publicationInfoBand > [data-state="scheduling_retry"] { color: #f3d69d; }
