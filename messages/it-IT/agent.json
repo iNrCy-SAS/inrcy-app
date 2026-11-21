@@ -805,7 +805,7 @@
   "tiktok_session_change": "Modifica",
   "tiktok_session_save": "Salva impostazioni",
   "tiktok_session_checking": "Verifica TikTok…",
-  "next_editorial_publication_in_a_few_minutes": "Prossima pubblicazione tra pochi minuti",
+  "next_editorial_publication_in_a_few_minutes": "In attesa della preparazione automatica del calendario.",
   "threads": "Threads",
   "threads_edit_unsupported": "L’API di Threads non consente di modificare un post già pubblicato. Puoi eliminarlo o modificare una bozza.",
   "threads_mode_ghost": "Ghost · 24 ore",
@@ -920,5 +920,12 @@
   "agent_admin_publish_without_approval": "Pubblica senza approvazione preventiva",
   "agent_admin_publish_daily_hint": "Ogni giorno, all’ora scelta. Resta applicata la modalità di approvazione selezionata.",
   "agent_admin_publish_without_approval_hint": "Le nuove pubblicazioni saranno programmate all’orario previsto senza approvazione manuale.",
-  "agent_admin_publish_requires_enabled": "Attiva prima l’automazione Pubblica per scegliere questa modalità."
+  "agent_admin_publish_requires_enabled": "Attiva prima l’automazione Pubblica per scegliere questa modalità.",
+  "publication_preparation_waiting": "In attesa della preparazione automatica.",
+  "publication_preparation_generating": "Preparazione di questa pubblicazione in corso…",
+  "publication_preparation_retry": "La preparazione si è interrotta. È previsto un nuovo tentativo automatico.",
+  "publication_scheduling_retry": "Contenuto pronto, programmazione da riprendere.",
+  "publication_scheduling_tiktok_review": "TikTok richiede la conferma delle impostazioni prima della programmazione.",
+  "publication_scheduling_permission_review": "Questa pubblicazione attende la conferma manuale.",
+  "publication_scheduling_channel_review": "Un canale selezionato è vuoto o attende la conferma."
 }

@@ -72,6 +72,8 @@ import {
 import { insertNotificationOnce } from "@/lib/notificationWriter";
 import { hasAgentAutomationAccess } from "@/lib/dashboardEdition";
 import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
+import { withInrAgentEditorialGenerationLease } from "@/lib/inrAgentEditorialGenerationLease";
+import { getLocalizedErrorMessage } from "@/lib/userFacingErrors";
 
 type SupabaseLike = any;
 type JsonRecord = Record<string, unknown>;
@@ -1564,8 +1566,9 @@ export async function scheduleReadyInrAgentAdminPublications(args: {
     .eq("status", "prepared").eq("execution_policy", "automatic_after_settings").eq("validation_required", false)
     .order("scheduled_for", { ascending: true }).limit(30);
   if (error) throw error;
-  const results: Array<{ actionId: string; status: "scheduled" | "parked" | "retry" | "manual_review" }> = [];
+  const results: Array<{ actionId: string; status: "scheduled" | "parked" | "retry" | "manual_review"; errorCode?: string }> = [];
   for (const row of Array.isArray(data) ? data : []) {
+    let expectedUpdatedAt = row.updated_at;
     const marker = readInrAgentAdminAutomaticPublish(asRecord(row.metadata).adminAutomaticPublish);
     if (!marker || !await isInrAgentAdminAutomaticPublicationAuthorized({ supabase: args.supabase,
       accountId: args.userId, isCron: true, marker, sourceActionId: row.id })) {
@@ -1589,10 +1592,11 @@ export async function scheduleReadyInrAgentAdminPublications(args: {
       && filterInrAgentPublicationChannels(reviewedPayload, preparedChannels).length === 0;
     const manualReviewError = "TikTok attend la validation de ses paramètres avant programmation.";
     if (reviewedPayload !== payload || (onlyManualChannels && row.last_error !== manualReviewError)) {
+      const reviewedAt = new Date().toISOString();
       const { data: updated, error: updateError } = await args.supabase.from("inr_agent_actions")
         .update({ payload: reviewedPayload,
           ...(onlyManualChannels ? { last_error: manualReviewError } : {}),
-          updated_at: new Date().toISOString() })
+          updated_at: reviewedAt })
         .eq("id", row.id).eq("user_id", args.userId).eq("status", "prepared")
         .eq("execution_policy", "automatic_after_settings").eq("validation_required", false)
         .eq("updated_at", row.updated_at).select("id").maybeSingle();
@@ -1600,17 +1604,45 @@ export async function scheduleReadyInrAgentAdminPublications(args: {
         results.push({ actionId: row.id, status: "retry" });
         continue;
       }
+      expectedUpdatedAt = reviewedAt;
     }
     if (onlyManualChannels) {
       results.push({ actionId: row.id, status: "manual_review" });
       continue;
     }
-    const response = await fetch(`${args.origin.replace(/\/$/, "")}/api/agent/actions/schedule`, {
-      method: "POST", headers: buildInternalCronHeaders(args.userId), cache: "no-store",
-      body: JSON.stringify({ cronUserId: args.userId, actionId: row.id, executionSource: "automatic" }),
-    });
-    // A transient scheduling failure leaves this prepared row intact for the next cron.
-    results.push({ actionId: row.id, status: response.ok ? "scheduled" : "retry" });
+    let failure: unknown;
+    let errorCode: string | undefined;
+    try {
+      const response = await fetch(`${args.origin.replace(/\/$/, "")}/api/agent/actions/schedule`, {
+        method: "POST", headers: buildInternalCronHeaders(args.userId), cache: "no-store",
+        body: JSON.stringify({ cronUserId: args.userId, actionId: row.id, executionSource: "automatic" }),
+      });
+      if (response.ok) {
+        // The schedule service clears last_error together with its durable claim.
+        results.push({ actionId: row.id, status: "scheduled" });
+        continue;
+      }
+      const body = asRecord(await response.json().catch(() => null));
+      const code = cleanText(body.code, 120);
+      if (/^INR_AGENT_[A-Z0-9_]+$/.test(code)) errorCode = code;
+      failure = body.error || body.message || null;
+    } catch (cause) {
+      failure = cause;
+    }
+    const message = errorCode === "INR_AGENT_TIKTOK_SETTINGS_REQUIRED" ? manualReviewError
+      : errorCode === "INR_AGENT_ADMIN_AUTOMATIC_PUBLISH_FORBIDDEN" ? "Cette publication attend une validation manuelle."
+      : errorCode === "INR_AGENT_CHANNEL_REVIEW_REQUIRED" ? "Un canal sélectionné est vide ou attend sa validation."
+      : getLocalizedErrorMessage(failure, "fr-FR", undefined, { allowUnknownMessage: false });
+    if (row.last_error !== message) {
+      const { error: saveError } = await args.supabase.from("inr_agent_actions")
+        .update({ last_error: message, updated_at: new Date().toISOString() })
+        .eq("id", row.id).eq("user_id", args.userId).eq("automation_key", "publish")
+        .eq("status", "prepared").eq("execution_policy", "automatic_after_settings").eq("validation_required", false)
+        .eq("updated_at", expectedUpdatedAt);
+      if (saveError) throw saveError;
+    }
+    // A refusal or network interruption keeps the generated content for the next cron.
+    results.push({ actionId: row.id, status: "retry", ...(errorCode ? { errorCode } : {}) });
   }
   return results;
 }
@@ -1621,6 +1653,7 @@ export async function prepareNextInrAgentEditorialSlot(args: {
   origin: string;
   now?: Date;
 }) {
+  return withInrAgentEditorialGenerationLease(args, async () => {
   const now = args.now ?? new Date();
   const { data, error } = await args.supabase
     .from("inr_agent_actions")
@@ -1740,4 +1773,5 @@ export async function prepareNextInrAgentEditorialSlot(args: {
       retryAt,
     };
   }
+  });
 }

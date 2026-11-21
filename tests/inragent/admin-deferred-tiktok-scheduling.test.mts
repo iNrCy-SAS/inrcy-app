@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { runtimeModules } from "./runtime-module-loader.mts";
+import { userFacingErrorsFixture } from "../helpers/user-facing-errors-fixture.mts";
 import { filterInrAgentPublicationChannels, selectedInrAgentPublicationChannels, unvalidatedInrAgentPublicationChannels } from "../../lib/inrAgentPublicationChannelSelection.ts";
 
 // Heterogeneous PostgREST rows intentionally include malformed boundary fixtures.
@@ -80,7 +81,8 @@ function harness(db: ReturnType<typeof fixture>) {
     "@/lib/notificationWriter": {}, "@/lib/inrAgentValidationEmailDelivery": {},
     "@/lib/boosterGenerationContext": {}, "@/lib/inrAgentPublicationIdeaLifecycle": {},
     "@/lib/scheduledPublicationDedupe": { findSimilarScheduledPublication: async () => ({ duplicate: false }) }, "@/lib/scheduledCampaignDedupe": {},
-    "@/lib/userFacingErrors": { getSimpleFrenchErrorMessage: (_error: unknown, fallback: string) => fallback },
+    "@/lib/userFacingErrors": { getSimpleFrenchErrorMessage: (_error: unknown, fallback: string) => fallback,
+      getLocalizedErrorMessage: userFacingErrorsFixture.getLocalizedErrorMessage },
     "@/app/api/booster/publish-now/publishNow.foundations": { normalizeTiktokPublicationSettings: (value: unknown) => {
       const settings = value as Row | undefined;
       return settings?.privacyLevel && settings.commercialContent ? settings : null;
@@ -145,6 +147,70 @@ test("transient scheduling retry reuses deferred content without another edit or
   assert.equal(db.tables.inr_agent_scheduled_actions.length, 0);
 });
 
+test("a TikTok settings refusal is visible and retries the paid publication without generating content again", async () => {
+  const db = fixture(); delete db.automation().metadata.manualReviewChannels;
+  const h = harness(db), original = structuredClone(db.action());
+  const refused = await worker(db, h);
+  assert.equal(refused.result[0]?.status, "retry");
+  assert.equal(refused.result[0]?.errorCode, "INR_AGENT_TIKTOK_SETTINGS_REQUIRED");
+  assert.equal(db.action().last_error, "TikTok attend la validation de ses paramètres avant programmation.");
+  assert.deepEqual(db.action(), { ...original, last_error: db.action().last_error, updated_at: db.action().updated_at });
+  assert.equal(db.action().status, "prepared");
+  assert.deepEqual(db.action().payload, original.payload);
+  assert.deepEqual(db.action().metadata, original.metadata);
+  assert.deepEqual(db.action().image_assets, original.image_assets);
+  assert.equal(db.action().payload.tiktokPublicationSettings, undefined);
+  assert.equal(db.tables.inr_agent_scheduled_actions.length, 0);
+  // Only a professional's explicit settings satisfy the existing route guard.
+  db.action().payload.tiktokPublicationSettings = { privacyLevel: "PUBLIC_TO_EVERYONE", commercialContent: "personal", musicUsageConfirmed: true };
+  db.action().updated_at = new Date().toISOString();
+  const resumed = await worker(db, h);
+  assert.equal(resumed.result[0]?.status, "scheduled");
+  assert.equal(db.tables.inr_agent_scheduled_actions.length, 1);
+  assert.deepEqual(db.tables.inr_agent_scheduled_actions[0].channels, ["facebook", "tiktok"]);
+  assert.equal(db.action().last_error, null);
+  assert.deepEqual(db.action().image_assets, original.image_assets);
+});
+
+test("HTTP 403 and network failures preserve ready content and a public scheduling cause", async () => {
+  for (const scenario of ["forbidden", "network", "private-diagnostic"] as const) {
+    const db = fixture(), h = harness(db), original = structuredClone(db.action());
+    await worker(db, h, async () => {
+      if (scenario === "network") throw new TypeError("fetch failed");
+      if (scenario === "private-diagnostic") return Response.json({ error: "Authorization: Bearer private-token https://private.test/file" }, { status: 400 });
+      return Response.json({ error: "internal admin check", code: "INR_AGENT_ADMIN_AUTOMATIC_PUBLISH_FORBIDDEN" }, { status: 403 });
+    });
+    assert.equal(db.action().status, "prepared");
+    assert.ok(db.action().last_error);
+    assert.doesNotMatch(db.action().last_error, /private-token|https:|Bearer|internal admin/i);
+    if (scenario === "forbidden") assert.equal(db.action().last_error, "Cette publication attend une validation manuelle.");
+    assert.deepEqual(db.action().image_assets, original.image_assets);
+    assert.deepEqual(db.action().metadata, original.metadata);
+    assert.equal(db.action().payload.tiktokPublicationSettings, undefined);
+    assert.deepEqual(unvalidatedInrAgentPublicationChannels(db.action().payload), ["tiktok"]);
+    assert.equal(db.tables.inr_agent_scheduled_actions.length, 0);
+  }
+});
+
+for (const changed of ["updated_at", "status", "execution_policy", "validation_required", "user_id"] as const) {
+  test(`a late scheduling refusal cannot overwrite concurrent ${changed}`, async () => {
+    const db = fixture(); delete db.automation().metadata.manualReviewChannels;
+    const h = harness(db);
+    const initialError = db.action().last_error;
+    const value = changed === "updated_at" ? "2099-06-04T01:00:00.000Z" : changed === "status" ? "scheduled"
+      : changed === "execution_policy" ? "manual_validation" : changed === "validation_required" ? true : "22222222-2222-4222-8222-222222222222";
+    await worker(db, h, async () => {
+      db.action()[changed] = value;
+      db.action().payload.postByChannel.facebook.content = "Concurrent professional edit";
+      return Response.json({ error: "old failure", code: "INR_AGENT_TIKTOK_SETTINGS_REQUIRED" }, { status: 400 });
+    });
+    assert.equal(db.action()[changed], value);
+    assert.equal(db.action().last_error, initialError);
+    assert.equal(db.action().payload.postByChannel.facebook.content, "Concurrent professional edit");
+    assert.equal(db.writes.filter(write => write.table === "inr_agent_actions" && write.matched > 0).length, 0);
+  });
+}
+
 test("TikTok alone stays visibly unvalidated and never creates an empty automatic job", async () => {
   const db = fixture(); db.action().target_channels = ["tiktok"]; db.action().payload.channels = ["tiktok"]; db.action().payload.selectedChannels = ["tiktok"];
   const h = harness(db); await worker(db, h);
@@ -184,7 +250,11 @@ test("default accounts retain their original payload and TikTok consent gate", a
   const h = harness(db), initial = structuredClone(db.action());
   const result = await worker(db, h);
   assert.equal(result.calls, 1); assert.equal(result.result[0]?.status, "retry");
-  assert.deepEqual(db.action(), initial); assert.equal(db.tables.inr_agent_scheduled_actions.length, 0);
+  assert.deepEqual(db.action().payload, initial.payload); assert.deepEqual(db.action().metadata, initial.metadata);
+  assert.deepEqual(db.action().image_assets, initial.image_assets); assert.equal(db.action().status, "prepared");
+  assert.equal(db.action().last_error, "TikTok attend la validation de ses paramètres avant programmation.");
+  assert.deepEqual(db.action(), { ...initial, last_error: db.action().last_error, updated_at: db.action().updated_at });
+  assert.equal(db.tables.inr_agent_scheduled_actions.length, 0);
 });
 
 
@@ -248,8 +318,12 @@ for (const pending of ["tiktok", "facebook"] as const) {
       return response;
     });
     assert.equal(result.calls, 1); assert.equal(result.result[0]?.status, "retry");
-    assert.deepEqual(db.action(), initial, "pending state, media and provenance stay untouched");
-    assert.equal(db.writes.length, 0); assert.equal(h.built(), 0);
+    assert.deepEqual(db.action().payload, initial.payload, "pending state, media and provenance stay untouched");
+    assert.deepEqual(db.action().metadata, initial.metadata);
+    assert.deepEqual(db.action().image_assets, initial.image_assets);
+    assert.equal(db.action().last_error, "Un canal sélectionné est vide ou attend sa validation.");
+    assert.deepEqual(db.action(), { ...initial, last_error: db.action().last_error, updated_at: db.action().updated_at });
+    assert.equal(db.writes.length, 1); assert.equal(h.built(), 0);
     assert.equal(db.tables.inr_agent_scheduled_actions.length, 0);
   });
 }

@@ -334,6 +334,7 @@ function retryCoordinatorHarness(options: { readFailure?: boolean; concurrentCom
   };
   const scope = {
     EDITORIAL_ACTION_SELECT: "id,status,metadata,payload", inrAgentEditorialRetryDecision,
+    withInrAgentEditorialGenerationLease: async (_args: unknown, prepare: () => Promise<unknown>) => prepare(),
     isAiMediaContentPolicyRejection,
     asRecord: (value: unknown) => value && typeof value === "object" ? value : {},
     cleanText: (value: unknown, length: number) => String(value || "").trim().slice(0, length),

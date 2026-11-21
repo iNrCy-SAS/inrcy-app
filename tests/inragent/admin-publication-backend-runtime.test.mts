@@ -353,7 +353,14 @@ test('automatic scheduling retries the ready row without another generation and 
   try {
     const args = { supabase: db.client, userId: accountId, origin: 'http://isolated.test' };
     for (let attempt = 0; attempt < 2; attempt++) assert.deepEqual(await server.scheduleReadyInrAgentAdminPublications(args), [{ actionId, status: 'retry' }]);
-    assert.equal(paths.length, 2); assert.deepEqual(db.tables.inr_agent_actions[0], initial);
+    assert.equal(paths.length, 2);
+    assert.deepEqual(db.tables.inr_agent_actions[0].payload, initial.payload);
+    assert.deepEqual(db.tables.inr_agent_actions[0].metadata, initial.metadata);
+    assert.equal(db.tables.inr_agent_actions[0].status, 'prepared');
+    assert.ok(db.tables.inr_agent_actions[0].last_error);
+    const retriedAction: Row = { ...initial,
+      last_error: db.tables.inr_agent_actions[0].last_error, updated_at: db.tables.inr_agent_actions[0].updated_at };
+    assert.deepEqual(db.tables.inr_agent_actions[0], retriedAction);
     db.tables.profiles[0].role = 'user';
     assert.deepEqual(await server.scheduleReadyInrAgentAdminPublications(args), [{ actionId, status: 'parked' }]);
     assert.equal(paths.length, 2); assert.equal(db.tables.inr_agent_actions[0].status, 'pending_validation');

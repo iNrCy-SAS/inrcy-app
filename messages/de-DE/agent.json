@@ -805,7 +805,7 @@
   "tiktok_session_change": "Ändern",
   "tiktok_session_save": "Einstellungen speichern",
   "tiktok_session_checking": "TikTok wird geprüft…",
-  "next_editorial_publication_in_a_few_minutes": "Nächste Veröffentlichung in wenigen Minuten",
+  "next_editorial_publication_in_a_few_minutes": "Wartet auf die automatische Vorbereitung des Zeitplans.",
   "threads": "Threads",
   "threads_edit_unsupported": "Die Threads-API unterstützt keine Änderungen an veröffentlichten Beiträgen. Sie können den Beitrag löschen oder einen Entwurf bearbeiten.",
   "threads_mode_ghost": "Ghost · 24 Std.",
@@ -920,5 +920,12 @@
   "agent_admin_publish_without_approval": "Ohne vorherige Freigabe veröffentlichen",
   "agent_admin_publish_daily_hint": "Jeden Tag zur gewählten Uhrzeit. Der gewählte Freigabemodus gilt weiterhin.",
   "agent_admin_publish_without_approval_hint": "Neue Beiträge werden ohne manuelle Freigabe für den vorgesehenen Zeitpunkt eingeplant.",
-  "agent_admin_publish_requires_enabled": "Aktiviere zuerst die Automatisierung Veröffentlichen, um diesen Modus auszuwählen."
+  "agent_admin_publish_requires_enabled": "Aktiviere zuerst die Automatisierung Veröffentlichen, um diesen Modus auszuwählen.",
+  "publication_preparation_waiting": "Wartet auf die automatische Vorbereitung.",
+  "publication_preparation_generating": "Dieser Beitrag wird vorbereitet…",
+  "publication_preparation_retry": "Die Vorbereitung wurde unterbrochen. Ein weiterer Versuch ist automatisch vorgesehen.",
+  "publication_scheduling_retry": "Inhalt fertig; die Planung muss fortgesetzt werden.",
+  "publication_scheduling_tiktok_review": "Die TikTok-Einstellungen müssen vor der Planung bestätigt werden.",
+  "publication_scheduling_permission_review": "Dieser Beitrag wartet auf manuelle Freigabe.",
+  "publication_scheduling_channel_review": "Ein ausgewählter Kanal ist leer oder wartet auf Freigabe."
 }

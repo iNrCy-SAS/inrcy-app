@@ -59,24 +59,27 @@
       }
     },
     "agents": {
-      "guideDigest": "cf718633ebb220a26210861207e98317f1b336d29e5196fae3a778949de928bc",
+      "guideDigest": "c61ee3e63c097daf0754f3d2f784167a99f8773161d115ecbe7d147fe3e3ee45",
       "sources": {
         "app/api/agent/settings/route.ts": "47ea516c4f5a274a15d7dd26a874dfe67c9a3bb30a27aca276f0375095c1390b",
-        "app/dashboard/agent/AgentClient.tsx": "d5b2f2500b7d1ccea433272799fb1e511a52617c2400a51542a5d24e429bc887",
+        "app/api/cron/inr-agent-editorial-plan/route.ts": "fc682f919a6d363100bc17e6360ac6d6dd2fa0650a2b1ec3157070f77ad30265",
+        "app/dashboard/agent/AgentClient.tsx": "c30cb31f600517837bb52628f4ce60d5c4a30cb155e4369f44a092fa1eee9786",
         "app/dashboard/agent/_components/AgentCampaignAccess.tsx": "8e3f0f5b88450f9ee677423bd50267f22c258cbc138b6140cd73c50f3761b7f8",
         "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx": "1dc572dc23348d8f8593811b789935b1e3c908aae5fca57e645be2b02d320272",
         "app/dashboard/agent/_lib/agent.publish-preview.ts": "daeebe9fc5bfb3b524bb0f81713e684a5b079284a888deb7278527b4e22f96eb",
         "app/dashboard/agent/_lib/agent.schedule.ts": "bc317fba5d39f365b5b42dfe298eaf3087c8085c2ff10d9023d6177e08858f99",
+        "app/dashboard/agent/_lib/agent.utils.ts": "4e45342dd06c142e631b32da8ae01f8e10ac392005affd230190f725069bc98b",
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
         "lib/inrAgentAdminOptionsServer.ts": "b5e3cbe7ea830a4fb997ce338f7231b02b323759d4b3a0f53b6151cd80e1fc21",
         "lib/inrAgentAdminPublishPolicy.ts": "333fa3a047908730f7d555875549dbb67d3fc270e7ce1cc468633b92c2a86e0f",
         "lib/inrAgentAdminPublishServer.ts": "55b1771b4381a0d6ac3db4c054232a6f89ca4d77893e647d67a758ee35298186",
+        "lib/inrAgentEditorialPlanServer.ts": "b785979e9d62506c10551bdfcb11d7beeded455923e8291c66e8e8aa99054166",
         "lib/inrAgentEditorialPlanning.ts": "e532074e2e1c4b8af7cfad0852dc672084c8739ba31d0700ed3fab3f31b27c68",
         "lib/inrAgentWorkspaces.ts": "30c24f9a6a866e2d96ba932635343d8a31491fabddbdf3ddf3c238d8939412e9",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
         "lib/scheduledPublicationWorkspacePreview.ts": "18fed61c6782505234e557220ee18b91d2444165e4e5bcb155b563971b95426e",
         "lib/standardAgentPolicy.ts": "11b421fce9f924e7c8c21e470b34af8f1cf2c81a62b2de89856be8799863e0b1",
-        "messages/fr-FR/agent.json": "c376ce2381b6d732b45862264c519ffc375a6fa2233e69773f6ed1e553444561"
+        "messages/fr-FR/agent.json": "d830f77ef959c68805865335801768b8c5047fa299e9e8dfe2a827eb0230333a"
       }
     },
     "ai-configuration": {

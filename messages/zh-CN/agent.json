@@ -805,7 +805,7 @@
   "tiktok_session_change": "修改",
   "tiktok_session_save": "保存设置",
   "tiktok_session_checking": "正在检查 TikTok…",
-  "next_editorial_publication_in_a_few_minutes": "下一篇发布内容将在几分钟后生成",
+  "next_editorial_publication_in_a_few_minutes": "正在等待自动准备发布计划。",
   "threads": "Threads",
   "threads_edit_unsupported": "Threads API 不支持编辑已发布的帖子。您可以删除帖子或编辑草稿。",
   "threads_mode_ghost": "Ghost · 24 小时",
@@ -920,5 +920,12 @@
   "agent_admin_publish_without_approval": "无需预先审核即可发布",
   "agent_admin_publish_daily_hint": "每天在所选时间执行，仍遵循所选的审核模式。",
   "agent_admin_publish_without_approval_hint": "新准备的内容将按预定时间安排发布，无需人工审核。",
-  "agent_admin_publish_requires_enabled": "请先启用发布自动化，再选择此模式。"
+  "agent_admin_publish_requires_enabled": "请先启用发布自动化，再选择此模式。",
+  "publication_preparation_waiting": "等待自动准备。",
+  "publication_preparation_generating": "正在准备这篇发布内容…",
+  "publication_preparation_retry": "准备工作已中断。系统已安排自动重试。",
+  "publication_scheduling_retry": "内容已准备好，需要继续安排发布时间。",
+  "publication_scheduling_tiktok_review": "安排发布时间前，请先确认 TikTok 设置。",
+  "publication_scheduling_permission_review": "这篇发布内容正在等待人工审核。",
+  "publication_scheduling_channel_review": "某个所选渠道没有内容或正在等待审核。"
 }

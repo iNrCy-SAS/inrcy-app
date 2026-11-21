@@ -1676,6 +1676,25 @@
   line-height: 1.4;
 }
 
+.publicationPreparationNotice {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(103, 232, 249, 0.3);
+  border-radius: 12px;
+  color: #cffafe;
+  background: rgba(8, 47, 73, 0.35);
+  font-size: 13px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.publicationPreparationNotice[data-state="retry"],
+.publicationPreparationNotice[data-state="scheduling_retry"] {
+  border-color: rgba(251, 191, 36, 0.35);
+  color: #fef3c7;
+  background: rgba(120, 53, 15, 0.2);
+}
+
 /* Ajustements V2 — iNrAgent automatisations */
 
 .automationCard {

@@ -12,6 +12,7 @@ import {
 import type { InrAgentAutomationSettings } from "@/lib/inrAgentSettings";
 import { getActiveSubscriptionAccountIds } from "@/lib/accountSubscriptionAccess";
 import { getDashboardEditionsForAccountIds } from "@/lib/dashboardEditionServer";
+import { inrAgentEditorialGenerationRotationOffset, orderInrAgentEditorialGenerationAccounts } from "@/lib/inrAgentEditorialGenerationOrder";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -83,7 +84,7 @@ export async function POST(request: Request) {
     });
   }
   const pageCount = Math.max(1, Math.ceil(accountCount / maxAccounts));
-  const pageIndex = Math.floor(now.getTime() / (5 * 60 * 1000)) % pageCount;
+  const pageIndex = Math.floor(now.getTime() / (60 * 1000)) % pageCount;
   const pageStart = pageIndex * maxAccounts;
   const pageEnd = Math.min(accountCount, pageStart + maxAccounts) - 1;
 
@@ -252,12 +253,13 @@ export async function POST(request: Request) {
 
   const generated: Array<Record<string, unknown>> = [];
   if (!dryRun && maxGenerations > 0 && enabledRows.length > 0) {
-    const rotationOffset =
-      Math.floor(now.getTime() / (5 * 60 * 1000)) % enabledRows.length;
-    const generationUsers = [
-      ...enabledRows.slice(rotationOffset),
-      ...enabledRows.slice(0, rotationOffset),
-    ];
+    const rotationOffset = inrAgentEditorialGenerationRotationOffset({
+      tick: Math.floor(now.getTime() / (60 * 1000)),
+      pageCount,
+      accountCount: enabledRows.length,
+      maxGenerations,
+    });
+    const generationUsers = orderInrAgentEditorialGenerationAccounts(enabledRows, rotationOffset);
     let generationAttempts = 0;
 
     for (const entry of generationUsers) {
@@ -267,7 +269,7 @@ export async function POST(request: Request) {
           supabase: supabaseAdmin,
           userId: entry.userId,
           origin,
-          now,
+          now: new Date(),
         });
         if (result.status !== "idle") generationAttempts += 1;
         if (result.status !== "idle") {
@@ -328,6 +330,20 @@ export async function POST(request: Request) {
       for (const result of results) if (result) notificationResults.push(result);
     }
   }
+
+  console.info("[inr-agent-editorial] batch", {
+    dryRun,
+    pageIndex,
+    pageCount,
+    accounts: rows.length,
+    eligibleAccounts: enabledRows.length,
+    prepared: generated.filter((row) => row.status === "prepared").length,
+    retrying: generated.filter((row) => row.status === "retry").length,
+    failed: generated.filter((row) => row.status === "failed").length,
+    automaticScheduled: automaticScheduleResults.filter((row) => row.status === "scheduled").length,
+    automaticDeferred: automaticScheduleResults.filter((row) => row.status === "retry").length,
+    durationMs: Date.now() - now.getTime(),
+  });
 
   return NextResponse.json({
     success: true,

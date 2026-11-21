@@ -805,7 +805,7 @@
   "tiktok_session_change": "แก้ไข",
   "tiktok_session_save": "บันทึกการตั้งค่า",
   "tiktok_session_checking": "กำลังตรวจสอบ TikTok…",
-  "next_editorial_publication_in_a_few_minutes": "โพสต์ถัดไปในอีกไม่กี่นาที",
+  "next_editorial_publication_in_a_few_minutes": "กำลังรอการเตรียมกำหนดการอัตโนมัติ",
   "threads": "Threads",
   "threads_edit_unsupported": "Threads API ไม่รองรับการแก้ไขโพสต์ที่เผยแพร่แล้ว คุณสามารถลบโพสต์หรือแก้ไขฉบับร่างได้",
   "threads_mode_ghost": "Ghost · 24 ชม.",
@@ -920,5 +920,12 @@
   "agent_admin_publish_without_approval": "เผยแพร่โดยไม่ต้องอนุมัติล่วงหน้า",
   "agent_admin_publish_daily_hint": "ทุกวันตามเวลาที่เลือก โดยยังใช้รูปแบบการอนุมัติที่เลือกไว้",
   "agent_admin_publish_without_approval_hint": "โพสต์ใหม่จะถูกตั้งเวลาเผยแพร่ตามเวลาที่กำหนดโดยไม่ต้องอนุมัติด้วยตนเอง",
-  "agent_admin_publish_requires_enabled": "เปิดใช้งานระบบอัตโนมัติสำหรับการเผยแพร่ก่อนจึงจะเลือกโหมดนี้ได้"
+  "agent_admin_publish_requires_enabled": "เปิดใช้งานระบบอัตโนมัติสำหรับการเผยแพร่ก่อนจึงจะเลือกโหมดนี้ได้",
+  "publication_preparation_waiting": "กำลังรอการเตรียมอัตโนมัติ",
+  "publication_preparation_generating": "กำลังเตรียมโพสต์นี้…",
+  "publication_preparation_retry": "การเตรียมถูกขัดจังหวะ ระบบจะลองอีกครั้งโดยอัตโนมัติ",
+  "publication_scheduling_retry": "เนื้อหาพร้อมแล้ว ต้องดำเนินการตั้งเวลาอีกครั้ง",
+  "publication_scheduling_tiktok_review": "ต้องยืนยันการตั้งค่า TikTok ก่อนตั้งเวลา",
+  "publication_scheduling_permission_review": "โพสต์นี้กำลังรอการอนุมัติด้วยตนเอง",
+  "publication_scheduling_channel_review": "ช่องทางที่เลือกไม่มีเนื้อหาหรือกำลังรอการอนุมัติ"
 }

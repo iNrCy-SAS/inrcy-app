@@ -805,7 +805,7 @@
   "tiktok_session_change": "Modifier",
   "tiktok_session_save": "Enregistrer les réglages",
   "tiktok_session_checking": "Vérification TikTok…",
-  "next_editorial_publication_in_a_few_minutes": "Prochaine publication dans quelques minutes",
+  "next_editorial_publication_in_a_few_minutes": "En attente de préparation automatique du planning.",
   "threads": "Threads",
   "threads_edit_unsupported": "Threads ne permet pas de modifier un post déjà publié via son API. Vous pouvez le supprimer ou modifier un brouillon.",
   "threads_mode_ghost": "Ghost · 24 h",
@@ -920,5 +920,12 @@
   "agent_admin_publish_without_approval": "Publier sans validation préalable",
   "agent_admin_publish_daily_hint": "Chaque jour, à l’horaire choisi. Le mode de validation sélectionné reste appliqué.",
   "agent_admin_publish_without_approval_hint": "Les nouvelles publications seront programmées à l’horaire prévu sans validation manuelle.",
-  "agent_admin_publish_requires_enabled": "Activez d’abord l’automatisation Publier pour choisir ce mode."
+  "agent_admin_publish_requires_enabled": "Activez d’abord l’automatisation Publier pour choisir ce mode.",
+  "publication_preparation_waiting": "En attente de préparation automatique.",
+  "publication_preparation_generating": "Préparation de cette publication en cours…",
+  "publication_preparation_retry": "Préparation interrompue. Une nouvelle tentative est prévue automatiquement.",
+  "publication_scheduling_retry": "Contenu prêt, programmation à reprendre.",
+  "publication_scheduling_tiktok_review": "TikTok attend la validation de ses paramètres avant programmation.",
+  "publication_scheduling_permission_review": "Cette publication attend une validation manuelle.",
+  "publication_scheduling_channel_review": "Un canal sélectionné est vide ou attend sa validation."
 }

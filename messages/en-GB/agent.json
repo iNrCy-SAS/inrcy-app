@@ -805,7 +805,7 @@
   "tiktok_session_change": "Change",
   "tiktok_session_save": "Save settings",
   "tiktok_session_checking": "Checking TikTok…",
-  "next_editorial_publication_in_a_few_minutes": "Next publication in a few minutes",
+  "next_editorial_publication_in_a_few_minutes": "Waiting for automatic preparation of the schedule.",
   "threads": "Threads",
   "threads_edit_unsupported": "The Threads API does not support editing a published post. You can delete it or edit a draft.",
   "threads_mode_ghost": "Ghost · 24 h",
@@ -920,5 +920,12 @@
   "agent_admin_publish_without_approval": "Publish without prior approval",
   "agent_admin_publish_daily_hint": "Every day, at the selected time. The selected approval mode still applies.",
   "agent_admin_publish_without_approval_hint": "New posts will be scheduled for publication at the planned time without manual approval.",
-  "agent_admin_publish_requires_enabled": "Enable the Publish automation first to choose this mode."
+  "agent_admin_publish_requires_enabled": "Enable the Publish automation first to choose this mode.",
+  "publication_preparation_waiting": "Waiting for automatic preparation.",
+  "publication_preparation_generating": "Preparing this publication…",
+  "publication_preparation_retry": "Preparation was interrupted. Another attempt is scheduled automatically.",
+  "publication_scheduling_retry": "Content ready; scheduling needs to resume.",
+  "publication_scheduling_tiktok_review": "TikTok settings must be approved before scheduling.",
+  "publication_scheduling_permission_review": "This publication is awaiting manual approval.",
+  "publication_scheduling_channel_review": "A selected channel is empty or awaiting approval."
 }

@@ -805,7 +805,7 @@
   "tiktok_session_change": "Wijzigen",
   "tiktok_session_save": "Instellingen opslaan",
   "tiktok_session_checking": "TikTok controleren…",
-  "next_editorial_publication_in_a_few_minutes": "Volgende publicatie over enkele minuten",
+  "next_editorial_publication_in_a_few_minutes": "Wacht op automatische voorbereiding van de planning.",
   "threads": "Threads",
   "threads_edit_unsupported": "De Threads-API ondersteunt geen bewerking van een gepubliceerde post. U kunt deze verwijderen of een concept bewerken.",
   "threads_mode_ghost": "Ghost · 24 uur",
@@ -920,5 +920,12 @@
   "agent_admin_publish_without_approval": "Publiceren zonder voorafgaande goedkeuring",
   "agent_admin_publish_daily_hint": "Elke dag op het gekozen tijdstip. De gekozen goedkeuringsmodus blijft gelden.",
   "agent_admin_publish_without_approval_hint": "Nieuwe berichten worden zonder handmatige goedkeuring voor het geplande tijdstip ingepland.",
-  "agent_admin_publish_requires_enabled": "Schakel eerst de automatisering Publiceren in om deze modus te kiezen."
+  "agent_admin_publish_requires_enabled": "Schakel eerst de automatisering Publiceren in om deze modus te kiezen.",
+  "publication_preparation_waiting": "Wacht op automatische voorbereiding.",
+  "publication_preparation_generating": "Deze publicatie wordt voorbereid…",
+  "publication_preparation_retry": "De voorbereiding is onderbroken. Er is automatisch een nieuwe poging gepland.",
+  "publication_scheduling_retry": "Inhoud gereed; de planning moet worden hervat.",
+  "publication_scheduling_tiktok_review": "De TikTok-instellingen moeten vóór het inplannen worden goedgekeurd.",
+  "publication_scheduling_permission_review": "Deze publicatie wacht op handmatige goedkeuring.",
+  "publication_scheduling_channel_review": "Een geselecteerd kanaal is leeg of wacht op goedkeuring."
 }

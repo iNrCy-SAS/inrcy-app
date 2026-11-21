@@ -303,6 +303,7 @@ import {
   asRecord,
   isInrAgentEditorialPreparationRunning,
   isInrAgentEditorialPreparationWaitingForCron,
+  inrAgentEditorialPreparationState,
 } from "./_lib/agent.utils";
 import {
   mediaPatchFromLibraryItem,
@@ -438,8 +439,16 @@ function studioMediaPreferenceStep(value: number): StudioMediaPreferenceStep {
   ) as StudioMediaPreferenceStep;
 }
 
-function publicationFailureMessage(action: AgentPreparedAction | null, locale: string) {
-  if (action?.status !== "failed") return null;
+function publicationFailureMessage(action: AgentPreparedAction | null, locale: string, translate?: (key: string) => string) {
+  if (!action || (action.status !== "failed" && !["retry", "scheduling_retry"].includes(inrAgentEditorialPreparationState(action) || ""))) return null;
+  const schedulingErrorKey = action.lastError === "TikTok attend la validation de ses paramètres avant programmation."
+    ? "publication_scheduling_tiktok_review"
+    : action.lastError === "Cette publication attend une validation manuelle."
+    ? "publication_scheduling_permission_review"
+    : action.lastError === "Un canal sélectionné est vide ou attend sa validation."
+    ? "publication_scheduling_channel_review"
+    : null;
+  if (schedulingErrorKey && translate) return translate(schedulingErrorKey);
   // This reviewed public sentence is already returned by prepare-publish.
   // Unknown diagnostics still go through the strict, localized error boundary.
   const publicMediaPreparationFailure = action.lastError ===
@@ -1734,7 +1743,19 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
       (preparedChannelPreview?.title || preparedChannelPreview?.body)
   );
   const publishFailureMessage = isPublishView
-    ? publicationFailureMessage(selectedPreparedAction, locale)
+    ? publicationFailureMessage(selectedPreparedAction, locale, i18nT)
+    : null;
+  const publishPreparationState = isPublishView
+    ? inrAgentEditorialPreparationState(selectedPreparedAction)
+    : null;
+  const publishPreparationStatus = publishPreparationState === "queued"
+    ? i18nT("publication_preparation_waiting")
+    : publishPreparationState === "generating"
+    ? i18nT("publication_preparation_generating")
+    : publishPreparationState === "retry"
+    ? i18nT("publication_preparation_retry")
+    : publishPreparationState === "scheduling_retry"
+    ? i18nT("publication_scheduling_retry")
     : null;
   const publishPreparationInProgress = Boolean(
     isPublishView &&
@@ -5912,6 +5933,11 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                       disabled={Boolean(scheduledEditSession) || publicationRestoreState === "saving" || actionMutationState === "saving" || validationScheduleState === "saving" || tiktokSessionCheckState === "checking"}
                       onFilterChange={(state, checked) => setPublicationStatusFilters(current => ({ ...current, [state]: checked }))}
                     />
+                    {!noMatchingPublications && publishPreparationStatus ? (
+                      <p className={styles.publicationPreparationNotice} data-state={publishPreparationState} role="status">
+                        {publishPreparationStatus}
+                      </p>
+                    ) : null}
                     {noMatchingPublications ? <div className={styles.publicationFilterEmpty} role="status"><span aria-hidden>☷</span><strong>{i18nT("publication_filter_empty")}</strong><p>{i18nT("publication_filter_empty_hint")}</p></div> : null}
                     {!noMatchingPublications && (<div className={`${styles.publishInfoGrid} ${styles.publishInfoGridWithFormat}`}>
                       <AgentPublicationChannelList key={selectedPreparedAction?.id || "empty"} channels={orderChannels([...new Set([...selected.availableChannels, ...preparedChannels])], selected.availableChannels).map(key => ({ key, label: agentChannelLabel(key, runtimeT), src: channelOptions[key].src, connected: Boolean(agentConnectedChannels?.[key]), prepared: preparedChannels.includes(key) }))} selectedChannels={selectedPublishChannels} disabled={!canEditPublicationChannels} saving={publishChannelSelectionSaving} preparingChannel={publicationChannelPreparing} onChange={channels => void savePublicationChannelSelection(channels)} />
@@ -6177,7 +6203,7 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                           data-has-media={isInstantPublicationPreview || Boolean(publishMediaPreview?.url)}
                           data-media-only={publishMediaOnly}
                           data-preparing={isInstantPublicationPreview}
-                          aria-busy={isInstantPublicationPreview}
+                          aria-busy={isInstantPublicationPreview || publishPreparationState === "generating"}
                         >
                           {isInstantPublicationPreview ? (
                             <section className={styles.publishInlineMedia} aria-hidden="true">

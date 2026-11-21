@@ -38,8 +38,36 @@ export function isInrAgentEditorialPreparationRunning(
 ) {
   return Boolean(
     action?.status === "executing" &&
-      asRecord(action.payload?.editorialPlan),
+      asRecord(action.payload?.editorialPlan) &&
+      safeString(asRecord(action.payload?.editorialPlan)?.state).toLowerCase() !== "ready",
   );
+}
+
+export function inrAgentEditorialPreparationState(
+  action:
+    | {
+        automationKey?: unknown;
+        actionType?: unknown;
+        status?: unknown;
+        lastError?: unknown;
+        executionPolicy?: unknown;
+        validationRequired?: unknown;
+        payload?: Record<string, unknown> | null;
+      }
+    | null
+    | undefined,
+): "queued" | "generating" | "retry" | "scheduling_retry" | "failed" | null {
+  if (action?.automationKey !== "publish" || action.actionType !== "publication") return null;
+  if (action.status === "prepared" && action.executionPolicy === "automatic_after_settings"
+    && action.validationRequired === false && safeString(action.lastError)) return "scheduling_retry";
+  const editorialPlan = asRecord(action.payload?.editorialPlan);
+  if (!editorialPlan) return null;
+  if (action.status === "failed") return "failed";
+  if (safeString(editorialPlan.state).toLowerCase() === "ready") return null;
+  if (action.status === "executing") return "generating";
+  if (action.status !== "draft") return null;
+  // Retries keep the draft status; the public action already carries their error.
+  return safeString(action.lastError) ? "retry" : "queued";
 }
 
 export function isInrAgentEditorialPreparationWaitingForCron(

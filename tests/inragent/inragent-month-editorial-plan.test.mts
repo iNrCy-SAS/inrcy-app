@@ -147,7 +147,7 @@ test("le plan est durable, dédupliqué et protège les quotas lors d'un changem
   assert.match(client, /i18nT\("appliquer_maintenant_e43ceda4"\)/);
   assert.match(legacyCron, /reason: "editorial_plan_managed"/);
   assert.match(vercel, /inr-agent-editorial-plan/);
-  assert.match(vercel, /"schedule": "\*\/5 \* \* \* \*"/);
+  assert.equal(JSON.parse(vercel).crons.find((entry: { path: string }) => entry.path === "/api/cron/inr-agent-editorial-plan").schedule, "*/1 * * * *");
 });
 
 test("la préparation transmet les médias choisis jusqu'à Booster et à l'agenda", () => {
