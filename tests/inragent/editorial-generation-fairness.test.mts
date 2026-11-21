@@ -7,7 +7,7 @@ import {
   orderInrAgentEditorialGenerationAccounts,
 } from "../../lib/inrAgentEditorialGenerationOrder.ts";
 
-type Account = { userId: string; automation: { lastPreparedAt: string | null } };
+type Account = { userId: string; automation: { lastPreparedAt: string | null }; lastAttemptAt?: string };
 const accounts = (count: number): Account[] => Array.from({ length: count }, (_, index) => ({
   userId: `account-${index}`,
   automation: { lastPreparedAt: null },
@@ -74,7 +74,15 @@ test("empty and single-account pages remain valid generation windows", () => {
   assert.deepEqual(generationWindow(accounts(1), 10, 1).map(account => account.userId), ["account-0"]);
 });
 
-test("the actual cron generation loop takes a fresh claim time after a slow prior generation", async () => {
+type Attempt = { user_id: string; editorialLastAttemptAt: string };
+function actualCronGenerationLoop(options: {
+  rows: Account[];
+  now: Date;
+  history: Attempt[];
+  historyError?: { message: string };
+  prepare: (args: { now: Date; userId: string }) => Promise<{ status: string; actionId: string }>;
+  ClockDate?: DateConstructor;
+}) {
   const source = readFileSync(new URL("../../app/api/cron/inr-agent-editorial-plan/route.ts", import.meta.url), "utf8");
   const ast = ts.createSourceFile("editorial-cron.ts", source, ts.ScriptTarget.Latest, true);
   let generationBlock: ts.IfStatement | undefined;
@@ -87,22 +95,101 @@ test("the actual cron generation loop takes a fresh claim time after a slow prio
   const compiled = ts.transpileModule(`async function dispatch(){const generated=[];${generationBlock.getText(ast)};return generated;}`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022 },
   }).outputText;
+  const queryCalls: Array<{ method: string; args: unknown[] }> = [];
+  const query = {
+    select(...args: unknown[]) { queryCalls.push({ method: "select", args }); return this; },
+    in(...args: unknown[]) { queryCalls.push({ method: "in", args }); return this; },
+    eq(...args: unknown[]) { queryCalls.push({ method: "eq", args }); return this; },
+    not(...args: unknown[]) { queryCalls.push({ method: "not", args }); return this; },
+    order(...args: unknown[]) { queryCalls.push({ method: "order", args }); return this; },
+    async limit(...args: unknown[]) { queryCalls.push({ method: "limit", args }); return { data: options.history, error: options.historyError || null }; },
+  };
+  const database = { from(...args: unknown[]) { queryCalls.push({ method: "from", args }); return query; } };
+  const dispatch = new Function("dryRun", "maxGenerations", "enabledRows", "now", "pageCount", "origin", "supabaseAdmin", "inrAgentEditorialGenerationRotationOffset", "orderInrAgentEditorialGenerationAccounts", "prepareNextInrAgentEditorialSlot", "Date", "NextResponse", `${compiled};return dispatch;`)(
+    false, 3, options.rows, options.now, 1, "https://isolated.test", database,
+    inrAgentEditorialGenerationRotationOffset, orderInrAgentEditorialGenerationAccounts, options.prepare, options.ClockDate || Date,
+    { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) },
+  );
+  return { dispatch, queryCalls };
+}
+
+test("the actual cron generation loop takes a fresh claim time after a slow prior generation", async () => {
   const start = Date.parse("2026-11-21T18:00:00Z");
   let clock = start;
   const claimTimes: number[] = [];
   const ClockDate = new Proxy(Date, {
     construct(target, args) { return Reflect.construct(target, args.length ? args : [clock]); },
   });
-  const prepare = async (args: { now: Date; userId: string }) => {
-    claimTimes.push(args.now.getTime());
-    clock += 5 * 60_000;
-    return { status: "prepared", actionId: args.userId };
-  };
-  const dispatch = new Function("dryRun", "maxGenerations", "enabledRows", "now", "pageCount", "origin", "supabaseAdmin", "inrAgentEditorialGenerationRotationOffset", "orderInrAgentEditorialGenerationAccounts", "prepareNextInrAgentEditorialSlot", "Date", `${compiled};return dispatch;`)(
-    false, 3, accounts(2), new Date(start), 1, "https://isolated.test", {},
-    inrAgentEditorialGenerationRotationOffset, orderInrAgentEditorialGenerationAccounts, prepare, ClockDate,
-  );
-  const generated = await dispatch();
+  const fixture = actualCronGenerationLoop({ rows: accounts(2), now: new Date(start), history: [], ClockDate,
+    prepare: async (args) => { claimTimes.push(args.now.getTime()); clock += 5 * 60_000; return { status: "prepared", actionId: args.userId }; },
+  });
+  const generated = await fixture.dispatch();
   assert.equal(generated.length, 2);
   assert.deepEqual(claimTimes, [start, start + 5 * 60_000], "a later worker must not inherit the stale batch-start time");
+});
+
+test("three old accounts that keep failing cannot starve any of forty accounts across fourteen actual cron windows", async () => {
+  const rows = accounts(40);
+  const oldPrepared = "2026-01-01T00:00:00Z";
+  rows.forEach((row, index) => { row.automation.lastPreparedAt = index < 3 ? oldPrepared : "2026-11-20T00:00:00Z"; });
+  const latestAttempts = new Map<string, string>();
+  const served = new Set<string>();
+  let clock = Date.parse("2026-11-21T18:00:00Z");
+  for (let visit = 0; visit < 14; visit++) {
+    const at = new Date(clock);
+    const fixture = actualCronGenerationLoop({ rows, now: at,
+      history: [...latestAttempts].map(([user_id, editorialLastAttemptAt]) => ({ user_id, editorialLastAttemptAt })),
+      ClockDate: new Proxy(Date, { construct(target, args) { return Reflect.construct(target, args.length ? args : [clock]); } }),
+      prepare: async ({ userId }) => {
+        served.add(userId);
+        latestAttempts.set(userId, new Date(clock).toISOString());
+        const failed = ["account-0", "account-1", "account-2"].includes(userId);
+        if (!failed) rows.find(row => row.userId === userId)!.automation.lastPreparedAt = new Date(clock).toISOString();
+        return { status: failed ? "retry" : "prepared", actionId: userId };
+      },
+    });
+    assert.equal((await fixture.dispatch()).length, 3);
+    clock += 60_000;
+  }
+  assert.equal(served.size, 40, "failed attempts must yield their turn even when lastPreparedAt never advances");
+  assert.ok(rows.slice(0, 3).every(row => row.automation.lastPreparedAt === oldPrepared));
+});
+
+test("the actual cron reads only bounded editorial attempt history for enabled publication accounts", async () => {
+  const rows = accounts(2);
+  const recent = "2026-11-21T18:00:00Z";
+  const fixture = actualCronGenerationLoop({ rows, now: new Date(recent), history: [
+    { user_id: "account-0", editorialLastAttemptAt: recent },
+    { user_id: "account-0", editorialLastAttemptAt: "2026-01-01T00:00:00Z" },
+  ], prepare: async ({ userId }) => ({ status: "prepared", actionId: userId }) });
+  const generated = await fixture.dispatch();
+  assert.equal(generated[0].userId, "account-1");
+  assert.equal(rows[0].lastAttemptAt, recent, "the maximum timestamp wins, even when returned rows are not unique");
+  const call = (method: string) => fixture.queryCalls.filter(entry => entry.method === method).map(entry => entry.args);
+  assert.deepEqual(call("from"), [["inr_agent_actions"]]);
+  assert.deepEqual(call("select"), [["user_id,editorialLastAttemptAt:metadata->>editorialLastAttemptAt"]]);
+  assert.deepEqual(call("in"), [["user_id", ["account-0", "account-1"]]]);
+  assert.deepEqual(call("eq"), [["automation_key", "publish"], ["metadata->>editorialPlan", "true"]]);
+  assert.deepEqual(call("not"), [["metadata->>editorialLastAttemptAt", "is", null]]);
+  assert.deepEqual(call("order"), [["metadata->>editorialLastAttemptAt", { ascending: false, nullsFirst: false }]]);
+  assert.deepEqual(call("limit"), [[4000]]);
+});
+
+test("the actual cron never generates on an unreadable attempt history instead of silently reusing success-only order", async () => {
+  let generations = 0;
+  const fixture = actualCronGenerationLoop({ rows: accounts(2), now: new Date(), history: [], historyError: { message: "database unavailable" },
+    prepare: async ({ userId }) => { generations++; return { status: "prepared", actionId: userId }; },
+  });
+  const response = await fixture.dispatch();
+  assert.equal(response.status, 500);
+  assert.equal((await response.json()).code, "editorial_generation_attempt_history_unavailable");
+  assert.equal(generations, 0);
+});
+
+test("ordering uses the later of successful preparation and actual attempt time", () => {
+  const rows: Account[] = [
+    { userId: "latest-preparation", automation: { lastPreparedAt: "2026-11-21T18:03:00Z" }, lastAttemptAt: "2026-11-21T18:01:00Z" },
+    { userId: "latest-attempt", automation: { lastPreparedAt: "2026-01-01T00:00:00Z" }, lastAttemptAt: "2026-11-21T18:02:00Z" },
+  ];
+  assert.deepEqual(orderInrAgentEditorialGenerationAccounts(rows, 0).map(row => row.userId), ["latest-attempt", "latest-preparation"]);
 });

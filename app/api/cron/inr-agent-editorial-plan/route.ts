@@ -154,6 +154,7 @@ export async function POST(request: Request) {
   const enabledRows: Array<{
     userId: string;
     automation: InrAgentAutomationSettings;
+    lastAttemptAt?: string;
   }> = [];
   if (!dryRun) {
     for (const row of rows) {
@@ -253,6 +254,28 @@ export async function POST(request: Request) {
 
   const generated: Array<Record<string, unknown>> = [];
   if (!dryRun && maxGenerations > 0 && enabledRows.length > 0) {
+    const { data: attemptRows, error: attemptError } = await supabaseAdmin
+      .from("inr_agent_actions")
+      .select("user_id,editorialLastAttemptAt:metadata->>editorialLastAttemptAt")
+      .in("user_id", enabledRows.map((entry) => entry.userId))
+      .eq("automation_key", "publish")
+      .eq("metadata->>editorialPlan", "true")
+      .not("metadata->>editorialLastAttemptAt", "is", null)
+      .order("metadata->>editorialLastAttemptAt", { ascending: false, nullsFirst: false })
+      .limit(4000);
+    if (attemptError) {
+      console.warn("[inr-agent-editorial] generation attempt history unavailable", attemptError);
+      return NextResponse.json({ success: false, code: "editorial_generation_attempt_history_unavailable", error: attemptError.message }, { status: 500 });
+    }
+    const lastAttemptByAccount = new Map<string, string>();
+    for (const row of Array.isArray(attemptRows) ? attemptRows : []) {
+      const timestamp = Date.parse(String(row.editorialLastAttemptAt || ""));
+      const previous = Date.parse(lastAttemptByAccount.get(row.user_id) || "");
+      if (Number.isFinite(timestamp) && (!Number.isFinite(previous) || timestamp > previous)) {
+        lastAttemptByAccount.set(row.user_id, row.editorialLastAttemptAt);
+      }
+    }
+    for (const entry of enabledRows) entry.lastAttemptAt = lastAttemptByAccount.get(entry.userId);
     const rotationOffset = inrAgentEditorialGenerationRotationOffset({
       tick: Math.floor(now.getTime() / (60 * 1000)),
       pageCount,
