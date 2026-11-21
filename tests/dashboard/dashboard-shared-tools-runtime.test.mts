@@ -40,6 +40,7 @@ type HarnessOptions = {
   pendingKey?: string | null;
   visibleKey?: string | null;
   pendingCount?: number;
+  publicationPendingCount?: number;
   locale?: string;
 };
 
@@ -135,7 +136,7 @@ function harness(options: HarnessOptions = {}) {
     if (specifier === "./WorkflowBaseModal") return { __esModule: true, default: (props: Props) => createElement("div", { role: "dialog", "aria-label": props.title, onClose: props.onClose }, props.headerActions as ReactNode, ...(Array.isArray(props.children) ? props.children : [props.children]) as ReactNode[]) };
     if (specifier === "./AdsChannelInfoModal") return { __esModule: true, default: (props: Props) => createElement("div", { role: "dialog", "aria-label": "iNr’ADS", onClick: props.onClose }) };
     if (specifier === "../_hooks/useDashboardI18n") return { useDashboardI18n: () => ({ ...messages.dashboard, locale }) };
-    if (specifier === "../_hooks/useInrAgentPendingCount") return { useInrAgentPendingCount: (enabled: boolean) => { calls.enabled.push(enabled); return enabled ? options.pendingCount ?? 0 : 0; } };
+    if (specifier === "../_hooks/useInrAgentPendingCount") return { useInrAgentPendingCount: (enabled: boolean, workspace?: "publications") => { calls.enabled.push(enabled); return enabled ? workspace === "publications" ? options.publicationPendingCount ?? 0 : options.pendingCount ?? 0 : 0; } };
     if (specifier === "./DashboardToolWarmup") return { requestDashboardToolWarmup: (path: string) => { calls.warmups.push(path); } };
     if (specifier === "@/hooks/useDelayedPendingAction") return { useDelayedPendingAction: () => pending };
     if (specifier === "@/lib/inrAgentWorkspaces") return workspacePolicy;
@@ -661,6 +662,32 @@ test("contextual icons remain distinct and disabled when account access is unava
       assert.equal(elements(tree).filter((node) => node.props["data-testid"] === "dashboard-agent-pending-badge").length, 0);
       if (!enabled) assert.ok(logos.every((logo) => logo.props["data-dashboard-prefetch"] === undefined));
     }
+  }
+});
+
+test("Automatiser affiche uniquement les publications à valider, masque zéro et respecte l'accès du compte", () => {
+  for (const variant of variants) {
+    for (const publicationPendingCount of [0, 7, 105]) {
+      const tree = harness({ ...variant, pendingCount: 31, publicationPendingCount }).render().tree;
+      const badges = elements(tree).filter(node => node.props["data-testid"] === "dashboard-agent-publication-pending-badge");
+      assert.equal(badges.length, publicationPendingCount > 0 ? 1 : 0);
+      if (publicationPendingCount > 0) {
+        const expected = publicationPendingCount > 99 ? "99+" : String(publicationPendingCount);
+        assert.equal(content(badges[0]), expected);
+        const publicationButton = find(tree, node => node.type === "button" && node.props["data-agent-workspace"] === "publications");
+        assert.ok(elements(publicationButton).includes(badges[0]));
+        assert.ok(String(publicationButton.props["aria-label"]).includes(expected));
+      }
+      for (const node of elements(tree).filter(node => node.type === "button" && ["stats", "campaigns"].includes(String(node.props["data-agent-workspace"])))) {
+        assert.equal(elements(node).filter(child => child.props["data-testid"] === "dashboard-agent-publication-pending-badge").length, 0);
+      }
+    }
+    const disabledTree = harness({ ...variant, props: { inrAgentEnabled: false }, publicationPendingCount: 7 }).render().tree;
+    assert.equal(elements(disabledTree).filter(node => node.props["data-testid"] === "dashboard-agent-publication-pending-badge").length, 0);
+  }
+  for (const variant of basicVariants) {
+    const tree = harness({ ...variant, publicationPendingCount: 7 }).render().tree;
+    assert.equal(elements(tree).filter(node => node.props["data-testid"] === "dashboard-agent-publication-pending-badge").length, 0);
   }
 });
 

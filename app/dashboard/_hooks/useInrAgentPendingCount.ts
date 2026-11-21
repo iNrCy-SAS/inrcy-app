@@ -11,12 +11,15 @@ import { ACTIVE_INRCY_ACCOUNT_EVENT } from "@/lib/multicompte/constants";
 
 export const INR_AGENT_PENDING_COUNT_CACHE_KEY =
   "inrcy_inr_agent_pending_count_v1";
+export const INR_AGENT_PENDING_PUBLICATION_COUNT_CACHE_KEY =
+  "inrcy_inr_agent_pending_publication_count_v1";
 
 const INR_AGENT_PENDING_COUNT_POLL_MS = 60_000;
 const listeners = new Set<() => void>();
 
 let currentAccountId: string | null = null;
 let currentCount = 0;
+let currentPublicationCount = 0;
 const requestPromisesByAccount = new Map<string, Promise<void>>();
 let intervalId: number | null = null;
 let controllerStarted = false;
@@ -26,21 +29,21 @@ function safeCount(value: unknown) {
   return Number.isFinite(count) && count > 0 ? Math.round(count) : 0;
 }
 
-export function readCachedPendingInrAgentCount(accountId = getActiveBrowserUserId()) {
+export function readCachedPendingInrAgentCount(accountId = getActiveBrowserUserId(), workspace?: "publications") {
   if (!accountId) return 0;
   try {
     return safeCount(
-      readAccountCacheValue(INR_AGENT_PENDING_COUNT_CACHE_KEY, accountId),
+      readAccountCacheValue(workspace === "publications" ? INR_AGENT_PENDING_PUBLICATION_COUNT_CACHE_KEY : INR_AGENT_PENDING_COUNT_CACHE_KEY, accountId),
     );
   } catch {
     return 0;
   }
 }
 
-function writeCachedPendingInrAgentCount(count: number, accountId: string) {
+function writeCachedPendingInrAgentCount(count: number, accountId: string, workspace?: "publications") {
   try {
     writeAccountCacheValue(
-      INR_AGENT_PENDING_COUNT_CACHE_KEY,
+      workspace === "publications" ? INR_AGENT_PENDING_PUBLICATION_COUNT_CACHE_KEY : INR_AGENT_PENDING_COUNT_CACHE_KEY,
       String(safeCount(count)),
       accountId,
     );
@@ -58,6 +61,7 @@ function synchronizeAccountScope(notify = true) {
   if (nextAccountId === currentAccountId) return false;
   currentAccountId = nextAccountId;
   currentCount = readCachedPendingInrAgentCount(nextAccountId);
+  currentPublicationCount = readCachedPendingInrAgentCount(nextAccountId, "publications");
   if (notify) emit();
   return true;
 }
@@ -82,13 +86,17 @@ export function refreshInrAgentPendingCount() {
       if (!response.ok) return;
       const payload = (await response.json().catch(() => null)) as {
         count?: unknown;
+        publicationCount?: unknown;
       } | null;
       if (requestAccountId !== getActiveBrowserUserId()) return;
 
       const nextCount = safeCount(payload?.count);
+      const nextPublicationCount = safeCount(payload?.publicationCount);
       writeCachedPendingInrAgentCount(nextCount, requestAccountId);
-      if (nextCount === currentCount) return;
+      writeCachedPendingInrAgentCount(nextPublicationCount, requestAccountId, "publications");
+      if (nextCount === currentCount && nextPublicationCount === currentPublicationCount) return;
       currentCount = nextCount;
+      currentPublicationCount = nextPublicationCount;
       emit();
     } catch {
       // Le dernier compteur confirmé reste affiché si le réseau est indisponible.
@@ -184,14 +192,20 @@ function getServerSnapshot() {
   return 0;
 }
 
+function getPublicationSnapshot() {
+  synchronizeAccountScope(false);
+  return currentPublicationCount;
+}
+
 function subscribeDisabled() {
   return () => {};
 }
 
-export function useInrAgentPendingCount(enabled = true) {
+export function useInrAgentPendingCount(enabled = true, workspace?: "publications") {
+  const scopedSnapshot = workspace === "publications" ? getPublicationSnapshot : getSnapshot;
   return useSyncExternalStore(
     enabled ? subscribe : subscribeDisabled,
-    enabled ? getSnapshot : getServerSnapshot,
+    enabled ? scopedSnapshot : getServerSnapshot,
     getServerSnapshot,
   );
 }

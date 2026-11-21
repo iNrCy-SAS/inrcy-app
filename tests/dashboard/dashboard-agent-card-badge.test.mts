@@ -37,7 +37,7 @@ test("les logos Premium et Standard ouvrent la navigation Agent existante sans i
 });
 
 test("le badge n'affiche que le compteur réel partagé, au-delà de zéro et plafonné à 99+", () => {
-  assert.match(logo, /const pendingCount = useInrAgentPendingCount\(enabled && !workspace\)/);
+  assert.match(logo, /useInrAgentPendingCount\(\s*enabled && !locked && \(!workspace \|\| workspace === "publications"\),\s*workspace === "publications" \? workspace : undefined/);
   assert.match(logo, /const pendingLabel = pendingCount > 99 \? "99\+" : String\(pendingCount\)/);
   assert.match(logo, /enabled && pendingCount > 0 \? <span[^\n]*data-testid="dashboard-agent-pending-badge"[^\n]*>\{pendingLabel\}<\/span> : null/);
   assert.doesNotMatch(logo, /fetch\(|setInterval|localStorage|useEffect/);
@@ -45,6 +45,8 @@ test("le badge n'affiche que le compteur réel partagé, au-delà de zéro et pl
   assert.match(pendingCount, /enabled \? subscribe : subscribeDisabled/);
   assert.match(pendingCount, /requestPromisesByAccount = new Map/);
   assert.match(pendingCount, /ACTIVE_INRCY_ACCOUNT_EVENT/);
+  assert.match(logo, /enabled && !locked && workspace === "publications" && pendingCount > 0 \? <span[^\n]*data-testid="dashboard-agent-publication-pending-badge"/);
+  assert.match(logoCss, /\.contextual button\.openAgent \{[^}]*position: relative;[^}]*overflow: visible/);
 });
 
 test("le logo reste rond, laisse déborder le badge et décrit les actions en attente de manière localisée", () => {

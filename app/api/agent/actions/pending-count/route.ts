@@ -42,11 +42,27 @@ export async function GET() {
       .eq("action_type", "publication")
       .eq("target_tool", "booster");
   }
-  const { count, error } = await countQuery;
+  const publicationCountQuery = standardMode
+    ? null
+    : supabaseAdmin
+        .from("inr_agent_actions")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", activeUserId)
+        .eq("validation_required", true)
+        .in("status", PENDING_AGENT_ACTION_STATUSES)
+        .eq("automation_key", "publish")
+        .eq("action_type", "publication")
+        .eq("target_tool", "booster");
+  const [globalResult, publicationResult] = await Promise.all([
+    countQuery,
+    publicationCountQuery,
+  ]);
+  const { count } = globalResult;
+  const error = globalResult.error || publicationResult?.error;
 
   if (error) {
     if (isMissingTableError(error)) {
-      return NextResponse.json({ count: 0, tableMissing: true });
+      return NextResponse.json({ count: 0, publicationCount: 0, tableMissing: true });
     }
 
     console.warn("[inr-agent-pending-count] read failed", error);
@@ -58,6 +74,9 @@ export async function GET() {
 
   return NextResponse.json({
     count: typeof count === "number" && Number.isFinite(count) ? count : 0,
+    publicationCount: standardMode
+      ? typeof count === "number" && Number.isFinite(count) ? count : 0
+      : typeof publicationResult?.count === "number" && Number.isFinite(publicationResult.count) ? publicationResult.count : 0,
     tableMissing: false,
   });
 }

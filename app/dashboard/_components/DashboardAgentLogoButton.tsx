@@ -21,12 +21,14 @@ type Props = {
 export default function DashboardAgentLogoButton({ className, enabled = true, busy = false, workspace, locked = false, availabilityHint, onClick }: Props) {
   const t = useDashboardI18n();
   const workspaceT = useTranslations("agent.workspaces");
-  // The global counter remains on its existing global entry point.
-  const pendingCount = useInrAgentPendingCount(enabled && !workspace);
+  const pendingCount = useInrAgentPendingCount(
+    enabled && !locked && (!workspace || workspace === "publications"),
+    workspace === "publications" ? workspace : undefined,
+  );
   const definition = workspace ? INR_AGENT_WORKSPACES[workspace] : null;
   const pendingLabel = pendingCount > 99 ? "99+" : String(pendingCount);
   const actionLabel = workspace
-    ? `${workspaceT("open")} ${workspaceT(`${workspace}.name`)}`
+    ? `${workspaceT("open")} ${workspaceT(`${workspace}.name`)}${workspace === "publications" && pendingCount > 0 ? ` — ${pendingLabel} ${t.topbar.inrAgentPending}` : ""}`
     : enabled
     ? pendingCount > 0
       ? `${t.topbar.inrAgentOpen} — ${pendingLabel} ${pendingCount > 1 ? t.topbar.inrAgentActions : t.topbar.inrAgentAction} ${t.topbar.inrAgentPending}`
@@ -45,6 +47,7 @@ export default function DashboardAgentLogoButton({ className, enabled = true, bu
           onClick={onClick} disabled={!enabled || busy} aria-disabled={!enabled || busy}
           aria-busy={busy || undefined} aria-label={availabilityHint ? `${actionLabel} — ${availabilityHint}` : locked ? `${actionLabel} — ${t.modules.campaignsPremiumLabel}` : actionLabel} title={availabilityHint ?? actionLabel}>
           {locked ? t.modules.campaignsPremiumLabel : workspace === "publications" ? workspaceT("publications.automate") : t.modules.agentCta}<span aria-hidden="true">{locked ? "🔒" : "→"}</span>
+          {enabled && !locked && workspace === "publications" && pendingCount > 0 ? <span className={`${styles.badge} ${styles.contextualBadge}`} data-testid="dashboard-agent-publication-pending-badge" aria-hidden="true">{pendingLabel}</span> : null}
         </button>
         </div>
       </div>
