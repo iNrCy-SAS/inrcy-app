@@ -173,21 +173,7 @@
           "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#section:392c818c2413edfb:1": {
-        "reason": "Conteneur technique : arrête la propagation, sans action métier distincte.",
-        "gateAnchor": "<section data-inrcy-tool-dialog\n            className={`${styles.settingsModal} ${styles.automationSettingsModal} ${publicationIdeasOpen ? styles.publicationIdeasWorkspace : \"\"} ${settingsAutomation.key === \"publish\" && !publicationIdeasOpe",
-        "gateFiles": [
-          "app/dashboard/agent/AgentClient.tsx"
-        ]
-      },
       "app/dashboard/agent/AgentClient.tsx#button:5c445ddb5135fa06:1": {
-        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
-      "app/dashboard/agent/AgentClient.tsx#button:e3e726ce712035bc:1": {
         "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
         "gateFiles": [
@@ -313,20 +299,6 @@
           "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#AgentSettingsMultiSelect:7117bc6af5d0a8dc:1": {
-        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
-      "app/dashboard/agent/AgentClient.tsx#AgentSettingsMultiSelect:0e33bbab5d29ee93:1": {
-        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
       "app/dashboard/agent/AgentClient.tsx#button:3cf4c9734c790332:1": {
         "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
@@ -362,13 +334,6 @@
           "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#button:d4ef9c5b5adcc3d7:1": {
-        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
       "app/dashboard/agent/AgentClient.tsx#input:4006164296f86c7d:1": {
         "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
@@ -384,20 +349,6 @@
         ]
       },
       "app/dashboard/agent/AgentClient.tsx#input:0bdd5e115e3c6cb3:1": {
-        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
-      "app/dashboard/agent/AgentClient.tsx#input:2120e74f92b6ef11:1": {
-        "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
-      "app/dashboard/agent/AgentClient.tsx#option:705d2303ef02c1c9:1": {
         "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
         "gateFiles": [
@@ -567,55 +518,6 @@
           "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#button:a4f5c6e0ad39efc5:1": {
-        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
-      "app/dashboard/agent/AgentClient.tsx#select:105819e616b53933:1": {
-        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
-      "app/dashboard/agent/AgentClient.tsx#option:b0e1f5aa2f2533de:1": {
-        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
-      "app/dashboard/agent/AgentClient.tsx#select:1d928ac34d76f5ae:1": {
-        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
-      "app/dashboard/agent/AgentClient.tsx#select:5f7ad99fbd6f70a9:1": {
-        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
-      "app/dashboard/agent/AgentClient.tsx#option:b0e1f5aa2f2533de:2": {
-        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
-      "app/dashboard/agent/AgentClient.tsx#select:9a8bddc738ea4705:1": {
-        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
-        "gateAnchor": "!props.manualPlanningOnly",
-        "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
-        ]
-      },
       "app/dashboard/agent/AgentClient.tsx#select:6d5da73df58bbc1e:1": {
         "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
@@ -658,18 +560,52 @@
           "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:5": {
-        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+      "app/dashboard/agent/AgentClient.tsx#AgentSchedulePopover:b6dd4f7e6a117fd6:1": {
+        "reason": "Réglage de publication automatisée : planning flottant, source IA, préférence iNrStudio ou choix des canaux/thèmes. Le point d’entrée Réglages et l’ouverture par l’assistant sont absents/refusés en mode planning manuel Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
         "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+          "app/dashboard/agent/AgentClient.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:6": {
-        "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
+      "app/dashboard/agent/AgentClient.tsx#button:b9ba60b0d85976f6:1": {
+        "reason": "Réglage de publication automatisée : planning flottant, source IA, préférence iNrStudio ou choix des canaux/thèmes. Le point d’entrée Réglages et l’ouverture par l’assistant sont absents/refusés en mode planning manuel Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
         "gateFiles": [
-          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:29f5ea547ada1e0f:1": {
+        "reason": "Réglage de publication automatisée : planning flottant, source IA, préférence iNrStudio ou choix des canaux/thèmes. Le point d’entrée Réglages et l’ouverture par l’assistant sont absents/refusés en mode planning manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#button:39f8f210872aa8f3:1": {
+        "reason": "Réglage de publication automatisée : planning flottant, source IA, préférence iNrStudio ou choix des canaux/thèmes. Le point d’entrée Réglages et l’ouverture par l’assistant sont absents/refusés en mode planning manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#AgentSettingsMultiSelect:7f236a1ba67c583b:1": {
+        "reason": "Réglage de publication automatisée : planning flottant, source IA, préférence iNrStudio ou choix des canaux/thèmes. Le point d’entrée Réglages et l’ouverture par l’assistant sont absents/refusés en mode planning manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+          "app/dashboard/agent/AgentClient.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#AgentSettingsMultiSelect:264fee27bf23bf74:1": {
+        "reason": "Réglage de publication automatisée : planning flottant, source IA, préférence iNrStudio ou choix des canaux/thèmes. Le point d’entrée Réglages et l’ouverture par l’assistant sont absents/refusés en mode planning manuel Basique.",
+        "gateAnchor": "!props.manualPlanningOnly",
+        "gateFiles": [
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+          "app/dashboard/agent/AgentClient.tsx"
         ]
       }
     }
@@ -1364,5 +1300,14 @@
         ]
       }
     }
+  },
+  "app/dashboard/agent/_components/AgentSchedulePopover.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Sélecteur flottant des jours et heures, utilisé uniquement dans les réglages de publication automatisée ; aucun appel depuis le planning manuel Basique. Son unique appelant est dans la branche settingsAutomation publish, avec entrée Réglages masquée et ouverture par l’assistant refusée au mode manuel.",
+    "gateAnchor": "!props.manualPlanningOnly",
+    "gateFiles": [
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+      "app/dashboard/agent/AgentClient.tsx"
+    ]
   }
 }

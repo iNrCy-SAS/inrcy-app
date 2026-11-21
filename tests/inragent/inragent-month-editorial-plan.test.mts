@@ -351,7 +351,7 @@ test("la publication iNrAgent reste manuelle par défaut et son exception admin 
   assert.doesNotMatch(settings, /^\s*"automatic_publish",?$/m);
   assert.match(settings, /key === "publish"[\s\S]*?"notify_before_validation"/);
   assert.doesNotMatch(config, /Publication automatique à l’heure prévue/);
-  assert.doesNotMatch(client, /automatic_publish_confirm_title/);
+  assert.match(client, /function requestAutomationToggle[\s\S]*?if \(configs\[key\]\.enabled\)[\s\S]*?openAgentConfirmDialog\(\{[\s\S]*?automatic_publish_confirm_title[\s\S]*?onConfirm: async \(\) => \{ await setAutomationEnabled\(key, true\); \}/);
   assert.match(prepare, /validationMode === "admin_automatic_publish" \? "automatic_after_settings" : "manual_validation"/);
   assert.match(prepare, /validationMode === "admin_automatic_publish" \? "prepared" : "pending_validation"/);
   assert.match(prepare, /validationMode !== "admin_automatic_publish"/);

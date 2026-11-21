@@ -9,6 +9,17 @@ type Value = any;
 const read = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), "utf8");
 const keys = ["publish", "grow", "loyalty", "stats"];
 const response = (payload: unknown, ok = true) => ({ ok, json: async () => payload });
+const configSource = ts.createSourceFile("agent.config.ts", read("app/dashboard/agent/_lib/agent.config.ts"), ts.ScriptTarget.Latest, true);
+let settingsDeclaration: ts.VariableDeclaration | undefined;
+function findSettingsOptions(node: ts.Node) {
+  if (ts.isVariableDeclaration(node) && node.name.getText(configSource) === "settingsOptions") settingsDeclaration = node;
+  ts.forEachChild(node, findSettingsOptions);
+}
+findSettingsOptions(configSource);
+assert.ok(settingsDeclaration, "the fixture uses the actual validation choices");
+const settingsOptions: Value = new Function(ts.transpileModule(`const ${settingsDeclaration.getText(configSource)}; return settingsOptions;`, {
+  compilerOptions: { target: ts.ScriptTarget.ES2022 },
+}).outputText)();
 
 function runtime(options: { fail?: boolean; blocked?: boolean; deferred?: boolean; impact?: boolean; enabled?: string } = {}) {
   const baseline = Object.fromEntries(keys.map(key => [key, { enabled: key === options.enabled, channels: ["facebook"], label: `saved ${key}` }]));
@@ -66,7 +77,7 @@ function requestToggle(configs: Value, save: Value) {
   const code = ts.transpileModule(declaration, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
   const dialogs: Value[] = [];
   const opened: string[] = [];
-  const fn = new Function("configs", "setAutomationEnabled", "openAgentConfirmDialog", "i18nT", "setPublicationIdeasOpen", "setSettingsKey", "loadState", "saveState", `${code}; return requestAutomationToggle;`)(configs, save, (value: Value) => dialogs.push(value), (key: string) => key, () => {}, (key: string) => opened.push(key), "ready", "idle");
+  const fn = new Function("configs", "setAutomationEnabled", "openAgentConfirmDialog", "i18nT", "setPublicationIdeasOpen", "setSettingsKey", "loadState", "saveState", "settingsOptions", `${code}; return requestAutomationToggle;`)(configs, save, (value: Value) => dialogs.push(value), (key: string) => key, () => {}, (key: string) => opened.push(key), "ready", "idle", settingsOptions);
   return { fn, dialogs, opened };
 }
 
@@ -86,6 +97,29 @@ for (const key of keys) test(`${key}: opening confirmation or verifying settings
   expected[key].enabled = true;
   assert.deepEqual(h.requests[0].settings.configs, expected, "Unfinished drafts and other automations must not be activated or changed");
   assert.equal(h.writes.at(-1)[key].enabled, true);
+});
+
+test("a saved no-validation preference uses the explicit automatic-publication confirmation before activation", async () => {
+  const h = runtime();
+  const validation = settingsOptions.publish.validation.find((option: Value) => option.value === "admin_automatic_publish")?.label;
+  assert.ok(validation);
+  Object.assign(h.baseline.publish, { validation });
+  Object.assign(h.configs.publish, { validation });
+  const ui = requestToggle(h.configs, h.controller.setAutomationEnabled);
+  ui.fn("publish");
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.writes.length, 0);
+  assert.equal(h.baseline.publish.enabled, false);
+  assert.equal(ui.dialogs[0].title, "automatic_publish_confirm_title");
+  assert.equal(ui.dialogs[0].message, "automatic_publish_confirm_message");
+  assert.equal(ui.dialogs[0].confirmLabel, "automatic_publish_confirm_action");
+  ui.dialogs[0].onAlternate();
+  assert.deepEqual(ui.opened, ["publish"]);
+  assert.equal(h.requests.length, 0, "reviewing settings never activates publication");
+  await ui.dialogs[0].onConfirm();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].settings.configs.publish.enabled, true);
+  assert.equal(h.requests[0].settings.configs.publish.validation, validation);
 });
 
 test("activation is not displayed before server confirmation and rapid clicks cannot submit it twice", async () => {

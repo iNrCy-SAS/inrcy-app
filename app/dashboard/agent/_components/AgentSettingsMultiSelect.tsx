@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import styles from "./AgentSettingsMultiSelect.module.css";
@@ -8,7 +8,7 @@ import styles from "./AgentSettingsMultiSelect.module.css";
 type Option = { value: string; label: string; icon?: string; disabled?: boolean; description?: string };
 
 export default function AgentSettingsMultiSelect(props: {
-  label: string; options: Option[]; selected: string[]; disabled?: boolean;
+  label: string; options: Option[]; selected: string[]; disabled?: boolean; icon?: ReactNode;
   onToggle: (value: string) => void;
 }) {
   const t = useTranslations("agent");
@@ -51,7 +51,7 @@ export default function AgentSettingsMultiSelect(props: {
   }, [position]);
 
   return <div className={styles.field}>
-    <span id={`${id}-label`}>{props.label}</span>
+    <span id={`${id}-label`}>{props.icon ? <span aria-hidden="true">{props.icon}</span> : null}{props.label}</span>
     <button ref={trigger} type="button" className={styles.trigger} disabled={props.disabled}
       aria-labelledby={`${id}-label ${id}-value`} aria-expanded={Boolean(position)} aria-haspopup="dialog"
       aria-controls={position ? `${id}-panel` : undefined} onClick={() => position ? close() : open()}>

@@ -62,7 +62,7 @@
       "guideDigest": "cf718633ebb220a26210861207e98317f1b336d29e5196fae3a778949de928bc",
       "sources": {
         "app/api/agent/settings/route.ts": "47ea516c4f5a274a15d7dd26a874dfe67c9a3bb30a27aca276f0375095c1390b",
-        "app/dashboard/agent/AgentClient.tsx": "4cd4e0c34964585b273981088ddb04022cd9709c556a4e40bd9042f47cf4957e",
+        "app/dashboard/agent/AgentClient.tsx": "d5b2f2500b7d1ccea433272799fb1e511a52617c2400a51542a5d24e429bc887",
         "app/dashboard/agent/_components/AgentCampaignAccess.tsx": "8e3f0f5b88450f9ee677423bd50267f22c258cbc138b6140cd73c50f3761b7f8",
         "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx": "1dc572dc23348d8f8593811b789935b1e3c908aae5fca57e645be2b02d320272",
         "app/dashboard/agent/_lib/agent.publish-preview.ts": "daeebe9fc5bfb3b524bb0f81713e684a5b079284a888deb7278527b4e22f96eb",

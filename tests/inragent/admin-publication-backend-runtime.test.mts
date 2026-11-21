@@ -244,6 +244,13 @@ for (const edition of ['premium', 'standard'] as const) test(`${edition} setting
   const db = database(); db.tables.inr_agent_automation_settings = []; db.tables.inr_agent_settings[0].global_enabled = false;
   const route = settingsRoute(db, { edition });
   const input = () => sanitizeInrAgentSettings({ globalEnabled: true, automations: { ...sanitizeInrAgentSettings(null).automations, publish: publish() } });
+  const configured = input(); configured.globalEnabled = false; configured.automations.publish.enabled = false;
+  assert.equal((await save(route, configured)).status, 200);
+  const savedInactive = db.tables.inr_agent_automation_settings.find(row => row.automation_key === 'publish')!;
+  assert.equal(db.tables.inr_agent_settings[0].global_enabled, false, 'saving a preference cannot enable the global scheduler');
+  assert.equal(savedInactive.enabled, false, 'saving a preference cannot enable publication automation');
+  assert.equal(savedInactive.validation_mode, 'admin_automatic_publish', 'the admin can configure validation before activation');
+  assert.equal(savedInactive.metadata.adminPublishOptIn, undefined, 'an inactive preference never mints execution consent');
   const first = await save(route, input()); assert.equal(first.status, 200);
   const firstOptIn = db.tables.inr_agent_automation_settings.find(row => row.automation_key === 'publish')!.metadata.adminPublishOptIn;
   assert.ok(policy.readInrAgentAdminPublishOptIn(firstOptIn)); assert.notEqual(firstOptIn.id, optIn.id, 'a client opt-in UUID is never accepted');
@@ -253,7 +260,8 @@ for (const edition of ['premium', 'standard'] as const) test(`${edition} setting
   assert.equal((await save(route, off)).status, 200);
   assert.equal(db.tables.inr_agent_settings[0].global_enabled, false);
   const disabled = db.tables.inr_agent_automation_settings.find(row => row.automation_key === 'publish')!;
-  assert.equal(disabled.validation_mode, 'notify_before_validation'); assert.equal(disabled.metadata.adminPublishOptIn, undefined);
+  assert.equal(disabled.validation_mode, 'admin_automatic_publish', 'pausing preserves the selected preference for a later confirmed activation');
+  assert.equal(disabled.metadata.adminPublishOptIn, undefined, 'pausing revokes automatic execution consent');
   assert.equal((await save(route, input())).status, 200);
   assert.notEqual(db.tables.inr_agent_automation_settings.find(row => row.automation_key === 'publish')!.metadata.adminPublishOptIn.id, firstOptIn.id);
 });
