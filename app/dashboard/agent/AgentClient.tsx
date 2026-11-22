@@ -14,6 +14,7 @@ import { recoverAgentMediaPreviewUrl } from "./_lib/agent.media-preview-recovery
 import { loadMediaPublicationWorkspace } from "@/lib/mediaWorkspaceClient";
 import { scheduledPublicationPreviewWorkspaceId, withScheduledPublicationWorkspacePreview } from "@/lib/scheduledPublicationWorkspacePreview";
 import AgentSettingsMultiSelect from "./_components/AgentSettingsMultiSelect";
+import AgentPremiumFrequencySelect from "./_components/AgentPremiumFrequencySelect";
 import AgentSchedulePopover from "./_components/AgentSchedulePopover";
 import { INR_AGENT_VIDEO_ENGINE } from "@/lib/inrAgentVideoPolicy";
 import { apiChannelToUi } from "./_lib/agent.config";
@@ -8272,23 +8273,37 @@ function AgentWorkspaceClient({ workspace, manualPlanningOnly = false }: { works
                   <h3 className={styles.settingsSectionHeading}>{i18nT("settings_section_planning")}</h3>
                 </div>
                 <div className={styles.settingsPlanningControls}>
-                  <label>
-                    <span>{i18nT("frequence_bafbfba7")}</span>
-                    <select
+                  {!publicationOptionAccess.highFrequency && publicationOptionAccess.automaticPublish ? (
+                    <AgentPremiumFrequencySelect
+                      label={i18nT("frequence_bafbfba7")}
                       value={settingsConfig.frequency}
-                      aria-describedby={settingsPublishDaily ? "agent-publish-daily-hint" : undefined}
-                      onChange={(event) => updateConfigFrequency(settingsAutomation.key, event.target.value)}
-                    >
-                      {settingsOptions.publish.frequency.map((frequency) => {
-                        const locked = !publicationOptionAccess.highFrequency && isInrAgentHighPublicationFrequency(frequency.value);
-                        if (locked && !publicationOptionAccess.automaticPublish) return null;
+                      options={settingsOptions.publish.frequency.map(frequency => {
                         const label = agentFrequencyLabel(frequency.label, runtimeT);
-                        return <option key={frequency.value} value={frequency.label} disabled={locked}>
-                          {locked ? i18nT("agent_publish_premium_frequency", { frequency: label }) : label}
-                        </option>;
+                        const disabled = isInrAgentHighPublicationFrequency(frequency.value);
+                        return {
+                          value: frequency.label,
+                          label: disabled ? i18nT("agent_publish_premium_frequency", { frequency: label }) : label,
+                          disabled,
+                        };
                       })}
-                    </select>
-                  </label>
+                      onChange={(frequency) => updateConfigFrequency(settingsAutomation.key, frequency)}
+                    />
+                  ) : (
+                    <label>
+                      <span>{i18nT("frequence_bafbfba7")}</span>
+                      <select
+                        value={settingsConfig.frequency}
+                        aria-describedby={settingsPublishDaily ? "agent-publish-daily-hint" : undefined}
+                        onChange={(event) => updateConfigFrequency(settingsAutomation.key, event.target.value)}
+                      >
+                        {settingsOptions.publish.frequency
+                          .filter((frequency) => publicationOptionAccess.highFrequency || !isInrAgentHighPublicationFrequency(frequency.value))
+                          .map((frequency) => (
+                            <option key={frequency.value} value={frequency.label}>{agentFrequencyLabel(frequency.label, runtimeT)}</option>
+                          ))}
+                      </select>
+                    </label>
+                  )}
                   <label>
                     <span>{i18nT("contenus_prepares_a_l_avance_aa0119d0")}</span>
                     <select

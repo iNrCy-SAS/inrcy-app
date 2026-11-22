@@ -60,6 +60,7 @@ const controls = compile(`export default function Controls(){
   const [open,setSettingsKey]=React.useState(true);
   const i18nT=translate,runtimeT=i18nT,agentConnectedChannels=null;
   const AgentSchedulePopover=require('app/dashboard/agent/_components/AgentSchedulePopover.tsx').default;
+  const AgentPremiumFrequencySelect=require('app/dashboard/agent/_components/AgentPremiumFrequencySelect.tsx').default;
   const {CalendarMetaIcon,ShieldLineIcon,SparkSettingsIcon,TextMetaIcon,ImageMetaIcon,SendPlaneIcon}=require('app/dashboard/agent/_components/AgentVisuals.tsx');
   const setNotice=noOp,setTableMissing=noOp,setSettingsPlanImpact=noOp,writeCachedAgentViewSnapshot=noOp,refreshActions=async()=>{},showNotice=noOp;
   const { useDashboardSubscriptionEdition } = require("app/dashboard/_components/DashboardEditionProvider.tsx");
@@ -109,7 +110,7 @@ function addSource(base: string): string {
   const local = relative(repo, file);
   assert.ok(!isAbsolute(local) && local !== ".." && !local.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`));
   const id = local.replaceAll("\\", "/"); if (sources[id]) return id;
-  assert.ok(id.startsWith("lib/") || id.startsWith("app/dashboard/agent/_lib/") || /^app\/dashboard\/agent\/_components\/Agent(SchedulePopover|SettingsPopover|SettingsMultiSelect|MediaReferences|Visuals)\./.test(id) || /^app\/dashboard\/_components\/(DashboardEditionProvider|DashboardViewerAccessProvider|MediaReferenceInputs|MediaLibraryPickerModal|MediaGenerator|CompatiblePopover)\./.test(id), `Unexpected fixture surface ${id}`);
+  assert.ok(id.startsWith("lib/") || id.startsWith("app/dashboard/agent/_lib/") || /^app\/dashboard\/agent\/_components\/Agent(PremiumFrequencySelect|SchedulePopover|SettingsPopover|SettingsMultiSelect|MediaReferences|Visuals)\./.test(id) || /^app\/dashboard\/_components\/(DashboardPremiumCrown|DashboardEditionProvider|DashboardViewerAccessProvider|MediaReferenceInputs|MediaLibraryPickerModal|MediaGenerator|CompatiblePopover)\./.test(id), `Unexpected fixture surface ${id}`);
   sources[id] = id.endsWith(".css") ? `module.exports={__esModule:true,default:${JSON.stringify(scopedStylesheet(id))}};` : compile(readFileSync(file, "utf8")); links[id] = {};
   for (const match of sources[id].matchAll(/require\("([^"]+)"\)/g)) {
     const name = match[1]; if (mocks.has(name)) continue;
@@ -126,7 +127,7 @@ const defaultsId = addSource(resolve(repo, "lib/inrAgentSettings.ts"));
 const providerId = addSource(resolve(repo, "app/dashboard/_components/DashboardViewerAccessProvider.tsx"));
 const editionProviderId = addSource(resolve(repo, "app/dashboard/_components/DashboardEditionProvider.tsx"));
 addSource(resolve(repo, "lib/inrAgentAdminPublishPolicy.ts"));
-for (const name of ["AgentSchedulePopover", "AgentSettingsMultiSelect", "AgentMediaReferences", "AgentVisuals"]) addSource(resolve(repo, `app/dashboard/agent/_components/${name}.tsx`));
+for (const name of ["AgentPremiumFrequencySelect", "AgentSchedulePopover", "AgentSettingsMultiSelect", "AgentMediaReferences", "AgentVisuals"]) addSource(resolve(repo, `app/dashboard/agent/_components/${name}.tsx`));
 addSource(resolve(repo, "app/dashboard/agent/_lib/agent.utils.ts"));
 for (const [name, file] of [["react", "react.development.js"], ["react/jsx-runtime", "react-jsx-runtime.development.js"], ["react-dom", "react-dom.development.js"], ["react-dom/client", "react-dom-client.development.js"], ["scheduler", "scheduler.development.js"]]) {
   const pkg = name === "react/jsx-runtime" ? "react" : name === "react-dom/client" ? "react-dom" : name;
@@ -183,7 +184,8 @@ async function mount(page: Page, { admin = true, edition = "basic", serverAccess
     function render(){root.render(React.createElement(load(${JSON.stringify(editionProviderId)}).default,{edition:'premium',subscriptionEdition:${JSON.stringify(edition)}},React.createElement(provider.default,{viewerIsAdmin:${JSON.stringify(admin)},viewerMetaPilotEnabled:true,actorUserId:'actor-admin',activeAccountId:'account-admin'},React.createElement(module.exports.default,{key}))))}render();
   ` });
   page.setDefaultTimeout(5_000);
-  await page.getByRole("combobox", { name: new RegExp(`^${t(locale, "frequence_bafbfba7")}`) }).waitFor().catch(error => { throw errors.length ? new Error(errors.join(", ")) : error; });
+  const fieldName = { name: new RegExp(`^${t(locale, "frequence_bafbfba7")}`) };
+  await page.getByRole("combobox", fieldName).or(page.getByRole("button", fieldName)).waitFor().catch(error => { throw errors.length ? new Error(errors.join(", ")) : error; });
   assert.deepEqual(errors, []); return { errors, network };
 }
 const snapshot = (page: Page) => page.evaluate("window.adminSettings.snapshot()") as Promise<Snapshot>;
@@ -365,12 +367,26 @@ test("Standard shows two disabled Premium frequencies and can save automatic app
     for (const locale of locales) {
       const page = await browser.newPage({ viewport: { width: 375, height: 760 }, isMobile: true, hasTouch: true });
       try {
-        const h = await mount(page, { admin: false, edition: "standard", locale });
-        const frequency = page.getByRole("combobox", { name: new RegExp(`^${t(locale, "frequence_bafbfba7")}`) });
+        const h = await mount(page, { admin: false, edition: "standard", locale, complete: true });
+        const frequency = page.getByRole("button", { name: new RegExp(`^${t(locale, "frequence_bafbfba7")}`) });
+        await frequency.click();
+        const list = page.getByRole("listbox");
+        await expect(list).toBeVisible();
+        await expect(list.getByRole("option", { disabled: true })).toHaveCount(2);
         for (const key of ["agent_publish_five_times_weekly", "agent_admin_publish_daily"]) {
           const label = new IntlMessageFormat(catalog(locale).agent_publish_premium_frequency, locale).format({ frequency: t(locale, key) });
-          await expect(frequency.getByRole("option", { name: String(label), exact: true })).toHaveJSProperty("disabled", true);
+          const locked = list.getByRole("option", { name: String(label), exact: true });
+          await expect(locked).toBeDisabled();
+          await locked.scrollIntoViewIfNeeded();
+          const crown = locked.locator("svg[aria-hidden=true]");
+          await expect(crown).toBeVisible();
+          const geometry = await crown.boundingBox();
+          assert.ok(geometry && geometry.width >= 14 && geometry.height >= 14);
+          await expectHitTarget(locked, 44);
         }
+        await page.keyboard.press("Escape");
+        await expect(list).toBeHidden();
+        await expect(frequency).toBeFocused();
         const validation = page.getByRole("combobox", { name: new RegExp(`^${t(locale, "validation_dd74d182")}`) });
         await validation.selectOption({ label: t(locale, "agent_admin_publish_without_approval") });
         assert.equal(await page.evaluate("window.adminSettings.save()"), true);
@@ -386,9 +402,62 @@ test("Standard shows two disabled Premium frequencies and can save automatic app
     const downgraded = await browser.newPage();
     try {
       await mount(downgraded, { admin: false, edition: "premium", serverAccess: { highFrequency: false, automaticPublish: true } });
-      await expect(downgraded.getByRole("option", { name: "5 fois par semaine — Premium", exact: true })).toHaveJSProperty("disabled", true);
+      const trigger = downgraded.getByRole("button", { name: /^Fréquence/ });
+      await trigger.click();
+      await expect(downgraded.getByRole("option", { name: "5 fois par semaine — Premium", exact: true })).toBeDisabled();
+      await downgraded.keyboard.press("Escape");
       await expect(downgraded.getByRole("option", { name: "Publier sans validation préalable", exact: true })).toHaveJSProperty("disabled", false);
     } finally { await downgraded.close(); }
+  } finally { await browser.close(); }
+});
+
+test("Standard desktop frequency choices expose Premium crowns and skip locked choices with the keyboard", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+    const h = await mount(page, { admin: false, edition: "standard", complete: true });
+    const trigger = page.getByRole("button", { name: /^Fréquence/ });
+    const list = page.getByRole("dialog", { name: "Fréquence", exact: true }).getByRole("listbox");
+    const weekly = list.getByRole("option", { name: "1 fois par semaine", exact: true });
+    await trigger.focus();
+    await trigger.press("Enter");
+    await expect(weekly).toBeFocused();
+    await expect(weekly).toHaveAttribute("aria-selected", "true");
+    for (const name of ["5 fois par semaine — Premium", "Publier tous les jours — Premium"]) {
+      const locked = list.getByRole("option", { name, exact: true });
+      await locked.hover();
+      await expect(locked).toBeDisabled();
+      await expect(locked.locator("svg[aria-hidden=true]")).toBeVisible();
+      const rect = await locked.boundingBox();
+      assert.ok(rect);
+      await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      await expect(list).toBeVisible();
+      await expect(weekly).toHaveAttribute("aria-selected", "true");
+    }
+    await weekly.focus();
+    await page.keyboard.press("ArrowDown");
+    const twice = list.getByRole("option", { name: "2 fois par semaine", exact: true });
+    await expect(twice).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(list.getByRole("option", { name: "3 fois par semaine", exact: true })).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(list.getByRole("option", { name: "1 fois par mois", exact: true })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(list).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAccessibleName("Fréquence 1 fois par semaine");
+    await trigger.press("Space");
+    await expect(weekly).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(twice).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(list).toBeHidden();
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAccessibleName("Fréquence 2 fois par semaine");
+    assert.deepEqual((await snapshot(page)).writes, []);
+    assert.equal(await page.evaluate("window.adminSettings.save()"), true);
+    assert.equal((await snapshot(page)).saved.automations.publish.frequency, "twice_weekly");
+    assert.deepEqual(h.errors, []);
   } finally { await browser.close(); }
 });
 

@@ -206,10 +206,11 @@
     "app/dashboard/_components/DashboardIntlProvider.tsx": "8e9669a1b9077efcf982d7832ccd8187350dbe965de1bf56dffcffb1aa1d0989",
     "app/dashboard/_components/DashboardMobileSelect.module.css": "fa30d7dcae5c1aa1a606997481de992fb2db3e4b7160604d087679a348514d64",
     "app/dashboard/_components/DashboardMobileSelect.tsx": "d8d380d2f8e4ab715b7a40e6c293032dcedcccfcb8996b96e33f58326f252e3c",
-    "app/dashboard/_components/DashboardModulesCard.tsx": "deab79c2925683d1c1d36c2d41d64db421a1f218299257200f747156b4551859",
+    "app/dashboard/_components/DashboardModulesCard.tsx": "0e534f31f2fa841b65538a6f945b37aa2d6d5c68424cad31efec772bfc055562",
     "app/dashboard/_components/DashboardNavigationIcon.module.css": "1c2b4f906f1e114cdb5fd9f9bd80003d78a2f748a532c40a79190302aa9034ac",
     "app/dashboard/_components/DashboardNavigationIcon.tsx": "1972ac7b8b2924d1659b718c32bf2dbbc854e8cf9e24e8ffd6445ce598f9fed8",
     "app/dashboard/_components/DashboardPersistentImageCache.tsx": "4a34a4273045a60ceda9ae71c8329f70a806bb78eef1071b27ea955ecc8e81f3",
+    "app/dashboard/_components/DashboardPremiumCrown.tsx": "fdda74d2dd56c2a13ec2cccaef38d4e9dc0eb8b25cd6f184a81053245c8851ed",
     "app/dashboard/_components/DashboardPremiumLockIcon.tsx": "46033a4d3f4362f47b6c066d965ae3b2563f84efa14db5f84f0de2376b2af82a",
     "app/dashboard/_components/DashboardPullToRefresh.tsx": "4407c8002b82adaf6a9dd94c2747d50a58551b49a514c212411091778e27007e",
     "app/dashboard/_components/DashboardScrollMemory.tsx": "b011787ae8613d894b439948f190bc9324712d622b2080e3265531894f5cf663",
@@ -439,7 +440,7 @@
     "app/dashboard/ads/adsPublicErrorMessages.ts": "8820593eec6835f2e48c73fa09f34fa7f75092b346314dfc27feef89add642fe",
     "app/dashboard/ads/useAdsErrorMessage.ts": "69aaeed2e595a018bb34bb9c7b4e8387281ecca28a7cae11a0cdb311b6b16c93",
     "app/dashboard/agenda/agenda.shared.ts": "1ec7e04f3bcd33e326a96051664bc2f4d5a58276595e6bb1316f517d0b7d6b79",
-    "app/dashboard/agent/AgentClient.tsx": "9a7b4f9da06e60e21ff2bf57cb19fa33e792de0da62a482db254115968e5f17f",
+    "app/dashboard/agent/AgentClient.tsx": "87e82650222daf1fda227623af4fcee9fc668b8b22698642c359469812b0312a",
     "app/dashboard/agent/_components/AgentActionModals.tsx": "3a811f07c9523a25143073d72a5ec646339b4370c0310abdb9100092c189ee77",
     "app/dashboard/agent/_components/AgentCampaignAccess.tsx": "8e3f0f5b88450f9ee677423bd50267f22c258cbc138b6140cd73c50f3761b7f8",
     "app/dashboard/agent/_components/AgentCampaignEditors.tsx": "f062dd61bc4cfb19dca2c805a7b60d9c7dfe00fc3ddd5eb2ef069186c425afa3",
@@ -448,6 +449,8 @@
     "app/dashboard/agent/_components/AgentMediaImage.tsx": "7319946dac51bdc0ea98ae2c13b09e7ccc7db7da95dac177d9a1deecb3ad38ae",
     "app/dashboard/agent/_components/AgentMediaReferences.module.css": "48866be8393823f8a5e1448ea1db232fb8f8fbeb08f6cd4c5b270cb07b5b80e3",
     "app/dashboard/agent/_components/AgentMediaReferences.tsx": "a1fb66b4ea5c99032ac94a8e39c352b408c7cb2a286431120f7333ab56226ab9",
+    "app/dashboard/agent/_components/AgentPremiumFrequencySelect.module.css": "1ec734d78ff87fa80884d33d6fef329b181db55b143e40546805bda7efb805d5",
+    "app/dashboard/agent/_components/AgentPremiumFrequencySelect.tsx": "3eb2d1f6f45f7aa6abda3dce0837667769e503759df0249b2e877c19a829912d",
     "app/dashboard/agent/_components/AgentPublicationChannelList.tsx": "c4d5623e421c2ad6f991f2846d1625d9f35e0345b55d914d17452aaa0b11f387",
     "app/dashboard/agent/_components/AgentPublicationIdeasEditor.tsx": "916565dd619a86f0140791ab9eef864d74c160a3a3ba4b8f1e31b25b9ce0c789",
     "app/dashboard/agent/_components/AgentPublicationNavigation.module.css": "84d5aed6e453a51be5977107d44d08ed29de030dc7d1b6f679fdad4a1c42b272",
@@ -458,7 +461,7 @@
     "app/dashboard/agent/_components/AgentSettingsMultiSelect.module.css": "70356181af25b336db4dd4b2b411ee76bac59733e7058b38cbe4aa97ef582fdc",
     "app/dashboard/agent/_components/AgentSettingsMultiSelect.tsx": "2b1dfe28a579c2cb5d24fe3ffdc5d90738f1b525443dddb380fe5cc6b5dd7dac",
     "app/dashboard/agent/_components/AgentSettingsPopover.module.css": "972bd72fb46b39f36906c979bb960ba34e04a205c6eba16975e680f9232804d0",
-    "app/dashboard/agent/_components/AgentSettingsPopover.tsx": "e391e3f0200049bcef028878fc90b712421b7dda7e76e70f5467a494ebe8d5fa",
+    "app/dashboard/agent/_components/AgentSettingsPopover.tsx": "eee48ffedeccadf3b01486391fc340311daad60f9046a44c46a6e05e41791313",
     "app/dashboard/agent/_components/AgentVisuals.tsx": "5a92b727a95420ca7762d3bef28c59460198f51c07af30c1ecd87637621c68d3",
     "app/dashboard/agent/_components/AgentWorkspaceHeader.module.css": "e2bfbf5686d30d1fc086c1a6c055137885e7eba16ca5e73c973aac659b9d23b8",
     "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx": "1dc572dc23348d8f8593811b789935b1e3c908aae5fca57e645be2b02d320272",
@@ -1235,7 +1238,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "b5f2ede13efa1e2794b1867ddabf44c21c0e1d39ec53c7e5c50d3c1c385ab5ed",
+    "lib/inrAssistantCodeIndex.generated.ts": "4d573bcee26f0c6bfc7152c92093c6c9e694e6c791091fff1d801f67b101acad",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -2128,7 +2131,7 @@
     "tests/dashboard/dashboard-help-navigation-runtime.test.mts": "1dc34057162fca356df952bb5c58f935b411e66a1cdce2f68e6d3a88e089b5d2",
     "tests/dashboard/dashboard-mobile-menu-runtime.test.mts": "12a6dae03859769ea145a37bb96b41e4a9aa666d5244677f2dd4fd872323b17a",
     "tests/dashboard/dashboard-notification-mutation-scope-runtime.test.mts": "901916d6a5fc3abe2f4b70175d3f578555dd9db1f7d0a02839d7ab014aacbf6e",
-    "tests/dashboard/dashboard-shared-tools-runtime.test.mts": "75063c159fad26d0fa625c1ff339ae67e299fcd3b16309199941e02f865883e8",
+    "tests/dashboard/dashboard-shared-tools-runtime.test.mts": "9e632cb6fcf74cbf504c961fe147d176e223d6ce6d9df2b82033ec52f3c007e7",
     "tests/dashboard/gmb-location-selection-ui.test.mts": "8afeca3ad7e456b0d6d754174f51f96813b9d197b6669d4944d3c69e7b6f9677",
     "tests/dashboard/gmb-verification-server-runtime.test.mts": "da280d37ef45925229f47af2d18000baf931feead73d74011cf768a7d13dfadd",
     "tests/dashboard/gmb-verification-state-ui.test.mts": "bb1439a720845ec959e42a41e2026cccd60a858630a6eafbbd6122fa15a3a02a",
@@ -2811,7 +2814,7 @@
           "gateAnchor": "!standardMode"
         }
       },
-      "sourceDigest": "deab79c2925683d1c1d36c2d41d64db421a1f218299257200f747156b4551859",
+      "sourceDigest": "0e534f31f2fa841b65538a6f945b37aa2d6d5c68424cad31efec772bfc055562",
       "controlIds": [
         "app/dashboard/_components/DashboardModulesCard.tsx#DashboardAgentLogoButton:3a49c174caa1d7d0:1",
         "app/dashboard/_components/DashboardModulesCard.tsx#button:7275b105d1462c56:1",
@@ -5575,7 +5578,7 @@
             "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
           ]
         },
-        "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:1": {
+        "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:2": {
           "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
           "gateAnchor": "!props.manualPlanningOnly",
           "gateFiles": [
@@ -5927,7 +5930,15 @@
             "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
           ]
         },
-        "app/dashboard/agent/AgentClient.tsx#option:b01594bc72cb1760:1": {
+        "app/dashboard/agent/AgentClient.tsx#AgentPremiumFrequencySelect:f9e6aa513e1a5b21:1": {
+          "reason": "Sélecteur de fréquence Standard dans les réglages de publication automatisée. Le planning manuel Basique n’ouvre pas ces réglages.",
+          "gateAnchor": "!publicationOptionAccess.highFrequency && publicationOptionAccess.automaticPublish",
+          "gateFiles": [
+            "app/dashboard/agent/AgentClient.tsx",
+            "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+          ]
+        },
+        "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:1": {
           "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
           "gateAnchor": "!props.manualPlanningOnly",
           "gateFiles": [
@@ -6004,7 +6015,7 @@
           ]
         }
       },
-      "sourceDigest": "9a7b4f9da06e60e21ff2bf57cb19fa33e792de0da62a482db254115968e5f17f",
+      "sourceDigest": "87e82650222daf1fda227623af4fcee9fc668b8b22698642c359469812b0312a",
       "controlIds": [
         "app/dashboard/agent/AgentClient.tsx#button:380930998349ff4d:1",
         "app/dashboard/agent/AgentClient.tsx#a:0cac81d26c803ef6:1",
@@ -6095,8 +6106,9 @@
         "app/dashboard/agent/AgentClient.tsx#div:dea58e57cd88260e:1",
         "app/dashboard/agent/AgentClient.tsx#section:4c6e281f2a56a377:1",
         "app/dashboard/agent/AgentClient.tsx#button:5c445ddb5135fa06:1",
+        "app/dashboard/agent/AgentClient.tsx#AgentPremiumFrequencySelect:f9e6aa513e1a5b21:1",
         "app/dashboard/agent/AgentClient.tsx#select:9dc783458d7bdac3:1",
-        "app/dashboard/agent/AgentClient.tsx#option:b01594bc72cb1760:1",
+        "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:1",
         "app/dashboard/agent/AgentClient.tsx#select:9c47152240955118:1",
         "app/dashboard/agent/AgentClient.tsx#option:6c926b8ea6f94d6d:1",
         "app/dashboard/agent/AgentClient.tsx#option:a91b7ca95bfce06f:1",
@@ -6114,7 +6126,7 @@
         "app/dashboard/agent/AgentClient.tsx#select:6d5da73df58bbc1e:1",
         "app/dashboard/agent/AgentClient.tsx#option:40e8a293990e0317:1",
         "app/dashboard/agent/AgentClient.tsx#select:af3fa93231af7110:1",
-        "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:1",
+        "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:2",
         "app/dashboard/agent/AgentClient.tsx#select:d825693ef44ee424:1",
         "app/dashboard/agent/AgentClient.tsx#option:6c926b8ea6f94d6d:2",
         "app/dashboard/agent/AgentClient.tsx#option:a91b7ca95bfce06f:2",
@@ -6671,6 +6683,19 @@
         "app/dashboard/agent/_components/AgentMediaReferences.tsx#input:6e0b364da8fe3794:1"
       ]
     },
+    "app/dashboard/agent/_components/AgentPremiumFrequencySelect.tsx": {
+      "disposition": "out_of_pack",
+      "reason": "Les choix de fréquence et les couronnes Premium sont affichés dans les réglages de publication automatisée des comptes Standard. L’en-tête masque les réglages pour le planning manuel Basique.",
+      "gateAnchor": "!props.manualPlanningOnly",
+      "gateFiles": [
+        "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+        "app/dashboard/agent/AgentClient.tsx"
+      ],
+      "sourceDigest": "3eb2d1f6f45f7aa6abda3dce0837667769e503759df0249b2e877c19a829912d",
+      "controlIds": [
+        "app/dashboard/agent/_components/AgentPremiumFrequencySelect.tsx#button:b31703d253fafef0:1"
+      ]
+    },
     "app/dashboard/agent/_components/AgentPublicationChannelList.tsx": {
       "disposition": "out_of_pack",
       "reason": "Choix des canaux d’une programmation : mutation native publish_channel_selection réservée Premium, explicitement refusée Basic/Standard. Aucun outil Basique n’utilise ce chemin.",
@@ -6750,13 +6775,13 @@
     },
     "app/dashboard/agent/_components/AgentSettingsPopover.tsx": {
       "disposition": "out_of_pack",
-      "reason": "Ce bouton ouvre les listes Planning, Canaux, Thèmes et les aides Références dans les réglages de publication automatisée. Le bouton Réglages est masqué en planning manuel Basique.",
+      "reason": "Ce bouton ouvre les listes Fréquence, Planning, Canaux, Thèmes et les aides Références dans les réglages de publication automatisée. Le bouton Réglages est masqué en planning manuel Basique.",
       "gateAnchor": "!props.manualPlanningOnly",
       "gateFiles": [
         "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
         "app/dashboard/agent/AgentClient.tsx"
       ],
-      "sourceDigest": "e391e3f0200049bcef028878fc90b712421b7dda7e76e70f5467a494ebe8d5fa",
+      "sourceDigest": "eee48ffedeccadf3b01486391fc340311daad60f9046a44c46a6e05e41791313",
       "controlIds": [
         "app/dashboard/agent/_components/AgentSettingsPopover.tsx#button:f44457d3af909a70:1"
       ]

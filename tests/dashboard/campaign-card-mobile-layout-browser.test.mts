@@ -14,7 +14,7 @@ const read = (file: string) => readFileSync(new URL(`../../${file}`, import.meta
 const css = read("app/dashboard/_components/DashboardSignatureTools.module.css") +
   read("app/dashboard/_components/DashboardAgentLogoButton.module.css").replace(/\.([a-zA-Z_][\w-]*)/g, ".agent-$1");
 const compiled = new Map<string, string>();
-for (const name of ["DashboardModulesCard", "DashboardAgentLogoButton", "DashboardPremiumLockIcon", "DashboardToolArtwork", "StudioIcon", "BoosterIcon"]) {
+for (const name of ["DashboardModulesCard", "DashboardAgentLogoButton", "DashboardPremiumLockIcon", "DashboardPremiumCrown", "DashboardToolArtwork", "StudioIcon", "BoosterIcon"]) {
   compiled.set(name, ts.transpileModule(read(`app/dashboard/_components/${name}.tsx`), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText);

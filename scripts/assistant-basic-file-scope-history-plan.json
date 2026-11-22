@@ -180,7 +180,7 @@
           "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:1": {
+      "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:2": {
         "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
         "gateFiles": [
@@ -532,7 +532,15 @@
           "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#option:b01594bc72cb1760:1": {
+      "app/dashboard/agent/AgentClient.tsx#AgentPremiumFrequencySelect:f9e6aa513e1a5b21:1": {
+        "reason": "Sélecteur de fréquence Standard dans les réglages de publication automatisée. Le planning manuel Basique n’ouvre pas ces réglages.",
+        "gateAnchor": "!publicationOptionAccess.highFrequency && publicationOptionAccess.automaticPublish",
+        "gateFiles": [
+          "app/dashboard/agent/AgentClient.tsx",
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
+        ]
+      },
+      "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:1": {
         "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
         "gateFiles": [
@@ -1310,9 +1318,18 @@
       "app/dashboard/agent/AgentClient.tsx"
     ]
   },
+  "app/dashboard/agent/_components/AgentPremiumFrequencySelect.tsx": {
+    "disposition": "out_of_pack",
+    "reason": "Les choix de fréquence et les couronnes Premium sont affichés dans les réglages de publication automatisée des comptes Standard. L’en-tête masque les réglages pour le planning manuel Basique.",
+    "gateAnchor": "!props.manualPlanningOnly",
+    "gateFiles": [
+      "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+      "app/dashboard/agent/AgentClient.tsx"
+    ]
+  },
   "app/dashboard/agent/_components/AgentSettingsPopover.tsx": {
     "disposition": "out_of_pack",
-    "reason": "Ce bouton ouvre les listes Planning, Canaux, Thèmes et les aides Références dans les réglages de publication automatisée. Le bouton Réglages est masqué en planning manuel Basique.",
+    "reason": "Ce bouton ouvre les listes Fréquence, Planning, Canaux, Thèmes et les aides Références dans les réglages de publication automatisée. Le bouton Réglages est masqué en planning manuel Basique.",
     "gateAnchor": "!props.manualPlanningOnly",
     "gateFiles": [
       "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",

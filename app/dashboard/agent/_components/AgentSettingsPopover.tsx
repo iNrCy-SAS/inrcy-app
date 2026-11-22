@@ -13,7 +13,7 @@ type Props = {
   panelClassName: string;
   triggerContent: ReactNode | ((open: boolean) => ReactNode);
   preferredWidth?: number;
-  children: ReactNode;
+  children: ReactNode | ((close: () => void) => ReactNode);
 };
 
 // The top layer escapes the cards' stacking contexts. Keep its geometry inside
@@ -56,7 +56,8 @@ export default function AgentSettingsPopover(props: Props) {
     if (!open || !trigger || !menu) return;
     const update = () => place(trigger, menu, props.preferredWidth);
     update();
-    const firstControl = menu.querySelector<HTMLElement>("select:not(:disabled), input:not(:disabled), button:not(:disabled)");
+    const firstControl = menu.querySelector<HTMLElement>("[data-popover-initial-focus]")
+      ?? menu.querySelector<HTMLElement>("select:not(:disabled), input:not(:disabled), button:not(:disabled)");
     (firstControl || menu).focus({ preventScroll: true });
     const onScroll = (event: Event) => {
       if (event.target instanceof Node && menu.contains(event.target)) return;
@@ -83,6 +84,12 @@ export default function AgentSettingsPopover(props: Props) {
     };
   }, [open, trigger, props.preferredWidth]);
 
+  const close = () => {
+    trigger?.ownerDocument.getElementById(id)?.hidePopover();
+    setOpen(false);
+    trigger?.focus({ preventScroll: true });
+  };
+
   return <>
     <button type="button" ref={setTrigger} className={props.triggerClassName} disabled={props.disabled}
       aria-label={props.labelledBy ? undefined : props.label} aria-labelledby={props.labelledBy}
@@ -100,8 +107,7 @@ export default function AgentSettingsPopover(props: Props) {
           if (event.key === "Escape") {
             event.preventDefault();
             event.stopPropagation();
-            event.currentTarget.hidePopover();
-            trigger.focus({ preventScroll: true });
+            close();
           }
         }}
         onBlur={event => {
@@ -110,7 +116,7 @@ export default function AgentSettingsPopover(props: Props) {
             event.currentTarget.hidePopover();
           }
         }}>
-        {props.children}
+        {typeof props.children === "function" ? props.children(close) : props.children}
       </CompatiblePopover>, trigger.closest("[data-inrcy-tool-dialog]") ?? trigger.ownerDocument.body)}
   </>;
 }

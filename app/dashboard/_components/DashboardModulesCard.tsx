@@ -18,6 +18,7 @@ import { DASHBOARD_GEARBOX_ANCHOR_ID } from "../dashboard.scroll";
 import signatureStyles from "./DashboardSignatureTools.module.css";
 import DashboardAgentLogoButton from "./DashboardAgentLogoButton";
 import { DashboardPremiumLockIcon } from "./DashboardPremiumLockIcon";
+import DashboardPremiumCrown from "./DashboardPremiumCrown";
 import AdsChannelInfoModal from "./AdsChannelInfoModal";
 import StudioIcon from "./StudioIcon";
 import DashboardToolArtwork from "./DashboardToolArtwork";
@@ -52,11 +53,6 @@ type DashboardModulesCardProps = {
 
 function ArrowIcon() {
   return <span aria-hidden="true">→</span>;
-}
-
-function PremiumCrown() {
-  const gradientId = `premium-crown-${useId().replace(/:/g, "")}`;
-  return <svg viewBox="0 0 32 32" fill="none"><defs><linearGradient id={gradientId} x1="5" y1="7" x2="28" y2="27"><stop stopColor="#fff3b0" /><stop offset=".5" stopColor="#ffc45b" /><stop offset="1" stopColor="#f36bc9" /></linearGradient></defs><path d="m4 10 6 5 6-10 6 10 6-5-3 14H7L4 10Z" fill={`url(#${gradientId})`} stroke="#ffe7a8" strokeWidth="1.4" strokeLinejoin="round" /><path d="M9 28h14" stroke="#ffd575" strokeWidth="2.5" strokeLinecap="round" /><path d="m27 2 .7 2.3L30 5l-2.3.7L27 8l-.7-2.3L24 5l2.3-.7L27 2Z" fill="#fff0c4" /><circle cx="16" cy="19" r="2" fill="#8951c3" /></svg>;
 }
 
 function SettingsIcon() {
@@ -330,7 +326,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
       {tool.premiumOnly ? <PremiumCardAccent tone={tool.tone} /> : null}
       <span className={signatureStyles.signatureLogo} aria-hidden="true">{tool.logo ? <Image src={tool.logo} alt="" width={52} height={52} /> : <ToolGlyph kind={tool.glyph} />}</span>
       <div className={signatureStyles.signatureCopy}><h4>{tool.title}{tool.tone === "studioCard" ? <span className={signatureStyles.studioEdition} data-studio-edition={studioEdition} role="img" aria-label={`iNr’Studio — ${studioEdition === "basic" ? "Basique" : studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`} title={`iNr’Studio — ${studioEdition === "basic" ? "Basique" : studioEdition === "standard" ? "Standard" : studioEdition === "founder" ? "Founder" : "Premium"}`}>
-        {studioEdition === "basic" ? <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="#b6c5e3" strokeWidth="1.6" /><path d="M8 12h8M12 8v8" stroke="#dce8ff" strokeWidth="1.8" strokeLinecap="round" /></svg> : studioEdition === "standard" ? <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 2 9 10-9 10L3 12 12 2Z" fill="#48baff" fillOpacity=".2" stroke="#89e4ff" strokeWidth="1.6" /><path d="m8 12 3 3 5-6" stroke="#cefbff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg> : <PremiumCrown />}
+        {studioEdition === "basic" ? <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8" stroke="#b6c5e3" strokeWidth="1.6" /><path d="M8 12h8M12 8v8" stroke="#dce8ff" strokeWidth="1.8" strokeLinecap="round" /></svg> : studioEdition === "standard" ? <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m12 2 9 10-9 10L3 12 12 2Z" fill="#48baff" fillOpacity=".2" stroke="#89e4ff" strokeWidth="1.6" /><path d="m8 12 3 3 5-6" stroke="#cefbff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg> : <DashboardPremiumCrown />}
       </span> : null}</h4><p title={tool.description}>{tool.description}</p></div>
       {tool.tone === "studioCard" ? (
         <button type="button" className={`${signatureStyles.settingsButton} ${signatureStyles.studioLibrary}`}
@@ -454,7 +450,7 @@ export default function DashboardModulesCard({ cockpit, generator, overview, goT
           <section className={`${signatureStyles.panel} ${signatureStyles.pilotPanel}`} aria-labelledby="dashboard-premium-title">
             <header className={signatureStyles.panelHeader}>
               <h3 id="dashboard-premium-title">
-                <span className={`${signatureStyles.headingIcon} ${signatureStyles.premiumHeadingIcon}`} aria-hidden="true"><PremiumCrown /></span>
+                <span className={`${signatureStyles.headingIcon} ${signatureStyles.premiumHeadingIcon}`} aria-hidden="true"><DashboardPremiumCrown /></span>
                 {copy.premiumTitle}
                 {standardMode ? <button type="button" className={signatureStyles.premiumGateLock} aria-label={helpT("viewOffers")} title={helpT("viewOffers")} onClick={() => startPanelOpening("abonnement")} data-testid="dashboard-premium-unlock"><DashboardPremiumLockIcon variant="luxury" /></button> : null}
               </h3>

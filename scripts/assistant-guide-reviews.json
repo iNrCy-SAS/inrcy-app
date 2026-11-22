@@ -63,7 +63,7 @@
       "sources": {
         "app/api/agent/settings/route.ts": "31dd2fc21da5572378fb467197884746546ae51a2c2c272692750f233fd50ddd",
         "app/api/cron/inr-agent-editorial-plan/route.ts": "9d3c4d2f7fa1be16522131ac620fc9053d18fdfba452d0639c8c0461997138ef",
-        "app/dashboard/agent/AgentClient.tsx": "9a7b4f9da06e60e21ff2bf57cb19fa33e792de0da62a482db254115968e5f17f",
+        "app/dashboard/agent/AgentClient.tsx": "87e82650222daf1fda227623af4fcee9fc668b8b22698642c359469812b0312a",
         "app/dashboard/agent/_components/AgentCampaignAccess.tsx": "8e3f0f5b88450f9ee677423bd50267f22c258cbc138b6140cd73c50f3761b7f8",
         "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx": "1dc572dc23348d8f8593811b789935b1e3c908aae5fca57e645be2b02d320272",
         "app/dashboard/agent/_lib/agent.publish-preview.ts": "daeebe9fc5bfb3b524bb0f81713e684a5b079284a888deb7278527b4e22f96eb",
@@ -671,7 +671,7 @@
       "guideDigest": "18760c9ac16488f653049332ac2571a1215433cc09eb16f580e42289dd036c1f",
       "sources": {
         "app/api/crm/campaigns/[id]/retry/route.ts": "ba2e80ea3843ba1b1fe434e3d8d526d443f8540d6d6a16ade787b8ddd15f4e53",
-        "app/dashboard/_components/DashboardModulesCard.tsx": "deab79c2925683d1c1d36c2d41d64db421a1f218299257200f747156b4551859",
+        "app/dashboard/_components/DashboardModulesCard.tsx": "0e534f31f2fa841b65538a6f945b37aa2d6d5c68424cad31efec772bfc055562",
         "app/dashboard/fideliser/components/enqueter/EnqueterModal.tsx": "3c41c5b2e70d523c3311fde3e3f53c0d63d47ac1182670bd8d624cd256fee18d",
         "app/dashboard/fideliser/components/informer/InformerModal.tsx": "4d7de30b13457e35da353ded8ea5fe92e40f7cfee5e7dbd049e389c43551c166",
         "app/dashboard/fideliser/components/suivre/SuivreModal.tsx": "017e61707265a8e31daa6d37ff781b3745857cbccc1766d79fff9ed939ae5c75",
@@ -721,7 +721,7 @@
       "guideDigest": "cd68ad5960ee2acfeb31ebac3f6aa797b305c10057589c9e1e4d7ee414a313cc",
       "sources": {
         "app/api/factures/finalize/route.ts": "c7821dcf6e8b98a426273f3b26157fbe51e6bcd70d8f0a7b73e00aac11ab3a99",
-        "app/dashboard/_components/DashboardModulesCard.tsx": "deab79c2925683d1c1d36c2d41d64db421a1f218299257200f747156b4551859",
+        "app/dashboard/_components/DashboardModulesCard.tsx": "0e534f31f2fa841b65538a6f945b37aa2d6d5c68424cad31efec772bfc055562",
         "app/dashboard/_documents/docSaveStore.ts": "f835fcf5db7585d268e51d6278d19ebb345c3dde2613c9260c6030393e1942f3",
         "app/dashboard/factures/ListPage.tsx": "7f336845c3215a64881b42cc162d239ae0ab3290e10fc56e9c977c1c2fd4dde2",
         "app/dashboard/factures/new/page.tsx": "775d252c9d56ac69279d5cbcb1eafc008a2a6a7335a6ec9596746f1cdf75b839",
@@ -784,7 +784,7 @@
     "quotes": {
       "guideDigest": "3bb17441d512525923617f33fd20bcd498700949e5db7d5f654e807fc098e470",
       "sources": {
-        "app/dashboard/_components/DashboardModulesCard.tsx": "deab79c2925683d1c1d36c2d41d64db421a1f218299257200f747156b4551859",
+        "app/dashboard/_components/DashboardModulesCard.tsx": "0e534f31f2fa841b65538a6f945b37aa2d6d5c68424cad31efec772bfc055562",
         "app/dashboard/_documents/docSaveStore.ts": "f835fcf5db7585d268e51d6278d19ebb345c3dde2613c9260c6030393e1942f3",
         "app/dashboard/crm/crm.client-actions.ts": "9ffd97ee33810d9c3026824a9e45bd2668482381025544f512494fe0fde3527c",
         "app/dashboard/devis/ListPage.tsx": "c6bdf7996403d13e497858d5e4028f58ba7c6fa339df0aa7961e2d09602c8f54",
