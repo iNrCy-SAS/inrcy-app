@@ -467,14 +467,14 @@
           "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#select:9b0f38207631c679:1": {
+      "app/dashboard/agent/AgentClient.tsx#select:a424dce4effaa936:1": {
         "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
         "gateFiles": [
           "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#option:56236b23cf1b60b0:1": {
+      "app/dashboard/agent/AgentClient.tsx#option:ed79c0eac79efab8:1": {
         "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
         "gateFiles": [
@@ -482,12 +482,12 @@
         ]
       },
       "app/dashboard/agent/AgentClient.tsx#select:9ee2795b992d4983:1": {
-        "reason": "L’horaire quotidien appartient aux réglages de publication du compte administrateur : acteur et compte actif ADMIN. Il ne fait pas partie du planning manuel Basique.",
-        "gateAnchor": "const settingsCanUseAdminPublishOptions = settingsAutomation?.key === \"publish\" && viewerIsAdmin;",
+        "reason": "Le réglage de l’horaire quotidien est accessible aux comptes Premium et Fondateur ainsi qu’aux administrateurs autorisés. Le mode manuel Basique masque les réglages d’automatisation.",
+        "gateAnchor": "publicationOptionAccess.highFrequency && settingsConfig?.frequency",
         "gateFiles": [
           "app/dashboard/agent/AgentClient.tsx",
-          "app/dashboard/layout.tsx",
-          "lib/inrAgentAdminOptionsServer.ts"
+          "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+          "lib/inrAgentPublicationOptionAccessServer.ts"
         ]
       },
       "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:4": {
@@ -532,7 +532,7 @@
           "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
         ]
       },
-      "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:2": {
+      "app/dashboard/agent/AgentClient.tsx#option:b01594bc72cb1760:1": {
         "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
         "gateAnchor": "!props.manualPlanningOnly",
         "gateFiles": [

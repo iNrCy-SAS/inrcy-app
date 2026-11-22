@@ -21,7 +21,7 @@
     "app/api/agent/scheduled-actions/[id]/execute/route.ts": "cf7994769eacb2ce08bc82691ad47879ceeb16d38feab0f3611b349c5bed4b58",
     "app/api/agent/scheduled-actions/[id]/route.ts": "1c8c10105d6d817b720fe896af1f3ba29aee256b58a97ab71ff7bb685da5b88d",
     "app/api/agent/scheduled-actions/route.ts": "fd633ac6c68ca191fd4c1a70f8a2ea020e4a8356425a4f31cac590b960c41fcb",
-    "app/api/agent/settings/route.ts": "47ea516c4f5a274a15d7dd26a874dfe67c9a3bb30a27aca276f0375095c1390b",
+    "app/api/agent/settings/route.ts": "31dd2fc21da5572378fb467197884746546ae51a2c2c272692750f233fd50ddd",
     "app/api/ai-memory/analysis-schedule/route.ts": "90706a280a6d58b95d28b0fa9e344fdfef475e17e8f71e2113a585b6766abd75",
     "app/api/ai-memory/analyze-channels/route.ts": "b7c318e89504f0f0a2dbca23f87538073ee3ecda530c122a6031510e242281f0",
     "app/api/ai-memory/documents/route.ts": "b6df753d4a94ee02983b7faf73a27be55785276dc25fee4b171b3a539c2388ec",
@@ -439,7 +439,7 @@
     "app/dashboard/ads/adsPublicErrorMessages.ts": "8820593eec6835f2e48c73fa09f34fa7f75092b346314dfc27feef89add642fe",
     "app/dashboard/ads/useAdsErrorMessage.ts": "69aaeed2e595a018bb34bb9c7b4e8387281ecca28a7cae11a0cdb311b6b16c93",
     "app/dashboard/agenda/agenda.shared.ts": "1ec7e04f3bcd33e326a96051664bc2f4d5a58276595e6bb1316f517d0b7d6b79",
-    "app/dashboard/agent/AgentClient.tsx": "deb11279dbbfaa0f166b1d10f31bca94d7df413187ef4a6549f88e299023400d",
+    "app/dashboard/agent/AgentClient.tsx": "9a7b4f9da06e60e21ff2bf57cb19fa33e792de0da62a482db254115968e5f17f",
     "app/dashboard/agent/_components/AgentActionModals.tsx": "3a811f07c9523a25143073d72a5ec646339b4370c0310abdb9100092c189ee77",
     "app/dashboard/agent/_components/AgentCampaignAccess.tsx": "8e3f0f5b88450f9ee677423bd50267f22c258cbc138b6140cd73c50f3761b7f8",
     "app/dashboard/agent/_components/AgentCampaignEditors.tsx": "f062dd61bc4cfb19dca2c805a7b60d9c7dfe00fc3ddd5eb2ef069186c425afa3",
@@ -465,16 +465,16 @@
     "app/dashboard/agent/_components/AgentWorkspaceMessages.tsx": "a32534c685d816d4b7b4d8f8e86447121663aed7c1e075c760aa9b75f0c8074d",
     "app/dashboard/agent/_components/DashboardAgentPlanningModal.tsx": "d8f039cd85b9ebf90a2f0eb6288c4ca797b932a06845e318e9d0e3adab3b3c97",
     "app/dashboard/agent/_hooks/useAgentActionExecution.ts": "4e0859c4f78860b5076073d4fe09074243777f6f42cab7bfabbe2cb34d871a83",
-    "app/dashboard/agent/_hooks/useAgentAutomationController.ts": "4654ce4d498bbbfdb25a442467bb3a44593dca07872b209f0b28ec8a40602b1d",
+    "app/dashboard/agent/_hooks/useAgentAutomationController.ts": "b5495411ad4736393b8dbf95636192381de159575b74b0a7ae684ddc7dd3b70a",
     "app/dashboard/agent/_hooks/useAgentCampaignRecipients.ts": "f278af7bbcfe1ac1ff5de99ca91ea523116fec5681eae7f98c3001b403d0444b",
     "app/dashboard/agent/_hooks/useAgentManualCredits.ts": "c702ccd9b6ff6be714b07d75af1e1d7bcf7b9f8323abe68490f3e8146266d52c",
     "app/dashboard/agent/_hooks/useAgentResponsiveUi.ts": "d8b755b8e4179d249700882f256a6b5d033832387275a9f99d21e6a11a5379b5",
     "app/dashboard/agent/_hooks/useAgentRichTextEditors.ts": "018bbbd7c8601dd1199ab025c87cd5255dc6330eeab423e4b74723fcb266411b",
-    "app/dashboard/agent/_hooks/useAgentRuntimeData.ts": "9e2e8267171bb9127b94248446d1f3208cb98bc40fd5644a5c17fb4c35dabaa3",
+    "app/dashboard/agent/_hooks/useAgentRuntimeData.ts": "fc00cdc8c48b41a01045c5bd716a70eb57a8234aad6c85b5ea867b89a74a72cf",
     "app/dashboard/agent/_hooks/useScheduledStudioCredits.ts": "dd1eca2c3156e4128f2351407e0244be456cf51f4f0f7fc8a28b9f7cc542d37f",
     "app/dashboard/agent/_lib/agent.campaign-preview.ts": "8d5d50fe6d96aac60ddbfc306cb202650ba85e7e876a45eb9f9e18e47574ed3f",
-    "app/dashboard/agent/_lib/agent.config.ts": "5007c29f2cd3adedd26f8735c0a34541f653f4bf9e64db2a71027afeb502b32f",
-    "app/dashboard/agent/_lib/agent.i18n.ts": "7e7a0f9ece4a2912e1d9dda61d263132203cc4822f572524306d6a1a3a03579d",
+    "app/dashboard/agent/_lib/agent.config.ts": "5fbaba4a4b26dc4ae9b5e03292845401d498f7ebab678badda6a5106a4bbec98",
+    "app/dashboard/agent/_lib/agent.i18n.ts": "c3c41c596b4dd16d348fe728afae93ee31c9619d1978d482a6311d02e392e5df",
     "app/dashboard/agent/_lib/agent.media-preview-recovery.ts": "fb7b2501db5f81893e7818e69a6757602f7905a4faf8bc8e6d41fb5c2775bef3",
     "app/dashboard/agent/_lib/agent.publication-carousel.ts": "7f77b592d7236390873166259a028d5d8e9debf5daf18c95557dd393a19768b1",
     "app/dashboard/agent/_lib/agent.publication-validation.ts": "9ba5f5e65f980dba9c94f72d5ca177eaeb1391e08096c1f966fae76be0f3c64f",
@@ -483,8 +483,8 @@
     "app/dashboard/agent/_lib/agent.publish-preview.ts": "daeebe9fc5bfb3b524bb0f81713e684a5b079284a888deb7278527b4e22f96eb",
     "app/dashboard/agent/_lib/agent.reports.ts": "67ecdc149adcf88ae8bbfce484593fa816574795e3279fa50c07530968ac5b95",
     "app/dashboard/agent/_lib/agent.schedule-items.ts": "48447736386e0c74f291364611b3b5661253f60d9fe1ac38445b3a3c17a6ea34",
-    "app/dashboard/agent/_lib/agent.schedule.ts": "bc317fba5d39f365b5b42dfe298eaf3087c8085c2ff10d9023d6177e08858f99",
-    "app/dashboard/agent/_lib/agent.settings.ts": "56379da31984479b1cc1c7432cb9905c827864866b1c317cb6a42c21e7191d3f",
+    "app/dashboard/agent/_lib/agent.schedule.ts": "509b8ab0e2734837203b1857c374ca6332c3a774ea584afbf4a04dc2a4f21be8",
+    "app/dashboard/agent/_lib/agent.settings.ts": "856a4c9e0a96ec454b37ada7cf58c268654f47969aea4f46aaed7838baeaa8f3",
     "app/dashboard/agent/_lib/agent.types.ts": "0292278d42c7ba6ee655657d5f00b994e87bd11dc9a5c61288914949c7d29da0",
     "app/dashboard/agent/_lib/agent.utils.ts": "4e45342dd06c142e631b32da8ae01f8e10ac392005affd230190f725069bc98b",
     "app/dashboard/agent/_lib/agent.workspace-messages.ts": "9d3627308c0172d6116c8242a8d1611465e21f7ea66d9e7b91b1d69e966e9ecd",
@@ -1126,13 +1126,13 @@
     "lib/inrAgentActionId.ts": "87437729bcb8fbf24b9e6131e12fe56dfb1e930e55b3f2c6c0e27813b1047e5d",
     "lib/inrAgentActions.ts": "742bc13bc31913cad126663062ef0c53a39fb714ea7265c25da91963dcc76e26",
     "lib/inrAgentAdminOptionsServer.ts": "b5e3cbe7ea830a4fb997ce338f7231b02b323759d4b3a0f53b6151cd80e1fc21",
-    "lib/inrAgentAdminPublishPolicy.ts": "333fa3a047908730f7d555875549dbb67d3fc270e7ce1cc468633b92c2a86e0f",
-    "lib/inrAgentAdminPublishServer.ts": "55b1771b4381a0d6ac3db4c054232a6f89ca4d77893e647d67a758ee35298186",
+    "lib/inrAgentAdminPublishPolicy.ts": "9a22bfe362dc909d2e7e50cdda22b4b82e22d2c0e9d7522ab407ba7a991e8045",
+    "lib/inrAgentAdminPublishServer.ts": "46061805b09f10a544c4332578891c1f8898fe8ed115916fa59dde505fb175a1",
     "lib/inrAgentAdminPublishWorkerServer.ts": "87041649ab6183065366bf6b67f280d0588d076e86cd63e6ada1da3b705e2256",
     "lib/inrAgentEditorialGenerationLease.ts": "e45f2228cc39668eb2865036247e343d078e662a9500193bdfe63bf46328a42d",
     "lib/inrAgentEditorialMediaPolicy.ts": "7e744d6f15e2926385e545db62ac9e9ba7175a74df757aa52b6ea65965a0b0bb",
-    "lib/inrAgentEditorialPlanServer.ts": "b9ac9f06be0a752181708ae0b78ec979276f56e52f0a7d526d1b175bee08c3fd",
-    "lib/inrAgentEditorialPlanning.ts": "e532074e2e1c4b8af7cfad0852dc672084c8739ba31d0700ed3fab3f31b27c68",
+    "lib/inrAgentEditorialPlanServer.ts": "de8dceb34cd706033e6cd61376aa5ce583e3ac63289bd4494f8d0133811f2aba",
+    "lib/inrAgentEditorialPlanning.ts": "1ce31f5ce0a3c5c0dc5fca5faf471569d3e543c280227fc72a7663d4b1e195e6",
     "lib/inrAgentEditorialRecoveryPolicy.ts": "f46f183e6f681b90d418dea4ee83440c674c86acfde92a24c5ad026fe53992ae",
     "lib/inrAgentEditorialRetryPolicy.ts": "eee6255b1f0bb3030d0022937bb067e70b7f2352e97c72baec3f07f00cae67eb",
     "lib/inrAgentEditorialVariation.ts": "0a14341fe431c21a3d174f8be6d55c9ec3bdd09cec7f2005bc62047d35d9f706",
@@ -1158,6 +1158,7 @@
     "lib/inrAgentPublicationIdeaLifecycle.ts": "395b822da0a3c2c68da06271cb5480be01153296105254bfa7adda4880f59a4d",
     "lib/inrAgentPublicationIdeaReuse.ts": "5b9639d8329867287ee4adb6f79f91b2ac3513410cb7745f3543c1e3b9d6b594",
     "lib/inrAgentPublicationIdeaSelection.ts": "40d41a5463eb3eaa82f36de09d07f889358a998157064624cbd0d79a9d96ab7b",
+    "lib/inrAgentPublicationOptionAccessServer.ts": "1a483b2e51cee9a3bb1d821ce3af17bb384ba818406c003e36d2efb940f6e773",
     "lib/inrAgentPublicationPlacement.ts": "6aa4bfb9643c3c8f4ccdbfd24fcbc35b30a833bc478856f9233a18a09ac04acf",
     "lib/inrAgentPublicationRefusalServer.ts": "0cd02d0ac4da25753b31521b3d2891a5cd8e2194482a27f4e336c820e87fd6a3",
     "lib/inrAgentPublicationReview.ts": "f635c9c8b150973b2f62c224366ad5b7d76957a92065086b5619d2e930e708ee",
@@ -1170,7 +1171,7 @@
     "lib/inrAgentScheduledActions.ts": "0de95b1109aab5e9d8edf10e69cb11e991fefb7fb434d64655c7066a896db06c",
     "lib/inrAgentScheduledPayload.ts": "f68c3b4d9c6984c3a55135896d7040220a3a9338a23ab87a6489708982159f0f",
     "lib/inrAgentScheduledPublication.ts": "5f926b966244a5bc9f47381efbe7ecf1ac57482585612836684390bb78de7ffb",
-    "lib/inrAgentSettings.ts": "ec8b5e9341373718c3be347e16d83d2fd5474b32da980578d49fa2bb48f34c7a",
+    "lib/inrAgentSettings.ts": "30c0e178b7c33b716155d41dc1609e410a3ad178c24629fbb71df3e4ef7fa1c4",
     "lib/inrAgentThreadsPublication.ts": "43907ec35eaf544d25bab002328d9368f036daf68a18da7c329ccb0817a28026",
     "lib/inrAgentTiktokValidationSession.ts": "097db818374e2ef8dfd6c7de8da1ccb019328635b813477df1c31e48228f09a9",
     "lib/inrAgentUnvalidatedPublicationRefusal.ts": "a7aa40187b6ada70f8cff686d36ca65edc0685129bcbcd719f044146d77fb759",
@@ -1234,7 +1235,7 @@
     "lib/inrAssistantClientContext.ts": "c10dddeaae52d8ae631a188868abd7e78aee20fa81ee515db65c7b578e91a5b1",
     "lib/inrAssistantClientStream.ts": "90482c1589bbb4cc072878fc841b19a8d29a23b354904e269911ca9aec92880d",
     "lib/inrAssistantClock.ts": "821d5394814c09b0481815d6db958036842ca54e84a6ef8c45761e7db5201065",
-    "lib/inrAssistantCodeIndex.generated.ts": "a113ac21de5644ad57f14ff12a067f969e5aba2c040a5edb66d52ef09052637f",
+    "lib/inrAssistantCodeIndex.generated.ts": "b5f2ede13efa1e2794b1867ddabf44c21c0e1d39ec53c7e5c50d3c1c385ab5ed",
     "lib/inrAssistantCommandRegistry.ts": "977519362eeaa8bd09a4f95718dab9949d0f0ec6fe41bc20d811513fecdf1713",
     "lib/inrAssistantCommercialTools.ts": "adf43e53336059c901c489d72ec6ae431ca32acd388183fe7c9812aec1649c3b",
     "lib/inrAssistantCommunicationIntent.ts": "1fa38fc900c244ce8fc5fc1f2a0be6686ee52dd533aacb37ae0cffaf8d06aad5",
@@ -1268,7 +1269,7 @@
     "lib/inrAssistantGuidesAccount.ts": "a0380531b1638cb79208d205239a06ff6ee172fc67155a23df5d8d28af8208fd",
     "lib/inrAssistantGuidesBasic.ts": "b2638493bd44d0d2e5dd361a1d02e31cb456f90b597e60217a9b5603ee5bd225",
     "lib/inrAssistantGuidesContentLimits.ts": "dcdba643d6a24d46c2f73a93c18759086f570182a051fec07a797013ab533d53",
-    "lib/inrAssistantGuidesCreation.ts": "08a588bd49d2527bbd2638832e6c1b2b41687a7db0ef4666bf94bf1453aad49b",
+    "lib/inrAssistantGuidesCreation.ts": "4b82e9109a1b7b91a96157c74d2920360f5760c54715e27bb0dcc6021b24de8f",
     "lib/inrAssistantGuidesManagement.ts": "a7cc27031cac14b1bd45f81fce59d88f5c289336279433b274c5728dfb43a5c7",
     "lib/inrAssistantGuidesRecovery.ts": "c358fbf35f7b6dd6747752708f5135e130c685f1f08c5d8dff5950e4cf2fdc87",
     "lib/inrAssistantHistoryUiSelection.ts": "8c50a751e1ebbdea554c89c8d573b501b5d89d70f8dfabe603495ea43a0d2c69",
@@ -1281,7 +1282,7 @@
     "lib/inrAssistantMailDraftPersistence.ts": "bdc5838a730061e96fc125be717eec191024d3bdff429309a117f68cc758133a",
     "lib/inrAssistantMailLifecycle.ts": "f99a0d92f4e4bef51ee4b38299acc4c392f8a9b03ddc1c006e310d4d8224d75b",
     "lib/inrAssistantMailboxTools.ts": "4dc1a218b74b48036f7319c0bb19d8caafaad52bac7c2740d8e7643467147bab",
-    "lib/inrAssistantManagementTools.ts": "ed830c791c89c9832414fbc3bc56f03e0d1a2ac09fdab59b5f9ee7ab8501b8df",
+    "lib/inrAssistantManagementTools.ts": "8759c8b74adfc5501c3ea782338376999516d2caca3006dd184b4e9425d1caf8",
     "lib/inrAssistantMediaAccess.ts": "d7851dafc28dad9f6a39ae404385648f8a4135e562cee2b780d5b93baa734b0a",
     "lib/inrAssistantMediaIntent.ts": "c9f487bd3310761abc829e696b6e74e407b77aacd3ad7cd85425d99c2c77be4d",
     "lib/inrAssistantMediaLibraryTools.ts": "4a08f0e1a2081ce5d21b81efdf65b1f97e3c457781eb89b79366b262e373d567",
@@ -1367,7 +1368,7 @@
     "lib/inrAssistantWebsiteUiCommands.ts": "4cc2c1ad60407332dea02131ea85660bf22237c51437d542f0959017d1e8c32c",
     "lib/inrAssistantWebsiteUiTools.ts": "4964867af3526c60fa580bec57ab3001b92460899f05526c10c62f29f67fe4a7",
     "lib/inrAssistantWorkspaceActionTools.ts": "b21c6d0455bcf39ea179ee4cdce94eb5e0d40bb581d7cdc815ba84f7e4593569",
-    "lib/inrAssistantWorkspaceTools.ts": "bbf9a34aca437ccdf6c84b5bfac8ba6e351786d0de233bd91b36c4168b4bcb08",
+    "lib/inrAssistantWorkspaceTools.ts": "11336a38e508dbc4e0f0e744081fd5152234af8366ac71b973831bb86191e128",
     "lib/inrBadge.ts": "5d1f82363c9b2dfe4f1486e3097401852b06b4cb4a32f9024ddb5795ac13c554",
     "lib/inrBadgeAnalytics.ts": "c9c2bbdc40010ef49b3ddc3461582ad3d4862e55fd1b5a03790e133aaa087e3c",
     "lib/inrBadgeEditionPolicy.ts": "1aa06de828bb03309c0a6cf74b69b3cad0ac056d7df876972002af665060d06a",
@@ -5861,14 +5862,14 @@
             "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
           ]
         },
-        "app/dashboard/agent/AgentClient.tsx#select:9b0f38207631c679:1": {
+        "app/dashboard/agent/AgentClient.tsx#select:a424dce4effaa936:1": {
           "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
           "gateAnchor": "!props.manualPlanningOnly",
           "gateFiles": [
             "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
           ]
         },
-        "app/dashboard/agent/AgentClient.tsx#option:56236b23cf1b60b0:1": {
+        "app/dashboard/agent/AgentClient.tsx#option:ed79c0eac79efab8:1": {
           "reason": "Réglages, idées et remplacement automatique sont accessibles depuis les boutons d’automatisation masqués en mode manuel Basique.",
           "gateAnchor": "!props.manualPlanningOnly",
           "gateFiles": [
@@ -5876,12 +5877,12 @@
           ]
         },
         "app/dashboard/agent/AgentClient.tsx#select:9ee2795b992d4983:1": {
-          "reason": "L’horaire quotidien appartient aux réglages de publication du compte administrateur : acteur et compte actif ADMIN. Il ne fait pas partie du planning manuel Basique.",
-          "gateAnchor": "const settingsCanUseAdminPublishOptions = settingsAutomation?.key === \"publish\" && viewerIsAdmin;",
+          "reason": "Le réglage de l’horaire quotidien est accessible aux comptes Premium et Fondateur ainsi qu’aux administrateurs autorisés. Le mode manuel Basique masque les réglages d’automatisation.",
+          "gateAnchor": "publicationOptionAccess.highFrequency && settingsConfig?.frequency",
           "gateFiles": [
             "app/dashboard/agent/AgentClient.tsx",
-            "app/dashboard/layout.tsx",
-            "lib/inrAgentAdminOptionsServer.ts"
+            "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx",
+            "lib/inrAgentPublicationOptionAccessServer.ts"
           ]
         },
         "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:4": {
@@ -5926,7 +5927,7 @@
             "app/dashboard/agent/_components/AgentWorkspaceHeader.tsx"
           ]
         },
-        "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:2": {
+        "app/dashboard/agent/AgentClient.tsx#option:b01594bc72cb1760:1": {
           "reason": "Réglages de publication iNrAgent réservés à l’automatisation. Le bouton qui ouvre cette modale est masqué en mode manuel Basique ; cette interface ne donne aucun accès aux réglages d’automatisation depuis Basique.",
           "gateAnchor": "!props.manualPlanningOnly",
           "gateFiles": [
@@ -6003,7 +6004,7 @@
           ]
         }
       },
-      "sourceDigest": "deb11279dbbfaa0f166b1d10f31bca94d7df413187ef4a6549f88e299023400d",
+      "sourceDigest": "9a7b4f9da06e60e21ff2bf57cb19fa33e792de0da62a482db254115968e5f17f",
       "controlIds": [
         "app/dashboard/agent/AgentClient.tsx#button:380930998349ff4d:1",
         "app/dashboard/agent/AgentClient.tsx#a:0cac81d26c803ef6:1",
@@ -6095,7 +6096,7 @@
         "app/dashboard/agent/AgentClient.tsx#section:4c6e281f2a56a377:1",
         "app/dashboard/agent/AgentClient.tsx#button:5c445ddb5135fa06:1",
         "app/dashboard/agent/AgentClient.tsx#select:9dc783458d7bdac3:1",
-        "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:1",
+        "app/dashboard/agent/AgentClient.tsx#option:b01594bc72cb1760:1",
         "app/dashboard/agent/AgentClient.tsx#select:9c47152240955118:1",
         "app/dashboard/agent/AgentClient.tsx#option:6c926b8ea6f94d6d:1",
         "app/dashboard/agent/AgentClient.tsx#option:a91b7ca95bfce06f:1",
@@ -6113,7 +6114,7 @@
         "app/dashboard/agent/AgentClient.tsx#select:6d5da73df58bbc1e:1",
         "app/dashboard/agent/AgentClient.tsx#option:40e8a293990e0317:1",
         "app/dashboard/agent/AgentClient.tsx#select:af3fa93231af7110:1",
-        "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:2",
+        "app/dashboard/agent/AgentClient.tsx#option:a83b4d94191f2351:1",
         "app/dashboard/agent/AgentClient.tsx#select:d825693ef44ee424:1",
         "app/dashboard/agent/AgentClient.tsx#option:6c926b8ea6f94d6d:2",
         "app/dashboard/agent/AgentClient.tsx#option:a91b7ca95bfce06f:2",
@@ -6132,8 +6133,8 @@
         "app/dashboard/agent/AgentClient.tsx#option:77beb2b3e4a8fecb:2",
         "app/dashboard/agent/AgentClient.tsx#select:4ff508af5d26b375:1",
         "app/dashboard/agent/AgentClient.tsx#option:1dd02aa9e4615777:4",
-        "app/dashboard/agent/AgentClient.tsx#select:9b0f38207631c679:1",
-        "app/dashboard/agent/AgentClient.tsx#option:56236b23cf1b60b0:1",
+        "app/dashboard/agent/AgentClient.tsx#select:a424dce4effaa936:1",
+        "app/dashboard/agent/AgentClient.tsx#option:ed79c0eac79efab8:1",
         "app/dashboard/agent/AgentClient.tsx#button:3cf4c9734c790332:1",
         "app/dashboard/agent/AgentClient.tsx#button:3f86ac71b63bec0a:1",
         "app/dashboard/agent/AgentClient.tsx#input:5bbbf2f3e43f2ab5:1",
