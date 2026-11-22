@@ -2,7 +2,7 @@ type JsonRecord = Record<string, unknown>;
 type CampaignCopyKey =
   | "campaign_pause_mailbox_protection" | "campaign_pause_account_blocked"
   | "campaign_pause_reconnect" | "campaign_pause_quota" | "campaign_pause_provider_limit"
-  | "campaign_pause_mailbox_missing"
+  | "campaign_pause_mailbox_missing" | "campaign_pause_outlook_weight"
   | "campaign_pause_waiting_turn" | "campaign_pause_generic" | "campaign_pause_resume_at"
   | "campaign_resume_failed" | "campaign_requeued";
 type Translate = (key: CampaignCopyKey, values?: { date: string }) => string;
@@ -20,6 +20,8 @@ const REASON_COPY: Readonly<Record<string, CampaignCopyKey>> = {
   quota_exceeded: "campaign_pause_quota",
   rate_limited: "campaign_pause_provider_limit",
   provider_quota: "campaign_pause_provider_limit",
+  outlook_transfer_budget: "campaign_pause_outlook_weight",
+  outlook_transfer_unavailable: "campaign_pause_generic",
   provider_unavailable: "campaign_pause_generic",
   provider_issue: "campaign_pause_generic",
   waiting_turn: "campaign_pause_waiting_turn",

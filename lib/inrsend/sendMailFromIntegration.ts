@@ -14,6 +14,7 @@ import { sanitizeRichMailHtml } from "@/lib/mailRichText";
 import { appendUnsubscribeFooterToHtml, appendUnsubscribeFooterToText } from "@/lib/mailSuppression";
 import { createMailProviderSendError } from "@/lib/mailDeliveryErrors";
 import { isMailAuthenticationFailure, markMailAccountReconnectRequired } from "@/lib/mailAccountReconnect";
+import { sendOutlookMailWithTransferBudget } from "@/lib/inrsend/sendOutlookMailWithTransferBudget";
 
 export type SendMailBinaryAttachment = {
   filename: string;
@@ -223,7 +224,8 @@ async function sendViaMicrosoft(
   to: string,
   subject: string,
   html: string,
-  attachments: SendMailBinaryAttachment[] = []
+  attachments: SendMailBinaryAttachment[] = [],
+  campaign?: { waitUntil: number; beforeSend: () => Promise<void> },
 ) {
   const accountId = asString(account.id) || "";
   const settings = asRecord(account.settings);
@@ -256,9 +258,11 @@ async function sendViaMicrosoft(
     ...(attachment.inline ? { isInline: true, contentId: attachment.cid || attachment.filename || "inline-asset" } : {}),
   }));
 
-  const graphRes = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+  const graphRes = await sendOutlookMailWithTransferBudget({
+    integrationId: accountId,
+    userId: asString(account.user_id) || "",
+    accessToken,
+    campaign,
     body: JSON.stringify({
       message: {
         subject,
@@ -446,6 +450,7 @@ export async function sendMailFromIntegration(params: {
   preserveHtml?: boolean;
   unsubscribeUrl?: string;
   attachments?: SendMailBinaryAttachment[];
+  outlookCampaign?: { waitUntil: number; beforeSend: () => Promise<void> };
 }) {
   const { userId, accountId, to } = params;
   const subject = normalizeMailSubject(params.subject || "(sans objet)") || "(sans objet)";
@@ -496,7 +501,7 @@ export async function sendMailFromIntegration(params: {
     return sendViaGmail(account, to, subject, finalText, finalHtml, attachments, params.unsubscribeUrl);
   }
   if (provider === "microsoft") {
-    return sendViaMicrosoft(account, to, subject, finalHtml, attachments);
+    return sendViaMicrosoft(account, to, subject, finalHtml, attachments, params.outlookCampaign);
   }
   if (provider === "imap") {
     return sendViaImap(account, to, subject, finalText, finalHtml, attachments, params.unsubscribeUrl);

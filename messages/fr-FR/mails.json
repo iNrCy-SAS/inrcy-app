@@ -1,4 +1,5 @@
 {
+  "campaign_pause_outlook_weight": "iNrCy espace les envois Outlook selon la taille des messages de cette boîte.",
   "campaign_pause_mailbox_missing": "Cette campagne est liée à une ancienne boîte d’envoi indisponible. L’assistance doit vérifier son rattachement.",
   "campaign_resume_network_error": "La demande de reprise n’a pas pu être confirmée. Actualisez le suivi avant de réessayer.",
   "campaign_resume_failed": "La reprise n’a pas pu être effectuée. Réessayez dans quelques minutes.",

@@ -1,4 +1,5 @@
 {
+  "campaign_pause_outlook_weight": "O iNrCy ajusta o intervalo entre envios pelo Outlook consoante o tamanho das mensagens desta caixa de correio.",
   "campaign_pause_mailbox_missing": "Esta campanha está associada a uma caixa de envio anterior que já não está disponível. A assistência deve verificar a associação.",
   "campaign_resume_network_error": "Não foi possível confirmar o pedido de retoma. Atualize o acompanhamento antes de tentar novamente.",
   "campaign_resume_failed": "Não foi possível retomar a campanha. Tente novamente dentro de alguns minutos.",

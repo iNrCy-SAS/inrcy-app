@@ -1,4 +1,5 @@
 import type { MailCampaignDeliveryConfig } from "@/lib/mailCampaignPacing";
+import { getOutlookTransferIntervalMs, OUTLOOK_WINDOW_BYTES } from "./outlookMailTransferPacing.ts";
 
 export type CampaignReportCounts = {
   total: number;
@@ -145,9 +146,43 @@ export function aggregateCampaignRecipientReport(
   };
 }
 
+// Signatures, unsubscribe links and the final recipient are composed at dispatch.
+// Estimate the Graph payload from the stored fields, without loading binary files.
+function estimateOutlookInterval(campaign: CampaignLike): number | null {
+  if (typeof campaign.body_html !== "string" && typeof campaign.body_text !== "string") return null;
+  const files = campaign.attachments === null ? [] : campaign.attachments;
+  if (!Array.isArray(files)) return null;
+  const attachments = [];
+  let base64Bytes = 0;
+  for (const file of files) {
+    if (!file || typeof file.path !== "string" || !file.path || typeof file.bucket !== "string" || !file.bucket) return null;
+    const size = typeof file.size === "string" && /^\d+$/.test(file.size) ? Number(file.size) : file.size;
+    if (!Number.isSafeInteger(size) || size <= 0) return null;
+    base64Bytes += 4 * Math.ceil(size / 3);
+    attachments.push({
+      "@odata.type": "#microsoft.graph.fileAttachment",
+      name: file.name || file.path.split("/").pop(),
+      contentType: file.type || "application/octet-stream",
+      contentBytes: "",
+    });
+  }
+  const envelope = JSON.stringify({
+    message: {
+      subject: campaign.subject || "",
+      body: { contentType: "HTML", content: campaign.body_html || campaign.body_text || "" },
+      toRecipients: [{ emailAddress: { address: "" } }],
+      ...(attachments.length ? { attachments } : {}),
+    },
+    saveToSentItems: true,
+  });
+  const bytes = Buffer.byteLength(envelope, "utf8") + base64Bytes;
+  return bytes <= OUTLOOK_WINDOW_BYTES ? getOutlookTransferIntervalMs(bytes) : null;
+}
+
 export function estimateCampaignDurationMs(args: {
   remaining: number;
   config: MailCampaignDeliveryConfig;
+  campaign?: CampaignLike;
   resumeAt?: string | null;
   nowMs?: number;
 }) {
@@ -155,15 +190,23 @@ export function estimateCampaignDurationMs(args: {
   if (remaining === 0) return 0;
 
   const batchSize = Math.max(1, Math.floor(numberValue(args.config.batchSize, 1)));
+  const nowMs = Number.isFinite(args.nowMs) ? Number(args.nowMs) : Date.now();
+  const resumeMs = args.resumeAt ? Date.parse(args.resumeAt) : NaN;
+  const initialWait = Number.isFinite(resumeMs) ? Math.max(0, resumeMs - nowMs) : 0;
+  if (args.campaign && normalized(args.campaign.provider) === "microsoft") {
+    const interval = estimateOutlookInterval(args.campaign);
+    if (interval === null) return null;
+    // Outlook uses the shared transfer budget and the per-minute cron's batch
+    // limit. Both constrain dispatch; the first recipient can start immediately.
+    const gaps = remaining - 1;
+    const cronBatchesMs = Math.floor(gaps / batchSize) * 60_000 + (gaps % batchSize) * interval;
+    return initialWait + Math.max(gaps * interval, cronBatchesMs);
+  }
   const delayMs = Math.max(0, numberValue(args.config.sendDelayMs));
   const pauseMs = Math.max(0, numberValue(args.config.batchPauseMs));
   const batches = Math.ceil(remaining / batchSize);
   const withinBatchDelays = Math.max(0, remaining - batches) * delayMs;
   const betweenBatchPauses = Math.max(0, batches - 1) * pauseMs;
-  const nowMs = Number.isFinite(args.nowMs) ? Number(args.nowMs) : Date.now();
-  const resumeMs = args.resumeAt ? Date.parse(args.resumeAt) : NaN;
-  const initialWait = Number.isFinite(resumeMs) ? Math.max(0, resumeMs - nowMs) : 0;
-
   return initialWait + withinBatchDelays + betweenBatchPauses;
 }
 
@@ -194,12 +237,13 @@ export function buildMailCampaignExperienceReport(args: {
     : estimateCampaignDurationMs({
         remaining,
         config: args.config,
+        campaign: args.campaign,
         resumeAt: dateValue(args.campaign.resume_at),
         nowMs: now.getTime(),
       });
   const estimatedCompletionAt = terminal
     ? dateValue(args.campaign.finished_at)
-    : new Date(now.getTime() + estimatedRemainingMs).toISOString();
+    : estimatedRemainingMs === null ? null : new Date(now.getTime() + estimatedRemainingMs).toISOString();
   const createdAt = dateValue(args.campaign.created_at);
   const startedAt = dateValue(args.campaign.started_at);
   const finishedAt = dateValue(args.campaign.finished_at);

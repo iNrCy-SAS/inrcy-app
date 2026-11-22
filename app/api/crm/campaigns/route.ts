@@ -499,8 +499,9 @@ async function createCampaignHandler(req: Request) {
     remaining: recipients.length,
     config: deliveryConfig,
     resumeAt: dispatchState.resumeAt,
+    campaign: { provider: account.provider, subject, body_text: text, body_html: html, attachments },
   });
-  const estimatedCompletionAt = new Date(Date.now() + estimatedDurationMs).toISOString();
+  const estimatedCompletionAt = estimatedDurationMs === null ? null : new Date(Date.now() + estimatedDurationMs).toISOString();
 
   const campaignInsertPayload: Record<string, unknown> = {
     user_id: activeUserId,
@@ -641,7 +642,7 @@ async function createCampaignHandler(req: Request) {
     mailboxHealthStatus: reputationPolicy.healthStatus,
     mailboxPacingMode: reputationPolicy.mode,
     domainAuthentication: reputationPolicy.domainAudit,
-    estimatedDurationMs,
+    ...(estimatedDurationMs !== null ? { estimatedDurationMs } : {}),
     estimatedCompletionAt,
     pacing: {
       delayMs: deliveryConfig.sendDelayMs,

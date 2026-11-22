@@ -1,4 +1,5 @@
 {
+  "campaign_pause_outlook_weight": "iNrCy 会根据此邮箱发送的邮件大小，调整 Outlook 的发送间隔。",
   "campaign_pause_mailbox_missing": "此活动关联的原发件邮箱已不可用。需要由支持团队检查其关联关系。",
   "campaign_resume_network_error": "无法确认恢复请求。重试前请刷新跟踪信息。",
   "campaign_resume_failed": "未能恢复活动。请稍等几分钟后重试。",

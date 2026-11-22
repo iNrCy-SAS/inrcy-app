@@ -107,6 +107,14 @@ test("unknown reasons and invalid or expired dates never reveal SQL or promise a
   assert.equal(formatMailCampaignReason({ failure_kind: "account_blocked" }, t, "fr-FR"), t("campaign_pause_account_blocked"));
 });
 
+test("each locale explains Outlook message pacing and uses the generic pause for a temporary service error", () => {
+  for (const locale of locales) {
+    const t = translator(locale);
+    assert.equal(formatMailCampaignReason({ pause_reason: "outlook_transfer_budget" }, t, locale), t("campaign_pause_outlook_weight"));
+    assert.equal(formatMailCampaignReason({ pause_reason: "outlook_transfer_unavailable" }, t, locale), t("campaign_pause_generic"));
+  }
+});
+
 test("the actual paused header and expired resume row promise neither automatic sending nor a defective mailbox", () => {
   const modal = ts.createSourceFile("MailboxDetailsModal.tsx", readFileSync(new URL("../../app/dashboard/mails/_components/MailboxDetailsModal.tsx", import.meta.url), "utf8"), ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
   let header: ts.FunctionDeclaration | undefined, row: ts.JsxExpression | undefined;

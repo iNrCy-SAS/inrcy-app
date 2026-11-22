@@ -12,6 +12,17 @@ import { resolveMailboxReputationPolicy } from "@/lib/mailboxReputation";
 
 export const runtime = "nodejs";
 
+const providerWaitMessage = "Le fournisseur demande d’attendre avant de reprendre les envois.";
+const timedPauseMessages: Readonly<Record<string, string>> = {
+  rate_limited: providerWaitMessage,
+  provider_quota: providerWaitMessage,
+  quota_exceeded: providerWaitMessage,
+  provider_unavailable: providerWaitMessage,
+  provider_issue: providerWaitMessage,
+  outlook_transfer_budget: "iNrCy espace les envois Outlook selon la taille des messages de cette boîte.",
+  outlook_transfer_unavailable: "Le contrôle du volume d’envoi Outlook est temporairement indisponible.",
+};
+
 async function getRouteId(ctx: any) {
   const params = await ctx?.params;
   return String(params?.id || "").trim();
@@ -87,7 +98,7 @@ async function retryCampaign(req: Request, ctx: any) {
   const providerPauseReason = String(campaign.pause_reason || "");
   const providerResumeAt = Date.parse(String(campaign.resume_at || ""));
   const providerPauseActive = campaign.status === "paused" && Number.isFinite(providerResumeAt) && providerResumeAt > Date.now()
-    && ["rate_limited", "provider_quota", "quota_exceeded", "provider_unavailable", "provider_issue"].includes(providerPauseReason);
+    && Object.hasOwn(timedPauseMessages, providerPauseReason);
   const dispatchState = reputationPolicy.blocked ? {
     state: "paused" as const,
     reason: reputationPolicy.blockedReason,
@@ -96,7 +107,7 @@ async function retryCampaign(req: Request, ctx: any) {
     availableNow: 0,
   } : providerPauseActive ? {
     state: "paused" as const,
-    reason: "Le fournisseur demande d’attendre avant de reprendre les envois.",
+    reason: timedPauseMessages[providerPauseReason],
     pauseReason: providerPauseReason === "quota_exceeded" ? "provider_quota" : providerPauseReason,
     resumeAt: String(campaign.resume_at),
     availableNow: 0,

@@ -1,4 +1,5 @@
 {
+  "campaign_pause_outlook_weight": "iNrCy passt die Abstände zwischen Outlook-Sendungen an die Größe der Nachrichten aus diesem Postfach an.",
   "campaign_pause_mailbox_missing": "Diese Kampagne ist mit einem früheren Absenderpostfach verknüpft, das nicht mehr verfügbar ist. Der Support muss die Zuordnung prüfen.",
   "campaign_resume_network_error": "Die Anfrage zum Fortsetzen konnte nicht bestätigt werden. Aktualisieren Sie den Verlauf, bevor Sie es erneut versuchen.",
   "campaign_resume_failed": "Die Kampagne konnte nicht fortgesetzt werden. Versuchen Sie es in einigen Minuten erneut.",

@@ -13,6 +13,7 @@ import { inferInrSendFileRole, saveInrSendHistoryFiles } from "@/lib/inrsend/his
 import { getConnectionDisplayStatus } from "@/lib/connectionVersions";
 import { enforceRateLimit } from "@/lib/rateLimit";
 import { normalizeMailDeliveryError } from "@/lib/mailDeliveryErrors";
+import { OutlookTransferDeferred, sendOutlookMailWithTransferBudget } from "@/lib/inrsend/sendOutlookMailWithTransferBudget";
 import { markMailAccountReconnectRequired } from "@/lib/mailAccountReconnect";
 
 // Microsoft Graph mail send requires Node.js runtime in most deployments.
@@ -189,12 +190,10 @@ const handler = async (req: Request) => {
         }))
       : [];
 
-    const graphRes = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
+    const graphRes = await sendOutlookMailWithTransferBudget({
+      integrationId: accountRowId,
+      userId,
+      accessToken,
       body: JSON.stringify({
         message: {
           subject,
@@ -214,7 +213,7 @@ const handler = async (req: Request) => {
       if (graphRes.status === 401 || graphRes.status === 403) {
         await markMailAccountReconnectRequired({ userId, accountId: accountRowId, reason: "mailbox_oauth_invalid" });
       }
-      const normalized = normalizeMailDeliveryError(details || `Envoi Outlook impossible (${graphRes.status})`, "microsoft", graphRes.status);
+      const normalized = normalizeMailDeliveryError(details || `Envoi Outlook impossible (${graphRes.status})`, "microsoft", graphRes.status, graphRes.headers.get("retry-after"));
       return NextResponse.json(
         {
           error: normalized.message,
@@ -223,7 +222,7 @@ const handler = async (req: Request) => {
           error_action: normalized.action,
           error_kind: normalized.kind,
         },
-        { status: normalized.accountLevel ? 400 : 502 },
+        { status: graphRes.status === 429 ? 429 : normalized.accountLevel ? 400 : 502 },
       );
     }
 
@@ -272,6 +271,16 @@ const handler = async (req: Request) => {
 
     return NextResponse.json({ success: true });
   } catch (e: unknown) {
+    if (e instanceof OutlookTransferDeferred) {
+      const retryAfter = e.resumeAt ? Math.max(1, Math.ceil((Date.parse(e.resumeAt) - Date.now()) / 1000)) : null;
+      return NextResponse.json(
+        { error: e.message, user_message: e.message, error_kind: e.reason, resumeAt: e.resumeAt },
+        {
+          status: e.reason === "configuration" ? 400 : e.reason === "outlook_transfer_unavailable" ? 503 : 429,
+          headers: retryAfter === null ? undefined : { "Retry-After": String(retryAfter) },
+        },
+      );
+    }
     const normalized = normalizeMailDeliveryError(safeErrorMessage(e) || e || "Impossible d'envoyer le message pour le moment.", "microsoft", asHttpStatus(asRecord(e)["status"], 500));
     return NextResponse.json(
       {

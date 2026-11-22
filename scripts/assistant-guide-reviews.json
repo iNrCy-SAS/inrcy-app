@@ -555,11 +555,11 @@
         "app/dashboard/_components/DashboardFluxBubble.tsx": "e9770e161aca8b707dd40ddf1365c8a90fdabdad5a0e551102aa0237f16c05b6",
         "app/dashboard/settings/_components/MailsSettingsContent.tsx": "d0d659d5863b2b6de4befe2a1fd277bfdbbda3bb0b72b3d89965fcaf437aacdb",
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
-        "lib/mailCampaignUiFeedback.ts": "5efda1d642ff2e1cbc05b39d268444e443e084d364c6fcee731f237274e0b2aa",
+        "lib/mailCampaignUiFeedback.ts": "3cf2165cc2eafbf0af38741e244d4cc611f793ad4e10e57474783ab2539c4693",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
         "lib/userFacingErrors.ts": "4558d5c902555c184c3310ffd9996a45adc1ca2f2f0c8cf182208d82933e9994",
         "messages/fr-FR/dashboard.json": "7035be6e703ba3f2d78ccb30d377c410f8c37bfd724e951358079425530f9235",
-        "messages/fr-FR/mails.json": "d74abc2773c9cd7a4229ba6db02a0991937356bcd41b78a0216a063c62028016"
+        "messages/fr-FR/mails.json": "289ee942f7813fc5a09adfe390c83f5db1781dddb0404840f0f6af34c2c1bda3"
       }
     },
     "channel-pinterest": {
@@ -669,7 +669,7 @@
     "emailing": {
       "guideDigest": "18760c9ac16488f653049332ac2571a1215433cc09eb16f580e42289dd036c1f",
       "sources": {
-        "app/api/crm/campaigns/[id]/retry/route.ts": "b475754d46125b0180ae8d2c35785cdaea9865aedb67260cc58ca2ec5b7622d9",
+        "app/api/crm/campaigns/[id]/retry/route.ts": "ba2e80ea3843ba1b1fe434e3d8d526d443f8540d6d6a16ade787b8ddd15f4e53",
         "app/dashboard/_components/DashboardModulesCard.tsx": "deab79c2925683d1c1d36c2d41d64db421a1f218299257200f747156b4551859",
         "app/dashboard/fideliser/components/enqueter/EnqueterModal.tsx": "3c41c5b2e70d523c3311fde3e3f53c0d63d47ac1182670bd8d624cd256fee18d",
         "app/dashboard/fideliser/components/informer/InformerModal.tsx": "4d7de30b13457e35da353ded8ea5fe92e40f7cfee5e7dbd049e389c43551c166",
@@ -683,11 +683,11 @@
         "app/dashboard/propulser/components/valoriser/ValoriserModal.tsx": "41eb6eb42ec2b45a1703c0c37aba212de25f56c006f009f26f1558675dde9394",
         "app/dashboard/propulser/page.tsx": "991d41e114dae0f08a07703298255b5890e757699253ce74275e26a91b7d441e",
         "lib/dashboardEdition.ts": "e6d4ac302594a9fce73217d5a527b4496546b616bf910fe15fb830bb2982e3b1",
-        "lib/mailCampaignUiFeedback.ts": "5efda1d642ff2e1cbc05b39d268444e443e084d364c6fcee731f237274e0b2aa",
+        "lib/mailCampaignUiFeedback.ts": "3cf2165cc2eafbf0af38741e244d4cc611f793ad4e10e57474783ab2539c4693",
         "lib/mailDeliveryErrors.ts": "4a4b576ea3ac8828c167beaa8a59315817bcdfc243cad65900f4a6e177a0f344",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
         "messages/fr-FR/growth.json": "3306fdc5e112b82ef3ee32b1922466395177dee9808255d905020b89625b6592",
-        "messages/fr-FR/mails.json": "d74abc2773c9cd7a4229ba6db02a0991937356bcd41b78a0216a063c62028016"
+        "messages/fr-FR/mails.json": "289ee942f7813fc5a09adfe390c83f5db1781dddb0404840f0f6af34c2c1bda3"
       }
     },
     "establishments": {
@@ -840,7 +840,7 @@
         "lib/pinterestTextLimits.ts": "28771bd0581ee73e9ed2a19ad93a0e40a8a8a0456ea81cf9b2a84e6b56f35089",
         "lib/pinterestTextRules.ts": "7bba0e1ebc5199e7655564afd93d3e4595969e53dc38bfa6a9740091bd7d0e98",
         "lib/productNavigation.ts": "9537cd6ca864baead2e54689290c4cf2c29e765c0ab8c2b91f667f9c9f665eed",
-        "messages/fr-FR/mails.json": "d74abc2773c9cd7a4229ba6db02a0991937356bcd41b78a0216a063c62028016"
+        "messages/fr-FR/mails.json": "289ee942f7813fc5a09adfe390c83f5db1781dddb0404840f0f6af34c2c1bda3"
       }
     },
     "shop-inertia": {

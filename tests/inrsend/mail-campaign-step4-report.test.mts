@@ -22,6 +22,42 @@ test("l'estimation couvre les campagnes de 20, 200 et 300 destinataires", () => 
   assert.equal(estimateCampaignDurationMs({ remaining: 300, config }), 5_460_000);
 });
 
+test("Outlook reports the cadence of the base64 attachments and UTF-8 message with the minute batch limit", () => {
+  const message = { provider: "microsoft", subject: "Offre", body_text: "Bonjour", attachments: [] };
+  const file = { bucket: "files", path: "document.pdf", size: 4_000_000 };
+  const estimate = (campaign: Record<string, unknown>, remaining = 2) =>
+    estimateCampaignDurationMs({ campaign, remaining, config });
+  assert.equal(estimate(message), 10_000);
+  assert.equal(estimate(message, 6), 60_000);
+  assert.equal(estimate({ ...message, attachments: [file] }, 3), 38_000);
+  assert.equal(estimate({ ...message, attachments: [file, file] }), 34_000);
+  assert.equal(estimate({ ...message, body_html: "é".repeat(1_500_001) }), 12_000);
+  assert.equal(estimate({ ...message, provider: "gmail", attachments: [file] }, 3), 16_000);
+});
+
+test("Outlook withholds the ETA when legacy attachment sizes are unknown or exceed the transfer window", () => {
+  const campaign = { provider: "microsoft", status: "queued", body_text: "Bonjour", total_count: 2 };
+  for (const size of [undefined, null, "", 0, -1, 1.5, 80_000_000]) {
+    const report = buildMailCampaignExperienceReport({
+      campaign: { ...campaign, attachments: [{ bucket: "files", path: "doc.pdf", size }] },
+      recipients: [{ status: "queued" }, { status: "queued" }],
+      config,
+    });
+    assert.equal(report.estimatedRemainingMs, null);
+    assert.equal(report.estimatedCompletionAt, null);
+    assert.equal(report.counts.sent, 0);
+  }
+  const now = new Date("2026-11-22T12:00:00Z");
+  const report = buildMailCampaignExperienceReport({
+    campaign: { ...campaign, attachments: [], resume_at: "2026-11-22T12:01:00Z" },
+    recipients: [{ status: "queued" }, { status: "queued" }],
+    config,
+    now,
+  });
+  assert.equal(report.estimatedRemainingMs, 70_000);
+  assert.equal(report.estimatedCompletionAt, "2026-11-22T12:01:10.000Z");
+});
+
 test("le bilan distingue acceptation, livraison, rebonds et desinscription", () => {
   const counts = aggregateCampaignRecipientReport([
     { status: "sent", delivery_status: "accepted" },

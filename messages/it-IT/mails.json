@@ -1,4 +1,5 @@
 {
+  "campaign_pause_outlook_weight": "iNrCy regola l’intervallo tra gli invii di Outlook in base alle dimensioni dei messaggi di questa casella.",
   "campaign_pause_mailbox_missing": "Questa campagna è collegata a una precedente casella mittente non più disponibile. L’assistenza deve verificarne l’associazione.",
   "campaign_resume_network_error": "Non è stato possibile confermare la richiesta di ripresa. Aggiorna il monitoraggio prima di riprovare.",
   "campaign_resume_failed": "Non è stato possibile riprendere la campagna. Riprova tra qualche minuto.",

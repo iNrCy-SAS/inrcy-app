@@ -1,4 +1,5 @@
 {
+  "campaign_pause_outlook_weight": "iNrCy past de tijd tussen verzendingen via Outlook aan op basis van de grootte van de berichten uit deze mailbox.",
   "campaign_pause_mailbox_missing": "Deze campagne is gekoppeld aan een eerdere verzendmailbox die niet meer beschikbaar is. De ondersteuning moet de koppeling controleren.",
   "campaign_resume_network_error": "Het verzoek om te hervatten kon niet worden bevestigd. Vernieuw de voortgang voordat u het opnieuw probeert.",
   "campaign_resume_failed": "De campagne kon niet worden hervat. Probeer het over een paar minuten opnieuw.",

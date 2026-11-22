@@ -1,4 +1,5 @@
 {
+  "campaign_pause_outlook_weight": "iNrCy ajusta el intervalo entre los envíos de Outlook según el tamaño de los mensajes de este buzón.",
   "campaign_pause_mailbox_missing": "Esta campaña está vinculada a un buzón remitente anterior que ya no está disponible. El servicio de asistencia debe comprobar su vinculación.",
   "campaign_resume_network_error": "No se ha podido confirmar la solicitud de reanudación. Actualice el seguimiento antes de volver a intentarlo.",
   "campaign_resume_failed": "No se ha podido reanudar la campaña. Vuelva a intentarlo en unos minutos.",

@@ -137,7 +137,7 @@ test("after readiness is confirmed, a paused campaign with no failed recipients 
   assert.ok(h.operations.indexOf("reputation") < h.operations.indexOf("update:mail_campaigns"));
 });
 
-for (const pauseReason of ["rate_limited", "provider_quota", "quota_exceeded", "provider_unavailable", "provider_issue"]) test(`a future ${pauseReason} deadline is respected even when mailbox reputation and local quotas permit sending`, async () => {
+for (const pauseReason of ["rate_limited", "provider_quota", "quota_exceeded", "provider_unavailable", "provider_issue", "outlook_transfer_budget", "outlook_transfer_unavailable"]) test(`a future ${pauseReason} deadline is respected even when mailbox reputation and local quotas permit sending`, async () => {
   const resumeAt = new Date(Date.now() + 120_000).toISOString();
   const h = fixture({ campaign: { pause_reason: pauseReason, resume_at: resumeAt } });
   const before = JSON.stringify(h.recipients); const result = await h.run();

@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { sendMailFromIntegration } from "@/lib/inrsend/sendMailFromIntegration";
+import { OutlookTransferDeferred } from "@/lib/inrsend/sendOutlookMailWithTransferBudget";
 import { stripTemplateSignatureBlock } from "@/lib/mailTemplateCleanup";
 import { textToSimpleHtml } from "@/lib/inrsendSignature";
 import { sanitizeRichMailHtml } from "@/lib/mailRichText";
@@ -63,6 +64,7 @@ const DEFAULT_MAX_ATTEMPTS = 3;
 const STALE_PROCESSING_MINUTES = 20;
 const RECENT_COUNT_PAGE_SIZE = 500;
 const RECENT_COUNT_BATCH_SIZE = 200;
+const OUTLOOK_SLICE_WAIT_MS = 48_000;
 
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -721,6 +723,7 @@ async function releaseClaimedRecipients(args: {
   failureKind?: string | null;
   failureRetryable?: boolean | null;
   providerStatus?: number | null;
+  preserveFailure?: boolean;
 }) {
   const ids = Array.from(new Set(args.recipientIds.filter(Boolean)));
   if (ids.length === 0) return 0;
@@ -732,11 +735,13 @@ async function releaseClaimedRecipients(args: {
       status: "queued",
       next_attempt_at: nextAttemptAt,
       processing_started_at: null,
-      error: args.message,
-      last_error: args.message,
-      failure_kind: args.failureKind ?? null,
-      failure_retryable: args.failureRetryable ?? null,
-      provider_status: args.providerStatus ?? null,
+      ...(args.preserveFailure ? {} : {
+        error: args.message,
+        last_error: args.message,
+        failure_kind: args.failureKind ?? null,
+        failure_retryable: args.failureRetryable ?? null,
+        provider_status: args.providerStatus ?? null,
+      }),
       updated_at: now,
     })
     .in("id", ids)
@@ -906,6 +911,8 @@ async function processSingleMailCampaign(args: {
   const integrationId = asString(campaign.integration_id) || "";
   const provider = (asString(campaign.provider) || "imap").toLowerCase() as "gmail" | "microsoft" | "imap";
   if (!campaignId || !userId || !integrationId) return summary;
+  const isOutlook = provider === "microsoft";
+  const outlookWaitUntil = Date.now() + OUTLOOK_SLICE_WAIT_MS;
 
   const mailboxLock = await tryAcquireMailCampaignMailboxLock({
     integrationId,
@@ -1070,8 +1077,8 @@ async function processSingleMailCampaign(args: {
         break;
       }
 
-      const row = await beginRecipientAttempt(claimedRow);
-      if (!row) continue;
+      let row = isOutlook ? null : await beginRecipientAttempt(claimedRow);
+      if (!isOutlook && !row) continue;
 
       const unsubscribeUrl = buildRecipientUnsubscribeUrl(campaignId, recipientId);
       const originalTextBody = asString(campaign.body_text) || "";
@@ -1094,8 +1101,46 @@ async function processSingleMailCampaign(args: {
           html: htmlBody || undefined,
           unsubscribeUrl,
           attachments,
+          outlookCampaign: isOutlook ? {
+            waitUntil: outlookWaitUntil,
+            beforeSend: async () => {
+              const lockStillOwned = await renewMailCampaignMailboxLock(mailboxLock);
+              if (!lockStillOwned) {
+                throw new OutlookTransferDeferred(
+                  "La file Outlook reprend dès que son verrou est disponible.",
+                  "outlook_transfer_unavailable",
+                  new Date(Date.now() + 60_000).toISOString(),
+                );
+              }
+              row = await beginRecipientAttempt(claimedRow);
+              if (!row) throw new Error("Le destinataire n’est plus réservé pour l’envoi.");
+            },
+          } : undefined,
         });
       } catch (sendError) {
+        if (sendError instanceof OutlookTransferDeferred) {
+          const delayMs = sendError.resumeAt ? Math.max(0, Date.parse(sendError.resumeAt) - Date.now()) : 0;
+          // A short wait can be handled by the next cron slice, which checks the shared budget again.
+          const pause = sendError.reason !== "outlook_transfer_budget" || delayMs > 60_000;
+          const remainingIds = claimedRows.slice(rowIndex).map((pendingRow) => asString(pendingRow.id) || "");
+          await releaseClaimedRecipients({ recipientIds: remainingIds, message: sendError.message, delayMs: pause ? delayMs : 0, preserveFailure: true });
+          if (pause) {
+            await pauseCampaignForProviderIssue({
+              campaignId,
+              reason: sendError.message,
+              pauseReason: sendError.reason,
+              resumeAt: sendError.resumeAt,
+            });
+            summary.paused += 1;
+          } else {
+            summary.waiting += 1;
+          }
+          stopBatch = true;
+          break;
+        }
+
+        row ??= await beginRecipientAttempt(claimedRow);
+        if (!row) continue;
         const normalized = normalizeMailDeliveryError(sendError, provider);
         const message = normalized.message;
         const classification = classifyMailFailure(normalized.rawMessage || message);
@@ -1227,12 +1272,12 @@ async function processSingleMailCampaign(args: {
         }
       }
 
-      if (providerWasCalled && !stopBatch && rowIndex < claimedRows.length - 1) {
+      if (!isOutlook && providerWasCalled && !stopBatch && rowIndex < claimedRows.length - 1) {
         await waitForNextCampaignRecipient(campaignConfig.sendDelayMs);
       }
     }
 
-    if (!stopBatch) {
+    if (!isOutlook && !stopBatch) {
       await deferReadyCampaignRecipients(campaignId, campaignConfig.batchPauseMs);
     }
 

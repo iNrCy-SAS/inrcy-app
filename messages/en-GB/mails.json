@@ -1,4 +1,5 @@
 {
+  "campaign_pause_outlook_weight": "iNrCy spaces out Outlook sends based on the size of the messages sent from this mailbox.",
   "campaign_pause_mailbox_missing": "This campaign is linked to a previous sending mailbox that is no longer available. Support needs to check its mailbox association.",
   "campaign_resume_network_error": "The resume request could not be confirmed. Refresh the tracking information before trying again.",
   "campaign_resume_failed": "The campaign could not be resumed. Try again in a few minutes.",
