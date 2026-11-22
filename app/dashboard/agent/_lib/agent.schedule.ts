@@ -1281,10 +1281,6 @@ export function computeNextOccurrence(config: AutomationConfig): string | null {
   );
   const normalizedSlots = normalizeConfigScheduleSlots(config);
   const now = new Date();
-  const isDaily = config.frequency === "Publier tous les jours";
-  const isWeeklyMulti =
-    config.frequency === "2 fois par semaine" ||
-    config.frequency === "3 fois par semaine";
   const isFirstWeekday = (date: Date, targetDay: number) =>
     date.getDay() === targetDay && date.getDate() <= 7;
 
@@ -1311,16 +1307,9 @@ export function computeNextOccurrence(config: AutomationConfig): string | null {
         candidate.setHours(hour, minute, 0, 0);
         if (candidate.getTime() <= now.getTime()) return null;
         const matches =
-          monthlyDateCount > 0
-            ? true
-            : isDaily
-              ? candidate.getDay() === targetDay
-              : isWeeklyMulti
-                ? candidate.getDay() === targetDay
-                : config.frequency === "Chaque trimestre"
-                  ? [0, 3, 6, 9].includes(candidate.getMonth()) &&
-                    isFirstWeekday(candidate, targetDay)
-                  : candidate.getDay() === targetDay;
+          monthlyDateCount > 0 || (config.frequency === "Chaque trimestre"
+            ? [0, 3, 6, 9].includes(candidate.getMonth()) && isFirstWeekday(candidate, targetDay)
+            : candidate.getDay() === targetDay);
         return matches ? candidate : null;
       })
       .filter((candidate): candidate is Date => Boolean(candidate))

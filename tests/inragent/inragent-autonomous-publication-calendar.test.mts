@@ -307,22 +307,28 @@ test("les libellés de filtres et de validation du planning existent dans toutes
   }
 });
 
-test("les fréquences 1 à 3 fois par semaine ou par mois traversent tout le contrat", () => {
+test("les fréquences du planning partagent le même contrat entre le formulaire, les routes et la base", () => {
   const contract = read("lib/inrAgentSettings.ts");
   const config = read("app/dashboard/agent/_lib/agent.config.ts");
   const settingsRoute = read("app/api/agent/settings/route.ts");
   const cron = read("app/api/cron/inr-agent/route.ts");
   const migration = read(
-    "ops/sql/2026-09-02_inr_agent_extended_publication_frequencies.sql"
+    "supabase/migrations/20261122011110_inr_agent_publication_plan_options.sql"
   );
 
+  for (const route of [settingsRoute, cron]) {
+    assert.match(route, /INR_AGENT_FREQUENCIES\.includes\(text\)/);
+    assert.match(route, /getInrAgentDefaultScheduleDays\(frequency, dayOfWeek\)/);
+  }
   for (const frequency of [
     "twice_weekly",
     "three_times_weekly",
+    "five_times_weekly",
+    "daily",
     "biweekly",
     "three_times_monthly",
   ]) {
-    for (const source of [contract, config, settingsRoute, cron, migration]) {
+    for (const source of [contract, config, migration]) {
       assert.ok(
         source.includes(frequency),
         `${frequency} doit rester pris en charge`

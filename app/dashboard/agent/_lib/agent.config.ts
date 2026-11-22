@@ -222,6 +222,7 @@ export const settingsOptions: Record<AutomationKey, AutomationSettingsOptions> =
       { value: "weekly", label: "1 fois par semaine" },
       { value: "twice_weekly", label: "2 fois par semaine" },
       { value: "three_times_weekly", label: "3 fois par semaine" },
+      { value: "five_times_weekly", label: "5 fois par semaine" },
       { value: "monthly", label: "1 fois par mois" },
       { value: "biweekly", label: "2 fois par mois" },
       { value: "three_times_monthly", label: "3 fois par mois" },

@@ -920,6 +920,8 @@
   "settings_impact_media_count": "{images, plural, one {# image} other {# images}} · {videos, plural, one {# vidéo} other {# vidéos}} ({seconds} s)",
   "settings_impact_publications_count": "{count, plural, one {publication} other {publications}}",
   "agent_admin_publish_daily": "Publier tous les jours",
+  "agent_publish_five_times_weekly": "5 fois par semaine",
+  "agent_publish_premium_frequency": "{frequency} — Premium",
   "agent_admin_publish_without_approval": "Publier sans validation préalable",
   "agent_admin_publish_daily_hint": "Chaque jour, à l’horaire choisi. Le mode de validation sélectionné reste appliqué.",
   "agent_admin_publish_without_approval_hint": "Les nouvelles publications seront programmées à l’horaire prévu sans validation manuelle.",

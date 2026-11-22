@@ -920,6 +920,8 @@
   "settings_impact_media_count": "{images, plural, one {# Bild} other {# Bilder}} · {videos, plural, one {# Video} other {# Videos}} ({seconds} s)",
   "settings_impact_publications_count": "{count, plural, one {Beitrag} other {Beiträge}}",
   "agent_admin_publish_daily": "Jeden Tag veröffentlichen",
+  "agent_publish_five_times_weekly": "Fünfmal pro Woche",
+  "agent_publish_premium_frequency": "{frequency} — Premium",
   "agent_admin_publish_without_approval": "Ohne vorherige Freigabe veröffentlichen",
   "agent_admin_publish_daily_hint": "Jeden Tag zur gewählten Uhrzeit. Der gewählte Freigabemodus gilt weiterhin.",
   "agent_admin_publish_without_approval_hint": "Neue Beiträge werden ohne manuelle Freigabe für den vorgesehenen Zeitpunkt eingeplant.",

@@ -5,12 +5,19 @@ export const INR_AGENT_FREQUENCIES = [
   "weekly",
   "twice_weekly",
   "three_times_weekly",
+  "five_times_weekly",
   "biweekly",
   "three_times_monthly",
   "monthly",
   "quarterly",
   "one_off",
 ] as const;
+export function getInrAgentDefaultScheduleDays(frequency: InrAgentFrequency, dayOfWeek: number): number[] {
+  if (frequency === "five_times_weekly") return [1, 2, 3, 4, 5];
+  const offsets = frequency === "daily" ? [0, 1, 2, 3, 4, 5, 6]
+    : frequency === "three_times_weekly" ? [0, 2, 4] : frequency === "twice_weekly" ? [0, 3] : [0];
+  return offsets.map(offset => (dayOfWeek + offset) % 7);
+}
 export const INR_AGENT_VALIDATION_MODES = [
   "admin_automatic_publish",
   "validation_required",
@@ -313,6 +320,7 @@ export const INR_AGENT_LABELS = {
     weekly: "1 fois / semaine",
     twice_weekly: "2 fois / semaine",
     three_times_weekly: "3 fois / semaine",
+    five_times_weekly: "5 fois / semaine",
     biweekly: "2 fois / mois",
     three_times_monthly: "3 fois / mois",
     monthly: "1 fois / mois",
@@ -614,7 +622,7 @@ export function sanitizeInrAgentAutomationSettings(
 
   return {
     enabled: sanitizeBoolean(source.enabled, defaults.enabled),
-    frequency: includesValue(INR_AGENT_FREQUENCIES, source.frequency) && (key === "publish" || source.frequency !== "daily") ? source.frequency : defaults.frequency,
+    frequency: includesValue(INR_AGENT_FREQUENCIES, source.frequency) && (key === "publish" || (source.frequency !== "daily" && source.frequency !== "five_times_weekly")) ? source.frequency : defaults.frequency,
     dayOfWeek: sanitizeDay(source.dayOfWeek, defaults.dayOfWeek),
     time: sanitizeTime(source.time, defaults.time),
     // This is structural normalization only; server boundaries authorize the

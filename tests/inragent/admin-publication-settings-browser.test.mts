@@ -33,6 +33,9 @@ const findUi = (node: ts.Node) => {
 };
 findUi(agent); assert.ok(planning, "actual publication Planning section"); assert.ok(validation, "actual publication Validation section"); assert.ok(legacyPlanning); assert.ok(access);
 assert.ok(settingsOverlay, "actual publication settings modal including header, scroll area and footer");
+const workspaceClient = agent.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "AgentWorkspaceClient") as ts.FunctionDeclaration;
+const rescheduleFromCalendar = workspaceClient.body?.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "configPatchFromScheduledAt");
+assert.ok(rescheduleFromCalendar, "actual recurrence editor used by the calendar");
 const api = ts.createSourceFile("settings-route.ts", read("app/api/agent/settings/route.ts"), ts.ScriptTarget.Latest, true);
 let inactiveMode: ts.IfStatement | undefined;
 const findInactiveMode = (node: ts.Node) => {
@@ -59,9 +62,15 @@ const controls = compile(`export default function Controls(){
   const AgentSchedulePopover=require('app/dashboard/agent/_components/AgentSchedulePopover.tsx').default;
   const {CalendarMetaIcon,ShieldLineIcon,SparkSettingsIcon,TextMetaIcon,ImageMetaIcon,SendPlaneIcon}=require('app/dashboard/agent/_components/AgentVisuals.tsx');
   const setNotice=noOp,setTableMissing=noOp,setSettingsPlanImpact=noOp,writeCachedAgentViewSnapshot=noOp,refreshActions=async()=>{},showNotice=noOp;
-  ${["settingsMonthlyDateCount", "settingsCanUseAdminPublishOptions", "settingsAdminAutomaticAvailable", "settingsPublishDaily", "settingsPublishWithoutApproval", "settingsMonthDays"].map(declaration).join("\n")}
+  const { useDashboardSubscriptionEdition } = require("app/dashboard/_components/DashboardEditionProvider.tsx");
+  const { getInrAgentPublicationOptionAccess, isInrAgentHighPublicationFrequency } = require("lib/inrAgentAdminPublishPolicy.ts");
+  const { apiToDay }=require("app/dashboard/agent/_lib/agent.config.ts");
+  const serverPublicationOptionAccess=window.adminSettings.serverPublicationOptionAccess;
+  ${["settingsMonthlyDateCount", "subscriptionEdition", "publicationOptionAccess", "settingsPublishDaily", "settingsPublishWithoutApproval", "settingsMonthDays"].map(declaration).join("\n")}
   ${functions}
+  ${rescheduleFromCalendar.getText(agent)}
   React.useLayoutEffect(()=>{window.adminSettings.configs=configs;window.adminSettings.save=()=>persistSettings();window.adminSettings.saveState=saveState});
+  React.useLayoutEffect(()=>{window.adminSettings.moveCalendarSlot=(target,source)=>configPatchFromScheduledAt(configs.publish,target,source)});
   if (window.completeSettingsModal) {
     const {automations,channelOptions}=require("app/dashboard/agent/_lib/agent.config.ts");
     const {agentAutomationSettingsTitle,agentSourceLabel,agentChannelLabel,agentThemeLabel}=require("app/dashboard/agent/_lib/agent.i18n.ts");
@@ -100,7 +109,7 @@ function addSource(base: string): string {
   const local = relative(repo, file);
   assert.ok(!isAbsolute(local) && local !== ".." && !local.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`));
   const id = local.replaceAll("\\", "/"); if (sources[id]) return id;
-  assert.ok(id.startsWith("lib/") || id.startsWith("app/dashboard/agent/_lib/") || /^app\/dashboard\/agent\/_components\/Agent(SchedulePopover|SettingsPopover|SettingsMultiSelect|MediaReferences|Visuals)\./.test(id) || /^app\/dashboard\/_components\/(DashboardViewerAccessProvider|MediaReferenceInputs|MediaLibraryPickerModal|MediaGenerator|CompatiblePopover)\./.test(id), `Unexpected fixture surface ${id}`);
+  assert.ok(id.startsWith("lib/") || id.startsWith("app/dashboard/agent/_lib/") || /^app\/dashboard\/agent\/_components\/Agent(SchedulePopover|SettingsPopover|SettingsMultiSelect|MediaReferences|Visuals)\./.test(id) || /^app\/dashboard\/_components\/(DashboardEditionProvider|DashboardViewerAccessProvider|MediaReferenceInputs|MediaLibraryPickerModal|MediaGenerator|CompatiblePopover)\./.test(id), `Unexpected fixture surface ${id}`);
   sources[id] = id.endsWith(".css") ? `module.exports={__esModule:true,default:${JSON.stringify(scopedStylesheet(id))}};` : compile(readFileSync(file, "utf8")); links[id] = {};
   for (const match of sources[id].matchAll(/require\("([^"]+)"\)/g)) {
     const name = match[1]; if (mocks.has(name)) continue;
@@ -115,6 +124,8 @@ const i18nId = addSource(resolve(repo, "app/dashboard/agent/_lib/agent.i18n.ts")
 const scheduleId = addSource(resolve(repo, "lib/inrAgentMonthSchedule.ts"));
 const defaultsId = addSource(resolve(repo, "lib/inrAgentSettings.ts"));
 const providerId = addSource(resolve(repo, "app/dashboard/_components/DashboardViewerAccessProvider.tsx"));
+const editionProviderId = addSource(resolve(repo, "app/dashboard/_components/DashboardEditionProvider.tsx"));
+addSource(resolve(repo, "lib/inrAgentAdminPublishPolicy.ts"));
 for (const name of ["AgentSchedulePopover", "AgentSettingsMultiSelect", "AgentMediaReferences", "AgentVisuals"]) addSource(resolve(repo, `app/dashboard/agent/_components/${name}.tsx`));
 addSource(resolve(repo, "app/dashboard/agent/_lib/agent.utils.ts"));
 for (const [name, file] of [["react", "react.development.js"], ["react/jsx-runtime", "react-jsx-runtime.development.js"], ["react-dom", "react-dom.development.js"], ["react-dom/client", "react-dom-client.development.js"], ["scheduler", "scheduler.development.js"]]) {
@@ -127,7 +138,7 @@ const catalog = (locale: string) => JSON.parse(read(`messages/${locale}/agent.js
 const t = (locale: string, key: string) => String(new IntlMessageFormat(catalog(locale)[key], locale).format());
 type SavedSettings = { globalEnabled: boolean; automations: Record<string, { enabled: boolean; frequency: string; validationMode: string; time: string; metadata: Record<string, unknown> }> };
 type Snapshot = { writes: Array<{ settings: SavedSettings }>; saved: SavedSettings; saveState: string };
-async function mount(page: Page, { admin = true, locale = "fr-FR", automationKey = "publish", browserAccount = "account-admin", enabled = false, complete = false } = {}) {
+async function mount(page: Page, { admin = true, edition = "basic", serverAccess = null as { highFrequency: boolean; automaticPublish: boolean } | null, locale = "fr-FR", automationKey = "publish", browserAccount = "account-admin", enabled = false, complete = false } = {}) {
   const errors: string[] = [], network: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   await page.route("**/*", route => {
@@ -166,10 +177,10 @@ async function mount(page: Page, { admin = true, locale = "fr-FR", automationKey
       if(url!=='/api/agent/settings'||options.method!=='POST')throw Error('No publication/provider request is allowed');
       const body=JSON.parse(options.body);writes.push(body);saved=sanitizeInrAgentSettings(structuredClone(body.settings));return Response.json({settings:structuredClone(saved)});
     };
-    window.adminSettings={snapshot:()=>structuredClone({writes,saved,saveState:window.adminSettings.saveState}),switchBrowserAccount(id){browserAccount=id;window.dispatchEvent(new Event(load('lib/multicompte/constants.ts').ACTIVE_INRCY_ACCOUNT_EVENT))},remount(){key++;render()}};
+    window.adminSettings={serverPublicationOptionAccess:${JSON.stringify(serverAccess)},snapshot:()=>structuredClone({writes,saved,saveState:window.adminSettings.saveState}),switchBrowserAccount(id){browserAccount=id;window.dispatchEvent(new Event(load('lib/multicompte/constants.ts').ACTIVE_INRCY_ACCOUNT_EVENT))},remount(){key++;render()}};
     const module={exports:{}};new Function('require','module','exports','React','useDashboardViewerAccess','settingsToConfigs','configsToSettings','normalizeConfigScheduleSlots','normalizeConfigMonthScheduleSlots','dayOffsetLabel','normalizeConfigsForConnectedChannels','settingsOptions','hourOptions','weekDays','agentFrequencyLabel','agentValidationLabel','agentWeekdayLabel','inrAgentMonthlyDateCount','normalizeInrAgentMonthDays','normalizeInrAgentMonthScheduleSlots','sanitizeInrAgentSettings','translate','styles','noOp','fetch','automationKey','getSaved',${JSON.stringify(controls.replaceAll("structuredClone(saved)", "structuredClone(getSaved())").replaceAll("settingsToConfigs(saved)", "settingsToConfigs(getSaved())"))})(load,module,module.exports,React,useDashboardViewerAccess,settingsToConfigs,configsToSettings,normalizeConfigScheduleSlots,normalizeConfigMonthScheduleSlots,dayOffsetLabel,normalizeConfigsForConnectedChannels,settingsOptions,hourOptions,weekDays,agentFrequencyLabel,agentValidationLabel,agentWeekdayLabel,inrAgentMonthlyDateCount,normalizeInrAgentMonthDays,normalizeInrAgentMonthScheduleSlots,sanitizeInrAgentSettings,translate,styles,noOp,fetch,automationKey,()=>saved);
     const root=load('react-dom/client').createRoot(document.getElementById('root'));
-    function render(){root.render(React.createElement(provider.default,{viewerIsAdmin:${JSON.stringify(admin)},viewerMetaPilotEnabled:true,actorUserId:'actor-admin',activeAccountId:'account-admin'},React.createElement(module.exports.default,{key})))}render();
+    function render(){root.render(React.createElement(load(${JSON.stringify(editionProviderId)}).default,{edition:'premium',subscriptionEdition:${JSON.stringify(edition)}},React.createElement(provider.default,{viewerIsAdmin:${JSON.stringify(admin)},viewerMetaPilotEnabled:true,actorUserId:'actor-admin',activeAccountId:'account-admin'},React.createElement(module.exports.default,{key}))))}render();
   ` });
   page.setDefaultTimeout(5_000);
   await page.getByRole("combobox", { name: new RegExp(`^${t(locale, "frequence_bafbfba7")}`) }).waitFor().catch(error => { throw errors.length ? new Error(errors.join(", ")) : error; });
@@ -319,7 +330,7 @@ test("complete publication settings modal keeps its cards, text, popup selection
   } finally { await browser.close(); }
 });
 
-test("actual publication selects expose admin choices only to the trusted admin scope, never to pro, staff, reviewer or an active pro account", async () => {
+test("Basic keeps manual publication, except for the existing scoped administrator access", async () => {
   const browser = await chromium.launch({ headless: true });
   try {
     for (const [role, admin, browserAccount] of [["admin", true, "account-admin"], ["pro", false, "account-admin"], ["staff", false, "account-admin"], ["reviewer", false, "account-admin"], ["admin on pro account", false, "account-admin"], ["scope changing to pro", true, "account-pro"]] as const) {
@@ -344,6 +355,80 @@ test("actual publication selects expose admin choices only to the trusted admin 
       const page = await browser.newPage(); await mount(page, { automationKey });
       assert.equal(await page.getByRole("option", { name: t("fr-FR", "agent_admin_publish_daily"), exact: true }).count(), 0);
       assert.equal(await page.getByRole("option", { name: t("fr-FR", "agent_admin_publish_without_approval"), exact: true }).count(), 0); await page.close();
+    }
+  } finally { await browser.close(); }
+});
+
+test("Standard shows two disabled Premium frequencies and can save automatic approval in all nine languages", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const locale of locales) {
+      const page = await browser.newPage({ viewport: { width: 375, height: 760 }, isMobile: true, hasTouch: true });
+      try {
+        const h = await mount(page, { admin: false, edition: "standard", locale });
+        const frequency = page.getByRole("combobox", { name: new RegExp(`^${t(locale, "frequence_bafbfba7")}`) });
+        for (const key of ["agent_publish_five_times_weekly", "agent_admin_publish_daily"]) {
+          const label = new IntlMessageFormat(catalog(locale).agent_publish_premium_frequency, locale).format({ frequency: t(locale, key) });
+          await expect(frequency.getByRole("option", { name: String(label), exact: true })).toHaveJSProperty("disabled", true);
+        }
+        const validation = page.getByRole("combobox", { name: new RegExp(`^${t(locale, "validation_dd74d182")}`) });
+        await validation.selectOption({ label: t(locale, "agent_admin_publish_without_approval") });
+        assert.equal(await page.evaluate("window.adminSettings.save()"), true);
+        const saved = (await snapshot(page)).saved;
+        assert.equal(saved.automations.publish.frequency, "weekly");
+        assert.equal(saved.automations.publish.validationMode, "admin_automatic_publish");
+        assert.equal(saved.globalEnabled, false);
+        await page.evaluate("window.adminSettings.remount()");
+        await expect(validation).toHaveValue("Publier sans validation préalable");
+        assert.deepEqual(h.errors, []);
+      } finally { await page.close(); }
+    }
+    const downgraded = await browser.newPage();
+    try {
+      await mount(downgraded, { admin: false, edition: "premium", serverAccess: { highFrequency: false, automaticPublish: true } });
+      await expect(downgraded.getByRole("option", { name: "5 fois par semaine — Premium", exact: true })).toHaveJSProperty("disabled", true);
+      await expect(downgraded.getByRole("option", { name: "Publier sans validation préalable", exact: true })).toHaveJSProperty("disabled", false);
+    } finally { await downgraded.close(); }
+  } finally { await browser.close(); }
+});
+
+test("Premium and Founder accounts can edit five distinct weekly days, save their times and reopen the schedule", async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    for (const edition of ["premium", "founder"]) {
+      const page = await browser.newPage({ viewport: { width: 375, height: 760 }, isMobile: true, hasTouch: true });
+      try {
+        const h = await mount(page, { admin: false, edition, complete: true });
+        const frequency = page.getByRole("combobox", { name: /^Fréquence/ });
+        await expect(frequency.getByRole("option", { name: "Publier tous les jours", exact: true })).toHaveJSProperty("disabled", false);
+        await frequency.selectOption({ label: "5 fois par semaine" });
+        const planning = page.getByRole("button", { name: "Planning", exact: true });
+        await planning.click();
+        const weekdays = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi"];
+        for (const [index, day] of weekdays.entries()) {
+          await expect(page.getByRole("combobox", { name: `Jour ${index + 1}`, exact: true })).toHaveValue(day);
+        }
+        const fifthDay = page.getByRole("combobox", { name: "Jour 5", exact: true });
+        const fifthTime = page.getByRole("combobox", { name: "Horaire 5", exact: true });
+        await expect(fifthDay.getByRole("option", { name: "Lundi", exact: true })).toHaveJSProperty("disabled", true);
+        await fifthDay.selectOption("Samedi");
+        await fifthTime.selectOption("14:00");
+        await fifthTime.press("Escape");
+        assert.equal(await page.evaluate("window.adminSettings.save()"), true);
+        const publish = (await snapshot(page)).saved.automations.publish;
+        assert.equal(publish.frequency, "five_times_weekly");
+        assert.equal((publish.metadata.scheduleSlots as unknown[]).length, 5);
+        const moved = await page.evaluate("window.adminSettings.moveCalendarSlot('2030-01-13T16:30:00','2030-01-08T09:00:00')") as { scheduleSlots: { day: string; time: string }[] };
+        assert.deepEqual(moved.scheduleSlots.map(slot => slot.day), ["Lundi", "Dimanche", "Mercredi", "Jeudi", "Samedi"]);
+        assert.deepEqual(moved.scheduleSlots[1], { day: "Dimanche", time: "16:30" });
+        assert.deepEqual(moved.scheduleSlots[4], { day: "Samedi", time: "14:00" });
+        await page.evaluate("window.adminSettings.remount()");
+        await expect(frequency).toHaveValue("5 fois par semaine");
+        await planning.click();
+        await expect(fifthDay).toHaveValue("Samedi");
+        await expect(fifthTime).toHaveValue("14:00");
+        assert.deepEqual(h.errors, []);
+      } finally { await page.close(); }
     }
   } finally { await browser.close(); }
 });

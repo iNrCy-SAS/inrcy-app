@@ -2,6 +2,7 @@ import { canonicalSiteWebChannel, normalizeSiteWebChannelMap } from "@/lib/siteW
 import { INR_AGENT_MEDIA_REFERENCES_KEY, parseInrAgentMediaReferences } from "@/lib/inrAgentMediaReferences";
 import {
   INR_AGENT_DEFAULT_SETTINGS,
+  getInrAgentDefaultScheduleDays,
   normalizeInrAgentPublicationIdeas,
   normalizeInrAgentPublicationMediaTypes,
   sanitizeInrAgentSettings,
@@ -300,28 +301,17 @@ export function normalizeConfigScheduleSlots(
   config: Pick<AutomationConfig, "day" | "time"> &
     Partial<Pick<AutomationConfig, "frequency" | "scheduleSlots">>,
 ) {
-  const frequency = config.frequency || "";
-  const slotCount =
-    frequency === "Publier tous les jours" || frequency === "daily"
-      ? 7
-      : frequency === "3 fois par semaine" || frequency === "three_times_weekly"
-        ? 3
-        : frequency === "2 fois par semaine" || frequency === "twice_weekly"
-          ? 2
-          : 1;
+  const frequency = settingsOptions.publish.frequency.find((option) =>
+    option.value === config.frequency || option.label === config.frequency)?.value ?? "weekly";
   const first = config.scheduleSlots?.[0] || {
     day: config.day,
     time: config.time,
   };
-  const offsets = slotCount === 3 ? [0, 2, 4] : slotCount === 2 ? [0, 3] : [0];
+  const defaultDays = getInrAgentDefaultScheduleDays(frequency, frequency === "daily" ? 1 : dayToApi[first.day] ?? dayToApi[config.day] ?? 1);
   const chosen = new Set<string>();
-  return Array.from({ length: slotCount }, (_, index) => {
-    const fallbackDay = slotCount === 7
-      ? weekDays[index]
-      : index === 0
-        ? config.day
-        : dayOffsetLabel(first.day || config.day, offsets[index] ?? index);
-    const configured = slotCount === 7
+  return defaultDays.map((dayOfWeek, index) => {
+    const fallbackDay = apiToDay[dayOfWeek];
+    const configured = frequency === "daily"
       ? config.scheduleSlots?.find((candidate) => candidate.day === fallbackDay)
       : config.scheduleSlots?.[index];
     let day = configured && weekDays.includes(configured.day) && !chosen.has(configured.day)

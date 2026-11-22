@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { buildInternalCronHeaders, getAppOriginFromRequest, isAuthorizedCronRequest } from "@/lib/cronAuth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import type { InrAgentAutomationKey, InrAgentFrequency } from "@/lib/inrAgentSettings";
+import { INR_AGENT_FREQUENCIES, getInrAgentDefaultScheduleDays, type InrAgentAutomationKey, type InrAgentFrequency } from "@/lib/inrAgentSettings";
 import {
   inrAgentMonthlyDateCount,
   inrAgentMonthlyOccurrenceIndex,
@@ -83,7 +83,7 @@ function normalizeDay(value: unknown) {
 
 function normalizeFrequency(value: unknown): InrAgentFrequency {
   const text = String(value || "weekly") as InrAgentFrequency;
-  return ["daily", "weekly", "twice_weekly", "three_times_weekly", "biweekly", "three_times_monthly", "monthly", "quarterly", "one_off"].includes(text) ? text : "weekly";
+  return INR_AGENT_FREQUENCIES.includes(text) ? text : "weekly";
 }
 
 function getLocalParts(date: Date, timeZone = "Europe/Paris") {
@@ -139,11 +139,8 @@ function timeParts(time: string) {
 function normalizeScheduleSlots(row: AutomationRow, frequency: InrAgentFrequency): AutomationScheduleSlot[] {
   const dayOfWeek = normalizeDay(row.day_of_week);
   const time = normalizeTime(row.time || "09:00");
-  const slotCount = frequency === "daily" ? 7 : frequency === "three_times_weekly" ? 3 : frequency === "twice_weekly" ? 2 : 1;
-  const offsets = slotCount === 7
-    ? Array.from({ length: 7 }, (_, index) => index)
-    : slotCount === 3 ? [0, 2, 4] : slotCount === 2 ? [0, 3] : [0];
-  const fallback = offsets.map((offset) => ({ dayOfWeek: (dayOfWeek + offset) % 7, time }));
+  const fallback = getInrAgentDefaultScheduleDays(frequency, dayOfWeek).map(day => ({ dayOfWeek: day, time }));
+  const slotCount = fallback.length;
   const metadata = asRecord(row.metadata);
   const rawSlots = Array.isArray(metadata.scheduleSlots) ? metadata.scheduleSlots : [];
   const slots = rawSlots

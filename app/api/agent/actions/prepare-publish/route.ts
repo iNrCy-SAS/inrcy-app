@@ -34,8 +34,8 @@ import { loadEditorialPreparationTarget, selectConnectedChannels, loadPublishAut
 import { generatedPickerItemToAgentMedia, IMAGE_BANK_DIVERSIFICATION_RATE, isRecentlyUsedMediaRow, getRecentMediaTrace, selectInrAgentPublicationMedia } from "@/lib/inrAgentPublicationMediaSelection";
 import { prepareInrAgentSelectedMediaAnalysis } from "@/lib/inrAgentPublicationMediaAnalysis";
 import { generateBoosterPosts, prepareInrAgentEditorialIdea } from "@/lib/inrAgentPublicationEditorialService";
-import { canUseInrAgentAdminOptions, type InrAgentAdminRoleClient } from "@/lib/inrAgentAdminOptionsServer";
-import { INR_AGENT_ADMIN_PUBLISH_MODE, inrAgentPublishNeedsAdmin, readInrAgentAdminPublishOptIn, type InrAgentAdminAutomaticPublish } from "@/lib/inrAgentAdminPublishPolicy";
+import { canUseInrAgentPublicationSettings, type InrAgentPublicationOptionClient } from "@/lib/inrAgentPublicationOptionAccessServer";
+import { INR_AGENT_ADMIN_PUBLISH_MODE, inrAgentPublishUsesRestrictedOptions, readInrAgentAdminPublishOptIn, type InrAgentAdminAutomaticPublish } from "@/lib/inrAgentAdminPublishPolicy";
 import { isInrAgentAdminAutomaticPublicationAuthorized, parkInrAgentAdminAutomaticPublications } from "@/lib/inrAgentAdminPublishServer";
 
 export const maxDuration = 800;
@@ -104,9 +104,9 @@ export async function POST(request: Request) {
     loadPublishAutomationSettings(userId),
     loadInrAgentTone(userId),
   ]);
-  if (inrAgentPublishNeedsAdmin(automation) && !await canUseInrAgentAdminOptions(supabaseAdmin as unknown as InrAgentAdminRoleClient, { accountId: userId, actorAuthUserId: authUserId, isCron })) {
+  if (!await canUseInrAgentPublicationSettings(supabaseAdmin as unknown as InrAgentPublicationOptionClient, { accountId: userId, actorAuthUserId: authUserId, isCron }, automation)) {
     if (isCron) await parkInrAgentAdminAutomaticPublications({ supabase: supabaseAdmin, accountId: userId });
-    return NextResponse.json({ error: "Ces options de publication sont réservées aux comptes administrateurs.", code: "INR_AGENT_ADMIN_OPTIONS_FORBIDDEN" }, { status: 403 });
+    return NextResponse.json({ error: "L’offre du compte ne permet plus ces réglages de publication.", code: "INR_AGENT_ADMIN_OPTIONS_FORBIDDEN" }, { status: 403 });
   }
   const adminOptIn = readInrAgentAdminPublishOptIn(automation.metadata.adminPublishOptIn);
   if (automation.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE && !adminOptIn) {
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
   }
   let adminAutomaticPublish: InrAgentAdminAutomaticPublish | null = isCron && editorialTarget && editorialTarget.metadata.adminAutomaticPublishManualReview !== true && adminOptIn && automation.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE
     ? { version: 1, optInId: adminOptIn.id, accountId: userId, preparedAt: new Date().toISOString() } : null;
-  if (isCron && inrAgentPublishNeedsAdmin(automation)) {
+  if (isCron && inrAgentPublishUsesRestrictedOptions(automation)) {
     const global = await supabaseAdmin.from("inr_agent_settings").select("global_enabled").eq("user_id", userId).maybeSingle();
     if (global.error || global.data?.global_enabled !== true || (adminAutomaticPublish
       && !await isInrAgentAdminAutomaticPublicationAuthorized({ supabase: supabaseAdmin, accountId: userId, isCron: true, marker: adminAutomaticPublish }))) {

@@ -920,6 +920,8 @@
   "settings_impact_media_count": "{images, plural, one {# 张图片} other {# 张图片}} · {videos, plural, one {# 个视频} other {# 个视频}}（{seconds} 秒）",
   "settings_impact_publications_count": "{count, plural, one {篇帖子} other {篇帖子}}",
   "agent_admin_publish_daily": "每天发布",
+  "agent_publish_five_times_weekly": "每周5次",
+  "agent_publish_premium_frequency": "{frequency} — Premium",
   "agent_admin_publish_without_approval": "无需预先审核即可发布",
   "agent_admin_publish_daily_hint": "每天在所选时间执行，仍遵循所选的审核模式。",
   "agent_admin_publish_without_approval_hint": "新准备的内容将按预定时间安排发布，无需人工审核。",

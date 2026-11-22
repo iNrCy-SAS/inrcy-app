@@ -10,6 +10,7 @@ import {
   writeAccountCacheValue,
 } from "@/lib/browserAccountCache";
 import { subscribeToChannelConnectionUpdates } from "@/lib/channelConnectionUpdates";
+import type { InrAgentPublicationOptionAccess } from "@/lib/inrAgentAdminPublishPolicy";
 import {
   INR_AGENT_DEFAULT_SETTINGS,
   sanitizeInrAgentSettings,
@@ -285,7 +286,7 @@ export function useAgentRuntimeData({
   standardMode?: boolean;
   manualPlanningOnly?: boolean;
 } = {}) {
-  const { metaPilotEnabled } = useDashboardViewerAccess();
+  const { metaPilotEnabled, activeAccountId } = useDashboardViewerAccess();
   const i18nT = useTranslations("agent");
   // The server and the browser must produce the same first render. Browser
   // caches are restored immediately after hydration, then refreshed from the
@@ -298,6 +299,7 @@ export function useAgentRuntimeData({
   const [agentSettings, setAgentSettings] = useState<InrAgentSettings>(
     deterministicInitialSettings,
   );
+  const [publicationAccess, setPublicationAccess] = useState<{ accountId: string; access: InrAgentPublicationOptionAccess } | null>(null);
   const [configs, setConfigs] = useState<
     Record<AutomationKey, AutomationConfig>
   >(() => settingsToConfigs(deterministicInitialSettings));
@@ -371,7 +373,7 @@ export function useAgentRuntimeData({
 
   // Responses use the current view policy and locale without restarting the
   // account-scoped background read when the surrounding form rerenders.
-  const onSettingsLoaded = useEffectEvent((ok: boolean, payload: { settings?: Partial<InrAgentSettings>; error?: string; tableMissing?: boolean } | null) => {
+  const onSettingsLoaded = useEffectEvent((ok: boolean, payload: { settings?: Partial<InrAgentSettings>; error?: string; tableMissing?: boolean; publicationOptionAccess?: InrAgentPublicationOptionAccess } | null, accountId: string) => {
     if (!ok) {
       throw new Error(
         payload?.error || i18nT("agent_settings_unavailable"),
@@ -383,6 +385,9 @@ export function useAgentRuntimeData({
       ? restrictInrAgentSettingsForStandard(sanitizedSettings)
       : sanitizedSettings;
     setAgentSettings(nextSettings);
+    const access = payload?.publicationOptionAccess;
+    setPublicationAccess(typeof access?.highFrequency === "boolean" && typeof access.automaticPublish === "boolean"
+      ? { accountId, access } : null);
     setConfigs(settingsToConfigs(nextSettings));
     setTableMissing((current) => current || Boolean(payload?.tableMissing));
     setLoadState("ready");
@@ -413,13 +418,14 @@ export function useAgentRuntimeData({
         });
         const payload = (await response.json().catch(() => null)) as {
           settings?: Partial<InrAgentSettings>;
+          publicationOptionAccess?: InrAgentPublicationOptionAccess;
           error?: string;
           tableMissing?: boolean;
         } | null;
 
         if (!alive) return;
 
-        onSettingsLoaded(response.ok, payload);
+        onSettingsLoaded(response.ok, payload, activeAccountId);
       } catch {
         if (!alive) return;
         onSettingsLoadFailed();
@@ -431,7 +437,7 @@ export function useAgentRuntimeData({
     return () => {
       alive = false;
     };
-  }, [manualPlanningOnly]);
+  }, [manualPlanningOnly, activeAccountId]);
 
   const onConnectedChannelsLoaded = useEffectEvent((ok: boolean, payload: unknown, accountScope: string | null) => {
     if (!ok) {
@@ -678,6 +684,8 @@ export function useAgentRuntimeData({
 
   return {
     agentSettings: visibleSettings,
+    serverPublicationOptionAccess: publicationAccess && publicationAccess.accountId === activeAccountId
+      && (getActiveBrowserUserId() || activeAccountId) === activeAccountId ? publicationAccess.access : null,
     setAgentSettings,
     configs: visibleConfigs,
     setConfigs,

@@ -26,7 +26,8 @@ const scheduled = () => ({ id: actionId, user_id: accountId, automation_key: 'pu
   channels: ['facebook'], payload: { kind: 'manual_publish_schedule', sourceActionId: actionId, adminAutomaticPublish: structuredClone(marker),
     publishPayload: { source: 'inr_agent', channels: ['facebook'], postByChannel: { facebook: { title: 'Fixture', content: 'Contenu de test' } } } } });
 
-function database() {
+function database(edition: 'basic' | 'standard' | 'premium' | 'founder' = 'basic') {
+  const subscription = { edition };
   const tables: Record<string, Row[]> = {
     profiles: [{ user_id: accountId, role: 'admin' }, { user_id: actorId, role: 'admin' }],
     inr_agent_settings: [{ user_id: accountId, global_enabled: true, timezone: 'Europe/Paris', tone: 'professional' }],
@@ -88,6 +89,11 @@ function database() {
       return query;
     },
     async rpc(name: string, args: Row) {
+      if (name === 'inrcy_inr_agent_publication_plan_rights') {
+        assert.equal(args.p_user_id, accountId);
+        return { data: [{ can_use_high_frequency: ['premium', 'founder'].includes(subscription.edition),
+          can_publish_without_validation: subscription.edition !== 'basic' }], error: null };
+      }
       if (name === 'inrcy_patch_app_event_payload') {
         const event = (tables.app_events || []).find(row => row.id === args.p_event_id && row.user_id === args.p_user_id && row.type === args.p_event_type);
         if (!event) return { data: null, error: null };
@@ -102,7 +108,7 @@ function database() {
       return { data: null, error: null };
     },
   };
-  return { client, tables, reads, writes, onClaim(callback: () => void) { onClaim = callback; } };
+  return { client, subscription, tables, reads, writes, onClaim(callback: () => void) { onClaim = callback; } };
 }
 
 function modules(db: ReturnType<typeof database>, extra: Record<string, unknown> = {}) {
@@ -127,9 +133,24 @@ test('admin options preserve manual defaults and never reactivate legacy automat
   for (const key of ['grow', 'loyalty', 'stats'] as const) {
     const sanitized = sanitizeInrAgentAutomationSettings(key, { frequency: 'daily', validationMode: 'admin_automatic_publish' });
     assert.notEqual(sanitized.frequency, 'daily'); assert.notEqual(sanitized.validationMode, 'admin_automatic_publish');
-    assert.deepEqual(policy.requestedInrAgentAdminOptions({ automations: { [key]: { frequency: 'daily' } } }), { requested: true, invalidModule: true });
+    for (const frequency of ['daily', 'five_times_weekly'] as const) {
+      assert.notEqual(sanitizeInrAgentAutomationSettings(key, { frequency }).frequency, frequency);
+      assert.deepEqual(policy.requestedInrAgentAdminOptions({ automations: { [key]: { frequency } } }), { highFrequency: true, automaticPublish: false, invalidModule: true });
+    }
   }
-  for (const settings of [{ frequency: 'daily' }, { mode: 'admin_automatic_publish' }]) assert.equal(policy.requestedInrAgentAdminOptions(settings).requested, true);
+  assert.equal(policy.requestedInrAgentAdminOptions({ frequency: 'five_times_weekly' }).highFrequency, true);
+  assert.equal(policy.requestedInrAgentAdminOptions({ mode: 'admin_automatic_publish' }).automaticPublish, true);
+});
+
+test('five weekly slots keep their configured local weekdays and hours through the autumn clock change', () => {
+  const scheduleSlots = [{ dayOfWeek: 0, time: '10:30' }, { dayOfWeek: 1, time: '07:00' }, { dayOfWeek: 2, time: '18:00' }, { dayOfWeek: 4, time: '12:30' }, { dayOfWeek: 6, time: '09:30' }];
+  const local = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  for (const slots of [scheduleSlots, []]) {
+    const automation = sanitizeInrAgentAutomationSettings('publish', { ...publish(), frequency: 'five_times_weekly', planningHorizonDays: 7, metadata: { scheduleSlots: slots } });
+    const plan = buildInrAgentEditorialPlan({ automation, timezone: 'Europe/Paris', now: new Date('2026-10-19T00:00:00Z') });
+    assert.deepEqual(plan.map(slot => local.format(new Date(slot.scheduledFor))), slots.length
+      ? ['Mon 07:00', 'Tue 18:00', 'Thu 12:30', 'Sat 09:30', 'Sun 10:30'] : ['Mon 09:00', 'Tue 09:00', 'Wed 09:00', 'Thu 09:00', 'Fri 09:00']);
+  }
 });
 
 for (const now of ['2026-03-25T00:00:00Z', '2026-10-21T00:00:00Z']) for (const horizon of [7, 15, 30] as const) {
@@ -188,6 +209,20 @@ test('parking automatic content does not touch manually validated actions or job
   assert.equal(db.reads.length, reads, 'manual jobs do not acquire the privileged automatic gate');
 });
 
+test('a temporary plan lookup failure leaves the automatic publication queued for another check', async () => {
+  const db = database('premium');
+  db.tables.profiles.forEach(row => { row.role = 'user'; });
+  const worker = modules(db, { '@/lib/executionIdempotency': {}, '@/lib/mediaWorkspaceConsumption': {} })<typeof import('../../lib/inrAgentAdminPublishWorkerServer.ts')>('lib/inrAgentAdminPublishWorkerServer.ts');
+  const result = await worker.guardInrAgentAdminBoosterPublication({
+    supabase: { ...db.client, rpc: async () => ({ data: null, error: { message: 'temporary' } }) },
+    accountId, isCron: true, body: { source: 'inr_agent', origin: { source: 'inr_agent', scheduledActionId: actionId } },
+  });
+  assert.equal(result.allowed, false);
+  assert.equal(result.status, 503);
+  assert.equal(db.tables.inr_agent_scheduled_actions[0].status, 'scheduled');
+  assert.equal(db.writes.length, 0);
+});
+
 for (const revoke of ['before-selection', 'after-claim', 'none'] as const) test(`real scheduled cron blocks revocation ${revoke} before provider and preserves one-time dispatch`, async () => {
   const db = database();
   if (revoke === 'before-selection') db.tables.profiles[0].role = 'user';
@@ -211,7 +246,7 @@ for (const revoke of ['before-selection', 'after-claim', 'none'] as const) test(
   } finally { globalThis.fetch = originalFetch; }
 });
 
-function settingsRoute(db: ReturnType<typeof database>, options: { impact?: boolean; edition?: 'premium' | 'standard' } = {}) {
+function settingsRoute(db: ReturnType<typeof database>, options: { impact?: boolean; edition?: 'basic' | 'premium' | 'standard' | 'founder' } = {}) {
   const connectionStates = Object.fromEntries(['site_web', 'gmb', 'facebook', 'instagram', 'linkedin', 'x', 'tiktok', 'youtube_shorts', 'pinterest', 'mails'].map(key => [key, { connected: true, requiresUpdate: false }]));
   return modules(db, {
     '@/lib/dashboardEditionServer': { getDashboardEditionForAuthUser: async () => options.edition ?? 'premium' },
@@ -231,7 +266,7 @@ const save = (route: ReturnType<typeof settingsRoute>, settings: unknown, extra 
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ settings, ...extra }),
 }));
 
-test('raw non-admin requests including legacy fields fail before connected-channel lookup, references and RPC', async () => {
+test('ineligible accounts cannot save restricted options through current or legacy fields', async () => {
   for (const raw of [{ frequency: 'daily' }, { mode: 'admin_automatic_publish' }, { automations: { publish: { frequency: 'daily' } } }, { automations: { grow: { validationMode: 'admin_automatic_publish' } } }]) {
     const db = database(); db.tables.profiles[0].role = 'user';
     const route = settingsRoute(db); const response = await save(route, raw);
@@ -239,6 +274,45 @@ test('raw non-admin requests including legacy fields fail before connected-chann
     assert.equal(db.writes.length, 0); assert.deepEqual([...new Set(db.reads)], ['profiles']);
   }
 });
+
+for (const edition of ['standard', 'premium', 'founder', 'basic'] as const) {
+  test(`non-admin ${edition}: saved cadence and validation follow the active account at read, write and execution`, async () => {
+    const db = database(edition);
+    db.tables.profiles.forEach(row => { row.role = 'user'; });
+    const route = settingsRoute(db, { edition });
+    const highFrequency = ['premium', 'founder'].includes(edition);
+    const automaticPublish = edition !== 'basic';
+    const read = await (await route.GET(new Request('http://isolated.test/api/agent/settings'))).json();
+    assert.deepEqual(read.publicationOptionAccess, { highFrequency, automaticPublish });
+    assert.equal(read.settings.automations.publish.frequency, highFrequency ? 'daily' : 'weekly');
+    assert.equal(read.settings.automations.publish.validationMode, automaticPublish ? 'admin_automatic_publish' : 'notify_before_validation');
+    const common = sanitizeInrAgentSettings({ globalEnabled: true, automations: { ...sanitizeInrAgentSettings(null).automations, publish: publish() } });
+    const settings = common.automations.publish;
+    for (const frequency of ['weekly', 'five_times_weekly', 'daily'] as const) {
+      settings.frequency = frequency;
+      for (const mode of ['notify_before_validation', 'admin_automatic_publish'] as const) {
+        settings.validationMode = mode;
+        const allowed = (frequency === 'weekly' || highFrequency) && (mode !== 'admin_automatic_publish' || automaticPublish);
+        const response = await save(route, sanitizeInrAgentSettings(common));
+        assert.equal(response.status, allowed ? 200 : 403, `${frequency}/${mode}`);
+        if (!allowed) continue;
+        const row = db.tables.inr_agent_automation_settings.find(entry => entry.automation_key === 'publish')!;
+        assert.equal(row.frequency, frequency);
+        assert.equal(row.validation_mode, mode);
+        if (mode === 'admin_automatic_publish') assert.ok(policy.readInrAgentAdminPublishOptIn(row.metadata.adminPublishOptIn));
+      }
+    }
+    const active = db.tables.inr_agent_automation_settings.find(row => row.automation_key === 'publish')!;
+    Object.assign(active, { frequency: 'weekly', validation_mode: 'admin_automatic_publish', metadata: { adminPublishOptIn: optIn } });
+    const server = modules(db)<typeof import('../../lib/inrAgentAdminPublishServer.ts')>('lib/inrAgentAdminPublishServer.ts');
+    const eligible = () => server.isInrAgentAdminAutomaticPublicationAuthorized({ supabase: db.client, accountId, isCron: true, marker });
+    assert.equal(await eligible(), automaticPublish);
+    active.frequency = 'five_times_weekly';
+    assert.equal(await eligible(), highFrequency);
+    db.subscription.edition = 'basic';
+    assert.equal(await eligible(), false);
+  });
+}
 
 for (const edition of ['premium', 'standard'] as const) test(`${edition} settings mint their own opt-in, preserve it on an unchanged save, clear it on OFF and mint a new one on ON`, async () => {
   const db = database(); db.tables.inr_agent_automation_settings = []; db.tables.inr_agent_settings[0].global_enabled = false;

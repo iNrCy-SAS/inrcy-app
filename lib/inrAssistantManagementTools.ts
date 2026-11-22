@@ -9,7 +9,7 @@ import { currentSubscriptionOffer } from "./subscriptionOffers.ts";
 import {
   INR_AGENT_AUTOMATION_KEYS, INR_AGENT_CHANNELS, INR_AGENT_FREQUENCIES, INR_AGENT_THEMES, INR_AGENT_DEFAULT_SETTINGS,
   INR_AGENT_RECIPIENT_SCOPES, INR_AGENT_PREFERRED_MEDIA_SOURCES, INR_AGENT_VALIDATION_MODES,
-  sanitizeInrAgentSettings, type InrAgentAutomationKey, type InrAgentSettings,
+  getInrAgentDefaultScheduleDays, sanitizeInrAgentSettings, type InrAgentAutomationKey, type InrAgentSettings,
 } from "./inrAgentSettings.ts";
 import { inrAgentMonthlyDateCount } from "./inrAgentMonthSchedule.ts";
 
@@ -78,11 +78,12 @@ function parseAgent(value: unknown): AgentInput {
         schedule.monthDays.some(day => !Number.isInteger(day) || day < 1 || day > 31) || typeof schedule.time !== "string" || !TIME.test(schedule.time) ||
         (schedule.slots != null && (!Array.isArray(schedule.slots) || schedule.slots.length))) throw invalid();
     } else {
-      const count = schedule.frequency === "three_times_weekly" ? 3 : schedule.frequency === "twice_weekly" ? 2 : 1;
+      if (input.agent !== "publish" && (schedule.frequency === "daily" || schedule.frequency === "five_times_weekly")) throw invalid();
+      const count = getInrAgentDefaultScheduleDays(schedule.frequency, 1).length;
       if (!Array.isArray(schedule.slots) || schedule.slots.length !== count || schedule.slots.some(value => {
         const slot = record(value);
         return !keys(slot, ["dayOfWeek", "time"]) || !Number.isInteger(slot.dayOfWeek) || Number(slot.dayOfWeek) < 0 || Number(slot.dayOfWeek) > 6 || typeof slot.time !== "string" || !TIME.test(slot.time);
-      }) || new Set(schedule.slots.map(value => { const slot = record(value); return `${slot.dayOfWeek}:${slot.time}`; })).size !== count ||
+      }) || new Set(schedule.slots.map(value => record(value).dayOfWeek)).size !== count ||
         (schedule.monthDays != null && (!Array.isArray(schedule.monthDays) || schedule.monthDays.length))) throw invalid();
     }
     if (schedule.frequency === "one_off" || (schedule.frequency === "quarterly" && ["publish", "grow"].includes(input.agent))) throw invalid();
@@ -175,12 +176,12 @@ export function createInrAssistantManagementTools(options: {
     }),
     configureAgentAutomation: tool({
       strict: true,
-      description: "Modifier uniquement les réglages de l’agent explicitement demandé DANS LE DERNIER MESSAGE DU PRO : activation/pause, fréquence, horaires complets, canaux, thèmes, destinataires par catégorie ou préférence médias. Standard : publish/stats ; Premium ajoute grow/loyalty. Une nouvelle activation exige un planning complet et son fuseau actuel, sans inventer d’heure. biweekly signifie DEUX DATES PAR MOIS, pas une semaine sur deux. slots: jour0dimanche→6samedi, 1/2/3 créneaux selon fréquence ; mensualités : monthDays exacts et time. Conserve les autres agents, destinataires précis, références et métadonnées. Ne publie/envoie aucune campagne directement ; Stats activé en automatic_report peut envoyer ses bilans selon le planning. L’API garde les contrôles de crédit et de modification du planning ; une confirmation exigée reste à finaliser dans le module.",
+      description: "Modifier uniquement les réglages de l’agent explicitement demandé DANS LE DERNIER MESSAGE DU PRO : activation/pause, fréquence, horaires complets, canaux, thèmes, destinataires par catégorie ou préférence médias. Standard : publish/stats ; Premium ajoute grow/loyalty. Une nouvelle activation exige un planning complet et son fuseau actuel, sans inventer d’heure. biweekly signifie DEUX DATES PAR MOIS, pas une semaine sur deux. slots: jour0dimanche→6samedi, un créneau par jour choisi (1, 2, 3, 5 ou 7 selon la fréquence) ; mensualités : monthDays exacts et time. Conserve les autres agents, destinataires précis, références et métadonnées. Ne publie/envoie aucune campagne directement ; Stats activé en automatic_report peut envoyer ses bilans selon le planning. L’API garde les contrôles de crédit et de modification du planning ; une confirmation exigée reste à finaliser dans le module.",
       inputSchema: jsonSchema<AgentInput>({ type: "object", properties: {
         agent: { type: "string", enum: [...INR_AGENT_AUTOMATION_KEYS] }, enabled: { type: ["boolean", "null"] },
         schedule: { type: ["object", "null"], properties: {
           frequency: { type: "string", enum: INR_AGENT_FREQUENCIES.filter(value => value !== "one_off") }, timezone: { type: "string", maxLength: 80 },
-          slots: { type: ["array", "null"], maxItems: 3, items: { type: "object", properties: { dayOfWeek: { type: "integer", minimum: 0, maximum: 6 }, time: { type: "string", pattern: TIME.source } }, required: ["dayOfWeek", "time"], additionalProperties: false } },
+          slots: { type: ["array", "null"], maxItems: 7, items: { type: "object", properties: { dayOfWeek: { type: "integer", minimum: 0, maximum: 6 }, time: { type: "string", pattern: TIME.source } }, required: ["dayOfWeek", "time"], additionalProperties: false } },
           monthDays: { type: ["array", "null"], maxItems: 3, items: { type: "integer", minimum: 1, maximum: 31 } }, time: { type: ["string", "null"] },
         }, required: ["frequency", "timezone", "slots", "monthDays", "time"], additionalProperties: false },
         channels: nullableList(INR_AGENT_CHANNELS), themes: nullableList(INR_AGENT_THEMES), recipientScope: nullableEnum(INR_AGENT_RECIPIENT_SCOPES),

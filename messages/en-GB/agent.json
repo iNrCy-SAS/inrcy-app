@@ -920,6 +920,8 @@
   "settings_impact_media_count": "{images, plural, one {# image} other {# images}} · {videos, plural, one {# video} other {# videos}} ({seconds} s)",
   "settings_impact_publications_count": "{count, plural, one {post} other {posts}}",
   "agent_admin_publish_daily": "Publish every day",
+  "agent_publish_five_times_weekly": "5 times a week",
+  "agent_publish_premium_frequency": "{frequency} — Premium",
   "agent_admin_publish_without_approval": "Publish without prior approval",
   "agent_admin_publish_daily_hint": "Every day, at the selected time. The selected approval mode still applies.",
   "agent_admin_publish_without_approval_hint": "New posts will be scheduled for publication at the planned time without manual approval.",

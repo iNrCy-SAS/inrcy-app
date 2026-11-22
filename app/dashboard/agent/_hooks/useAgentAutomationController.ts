@@ -35,6 +35,7 @@ import type {
 import {
   automations,
   pendingActionStatuses,
+  weekDays,
 } from "../_lib/agent.config";
 import {
   configsToSettings,
@@ -137,6 +138,9 @@ export function useAgentAutomationController({
       const normalizedSlots = normalizeConfigScheduleSlots({
         ...currentConfig,
         frequency,
+        scheduleSlots: frequency === "5 fois par semaine" && currentConfig.frequency !== frequency
+          ? weekDays.slice(0, 5).map((day) => currentConfig.scheduleSlots.find((slot) => slot.day === day) ?? { day, time: currentConfig.time })
+          : currentConfig.scheduleSlots,
       });
       const monthlyScheduleSlots = normalizeInrAgentMonthScheduleSlots(
         currentConfig.monthlyScheduleSlots?.length

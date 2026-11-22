@@ -76,12 +76,127 @@ test('admin publication options enforce real PostgreSQL authorization, consent a
       assert.match(defaults.value, /notify_before_validation/);
     });
 
-    await t.test('only application admins can persist daily or automatic publication; all ordinary roles retain manual settings', async () => {
+    await t.test('plan migration preserves legacy settings, existing jobs, manual confirmation and ACLs', async () => {
+      await db.exec(`
+        create type public.subscription_plan as enum ('Basic','Trial','Standard','Premium','Founder');
+        create type public.stripe_subscription_status as enum ('active','trialing','past_due','unpaid','paused','canceled','incomplete','incomplete_expired');
+        create table public.subscriptions (user_id uuid primary key, plan public.subscription_plan,
+          status public.stripe_subscription_status, start_date date, trial_end_at timestamptz,
+          stripe_customer_id text, stripe_subscription_id text, app_edition text);
+        create table public.inrcy_accounts(id uuid primary key);
+        create table public.inrcy_account_members(account_id uuid,auth_user_id uuid,role text,primary key(account_id,auth_user_id));
+      `);
+      await db.exec(await readFile(new URL('../../supabase/migrations/20261116135131_account_subscription_entitlement_offers.sql', import.meta.url), 'utf8'));
+      const historical = await account();
+      await enable(historical, { frequency: 'daily' });
+      const prepared = await action(historical);
+      await scheduled(historical, prepared);
+      const saved = await snapshot();
+      await db.exec(await readFile(new URL('../../supabase/migrations/20261122011110_inr_agent_publication_plan_options.sql', import.meta.url), 'utf8'));
+      assert.deepEqual(await snapshot(), saved);
+      assert.deepEqual((await security()).rows, beforeSecurity);
+      assert.deepEqual(await one("select pg_get_functiondef('public.inrcy_confirm_editorial_publication_schedule(uuid,uuid,jsonb,jsonb)'::regprocedure) body"), manualRpc);
+    });
+
+    const rights = a => asRole('service_role', () => one(
+      'select * from public.inrcy_inr_agent_publication_plan_rights($1)', [a.id],
+    ));
+    const subscribe = (a, plan, status = 'active') => db.query(
+      'insert into public.subscriptions(user_id,plan,status,start_date) values($1,$2,$3,current_date)', [a.id, plan, status],
+    );
+
+    await t.test('paid publication options use independent frequency and validation rights on RPC and direct writes', async () => {
+      for (const [plan, highFrequency, automatic] of [
+        ['Basic', false, false], ['Trial', false, true], ['Standard', false, true],
+        ['Premium', true, true], ['Founder', true, true],
+      ]) {
+        const a = await account('user');
+        await subscribe(a, plan, plan === 'Trial' ? 'trialing' : 'active');
+        assert.deepEqual(await rights(a), { can_use_high_frequency: highFrequency, can_publish_without_validation: automatic }, plan);
+        await saveRows(a, [automation(a)]);
+        for (const frequency of ['five_times_weekly', 'daily']) {
+          if (highFrequency) await saveRows(a, [automation(a, { frequency })]);
+          else {
+            const before = await snapshot();
+            await assert.rejects(saveRows(a, [automation(a, { frequency })], { tone: 'dynamic' }), /INR_AGENT_ADMIN_OPTIONS_REQUIRED/);
+            assert.deepEqual(await snapshot(), before, 'global and automation settings roll back together');
+            await assert.rejects(write('update public.inr_agent_automation_settings set frequency=$2 where user_id=$1', [a.id, frequency]), /INR_AGENT_ADMIN_OPTIONS_REQUIRED/);
+          }
+        }
+        if (automatic) {
+          await assert.rejects(enable(a, { metadata: {} }), /INR_AGENT_ADMIN_OPT_IN_REQUIRED/);
+          await enable(a);
+          const prepared = await action(a);
+          await scheduled(a, prepared);
+        } else {
+          await assert.rejects(enable(a), /INR_AGENT_ADMIN_OPTIONS_REQUIRED/);
+          await assert.rejects(write("update public.inr_agent_automation_settings set validation_mode='admin_automatic_publish',metadata=$2 where user_id=$1", [a.id, { adminPublishOptIn: a.optIn }]), /INR_AGENT_ADMIN_OPTIONS_REQUIRED/);
+        }
+      }
+    });
+
+    await t.test('losing an active subscription blocks previously prepared automatic work and leaves safe cancellation possible', async () => {
+      const a = await account('user');
+      await subscribe(a, 'Premium');
+      await enable(a, { frequency: 'five_times_weekly' });
+      const prepared = await action(a), job = await scheduled(a, prepared);
+      await db.query("update public.subscriptions set plan='Standard' where user_id=$1", [a.id]);
+      await assert.rejects(enable(a, { frequency: 'five_times_weekly' }), /INR_AGENT_ADMIN_OPTIONS_REQUIRED/);
+      await enable(a, { frequency: 'three_times_weekly' });
+      await write("update public.inr_agent_scheduled_actions set status='running' where id=$1", [job.id]);
+      for (const status of ['past_due','unpaid','paused','canceled','incomplete','incomplete_expired']) {
+        await db.query('update public.subscriptions set status=$2 where user_id=$1', [a.id, status]);
+        assert.deepEqual(await rights(a), { can_use_high_frequency: false, can_publish_without_validation: false }, status);
+      }
+      await assert.rejects(write("update public.inr_agent_actions set status='executing' where id=$1", [prepared.id]), /INR_AGENT_ADMIN_AUTOMATIC_PUBLICATION_DENIED/);
+      await assert.rejects(write("update public.inr_agent_scheduled_actions set status='scheduled' where id=$1", [job.id]), /INR_AGENT_ADMIN_AUTOMATIC_SCHEDULE_DENIED/);
+      await write("update public.inr_agent_scheduled_actions set status='cancelled' where id=$1", [job.id]);
+      await write("update public.inr_agent_actions set status='pending_validation',validation_required=true,execution_policy='manual_validation' where id=$1", [prepared.id]);
+    });
+
+    await t.test('trial end takes precedence over the original 21-day window; missing dates deny', async () => {
+      const a = await account('user');
+      await subscribe(a, 'Trial', 'trialing');
+      const allowed = async () => (await rights(a)).can_publish_without_validation;
+      assert.equal(await allowed(), true);
+      await db.query("update public.subscriptions set trial_end_at=now()-interval '1 second' where user_id=$1", [a.id]);
+      assert.equal(await allowed(), false);
+      await db.query('update public.subscriptions set trial_end_at=null, start_date=current_date-22 where user_id=$1', [a.id]);
+      assert.equal(await allowed(), false);
+      await db.query("update public.subscriptions set trial_end_at=now()+interval '1 day' where user_id=$1", [a.id]);
+      assert.equal(await allowed(), true);
+      await db.query('update public.subscriptions set trial_end_at=null, start_date=null where user_id=$1', [a.id]);
+      assert.equal(await allowed(), false);
+    });
+
+    await t.test('an exact establishment contract overrides its verified owner; foreign members and orphaned contracts never grant rights', async () => {
+      const owner = await account('user'), a = await account('user'), other = await account('user');
+      await subscribe(owner, 'Standard');
+      await subscribe(other, 'Founder');
+      await db.query('insert into public.inrcy_accounts values($1)', [a.id]);
+      await db.query("insert into public.inrcy_account_members values($1,$2,'member')", [a.id, other.id]);
+      assert.deepEqual(await rights(a), { can_use_high_frequency: false, can_publish_without_validation: false });
+      await db.query("insert into public.inrcy_account_members values($1,$2,'owner')", [a.id, owner.id]);
+      assert.deepEqual(await rights(a), { can_use_high_frequency: false, can_publish_without_validation: true });
+      await db.query(`insert into public.inrcy_account_subscriptions
+        (account_id, auth_user_id, stripe_customer_id, stripe_subscription_id, stripe_price_id, status,
+         monthly_price_eur, monthly_price_tax_behavior, billing_cycle, start_date, entitlement_offer)
+        values ($1,$2,'cus_test','sub_test','price_test','active',10,'exclusive','monthly',current_date,'negotiated')`, [a.id, owner.id]);
+      assert.deepEqual(await rights(a), { can_use_high_frequency: true, can_publish_without_validation: true });
+      await db.query("update public.inrcy_account_subscriptions set status='canceled' where account_id=$1", [a.id]);
+      assert.deepEqual(await rights(a), { can_use_high_frequency: false, can_publish_without_validation: false });
+      await db.query("update public.inrcy_account_subscriptions set status='active' where account_id=$1", [a.id]);
+      await db.query("update public.inrcy_account_members set role='member' where account_id=$1 and auth_user_id=$2", [a.id, owner.id]);
+      assert.deepEqual(await rights(a), { can_use_high_frequency: false, can_publish_without_validation: false });
+    });
+
+    await t.test('without a qualifying plan only historical application admins retain publication exceptions', async () => {
       for (const role of ['user', 'staff', 'reviewer', 'admin']) {
         const a = await account(role);
         await saveRows(a, [automation(a)]);
         assert.equal((await one('select public.inrcy_is_inr_agent_admin_account($1) allowed', [a.id])).allowed, role === 'admin');
         if (role === 'admin') {
+          await saveRows(a, [automation(a, { frequency: 'five_times_weekly' })]);
           await saveRows(a, [automation(a, { frequency: 'daily' })]);
           await enable(a, { frequency: 'daily' });
         } else {
@@ -98,7 +213,9 @@ test('admin publication options enforce real PostgreSQL authorization, consent a
     await t.test('privileged frequencies and mode stay confined to publish, while other automation modes remain available', async () => {
       const a = await account();
       for (const moduleKey of ['grow', 'loyalty', 'stats']) {
-        await assert.rejects(saveRows(a, [automation(a, { automation_key: moduleKey, frequency: 'daily', validation_mode: 'validation_required' })]), /INR_AGENT_ADMIN_OPTIONS_REQUIRED|inr_agent_frequency_check/);
+        for (const frequency of ['five_times_weekly','daily']) {
+          await assert.rejects(saveRows(a, [automation(a, { automation_key: moduleKey, frequency, validation_mode: 'validation_required' })]), /INR_AGENT_ADMIN_OPTIONS_REQUIRED|inr_agent_frequency_check/);
+        }
         await assert.rejects(saveRows(a, [automation(a, { automation_key: moduleKey, validation_mode: 'admin_automatic_publish', metadata: { adminPublishOptIn: a.optIn } })]), /INR_AGENT_ADMIN_OPTIONS_REQUIRED|inr_agent_validation_mode_check/);
       }
       await saveRows(a, [automation(a), automation(a, { automation_key: 'stats', validation_mode: 'automatic_report' })]);
@@ -107,7 +224,7 @@ test('admin publication options enforce real PostgreSQL authorization, consent a
 
     await t.test('RPC and authorization helpers expose no browser execute privilege and preserve service-only writes', async () => {
       const a = await account();
-      const signatures = ['inrcy_save_inr_agent_settings(jsonb,jsonb)', 'inrcy_is_inr_agent_admin_account(uuid)',
+      const signatures = ['inrcy_save_inr_agent_settings(jsonb,jsonb)', 'inrcy_is_inr_agent_admin_account(uuid)', 'inrcy_inr_agent_publication_plan_rights(uuid)',
         'inrcy_inr_agent_admin_opt_in_valid(jsonb)', 'inrcy_inr_agent_admin_marker_valid(uuid,jsonb)', 'inrcy_inr_agent_admin_publish_authorized(uuid,jsonb)'];
       for (const signature of signatures) {
         const grants = await one("select has_function_privilege('anon',$1,'EXECUTE') anon,has_function_privilege('authenticated',$1,'EXECUTE') authenticated,has_function_privilege('service_role',$1,'EXECUTE') service", [`public.${signature}`]);

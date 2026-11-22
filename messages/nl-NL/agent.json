@@ -920,6 +920,8 @@
   "settings_impact_media_count": "{images, plural, one {# afbeelding} other {# afbeeldingen}} · {videos, plural, one {# video} other {# video’s}} ({seconds} s)",
   "settings_impact_publications_count": "{count, plural, one {bericht} other {berichten}}",
   "agent_admin_publish_daily": "Elke dag publiceren",
+  "agent_publish_five_times_weekly": "Vijfmaal per week",
+  "agent_publish_premium_frequency": "{frequency} — Premium",
   "agent_admin_publish_without_approval": "Publiceren zonder voorafgaande goedkeuring",
   "agent_admin_publish_daily_hint": "Elke dag op het gekozen tijdstip. De gekozen goedkeuringsmodus blijft gelden.",
   "agent_admin_publish_without_approval_hint": "Nieuwe berichten worden zonder handmatige goedkeuring voor het geplande tijdstip ingepland.",

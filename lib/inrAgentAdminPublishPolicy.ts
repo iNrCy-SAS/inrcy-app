@@ -1,3 +1,5 @@
+import type { DashboardEdition } from './dashboardEdition.ts';
+
 export const INR_AGENT_ADMIN_PUBLISH_MODE = 'admin_automatic_publish' as const;
 export type InrAgentAdminPublishOptIn = { version: 1; id: string; enabledAt: string };
 export type InrAgentAdminAutomaticPublish = { version: 1; optInId: string; accountId: string; preparedAt: string };
@@ -19,18 +21,38 @@ export function readInrAgentAdminAutomaticPublish(value: unknown): InrAgentAdmin
     ? { version: 1, optInId: input.optInId, accountId: input.accountId, preparedAt: input.preparedAt } : null;
 }
 
+export function isInrAgentHighPublicationFrequency(frequency: unknown) {
+  return frequency === 'daily' || frequency === 'five_times_weekly';
+}
+
+export type InrAgentPublicationOptionAccess = { highFrequency: boolean; automaticPublish: boolean };
+
+export function getInrAgentPublicationOptionAccess(edition: DashboardEdition, existingAdminAccess: boolean): InrAgentPublicationOptionAccess {
+  const highFrequency = existingAdminAccess || edition === 'premium' || edition === 'founder';
+  return { highFrequency, automaticPublish: highFrequency || edition === 'standard' };
+}
+
+export function isInrAgentPublicationSettingAllowed(
+  automation: { frequency?: unknown; validationMode?: unknown }, access: InrAgentPublicationOptionAccess,
+) {
+  return (!isInrAgentHighPublicationFrequency(automation.frequency) || access.highFrequency)
+    && (automation.validationMode !== INR_AGENT_ADMIN_PUBLISH_MODE || access.automaticPublish);
+}
+
 /** Inspect raw settings before structural normalization can discard a forbidden module. */
 export function requestedInrAgentAdminOptions(value: unknown) {
   const input = record(value), automations = record(input.automations);
-  const usesAdminOption = (entry: Record<string, unknown>) => entry.frequency === 'daily' || entry.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE;
+  const entries = Object.values(automations).map(record);
+  const highFrequency = isInrAgentHighPublicationFrequency(input.frequency) || entries.some(entry => isInrAgentHighPublicationFrequency(entry.frequency));
+  const automaticPublish = input.mode === INR_AGENT_ADMIN_PUBLISH_MODE || entries.some(entry => entry.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE);
   return {
-    requested: input.frequency === 'daily' || input.mode === INR_AGENT_ADMIN_PUBLISH_MODE || Object.values(automations).some(entry => usesAdminOption(record(entry))),
-    invalidModule: Object.entries(automations).some(([key, entry]) => key !== 'publish' && usesAdminOption(record(entry))),
+    highFrequency, automaticPublish,
+    invalidModule: Object.entries(automations).some(([key, entry]) => key !== 'publish' && inrAgentPublishUsesRestrictedOptions(record(entry))),
   };
 }
 
-export function inrAgentPublishNeedsAdmin(automation: { frequency?: unknown; validationMode?: unknown }) {
-  return automation.frequency === 'daily' || automation.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE;
+export function inrAgentPublishUsesRestrictedOptions(automation: { frequency?: unknown; validationMode?: unknown }) {
+  return isInrAgentHighPublicationFrequency(automation.frequency) || automation.validationMode === INR_AGENT_ADMIN_PUBLISH_MODE;
 }
 
 export function inrAgentAdminMarkerMatchesOptIn(markerValue: unknown, optInValue: unknown, accountId: string) {

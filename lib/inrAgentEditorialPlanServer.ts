@@ -1,6 +1,6 @@
 import "server-only";
-import { isInrAgentAdminAccount } from "@/lib/inrAgentAdminOptionsServer";
-import { INR_AGENT_ADMIN_PUBLISH_MODE, inrAgentAdminMarkerMatchesOptIn, inrAgentPublishNeedsAdmin, readInrAgentAdminAutomaticPublish } from "@/lib/inrAgentAdminPublishPolicy";
+import { canUseInrAgentPublicationSettings } from "@/lib/inrAgentPublicationOptionAccessServer";
+import { INR_AGENT_ADMIN_PUBLISH_MODE, inrAgentAdminMarkerMatchesOptIn, readInrAgentAdminAutomaticPublish } from "@/lib/inrAgentAdminPublishPolicy";
 import { isInrAgentAdminAutomaticPublicationAuthorized, parkInrAgentAdminAutomaticPublications } from "@/lib/inrAgentAdminPublishServer";
 
 import { createHash } from "node:crypto";
@@ -584,7 +584,7 @@ export async function activatePendingInrAgentEditorialSettings(args: {
   if (!pending || !Number.isFinite(effectiveAt) || effectiveAt > now.getTime()) {
     return { automation: current, activated: false };
   }
-  if (inrAgentPublishNeedsAdmin(pending) && !await isInrAgentAdminAccount(args.supabase, args.userId)) {
+  if (!await canUseInrAgentPublicationSettings(args.supabase, { accountId: args.userId, isCron: true }, pending)) {
     await parkInrAgentAdminAutomaticPublications({ supabase: args.supabase, accountId: args.userId });
     throw new Error("INR_AGENT_ADMIN_OPTIONS_FORBIDDEN");
   }
@@ -622,8 +622,7 @@ export async function reconcileInrAgentEditorialPlan(args: {
 }) {
   const now = args.now ?? new Date();
   const nowIso = now.toISOString();
-  const adminOptionsAllowed = !inrAgentPublishNeedsAdmin(args.automation) || await isInrAgentAdminAccount(args.supabase, args.userId);
-  if (!adminOptionsAllowed) {
+  if (!await canUseInrAgentPublicationSettings(args.supabase, { accountId: args.userId, isCron: true }, args.automation)) {
     await parkInrAgentAdminAutomaticPublications({ supabase: args.supabase, accountId: args.userId, now: nowIso });
     throw new Error("INR_AGENT_ADMIN_OPTIONS_FORBIDDEN");
   }

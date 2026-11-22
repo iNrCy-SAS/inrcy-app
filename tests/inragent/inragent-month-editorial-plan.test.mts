@@ -355,7 +355,7 @@ test("la publication iNrAgent reste manuelle par défaut et son exception admin 
   assert.match(prepare, /validationMode === "admin_automatic_publish" \? "automatic_after_settings" : "manual_validation"/);
   assert.match(prepare, /validationMode === "admin_automatic_publish" \? "prepared" : "pending_validation"/);
   assert.match(prepare, /validationMode !== "admin_automatic_publish"/);
-  assert.match(prepare, /canUseInrAgentAdminOptions/);
+  assert.match(prepare, /canUseInrAgentPublicationSettings/);
   assert.match(prepare, /isInrAgentAdminAutomaticPublicationAuthorized/);
   assert.match(schedule, /resolveInrAgentActionRequest/);
   assert.match(schedule, /INR_AGENT_ADMIN_AUTOMATIC_PUBLISH_FORBIDDEN/);

@@ -276,11 +276,12 @@ Dans Publications, Idées prépare les sujets et Générer prépare le contenu s
 Modifier contenu charge les textes et médias enregistrés. Une erreur de chargement laisse leur présence à vérifier. Quitter sans enregistrer les conserve. Pour un média IA, iNrStudio présente le devis et vérifie les crédits. Le texte, l’import médiathèque et la retouche manuelle restent accessibles si les crédits manquent.
 Dans Réglages, choisir les canaux connectés, les sources et formats de médias, les références autorisées, la fréquence, les jours et les heures. Préparer 7 jours, 15 jours (recommandé) ou 1 mois à l’avance. Enregistrer les réglages et choisir la date d’application si demandée.
 Le planning réserve les créneaux avant de créer leur contenu. La carte de publication affiche l’attente puis la préparation. En cas d’interruption, elle indique le motif public disponible et la reprise prévue. La préparation conserve la date et le mode de validation. Aucun délai précis n’est garanti.
-Valider et Refuser prennent effet sur la publication. La validation est manuelle par défaut. « Publier tous les jours » (heure locale) et « Publier sans validation préalable » exigent les droits administrateur de l’acteur et du compte actif. Confirmer l’activation. L’accord explicite vaut pour les nouvelles publications, dans les quotas et crédits existants. Sur demande, les autres canaux sont programmés et TikTok reste à valider avant l’horaire, sur la même publication, sans régénération ni doublon.
+La validation est manuelle par défaut. Premium et Fondateur permettent cinq publications par semaine ou une par jour. Dès Standard, « Publier sans validation préalable » exige de confirmer l’activation et vaut pour les nouvelles publications, selon les quotas et crédits. Les administrateurs gardent leurs droits. Sur demande, les autres canaux sont programmés et TikTok reste à valider avant l’horaire, sans régénération ni doublon.
 Dans Emailings, choisir Prospection ou Fidélisation, puis Préparer, Planning ou Réglages. Une boîte connectée et des destinataires sont requis. Dans Stats, « Envoyer un bilan » peut envoyer un PDF au professionnel.`,
     sourceFiles: ["lib/productNavigation.ts",
       "lib/inrAgentWorkspaces.ts",
       "lib/inrAgentAdminOptionsServer.ts",
+      "lib/inrAgentPublicationOptionAccessServer.ts",
       "lib/inrAgentAdminPublishPolicy.ts",
       "lib/inrAgentAdminPublishServer.ts",
       "lib/inrAgentEditorialPlanning.ts",

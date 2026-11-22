@@ -920,6 +920,8 @@
   "settings_impact_media_count": "{images, plural, one {# imagen} other {# imágenes}} · {videos, plural, one {# vídeo} other {# vídeos}} ({seconds} s)",
   "settings_impact_publications_count": "{count, plural, one {publicación} other {publicaciones}}",
   "agent_admin_publish_daily": "Publicar todos los días",
+  "agent_publish_five_times_weekly": "5 veces por semana",
+  "agent_publish_premium_frequency": "{frequency} — Premium",
   "agent_admin_publish_without_approval": "Publicar sin aprobación previa",
   "agent_admin_publish_daily_hint": "Todos los días, a la hora elegida. Se mantiene el modo de aprobación seleccionado.",
   "agent_admin_publish_without_approval_hint": "Las nuevas publicaciones se programarán para la hora prevista sin aprobación manual.",

@@ -12,7 +12,7 @@ const ACTION = "33333333-3333-4333-8333-333333333333";
 const OPT_IN = { version: 1, id: "44444444-4444-4444-8444-444444444444", enabledAt: "2026-11-14T00:00:00.000Z" };
 const MARKER = { version: 1, optInId: OPT_IN.id, accountId: ACCOUNT, preparedAt: "2026-11-14T00:01:00.000Z" };
 const FUTURE = "2099-06-04T16:00:00.000Z";
-function fixture() {
+function fixture(paidAccount = false) {
   const payload = { channels: ["facebook", "tiktok"], selectedChannels: ["facebook", "tiktok"], adminAutomaticPublish: structuredClone(MARKER),
     editorialPlan: { state: "ready", timezone: "Europe/Paris", scheduledFor: FUTURE },
     postByChannel: { facebook: { content: "Caption Facebook" }, tiktok: { content: "Caption TikTok" } },
@@ -33,7 +33,11 @@ function fixture() {
   let beforeActionUpdate: (() => void) | null = null;
   const contains = (actual: Row[string], expected: Row[string]): boolean => expected && typeof expected === "object"
     ? actual != null && Object.entries(expected).every(([key, value]) => contains(actual[key], value)) : actual === expected;
-  const client = { from(table: string) {
+  const client = { async rpc(name: string, args: Row) {
+    assert.equal(name, "inrcy_inr_agent_publication_plan_rights");
+    assert.deepEqual(args, { p_user_id: ACCOUNT });
+    return { data: [{ can_use_high_frequency: false, can_publish_without_validation: paidAccount }], error: null };
+  }, from(table: string) {
     let patch: Row | null = null, inserted: Row[] | null = null;
     const filters: Array<(row: Row) => boolean> = [];
     const valueAt = (row: Row, key: string): Row[string] => key.split(/->>?/).reduce((value, part) => value?.[part], row);
@@ -117,8 +121,9 @@ async function worker(db: ReturnType<typeof fixture>, h: ReturnType<typeof harne
   finally { globalThis.fetch = fetch; }
 }
 
-test("opted-in worker keeps TikTok checked for separate review, preserves all paid media and creates one job for the others", async () => {
-  const db = fixture(), h = harness(db), initial = structuredClone(db.action());
+test("an opted-in Standard account keeps TikTok checked for separate review, preserves all paid media and creates one job for the others", async () => {
+  const db = fixture(true), h = harness(db), initial = structuredClone(db.action());
+  db.tables.profiles[0].role = "user";
   const first = await worker(db, h);
   assert.equal(first.calls, 1); assert.equal(first.result[0]?.status, "scheduled");
   assert.deepEqual(unvalidatedInrAgentPublicationChannels(db.action().payload), ["tiktok"]);

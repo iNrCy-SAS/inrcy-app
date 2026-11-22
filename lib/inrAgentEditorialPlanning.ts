@@ -1,4 +1,6 @@
 import {
+  INR_AGENT_FREQUENCIES,
+  getInrAgentDefaultScheduleDays,
   normalizeInrAgentPublicationMediaTypes,
   type InrAgentAutomationSettings,
   type InrAgentChannel,
@@ -154,19 +156,7 @@ function addLocalDays(base: ReturnType<typeof getLocalParts>, days: number) {
 
 function frequencyValue(value: unknown): InrAgentFrequency {
   const normalized = String(value || "weekly") as InrAgentFrequency;
-  return [
-    "daily",
-    "weekly",
-    "twice_weekly",
-    "three_times_weekly",
-    "biweekly",
-    "three_times_monthly",
-    "monthly",
-    "quarterly",
-    "one_off",
-  ].includes(normalized)
-    ? normalized
-    : "weekly";
+  return INR_AGENT_FREQUENCIES.includes(normalized) ? normalized : "weekly";
 }
 
 function toneValue(value: unknown): InrAgentTone {
@@ -182,27 +172,10 @@ function normalizeScheduleSlots(
   automation: InrAgentAutomationSettings,
 ): ScheduleSlot[] {
   const frequency = frequencyValue(automation.frequency);
-  const slotCount =
-    frequency === "daily"
-      ? 7
-      : frequency === "three_times_weekly"
-        ? 3
-        : frequency === "twice_weekly"
-          ? 2
-          : 1;
   const baseDay = normalizeDay(automation.dayOfWeek);
   const baseTime = normalizeTime(automation.time);
-  const offsets = slotCount === 7
-    ? Array.from({ length: 7 }, (_, index) => index)
-    : slotCount === 3
-      ? [0, 2, 4]
-      : slotCount === 2
-        ? [0, 3]
-        : [0];
-  const fallback = offsets.map((offset) => ({
-    dayOfWeek: (baseDay + offset) % 7,
-    time: baseTime,
-  }));
+  const fallback = getInrAgentDefaultScheduleDays(frequency, baseDay).map(day => ({ dayOfWeek: day, time: baseTime }));
+  const slotCount = fallback.length;
   const metadata = asRecord(automation.metadata);
   const raw = Array.isArray(metadata.scheduleSlots)
     ? metadata.scheduleSlots
