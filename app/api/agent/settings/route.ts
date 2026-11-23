@@ -627,7 +627,7 @@ async function saveAgentSettingsHandler(request: Request) {
   const requestedAdminOptions = requestedInrAgentAdminOptions(requestBody?.settings);
   const access = await resolveInrAgentPublicationOptionAccess(supabaseAdmin as unknown as InrAgentPublicationOptionClient, { accountId: activeUserId, actorAuthUserId: authUserId });
   if (requestedAdminOptions.highFrequency && !access.highFrequency) {
-    return NextResponse.json({ error: "Cette fréquence de publication est disponible avec les offres Premium et Fondateur.", code: "INR_AGENT_ADMIN_OPTIONS_FORBIDDEN" }, { status: 403 });
+    return NextResponse.json({ error: "Cette fréquence de publication est disponible avec l’offre Premium.", code: "INR_AGENT_ADMIN_OPTIONS_FORBIDDEN" }, { status: 403 });
   }
   if (requestedAdminOptions.automaticPublish && !access.automaticPublish) {
     return NextResponse.json({ error: "La publication sans validation préalable est disponible à partir de l’offre Standard.", code: "INR_AGENT_ADMIN_OPTIONS_FORBIDDEN" }, { status: 403 });
