@@ -96,6 +96,22 @@ test("contract recovery and forged active statuses cannot acquire discovery acce
   }
 });
 
+test("native channel activation and OAuth connection require a subscription", async () => {
+  for (const [path, method] of [
+    ["/api/native-channels/settings", "POST"], ["/api/inrbadge/settings", "PATCH"], ["/api/inr-search/settings", "POST"],
+    ["/api/integrations/google-business/start", "GET"], ["/api/integrations/facebook/start", "GET"],
+    ["/api/integrations/pinterest/start", "GET"], ["/api/integrations/linkedin/start", "GET"],
+  ] as const) {
+    const blocked = await request(path, method);
+    assert.equal(blocked.status, 403, `${method} ${path}`);
+    assert.equal((await blocked.json()).redirectTo, "/dashboard?panel=abonnement");
+    for (const options of [{ legacyTrial: true }, { paid: true }]) {
+      const allowed = await request(path, method, options);
+      assert.equal(allowed.headers.get("x-middleware-next"), "1", `${method} ${path} ${JSON.stringify(options)}`);
+    }
+  }
+});
+
 test("authentication, subscription status and payment recovery remain reachable without allowing paid tools", async () => {
   for (const path of ["/api/auth/direct-signup/status", "/api/auth/change-password", "/api/auth/sign-out", "/api/billing/checkout", "/api/billing/portal", "/api/public/basic-signup", "/api/stripe/webhook"]) {
     const response = await request(path); assert.equal(response.status, 200, path); assert.equal(response.headers.get("x-middleware-next"), "1", path);

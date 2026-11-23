@@ -68,6 +68,7 @@ function runtime(path: string, overrides: Props = {}) {
     if (specifier === "next/dynamic") return { __esModule: true, default: () => stub };
     if (specifier === "next/navigation") return { usePathname: () => "/dashboard", useRouter: () => ({ replace() {} }), useSearchParams: () => new URLSearchParams() };
     if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: false }) };
+    if (specifier.endsWith("usePaidMediaAction")) return { __esModule: true, default: () => ({ paidActionsLocked: false, subscriptionLabel: "Mon abonnement", subscriptionMessage: "Abonnement requis", openSubscription() {} }) };
     if (specifier.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (specifier.endsWith("useUnsavedExitGuard")) return { useUnsavedExitGuard() {} };
     if (specifier.endsWith("DashboardUnsavedNavigationProvider")) return { useDashboardUnsavedNavigation: () => ({ requestNavigation: async (fn: () => void) => { fn(); return true; } }) };
@@ -91,6 +92,23 @@ function nodes(tree: React.ReactNode): React.ReactElement<Props>[] {
   return React.isValidElement<Props>(tree) ? [tree, ...nodes(tree.props.children)] : [];
 }
 const item = { key: "gmb", name: "Google Business", description: "Augmente les appels", logoSrc: "/icons/gmb.png", accent: "cyan", bubbleStatus: "connected", bubbleStatusText: "Connecté", onConfigure() {} };
+
+test("discovery locks native channels and OAuth controls and opens the subscription instead", () => {
+  for (const key of ["inrbadge", "inr_search", "inr_directory", "gmb", "facebook", "pinterest"]) {
+    let opens = 0;
+    const h = runtime("app/dashboard/_components/DashboardChannelWorkspace.tsx", {
+      "../_hooks/usePaidMediaAction": { __esModule: true, default: () => ({ paidActionsLocked: true, subscriptionLabel: "Mon abonnement", subscriptionMessage: "Abonnement requis", openSubscription: () => { opens++; } }) },
+    });
+    const tree = h.render("default", { item: { ...item, key }, gmbPanelProps: {} });
+    const connection = tree.props.item.connection;
+    const button = nodes(connection.resourceContent).find(node => node.type === "button")!;
+    assert.equal(button.props.style.filter, "grayscale(1)", key);
+    assert.equal(button.props.disabled, undefined, key);
+    assert.equal(connection.publicView.disabled, true, key);
+    assert.equal(tree.props.item.createHref, null, key);
+    button.props.onClick(); assert.equal(opens, 1, key);
+  }
+});
 
 test("resource fields identify the kind of choice without a duplicated visible caption", () => {
   const choices = { gmb: "Choisir une fiche", facebook: "Choisir une page", instagram: "Choisir un compte", linkedin: "Choisir un compte", youtube_shorts: "Choisir un compte", pinterest: "Choisir un tableau", mails: "Choisir une boîte mail" };

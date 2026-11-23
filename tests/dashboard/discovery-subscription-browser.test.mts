@@ -73,7 +73,7 @@ async function mount(page: Page, locked: boolean, subscription: Record<string, u
     await route.fulfill({ contentType: "text/html", body: "<html><body><div id='root'></div></body></html>" });
   });
   await page.goto("https://subscription.fixture.invalid/dashboard?panel=abonnement");
-  await page.evaluate(({ locked, subscription }) => { (window as FixtureWindow).fixtureLocked = locked; (window as FixtureWindow).fixtureSubscription = subscription; }, { locked, subscription });
+  await page.evaluate(({ locked, subscription }) => { (window as unknown as FixtureWindow).fixtureLocked = locked; (window as unknown as FixtureWindow).fixtureSubscription = subscription; }, { locked, subscription });
   await page.addScriptTag({ content: script });
   await page.getByRole("heading", { name: "iNrCy Basique" }).waitFor();
   return requests;
@@ -98,6 +98,6 @@ test("discovery incomplete can subscribe to Basic without claiming a current pla
     await paidCard.getByText(messages.settings.subscription_current_plan, { exact: true }).waitFor();
     assert.equal(await paidCard.getByRole("button", { name: /S’abonner/ }).count(), 0);
     assert.equal(paidRequests.filter(r => r.path === "/api/billing/checkout").length, 0);
-    assert.deepEqual(await paid.evaluate(() => (window as FixtureWindow).errors), []);
+    assert.deepEqual(await paid.evaluate(() => (window as unknown as FixtureWindow).errors), []);
   } finally { await browser.close(); }
 });

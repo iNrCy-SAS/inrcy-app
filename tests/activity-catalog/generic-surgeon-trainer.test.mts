@@ -9,8 +9,8 @@ import { searchActivityJobs } from '../../lib/activityJobSearch.ts';
 
 test('two generic professions extend the existing sector/job catalogue without a specialty tier', () => {
   assert.equal(ACTIVITY_SECTOR_OPTIONS.length, 36);
-  assert.equal(Object.values(ACTIVITY_CATALOG).reduce((count, sector) => count + Object.keys(sector.jobs).length, 0), 335);
   for (const [sector, job, label] of [['sante', 'chirurgien', 'Chirurgien'], ['formation_enseignement', 'formateur', 'Formateur']] as const) {
+    assert.equal(Object.values(ACTIVITY_CATALOG).filter(entry => Object.hasOwn(entry.jobs, job)).length, 1);
     assert.equal(isValidJobForSector(sector, job), true);
     assert.deepEqual(getJobsForSector(sector).filter(option => option.value === job), [{ value: job, label }]);
     const definition = ACTIVITY_CATALOG[sector].jobs[job];

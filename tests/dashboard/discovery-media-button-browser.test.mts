@@ -60,7 +60,7 @@ test("a locked media-generation button opens Mon abonnement, while a subscribed 
         await route.fulfill({ contentType: "text/html", body: "<html><body><div id='root'></div></body></html>" });
       });
       await page.goto("https://media.fixture.invalid/dashboard/booster/publier");
-      await page.evaluate(value => { (window as FixtureWindow).fixtureLocked = value; }, locked);
+      await page.evaluate(value => { (window as unknown as FixtureWindow).fixtureLocked = value; }, locked);
       await page.addScriptTag({ content: script });
       const imageSection = page.getByRole("region", { name: messages.booster.wizard_pool_images });
       const button = imageSection.getByRole("button", { name: new RegExp(messages.booster.wizard_generate_media) });
@@ -68,14 +68,14 @@ test("a locked media-generation button opens Mon abonnement, while a subscribed 
       if (locked) assert.equal(await button.evaluate(node => getComputedStyle(node).filter), "grayscale(1)");
       await button.click();
       if (locked) {
-        assert.deepEqual(await page.evaluate(() => (window as FixtureWindow).routes), ["/dashboard?panel=abonnement"]);
-        assert.equal(await page.evaluate(() => (window as FixtureWindow).guardCalls), 1);
-        assert.deepEqual(await page.evaluate(() => (window as FixtureWindow).generated), []);
+        assert.deepEqual(await page.evaluate(() => (window as unknown as FixtureWindow).routes), ["/dashboard?panel=abonnement"]);
+        assert.equal(await page.evaluate(() => (window as unknown as FixtureWindow).guardCalls), 1);
+        assert.deepEqual(await page.evaluate(() => (window as unknown as FixtureWindow).generated), []);
       } else {
-        assert.deepEqual(await page.evaluate(() => (window as FixtureWindow).routes), []);
-        assert.deepEqual(await page.evaluate(() => (window as FixtureWindow).generated), ["image"]);
+        assert.deepEqual(await page.evaluate(() => (window as unknown as FixtureWindow).routes), []);
+        assert.deepEqual(await page.evaluate(() => (window as unknown as FixtureWindow).generated), ["image"]);
       }
-      assert.deepEqual(paidRequests, []); assert.deepEqual(await page.evaluate(() => (window as FixtureWindow).errors), []);
+      assert.deepEqual(paidRequests, []); assert.deepEqual(await page.evaluate(() => (window as unknown as FixtureWindow).errors), []);
       await page.close();
     }
   } finally { await browser.close(); }

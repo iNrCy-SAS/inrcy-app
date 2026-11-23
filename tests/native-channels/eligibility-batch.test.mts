@@ -71,6 +71,16 @@ test("un abonnement inactif et le rôle admin d’un autre compte ne rendent auc
   assert.ok(Object.values(result).every((value) => !value.allowed && value.reason === "subscription_inactive"));
 });
 
+test("la découverte sans paiement ne publie aucun des trois canaux, même si un ancien choix existe", async () => {
+  for (const status of ["incomplete", "incomplete_expired"]) {
+    const h = harness({ subscriptions: [{ user_id: OWNER, status }] });
+    const result = await h.api.getNativeChannelPublicationEligibility(ACCOUNT);
+    assert.ok(Object.values(result).every(value => !value.allowed && value.reason === "subscription_inactive"), status);
+    assert.deepEqual([...(await h.api.filterEligibleInrDirectoryAccountIds([ACCOUNT]))], []);
+    assert.deepEqual([...(await h.api.filterEligibleInrSearchAccountIds([ACCOUNT]))], []);
+  }
+});
+
 test("un admin autorisé conserve les interdictions de bulles propres à son compte", async () => {
   const h = harness({ subscriptions: [], profiles: [{ user_id: OWNER, role: "admin" }],
     app_bubble_access: [{ user_id: ACCOUNT, bubble_key: "inr_search", enabled: false }] });

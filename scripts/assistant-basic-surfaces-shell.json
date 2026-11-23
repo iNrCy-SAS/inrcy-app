@@ -2294,5 +2294,35 @@
       "provider": "not_certified"
     },
     "coverageStatus": "implemented"
+  },
+  {
+    "id": "shell-discovery-subscription-channel",
+    "label": "Ouvrir Mon abonnement depuis un canal verrouillé",
+    "domain": "navigation",
+    "sourceFiles": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx"
+    ],
+    "sourceAnchor": "title={subscriptionMessage} onClick={openSubscription}>",
+    "capabilityId": "navigation.screen",
+    "toolNames": [
+      "navigateApplication"
+    ],
+    "mode": "navigate",
+    "testFiles": [
+      "tests/dashboard/channel-bubble-workspace-runtime.test.mts"
+    ],
+    "testAnchor": "discovery locks native channels and OAuth controls and opens the subscription instead",
+    "controlIds": [
+      "app/dashboard/_components/DashboardChannelWorkspace.tsx#button:abc421481c173e0e:1"
+    ],
+    "status": "implemented",
+    "notes": "En découverte, ce bouton ouvre Mon abonnement sans connecter ni activer le canal. Les accès et la publication restent vérifiés côté serveur.",
+    "verification": {
+      "mapping": "source_bound",
+      "contract": "named_regression_reference",
+      "browser": "see_named_test",
+      "provider": "not_certified"
+    },
+    "coverageStatus": "implemented"
   }
 ]

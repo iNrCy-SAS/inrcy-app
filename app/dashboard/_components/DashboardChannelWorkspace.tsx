@@ -20,6 +20,7 @@ import SiteWebBubbleControls from "./SiteWebBubbleControls";
 import SiteWebWidgetSettings from "./SiteWebWidgetSettings";
 import type { NativeChannelStates } from "@/lib/nativeChannelActivation";
 import NativeChannelSettingsContent from "../settings/_components/NativeChannelSettingsContent";
+import usePaidMediaAction from "../_hooks/usePaidMediaAction";
 
 const ThreadsPublicationSettings = lazy(() => import("./ThreadsPublicationSettings"));
 const InrBadgeSettingsContent = lazy(() => import("../settings/_components/InrBadgeSettingsContent"));
@@ -47,6 +48,8 @@ export default function DashboardChannelWorkspace(props: Props) {
   const i18nT = useTranslations("dashboard");
   const { item, siteWebPanelProps: site, gmbPanelProps: gmb, facebookPanelProps: fb, instagramPanelProps: ig, linkedinPanelProps: li, tiktokPanelProps: tik, threadsChannel: threads } = props;
   const t = useTranslations("dashboard.channelBubble");
+  const nativeChannels = useTranslations("dashboard.nativeChannels");
+  const { paidActionsLocked, subscriptionLabel, subscriptionMessage, openSubscription } = usePaidMediaAction();
   const shell = useTranslations("shell");
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -68,8 +71,8 @@ export default function DashboardChannelWorkspace(props: Props) {
   const gmbAccountConnected = gmb?.gmbAccountConnected;
   const loadGmbAccountsAndLocations = gmb?.loadGmbAccountsAndLocations;
   useEffect(() => {
-    if (item.key === "gmb" && gmbAccountConnected && !item.configureDisabled && !item.premiumLocked) void loadGmbAccountsAndLocations?.({ autoSelect: false });
-  }, [item.key, item.configureDisabled, item.premiumLocked, gmbAccountConnected, loadGmbAccountsAndLocations]);
+    if (!paidActionsLocked && item.key === "gmb" && gmbAccountConnected && !item.configureDisabled && !item.premiumLocked) void loadGmbAccountsAndLocations?.({ autoSelect: false });
+  }, [paidActionsLocked, item.key, item.configureDisabled, item.premiumLocked, gmbAccountConnected, loadGmbAccountsAndLocations]);
   const [dirty, setDirty] = useState(false);
   const [profileLinkDirty, setProfileLinkDirty] = useState(false);
   const [organizationLinkDirty, setOrganizationLinkDirty] = useState(false);
@@ -89,6 +92,18 @@ export default function DashboardChannelWorkspace(props: Props) {
   const publicLink = (channel: EditableChannelPublicUrlChannel, value: string, onSaved: (url: string) => void, canEdit: boolean, target?: LinkedinPublicUrlTarget) => <EditableChannelUrlField channel={channel} target={target} value={value || ""} onSaved={onSaved} onDirtyChange={target === "profile" ? setProfileLinkDirty : target === "organization" ? setOrganizationLinkDirty : setDirty} ariaLabel={`${t("publicLink")} — ${item.name}${target ? ` — ${shell(target === "profile" ? "profil_personnel_8e5d4316" : "page_entreprise_a6ed751d")}` : ""}`} viewLabel={t("view")} editorOnly disabled={!canEdit} />;
 
   // Access checks run before mounting a controller or exposing any mutation.
+  if (paidActionsLocked && item.bubbleStatus !== "coming") {
+    const native = ["inrbadge", "inr_directory", "inr_search"].includes(item.key);
+    const action = native ? nativeChannels("activate") : t("connect");
+    return <DashboardFluxBubble item={{ ...item, bubbleStatus: "available", bubbleStatusText: subscriptionLabel,
+      premiumLocked: false, configureDisabled: false, createHref: null, onSpecialView: undefined,
+      connection: { resourceLabel: item.name, publicView: { href: "", disabled: true },
+        resourceContent: <div className={bubbleStyles.resourceGroup}>
+          <button type="button" className={bubbleStyles.action} style={{ filter: "grayscale(1)", opacity: 0.65 }}
+            aria-label={`${action} — ${subscriptionLabel}`} title={subscriptionMessage} onClick={openSubscription}>{action}</button>
+          <p>{subscriptionMessage}</p>
+        </div> } }} />;
+  }
   if (item.configureDisabled || item.premiumLocked || item.bubbleStatus === "coming") return <DashboardFluxBubble item={item} />;
   switch (item.key) {
     case "x": return <XSettingsContent key={revision} renderBubble={renderBubble} onUnsavedChange={setDirty} />;
