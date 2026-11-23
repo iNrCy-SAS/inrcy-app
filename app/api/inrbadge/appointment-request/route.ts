@@ -11,6 +11,7 @@ import { canUseInrBadgeAppointments } from "@/lib/inrBadgeEditionPolicy";
 import { hasPremiumDashboardAccess } from "@/lib/dashboardEdition";
 import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
+import { getNativeChannelPublicationEligibility } from "@/lib/inrSearchEligibility";
 
 type RequestBody = {
   slug?: string;
@@ -122,6 +123,9 @@ export async function POST(req: Request) {
     window: "1 h",
   });
   if (rateLimited) return rateLimited;
+
+  const access = await getNativeChannelPublicationEligibility(userId);
+  if (!access.inrbadge.allowed && !access.inr_directory.allowed) return bad("Badge introuvable", 404);
 
   const dashboardEdition = await getDashboardEditionForAccountId(userId);
   if (!hasPremiumDashboardAccess(dashboardEdition)) {

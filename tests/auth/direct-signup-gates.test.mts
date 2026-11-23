@@ -99,6 +99,7 @@ test("contract recovery and forged active statuses cannot acquire discovery acce
 test("native channel activation and OAuth connection require a subscription", async () => {
   for (const [path, method] of [
     ["/api/native-channels/settings", "POST"], ["/api/inrbadge/settings", "PATCH"], ["/api/inr-search/settings", "POST"],
+    ["/api/widgets/issue-token", "GET"],
     ["/api/integrations/google-business/start", "GET"], ["/api/integrations/facebook/start", "GET"],
     ["/api/integrations/pinterest/start", "GET"], ["/api/integrations/linkedin/start", "GET"],
   ] as const) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { extractInrBadgeUserIdFromSlug } from "@/lib/inrBadge";
 import { isQrBadgeSource, recordInrBadgeEvent } from "@/lib/inrBadgeAnalytics";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getNativeChannelPublicationEligibility } from "@/lib/inrSearchEligibility";
 
 function clean(value: unknown, max = 240) {
   return String(value ?? "").trim().slice(0, max);
@@ -12,6 +13,11 @@ export async function POST(req: Request) {
   const slug = clean(body?.slug, 190);
   const userId = extractInrBadgeUserIdFromSlug(slug);
   if (!userId) return NextResponse.json({ ok: false, error: "Badge introuvable" }, { status: 404 });
+
+  const access = await getNativeChannelPublicationEligibility(userId);
+  if (!access.inrbadge.allowed && !access.inr_directory.allowed) {
+    return NextResponse.json({ ok: false, error: "Badge introuvable" }, { status: 404 });
+  }
 
   const eventType = clean(body?.eventType, 40);
   const source = clean(body?.source, 80);

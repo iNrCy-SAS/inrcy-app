@@ -341,10 +341,12 @@ export default async function BadgePage({ params }: { params: Promise<{ slug: st
     proToolsConfig: toolsRes.data,
     integrations: Array.isArray(integrationsRes.data) ? integrationsRes.data : [],
   });
+  const native = channelStates.native_channels;
+  // Subscription access also applies to legacy saved settings and direct links.
+  if (!native || (!native.inrbadge.allowed && !native.inr_directory.allowed)) notFound();
   if (activation.activationVersion === 1 || safeObj(toolSettings.inrDirectory).activationVersion === 1 || !profileRes.data) {
-    const native = channelStates.native_channels;
     // The directory also uses this public landing page, with its own publication access.
-    if (!native || (!native.inrbadge.published && !native.inr_directory.published)) notFound();
+    if (!native.inrbadge.published && !native.inr_directory.published) notFound();
   }
 
   const firstName = trim(profile.first_name);

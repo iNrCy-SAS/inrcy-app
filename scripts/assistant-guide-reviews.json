@@ -86,7 +86,7 @@
     "ai-configuration": {
       "guideDigest": "6a6bd35672e02f6c0ce53ad97842a0b606b5891cf2e69f809df44d0ef726aa6e",
       "sources": {
-        "app/badge/[slug]/page.tsx": "da0ce4f73f697973e86ed0a661b0c2a4ed96db22a91f1b2c0a86c8f149427757",
+        "app/badge/[slug]/page.tsx": "5a1f74f70a7f770d9900401cdf223a0fcfb1ef5c3ba8cd2f1807c94274b1bf2a",
         "app/dashboard/_hooks/useDashboardPreparationScores.ts": "2b3715b0f6098b0e66bc9ee6c40b02391be3fe05fc4bd38afddbd366b36c82f4",
         "app/dashboard/configuration-ia/page.tsx": "2e07abd5b0460650e5158c1aaa1ca6516752cf68013c033ea367dfa965f03c7c",
         "app/dashboard/personnalisation/page.tsx": "0b7ba91035466ec79fb24ab9a9e4d66dc2d3db8d395c5913dabd0f5b6d0a5dbe",

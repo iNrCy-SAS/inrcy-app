@@ -9,6 +9,7 @@ import { getDashboardEditionForAccountId } from "@/lib/dashboardEditionServer";
 import { getInrBadgeLeadPresentation } from "@/lib/inrBadgeEditionPolicy";
 import { enforceRateLimit, getClientIp } from "@/lib/rateLimit";
 import { insertNotificationOnce } from "@/lib/notificationWriter";
+import { getNativeChannelPublicationEligibility } from "@/lib/inrSearchEligibility";
 
 function cleanString(value: unknown, max = 240) {
   return String(value || "").trim().replace(/\s+/g, " ").slice(0, max);
@@ -137,9 +138,6 @@ export async function POST(req: Request) {
   if (!userId) {
     return NextResponse.json({ error: "Fiche iNr'Badge introuvable." }, { status: 404 });
   }
-  const dashboardEdition = await getDashboardEditionForAccountId(userId);
-  const leadPresentation = getInrBadgeLeadPresentation(dashboardEdition);
-
   // Honeypot anti-spam discret : les vrais utilisateurs ne voient jamais ce champ.
   if (cleanString(body?.website)) {
     return NextResponse.json({ ok: true });
@@ -153,6 +151,13 @@ export async function POST(req: Request) {
     window: "1 h",
   });
   if (rateLimited) return rateLimited;
+
+  const access = await getNativeChannelPublicationEligibility(userId);
+  if (!access.inrbadge.allowed && !access.inr_directory.allowed) {
+    return NextResponse.json({ error: "Fiche iNr'Badge introuvable." }, { status: 404 });
+  }
+  const dashboardEdition = await getDashboardEditionForAccountId(userId);
+  const leadPresentation = getInrBadgeLeadPresentation(dashboardEdition);
 
   const parsedDisplayName = parseDisplayName(body?.displayName ?? body?.display_name ?? body?.name);
   const firstName = cleanString(body?.firstName ?? body?.first_name, 80) || parsedDisplayName.firstName;

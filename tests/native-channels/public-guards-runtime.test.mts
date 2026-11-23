@@ -37,7 +37,7 @@ test("public Search rejects stale enabled=true after explicit or missing version
   assert.equal(legacy.published, true);
 });
 
-function badgeGuard(options: { badgePublished?: boolean; directoryPublished?: boolean; legacy?: boolean; toolsError?: boolean; missingProfile?: boolean }) {
+function badgeGuard(options: { badgePublished?: boolean; directoryPublished?: boolean; legacy?: boolean; toolsError?: boolean; missingProfile?: boolean; subscriptionAllowed?: boolean }) {
   let channelReads = 0;
   const stopped = new Error("REACHED_PUBLIC_CONTENT_AFTER_GUARD");
   const notFound = new Error("NOT_FOUND");
@@ -71,7 +71,7 @@ function badgeGuard(options: { badgePublished?: boolean; directoryPublished?: bo
     "@/lib/inrBadgeEditionPolicy": { effectiveInrBadgeShareSettings: (value: unknown) => value },
     "@/lib/inrBadgeTheme": { normalizeInrBadgeThemeSettings: () => ({}), getInrBadgeThemeCssVariables: () => ({}) },
     "@/lib/inrBadgeLanguage": { normalizeInrBadgeLanguage: () => "fr", getInrBadgeTexts: () => ({}) },
-    "@/lib/channelConnectionState": { getChannelConnectionStates: async (_db: unknown, account: string) => { assert.equal(account, ACCOUNT); channelReads++; return { native_channels: { inrbadge: { published: options.badgePublished === true }, inr_directory: { published: options.directoryPublished === true } } }; } },
+    "@/lib/channelConnectionState": { getChannelConnectionStates: async (_db: unknown, account: string) => { assert.equal(account, ACCOUNT); channelReads++; return { native_channels: { inrbadge: { published: options.badgePublished === true, allowed: options.subscriptionAllowed !== false }, inr_directory: { published: options.directoryPublished === true, allowed: options.subscriptionAllowed !== false } } }; } },
     "@/lib/professionalBusinessIdentity": { resolveProfessionalCompanyNameFromProfile: () => { throw stopped; } },
   }, (name) => {
     // Other imports serve rendering after the tested gate, which is interrupted
@@ -98,6 +98,43 @@ test("public Badge fails closed on config errors while preserving legacy public 
   assert.equal(failed.channelReads, 0);
   const legacy = badgeGuard({ legacy: true, badgePublished: false });
   await assert.rejects(legacy.run(), (error) => error === legacy.stopped);
+});
+
+test("public Badge requires subscription access even when its saved settings use the legacy format", async () => {
+  for (const legacy of [false, true]) {
+    const h = badgeGuard({ legacy, subscriptionAllowed: false, badgePublished: true });
+    await assert.rejects(h.run(), error => error === h.notFound);
+  }
+});
+
+test("public Badge endpoints verify target access before contacts, appointments, tracking or emails", async () => {
+  for (const path of ["app/api/inrbadge/lead/route.ts", "app/api/inrbadge/appointment-request/route.ts", "app/api/inrbadge/track/route.ts"]) {
+    for (const status of ["incomplete", "incomplete_expired", "active", "trialing"]) {
+      const allowed = status === "active" || status === "trialing";
+      const reached = new Error("REACHED_ELIGIBLE_BADGE");
+      const checked: string[] = [];
+      const route = load<{ POST: (request: Request) => Promise<Response> }>(path, {
+        "next/server": { NextResponse: { json: (body: unknown, init?: ResponseInit) => Response.json(body, init) } },
+        "@/lib/env": { optionalEnv: () => "" },
+        "@/lib/inrBadge": { extractInrBadgeUserIdFromSlug: () => ACCOUNT },
+        "@/lib/rateLimit": { enforceRateLimit: async () => null, getClientIp: () => "127.0.0.1" },
+        "@/lib/inrSearchEligibility": { getNativeChannelPublicationEligibility: async (account: string) => {
+          checked.push(account);
+          return { inrbadge: { allowed, subscriptionStatus: status }, inr_directory: { allowed, subscriptionStatus: status } };
+        } },
+        "@/lib/dashboardEditionServer": { getDashboardEditionForAccountId: async () => { throw reached; } },
+        "@/lib/supabaseAdmin": { supabaseAdmin: { from: () => assert.fail("No database side effect before access is verified") } },
+        "@/lib/txMailer": { sendTxMail: () => assert.fail("No mail before access is verified") },
+        "@/lib/crmContactDedupe": { upsertCrmContactWithoutDuplicate: () => assert.fail("No contact before access is verified") },
+        "@/lib/inrBadgeAnalytics": { recordInrBadgeEvent: () => { if (path.endsWith("/track/route.ts")) throw reached; assert.fail("No event before access is verified"); } },
+        "@/lib/notificationWriter": { insertNotificationOnce: () => assert.fail("No notification before access is verified") },
+      }, () => ({}));
+      const request = new Request("https://app.inrcy.com/api/inrbadge/lead", { method: "POST", body: JSON.stringify({ slug: "company", consent: true, displayName: "Test" }) });
+      if (allowed) await assert.rejects(route.POST(request), error => error === reached);
+      else assert.equal((await route.POST(request)).status, 404, `${path} ${status}`);
+      assert.deepEqual(checked, [ACCOUNT], "eligibility belongs to the target professional, not the visitor");
+    }
+  }
 });
 
 test("a profile row is optional only when authoritative Badge or directory publication is allowed", async () => {

@@ -949,6 +949,8 @@ export async function proxy(req: NextRequest) {
     // This historical billing bypass creates an order and sends email. A
     // discovery account must not use it before subscribing.
     || directSignup && pathMatches(pathname, "/api/boutique/order")
+    // Embedded widget reads are public; issuing a site's token is a paid setup action.
+    || directSignup && pathMatches(pathname, "/api/widgets/issue-token")
     || directSignup && pathname.startsWith("/api/") && !isApiBlockBypassPath(pathname);
 
   if (req.method.toUpperCase() !== "OPTIONS" && isSensitiveApi) {
