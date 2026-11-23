@@ -12,6 +12,7 @@ import * as videoClientOptions from "../../lib/aiMediaVideoClientOptions.ts";
 import * as mediaModelCatalog from "../../lib/aiMediaModelCatalog.ts";
 import * as ctaPhoneNumbers from "../../lib/ctaPhoneNumbers.ts";
 import { fitPromptPayloadToJsonBudget } from "../../lib/aiPromptBudget.ts";
+import { ACTIVITY_PROFESSION_COMPLEMENTS } from "../../lib/activityCatalogComplements/index.ts";
 import { getAssistantInternalDestination } from "../../lib/inrAssistantNavigation.ts";
 import * as assistantNavigation from "../../lib/inrAssistantNavigation.ts";
 import * as snapshotWindow from "../../lib/stats/snapshotWindow.ts";
@@ -263,7 +264,7 @@ function harness(options: { crmThenRead?: boolean; publicationGuideFollowup?: bo
   const runtime = load("lib/inrAssistantGateway.ts") as typeof Gateway;
   const catalogue = load("lib/activityCatalogComplements/index.ts").ACTIVITY_PROFESSION_COMPLEMENTS;
   assert.ok(Array.isArray(catalogue), "The real profession registry must be loaded in the schema matrix");
-  assert.equal(catalogue.length, 58, "Schema verification includes every delivered profession, without a reduced catalogue fixture");
+  assert.equal(JSON.stringify(catalogue), JSON.stringify(ACTIVITY_PROFESSION_COMPLEMENTS), "Schema verification includes the complete real profession catalogue, without a reduced fixture");
   return { runtime, providerCalls, reservations, schemas, generatedInputs, publicationActions, get actionExecutions() { return actionExecutions; }, get navigationPreparations() { return navigationPreparations; },
     conversation: load("lib/inrAssistantConversation.ts") as typeof Conversation,
     guides: load("lib/inrAssistantAppGuides.ts") as typeof Guides };

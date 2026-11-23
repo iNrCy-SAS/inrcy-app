@@ -138,6 +138,7 @@ function harness(kind: "video" | "image" = "video", initialEngine: models.AiMedi
     ["@/lib/mediaGenerationReferenceClient", { prepareMediaGenerationImageReference: async (file: File) => ({ name: file.name, data: Buffer.from("synthetic-photo").toString("base64"), mimeType: "image/png" }) }],
     ["@/lib/aiMediaModelRecommendation", { recommendAiMediaModel: () => null }],
     ["../_hooks/useMediaEnginePreference", { __esModule: true, default: () => preference }],
+    ["../_hooks/usePaidMediaAction", { __esModule: true, default: () => ({ paidActionsLocked: false, subscriptionLabel: "Mon abonnement", subscriptionMessage: "Abonnement requis", openSubscription() { assert.fail("Subscribed fixture must not open subscription"); } }) }],
     ["../_hooks/useMediaCreditQuote", { __esModule: true, default: (input: Props, _quota: unknown, enabled: boolean) => { quoteInputs.push({ ...input, enabled }); const quote = options.realEnginePreference && enabled ? quoteAiMediaCredits(input as AiMediaCreditsQuoteInput) : { totalCredits: 88 }; return { ready: true, insufficient: false, authorization: { expectedCredits: quote.totalCredits }, quote }; } }],
     ["./MediaGenerationCreationWorkspace", { __esModule: true, default: "preview", MediaGenerationSettingsTabs: "settings-tabs" }],
   ]);

@@ -27,7 +27,7 @@ test("generation button requires a nonblank subject even with instructions and m
       const attributes = node.attributes.properties.filter(ts.isJsxAttribute);
       if (attributes.some((attribute) => attribute.name.getText(intent) === "onClick" &&
         attribute.initializer && ts.isJsxExpression(attribute.initializer) &&
-        attribute.initializer.expression?.getText(intent) === "onGenerate")) {
+        attribute.initializer.expression?.getText(intent) === "paidActionsLocked ? openSubscription : onGenerate")) {
         const attribute = attributes.find((candidate) => candidate.name.getText(intent) === "disabled");
         if (attribute?.initializer && ts.isJsxExpression(attribute.initializer)) disabled = attribute.initializer.expression;
       }
@@ -38,11 +38,12 @@ test("generation button requires a nonblank subject even with instructions and m
   assert.ok(disabled);
   for (const [idea, expected] of [["", true], [" \t\n\u00a0 ", true], ["  Nouveau chantier  ", false]] as const) {
     assert.equal(evaluate(disabled, intent, {
-      idea, generationDisabled: false, publicationInstruction: "Ton professionnel",
+      idea, paidActionsLocked: false, generationDisabled: false, publicationInstruction: "Ton professionnel",
       images: [{}], videoFile: {}, pdfFile: {},
     }), expected);
   }
-  assert.equal(evaluate(disabled, intent, { idea: "Nouveau chantier", generationDisabled: true }), true);
+  assert.equal(evaluate(disabled, intent, { idea: "Nouveau chantier", paidActionsLocked: false, generationDisabled: true }), true);
+  assert.equal(evaluate(disabled, intent, { idea: "", paidActionsLocked: true, generationDisabled: true }), false, "discovery can open the subscription panel");
 });
 
 test("generation handler rejects blank subjects before any engine or media preparation", async () => {
@@ -58,7 +59,7 @@ test("generation handler rejects blank subjects before any engine or media prepa
     const errors: string[] = [];
     const noop = () => {};
     const context = {
-      generating: false, creationMode: "ai", idea, selectedChannels: ["facebook"],
+      paidActionsLocked: false, generating: false, creationMode: "ai", idea, selectedChannels: ["facebook"],
       generationInFlightRef: { current: false }, selectedForGeneration: ["facebook"],
       publicationActorScopeRef: { current: { actorUserId: "test-user", accountId: "test-account" } },
       currentPostsRef: { current: {} },

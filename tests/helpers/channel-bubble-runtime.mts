@@ -45,6 +45,7 @@ export function channelRuntime(path: string, overrides: Props = {}) {
     if (specifier === "next-intl") return { useTranslations: (scope: string) => (key: string) => (scope === "shell" ? shellLabels : bubbleLabels)[key] || key };
     if (specifier === "next/navigation") return { usePathname: () => '/dashboard', useRouter: () => ({ replace() {} }), useSearchParams: () => new URLSearchParams() };
     if (specifier.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "channel-actor", activeAccountId: "channel-account", metaPilotEnabled: false }) };
+    if (specifier.endsWith("usePaidMediaAction")) return { __esModule: true, default: () => ({ paidActionsLocked: false, subscriptionLabel: "Mon abonnement", openSubscription() {} }) };
     if (specifier.endsWith("DashboardAssistantScreenContext")) return { useInrAssistantScreen() {} };
     if (specifier.endsWith("useUnsavedExitGuard")) return { useUnsavedExitGuard() {} };
     if (specifier.endsWith("DashboardUnsavedNavigationProvider")) return { useDashboardUnsavedNavigation: () => ({ requestNavigation: async (fn: () => void) => { fn(); return true; } }) };

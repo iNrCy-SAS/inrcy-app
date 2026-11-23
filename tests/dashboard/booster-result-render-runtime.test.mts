@@ -43,6 +43,7 @@ const userFacingErrors = load("lib/userFacingErrors.ts", {
   "@/lib/metaGraphErrorClassification": load("lib/metaGraphErrorClassification.ts", {}),
 });
 const resultDependencies = {
+  "../_hooks/usePaidMediaAction": { __esModule: true, default: () => ({ paidActionsLocked: false, subscriptionLabel: "Mon abonnement", openSubscription() { assert.fail("Subscribed fixture must not open subscription"); } }) },
   "@/lib/inrcyDialog": { confirmInrcy: async () => false },
   "@/lib/publicationStorySequenceRetry": storyRetry,
   "./DashboardViewerAccessProvider": { useDashboardViewerAccess: () => ({ metaPilotEnabled: true }) },

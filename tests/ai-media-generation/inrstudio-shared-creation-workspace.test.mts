@@ -79,6 +79,7 @@ let instanceCount = 0;
 const modules = new Map<string, unknown>([
   ["react/jsx-runtime", { jsx: element, jsxs: element, Fragment: "fragment" }],
   ["../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface() {} }],
+  ["../_hooks/usePaidMediaAction", { __esModule: true, default: () => ({ paidActionsLocked: false, subscriptionLabel: "Mon abonnement", openSubscription() { assert.fail("Subscribed fixture must not open subscription"); } }) }],
   ["@/lib/browserAccountCache", { getActiveBrowserUserId: () => null }],
   ["react", { useId: () => `creation-test-${++instanceCount}`, useState, useCallback: (callback: unknown) => callback }],
   ["./MediaResultViewer", { __esModule: true, default: () => null }],

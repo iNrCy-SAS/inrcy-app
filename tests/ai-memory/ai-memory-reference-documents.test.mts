@@ -175,7 +175,7 @@ test("the single document attachment action uses signed resumable transport and 
   assert.match(ui, /\| "documents"/);
   assert.doesNotMatch(ui, /\{ key: "documents", icon:/);
   assert.match(ui, /documents=\{referenceDocumentsSection\}/);
-  assert.match(ui, /onIconClick=\{\(\) => documentInputRef\.current\?\.click\(\)\}/);
+  assert.match(ui, /onIconClick=\{\(\) => paidActionsLocked \? openSubscription\(\) : documentInputRef\.current\?\.click\(\)\}/);
   assert.equal((ui.match(/documentInputRef\.current\?\.click\(\)/g) || []).length, 1, "only the paperclip opens the document picker");
   assert.match(ui, /if \(!documentAnalysisConsent\)/);
   assert.match(ui, /uploadFileToPreparedStorageIntent/);

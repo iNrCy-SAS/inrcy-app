@@ -74,6 +74,7 @@ function useGeneration(){const React=require('react');const[result,setResult]=Re
 const preference={imageEngine:'openai',videoEngine:'omni',videoResolution:'720p',update:noOp};
 function makeImageKey(file){return file.name+'__'+file.size+'__'+file.lastModified;}
 function require(name){
+ if(name.endsWith('usePaidMediaAction'))return {__esModule:true,default:()=>({paidActionsLocked:false,subscriptionLabel:'Mon abonnement',openSubscription:noOp})};
  if(name.endsWith('useInrAssistantLocalInterface'))return {useInrAssistantLocalInterface:noOp};
  if(name.endsWith('useInrAssistantLocalClose'))return {useInrAssistantLocalClose:noOp};
  if(name==='./DashboardUnsavedNavigationProvider')return {useDashboardUnsavedNavigation:()=>({registerGuard:()=>noOp})};

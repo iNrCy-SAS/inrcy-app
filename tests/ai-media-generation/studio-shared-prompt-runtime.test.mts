@@ -50,6 +50,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
     useLayoutEffect(effect: () => void | (() => void), deps: unknown[]) { react.useEffect(effect, deps); },
   };
   const modules = new Map(dependencies);
+  modules.set("../_hooks/usePaidMediaAction", { __esModule: true, default: () => ({ paidActionsLocked: false, subscriptionLabel: "Mon abonnement", openSubscription() { assert.fail("Subscribed fixture must not open subscription"); } }) });
   modules.set("@/lib/userFacingErrors", userFacingErrorsFixture);
   modules.set("@/lib/aiMediaGenerationPublicErrorI18n", aiMediaPublicErrorsFixture);
   modules.set("@/lib/studioReferenceMemoryClient", studioReferenceMemoryFixture);

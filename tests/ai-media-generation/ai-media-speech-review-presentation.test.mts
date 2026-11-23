@@ -114,6 +114,7 @@ function ui() {
     ["react", { useId: () => "speech-review", useState: (value: unknown) => [value, () => {}], useCallback: (value: unknown) => value }],
     ["react/jsx-runtime", { jsx, jsxs: jsx }], ["next/image", { __esModule: true, default: "image" }],
     ["next-intl", { useTranslations: () => t }], ["@/lib/aiMediaGenerationContracts", contracts], ["@/lib/aiMediaModelCatalog", models],
+    ["../_hooks/usePaidMediaAction", { __esModule: true, default: () => ({ paidActionsLocked: false, subscriptionLabel: "Mon abonnement", openSubscription() { assert.fail("Subscribed fixture must not open subscription"); } }) }],
     ["@/app/dashboard/_hooks/useMediaResultReveal", { useMediaResultReveal: () => ({ reviewRef: { current: null }, headingRef: { current: null } }) }],
     ["../_hooks/useInrAssistantLocalInterface", { useInrAssistantLocalInterface() {} }],
     ["@/lib/browserAccountCache", { getActiveBrowserUserId: () => "account-a" }],

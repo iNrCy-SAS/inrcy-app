@@ -23,7 +23,7 @@ test("Modifier Image recharge et affiche le portefeuille médias partagé", () =
   assert.match(modifier, /format: sourceFormat,[\s\S]*?modificationSourceWidth: sourceImage\.width,[\s\S]*?modificationSourceHeight: sourceImage\.height/);
   assert.match(modifier, /<MediaEngineCreditControls kind="image" format=\{sourceFormat\} operation="modify"/);
   assert.match(modifier, /isAiMediaImageModelCompatible\(\{ engine: enginePreference\.imageEngine, operation: "modify", inspirationImagesCount: sourceImage \? 1 : 0 \}\)/);
-  assert.match(modifier, /\}, quota, imageEngineCompatible\)/);
+  assert.match(modifier, /\}, quota, !paidActionsLocked && imageEngineCompatible\)/);
   assert.match(modifier, /\.\.\.creditQuote\.authorization/);
   assert.match(modifier, /imageEngine: enginePreference\.imageEngine/);
   assert.match(modifier, /<MediaCreditQuoteSummary/);

@@ -26,6 +26,7 @@ const noop=()=>{},unexpected=()=>{throw Error('Unexpected external operation')};
 const translate=(key)=>key;
 function require(name){
  if(name==='@/lib/boosterProgressPhases')return require('phases');
+ if(name==='../../_hooks/usePaidMediaAction')return {__esModule:true,default:()=>({paidActionsLocked:false,openSubscription:unexpected})};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.activeAccount,resolveActiveBrowserUserId:()=>window.activeAccount};
  if(name==='@/lib/boosterContentAdjustment')return {normalizeBoosterContentAdjustment:unexpected,mergeBoosterContentAdjustment:unexpected};
  if(name==='@/lib/supabaseClient')return {createClient:unexpected};

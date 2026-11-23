@@ -39,6 +39,7 @@ function harness() {
     if (id === "react") return react;
     if (id === "react/jsx-runtime") return { jsx, jsxs: jsx };
     if (id === "next-intl") return { useTranslations: () => (key: string) => key };
+    if (id === "../_hooks/usePaidMediaAction") return { __esModule: true, default: () => ({ paidActionsLocked: false, subscriptionLabel: "Mon abonnement", openSubscription() { assert.fail("Subscribed fixture must not open subscription"); } }) };
     if (id === "./MediaCharacterVoiceLibraryPicker") return { default: "library-picker" };
     if (id === "@/lib/aiMediaCharacterVoices") return voiceRules;
     if (id === "@/lib/userFacingErrors") return userFacingErrorsFixture;

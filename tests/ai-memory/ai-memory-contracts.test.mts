@@ -186,7 +186,8 @@ test("channel analysis is private, bounded, cumulative and monthly limited", () 
   assert.match(ui, /mergeAiBusinessDnaAnalysis/);
   assert.match(ui, /quota=\{analysisQuota\}/);
   assert.match(analysisWorkspace, /quota\?\.remaining === 0/);
-  assert.match(analysisWorkspace, /disabled=\{launchDisabled\}/);
+  assert.match(analysisWorkspace, /disabled=\{!paidActionsLocked && launchDisabled\}/);
+  assert.match(analysisWorkspace, /onClick=\{paidActionsLocked \? openSubscription : onAnalyze\}/);
 });
 
 test("Business DNA rich text uses a safe visual toolbar instead of exposing markdown code", () => {

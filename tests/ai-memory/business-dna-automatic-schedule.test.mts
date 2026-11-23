@@ -112,7 +112,7 @@ test("la programmation partage le groupe d’actions de l’analyse et ouvre sa 
   );
   assert.match(
     workspace,
-    /className=\{styles\.actions\}[\s\S]*?onClick=\{onSchedule\}[\s\S]*?t\("analysisScheduleButton"\)[\s\S]*?onClick=\{onAnalyze\}/,
+    /className=\{styles\.actions\}[\s\S]*?onClick=\{paidActionsLocked \? openSubscription : onSchedule\}[\s\S]*?t\("analysisScheduleButton"\)[\s\S]*?onClick=\{paidActionsLocked \? openSubscription : onAnalyze\}/,
   );
   assert.match(content, /onSchedule=\{\(\) => setAnalysisScheduleOpen\(true\)\}/);
   assert.match(content, /<BusinessDnaAnalysisScheduleModal[\s\S]*?open=\{analysisScheduleOpen\}/);

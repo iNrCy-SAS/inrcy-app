@@ -48,6 +48,7 @@ function runtime(file: string, dependencies: Map<string, unknown>) {
     useLayoutEffect(effect: () => void | (() => void), deps: unknown[]) { react.useEffect(effect, deps); },
   };
   const modules = new Map(dependencies);
+  modules.set("../_hooks/usePaidMediaAction", { __esModule: true, default: () => ({ paidActionsLocked: false, subscriptionLabel: "Mon abonnement", openSubscription() { assert.fail("Subscribed fixture must not open subscription"); } }) });
   modules.set("@/lib/studioReferenceMemoryClient", studioReferenceMemoryFixture);
   modules.set("@/lib/mediaLibraryUploadClient", studioReferenceLibraryUploadFixture);
   modules.set("react", react); modules.set("react/jsx-runtime", { jsx, jsxs: jsx });

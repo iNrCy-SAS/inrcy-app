@@ -40,6 +40,7 @@ function markup(locale: string, standard: boolean) {
       if (id === "next-intl") return { useTranslations: (namespace: string) => (key: string) => `${namespace}.${key}`.split(".").reduce<unknown>((value, part) => value && typeof value === "object" ? (value as Props)[part] : undefined, messages) };
       if (id === "../_hooks/useDashboardI18n") return { useDashboardI18n: () => ({ ...messages.dashboard, locale }) };
       if (id === "../_hooks/useInrAgentPendingCount") return { useInrAgentPendingCount: () => 0 };
+      if (id === "./DashboardViewerAccessProvider") return { useDashboardViewerAccess: () => ({ paidActionsLocked: false }) };
       if (id === "./DashboardEditionProvider") return { useDashboardEdition: () => standard ? "standard" : "premium", useDashboardSubscriptionEdition: () => standard ? "standard" : "premium" };
       if (id === "./DashboardToolWarmup") return { requestDashboardToolWarmup: noOp };
       if (id === "@/hooks/useDelayedPendingAction") return { useDelayedPendingAction: () => ({ pendingKey: null, beginAction: () => true, completeAction: noOp, isVisible: () => false }) };

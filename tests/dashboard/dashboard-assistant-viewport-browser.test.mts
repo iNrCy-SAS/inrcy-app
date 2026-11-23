@@ -164,11 +164,12 @@ function require(name){
  if(name==='./inrAssistantStudioDraft.ts')return require('@/lib/inrAssistantStudioDraft');
  if(name==='next/navigation')return {usePathname:()=>'/dashboard/generer-media',useSearchParams:()=>new URLSearchParams(location.search),useRouter:()=>({replace(){},push(){}})};
  if(name==='next-intl')return fixtureIntl;
- if(name==='@/app/dashboard/_components/DashboardViewerAccessProvider')return {useDashboardViewerAccess:()=>({actorUserId:'actor-fixture',activeAccountId:window.fixtureAccount})};
+ if(name==='@/app/dashboard/_components/DashboardViewerAccessProvider')return {useDashboardViewerAccess:()=>({actorUserId:'actor-fixture',activeAccountId:window.fixtureAccount,paidActionsLocked:false})};
  if(name==='@/lib/browserAccountCache')return {getActiveBrowserUserId:()=>window.fixtureAccount};
  if(name==='@/lib/inrStudioNavigation')return {readInrStudioHandoff:()=>null,getInrStudioOriginLabel:()=>null};
  if(name==='@/lib/multicompte/constants')return {ACTIVE_INRCY_ACCOUNT_EVENT:'fixture-account-change'};
  if(name==='@/app/dashboard/_hooks/useMediaGeneration')return {__esModule:true,default:()=>hook,discardMediaGenerationDraft:async()=>{},MediaGenerationAccountChangedError:Error,MediaGenerationCancelledError:Error};
+ if(name==='../_hooks/usePaidMediaAction')return {__esModule:true,default:()=>({paidActionsLocked:false,subscriptionLabel:'Subscription',subscriptionMessage:'Subscription required',openSubscription(){}})};
  if(name==='../_hooks/useMediaEnginePreference')return {__esModule:true,default:()=>preference};
  if(name==='../_hooks/useMediaCreditQuote')return {__esModule:true,default:()=>quote};
  if(name==='./MediaGenerationCreationWorkspace')return {__esModule:true,default:()=>null,MediaGenerationSettingsTabs:()=>null};

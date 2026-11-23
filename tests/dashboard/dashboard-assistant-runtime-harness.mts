@@ -126,7 +126,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
       useId: () => `fixture-native-${idIndex++}`,
       useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot(),
     };
-    if (name === "next-intl") return { useLocale: () => options.locale ?? "en-GB" };
+    if (name === "next-intl") return { useLocale: () => options.locale ?? "en-GB", useTranslations: () => (key: string) => key };
     if (name === "next/navigation") return { useRouter: () => ({ push: (href: string) => { navigations.push(href); } }), usePathname: () => options.pathname || "/dashboard", useSearchParams: () => new URLSearchParams(options.query ?? "action=publish&token=secret") };
     if (name.endsWith("/useAssistantFirstArrival")) return { useAssistantFirstArrival: (value: typeof arrivalOptions) => { arrivalOptions = value; } };
     if (name === "@/lib/inrAssistantClientContext") return clientContext;
@@ -155,7 +155,7 @@ export function harness(providerOnly = false, storage = new Map<string, string>(
     if (name === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => activeAccountId };
     if (name === "@/lib/multicompte/constants") return { ACTIVE_INRCY_ACCOUNT_EVENT: "account-changed" };
     if (name === "@/lib/supabaseClient") return {};
-    if (name === "./DashboardViewerAccessProvider" || name === "../_components/DashboardViewerAccessProvider") return { useDashboardViewerAccess: () => ({ actorUserId: scope.actorUserId, activeAccountId: scope.activeAccountId }) };
+    if (name === "./DashboardViewerAccessProvider" || name === "../_components/DashboardViewerAccessProvider") return { useDashboardViewerAccess: () => ({ actorUserId: scope.actorUserId, activeAccountId: scope.activeAccountId, paidActionsLocked: false }) };
     if (name === "./DashboardUnsavedNavigationProvider") return { useDashboardUnsavedNavigation: () => ({ requestNavigation: async (callback: () => unknown) => {
       actions.navigationChecks += 1;
       if (deferredNavigation) {

@@ -50,16 +50,16 @@ Accès selon offre/connexions. Planning manuel même Basique : consulter, modifi
     id: "studio-create",
     title: "iNrStudio : générer une image ou une vidéo",
     keywords: ["studio", "inrstudio", "générer", "generation", "image", "vidéo", "prompt", "création", "paroles", "crédits", "voix", "vocal", "musiques", "narration", "sous-titres"],
-    content: `Découverte : IA et publication verrouillées. ${productNavigationSummary("studio", false)} Format/moteur/durée ; plans automatiques en Studio Libre. Moteurs disponibles compatibles références/vocaux originaux, ≤16 crédits/s. Wan 3 et MiniMax H3 retirés de tous les parcours de génération.
+    content: `Découverte : IA et publication verrouillées. ${productNavigationSummary("studio", false)} Format/moteur/durée ; plans automatiques en Studio Libre, choix explicite conservé. Moteurs disponibles compatibles références/vocaux originaux, ≤16 crédits/s. Wan 3 et MiniMax H3 retirés de tous les parcours de génération.
 Libre : prompt vidéo intégral + références au moteur, sans image substituée ni analyse IA bloquante.
-Vidéo/image : 500/4 000 caractères ; paroles à part. Utiliser mon ADN coché ; sinon marque/logo sur demande. Consignes ET Interdictions intégrales de Ma communication ; interdictions priment. Booster sans copie. Image : logo en référence au moteur (+1 photo ; Recraft incompatible), fidélité à vérifier. Vidéo : habillage local. Coordonnées sur demande.
+Vidéo/image : 500/4 000 caractères ; paroles à part. Utiliser mon ADN coché ; sinon logo sur demande. Consignes ET Interdictions intégrales de Ma communication ; interdictions priment. Booster sans copie. Image : logo en référence au moteur (+1 photo ; Recraft incompatible), fidélité à vérifier. Vidéo : logo local. Coordonnées sur demande.
 Inspiration facultative ; Personnage/Décor/Produit requis. Importer/Médiathèque : vérifier identités/doublons.
 Musique iNrCy Auto/Sans/piste : préécoute, hors vocaux.
 Menus indépendants Personnages/Voix off/Sans paroles, Auto/Exact, IA/Réelle globale ; textes/vocaux/moteur gardés. Exact→Réglages : ligne locuteur/texte, ajout/retrait/ordre. Voix off→narrateur ; Personnages restaure voix/mix IA hors champ. Vide/cible absente/incompatible : bloqué sans moteur automatique. Sans paroles omet texte ; durée estimée non bloquante.
 Voix off IA : Femme/Homme, style au prompt, native. Voix réelle : 3 vocaux max, Importer/Enregistrer/Médiathèque→usage/genre. Voix off sans photo : Chatterbox hors moteur vidéo, 5 à 10 s, un narrateur actif. Personnages : Wan 2.7/Kling Omni/HeyGen Avatar, un vocal/personne ; Kling 5 à 10 s, un locuteur/vocal. Timbre réel/genre descriptif ; droits/import/enregistrement humains.
 Libre Exact compatible/audio réel trop long : une resynthèse supplémentaire, mêmes paroles/vocal ; jamais après erreur réseau/soumission incertaine, ni substitution de voix.
 Sous-titres : durée mesurée, départ estimé, pas d’alignement mot à mot ; ≈% vidéo estimés, sans délai garanti.
-Coût/solde→Générer→Enregistrer/Utiliser ; régénérer peut débiter. HeyGen : cinématique native sans portrait parlant, durée choisie ; Avatar photo/Personnages, coût/audio exact.
+Coût→Générer→Enregistrer/Utiliser ; régénérer peut débiter. HeyGen : cinématique native sans portrait parlant, durée choisie ; Avatar photo/Personnages, coût/audio exact.
 Vérifier mon média : même tentative sans relance. Pause/fermeture garde l’identifiant ; critères restent modifiables ; nouvelle génération attend sa résolution. Annuler la génération : confirmation distincte ; arrêt ≠ absence de débit.
 Basique : 50 crédits/mois ; recharges permettent de générer sans changer d’offre. Booster fixe type/format.`,
     sourceFiles: [

@@ -197,6 +197,7 @@ test("automatic duration respects account limits, locked jobs and callers retain
 function freeEditor(options: { kind?: "image" | "video"; engine?: models.AiMediaVideoEngine; imageEngine?: models.AiMediaImageEngine; references?: Reference[]; prompt?: string; busy?: boolean; remaining?: number; quoteReady?: boolean } = {}) {
   const slots: unknown[] = []; let cursor = 0, arrayCursor = 0;
   const modules = new Map(commonModules);
+  modules.set("../_hooks/usePaidMediaAction", { __esModule: true, default: () => ({ paidActionsLocked: false, subscriptionLabel: "Mon abonnement", openSubscription() { assert.fail("Subscribed fixture must not open subscription"); } }) });
   modules.set("react", { useId: () => "reason-free", useRef: (value: unknown) => ({ current: value }), useEffect() {}, useLayoutEffect() {}, useCallback(callback: unknown, deps: unknown[]) {
     const index = cursor++;
     const slot = slots[index] as { callback: unknown; deps: unknown[] } | undefined;

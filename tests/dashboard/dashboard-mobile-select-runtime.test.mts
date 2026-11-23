@@ -28,6 +28,7 @@ function load(file: string, stubs: Record<string, unknown> = {}, localFetch: typ
     if (name === "next/navigation") return { usePathname: () => "/dashboard", ...(stubs[name] as object | undefined) };
     if (Object.hasOwn(stubs, name)) return stubs[name];
     if (name.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ actorUserId: "mobile-actor", activeAccountId: "reviews-account" }) };
+    if (name.endsWith("usePaidMediaAction")) return { __esModule: true, default: () => ({ paidActionsLocked: false, subscriptionLabel: "Mon abonnement", openSubscription() {} }) };
     if (name.endsWith(".module.css")) return { __esModule: true, default: new Proxy({}, { get: (_target, key) => String(key) }) };
     return require(name);
   };
