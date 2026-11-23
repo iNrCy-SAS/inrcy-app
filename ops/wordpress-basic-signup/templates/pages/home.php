@@ -3303,8 +3303,8 @@ sans mise en place compliquée.
 <div class="ia-step-copy">
 <strong>Créez votre compte</strong>
 <p>
-Votre espace est prêt à accueillir vos contenus,
-vos canaux et votre communication.
+Découvrez l’application après inscription, sans paiement.
+Un abonnement actif est nécessaire pour connecter vos canaux, publier et utiliser les fonctions IA.
 </p>
 </div>
 </div>
