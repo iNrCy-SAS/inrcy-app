@@ -6,6 +6,12 @@ import test from "node:test";
 import { chromium, type Page } from "@playwright/test";
 import ts from "typescript";
 
+type FixtureWindow = Window & {
+  fixtureLocked: boolean;
+  fixtureSubscription: Record<string, unknown>;
+  errors: string[];
+};
+
 // Run from the repository root. React, plan cards, policies and the web checkout
 // helper are production code; Supabase and Stripe are synthetic and stay offline.
 const repo = process.cwd(), require = createRequire(import.meta.url);
@@ -67,7 +73,7 @@ async function mount(page: Page, locked: boolean, subscription: Record<string, u
     await route.fulfill({ contentType: "text/html", body: "<html><body><div id='root'></div></body></html>" });
   });
   await page.goto("https://subscription.fixture.invalid/dashboard?panel=abonnement");
-  await page.evaluate(({ locked, subscription }) => { (window as any).fixtureLocked = locked; (window as any).fixtureSubscription = subscription; }, { locked, subscription });
+  await page.evaluate(({ locked, subscription }) => { (window as FixtureWindow).fixtureLocked = locked; (window as FixtureWindow).fixtureSubscription = subscription; }, { locked, subscription });
   await page.addScriptTag({ content: script });
   await page.getByRole("heading", { name: "iNrCy Basique" }).waitFor();
   return requests;
@@ -92,6 +98,6 @@ test("discovery incomplete can subscribe to Basic without claiming a current pla
     await paidCard.getByText(messages.settings.subscription_current_plan, { exact: true }).waitFor();
     assert.equal(await paidCard.getByRole("button", { name: /S’abonner/ }).count(), 0);
     assert.equal(paidRequests.filter(r => r.path === "/api/billing/checkout").length, 0);
-    assert.deepEqual(await paid.evaluate(() => (window as any).errors), []);
+    assert.deepEqual(await paid.evaluate(() => (window as FixtureWindow).errors), []);
   } finally { await browser.close(); }
 });
