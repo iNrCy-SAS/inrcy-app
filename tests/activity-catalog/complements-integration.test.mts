@@ -13,9 +13,9 @@ import { searchActivityJobs } from '../../lib/activityJobSearch.ts';
 
 const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
-test('all fifty-eight complements have unique sector IDs and appear once in the live catalogue with their eight services', () => {
-  assert.deepEqual([TRADE_PROFESSIONS.length, TRAVEL_PROFESSIONS.length, BOOK_PROFESSIONS.length], [19, 18, 21]);
-  assert.equal(ACTIVITY_PROFESSION_COMPLEMENTS.length, 58);
+test('all fifty-nine complements have unique sector IDs and appear once in the live catalogue with their eight services', () => {
+  assert.deepEqual([TRADE_PROFESSIONS.length, TRAVEL_PROFESSIONS.length, BOOK_PROFESSIONS.length], [19, 19, 21]);
+  assert.equal(ACTIVITY_PROFESSION_COMPLEMENTS.length, 59);
   const ids = new Set<string>();
   for (const entry of ACTIVITY_PROFESSION_COMPLEMENTS) {
     const id = `${entry.sector}/${entry.professionKey}`;
@@ -27,7 +27,7 @@ test('all fifty-eight complements have unique sector IDs and appear once in the 
     assert.deepEqual(getServicesForSectorAndJob(entry.sector, entry.professionKey), entry.services, id);
     assert.equal(findJobValueByLabel(entry.sector, entry.professionLabel), entry.professionKey, id);
   }
-  assert.equal(ids.size, 58);
+  assert.equal(ids.size, 59);
 });
 
 test('normalized shared aliases and profession labels never name two different professions', () => {
@@ -122,7 +122,7 @@ const registry = load<typeof import('../../lib/messageTemplates.ts')>('lib/messa
 const actions = ['valoriser', 'avis', 'offres', 'informations', 'suivis', 'enquetes'] as const;
 const channels = ['email', 'site_web', 'facebook', 'instagram', 'linkedin', 'google_business'] as const;
 
-test('each of the fifty-eight professions has forty-eight distinct templates selected by its real ID, label and aliases', () => {
+test('each of the fifty-nine professions has forty-eight distinct templates selected by its real ID, label and aliases', () => {
   const allKeys = new Set<string>();
   for (const entry of ACTIVITY_PROFESSION_COMPLEMENTS) {
     const keys = new Set<string>();
@@ -142,5 +142,5 @@ test('each of the fifty-eight professions has forty-eight distinct templates sel
     assert.equal(keys.size, 48, entry.professionKey);
     for (const key of keys) { assert.ok(!allKeys.has(key), key); allKeys.add(key); }
   }
-  assert.equal(allKeys.size, 58 * 48);
+  assert.equal(allKeys.size, 59 * 48);
 });

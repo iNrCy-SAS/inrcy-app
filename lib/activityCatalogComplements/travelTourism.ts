@@ -12,6 +12,23 @@ function profession(input: ProfessionInput): ActivityProfessionComplement {
 
 export const TRAVEL_PROFESSIONS: ActivityProfessionComplement[] = [
   profession({
+    sector: 'tourisme', professionKey: 'guide_sejours_chasse', professionLabel: 'Guide de chasse / Organisateur de séjours de chasse',
+    services: ['Séjours de chasse sur mesure', 'Journées de chasse guidées', 'Accompagnement à la chasse', 'Organisation de séjours de chasse en groupe', 'Coordination des hébergements et des déplacements', 'Préparation des documents et formalités', 'Présentation des territoires et modes de chasse', 'Devis et réservation de séjour de chasse'],
+    aliases: ['Guide de chasse', 'Guide de chasse professionnel', 'Guide de chasse professionnelle', 'Guide cynégétique', 'Accompagnateur de chasse', 'Accompagnatrice de chasse', 'Organisateur de séjours de chasse', 'Organisatrice de séjours de chasse', 'Organisateur de séjour de chasse', 'Organisatrice de séjour de chasse', 'Organisation de séjours de chasse', 'Voyages de chasse', 'Séjours de chasse', 'Séjour de chasse', 'Chasse guidée', 'Voyage de chasse'],
+    pack: {
+      signature: 'organiser des séjours de chasse et accompagner les participants selon les prestations réellement proposées et les règles applicables à la destination',
+      promoLead: 'présenter un séjour ou une journée de chasse avec le territoire, les dates, les prestations incluses et les disponibilités confirmées',
+      infoLead: 'expliquer la préparation du séjour, les consignes de sécurité et les documents, autorisations et conditions à vérifier pour la destination',
+      followLead: 'suivre les demandes, les devis, les réservations et la préparation des participants avant leur séjour de chasse',
+      surveyLead: 'préciser la destination, les dates, le nombre de participants, leur expérience et les prestations souhaitées',
+      seasonal: 'présenter les séjours et journées de chasse selon les périodes, autorisations et disponibilités confirmées',
+      loyalty: 'proposer aux participants déjà accueillis une nouvelle expérience adaptée à leurs attentes et aux disponibilités',
+      maintenance: 'rappeler de vérifier les documents, les conditions du séjour et les consignes communiquées avant le départ',
+      localHook: 'guidage de chasse et organisation de séjours sur des territoires présentés avec précision',
+      audience: 'chasseurs individuels, groupes et organisateurs recherchant un accompagnement ou un séjour de chasse',
+    },
+  }),
+  profession({
     sector: 'tourisme', professionKey: 'agence_receptive', professionLabel: 'Agence réceptive / DMC',
     services: ['Conception de séjours à destination', 'Coordination des prestataires locaux', 'Accueil des voyageurs', 'Organisation des transferts', 'Programme de visites', 'Circuits pour groupes', 'Assistance sur place', 'Devis de séjour réceptif'],
     aliases: ['Agence réceptive', 'Réceptif touristique', 'Réceptif', 'DMC', 'Destination management company', 'Agence de tourisme réceptif', 'Réception de groupes touristiques'],

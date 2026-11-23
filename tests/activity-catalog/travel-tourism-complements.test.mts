@@ -14,15 +14,15 @@ import {
 } from '../../lib/businessDnaActivityAutofill.ts';
 
 const expectedJobs = [
-  'agence_receptive', 'travel_planner', 'voyages_affaires', 'agence_croisieres', 'sejours_linguistiques',
+  'guide_sejours_chasse', 'agence_receptive', 'travel_planner', 'voyages_affaires', 'agence_croisieres', 'sejours_linguistiques',
   'voyages_scolaires', 'guide_conferencier', 'accompagnateur_voyages', 'accompagnateur_montagne',
   'guide_haute_montagne', 'animateur_touristique', 'residence_tourisme', 'village_vacances',
   'auberge_jeunesse', 'hebergement_insolite', 'autocariste', 'chauffeur_guide', 'navette_voyageurs',
 ];
 
-test('travel complements contain eighteen distinct reviewed professions with eight specific service suggestions', () => {
+test('travel complements contain nineteen distinct reviewed professions with eight specific service suggestions', () => {
   assert.deepEqual(TRAVEL_PROFESSIONS.map((entry) => entry.professionKey), expectedJobs);
-  assert.equal(new Set(TRAVEL_PROFESSIONS.map((entry) => entry.pack.signature)).size, 18);
+  assert.equal(new Set(TRAVEL_PROFESSIONS.map((entry) => entry.pack.signature)).size, 19);
   for (const entry of TRAVEL_PROFESSIONS) {
     assert.equal(entry.services.length, 8, entry.professionKey);
     assert.equal(new Set(entry.services).size, 8, entry.professionKey);
@@ -76,6 +76,13 @@ for (const entry of TRAVEL_ALIASES) test(`existing ${entry.sector}/${entry.profe
 
 test('travel services distinguish advice, guiding, mountain activities and actual transport without invented qualifications', () => {
   const byId = new Map(TRAVEL_PROFESSIONS.map((entry) => [entry.professionKey, entry]));
+  const hunting = byId.get('guide_sejours_chasse')!;
+  assert.ok(hunting.services.includes('Séjours de chasse sur mesure'));
+  assert.match(hunting.pack.infoLead, /consignes de sécurité/);
+  for (const query of ['Guide de chasse', 'Organisateur de séjours de chasse']) {
+    assert.equal(inferSectorCategoryFromProfession(query), 'tourisme', query);
+    assert.equal(searchActivityJobs(query)[0]?.job, 'guide_sejours_chasse', query);
+  }
   const planner = byId.get('travel_planner')!;
   assert.match(planner.pack.signature, /disting[u]?uant le conseil des réservations/);
   assert.ok(!planner.services.includes('Réservation de voyages'));
@@ -117,7 +124,7 @@ const registry = load<typeof import('../../lib/messageTemplates.ts')>('lib/messa
 const actions = ['valoriser', 'avis', 'offres', 'informations', 'suivis', 'enquetes'] as const;
 const channels = ['email', 'site_web', 'facebook', 'instagram', 'linkedin', 'google_business'] as const;
 
-test('all eighteen travel professions expose their 864 distinct native templates across every action and channel', () => {
+test('all nineteen travel professions expose their 912 distinct native templates across every action and channel', () => {
   const allKeys = new Set<string>();
   for (const entry of TRAVEL_PROFESSIONS) {
     const keys = new Set<string>();
@@ -136,5 +143,5 @@ test('all eighteen travel professions expose their 864 distinct native templates
     assert.equal(keys.size, 48, entry.professionKey);
     for (const key of keys) { assert.ok(!allKeys.has(key), key); allKeys.add(key); }
   }
-  assert.equal(allKeys.size, 864);
+  assert.equal(allKeys.size, 912);
 });
