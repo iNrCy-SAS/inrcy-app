@@ -40,6 +40,7 @@ window.activeAccount='account-a';window.revealCalls=[];
 const originalScroll=Element.prototype.scrollIntoView;
 Element.prototype.scrollIntoView=function(options){if(this.hasAttribute('data-media-review'))window.revealCalls.push(options);return originalScroll.call(this,options)};
 function require(name){
+ if(name.endsWith('usePaidMediaAction'))return {__esModule:true,default:()=>({paidActionsLocked:false,subscriptionLabel:'Mon abonnement',openSubscription:()=>{throw Error('Subscribed fixture must not open subscription')}})};
  if(name.endsWith('useInrAssistantLocalInterface'))name='localInterface';
  if(name.endsWith('useInrAssistantLocalClose'))name='localClose';
  if(name.startsWith('./')&&sources['@/lib/'+name.slice(2).replace(/\\.ts$/,'')])name='@/lib/'+name.slice(2).replace(/\\.ts$/,'');
@@ -126,6 +127,7 @@ function useGeneration(){
  return state;
 }
 function require(name){
+ if(name.endsWith('usePaidMediaAction'))return {__esModule:true,default:()=>({paidActionsLocked:false,subscriptionLabel:'Mon abonnement',openSubscription:()=>{throw Error('Subscribed fixture must not open subscription')}})};
  if(name.endsWith('useInrAssistantLocalInterface'))name='localInterface';
  if(name.endsWith('useInrAssistantLocalClose'))name='localClose';
  if(name.endsWith('.css')){const prefix=name.includes('MobileSelect')?'select-':name.includes('Modal')?'modal-':name.includes('CreationWorkspace')?'editor-':name.includes('ResultViewer')?'viewer-':name.includes('FreeGenerator')?'free-':name.includes('Modifier')?'modifier-':name.includes('Studio')?'studio-':'generator-';return {__esModule:true,default:new Proxy({},{get:(_,key)=>prefix+String(key)})};}

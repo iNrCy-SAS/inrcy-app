@@ -151,7 +151,7 @@ test("le composant partagé borne les champs et interdit deux sessions vocales c
   );
   assert.match(
     sharedVoiceButton,
-    /disabled=\{disabled \|\| state === "requesting" \|\| state === "transcribing"\}/,
+    /disabled=\{!paidActionsLocked && \(disabled \|\| state === "requesting" \|\| state === "transcribing"\)\}/,
   );
   assert.match(sharedVoiceButton, /transcriptionAbortRef\.current\?\.abort\(\)/);
   assert.match(sharedVoiceButton, /recorder\.onstop = null/);
@@ -673,7 +673,7 @@ test("Booster verrouille le canal et les actions tant qu'un champ vocal est acti
     "publier et planifier doivent refuser une transcription en cours",
   );
   assert.match(publishFooter, /voiceBusy\?: boolean/);
-  assert.match(publishFooter, /disabled=\{draftSaving \|\| voiceBusy \|\| Boolean\(mediaPreparationIssue\)\}/);
+  assert.match(publishFooter, /disabled=\{!paidActionsLocked && \(draftSaving \|\| voiceBusy \|\| Boolean\(mediaPreparationIssue\)\)\}/);
 });
 
 test("les libellés des nouveaux usages vocaux existent dans toutes les langues", () => {

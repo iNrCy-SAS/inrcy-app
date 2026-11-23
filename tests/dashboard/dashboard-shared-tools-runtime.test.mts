@@ -141,6 +141,7 @@ function harness(options: HarnessOptions = {}) {
     if (specifier === "@/hooks/useDelayedPendingAction") return { useDelayedPendingAction: () => pending };
     if (specifier === "@/lib/inrAgentWorkspaces") return workspacePolicy;
     if (specifier === "@/lib/dashboardEdition") return editionPolicy;
+    if (specifier === "./DashboardViewerAccessProvider") return { useDashboardViewerAccess: () => ({ paidActionsLocked: false }) };
     if (specifier === "./DashboardEditionProvider") return { useDashboardEdition: () => options.edition ?? "premium", useDashboardSubscriptionEdition: () => options.edition ?? "premium" };
     if (specifier === "../dashboard.scroll") return { DASHBOARD_GEARBOX_ANCHOR_ID: "dashboard-gearbox" };
     const localName = specifier.replace(/^\.\//u, "");

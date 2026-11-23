@@ -101,7 +101,7 @@ test("Booster délègue les actions média à iNrStudio et réinsère le résult
   assert.match(publishModal, /\{ kind: "publication" \}/);
   assert.doesNotMatch([publishModal, submission].join("\n"), /<MediaGeneratorModal/);
   assert.match(intentPanel, /onGenerateMedia/);
-  assert.match(mediaPanel, /onClick=\{\(\) => onGenerate\(kind\)\}/);
+  assert.match(mediaPanel, /onClick=\{\(\) => paidActionsLocked \? openSubscription\(\) : onGenerate\(kind\)\}/);
   assert.match(publishModal, /onGenerate=\{\(kind\) => void openInrStudioGenerator\(kind\)\}/);
   assert.doesNotMatch(intentPanel, /onGenerateImage|onGenerateVideo/);
   assert.doesNotMatch(mediaPanel, /onGenerateImage|onGenerateVideo/);

@@ -20,6 +20,7 @@ for (const [name, file] of [["react", "react.production.js"], ["react/jsx-runtim
 const stubNames = new Set(["next-intl", "@/app/dashboard/_hooks/useMediaGeneration", "../_hooks/useMediaGeneration", "../_hooks/useMediaEnginePreference", "../_hooks/useMediaCreditQuote", "../_hooks/useInrAssistantLocalInterface", "@/lib/mediaGenerationReferenceClient", "./MediaLibraryPickerModal", "./MediaSubjectVoiceButton", "./MediaBusinessDnaHelp", "./MediaQuotaSummary", "./MediaCharacterVoiceLibraryPicker", "./MediaGenerationCreationWorkspace"]);
 for (const name of ["next/image", "@/app/dashboard/_hooks/useMediaResultReveal", "@/lib/browserAccountCache", "./MediaResultViewer", "./DashboardMobileSelect"]) stubNames.add(name);
 stubNames.add("./VideoCreditRecharge");
+stubNames.add("../_hooks/usePaidMediaAction");
 stubNames.add("@/lib/mediaLibraryUploadClient");
 function add(file: string) {
   if (sources[file]) return;
@@ -61,6 +62,7 @@ window.fetch=(url,init)=>{if(url==='/api/media-generation/references'&&init?.met
 const noOp=()=>{};
 function require(name){
  if(loaded[name])return loaded[name].exports;
+ if(name.endsWith('usePaidMediaAction'))return {__esModule:true,default:()=>({paidActionsLocked:false,subscriptionLabel:'Mon abonnement',openSubscription:()=>{throw Error('Subscribed fixture must not open subscription')}})};
  if(name==='@/lib/mediaLibraryUploadClient')return {uploadFileToMediaLibrary:async()=>{throw Error('Unexpected memory upload in presentation fixture')}};
  if(name==='next-intl')return {useLocale:()=>window.fixtureLocale,useTranslations:namespace=> (key,values={})=>((namespace==='booster'?boosterCatalogs:namespace==='shell'?shellCatalogs:catalogs)[window.fixtureLocale][key]||key).replace(/\\{(\\w+)\\}/g,(_,key)=>String(values[key]??'{'+key+'}'))};
  if(name.endsWith('useMediaGeneration'))return {__esModule:true,default:()=>{

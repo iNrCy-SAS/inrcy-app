@@ -32,6 +32,7 @@ async function setup(page: Page, componentFile: string, fixture: string, mocks =
     const sources=${JSON.stringify(sources)},cache={},process={env:{NODE_ENV:'development'}},translate=key=>key;
     const fixtureModules=${mocks};
     function require(name){
+      if(name.endsWith('usePaidMediaAction'))return {__esModule:true,default:()=>({paidActionsLocked:false,subscriptionLabel:'Mon abonnement',openSubscription:()=>{throw Error('Subscribed fixture must not open subscription')}})};
       if(name.endsWith('useInrAssistantLocalInterface'))return {useInrAssistantLocalInterface(){}};
       if(name.endsWith('useInrAssistantLocalClose'))return {useInrAssistantLocalClose(){}};
       if(Object.hasOwn(fixtureModules,name))return fixtureModules[name];

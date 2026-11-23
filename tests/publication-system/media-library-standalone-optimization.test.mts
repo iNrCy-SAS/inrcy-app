@@ -146,7 +146,7 @@ test("Booster optimizer buttons never forward the React click event as a media i
   assert.match(intentPanel, /onClick=\{\(\) => onOpenMediaOptimizer\(\)\}/);
   // Pool actions wrap their media kind; oversize imports open the shared warning flow.
   assert.match(imagesPanel, /onClick=\{\(\) => onLibrary\(kind\)\}/);
-  assert.match(imagesPanel, /onClick=\{\(\) => onGenerate\(kind\)\}/);
+  assert.match(imagesPanel, /onClick=\{\(\) => paidActionsLocked \? openSubscription\(\) : onGenerate\(kind\)\}/);
   assert.match(warningModals, /onClick=\{onOptimizeOversizedMedia\}/);
   assert.match(publishModal, /type BoosterMediaInsertionDestination/);
   assert.match(publishModal, /destination\.kind === "channel" \? destination\.channel : undefined/);

@@ -25,6 +25,7 @@ function footerAction(name: "MediaFreeGenerator" | "MediaModifier", overrides: R
   assert.ok(recoveryPending, `${name} must keep its real pending-recovery guard`);
   const events: string[] = [];
   const context: Record<string, unknown> = {
+    paidActionsLocked: false, subscriptionLabel: "Mon abonnement", openSubscription: () => assert.fail("Subscribed fixture must not open subscription"),
     busy: false, generationBusy: false, cancellable: true, generationCancellable: true,
     authorizationVisible: false, authorizationChecked: true, instanceId: "footer-test",
     canRecover: false, recovering: false, canPauseRecovery: false, recoveryContext: null, cancellationPending: false,

@@ -43,6 +43,8 @@ function evaluate(expression: ts.Expression, context: Record<string, unknown>) {
 }
 
 function handler(name: string, context: Record<string, unknown>) {
+  context.paidActionsLocked ??= false;
+  context.openSubscription ??= () => assert.fail("Subscribed fixture must not open subscription");
   if (name === "handleGenerate" && !("generationReferences" in context)) {
     context.projectedReferences ??= context.references ?? [];
     context.generationReferences = evaluate(initializer("generationReferences"), context);

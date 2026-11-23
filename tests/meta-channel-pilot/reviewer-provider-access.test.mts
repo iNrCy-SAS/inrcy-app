@@ -4,7 +4,7 @@ import test from "node:test";
 import ts from "typescript";
 
 type RenderNode = { type: unknown; props: Record<string, unknown> };
-type Access = { viewerIsAdmin: boolean; actorUserId: string; activeAccountId: string; metaPilotEnabled: boolean };
+type Access = { viewerIsAdmin: boolean; actorUserId: string; activeAccountId: string; metaPilotEnabled: boolean; paidActionsLocked: boolean };
 const compile = (file: string) => ts.transpileModule(fs.readFileSync(file, "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
 }).outputText;
@@ -52,7 +52,7 @@ function renderViewerAccess(viewerIsAdmin: boolean, viewerMetaPilotEnabled: bool
 
 test("REVIEWER can use the Meta tools without receiving Admin UI permissions", () => {
   const reviewer = renderViewerAccess(false, true);
-  assert.deepEqual(reviewer.initial, { viewerIsAdmin: false, actorUserId: "authenticated-actor", activeAccountId: "reviewer-account", metaPilotEnabled: true });
+  assert.deepEqual(reviewer.initial, { viewerIsAdmin: false, actorUserId: "authenticated-actor", activeAccountId: "reviewer-account", metaPilotEnabled: true, paidActionsLocked: false });
   assert.equal(reviewer.switchBrowserAccount("ordinary-account").metaPilotEnabled, false, "stale reviewer props cannot expose pilot tools on another browser account");
   assert.equal(reviewer.switchBrowserAccount("reviewer-account").metaPilotEnabled, true);
   assert.equal(reviewer.render().viewerIsAdmin, false);
@@ -68,7 +68,7 @@ test("USER remains hidden and Admin loses access while an account switch awaits 
   user.cleanup();
   const admin = renderViewerAccess(true, true);
   assert.equal(admin.initial.viewerIsAdmin, true);
-  assert.deepEqual(admin.switchBrowserAccount("ordinary-account"), { viewerIsAdmin: false, actorUserId: "authenticated-actor", activeAccountId: "reviewer-account", metaPilotEnabled: false });
+  assert.deepEqual(admin.switchBrowserAccount("ordinary-account"), { viewerIsAdmin: false, actorUserId: "authenticated-actor", activeAccountId: "reviewer-account", metaPilotEnabled: false, paidActionsLocked: true });
   admin.cleanup();
 });
 

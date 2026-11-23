@@ -24,6 +24,7 @@ function load(name, from = "") {
   if (name === "@/lib/browserAccountCache") return { getActiveBrowserUserId: () => window.account };
   if (name === "@/lib/browserModuleSnapshotCache") return { MODULE_SNAPSHOT_KEYS: { agendaMonth: () => "month", agendaContacts: "contacts", agendaSettings: "settings", eReputationGoogle: "reviews" }, readModuleSnapshot: () => null, writeModuleSnapshot: noop };
   if (name.endsWith("DashboardViewerAccessProvider")) return { useDashboardViewerAccess: () => ({ metaPilotEnabled: true, actorUserId: window.account, activeAccountId: window.account }) };
+  if (name.endsWith("usePaidMediaAction")) return { __esModule: true, default: () => ({ paidActionsLocked: false, subscriptionLabel: "Mon abonnement", openSubscription: noop }) };
 
 
   if (name.endsWith("useUnsavedExitGuard")) return { useUnsavedExitGuard: noop };

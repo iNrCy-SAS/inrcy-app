@@ -82,7 +82,7 @@ test("manual retry requires confirmation, cancellation sends nothing, and a doub
     const confirm = new Promise<boolean>(resolve => { answer = resolve; });
     const retryInFlightRef = { current: false };
     const requestRetry = evaluate<() => Promise<void>>(variable(result, "requestRetry"), {
-      retrying: false, retryInFlightRef, requiresAccountAction: true, i18nT: (key: string) => key,
+      paidActionsLocked: false, retrying: false, retryInFlightRef, requiresAccountAction: true, i18nT: (key: string) => key,
       confirmInrcy: async () => { confirmations++; return confirm; }, onRetryFailed: async () => { callbacks++; },
     });
     const first = requestRetry(); await requestRetry();

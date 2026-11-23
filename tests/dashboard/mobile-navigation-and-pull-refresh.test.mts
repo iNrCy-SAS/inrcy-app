@@ -54,7 +54,7 @@ test("mobile navigation uses the shared 650 ms loading controller", () => {
   assert.match(navigation, /modal:publish/);
   assert.match(navigation, /shortcutLoadingVisible \? i18nT\("chargement_01cba1df"\)/);
   assert.match(navigation, /resolveHrefDestination\(option\.href\)/);
-  assert.match(navigation, /onClick=\{\(\) => navigate\(option\.href\)\}/);
+  assert.match(navigation, /onClick=\{\(\) => subscriptionRequired \? openDashboardPanel\("abonnement"\) : navigate\(option\.href\)\}/);
   assert.match(read("lib/mobileShortcutPolicy.ts"), /id: "channels", href: "\/dashboard\?action=channels"/);
   assert.match(read("app/dashboard/_components/dashboardMobileMenuModel.ts"), /id: "media", href: "\/dashboard\/mediatheque"/);
   assert.match(navigation, /data-disable-pull-refresh/);

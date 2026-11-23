@@ -40,7 +40,7 @@ const formatDate = fn(standard, "formatDate");
 const statusPresentation = fn(standard, "statusPresentation", { normalizeStatus, getSubscriptionBillingPresentation });
 function standardView(subscription: Record<string, unknown>, locale = "fr-FR") {
   const memo = initializer(standard, "view") as ts.CallExpression;
-  return expression(memo.arguments[0].getText(standard), { subscription, locale, i18nT: t(locale), normalizeStatus,
+  return expression(memo.arguments[0].getText(standard), { subscription, locale, paidActionsLocked: false, i18nT: t(locale), normalizeStatus,
     getSubscriptionBillingPresentation, canStartSubscriptionCheckout, currentSubscriptionBillingPlan, formatDate, statusPresentation })();
 }
 function management(subscription: Record<string, unknown>, locale = "fr-FR") {
